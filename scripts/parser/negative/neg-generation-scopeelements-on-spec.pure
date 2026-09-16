@@ -1,0 +1,17 @@
+// REJECTS: Unexpected token 'scopeElements'. Valid alternatives: ['generationNodes', 'fileGenerations']
+//
+// The reverse direction: `scopeElements`, a FileGeneration keyword, inside a
+// GenerationSpecification, whose body admits only generationNodes and fileGenerations.
+//
+// Unlike neg-generation-spec-in-filegeneration-section.pure this one IS caught by the
+// grammar, and the asymmetry is the point -- GenerationSpecification has a closed body,
+// FileGeneration has an open one, so the same category of mistake is a parse error in one
+// direction and undetectable in the other.
+###GenerationSpecification
+GenerationSpecification fixture::neg::ScopeElementsOnSpec
+{
+   scopeElements: [fixture::neg::Person];
+   fileGenerations: [
+      fixture::neg::AvroConfig
+   ];
+}

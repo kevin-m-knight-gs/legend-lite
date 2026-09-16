@@ -60,6 +60,9 @@ class ParserBoundaryArchTest {
             // PLATFORM dialect (their provenance); its namespace-guard test
             // parses a platform-dialect fixture the same way
             "com/legend/rcorpus/MinimalCorpus.java",
+            // the parser ledger harvester parses every fixture under BOTH
+            // dialects to classify each divergence (LEGEND vs LEGEND_LITE)
+            "com/legend/equivalence/FixtureAdjudicationTest.java",
             "com/legend/rcorpus/LibraryPlatformNamespaceGuardTest.java",
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)

@@ -1,0 +1,39 @@
+// COVERS RelationalLexerGrammar: Binding
+// COVERS RelationFunctionMappingLexerGrammar: Binding
+//
+// The Binding TRANSFORMER: `prop: Binding <path> : <relationalOperation>`, used to map a
+// complex-typed property onto a semi-structured or JSON column. Not to be confused with the
+// Binding ELEMENT in ###ExternalFormat, which is what externalformat-binding.pure covers --
+// same spelling, two grammars, and the reason the census counts them separately.
+###Relational
+Database fixture::bind::Db
+(
+   Table PERSON
+   (
+      ID INTEGER PRIMARY KEY,
+      FIRSTNAME VARCHAR(200),
+      FIRM SEMISTRUCTURED,
+      FIRM_JSON JSON
+   )
+)
+
+###ExternalFormat
+Binding fixture::bind::FirmBinding
+{
+   contentType: 'application/json';
+   modelIncludes: [
+      fixture::bind::Firm
+   ];
+}
+
+###Mapping
+Mapping fixture::bind::Map
+(
+   fixture::bind::Person: Relational
+   {
+      ~mainTable [fixture::bind::Db]PERSON
+      firstName: [fixture::bind::Db]PERSON.FIRSTNAME,
+      firm: Binding fixture::bind::FirmBinding : [fixture::bind::Db]PERSON.FIRM,
+      firmJson: Binding fixture::bind::FirmBinding : extractFromSemiStructured([fixture::bind::Db]PERSON.FIRM_JSON, 'firm', 'VARCHAR')
+   }
+)

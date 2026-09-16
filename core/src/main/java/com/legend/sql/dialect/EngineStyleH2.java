@@ -311,6 +311,33 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return quoteIdentifiers ? '"' + name + '"' : name;
     }
 
+    // ---- DDL: the engine's own H2 TEXT (toDDL.pure / setUpDataSQLs) ----
+
+    @Override
+    protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
+        return DdlSpelling.engineText(t);
+    }
+
+    /** The engine's processColumnName: reserved (the engine's H2 list),
+     *  pre-quoted or space-bearing names quote; everything else bare. */
+    @Override
+    protected String ddlIdentifier(String name, boolean declaredQuoted) {
+        return declaredQuoted ? '"' + name + '"' : DdlSpelling.engineColumnName(name);
+    }
+
+    /** The engine joins the metamodel NAMES raw in {@code PRIMARY KEY(...)};
+     *  a declared-quoted column's metamodel name CARRIES its quotes
+     *  (datePeriods calendar: PRIMARY KEY("date", "calendar name")). */
+    @Override
+    protected String ddlKeyIdentifier(String name, boolean declaredQuoted) {
+        return declaredQuoted ? '"' + name + '"' : name;
+    }
+
+    @Override
+    protected String ddlColumnSeparator() {
+        return ",";
+    }
+
     private final Map<String, String> renames = new LinkedHashMap<>();
     private final Map<String, SqlSource.Subselect> subselects =
             new LinkedHashMap<>();

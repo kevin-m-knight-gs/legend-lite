@@ -1,0 +1,41 @@
+// REJECTS: Field 'transactionMilestoning' should be specified only once
+//
+// Every ingest-mode sub-block is a `(x)*` star, so the grammar happily accepts a milestoning
+// scheme declared twice -- and two DIFFERENT schemes at that, which is not merely redundant
+// but contradictory. "Only once" is validateAndExtractRequiredField refusing a list of size
+// two, not a grammar cardinality.
+//
+// This is the shape the whole ingest-mode section shares: order free, repetition forbidden,
+// and neither fact written down in the .g4.
+###Persistence
+Persistence test::persistence::neg::TwoTxnMilestonings
+{
+  doc: 'two transaction milestoning schemes in one ingest mode';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalSnapshot
+    {
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+      transactionMilestoning: DateTime
+      {
+        dateTimeInName: 'IN_Z';
+        dateTimeOutName: 'OUT_Z';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

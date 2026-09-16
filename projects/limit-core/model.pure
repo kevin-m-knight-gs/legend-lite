@@ -1,0 +1,390 @@
+###Pure
+// limit-core -- credit and market limits as a limit-monitoring system actually holds them.
+//
+// Layer 1. Depends on core-book (the book a limit is set on) and core-party (the counterparty
+// it is set against), and on nothing else.
+//
+// The shape that matters here is the THREE-COLUMN COMPOSITE KEY. A limit is not keyed by book,
+// and it is not keyed by (book, counterparty): the same book has a NOTIONAL limit and a TENOR
+// limit against the same counterparty, and those are different rows with different thresholds,
+// different utilisation and different breaches. The key is (bookId, counterpartyId,
+// measureCode) and nothing shorter -- drop the measure and the two limits fight over one row.
+// LimLimit, LimUtilisation and LimThresholdBand are all keyed on three columns; the snapshot
+// and the review add a date to the same triple, because history is per limit per day.
+//
+// The second thing this project carries is CLASS CONSTRAINTS. The rules a limit framework is
+// only correct if it obeys -- utilisation is never negative, the soft threshold never exceeds
+// the hard one, an uplift expires after it starts -- are declared on the class rather than
+// re-tested by every query. Every constraint body is FULLY PARENTHESISED, because `&&` binds
+// tighter than the comparison operators and `$a <= $b && $c <= $d` parses as `$a <= ($b && $c)
+// <= $d` and fails to type.
+
+// What is being limited: notional, tenor, PV01, settlement value. The measure leg of the
+// composite key -- the reason one book/counterparty pair carries several limits at once.
+Class limit_core::LimMeasure
+{
+   measureCode: String[1];
+   measureName: String[1];
+   // CHAR(4): the fixed-width unit mnemonic -- CCY, DAYS, BPV.
+   unitCode: String[1];
+   // Whether the measure is an amount of money. A tenor limit is not, and cannot be summed
+   // with one that is.
+   isMonetary: Boolean[1];
+   defaultCurrency: String[1];
+   // SMALLINT: places the measure is reported to.
+   reportingDecimals: Integer[1];
+   // SMALLINT: display order on a limits screen.
+   sortOrder: Integer[1];
+   isActive: Boolean[1];
+}
+
+// The governance framework a limit is written under -- who owns the policy, how often it is
+// reviewed, and which bands and escalation rules apply to everything inside it.
+Class limit_core::LimFramework
+{
+   frameworkId: String[1];
+   frameworkName: String[1];
+   // The legal entity that owns the policy. Reaches core-party across the project boundary.
+   ownerEntityId: String[1];
+   // CHAR(4): the committee mnemonic that signs the framework off.
+   committeeCode: String[1];
+   // SMALLINT: the review cycle in months.
+   reviewCycleMonths: Integer[1];
+   effectiveFrom: StrictDate[1];
+   retiredOn: StrictDate[0..1];
+   isActive: Boolean[1];
+
+   owningEntity: core_party::LegalEntity[0..1];
+   bands: limit_core::LimThresholdBand[*];
+   escalationRules: limit_core::LimEscalationRule[*];
+   limits: limit_core::LimLimit[*];
+}
+
+// THE limit: what one book may run against one counterparty on one measure. The composite-key
+// class of this project -- keyed (bookId, counterpartyId, measureCode), because the same book
+// has a notional limit and a tenor limit against the same counterparty and they are two rows.
+Class limit_core::LimLimit
+[
+   // Fully parenthesised: Pure binds && tighter than the comparison operators.
+   hardThresholdNotNegative: ($this.hardThreshold >= 0.0),
+   softThresholdNotNegative: ($this.softThreshold >= 0.0),
+   // The rule the whole framework rests on: the soft threshold is a warning INSIDE the hard
+   // one, so it may equal it but never exceed it.
+   softWithinHard: ($this.softThreshold <= $this.hardThreshold),
+   // And the warning level sits inside the soft one, so the three bands are ordered.
+   bandsOrdered: (($this.warningThreshold <= $this.softThreshold) && ($this.softThreshold <= $this.hardThreshold)),
+   reviewFrequencyPositive: ($this.reviewFrequencyDays > 0)
+]
+{
+   bookId: String[1];
+   counterpartyId: String[1];
+   measureCode: String[1];
+   frameworkId: String[1];
+   // NUMERIC(20,4): the hard threshold. Crossing it is a breach that stops trading.
+   hardThreshold: Float[1];
+   // NUMERIC(20,4): the soft threshold. Crossing it is an escalation, not a stop.
+   softThreshold: Float[1];
+   // NUMERIC(20,4): the level a monitoring screen turns amber at.
+   warningThreshold: Float[1];
+   // CHAR(3): the currency the thresholds are expressed in. A tenor limit still carries one,
+   // because the framework reports every limit in a single reporting currency.
+   currencyCode: String[1];
+   // SMALLINT: how often this limit must be re-approved.
+   reviewFrequencyDays: Integer[1];
+   effectiveFrom: StrictDate[1];
+   retiredOn: StrictDate[0..1];
+   isActive: Boolean[1];
+   // Whether the limit binds intraday as well as at end of day.
+   isIntraday: Boolean[1];
+
+   // Across the boundary into core-book and core-party: the two dimensions of the key that
+   // are owned by other projects.
+   book: core_book::Book[0..1];
+   counterparty: core_party::LegalEntity[0..1];
+   measure: limit_core::LimMeasure[0..1];
+   framework: limit_core::LimFramework[0..1];
+   utilisation: limit_core::LimUtilisation[0..1];
+   history: limit_core::LimUtilisationSnapshot[*];
+   breaches: limit_core::LimBreach[*];
+   uplifts: limit_core::LimUplift[*];
+   reviews: limit_core::LimLimitReview[*];
+
+   // The room between the warning level and the stop -- the range a desk is allowed to
+   // operate in while somebody is watching.
+   softHeadroom() { $this.hardThreshold - $this.softThreshold } : Float[1];
+   // The soft threshold as a percentage of the hard one. Both are NUMERIC, and `/` widens to
+   // Float regardless, so the return type is Float[1].
+   softRatioPct() { ($this.softThreshold * 100.0) / $this.hardThreshold } : Float[1];
+   // Whether the limit is still on the books.
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// A named band inside a framework -- 75% amber, 90% red -- so the trigger percentages are
+// policy, set once per (framework, measure), rather than copied onto every limit row.
+Class limit_core::LimThresholdBand
+[
+   triggerPctInRange: (($this.triggerPct >= 0.0) && ($this.triggerPct <= 100.0)),
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5))
+]
+{
+   frameworkId: String[1];
+   measureCode: String[1];
+   // CHAR(4): the band mnemonic -- AMBR, RED, STOP.
+   bandCode: String[1];
+   bandName: String[1];
+   // FLOAT: the percentage of the hard threshold this band starts at. A ratio, so approximate
+   // is correct.
+   triggerPct: Float[1];
+   // SMALLINT: 1 to 5.
+   severity: Integer[1];
+   // Whether hitting the band stops new trades rather than merely warning.
+   isBlocking: Boolean[1];
+   notifyRole: String[0..1];
+}
+
+// Where a limit stands right now: the current usage against it. Keyed by the SAME triple as
+// the limit, one row per limit, which is what makes it the current position rather than a log.
+Class limit_core::LimUtilisation
+[
+   // The rule this class exists to enforce: usage is an absolute amount and is never negative,
+   // whatever a feed says.
+   utilisationNotNegative: ($this.utilisedAmount >= 0.0),
+   grossNotNegative: ($this.grossAmount >= 0.0),
+   // Gross is before netting, so it covers the netted figure.
+   grossCoversNet: ($this.utilisedAmount <= $this.grossAmount),
+   // A percentage of a limit can exceed 100 during a breach, but not be negative, and not be
+   // absurd.
+   pctInRange: (($this.utilisationPct >= 0.0) && ($this.utilisationPct <= 1000.0)),
+   // The high-water mark cannot be below where we are now.
+   peakCoversCurrent: ($this.peakAmount >= $this.utilisedAmount)
+]
+{
+   bookId: String[1];
+   counterpartyId: String[1];
+   measureCode: String[1];
+   // NUMERIC(20,4): usage after netting -- the number compared against the threshold.
+   utilisedAmount: Float[1];
+   // NUMERIC(20,4): usage before netting, which is always the larger of the two.
+   grossAmount: Float[1];
+   // NUMERIC(20,4): what is left before the hard threshold. Negative here is a breach, so it
+   // deliberately carries NO non-negative constraint.
+   availableAmount: Float[1];
+   // NUMERIC(20,4): the highest the netted usage has been since the limit was set.
+   peakAmount: Float[1];
+   // FLOAT: usage as a percentage of the hard threshold.
+   utilisationPct: Float[1];
+   currencyCode: String[1];
+   // SMALLINT: how many positions rolled into the number.
+   contributorCount: Integer[1];
+   asOfDate: StrictDate[1];
+   calculatedAt: DateTime[1];
+   isStale: Boolean[1];
+
+   // What is left as a percentage. Below zero when the limit is breached.
+   headroomPct() { 100.0 - $this.utilisationPct } : Float[1];
+   // Whether the netted number has moved away from gross at all -- i.e. netting bit.
+   nettingBenefit() { $this.grossAmount - $this.utilisedAmount } : Float[1];
+}
+
+// One day's frozen copy of the utilisation, keyed by the limit triple PLUS the date. The
+// series a trend chart reads, and the evidence a breach investigation starts from.
+Class limit_core::LimUtilisationSnapshot
+[
+   snapshotNotNegative: ($this.utilisedAmount >= 0.0),
+   snapshotPctNotNegative: ($this.utilisationPct >= 0.0)
+]
+{
+   bookId: String[1];
+   counterpartyId: String[1];
+   measureCode: String[1];
+   asOfDate: StrictDate[1];
+   // NUMERIC(20,4): the day's closing usage and the threshold that applied on that day --
+   // both stored, because the threshold changes and yesterday's percentage must not.
+   utilisedAmount: Float[1];
+   appliedThreshold: Float[1];
+   utilisationPct: Float[1];
+   currencyCode: String[1];
+   // Whether the day ended over the hard threshold.
+   wasBreached: Boolean[1];
+   snapshotTakenAt: DateTime[1];
+}
+
+// A crossing of a threshold: what happened, how far over, and whether it is still open. Keyed
+// by its own id because one limit can breach many times and each has its own life.
+Class limit_core::LimBreach
+[
+   excessNotNegative: ($this.excessAmount >= 0.0),
+   excessPctNotNegative: ($this.excessPct >= 0.0),
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5)),
+   // The observed usage cannot be below the threshold it is recorded as exceeding.
+   usageExceedsThreshold: ($this.observedAmount >= $this.breachedThreshold)
+]
+{
+   breachId: String[1];
+   // The limit triple, carried on the row so a breach joins back on all three columns.
+   bookId: String[1];
+   counterpartyId: String[1];
+   measureCode: String[1];
+   // CHAR(4): HARD or SOFT -- which of the two thresholds was crossed.
+   breachTypeCode: String[1];
+   // NUMERIC(20,4): the threshold in force at the moment of the breach, and the usage seen.
+   breachedThreshold: Float[1];
+   observedAmount: Float[1];
+   // NUMERIC(20,4): how far over. Zero when the usage exactly equals the threshold.
+   excessAmount: Float[1];
+   // FLOAT: the excess as a percentage of the threshold.
+   excessPct: Float[1];
+   // SMALLINT: 1 to 5, taken from the band that was hit.
+   severity: Integer[1];
+   currencyCode: String[1];
+   detectedAt: DateTime[1];
+   // Null while the breach is open -- which is how the open-breach filter is written, since a
+   // store Filter will not take a boolean literal.
+   closedOn: StrictDate[0..1];
+   closureNote: String[0..1];
+
+   approvals: limit_core::LimBreachApproval[*];
+
+   // Whether this one wakes somebody up tonight.
+   isCritical() { $this.severity >= 4 } : Boolean[1];
+   // Whether it is still open.
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+}
+
+// The sign-off on a breach: one row per level of the approval chain, keyed (breachId,
+// approvalLevel), because a large excess needs the desk head AND the risk committee and both
+// signatures have to survive.
+Class limit_core::LimBreachApproval
+[
+   levelIsPositive: ($this.approvalLevel >= 1),
+   approvedAmountNotNegative: ($this.approvedExcess >= 0.0)
+]
+{
+   breachId: String[1];
+   // SMALLINT: 1 is the desk, 2 the business, 3 the committee.
+   approvalLevel: Integer[1];
+   approverId: String[1];
+   // CHAR(4): APPR, RJCT, PEND.
+   decisionCode: String[1];
+   // NUMERIC(20,4): how much of the excess this level was willing to sign for, which can be
+   // less than the excess itself.
+   approvedExcess: Float[1];
+   decidedAt: DateTime[1];
+   comment: String[0..1];
+
+   approver: limit_core::LimApprover[0..1];
+   breach: limit_core::LimBreach[0..1];
+}
+
+// A person who may sign a breach off or grant an uplift, and the ceiling on what they may
+// sign for. The delegation table an approval is checked against.
+Class limit_core::LimApprover
+[
+   authorityNotNegative: ($this.maxApprovalAmount >= 0.0),
+   levelIsPositive: ($this.approvalLevel >= 1)
+]
+{
+   approverId: String[1];
+   approverName: String[1];
+   // The role rather than the person, because the mandate follows the seat.
+   roleCode: String[1];
+   // SMALLINT: the highest level this approver may act at.
+   approvalLevel: Integer[1];
+   // NUMERIC(20,4): the ceiling of their delegated authority.
+   maxApprovalAmount: Float[1];
+   currencyCode: String[1];
+   isActive: Boolean[1];
+   delegatedFrom: String[0..1];
+}
+
+// A temporary increase to a limit, with an expiry -- the "just for this trade, until Friday"
+// that has to disappear on its own. Keyed by its own id; the triple is carried so it joins
+// back to the limit it lifts.
+Class limit_core::LimUplift
+[
+   upliftNotNegative: ($this.upliftAmount >= 0.0),
+   // The rule an uplift exists to have: it must end after it begins, or it is not temporary,
+   // it is a typo.
+   expiryAfterStart: ($this.expiresOn > $this.effectiveFrom),
+   // The lifted threshold is the original plus the uplift, so it is never the smaller of the
+   // two.
+   liftedCoversOriginal: ($this.liftedThreshold >= $this.baseThreshold)
+]
+{
+   upliftId: String[1];
+   bookId: String[1];
+   counterpartyId: String[1];
+   measureCode: String[1];
+   // NUMERIC(20,4): the threshold before the uplift, the amount added, and the total in force
+   // while the uplift lives.
+   baseThreshold: Float[1];
+   upliftAmount: Float[1];
+   liftedThreshold: Float[1];
+   currencyCode: String[1];
+   effectiveFrom: StrictDate[1];
+   // NOT optional: an uplift without an expiry is a permanent limit change and belongs in
+   // LimLimit instead.
+   expiresOn: StrictDate[1];
+   reasonCode: String[1];
+   approvedBy: String[1];
+   approvedAt: DateTime[1];
+   isRevoked: Boolean[1];
+
+   approver: limit_core::LimApprover[0..1];
+
+   // The uplift as a percentage of the threshold it lifts.
+   upliftPct() { ($this.upliftAmount * 100.0) / $this.baseThreshold } : Float[1];
+}
+
+// Who has to be told, and how fast, when an excess of a given size appears. Keyed (frameworkId,
+// severityCode), so escalation is policy per framework rather than per limit.
+Class limit_core::LimEscalationRule
+[
+   excessFromNotNegative: ($this.excessPctFrom >= 0.0),
+   // The band has to be a band: it starts below where it ends.
+   bandIsOrdered: ($this.excessPctFrom <= $this.excessPctTo),
+   responseIsPositive: ($this.responseMinutes > 0)
+]
+{
+   frameworkId: String[1];
+   // CHAR(4): LOW, MED, HIGH, CRIT.
+   severityCode: String[1];
+   // FLOAT: the excess band, in percent of the threshold, this rule covers.
+   excessPctFrom: Float[1];
+   excessPctTo: Float[1];
+   // SMALLINT: the level the breach must be approved at.
+   requiredApprovalLevel: Integer[1];
+   // SMALLINT: how long the desk has before it escalates further.
+   responseMinutes: Integer[1];
+   notifyRole: String[1];
+   // Whether the rule blocks new trades outright.
+   isBlocking: Boolean[1];
+}
+
+// The periodic re-approval of a limit: keyed by the limit triple plus the review date, because
+// a limit is reviewed repeatedly and each review is its own record of what was proposed.
+Class limit_core::LimLimitReview
+[
+   proposedNotNegative: ($this.proposedThreshold >= 0.0),
+   previousNotNegative: ($this.previousThreshold >= 0.0)
+]
+{
+   bookId: String[1];
+   counterpartyId: String[1];
+   measureCode: String[1];
+   reviewDate: StrictDate[1];
+   // NUMERIC(20,4): what the hard threshold was, and what the review asks it to become.
+   previousThreshold: Float[1];
+   proposedThreshold: Float[1];
+   // CHAR(4): APPR, REJT, DEFR.
+   outcomeCode: String[1];
+   reviewerId: String[1];
+   // FLOAT: the average utilisation over the period under review, which is the argument for
+   // moving the threshold at all.
+   averageUtilisationPct: Float[1];
+   nextReviewDate: StrictDate[0..1];
+   comment: String[0..1];
+
+   // The change the review proposes, positive when it asks for more room.
+   proposedChange() { $this.proposedThreshold - $this.previousThreshold } : Float[1];
+}

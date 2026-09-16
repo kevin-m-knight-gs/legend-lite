@@ -1,0 +1,280 @@
+###Mapping
+// The limits mapping. It INCLUDES both dependency mappings, which is what makes the upstream
+// set ids -- `cbBook` from core-book, `cpLegalEntity` from core-party -- resolvable here. Both
+// projects name their set ids explicitly, so the default ids (`core_book_Book`,
+// `core_party_LegalEntity`) do not exist and a property mapping that named one would fail.
+//
+// Every set id declared here is prefixed `lim`, because set ids are a GLOBAL namespace in
+// Legend: one collision fails the whole graph with a message that names the id and not the
+// project.
+//
+// The ~primaryKey clauses are where the three-column key becomes real to the engine. Three
+// columns for the limit, three for its utilisation, three for a policy band, and four -- the
+// triple plus a date -- for the snapshot and the review. A shorter key would make a book's
+// notional limit and its tenor limit the same object.
+Mapping limit_core::Mapping
+(
+   include core_party::Mapping
+   include core_book::Mapping
+
+   // THE composite-key set: (book, counterparty, measure). Two of the three key columns are
+   // resolved against sets owned by other projects.
+   limit_core::LimLimit[limLimit]: Relational
+   {
+      ~primaryKey
+      (
+         [limit_core::Store]LIM_LIMIT.BOOK_ID,
+         [limit_core::Store]LIM_LIMIT.COUNTERPARTY_ID,
+         [limit_core::Store]LIM_LIMIT.MEASURE_CODE
+      )
+      ~mainTable [limit_core::Store]LIM_LIMIT
+      bookId: [limit_core::Store]LIM_LIMIT.BOOK_ID,
+      counterpartyId: [limit_core::Store]LIM_LIMIT.COUNTERPARTY_ID,
+      measureCode: [limit_core::Store]LIM_LIMIT.MEASURE_CODE,
+      frameworkId: [limit_core::Store]LIM_LIMIT.FRAMEWORK_ID,
+      hardThreshold: [limit_core::Store]LIM_LIMIT.HARD_THRESHOLD,
+      softThreshold: [limit_core::Store]LIM_LIMIT.SOFT_THRESHOLD,
+      warningThreshold: [limit_core::Store]LIM_LIMIT.WARNING_THRESHOLD,
+      currencyCode: [limit_core::Store]LIM_LIMIT.CURRENCY_CODE,
+      reviewFrequencyDays: [limit_core::Store]LIM_LIMIT.REVIEW_FREQUENCY_DAYS,
+      effectiveFrom: [limit_core::Store]LIM_LIMIT.EFFECTIVE_FROM,
+      retiredOn: [limit_core::Store]LIM_LIMIT.RETIRED_ON,
+      isActive: [limit_core::Store]LIM_LIMIT.IS_ACTIVE,
+      isIntraday: [limit_core::Store]LIM_LIMIT.IS_INTRADAY,
+      // Across the boundary: the explicit upstream set ids, not the defaults.
+      book[cbBook]: [limit_core::Store]@Lim_LimitBook,
+      counterparty[cpLegalEntity]: [limit_core::Store]@Lim_LimitCounterparty,
+      measure[limMeasure]: [limit_core::Store]@Lim_LimitMeasure,
+      framework[limFramework]: [limit_core::Store]@Lim_LimitFramework,
+      utilisation[limUtilisation]: [limit_core::Store]@Lim_LimitUtilisation,
+      history[limSnapshot]: [limit_core::Store]@Lim_LimitSnapshot,
+      breaches[limBreach]: [limit_core::Store]@Lim_LimitBreach,
+      uplifts[limUplift]: [limit_core::Store]@Lim_LimitUplift,
+      reviews[limReview]: [limit_core::Store]@Lim_LimitReview
+   }
+
+   // What is being limited.
+   limit_core::LimMeasure[limMeasure]: Relational
+   {
+      ~primaryKey ( [limit_core::Store]LIM_MEASURE.MEASURE_CODE )
+      ~mainTable [limit_core::Store]LIM_MEASURE
+      measureCode: [limit_core::Store]LIM_MEASURE.MEASURE_CODE,
+      measureName: [limit_core::Store]LIM_MEASURE.MEASURE_NAME,
+      unitCode: [limit_core::Store]LIM_MEASURE.UNIT_CODE,
+      isMonetary: [limit_core::Store]LIM_MEASURE.IS_MONETARY,
+      defaultCurrency: [limit_core::Store]LIM_MEASURE.DEFAULT_CURRENCY,
+      reportingDecimals: [limit_core::Store]LIM_MEASURE.REPORTING_DECIMALS,
+      sortOrder: [limit_core::Store]LIM_MEASURE.SORT_ORDER,
+      isActive: [limit_core::Store]LIM_MEASURE.IS_ACTIVE
+   }
+
+   // The framework, reaching core-party for the entity that owns the policy and back down to
+   // every limit written under it -- the same join as `framework`, read the other way.
+   limit_core::LimFramework[limFramework]: Relational
+   {
+      ~primaryKey ( [limit_core::Store]LIM_FRAMEWORK.FRAMEWORK_ID )
+      ~mainTable [limit_core::Store]LIM_FRAMEWORK
+      frameworkId: [limit_core::Store]LIM_FRAMEWORK.FRAMEWORK_ID,
+      frameworkName: [limit_core::Store]LIM_FRAMEWORK.FRAMEWORK_NAME,
+      ownerEntityId: [limit_core::Store]LIM_FRAMEWORK.OWNER_ENTITY_ID,
+      committeeCode: [limit_core::Store]LIM_FRAMEWORK.COMMITTEE_CODE,
+      reviewCycleMonths: [limit_core::Store]LIM_FRAMEWORK.REVIEW_CYCLE_MONTHS,
+      effectiveFrom: [limit_core::Store]LIM_FRAMEWORK.EFFECTIVE_FROM,
+      retiredOn: [limit_core::Store]LIM_FRAMEWORK.RETIRED_ON,
+      isActive: [limit_core::Store]LIM_FRAMEWORK.IS_ACTIVE,
+      owningEntity[cpLegalEntity]: [limit_core::Store]@Lim_FrameworkEntity,
+      bands[limBand]: [limit_core::Store]@Lim_FrameworkBand,
+      escalationRules[limEscalationRule]: [limit_core::Store]@Lim_FrameworkEscalation,
+      limits[limLimit]: [limit_core::Store]@Lim_LimitFramework
+   }
+
+   // Policy bands: three columns again, on (framework, measure, band).
+   limit_core::LimThresholdBand[limBand]: Relational
+   {
+      ~primaryKey
+      (
+         [limit_core::Store]LIM_THRESHOLD_BAND.FRAMEWORK_ID,
+         [limit_core::Store]LIM_THRESHOLD_BAND.MEASURE_CODE,
+         [limit_core::Store]LIM_THRESHOLD_BAND.BAND_CODE
+      )
+      ~mainTable [limit_core::Store]LIM_THRESHOLD_BAND
+      frameworkId: [limit_core::Store]LIM_THRESHOLD_BAND.FRAMEWORK_ID,
+      measureCode: [limit_core::Store]LIM_THRESHOLD_BAND.MEASURE_CODE,
+      bandCode: [limit_core::Store]LIM_THRESHOLD_BAND.BAND_CODE,
+      bandName: [limit_core::Store]LIM_THRESHOLD_BAND.BAND_NAME,
+      triggerPct: [limit_core::Store]LIM_THRESHOLD_BAND.TRIGGER_PCT,
+      severity: [limit_core::Store]LIM_THRESHOLD_BAND.SEVERITY,
+      isBlocking: [limit_core::Store]LIM_THRESHOLD_BAND.IS_BLOCKING,
+      notifyRole: [limit_core::Store]LIM_THRESHOLD_BAND.NOTIFY_ROLE
+   }
+
+   // Current usage, on the limit's own triple.
+   limit_core::LimUtilisation[limUtilisation]: Relational
+   {
+      ~primaryKey
+      (
+         [limit_core::Store]LIM_UTILISATION.BOOK_ID,
+         [limit_core::Store]LIM_UTILISATION.COUNTERPARTY_ID,
+         [limit_core::Store]LIM_UTILISATION.MEASURE_CODE
+      )
+      ~mainTable [limit_core::Store]LIM_UTILISATION
+      bookId: [limit_core::Store]LIM_UTILISATION.BOOK_ID,
+      counterpartyId: [limit_core::Store]LIM_UTILISATION.COUNTERPARTY_ID,
+      measureCode: [limit_core::Store]LIM_UTILISATION.MEASURE_CODE,
+      utilisedAmount: [limit_core::Store]LIM_UTILISATION.UTILISED_AMOUNT,
+      grossAmount: [limit_core::Store]LIM_UTILISATION.GROSS_AMOUNT,
+      availableAmount: [limit_core::Store]LIM_UTILISATION.AVAILABLE_AMOUNT,
+      peakAmount: [limit_core::Store]LIM_UTILISATION.PEAK_AMOUNT,
+      utilisationPct: [limit_core::Store]LIM_UTILISATION.UTILISATION_PCT,
+      currencyCode: [limit_core::Store]LIM_UTILISATION.CURRENCY_CODE,
+      contributorCount: [limit_core::Store]LIM_UTILISATION.CONTRIBUTOR_COUNT,
+      asOfDate: [limit_core::Store]LIM_UTILISATION.AS_OF_DATE,
+      calculatedAt: [limit_core::Store]LIM_UTILISATION.CALCULATED_AT,
+      isStale: [limit_core::Store]LIM_UTILISATION.IS_STALE
+   }
+
+   // History: the triple plus the date, so a limit has one row per day.
+   limit_core::LimUtilisationSnapshot[limSnapshot]: Relational
+   {
+      ~primaryKey
+      (
+         [limit_core::Store]LIM_UTILISATION_SNAPSHOT.BOOK_ID,
+         [limit_core::Store]LIM_UTILISATION_SNAPSHOT.COUNTERPARTY_ID,
+         [limit_core::Store]LIM_UTILISATION_SNAPSHOT.MEASURE_CODE,
+         [limit_core::Store]LIM_UTILISATION_SNAPSHOT.AS_OF_DATE
+      )
+      ~mainTable [limit_core::Store]LIM_UTILISATION_SNAPSHOT
+      bookId: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.BOOK_ID,
+      counterpartyId: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.COUNTERPARTY_ID,
+      measureCode: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.MEASURE_CODE,
+      asOfDate: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.AS_OF_DATE,
+      utilisedAmount: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.UTILISED_AMOUNT,
+      appliedThreshold: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.APPLIED_THRESHOLD,
+      utilisationPct: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.UTILISATION_PCT,
+      currencyCode: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.CURRENCY_CODE,
+      wasBreached: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.WAS_BREACHED,
+      snapshotTakenAt: [limit_core::Store]LIM_UTILISATION_SNAPSHOT.SNAPSHOT_TAKEN_AT
+   }
+
+   // The breach, keyed by its own id and carrying the triple it joins back on.
+   limit_core::LimBreach[limBreach]: Relational
+   {
+      ~primaryKey ( [limit_core::Store]LIM_BREACH.BREACH_ID )
+      ~mainTable [limit_core::Store]LIM_BREACH
+      breachId: [limit_core::Store]LIM_BREACH.BREACH_ID,
+      bookId: [limit_core::Store]LIM_BREACH.BOOK_ID,
+      counterpartyId: [limit_core::Store]LIM_BREACH.COUNTERPARTY_ID,
+      measureCode: [limit_core::Store]LIM_BREACH.MEASURE_CODE,
+      breachTypeCode: [limit_core::Store]LIM_BREACH.BREACH_TYPE_CODE,
+      breachedThreshold: [limit_core::Store]LIM_BREACH.BREACHED_THRESHOLD,
+      observedAmount: [limit_core::Store]LIM_BREACH.OBSERVED_AMOUNT,
+      excessAmount: [limit_core::Store]LIM_BREACH.EXCESS_AMOUNT,
+      excessPct: [limit_core::Store]LIM_BREACH.EXCESS_PCT,
+      severity: [limit_core::Store]LIM_BREACH.SEVERITY,
+      currencyCode: [limit_core::Store]LIM_BREACH.CURRENCY_CODE,
+      detectedAt: [limit_core::Store]LIM_BREACH.DETECTED_AT,
+      closedOn: [limit_core::Store]LIM_BREACH.CLOSED_ON,
+      closureNote: [limit_core::Store]LIM_BREACH.CLOSURE_NOTE,
+      approvals[limBreachApproval]: [limit_core::Store]@Lim_BreachApproval
+   }
+
+   // The approval chain, keyed (breach, level).
+   limit_core::LimBreachApproval[limBreachApproval]: Relational
+   {
+      ~primaryKey
+      (
+         [limit_core::Store]LIM_BREACH_APPROVAL.BREACH_ID,
+         [limit_core::Store]LIM_BREACH_APPROVAL.APPROVAL_LEVEL
+      )
+      ~mainTable [limit_core::Store]LIM_BREACH_APPROVAL
+      breachId: [limit_core::Store]LIM_BREACH_APPROVAL.BREACH_ID,
+      approvalLevel: [limit_core::Store]LIM_BREACH_APPROVAL.APPROVAL_LEVEL,
+      approverId: [limit_core::Store]LIM_BREACH_APPROVAL.APPROVER_ID,
+      decisionCode: [limit_core::Store]LIM_BREACH_APPROVAL.DECISION_CODE,
+      approvedExcess: [limit_core::Store]LIM_BREACH_APPROVAL.APPROVED_EXCESS,
+      decidedAt: [limit_core::Store]LIM_BREACH_APPROVAL.DECIDED_AT,
+      comment: [limit_core::Store]LIM_BREACH_APPROVAL.APPROVAL_COMMENT,
+      approver[limApprover]: [limit_core::Store]@Lim_ApprovalApprover,
+      breach[limBreach]: [limit_core::Store]@Lim_BreachApproval
+   }
+
+   // Who may sign, and for how much.
+   limit_core::LimApprover[limApprover]: Relational
+   {
+      ~primaryKey ( [limit_core::Store]LIM_APPROVER.APPROVER_ID )
+      ~mainTable [limit_core::Store]LIM_APPROVER
+      approverId: [limit_core::Store]LIM_APPROVER.APPROVER_ID,
+      approverName: [limit_core::Store]LIM_APPROVER.APPROVER_NAME,
+      roleCode: [limit_core::Store]LIM_APPROVER.ROLE_CODE,
+      approvalLevel: [limit_core::Store]LIM_APPROVER.APPROVAL_LEVEL,
+      maxApprovalAmount: [limit_core::Store]LIM_APPROVER.MAX_APPROVAL_AMOUNT,
+      currencyCode: [limit_core::Store]LIM_APPROVER.CURRENCY_CODE,
+      isActive: [limit_core::Store]LIM_APPROVER.IS_ACTIVE,
+      delegatedFrom: [limit_core::Store]LIM_APPROVER.DELEGATED_FROM
+   }
+
+   // The temporary uplift and who granted it.
+   limit_core::LimUplift[limUplift]: Relational
+   {
+      ~primaryKey ( [limit_core::Store]LIM_UPLIFT.UPLIFT_ID )
+      ~mainTable [limit_core::Store]LIM_UPLIFT
+      upliftId: [limit_core::Store]LIM_UPLIFT.UPLIFT_ID,
+      bookId: [limit_core::Store]LIM_UPLIFT.BOOK_ID,
+      counterpartyId: [limit_core::Store]LIM_UPLIFT.COUNTERPARTY_ID,
+      measureCode: [limit_core::Store]LIM_UPLIFT.MEASURE_CODE,
+      baseThreshold: [limit_core::Store]LIM_UPLIFT.BASE_THRESHOLD,
+      upliftAmount: [limit_core::Store]LIM_UPLIFT.UPLIFT_AMOUNT,
+      liftedThreshold: [limit_core::Store]LIM_UPLIFT.LIFTED_THRESHOLD,
+      currencyCode: [limit_core::Store]LIM_UPLIFT.CURRENCY_CODE,
+      effectiveFrom: [limit_core::Store]LIM_UPLIFT.EFFECTIVE_FROM,
+      expiresOn: [limit_core::Store]LIM_UPLIFT.EXPIRES_ON,
+      reasonCode: [limit_core::Store]LIM_UPLIFT.REASON_CODE,
+      approvedBy: [limit_core::Store]LIM_UPLIFT.APPROVED_BY,
+      approvedAt: [limit_core::Store]LIM_UPLIFT.APPROVED_AT,
+      isRevoked: [limit_core::Store]LIM_UPLIFT.IS_REVOKED,
+      approver[limApprover]: [limit_core::Store]@Lim_UpliftApprover
+   }
+
+   // Escalation policy, keyed (framework, severity).
+   limit_core::LimEscalationRule[limEscalationRule]: Relational
+   {
+      ~primaryKey
+      (
+         [limit_core::Store]LIM_ESCALATION_RULE.FRAMEWORK_ID,
+         [limit_core::Store]LIM_ESCALATION_RULE.SEVERITY_CODE
+      )
+      ~mainTable [limit_core::Store]LIM_ESCALATION_RULE
+      frameworkId: [limit_core::Store]LIM_ESCALATION_RULE.FRAMEWORK_ID,
+      severityCode: [limit_core::Store]LIM_ESCALATION_RULE.SEVERITY_CODE,
+      excessPctFrom: [limit_core::Store]LIM_ESCALATION_RULE.EXCESS_PCT_FROM,
+      excessPctTo: [limit_core::Store]LIM_ESCALATION_RULE.EXCESS_PCT_TO,
+      requiredApprovalLevel: [limit_core::Store]LIM_ESCALATION_RULE.REQUIRED_APPROVAL_LEVEL,
+      responseMinutes: [limit_core::Store]LIM_ESCALATION_RULE.RESPONSE_MINUTES,
+      notifyRole: [limit_core::Store]LIM_ESCALATION_RULE.NOTIFY_ROLE,
+      isBlocking: [limit_core::Store]LIM_ESCALATION_RULE.IS_BLOCKING
+   }
+
+   // The review, on the triple plus the review date.
+   limit_core::LimLimitReview[limReview]: Relational
+   {
+      ~primaryKey
+      (
+         [limit_core::Store]LIM_LIMIT_REVIEW.BOOK_ID,
+         [limit_core::Store]LIM_LIMIT_REVIEW.COUNTERPARTY_ID,
+         [limit_core::Store]LIM_LIMIT_REVIEW.MEASURE_CODE,
+         [limit_core::Store]LIM_LIMIT_REVIEW.REVIEW_DATE
+      )
+      ~mainTable [limit_core::Store]LIM_LIMIT_REVIEW
+      bookId: [limit_core::Store]LIM_LIMIT_REVIEW.BOOK_ID,
+      counterpartyId: [limit_core::Store]LIM_LIMIT_REVIEW.COUNTERPARTY_ID,
+      measureCode: [limit_core::Store]LIM_LIMIT_REVIEW.MEASURE_CODE,
+      reviewDate: [limit_core::Store]LIM_LIMIT_REVIEW.REVIEW_DATE,
+      previousThreshold: [limit_core::Store]LIM_LIMIT_REVIEW.PREVIOUS_THRESHOLD,
+      proposedThreshold: [limit_core::Store]LIM_LIMIT_REVIEW.PROPOSED_THRESHOLD,
+      outcomeCode: [limit_core::Store]LIM_LIMIT_REVIEW.OUTCOME_CODE,
+      reviewerId: [limit_core::Store]LIM_LIMIT_REVIEW.REVIEWER_ID,
+      averageUtilisationPct: [limit_core::Store]LIM_LIMIT_REVIEW.AVERAGE_UTILISATION_PCT,
+      nextReviewDate: [limit_core::Store]LIM_LIMIT_REVIEW.NEXT_REVIEW_DATE,
+      comment: [limit_core::Store]LIM_LIMIT_REVIEW.REVIEW_COMMENT
+   }
+)

@@ -1,0 +1,181 @@
+###Relational
+// The instrument master store.
+//
+// ONE wide table. Every asset class lives in CI_INSTRUMENT and is told apart by
+// INSTRUMENT_TYPE; the second-level subtypes are told apart by INSTRUMENT_SUBTYPE, and
+// options by PUT_CALL. The subtype columns are all nullable, because a column that means
+// something for a bond means nothing for a depositary receipt -- which is exactly the
+// shape a ~filter subtype mapping is for.
+//
+// The alternative -- nineteen tables -- would need nineteen joins to answer "show me every
+// instrument maturing this month", and the asset classes genuinely share an identity: one
+// instrument id, one ISIN, one status.
+Database core_instrument::Store
+(
+   Table CI_INSTRUMENT
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      INSTRUMENT_TYPE VARCHAR(40),
+      INSTRUMENT_SUBTYPE VARCHAR(40),
+      NAME VARCHAR(200),
+      ASSET_CLASS VARCHAR(40),
+      STATUS VARCHAR(20),
+      CURRENCY VARCHAR(3),
+      ISIN VARCHAR(12),
+      CUSIP VARCHAR(9),
+      SEDOL VARCHAR(7),
+      FIGI VARCHAR(12),
+      ISSUER_NAME VARCHAR(200),
+      COUNTRY_OF_ISSUE VARCHAR(2),
+      PRIMARY_EXCHANGE_MIC VARCHAR(4),
+      LOT_SIZE INTEGER,
+      LISTING_DATE DATE,
+      MATURITY_DATE DATE,
+      IS_ACTIVE BIT,
+      DESCRIPTION VARCHAR(400),
+
+      // equity
+      SHARE_CLASS VARCHAR(20),
+      SHARES_OUTSTANDING DOUBLE,
+      VOTING_RIGHTS_PER_SHARE DOUBLE,
+      DIVIDEND_YIELD DOUBLE,
+      FREE_FLOAT_PCT DOUBLE,
+      GICS_SECTOR VARCHAR(60),
+      PREFERRED_DIVIDEND_RATE DOUBLE,
+      IS_CUMULATIVE BIT,
+      LIQUIDATION_PREFERENCE DOUBLE,
+      IS_CONVERTIBLE_TO_COMMON BIT,
+
+      // bond
+      COUPON_RATE DOUBLE,
+      COUPON_TYPE VARCHAR(20),
+      COUPON_FREQUENCY INTEGER,
+      FACE_VALUE DOUBLE,
+      DAY_COUNT_CONVENTION VARCHAR(20),
+      SENIORITY VARCHAR(30),
+      CREDIT_RATING VARCHAR(10),
+      ISSUE_DATE DATE,
+      IS_CALLABLE BIT,
+      FIRST_CALL_DATE DATE,
+      ISSUING_SOVEREIGN VARCHAR(60),
+      IS_INFLATION_LINKED BIT,
+      INFLATION_INDEX_NAME VARCHAR(60),
+      AUCTION_DATE DATE,
+      ISSUER_TICKER VARCHAR(20),
+      INDUSTRY_SECTOR VARCHAR(60),
+      IS_SECURED BIT,
+      COVENANT_PACKAGE VARCHAR(60),
+      CONVERSION_RATIO DOUBLE,
+      CONVERSION_PRICE DOUBLE,
+      UNDERLYING_EQUITY_ID VARCHAR(60),
+      IS_MANDATORY BIT,
+
+      // listed derivatives
+      CONTRACT_MONTH VARCHAR(10),
+      CONTRACT_SIZE DOUBLE,
+      TICK_SIZE DOUBLE,
+      TICK_VALUE DOUBLE,
+      LAST_TRADING_DATE DATE,
+      FIRST_NOTICE_DATE DATE,
+      SETTLEMENT_METHOD VARCHAR(20),
+      INITIAL_MARGIN DOUBLE,
+      UNDERLYING_INSTRUMENT_ID VARCHAR(60),
+      DELIVERY_LOCATION VARCHAR(60),
+      GRADE_SPECIFICATION VARCHAR(60),
+      STORAGE_COST_PER_UNIT DOUBLE,
+      UNDERLYING_INDEX_NAME VARCHAR(60),
+      INDEX_MULTIPLIER DOUBLE,
+      STRIKE_PRICE DOUBLE,
+      EXPIRY_DATE DATE,
+      OPTION_STYLE VARCHAR(20),
+      PUT_CALL VARCHAR(4),
+
+      // otc derivatives
+      NOTIONAL DOUBLE,
+      FIXED_RATE DOUBLE,
+      FLOATING_INDEX VARCHAR(40),
+      FLOATING_SPREAD DOUBLE,
+      EFFECTIVE_DATE DATE,
+      TERMINATION_DATE DATE,
+      PAYMENT_FREQUENCY VARCHAR(20),
+      IS_CLEARED BIT,
+      CLEARING_HOUSE VARCHAR(40),
+      RESET_FREQUENCY VARCHAR(20),
+      INDEX_TENOR VARCHAR(10),
+      REFERENCE_ENTITY VARCHAR(200),
+      REFERENCE_OBLIGATION VARCHAR(60),
+      RECOVERY_RATE DOUBLE,
+      RESTRUCTURING_CLAUSE VARCHAR(30),
+      REFERENCE_ASSET_ID VARCHAR(60),
+      FUNDING_SPREAD DOUBLE,
+      RETURN_PAYER_NAME VARCHAR(200),
+
+      // funds, warrants, receipts
+      FUND_NAME VARCHAR(200),
+      TRACKING_INDEX_NAME VARCHAR(60),
+      EXPENSE_RATIO DOUBLE,
+      NET_ASSET_VALUE DOUBLE,
+      TRACKING_ERROR DOUBLE,
+      REPLICATION_METHOD VARCHAR(30),
+      IS_LEVERAGED BIT,
+      LEVERAGE_MULTIPLE DOUBLE,
+      AUM DOUBLE,
+      EXERCISE_RATIO DOUBLE,
+      IS_COVERED BIT,
+      IS_DILUTIVE BIT,
+      NOTICE_PERIOD_DAYS INTEGER,
+      RATIO_TO_UNDERLYING DOUBLE,
+      DEPOSITARY_BANK VARCHAR(200),
+      HOME_MARKET_MIC VARCHAR(4),
+      IS_SPONSORED BIT,
+      PROGRAMME_LEVEL VARCHAR(10)
+   )
+
+   // One instrument, many external identifiers.
+   Table CI_INSTRUMENT_XREF
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      SCHEME VARCHAR(20) PRIMARY KEY,
+      IDENTIFIER_VALUE VARCHAR(60),
+      IS_PRIMARY BIT,
+      ASSIGNED_DATE DATE
+   )
+
+   // The asset-class code table, so a downstream project can label a code without
+   // hard-coding the strings the enum transformer reads.
+   Table CI_ASSET_CLASS
+   (
+      CODE VARCHAR(40) PRIMARY KEY,
+      DISPLAY_NAME VARCHAR(60),
+      REGULATORY_CATEGORY VARCHAR(40),
+      IS_DERIVATIVE BIT
+   )
+
+   Join Ci_InstrumentIdentifier(CI_INSTRUMENT.INSTRUMENT_ID = CI_INSTRUMENT_XREF.INSTRUMENT_ID)
+
+   // ---- the discriminator, one filter per subtype ----
+   // First level: INSTRUMENT_TYPE decides the asset class.
+   Filter CiEquityRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'EQUITY')
+   Filter CiBondRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'BOND')
+   Filter CiFutureRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'FUTURE')
+   Filter CiOptionRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'OPTION')
+   Filter CiSwapRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'SWAP')
+   Filter CiEtfRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'ETF')
+   Filter CiWarrantRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'WARRANT')
+   Filter CiDepositaryReceiptRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'DEPOSITARY_RECEIPT')
+
+   // Second level: INSTRUMENT_SUBTYPE narrows a row the first level has already placed,
+   // except for options, where the direction lives in its own column.
+   Filter CiCommonStockRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'COMMON')
+   Filter CiPreferredStockRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'PREFERRED')
+   Filter CiGovernmentBondRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'GOVERNMENT')
+   Filter CiCorporateBondRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'CORPORATE')
+   Filter CiConvertibleBondRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'CONVERTIBLE')
+   Filter CiCommodityFutureRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'COMMODITY')
+   Filter CiEquityIndexFutureRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'EQUITY_INDEX')
+   Filter CiCallOptionRows(CI_INSTRUMENT.PUT_CALL = 'CALL')
+   Filter CiPutOptionRows(CI_INSTRUMENT.PUT_CALL = 'PUT')
+   Filter CiInterestRateSwapRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'IRS')
+   Filter CiCreditDefaultSwapRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'CDS')
+   Filter CiTotalReturnSwapRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'TRS')
+)

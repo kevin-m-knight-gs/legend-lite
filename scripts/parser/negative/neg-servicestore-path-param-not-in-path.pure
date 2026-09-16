@@ -1,0 +1,31 @@
+// REJECTS: Path parameters should be specified in path as '{param_name}'
+//
+// A parameter declared `location = path` whose name does not occur in the service's `path:`
+// as `{employeeId}`. Both halves are individually well-formed -- '/employees' is a legal path
+// and `employeeId: String ( location = path, required = true )` is a legal parameter -- and
+// the check is a cross-field one performed by the walker at ServiceStoreParseTreeWalker:224,
+// which scans the path STRING for each path parameter's name.
+//
+// Cross-field validation over a string literal's CONTENT is the least likely thing to survive
+// a rewrite: the grammar has no relationship between the two fields, the parse tree has no
+// relationship between them, and the only place the connection exists is a loop over
+// `{...}` substrings in Java. The parser here is doing work that reads like a compiler's.
+//
+// Nearby rules from the same walker, deliberately not conflated with this one:
+//   - a path must start with '/' and not end with '/'  (:133)
+//   - a path parameter cannot be optional              (:273)
+###ServiceStore
+ServiceStore fixture::neg::PathParamNotInPath
+(
+  Service GetEmployee
+  (
+    path: '/employees';
+    method: GET;
+    parameters:
+    (
+      employeeId: String ( location = path, required = true )
+    );
+    response: fixture::neg::Employee <- fixture::neg::Binding;
+    security: [];
+  )
+)

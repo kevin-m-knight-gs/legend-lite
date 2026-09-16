@@ -81,7 +81,7 @@ class SqlTextRatchetTest {
         // a GOLDEN — a referee's read of the spec text's shape (the let
         // it populates supplies our rows), never an emission of ours.
         REGISTER.put("SqlTextVerdicts.java", 1);
-        REGISTER.put("exec/CsvSeed.java", 4);
+        REGISTER.put("exec/CsvSeed.java", 1);   // 4 -> 1 (2026-09-16: DDL is rendered by the dialect from SqlDdl nodes; only the INSERT text remains)
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure
         // text composition, no JDBC)
@@ -94,7 +94,7 @@ class SqlTextRatchetTest {
         // 3 -> 4 (metamodel-store leg 2026-08-28): metamodelSeed's
         // registry-extent INSERT joins the one DDL owner — system
         // setup text beside the create/drop it already renders
-        REGISTER.put("exec/Ddl.java", 4);
+        REGISTER.put("exec/Ddl.java", 2);   // 4 -> 2 (2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes; the engine-text INSERT rows remain)
         REGISTER.put("plan/InProtocol.java", 1);
         REGISTER.put("plan/PlanText.java", 2);
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG

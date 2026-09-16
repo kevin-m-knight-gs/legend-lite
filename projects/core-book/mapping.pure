@@ -1,0 +1,250 @@
+###Mapping
+// One set per class, every set id cb-prefixed. The ids are not ceremony here: the
+// BookParent association has core_book::Book on BOTH ends, so each end names its source
+// and target set explicitly -- [cbBook, cbBook].
+Mapping core_book::Mapping
+(
+   *core_book::Book[cbBook]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BOOK
+      bookId: [core_book::Store] CB_BOOK.BOOK_ID,
+      code: [core_book::Store] CB_BOOK.CODE,
+      name: [core_book::Store] CB_BOOK.NAME,
+      parentBookId: [core_book::Store] CB_BOOK.PARENT_BOOK_ID,
+      baseCurrency: [core_book::Store] CB_BOOK.BASE_CURRENCY,
+      isActive: [core_book::Store] CB_BOOK.IS_ACTIVE,
+      openDate: [core_book::Store] CB_BOOK.OPEN_DATE,
+      closeDate: [core_book::Store] CB_BOOK.CLOSE_DATE,
+      depth: [core_book::Store] CB_BOOK.DEPTH,
+      description: [core_book::Store] CB_BOOK.DESCRIPTION
+   }
+
+   *core_book::Desk[cbDesk]: Relational
+   {
+      ~mainTable [core_book::Store] CB_DESK
+      deskId: [core_book::Store] CB_DESK.DESK_ID,
+      name: [core_book::Store] CB_DESK.NAME,
+      assetClass: [core_book::Store] CB_DESK.ASSET_CLASS,
+      regionCode: [core_book::Store] CB_DESK.REGION_CODE,
+      headTrader: [core_book::Store] CB_DESK.HEAD_TRADER,
+      isActive: [core_book::Store] CB_DESK.IS_ACTIVE
+   }
+
+   *core_book::BusinessUnit[cbBusinessUnit]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BUSINESS_UNIT
+      businessUnitId: [core_book::Store] CB_BUSINESS_UNIT.BUSINESS_UNIT_ID,
+      name: [core_book::Store] CB_BUSINESS_UNIT.NAME,
+      head: [core_book::Store] CB_BUSINESS_UNIT.HEAD,
+      headcount: [core_book::Store] CB_BUSINESS_UNIT.HEADCOUNT,
+      isActive: [core_book::Store] CB_BUSINESS_UNIT.IS_ACTIVE
+   }
+
+   *core_book::Division[cbDivision]: Relational
+   {
+      ~mainTable [core_book::Store] CB_DIVISION
+      divisionId: [core_book::Store] CB_DIVISION.DIVISION_ID,
+      name: [core_book::Store] CB_DIVISION.NAME,
+      head: [core_book::Store] CB_DIVISION.HEAD,
+      isActive: [core_book::Store] CB_DIVISION.IS_ACTIVE
+   }
+
+   *core_book::BookOwner[cbBookOwner]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BOOK_OWNER
+      ownerId: [core_book::Store] CB_BOOK_OWNER.OWNER_ID,
+      firstName: [core_book::Store] CB_BOOK_OWNER.FIRST_NAME,
+      lastName: [core_book::Store] CB_BOOK_OWNER.LAST_NAME,
+      email: [core_book::Store] CB_BOOK_OWNER.EMAIL,
+      badge: [core_book::Store] CB_BOOK_OWNER.BADGE,
+      isActive: [core_book::Store] CB_BOOK_OWNER.IS_ACTIVE
+   }
+
+   *core_book::Strategy[cbStrategy]: Relational
+   {
+      ~mainTable [core_book::Store] CB_STRATEGY
+      strategyId: [core_book::Store] CB_STRATEGY.STRATEGY_ID,
+      name: [core_book::Store] CB_STRATEGY.NAME,
+      style: [core_book::Store] CB_STRATEGY.STYLE,
+      benchmark: [core_book::Store] CB_STRATEGY.BENCHMARK,
+      isActive: [core_book::Store] CB_STRATEGY.IS_ACTIVE
+   }
+
+   *core_book::BookClassification[cbBookClassification]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BOOK_CLASSIFICATION
+      classificationId: [core_book::Store] CB_BOOK_CLASSIFICATION.CLASSIFICATION_ID,
+      code: [core_book::Store] CB_BOOK_CLASSIFICATION.CODE,
+      name: [core_book::Store] CB_BOOK_CLASSIFICATION.NAME,
+      regulatoryBucket: [core_book::Store] CB_BOOK_CLASSIFICATION.REGULATORY_BUCKET,
+      isTradingBook: [core_book::Store] CB_BOOK_CLASSIFICATION.IS_TRADING_BOOK
+   }
+
+   *core_book::BookLimit[cbBookLimit]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BOOK_LIMIT
+      limitId: [core_book::Store] CB_BOOK_LIMIT.LIMIT_ID,
+      limitType: [core_book::Store] CB_BOOK_LIMIT.LIMIT_TYPE,
+      limitAmount: [core_book::Store] CB_BOOK_LIMIT.LIMIT_AMOUNT,
+      currency: [core_book::Store] CB_BOOK_LIMIT.CURRENCY,
+      effectiveDate: [core_book::Store] CB_BOOK_LIMIT.EFFECTIVE_DATE,
+      expiryDate: [core_book::Store] CB_BOOK_LIMIT.EXPIRY_DATE,
+      isActive: [core_book::Store] CB_BOOK_LIMIT.IS_ACTIVE
+   }
+
+   *core_book::CostCentre[cbCostCentre]: Relational
+   {
+      ~mainTable [core_book::Store] CB_COST_CENTRE
+      costCentreId: [core_book::Store] CB_COST_CENTRE.COST_CENTRE_ID,
+      code: [core_book::Store] CB_COST_CENTRE.CODE,
+      name: [core_book::Store] CB_COST_CENTRE.NAME,
+      fiscalYear: [core_book::Store] CB_COST_CENTRE.FISCAL_YEAR,
+      budgetAmount: [core_book::Store] CB_COST_CENTRE.BUDGET_AMOUNT,
+      currency: [core_book::Store] CB_COST_CENTRE.CURRENCY
+   }
+
+   *core_book::BookMandate[cbBookMandate]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BOOK_MANDATE
+      mandateId: [core_book::Store] CB_BOOK_MANDATE.MANDATE_ID,
+      mandateType: [core_book::Store] CB_BOOK_MANDATE.MANDATE_TYPE,
+      permittedAssetClasses: [core_book::Store] CB_BOOK_MANDATE.PERMITTED_ASSET_CLASSES,
+      maxNotional: [core_book::Store] CB_BOOK_MANDATE.MAX_NOTIONAL,
+      approvedDate: [core_book::Store] CB_BOOK_MANDATE.APPROVED_DATE,
+      isActive: [core_book::Store] CB_BOOK_MANDATE.IS_ACTIVE
+   }
+
+   *core_book::BookApproval[cbBookApproval]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BOOK_APPROVAL
+      approvalId: [core_book::Store] CB_BOOK_APPROVAL.APPROVAL_ID,
+      approvalType: [core_book::Store] CB_BOOK_APPROVAL.APPROVAL_TYPE,
+      status: [core_book::Store] CB_BOOK_APPROVAL.STATUS,
+      requestedBy: [core_book::Store] CB_BOOK_APPROVAL.REQUESTED_BY,
+      approvedBy: [core_book::Store] CB_BOOK_APPROVAL.APPROVED_BY,
+      requestDate: [core_book::Store] CB_BOOK_APPROVAL.REQUEST_DATE,
+      decisionDate: [core_book::Store] CB_BOOK_APPROVAL.DECISION_DATE
+   }
+
+   *core_book::BookTransfer[cbBookTransfer]: Relational
+   {
+      ~mainTable [core_book::Store] CB_BOOK_TRANSFER
+      transferId: [core_book::Store] CB_BOOK_TRANSFER.TRANSFER_ID,
+      fromDeskId: [core_book::Store] CB_BOOK_TRANSFER.FROM_DESK_ID,
+      toDeskId: [core_book::Store] CB_BOOK_TRANSFER.TO_DESK_ID,
+      transferDate: [core_book::Store] CB_BOOK_TRANSFER.TRANSFER_DATE,
+      reason: [core_book::Store] CB_BOOK_TRANSFER.REASON,
+      isReversed: [core_book::Store] CB_BOOK_TRANSFER.IS_REVERSED
+   }
+
+   // ---- Association mappings ----
+   // The self-join one. Both ends are cbBook to cbBook over the same Cb_ParentBook join;
+   // the direction is what distinguishes parentBook from childBooks.
+   core_book::BookParent: Relational
+   {
+      AssociationMapping
+      (
+         childBooks[cbBook, cbBook]: [core_book::Store]@Cb_ParentBook,
+         parentBook[cbBook, cbBook]: [core_book::Store]@Cb_ParentBook
+      )
+   }
+
+   core_book::BookDesk: Relational
+   {
+      AssociationMapping
+      (
+         desk[cbBook, cbDesk]: [core_book::Store]@Cb_BookDesk,
+         books[cbDesk, cbBook]: [core_book::Store]@Cb_BookDesk
+      )
+   }
+
+   core_book::DeskBusinessUnit: Relational
+   {
+      AssociationMapping
+      (
+         businessUnit[cbDesk, cbBusinessUnit]: [core_book::Store]@Cb_DeskBusinessUnit,
+         desks[cbBusinessUnit, cbDesk]: [core_book::Store]@Cb_DeskBusinessUnit
+      )
+   }
+
+   core_book::BusinessUnitDivision: Relational
+   {
+      AssociationMapping
+      (
+         division[cbBusinessUnit, cbDivision]: [core_book::Store]@Cb_BusinessUnitDivision,
+         businessUnits[cbDivision, cbBusinessUnit]: [core_book::Store]@Cb_BusinessUnitDivision
+      )
+   }
+
+   core_book::BookOwnership: Relational
+   {
+      AssociationMapping
+      (
+         owner[cbBook, cbBookOwner]: [core_book::Store]@Cb_BookOwner,
+         ownedBooks[cbBookOwner, cbBook]: [core_book::Store]@Cb_BookOwner
+      )
+   }
+
+   core_book::BookStrategyLink: Relational
+   {
+      AssociationMapping
+      (
+         strategy[cbBook, cbStrategy]: [core_book::Store]@Cb_BookStrategy,
+         strategyBooks[cbStrategy, cbBook]: [core_book::Store]@Cb_BookStrategy
+      )
+   }
+
+   core_book::BookClassificationLink: Relational
+   {
+      AssociationMapping
+      (
+         classification[cbBook, cbBookClassification]: [core_book::Store]@Cb_BookClassification,
+         classifiedBooks[cbBookClassification, cbBook]: [core_book::Store]@Cb_BookClassification
+      )
+   }
+
+   core_book::BookLimitLink: Relational
+   {
+      AssociationMapping
+      (
+         limits[cbBook, cbBookLimit]: [core_book::Store]@Cb_BookLimit,
+         limitBook[cbBookLimit, cbBook]: [core_book::Store]@Cb_BookLimit
+      )
+   }
+
+   core_book::DeskCostCentre: Relational
+   {
+      AssociationMapping
+      (
+         costCentre[cbDesk, cbCostCentre]: [core_book::Store]@Cb_DeskCostCentre,
+         costCentreDesks[cbCostCentre, cbDesk]: [core_book::Store]@Cb_DeskCostCentre
+      )
+   }
+
+   core_book::BookMandateLink: Relational
+   {
+      AssociationMapping
+      (
+         mandates[cbBook, cbBookMandate]: [core_book::Store]@Cb_BookMandate,
+         mandateBook[cbBookMandate, cbBook]: [core_book::Store]@Cb_BookMandate
+      )
+   }
+
+   core_book::BookApprovalLink: Relational
+   {
+      AssociationMapping
+      (
+         approvals[cbBook, cbBookApproval]: [core_book::Store]@Cb_BookApproval,
+         approvalBook[cbBookApproval, cbBook]: [core_book::Store]@Cb_BookApproval
+      )
+   }
+
+   core_book::BookTransferLink: Relational
+   {
+      AssociationMapping
+      (
+         transfers[cbBook, cbBookTransfer]: [core_book::Store]@Cb_BookTransfer,
+         transferBook[cbBookTransfer, cbBook]: [core_book::Store]@Cb_BookTransfer
+      )
+   }
+)

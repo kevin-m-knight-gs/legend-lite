@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token
+//
+// `serverUrl: '...';` with a trailing semicolon. The rule is `SERVER_URL COLON serverUrl` and
+// ends there -- no SEMI_COLON -- so the one legal spelling omits it, as
+// ../fixtures/t2-deephaven.pure does. Every other field in every other connection in this
+// corpus is semicolon-terminated, including `store:` two lines above it in the same element.
+//
+// This is the inverse of ./neg-hostedservice-binding-single-semicolon.pure, where the legal
+// form takes TWO semicolons. Together they bracket the same risk: a rewrite that normalises
+// statement termination -- one semicolon after every field, which is what a hand-written
+// recursive-descent parser produces without trying -- diverges on both, in opposite
+// directions, and no positive fixture would catch either, because a tolerant parser accepts
+// the tolerant corpus too.
+###Connection
+DeephavenConnection fixture::neg::SemicolonAfterServerUrl
+{
+    store: fixture::neg::Store;
+    serverUrl: 'dummyurl.com:12345';
+    authentication: # PSK {
+        psk: 'abcde';
+    }#;
+}

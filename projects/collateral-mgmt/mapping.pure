@@ -1,0 +1,485 @@
+###Mapping
+// ============================================================
+// collateral_mgmt::Mapping -- 14 class sets, 21 association mappings
+// ============================================================
+// It INCLUDES both dependency mappings, because the cross-project association mappings at the
+// bottom name set ids that live in them -- `copPostingPlan`, `copInventoryLot`,
+// `copSubstitutionProposal` from collateral-opt, and `netSet`, `netCapitalTreatment` from
+// legal-netting. Those projects declared their ids explicitly, so the default ids
+// (`collateral_opt_CopPostingPlan`, `legal_netting_NetSet`) DO NOT EXIST and every cross-project
+// end names [source, target] rather than the bare `prop: [db]@Join` form.
+//
+// Both included mappings pull in collateral_core::Mapping -- collateral-opt directly,
+// legal-netting through exposure_agg::Mapping -- so this is a DIAMOND and the `col*` sets
+// resolve once.
+//
+// Every set id here is prefixed `cmg`, since set ids are a GLOBAL namespace in Legend and one
+// collision fails the whole graph with a message naming the id and not the project.
+Mapping collateral_mgmt::Mapping
+(
+   include collateral_opt::Mapping
+   include legal_netting::Mapping
+
+   collateral_mgmt::CmgMarginTerms[cmgMarginTerms]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_MARGIN_TERMS.TERMS_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_MARGIN_TERMS
+      termsId: [collateral_mgmt::Store]CMG_MARGIN_TERMS.TERMS_ID,
+      agreementId: [collateral_mgmt::Store]CMG_MARGIN_TERMS.AGREEMENT_ID,
+      nettingSetId: [collateral_mgmt::Store]CMG_MARGIN_TERMS.NETTING_SET_ID,
+      marginType: [collateral_mgmt::Store]CMG_MARGIN_TERMS.MARGIN_TYPE,
+      baseCurrency: [collateral_mgmt::Store]CMG_MARGIN_TERMS.BASE_CURRENCY,
+      thresholdAmount: [collateral_mgmt::Store]CMG_MARGIN_TERMS.THRESHOLD_AMOUNT,
+      minimumTransferAmount: [collateral_mgmt::Store]CMG_MARGIN_TERMS.MINIMUM_TRANSFER_AMOUNT,
+      roundingIncrement: [collateral_mgmt::Store]CMG_MARGIN_TERMS.ROUNDING_INCREMENT,
+      independentAmount: [collateral_mgmt::Store]CMG_MARGIN_TERMS.INDEPENDENT_AMOUNT,
+      callFrequency: [collateral_mgmt::Store]CMG_MARGIN_TERMS.CALL_FREQUENCY,
+      notificationTime: [collateral_mgmt::Store]CMG_MARGIN_TERMS.NOTIFICATION_TIME,
+      substitutionConsentRequired: [collateral_mgmt::Store]CMG_MARGIN_TERMS.SUBSTITUTION_CONSENT_REQUIRED,
+      effectiveDate: [collateral_mgmt::Store]CMG_MARGIN_TERMS.EFFECTIVE_DATE,
+      terminatedDate: [collateral_mgmt::Store]CMG_MARGIN_TERMS.TERMINATED_DATE
+   }
+
+   // The threshold and the MTA are mapped as APPLIED values on the call, not read through the
+   // terms set. Two columns, two different tests, and the second is the one that decides
+   // whether anything is sent.
+   collateral_mgmt::CmgMarginCall[cmgMarginCall]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_MARGIN_CALL.CALL_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_MARGIN_CALL
+      callId: [collateral_mgmt::Store]CMG_MARGIN_CALL.CALL_ID,
+      cobDate: [collateral_mgmt::Store]CMG_MARGIN_CALL.COB_DATE,
+      nettingSetId: [collateral_mgmt::Store]CMG_MARGIN_CALL.NETTING_SET_ID,
+      agreementId: [collateral_mgmt::Store]CMG_MARGIN_CALL.AGREEMENT_ID,
+      termsId: [collateral_mgmt::Store]CMG_MARGIN_CALL.TERMS_ID,
+      planId: [collateral_mgmt::Store]CMG_MARGIN_CALL.PLAN_ID,
+      direction: [collateral_mgmt::Store]CMG_MARGIN_CALL.DIRECTION,
+      exposureAmount: [collateral_mgmt::Store]CMG_MARGIN_CALL.EXPOSURE_AMOUNT,
+      collateralHeldValue: [collateral_mgmt::Store]CMG_MARGIN_CALL.COLLATERAL_HELD_VALUE,
+      thresholdApplied: [collateral_mgmt::Store]CMG_MARGIN_CALL.THRESHOLD_APPLIED,
+      mtaApplied: [collateral_mgmt::Store]CMG_MARGIN_CALL.MTA_APPLIED,
+      creditSupportAmount: [collateral_mgmt::Store]CMG_MARGIN_CALL.CREDIT_SUPPORT_AMOUNT,
+      roundedCallAmount: [collateral_mgmt::Store]CMG_MARGIN_CALL.ROUNDED_CALL_AMOUNT,
+      callCurrency: [collateral_mgmt::Store]CMG_MARGIN_CALL.CALL_CURRENCY,
+      callStatus: [collateral_mgmt::Store]CMG_MARGIN_CALL.CALL_STATUS,
+      issuedAt: [collateral_mgmt::Store]CMG_MARGIN_CALL.ISSUED_AT,
+      responseDeadline: [collateral_mgmt::Store]CMG_MARGIN_CALL.RESPONSE_DEADLINE,
+      isBelowMta: [collateral_mgmt::Store]CMG_MARGIN_CALL.IS_BELOW_MTA,
+      closedOn: [collateral_mgmt::Store]CMG_MARGIN_CALL.CLOSED_ON
+   }
+
+   // Two key columns. Keyed on the call alone, a re-dispute overwrites the first one.
+   collateral_mgmt::CmgCallEvent[cmgCallEvent]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_mgmt::Store]CMG_CALL_EVENT.CALL_ID,
+         [collateral_mgmt::Store]CMG_CALL_EVENT.EVENT_SEQ
+      )
+      ~mainTable [collateral_mgmt::Store]CMG_CALL_EVENT
+      callId: [collateral_mgmt::Store]CMG_CALL_EVENT.CALL_ID,
+      eventSeq: [collateral_mgmt::Store]CMG_CALL_EVENT.EVENT_SEQ,
+      eventType: [collateral_mgmt::Store]CMG_CALL_EVENT.EVENT_TYPE,
+      eventAt: [collateral_mgmt::Store]CMG_CALL_EVENT.EVENT_AT,
+      raisedBySide: [collateral_mgmt::Store]CMG_CALL_EVENT.RAISED_BY_SIDE,
+      actor: [collateral_mgmt::Store]CMG_CALL_EVENT.ACTOR,
+      eventNote: [collateral_mgmt::Store]CMG_CALL_EVENT.EVENT_NOTE
+   }
+
+   collateral_mgmt::CmgDispute[cmgDispute]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_DISPUTE.DISPUTE_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_DISPUTE
+      disputeId: [collateral_mgmt::Store]CMG_DISPUTE.DISPUTE_ID,
+      callId: [collateral_mgmt::Store]CMG_DISPUTE.CALL_ID,
+      cobDate: [collateral_mgmt::Store]CMG_DISPUTE.COB_DATE,
+      raisedBySide: [collateral_mgmt::Store]CMG_DISPUTE.RAISED_BY_SIDE,
+      disputedAmount: [collateral_mgmt::Store]CMG_DISPUTE.DISPUTED_AMOUNT,
+      undisputedAmount: [collateral_mgmt::Store]CMG_DISPUTE.UNDISPUTED_AMOUNT,
+      disputeReason: [collateral_mgmt::Store]CMG_DISPUTE.DISPUTE_REASON,
+      disputeStatus: [collateral_mgmt::Store]CMG_DISPUTE.DISPUTE_STATUS,
+      raisedOn: [collateral_mgmt::Store]CMG_DISPUTE.RAISED_ON,
+      escalatedOn: [collateral_mgmt::Store]CMG_DISPUTE.ESCALATED_ON,
+      resolvedOn: [collateral_mgmt::Store]CMG_DISPUTE.RESOLVED_ON,
+      resolutionMethod: [collateral_mgmt::Store]CMG_DISPUTE.RESOLUTION_METHOD,
+      ageInDays: [collateral_mgmt::Store]CMG_DISPUTE.AGE_IN_DAYS
+   }
+
+   collateral_mgmt::CmgDisputeItem[cmgDisputeItem]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_mgmt::Store]CMG_DISPUTE_ITEM.DISPUTE_ID,
+         [collateral_mgmt::Store]CMG_DISPUTE_ITEM.ITEM_CODE
+      )
+      ~mainTable [collateral_mgmt::Store]CMG_DISPUTE_ITEM
+      disputeId: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.DISPUTE_ID,
+      itemCode: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.ITEM_CODE,
+      itemCategory: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.ITEM_CATEGORY,
+      exposureId: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.EXPOSURE_ID,
+      collateralId: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.COLLATERAL_ID,
+      ourAmount: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.OUR_AMOUNT,
+      theirAmount: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.THEIR_AMOUNT,
+      itemCurrency: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.ITEM_CURRENCY,
+      itemStatus: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.ITEM_STATUS,
+      resolvedOn: [collateral_mgmt::Store]CMG_DISPUTE_ITEM.RESOLVED_ON
+   }
+
+   collateral_mgmt::CmgAgreedTransfer[cmgAgreedTransfer]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_AGREED_TRANSFER.CALL_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_AGREED_TRANSFER
+      callId: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.CALL_ID,
+      agreedAmount: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.AGREED_AMOUNT,
+      agreedCurrency: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.AGREED_CURRENCY,
+      agreedOn: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.AGREED_ON,
+      agreedBy: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.AGREED_BY,
+      settlementDate: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.SETTLEMENT_DATE,
+      isPartialAgreement: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.IS_PARTIAL_AGREEMENT,
+      originalCallAmount: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.ORIGINAL_CALL_AMOUNT,
+      agreementNote: [collateral_mgmt::Store]CMG_AGREED_TRANSFER.AGREEMENT_NOTE
+   }
+
+   collateral_mgmt::CmgCollateralMovement[cmgMovement]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_MOVEMENT.MOVEMENT_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_MOVEMENT
+      movementId: [collateral_mgmt::Store]CMG_MOVEMENT.MOVEMENT_ID,
+      callId: [collateral_mgmt::Store]CMG_MOVEMENT.CALL_ID,
+      lotId: [collateral_mgmt::Store]CMG_MOVEMENT.LOT_ID,
+      movementType: [collateral_mgmt::Store]CMG_MOVEMENT.MOVEMENT_TYPE,
+      collateralKind: [collateral_mgmt::Store]CMG_MOVEMENT.COLLATERAL_KIND,
+      instrumentId: [collateral_mgmt::Store]CMG_MOVEMENT.INSTRUMENT_ID,
+      quantity: [collateral_mgmt::Store]CMG_MOVEMENT.QUANTITY,
+      marketValue: [collateral_mgmt::Store]CMG_MOVEMENT.MARKET_VALUE,
+      haircutPct: [collateral_mgmt::Store]CMG_MOVEMENT.HAIRCUT_PCT,
+      postValue: [collateral_mgmt::Store]CMG_MOVEMENT.POST_VALUE,
+      movementCurrency: [collateral_mgmt::Store]CMG_MOVEMENT.MOVEMENT_CURRENCY,
+      valueDate: [collateral_mgmt::Store]CMG_MOVEMENT.VALUE_DATE,
+      instructionStatus: [collateral_mgmt::Store]CMG_MOVEMENT.INSTRUCTION_STATUS,
+      substitutionId: [collateral_mgmt::Store]CMG_MOVEMENT.SUBSTITUTION_ID
+   }
+
+   collateral_mgmt::CmgSettlement[cmgSettlement]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_SETTLEMENT.MOVEMENT_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_SETTLEMENT
+      movementId: [collateral_mgmt::Store]CMG_SETTLEMENT.MOVEMENT_ID,
+      settlementStatus: [collateral_mgmt::Store]CMG_SETTLEMENT.SETTLEMENT_STATUS,
+      instructedValue: [collateral_mgmt::Store]CMG_SETTLEMENT.INSTRUCTED_VALUE,
+      settledValue: [collateral_mgmt::Store]CMG_SETTLEMENT.SETTLED_VALUE,
+      settledOn: [collateral_mgmt::Store]CMG_SETTLEMENT.SETTLED_ON,
+      failReason: [collateral_mgmt::Store]CMG_SETTLEMENT.FAIL_REASON,
+      failDays: [collateral_mgmt::Store]CMG_SETTLEMENT.FAIL_DAYS,
+      custodianRef: [collateral_mgmt::Store]CMG_SETTLEMENT.CUSTODIAN_REF,
+      isPartial: [collateral_mgmt::Store]CMG_SETTLEMENT.IS_PARTIAL
+   }
+
+   collateral_mgmt::CmgSubstitution[cmgSubstitution]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_SUBSTITUTION.SUBSTITUTION_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_SUBSTITUTION
+      substitutionId: [collateral_mgmt::Store]CMG_SUBSTITUTION.SUBSTITUTION_ID,
+      agreementId: [collateral_mgmt::Store]CMG_SUBSTITUTION.AGREEMENT_ID,
+      proposalId: [collateral_mgmt::Store]CMG_SUBSTITUTION.PROPOSAL_ID,
+      outgoingCollateralId: [collateral_mgmt::Store]CMG_SUBSTITUTION.OUTGOING_COLLATERAL_ID,
+      incomingLotId: [collateral_mgmt::Store]CMG_SUBSTITUTION.INCOMING_LOT_ID,
+      substitutionReason: [collateral_mgmt::Store]CMG_SUBSTITUTION.SUBSTITUTION_REASON,
+      requestedOn: [collateral_mgmt::Store]CMG_SUBSTITUTION.REQUESTED_ON,
+      consentStatus: [collateral_mgmt::Store]CMG_SUBSTITUTION.CONSENT_STATUS,
+      consentDeadline: [collateral_mgmt::Store]CMG_SUBSTITUTION.CONSENT_DEADLINE,
+      consentReceivedOn: [collateral_mgmt::Store]CMG_SUBSTITUTION.CONSENT_RECEIVED_ON,
+      outgoingValue: [collateral_mgmt::Store]CMG_SUBSTITUTION.OUTGOING_VALUE,
+      incomingValue: [collateral_mgmt::Store]CMG_SUBSTITUTION.INCOMING_VALUE,
+      refusalReason: [collateral_mgmt::Store]CMG_SUBSTITUTION.REFUSAL_REASON
+   }
+
+   // Three key columns, and the left-hand side of the disjunction is two of them.
+   collateral_mgmt::CmgCashBalance[cmgCashBalance]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_mgmt::Store]CMG_CASH_BALANCE.AGREEMENT_ID,
+         [collateral_mgmt::Store]CMG_CASH_BALANCE.BALANCE_CURRENCY,
+         [collateral_mgmt::Store]CMG_CASH_BALANCE.COB_DATE
+      )
+      ~mainTable [collateral_mgmt::Store]CMG_CASH_BALANCE
+      agreementId: [collateral_mgmt::Store]CMG_CASH_BALANCE.AGREEMENT_ID,
+      balanceCurrency: [collateral_mgmt::Store]CMG_CASH_BALANCE.BALANCE_CURRENCY,
+      cobDate: [collateral_mgmt::Store]CMG_CASH_BALANCE.COB_DATE,
+      nettingSetId: [collateral_mgmt::Store]CMG_CASH_BALANCE.NETTING_SET_ID,
+      openingBalance: [collateral_mgmt::Store]CMG_CASH_BALANCE.OPENING_BALANCE,
+      deliveries: [collateral_mgmt::Store]CMG_CASH_BALANCE.DELIVERIES,
+      returns: [collateral_mgmt::Store]CMG_CASH_BALANCE.RETURNS,
+      closingBalance: [collateral_mgmt::Store]CMG_CASH_BALANCE.CLOSING_BALANCE,
+      isPostedByUs: [collateral_mgmt::Store]CMG_CASH_BALANCE.IS_POSTED_BY_US
+   }
+
+   // The right-hand side of the disjunction. Both axis columns are mapped as ordinary optional
+   // properties -- the disjunction lives in the JOIN, not in the class.
+   collateral_mgmt::CmgCashRateSchedule[cmgCashRateSchedule]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.RATE_SET_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE
+      rateSetId: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.RATE_SET_ID,
+      rateBasis: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.RATE_BASIS,
+      agreementId: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.AGREEMENT_ID,
+      rateCurrency: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.RATE_CURRENCY,
+      rateIndex: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.RATE_INDEX,
+      spreadBps: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.SPREAD_BPS,
+      hasZeroFloor: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.HAS_ZERO_FLOOR,
+      dayCountBasis: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.DAY_COUNT_BASIS,
+      compoundingMethod: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.COMPOUNDING_METHOD,
+      effectiveFrom: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.EFFECTIVE_FROM,
+      expiryDate: [collateral_mgmt::Store]CMG_CASH_RATE_SCHEDULE.EXPIRY_DATE
+   }
+
+   collateral_mgmt::CmgInterestAccrual[cmgInterestAccrual]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.AGREEMENT_ID,
+         [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.ACCRUAL_CURRENCY,
+         [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.ACCRUAL_DATE
+      )
+      ~mainTable [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL
+      agreementId: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.AGREEMENT_ID,
+      accrualCurrency: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.ACCRUAL_CURRENCY,
+      accrualDate: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.ACCRUAL_DATE,
+      rateSetId: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.RATE_SET_ID,
+      balanceAmount: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.BALANCE_AMOUNT,
+      appliedRatePct: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.APPLIED_RATE_PCT,
+      dayCountFraction: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.DAY_COUNT_FRACTION,
+      accruedAmount: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.ACCRUED_AMOUNT,
+      isNegativeAccrual: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.IS_NEGATIVE_ACCRUAL,
+      paymentId: [collateral_mgmt::Store]CMG_INTEREST_ACCRUAL.PAYMENT_ID
+   }
+
+   collateral_mgmt::CmgInterestPayment[cmgInterestPayment]: Relational
+   {
+      ~primaryKey ( [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PAYMENT_ID )
+      ~mainTable [collateral_mgmt::Store]CMG_INTEREST_PAYMENT
+      paymentId: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PAYMENT_ID,
+      agreementId: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.AGREEMENT_ID,
+      paymentCurrency: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PAYMENT_CURRENCY,
+      periodStart: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PERIOD_START,
+      periodEnd: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PERIOD_END,
+      accruedTotal: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.ACCRUED_TOTAL,
+      paidAmount: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PAID_AMOUNT,
+      isNettedIntoCall: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.IS_NETTED_INTO_CALL,
+      nettedIntoCallId: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.NETTED_INTO_CALL_ID,
+      paymentStatus: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PAYMENT_STATUS,
+      paidOn: [collateral_mgmt::Store]CMG_INTEREST_PAYMENT.PAID_ON
+   }
+
+   // ---- the aggregation, mapped over the ~groupBy view ---------------------------------------
+   // The grouping columns are the key. Nothing is materialised: the engine folds the GROUP BY
+   // into the SQL when the class is queried.
+   collateral_mgmt::CmgDisputeDaySummary[cmgDisputeDaySummary]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.COB_DATE,
+         [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.DISPUTE_STATUS
+      )
+      ~mainTable [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY
+      cobDate: [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.COB_DATE,
+      disputeStatus: [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.DISPUTE_STATUS,
+      disputeCount: [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.DISPUTE_COUNT,
+      totalDisputed: [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.TOTAL_DISPUTED,
+      totalUndisputed: [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.TOTAL_UNDISPUTED,
+      largestDisputed: [collateral_mgmt::Store]CMG_DISPUTE_DAY_SUMMARY.LARGEST_DISPUTED
+   }
+
+   // ---- THE OR-JOIN -----------------------------------------------------------------------------
+   // Both ends read the same disjunctive join, from opposite sides.
+   collateral_mgmt::CmgApplicableCashRates: Relational
+   {
+      AssociationMapping
+      (
+         applicableRates[cmgCashBalance, cmgCashRateSchedule]: [collateral_mgmt::Store]@Cmg_BalanceCashRate,
+         ratedBalances[cmgCashRateSchedule, cmgCashBalance]: [collateral_mgmt::Store]@Cmg_BalanceCashRate
+      )
+   }
+
+   // ---- within this project -----------------------------------------------------------------------
+   collateral_mgmt::CmgTermsCalls: Relational
+   {
+      AssociationMapping
+      (
+         governedCalls[cmgMarginTerms, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_TermsCall,
+         governingTerms[cmgMarginCall, cmgMarginTerms]: [collateral_mgmt::Store]@Cmg_TermsCall
+      )
+   }
+
+   collateral_mgmt::CmgCallEvents: Relational
+   {
+      AssociationMapping
+      (
+         callEvents[cmgMarginCall, cmgCallEvent]: [collateral_mgmt::Store]@Cmg_CallEvent,
+         eventCall[cmgCallEvent, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallEvent
+      )
+   }
+
+   collateral_mgmt::CmgCallDisputes: Relational
+   {
+      AssociationMapping
+      (
+         disputes[cmgMarginCall, cmgDispute]: [collateral_mgmt::Store]@Cmg_CallDispute,
+         disputedCall[cmgDispute, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallDispute
+      )
+   }
+
+   collateral_mgmt::CmgDisputeItems: Relational
+   {
+      AssociationMapping
+      (
+         disputeItems[cmgDispute, cmgDisputeItem]: [collateral_mgmt::Store]@Cmg_DisputeItem,
+         itemDispute[cmgDisputeItem, cmgDispute]: [collateral_mgmt::Store]@Cmg_DisputeItem
+      )
+   }
+
+   collateral_mgmt::CmgCallAgreed: Relational
+   {
+      AssociationMapping
+      (
+         agreedTransfer[cmgMarginCall, cmgAgreedTransfer]: [collateral_mgmt::Store]@Cmg_CallAgreedTransfer,
+         agreedCall[cmgAgreedTransfer, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallAgreedTransfer
+      )
+   }
+
+   collateral_mgmt::CmgCallMovements: Relational
+   {
+      AssociationMapping
+      (
+         movements[cmgMarginCall, cmgMovement]: [collateral_mgmt::Store]@Cmg_CallMovement,
+         movementCall[cmgMovement, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallMovement
+      )
+   }
+
+   collateral_mgmt::CmgMovementSettlement: Relational
+   {
+      AssociationMapping
+      (
+         settlement[cmgMovement, cmgSettlement]: [collateral_mgmt::Store]@Cmg_MovementSettlement,
+         settledMovement[cmgSettlement, cmgMovement]: [collateral_mgmt::Store]@Cmg_MovementSettlement
+      )
+   }
+
+   collateral_mgmt::CmgSubstitutionMovements: Relational
+   {
+      AssociationMapping
+      (
+         substitutionMovements[cmgSubstitution, cmgMovement]: [collateral_mgmt::Store]@Cmg_SubstitutionMovement,
+         substitution[cmgMovement, cmgSubstitution]: [collateral_mgmt::Store]@Cmg_SubstitutionMovement
+      )
+   }
+
+   // Three-column join both ways.
+   collateral_mgmt::CmgBalanceAccrual: Relational
+   {
+      AssociationMapping
+      (
+         accrual[cmgCashBalance, cmgInterestAccrual]: [collateral_mgmt::Store]@Cmg_BalanceAccrual,
+         accruedBalance[cmgInterestAccrual, cmgCashBalance]: [collateral_mgmt::Store]@Cmg_BalanceAccrual
+      )
+   }
+
+   collateral_mgmt::CmgPaymentAccruals: Relational
+   {
+      AssociationMapping
+      (
+         paidAccruals[cmgInterestPayment, cmgInterestAccrual]: [collateral_mgmt::Store]@Cmg_AccrualPayment,
+         interestPayment[cmgInterestAccrual, cmgInterestPayment]: [collateral_mgmt::Store]@Cmg_AccrualPayment
+      )
+   }
+
+   collateral_mgmt::CmgCallNettedInterest: Relational
+   {
+      AssociationMapping
+      (
+         nettedInterestPayments[cmgMarginCall, cmgInterestPayment]: [collateral_mgmt::Store]@Cmg_CallNettedInterest,
+         nettedIntoCall[cmgInterestPayment, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallNettedInterest
+      )
+   }
+
+   // The dispute against its own daily rollup. Two-column join both ways.
+   collateral_mgmt::CmgDisputeSummaryLink: Relational
+   {
+      AssociationMapping
+      (
+         daySummary[cmgDispute, cmgDisputeDaySummary]: [collateral_mgmt::Store]@Cmg_DisputeDaySummary,
+         disputesInDay[cmgDisputeDaySummary, cmgDispute]: [collateral_mgmt::Store]@Cmg_DisputeDaySummary
+      )
+   }
+
+   // ---- across the boundary into collateral-opt ------------------------------------------------
+   // Every end names the DEPENDENCY's explicit set id -- `copPostingPlan`, `copInventoryLot`,
+   // `copSubstitutionProposal` -- because that project declared its ids and the defaults do not
+   // exist.
+   collateral_mgmt::CmgCallFundingPlan: Relational
+   {
+      AssociationMapping
+      (
+         fundingPlan[cmgMarginCall, copPostingPlan]: [collateral_mgmt::Store]@Cmg_CallFundingPlan,
+         answeredCalls[copPostingPlan, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallFundingPlan
+      )
+   }
+
+   collateral_mgmt::CmgMovementLot: Relational
+   {
+      AssociationMapping
+      (
+         deliveredLot[cmgMovement, copInventoryLot]: [collateral_mgmt::Store]@Cmg_MovementLot,
+         deliveringMovements[copInventoryLot, cmgMovement]: [collateral_mgmt::Store]@Cmg_MovementLot
+      )
+   }
+
+   collateral_mgmt::CmgSubstitutionProposalLink: Relational
+   {
+      AssociationMapping
+      (
+         optimiserProposal[cmgSubstitution, copSubstitutionProposal]: [collateral_mgmt::Store]@Cmg_SubstitutionProposal,
+         substitutionRequests[copSubstitutionProposal, cmgSubstitution]: [collateral_mgmt::Store]@Cmg_SubstitutionProposal
+      )
+   }
+
+   // ---- across the boundary into legal-netting -------------------------------------------------
+   // `netSet` and `netCapitalTreatment` are legal-netting's explicit ids.
+   collateral_mgmt::CmgCallNettingSet: Relational
+   {
+      AssociationMapping
+      (
+         nettingSet[cmgMarginCall, netSet]: [collateral_mgmt::Store]@Cmg_CallNettingSet,
+         marginCalls[netSet, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallNettingSet
+      )
+   }
+
+   collateral_mgmt::CmgTermsNettingSet: Relational
+   {
+      AssociationMapping
+      (
+         securedSet[cmgMarginTerms, netSet]: [collateral_mgmt::Store]@Cmg_TermsNettingSet,
+         marginTerms[netSet, cmgMarginTerms]: [collateral_mgmt::Store]@Cmg_TermsNettingSet
+      )
+   }
+
+   collateral_mgmt::CmgBalanceNettingSet: Relational
+   {
+      AssociationMapping
+      (
+         collateralisedSet[cmgCashBalance, netSet]: [collateral_mgmt::Store]@Cmg_BalanceNettingSet,
+         cashBalances[netSet, cmgCashBalance]: [collateral_mgmt::Store]@Cmg_BalanceNettingSet
+      )
+   }
+
+   // Two-column join, (set, date).
+   collateral_mgmt::CmgCallCapitalTreatment: Relational
+   {
+      AssociationMapping
+      (
+         capitalTreatment[cmgMarginCall, netCapitalTreatment]: [collateral_mgmt::Store]@Cmg_CallCapitalTreatment,
+         marginCallsRaised[netCapitalTreatment, cmgMarginCall]: [collateral_mgmt::Store]@Cmg_CallCapitalTreatment
+      )
+   }
+)

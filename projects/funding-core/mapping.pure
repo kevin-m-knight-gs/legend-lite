@@ -1,0 +1,187 @@
+###Mapping
+
+Mapping funding_core::Mapping
+(
+  include core_account::Mapping
+  include core_tenor::Mapping
+
+  *funding_core::FndFundingDesk[fndDesk]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_DESK.DESK_ID )
+    ~mainTable [funding_core::Store]FND_DESK
+    deskId: [funding_core::Store]FND_DESK.DESK_ID,
+    deskName: [funding_core::Store]FND_DESK.DESK_NAME,
+    legalEntityCode: [funding_core::Store]FND_DESK.LEGAL_ENTITY_CODE,
+    regionCode: [funding_core::Store]FND_DESK.REGION_CODE,
+    isActive: [funding_core::Store]FND_DESK.IS_ACTIVE
+  }
+
+  *funding_core::FndBenchmarkIndex[fndBenchmark]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_BENCHMARK_INDEX.INDEX_CODE )
+    ~mainTable [funding_core::Store]FND_BENCHMARK_INDEX
+    indexCode: [funding_core::Store]FND_BENCHMARK_INDEX.INDEX_CODE,
+    indexName: [funding_core::Store]FND_BENCHMARK_INDEX.INDEX_NAME,
+    currencyCode: [funding_core::Store]FND_BENCHMARK_INDEX.CURRENCY_CODE,
+    compounding: [funding_core::Store]FND_BENCHMARK_INDEX.COMPOUNDING,
+    dayCountConvention: [funding_core::Store]FND_BENCHMARK_INDEX.DAY_COUNT_CONVENTION
+  }
+
+  *funding_core::FndCurveDefinition[fndCurve]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_CURVE.CURVE_ID )
+    ~mainTable [funding_core::Store]FND_CURVE
+    curveId: [funding_core::Store]FND_CURVE.CURVE_ID,
+    curveName: [funding_core::Store]FND_CURVE.CURVE_NAME,
+    currencyCode: [funding_core::Store]FND_CURVE.CURRENCY_CODE,
+    curveType: [funding_core::Store]FND_CURVE.CURVE_TYPE,
+    ladderId: [funding_core::Store]FND_CURVE.LADDER_ID,
+    desk[fndDesk]: [funding_core::Store]@Fnd_CurveDesk,
+    benchmark[fndBenchmark]: [funding_core::Store]@Fnd_CurveBenchmark,
+    points[fndCurvePoint]: [funding_core::Store]@Fnd_CurvePoints
+  }
+
+  // The MILESTONED set. CURVE_ID and FROM_Z together are the key -- one curve has many
+  // versions, and a version is only identified once you say which span. FROM_Z and THRU_Z
+  // appear here and nowhere on the class; the engine adds the date predicate.
+  *funding_core::FndCurveVersion[fndCurveVersion]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_CURVE_MS.CURVE_ID, [funding_core::Store]FND_CURVE_MS.FROM_Z )
+    ~mainTable [funding_core::Store]FND_CURVE_MS
+    curveId: [funding_core::Store]FND_CURVE_MS.CURVE_ID,
+    curveName: [funding_core::Store]FND_CURVE_MS.CURVE_NAME,
+    currencyCode: [funding_core::Store]FND_CURVE_MS.CURRENCY_CODE,
+    methodology: [funding_core::Store]FND_CURVE_MS.METHODOLOGY,
+    benchmarkCode: [funding_core::Store]FND_CURVE_MS.BENCHMARK_CODE,
+    baseRateBps: [funding_core::Store]FND_CURVE_MS.BASE_RATE_BPS,
+    status: [funding_core::Store]FND_CURVE_MS.STATUS,
+    approvedBy: [funding_core::Store]FND_CURVE_MS.APPROVED_BY
+  }
+
+  *funding_core::FndCurvePoint[fndCurvePoint]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_CURVE_POINT.CURVE_ID, [funding_core::Store]FND_CURVE_POINT.POINT_SEQ )
+    ~mainTable [funding_core::Store]FND_CURVE_POINT
+    curveId: [funding_core::Store]FND_CURVE_POINT.CURVE_ID,
+    pointSeq: [funding_core::Store]FND_CURVE_POINT.POINT_SEQ,
+    bucketId: [funding_core::Store]FND_CURVE_POINT.BUCKET_ID,
+    minDays: [funding_core::Store]FND_CURVE_POINT.MIN_DAYS,
+    maxDays: [funding_core::Store]FND_CURVE_POINT.MAX_DAYS,
+    transferRateBps: [funding_core::Store]FND_CURVE_POINT.TRANSFER_RATE_BPS,
+    liquiditySpreadBps: [funding_core::Store]FND_CURVE_POINT.LIQUIDITY_SPREAD_BPS,
+    curve[fndCurve]: [funding_core::Store]@Fnd_CurvePoints,
+    // The keyed route across the project boundary, for contrast with the range one below.
+    bucket[ctnBucket]: [funding_core::Store]@Fnd_PointTenorBucket,
+    // The RANGE join traversed backwards: every cashflow that lands in this point's interval.
+    cashflows[fndCashflow]: [funding_core::Store]@Fnd_CashflowPoint
+  }
+
+  *funding_core::FndLiquidityPremium[fndPremium]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_LIQUIDITY_PREMIUM.CURVE_ID, [funding_core::Store]FND_LIQUIDITY_PREMIUM.BUCKET_ID, [funding_core::Store]FND_LIQUIDITY_PREMIUM.FUNDING_CLASS )
+    ~mainTable [funding_core::Store]FND_LIQUIDITY_PREMIUM
+    curveId: [funding_core::Store]FND_LIQUIDITY_PREMIUM.CURVE_ID,
+    bucketId: [funding_core::Store]FND_LIQUIDITY_PREMIUM.BUCKET_ID,
+    fundingClass: [funding_core::Store]FND_LIQUIDITY_PREMIUM.FUNDING_CLASS,
+    premiumBps: [funding_core::Store]FND_LIQUIDITY_PREMIUM.PREMIUM_BPS,
+    haircutPct: [funding_core::Store]FND_LIQUIDITY_PREMIUM.HAIRCUT_PCT,
+    bucket[ctnBucket]: [funding_core::Store]@Fnd_PremiumTenorBucket
+  }
+
+  *funding_core::FndCashflow[fndCashflow]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_CASHFLOW.CASHFLOW_ID )
+    ~mainTable [funding_core::Store]FND_CASHFLOW
+    cashflowId: [funding_core::Store]FND_CASHFLOW.CASHFLOW_ID,
+    institutionId: [funding_core::Store]FND_CASHFLOW.INSTITUTION_ID,
+    accountNo: [funding_core::Store]FND_CASHFLOW.ACCOUNT_NO,
+    curveId: [funding_core::Store]FND_CASHFLOW.CURVE_ID,
+    flowType: [funding_core::Store]FND_CASHFLOW.FLOW_TYPE,
+    valueDate: [funding_core::Store]FND_CASHFLOW.VALUE_DATE,
+    maturityDate: [funding_core::Store]FND_CASHFLOW.MATURITY_DATE,
+    daysToMaturity: [funding_core::Store]FND_CASHFLOW.DAYS_TO_MATURITY,
+    notional: [funding_core::Store]FND_CASHFLOW.NOTIONAL,
+    currencyCode: [funding_core::Store]FND_CASHFLOW.CURRENCY_CODE,
+    // Two-column join into another project's composite key.
+    account[caAccount]: [funding_core::Store]@Fnd_CashflowAccount,
+    curve[fndCurve]: [funding_core::Store]@Fnd_CashflowCurve,
+    // The RANGE join, forwards, within this project: the priced point.
+    point[fndCurvePoint]: [funding_core::Store]@Fnd_CashflowPoint,
+    // The RANGE join, forwards, across the boundary: the standard tenor band.
+    bucket[ctnBucket]: [funding_core::Store]@Fnd_CashflowTenorBucket
+  }
+
+  *funding_core::FndTransferPrice[fndTransferPrice]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_TRANSFER_PRICE.PRICE_ID )
+    ~mainTable [funding_core::Store]FND_TRANSFER_PRICE
+    priceId: [funding_core::Store]FND_TRANSFER_PRICE.PRICE_ID,
+    cashflowId: [funding_core::Store]FND_TRANSFER_PRICE.CASHFLOW_ID,
+    curveId: [funding_core::Store]FND_TRANSFER_PRICE.CURVE_ID,
+    pricedAsOf: [funding_core::Store]FND_TRANSFER_PRICE.PRICED_AS_OF,
+    appliedRateBps: [funding_core::Store]FND_TRANSFER_PRICE.APPLIED_RATE_BPS,
+    premiumBps: [funding_core::Store]FND_TRANSFER_PRICE.PREMIUM_BPS,
+    chargeAmount: [funding_core::Store]FND_TRANSFER_PRICE.CHARGE_AMOUNT,
+    cashflow[fndCashflow]: [funding_core::Store]@Fnd_PriceCashflow
+  }
+
+  *funding_core::FndFundingRequest[fndRequest]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_FUNDING_REQUEST.REQUEST_ID )
+    ~mainTable [funding_core::Store]FND_FUNDING_REQUEST
+    requestId: [funding_core::Store]FND_FUNDING_REQUEST.REQUEST_ID,
+    institutionId: [funding_core::Store]FND_FUNDING_REQUEST.INSTITUTION_ID,
+    accountNo: [funding_core::Store]FND_FUNDING_REQUEST.ACCOUNT_NO,
+    deskId: [funding_core::Store]FND_FUNDING_REQUEST.DESK_ID,
+    requestedOn: [funding_core::Store]FND_FUNDING_REQUEST.REQUESTED_ON,
+    tenorDays: [funding_core::Store]FND_FUNDING_REQUEST.TENOR_DAYS,
+    requestedAmount: [funding_core::Store]FND_FUNDING_REQUEST.REQUESTED_AMOUNT,
+    currencyCode: [funding_core::Store]FND_FUNDING_REQUEST.CURRENCY_CODE,
+    status: [funding_core::Store]FND_FUNDING_REQUEST.STATUS,
+    account[caAccount]: [funding_core::Store]@Fnd_RequestAccount,
+    desk[fndDesk]: [funding_core::Store]@Fnd_RequestDesk
+  }
+
+  *funding_core::FndAccountFundingProfile[fndAccountProfile]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_ACCOUNT_PROFILE.INSTITUTION_ID, [funding_core::Store]FND_ACCOUNT_PROFILE.ACCOUNT_NO )
+    ~mainTable [funding_core::Store]FND_ACCOUNT_PROFILE
+    institutionId: [funding_core::Store]FND_ACCOUNT_PROFILE.INSTITUTION_ID,
+    accountNo: [funding_core::Store]FND_ACCOUNT_PROFILE.ACCOUNT_NO,
+    curveId: [funding_core::Store]FND_ACCOUNT_PROFILE.CURVE_ID,
+    fundingClass: [funding_core::Store]FND_ACCOUNT_PROFILE.FUNDING_CLASS,
+    effectiveFrom: [funding_core::Store]FND_ACCOUNT_PROFILE.EFFECTIVE_FROM,
+    isExempt: [funding_core::Store]FND_ACCOUNT_PROFILE.IS_EXEMPT,
+    account[caAccount]: [funding_core::Store]@Fnd_ProfileAccount,
+    curve[fndCurve]: [funding_core::Store]@Fnd_ProfileCurve
+  }
+
+  *funding_core::FndCurveApproval[fndApproval]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_CURVE_APPROVAL.APPROVAL_ID )
+    ~mainTable [funding_core::Store]FND_CURVE_APPROVAL
+    approvalId: [funding_core::Store]FND_CURVE_APPROVAL.APPROVAL_ID,
+    curveId: [funding_core::Store]FND_CURVE_APPROVAL.CURVE_ID,
+    approvedOn: [funding_core::Store]FND_CURVE_APPROVAL.APPROVED_ON,
+    approvedBy: [funding_core::Store]FND_CURVE_APPROVAL.APPROVED_BY,
+    committee: [funding_core::Store]FND_CURVE_APPROVAL.COMMITTEE,
+    changeReason: [funding_core::Store]FND_CURVE_APPROVAL.CHANGE_REASON,
+    curve[fndCurve]: [funding_core::Store]@Fnd_ApprovalCurve,
+    desk[fndDesk]: [funding_core::Store]@Fnd_ApprovalDesk
+  }
+
+  *funding_core::FndBucketRollup[fndRollup]: Relational
+  {
+    ~primaryKey ( [funding_core::Store]FND_BUCKET_ROLLUP.ROLLUP_ID )
+    ~mainTable [funding_core::Store]FND_BUCKET_ROLLUP
+    rollupId: [funding_core::Store]FND_BUCKET_ROLLUP.ROLLUP_ID,
+    curveId: [funding_core::Store]FND_BUCKET_ROLLUP.CURVE_ID,
+    bucketId: [funding_core::Store]FND_BUCKET_ROLLUP.BUCKET_ID,
+    asOfDate: [funding_core::Store]FND_BUCKET_ROLLUP.AS_OF_DATE,
+    cashflowCount: [funding_core::Store]FND_BUCKET_ROLLUP.CASHFLOW_COUNT,
+    totalNotional: [funding_core::Store]FND_BUCKET_ROLLUP.TOTAL_NOTIONAL,
+    weightedRateBps: [funding_core::Store]FND_BUCKET_ROLLUP.WEIGHTED_RATE_BPS,
+    bucket[ctnBucket]: [funding_core::Store]@Fnd_RollupTenorBucket,
+    curve[fndCurve]: [funding_core::Store]@Fnd_RollupCurve
+  }
+)

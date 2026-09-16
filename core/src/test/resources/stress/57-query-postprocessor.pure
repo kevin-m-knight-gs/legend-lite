@@ -1,0 +1,30 @@
+// The RelationalMapper element: rewrites database, schema and table names on the way to SQL.
+//
+// This is how one model targets a differently-named physical layout per environment, and it
+// is the alternative to the key-based routing in 67-routing-surface.pure -- routing picks a
+// RUNTIME, this rewrites the NAMES a single runtime emits.
+//
+// Its section is QueryPostProcessor, not RelationalMapper: the element is named
+// RelationalMapper but its section parser is registered under POSTPROCESSOR_NAME.
+//
+// It lives in its own file rather than beside the connection that references it. Sharing a
+// file, the reference did not resolve in the FULL model -- "Can't find the packageable
+// element 'surface::ProdMapper'" -- while the file compiled fine on its own.
+###QueryPostProcessor
+RelationalMapper surface::ProdMapper
+(
+   // A DatabaseMapper's brackets hold SCHEMA references (`database DOT schema`), not bare
+   // databases. Several schemas can be redirected to one physical database.
+   DatabaseMappers:
+   [
+      [combo::ComboDB.analytics, combo::ComboDB.default] -> 'PROD_WAREHOUSE'
+   ];
+   SchemaMappers:
+   [
+      combo::ComboDB.analytics -> 'PROD_ANALYTICS'
+   ];
+   TableMappers:
+   [
+      combo::ComboDB.analytics.COMBO_SUMMARY -> 'PROD_SUMMARY'
+   ];
+)

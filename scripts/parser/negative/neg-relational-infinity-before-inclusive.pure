@@ -1,0 +1,24 @@
+// REJECTS: Unexpected token ','. Valid alternatives: [')']
+//
+// Inside the range form of a milestoning clause the optional tail is ordered:
+//     BUS_FROM = x, BUS_THRU = y (, THRU_IS_INCLUSIVE = b)? (, INFINITY_DATE = d)?
+// The inclusive flag must PRECEDE INFINITY_DATE. This writes them the other way round.
+//
+// Both are optional, both are `NAME = value`, and neither reads like it belongs in a
+// sequence -- which is exactly why a rewrite parses the tail as a bag of named arguments
+// and accepts either order. The positive fixture relational-milestoning.pure writes the
+// legal order on two tables and would not catch the difference.
+###Relational
+Database fixture::neg::InfinityFirst
+(
+   Table T
+   (
+      milestoning
+      (
+         business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31T00:00:00.0000, THRU_IS_INCLUSIVE = true)
+      )
+      ID VARCHAR(32) PRIMARY KEY,
+      FROM_Z DATE,
+      THRU_Z DATE
+   )
+)

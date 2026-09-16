@@ -1,0 +1,229 @@
+###Pure
+// ESG: the metrics that now sit alongside price and risk, and their coverage gaps.
+//
+// 18 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 18 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class esg::EsgMetric
+{
+   metricId: String[1];
+   metricType: String[1];
+   issuerId: String[1];
+   reportingYear: Integer[1];
+   value: Float[1];
+   unit: String[1];
+   dataSource: String[1];
+   isEstimated: Boolean[1];
+   assuranceLevel: String[0..1];
+   peerMedian: Float[0..1];
+
+   // Distance from the peer median, with a missing median read as the value itself
+   // so an uncovered issuer scores zero rather than appearing to be an outlier.
+   versusPeers() { $this.value - $this.peerMedian->orElse($this.value) } : Float[1];
+}
+
+// Emissions per million of revenue, which is comparable across sizes.
+Class esg::CarbonIntensityMetric extends esg::EsgMetric
+{
+}
+
+// What the issuer burns directly.
+Class esg::ScopeOneEmissions extends esg::EsgMetric
+{
+}
+
+// What its electricity supplier burns.
+Class esg::ScopeTwoEmissions extends esg::EsgMetric
+{
+}
+
+// Everything up and down the value chain, and mostly estimated.
+Class esg::ScopeThreeEmissions extends esg::EsgMetric
+{
+}
+
+// Implied warming if the whole economy behaved like this portfolio.
+Class esg::TemperatureAlignmentMetric extends esg::EsgMetric
+{
+}
+
+// Share of turnover from taxonomy-aligned activities.
+Class esg::GreenRevenueShare extends esg::EsgMetric
+{
+}
+
+// Composition of the board.
+Class esg::BoardDiversityMetric extends esg::EsgMetric
+{
+}
+
+// Disclosed, and increasingly mandatory.
+Class esg::GenderPayGapMetric extends esg::EsgMetric
+{
+}
+
+// Severity of incidents in the news.
+Class esg::ControversyScore extends esg::EsgMetric
+{
+}
+
+// A violation of the UN principles, which most exclusion lists key on.
+Class esg::UnGlobalCompactBreach extends esg::EsgMetric
+{
+}
+
+// Named on a client's do-not-hold list.
+Class esg::ExclusionListFlag extends esg::EsgMetric
+{
+}
+
+// Article 6, 8 or 9, which decides what may be marketed as sustainable.
+Class esg::SfdrArticleClassification extends esg::EsgMetric
+{
+}
+
+// One of the mandatory adverse-impact indicators.
+Class esg::PrincipalAdverseImpact extends esg::EsgMetric
+{
+}
+
+// Percentage aligned with the EU taxonomy.
+Class esg::EuTaxonomyAlignment extends esg::EsgMetric
+{
+}
+
+// Material for some sectors and irrelevant for others.
+Class esg::WaterUsageMetric extends esg::EsgMetric
+{
+}
+
+// Similar.
+Class esg::WasteIntensityMetric extends esg::EsgMetric
+{
+}
+
+// Labour standards below the first tier.
+Class esg::SupplyChainAuditResult extends esg::EsgMetric
+{
+}
+
+// How the manager voted on an ESG resolution.
+Class esg::StewardshipVoteRecord extends esg::EsgMetric
+{
+}
+
+###Mapping
+Mapping esg::EsgMapping
+(
+   *esg::EsgMetric[esgBase]: Relational
+   {
+      ~primaryKey ( [store::DB]ESG_METRIC.METRIC_ID )
+      ~mainTable [store::DB]ESG_METRIC
+      metricId: [store::DB]ESG_METRIC.METRIC_ID,
+      metricType: [store::DB]ESG_METRIC.METRIC_TYPE,
+      issuerId: [store::DB]ESG_METRIC.ISSUER_ID,
+      reportingYear: [store::DB]ESG_METRIC.REPORTING_YEAR,
+      value: [store::DB]ESG_METRIC.VALUE,
+      unit: [store::DB]ESG_METRIC.UNIT,
+      dataSource: [store::DB]ESG_METRIC.DATA_SOURCE,
+      isEstimated: [store::DB]ESG_METRIC.IS_ESTIMATED,
+      assuranceLevel: [store::DB]ESG_METRIC.ASSURANCE_LEVEL,
+      peerMedian: [store::DB]ESG_METRIC.PEER_MEDIAN
+   }
+
+   esg::CarbonIntensityMetric[esgCarbonIntensity] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgCarbonIntensityRows
+   }
+
+   esg::ScopeOneEmissions[esgScope1Emissions] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgScope1EmissionsRows
+   }
+
+   esg::ScopeTwoEmissions[esgScope2Emissions] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgScope2EmissionsRows
+   }
+
+   esg::ScopeThreeEmissions[esgScope3Emissions] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgScope3EmissionsRows
+   }
+
+   esg::TemperatureAlignmentMetric[esgTemperatureAlignment] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgTemperatureAlignmentRows
+   }
+
+   esg::GreenRevenueShare[esgGreenRevenue] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgGreenRevenueRows
+   }
+
+   esg::BoardDiversityMetric[esgBoardDiversity] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgBoardDiversityRows
+   }
+
+   esg::GenderPayGapMetric[esgGenderPayGap] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgGenderPayGapRows
+   }
+
+   esg::ControversyScore[esgControversyScore] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgControversyScoreRows
+   }
+
+   esg::UnGlobalCompactBreach[esgUngcBreach] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgUngcBreachRows
+   }
+
+   esg::ExclusionListFlag[esgExclusionFlag] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgExclusionFlagRows
+   }
+
+   esg::SfdrArticleClassification[esgSfdrArticle] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgSfdrArticleRows
+   }
+
+   esg::PrincipalAdverseImpact[esgPaiIndicator] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgPaiIndicatorRows
+   }
+
+   esg::EuTaxonomyAlignment[esgTaxonomyAlignment] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgTaxonomyAlignmentRows
+   }
+
+   esg::WaterUsageMetric[esgWaterUsage] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgWaterUsageRows
+   }
+
+   esg::WasteIntensityMetric[esgWasteIntensity] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgWasteIntensityRows
+   }
+
+   esg::SupplyChainAuditResult[esgSupplyChainAudit] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgSupplyChainAuditRows
+   }
+
+   esg::StewardshipVoteRecord[esgStewardshipVote] extends [esgBase]: Relational
+   {
+      ~filter [store::DB]EsgStewardshipVoteRows
+   }
+)

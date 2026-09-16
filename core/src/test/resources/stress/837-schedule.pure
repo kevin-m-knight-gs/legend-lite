@@ -1,0 +1,71 @@
+###Pure
+// The brokerage schedule, versioned. Rates were cut on 1 April 2024.
+//
+// The stereotype is what makes this temporal: `all()` no longer means every row, it means
+// the version in force at a date, and the date becomes part of the query. There are no
+// from/thru PROPERTIES on the class -- the milestoning columns live on the table and the
+// engine supplies the predicate. Exposing them would let a query filter on them directly and
+// bypass the whole mechanism.
+//
+// This exists to put milestoning next to things it had never been asked with. A milestoned
+// table carries a composite primary key by construction, and reaching a trade from a tier is
+// a RANGE join -- so one navigation combines milestoning, `all(%date)`, a composite key, a
+// non-equality join and a count over the to-many it lands on.
+//
+// WITHDRAWN: an association from this class to trading::Trade over the range join.
+//
+// It was the point of the exercise -- reaching the trades in each band would have put
+// milestoning, a composite key, a non-equality join and a count over a to-many in ONE
+// navigation. Adding it made the whole corpus fail to compile:
+//
+//     EngineException: Error in 'external::EntityMapping': Size must be 1 but was 0
+//
+// external::EntityMapping is a cross-store mapping with nothing to do with schedules; it
+// maps trading::Trade, which was the association's other end, and that is the whole
+// connection. Naming the set ids on both ends (F47's fix) changed nothing.
+//
+// It is NOT reported as a finding, because scripts/corpus/probe_milestoned_join.py cannot
+// reproduce it: eight small models -- milestoned and plain, key join and range join, with
+// and without a second partial mapping over the other end -- all compile. Whatever the
+// ingredient is, it is not in that list, and publishing a boundary drawn from the cases that
+// happened to be at hand is the mistake F47 and F51 each had to be corrected for. The probe
+// stays as the record of what has been ruled out.
+//
+// The BANDS are the same in both versions and only the rates differ. A schedule that re-cut
+// its bands at the same time would make the two versions incomparable, and the question this
+// is here to answer -- what would this trade have cost in February -- wants the same band at
+// the old price.
+Class <<temporal.businesstemporal>> schedule::TierVersion
+{
+   tierId: String[1];
+   tierName: String[0..1];
+   minNotional: Float[0..1];
+   maxNotional: Float[0..1];
+   bpsRate: Float[0..1];
+   minimumFee: Float[0..1];
+
+   // The rate as a fraction, which is the form a fee calculation multiplies by.
+   rateFraction() { $this.bpsRate->orElse(0.0) / 10000.0 } : Float[1];
+   // A qualified property: what this version of the band charges on a notional the caller
+   // supplies, before the minimum is applied.
+   feeOn(notional: Float[1]) { $notional * $this.bpsRate->orElse(0.0) / 10000.0 } : Float[1];
+}
+
+// The trades whose notional falls in this band. A range join from a milestoned table -- the
+// combination that did not exist anywhere in the corpus.
+###Mapping
+Mapping schedule::ScheduleMapping
+(
+   schedule::TierVersion: Relational
+   {
+      ~primaryKey ( [store::DB]BROKERAGE_TIER_MS.TIER_ID, [store::DB]BROKERAGE_TIER_MS.FROM_Z )
+      ~mainTable [store::DB]BROKERAGE_TIER_MS
+      tierId: [store::DB]BROKERAGE_TIER_MS.TIER_ID,
+      tierName: [store::DB]BROKERAGE_TIER_MS.TIER_NAME,
+      minNotional: [store::DB]BROKERAGE_TIER_MS.MIN_NOTIONAL,
+      maxNotional: [store::DB]BROKERAGE_TIER_MS.MAX_NOTIONAL,
+      bpsRate: [store::DB]BROKERAGE_TIER_MS.BPS_RATE,
+      minimumFee: [store::DB]BROKERAGE_TIER_MS.MINIMUM_FEE
+   }
+
+)

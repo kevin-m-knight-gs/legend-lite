@@ -237,11 +237,12 @@ public final class MetamodelSeeds {
             if (md == null) {
                 continue;
             }
+            int ordinal = 0;   // declaration order — Mapping.enumerationMappings is an ORDERED collection
             for (com.legend.model.EnumerationMapping em : md.enumerationMappings()) {
                 String name = em.mappingId() != null ? em.mappingId()
                         : em.enumName().substring(em.enumName().lastIndexOf(':') + 1);
                 if (level == 0) {
-                    rows.add(List.of(fqn, name, em.enumName()));
+                    rows.add(List.of(fqn, name, em.enumName(), String.valueOf(ordinal++)));
                     continue;
                 }
                 for (com.legend.model.EnumerationMapping.EnumValueMapping vm : em.valueMappings()) {
@@ -475,39 +476,26 @@ public final class MetamodelSeeds {
 
     /** Every column of every table (the {@code tables} rule for schemas). */
     private static List<List<String>> columns(ModelContext ctx) {
-        // keyed by (db, schema, table, column): a schema's table also sits
-        // in the flat list under 'default' — the schema wins
-        java.util.Map<List<String>, List<String>> rows = new java.util.LinkedHashMap<>();
+        // every (schema, table) pair ONCE: the default schema's tables are
+        // the model's derivation (DatabaseDefinition.defaultSchemaTables),
+        // never the flat mirror paired with "default"
+        List<List<String>> rows = new ArrayList<>();
         for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;
             }
-            for (DatabaseDefinition.TableDefinition t : db.tables()) {
+            for (SchemaTable st : schemaTables(db)) {
                 int ordinal = 0;
-                for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
-                    rows.put(List.of(dbFqn, "default", t.name(), c.name()),
-                            com.legend.compiler.element.RelationalOpRows.columnRow(
-                                    dbFqn, "default", t.name(), c.name(),
-                                    OpSeeds.columnTypeId(dbFqn, "default", t.name(), c.name()),
-                                    ordinal++));
-                }
-            }
-            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-                for (DatabaseDefinition.TableDefinition t : s.tables()) {
-                    int ordinal = 0;
-                    for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
-                        rows.put(List.of(dbFqn, s.name(), t.name(), c.name()),
-                                com.legend.compiler.element.RelationalOpRows.columnRow(
-                                        dbFqn, s.name(), t.name(), c.name(),
-                                        OpSeeds.columnTypeId(dbFqn, s.name(), t.name(), c.name()),
-                                        ordinal++));
-                        rows.remove(List.of(dbFqn, "default", t.name(), c.name()));
-                    }
+                for (DatabaseDefinition.ColumnDefinition c : st.table().columns()) {
+                    rows.add(com.legend.compiler.element.RelationalOpRows.columnRow(
+                            dbFqn, st.schema(), st.table().name(), c.name(),
+                            OpSeeds.columnTypeId(dbFqn, st.schema(), st.table().name(), c.name()),
+                            ordinal++));
                 }
             }
         }
-        return new ArrayList<>(rows.values());
+        return rows;
     }
 
     /** Every main-table ALIAS in the store: one per relational set (owned
@@ -578,8 +566,8 @@ public final class MetamodelSeeds {
     /** Every view with its schema — top-level views sit in {@code default}. */
     private static List<SchemaView> schemaViews(DatabaseDefinition db) {
         List<SchemaView> out = new ArrayList<>();
-        for (DatabaseDefinition.ViewDefinition v : db.views()) {
-            out.add(new SchemaView("default", v));
+        for (DatabaseDefinition.ViewDefinition v : db.defaultSchemaViews()) {
+            out.add(new SchemaView(DEFAULT_SCHEMA, v));
         }
         for (DatabaseDefinition.SchemaDefinition sd : db.schemas()) {
             for (DatabaseDefinition.ViewDefinition v : sd.views()) {
@@ -613,28 +601,36 @@ public final class MetamodelSeeds {
      * {@code default} schema. Views are not tables (grow by witness). */
     private static List<List<String>> tables(ModelContext ctx) {
         // keyed: the definition lists a schema's tables under the schema
-        // AND in the flat table list — the schema wins
-        java.util.Map<List<String>, List<String>> rows = new java.util.LinkedHashMap<>();
+        // (the default schema's tables are the model's derivation)
+        List<List<String>> rows = new ArrayList<>();
         for (String dbFqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE)) {
             DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
             if (db == null) {
                 continue;
             }
-            for (DatabaseDefinition.TableDefinition t : db.tables()) {
-                rows.put(List.of(dbFqn, "default", t.name()),
-                        com.legend.compiler.element.RelationalOpRows.tableRow(
-                                dbFqn, "default", t.name()));
-            }
-            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-                for (DatabaseDefinition.TableDefinition t : s.tables()) {
-                    rows.put(List.of(dbFqn, s.name(), t.name()),
-                            com.legend.compiler.element.RelationalOpRows.tableRow(
-                                    dbFqn, s.name(), t.name()));
-                    rows.remove(List.of(dbFqn, "default", t.name()));
-                }
+            for (SchemaTable st : schemaTables(db)) {
+                rows.add(com.legend.compiler.element.RelationalOpRows.tableRow(
+                        dbFqn, st.schema(), st.table().name()));
             }
         }
-        return new ArrayList<>(rows.values());
+        return rows;
+    }
+
+    private record SchemaTable(String schema, DatabaseDefinition.TableDefinition table) {
+    }
+
+    /** Every (schema, table) of a store ONCE — default schema first. */
+    private static List<SchemaTable> schemaTables(DatabaseDefinition db) {
+        List<SchemaTable> out = new ArrayList<>();
+        for (DatabaseDefinition.TableDefinition t : db.defaultSchemaTables()) {
+            out.add(new SchemaTable(DEFAULT_SCHEMA, t));
+        }
+        for (DatabaseDefinition.SchemaDefinition sd : db.schemas()) {
+            for (DatabaseDefinition.TableDefinition t : sd.tables()) {
+                out.add(new SchemaTable(sd.name(), t));
+            }
+        }
+        return out;
     }
 
     /** Every store as a row (the Database metaclass extent). */
@@ -673,29 +669,12 @@ public final class MetamodelSeeds {
     private static final String DEFAULT_SCHEMA = "default";
 
     static boolean hasDefaultSchema(DatabaseDefinition db) {
-        Set<String> inSchemas = new java.util.HashSet<>();
         for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
             if (DEFAULT_SCHEMA.equals(s.name())) {
                 return true;
             }
-            for (var t : s.tables()) {
-                inSchemas.add("t:" + t.name());
-            }
-            for (var v : s.views()) {
-                inSchemas.add("v:" + v.name());
-            }
         }
-        for (var t : db.tables()) {
-            if (!inSchemas.contains("t:" + t.name())) {
-                return true;
-            }
-        }
-        for (var v : db.views()) {
-            if (!inSchemas.contains("v:" + v.name())) {
-                return true;
-            }
-        }
-        return false;
+        return !db.defaultSchemaTables().isEmpty() || !db.defaultSchemaViews().isEmpty();
     }
 
     /** Every STORED property as a row keyed by its owner: a class's own

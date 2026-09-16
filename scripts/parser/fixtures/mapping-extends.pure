@@ -1,0 +1,31 @@
+// COVERS MappingLexerGrammar: extends
+//
+// Class-mapping inheritance: a set implementation extending another by id. The stress
+// corpus has 89 services over a 200-class model and never once extends a class mapping,
+// because every mapping it generates is standalone.
+###Relational
+Database fixture::ext::Db
+(
+   Table PERSON
+   (
+      ID VARCHAR(32) PRIMARY KEY,
+      FIRST_NAME VARCHAR(200),
+      LAST_NAME VARCHAR(200)
+   )
+)
+
+###Mapping
+Mapping fixture::ext::Map
+(
+   fixture::ext::Person[base]: Relational
+   {
+      ~mainTable [fixture::ext::Db]PERSON
+      firstName: [fixture::ext::Db]PERSON.FIRST_NAME
+   }
+
+   fixture::ext::Employee[derived] extends [base]: Relational
+   {
+      ~mainTable [fixture::ext::Db]PERSON
+      lastName: [fixture::ext::Db]PERSON.LAST_NAME
+   }
+)

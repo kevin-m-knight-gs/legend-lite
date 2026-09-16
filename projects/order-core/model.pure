@@ -1,0 +1,336 @@
+###Pure
+// order-core -- L1. Depends on core-instrument (what is being ordered) and core-book
+// (which book the order is for). It refers to NOTHING else outside order_core::.
+//
+// The order book as the desk actually keeps it. A client order arrives as one parent
+// order; an algorithm slices it into child orders, each routed to a venue, and each child
+// is itself an ORD_ORDER row whose PARENT_ORDER_ID points back into the same table. That
+// is the construct this project exists to exercise: the {target} SELF-JOIN
+// Ord_ParentOrder, and the order_core::OrderParent association that rides on it with
+// order_core::Order on BOTH ends.
+//
+// The second construct is the enum with an EnumerationMapping: OrderState, OrderType,
+// TimeInForce, OrderSide and ExecutionCapacity are modelled as Pure enums, and the FIX-ish
+// code strings that live in the database are confined to the EnumerationMappings in
+// mapping.pure -- they never leak into the class.
+//
+// Prefixes: tables ORD_, joins Ord_, filters Ord, set ids ord.
+
+// ---- Enums ----
+
+// How the order is to be priced. The single fact that decides whether the order needs a
+// limit price, a stop price, a peg offset, or nothing at all.
+Enum order_core::OrderType
+{
+   MARKET,
+   LIMIT,
+   STOP,
+   STOP_LIMIT,
+   PEG
+}
+
+// How long the order stays workable before the venue kills it. DAY dies at the close, GTC
+// survives it, IOC and FOK do not survive the next millisecond.
+Enum order_core::TimeInForce
+{
+   DAY,
+   GTC,
+   IOC,
+   FOK,
+   GTD
+}
+
+// Where the order is in its life. The state a downstream system reads before deciding
+// whether there is anything left to work.
+Enum order_core::OrderState
+{
+   NEW,
+   PARTIALLY_FILLED,
+   FILLED,
+   CANCELLED,
+   REJECTED,
+   EXPIRED
+}
+
+// Which way round the order goes, kept apart from the quantity so quantity is never
+// signed.
+Enum order_core::OrderSide
+{
+   BUY,
+   SELL,
+   SELL_SHORT,
+   BUY_TO_COVER
+}
+
+// Whose risk the order is worked on. Agency means the client's; principal means the firm's,
+// and that difference is a regulatory one.
+Enum order_core::ExecutionCapacity
+{
+   AGENCY,
+   PRINCIPAL,
+   RISKLESS_PRINCIPAL
+}
+
+// ---- Classes ----
+
+// An order: an instruction to buy or sell a quantity of one instrument for one book. It is
+// recursive -- a parent order is sliced into child orders that are themselves Orders --
+// which is why this class sits on both ends of the OrderParent association.
+Class order_core::Order
+{
+   orderId: String[1];
+   clientOrderId: String[0..1];
+   parentOrderId: String[0..1];
+   rootOrderId: String[0..1];
+   side: order_core::OrderSide[1];
+   orderType: order_core::OrderType[1];
+   timeInForce: order_core::TimeInForce[1];
+   state: order_core::OrderState[1];
+   capacity: order_core::ExecutionCapacity[0..1];
+   quantity: Integer[1];
+   filledQuantity: Integer[1];
+   remainingQuantity: Integer[1];
+   limitPrice: Float[0..1];
+   stopPrice: Float[0..1];
+   pegOffset: Float[0..1];
+   currency: String[1];
+   sliceNumber: Integer[0..1];
+   createdAt: DateTime[1];
+   lastUpdatedAt: DateTime[0..1];
+   expiryDate: StrictDate[0..1];
+   cancelReason: String[0..1];
+
+   // The share of the order already done. `/` widens to Float even on two Integers, so the
+   // return type must be Float.
+   fillRatio() { $this.filledQuantity / $this.quantity } : Float[1];
+
+   // A slice, as opposed to the order the client actually sent.
+   isChildOrder() { $this.parentOrderId->isNotEmpty() } : Boolean[1];
+
+   // Nothing left to work: no remaining quantity to route anywhere.
+   isWorkedOut() { $this.remainingQuantity == 0 } : Boolean[1];
+}
+
+// A fill: one print against one order at one price, as the venue reported it. Several of
+// these are what move an order from NEW through PARTIALLY_FILLED to FILLED.
+Class order_core::Execution
+{
+   executionId: String[1];
+   venueExecutionRef: String[0..1];
+   executedQuantity: Integer[1];
+   executedPrice: Float[1];
+   executedAt: DateTime[1];
+   liquidityFlag: String[0..1];
+   commission: Float[0..1];
+   isBusted: Boolean[1];
+
+   // What the fill is worth before fees -- the number the allocation is struck on.
+   // Integer * Float is typed `Number`, not `Float`, so the quantity is widened first.
+   grossConsideration() { $this.executedQuantity->toFloat() * $this.executedPrice } : Float[1];
+}
+
+// A place an order can be sent: an exchange, an MTF, a dark pool or an internaliser. What
+// makes a child order different from its parent is usually only which of these it went to.
+Class order_core::Venue
+{
+   venueId: String[1];
+   mic: String[1];
+   name: String[1];
+   venueType: String[1];
+   countryCode: String[0..1];
+   isLit: Boolean[1];
+   isActive: Boolean[1];
+}
+
+// One line of the routing plan for an order: send this much, to this venue, in this order.
+// The plan is what the slicer turns into child orders.
+Class order_core::RoutingInstruction
+{
+   routingId: String[1];
+   sequenceNumber: Integer[1];
+   strategyCode: String[1];
+   minQuantity: Integer[0..1];
+   maxParticipationRate: Float[0..1];
+   isActive: Boolean[1];
+}
+
+// One transition of an order's state, kept as a row rather than inferred, because "when did
+// this become CANCELLED and who did it" is the first question asked in any investigation.
+Class order_core::OrderStateChange
+{
+   stateChangeId: String[1];
+   fromState: order_core::OrderState[0..1];
+   toState: order_core::OrderState[1];
+   changedAt: DateTime[1];
+   reasonCode: String[0..1];
+   changedBy: String[0..1];
+}
+
+// How a filled order is split across the client accounts it was worked for. Held as a
+// free-text account reference because order-core does not depend on core-account.
+Class order_core::Allocation
+{
+   allocationId: String[1];
+   accountRef: String[1];
+   allocatedQuantity: Integer[1];
+   averagePrice: Float[1];
+   allocationDate: StrictDate[1];
+   status: String[1];
+}
+
+// A request to change a live order -- reprice it, resize it, or pull it. Recorded whether
+// or not the venue accepted it, because a rejected amend is itself evidence.
+Class order_core::OrderAmendment
+{
+   amendmentId: String[1];
+   amendmentType: String[1];
+   fieldName: String[1];
+   oldValue: String[0..1];
+   newValue: String[0..1];
+   requestedAt: DateTime[1];
+   isAccepted: Boolean[1];
+}
+
+// The person accountable for the order: who is asked why it was worked the way it was.
+Class order_core::Trader
+{
+   traderId: String[1];
+   firstName: String[1];
+   lastName: String[1];
+   deskCode: String[0..1];
+   email: String[0..1];
+   isActive: Boolean[1];
+
+   fullName() { $this.firstName + ' ' + $this.lastName } : String[1];
+}
+
+// Where the order came in from -- a FIX session, a sales trader, an internal rebalancer.
+// Determines what surveillance and best-execution rules apply to it.
+Class order_core::OrderSource
+{
+   sourceId: String[1];
+   code: String[1];
+   name: String[1];
+   channel: String[1];
+   isElectronic: Boolean[1];
+}
+
+// The algorithm that slices a parent order into children: the thing that actually creates
+// the rows the self-join walks.
+Class order_core::ExecutionAlgorithm
+{
+   algorithmId: String[1];
+   code: String[1];
+   name: String[1];
+   vendor: String[0..1];
+   defaultParticipationRate: Float[0..1];
+   isActive: Boolean[1];
+}
+
+// A constraint attached to an order -- a restricted-list block, a short-sell locate
+// requirement, a crossing prohibition. The reason an order may not be routed freely.
+Class order_core::OrderRestriction
+{
+   restrictionId: String[1];
+   restrictionType: String[1];
+   description: String[0..1];
+   effectiveDate: StrictDate[1];
+   expiryDate: StrictDate[0..1];
+}
+
+// ---- Associations ----
+
+// THE self-join association. Both ends are order_core::Order, and both ends of its
+// AssociationMapping name the same set id twice -- [ordOrder, ordOrder].
+Association order_core::OrderParent
+{
+   parentOrder: order_core::Order[0..1];
+   childOrders: order_core::Order[*];
+}
+
+// Cross-project: what the order is for. core_instrument::Instrument is the base class of
+// the instrument master.
+Association order_core::OrderInstrument
+{
+   instrument: core_instrument::Instrument[0..1];
+   instrumentOrders: order_core::Order[*];
+}
+
+// Cross-project: which trading book the order will be booked against.
+Association order_core::OrderBook
+{
+   book: core_book::Book[0..1];
+   bookOrders: order_core::Order[*];
+}
+
+Association order_core::OrderExecutions
+{
+   executions: order_core::Execution[*];
+   executedOrder: order_core::Order[0..1];
+}
+
+Association order_core::ExecutionVenueLink
+{
+   executionVenue: order_core::Venue[0..1];
+   venueExecutions: order_core::Execution[*];
+}
+
+Association order_core::OrderVenueLink
+{
+   routedVenue: order_core::Venue[0..1];
+   venueOrders: order_core::Order[*];
+}
+
+Association order_core::OrderRoutingLink
+{
+   routingInstructions: order_core::RoutingInstruction[*];
+   routedOrder: order_core::Order[0..1];
+}
+
+Association order_core::RoutingVenueLink
+{
+   targetVenue: order_core::Venue[0..1];
+   venueRoutingInstructions: order_core::RoutingInstruction[*];
+}
+
+Association order_core::OrderStateHistory
+{
+   stateChanges: order_core::OrderStateChange[*];
+   stateChangeOrder: order_core::Order[0..1];
+}
+
+Association order_core::OrderAllocations
+{
+   allocations: order_core::Allocation[*];
+   allocatedOrder: order_core::Order[0..1];
+}
+
+Association order_core::OrderAmendments
+{
+   amendments: order_core::OrderAmendment[*];
+   amendedOrder: order_core::Order[0..1];
+}
+
+Association order_core::OrderTraderLink
+{
+   trader: order_core::Trader[0..1];
+   traderOrders: order_core::Order[*];
+}
+
+Association order_core::OrderSourceLink
+{
+   source: order_core::OrderSource[0..1];
+   sourceOrders: order_core::Order[*];
+}
+
+Association order_core::OrderAlgorithmLink
+{
+   algorithm: order_core::ExecutionAlgorithm[0..1];
+   algorithmOrders: order_core::Order[*];
+}
+
+Association order_core::OrderRestrictions
+{
+   restrictions: order_core::OrderRestriction[*];
+   restrictedOrder: order_core::Order[0..1];
+}

@@ -1,0 +1,1012 @@
+###Mapping
+
+// ============================================================
+// client_reporting::Mapping -- thirty class sets, forty-one association sets
+// ============================================================
+// THREE mapping includes, matching the three store includes. That is what makes the
+// dependencies' set ids -- `cliClient`, `cliMandate`, `cliClientContact`, `pkPosition`,
+// `pkPositionMovement`, `pkAccountDayTotal`, `vcValuation`, `vcRun` -- nameable in the
+// AssociationMappings at the foot of this file.
+//
+// All three dependencies declare their set ids EXPLICITLY, which means the default ids
+// (`client_core_CliClient`, `position_keeping_Position`, `valuation_core_VcValuation`) do not
+// exist to fall back on. Every cross-project association end below therefore names
+// [sourceSetId, targetSetId] in full; the bare `prop: [db]@Join` form would only resolve
+// against defaults and fails here with a message naming the property and not the project.
+//
+// This project's own set ids are crp-prefixed and are all named explicitly for the same
+// reason a set id is prefixed at all: it is a GLOBAL namespace across the compiled graph.
+// None is marked root, so a downstream `extends [...]` must name the id from the MANIFEST.
+Mapping client_reporting::Mapping
+(
+   include client_core::Mapping
+   include position_keeping::Mapping
+   include valuation_core::Mapping
+
+   // ---- the run -------------------------------------------------------------------------
+   client_reporting::CrpStatementRun[crpStatementRun]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_STATEMENT_RUN.RUN_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_STATEMENT_RUN
+      runId: [client_reporting::Store]CRP_STATEMENT_RUN.RUN_ID,
+      periodEndDate: [client_reporting::Store]CRP_STATEMENT_RUN.PERIOD_END_DATE,
+      runType: [client_reporting::Store]CRP_STATEMENT_RUN.RUN_TYPE,
+      status: [client_reporting::Store]CRP_STATEMENT_RUN.STATUS,
+      startedAt: [client_reporting::Store]CRP_STATEMENT_RUN.STARTED_AT,
+      completedAt: [client_reporting::Store]CRP_STATEMENT_RUN.COMPLETED_AT,
+      statementCount: [client_reporting::Store]CRP_STATEMENT_RUN.STATEMENT_COUNT,
+      triggeredBy: [client_reporting::Store]CRP_STATEMENT_RUN.TRIGGERED_BY
+   }
+
+   // ---- what was agreed -------------------------------------------------------------------
+   client_reporting::CrpReportingProfile[crpReportingProfile]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_REPORTING_PROFILE.CLIENT_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_REPORTING_PROFILE
+      clientId: [client_reporting::Store]CRP_REPORTING_PROFILE.CLIENT_ID,
+      valuationFrequency: [client_reporting::Store]CRP_REPORTING_PROFILE.VALUATION_FREQUENCY,
+      transactionReporting: [client_reporting::Store]CRP_REPORTING_PROFILE.TRANSACTION_REPORTING,
+      channelCode: [client_reporting::Store]CRP_REPORTING_PROFILE.CHANNEL_CODE,
+      languageCode: [client_reporting::Store]CRP_REPORTING_PROFILE.LANGUAGE_CODE,
+      reportingCurrency: [client_reporting::Store]CRP_REPORTING_PROFILE.REPORTING_CURRENCY,
+      consolidateMandates: [client_reporting::Store]CRP_REPORTING_PROFILE.CONSOLIDATE_MANDATES,
+      exAnteRequired: [client_reporting::Store]CRP_REPORTING_PROFILE.EX_ANTE_REQUIRED,
+      depreciationNoticeRequired: [client_reporting::Store]CRP_REPORTING_PROFILE.DEPRECIATION_NOTICE_REQUIRED,
+      optedOutOn: [client_reporting::Store]CRP_REPORTING_PROFILE.OPTED_OUT_ON
+   }
+
+   // ---- the document ------------------------------------------------------------------------
+   // The last four property mappings are the fan-in in miniature. None of the columns they
+   // read is on CRP_STATEMENT: the first three are one hop into client-core, and the fourth
+   // is FOUR hops -- CRP_STATEMENT -> CLI_CLIENT -> CG_COUNTRY -> CG_SUB_REGION ->
+   // CG_MACRO_REGION -- crossing two project boundaries and landing two layers below this
+   // one. Single-valued because every hop is many-to-one; the pipe before the final column
+   // is not optional.
+   client_reporting::CrpStatement[crpStatement]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_STATEMENT.STATEMENT_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_STATEMENT
+      statementId: [client_reporting::Store]CRP_STATEMENT.STATEMENT_ID,
+      statementType: [client_reporting::Store]CRP_STATEMENT.STATEMENT_TYPE,
+      periodStartDate: [client_reporting::Store]CRP_STATEMENT.PERIOD_START_DATE,
+      periodEndDate: [client_reporting::Store]CRP_STATEMENT.PERIOD_END_DATE,
+      reportingCurrency: [client_reporting::Store]CRP_STATEMENT.REPORTING_CURRENCY,
+      status: [client_reporting::Store]CRP_STATEMENT.STATUS,
+      generatedAt: [client_reporting::Store]CRP_STATEMENT.GENERATED_AT,
+      approvedBy: [client_reporting::Store]CRP_STATEMENT.APPROVED_BY,
+      withdrawnOn: [client_reporting::Store]CRP_STATEMENT.WITHDRAWN_ON,
+      pageCount: [client_reporting::Store]CRP_STATEMENT.PAGE_COUNT,
+
+      clientName: [client_reporting::Store]@Crp_StatementClient | [client_core::Store]CLI_CLIENT.CLIENT_NAME,
+      mandateBenchmarkCode: [client_reporting::Store]@Crp_StatementMandate | [client_core::Store]CLI_MANDATE.BENCHMARK_CODE,
+      mandateBaseCurrencyCode: [client_reporting::Store]@Crp_StatementMandate | [client_core::Store]CLI_MANDATE.BASE_CURRENCY_CODE,
+      clientMacroRegionName: [client_reporting::Store]@Crp_StatementClient > @Cli_ClientCountry > @Cg_CountrySubRegion > @Cg_SubRegionMacroRegion | [core_geo::Store]CG_MACRO_REGION.NAME
+   }
+
+   client_reporting::CrpDocumentTemplate[crpDocumentTemplate]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.TEMPLATE_CODE
+      )
+      ~mainTable [client_reporting::Store]CRP_DOCUMENT_TEMPLATE
+      templateCode: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.TEMPLATE_CODE,
+      templateName: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.TEMPLATE_NAME,
+      versionNo: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.VERSION_NO,
+      languageCode: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.LANGUAGE_CODE,
+      statementType: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.STATEMENT_TYPE,
+      approvedBy: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.APPROVED_BY,
+      effectiveFrom: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.EFFECTIVE_FROM,
+      withdrawnOn: [client_reporting::Store]CRP_DOCUMENT_TEMPLATE.WITHDRAWN_ON
+   }
+
+   client_reporting::CrpSuppression[crpSuppression]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_SUPPRESSION.SUPPRESSION_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_SUPPRESSION
+      suppressionId: [client_reporting::Store]CRP_SUPPRESSION.SUPPRESSION_ID,
+      statementType: [client_reporting::Store]CRP_SUPPRESSION.STATEMENT_TYPE,
+      reason: [client_reporting::Store]CRP_SUPPRESSION.REASON,
+      raisedBy: [client_reporting::Store]CRP_SUPPRESSION.RAISED_BY,
+      effectiveFrom: [client_reporting::Store]CRP_SUPPRESSION.EFFECTIVE_FROM,
+      effectiveTo: [client_reporting::Store]CRP_SUPPRESSION.EFFECTIVE_TO,
+      isRegulatoryHold: [client_reporting::Store]CRP_SUPPRESSION.IS_REGULATORY_HOLD
+   }
+
+   // ---- the valuation statement ---------------------------------------------------------------
+   // Two chained reads into two different dependencies: the first pair lands on
+   // position-keeping's PK_ACCOUNT_DAY_TOTAL, which is a VIEW, so it reads a GROUP; the second
+   // pair lands on valuation-core's run header.
+   client_reporting::CrpValuationStatement[crpValuationStatement]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_VALUATION_STATEMENT.STATEMENT_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_VALUATION_STATEMENT
+      statementId: [client_reporting::Store]CRP_VALUATION_STATEMENT.STATEMENT_ID,
+      institutionId: [client_reporting::Store]CRP_VALUATION_STATEMENT.INSTITUTION_ID,
+      accountNo: [client_reporting::Store]CRP_VALUATION_STATEMENT.ACCOUNT_NO,
+      cobDate: [client_reporting::Store]CRP_VALUATION_STATEMENT.COB_DATE,
+      valuationRunId: [client_reporting::Store]CRP_VALUATION_STATEMENT.VALUATION_RUN_ID,
+      openingValue: [client_reporting::Store]CRP_VALUATION_STATEMENT.OPENING_VALUE,
+      closingValue: [client_reporting::Store]CRP_VALUATION_STATEMENT.CLOSING_VALUE,
+      netContributions: [client_reporting::Store]CRP_VALUATION_STATEMENT.NET_CONTRIBUTIONS,
+      incomeReceived: [client_reporting::Store]CRP_VALUATION_STATEMENT.INCOME_RECEIVED,
+      accruedInterest: [client_reporting::Store]CRP_VALUATION_STATEMENT.ACCRUED_INTEREST,
+      cashBalance: [client_reporting::Store]CRP_VALUATION_STATEMENT.CASH_BALANCE,
+      lineCount: [client_reporting::Store]CRP_VALUATION_STATEMENT.LINE_COUNT,
+      unpricedLineCount: [client_reporting::Store]CRP_VALUATION_STATEMENT.UNPRICED_LINE_COUNT,
+
+      accountTotalMarketValue: [client_reporting::Store]@Crp_StatementAccountDayTotal | [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.TOTAL_MARKET_VALUE,
+      accountPositionCount: [client_reporting::Store]@Crp_StatementAccountDayTotal | [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.POSITION_COUNT,
+      valuationRunReportingCurrency: [client_reporting::Store]@Crp_StatementValuationRun | [valuation_core::Store]VC_VALUATION_RUN.REPORTING_CCY,
+      valuationRunStatus: [client_reporting::Store]@Crp_StatementValuationRun | [valuation_core::Store]VC_VALUATION_RUN.STATUS
+   }
+
+   // The join point of the project. Two chained reads, into two different dependencies, from
+   // the same row: the quantity is checked against position-keeping and the price against
+   // valuation-core.
+   client_reporting::CrpValuationLine[crpValuationLine]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_VALUATION_LINE.STATEMENT_ID,
+         [client_reporting::Store]CRP_VALUATION_LINE.LINE_SEQ
+      )
+      ~mainTable [client_reporting::Store]CRP_VALUATION_LINE
+      statementId: [client_reporting::Store]CRP_VALUATION_LINE.STATEMENT_ID,
+      lineSeq: [client_reporting::Store]CRP_VALUATION_LINE.LINE_SEQ,
+      institutionId: [client_reporting::Store]CRP_VALUATION_LINE.INSTITUTION_ID,
+      accountNo: [client_reporting::Store]CRP_VALUATION_LINE.ACCOUNT_NO,
+      instrumentId: [client_reporting::Store]CRP_VALUATION_LINE.INSTRUMENT_ID,
+      cobDate: [client_reporting::Store]CRP_VALUATION_LINE.COB_DATE,
+      valuationRunId: [client_reporting::Store]CRP_VALUATION_LINE.VALUATION_RUN_ID,
+      quantity: [client_reporting::Store]CRP_VALUATION_LINE.QUANTITY,
+      unitCost: [client_reporting::Store]CRP_VALUATION_LINE.UNIT_COST,
+      marketPrice: [client_reporting::Store]CRP_VALUATION_LINE.MARKET_PRICE,
+      marketValue: [client_reporting::Store]CRP_VALUATION_LINE.MARKET_VALUE,
+      valueInReporting: [client_reporting::Store]CRP_VALUATION_LINE.VALUE_IN_REPORTING,
+      weightPct: [client_reporting::Store]CRP_VALUATION_LINE.WEIGHT_PCT,
+      unrealisedPnl: [client_reporting::Store]CRP_VALUATION_LINE.UNREALISED_PNL,
+      assetClass: [client_reporting::Store]CRP_VALUATION_LINE.ASSET_CLASS,
+      isPriceStale: [client_reporting::Store]CRP_VALUATION_LINE.IS_PRICE_STALE,
+
+      positionClosingQuantity: [client_reporting::Store]@Crp_LinePosition | [position_keeping::Store]PK_POSITION.CLOSING_QUANTITY,
+      positionMarketValue: [client_reporting::Store]@Crp_LinePosition | [position_keeping::Store]PK_POSITION.MARKET_VALUE,
+      valuationDirtyPrice: [client_reporting::Store]@Crp_LineValuation | [valuation_core::Store]VC_VALUATION.DIRTY_PRICE,
+      valuationFxRate: [client_reporting::Store]@Crp_LineValuation | [valuation_core::Store]VC_VALUATION.FX_RATE
+   }
+
+   // ---- the transaction statement ---------------------------------------------------------------
+   client_reporting::CrpTransactionStatement[crpTransactionStatement]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_TRANSACTION_STATEMENT.STATEMENT_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_TRANSACTION_STATEMENT
+      statementId: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.STATEMENT_ID,
+      institutionId: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.INSTITUTION_ID,
+      accountNo: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.ACCOUNT_NO,
+      periodStartDate: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.PERIOD_START_DATE,
+      periodEndDate: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.PERIOD_END_DATE,
+      transactionCount: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.TRANSACTION_COUNT,
+      grossPurchases: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.GROSS_PURCHASES,
+      grossSales: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.GROSS_SALES,
+      netCashMovement: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.NET_CASH_MOVEMENT,
+      isTradeByTrade: [client_reporting::Store]CRP_TRANSACTION_STATEMENT.IS_TRADE_BY_TRADE
+   }
+
+   // The second distinct reach into position-keeping: FIVE columns to a movement.
+   client_reporting::CrpTransactionLine[crpTransactionLine]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_TRANSACTION_LINE.STATEMENT_ID,
+         [client_reporting::Store]CRP_TRANSACTION_LINE.LINE_SEQ
+      )
+      ~mainTable [client_reporting::Store]CRP_TRANSACTION_LINE
+      statementId: [client_reporting::Store]CRP_TRANSACTION_LINE.STATEMENT_ID,
+      lineSeq: [client_reporting::Store]CRP_TRANSACTION_LINE.LINE_SEQ,
+      institutionId: [client_reporting::Store]CRP_TRANSACTION_LINE.INSTITUTION_ID,
+      accountNo: [client_reporting::Store]CRP_TRANSACTION_LINE.ACCOUNT_NO,
+      instrumentId: [client_reporting::Store]CRP_TRANSACTION_LINE.INSTRUMENT_ID,
+      cobDate: [client_reporting::Store]CRP_TRANSACTION_LINE.COB_DATE,
+      movementSeq: [client_reporting::Store]CRP_TRANSACTION_LINE.MOVEMENT_SEQ,
+      tradeDate: [client_reporting::Store]CRP_TRANSACTION_LINE.TRADE_DATE,
+      settlementDate: [client_reporting::Store]CRP_TRANSACTION_LINE.SETTLEMENT_DATE,
+      transactionType: [client_reporting::Store]CRP_TRANSACTION_LINE.TRANSACTION_TYPE,
+      quantity: [client_reporting::Store]CRP_TRANSACTION_LINE.QUANTITY,
+      price: [client_reporting::Store]CRP_TRANSACTION_LINE.PRICE,
+      grossAmount: [client_reporting::Store]CRP_TRANSACTION_LINE.GROSS_AMOUNT,
+      chargesAmount: [client_reporting::Store]CRP_TRANSACTION_LINE.CHARGES_AMOUNT,
+      netAmount: [client_reporting::Store]CRP_TRANSACTION_LINE.NET_AMOUNT,
+      tradeCurrency: [client_reporting::Store]CRP_TRANSACTION_LINE.TRADE_CURRENCY,
+      venue: [client_reporting::Store]CRP_TRANSACTION_LINE.VENUE,
+      counterpartyName: [client_reporting::Store]CRP_TRANSACTION_LINE.COUNTERPARTY_NAME,
+
+      movementQuantityDelta: [client_reporting::Store]@Crp_TransactionMovement | [position_keeping::Store]PK_POSITION_MOVEMENT.QUANTITY_DELTA,
+      movementSourceSystem: [client_reporting::Store]@Crp_TransactionMovement | [position_keeping::Store]PK_POSITION_MOVEMENT.SOURCE_SYSTEM
+   }
+
+   client_reporting::CrpCashFlowLine[crpCashFlowLine]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_CASH_FLOW_LINE.STATEMENT_ID,
+         [client_reporting::Store]CRP_CASH_FLOW_LINE.LINE_SEQ
+      )
+      ~mainTable [client_reporting::Store]CRP_CASH_FLOW_LINE
+      statementId: [client_reporting::Store]CRP_CASH_FLOW_LINE.STATEMENT_ID,
+      lineSeq: [client_reporting::Store]CRP_CASH_FLOW_LINE.LINE_SEQ,
+      flowDate: [client_reporting::Store]CRP_CASH_FLOW_LINE.FLOW_DATE,
+      flowType: [client_reporting::Store]CRP_CASH_FLOW_LINE.FLOW_TYPE,
+      amount: [client_reporting::Store]CRP_CASH_FLOW_LINE.AMOUNT,
+      currencyCode: [client_reporting::Store]CRP_CASH_FLOW_LINE.CURRENCY_CODE,
+      amountInReporting: [client_reporting::Store]CRP_CASH_FLOW_LINE.AMOUNT_IN_REPORTING,
+      narrative: [client_reporting::Store]CRP_CASH_FLOW_LINE.NARRATIVE
+   }
+
+   // ---- costs and charges ------------------------------------------------------------------------
+   client_reporting::CrpCostsDisclosure[crpCostsDisclosure]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_COSTS_DISCLOSURE.DISCLOSURE_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_COSTS_DISCLOSURE
+      disclosureId: [client_reporting::Store]CRP_COSTS_DISCLOSURE.DISCLOSURE_ID,
+      basis: [client_reporting::Store]CRP_COSTS_DISCLOSURE.BASIS,
+      periodStartDate: [client_reporting::Store]CRP_COSTS_DISCLOSURE.PERIOD_START_DATE,
+      periodEndDate: [client_reporting::Store]CRP_COSTS_DISCLOSURE.PERIOD_END_DATE,
+      assumedInvestment: [client_reporting::Store]CRP_COSTS_DISCLOSURE.ASSUMED_INVESTMENT,
+      holdingPeriodYears: [client_reporting::Store]CRP_COSTS_DISCLOSURE.HOLDING_PERIOD_YEARS,
+      totalCostsAmount: [client_reporting::Store]CRP_COSTS_DISCLOSURE.TOTAL_COSTS_AMOUNT,
+      totalCostsPct: [client_reporting::Store]CRP_COSTS_DISCLOSURE.TOTAL_COSTS_PCT,
+      reductionInYieldPct: [client_reporting::Store]CRP_COSTS_DISCLOSURE.REDUCTION_IN_YIELD_PCT,
+      currencyCode: [client_reporting::Store]CRP_COSTS_DISCLOSURE.CURRENCY_CODE,
+      isAggregated: [client_reporting::Store]CRP_COSTS_DISCLOSURE.IS_AGGREGATED,
+      issuedOn: [client_reporting::Store]CRP_COSTS_DISCLOSURE.ISSUED_ON
+   }
+
+   client_reporting::CrpCostLine[crpCostLine]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_COST_LINE.DISCLOSURE_ID,
+         [client_reporting::Store]CRP_COST_LINE.LINE_SEQ
+      )
+      ~mainTable [client_reporting::Store]CRP_COST_LINE
+      disclosureId: [client_reporting::Store]CRP_COST_LINE.DISCLOSURE_ID,
+      lineSeq: [client_reporting::Store]CRP_COST_LINE.LINE_SEQ,
+      costCategory: [client_reporting::Store]CRP_COST_LINE.COST_CATEGORY,
+      costType: [client_reporting::Store]CRP_COST_LINE.COST_TYPE,
+      isProductCost: [client_reporting::Store]CRP_COST_LINE.IS_PRODUCT_COST,
+      isThirdPartyPayment: [client_reporting::Store]CRP_COST_LINE.IS_THIRD_PARTY_PAYMENT,
+      amount: [client_reporting::Store]CRP_COST_LINE.AMOUNT,
+      pctOfInvestment: [client_reporting::Store]CRP_COST_LINE.PCT_OF_INVESTMENT,
+      currencyCode: [client_reporting::Store]CRP_COST_LINE.CURRENCY_CODE,
+      basisNote: [client_reporting::Store]CRP_COST_LINE.BASIS_NOTE
+   }
+
+   client_reporting::CrpCostIllustration[crpCostIllustration]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_COST_ILLUSTRATION.DISCLOSURE_ID,
+         [client_reporting::Store]CRP_COST_ILLUSTRATION.YEAR_NO
+      )
+      ~mainTable [client_reporting::Store]CRP_COST_ILLUSTRATION
+      disclosureId: [client_reporting::Store]CRP_COST_ILLUSTRATION.DISCLOSURE_ID,
+      yearNo: [client_reporting::Store]CRP_COST_ILLUSTRATION.YEAR_NO,
+      openingValue: [client_reporting::Store]CRP_COST_ILLUSTRATION.OPENING_VALUE,
+      grossReturnPct: [client_reporting::Store]CRP_COST_ILLUSTRATION.GROSS_RETURN_PCT,
+      costsAmount: [client_reporting::Store]CRP_COST_ILLUSTRATION.COSTS_AMOUNT,
+      closingValueBeforeCosts: [client_reporting::Store]CRP_COST_ILLUSTRATION.CLOSING_VALUE_BEFORE_COSTS,
+      closingValueAfterCosts: [client_reporting::Store]CRP_COST_ILLUSTRATION.CLOSING_VALUE_AFTER_COSTS,
+      cumulativeCosts: [client_reporting::Store]CRP_COST_ILLUSTRATION.CUMULATIVE_COSTS
+   }
+
+   // ---- performance --------------------------------------------------------------------------------
+   client_reporting::CrpBenchmark[crpBenchmark]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_BENCHMARK.BENCHMARK_CODE
+      )
+      ~mainTable [client_reporting::Store]CRP_BENCHMARK
+      benchmarkCode: [client_reporting::Store]CRP_BENCHMARK.BENCHMARK_CODE,
+      benchmarkName: [client_reporting::Store]CRP_BENCHMARK.BENCHMARK_NAME,
+      provider: [client_reporting::Store]CRP_BENCHMARK.PROVIDER,
+      currencyCode: [client_reporting::Store]CRP_BENCHMARK.CURRENCY_CODE,
+      isTotalReturn: [client_reporting::Store]CRP_BENCHMARK.IS_TOTAL_RETURN,
+      isComposite: [client_reporting::Store]CRP_BENCHMARK.IS_COMPOSITE,
+      rebalanceFrequency: [client_reporting::Store]CRP_BENCHMARK.REBALANCE_FREQUENCY,
+      retiredOn: [client_reporting::Store]CRP_BENCHMARK.RETIRED_ON
+   }
+
+   client_reporting::CrpBenchmarkComponent[crpBenchmarkComponent]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_BENCHMARK_COMPONENT.BENCHMARK_CODE,
+         [client_reporting::Store]CRP_BENCHMARK_COMPONENT.COMPONENT_SEQ
+      )
+      ~mainTable [client_reporting::Store]CRP_BENCHMARK_COMPONENT
+      benchmarkCode: [client_reporting::Store]CRP_BENCHMARK_COMPONENT.BENCHMARK_CODE,
+      componentSeq: [client_reporting::Store]CRP_BENCHMARK_COMPONENT.COMPONENT_SEQ,
+      componentCode: [client_reporting::Store]CRP_BENCHMARK_COMPONENT.COMPONENT_CODE,
+      componentName: [client_reporting::Store]CRP_BENCHMARK_COMPONENT.COMPONENT_NAME,
+      weightPct: [client_reporting::Store]CRP_BENCHMARK_COMPONENT.WEIGHT_PCT,
+      effectiveFrom: [client_reporting::Store]CRP_BENCHMARK_COMPONENT.EFFECTIVE_FROM
+   }
+
+   client_reporting::CrpPerformanceReport[crpPerformanceReport]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_PERFORMANCE_REPORT.REPORT_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_PERFORMANCE_REPORT
+      reportId: [client_reporting::Store]CRP_PERFORMANCE_REPORT.REPORT_ID,
+      returnMethod: [client_reporting::Store]CRP_PERFORMANCE_REPORT.RETURN_METHOD,
+      isNetOfFees: [client_reporting::Store]CRP_PERFORMANCE_REPORT.IS_NET_OF_FEES,
+      periodStartDate: [client_reporting::Store]CRP_PERFORMANCE_REPORT.PERIOD_START_DATE,
+      periodEndDate: [client_reporting::Store]CRP_PERFORMANCE_REPORT.PERIOD_END_DATE,
+      openingValue: [client_reporting::Store]CRP_PERFORMANCE_REPORT.OPENING_VALUE,
+      closingValue: [client_reporting::Store]CRP_PERFORMANCE_REPORT.CLOSING_VALUE,
+      netFlows: [client_reporting::Store]CRP_PERFORMANCE_REPORT.NET_FLOWS,
+      portfolioReturnPct: [client_reporting::Store]CRP_PERFORMANCE_REPORT.PORTFOLIO_RETURN_PCT,
+      benchmarkReturnPct: [client_reporting::Store]CRP_PERFORMANCE_REPORT.BENCHMARK_RETURN_PCT,
+      currencyCode: [client_reporting::Store]CRP_PERFORMANCE_REPORT.CURRENCY_CODE
+   }
+
+   client_reporting::CrpPerformancePeriod[crpPerformancePeriod]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_PERFORMANCE_PERIOD.REPORT_ID,
+         [client_reporting::Store]CRP_PERFORMANCE_PERIOD.PERIOD_CODE
+      )
+      ~mainTable [client_reporting::Store]CRP_PERFORMANCE_PERIOD
+      reportId: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.REPORT_ID,
+      periodCode: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.PERIOD_CODE,
+      periodStartDate: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.PERIOD_START_DATE,
+      periodEndDate: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.PERIOD_END_DATE,
+      portfolioReturnPct: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.PORTFOLIO_RETURN_PCT,
+      benchmarkReturnPct: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.BENCHMARK_RETURN_PCT,
+      isAnnualised: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.IS_ANNUALISED,
+      volatilityPct: [client_reporting::Store]CRP_PERFORMANCE_PERIOD.VOLATILITY_PCT
+   }
+
+   client_reporting::CrpAttributionReport[crpAttributionReport]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_ATTRIBUTION_REPORT.ATTRIBUTION_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_ATTRIBUTION_REPORT
+      attributionId: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.ATTRIBUTION_ID,
+      modelCode: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.MODEL_CODE,
+      segmentBy: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.SEGMENT_BY,
+      periodStartDate: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.PERIOD_START_DATE,
+      periodEndDate: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.PERIOD_END_DATE,
+      totalAllocationBps: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.TOTAL_ALLOCATION_BPS,
+      totalSelectionBps: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.TOTAL_SELECTION_BPS,
+      totalInteractionBps: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.TOTAL_INTERACTION_BPS,
+      residualBps: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.RESIDUAL_BPS,
+      isSmoothed: [client_reporting::Store]CRP_ATTRIBUTION_REPORT.IS_SMOOTHED
+   }
+
+   client_reporting::CrpAttributionLine[crpAttributionLine]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_ATTRIBUTION_LINE.ATTRIBUTION_ID,
+         [client_reporting::Store]CRP_ATTRIBUTION_LINE.SEGMENT_CODE
+      )
+      ~mainTable [client_reporting::Store]CRP_ATTRIBUTION_LINE
+      attributionId: [client_reporting::Store]CRP_ATTRIBUTION_LINE.ATTRIBUTION_ID,
+      segmentCode: [client_reporting::Store]CRP_ATTRIBUTION_LINE.SEGMENT_CODE,
+      segmentName: [client_reporting::Store]CRP_ATTRIBUTION_LINE.SEGMENT_NAME,
+      portfolioWeightPct: [client_reporting::Store]CRP_ATTRIBUTION_LINE.PORTFOLIO_WEIGHT_PCT,
+      benchmarkWeightPct: [client_reporting::Store]CRP_ATTRIBUTION_LINE.BENCHMARK_WEIGHT_PCT,
+      portfolioReturnPct: [client_reporting::Store]CRP_ATTRIBUTION_LINE.PORTFOLIO_RETURN_PCT,
+      benchmarkReturnPct: [client_reporting::Store]CRP_ATTRIBUTION_LINE.BENCHMARK_RETURN_PCT,
+      allocationBps: [client_reporting::Store]CRP_ATTRIBUTION_LINE.ALLOCATION_BPS,
+      selectionBps: [client_reporting::Store]CRP_ATTRIBUTION_LINE.SELECTION_BPS,
+      interactionBps: [client_reporting::Store]CRP_ATTRIBUTION_LINE.INTERACTION_BPS
+   }
+
+   // ---- the ten-percent notice ------------------------------------------------------------------------
+   client_reporting::CrpDepreciationCheck[crpDepreciationCheck]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DEPRECIATION_CHECK.CHECK_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_DEPRECIATION_CHECK
+      checkId: [client_reporting::Store]CRP_DEPRECIATION_CHECK.CHECK_ID,
+      institutionId: [client_reporting::Store]CRP_DEPRECIATION_CHECK.INSTITUTION_ID,
+      accountNo: [client_reporting::Store]CRP_DEPRECIATION_CHECK.ACCOUNT_NO,
+      cobDate: [client_reporting::Store]CRP_DEPRECIATION_CHECK.COB_DATE,
+      thresholdPct: [client_reporting::Store]CRP_DEPRECIATION_CHECK.THRESHOLD_PCT,
+      periodStartValue: [client_reporting::Store]CRP_DEPRECIATION_CHECK.PERIOD_START_VALUE,
+      currentValue: [client_reporting::Store]CRP_DEPRECIATION_CHECK.CURRENT_VALUE,
+      depreciationPct: [client_reporting::Store]CRP_DEPRECIATION_CHECK.DEPRECIATION_PCT,
+      multipleCrossed: [client_reporting::Store]CRP_DEPRECIATION_CHECK.MULTIPLE_CROSSED,
+      isLeveraged: [client_reporting::Store]CRP_DEPRECIATION_CHECK.IS_LEVERAGED,
+      evaluatedAt: [client_reporting::Store]CRP_DEPRECIATION_CHECK.EVALUATED_AT,
+      breachedOn: [client_reporting::Store]CRP_DEPRECIATION_CHECK.BREACHED_ON
+   }
+
+   client_reporting::CrpDepreciationNotice[crpDepreciationNotice]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DEPRECIATION_NOTICE.NOTICE_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_DEPRECIATION_NOTICE
+      noticeId: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.NOTICE_ID,
+      triggerDate: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.TRIGGER_DATE,
+      dueByDate: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.DUE_BY_DATE,
+      sentAt: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.SENT_AT,
+      thresholdPct: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.THRESHOLD_PCT,
+      depreciationPct: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.DEPRECIATION_PCT,
+      portfolioValue: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.PORTFOLIO_VALUE,
+      currencyCode: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.CURRENCY_CODE,
+      isLate: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.IS_LATE,
+      lateReason: [client_reporting::Store]CRP_DEPRECIATION_NOTICE.LATE_REASON
+   }
+
+   // ---- delivery -----------------------------------------------------------------------------------------
+   client_reporting::CrpDeliveryChannel[crpDeliveryChannel]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DELIVERY_CHANNEL.CHANNEL_CODE
+      )
+      ~mainTable [client_reporting::Store]CRP_DELIVERY_CHANNEL
+      channelCode: [client_reporting::Store]CRP_DELIVERY_CHANNEL.CHANNEL_CODE,
+      channelName: [client_reporting::Store]CRP_DELIVERY_CHANNEL.CHANNEL_NAME,
+      isDurableMedium: [client_reporting::Store]CRP_DELIVERY_CHANNEL.IS_DURABLE_MEDIUM,
+      requiresAcknowledgement: [client_reporting::Store]CRP_DELIVERY_CHANNEL.REQUIRES_ACKNOWLEDGEMENT,
+      targetLatencyHours: [client_reporting::Store]CRP_DELIVERY_CHANNEL.TARGET_LATENCY_HOURS,
+      retiredOn: [client_reporting::Store]CRP_DELIVERY_CHANNEL.RETIRED_ON
+   }
+
+   client_reporting::CrpDelivery[crpDelivery]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DELIVERY.DELIVERY_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_DELIVERY
+      deliveryId: [client_reporting::Store]CRP_DELIVERY.DELIVERY_ID,
+      recipientAddress: [client_reporting::Store]CRP_DELIVERY.RECIPIENT_ADDRESS,
+      dispatchedAt: [client_reporting::Store]CRP_DELIVERY.DISPATCHED_AT,
+      deliveredAt: [client_reporting::Store]CRP_DELIVERY.DELIVERED_AT,
+      status: [client_reporting::Store]CRP_DELIVERY.STATUS,
+      attemptCount: [client_reporting::Store]CRP_DELIVERY.ATTEMPT_COUNT,
+      documentHash: [client_reporting::Store]CRP_DELIVERY.DOCUMENT_HASH,
+      failedReason: [client_reporting::Store]CRP_DELIVERY.FAILED_REASON
+   }
+
+   client_reporting::CrpDeliveryAttempt[crpDeliveryAttempt]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DELIVERY_ATTEMPT.DELIVERY_ID,
+         [client_reporting::Store]CRP_DELIVERY_ATTEMPT.ATTEMPT_SEQ
+      )
+      ~mainTable [client_reporting::Store]CRP_DELIVERY_ATTEMPT
+      deliveryId: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.DELIVERY_ID,
+      attemptSeq: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.ATTEMPT_SEQ,
+      attemptDate: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.ATTEMPT_DATE,
+      attemptedAt: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.ATTEMPTED_AT,
+      outcome: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.OUTCOME,
+      responseCode: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.RESPONSE_CODE,
+      diagnostic: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.DIAGNOSTIC,
+      nextRetryAt: [client_reporting::Store]CRP_DELIVERY_ATTEMPT.NEXT_RETRY_AT
+   }
+
+   client_reporting::CrpAcknowledgement[crpAcknowledgement]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_ACKNOWLEDGEMENT.DELIVERY_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_ACKNOWLEDGEMENT
+      deliveryId: [client_reporting::Store]CRP_ACKNOWLEDGEMENT.DELIVERY_ID,
+      acknowledgedAt: [client_reporting::Store]CRP_ACKNOWLEDGEMENT.ACKNOWLEDGED_AT,
+      acknowledgedBy: [client_reporting::Store]CRP_ACKNOWLEDGEMENT.ACKNOWLEDGED_BY,
+      contactId: [client_reporting::Store]CRP_ACKNOWLEDGEMENT.CONTACT_ID,
+      method: [client_reporting::Store]CRP_ACKNOWLEDGEMENT.METHOD,
+      isExplicit: [client_reporting::Store]CRP_ACKNOWLEDGEMENT.IS_EXPLICIT,
+      sourceIp: [client_reporting::Store]CRP_ACKNOWLEDGEMENT.SOURCE_IP
+   }
+
+   client_reporting::CrpStatementRecipient[crpStatementRecipient]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_STATEMENT_RECIPIENT.STATEMENT_ID,
+         [client_reporting::Store]CRP_STATEMENT_RECIPIENT.CONTACT_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_STATEMENT_RECIPIENT
+      statementId: [client_reporting::Store]CRP_STATEMENT_RECIPIENT.STATEMENT_ID,
+      contactId: [client_reporting::Store]CRP_STATEMENT_RECIPIENT.CONTACT_ID,
+      recipientRole: [client_reporting::Store]CRP_STATEMENT_RECIPIENT.RECIPIENT_ROLE,
+      isAddressee: [client_reporting::Store]CRP_STATEMENT_RECIPIENT.IS_ADDRESSEE,
+      addedOn: [client_reporting::Store]CRP_STATEMENT_RECIPIENT.ADDED_ON,
+      suppressedOn: [client_reporting::Store]CRP_STATEMENT_RECIPIENT.SUPPRESSED_ON,
+
+      contactFullName: [client_reporting::Store]@Crp_RecipientContact | [client_core::Store]CLI_CLIENT_CONTACT.FULL_NAME,
+      contactIsAuthorisedSignatory: [client_reporting::Store]@Crp_RecipientContact | [client_core::Store]CLI_CLIENT_CONTACT.IS_AUTHORISED_SIGNATORY
+   }
+
+   // ---- the aggregate sets -------------------------------------------------------------------------------
+   // Rooted on VIEWS. The primary key IS the ~groupBy, so an instance is a group and never a
+   // row: one CrpClientPeriodTotal is a client and a period end, not a statement.
+
+   client_reporting::CrpStatementLineTotal[crpStatementLineTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_VALUATION_LINE_TOTAL.STATEMENT_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_VALUATION_LINE_TOTAL
+      statementId: [client_reporting::Store]CRP_VALUATION_LINE_TOTAL.STATEMENT_ID,
+      lineCount: [client_reporting::Store]CRP_VALUATION_LINE_TOTAL.LINE_COUNT,
+      totalMarketValue: [client_reporting::Store]CRP_VALUATION_LINE_TOTAL.TOTAL_MARKET_VALUE,
+      totalValueInReporting: [client_reporting::Store]CRP_VALUATION_LINE_TOTAL.TOTAL_VALUE_IN_REPORTING,
+      totalUnrealisedPnl: [client_reporting::Store]CRP_VALUATION_LINE_TOTAL.TOTAL_UNREALISED_PNL,
+      largestLineValue: [client_reporting::Store]CRP_VALUATION_LINE_TOTAL.LARGEST_LINE_VALUE
+   }
+
+   client_reporting::CrpDisclosureCostTotal[crpDisclosureCostTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL.DISCLOSURE_ID,
+         [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL.COST_CATEGORY
+      )
+      ~mainTable [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL
+      disclosureId: [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL.DISCLOSURE_ID,
+      costCategory: [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL.COST_CATEGORY,
+      lineCount: [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL.LINE_COUNT,
+      totalAmount: [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL.TOTAL_AMOUNT,
+      totalPct: [client_reporting::Store]CRP_DISCLOSURE_COST_TOTAL.TOTAL_PCT
+   }
+
+   client_reporting::CrpClientPeriodTotal[crpClientPeriodTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL.CLIENT_ID,
+         [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL.PERIOD_END_DATE
+      )
+      ~mainTable [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL
+      clientId: [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL.CLIENT_ID,
+      periodEndDate: [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL.PERIOD_END_DATE,
+      statementCount: [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL.STATEMENT_COUNT,
+      mandateCount: [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL.MANDATE_COUNT,
+      totalPages: [client_reporting::Store]CRP_CLIENT_PERIOD_TOTAL.TOTAL_PAGES
+   }
+
+   client_reporting::CrpDeliveryOutcomeTotal[crpDeliveryOutcomeTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [client_reporting::Store]CRP_DELIVERY_OUTCOME_TOTAL.DELIVERY_ID
+      )
+      ~mainTable [client_reporting::Store]CRP_DELIVERY_OUTCOME_TOTAL
+      deliveryId: [client_reporting::Store]CRP_DELIVERY_OUTCOME_TOTAL.DELIVERY_ID,
+      attemptCount: [client_reporting::Store]CRP_DELIVERY_OUTCOME_TOTAL.ATTEMPT_COUNT,
+      firstAttemptDate: [client_reporting::Store]CRP_DELIVERY_OUTCOME_TOTAL.FIRST_ATTEMPT_DATE,
+      lastAttemptDate: [client_reporting::Store]CRP_DELIVERY_OUTCOME_TOTAL.LAST_ATTEMPT_DATE
+   }
+
+   // ==== associations, within this project ================================================================
+   // The AssociationMapping(...) wrapper is mandatory: without it the grammar reads the block
+   // as a CLASS mapping and reports "Can't find class client_reporting::CrpRunStatements",
+   // which names the wrong problem. Both ends use the SAME join; the engine reverses it for
+   // the end that walks against the declared direction.
+
+   client_reporting::CrpRunStatements: Relational
+   {
+      AssociationMapping
+      (
+         run[crpStatement, crpStatementRun]: [client_reporting::Store]@Crp_StatementRun,
+         statements[crpStatementRun, crpStatement]: [client_reporting::Store]@Crp_StatementRun
+      )
+   }
+
+   client_reporting::CrpStatementTemplate: Relational
+   {
+      AssociationMapping
+      (
+         template[crpStatement, crpDocumentTemplate]: [client_reporting::Store]@Crp_StatementTemplate,
+         renderedStatements[crpDocumentTemplate, crpStatement]: [client_reporting::Store]@Crp_StatementTemplate
+      )
+   }
+
+   client_reporting::CrpStatementValuation: Relational
+   {
+      AssociationMapping
+      (
+         statement[crpValuationStatement, crpStatement]: [client_reporting::Store]@Crp_StatementValuation,
+         valuationStatement[crpStatement, crpValuationStatement]: [client_reporting::Store]@Crp_StatementValuation
+      )
+   }
+
+   client_reporting::CrpStatementTransaction: Relational
+   {
+      AssociationMapping
+      (
+         transactionOfStatement[crpTransactionStatement, crpStatement]: [client_reporting::Store]@Crp_StatementTransaction,
+         transactionStatement[crpStatement, crpTransactionStatement]: [client_reporting::Store]@Crp_StatementTransaction
+      )
+   }
+
+   client_reporting::CrpValuationStatementLines: Relational
+   {
+      AssociationMapping
+      (
+         valuationStatement[crpValuationLine, crpValuationStatement]: [client_reporting::Store]@Crp_ValuationStatementLines,
+         lines[crpValuationStatement, crpValuationLine]: [client_reporting::Store]@Crp_ValuationStatementLines
+      )
+   }
+
+   client_reporting::CrpTransactionStatementLines: Relational
+   {
+      AssociationMapping
+      (
+         transactionStatement[crpTransactionLine, crpTransactionStatement]: [client_reporting::Store]@Crp_TransactionStatementLines,
+         transactionLines[crpTransactionStatement, crpTransactionLine]: [client_reporting::Store]@Crp_TransactionStatementLines
+      )
+   }
+
+   client_reporting::CrpTransactionCashFlows: Relational
+   {
+      AssociationMapping
+      (
+         cashStatement[crpCashFlowLine, crpTransactionStatement]: [client_reporting::Store]@Crp_TransactionCashFlows,
+         cashFlows[crpTransactionStatement, crpCashFlowLine]: [client_reporting::Store]@Crp_TransactionCashFlows
+      )
+   }
+
+   client_reporting::CrpStatementDisclosures: Relational
+   {
+      AssociationMapping
+      (
+         disclosureStatement[crpCostsDisclosure, crpStatement]: [client_reporting::Store]@Crp_StatementDisclosure,
+         costsDisclosures[crpStatement, crpCostsDisclosure]: [client_reporting::Store]@Crp_StatementDisclosure
+      )
+   }
+
+   client_reporting::CrpDisclosureCostLines: Relational
+   {
+      AssociationMapping
+      (
+         disclosure[crpCostLine, crpCostsDisclosure]: [client_reporting::Store]@Crp_DisclosureCostLines,
+         costLines[crpCostsDisclosure, crpCostLine]: [client_reporting::Store]@Crp_DisclosureCostLines
+      )
+   }
+
+   client_reporting::CrpDisclosureIllustrations: Relational
+   {
+      AssociationMapping
+      (
+         illustratedDisclosure[crpCostIllustration, crpCostsDisclosure]: [client_reporting::Store]@Crp_DisclosureIllustrations,
+         illustrations[crpCostsDisclosure, crpCostIllustration]: [client_reporting::Store]@Crp_DisclosureIllustrations
+      )
+   }
+
+   client_reporting::CrpStatementPerformance: Relational
+   {
+      AssociationMapping
+      (
+         performanceStatement[crpPerformanceReport, crpStatement]: [client_reporting::Store]@Crp_StatementPerformance,
+         performanceReport[crpStatement, crpPerformanceReport]: [client_reporting::Store]@Crp_StatementPerformance
+      )
+   }
+
+   client_reporting::CrpPerformancePeriods: Relational
+   {
+      AssociationMapping
+      (
+         report[crpPerformancePeriod, crpPerformanceReport]: [client_reporting::Store]@Crp_PerformancePeriods,
+         periods[crpPerformanceReport, crpPerformancePeriod]: [client_reporting::Store]@Crp_PerformancePeriods
+      )
+   }
+
+   client_reporting::CrpPerformanceBenchmark: Relational
+   {
+      AssociationMapping
+      (
+         benchmark[crpPerformanceReport, crpBenchmark]: [client_reporting::Store]@Crp_PerformanceBenchmark,
+         performanceReports[crpBenchmark, crpPerformanceReport]: [client_reporting::Store]@Crp_PerformanceBenchmark
+      )
+   }
+
+   client_reporting::CrpBenchmarkComponents: Relational
+   {
+      AssociationMapping
+      (
+         componentBenchmark[crpBenchmarkComponent, crpBenchmark]: [client_reporting::Store]@Crp_BenchmarkComponents,
+         components[crpBenchmark, crpBenchmarkComponent]: [client_reporting::Store]@Crp_BenchmarkComponents
+      )
+   }
+
+   client_reporting::CrpPerformanceAttribution: Relational
+   {
+      AssociationMapping
+      (
+         attributedReport[crpAttributionReport, crpPerformanceReport]: [client_reporting::Store]@Crp_PerformanceAttribution,
+         attributionReports[crpPerformanceReport, crpAttributionReport]: [client_reporting::Store]@Crp_PerformanceAttribution
+      )
+   }
+
+   client_reporting::CrpAttributionLines: Relational
+   {
+      AssociationMapping
+      (
+         attributionReport[crpAttributionLine, crpAttributionReport]: [client_reporting::Store]@Crp_AttributionLines,
+         attributionLines[crpAttributionReport, crpAttributionLine]: [client_reporting::Store]@Crp_AttributionLines
+      )
+   }
+
+   client_reporting::CrpCheckNotices: Relational
+   {
+      AssociationMapping
+      (
+         depreciationCheck[crpDepreciationNotice, crpDepreciationCheck]: [client_reporting::Store]@Crp_CheckNotices,
+         notices[crpDepreciationCheck, crpDepreciationNotice]: [client_reporting::Store]@Crp_CheckNotices
+      )
+   }
+
+   client_reporting::CrpNoticeStatement: Relational
+   {
+      AssociationMapping
+      (
+         noticeStatement[crpDepreciationNotice, crpStatement]: [client_reporting::Store]@Crp_NoticeStatement,
+         statementNotices[crpStatement, crpDepreciationNotice]: [client_reporting::Store]@Crp_NoticeStatement
+      )
+   }
+
+   client_reporting::CrpStatementDeliveries: Relational
+   {
+      AssociationMapping
+      (
+         deliveredStatement[crpDelivery, crpStatement]: [client_reporting::Store]@Crp_StatementDeliveries,
+         deliveries[crpStatement, crpDelivery]: [client_reporting::Store]@Crp_StatementDeliveries
+      )
+   }
+
+   client_reporting::CrpNoticeDeliveries: Relational
+   {
+      AssociationMapping
+      (
+         notice[crpDelivery, crpDepreciationNotice]: [client_reporting::Store]@Crp_NoticeDeliveries,
+         noticeDeliveries[crpDepreciationNotice, crpDelivery]: [client_reporting::Store]@Crp_NoticeDeliveries
+      )
+   }
+
+   client_reporting::CrpDeliveryChannelUse: Relational
+   {
+      AssociationMapping
+      (
+         channel[crpDelivery, crpDeliveryChannel]: [client_reporting::Store]@Crp_DeliveryChannel,
+         channelDeliveries[crpDeliveryChannel, crpDelivery]: [client_reporting::Store]@Crp_DeliveryChannel
+      )
+   }
+
+   client_reporting::CrpProfileChannel: Relational
+   {
+      AssociationMapping
+      (
+         preferredChannel[crpReportingProfile, crpDeliveryChannel]: [client_reporting::Store]@Crp_ProfileChannel,
+         profiles[crpDeliveryChannel, crpReportingProfile]: [client_reporting::Store]@Crp_ProfileChannel
+      )
+   }
+
+   client_reporting::CrpDeliveryAttempts: Relational
+   {
+      AssociationMapping
+      (
+         delivery[crpDeliveryAttempt, crpDelivery]: [client_reporting::Store]@Crp_DeliveryAttempts,
+         attempts[crpDelivery, crpDeliveryAttempt]: [client_reporting::Store]@Crp_DeliveryAttempts
+      )
+   }
+
+   client_reporting::CrpDeliveryAcknowledgement: Relational
+   {
+      AssociationMapping
+      (
+         acknowledgedDelivery[crpAcknowledgement, crpDelivery]: [client_reporting::Store]@Crp_DeliveryAcknowledgement,
+         acknowledgement[crpDelivery, crpAcknowledgement]: [client_reporting::Store]@Crp_DeliveryAcknowledgement
+      )
+   }
+
+   client_reporting::CrpStatementRecipients: Relational
+   {
+      AssociationMapping
+      (
+         recipientStatement[crpStatementRecipient, crpStatement]: [client_reporting::Store]@Crp_StatementRecipients,
+         recipients[crpStatement, crpStatementRecipient]: [client_reporting::Store]@Crp_StatementRecipients
+      )
+   }
+
+   // ---- into the aggregates: each end crosses from rows into a GROUP ---------------------------------
+
+   client_reporting::CrpStatementLineTotals: Relational
+   {
+      AssociationMapping
+      (
+         totalValuationStatement[crpStatementLineTotal, crpValuationStatement]: [client_reporting::Store]@Crp_StatementLineTotal,
+         lineTotal[crpValuationStatement, crpStatementLineTotal]: [client_reporting::Store]@Crp_StatementLineTotal
+      )
+   }
+
+   client_reporting::CrpDisclosureCostTotals: Relational
+   {
+      AssociationMapping
+      (
+         totalDisclosure[crpDisclosureCostTotal, crpCostsDisclosure]: [client_reporting::Store]@Crp_DisclosureCostTotal,
+         costTotals[crpCostsDisclosure, crpDisclosureCostTotal]: [client_reporting::Store]@Crp_DisclosureCostTotal
+      )
+   }
+
+   client_reporting::CrpClientPeriodTotals: Relational
+   {
+      AssociationMapping
+      (
+         clientPeriodTotal[crpStatement, crpClientPeriodTotal]: [client_reporting::Store]@Crp_StatementClientPeriodTotal,
+         statementsInPeriod[crpClientPeriodTotal, crpStatement]: [client_reporting::Store]@Crp_StatementClientPeriodTotal
+      )
+   }
+
+   client_reporting::CrpDeliveryOutcomeTotals: Relational
+   {
+      AssociationMapping
+      (
+         totalDelivery[crpDeliveryOutcomeTotal, crpDelivery]: [client_reporting::Store]@Crp_DeliveryOutcomeTotal,
+         outcomeTotal[crpDelivery, crpDeliveryOutcomeTotal]: [client_reporting::Store]@Crp_DeliveryOutcomeTotal
+      )
+   }
+
+   // ==== associations, across a project boundary ==========================================================
+   // Twelve of them, reaching ALL THREE dependencies. Every end names [sourceSetId,
+   // targetSetId], and the ids on the far side are the dependency's explicit ones --
+   // `cliClient`, `pkPosition`, `vcValuation`. The join itself lives in
+   // client_reporting::Store even for the end whose source table belongs to the dependency,
+   // because that is the store that includes all three.
+
+   // ---- into client-core -------------------------------------------------------------------------------
+   client_reporting::CrpStatementClient: Relational
+   {
+      AssociationMapping
+      (
+         client[crpStatement, cliClient]: [client_reporting::Store]@Crp_StatementClient,
+         clientStatements[cliClient, crpStatement]: [client_reporting::Store]@Crp_StatementClient
+      )
+   }
+
+   client_reporting::CrpStatementMandate: Relational
+   {
+      AssociationMapping
+      (
+         mandate[crpStatement, cliMandate]: [client_reporting::Store]@Crp_StatementMandate,
+         mandateStatements[cliMandate, crpStatement]: [client_reporting::Store]@Crp_StatementMandate
+      )
+   }
+
+   client_reporting::CrpRecipientContact: Relational
+   {
+      AssociationMapping
+      (
+         contact[crpStatementRecipient, cliClientContact]: [client_reporting::Store]@Crp_RecipientContact,
+         recipientRows[cliClientContact, crpStatementRecipient]: [client_reporting::Store]@Crp_RecipientContact
+      )
+   }
+
+   client_reporting::CrpProfileClient: Relational
+   {
+      AssociationMapping
+      (
+         profiledClient[crpReportingProfile, cliClient]: [client_reporting::Store]@Crp_ProfileClient,
+         reportingProfile[cliClient, crpReportingProfile]: [client_reporting::Store]@Crp_ProfileClient
+      )
+   }
+
+   client_reporting::CrpSuppressionClient: Relational
+   {
+      AssociationMapping
+      (
+         suppressedClient[crpSuppression, cliClient]: [client_reporting::Store]@Crp_SuppressionClient,
+         suppressions[cliClient, crpSuppression]: [client_reporting::Store]@Crp_SuppressionClient
+      )
+   }
+
+   client_reporting::CrpCheckMandate: Relational
+   {
+      AssociationMapping
+      (
+         checkedMandate[crpDepreciationCheck, cliMandate]: [client_reporting::Store]@Crp_CheckMandate,
+         depreciationChecks[cliMandate, crpDepreciationCheck]: [client_reporting::Store]@Crp_CheckMandate
+      )
+   }
+
+   // ---- into position-keeping ---------------------------------------------------------------------------
+   client_reporting::CrpLinePosition: Relational
+   {
+      AssociationMapping
+      (
+         position[crpValuationLine, pkPosition]: [client_reporting::Store]@Crp_LinePosition,
+         valuationLines[pkPosition, crpValuationLine]: [client_reporting::Store]@Crp_LinePosition
+      )
+   }
+
+   client_reporting::CrpTransactionMovement: Relational
+   {
+      AssociationMapping
+      (
+         movement[crpTransactionLine, pkPositionMovement]: [client_reporting::Store]@Crp_TransactionMovement,
+         transactionLines[pkPositionMovement, crpTransactionLine]: [client_reporting::Store]@Crp_TransactionMovement
+      )
+   }
+
+   // The far end is a set rooted on a VIEW in the dependency, so this crosses into a group in
+   // another project.
+   client_reporting::CrpStatementAccountDayTotal: Relational
+   {
+      AssociationMapping
+      (
+         accountDayTotal[crpValuationStatement, pkAccountDayTotal]: [client_reporting::Store]@Crp_StatementAccountDayTotal,
+         valuationStatements[pkAccountDayTotal, crpValuationStatement]: [client_reporting::Store]@Crp_StatementAccountDayTotal
+      )
+   }
+
+   // ---- into valuation-core ------------------------------------------------------------------------------
+   client_reporting::CrpLineValuation: Relational
+   {
+      AssociationMapping
+      (
+         valuation[crpValuationLine, vcValuation]: [client_reporting::Store]@Crp_LineValuation,
+         reportedLines[vcValuation, crpValuationLine]: [client_reporting::Store]@Crp_LineValuation
+      )
+   }
+
+   client_reporting::CrpStatementValuationRun: Relational
+   {
+      AssociationMapping
+      (
+         valuationRun[crpValuationStatement, vcRun]: [client_reporting::Store]@Crp_StatementValuationRun,
+         statementsProduced[vcRun, crpValuationStatement]: [client_reporting::Store]@Crp_StatementValuationRun
+      )
+   }
+
+   // ---- from THIS project's aggregate, back across a boundary -------------------------------------------
+   client_reporting::CrpPeriodTotalClient: Relational
+   {
+      AssociationMapping
+      (
+         totalClient[crpClientPeriodTotal, cliClient]: [client_reporting::Store]@Crp_PeriodTotalClient,
+         periodTotals[cliClient, crpClientPeriodTotal]: [client_reporting::Store]@Crp_PeriodTotalClient
+      )
+   }
+)

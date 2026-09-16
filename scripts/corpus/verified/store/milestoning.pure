@@ -1,0 +1,222 @@
+###Relational
+Database store::milestoning::MilestonedDB
+(
+  // business FROM/THRU -- minimal form
+  Table ProductBusFromThru
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100) NOT NULL,
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE NOT NULL
+  )
+
+  // business FROM/THRU + INFINITY_DATE
+  Table ProductBusFromThruInfinity
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-30T19:00:00.0000)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE
+  )
+
+  // business FROM/THRU + THRU_IS_INCLUSIVE (both booleans) + INFINITY_DATE
+  Table ProductBusThruInclusiveTrue
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, THRU_IS_INCLUSIVE = true, INFINITY_DATE = %9999-12-30T19:00:00.0000)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE
+  )
+
+  Table ProductBusThruInclusiveFalse
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, THRU_IS_INCLUSIVE = false, INFINITY_DATE = %9999-12-30T19:00:00.0000)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE
+  )
+
+  // business SNAPSHOT
+  Table ProductBusSnapshot
+  (
+    milestoning
+    (
+      business(BUS_SNAPSHOT_DATE = BUSINESS_DATE)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    BUSINESS_DATE DATE PRIMARY KEY
+  )
+
+  // processing IN/OUT -- minimal form
+  Table ProductProcInOut
+  (
+    milestoning
+    (
+      processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    IN_Z DATE PRIMARY KEY,
+    OUT_Z DATE NOT NULL
+  )
+
+  // processing IN/OUT + INFINITY_DATE
+  Table ProductProcInOutInfinity
+  (
+    milestoning
+    (
+      processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, INFINITY_DATE = %9999-12-30T19:00:00.0000)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    IN_Z DATE PRIMARY KEY,
+    OUT_Z DATE
+  )
+
+  // processing IN/OUT + OUT_IS_INCLUSIVE (both booleans) + INFINITY_DATE
+  Table ProductProcOutInclusiveTrue
+  (
+    milestoning
+    (
+      processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, OUT_IS_INCLUSIVE = true, INFINITY_DATE = %9999-12-30T19:00:00.0000)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    IN_Z DATE PRIMARY KEY,
+    OUT_Z DATE
+  )
+
+  Table ProductProcOutInclusiveFalse
+  (
+    milestoning
+    (
+      processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, OUT_IS_INCLUSIVE = false, INFINITY_DATE = %9999-12-30T19:00:00.0000)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    IN_Z DATE PRIMARY KEY,
+    OUT_Z DATE
+  )
+
+  // processing SNAPSHOT
+  Table ProductProcSnapshot
+  (
+    milestoning
+    (
+      processing(PROCESSING_SNAPSHOT_DATE = PROCESSING_DATE)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    PROCESSING_DATE DATE PRIMARY KEY
+  )
+
+  // bitemporal -- business AND processing on the same table
+  Table ProductBiTemporal
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z),
+      processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100) NOT NULL,
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE NOT NULL,
+    IN_Z DATE PRIMARY KEY,
+    OUT_Z DATE NOT NULL
+  )
+
+  // bitemporal, both sides fully specified
+  Table ProductBiTemporalFull
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, THRU_IS_INCLUSIVE = true, INFINITY_DATE = %9999-12-30T19:00:00.0000),
+      processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, OUT_IS_INCLUSIVE = false, INFINITY_DATE = %9999-12-30T19:00:00.0000)
+    )
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(100),
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE,
+    IN_Z DATE PRIMARY KEY,
+    OUT_Z DATE
+  )
+)
+
+###Pure
+Class <<temporal.businesstemporal>> store::milestoning::BusProduct
+{
+  name: String[1];
+}
+
+Class <<temporal.processingtemporal>> store::milestoning::ProcProduct
+{
+  name: String[1];
+}
+
+Class <<temporal.bitemporal>> store::milestoning::BiProduct
+{
+  name: String[1];
+}
+
+Class <<temporal.businesstemporal>> store::milestoning::BusSnapshotProduct
+{
+  name: String[1];
+}
+
+Class <<temporal.processingtemporal>> store::milestoning::ProcSnapshotProduct
+{
+  name: String[1];
+}
+
+###Mapping
+Mapping store::milestoning::MilestonedMapping
+(
+  *store::milestoning::BusProduct: Relational
+  {
+    ~mainTable [store::milestoning::MilestonedDB]ProductBusFromThru
+    name: [store::milestoning::MilestonedDB]ProductBusFromThru.NAME
+  }
+
+  *store::milestoning::ProcProduct: Relational
+  {
+    ~mainTable [store::milestoning::MilestonedDB]ProductProcInOut
+    name: [store::milestoning::MilestonedDB]ProductProcInOut.NAME
+  }
+
+  *store::milestoning::BiProduct: Relational
+  {
+    ~mainTable [store::milestoning::MilestonedDB]ProductBiTemporal
+    name: [store::milestoning::MilestonedDB]ProductBiTemporal.NAME
+  }
+
+  // snapshot-milestoned tables map to the same temporal stereotypes
+  *store::milestoning::BusSnapshotProduct: Relational
+  {
+    ~mainTable [store::milestoning::MilestonedDB]ProductBusSnapshot
+    name: [store::milestoning::MilestonedDB]ProductBusSnapshot.NAME
+  }
+
+  *store::milestoning::ProcSnapshotProduct: Relational
+  {
+    ~mainTable [store::milestoning::MilestonedDB]ProductProcSnapshot
+    name: [store::milestoning::MilestonedDB]ProductProcSnapshot.NAME
+  }
+)

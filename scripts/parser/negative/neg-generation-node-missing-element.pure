@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token '}'. Valid alternatives: ['generationElement']
+//
+// A generationNode is `{ (nodeId)? generationElement }` -- ORDERED, with the id optional and
+// the element mandatory. Unlike almost every other body in these grammars this is not an
+// unordered `( ... )*`, so the requirement is expressed by the rule itself and the message
+// arrives at the closing brace.
+//
+// Worth pinning precisely because it is the exception: a rewrite that applies the house
+// style -- collect clauses, validate afterwards -- gets a different message here, and gets
+// `{ generationElement: x; id: 'y'; }` wrong in the other direction.
+###GenerationSpecification
+GenerationSpecification fixture::neg::NodeWithoutElement
+{
+   generationNodes: [
+      {
+         id: 'onlyAnId';
+      }
+   ];
+}

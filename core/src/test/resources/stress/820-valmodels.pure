@@ -1,0 +1,268 @@
+###Pure
+// Valuation models: what priced a position, with what inputs, and how long it took.
+//
+// 22 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 22 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class valmodels::ValuationModelRun
+{
+   runId: String[1];
+   modelType: String[1];
+   instrumentRef: String[1];
+   cobDate: StrictDate[1];
+   presentValue: Float[1];
+   currency: String[1];
+   elapsedMs: Integer[1];
+   modelVersion: String[1];
+   isApproved: Boolean[1];
+   calibrationError: Float[0..1];
+
+   // Seconds, which is the unit a model-control report actually uses.
+   elapsedSeconds() { $this.elapsedMs / 1000.0 } : Float[1];
+}
+
+// Closed form, lognormal, and wrong in the tails -- still the quoting convention.
+Class valmodels::BlackScholesModel extends valmodels::ValuationModelRun
+{
+}
+
+// Black on forwards, which is how caps and swaptions are quoted.
+Class valmodels::BlackSeventySixModel extends valmodels::ValuationModelRun
+{
+}
+
+// Normal rather than lognormal, which is what negative rates forced.
+Class valmodels::BachelierModel extends valmodels::ValuationModelRun
+{
+}
+
+// Stochastic alpha beta rho -- the market standard for a smile.
+Class valmodels::SabrModel extends valmodels::ValuationModelRun
+{
+}
+
+// Stochastic volatility with a closed-form characteristic function.
+Class valmodels::HestonModel extends valmodels::ValuationModelRun
+{
+}
+
+// Dupire's surface, which fits today's smile exactly and forecasts badly.
+Class valmodels::LocalVolatilityModel extends valmodels::ValuationModelRun
+{
+}
+
+// One-factor short rate, still the workhorse for Bermudans.
+Class valmodels::HullWhiteModel extends valmodels::ValuationModelRun
+{
+}
+
+// Forward-rate dynamics rather than short-rate.
+Class valmodels::HeathJarrowMortonModel extends valmodels::ValuationModelRun
+{
+}
+
+// Each forward its own lognormal process.
+Class valmodels::LiborMarketModel extends valmodels::ValuationModelRun
+{
+}
+
+// Mean reverting and non-negative by construction.
+Class valmodels::CoxIngersollRossModel extends valmodels::ValuationModelRun
+{
+}
+
+// Mean reverting, and it allows negative rates -- once a flaw, later a feature.
+Class valmodels::VasicekModel extends valmodels::ValuationModelRun
+{
+}
+
+// A parametric curve fit with level, slope and curvature.
+Class valmodels::NelsonSiegelModel extends valmodels::ValuationModelRun
+{
+}
+
+// Nelson-Siegel with a second hump.
+Class valmodels::SvenssonModel extends valmodels::ValuationModelRun
+{
+}
+
+// Interpolation with continuous second derivatives.
+Class valmodels::CubicSplineModel extends valmodels::ValuationModelRun
+{
+}
+
+// Simulation, for anything path dependent.
+Class valmodels::MonteCarloModel extends valmodels::ValuationModelRun
+{
+}
+
+// Discrete, and the only easy way to handle early exercise by hand.
+Class valmodels::BinomialTreeModel extends valmodels::ValuationModelRun
+{
+}
+
+// Better convergence for the same effort.
+Class valmodels::TrinomialTreeModel extends valmodels::ValuationModelRun
+{
+}
+
+// Solving the PDE on a grid.
+Class valmodels::FiniteDifferenceModel extends valmodels::ValuationModelRun
+{
+}
+
+// Correlated defaults, and the model 2008 is famous for.
+Class valmodels::GaussianCopulaModel extends valmodels::ValuationModelRun
+{
+}
+
+// The tranche market's answer to the copula's failures.
+Class valmodels::BaseCorrelationModel extends valmodels::ValuationModelRun
+{
+}
+
+// Bootstrapped default intensities from CDS spreads.
+Class valmodels::HazardRateModel extends valmodels::ValuationModelRun
+{
+}
+
+// No optionality: discount the schedule and stop.
+Class valmodels::DiscountedCashflowModel extends valmodels::ValuationModelRun
+{
+}
+
+###Mapping
+Mapping valmodels::ValmodelsMapping
+(
+   *valmodels::ValuationModelRun[valmodelsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]VALUATION_MODEL_RUN.RUN_ID )
+      ~mainTable [store::DB]VALUATION_MODEL_RUN
+      runId: [store::DB]VALUATION_MODEL_RUN.RUN_ID,
+      modelType: [store::DB]VALUATION_MODEL_RUN.MODEL_TYPE,
+      instrumentRef: [store::DB]VALUATION_MODEL_RUN.INSTRUMENT_REF,
+      cobDate: [store::DB]VALUATION_MODEL_RUN.COB_DATE,
+      presentValue: [store::DB]VALUATION_MODEL_RUN.PRESENT_VALUE,
+      currency: [store::DB]VALUATION_MODEL_RUN.CURRENCY,
+      elapsedMs: [store::DB]VALUATION_MODEL_RUN.ELAPSED_MS,
+      modelVersion: [store::DB]VALUATION_MODEL_RUN.MODEL_VERSION,
+      isApproved: [store::DB]VALUATION_MODEL_RUN.IS_APPROVED,
+      calibrationError: [store::DB]VALUATION_MODEL_RUN.CALIBRATION_ERROR
+   }
+
+   valmodels::BlackScholesModel[valBlackScholes] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValBlackScholesRows
+   }
+
+   valmodels::BlackSeventySixModel[valBlack76] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValBlack76Rows
+   }
+
+   valmodels::BachelierModel[valBachelier] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValBachelierRows
+   }
+
+   valmodels::SabrModel[valSabr] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValSabrRows
+   }
+
+   valmodels::HestonModel[valHeston] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValHestonRows
+   }
+
+   valmodels::LocalVolatilityModel[valLocalVol] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValLocalVolRows
+   }
+
+   valmodels::HullWhiteModel[valHullWhite] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValHullWhiteRows
+   }
+
+   valmodels::HeathJarrowMortonModel[valHjm] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValHjmRows
+   }
+
+   valmodels::LiborMarketModel[valLiborMarketModel] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValLiborMarketModelRows
+   }
+
+   valmodels::CoxIngersollRossModel[valCir] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValCirRows
+   }
+
+   valmodels::VasicekModel[valVasicek] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValVasicekRows
+   }
+
+   valmodels::NelsonSiegelModel[valNelsonSiegel] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValNelsonSiegelRows
+   }
+
+   valmodels::SvenssonModel[valSvensson] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValSvenssonRows
+   }
+
+   valmodels::CubicSplineModel[valCubicSpline] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValCubicSplineRows
+   }
+
+   valmodels::MonteCarloModel[valMonteCarloSim] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValMonteCarloSimRows
+   }
+
+   valmodels::BinomialTreeModel[valBinomialTree] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValBinomialTreeRows
+   }
+
+   valmodels::TrinomialTreeModel[valTrinomialTree] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValTrinomialTreeRows
+   }
+
+   valmodels::FiniteDifferenceModel[valFiniteDifference] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValFiniteDifferenceRows
+   }
+
+   valmodels::GaussianCopulaModel[valCopulaGaussian] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValCopulaGaussianRows
+   }
+
+   valmodels::BaseCorrelationModel[valBaseCorrelation] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValBaseCorrelationRows
+   }
+
+   valmodels::HazardRateModel[valHazardRate] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValHazardRateRows
+   }
+
+   valmodels::DiscountedCashflowModel[valDiscountedCashflow] extends [valmodelsBase]: Relational
+   {
+      ~filter [store::DB]ValDiscountedCashflowRows
+   }
+)

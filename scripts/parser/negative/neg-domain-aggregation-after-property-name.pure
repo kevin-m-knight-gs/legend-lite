@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token
+//
+// Property aggregation kind is a PARENTHESISED PREFIX -- `(composite) owned: Part[*];` --
+// not a modifier attached to the property name. This writes `owned (composite): ...`.
+//
+// The wrong position is not inert: `name (params): Type[m] { ... }` is the QUALIFIED
+// property form, so `owned (composite)` starts down a real grammar path and fails inside
+// it. A rewrite that reaches the parenthesis and asks "aggregation kind or parameter
+// list?" has a genuine decision to make; one that accepts either reading accepts this file
+// and produces a qualified property with a parameter of no type.
+###Pure
+Class fixture::neg::AggregationAfterName
+{
+   owned (composite): fixture::neg::Part[*];
+}

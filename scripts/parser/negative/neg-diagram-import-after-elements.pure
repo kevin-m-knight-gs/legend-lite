@@ -1,0 +1,23 @@
+// REJECTS: Unexpected token
+//
+// Section imports come FIRST, before any element in the section. This puts the import
+// after the Diagram it would have applied to.
+//
+// The rule is uninteresting until you notice why it is not enforceable by the walker: the
+// import list scopes path resolution for everything after it, so "imports anywhere" is not
+// just untidy, it makes resolution order-dependent within a section. A rewrite that
+// collects imports wherever it finds them and applies them section-wide accepts this file
+// AND changes the meaning of a legal one, because a path that resolved via the imports at
+// the top now also resolves via imports declared below it.
+###Diagram
+Diagram fixture::neg::LateImport
+{
+   classView v1
+   {
+      class: fixture::neg::Person;
+      position: (1.0,2.0);
+      rectangle: (10.0,20.0);
+   }
+}
+
+import fixture::neg::*;

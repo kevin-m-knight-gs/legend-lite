@@ -1,0 +1,118 @@
+// COVERS MongoDBSchemaLexerGrammar: Database, Collection, include, jsonSchema, validationLevel, validationAction, strict, moderate, error, warn, Join, true, false, null
+// COVERS MongoDBConnectionLexerGrammar: store, serverURLs, database, debug, authentication
+// COVERS MongoDBMappingLexerGrammar: ~filter, ~mainCollection, ~binding, ~distinct, ~primaryKey
+//
+// All three MongoDB sub-grammars in one file: the ###MongoDB store, the ###Mapping class
+// mapping body, and the ###Connection element.
+//
+// MongoDBSchemaLexerGrammar imports M3LexerGrammar and adds its OWN `QUOTED_STRING` on
+// DOUBLE quotes, because the `jsonSchema:` body is literal JSON handed to Jackson. So in
+// this section a double-quoted string is the string form and `true`/`false`/`null` are the
+// JSON literal tokens -- that is the only place those three keywords are typeable.
+// The JSON is deserialized by MongoDBSchemaDeserializer at PARSE time (the walker calls it
+// from getSchemaExpression), so it must be a real object schema: `"bsonType": "object"` is
+// mandatory or the walker throws "Expected jsonSchema bsonType should be of object type".
+// Unrecognised keys are ignored, which is where the `null` sits.
+//
+// `include` must precede every collection (rule `mongodb` is `include* (collection|join)*`)
+// and `Join` is parsed and then dropped -- MongoDBSchemaParseTreeWalker visits only
+// ctx.collection(), so a Join has no walker at all. Same for include. Both still have to
+// lex and parse, which is what this asserts.
+//
+// MongoDBMappingLexerGrammar declares five `~` commands but only three are consumed as
+// commands: `~filter`, `~mainCollection`, `~binding`. `~distinct` and `~primaryKey` appear
+// in no rule except the `unquotedIdentifier` alternation, so the sole way to type them is
+// as an identifier -- the filter name and the main-collection name below. They are not
+// dead (a rule does reach them) but they carry no meaning.
+//
+// MongoDBConnectionLexerGrammar's `debug` is the same story: DEBUG is only in
+// `unquotedIdentifier`, so it is typeable as the `database:` value and nowhere else.
+// `serverURLs` entries are `HOST_STRING COLON INTEGER` -- an unquoted host, no quotes.
+###MongoDB
+Database fixture::mongo::PersonDb
+(
+  include fixture::mongo::BaseDb
+
+  Collection Person
+  (
+    validationLevel: strict;
+    validationAction: error;
+    jsonSchema: {
+      "bsonType": "object",
+      "title": "Record of Person",
+      "properties": {
+        "name": {
+          "bsonType": "string",
+          "description": "name of the person",
+          "minLength": 2
+        },
+        "firmId": {
+          "bsonType": "objectId"
+        }
+      },
+      "legendFixtureIgnoredKey": null,
+      "additionalProperties": false
+    };
+  )
+
+  Collection "firm-data"
+  (
+    validationLevel: moderate;
+    validationAction: warn;
+    jsonSchema: {
+      "bsonType": "object",
+      "properties": {
+        "id": {
+          "bsonType": "objectId"
+        }
+      },
+      "additionalProperties": true
+    };
+  )
+
+  Join PersonFirm (Person.firmId = [fixture::mongo::PersonDb] "firm-data".id)
+)
+
+
+###Mapping
+Mapping fixture::mongo::MongoMapping
+(
+  *fixture::mongo::Person[person_id]: MongoDB
+  {
+    ~filter [fixture::mongo::PersonDb] activeOnly
+    ~mainCollection [fixture::mongo::PersonDb] Person
+    ~binding fixture::mongo::PersonBinding
+  }
+
+  *fixture::mongo::Firm[firm_id]: MongoDB
+  {
+    ~filter [fixture::mongo::PersonDb] ~primaryKey
+    ~mainCollection [fixture::mongo::PersonDb] ~distinct
+    ~binding fixture::mongo::FirmBinding
+  }
+)
+
+
+###Connection
+MongoDBConnection fixture::mongo::Conn
+{
+  database: legend_db;
+  store: fixture::mongo::PersonDb;
+  serverURLs: [localhost:27071, f12345-001.ab.com:27071];
+  authentication: # UserPassword {
+    username: 'mongo_ro';
+    password: SystemPropertiesSecret
+    {
+      systemPropertyName: 'sys.prop.name';
+    };
+  }#;
+}
+
+MongoDBConnection fixture::mongo::DebugConn
+{
+  database: debug;
+  store: fixture::mongo::PersonDb;
+  serverURLs: [myhost.example.com:27017];
+  authentication: # Kerberos {
+  }#;
+}

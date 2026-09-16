@@ -128,6 +128,12 @@ public interface ModelContext {
     Optional<com.legend.model.RuntimeDefinition> findRuntime(
             @com.legend.Nullable String fqn);
 
+    /** The {@code ###Data} element for {@code fqn}, if present &mdash; what a
+     *  test suite's {@code Reference #{ path }#} names. */
+    default Optional<com.legend.model.DataDefinition> findData(String fqn) {
+        return Optional.empty();
+    }
+
     /** Normalization-failure reason for {@code mapping::class}, when its
      * class mapping (the ROOT binding) was poisoned. */
     default Optional<String> mappingPoison(String mappingFqn, String classFqn) {

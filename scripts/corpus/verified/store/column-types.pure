@@ -1,0 +1,83 @@
+###Relational
+Database store::types::TypesDB
+(
+  Table AllTypes
+  (
+    C_VARCHAR VARCHAR(200) PRIMARY KEY,
+    C_CHAR CHAR(32) PRIMARY KEY,
+    C_INTEGER INTEGER,
+    C_INT INT,
+    C_BIGINT BIGINT NOT NULL,
+    C_SMALLINT SMALLINT,
+    C_TINYINT TINYINT,
+    C_FLOAT FLOAT,
+    C_DOUBLE DOUBLE,
+    C_REAL REAL,
+    C_DECIMAL DECIMAL(32, 23),
+    C_NUMERIC NUMERIC(32, 23),
+    C_DATE DATE,
+    C_TIMESTAMP TIMESTAMP,
+    C_BIT BIT,
+    C_BINARY BINARY(1),
+    C_VARBINARY VARBINARY(1) NOT NULL,
+    C_SEMISTRUCTURED SEMISTRUCTURED,
+    C_JSON JSON,
+    C_ARRAY ARRAY,
+    C_OTHER OTHER
+  )
+
+  Table CompositeKey
+  (
+    REGION VARCHAR(20) PRIMARY KEY,
+    BOOK_ID INTEGER PRIMARY KEY,
+    AS_OF DATE PRIMARY KEY,
+    VALUE DECIMAL(18, 4) NOT NULL
+  )
+)
+
+###Pure
+Class store::types::Row
+{
+  varcharCol: String[1];
+  bigintCol: Integer[1];
+  decimalCol: Float[1];
+  dateCol: StrictDate[0..1];
+  timestampCol: DateTime[0..1];
+  bitCol: Boolean[0..1];
+}
+
+Class store::types::Position
+{
+  region: String[1];
+  bookId: Integer[1];
+  value: Float[1];
+}
+
+###Mapping
+Mapping store::types::TypesMapping
+(
+  *store::types::Row: Relational
+  {
+    ~mainTable [store::types::TypesDB]AllTypes
+    varcharCol: [store::types::TypesDB]AllTypes.C_VARCHAR,
+    bigintCol: [store::types::TypesDB]AllTypes.C_BIGINT,
+    decimalCol: [store::types::TypesDB]AllTypes.C_DECIMAL,
+    dateCol: [store::types::TypesDB]AllTypes.C_DATE,
+    timestampCol: [store::types::TypesDB]AllTypes.C_TIMESTAMP,
+    bitCol: [store::types::TypesDB]AllTypes.C_BIT
+  }
+
+  *store::types::Position: Relational
+  {
+    ~primaryKey
+    (
+      [store::types::TypesDB]CompositeKey.REGION,
+      [store::types::TypesDB]CompositeKey.BOOK_ID,
+      [store::types::TypesDB]CompositeKey.AS_OF
+    )
+    ~mainTable [store::types::TypesDB]CompositeKey
+    region: [store::types::TypesDB]CompositeKey.REGION,
+    bookId: [store::types::TypesDB]CompositeKey.BOOK_ID,
+    value: [store::types::TypesDB]CompositeKey.VALUE
+  }
+)

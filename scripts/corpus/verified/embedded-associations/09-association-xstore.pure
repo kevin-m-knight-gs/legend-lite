@@ -1,0 +1,54 @@
+// Feature 9: XStore association mapping -- cross-store join expressed as a predicate.
+// Source: legend-engine TestMappingGrammarRoundtrip#testCrossStoreAssociationMapping
+//         (legend-engine-language-pure-grammar .../roundtrip/TestMappingGrammarRoundtrip.java:820)
+// Exact spelling:
+//   * the association body is `XStore { ... }` (no AssociationMapping(...) wrapper,
+//     unlike the Relational form)
+//   * each end is `prop[sourceSetId, targetSetId]: <boolean expression>`; the set ids
+//     are optional, exactly as in the Relational form
+//   * the predicate uses `$this` (source side) and `$that` (target side).
+//     There is NO `~target` keyword anywhere in legend-engine.
+//   * `~src <Class>` belongs to the M2M (`Pure`) CLASS mappings, not to the XStore block
+//   * `+firmId: Integer[1]: 1` is a LOCAL mapping property -- it is not on demo::Person;
+//     it exists only to give the XStore predicate a join key.
+###Pure
+Class demo::Person
+{
+  name: String[1];
+}
+
+Class demo::Firm
+{
+  id: Integer[1];
+  legalName: String[1];
+}
+
+Association demo::Firm_Person
+{
+  employer: demo::Firm[1];
+  employees: demo::Person[*];
+}
+
+###Mapping
+Mapping demo::CrossStoreMapping
+(
+  demo::Person[p]: Pure
+  {
+    ~src demo::Person
+    +firmId: Integer[1]: 1,
+    name: $src.name
+  }
+
+  demo::Firm[f]: Pure
+  {
+    ~src demo::Firm
+    id: $src.id,
+    legalName: $src.legalName
+  }
+
+  demo::Firm_Person: XStore
+  {
+    employer[p, f]: $this.firmId == $that.id,
+    employees[f, p]: $this.id == $that.firmId
+  }
+)

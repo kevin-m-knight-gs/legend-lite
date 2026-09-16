@@ -1,0 +1,18 @@
+// REJECTS: Unexpected token '#{'. Valid alternatives: ['$[']
+//
+// A validation tree written with GraphFetchTree's `#{ ... }#` delimiters instead of
+// DataQuality's `$[ ... ]$`. The two trees look identical inside -- property nodes, nested
+// braces, `->subType(@Type)` downcasts -- and DataQuality's really is a graph-fetch tree in
+// the protocol. But it is a SEPARATE grammar with its own delimiter tokens, and its
+// `->subType(@` is its own SUBTYPE_START, not the GraphFetchTree one.
+//
+// This is the specific reuse a rewrite is invited to make: notice the trees are the same
+// shape, route `validationTree:` at the existing graph-fetch parser, and inherit `#{ }#` as
+// an accepted spelling. legend-engine does not accept it, and the alternative list here says
+// so with a single-element set.
+###DataQualityValidation
+DataQualityValidation fixture::neg::GraphFetchDelimiters
+{
+   context: fromMappingAndRuntime(fixture::neg::M, fixture::neg::R);
+   validationTree: #{ fixture::neg::Person { name } }#;
+}

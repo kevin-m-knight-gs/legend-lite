@@ -1,0 +1,17 @@
+// REJECTS: Field 'auth' should be specified only once
+//
+// A connection takes exactly one authentication strategy. The parser rule is an unordered
+// `( ... )*`, so ORDER is free but REPETITION is not -- the constraint is enforced after
+// the fact by validateAndExtractOptionalField, not by the grammar.
+//
+// That distinction is the whole point of this fixture. A parser generated straight from
+// the .g4 accepts this happily; the "only once" rule lives in the walker.
+###Connection
+RelationalDatabaseConnection fixture::neg::TwoAuths
+{
+   store: fixture::neg::Db;
+   type: H2;
+   specification: LocalH2 {  };
+   auth: DefaultH2;
+   auth: ApiToken { apiToken: 'token'; };
+}

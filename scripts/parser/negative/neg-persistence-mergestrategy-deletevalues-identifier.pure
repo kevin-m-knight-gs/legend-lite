@@ -1,0 +1,46 @@
+// REJECTS: Unexpected token 'Y'
+//
+// `deleteValues` is one spelling with two incompatible types:
+//
+//   v1  mergeStrategyDeleteValues:  ... BRACKET_OPEN STRING (COMMA STRING)* BRACKET_CLOSE ...
+//   v2  deleteIndicatorValues:      ... BRACKET_OPEN (identifier (COMMA identifier)*)? BRACKET_CLOSE ...
+//
+// (PersistenceParserGrammar.g4:721 vs :333.) The v1 list is STRING-only and non-empty; the
+// v2 list takes identifiers -- of which STRING is one arm -- and may be empty. So every
+// legal v1 value list is also a legal v2 one, and the converse is false. This file writes
+// bare identifiers in the v1 position.
+//
+// Its v2 twin, `deleteValues: ['Y', '1', 'yes'];` under `actionIndicator:`, is a POSITIVE
+// fixture. Same three tokens, one accepted and one refused, by position alone.
+###Persistence
+Persistence test::persistence::neg::MergeStrategyIdentifierValues
+{
+  doc: 'v1 merge strategy delete values written as identifiers';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalDelta
+    {
+      mergeStrategy: DeleteIndicator
+      {
+        deleteField: deleted;
+        deleteValues: [Y, N];
+      }
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

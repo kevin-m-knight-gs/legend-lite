@@ -1,0 +1,33 @@
+Class demo::T { id: String[1]; v: Float[0..1]; }
+
+###Relational
+Database demo::DB ( Table T (ID VARCHAR(20) PRIMARY KEY, V DOUBLE) )
+
+###Mapping
+Mapping demo::M
+( demo::T: Relational { ~primaryKey ([demo::DB]T.ID) ~mainTable [demo::DB] T
+    id: [demo::DB]T.ID, v: [demo::DB]T.V } )
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed { Relational #{ default.T: 'ID,V\n' + 'R1,1.5\n'; }# }
+
+###Service
+Service demo::Td
+{
+  pattern: '/td';
+  documentation: 'Round-trip of SQL DOUBLE as Pure Float. Grammar and compiler accept a type; whether the CONNECTOR can convert it is a separate question and is what this asks.';
+  execution: Single
+  {
+    query: |demo::T.all()->project(~[id:x|$x.id, v:x|$x.v]);
+    mapping: demo::M; runtime: demo::RT;
+  }
+  testSuites: [ s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson
+      #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[]'; }#; }# ] } ] } ]
+}

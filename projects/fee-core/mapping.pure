@@ -1,0 +1,87 @@
+###Mapping
+
+// fee_core::Mapping INCLUDES core_tenor::Mapping, which is what makes the set id `ctnBucket`
+// nameable here. core-tenor names its set ids explicitly, so the default id
+// `core_tenor_CtnTenorBucket` does not exist and `bucket[ctnBucket]` is the only form that
+// resolves -- see core-tenor's MANIFEST.
+//
+// Set ids here are fee* per the contract: a global namespace across the whole graph.
+Mapping fee_core::Mapping
+(
+   include core_tenor::Mapping
+
+   // The currency codes as a fee table stores them: ISO alpha-3, mapped onto core-types'
+   // enum. Only the currencies fees are actually billed in.
+   core_types::CtCurrency: EnumerationMapping FeeCurrencyMapping
+   {
+      USD: ['USD'],
+      EUR: ['EUR'],
+      GBP: ['GBP'],
+      CHF: ['CHF'],
+      JPY: ['JPY'],
+      SGD: ['SGD'],
+      HKD: ['HKD'],
+      AUD: ['AUD']
+   }
+
+   *fee_core::FeeProduct[feeProduct]: Relational
+   {
+      ~primaryKey ( [fee_core::Store]FEE_PRODUCT.PRODUCT_CODE )
+      ~mainTable [fee_core::Store]FEE_PRODUCT
+      productCode: [fee_core::Store]FEE_PRODUCT.PRODUCT_CODE,
+      name: [fee_core::Store]FEE_PRODUCT.NAME,
+      assetClass: [fee_core::Store]FEE_PRODUCT.ASSET_CLASS,
+      billingCurrency: EnumerationMapping FeeCurrencyMapping: [fee_core::Store]FEE_PRODUCT.BILLING_CCY,
+      isActive: [fee_core::Store]FEE_PRODUCT.IS_ACTIVE,
+      schedules[feeSchedule]: [fee_core::Store]@Fee_ScheduleProduct
+   }
+
+   *fee_core::FeeTier[feeTier]: Relational
+   {
+      ~primaryKey ( [fee_core::Store]FEE_TIER.TIER_CODE )
+      ~mainTable [fee_core::Store]FEE_TIER
+      tierCode: [fee_core::Store]FEE_TIER.TIER_CODE,
+      name: [fee_core::Store]FEE_TIER.NAME,
+      rank: [fee_core::Store]FEE_TIER.TIER_RANK,
+      minNotional: [fee_core::Store]FEE_TIER.MIN_NOTIONAL,
+      schedules[feeSchedule]: [fee_core::Store]@Fee_ScheduleTier
+   }
+
+   // THE COMPOSITE KEY: product, tier and effective date together, in that order.
+   *fee_core::FeeSchedule[feeSchedule]: Relational
+   {
+      ~primaryKey
+      (
+         [fee_core::Store]FEE_SCHEDULE.PRODUCT_CODE,
+         [fee_core::Store]FEE_SCHEDULE.TIER_CODE,
+         [fee_core::Store]FEE_SCHEDULE.EFFECTIVE_DATE
+      )
+      ~mainTable [fee_core::Store]FEE_SCHEDULE
+      productCode: [fee_core::Store]FEE_SCHEDULE.PRODUCT_CODE,
+      tierCode: [fee_core::Store]FEE_SCHEDULE.TIER_CODE,
+      effectiveDate: [fee_core::Store]FEE_SCHEDULE.EFFECTIVE_DATE,
+      daysToMaturity: [fee_core::Store]FEE_SCHEDULE.DAYS_TO_MATURITY,
+      rateBasisPoints: [fee_core::Store]FEE_SCHEDULE.RATE_BASIS_POINTS,
+      minimumFee: [fee_core::Store]FEE_SCHEDULE.MINIMUM_FEE,
+      maximumFee: [fee_core::Store]FEE_SCHEDULE.MAXIMUM_FEE,
+      feeCurrency: EnumerationMapping FeeCurrencyMapping: [fee_core::Store]FEE_SCHEDULE.FEE_CCY,
+      product[feeProduct]: [fee_core::Store]@Fee_ScheduleProduct,
+      tier[feeTier]: [fee_core::Store]@Fee_ScheduleTier,
+      waivers[feeWaiver]: [fee_core::Store]@Fee_WaiverSchedule,
+      // The CROSS-PROJECT RANGE JOIN, landing on core-tenor's own set id.
+      bucket[ctnBucket]: [fee_core::Store]@Fee_ScheduleBucket
+   }
+
+   *fee_core::FeeWaiver[feeWaiver]: Relational
+   {
+      ~primaryKey ( [fee_core::Store]FEE_WAIVER.WAIVER_ID )
+      ~mainTable [fee_core::Store]FEE_WAIVER
+      waiverId: [fee_core::Store]FEE_WAIVER.WAIVER_ID,
+      reasonCode: [fee_core::Store]FEE_WAIVER.REASON_CODE,
+      waivedBasisPoints: [fee_core::Store]FEE_WAIVER.WAIVED_BASIS_POINTS,
+      isFullWaiver: [fee_core::Store]FEE_WAIVER.IS_FULL_WAIVER,
+      grantedOn: [fee_core::Store]FEE_WAIVER.GRANTED_ON,
+      expiresOn: [fee_core::Store]FEE_WAIVER.EXPIRES_ON,
+      schedule[feeSchedule]: [fee_core::Store]@Fee_WaiverSchedule
+   }
+)

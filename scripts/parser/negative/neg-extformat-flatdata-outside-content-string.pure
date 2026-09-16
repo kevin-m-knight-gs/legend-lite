@@ -1,0 +1,31 @@
+// REJECTS: Unexpected token 'section'
+//
+// FlatData written as a bare block where the `content:` STRING should be. This is the single
+// most misleading thing about the ###ExternalFormat section: FlatData looks like a section
+// grammar -- it has `section`, `Record`, typed fields, braces -- and it is not one. It is a
+// self-contained sub-grammar whose entire input is the QUOTED content of a schema.
+//
+// `content:` is `SCHEMA_CONTENT COLON STRING SEMI_COLON`. Nothing else. A rewritten parser
+// that recognises FlatData as a nested block -- the obvious reading of the positive
+// fixture's escaped one-liner -- accepts a shape legend-engine has no rule for.
+###ExternalFormat
+SchemaSet fixture::neg::FlatDataOutsideString
+{
+   format: FlatData;
+   schemas: [
+      {
+         id: primary;
+         content:
+            section people: DelimitedWithHeadings
+            {
+               scope.untilEof;
+               delimiter: ',';
+
+               Record
+               {
+                  NAME : STRING;
+               }
+            };
+      }
+   ];
+}

@@ -1,0 +1,26 @@
+// REJECTS: Expected jsonSchema bsonType should be of object type
+//
+// A `jsonSchema:` whose top-level `bsonType` is "string" rather than "object". The JSON is
+// well-formed, double-quoted correctly, and lexes and parses without complaint -- and
+// MongoDBSchemaParseTreeWalker.getSchemaExpression then runs MongoDBSchemaDeserializer over
+// it AT PARSE TIME and refuses a non-object root.
+//
+// So a string literal's semantic content, interpreted by a Jackson deserializer, decides
+// whether a .pure file parses. Nothing about that is expressible in a .g4, and a rewrite that
+// stores the schema text verbatim and defers deserialization to compile time -- the obviously
+// correct layering -- is more permissive here.
+//
+// Unrecognised keys inside the schema are silently IGNORED by the same deserializer, so the
+// permissiveness is genuinely selective and cannot be reproduced by validating the JSON
+// against a strict schema either. See ../fixtures/t2-mongodb.pure, which carries a deliberate
+// ignored key.
+###MongoDB
+Database fixture::neg::NonObjectSchema
+(
+  Collection Person
+  (
+    jsonSchema: {
+      "bsonType": "string"
+    };
+  )
+)

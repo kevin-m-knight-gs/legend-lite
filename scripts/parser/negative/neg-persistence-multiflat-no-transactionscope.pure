@@ -1,0 +1,35 @@
+// REJECTS: Field 'transactionScope' is required
+//
+// `multiTargetShape: ... (targetModelClass | targetTransactionScope | targetParts)* ...` --
+// all three required by visitMultiFlatTarget. transactionScope is the one field with no
+// analogue on a Flat target shape, so a MultiFlat missing it is a Flat target shape wearing
+// the wrong keyword and carrying parts.
+###Persistence
+Persistence test::persistence::neg::MultiFlatNoScope
+{
+  doc: 'multi-flat target shape with no transaction scope';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: MultiFlat
+    {
+      modelClass: test::persistence::WrapperClass;
+      parts:
+      [
+        {
+          modelProperty: property1;
+          targetName: 'TestDataset1';
+        }
+      ];
+    }
+  }
+}

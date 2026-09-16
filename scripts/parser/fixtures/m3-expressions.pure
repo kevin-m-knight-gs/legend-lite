@@ -1,0 +1,35 @@
+// COVERS M3LexerGrammar: let, allVersions
+//
+// Expression-level Pure. `let` is the one that matters: the stress corpus is 30+ files and
+// 89 services and has never written a local variable, because every generated function body
+// is a single chained expression.
+//
+// `toBytes` is NOT declared here, and the reason is worth recording. Writing `$s->toBytes()`
+// in a function body parses -- but it lexes as an ordinary function call, not as M3's
+// TO_BYTES token, which is reachable only from `primitiveValueAtomic` (test parameters and
+// EqualTo expected values). Declaring it here would have been a false credit that this
+// harness could not detect, since the COVERS check only proves the text is present. It is
+// covered by service-testsuite.pure instead, in a position where the token is really used.
+//
+// `allVersionsInRange` is absent for a harder reason: DomainParseTreeWalker.java:1742
+// throws unconditionally. The branch exists only to reject -- `allVersions` on the line
+// above maps to getAllVersions. It is in ../negative/ with the rest of the surface
+// legend-engine declares and refuses.
+###Pure
+Class <<meta::pure::profiles::temporal.businesstemporal>> fixture::m3::Product
+{
+   name: String[1];
+   size: Integer[1];
+}
+
+function fixture::m3::withLet(limit: Integer[1]): Integer[1]
+{
+   let offset = $limit + 10;
+   let doubled = $offset * 2;
+   $doubled;
+}
+
+function fixture::m3::everyVersion(): meta::pure::metamodel::type::Any[*]
+{
+   fixture::m3::Product.allVersions()
+}

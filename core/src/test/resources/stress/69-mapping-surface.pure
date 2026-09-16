@@ -1,0 +1,71 @@
+// Mapping-DSL constructs the corpus never wrote. Self-contained -- its own store, classes
+// and mapping -- so a compile failure names this file rather than perturbing the matrix.
+###Pure
+Class surface::Src { k: String[1]; a: String[0..1]; b: String[0..1]; tags: String[*]; }
+Class surface::Tgt { k: String[1]; a: String[0..1]; b: String[0..1]; }
+Class surface::Leg { legId: String[1]; label: String[0..1]; }
+Class surface::Head { k: String[1]; legs: surface::Leg[*]; }
+
+###Relational
+Database surface::MapDB
+(
+   Table HEAD ( K VARCHAR(64) PRIMARY KEY, A VARCHAR(64), B VARCHAR(64), LEG_ID VARCHAR(64) )
+   Table LEG ( LEG_ID VARCHAR(64) PRIMARY KEY, LABEL VARCHAR(64), NEXT_ID VARCHAR(64) )
+   Table "spaced table" ( "the key" VARCHAR(64) PRIMARY KEY, "the label" VARCHAR(64) )
+
+   Join Head_Leg(HEAD.LEG_ID = LEG.LEG_ID)
+   Join Leg_Next(LEG.NEXT_ID = {target}.LEG_ID)
+   Filter HasLabel(LEG.LABEL is not null)
+)
+
+###Mapping
+Mapping surface::BaseMap
+(
+   surface::Leg[legSet]: Relational
+   {
+      ~mainTable [surface::MapDB]LEG
+      legId: [surface::MapDB]LEG.LEG_ID,
+      label: [surface::MapDB]LEG.LABEL
+   }
+)
+
+Mapping surface::MappingSurface
+(
+   // TYPED include: `include mapping <path>` rather than the bare form.
+   include mapping surface::BaseMap
+
+   surface::Head[headSet]: Relational
+   {
+      // TYPED LEADING JOIN on a ~filter: the join kind in parentheses before the pointer.
+      ~filter [surface::MapDB] (INNER) @Head_Leg | [surface::MapDB]HasLabel
+      ~mainTable [surface::MapDB]HEAD
+      k: [surface::MapDB]HEAD.K,
+      // PROPERTY WITH AN EXPLICIT TARGET SET ID.
+      legs[legSet]: [surface::MapDB]@Head_Leg
+   }
+
+   // A class mapped over a QUOTED table name.
+   surface::Tgt[quotedSet]: Relational
+   {
+      ~mainTable [surface::MapDB]"spaced table"
+      k: [surface::MapDB]"spaced table"."the key",
+      a: [surface::MapDB]"spaced table"."the label"
+   }
+
+   surface::Src[exprSet]: Relational
+   {
+      ~mainTable [surface::MapDB]HEAD
+      k: [surface::MapDB]HEAD.K,
+      // DYNAFUNCTION WITH AN ARRAY ARGUMENT, and a NULL TEST as a mapped value.
+      a: coalesce([[surface::MapDB]HEAD.A, [surface::MapDB]HEAD.B]),
+      b: [surface::MapDB]HEAD.B
+   }
+
+   // A JOIN CHAIN with a TYPED hop, terminated by an EXPRESSION rather than a column.
+   surface::Leg[chainSet]: Relational
+   {
+      ~mainTable [surface::MapDB]LEG
+      legId: [surface::MapDB]LEG.LEG_ID,
+      label: [surface::MapDB]@Leg_Next > (OUTER) [surface::MapDB]@Leg_Next | [surface::MapDB]LEG.LABEL
+   }
+)

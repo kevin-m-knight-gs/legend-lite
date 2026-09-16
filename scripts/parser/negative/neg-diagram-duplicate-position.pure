@@ -1,0 +1,21 @@
+// REJECTS: Field 'position' should be specified only once
+//
+// classView fields are an UNORDERED repetition in the grammar -- any order, and the
+// grammar alone would accept any number of each. "Only once" is imposed afterwards by the
+// walker, with this named-field message.
+//
+// The pairing with neg-diagram-classview-missing-class.pure is the point: same construct,
+// same layer, two different named diagnostics, neither of them derivable from the .g4. A
+// parser generated from the grammar accepts a classView with two positions and silently
+// keeps one of them -- whichever its field-assignment loop happened to write last.
+###Diagram
+Diagram fixture::neg::TwicePositioned
+{
+   classView v1
+   {
+      class: fixture::neg::Person;
+      position: (1.0,2.0);
+      position: (3.0,4.0);
+      rectangle: (10.0,20.0);
+   }
+}

@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token '~primaryKey'. Valid alternatives: ['~func', '~src']
+//
+// A relation function mapping is `relationSource primaryKey? propertyMappings`. The source
+// clause is REQUIRED and it must come first; ~primaryKey may only follow it.
+//
+// Contrast the relational class mapping in the same file format, where ~primaryKey PRECEDES
+// ~mainTable. Two mapping kinds, both with a "which table/relation" clause and a
+// "~primaryKey" clause, and the two clauses are ordered oppositely. A rewrite that
+// generalises one to the other is more permissive in one and stricter in the other.
+###Mapping
+Mapping fixture::neg::RelationPkFirst
+(
+   fixture::neg::Person: Relation
+   {
+      ~primaryKey: id
+      ~func fixture::neg::personRelation():Relation<Any>[1]
+      firstName: FIRST_NAME
+   }
+)

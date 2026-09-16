@@ -1,0 +1,53 @@
+###Pure
+Enum demo::m2m::EmployeeType
+{
+  CONTRACT,
+  FULL_TIME
+}
+
+Class demo::m2m::Employee
+{
+  firstName: String[1];
+  lastName: String[1];
+  dept: String[1];
+  rawType: String[1];
+}
+
+Class demo::m2m::StaffMember
+{
+  fullName: String[1];
+  dept: String[1];
+  type: demo::m2m::EmployeeType[1];
+}
+
+Class demo::m2m::StaffCard
+{
+  displayName: String[1];
+  department: String[1];
+}
+
+###Mapping
+Mapping demo::M2MMapping
+(
+  demo::m2m::StaffMember[staffMember]: Pure
+  {
+    ~src demo::m2m::Employee
+    ~filter $src.dept != 'Retired'
+    fullName: $src.firstName + ' ' + $src.lastName,
+    dept: $src.dept,
+    type: EnumerationMapping TypeMapping: $src.rawType
+  }
+
+  *demo::m2m::StaffCard[staffCard]: Pure
+  {
+    ~src demo::m2m::StaffMember
+    displayName: $src.fullName->toUpper(),
+    department: $src.dept
+  }
+
+  demo::m2m::EmployeeType: EnumerationMapping TypeMapping
+  {
+    CONTRACT: ['FTC', 'FTO'],
+    FULL_TIME: ['A']
+  }
+)

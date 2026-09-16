@@ -1,0 +1,568 @@
+###Pure
+// credit-limits -- L2. Depends on credit-core (what is owed, by whom, and how it is rated)
+// and limit-core (what may be owed, under whose policy), and on nothing else.
+//
+// The question this project answers is one sentence long and has a date in it: HOW MUCH OF
+// THIS LIMIT WAS USED ON THAT DAY, AND WHAT WAS THE OBLIGOR RATED WHEN IT WAS. Both halves
+// are dated, and the two constructs here are exactly the two halves.
+//
+// MILESTONING, reached twice and by two different routes:
+//
+//   1. OUR OWN. `ClmLimitStanding` carries <<temporal.businesstemporal>>. An approved
+//      threshold is not a value, it is a value with a span -- the committee moves it, and
+//      last quarter's utilisation percentage has to stay reproducible against the threshold
+//      that was actually in force. So `ClmCreditLimit.standing` is a property whose TARGET is
+//      temporal, which makes it a DATED property: `$l.standing(%2024-03-31)`.
+//   2. THROUGH credit-core, to core-ratings' milestoned RatingVersion. credit-core's
+//      `CdcObligor.ratingsAsOf(date)` is that navigation already wrapped; this project wraps
+//      it once more, as `ratingSymbolOn(date)`, so a limit, a utilisation line, an excess and
+//      a report line can each ask "what was it rated that day" without any of them restating
+//      the route.
+//
+// Both routes enforce the same thing, and it is enforced rather than conventional:
+// `$this.standing` with no date DOES NOT COMPILE. Neither does `$o.obligorRatings`. The date
+// is not a convention that a careful author remembers -- the compiler will not let you
+// forget it. A qualified property taking a business date is how it is wrapped, on both sides.
+//
+// CLASS CONSTRAINTS are the second construct, following limit-core's house rule: every
+// constraint body is FULLY PARENTHESISED, because `&&` binds tighter than the comparison
+// operators and `$a <= $b && $c <= $d` parses as `$a <= ($b && $c) <= $d` and fails to type.
+//
+// Refers ONLY to credit_core:: and limit_core::. The rating type itself is never NAMED here:
+// `ratingSymbolOn` returns String[*], the symbol, so core_ratings:: -- which is a transitive
+// dependency and not a declared one -- stays out of this project's text entirely.
+
+// FOR: saying how a credit exposure amount becomes the number that is compared against a
+// limit measure. Drawn only, or drawn plus CCF-weighted undrawn? A limit against NOTIONAL and
+// a limit against the same counterparty's PV01 are fed by different arithmetic over the same
+// exposure rows, and the arithmetic is policy per measure rather than per limit.
+Class credit_limits::ClmMeasureBasis
+[
+   // A basis scales an exposure; it never invents one, and it never inverts one.
+   factorInRange: (($this.exposureFactor >= 0.0) && ($this.exposureFactor <= 1.0))
+]
+{
+   measureCode: String[1];
+   // CHAR(4): DRWN, GROS, CCFW -- drawn only, drawn plus undrawn, or CCF-weighted.
+   basisCode: String[1];
+   basisName: String[1];
+   // Whether the undrawn part of a facility counts towards this measure at all.
+   includesUndrawn: Boolean[1];
+   // Whether the facility's credit conversion factor is applied to the undrawn part before
+   // it is counted. Meaningless unless includesUndrawn.
+   appliesCcf: Boolean[1];
+   // FLOAT: a final multiplier on the result, for measures that are reported in units of the
+   // exposure rather than the exposure itself.
+   exposureFactor: Float[1];
+
+   // The limit-core measure this basis feeds. The measure leg of that project's triple.
+   measure: limit_core::LimMeasure[0..1];
+}
+
+// FOR: the join between a limit and a borrower -- the row that says limit-core's triple
+// (book, counterparty, measure) is watching credit-core's obligor. Neither dependency can
+// hold this: limit-core has never heard of an obligor, and credit-core has never heard of a
+// limit. It is also where both milestoned routes are anchored, because a threshold has a
+// history and so does the rating it was set against.
+Class credit_limits::ClmCreditLimit
+[
+   approvedThresholdNotNegative: ($this.approvedThreshold >= 0.0),
+   // The internal working threshold sits inside the approved one: it is where monitoring
+   // starts pushing back, not where the mandate ends.
+   monitoringWithinApproved: ($this.monitoringThreshold <= $this.approvedThreshold),
+   monitoringNotNegative: ($this.monitoringThreshold >= 0.0)
+]
+{
+   creditLimitId: String[1];
+   // The limit-core triple, carried in full. Two columns would put a tenor limit's usage on
+   // a notional limit -- limit-core is explicit that the key is three columns and nothing
+   // shorter, and every join from here back to LIM_* matches on all three.
+   bookId: String[1];
+   counterpartyId: String[1];
+   measureCode: String[1];
+   // The credit-core side of the row.
+   obligorId: String[1];
+   portfolioId: String[0..1];
+   // NUMERIC(20,4): the threshold as this project currently holds it. The SPAN of that
+   // number lives on ClmLimitStanding; this is the convenience copy, and the two are the
+   // same thing only for today.
+   approvedThreshold: Float[1];
+   monitoringThreshold: Float[1];
+   currencyCode: String[1];
+   effectiveFrom: StrictDate[1];
+   retiredOn: StrictDate[0..1];
+   isActive: Boolean[1];
+
+   // Across into limit-core: the limit itself, on the three-column join, and its current
+   // usage on the same triple.
+   limit: limit_core::LimLimit[0..1];
+   currentUsage: limit_core::LimUtilisation[0..1];
+   // Across into credit-core: the borrower.
+   obligor: credit_core::CdcObligor[0..1];
+   // OUR MILESTONED CLASS. This property is DATED -- see standingAsOf below.
+   standing: credit_limits::ClmLimitStanding[*];
+   utilisations: credit_limits::ClmUtilisationLine[*];
+   uplifts: credit_limits::ClmTemporaryUplift[*];
+   excesses: credit_limits::ClmExcess[*];
+
+   // ROUTE 1: our own milestoning, wrapped. `$this.standing` alone does not compile -- the
+   // target is <<temporal.businesstemporal>>, so the property generated for it takes a date
+   // and there is no undated form to fall back on.
+   standingAsOf(businessDate: Date[1])
+   {
+      $this.standing($businessDate)
+   } : credit_limits::ClmLimitStanding[*];
+
+   // The threshold that was actually in force on a day, as opposed to the copy above.
+   approvedThresholdOn(businessDate: Date[1])
+   {
+      $this.standing($businessDate).approvedThreshold
+   } : Float[*];
+
+   // ROUTE 2: credit-core's route to core-ratings' milestoned RatingVersion, wrapped once
+   // more. `$this.obligor.obligorRatings` with no date does not compile either; credit-core
+   // wrapped that as ratingsAsOf(date), and this returns just the symbol so the temporal
+   // type never has to be named in this project.
+   ratingSymbolOn(businessDate: Date[1])
+   {
+      $this.obligor->toOne().ratingsAsOf($businessDate).rating
+   } : String[*];
+
+   // Whether the limit is still on the books. Null test, not a boolean, for the same reason
+   // the store filter is a null test.
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+
+   // The room between where monitoring starts and where the mandate ends.
+   monitoringHeadroom() { $this.approvedThreshold - $this.monitoringThreshold } : Float[1];
+}
+
+// FOR: what the limit SAID between two dates -- the threshold with its span. This is the
+// milestoned class of this project: `all(%2024-03-31)` is the threshold that was in force
+// that day, `all(%latest)` the current one, and a utilisation percentage computed against
+// either is reproducible a year later when somebody disputes it.
+//
+// There are deliberately NO from/thru properties. FROM_Z and THRU_Z live on
+// CLM_LIMIT_STANDING_MS and in the mapping's ~primaryKey and nowhere else; exposing them
+// here would let a query filter on them by hand and quietly bypass the mechanism.
+Class <<temporal.businesstemporal>> credit_limits::ClmLimitStanding
+[
+   standingThresholdNotNegative: ($this.approvedThreshold >= 0.0),
+   standingBandsOrdered: ($this.monitoringThreshold <= $this.approvedThreshold)
+]
+{
+   creditLimitId: String[1];
+   // NUMERIC(20,4): what the committee had approved during this span.
+   approvedThreshold: Float[1];
+   monitoringThreshold: Float[1];
+   currencyCode: String[1];
+   // The rating the threshold was SET AGAINST, recorded as a symbol rather than reached by
+   // navigation: the point of the span is that this is what the paper said at the time, even
+   // if the agency has since moved.
+   setAgainstRating: String[0..1];
+   // CHAR(4): APPR, PEND, SUSP.
+   statusCode: String[1];
+   approvedBy: String[0..1];
+   // CHAR(4): the reason the span exists at all -- REVW, UPLF, DGRD, INIT.
+   changeReasonCode: String[0..1];
+}
+
+// FOR: **the grain of this project** -- one credit limit, one date, one utilisation.
+// Everything downstream aggregates over this. It keeps the threshold that applied and the
+// rating that applied ON THAT DAY as columns, because both move and yesterday's percentage
+// must not move with them; the two dated navigations above are how those columns are checked
+// against the milestoned truth rather than trusted.
+Class credit_limits::ClmUtilisationLine
+[
+   utilisedNotNegative: ($this.utilisedAmount >= 0.0),
+   exposureNotNegative: ($this.exposureAmount >= 0.0),
+   // Drawn is part of the exposure, so it can never be more than all of it.
+   exposureCoversDrawn: ($this.drawnAmount <= $this.exposureAmount),
+   appliedThresholdPositive: ($this.appliedThreshold > 0.0),
+   // A percentage may pass 100 -- that is what a breach is -- but not go negative and not be
+   // absurd.
+   pctInRange: (($this.utilisationPct >= 0.0) && ($this.utilisationPct <= 1000.0))
+]
+{
+   creditLimitId: String[1];
+   asOfDate: StrictDate[1];
+   // NUMERIC(20,4): usage after netting -- the number compared against the threshold.
+   utilisedAmount: Float[1];
+   // NUMERIC(20,4): the credit exposure the usage was computed from, and its two halves.
+   exposureAmount: Float[1];
+   drawnAmount: Float[1];
+   undrawnAmount: Float[1];
+   // NUMERIC(20,4): the threshold in force on asOfDate, frozen. ClmLimitStanding is where it
+   // came from and is what it is checked against.
+   appliedThreshold: Float[1];
+   // NUMERIC(20,4): threshold minus usage. Negative here is an excess, so it deliberately
+   // carries no non-negative constraint.
+   headroomAmount: Float[1];
+   utilisationPct: Float[1];
+   // The agency symbol that was in force on asOfDate, frozen for the same reason the
+   // threshold is. `ratingSymbolOn(asOfDate)` is the live answer to the same question.
+   ratingSymbolApplied: String[0..1];
+   currencyCode: String[1];
+   // SMALLINT: how many exposure rows rolled into the number.
+   contributorCount: Integer[1];
+   isBreached: Boolean[1];
+   calculatedAt: DateTime[1];
+
+   creditLimit: credit_limits::ClmCreditLimit[0..1];
+   contributions: credit_limits::ClmExposureContribution[*];
+   excesses: credit_limits::ClmExcess[*];
+
+   // What is left, as a percentage. Below zero when the limit is over.
+   headroomPct() { 100.0 - $this.utilisationPct } : Float[1];
+   // The ratio itself. Float[1] because `/` widens regardless of the operand types.
+   utilisationRatio() { $this.utilisedAmount / $this.appliedThreshold } : Float[1];
+   // Whether the day ended over the line.
+   isOverLimit() { $this.utilisedAmount > $this.appliedThreshold } : Boolean[1];
+   // The undrawn share of the exposure -- how much of this line is promise rather than cash.
+   undrawnShare() { $this.undrawnAmount / $this.exposureAmount } : Float[1];
+
+   // The rating that applied on this line's own date, read live from the milestoned source
+   // rather than from the frozen column above. A reconciliation between the two is exactly
+   // what catches a stale utilisation run.
+   ratingSymbolOn(businessDate: Date[1])
+   {
+      $this.creditLimit->toOne().ratingSymbolOn($businessDate)
+   } : String[*];
+
+   // And the threshold, on the same footing.
+   thresholdOn(businessDate: Date[1])
+   {
+      $this.creditLimit->toOne().approvedThresholdOn($businessDate)
+   } : Float[*];
+}
+
+// FOR: showing WHICH credit-core exposures made up a utilisation line, and how much each one
+// contributed after the basis was applied. Without it a utilisation number is an assertion;
+// with it, it is a sum somebody can check.
+Class credit_limits::ClmExposureContribution
+[
+   contributionNotNegative: ($this.contributedAmount >= 0.0),
+   grossNotNegative: ($this.grossAmount >= 0.0),
+   // The contribution is the gross amount after CCF and basis, so it never exceeds it.
+   grossCoversContribution: ($this.contributedAmount <= $this.grossAmount)
+]
+{
+   contributionId: String[1];
+   creditLimitId: String[1];
+   asOfDate: StrictDate[1];
+   // The credit-core exposure key.
+   exposureId: String[1];
+   // NUMERIC(20,4): the exposure before any conversion, and what it counted for after.
+   grossAmount: Float[1];
+   contributedAmount: Float[1];
+   // FLOAT: the credit conversion factor taken from the facility, if the basis applied one.
+   ccfApplied: Float[0..1];
+   currencyCode: String[1];
+   // Whether this contribution was reduced by a guarantee or by collateral upstream.
+   isMitigated: Boolean[1];
+
+   // Across into credit-core: the exposure row itself.
+   exposure: credit_core::CdcExposure[0..1];
+   line: credit_limits::ClmUtilisationLine[0..1];
+
+   // How much of the gross survived the conversion.
+   conversionPct() { ($this.contributedAmount * 100.0) / $this.grossAmount } : Float[1];
+}
+
+// FOR: an excess -- utilisation over the threshold on a date, sized and dated so it can be
+// approved, escalated and closed. Kept apart from limit-core's LimBreach on purpose: that is
+// the limits system's own record of a threshold crossing, this is the credit view of it, and
+// `sourceBreach` is where the two are tied together when both exist.
+Class credit_limits::ClmExcess
+[
+   excessNotNegative: ($this.excessAmount >= 0.0),
+   excessPctNotNegative: ($this.excessPct >= 0.0),
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5)),
+   // The usage recorded cannot be below the threshold it is recorded as exceeding.
+   observedExceedsThreshold: ($this.observedAmount >= $this.breachedThreshold),
+   approvedWithinExcess: ($this.approvedAmount <= $this.excessAmount)
+]
+{
+   excessId: String[1];
+   creditLimitId: String[1];
+   asOfDate: StrictDate[1];
+   // limit-core's breach id, when the limits system raised one for the same crossing. Null
+   // when this excess was found by the daily credit run and the limits system has not seen
+   // it yet.
+   breachId: String[0..1];
+   // NUMERIC(20,4): the threshold in force, the usage seen, and the gap between them.
+   breachedThreshold: Float[1];
+   observedAmount: Float[1];
+   excessAmount: Float[1];
+   // NUMERIC(20,4): how much of the gap has actually been signed for. Zero until somebody
+   // approves something.
+   approvedAmount: Float[1];
+   excessPct: Float[1];
+   // SMALLINT: 1 to 5.
+   severity: Integer[1];
+   currencyCode: String[1];
+   // The rating in force when the excess was raised, frozen. A downgrade is the single most
+   // common cause of an excess that nobody traded into.
+   ratingSymbolApplied: String[0..1];
+   detectedAt: DateTime[1];
+   // Null while the excess is open, which is how the open-excess filter is written: a store
+   // Filter will not take a boolean literal.
+   clearedOn: StrictDate[0..1];
+   clearanceNote: String[0..1];
+
+   creditLimit: credit_limits::ClmCreditLimit[0..1];
+   line: credit_limits::ClmUtilisationLine[0..1];
+   approvals: credit_limits::ClmExcessApproval[*];
+   tickets: credit_limits::ClmEscalationTicket[*];
+   // Across into limit-core: the breach the limits system raised, if it raised one.
+   sourceBreach: limit_core::LimBreach[0..1];
+
+   isOpen() { $this.clearedOn->isEmpty() } : Boolean[1];
+   isCritical() { $this.severity >= 4 } : Boolean[1];
+   // What is still unapproved -- the number that decides whether this escalates tonight.
+   unapprovedAmount() { $this.excessAmount - $this.approvedAmount } : Float[1];
+
+   // The rating that applied on the day of the excess, live from the milestoned source. The
+   // "was this a downgrade or was this trading" question, answered by navigation rather than
+   // by trusting the frozen column above.
+   ratingSymbolOn(businessDate: Date[1])
+   {
+      $this.creditLimit->toOne().ratingSymbolOn($businessDate)
+   } : String[*];
+}
+
+// FOR: the sign-off on an excess -- one row per level of the chain, keyed (excessId,
+// approvalLevel), because a large excess needs the desk head AND the credit committee and
+// both signatures have to survive independently. The approver themself is limit-core's
+// delegation table, reached by join: this project does not keep its own list of who may sign.
+Class credit_limits::ClmExcessApproval
+[
+   levelIsPositive: ($this.approvalLevel >= 1),
+   approvedNotNegative: ($this.approvedExcess >= 0.0),
+   // A conditional approval that expires before it starts is a typo, not a condition.
+   validityOrdered: ($this.expiresOn >= $this.decidedOn)
+]
+{
+   excessId: String[1];
+   // SMALLINT: 1 is the desk, 2 the business, 3 the credit committee.
+   approvalLevel: Integer[1];
+   approverId: String[1];
+   // CHAR(4): APPR, RJCT, PEND.
+   decisionCode: String[1];
+   // NUMERIC(20,4): how much of the excess this level signed for, which may be less than the
+   // excess itself and is why the chain has levels.
+   approvedExcess: Float[1];
+   decidedOn: StrictDate[1];
+   // The approval is temporary by default: an excess signed for indefinitely is a limit
+   // increase and belongs in a review.
+   expiresOn: StrictDate[1];
+   decidedAt: DateTime[1];
+   conditionText: String[0..1];
+
+   excess: credit_limits::ClmExcess[0..1];
+   // Across into limit-core: the delegation row that says whether this person could sign it.
+   approver: limit_core::LimApprover[0..1];
+}
+
+// FOR: a temporary increase to a credit limit that has to disappear on its own -- the "just
+// for this drawdown, until Friday" that otherwise becomes permanent by neglect. EXPIRES_ON is
+// NOT NULL for exactly that reason. `sourceUplift` ties it to limit-core's own uplift when
+// the increase was granted in the limits system rather than by credit.
+Class credit_limits::ClmTemporaryUplift
+[
+   upliftNotNegative: ($this.upliftAmount >= 0.0),
+   // The rule an uplift exists to have: it ends after it begins.
+   expiryAfterStart: ($this.expiresOn > $this.effectiveFrom),
+   // The lifted threshold is the base plus the uplift, so it is never the smaller of the two.
+   liftedCoversBase: ($this.liftedThreshold >= $this.baseThreshold),
+   baseNotNegative: ($this.baseThreshold >= 0.0)
+]
+{
+   upliftId: String[1];
+   creditLimitId: String[1];
+   // limit-core's uplift id, when this uplift mirrors one granted there.
+   sourceUpliftId: String[0..1];
+   // NUMERIC(20,4): before, added, and in force while the uplift lives.
+   baseThreshold: Float[1];
+   upliftAmount: Float[1];
+   liftedThreshold: Float[1];
+   currencyCode: String[1];
+   effectiveFrom: StrictDate[1];
+   // NOT optional. An uplift without an expiry is a permanent limit change and belongs on
+   // ClmLimitStanding as a new span.
+   expiresOn: StrictDate[1];
+   // CHAR(4): DRAW, MRGR, SEAS, ERRC.
+   reasonCode: String[1];
+   approvedBy: String[1];
+   approvedAt: DateTime[1];
+   isRevoked: Boolean[1];
+
+   creditLimit: credit_limits::ClmCreditLimit[0..1];
+   // Across into limit-core: the uplift the limits system granted, if it granted one.
+   sourceUplift: limit_core::LimUplift[0..1];
+
+   // The uplift as a percentage of the threshold it lifts.
+   upliftPct() { ($this.upliftAmount * 100.0) / $this.baseThreshold } : Float[1];
+}
+
+// FOR: the snapshot of what an obligor was rated on a date -- taken once by the daily run so
+// that every report line for that day agrees, rather than each one navigating the milestoned
+// history and hoping the answers match. `liveSymbolOn(date)` is the live navigation kept
+// beside the frozen column, so the snapshot can be RECONCILED rather than merely believed.
+Class credit_limits::ClmRatingOverlay
+[
+   notchInRange: (($this.notch >= 1) && ($this.notch <= 25)),
+   // A rating scales a threshold; AAA gets more room, CCC gets less, and neither gets a
+   // negative multiple.
+   factorInRange: (($this.thresholdFactor >= 0.0) && ($this.thresholdFactor <= 5.0))
+]
+{
+   obligorId: String[1];
+   asOfDate: StrictDate[1];
+   // The symbol as captured on asOfDate -- unnormalised, exactly as the agency published it,
+   // which is what core-ratings holds and what credit-core's PD table joins on.
+   capturedSymbol: String[1];
+   capturedAgency: String[1];
+   // SMALLINT: the notch number, restated so the overlay can be read in order.
+   notch: Integer[1];
+   isInvestmentGrade: Boolean[1];
+   // FLOAT: the multiple of the base threshold this rating entitles the obligor to.
+   thresholdFactor: Float[1];
+   // CHAR(4): the source of the capture -- FEED, MANL, ROLL.
+   captureSourceCode: String[1];
+   capturedAt: DateTime[1];
+
+   // Across into credit-core: the obligor, which is also the far end of the milestoned route.
+   obligor: credit_core::CdcObligor[0..1];
+
+   // THE RECONCILIATION. What the milestoned history says today about that day, as against
+   // capturedSymbol, which is what it said on the day itself. They differ when a rating is
+   // restated retrospectively -- and a restated rating that nobody noticed is how a limit
+   // ends up sized against a grade the obligor no longer has.
+   liveSymbolOn(businessDate: Date[1])
+   {
+      $this.obligor->toOne().ratingsAsOf($businessDate).rating
+   } : String[*];
+}
+
+// FOR: the escalation raised off an excess -- who has to answer, by when, and whether they
+// did. Separate from the approval chain because escalating and approving are different acts:
+// an escalation can be answered by refusing to approve.
+Class credit_limits::ClmEscalationTicket
+[
+   responseIsPositive: ($this.responseMinutes > 0),
+   requiredLevelIsPositive: ($this.requiredApprovalLevel >= 1)
+]
+{
+   ticketId: String[1];
+   excessId: String[1];
+   // CHAR(4): LOW, MED, HIGH, CRIT -- taken from the excess's severity via the framework's
+   // escalation ladder in limit-core.
+   severityCode: String[1];
+   notifyRole: String[1];
+   ownerId: String[0..1];
+   // SMALLINT: how long the desk has before this escalates further, and the level it must
+   // reach to be closed.
+   responseMinutes: Integer[1];
+   requiredApprovalLevel: Integer[1];
+   raisedAt: DateTime[1];
+   respondedAt: DateTime[0..1];
+   // CHAR(4): OPEN, ACKD, CLSD.
+   statusCode: String[1];
+
+   excess: credit_limits::ClmExcess[0..1];
+
+   isOutstanding() { $this.respondedAt->isEmpty() } : Boolean[1];
+}
+
+// FOR: the daily limit report as a run -- the header that says which day was reported, by
+// whom, over how many limits, and whether the run is complete. A report is a thing that
+// happened at a time, not a query, because the numbers it published have to stay published.
+Class credit_limits::ClmDailyLimitReport
+[
+   limitCountNotNegative: ($this.limitCount >= 0),
+   excessCountNotNegative: ($this.excessCount >= 0),
+   // Every excess is on a limit that was in the run, so there cannot be more of the first
+   // than the second.
+   excessesWithinLimits: ($this.excessCount <= $this.limitCount),
+   upliftCountNotNegative: ($this.activeUpliftCount >= 0)
+]
+{
+   reportId: String[1];
+   reportDate: StrictDate[1];
+   portfolioId: String[0..1];
+   // limit-core's framework, so the report can be read as "everything under this policy".
+   frameworkId: String[0..1];
+   reportingCurrency: String[1];
+   // SMALLINT: the shape of the run.
+   limitCount: Integer[1];
+   excessCount: Integer[1];
+   activeUpliftCount: Integer[1];
+   // NUMERIC(20,4): the totals the front page carries.
+   totalApprovedThreshold: Float[1];
+   totalUtilised: Float[1];
+   producedAt: DateTime[1];
+   // CHAR(4): DRFT, FINL, RERN.
+   statusCode: String[1];
+
+   lines: credit_limits::ClmDailyReportLine[*];
+
+   // The share of limits in excess on the day. Both counts are Integer, and `Integer * Float`
+   // types as Number -- which is NOT a subtype of Float -- so the count is widened FIRST with
+   // ->toFloat(). Division would have widened on its own; multiplication does not.
+   excessRatePct()
+   {
+      ($this.excessCount->toFloat() * 100.0) / $this.limitCount->toFloat()
+   } : Float[1];
+
+   // Portfolio-level utilisation: what the report is actually for.
+   portfolioUtilisationPct()
+   {
+      ($this.totalUtilised * 100.0) / $this.totalApprovedThreshold
+   } : Float[1];
+}
+
+// FOR: one row of the daily report -- one limit, its usage, the threshold that applied and
+// the rating that applied, all frozen as published. This is the class the printed report is,
+// and it holds the answer rather than recomputing it, because a report reprinted next year
+// must not quietly change.
+Class credit_limits::ClmDailyReportLine
+[
+   linePctNotNegative: ($this.utilisationPct >= 0.0),
+   lineThresholdNotNegative: ($this.appliedThreshold >= 0.0),
+   lineUtilisedNotNegative: ($this.utilisedAmount >= 0.0)
+]
+{
+   reportId: String[1];
+   creditLimitId: String[1];
+   asOfDate: StrictDate[1];
+   obligorName: String[0..1];
+   // NUMERIC(20,4): as published.
+   utilisedAmount: Float[1];
+   appliedThreshold: Float[1];
+   headroomAmount: Float[1];
+   utilisationPct: Float[1];
+   // The rating printed on the line, and the flag that says an uplift was in force when it
+   // was printed -- without which the threshold on the row looks wrong to anyone rereading it.
+   ratingSymbol: String[0..1];
+   hasActiveUplift: Boolean[1];
+   // CHAR(4): OK, WARN, EXCD.
+   statusCode: String[1];
+   // SMALLINT: display order on the printed page.
+   sortOrder: Integer[1];
+
+   report: credit_limits::ClmDailyLimitReport[0..1];
+   creditLimit: credit_limits::ClmCreditLimit[0..1];
+
+   // What the milestoned history says about the day this line was printed for, as against
+   // the symbol printed on it. The reprint check.
+   ratingSymbolOn(businessDate: Date[1])
+   {
+      $this.creditLimit->toOne().ratingSymbolOn($businessDate)
+   } : String[*];
+
+   // And the threshold, from the milestoned standing rather than from the printed column.
+   thresholdOn(businessDate: Date[1])
+   {
+      $this.creditLimit->toOne().approvedThresholdOn($businessDate)
+   } : Float[*];
+}

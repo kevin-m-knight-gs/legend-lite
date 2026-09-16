@@ -1,0 +1,248 @@
+###Pure
+// Fees and charges: every way money leaves the firm that is not a trade.
+//
+// 20 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 20 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class fees::FeeCharge
+{
+   chargeId: String[1];
+   feeType: String[1];
+   counterpartyId: String[1];
+   grossAmount: Float[1];
+   taxAmount: Float[1];
+   currency: String[1];
+   chargedOn: StrictDate[1];
+   isRebatable: Boolean[1];
+   invoiceRef: String[0..1];
+   basisPoints: Float[0..1];
+
+   // What the firm actually pays, net of anything recoverable.
+   netAmount() { $this.grossAmount + $this.taxAmount } : Float[1];
+}
+
+// Paid to an executing broker per share or per notional.
+Class fees::BrokerageCommission extends fees::FeeCharge
+{
+}
+
+// Charged by the venue for matching.
+Class fees::ExchangeFee extends fees::FeeCharge
+{
+}
+
+// Charged by the clearing house per trade.
+Class fees::ClearingFeeCharge extends fees::FeeCharge
+{
+}
+
+// Charged per settlement instruction.
+Class fees::SettlementFee extends fees::FeeCharge
+{
+}
+
+// Basis points on assets held, charged monthly.
+Class fees::CustodyFee extends fees::FeeCharge
+{
+}
+
+// A percentage of assets under management.
+Class fees::ManagementFee extends fees::FeeCharge
+{
+}
+
+// A share of returns above a hurdle.
+Class fees::PerformanceFee extends fees::FeeCharge
+{
+}
+
+// The cost of funding a position overnight.
+Class fees::FinancingCharge extends fees::FeeCharge
+{
+}
+
+// Paid to borrow a security to short it.
+Class fees::StockBorrowFee extends fees::FeeCharge
+{
+}
+
+// A transaction tax, notably on UK equities.
+Class fees::StampDuty extends fees::FeeCharge
+{
+}
+
+// The French and Italian levies.
+Class fees::FinancialTransactionTax extends fees::FeeCharge
+{
+}
+
+// A US sale-side regulatory fee.
+Class fees::SecTransactionFee extends fees::FeeCharge
+{
+}
+
+// Deducted at source on income.
+Class fees::WithholdingTaxCharge extends fees::FeeCharge
+{
+}
+
+// Unbundled from execution under MiFID II.
+Class fees::ResearchCharge extends fees::FeeCharge
+{
+}
+
+// Charged by the venue for its prices.
+Class fees::MarketDataFee extends fees::FeeCharge
+{
+}
+
+// Charged for access to a trading system.
+Class fees::PlatformFee extends fees::FeeCharge
+{
+}
+
+// Per-payment charge from the correspondent.
+Class fees::WireTransferFee extends fees::FeeCharge
+{
+}
+
+// Charged when a nostro goes negative.
+Class fees::OverdraftInterest extends fees::FeeCharge
+{
+}
+
+// Charged when a trade is unwound before maturity.
+Class fees::BreakCost extends fees::FeeCharge
+{
+}
+
+// Charged for a post-trade change.
+Class fees::AmendmentFee extends fees::FeeCharge
+{
+}
+
+###Mapping
+Mapping fees::FeesMapping
+(
+   *fees::FeeCharge[feesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]FEE_CHARGE.CHARGE_ID )
+      ~mainTable [store::DB]FEE_CHARGE
+      chargeId: [store::DB]FEE_CHARGE.CHARGE_ID,
+      feeType: [store::DB]FEE_CHARGE.FEE_TYPE,
+      counterpartyId: [store::DB]FEE_CHARGE.COUNTERPARTY_ID,
+      grossAmount: [store::DB]FEE_CHARGE.GROSS_AMOUNT,
+      taxAmount: [store::DB]FEE_CHARGE.TAX_AMOUNT,
+      currency: [store::DB]FEE_CHARGE.CURRENCY,
+      chargedOn: [store::DB]FEE_CHARGE.CHARGED_ON,
+      isRebatable: [store::DB]FEE_CHARGE.IS_REBATABLE,
+      invoiceRef: [store::DB]FEE_CHARGE.INVOICE_REF,
+      basisPoints: [store::DB]FEE_CHARGE.BASIS_POINTS
+   }
+
+   fees::BrokerageCommission[feeBrokerage] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeBrokerageRows
+   }
+
+   fees::ExchangeFee[feeExchangeFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeExchangeFeeRows
+   }
+
+   fees::ClearingFeeCharge[feeClearingFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeClearingFeeRows
+   }
+
+   fees::SettlementFee[feeSettlementFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeSettlementFeeRows
+   }
+
+   fees::CustodyFee[feeCustodyFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeCustodyFeeRows
+   }
+
+   fees::ManagementFee[feeManagementFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeManagementFeeRows
+   }
+
+   fees::PerformanceFee[feePerformanceFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeePerformanceFeeRows
+   }
+
+   fees::FinancingCharge[feeFinancingCharge] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeFinancingChargeRows
+   }
+
+   fees::StockBorrowFee[feeBorrowFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeBorrowFeeRows
+   }
+
+   fees::StampDuty[feeStampDuty] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeStampDutyRows
+   }
+
+   fees::FinancialTransactionTax[feeFtt] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeFttRows
+   }
+
+   fees::SecTransactionFee[feeSecFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeSecFeeRows
+   }
+
+   fees::WithholdingTaxCharge[feeWithholdingTax] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeWithholdingTaxRows
+   }
+
+   fees::ResearchCharge[feeResearchCharge] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeResearchChargeRows
+   }
+
+   fees::MarketDataFee[feeMarketDataFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeMarketDataFeeRows
+   }
+
+   fees::PlatformFee[feePlatformFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeePlatformFeeRows
+   }
+
+   fees::WireTransferFee[feeWireFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeWireFeeRows
+   }
+
+   fees::OverdraftInterest[feeOverdraftInterest] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeOverdraftInterestRows
+   }
+
+   fees::BreakCost[feeBreakCost] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeBreakCostRows
+   }
+
+   fees::AmendmentFee[feeAmendmentFee] extends [feesBase]: Relational
+   {
+      ~filter [store::DB]FeeAmendmentFeeRows
+   }
+)

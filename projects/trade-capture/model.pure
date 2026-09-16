@@ -1,0 +1,751 @@
+###Pure
+// trade-capture: what the firm knows about a trade between the moment it is executed and
+// the moment it is someone else's problem.
+//
+// Layer 1. It owns NOTHING that identifies an instrument, a party or a book -- those live
+// in core-instrument, core-party and core-book, and this project reaches them by
+// ASSOCIATION rather than by copying their keys into its own classes. The associations
+// whose ends cross a project boundary (TradeInstrument, TradeBook, CounterpartyEntity,
+// AllocationEntity, ClearingBrokerEntity, LegInstrument) are the reason this project
+// exists: a trade with a String instrumentId is a trade nobody can join.
+//
+// The columns behind those ends stay on the tables -- TC_TRADE.INSTRUMENT_ID and friends --
+// because a foreign key has to be somewhere, but they are deliberately NOT exposed as
+// properties on the classes. A downstream project that wants the instrument navigates
+// `$trade.instrument`, which resolves through the far project's mapping and therefore
+// picks up its subtype filters for free.
+//
+// Prefixes: tables TC_, joins Tc_, filters Tc, set ids tc.
+
+// ---------------------------------------------------------------- enums
+// Every enum here is TRANSFORMED from a code column by an EnumerationMapping in
+// trade_capture::Mapping. The physical strings appear there and nowhere else, so a
+// back-office system that starts sending 'B' instead of 'BUY' is a one-line change.
+
+// Which way round the firm went. BUY_TO_COVER and SELL_SHORT are separate values rather
+// than a flag on BUY/SELL because they mean a different position effect, and reporting
+// regimes ask for them by name.
+Enum trade_capture::TradeSide
+{
+   BUY,
+   SELL,
+   BUY_TO_COVER,
+   SELL_SHORT
+}
+
+// Where a trade is in the capture pipeline. Not the settlement state -- a trade can be
+// CONFIRMED for weeks before it settles, and the two are tracked by different teams.
+Enum trade_capture::TradeStatus
+{
+   NEW,
+   VERIFIED,
+   CONFIRMED,
+   ALLOCATED,
+   SETTLED,
+   CANCELLED,
+   AMENDED
+}
+
+// How the confirmation actually reached the counterparty. It matters because the
+// regulatory deadline differs by channel, and a faxed confirm has no machine-readable
+// timestamp to argue with.
+Enum trade_capture::ConfirmationMethod
+{
+   ELECTRONIC,
+   SWIFT,
+   EMAIL,
+   FAX,
+   PAPER
+}
+
+// How far a block trade has got towards being broken into client allocations. PENDING is
+// the state that costs money: an unallocated block sits on the firm's own book overnight.
+Enum trade_capture::AllocationStatus
+{
+   PENDING,
+   PARTIAL,
+   ALLOCATED,
+   REJECTED
+}
+
+// The regulatory category of the place the trade was executed. Drives which reporting
+// regime applies, which is why SI and OTC are distinguished at all.
+Enum trade_capture::VenueType
+{
+   EXCHANGE,
+   MTF,
+   OTF,
+   SYSTEMATIC_INTERNALISER,
+   OTC,
+   DARK_POOL
+}
+
+// What a charge line actually is. Kept as a type rather than free text because net
+// consideration includes some of these and excludes others.
+Enum trade_capture::ChargeType
+{
+   COMMISSION,
+   EXCHANGE_FEE,
+   CLEARING_FEE,
+   SETTLEMENT_FEE,
+   STAMP_DUTY,
+   TRANSACTION_TAX,
+   RESEARCH
+}
+
+// Whether our record and the counterparty's record agree. DISPUTED is not a failure of
+// matching -- it is a matched pair whose economics differ, which is a human problem.
+Enum trade_capture::MatchStatus
+{
+   UNMATCHED,
+   MATCHED,
+   DISPUTED,
+   RESOLVED
+}
+
+// ---------------------------------------------------------------- the trade
+// The economic event itself: one execution, one instrument, one counterparty, one book.
+// This is the row every other class in the project hangs off, and the only one whose
+// primary key downstream projects should assume.
+//
+// The constraints are the ones a capture system genuinely rejects on. Each comparison is
+// FULLY PARENTHESISED because Pure binds && tighter than the comparison operators, so
+// `$this.a > 0.0 && $this.a < 1.0` parses as `(($this.a > 0.0) && $this.a) < 1.0` and
+// fails to compile with and(Boolean[1], Float[1]).
+Class trade_capture::Trade
+[
+   quantityIsPositive: ($this.quantity > 0.0),
+   priceIsNonNegative: ($this.price >= 0.0),
+   // Notional is stored AND derived: the store carries what the venue sent, the class can
+   // recompute it. This says they may not disagree by more than a rounding cent.
+   notionalAgreesWithQuantityTimesPrice:
+      ((($this.quantity * $this.price) - $this.notional) < 0.01),
+   // A trade that settles before it is executed is a keying error, not an exotic.
+   settlesOnOrAfterTradeDate:
+      (($this.settlementDate->isEmpty()) || ($this.settlementDate->toOne() >= $this.tradeDate)),
+   currencyIsThreeLetters: ($this.currency->length() == 3)
+]
+{
+   tradeId: String[1];
+   tradeVersion: Integer[1];
+   externalTradeRef: String[0..1];
+   side: trade_capture::TradeSide[1];
+   status: trade_capture::TradeStatus[1];
+   quantity: Float[1];
+   price: Float[1];
+   notional: Float[1];
+   currency: String[1];
+   settlementCurrency: String[0..1];
+   tradeDate: StrictDate[1];
+   // Absent while the trade is still unsettled, which is most of its interesting life.
+   settlementDate: StrictDate[0..1];
+   executionTime: DateTime[1];
+   captureTime: DateTime[1];
+   isBlock: Boolean[1];
+   isCancelled: Boolean[1];
+   accruedInterest: Float[0..1];
+   comment: String[0..1];
+
+   // Both operands are Float here, but `/` widens to Float even for two Integers, so a
+   // dividing derived property must be declared Float[1] whatever it divides.
+   grossConsideration() { $this.quantity * $this.price } : Float[1];
+   averagePrice() { $this.notional / $this.quantity } : Float[1];
+   signedQuantity()
+   {
+      if ($this.side == trade_capture::TradeSide.SELL, | $this.quantity * -1.0, | $this.quantity)
+   } : Float[1];
+}
+
+// One economic leg of a trade that has more than one -- a swap, a switch, an FX forward.
+// A single-leg trade has no TradeLeg rows at all rather than one, so that the presence of
+// legs is itself the signal that the trade is multi-legged.
+Class trade_capture::TradeLeg
+[
+   legQuantityIsPositive: ($this.legQuantity > 0.0),
+   legNumberIsPositive: ($this.legNumber > 0)
+]
+{
+   legId: String[1];
+   legNumber: Integer[1];
+   legType: String[1];
+   legSide: trade_capture::TradeSide[1];
+   legQuantity: Float[1];
+   legPrice: Float[1];
+   legCurrency: String[1];
+   legStartDate: StrictDate[0..1];
+   legEndDate: StrictDate[0..1];
+   payReceive: String[0..1];
+   fixedRate: Float[0..1];
+   floatingIndex: String[0..1];
+   spread: Float[0..1];
+}
+
+// The parent order-level fill that several trades were struck against. It exists so that
+// average price can be computed once over the whole fill rather than argued about per
+// child trade.
+Class trade_capture::BlockTrade
+[
+   blockQuantityIsPositive: ($this.blockQuantity > 0.0),
+   filledNotAboveBlock: ($this.filledQuantity <= $this.blockQuantity)
+]
+{
+   blockId: String[1];
+   blockRef: String[1];
+   blockQuantity: Float[1];
+   filledQuantity: Float[1];
+   averagePrice: Float[1];
+   allocationStatus: trade_capture::AllocationStatus[1];
+   blockDate: StrictDate[1];
+   isComplete: Boolean[1];
+
+   unallocatedQuantity() { $this.blockQuantity - $this.filledQuantity } : Float[1];
+}
+
+// The split of one trade to one end client. This is where the firm stops owning the
+// position and the client starts, so the quantity here -- not the trade's -- is what the
+// client is billed on.
+Class trade_capture::Allocation
+[
+   allocatedQuantityIsPositive: ($this.allocatedQuantity > 0.0),
+   allocatedPriceIsNonNegative: ($this.allocatedPrice >= 0.0)
+]
+{
+   allocationId: String[1];
+   allocationRef: String[0..1];
+   allocatedQuantity: Float[1];
+   allocatedPrice: Float[1];
+   allocatedNotional: Float[1];
+   allocationStatus: trade_capture::AllocationStatus[1];
+   accountNumber: String[0..1];
+   allocationTime: DateTime[1];
+   isConfirmed: Boolean[1];
+   rejectionReason: String[0..1];
+}
+
+// The client's standing instruction for how their fills are to be split. Separate from the
+// Allocation it produces, because the instruction can be wrong and still be what we were
+// told.
+Class trade_capture::AllocationInstruction
+[
+   splitPercentageIsAFraction: (($this.splitPercentage >= 0.0) && ($this.splitPercentage <= 100.0))
+]
+{
+   instructionId: String[1];
+   instructionRef: String[1];
+   splitPercentage: Float[1];
+   basis: String[1];
+   receivedTime: DateTime[1];
+   isStanding: Boolean[1];
+   effectiveFrom: StrictDate[0..1];
+   effectiveTo: StrictDate[0..1];
+}
+
+// The record that the counterparty agreed to the same trade we booked. Its value is the
+// TIMESTAMP: everything about regulatory confirmation deadlines is measured from it.
+Class trade_capture::Confirmation
+{
+   confirmationId: String[1];
+   confirmationRef: String[0..1];
+   method: trade_capture::ConfirmationMethod[1];
+   sentTime: DateTime[0..1];
+   acknowledgedTime: DateTime[0..1];
+   isAffirmed: Boolean[1];
+   affirmedBy: String[0..1];
+   documentUrl: String[0..1];
+   failureReason: String[0..1];
+}
+
+// One economic change made to a trade after capture, kept as its own row rather than as an
+// overwrite. Without this the audit question "what did the price used to be" has no answer.
+Class trade_capture::Amendment
+[
+   amendmentSequenceIsPositive: ($this.amendmentSequence > 0)
+]
+{
+   amendmentId: String[1];
+   amendmentSequence: Integer[1];
+   amendedField: String[1];
+   oldValue: String[0..1];
+   newValue: String[0..1];
+   amendedBy: String[1];
+   amendedTime: DateTime[1];
+   reasonCode: String[0..1];
+   isEconomic: Boolean[1];
+}
+
+// The withdrawal of a trade that should never have existed. Distinct from an Amendment
+// because a cancel reverses the position and an amendment does not.
+Class trade_capture::Cancellation
+{
+   cancellationId: String[1];
+   cancelledBy: String[1];
+   cancelledTime: DateTime[1];
+   reasonCode: String[1];
+   reasonText: String[0..1];
+   isRebookExpected: Boolean[1];
+}
+
+// An immutable snapshot of the trade's economics as at one version number. The Amendment
+// says WHAT changed; this says what the whole trade looked like afterwards, which is what
+// a downstream extract has to reproduce.
+Class trade_capture::TradeVersion
+[
+   versionNumberIsPositive: ($this.versionNumber > 0)
+]
+{
+   versionId: String[1];
+   versionNumber: Integer[1];
+   versionQuantity: Float[1];
+   versionPrice: Float[1];
+   versionStatus: trade_capture::TradeStatus[1];
+   validFrom: DateTime[1];
+   validTo: DateTime[0..1];
+   changedBy: String[1];
+}
+
+// One of the several references the same trade is known by outside this system -- the
+// venue's, the clearer's, the regulator's. Keyed by scheme as well as trade, because no
+// single one of them is THE trade id.
+Class trade_capture::TradeIdentifier
+{
+   tradeIdentifierId: String[1];
+   scheme: String[1];
+   identifierValue: String[1];
+   assignedBy: String[0..1];
+   assignedTime: DateTime[0..1];
+   isPrimary: Boolean[1];
+}
+
+// One money line attached to a trade. Charges are rows and not columns on Trade because
+// the set of them varies by venue and jurisdiction, and net consideration needs to sum
+// only the ones flagged as included.
+Class trade_capture::TradeCharge
+[
+   chargeAmountIsNonNegative: ($this.chargeAmount >= 0.0)
+]
+{
+   chargeId: String[1];
+   chargeType: trade_capture::ChargeType[1];
+   chargeAmount: Float[1];
+   chargeCurrency: String[1];
+   chargeRate: Float[0..1];
+   isIncludedInNet: Boolean[1];
+   isClientBearing: Boolean[1];
+   calculatedTime: DateTime[0..1];
+}
+
+// The agreed rate card a counterparty's commission is struck from. Held apart from the
+// charge it generates so that a rate change does not rewrite history.
+Class trade_capture::CommissionSchedule
+[
+   basisPointsInRange: (($this.basisPoints >= 0.0) && ($this.basisPoints <= 1000.0)),
+   minimumNotAboveMaximum:
+      (($this.maximumCharge->isEmpty()) || ($this.minimumCharge <= $this.maximumCharge->toOne()))
+]
+{
+   scheduleId: String[1];
+   scheduleName: String[1];
+   basisPoints: Float[1];
+   minimumCharge: Float[1];
+   maximumCharge: Float[0..1];
+   scheduleCurrency: String[1];
+   appliesFrom: StrictDate[1];
+   appliesTo: StrictDate[0..1];
+}
+
+// Where the cash and the securities are to go. One trade can have two of these -- one per
+// leg of the delivery -- which is why it is not a block of columns on Trade.
+Class trade_capture::SettlementInstruction
+{
+   instructionId: String[1];
+   deliveryType: String[1];
+   custodianBic: String[0..1];
+   accountNumber: String[0..1];
+   placeOfSettlement: String[0..1];
+   settlementAmount: Float[1];
+   settlementCurrency: String[1];
+   valueDate: StrictDate[1];
+   isDvp: Boolean[1];
+}
+
+// The place the trade was executed, as the firm's static data knows it. Its MIC is the
+// only thing a regulator recognises; the name is for humans.
+Class trade_capture::ExecutionVenue
+{
+   venueId: String[1];
+   mic: String[1];
+   venueName: String[1];
+   venueType: trade_capture::VenueType[1];
+   countryCode: String[0..1];
+   operatingMic: String[0..1];
+   timezone: String[0..1];
+   isActive: Boolean[1];
+}
+
+// The person who struck the trade. A human record and not a book: the book is
+// core_book::Book, reached across the project boundary, and the two change independently.
+Class trade_capture::Trader
+{
+   traderId: String[1];
+   firstName: String[1];
+   lastName: String[1];
+   email: String[0..1];
+   badgeId: String[0..1];
+   deskName: String[0..1];
+   isActive: Boolean[1];
+   startDate: StrictDate[0..1];
+
+   fullName() { $this.firstName + ' ' + $this.lastName } : String[1];
+}
+
+// The person who owns the client relationship, as opposed to the one who executed. They
+// are different people and are paid out of different pots, which is what SalesCredit is.
+Class trade_capture::Salesperson
+{
+   salespersonId: String[1];
+   firstName: String[1];
+   lastName: String[1];
+   email: String[0..1];
+   coverageRegion: String[0..1];
+   isActive: Boolean[1];
+
+   fullName() { $this.firstName + ' ' + $this.lastName } : String[1];
+}
+
+// How much of a trade's revenue is attributed to a salesperson. Several rows per trade
+// summing to 100 is normal -- coverage is shared -- so the percentage is per row.
+Class trade_capture::SalesCredit
+[
+   creditPercentageInRange:
+      (($this.creditPercentage > 0.0) && ($this.creditPercentage <= 100.0))
+]
+{
+   creditId: String[1];
+   creditPercentage: Float[1];
+   creditAmount: Float[1];
+   creditCurrency: String[1];
+   creditDate: StrictDate[1];
+   isFinal: Boolean[1];
+}
+
+// The COUNTERPARTY ROLE a legal entity plays for us: its trading account, its limits, its
+// settlement defaults. It is not the legal entity -- that is core_party::LegalEntity,
+// reached by association -- because the same entity can be a counterparty on one desk and
+// a client on another.
+Class trade_capture::Counterparty
+{
+   counterpartyId: String[1];
+   shortName: String[1];
+   counterpartyType: String[1];
+   tradingAccountRef: String[0..1];
+   defaultSettlementDays: Integer[0..1];
+   isClearingEligible: Boolean[1];
+   isActive: Boolean[1];
+   onboardedDate: StrictDate[0..1];
+}
+
+// The broker a give-up is given up TO. Again a role over a legal entity rather than an
+// entity: a clearing broker has clearing-specific static data (its clearing member code)
+// that means nothing to the party master.
+Class trade_capture::ClearingBroker
+{
+   brokerId: String[1];
+   brokerCode: String[1];
+   clearingMemberCode: String[0..1];
+   clearingHouse: String[0..1];
+   isActive: Boolean[1];
+}
+
+// The handover of a trade to another broker for clearing. Modelled as a row rather than a
+// flag because it can be rejected, and a rejected give-up leaves the trade with us.
+Class trade_capture::GiveUp
+{
+   giveUpId: String[1];
+   giveUpRef: String[0..1];
+   giveUpTime: DateTime[1];
+   isAccepted: Boolean[1];
+   acceptedTime: DateTime[0..1];
+   rejectionReason: String[0..1];
+}
+
+// The pairing of our trade with the counterparty's version of it. The row exists as soon
+// as matching is ATTEMPTED, so an unmatched trade is a row with status UNMATCHED rather
+// than an absence.
+Class trade_capture::TradeMatch
+{
+   matchId: String[1];
+   matchStatus: trade_capture::MatchStatus[1];
+   counterpartyRef: String[0..1];
+   matchedTime: DateTime[0..1];
+   matchScore: Float[0..1];
+   matchedBy: String[0..1];
+}
+
+// One field on which our record and theirs disagree. One match can have several; keeping
+// them as rows is what lets ops work the differences rather than the trades.
+Class trade_capture::TradeBreak
+{
+   breakId: String[1];
+   breakField: String[1];
+   ourValue: String[0..1];
+   theirValue: String[0..1];
+   raisedTime: DateTime[1];
+   resolvedTime: DateTime[0..1];
+   assignedTo: String[0..1];
+   severity: String[1];
+}
+
+// A sign-off that a trade needed because it broke a control -- size, price tolerance, a
+// restricted name. Absence of approvals is the normal case.
+Class trade_capture::TradeApproval
+{
+   approvalId: String[1];
+   approvalType: String[1];
+   approvedBy: String[1];
+   approvedTime: DateTime[1];
+   isGranted: Boolean[1];
+   approvalComment: String[0..1];
+}
+
+// Free text someone attached to a trade. Kept because in a dispute it is often the only
+// contemporaneous account of what was intended.
+Class trade_capture::TradeNote
+{
+   noteId: String[1];
+   noteText: String[1];
+   authoredBy: String[1];
+   authoredTime: DateTime[1];
+   isInternal: Boolean[1];
+}
+
+// The upstream system the trade arrived from. It matters for reconciliation: a trade that
+// only exists in one source is a break with the source, not with the counterparty.
+Class trade_capture::CaptureSource
+{
+   sourceId: String[1];
+   sourceCode: String[1];
+   sourceName: String[1];
+   sourceType: String[1];
+   isRealTime: Boolean[1];
+   isActive: Boolean[1];
+}
+
+// A key/value label on a trade -- strategy, campaign, regulatory flag. Deliberately
+// untyped, so that a new label does not need a schema change; anything that stabilises
+// should graduate to a column.
+Class trade_capture::TradeTag
+{
+   tagId: String[1];
+   tagKey: String[1];
+   tagValue: String[0..1];
+   taggedBy: String[0..1];
+   taggedTime: DateTime[0..1];
+}
+
+// ---------------------------------------------------------------- cross-project links
+// THE POINT OF THIS PROJECT. Six associations whose ends live in different projects. Each
+// end adds a property to a class this project does not own, so the far-side property names
+// are chosen not to collide with anything already on core_instrument::Instrument,
+// core_party::LegalEntity or core_book::Book.
+
+// A trade is against exactly one instrument, and an instrument has been traded any number
+// of times. [0..1] on the instrument side because a just-captured trade can name an
+// instrument the master has not yet been told about.
+Association trade_capture::TradeInstrument
+{
+   instrument: core_instrument::Instrument[0..1];
+   trades: trade_capture::Trade[*];
+}
+
+// A leg of a multi-leg trade can be against a DIFFERENT instrument from the trade header
+// -- that is what makes a switch a switch.
+Association trade_capture::LegInstrument
+{
+   legInstrument: core_instrument::Instrument[0..1];
+   instrumentLegs: trade_capture::TradeLeg[*];
+}
+
+// Which book carries the risk. Reaching core_book::Book rather than storing a book code
+// means a downstream query can walk `$trade.book.parentBook` up the hierarchy without
+// this project knowing the hierarchy exists.
+Association trade_capture::TradeBook
+{
+   book: core_book::Book[0..1];
+   bookedTrades: trade_capture::Trade[*];
+}
+
+// The counterparty role resolves to the registered legal person in the party master. The
+// role is ours; the identity is theirs.
+Association trade_capture::CounterpartyEntity
+{
+   legalEntity: core_party::LegalEntity[0..1];
+   counterpartyRoles: trade_capture::Counterparty[*];
+}
+
+// Allocations point at the end client directly, not through the counterparty, because the
+// executing counterparty and the allocated client are routinely different entities.
+Association trade_capture::AllocationEntity
+{
+   allocationEntity: core_party::LegalEntity[0..1];
+   entityAllocations: trade_capture::Allocation[*];
+}
+
+// A clearing broker is a legal entity too, and the same entity may be both our
+// counterparty and our clearer.
+Association trade_capture::ClearingBrokerEntity
+{
+   brokerEntity: core_party::LegalEntity[0..1];
+   brokerRoles: trade_capture::ClearingBroker[*];
+}
+
+// ---------------------------------------------------------------- internal links
+
+Association trade_capture::TradeTrader
+{
+   trader: trade_capture::Trader[0..1];
+   tradedTrades: trade_capture::Trade[*];
+}
+
+Association trade_capture::TradeVenueLink
+{
+   venue: trade_capture::ExecutionVenue[0..1];
+   venueTrades: trade_capture::Trade[*];
+}
+
+Association trade_capture::TradeCounterpartyLink
+{
+   counterparty: trade_capture::Counterparty[0..1];
+   counterpartyTrades: trade_capture::Trade[*];
+}
+
+Association trade_capture::TradeLegs
+{
+   legs: trade_capture::TradeLeg[*];
+   legTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeBlockLink
+{
+   block: trade_capture::BlockTrade[0..1];
+   blockTrades: trade_capture::Trade[*];
+}
+
+Association trade_capture::TradeAllocations
+{
+   allocations: trade_capture::Allocation[*];
+   allocationTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::InstructedAllocations
+{
+   instruction: trade_capture::AllocationInstruction[0..1];
+   instructedAllocations: trade_capture::Allocation[*];
+}
+
+Association trade_capture::TradeConfirmations
+{
+   confirmations: trade_capture::Confirmation[*];
+   confirmationTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeAmendments
+{
+   amendments: trade_capture::Amendment[*];
+   amendmentTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeCancellationLink
+{
+   cancellations: trade_capture::Cancellation[*];
+   cancelledTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeVersions
+{
+   versions: trade_capture::TradeVersion[*];
+   versionTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeIdentifiers
+{
+   tradeIdentifiers: trade_capture::TradeIdentifier[*];
+   identifiedTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeCharges
+{
+   charges: trade_capture::TradeCharge[*];
+   chargeTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::CounterpartyCommission
+{
+   commissionSchedule: trade_capture::CommissionSchedule[0..1];
+   scheduleCounterparties: trade_capture::Counterparty[*];
+}
+
+Association trade_capture::TradeSettlementInstructions
+{
+   settlementInstructions: trade_capture::SettlementInstruction[*];
+   settlementTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeGiveUps
+{
+   giveUps: trade_capture::GiveUp[*];
+   giveUpTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::BrokerGiveUps
+{
+   clearingBroker: trade_capture::ClearingBroker[0..1];
+   brokerGiveUps: trade_capture::GiveUp[*];
+}
+
+Association trade_capture::TradeMatches
+{
+   matches: trade_capture::TradeMatch[*];
+   matchTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::MatchBreaks
+{
+   breaks: trade_capture::TradeBreak[*];
+   breakMatch: trade_capture::TradeMatch[0..1];
+}
+
+Association trade_capture::TradeApprovals
+{
+   approvals: trade_capture::TradeApproval[*];
+   approvalTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeNotes
+{
+   notes: trade_capture::TradeNote[*];
+   noteTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeCaptureSourceLink
+{
+   captureSource: trade_capture::CaptureSource[0..1];
+   sourceTrades: trade_capture::Trade[*];
+}
+
+Association trade_capture::TradeTags
+{
+   tags: trade_capture::TradeTag[*];
+   tagTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::TradeSalesCredits
+{
+   salesCredits: trade_capture::SalesCredit[*];
+   creditTrade: trade_capture::Trade[0..1];
+}
+
+Association trade_capture::SalespersonCredits
+{
+   salesperson: trade_capture::Salesperson[0..1];
+   personCredits: trade_capture::SalesCredit[*];
+}

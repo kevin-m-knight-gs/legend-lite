@@ -1,0 +1,449 @@
+###Relational
+// ============================================================
+// product_catalogue::Store -- twenty-one PCT_ tables in the `pct` SCHEMA
+// ============================================================
+// This store INCLUDES both dependencies' stores, and nothing else. Through them it sees:
+//
+//   pct   -- ours, declared below
+//   sdi   -- static-distribution's, via `include static_distribution::Store`
+//   stc   -- static-core's, transitively (visible, unused: not a declared dependency)
+//   uom   -- core-units', transitively (visible, unused, same reason)
+//   (default) -- CI_INSTRUMENT, PRD_*, PPR_*, VC_*, CP_*, CF_*, RD_*, CG_* -- everything the
+//                two dependency closures put in the unnamed schema
+//
+// core-instrument arrives TWICE (product-pricing -> product-core -> core-instrument, and
+// static-distribution -> reference-data -> core-instrument). A diamond include is fine: the
+// same database reached by two routes resolves to one. What is not fine is adding
+// `include core_instrument::Store` on top -- that is a redundant include AND a reference to
+// an undeclared dependency. Include your DIRECT dependencies' stores, never your transitive
+// ones.
+//
+// The overlay pattern is product-core's and product-pricing's, one layer further out:
+//
+//    CI_INSTRUMENT           core-instrument   what the market trades
+//      -> PRD_PRODUCT        product-core      what the firm sells
+//      -> PPR_PRODUCT_PRICING product-pricing  how the firm prices it
+//      -> pct.PCT_CATALOGUE_ENTRY              what sales may actually offer
+//
+// All four hang off CI_INSTRUMENT and not off each other, because the main table of every
+// set below [pprPricedProduct] is CI_INSTRUMENT. So Pct_EntryInstrument joins CI_INSTRUMENT
+// to pct.PCT_CATALOGUE_ENTRY, and every catalogue property mapping is written through it.
+//
+// Every product-shaped child table keys on INSTRUMENT_ID rather than on a product code, so a
+// child joins straight to CI_INSTRUMENT in one hop instead of two.
+//
+// Datatypes: NUMERIC(20,6) for money that has to reconcile, FLOAT for rates and ratios that
+// are compared against a tolerance, SMALLINT for counts bounded by construction. REAL is not
+// used anywhere (docs/UPSTREAM_FINDINGS.md F53).
+//
+// Every table is PCT_, every join Pct_, every filter Pct. Filter names and set ids are GLOBAL
+// namespaces in Legend: one unprefixed `ActiveRows` here fails the whole graph with a message
+// that names the id and not this file.
+//
+// Tables are declared and unseeded. No ###Data element, no Runtime.
+Database product_catalogue::Store
+(
+   include product_pricing::Store
+   include static_distribution::Store
+
+   Schema pct
+   (
+      // ---- the catalogue overlay --------------------------------------------------------
+      // One row per catalogued product, keyed by the instrument it is a product of -- the
+      // same key PRD_PRODUCT and PPR_PRODUCT_PRICING use, so the four tables line up
+      // one-to-one-to-one-to-one. Wide for the same reason those two are wide: the four
+      // sales statuses differ in which columns carry meaning, not in where the row lives.
+      //
+      // Two discriminators, deliberately on different columns. SALES_STATUS cuts the four
+      // status subtypes; SALES_WRAPPER cuts the one concrete-payoff subtype, which sits on a
+      // different branch of the taxonomy and so must not be cut by the same column twice.
+      Table PCT_CATALOGUE_ENTRY
+      (
+         INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+         SALES_STATUS VARCHAR(16),
+         SALES_WRAPPER VARCHAR(24),
+         CATALOGUE_CODE VARCHAR(20),
+         SALES_NAME VARCHAR(120),
+         SALES_HEADLINE VARCHAR(200),
+         PRIMARY_CHANNEL_CODE VARCHAR(12),
+         SALES_DESK_CODE VARCHAR(20),
+         TARGET_MARKET_CODE VARCHAR(20),
+         STRATEGY_CODE VARCHAR(20),
+         TRAINING_CODE VARCHAR(20),
+         MIN_TICKET_AMOUNT NUMERIC(20,6),
+         MIN_TICKET_CURRENCY CHAR(3),
+         LISTED_ON DATE,
+         DE_LISTED_ON DATE,
+         IS_FEATURED BIT,
+         SALES_RANK SMALLINT,
+         DOCUMENT_PACK_CODE VARCHAR(20),
+         // offerable
+         OFFERABLE_FROM DATE,
+         MAX_TICKET_AMOUNT NUMERIC(20,6),
+         HAS_ONLINE_FACTSHEET BIT,
+         QUOTE_TURNAROUND_MINUTES SMALLINT,
+         IS_SELF_SERVICE BIT,
+         // restricted
+         RESTRICTION_REASON VARCHAR(40),
+         APPROVER_ROLE VARCHAR(60),
+         NEEDS_SECOND_SIGNOFF BIT,
+         RESTRICTION_REVIEW_ON DATE,
+         MAX_CLIENTS_PER_MONTH SMALLINT,
+         // withdrawn but still held
+         WITHDRAWN_REASON VARCHAR(40),
+         HOLDINGS_MAY_CONTINUE BIT,
+         LAST_TRADE_ON DATE,
+         RUNOFF_END_ON DATE,
+         SUCCESSOR_PRODUCT_CODE VARCHAR(40),
+         // pipeline
+         PIPELINE_STAGE VARCHAR(20),
+         EXPECTED_LAUNCH_ON DATE,
+         SPONSOR_DESK VARCHAR(60),
+         LAUNCH_BLOCKER VARCHAR(200),
+         PILOT_CLIENT_COUNT SMALLINT,
+         // the catalogued autocall, on the SALES_WRAPPER branch
+         SALES_PITCH_SUMMARY VARCHAR(300),
+         COUPON_DISPLAY_PCT FLOAT,
+         IS_CAPITAL_AT_RISK_FLAGGED BIT,
+         ILLUSTRATION_SCENARIO_COUNT SMALLINT,
+         REQUIRES_RISK_WARNING_CALL BIT
+      )
+
+      // ---- the catalogue, its versions and its pages -------------------------------------
+      Table PCT_CATALOGUE
+      (
+         CATALOGUE_CODE VARCHAR(20) PRIMARY KEY,
+         CATALOGUE_NAME VARCHAR(80) NOT NULL,
+         EDITION VARCHAR(12),
+         REGION_CODE VARCHAR(12),
+         AUDIENCE VARCHAR(20),
+         OWNER_DESK VARCHAR(60),
+         // DATASET_CODE is VARCHAR(20) to match sdi.SDI_DATASET.DATASET_CODE exactly: a join
+         // across a schema boundary is only as good as the column it lands on.
+         DATASET_CODE VARCHAR(20),
+         RETIRED_ON DATE
+      )
+
+      Table PCT_CATALOGUE_VERSION
+      (
+         VERSION_ID VARCHAR(40) PRIMARY KEY,
+         CATALOGUE_CODE VARCHAR(20),
+         VERSION_NUMBER INTEGER,
+         PUBLISHED_ON DATE,
+         // Matches sdi.SDI_PUBLICATION.PUBLICATION_ID.
+         PUBLICATION_ID VARCHAR(40),
+         ENTRY_COUNT INTEGER,
+         WITHDRAWN_COUNT INTEGER,
+         APPROVED_BY VARCHAR(60),
+         SUPERSEDED_ON DATE
+      )
+
+      // Composite key: the pair IS the line.
+      Table PCT_CATALOGUE_LINE
+      (
+         VERSION_ID VARCHAR(40) PRIMARY KEY,
+         INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+         POSITION_NUMBER SMALLINT,
+         HEADLINE VARCHAR(200),
+         PRINTED_OFFER_PRICE NUMERIC(20,6),
+         IS_NEW_THIS_EDITION BIT,
+         IS_HIGHLIGHTED BIT,
+         REMOVAL_NOTE VARCHAR(200)
+      )
+
+      // One dispatch of one version to one static-distribution consumer. PUBLICATION_ID and
+      // CONSUMER_ID together are the key of sdi.SDI_ACK, which is how the acknowledgement is
+      // reached in one composite join.
+      Table PCT_DISTRIBUTION
+      (
+         VERSION_ID VARCHAR(40) PRIMARY KEY,
+         CONSUMER_ID VARCHAR(30) PRIMARY KEY,
+         PUBLICATION_ID VARCHAR(40),
+         SENT_AT TIMESTAMP,
+         DELIVERY_FORMAT VARCHAR(10),
+         RECIPIENT_COUNT INTEGER,
+         FAILURE_CODE VARCHAR(20)
+      )
+
+      // ---- who may be sold what ---------------------------------------------------------
+      Table PCT_CHANNEL
+      (
+         CHANNEL_CODE VARCHAR(12) PRIMARY KEY,
+         CHANNEL_NAME VARCHAR(60) NOT NULL,
+         CHANNEL_KIND VARCHAR(20),
+         IS_ADVISED BIT,
+         NEEDS_SUITABILITY_TEST BIT,
+         MIN_CLIENT_ASSETS NUMERIC(20,6),
+         RETIRED_ON DATE
+      )
+
+      // MANUFACTURING_DESK is VARCHAR(60) to match PPR_PRODUCT_PRICING.PRICING_DESK, because
+      // the manufacturing desk is resolved through the ~distinct set whose main table is
+      // that one.
+      Table PCT_SALES_DESK
+      (
+         DESK_CODE VARCHAR(20) PRIMARY KEY,
+         DESK_NAME VARCHAR(80) NOT NULL,
+         REGION_CODE VARCHAR(12),
+         JURISDICTION_CODE CHAR(2),
+         MANUFACTURING_DESK VARCHAR(60),
+         HEAD_OF_DESK VARCHAR(60),
+         HEADCOUNT SMALLINT,
+         CLOSED_ON DATE
+      )
+
+      Table PCT_CLIENT_CATEGORY
+      (
+         CATEGORY_CODE VARCHAR(24) PRIMARY KEY,
+         CATEGORY_NAME VARCHAR(60) NOT NULL,
+         REGULATORY_BASIS VARCHAR(20),
+         NEEDS_APPROPRIATENESS_TEST BIT,
+         NEEDS_SUITABILITY_REPORT BIT,
+         MAX_COMPLEXITY_SCORE SMALLINT
+      )
+
+      // Composite key: the verdict belongs to the pair, not to either side.
+      Table PCT_CATEGORY_ELIGIBILITY
+      (
+         INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+         CATEGORY_CODE VARCHAR(24) PRIMARY KEY,
+         ELIGIBILITY_STATUS VARCHAR(24),
+         RATIONALE VARCHAR(300),
+         ASSESSED_ON DATE,
+         REVIEW_DUE_ON DATE,
+         APPROVED_BY VARCHAR(60)
+      )
+
+      Table PCT_TARGET_MARKET
+      (
+         TARGET_MARKET_CODE VARCHAR(20) PRIMARY KEY,
+         INVESTOR_TYPE VARCHAR(24),
+         KNOWLEDGE_LEVEL VARCHAR(12),
+         RISK_TOLERANCE VARCHAR(8),
+         HORIZON_MONTHS SMALLINT,
+         LOSS_BEARING VARCHAR(20),
+         OBJECTIVE VARCHAR(20)
+      )
+
+      Table PCT_NEGATIVE_TARGET
+      (
+         TARGET_MARKET_CODE VARCHAR(20) PRIMARY KEY,
+         EXCLUSION_CODE VARCHAR(20) PRIMARY KEY,
+         EXCLUSION_KIND VARCHAR(20),
+         EXCLUSION_TEXT VARCHAR(300),
+         IS_HARD_BAR BIT,
+         ADDED_ON DATE
+      )
+
+      Table PCT_DISTRIBUTION_STRATEGY
+      (
+         STRATEGY_CODE VARCHAR(20) PRIMARY KEY,
+         STRATEGY_NAME VARCHAR(60) NOT NULL,
+         REQUIRES_ADVICE BIT,
+         REQUIRES_APPROPRIATENESS BIT,
+         ALLOWS_EXECUTION_ONLY BIT,
+         COOLING_OFF_DAYS SMALLINT
+      )
+
+      // ---- where it may not be sold -----------------------------------------------------
+      // One row per (product, jurisdiction). JURISDICTION_NAME and JURISDICTION_REGION are
+      // denormalised on purpose: they are facts about the jurisdiction, repeated on every
+      // bar row for it, which is exactly what makes them mappable on the ~distinct set that
+      // collapses this table to its distinct JURISDICTION_CODE.
+      Table PCT_JURISDICTION_BAR
+      (
+         INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+         JURISDICTION_CODE CHAR(2) PRIMARY KEY,
+         JURISDICTION_NAME VARCHAR(60),
+         JURISDICTION_REGION VARCHAR(20),
+         BAR_TYPE VARCHAR(30),
+         REASON_CODE VARCHAR(20),
+         LEGAL_REFERENCE VARCHAR(120),
+         IMPOSED_ON DATE,
+         LIFTED_ON DATE
+      )
+
+      Table PCT_SALES_RESTRICTION
+      (
+         RESTRICTION_ID VARCHAR(40) PRIMARY KEY,
+         INSTRUMENT_ID VARCHAR(60),
+         RESTRICTION_KIND VARCHAR(24),
+         CHANNEL_CODE VARCHAR(12),
+         JURISDICTION_CODE CHAR(2),
+         THRESHOLD_AMOUNT NUMERIC(20,6),
+         THRESHOLD_CURRENCY CHAR(3),
+         EFFECTIVE_ON DATE,
+         EXPIRES_ON DATE,
+         NOTE VARCHAR(300)
+      )
+
+      Table PCT_WITHDRAWAL
+      (
+         WITHDRAWAL_ID VARCHAR(40) PRIMARY KEY,
+         INSTRUMENT_ID VARCHAR(60),
+         WITHDRAWN_ON DATE,
+         REASON_CODE VARCHAR(20),
+         REASON_TEXT VARCHAR(300),
+         HOLDINGS_MAY_CONTINUE BIT,
+         RUNOFF_END_ON DATE,
+         SUCCESSOR_INSTRUMENT_ID VARCHAR(60),
+         DECIDED_BY VARCHAR(60)
+      )
+
+      // ---- what has to be in the pack ---------------------------------------------------
+      Table PCT_DOC_REQUIREMENT
+      (
+         INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+         DOCUMENT_TYPE VARCHAR(24) PRIMARY KEY,
+         IS_PRE_SALE BIT,
+         MAX_AGE_DAYS SMALLINT,
+         REGULATION_CODE VARCHAR(20),
+         WAIVER_STATUS VARCHAR(20)
+      )
+
+      Table PCT_DOCUMENT
+      (
+         DOCUMENT_ID VARCHAR(40) PRIMARY KEY,
+         INSTRUMENT_ID VARCHAR(60),
+         DOCUMENT_TYPE VARCHAR(24),
+         VERSION_LABEL VARCHAR(20),
+         EFFECTIVE_ON DATE,
+         EXPIRES_ON DATE,
+         PRIMARY_LANGUAGE CHAR(2),
+         STORAGE_URI VARCHAR(200),
+         APPROVED_BY VARCHAR(60)
+      )
+
+      Table PCT_DOC_LANGUAGE
+      (
+         DOCUMENT_ID VARCHAR(40) PRIMARY KEY,
+         LANGUAGE_CODE CHAR(2) PRIMARY KEY,
+         TRANSLATED_TITLE VARCHAR(200),
+         TRANSLATED_ON DATE,
+         TRANSLATOR VARCHAR(60),
+         IS_VERIFIED BIT
+      )
+
+      // ---- price and reward -------------------------------------------------------------
+      Table PCT_INDICATIVE_PRICE
+      (
+         INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+         AS_OF_DATE DATE PRIMARY KEY,
+         INDICATIVE_BID NUMERIC(20,6),
+         INDICATIVE_OFFER NUMERIC(20,6),
+         MODEL_PRICE NUMERIC(20,6),
+         SPREAD_BPS FLOAT,
+         PRICE_CURRENCY CHAR(3),
+         // Matches PPR_PRICING_RUN.RUN_ID.
+         RUN_ID VARCHAR(20),
+         IS_STALE BIT
+      )
+
+      Table PCT_COMMISSION
+      (
+         INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+         CHANNEL_CODE VARCHAR(12) PRIMARY KEY,
+         UPFRONT_BPS FLOAT,
+         TRAIL_BPS FLOAT,
+         CAP_AMOUNT NUMERIC(20,6),
+         CAP_CURRENCY CHAR(3),
+         MUST_BE_DISCLOSED BIT,
+         EFFECTIVE_ON DATE
+      )
+
+      Table PCT_TRAINING
+      (
+         TRAINING_CODE VARCHAR(20) PRIMARY KEY,
+         TRAINING_NAME VARCHAR(80) NOT NULL,
+         HOURS SMALLINT,
+         REFRESH_MONTHS SMALLINT,
+         NEEDS_EXAM BIT,
+         PASS_MARK_PCT SMALLINT,
+         PROVIDED_BY VARCHAR(60)
+      )
+   )
+
+   // ---- the join the whole overlay hangs on ---------------------------------------------
+   // CI_INSTRUMENT is core-instrument's, in the default schema, reached transitively through
+   // BOTH includes. It is the main table of every set below [pprPricedProduct], so every
+   // catalogue property mapping is written through this join.
+   // One line each: a wrapped condition parses, but the corpus reader refuses it.
+   Join Pct_EntryInstrument(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_CATALOGUE_ENTRY.INSTRUMENT_ID)
+
+   // ---- from the entry out to its dimensions ---------------------------------------------
+   Join Pct_EntryCatalogue(pct.PCT_CATALOGUE_ENTRY.CATALOGUE_CODE = pct.PCT_CATALOGUE.CATALOGUE_CODE)
+   Join Pct_EntryChannel(pct.PCT_CATALOGUE_ENTRY.PRIMARY_CHANNEL_CODE = pct.PCT_CHANNEL.CHANNEL_CODE)
+   Join Pct_EntryDesk(pct.PCT_CATALOGUE_ENTRY.SALES_DESK_CODE = pct.PCT_SALES_DESK.DESK_CODE)
+   Join Pct_EntryTargetMarket(pct.PCT_CATALOGUE_ENTRY.TARGET_MARKET_CODE = pct.PCT_TARGET_MARKET.TARGET_MARKET_CODE)
+   Join Pct_EntryStrategy(pct.PCT_CATALOGUE_ENTRY.STRATEGY_CODE = pct.PCT_DISTRIBUTION_STRATEGY.STRATEGY_CODE)
+   Join Pct_EntryTraining(pct.PCT_CATALOGUE_ENTRY.TRAINING_CODE = pct.PCT_TRAINING.TRAINING_CODE)
+
+   // ---- from CI_INSTRUMENT straight to the product-shaped child tables --------------------
+   // Each child keys on INSTRUMENT_ID, so the product reaches it in one hop rather than
+   // through PCT_CATALOGUE_ENTRY. These are traversed in both directions: the product's
+   // collection property one way, the child's `product` property the other.
+   Join Pct_InstrumentEligibility(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_CATEGORY_ELIGIBILITY.INSTRUMENT_ID)
+   Join Pct_InstrumentBar(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_JURISDICTION_BAR.INSTRUMENT_ID)
+   Join Pct_InstrumentDocRequirement(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_DOC_REQUIREMENT.INSTRUMENT_ID)
+   Join Pct_InstrumentDocument(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_DOCUMENT.INSTRUMENT_ID)
+   Join Pct_InstrumentRestriction(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_SALES_RESTRICTION.INSTRUMENT_ID)
+   Join Pct_InstrumentIndicativePrice(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_INDICATIVE_PRICE.INSTRUMENT_ID)
+   Join Pct_InstrumentCommission(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_COMMISSION.INSTRUMENT_ID)
+   Join Pct_InstrumentWithdrawal(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_WITHDRAWAL.INSTRUMENT_ID)
+   Join Pct_InstrumentLine(CI_INSTRUMENT.INSTRUMENT_ID = pct.PCT_CATALOGUE_LINE.INSTRUMENT_ID)
+
+   // ---- inside the `pct` schema -----------------------------------------------------------
+   Join Pct_CatalogueVersion(pct.PCT_CATALOGUE.CATALOGUE_CODE = pct.PCT_CATALOGUE_VERSION.CATALOGUE_CODE)
+   Join Pct_LineVersion(pct.PCT_CATALOGUE_LINE.VERSION_ID = pct.PCT_CATALOGUE_VERSION.VERSION_ID)
+   Join Pct_DistributionVersion(pct.PCT_DISTRIBUTION.VERSION_ID = pct.PCT_CATALOGUE_VERSION.VERSION_ID)
+   Join Pct_EligibilityCategory(pct.PCT_CATEGORY_ELIGIBILITY.CATEGORY_CODE = pct.PCT_CLIENT_CATEGORY.CATEGORY_CODE)
+   Join Pct_NegativeTargetMarket(pct.PCT_NEGATIVE_TARGET.TARGET_MARKET_CODE = pct.PCT_TARGET_MARKET.TARGET_MARKET_CODE)
+   // Composite, on one line: a document answers a requirement only for the same product AND
+   // the same document type, because a type alone is only unique inside a product.
+   Join Pct_DocumentRequirement(pct.PCT_DOCUMENT.INSTRUMENT_ID = pct.PCT_DOC_REQUIREMENT.INSTRUMENT_ID and pct.PCT_DOCUMENT.DOCUMENT_TYPE = pct.PCT_DOC_REQUIREMENT.DOCUMENT_TYPE)
+   Join Pct_DocumentLanguage(pct.PCT_DOCUMENT.DOCUMENT_ID = pct.PCT_DOC_LANGUAGE.DOCUMENT_ID)
+   Join Pct_RestrictionChannel(pct.PCT_SALES_RESTRICTION.CHANNEL_CODE = pct.PCT_CHANNEL.CHANNEL_CODE)
+   Join Pct_CommissionChannel(pct.PCT_COMMISSION.CHANNEL_CODE = pct.PCT_CHANNEL.CHANNEL_CODE)
+   // Lands on the ~distinct barred-jurisdiction set, whose main table is PCT_JURISDICTION_BAR
+   // and which collapses it to its distinct JURISDICTION_CODE.
+   Join Pct_RestrictionJurisdiction(pct.PCT_SALES_RESTRICTION.JURISDICTION_CODE = pct.PCT_JURISDICTION_BAR.JURISDICTION_CODE)
+
+   // ---- across the boundary into product-pricing's default schema --------------------------
+   // Lands on the other ~distinct set, over PPR_PRODUCT_PRICING's repeating PRICING_DESK.
+   Join Pct_DeskManufacturer(pct.PCT_SALES_DESK.MANUFACTURING_DESK = PPR_PRODUCT_PRICING.PRICING_DESK)
+   Join Pct_PriceRun(pct.PCT_INDICATIVE_PRICE.RUN_ID = PPR_PRICING_RUN.RUN_ID)
+
+   // ---- across the boundary into static-distribution's `sdi` schema ------------------------
+   Join Pct_CatalogueDataset(pct.PCT_CATALOGUE.DATASET_CODE = sdi.SDI_DATASET.DATASET_CODE)
+   Join Pct_VersionPublication(pct.PCT_CATALOGUE_VERSION.PUBLICATION_ID = sdi.SDI_PUBLICATION.PUBLICATION_ID)
+   Join Pct_DistributionConsumer(pct.PCT_DISTRIBUTION.CONSUMER_ID = sdi.SDI_CONSUMER.CONSUMER_ID)
+   // Composite, on one line: sdi.SDI_ACK is keyed on (publication, consumer), so both halves
+   // are needed to reach the acknowledgement row for one dispatch.
+   Join Pct_DistributionAck(pct.PCT_DISTRIBUTION.PUBLICATION_ID = sdi.SDI_ACK.PUBLICATION_ID and pct.PCT_DISTRIBUTION.CONSUMER_ID = sdi.SDI_ACK.CONSUMER_ID)
+
+   // ---- filters -----------------------------------------------------------------------------
+   // Six are applied by the mapping's subtype sets; the rest are declared for a downstream
+   // project to apply. None uses a boolean literal, because `Filter X(T.IS_ACTIVE = true)`
+   // fails to parse with `Unexpected token 'true'`.
+
+   // The root of the catalogue overlay: an entry that has actually been published at least
+   // once. A row with no LISTED_ON is a draft, not a catalogue entry.
+   Filter PctListedRows(pct.PCT_CATALOGUE_ENTRY.LISTED_ON is not null)
+
+   // The four sales statuses, on SALES_STATUS.
+   Filter PctOfferableRows(pct.PCT_CATALOGUE_ENTRY.SALES_STATUS = 'OFFERABLE')
+   Filter PctRestrictedRows(pct.PCT_CATALOGUE_ENTRY.SALES_STATUS = 'RESTRICTED')
+   Filter PctWithdrawnRows(pct.PCT_CATALOGUE_ENTRY.SALES_STATUS = 'WITHDRAWN')
+   Filter PctPipelineRows(pct.PCT_CATALOGUE_ENTRY.SALES_STATUS = 'PIPELINE')
+
+   // The one concrete payoff, on the OTHER discriminator.
+   Filter PctAutocallWrapperRows(pct.PCT_CATALOGUE_ENTRY.SALES_WRAPPER = 'AUTOCALL_NOTE')
+
+   // Declared, unapplied.
+   Filter PctBarInForceRows(pct.PCT_JURISDICTION_BAR.LIFTED_ON is null)
+   Filter PctCurrentDocumentRows(pct.PCT_DOCUMENT.EXPIRES_ON is null)
+   Filter PctPermittedCategoryRows(pct.PCT_CATEGORY_ELIGIBILITY.ELIGIBILITY_STATUS = 'PERMITTED')
+   Filter PctCurrentVersionRows(pct.PCT_CATALOGUE_VERSION.SUPERSEDED_ON is null)
+   Filter PctFailedDistributionRows(pct.PCT_DISTRIBUTION.FAILURE_CODE is not null)
+   Filter PctStillHeldRows(pct.PCT_WITHDRAWAL.RUNOFF_END_ON is null)
+)

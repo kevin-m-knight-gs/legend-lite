@@ -1,0 +1,42 @@
+// Feature 1: embedded property mapping, ONE level.
+// Source: legend-engine TestEmbeddedRelationalCompilationFromGrammar#testEmbeddedMapping
+###Pure
+Class demo::Address
+{
+  line1: String[1];
+}
+
+Class demo::Person
+{
+  name: String[1];
+  address: demo::Address[0..1];
+}
+
+###Relational
+Database demo::db
+(
+  Table personTable
+  (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(200),
+    addressLine1 VARCHAR(200)
+  )
+)
+
+###Mapping
+Mapping demo::EmbeddedOneLevel
+(
+  *demo::Person[person]: Relational
+  {
+    ~primaryKey
+    (
+      [demo::db]personTable.id
+    )
+    ~mainTable [demo::db]personTable
+    name: [demo::db]personTable.name,
+    address
+    (
+      line1: [demo::db]personTable.addressLine1
+    )
+  }
+)

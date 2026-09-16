@@ -459,9 +459,11 @@ public final class FromProtocol {
                 new java.util.LinkedHashMap<>();
         java.util.List<JsonModelConnection> jsonConnections = new ArrayList<>();
         java.util.List<PackageableElement> inline = new ArrayList<>();
+        java.util.Map<String, String> connectionIds = new java.util.LinkedHashMap<>();
         for (Protocol.PStoreConnections sc : r.connections()) {
             String store = sc.store().path();
             for (Protocol.PIdentifiedConnection ic : sc.storeConnections()) {
+                connectionIds.put(ic.id(), store);
                 switch (ic.connection()) {
                     case Protocol.PConnectionPointer p -> bindings
                             .computeIfAbsent(store, k -> new ArrayList<>())
@@ -552,7 +554,7 @@ public final class FromProtocol {
             }
         }
         return new RuntimeDefinition(qn, mappings, bindings, jsonConnections,
-                inline);
+                inline, connectionIds);
     }
 
     /** A {@code ###Service} section element (Service or
@@ -585,11 +587,11 @@ public final class FromProtocol {
             case Protocol.PSingleExecution single -> new ServiceDefinition(
                     s.qualifiedName(), pattern, modelQuery(single.query()),
                     s.documentation(), single.mapping(), single.runtime(),
-                    s.testSuites() == null ? null : "<suites>", s.owners(),
-                    s.autoActivateUpdates(), null, s.test() == null ? null : "<legacyTest>");
+                    s.testSuites(), s.owners(),
+                    s.autoActivateUpdates(), null, s.test());
             case Protocol.PMultiExecution multi -> new ServiceDefinition(
                     s.qualifiedName(), pattern, modelQuery(multi.query()),
-                    s.documentation(), null, null, s.testSuites() == null ? null : "<suites>",
+                    s.documentation(), null, null, s.testSuites(),
                     s.owners(), s.autoActivateUpdates(),
                     new ServiceDefinition.MultiExecution(
                             multi.executionKey() == null ? ""
@@ -597,7 +599,7 @@ public final class FromProtocol {
                             keyedExecutions(multi.executions() == null
                                     ? java.util.List.of()
                                     : multi.executions())),
-                    s.test() == null ? null : "<legacyTest>");
+                    s.test());
         };
     }
 
@@ -759,6 +761,24 @@ public final class FromProtocol {
             case Protocol.PTrinoSpec s -> new ConnectionSpecification
                     .StaticDatasource(s.host(), (int) s.port(),
                             s.catalog() == null ? "" : s.catalog());
+            // the db-extension specs fold to the static host/port/name
+            // shape as Redshift and Trino do — DECLARED connections; an
+            // execution leg for any of them widens the model shape then
+            case Protocol.PAuroraSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(), s.name());
+            case Protocol.PGlobalAuroraSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(), s.name());
+            case Protocol.PMemSqlSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(),
+                            s.databaseName() == null ? "" : s.databaseName());
+            case Protocol.POracleSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.host(), (int) s.port(),
+                            s.serviceName() == null ? "" : s.serviceName());
+            // Athena has no host/port: addressed by region (+ endpoint)
+            case Protocol.PAthenaSpec s -> new ConnectionSpecification
+                    .StaticDatasource(s.athenaEndpoint() == null ? s.region()
+                            : s.athenaEndpoint(), 0,
+                            s.database() == null ? "" : s.database());
         };
         AuthenticationSpec auth = switch (r.authenticationStrategy()) {
             case Protocol.PH2Default d -> new AuthenticationSpec.DefaultH2();

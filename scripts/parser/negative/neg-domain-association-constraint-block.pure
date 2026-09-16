@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token '['. Valid alternatives: ['projects']
+//
+// Associations do NOT take a constraint block. A Class accepts '[' after its name; an
+// Association accepts exactly one thing there, `projects`, and nothing else.
+//
+// Class and Association are near-identical in every other respect -- same body, same
+// property syntax, same stereotype prefix, and DomainParseTreeWalker shares the property
+// visitor between them. That similarity is the trap: a rewrite that factors "named element
+// with an optional constraint list and a brace body" into one routine accepts constraints
+// on an association, and the protocol has nowhere to put them.
+###Pure
+Association fixture::neg::ConstrainedAssoc
+[
+   c1: true
+]
+{
+   parts: fixture::neg::Part[*];
+   assembly: fixture::neg::Assembly[1];
+}

@@ -1,0 +1,43 @@
+// COVERS TrinoLexerGrammar: Trino, host, port, catalog, schema, clientTags, sslSpecification, ssl, trustStorePathVaultReference, trustStorePasswordVaultReference, TrinoDelegatedKerberos, serverPrincipal, kerberosRemoteServiceName, kerberosUseCanonicalHostname
+//
+// Every token TrinoLexerGrammar.g4 declares. Syntax taken from legend-engine's
+// TestTrinoConnectionGrammarRoundtrip.testConnectionGrammar, extended with
+// `serverPrincipal`, which that test omits but trinoDelegatedKerberosAuth accepts
+// (TrinoParserGrammar.g4: trinoServerPrincipal).
+//
+// Two shapes here that are not obvious from the token list. `sslSpecification` is the only
+// Trino element that is a nested block, and its rule ends `BRACE_CLOSE SEMI_COLON` -- the
+// closing brace needs a trailing `;`, unlike the outer specification block. And Trino splits
+// its keywords across TWO extension points: the first six are a datasource specification,
+// the last four an authentication strategy, so a single connection has to use both `Trino`
+// and `TrinoDelegatedKerberos` to reach them all.
+//
+// `catalog`, `host`, `port` and `schema` are Trino's own tokens, not borrowed ones -- the
+// lexer grammar redeclares them rather than importing, so writing them in a Trino block
+// credits TrinoLexerGrammar and nothing else.
+###Connection
+RelationalDatabaseConnection fixture::t2::TrinoFull
+{
+  store: fixture::t2::Db;
+  type: Trino;
+  specification: Trino
+  {
+    host: 'trino.example.com';
+    port: 1234;
+    catalog: 'tpch';
+    schema: 'tiny';
+    clientTags: 'cg::vega';
+    sslSpecification:
+    {
+      ssl: false;
+      trustStorePathVaultReference: 'abc12cde';
+      trustStorePasswordVaultReference: 'abc12cde';
+    };
+  };
+  auth: TrinoDelegatedKerberos
+  {
+    serverPrincipal: 'principal';
+    kerberosRemoteServiceName: 'HTTP';
+    kerberosUseCanonicalHostname: false;
+  };
+}

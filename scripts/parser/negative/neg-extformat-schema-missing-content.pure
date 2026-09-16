@@ -1,0 +1,18 @@
+// REJECTS: Field 'content' is required
+//
+// A schema entry may carry id and location and MUST carry content. All three are optional
+// and repeatable as far as the .g4 is concerned -- `schema: { (schemaId|schemaLocation|schemaContent)* }`.
+//
+// `content` is the field that actually holds the schema; a set of schemas with locations and
+// no content is a plausible-looking placeholder that only the walker refuses.
+###ExternalFormat
+SchemaSet fixture::neg::SchemaWithoutContent
+{
+   format: FlatData;
+   schemas: [
+      {
+         id: primary;
+         location: 'people.schema';
+      }
+   ];
+}

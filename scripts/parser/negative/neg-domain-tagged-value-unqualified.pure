@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token '='. Valid alternatives: ['.']
+//
+// A tagged value is always `<profilePath>.<tag> = <value>`. The profile qualifier is not
+// optional and there is no "current profile" to elide it against.
+//
+// The parser demands '.' rather than reporting a missing profile, which is the behaviour
+// to match: the qualified name is parsed as ONE path expression, not as an optional prefix
+// on a tag name. A rewrite that models it as `tag (':' profile)?` or that resolves a bare
+// tag against imports accepts this, and the resulting protocol carries a tagged value
+// whose profile is null.
+###Pure
+Class {doc = 'unqualified tag'} fixture::neg::BareTag
+{
+   code: String[1];
+}

@@ -1,0 +1,269 @@
+###Pure
+// Client onboarding and compliance: what was checked, when, and what it found.
+//
+// 22 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 22 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class kyc::ComplianceCheck
+{
+   checkId: String[1];
+   checkType: String[1];
+   entityId: String[1];
+   performedOn: StrictDate[1];
+   outcome: String[1];
+   riskRating: String[1];
+   performedBy: String[1];
+   isBlocking: Boolean[1];
+   expiresOn: StrictDate[0..1];
+   findings: String[0..1];
+
+   // Days until the evidence lapses. Null where a check does not expire, which is
+   // not the same as expiring today.
+   daysToExpiry() { dateDiff($this.performedOn, $this.expiresOn, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[0..1];
+}
+
+// Proof the entity is who it says it is.
+Class kyc::IdentityVerificationCheck extends kyc::ComplianceCheck
+{
+}
+
+// Proof of registered address.
+Class kyc::AddressVerificationCheck extends kyc::ComplianceCheck
+{
+}
+
+// Who ultimately owns or controls it, past the corporate veil.
+Class kyc::BeneficialOwnershipCheck extends kyc::ComplianceCheck
+{
+}
+
+// Against OFAC, EU, UN and HMT lists.
+Class kyc::SanctionsScreeningCheck extends kyc::ComplianceCheck
+{
+}
+
+// Politically exposed persons and their associates.
+Class kyc::PepScreeningCheck extends kyc::ComplianceCheck
+{
+}
+
+// Negative news screening.
+Class kyc::AdverseMediaCheck extends kyc::ComplianceCheck
+{
+}
+
+// Where the money for this transaction came from.
+Class kyc::SourceOfFundsCheck extends kyc::ComplianceCheck
+{
+}
+
+// How the overall wealth was accumulated -- a broader question.
+Class kyc::SourceOfWealthCheck extends kyc::ComplianceCheck
+{
+}
+
+// For FATCA and CRS reporting.
+Class kyc::TaxResidencyCheck extends kyc::ComplianceCheck
+{
+}
+
+// US person status and entity classification.
+Class kyc::FatcaClassificationCheck extends kyc::ComplianceCheck
+{
+}
+
+// The OECD equivalent.
+Class kyc::CrsClassificationCheck extends kyc::ComplianceCheck
+{
+}
+
+// The legal entity identifier, and whether it has lapsed.
+Class kyc::LeiValidationCheck extends kyc::ComplianceCheck
+{
+}
+
+// Authorised, and by whom.
+Class kyc::RegulatoryStatusCheck extends kyc::ComplianceCheck
+{
+}
+
+// Internal rating and limit setting.
+Class kyc::CreditAssessmentCheck extends kyc::ComplianceCheck
+{
+}
+
+// Whether the client understands the product.
+Class kyc::AppropriatenessAssessment extends kyc::ComplianceCheck
+{
+}
+
+// Whether it is right for them, which is a higher bar.
+Class kyc::SuitabilityAssessment extends kyc::ComplianceCheck
+{
+}
+
+// Retail, professional, or eligible counterparty.
+Class kyc::ClientCategorisationCheck extends kyc::ComplianceCheck
+{
+}
+
+// Periodic re-screening rather than onboarding.
+Class kyc::OngoingMonitoringReview extends kyc::ComplianceCheck
+{
+}
+
+// Triggered by risk rating, jurisdiction or PEP status.
+Class kyc::EnhancedDueDiligenceCheck extends kyc::ComplianceCheck
+{
+}
+
+// Behavioural, raised after onboarding.
+Class kyc::TransactionMonitoringAlert extends kyc::ComplianceCheck
+{
+}
+
+// Whether the evidence on file is still valid.
+Class kyc::DocumentExpiryCheck extends kyc::ComplianceCheck
+{
+}
+
+// The scheduled re-papering of a file.
+Class kyc::PeriodicRefreshReview extends kyc::ComplianceCheck
+{
+}
+
+###Mapping
+Mapping kyc::KycMapping
+(
+   *kyc::ComplianceCheck[kycBase]: Relational
+   {
+      ~primaryKey ( [store::DB]KYC_CHECK.CHECK_ID )
+      ~mainTable [store::DB]KYC_CHECK
+      checkId: [store::DB]KYC_CHECK.CHECK_ID,
+      checkType: [store::DB]KYC_CHECK.CHECK_TYPE,
+      entityId: [store::DB]KYC_CHECK.ENTITY_ID,
+      performedOn: [store::DB]KYC_CHECK.PERFORMED_ON,
+      outcome: [store::DB]KYC_CHECK.OUTCOME,
+      riskRating: [store::DB]KYC_CHECK.RISK_RATING,
+      performedBy: [store::DB]KYC_CHECK.PERFORMED_BY,
+      isBlocking: [store::DB]KYC_CHECK.IS_BLOCKING,
+      expiresOn: [store::DB]KYC_CHECK.EXPIRES_ON,
+      findings: [store::DB]KYC_CHECK.FINDINGS
+   }
+
+   kyc::IdentityVerificationCheck[kycIdentityVerification] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycIdentityVerificationRows
+   }
+
+   kyc::AddressVerificationCheck[kycAddressVerification] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycAddressVerificationRows
+   }
+
+   kyc::BeneficialOwnershipCheck[kycBeneficialOwnership] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycBeneficialOwnershipRows
+   }
+
+   kyc::SanctionsScreeningCheck[kycSanctionsScreening] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycSanctionsScreeningRows
+   }
+
+   kyc::PepScreeningCheck[kycPepScreening] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycPepScreeningRows
+   }
+
+   kyc::AdverseMediaCheck[kycAdverseMedia] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycAdverseMediaRows
+   }
+
+   kyc::SourceOfFundsCheck[kycSourceOfFunds] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycSourceOfFundsRows
+   }
+
+   kyc::SourceOfWealthCheck[kycSourceOfWealth] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycSourceOfWealthRows
+   }
+
+   kyc::TaxResidencyCheck[kycTaxResidency] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycTaxResidencyRows
+   }
+
+   kyc::FatcaClassificationCheck[kycFatcaClassification] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycFatcaClassificationRows
+   }
+
+   kyc::CrsClassificationCheck[kycCrsClassification] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycCrsClassificationRows
+   }
+
+   kyc::LeiValidationCheck[kycLeiValidation] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycLeiValidationRows
+   }
+
+   kyc::RegulatoryStatusCheck[kycRegulatoryStatus] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycRegulatoryStatusRows
+   }
+
+   kyc::CreditAssessmentCheck[kycCreditAssessment] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycCreditAssessmentRows
+   }
+
+   kyc::AppropriatenessAssessment[kycAppropriateness] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycAppropriatenessRows
+   }
+
+   kyc::SuitabilityAssessment[kycSuitability] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycSuitabilityRows
+   }
+
+   kyc::ClientCategorisationCheck[kycClientCategorisation] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycClientCategorisationRows
+   }
+
+   kyc::OngoingMonitoringReview[kycOngoingMonitoring] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycOngoingMonitoringRows
+   }
+
+   kyc::EnhancedDueDiligenceCheck[kycEnhancedDueDiligence] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycEnhancedDueDiligenceRows
+   }
+
+   kyc::TransactionMonitoringAlert[kycTransactionMonitoring] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycTransactionMonitoringRows
+   }
+
+   kyc::DocumentExpiryCheck[kycDocumentExpiry] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycDocumentExpiryRows
+   }
+
+   kyc::PeriodicRefreshReview[kycRefreshReview] extends [kycBase]: Relational
+   {
+      ~filter [store::DB]KycRefreshReviewRows
+   }
+)

@@ -445,8 +445,8 @@ final class AssociationSynthesis {
         // (A,B)->Boolean predicate — no binding is emitted, and NAVIGATING
         // the association stays loud at resolve time ("association not
         // mapped in mapping"). Declaring it is not an error.
-        if (anchorTableOf(md, classA, model) == null
-                || anchorTableOf(md, classB, model) == null) {
+        EndAnchors anchors = endAnchors(md, classA, classB, firstJoin, model);
+        if (anchors == null) {
             // WITHHELD, with the reason recorded: navigating this association
             // is loud at resolve time, and before audit 2026-09-15 P3-3 the
             // wall had NO reason to read — the binding simply was not there
@@ -454,7 +454,8 @@ final class AssociationSynthesis {
                     + (anchorTableOf(md, classA, model) == null ? classA : classB)
                     + "' has no table to anchor a (source, target) predicate on"
                     + " (its properties live only as Join property mappings on the"
-                    + " other end); declaring the association is not an error, but"
+                    + " other end, or neither end's set is visible from this"
+                    + " mapping); declaring the association is not an error, but"
                     + " navigating it has no step");
             return null;
         }
@@ -487,7 +488,8 @@ final class AssociationSynthesis {
             targetIsA = srcSet != null && srcSet.className().equals(classB);
         }
         ValueSpecification predicateBody = buildAssocPredicateBody(firstJoin, classA,
-                classB, srcRow, tgtRow, am.associationName(), md, model, targetIsA);
+                classB, srcRow, tgtRow, am.associationName(), md, model, targetIsA,
+                anchors.a().table(), anchors.b().table());
         // predicateBody's tgtRow reads the JOIN's landing table; the call
         // declares tgtRow's row type as classB's ~mainTable. Those must be
         // the SAME table or the lambda would silently mistype (checked
@@ -503,10 +505,8 @@ final class AssociationSynthesis {
         // re-deriving them from the classes' mappings.
         ValueSpecification body = new AppliedFunction(Pure.Lite.LEGACY_ASSOC_PREDICATE, List.of(
                 a, b,
-                ViewRelation.sourceRefFor(java.util.Objects.requireNonNull(
-                        anchorTableOf(md, classA, model)), model, md),
-                ViewRelation.sourceRefFor(java.util.Objects.requireNonNull(
-                        anchorTableOf(md, classB, model)), model, md),
+                ViewRelation.sourceRefFor(anchors.a(), model, md),
+                ViewRelation.sourceRefFor(anchors.b(), model, md),
                 new LambdaFunction(List.of(srcRow, tgtRow),
                                          List.of(predicateBody))));
 
@@ -540,7 +540,60 @@ final class AssociationSynthesis {
                                                              ResolvedMapping md,
                                                              ModelBuilder model) {
         return buildAssocPredicateBody(join, classA, classB, srcRow, tgtRow,
-                associationName, md, model, false);
+                associationName, md, model, false,
+                anchorNameOf(md, classA, model), anchorNameOf(md, classB, model));
+    }
+
+    /** The two ends' predicate anchor tables: each end's own set's table
+     * when this mapping's closure sees it; otherwise — an end class mapped
+     * OUTSIDE the closure (the stress corpus' reporting::BookHasRollup:
+     * the association is mapped in the rollup mapping, positions::Book in
+     * the positions mapping, and only the queried mapping includes both;
+     * the engine resolves an association's ends under the QUERIED
+     * mapping) — the table the single-hop join names for that end, which
+     * is the same table any including mapping's set would bind. Null
+     * when neither end is visible (there is nothing to orient the join
+     * by) or the join does not name exactly one other table. */
+    /** The two ends' anchor tables, {@code a} for classA and {@code b} for classB. */
+    record EndAnchors(LegacyMappingDefinition.TableReference a,
+            LegacyMappingDefinition.TableReference b) {
+    }
+
+    private static @com.legend.Nullable EndAnchors endAnchors(
+            ResolvedMapping md, String classA, String classB, PropertyMapping.Join join,
+            ModelBuilder model) {
+        LegacyMappingDefinition.TableReference a = anchorTableOf(md, classA, model);
+        LegacyMappingDefinition.TableReference b = anchorTableOf(md, classB, model);
+        if (a != null && b != null) {
+            return new EndAnchors(a, b);
+        }
+        if ((a == null && b == null) || join.joins().size() != 1) {
+            return null;
+        }
+        JoinChainElement hop = join.joins().get(0);
+        String db = hop.databaseName() != null ? hop.databaseName() : join.database();
+        DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName())
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "AssociationMapping join '" + hop.joinName() + "' not found in db '" + db
+                        + "'; mapping=" + md.qualifiedName()));
+        LegacyMappingDefinition.TableReference known =
+                java.util.Objects.requireNonNull(a != null ? a : b);
+        String other;
+        if (MappingNormalizer.containsTargetColumnRef(jd.operation())) {
+            other = known.table();   // a self-join: {target} is the same table
+        } else {
+            Set<String> tables = new java.util.LinkedHashSet<>();
+            RelOpTranslator.collectTablesIn(jd.operation(), tables);
+            tables.remove(known.table());
+            if (tables.size() != 1) {
+                return null;
+            }
+            other = tables.iterator().next();
+        }
+        LegacyMappingDefinition.TableReference derived =
+                new LegacyMappingDefinition.TableReference(db, other);
+        return a != null ? new EndAnchors(a, derived)
+                : new EndAnchors(derived, java.util.Objects.requireNonNull(b));
     }
 
     /** {@code targetIsA}: on a self-join, {@code {target}} is classA's row
@@ -551,13 +604,14 @@ final class AssociationSynthesis {
                                                              String associationName,
                                                              ResolvedMapping md,
                                                              ModelBuilder model,
-                                                             boolean targetIsA) {
+                                                             boolean targetIsA,
+                                                             String sourceTable,
+                                                             String classBTable) {
         if (join.joins().isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "AssociationMapping for '" + associationName
                   + "' has empty join chain; mapping=" + md.qualifiedName());
         }
-        String sourceTable = anchorNameOf(md, classA, model);
         if (join.joins().size() == 1) {
             JoinChainElement hop = join.joins().get(0);
             String hopDb = hop.databaseName() != null ? hop.databaseName() : join.database();
@@ -569,7 +623,6 @@ final class AssociationSynthesis {
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
             // or the lambda's column reads would silently mistype.
-            String classBTable = anchorNameOf(md, classB, model);
             RelationalOperation cond2 = MappingNormalizer.resolveViewRefsInJoin(
                     jd.operation(), hopDb, sourceTable, model, md,
                     model.findView(hopDb, sourceTable).isPresent() ? sourceTable : null,

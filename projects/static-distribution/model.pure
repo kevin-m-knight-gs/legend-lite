@@ -1,0 +1,322 @@
+###Pure
+
+// ============================================================
+// static-distribution -- what happens to static data AFTER it is published
+// ============================================================
+// static-core says what the firm's static data IS: code lists, their values, the standard
+// constants, the desk accountable for each. This project is the machinery that gets it OUT:
+// a dataset is published on a schedule, every publication carries a VERSION and a CHECKSUM,
+// each consumer subscribes to a subset, and each consumer must ACKNOWLEDGE what it received.
+// A publication nobody has acknowledged is not a distribution -- it is an open operational
+// item, and the ack row exists from the moment the publication does, with a null timestamp,
+// so that the outstanding ones can be listed rather than inferred from an absence.
+//
+// Depends on static-core (the content, in its `stc` SCHEMA) and on reference-data (where the
+// content came from upstream). Nothing else: core-types, core-units, core-instrument and
+// core-geo are all in the transitive closure and none of them is named here.
+//
+// The deduplication in the project theme is two `~distinct` sets, one over each dependency's
+// schema. Both collapse a column that is repeated on every row of somebody else's table into
+// the universe of its distinct values, and both key on the COLLAPSED column rather than on
+// the source table's own key -- keying on the table key would leave one row per source row
+// and the `~distinct` would collapse nothing.
+
+// FOR: the pipe a publication physically goes down -- an SFTP drop, a Kafka topic, a REST
+// pull endpoint. Kept separate from the consumer because two consumers routinely share one
+// channel, and a channel outage is one incident and not N.
+Class static_distribution::SdiChannel
+{
+   channelCode: String[1];
+   channelName: String[1];
+   // SFTP, KAFKA, REST, FILESHARE -- how the bytes move, which is what an operator needs to
+   // know before anything else when a delivery fails.
+   transport: String[1];
+   endpointUri: String[0..1];
+   isEncrypted: Boolean[1];
+   // Null while the channel is in service. A date, not a flag: a decommissioned channel has
+   // a decommissioning date, and a store Filter cannot take a boolean literal anyway.
+   retiredOn: StrictDate[0..1];
+
+   isRetired() { !$this.retiredOn->isEmpty() } : Boolean[1];
+   label() { $this.channelName + ' (' + $this.transport + ')' } : String[1];
+}
+
+// FOR: a downstream system that receives static data. The acknowledgement SLA lives here
+// because it is a property of the consumer's contract, not of any one publication.
+Class static_distribution::SdiConsumer
+{
+   consumerId: String[1];
+   consumerName: String[1];
+   contactEmail: String[1];
+   // The team to escalate to when this consumer stops acknowledging -- distinct from the
+   // technical contact, because a stalled feed is a business problem first.
+   escalationTeam: String[0..1];
+   channelCode: String[1];
+   onboardedOn: StrictDate[1];
+   // Null while the consumer is live.
+   offboardedOn: StrictDate[0..1];
+   // Hours from publication within which this consumer has undertaken to acknowledge.
+   ackSlaHours: Integer[1];
+
+   channel: static_distribution::SdiChannel[0..1];
+   subscriptions: static_distribution::SdiSubscription[*];
+
+   isActive() { $this.offboardedOn->isEmpty() } : Boolean[1];
+   label() { $this.consumerName + ' <' + $this.contactEmail + '>' } : String[1];
+}
+
+// FOR: the unit of distribution -- one bundle that is versioned, checksummed and shipped as
+// a whole. A dataset is normally the contents of one static-core code list, but it is a
+// separate thing from that list: the list is the content, the dataset is the promise to
+// publish it on a cadence to whoever subscribes.
+Class static_distribution::SdiDataset
+{
+   datasetCode: String[1];
+   datasetName: String[1];
+   // The static-core list this dataset carries.
+   listCode: String[1];
+   // The subject area, denormalised from the list so a consumer can subscribe by domain.
+   domainCode: String[1];
+   // The static-core desk accountable for the CONTENT. Distribution owns the pipe; it does
+   // not own what goes down it.
+   ownerCode: String[1];
+   // The reference-data source the content ultimately arrives from.
+   sourceId: String[0..1];
+   // The one field on the content whose source precedence matters most to consumers -- the
+   // field they will complain about when two sources disagree.
+   primaryFieldName: String[0..1];
+   // Null while the dataset is still distributed.
+   retiredOn: StrictDate[0..1];
+
+   // Across the boundary into static-core's `stc` schema.
+   sourceList: static_core::StcCodeList[0..1];
+   contentOwner: static_core::StcDataOwner[0..1];
+   // Across the boundary into reference-data.
+   upstreamSource: reference_data::RdReferenceSource[0..1];
+   // Onto one of this project's `~distinct` sets, which has no table of its own.
+   governedField: static_distribution::SdiUpstreamField[0..1];
+
+   publications: static_distribution::SdiPublication[*];
+
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+   label() { $this.datasetCode + ' / ' + $this.datasetName } : String[1];
+}
+
+// FOR: one consumer's standing request for one dataset -- the "subset" in "each consumer
+// subscribes to a subset". Composite key on consumer and dataset, because the pair is the
+// subscription and neither side identifies it alone.
+Class static_distribution::SdiSubscription
+{
+   consumerId: String[1];
+   datasetCode: String[1];
+   subscribedOn: StrictDate[1];
+   // Null while the subscription stands.
+   cancelledOn: StrictDate[0..1];
+   // CSV, JSON, XML -- the shape this consumer wants, which is per subscription and not per
+   // consumer, because one consumer legitimately takes two datasets two ways.
+   deliveryFormat: String[1];
+   // A mandatory subscription cannot be cancelled by the consumer: it is imposed by policy,
+   // and its unacknowledged publications escalate rather than expire.
+   isMandatory: Boolean[1];
+
+   consumer: static_distribution::SdiConsumer[0..1];
+   dataset: static_distribution::SdiDataset[0..1];
+
+   isCurrent() { $this.cancelledOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the cadence a dataset is published on. Separate from the dataset because a cadence
+// changes -- daily becomes intraday -- and the publications already shipped must keep
+// pointing at the schedule they actually ran under.
+Class static_distribution::SdiSchedule
+{
+   scheduleId: String[1];
+   datasetCode: String[1];
+   // DAILY, WEEKLY, MONTHLY, ONDEMAND.
+   frequency: String[1];
+   // Local wall-clock cutoff, as text, with the zone alongside it: '17:30' + 'Europe/London'
+   // says what a timestamp alone cannot once the clocks change.
+   cutoffTime: String[1];
+   timeZone: String[1];
+   // How late a run may be before it is an incident.
+   graceMinutes: Integer[1];
+   nextRunDate: StrictDate[0..1];
+
+   dataset: static_distribution::SdiDataset[0..1];
+
+   label() { $this.datasetCode + ' ' + $this.frequency + ' @' + $this.cutoffTime } : String[1];
+}
+
+// FOR: one actual run -- the version, the checksum and the row count that were shipped. This
+// is the immutable record: a correction is a NEW publication with a higher version, never an
+// edit of this one, which is why the checksum can be trusted as an identity.
+Class static_distribution::SdiPublication
+{
+   publicationId: String[1];
+   datasetCode: String[1];
+   // Monotonic per dataset. The pair (datasetCode, versionNumber) is what a consumer quotes.
+   versionNumber: Integer[1];
+   // SHA-256 over the canonicalised payload. A consumer acknowledges by echoing it back;
+   // an ack whose checksum differs means the two sides do not have the same bytes.
+   checksum: String[1];
+   rowCount: Integer[1];
+   // What the dataset definition said should be there. Fewer rows than expected is the
+   // silent failure this project exists to make loud.
+   expectedRowCount: Integer[1];
+   publishedAt: DateTime[1];
+   scheduleId: String[0..1];
+   // Null unless the publication was withdrawn after the fact.
+   retractedOn: StrictDate[0..1];
+
+   dataset: static_distribution::SdiDataset[0..1];
+   schedule: static_distribution::SdiSchedule[0..1];
+   items: static_distribution::SdiPublicationItem[*];
+   acknowledgements: static_distribution::SdiAcknowledgement[*];
+
+   versionLabel() { $this.datasetCode + '#' + $this.versionNumber->toString() } : String[1];
+   isRetracted() { !$this.retractedOn->isEmpty() } : Boolean[1];
+   // Integer / Integer widens to Float on its own, so this must be declared Float.
+   completenessRatio() { $this.rowCount / $this.expectedRowCount } : Float[1];
+}
+
+// FOR: one row of content inside one publication, and the reason it is there. This is what
+// makes a publication a diff rather than a dump: a consumer that has version N can apply
+// N+1's ADD / UPDATE / DELETE items without reloading the world.
+Class static_distribution::SdiPublicationItem
+{
+   publicationId: String[1];
+   // The static-core (list, value) pair this item carries -- the composite key of
+   // StcCodeValue, restated here so the item can be read without resolving the join.
+   listCode: String[1];
+   valueCode: String[1];
+   // ADD, UPDATE, DELETE.
+   changeType: String[1];
+   // Per-item checksum, so a consumer can tell WHICH row it disagrees about rather than only
+   // that the publication as a whole does not match.
+   itemChecksum: String[1];
+
+   publication: static_distribution::SdiPublication[0..1];
+   // Across the boundary into static-core's `stc` schema, on the composite key.
+   codeValue: static_core::StcCodeValue[0..1];
+
+   isDeletion() { $this.changeType == 'DELETE' } : Boolean[1];
+}
+
+// FOR: the acknowledgement, which is the operational point of the whole project. One row per
+// (publication, consumer) is created WITH the publication, with a null timestamp; the
+// consumer fills it in. So "has not acknowledged" is a null test over rows that exist, not a
+// left-join against rows that do not, and the outstanding ones can be listed directly.
+Class static_distribution::SdiAcknowledgement
+{
+   publicationId: String[1];
+   consumerId: String[1];
+   // Null until the consumer acknowledges. This null IS the operational problem.
+   acknowledgedAt: DateTime[0..1];
+   // The checksum the consumer computed over what it actually received.
+   reportedChecksum: String[0..1];
+   // PENDING, ACCEPTED, REJECTED, MISMATCH.
+   ackStatus: String[1];
+   rejectionReason: String[0..1];
+
+   publication: static_distribution::SdiPublication[1];
+   consumer: static_distribution::SdiConsumer[0..1];
+
+   isOutstanding() { $this.acknowledgedAt->isEmpty() } : Boolean[1];
+   // An acknowledgement that echoes a different checksum is worse than no acknowledgement:
+   // both sides believe they are in sync and they are not.
+   checksumAgrees() { ($this.reportedChecksum->isEmpty()->not()) && ($this.reportedChecksum->toOne() == $this.publication.checksum) } : Boolean[1];
+}
+
+// FOR: one attempt to push one publication to one consumer. Attempts are kept per try, not
+// per outcome, because "delivered on the fourth retry" and "delivered first time" are the
+// same final state and very different operationally.
+Class static_distribution::SdiDeliveryAttempt
+{
+   attemptId: String[1];
+   publicationId: String[1];
+   consumerId: String[1];
+   channelCode: String[1];
+   attemptNumber: Integer[1];
+   startedAt: DateTime[1];
+   // Null while in flight.
+   completedAt: DateTime[0..1];
+   bytesSent: Integer[0..1];
+   // Null on success. TIMEOUT, AUTH, DISK, REFUSED.
+   failureCode: String[0..1];
+
+   publication: static_distribution::SdiPublication[0..1];
+   consumer: static_distribution::SdiConsumer[0..1];
+   channel: static_distribution::SdiChannel[0..1];
+
+   succeeded() { ($this.completedAt->isEmpty()->not()) && ($this.failureCode->isEmpty()) } : Boolean[1];
+   isRetry() { $this.attemptNumber > 1 } : Boolean[1];
+}
+
+// FOR: the withdrawal of a publication that should not have gone out. A retraction is its
+// own record rather than a flag on the publication, because it has an author, a reason and
+// usually a replacement version that consumers must pull instead.
+Class static_distribution::SdiRetraction
+{
+   retractionId: String[1];
+   publicationId: String[1];
+   raisedOn: StrictDate[1];
+   // BAD_SOURCE, EARLY_PUBLISH, PARTIAL_LOAD, ENTITLEMENT.
+   reasonCode: String[1];
+   reasonText: String[0..1];
+   raisedBy: String[1];
+   // The version that supersedes the retracted one, once there is one.
+   replacementPublicationId: String[0..1];
+
+   publication: static_distribution::SdiPublication[0..1];
+
+   hasReplacement() { !$this.replacementPublicationId->isEmpty() } : Boolean[1];
+}
+
+// FOR: what a consumer is permitted to receive, by domain, and whether it may pass it on.
+// Subscription is what a consumer WANTS; entitlement is what it may HAVE, and the two are
+// checked separately because a lapsed entitlement must stop a standing subscription.
+Class static_distribution::SdiEntitlement
+{
+   consumerId: String[1];
+   domainCode: String[1];
+   grantedOn: StrictDate[1];
+   // Null while the grant stands.
+   revokedOn: StrictDate[0..1];
+   // Whether the consumer may redistribute onward to its own downstreams.
+   mayRedistribute: Boolean[1];
+   restrictionNote: String[0..1];
+
+   consumer: static_distribution::SdiConsumer[0..1];
+   // Onto the `~distinct` domain set: the domains that exist are the distinct domain codes
+   // across static-core's list headers, not a table of ours.
+   domain: static_distribution::SdiDistributedDomain[0..1];
+
+   isCurrent() { $this.revokedOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the universe of distributable subject areas. `~distinct`, with NO table: static-core
+// stamps DOMAIN_CODE on every one of its code-list headers, so the distinct values of that
+// column ARE the domains, and the set is complete by construction -- a domain cannot be
+// missing while any list in it is published. Entitlements are granted against this.
+Class static_distribution::SdiDistributedDomain
+{
+   domainCode: String[1];
+   // The owner code of a list in the domain. Denormalised on purpose: it is the desk a
+   // consumer chases when a domain stops arriving.
+   publishingOwnerCode: String[0..1];
+
+   label() { 'domain ' + $this.domainCode } : String[1];
+}
+
+// FOR: the universe of upstream fields that source precedence governs. `~distinct`, no table
+// of its own: reference-data's precedence table carries FIELD_NAME on every row, once per
+// (field, source), so the distinct field names are the fields under contention. This is the
+// other half of the dedup -- the same construct over the other dependency's schema.
+Class static_distribution::SdiUpstreamField
+{
+   fieldName: String[1];
+   // Whether a lower-ranked source may fill this field when the winner has no value.
+   fallbackAllowed: Boolean[0..1];
+
+   label() { 'field ' + $this.fieldName } : String[1];
+}

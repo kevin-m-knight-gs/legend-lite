@@ -1,0 +1,29 @@
+// REJECTS: Unsupported Milestoning type 'temporal'
+//
+// The milestoning entry rule is deliberately shapeless: `milestoningType PAREN_OPEN
+// milestoningSpecification PAREN_CLOSE`, where the type is any identifier and the body is
+// `(relationalIdentifier | COMMA | BOOLEAN | DATE | EQUAL)*` -- a token soup that matches
+// nearly anything balanced. `business` and `processing` are not in the grammar at all.
+//
+// They are supplied by registered extensions, and the source text is RE-PARSED by whichever
+// one claims the type name. So the whole of milestoning is invisible to the .g4: a rewrite
+// that implements the rule as written accepts `temporal(...)`, `foo(BAR = BAZ)` and the
+// snapshot/range mixture pinned in exclusive-snapshot-and-range.pure.
+//
+// Pinning the message matters more here than anywhere else in this corpus. This is exactly
+// the shape of the packaging gap described in the README -- a missing extension makes every
+// milestoning type report "Unsupported Milestoning type", so a fixture asserting only "was
+// rejected" would keep passing while `business` quietly stopped working.
+###Relational
+Database fixture::neg::UnknownMilestoningType
+(
+   Table T
+   (
+      milestoning
+      (
+         temporal(SOME_DATE = SNAP)
+      )
+      ID VARCHAR(32) PRIMARY KEY,
+      SNAP DATE
+   )
+)

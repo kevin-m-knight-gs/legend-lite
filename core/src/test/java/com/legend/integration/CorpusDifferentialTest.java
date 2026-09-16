@@ -43,13 +43,8 @@ class CorpusDifferentialTest {
         Assumptions.assumeTrue(Files.isDirectory(DIFF.resolve("expected")),
                 "run scripts/corpus/differential.py first");
 
-        StringBuilder sb = new StringBuilder();
-        try (var s = Files.list(Path.of("src/test/resources/stress"))) {
-            for (Path p : s.sorted().toList()) {
-                sb.append(Files.readString(p)).append("\n");
-            }
-        }
-        String model = sb.toString();
+        String model = StressCorpus.model();
+        StressCorpus.reportExclusions();
         var ctx = com.legend.Compiler.compileModel(model);
         var dialect = new com.legend.sql.dialect.DuckDb();
 
@@ -79,8 +74,10 @@ class CorpusDifferentialTest {
                 if (!Files.exists(exp)) continue;
 
                 var vs = com.legend.compiler.NameResolver.resolveQuery(svc.functionBody());
+                // The service's own runtime, not a fixed one — see StressDomainTest.
+                String rt = svc.runtimeRef() != null ? svc.runtimeRef() : "stress::RT";
                 String sql = dialect.render(
-                        com.legend.Compiler.lowerResolved(vs, ctx, "stress::RT", false));
+                        com.legend.Compiler.lowerResolved(vs, ctx, rt, false));
 
                 List<String> want = Files.readAllLines(exp);
                 String[] header = want.get(0).split("\\|");

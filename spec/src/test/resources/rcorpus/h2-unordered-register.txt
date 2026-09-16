@@ -1078,6 +1078,7 @@ unordered-chain meta::relational::tests::query::function::mod::testFilterUsingMo
 unordered-chain meta::relational::tests::query::function::pow::testFilterUsingPowFunction
 unordered-chain meta::relational::tests::query::function::rem::testFilterUsingRemFunction
 unordered-chain meta::relational::tests::query::function::round::testFilterUsingRoundFunction
+unordered-chain meta::relational::tests::query::function::round::testFilterUsingRoundFunctionWithScale
 unordered-chain meta::relational::tests::query::function::sign::testFilterUsingSignFunction
 unordered-chain meta::relational::tests::query::function::sin::testFilterUsingsinFunction
 unordered-chain meta::relational::tests::query::function::sqrt::testFilterUsingSqrtFunction

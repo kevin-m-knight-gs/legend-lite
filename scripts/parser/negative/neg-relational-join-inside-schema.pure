@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token 'Join'. Valid alternatives: ['Table', 'View', 'TabularFunction', ')']
+//
+// A Schema may contain only Table, View and TabularFunction. Join, Filter and
+// MultiGrainFilter are Database-level only -- they can reference schema-qualified columns
+// (`s.T.ID`) but they may not be nested inside the Schema that owns those columns.
+//
+// The pull towards permissiveness here is strong: a Join written next to the tables it
+// joins reads better than one hoisted to the top, and a parser that reuses one
+// "database-element" routine for both bodies allows it. Doing so would accept a Database
+// whose joins legend-engine cannot even parse.
+###Relational
+Database fixture::neg::JoinInSchema
+(
+   Schema s
+   (
+      Join TU(s.T.OTHER_ID = s.U.ID)
+      Table T (ID VARCHAR(32) PRIMARY KEY, OTHER_ID VARCHAR(32))
+   )
+)

@@ -1,0 +1,30 @@
+// REJECTS: style should not be provided with non-list service parameter
+//
+// `style = simple` on a `String` parameter. The grammar attaches serviceParameterStyle to
+// EVERY parameter regardless of its type -- `serviceParameter : identifier COLON typeReference
+// PAREN_OPEN serviceParameterInfo PAREN_CLOSE` with style and explode among the info fields --
+// and the restriction to LIST-typed parameters lives only in ServiceStoreParseTreeWalker:294
+// (and :300 for `explode`).
+//
+// The type is written `[Integer]` for a list and `String` for a scalar, so the constraint
+// couples an optional modifier to the bracket form of a type reference two rules away. That
+// is exactly why ../fixtures/t2-servicestore.pure puts `style`/`explode` on its
+// `[Integer]` parameter and not on the `String` one -- the placement is forced, not stylistic.
+//
+// `enum` and `allowReserved` sit in the same info block and are NOT restricted this way, so a
+// rewrite cannot simply move the whole block behind a list check either.
+###ServiceStore
+ServiceStore fixture::neg::StyleOnScalar
+(
+  Service GetEmployee
+  (
+    path: '/employees';
+    method: GET;
+    parameters:
+    (
+      region: String ( location = query, style = simple )
+    );
+    response: fixture::neg::Employee <- fixture::neg::Binding;
+    security: [];
+  )
+)

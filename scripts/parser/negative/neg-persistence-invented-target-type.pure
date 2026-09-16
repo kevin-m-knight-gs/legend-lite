@@ -1,0 +1,38 @@
+// REJECTS: Unsupported persistence target type 'Snowflake'
+//
+// The second island on a Persistence element: the right-hand side of `serviceOutput ->
+// target`. `targetSpecification: targetType (targetValue)?` with `targetType: identifier`,
+// so any name followed by any `#{ ... }#` body parses; the name selects a registered
+// PersistenceTarget processor, and `Relational` is the only one shipped.
+//
+// Note what this means for the island BODY: the text between `#{` and `}#` is never lexed
+// unless a processor claims the type. The body below is deliberately nonsense, and the error
+// is still about the TYPE -- which is how you tell a missing grammar extension on the
+// classpath (README: "Unsupported Data Source Specification type") apart from a genuine
+// grammar limit.
+###Persistence
+Persistence test::persistence::neg::InventedTarget
+{
+  doc: 'a persistence target type nobody registered';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Snowflake
+    #{
+      not: even; close: to; a: grammar;
+    }#
+  ];
+}

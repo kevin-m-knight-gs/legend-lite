@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token '{'. Valid alternatives: ['=', ';']
+//
+// Tagged values and stereotypes are a PREFIX on a property: `{profile.tag = 'v'} code:
+// String[1];`. This puts the tagged value where a trailing annotation would naturally go,
+// after the type and multiplicity.
+//
+// The alternatives are the tell: having read `String[1]` the parser will accept '=' (a
+// default value) or ';'. So the position is not merely unconventional, it collides with a
+// real construct -- which means a rewrite that also accepts a trailing annotation block
+// has quietly created an ambiguity it will have to resolve by guessing.
+###Pure
+Class fixture::neg::TagAfterMultiplicity
+{
+   code: String[1] {meta::pure::profiles::doc.doc = 'trailing tagged value'};
+}

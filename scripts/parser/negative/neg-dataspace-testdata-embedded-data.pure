@@ -1,0 +1,30 @@
+// REJECTS: Test data within a DataSpace must be created as a DataElementReference type, not an EmbeddedData type.
+//
+// `testData:` given an inline `ExternalFormat #{...}#` instead of `Reference #{...}#`. The
+// grammar rule is `DATA_SPACE_TEST_DATA COLON embeddedData SEMI_COLON`, i.e. it accepts the
+// FULL embedded-data island -- every kind any extension registers. The narrowing to exactly
+// one kind happens in DataSpaceParseTreeWalker:235, after the island has already parsed.
+//
+// So a rewrite that wires `embeddedData` here, which is what the .g4 literally says, gets a
+// parser that accepts ExternalFormat, Relational, ServiceStore and the rest. The island in
+// this fixture is well-formed and parses fine on its own (it is the same shape used in
+// ../fixtures/t2-hostedservice.pure); the rejection is entirely the walker's type check.
+###DataSpace
+DataSpace fixture::neg::InlineTestData
+{
+  executionContexts:
+  [
+    {
+      name: 'Context 1';
+      mapping: fixture::neg::Mapping;
+      defaultRuntime: fixture::neg::Runtime;
+      testData:
+        ExternalFormat
+        #{
+          contentType: 'application/json';
+          data: '[]';
+        }#;
+    }
+  ];
+  defaultExecutionContext: 'Context 1';
+}

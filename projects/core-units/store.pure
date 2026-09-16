@@ -1,0 +1,64 @@
+###Relational
+
+// Every table here sits inside the `uom` SCHEMA rather than in the default one, because
+// units are reference data owned by one team and read by everything, and because a
+// schema-qualified table has to be referenced as `[db]uom.TABLE.COL` everywhere downstream
+// -- in this project's mapping and in any project that includes this store.
+//
+// The datatypes are deliberately varied: CHAR(n) for the fixed-width codes, SMALLINT for
+// the decimal counts, NUMERIC(20,8) for the factors that must not lose a digit, alongside
+// the usual VARCHAR, INTEGER, DATE, DOUBLE and BIT. REAL is avoided on purpose: it cannot
+// be read back at execution.
+Database core_units::Store
+(
+   Schema uom
+   (
+      Table CU_QUANTITY_KIND
+      (
+         KIND_CODE CHAR(4) PRIMARY KEY,
+         KIND_NAME VARCHAR(40),
+         BASE_UNIT_CODE CHAR(6),
+         IS_RATIO_SCALE BIT
+      )
+
+      Table CU_UNIT
+      (
+         UNIT_CODE CHAR(6) PRIMARY KEY,
+         UNIT_NAME VARCHAR(40),
+         SYMBOL VARCHAR(8),
+         KIND_CODE CHAR(4),
+         DECIMALS SMALLINT,
+         FACTOR_TO_BASE NUMERIC(20,8),
+         IS_SI_UNIT BIT
+      )
+
+      // Composite key on the ORDERED pair: a conversion and its inverse are two rows.
+      Table CU_CONVERSION
+      (
+         FROM_UNIT CHAR(6) PRIMARY KEY,
+         TO_UNIT CHAR(6) PRIMARY KEY,
+         FACTOR NUMERIC(20,8),
+         OFFSET_VALUE NUMERIC(20,8),
+         SOURCE_NAME VARCHAR(40),
+         REVISION SMALLINT,
+         EFFECTIVE_FROM DATE,
+         TOLERANCE_PCT DOUBLE
+      )
+
+      Table CU_UNIT_PRECISION
+      (
+         UNIT_CODE CHAR(6) PRIMARY KEY,
+         CONTEXT_CODE CHAR(8) PRIMARY KEY,
+         DECIMALS SMALLINT,
+         MIN_INCREMENT NUMERIC(20,8),
+         ROUNDING_MODE VARCHAR(12),
+         LOT_SIZE INTEGER
+      )
+   )
+
+   // Joins live at the Database level and name their tables schema-qualified.
+   Join Cu_UnitKind(uom.CU_UNIT.KIND_CODE = uom.CU_QUANTITY_KIND.KIND_CODE)
+   Join Cu_ConversionFrom(uom.CU_CONVERSION.FROM_UNIT = uom.CU_UNIT.UNIT_CODE)
+   Join Cu_ConversionTo(uom.CU_CONVERSION.TO_UNIT = uom.CU_UNIT.UNIT_CODE)
+   Join Cu_PrecisionUnit(uom.CU_UNIT_PRECISION.UNIT_CODE = uom.CU_UNIT.UNIT_CODE)
+)

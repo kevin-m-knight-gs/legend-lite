@@ -1,0 +1,20 @@
+// COVERS OracleLexerGrammar: Oracle, host, port, serviceName
+//
+// Every token OracleLexerGrammar.g4 declares -- it is a four-token grammar. Syntax from
+// legend-engine's TestOracleConnectionGrammarRoundtrip.testOracleDatabaseConnection.
+//
+// Oracle is addressed by `serviceName` rather than by a database `name`; there is no NAME
+// token in this grammar at all, so a Static-style `name:` would be rejected here.
+###Connection
+RelationalDatabaseConnection fixture::t2::OracleFull
+{
+  store: fixture::t2::Db;
+  type: Oracle;
+  specification: Oracle
+  {
+    host: 'host';
+    port: 1234;
+    serviceName: 'name';
+  };
+  auth: Test;
+}

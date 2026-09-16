@@ -1,0 +1,291 @@
+###Relational
+
+// The fee-billing store. It INCLUDES both upstream stores, which is what lets a join declared
+// here name FEE_SCHEDULE, FEE_PRODUCT, FEE_TIER, CLI_CLIENT and CLI_MANDATE directly.
+//
+// TRANSITIVE INCLUDES, which is the trap here. `fee_core::Store` already includes
+// `core_tenor::Store`, and `client_core::Store` already includes `core_party::Store` and
+// `core_geo::Store`. So CTN_BUCKET, CP_LEGAL_ENTITY and CG_COUNTRY are all nameable below
+// without being included again -- and including any of them a second time is what would
+// break. The two includes here are disjoint at every level, so nothing arrives twice.
+//
+// The two constructs this project exists for:
+//   RANGE JOIN   Bil_LineRateBand -- a line carries tenor days and no band id
+//   AGGREGATION  the three Views at the bottom, whose ~groupBy is their primary key
+Database fee_billing::Store
+(
+   include fee_core::Store
+   include client_core::Store
+
+   Table BIL_PERIOD
+   (
+      PERIOD_CODE VARCHAR(20) PRIMARY KEY,
+      PERIOD_TYPE VARCHAR(16),
+      START_DATE DATE,
+      END_DATE DATE,
+      ACCRUAL_BASIS VARCHAR(16),
+      CLOSED_ON DATE
+   )
+
+   Table BIL_RUN
+   (
+      RUN_ID VARCHAR(32) PRIMARY KEY,
+      PERIOD_CODE VARCHAR(20),
+      RUN_TYPE VARCHAR(16),
+      RUN_STATUS VARCHAR(20),
+      STARTED_ON TIMESTAMP,
+      COMPLETED_ON TIMESTAMP,
+      INVOICE_COUNT INTEGER,
+      TRIGGERED_BY VARCHAR(60)
+   )
+
+   // MINIMUM_FEE and MAXIMUM_FEE are PER INVOICE. There is deliberately no per-line floor
+   // column anywhere in this database.
+   Table BIL_AGREEMENT
+   (
+      AGREEMENT_ID VARCHAR(32) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      MANDATE_ID VARCHAR(32),
+      TIER_CODE VARCHAR(16),
+      BILLING_CCY CHAR(3),
+      MINIMUM_FEE DOUBLE,
+      MAXIMUM_FEE DOUBLE,
+      ROUNDING_MODE VARCHAR(16),
+      PAYMENT_TERMS_DAYS INTEGER,
+      EFFECTIVE_FROM DATE,
+      EFFECTIVE_TO DATE
+   )
+
+   Table BIL_FEE_TYPE
+   (
+      FEE_TYPE_CODE VARCHAR(24) PRIMARY KEY,
+      NAME VARCHAR(64),
+      CATEGORY VARCHAR(24),
+      IS_RECURRING BIT,
+      GL_ACCOUNT VARCHAR(24),
+      DISPLAY_ORDER INTEGER
+   )
+
+   // The band table. MIN_DAYS/MAX_DAYS are the far side of the range join and are the only
+   // reason this table exists: fee-core prices a single DAYS_TO_MATURITY, and a biller has
+   // to price every tenor in between. PRODUCT_CODE + TIER_CODE + EFFECTIVE_DATE reach the
+   // fee-core schedule the band was cut from -- all three, because that key is composite.
+   Table BIL_RATE_BAND
+   (
+      BAND_ID VARCHAR(32) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(20),
+      TIER_CODE VARCHAR(16),
+      EFFECTIVE_DATE DATE,
+      MIN_DAYS INTEGER,
+      MAX_DAYS INTEGER,
+      RATE_BASIS_POINTS DOUBLE,
+      FLAT_FEE DOUBLE,
+      FEE_CCY CHAR(3)
+   )
+
+   // MINIMUM_TOP_UP and CAP_REDUCTION are the two per-invoice corrections. They are stored
+   // here and not derived on a line because they are not divisible by line: the floor is
+   // compared once, against the whole invoice.
+   Table BIL_INVOICE
+   (
+      INVOICE_ID VARCHAR(32) PRIMARY KEY,
+      INVOICE_NUMBER VARCHAR(32),
+      RUN_ID VARCHAR(32),
+      CLIENT_ID VARCHAR(32),
+      AGREEMENT_ID VARCHAR(32),
+      PERIOD_CODE VARCHAR(20),
+      ISSUE_DATE DATE,
+      DUE_DATE DATE,
+      INVOICE_CCY CHAR(3),
+      INVOICE_STATUS VARCHAR(20),
+      MINIMUM_TOP_UP DOUBLE,
+      CAP_REDUCTION DOUBLE,
+      TAX_AMOUNT DOUBLE,
+      TOTAL_DUE DOUBLE,
+      PAID_ON DATE
+   )
+
+   // TENOR_DAYS and no band id: which band priced the line is resolved by range.
+   Table BIL_INVOICE_LINE
+   (
+      LINE_ID VARCHAR(32) PRIMARY KEY,
+      INVOICE_ID VARCHAR(32),
+      LINE_SEQ INTEGER,
+      FEE_TYPE_CODE VARCHAR(24),
+      PRODUCT_CODE VARCHAR(20),
+      TIER_CODE VARCHAR(16),
+      DESCRIPTION VARCHAR(200),
+      BILLABLE_AMOUNT DOUBLE,
+      TENOR_DAYS INTEGER,
+      APPLIED_RATE_BPS DOUBLE,
+      GROSS_AMOUNT DOUBLE,
+      DISCOUNT_AMOUNT DOUBLE,
+      NET_AMOUNT DOUBLE,
+      ITEM_COUNT INTEGER,
+      IS_ESTIMATED BIT
+   )
+
+   Table BIL_CREDIT
+   (
+      CREDIT_ID VARCHAR(32) PRIMARY KEY,
+      INVOICE_ID VARCHAR(32),
+      REASON_CODE VARCHAR(24),
+      AMOUNT DOUBLE,
+      CREDIT_CCY CHAR(3),
+      ISSUED_ON DATE,
+      APPLIED_ON DATE,
+      APPROVED_BY VARCHAR(60),
+      SOURCE_INVOICE_ID VARCHAR(32)
+   )
+
+   Table BIL_ADJUSTMENT
+   (
+      ADJUSTMENT_ID VARCHAR(32) PRIMARY KEY,
+      INVOICE_ID VARCHAR(32),
+      LINE_ID VARCHAR(32),
+      ADJUSTMENT_TYPE VARCHAR(24),
+      AMOUNT DOUBLE,
+      REASON VARCHAR(200),
+      RAISED_BY VARCHAR(60),
+      APPROVED_BY VARCHAR(60),
+      RAISED_ON DATE,
+      POSTED_ON DATE
+   )
+
+   Table BIL_DISPUTE
+   (
+      DISPUTE_ID VARCHAR(32) PRIMARY KEY,
+      INVOICE_ID VARCHAR(32),
+      LINE_ID VARCHAR(32),
+      RAISED_ON DATE,
+      RAISED_BY VARCHAR(60),
+      DISPUTED_AMOUNT DOUBLE,
+      DISPUTE_STATUS VARCHAR(20),
+      RESOLUTION_CODE VARCHAR(24),
+      RESOLVED_ON DATE,
+      CREDIT_ID VARCHAR(32)
+   )
+
+   // ------------------------------------------------------------------- the AGGREGATION
+   //
+   // Not database views: no DDL is created and nothing seeds them. The engine folds the
+   // GROUP BY into the SQL it generates. Each view's ~groupBy IS its primary key, which is
+   // both what makes it joinable and what it MEANS -- one row of BIL_INVOICE_TOTAL is an
+   // invoice, not a line.
+
+   View BIL_INVOICE_TOTAL
+   (
+      ~groupBy
+      (
+         BIL_INVOICE_LINE.INVOICE_ID
+      )
+      INVOICE_ID: BIL_INVOICE_LINE.INVOICE_ID PRIMARY KEY,
+      LINE_COUNT: count(BIL_INVOICE_LINE.LINE_ID),
+      TOTAL_BILLABLE: sum(BIL_INVOICE_LINE.BILLABLE_AMOUNT),
+      TOTAL_GROSS: sum(BIL_INVOICE_LINE.GROSS_AMOUNT),
+      TOTAL_DISCOUNT: sum(BIL_INVOICE_LINE.DISCOUNT_AMOUNT),
+      TOTAL_NET: sum(BIL_INVOICE_LINE.NET_AMOUNT),
+      LARGEST_LINE_NET: max(BIL_INVOICE_LINE.NET_AMOUNT)
+   )
+
+   View BIL_RUN_TOTAL
+   (
+      ~groupBy
+      (
+         BIL_INVOICE.RUN_ID
+      )
+      RUN_ID: BIL_INVOICE.RUN_ID PRIMARY KEY,
+      INVOICE_COUNT: count(BIL_INVOICE.INVOICE_ID),
+      TOTAL_TAX: sum(BIL_INVOICE.TAX_AMOUNT),
+      TOTAL_DUE: sum(BIL_INVOICE.TOTAL_DUE),
+      TOTAL_MINIMUM_TOP_UP: sum(BIL_INVOICE.MINIMUM_TOP_UP),
+      TOTAL_CAP_REDUCTION: sum(BIL_INVOICE.CAP_REDUCTION)
+   )
+
+   // Two group columns, so the grain is the PAIR.
+   View BIL_FEE_TYPE_TOTAL
+   (
+      ~groupBy
+      (
+         BIL_INVOICE_LINE.INVOICE_ID,
+         BIL_INVOICE_LINE.FEE_TYPE_CODE
+      )
+      INVOICE_ID: BIL_INVOICE_LINE.INVOICE_ID PRIMARY KEY,
+      FEE_TYPE_CODE: BIL_INVOICE_LINE.FEE_TYPE_CODE PRIMARY KEY,
+      LINE_COUNT: count(BIL_INVOICE_LINE.LINE_ID),
+      TOTAL_GROSS: sum(BIL_INVOICE_LINE.GROSS_AMOUNT),
+      TOTAL_NET: sum(BIL_INVOICE_LINE.NET_AMOUNT)
+   )
+
+   // --------------------------------------------------------------------- the RANGE JOIN
+   //
+   // A line carries TENOR_DAYS and no band id, so the band is found by where the tenor
+   // falls. Half-open [MIN_DAYS, MAX_DAYS) so a line exactly on a boundary matches one band
+   // and not two. The product and tier equalities are there because the ladder is priced per
+   // product and per tier -- the range alone would match every product's ladder at once.
+   // One line, because a wrapped join condition is not read by the corpus reader.
+   Join Bil_LineRateBand(BIL_INVOICE_LINE.PRODUCT_CODE = BIL_RATE_BAND.PRODUCT_CODE and BIL_INVOICE_LINE.TIER_CODE = BIL_RATE_BAND.TIER_CODE and BIL_INVOICE_LINE.TENOR_DAYS >= BIL_RATE_BAND.MIN_DAYS and BIL_INVOICE_LINE.TENOR_DAYS < BIL_RATE_BAND.MAX_DAYS)
+
+   // ------------------------------------------------------------------- ordinary key joins
+
+   Join Bil_RunPeriod(BIL_RUN.PERIOD_CODE = BIL_PERIOD.PERIOD_CODE)
+
+   Join Bil_InvoiceRun(BIL_INVOICE.RUN_ID = BIL_RUN.RUN_ID)
+
+   Join Bil_InvoiceAgreement(BIL_INVOICE.AGREEMENT_ID = BIL_AGREEMENT.AGREEMENT_ID)
+
+   Join Bil_InvoiceLines(BIL_INVOICE_LINE.INVOICE_ID = BIL_INVOICE.INVOICE_ID)
+
+   Join Bil_LineFeeType(BIL_INVOICE_LINE.FEE_TYPE_CODE = BIL_FEE_TYPE.FEE_TYPE_CODE)
+
+   Join Bil_InvoiceCredits(BIL_CREDIT.INVOICE_ID = BIL_INVOICE.INVOICE_ID)
+
+   Join Bil_InvoiceAdjustments(BIL_ADJUSTMENT.INVOICE_ID = BIL_INVOICE.INVOICE_ID)
+
+   Join Bil_LineAdjustments(BIL_ADJUSTMENT.LINE_ID = BIL_INVOICE_LINE.LINE_ID)
+
+   Join Bil_InvoiceDisputes(BIL_DISPUTE.INVOICE_ID = BIL_INVOICE.INVOICE_ID)
+
+   Join Bil_LineDisputes(BIL_DISPUTE.LINE_ID = BIL_INVOICE_LINE.LINE_ID)
+
+   // --------------------------------------------------------------- into the aggregations
+
+   Join Bil_InvoiceTotal(BIL_INVOICE.INVOICE_ID = BIL_INVOICE_TOTAL.INVOICE_ID)
+
+   Join Bil_RunTotal(BIL_RUN.RUN_ID = BIL_RUN_TOTAL.RUN_ID)
+
+   Join Bil_InvoiceFeeTypeTotal(BIL_INVOICE.INVOICE_ID = BIL_FEE_TYPE_TOTAL.INVOICE_ID)
+
+   Join Bil_FeeTypeTotalFeeType(BIL_FEE_TYPE_TOTAL.FEE_TYPE_CODE = BIL_FEE_TYPE.FEE_TYPE_CODE)
+
+   // ------------------------------------------------------------------- across boundaries
+   //
+   // FEE_* is fee-core's, CLI_* is client-core's. Both are nameable only because of the two
+   // includes at the top; neither table is redeclared here.
+
+   // THREE columns, because fee-core keys a schedule by (product, tier, effective date).
+   Join Bil_BandSchedule(BIL_RATE_BAND.PRODUCT_CODE = FEE_SCHEDULE.PRODUCT_CODE and BIL_RATE_BAND.TIER_CODE = FEE_SCHEDULE.TIER_CODE and BIL_RATE_BAND.EFFECTIVE_DATE = FEE_SCHEDULE.EFFECTIVE_DATE)
+
+   Join Bil_LineProduct(BIL_INVOICE_LINE.PRODUCT_CODE = FEE_PRODUCT.PRODUCT_CODE)
+
+   Join Bil_AgreementTier(BIL_AGREEMENT.TIER_CODE = FEE_TIER.TIER_CODE)
+
+   Join Bil_InvoiceClient(BIL_INVOICE.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+
+   Join Bil_AgreementClient(BIL_AGREEMENT.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+
+   Join Bil_AgreementMandate(BIL_AGREEMENT.MANDATE_ID = CLI_MANDATE.MANDATE_ID)
+
+   // ------------------------------------------------------------------------------ filters
+   //
+   // Declared and unapplied, for a downstream mapping to reference. All four are null tests:
+   // a Filter will not take a boolean literal.
+
+   Filter BilOpenPeriods(BIL_PERIOD.CLOSED_ON is null)
+
+   Filter BilUnpaidInvoices(BIL_INVOICE.PAID_ON is null)
+
+   Filter BilOpenDisputes(BIL_DISPUTE.RESOLVED_ON is null)
+
+   Filter BilUnappliedCredits(BIL_CREDIT.APPLIED_ON is null)
+)

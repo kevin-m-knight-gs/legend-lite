@@ -1,0 +1,28 @@
+// COVERS RedshiftLexerGrammar: Redshift, host, port, name, region, clusterID, endpointURL
+//
+// Every token RedshiftLexerGrammar.g4 declares. Syntax from legend-engine's
+// TestRedshiftConnectionGrammarRoundtrip.testRedShiftConnectionSpecification.
+//
+// redshiftDatasourceSpecification lists all six elements under a `( ... )*`, so they are
+// optional and order-free; one block reaches every token. `port` takes INTEGER, the other
+// five take STRING -- `endpointURL` is a plain quoted string, not a URL literal.
+###Connection
+RelationalDatabaseConnection fixture::t2::RedshiftFull
+{
+  store: fixture::t2::Db;
+  type: Redshift;
+  specification: Redshift
+  {
+    host: 'myDBHost';
+    port: 1234;
+    name: 'database1';
+    region: 'east';
+    clusterID: 'cluster';
+    endpointURL: 'http://www.example.com';
+  };
+  auth: UserNamePassword
+  {
+    userNameVaultReference: 'user';
+    passwordVaultReference: 'pwd';
+  };
+}

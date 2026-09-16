@@ -258,7 +258,6 @@ meta::relational::tests::groupBy::testGroupByAndFilterIsolatedJoinMerge
 meta::relational::tests::groupBy::testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter
 meta::relational::tests::groupBy::testGroupByPercentile
 meta::relational::tests::groupBy::testGroupByWithJoinDB2
-meta::relational::tests::groupBy::testGroupByWithWavgAggregation
 meta::relational::tests::groupBy::testMax
 meta::relational::tests::groupBy::testMin
 meta::relational::tests::groupBy::testSimple
@@ -394,7 +393,6 @@ meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTa
 meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForNumbers
 meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTableForStrings
 meta::relational::tests::query::function::distinct::testCollectionDistinctFunction
-meta::relational::tests::query::function::round::testFilterUsingRoundFunctionWithScale
 meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector
 meta::relational::tests::query::limit::testLimitWithVariables
 meta::relational::tests::query::paginate::testPaginated
@@ -432,8 +430,6 @@ meta::relational::tests::tds::groupBy::simpleGroupBySum
 meta::relational::tests::tds::groupBy::simpleGroupByTwo
 meta::relational::tests::tds::groupBy::simpleGroupConstantAggregates
 meta::relational::tests::tds::groupBy::simpleGroupCount
-meta::relational::tests::tds::groupBy::testGroupByWithMultipleWavgAggregation
-meta::relational::tests::tds::groupBy::testGroupByWithWavgAggregation
 meta::relational::tests::tds::groupBy::testTDSGroupByPercentile
 meta::relational::tests::tds::sort::testSortQuotes
 meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries

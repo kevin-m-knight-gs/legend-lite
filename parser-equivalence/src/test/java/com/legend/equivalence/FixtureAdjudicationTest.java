@@ -54,7 +54,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FixtureAdjudicationTest {
 
     /**
-     * Ratchets — DEBT CEILINGS measured at introduction (2026-08-08), not
+     * <b>2026-09-16 — the ledger was re-measured on REAL divergence, and the
+     * paragraphs below it are history.</b> Two things were wrong with the
+     * measurement: (1) text blocks were fed VERBATIM, with their Java source
+     * indentation, so every {@code ###} header sat 16 columns in — the
+     * reference parser recognizes a header only at column 0 and refused 270
+     * perfectly ordinary fixtures with a bare "Unexpected token"; (2) a row
+     * meant "the reference refuses a positive snippet" and never asked
+     * legend-lite, so fragments both parsers refuse counted too. Now the
+     * text block's RUNTIME value is parsed by BOTH sides and a row is a
+     * DISAGREEMENT: 749 fixtures, 722 agree, 23 leniencies in 6 kinds (the
+     * clean-sheet mapping language, two legend-pure forms the engine
+     * subsets away, the SQLite backend), 4 over-strict rows (two of them
+     * lite INTERNAL errors, a defect). {@code InMemory} and the other
+     * lite-only connection spellings are gone since 2026-08-10 and appear
+     * nowhere. Nothing on this ledger is hidden: every kind is named with
+     * the construct behind it.
+     *
+     * <p>Ratchets — DEBT CEILINGS measured at introduction (2026-08-08), not
      * targets. Lower them; do not raise them without naming the cluster.
      *
      * <p><b>What the 268 lenient rows actually are</b>, clustered by the
@@ -105,38 +122,47 @@ class FixtureAdjudicationTest {
      *  by NEW unreviewed kinds under the same count). A new kind fails;
      *  a vanished kind fails until its row is removed here. */
     private static final java.util.Set<String> LENIENCY_KINDS =
-            java.util.Set.of(   // measured 2026-08-16: 10 kinds (the old
-                                // ceiling of 21 was stale by ELEVEN)
+            java.util.Set.of(   // measured 2026-09-16 on REAL divergence
+                                // (both parsers asked, runtime text): 23
+                                // fixtures in 6 kinds — every one a construct
+                                // named below, none an artifact
+                    // the clean-sheet mapping language (18 fixtures): a
+                    // class-mapping body that is a function name, a Pure
+                    // body written as a query, a Relational body over a
+                    // #>{db.table}# reference, and the lambda-bodied
+                    // AssociationMapping — legend-lite's own spelling; the
+                    // engine has no such form (docs/CLEAN_SHEET_INVERSION.md)
                     "No parser for AssociationMapping",
+                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
+                            + " 'X', 'X', 'X', 'X', 'X', 'X', 'X'…",
+                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
+                            + " 'X']",
+                    // legend-pure forms the engine subsets away (3): a
+                    // function-typed property {T[1]->U[1]} and a
+                    // type-parameterized Class
                     "The type {T[N]->U[N]} is not supported yet",
                     "Type and/or multiplicity parameters are not authorized"
                             + " in Legend Engine",
-                    "Unexpected token",
-                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
-                            + " 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'tags…",
-                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
-                            + " 'X', 'X', 'X', 'X', 'X', 'X', 'X'…",
-                    // the same family, truncated one token earlier: a
-                    // one-character offending token ('+') shifts the
-                    // oracle's message cut into the tenth alternative
-                    // (2026-09-04)
-                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
-                            + " 'X', 'X', 'X', 'X', 'X', 'X', 'X', '…",
-                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
-                            + " 'X', 'X', 'X', 'X', 'X', 'X']",
-                    "Unexpected token 'X'. Valid alternatives: ['X', 'X',"
-                            + " 'X']",
-                    "Unexpected token 'X'. Valid alternatives: ['X']",
-                    "no viable alternative at input 'X'");
+                    // the SQLite backend (2): a declared lite extension,
+                    // spelled like the engine's DuckDB extension
+                    // (OWN_CORPUS_DECISIONS §9)
+                    "Unknown database type 'X'");
 
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */
     private static final java.util.Map<String, Integer> OVER_STRICT_PINS =
-            java.util.Map.of(   // measured 2026-08-16: 5 rows (the old
-                                // ceiling of 6 was stale by one)
-                    "ElementParserTest.java", 2,
-                    "ModelIndexerTest.java", 1,
-                    "PureModelContextTest.java", 2);
+            java.util.Map.of(   // measured 2026-09-16 on REAL divergence: 4
+                                // rows, all in ElementParserTest — two
+                                // assertThrows fixtures the engine PARSER
+                                // accepts and refuses a phase later
+                                // (AssociationMapping with a bare join;
+                                // ~filter on a Pure body), and two
+                                // one-/three-end Associations the engine
+                                // parser accepts where lite raises an
+                                // INTERNAL error (IllegalStateException),
+                                // not a parse error — printed above as
+                                // [lite-internal]; a real defect to fix
+                    "ElementParserTest.java", 4);
 
     /** A leniency KIND: the reference's message with literals stripped, so
      *  ten fixtures of one construct count once. */
@@ -193,6 +219,7 @@ class FixtureAdjudicationTest {
         PureGrammarParser reference = PureGrammarParser.newInstance();
         List<String> leniency = new ArrayList<>();
         List<String> overStrict = new ArrayList<>();
+        List<String> liteInternal = new ArrayList<>();
         java.util.Set<String> kinds = new java.util.TreeSet<>();
         int agree = 0;
         for (Fixture f : fixtures) {
@@ -205,11 +232,31 @@ class FixtureAdjudicationTest {
                 engineAccepts = false;
                 why = String.valueOf(e.getMessage());
             }
-            if (f.negative() && engineAccepts) {
-                overStrict.add(f.id() + " :: " + oneLine(f.source()));
-            } else if (!f.negative() && !engineAccepts) {
-                leniency.add(f.id() + " :: " + oneLine(why)
+            // BOTH verdicts, always (2026-09-16): a row is a divergence
+            // only when the two parsers DISAGREE on the very text the test
+            // runs. Before this, "leniency" meant "the reference refuses a
+            // positive snippet" — which also counted fragments both
+            // parsers refuse and never asked legend-lite at all.
+            boolean liteAccepts;
+            try {
+                com.legend.parser.ElementParser.parse(f.source(),
+                        com.legend.parser.Dialect.LEGEND_LITE);
+                liteAccepts = true;
+            } catch (com.legend.parser.ParseException e) {
+                liteAccepts = false;
+            } catch (RuntimeException e) {
+                // a refusal that is not a parse error: an internal failure
+                // on bad input — reported by name, counted as a refusal
+                liteAccepts = false;
+                liteInternal.add(f.id() + " :: " + e.getClass().getSimpleName() + ": "
+                        + oneLine(String.valueOf(e.getMessage())));
+            }
+            if (engineAccepts && !liteAccepts) {
+                overStrict.add(f.id() + (f.negative() ? " (assertThrows)" : "")
                         + " :: " + oneLine(f.source()));
+            } else if (!engineAccepts && liteAccepts) {
+                leniency.add(f.id() + (f.negative() ? " (assertThrows)" : "")
+                        + " :: " + oneLine(why) + " :: " + oneLine(f.source()));
                 kinds.add(kindOf(why));
             } else {
                 agree++;
@@ -245,6 +292,10 @@ class FixtureAdjudicationTest {
                 + " (assertThrows fixtures the reference ACCEPTS) ---");
         overStrict.forEach(s ->
                 System.out.println("[fixture-oracle][strict] " + s));
+        System.out.println("[fixture-oracle] --- LITE INTERNAL ERRORS (a"
+                + " refusal that is not a parse error) ---");
+        liteInternal.forEach(s ->
+                System.out.println("[fixture-oracle][lite-internal] " + s));
 
         // F3.7: exact named-set accounting, both directions
         org.junit.jupiter.api.Assertions.assertEquals(
@@ -330,7 +381,19 @@ class FixtureAdjudicationTest {
                 if (runStart < 0) {
                     runStart = i;
                 }
-                cur.append(src, i + 3, end);
+                // the text block's RUNTIME value, as Java hands it to the
+                // test: the opening line dropped, the incidental
+                // indentation stripped, escapes translated. The verbatim
+                // source kept 16 spaces before every `###` header, and the
+                // reference parser recognizes a header only at column 0 —
+                // 270 rows of "Unexpected token" were that, not leniency
+                // (2026-09-16).
+                String body = src.substring(i + 3, end);
+                int firstBreak = body.indexOf('\n');
+                if (firstBreak >= 0) {
+                    body = body.substring(firstBreak + 1);
+                }
+                cur.append(body.stripIndent().translateEscapes());
                 int afterBlock = end + 3;
                 int cont = skipJoin(src, afterBlock);
                 if (cont < 0 || !isLiteralStart(src, cont)) {

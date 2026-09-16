@@ -1,0 +1,26 @@
+// REJECTS: Request Body should not be specified for GET end point
+//
+// `requestBody:` on a GET service. The grammar lists requestBody and method as independent
+// optional fields of a Service in any order, and both are spelled correctly here; the
+// coupling is ServiceStoreParseTreeWalker:215, which reads the already-parsed method out of
+// the tree and refuses the body.
+//
+// Pinned because HTTP itself is ambiguous on this point -- a GET with a body is legal on the
+// wire and several clients emit one -- so a rewrite has a plausible reason to allow it and no
+// syntactic reason to forbid it. legend-engine forbids it at PARSE time, before any model
+// exists to validate.
+//
+// Note the sibling constraint runs the other way and is NOT tested here: `method: POST` with
+// a requestBody is fine, and that is the form in ../fixtures/t2-servicestore.pure.
+###ServiceStore
+ServiceStore fixture::neg::RequestBodyOnGet
+(
+  Service GetEmployee
+  (
+    path: '/employees';
+    requestBody: [fixture::neg::Employee <- fixture::neg::Binding];
+    method: GET;
+    response: fixture::neg::Employee <- fixture::neg::Binding;
+    security: [];
+  )
+)

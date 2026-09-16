@@ -1,0 +1,37 @@
+// F19 -- the ###Connection section accepts an element with NO closing brace.
+//
+// Run:
+//   java -cp <engine-runner>/target/classes:$(cat cp.txt) perf.ParseMain model.pure
+//
+// Observed: ok -- accepted.
+// Expected: a parse error naming the unbalanced brace.
+//
+// The RelationalDatabaseConnection below is never closed. The ###Pure section that follows
+// is still parsed correctly (the PMCD contains both `connection fx::C` and `class fx::A`),
+// so nothing is silently swallowed -- the parser simply does not require the brace.
+//
+// Section-specific. The same mutation is REJECTED in ###Pure, ###Relational, ###Service and
+// ###Diagram:
+//     ###Pure       Class fx::A { x: String[1];        -> Unexpected token
+//     ###Relational Database fx::D ( Table T (...)     -> Unexpected token
+//     ###Service    Service fx::S { pattern: '/x';     -> Unexpected token
+//     ###Diagram    Diagram fx::G { classView v {...}  -> Unexpected token
+// so this is not a general end-of-input leniency; it is the Connection grammar alone.
+//
+// Found by the mutation harness (scripts/parser/mutants.py), which drops the final
+// delimiter of every fixture: 16 of 51 fixtures tolerated it and ALL 16 were ###Connection.
+// A single hand-written negative would most likely have been written against ###Pure and
+// found nothing.
+###Connection
+RelationalDatabaseConnection fx::C
+{
+   store: fx::Db;
+   type: H2;
+   specification: LocalH2 { };
+   auth: DefaultH2;
+
+###Pure
+Class fx::A
+{
+   x: String[1];
+}

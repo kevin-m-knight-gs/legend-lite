@@ -1,0 +1,65 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+  firm: test::Firm[1];
+}
+
+Class test::Firm
+{
+  legalName: String[1];
+  employees: test::Person[*];
+}
+
+Association test::Firm_Person
+{
+  otherFirm: test::Firm[1];
+  otherEmployees: test::Person[*];
+}
+
+###Relational
+Database test::db
+(
+  Table PERSON_A
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    FIRM_ID INTEGER
+  )
+  Table FIRM_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGAL_NAME VARCHAR(200)
+  )
+
+  Join Firm_PersonA(FIRM_TBL.ID = PERSON_A.FIRM_ID)
+)
+
+###Mapping
+Mapping test::M
+(
+  *test::Person[person_a]: Relational
+  {
+    ~mainTable [test::db]PERSON_A
+    firstName: [test::db]PERSON_A.FIRSTNAME,
+    // one id in the brackets = TARGET set id of the property
+    firm[firm_root]: [test::db]@Firm_PersonA
+  }
+
+  *test::Firm[firm_root]: Relational
+  {
+    ~mainTable [test::db]FIRM_TBL
+    legalName: [test::db]FIRM_TBL.LEGAL_NAME,
+    employees[person_a]: [test::db]@Firm_PersonA
+  }
+
+  // In an AssociationMapping both ids are given: [sourceId, targetId]
+  test::Firm_Person: Relational
+  {
+    AssociationMapping
+    (
+      otherFirm[person_a, firm_root]: [test::db]@Firm_PersonA,
+      otherEmployees[firm_root, person_a]: [test::db]@Firm_PersonA
+    )
+  }
+)

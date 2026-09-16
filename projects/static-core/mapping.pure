@@ -1,0 +1,90 @@
+###Mapping
+
+// Includes core-units' mapping so that its `cuUnit` set exists here to be the TARGET of the
+// cross-project property mapping below. Every table reference is schema-qualified on both
+// sides: [static_core::Store]stc.TABLE.COLUMN for this project's own tables, and
+// [core_units::Store]uom.CU_UNIT.UNIT_CODE for the upstream ones.
+Mapping static_core::Mapping
+(
+   include core_units::Mapping
+
+   // The country enum comes from core-types, which exports no mapping, so the transformer
+   // is declared here against this project's own column.
+   core_types::CtCountry: EnumerationMapping StcCountryCode
+   {
+      US: ['US'],
+      GB: ['GB'],
+      DE: ['DE'],
+      FR: ['FR'],
+      CH: ['CH'],
+      SG: ['SG'],
+      HK: ['HK'],
+      JP: ['JP'],
+      AU: ['AU'],
+      CA: ['CA']
+   }
+
+   static_core::StcDataOwner[stcDataOwner]: Relational
+   {
+      ~primaryKey ( [static_core::Store]stc.STC_DATA_OWNER.OWNER_CODE )
+      ~mainTable [static_core::Store]stc.STC_DATA_OWNER
+      ownerCode: [static_core::Store]stc.STC_DATA_OWNER.OWNER_CODE,
+      ownerName: [static_core::Store]stc.STC_DATA_OWNER.OWNER_NAME,
+      contactEmail: [static_core::Store]stc.STC_DATA_OWNER.CONTACT_EMAIL,
+      jurisdiction: EnumerationMapping StcCountryCode: [static_core::Store]stc.STC_DATA_OWNER.JURISDICTION,
+      isPrimarySource: [static_core::Store]stc.STC_DATA_OWNER.IS_PRIMARY_SOURCE
+   }
+
+   static_core::StcCodeList[stcCodeList]: Relational
+   {
+      ~primaryKey ( [static_core::Store]stc.STC_CODE_LIST.LIST_CODE )
+      ~mainTable [static_core::Store]stc.STC_CODE_LIST
+      listCode: [static_core::Store]stc.STC_CODE_LIST.LIST_CODE,
+      listName: [static_core::Store]stc.STC_CODE_LIST.LIST_NAME,
+      domainCode: [static_core::Store]stc.STC_CODE_LIST.DOMAIN_CODE,
+      ownerCode: [static_core::Store]stc.STC_CODE_LIST.OWNER_CODE,
+      reviewDays: [static_core::Store]stc.STC_CODE_LIST.REVIEW_DAYS,
+      publishedFrom: [static_core::Store]stc.STC_CODE_LIST.PUBLISHED_FROM,
+      retiredOn: [static_core::Store]stc.STC_CODE_LIST.RETIRED_ON,
+      owner[stcDataOwner]: [static_core::Store]@Stc_ListOwner,
+      values[stcCodeValue]: [static_core::Store]@Stc_ValueList
+   }
+
+   // The composite key: the list and the value, because a value code is only unique inside
+   // the list that publishes it.
+   static_core::StcCodeValue[stcCodeValue]: Relational
+   {
+      ~primaryKey
+      (
+         [static_core::Store]stc.STC_CODE_VALUE.LIST_CODE,
+         [static_core::Store]stc.STC_CODE_VALUE.VALUE_CODE
+      )
+      ~mainTable [static_core::Store]stc.STC_CODE_VALUE
+      listCode: [static_core::Store]stc.STC_CODE_VALUE.LIST_CODE,
+      valueCode: [static_core::Store]stc.STC_CODE_VALUE.VALUE_CODE,
+      displayName: [static_core::Store]stc.STC_CODE_VALUE.DISPLAY_NAME,
+      description: [static_core::Store]stc.STC_CODE_VALUE.DESCRIPTION,
+      displayOrder: [static_core::Store]stc.STC_CODE_VALUE.DISPLAY_ORDER,
+      effectiveFrom: [static_core::Store]stc.STC_CODE_VALUE.EFFECTIVE_FROM,
+      effectiveThru: [static_core::Store]stc.STC_CODE_VALUE.EFFECTIVE_THRU,
+      list[stcCodeList]: [static_core::Store]@Stc_ValueList
+   }
+
+   static_core::StcStandardValue[stcStandardValue]: Relational
+   {
+      ~primaryKey ( [static_core::Store]stc.STC_STANDARD_VALUE.STANDARD_CODE )
+      ~mainTable [static_core::Store]stc.STC_STANDARD_VALUE
+      standardCode: [static_core::Store]stc.STC_STANDARD_VALUE.STANDARD_CODE,
+      standardName: [static_core::Store]stc.STC_STANDARD_VALUE.STANDARD_NAME,
+      magnitude: [static_core::Store]stc.STC_STANDARD_VALUE.MAGNITUDE,
+      unitCodeRef: [static_core::Store]stc.STC_STANDARD_VALUE.UNIT_CODE,
+      ownerCode: [static_core::Store]stc.STC_STANDARD_VALUE.OWNER_CODE,
+      effectiveFrom: [static_core::Store]stc.STC_STANDARD_VALUE.EFFECTIVE_FROM,
+      tolerancePct: [static_core::Store]stc.STC_STANDARD_VALUE.TOLERANCE_PCT,
+      // THE cross-project, cross-schema reference: the join lands on
+      // [core_units::Store]uom.CU_UNIT, and the target set id is core-units' explicit
+      // `cuUnit` -- the default id does not exist, because that project names its sets.
+      unit[cuUnit]: [static_core::Store]@Stc_StandardUnit,
+      owner[stcDataOwner]: [static_core::Store]@Stc_StandardOwner
+   }
+)

@@ -1,0 +1,95 @@
+Class demo::Firm
+{
+  legalName: String[1];
+}
+
+Class demo::Person
+{
+  name: String[1];
+  firm: demo::Firm[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  // P1 carries the inline cache; P2 carries only the FK.
+  Table PERSON (ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50), FIRM_FK VARCHAR(20), FIRM_NAME_INLINE VARCHAR(50))
+  Table FIRM   (ID VARCHAR(20) PRIMARY KEY, LEGAL_NAME VARCHAR(50))
+  Join Person_Firm(PERSON.FIRM_FK = FIRM.ID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Firm[firmRoot]: Relational {
+    ~primaryKey ([demo::DB] FIRM.ID)
+    ~mainTable [demo::DB] FIRM
+    legalName: [demo::DB] FIRM.LEGAL_NAME
+  }
+
+  demo::Person: Relational {
+    ~primaryKey ([demo::DB] PERSON.ID)
+    ~mainTable [demo::DB] PERSON
+    name: [demo::DB] PERSON.NAME,
+    firm
+    (
+      ~primaryKey ([demo::DB] PERSON.FIRM_NAME_INLINE)
+      legalName: [demo::DB] PERSON.FIRM_NAME_INLINE
+    ) Otherwise ([firmRoot]: [demo::DB] @Person_Firm)
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.PERSON:
+      'ID,NAME,FIRM_FK,FIRM_NAME_INLINE\n' +
+      'P1,Ada,F1,Cached Inc\n' +
+      'P2,Grace,F1,\n';
+    default.FIRM:
+      'ID,LEGAL_NAME\n' +
+      'F1,Real Firm Ltd\n';
+  }#
+}
+
+###Service
+Service demo::OtherwiseProbe
+{
+  pattern: '/otherwise';
+  documentation: 'P1 has the cache, P2 does not. Otherwise should resolve P2 via the join.';
+  execution: Single
+  {
+    query: |demo::Person.all()->project([x|$x.name, x|$x.firm.legalName], ['name', 'firm']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[{"name":"Ada","firm":"Cached Inc"},{"name":"Grace","firm":"Real Firm Ltd"}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

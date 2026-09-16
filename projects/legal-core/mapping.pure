@@ -1,0 +1,326 @@
+###Mapping
+// Every class to its table, every association to its join.
+//
+// `include core_party::Mapping` is what makes the two cross-boundary associations mappable:
+// the LegalEntity and Jurisdiction sets have to be in scope by their DECLARED ids --
+// `cpLegalEntity`, `cpJurisdiction` -- and those are explicit upstream, so the default ids
+// (`core_party_LegalEntity`) do not exist and cannot be named here.
+//
+// Each set id is spelled out and lgl-prefixed, because set ids are a GLOBAL namespace in
+// Legend: a collision fails the whole graph with a message that names the id and not the
+// project that declared it. Every AssociationMapping end below therefore carries its
+// [source, target] pair explicitly -- the bare form only resolves against default ids.
+//
+// ~primaryKey is stated on every set, including the single-column ones, so that the nine
+// composite keys read as a decision rather than as an omission.
+Mapping legal_core::Mapping
+(
+   include core_party::Mapping
+
+   legal_core::MasterAgreement[lglMasterAgreement]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_MASTER_AGREEMENT.AGREEMENT_ID )
+      ~mainTable [legal_core::Store]LGL_MASTER_AGREEMENT
+      agreementId: [legal_core::Store]LGL_MASTER_AGREEMENT.AGREEMENT_ID,
+      typeCode: [legal_core::Store]LGL_MASTER_AGREEMENT.TYPE_CODE,
+      lawCode: [legal_core::Store]LGL_MASTER_AGREEMENT.LAW_CODE,
+      agreementReference: [legal_core::Store]LGL_MASTER_AGREEMENT.AGREEMENT_REFERENCE,
+      executionDate: [legal_core::Store]LGL_MASTER_AGREEMENT.EXECUTION_DATE,
+      effectiveDate: [legal_core::Store]LGL_MASTER_AGREEMENT.EFFECTIVE_DATE,
+      terminationDate: [legal_core::Store]LGL_MASTER_AGREEMENT.TERMINATION_DATE,
+      terminationCurrency: [legal_core::Store]LGL_MASTER_AGREEMENT.TERMINATION_CURRENCY,
+      documentStatus: [legal_core::Store]LGL_MASTER_AGREEMENT.DOCUMENT_STATUS,
+      isMultibranch: [legal_core::Store]LGL_MASTER_AGREEMENT.IS_MULTIBRANCH,
+      isUmbrella: [legal_core::Store]LGL_MASTER_AGREEMENT.IS_UMBRELLA
+   }
+
+   legal_core::AgreementType[lglAgreementType]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_AGREEMENT_TYPE.TYPE_CODE )
+      ~mainTable [legal_core::Store]LGL_AGREEMENT_TYPE
+      typeCode: [legal_core::Store]LGL_AGREEMENT_TYPE.TYPE_CODE,
+      formName: [legal_core::Store]LGL_AGREEMENT_TYPE.FORM_NAME,
+      publisher: [legal_core::Store]LGL_AGREEMENT_TYPE.PUBLISHER,
+      publicationYear: [legal_core::Store]LGL_AGREEMENT_TYPE.PUBLICATION_YEAR,
+      productScope: [legal_core::Store]LGL_AGREEMENT_TYPE.PRODUCT_SCOPE,
+      isMasterForm: [legal_core::Store]LGL_AGREEMENT_TYPE.IS_MASTER_FORM,
+      hasSingleAgreementClause: [legal_core::Store]LGL_AGREEMENT_TYPE.HAS_SINGLE_AGREEMENT_CLAUSE
+   }
+
+   legal_core::GoverningLaw[lglGoverningLaw]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_GOVERNING_LAW.LAW_CODE )
+      ~mainTable [legal_core::Store]LGL_GOVERNING_LAW
+      lawCode: [legal_core::Store]LGL_GOVERNING_LAW.LAW_CODE,
+      lawName: [legal_core::Store]LGL_GOVERNING_LAW.LAW_NAME,
+      forumClause: [legal_core::Store]LGL_GOVERNING_LAW.FORUM_CLAUSE,
+      isCommonLaw: [legal_core::Store]LGL_GOVERNING_LAW.IS_COMMON_LAW,
+      recognisesCloseOutNetting: [legal_core::Store]LGL_GOVERNING_LAW.RECOGNISES_CLOSE_OUT_NETTING
+   }
+
+   // Composite: an agreement and the capacity the entity signs in.
+   legal_core::AgreementParty[lglAgreementParty]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_AGREEMENT_PARTY.AGREEMENT_ID, [legal_core::Store]LGL_AGREEMENT_PARTY.PARTY_ROLE )
+      ~mainTable [legal_core::Store]LGL_AGREEMENT_PARTY
+      agreementId: [legal_core::Store]LGL_AGREEMENT_PARTY.AGREEMENT_ID,
+      partyRole: [legal_core::Store]LGL_AGREEMENT_PARTY.PARTY_ROLE,
+      entityId: [legal_core::Store]LGL_AGREEMENT_PARTY.ENTITY_ID,
+      bookingBranch: [legal_core::Store]LGL_AGREEMENT_PARTY.BOOKING_BRANCH,
+      isCalculationAgent: [legal_core::Store]LGL_AGREEMENT_PARTY.IS_CALCULATION_AGENT,
+      signedOn: [legal_core::Store]LGL_AGREEMENT_PARTY.SIGNED_ON,
+      signatoryName: [legal_core::Store]LGL_AGREEMENT_PARTY.SIGNATORY_NAME,
+      noticeAddressRef: [legal_core::Store]LGL_AGREEMENT_PARTY.NOTICE_ADDRESS_REF
+   }
+
+   legal_core::CreditSupportAnnex[lglCreditSupportAnnex]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.AGREEMENT_ID, [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.ANNEX_CODE )
+      ~mainTable [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX
+      agreementId: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.AGREEMENT_ID,
+      annexCode: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.ANNEX_CODE,
+      annexForm: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.ANNEX_FORM,
+      marginType: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.MARGIN_TYPE,
+      isTitleTransfer: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.IS_TITLE_TRANSFER,
+      baseCurrency: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.BASE_CURRENCY,
+      threshold: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.THRESHOLD,
+      minimumTransferAmount: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.MINIMUM_TRANSFER_AMOUNT,
+      roundingAmount: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.ROUNDING_AMOUNT,
+      independentAmount: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.INDEPENDENT_AMOUNT,
+      valuationAgent: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.VALUATION_AGENT,
+      notificationTime: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.NOTIFICATION_TIME,
+      isRegulatoryMargin: [legal_core::Store]LGL_CREDIT_SUPPORT_ANNEX.IS_REGULATORY_MARGIN
+   }
+
+   // Three key columns. The annex half is what stops a VM eligibility row answering an IM
+   // question.
+   legal_core::EligibleCollateral[lglEligibleCollateral]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.AGREEMENT_ID, [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.ANNEX_CODE, [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.ASSET_CODE )
+      ~mainTable [legal_core::Store]LGL_ELIGIBLE_COLLATERAL
+      agreementId: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.AGREEMENT_ID,
+      annexCode: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.ANNEX_CODE,
+      assetCode: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.ASSET_CODE,
+      assetDescription: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.ASSET_DESCRIPTION,
+      valuationPercentage: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.VALUATION_PERCENTAGE,
+      collateralCurrency: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.COLLATERAL_CURRENCY,
+      isCashEquivalent: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.IS_CASH_EQUIVALENT,
+      minimumRating: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.MINIMUM_RATING,
+      maximumResidualMaturityYears: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.MAXIMUM_RESIDUAL_MATURITY_YEARS,
+      concentrationLimit: [legal_core::Store]LGL_ELIGIBLE_COLLATERAL.CONCENTRATION_LIMIT
+   }
+
+   // Three key columns, and the reason netting capital relief is a lookup: jurisdiction,
+   // master form, counterparty type.
+   legal_core::NettingOpinion[lglNettingOpinion]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_NETTING_OPINION.JURISDICTION_CODE, [legal_core::Store]LGL_NETTING_OPINION.TYPE_CODE, [legal_core::Store]LGL_NETTING_OPINION.COUNTERPARTY_TYPE )
+      ~mainTable [legal_core::Store]LGL_NETTING_OPINION
+      jurisdictionCode: [legal_core::Store]LGL_NETTING_OPINION.JURISDICTION_CODE,
+      typeCode: [legal_core::Store]LGL_NETTING_OPINION.TYPE_CODE,
+      counterpartyType: [legal_core::Store]LGL_NETTING_OPINION.COUNTERPARTY_TYPE,
+      opinionProvider: [legal_core::Store]LGL_NETTING_OPINION.OPINION_PROVIDER,
+      opinionDate: [legal_core::Store]LGL_NETTING_OPINION.OPINION_DATE,
+      isCleanOpinion: [legal_core::Store]LGL_NETTING_OPINION.IS_CLEAN_OPINION,
+      supportsCloseOutNetting: [legal_core::Store]LGL_NETTING_OPINION.SUPPORTS_CLOSE_OUT_NETTING,
+      supportsCollateralEnforceability: [legal_core::Store]LGL_NETTING_OPINION.SUPPORTS_COLLATERAL_ENFORCEABILITY,
+      lastReviewedDate: [legal_core::Store]LGL_NETTING_OPINION.LAST_REVIEWED_DATE,
+      qualification: [legal_core::Store]LGL_NETTING_OPINION.QUALIFICATION
+   }
+
+   legal_core::CloseOutTerms[lglCloseOutTerms]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_CLOSE_OUT_TERMS.AGREEMENT_ID )
+      ~mainTable [legal_core::Store]LGL_CLOSE_OUT_TERMS
+      agreementId: [legal_core::Store]LGL_CLOSE_OUT_TERMS.AGREEMENT_ID,
+      paymentMeasure: [legal_core::Store]LGL_CLOSE_OUT_TERMS.PAYMENT_MEASURE,
+      payerBasis: [legal_core::Store]LGL_CLOSE_OUT_TERMS.PAYER_BASIS,
+      automaticEarlyTermination: [legal_core::Store]LGL_CLOSE_OUT_TERMS.AUTOMATIC_EARLY_TERMINATION,
+      setOffElected: [legal_core::Store]LGL_CLOSE_OUT_TERMS.SET_OFF_ELECTED,
+      terminationCurrency: [legal_core::Store]LGL_CLOSE_OUT_TERMS.TERMINATION_CURRENCY,
+      gracePeriodDays: [legal_core::Store]LGL_CLOSE_OUT_TERMS.GRACE_PERIOD_DAYS,
+      calculationAgentRole: [legal_core::Store]LGL_CLOSE_OUT_TERMS.CALCULATION_AGENT_ROLE
+   }
+
+   legal_core::ElectionTerm[lglElectionTerm]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_ELECTION_TERM.AGREEMENT_ID, [legal_core::Store]LGL_ELECTION_TERM.ELECTION_CODE )
+      ~mainTable [legal_core::Store]LGL_ELECTION_TERM
+      agreementId: [legal_core::Store]LGL_ELECTION_TERM.AGREEMENT_ID,
+      electionCode: [legal_core::Store]LGL_ELECTION_TERM.ELECTION_CODE,
+      electionName: [legal_core::Store]LGL_ELECTION_TERM.ELECTION_NAME,
+      electedValue: [legal_core::Store]LGL_ELECTION_TERM.ELECTED_VALUE,
+      thresholdAmount: [legal_core::Store]LGL_ELECTION_TERM.THRESHOLD_AMOUNT,
+      thresholdCurrency: [legal_core::Store]LGL_ELECTION_TERM.THRESHOLD_CURRENCY,
+      appliesToPartyRole: [legal_core::Store]LGL_ELECTION_TERM.APPLIES_TO_PARTY_ROLE,
+      scheduleReference: [legal_core::Store]LGL_ELECTION_TERM.SCHEDULE_REFERENCE
+   }
+
+   legal_core::Amendment[lglAmendment]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_AMENDMENT.AGREEMENT_ID, [legal_core::Store]LGL_AMENDMENT.AMENDMENT_NUMBER )
+      ~mainTable [legal_core::Store]LGL_AMENDMENT
+      agreementId: [legal_core::Store]LGL_AMENDMENT.AGREEMENT_ID,
+      amendmentNumber: [legal_core::Store]LGL_AMENDMENT.AMENDMENT_NUMBER,
+      amendmentType: [legal_core::Store]LGL_AMENDMENT.AMENDMENT_TYPE,
+      effectiveDate: [legal_core::Store]LGL_AMENDMENT.EFFECTIVE_DATE,
+      amendedSection: [legal_core::Store]LGL_AMENDMENT.AMENDED_SECTION,
+      description: [legal_core::Store]LGL_AMENDMENT.DESCRIPTION,
+      isTemplateDeviation: [legal_core::Store]LGL_AMENDMENT.IS_TEMPLATE_DEVIATION,
+      executedBy: [legal_core::Store]LGL_AMENDMENT.EXECUTED_BY
+   }
+
+   legal_core::Protocol[lglProtocol]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_PROTOCOL.PROTOCOL_CODE )
+      ~mainTable [legal_core::Store]LGL_PROTOCOL
+      protocolCode: [legal_core::Store]LGL_PROTOCOL.PROTOCOL_CODE,
+      protocolName: [legal_core::Store]LGL_PROTOCOL.PROTOCOL_NAME,
+      publisher: [legal_core::Store]LGL_PROTOCOL.PUBLISHER,
+      publicationDate: [legal_core::Store]LGL_PROTOCOL.PUBLICATION_DATE,
+      adherenceCutoffDate: [legal_core::Store]LGL_PROTOCOL.ADHERENCE_CUTOFF_DATE,
+      subjectMatter: [legal_core::Store]LGL_PROTOCOL.SUBJECT_MATTER,
+      isMultilateral: [legal_core::Store]LGL_PROTOCOL.IS_MULTILATERAL
+   }
+
+   // Keyed by protocol and entity, not by agreement: that asymmetry is the protocol mechanism.
+   legal_core::ProtocolAdherence[lglProtocolAdherence]: Relational
+   {
+      ~primaryKey ( [legal_core::Store]LGL_PROTOCOL_ADHERENCE.PROTOCOL_CODE, [legal_core::Store]LGL_PROTOCOL_ADHERENCE.ENTITY_ID )
+      ~mainTable [legal_core::Store]LGL_PROTOCOL_ADHERENCE
+      protocolCode: [legal_core::Store]LGL_PROTOCOL_ADHERENCE.PROTOCOL_CODE,
+      entityId: [legal_core::Store]LGL_PROTOCOL_ADHERENCE.ENTITY_ID,
+      adherenceDate: [legal_core::Store]LGL_PROTOCOL_ADHERENCE.ADHERENCE_DATE,
+      adherenceLetterRef: [legal_core::Store]LGL_PROTOCOL_ADHERENCE.ADHERENCE_LETTER_REF,
+      adheringCapacity: [legal_core::Store]LGL_PROTOCOL_ADHERENCE.ADHERING_CAPACITY,
+      isRevoked: [legal_core::Store]LGL_PROTOCOL_ADHERENCE.IS_REVOKED,
+      revocationDate: [legal_core::Store]LGL_PROTOCOL_ADHERENCE.REVOCATION_DATE
+   }
+
+
+   // ---------------------------------------------------------------- associations
+   // One join per association, walked in both directions.
+
+   legal_core::LglAgreementForm: Relational
+   {
+      AssociationMapping
+      (
+         agreementType[lglMasterAgreement, lglAgreementType]: [legal_core::Store]@Lgl_Agreement_Form,
+         agreementsOfType[lglAgreementType, lglMasterAgreement]: [legal_core::Store]@Lgl_Agreement_Form
+      )
+   }
+
+   legal_core::LglAgreementLaw: Relational
+   {
+      AssociationMapping
+      (
+         governingLaw[lglMasterAgreement, lglGoverningLaw]: [legal_core::Store]@Lgl_Agreement_Law,
+         agreementsUnderLaw[lglGoverningLaw, lglMasterAgreement]: [legal_core::Store]@Lgl_Agreement_Law
+      )
+   }
+
+   legal_core::LglAgreementParties: Relational
+   {
+      AssociationMapping
+      (
+         parties[lglMasterAgreement, lglAgreementParty]: [legal_core::Store]@Lgl_Agreement_Party,
+         partyAgreement[lglAgreementParty, lglMasterAgreement]: [legal_core::Store]@Lgl_Agreement_Party
+      )
+   }
+
+   // ACROSS THE BOUNDARY. `cpLegalEntity` is core-party's declared set id; the default id it
+   // would otherwise be does not exist, and naming it would fail the graph.
+   legal_core::LglPartyEntity: Relational
+   {
+      AssociationMapping
+      (
+         agreementRoles[cpLegalEntity, lglAgreementParty]: [legal_core::Store]@Lgl_Entity_AgreementParty,
+         partyEntity[lglAgreementParty, cpLegalEntity]: [legal_core::Store]@Lgl_Entity_AgreementParty
+      )
+   }
+
+   legal_core::LglAgreementAnnexes: Relational
+   {
+      AssociationMapping
+      (
+         creditSupportAnnexes[lglMasterAgreement, lglCreditSupportAnnex]: [legal_core::Store]@Lgl_Agreement_Annex,
+         annexAgreement[lglCreditSupportAnnex, lglMasterAgreement]: [legal_core::Store]@Lgl_Agreement_Annex
+      )
+   }
+
+   // The two-column join. Reaching an annex takes both key columns, and this is where the
+   // composite key on LGL_CREDIT_SUPPORT_ANNEX is actually spent.
+   legal_core::LglAnnexCollateral: Relational
+   {
+      AssociationMapping
+      (
+         eligibleCollateral[lglCreditSupportAnnex, lglEligibleCollateral]: [legal_core::Store]@Lgl_Annex_Collateral,
+         collateralAnnex[lglEligibleCollateral, lglCreditSupportAnnex]: [legal_core::Store]@Lgl_Annex_Collateral
+      )
+   }
+
+   legal_core::LglAgreementCloseOut: Relational
+   {
+      AssociationMapping
+      (
+         closeOutTerms[lglMasterAgreement, lglCloseOutTerms]: [legal_core::Store]@Lgl_Agreement_CloseOut,
+         closeOutAgreement[lglCloseOutTerms, lglMasterAgreement]: [legal_core::Store]@Lgl_Agreement_CloseOut
+      )
+   }
+
+   legal_core::LglAgreementElections: Relational
+   {
+      AssociationMapping
+      (
+         elections[lglMasterAgreement, lglElectionTerm]: [legal_core::Store]@Lgl_Agreement_Election,
+         electedAgreement[lglElectionTerm, lglMasterAgreement]: [legal_core::Store]@Lgl_Agreement_Election
+      )
+   }
+
+   legal_core::LglAgreementAmendments: Relational
+   {
+      AssociationMapping
+      (
+         amendments[lglMasterAgreement, lglAmendment]: [legal_core::Store]@Lgl_Agreement_Amendment,
+         amendedAgreement[lglAmendment, lglMasterAgreement]: [legal_core::Store]@Lgl_Agreement_Amendment
+      )
+   }
+
+   legal_core::LglProtocolAdherences: Relational
+   {
+      AssociationMapping
+      (
+         adherences[lglProtocol, lglProtocolAdherence]: [legal_core::Store]@Lgl_Protocol_Adherence,
+         adheredProtocol[lglProtocolAdherence, lglProtocol]: [legal_core::Store]@Lgl_Protocol_Adherence
+      )
+   }
+
+   // ACROSS THE BOUNDARY, second time.
+   legal_core::LglAdherentEntity: Relational
+   {
+      AssociationMapping
+      (
+         protocolAdherences[cpLegalEntity, lglProtocolAdherence]: [legal_core::Store]@Lgl_Entity_Adherence,
+         adherentEntity[lglProtocolAdherence, cpLegalEntity]: [legal_core::Store]@Lgl_Entity_Adherence
+      )
+   }
+
+   legal_core::LglTypeOpinions: Relational
+   {
+      AssociationMapping
+      (
+         nettingOpinions[lglAgreementType, lglNettingOpinion]: [legal_core::Store]@Lgl_Type_Opinion,
+         opinionAgreementType[lglNettingOpinion, lglAgreementType]: [legal_core::Store]@Lgl_Type_Opinion
+      )
+   }
+
+   // ACROSS THE BOUNDARY to Jurisdiction, whose declared set id is `cpJurisdiction`.
+   legal_core::LglOpinionJurisdiction: Relational
+   {
+      AssociationMapping
+      (
+         jurisdictionOpinions[cpJurisdiction, lglNettingOpinion]: [legal_core::Store]@Lgl_Jurisdiction_Opinion,
+         opinionJurisdiction[lglNettingOpinion, cpJurisdiction]: [legal_core::Store]@Lgl_Jurisdiction_Opinion
+      )
+   }
+)

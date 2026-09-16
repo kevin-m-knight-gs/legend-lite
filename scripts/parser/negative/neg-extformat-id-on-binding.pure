@@ -1,0 +1,13 @@
+// REJECTS: Unexpected token 'id'. Valid alternatives: ['schemaSet', 'schemaId', 'contentType', 'modelIncludes', 'modelExcludes']
+//
+// The mirror of neg-extformat-schemaid-on-schemaset.pure: `id` is schemas-only, and a
+// Binding names the schema it points at with `schemaId`. The message enumerates the entire
+// Binding surface, which is the useful part -- `id` is not among it at any position.
+###ExternalFormat
+Binding fixture::neg::IdOnBinding
+{
+   id: primary;
+   schemaSet: fixture::neg::Set;
+   contentType: 'application/x.flatdata';
+   modelIncludes: [ fixture::neg::Person ];
+}

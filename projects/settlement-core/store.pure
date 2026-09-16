@@ -1,0 +1,200 @@
+###Relational
+// settlement-core's tables, plus the joins that leave this project.
+//
+// The two `include`s are what make a join like Sc_InstructionMarket legal: an included
+// database's tables are visible unqualified, so SC_SETTLEMENT_INSTRUCTION can be joined
+// straight onto CC_MARKET and CP_LEGAL_ENTITY without either project knowing about this
+// one. Nothing is re-declared -- there is no SC_ copy of a calendar or of a legal entity,
+// and that is the point of depending on them.
+//
+// Every table is SC_, every join Sc_, every filter Sc: table and join namespaces are not
+// per-project in Legend, and a collision fails the whole graph naming only the element.
+Database settlement_core::Store
+(
+   include core_party::Store
+   include core_calendar::Store
+
+   // The venue. BIC-keyed because that is what the SWIFT message carries; CALENDAR_ID is
+   // nullable because an agent operating inside another CSD keeps no calendar of its own.
+   Table SC_PLACE_OF_SETTLEMENT
+   (
+      PLACE_BIC VARCHAR(11) PRIMARY KEY,
+      PLACE_NAME VARCHAR(120) NOT NULL,
+      PLACE_KIND VARCHAR(16) NOT NULL,
+      COUNTRY_CODE VARCHAR(2) NOT NULL,
+      // -> CP_LEGAL_ENTITY.ENTITY_ID, the legal person operating the venue
+      OPERATOR_ENTITY_ID VARCHAR(40),
+      // -> CC_CALENDAR.CALENDAR_ID, the venue's own opening calendar
+      CALENDAR_ID VARCHAR(8),
+      IS_ACTIVE BIT
+   )
+
+   // One row per (market, asset class). DEFAULT_DELIVERY_METHOD holds the physical code
+   // ('DVP', 'FOP', ...) that the EnumerationMapping in mapping.pure turns into the enum.
+   Table SC_MARKET_PROFILE
+   (
+      PROFILE_ID VARCHAR(32) PRIMARY KEY,
+      // -> CC_MARKET.MARKET_MIC
+      MARKET_MIC VARCHAR(4) NOT NULL,
+      ASSET_CLASS VARCHAR(24) NOT NULL,
+      DEFAULT_PLACE_BIC VARCHAR(11) NOT NULL,
+      DEFAULT_DELIVERY_METHOD VARCHAR(8) NOT NULL,
+      ALLOWS_PARTIAL BIT
+   )
+
+   // The settlement-side counterparty. ENTITY_ID is the whole of its legal identity: no
+   // name, no jurisdiction, no LEI is copied here.
+   Table SC_COUNTERPARTY
+   (
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      SETTLEMENT_BIC VARCHAR(11),
+      IS_SELF_CLEARING BIT,
+      ONBOARDED_DATE DATE
+   )
+
+   Table SC_CUSTODIAN
+   (
+      CUSTODIAN_ID VARCHAR(32) PRIMARY KEY,
+      CUSTODIAN_NAME VARCHAR(120) NOT NULL,
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      PLACE_BIC VARCHAR(11) NOT NULL,
+      PARTICIPANT_CODE VARCHAR(24)
+   )
+
+   // Standing settlement instructions. EFFECTIVE_TO is null for the one in force, which is
+   // also what the ScOpenSsi filter tests -- a filter cannot take a boolean literal.
+   Table SC_STANDING_INSTRUCTION
+   (
+      SSI_ID VARCHAR(32) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      PLACE_BIC VARCHAR(11) NOT NULL,
+      CUSTODIAN_ID VARCHAR(32),
+      SSI_STATUS VARCHAR(12) NOT NULL,
+      EFFECTIVE_FROM DATE NOT NULL,
+      EFFECTIVE_TO DATE
+   )
+
+   Table SC_SETTLEMENT_ACCOUNT
+   (
+      ACCOUNT_ID VARCHAR(32) PRIMARY KEY,
+      SSI_ID VARCHAR(32) NOT NULL,
+      PLACE_BIC VARCHAR(11) NOT NULL,
+      ACCOUNT_NUMBER VARCHAR(40) NOT NULL,
+      ACCOUNT_TYPE VARCHAR(12) NOT NULL,
+      CURRENCY_CODE VARCHAR(3)
+   )
+
+   // The instruction. MARKET_MIC and not CALENDAR_ID: the calendar is two joins away and
+   // is never written onto this row.
+   Table SC_SETTLEMENT_INSTRUCTION
+   (
+      INSTRUCTION_ID VARCHAR(40) PRIMARY KEY,
+      TRADE_REF VARCHAR(40) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      SSI_ID VARCHAR(32),
+      PLACE_BIC VARCHAR(11) NOT NULL,
+      MARKET_MIC VARCHAR(4) NOT NULL,
+      BATCH_ID VARCHAR(32),
+      ASSET_CLASS VARCHAR(24) NOT NULL,
+      DELIVERY_METHOD VARCHAR(8) NOT NULL,
+      INSTRUCTION_STATUS VARCHAR(12) NOT NULL,
+      TRADE_DATE DATE NOT NULL,
+      INTENDED_SETTLEMENT_DATE DATE NOT NULL,
+      ACTUAL_SETTLEMENT_DATE DATE,
+      SETTLEMENT_CURRENCY VARCHAR(3) NOT NULL,
+      // DOUBLE and not REAL: REAL parses and then cannot be read back.
+      SETTLEMENT_AMOUNT DOUBLE NOT NULL,
+      IS_ON_HOLD BIT
+   )
+
+   Table SC_SETTLEMENT_LEG
+   (
+      LEG_ID VARCHAR(40) PRIMARY KEY,
+      INSTRUCTION_ID VARCHAR(40) NOT NULL,
+      ACCOUNT_ID VARCHAR(32),
+      DIRECTION VARCHAR(8) NOT NULL,
+      LEG_KIND VARCHAR(12) NOT NULL,
+      QUANTITY DOUBLE,
+      AMOUNT DOUBLE,
+      CURRENCY_CODE VARCHAR(3)
+   )
+
+   Table SC_SETTLEMENT_EVENT
+   (
+      EVENT_ID VARCHAR(40) PRIMARY KEY,
+      INSTRUCTION_ID VARCHAR(40) NOT NULL,
+      EVENT_TYPE VARCHAR(24) NOT NULL,
+      RESULTING_STATUS VARCHAR(12) NOT NULL,
+      EVENT_DATE DATE NOT NULL,
+      EVENT_TIME VARCHAR(8),
+      FAIL_REASON_CODE VARCHAR(12)
+   )
+
+   Table SC_FAIL_REASON
+   (
+      REASON_CODE VARCHAR(12) PRIMARY KEY,
+      REASON_NAME VARCHAR(120) NOT NULL,
+      REASON_CATEGORY VARCHAR(24) NOT NULL,
+      IS_COUNTERPARTY_FAULT BIT
+   )
+
+   Table SC_CUTOFF
+   (
+      CUTOFF_ID VARCHAR(32) PRIMARY KEY,
+      PLACE_BIC VARCHAR(11) NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      INSTRUCTION_KIND VARCHAR(12) NOT NULL,
+      CUTOFF_TIME VARCHAR(8) NOT NULL,
+      OFFSET_DAYS INTEGER NOT NULL
+   )
+
+   Table SC_SETTLEMENT_BATCH
+   (
+      BATCH_ID VARCHAR(32) PRIMARY KEY,
+      BATCH_NAME VARCHAR(80) NOT NULL,
+      PLACE_BIC VARCHAR(11) NOT NULL,
+      BATCH_DATE DATE NOT NULL,
+      RELEASE_TIME VARCHAR(8),
+      IS_RELEASED BIT
+   )
+
+   // ---- joins inside this project ---------------------------------------------------
+   Join Sc_InstructionCounterparty(SC_SETTLEMENT_INSTRUCTION.COUNTERPARTY_ID = SC_COUNTERPARTY.COUNTERPARTY_ID)
+   Join Sc_InstructionSsi(SC_SETTLEMENT_INSTRUCTION.SSI_ID = SC_STANDING_INSTRUCTION.SSI_ID)
+   Join Sc_InstructionPlace(SC_SETTLEMENT_INSTRUCTION.PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+   Join Sc_InstructionLeg(SC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID = SC_SETTLEMENT_LEG.INSTRUCTION_ID)
+   Join Sc_InstructionEvent(SC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID = SC_SETTLEMENT_EVENT.INSTRUCTION_ID)
+   Join Sc_InstructionBatch(SC_SETTLEMENT_INSTRUCTION.BATCH_ID = SC_SETTLEMENT_BATCH.BATCH_ID)
+   Join Sc_LegAccount(SC_SETTLEMENT_LEG.ACCOUNT_ID = SC_SETTLEMENT_ACCOUNT.ACCOUNT_ID)
+   Join Sc_SsiCounterparty(SC_STANDING_INSTRUCTION.COUNTERPARTY_ID = SC_COUNTERPARTY.COUNTERPARTY_ID)
+   Join Sc_SsiPlace(SC_STANDING_INSTRUCTION.PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+   Join Sc_SsiCustodian(SC_STANDING_INSTRUCTION.CUSTODIAN_ID = SC_CUSTODIAN.CUSTODIAN_ID)
+   Join Sc_SsiAccount(SC_STANDING_INSTRUCTION.SSI_ID = SC_SETTLEMENT_ACCOUNT.SSI_ID)
+   Join Sc_AccountPlace(SC_SETTLEMENT_ACCOUNT.PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+   Join Sc_CustodianPlace(SC_CUSTODIAN.PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+   Join Sc_PlaceCutoff(SC_CUTOFF.PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+   Join Sc_ProfilePlace(SC_MARKET_PROFILE.DEFAULT_PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+   Join Sc_BatchPlace(SC_SETTLEMENT_BATCH.PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+   Join Sc_EventFailReason(SC_SETTLEMENT_EVENT.FAIL_REASON_CODE = SC_FAIL_REASON.REASON_CODE)
+
+   // ---- joins that leave this project ------------------------------------------------
+   // Into core-calendar. Sc_InstructionMarket is the FIRST HOP of the join chain: the
+   // second hop, Cc_MarketCalendar, is core-calendar's own join and is reached through the
+   // include without being redeclared.
+   Join Sc_InstructionMarket(SC_SETTLEMENT_INSTRUCTION.MARKET_MIC = CC_MARKET.MARKET_MIC)
+   Join Sc_ProfileMarket(SC_MARKET_PROFILE.MARKET_MIC = CC_MARKET.MARKET_MIC)
+   Join Sc_PlaceCalendar(SC_PLACE_OF_SETTLEMENT.CALENDAR_ID = CC_CALENDAR.CALENDAR_ID)
+
+   // Into core-party.
+   Join Sc_CounterpartyEntity(SC_COUNTERPARTY.ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   Join Sc_CustodianEntity(SC_CUSTODIAN.ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   Join Sc_PlaceOperator(SC_PLACE_OF_SETTLEMENT.OPERATOR_ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+
+   // Unsettled instructions: the operations queue. A null test rather than a boolean
+   // literal, since `= true` is not accepted by the filter grammar.
+   Filter ScUnsettled(SC_SETTLEMENT_INSTRUCTION.ACTUAL_SETTLEMENT_DATE is null)
+   // The SSI currently in force, same reason.
+   Filter ScOpenSsi(SC_STANDING_INSTRUCTION.EFFECTIVE_TO is null)
+)

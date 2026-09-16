@@ -1,0 +1,99 @@
+// A graph fetch returning exactly ONE row serializes `values` as a bare OBJECT rather than
+// a one-element ARRAY.
+//
+// demo::One has a single row and demo::Two has two. Same query shape, same serialization
+// format, same mapping -- the only difference is how many rows come back, and that changes
+// the JSON *type* of `values` from array to object. A consumer that parses `values` as a
+// list works on every result until the day a filter narrows it to one.
+//
+// Found by the corpus, not aimed at: a seed change left one generated graph-fetch service
+// with a single surviving row and it began failing while its siblings passed.
+Class demo::One
+{
+  id: String[1];
+  label: String[0..1];
+}
+
+Class demo::Two
+{
+  id: String[1];
+  label: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table ONE (ID VARCHAR(20) PRIMARY KEY, LABEL VARCHAR(50))
+  Table TWO (ID VARCHAR(20) PRIMARY KEY, LABEL VARCHAR(50))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::One: Relational
+  { ~primaryKey ( [demo::DB] ONE.ID ) ~mainTable [demo::DB] ONE
+    id: [demo::DB]ONE.ID, label: [demo::DB]ONE.LABEL }
+  demo::Two: Relational
+  { ~primaryKey ( [demo::DB] TWO.ID ) ~mainTable [demo::DB] TWO
+    id: [demo::DB]TWO.ID, label: [demo::DB]TWO.LABEL }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.ONE:
+      'ID,LABEL\n' +
+      'O1,only\n';
+    default.TWO:
+      'ID,LABEL\n' +
+      'T1,first\n' +
+      'T2,second\n';
+  }#
+}
+
+###Service
+Service demo::SingleRowTree
+{
+  pattern: '/singleRowTree';
+  documentation: 'One row. `values` must be a one-element ARRAY, as it is for two rows.';
+  execution: Single
+  {
+    query: |demo::One.all()->graphFetch(#{demo::One{id,label}}#)->serialize(#{demo::One{id,label}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests: [ t: { asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+          data: '{"builder":{"_type":"json"},"values":[{"id":"O1","label":"only"}]}'; }#; }# ] } ] }
+  ]
+}
+
+Service demo::TwoRowTree
+{
+  pattern: '/twoRowTree';
+  documentation: 'Two rows, same shape. This one gets an array -- which is the control.';
+  execution: Single
+  {
+    query: |demo::Two.all()->graphFetch(#{demo::Two{id,label}}#)->serialize(#{demo::Two{id,label}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests: [ t: { asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+          data: '{"builder":{"_type":"json"},"values":[{"id":"T1","label":"first"},{"id":"T2","label":"second"}]}'; }#; }# ] } ] }
+  ]
+}

@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token 'Database'. Valid alternatives: ['Class', 'Association', 'Profile', 'Enum', 'Measure', 'function', 'native', '^']
+//
+// A Database declared in a ###Pure section. Section routing is the first thing a Legend
+// parser does and the easiest to get subtly wrong: accept every element type everywhere and
+// nothing fails until an element is silently attributed to the wrong grammar.
+//
+// The full alternatives list is pinned rather than a fragment, because it is a precise
+// statement of what ###Pure accepts -- and note it INCLUDES 'native', independently
+// confirming that native lexes and routes here, and is refused later by the walker rather
+// than by the grammar. See ./walker-rejected-domain.pure.
+###Pure
+Database fixture::neg::WrongSection
+(
+   Table T (ID VARCHAR(32) PRIMARY KEY)
+)

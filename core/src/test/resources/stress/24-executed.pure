@@ -1,0 +1,23 @@
+// ============================================================
+// Executed Book (L4) — the same trades behind a filtered mapping
+// ============================================================
+// Structurally identical to trading::Trade. The difference is entirely in the mapping:
+// this class is bound to TRADE through a store filter, so it only ever sees the executed
+// rows. That makes it a third invariance, independent of L2's and L4's union:
+//
+//   ExecutedTrade.all()  ==  Trade.all()->filter(t | $t.status == 'EXECUTED')
+//
+// One applies the predicate in the MAPPING, the other in the QUERY. Neither needs an
+// oracle to know they must agree.
+###Pure
+Class trading::ExecutedTrade
+{
+    tradeId: String[1];
+    tradeDate: StrictDate[1];
+    quantity: Float[1];
+    price: Float[1];
+    notional: Float[1];
+    side: trading::Side[1];
+    status: String[1];
+    currency: String[1];
+}

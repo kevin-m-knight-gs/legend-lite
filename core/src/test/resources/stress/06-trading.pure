@@ -30,6 +30,18 @@ Enum trading::OrderStatus
 }
 
 Class trading::Trade
+[
+    // Rules a trade-capture system would actually enforce. Every seeded trade satisfies
+    // these, deliberately: whether a VIOLATING row is rejected, dropped or ignored during
+    // relational execution is a separate question, isolated in repro/constraint-violation/
+    // rather than mixed into the corpus where it would take every service down with it.
+    //
+    // Each comparison is fully parenthesised on purpose. Pure binds && tighter than the
+    // comparison operators, so `$this.a > 0 && $this.a < 150` parses as
+    // `(($this.a > 0) && $this.a) < 150` and fails with and(Boolean[1],Integer[1]).
+    quantityIsPositive: ($this.quantity > 0.0),
+    priceIsNonNegative: ($this.price >= 0.0)
+]
 {
     tradeId: String[1];
     tradeDate: StrictDate[1];
@@ -51,6 +63,10 @@ Class trading::Trade
     // Derived properties — the questions a user actually asks of a trade.
     // Total-safe: quantity and price are both [1].
     grossAmount() { $this.quantity * $this.price } : Float[1];
+    // A QUALIFIED property — same shape, but parameterised. Converting a notional to a
+    // reporting currency is the archetypal reason a real model needs one: the answer
+    // depends on an argument the caller supplies, not only on the row.
+    grossAmountIn(fxRate: Float[1]) { ($this.quantity * $this.price) * $fxRate } : Float[1];
     // A netCost() over the two OPTIONAL measures belongs here and is absent on purpose.
     //   - `$this.commission + $this.fees` does not compile: both are [0..1] and plus
     //     requires [1] ("Collection element must have a multiplicity [1] ... Applying

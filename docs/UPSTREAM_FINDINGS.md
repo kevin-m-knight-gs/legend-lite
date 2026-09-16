@@ -14,6 +14,20 @@ java -cp target/classes:$(cat cp.txt) perf.TestableMain <files...> [--testable=<
 
 Engine version: `4.138.2`.
 
+**legend-lite's own gaps are executable, not prose.**
+`core/src/test/java/com/legend/integration/LegendLiteGapTest.java` asserts the CURRENT
+behaviour of every construct legend-lite does not yet support, so closing a gap makes that
+test fail and forces the corresponding exclusion to be revisited:
+
+```
+mvn -o -pl core test -Dtest=LegendLiteGapTest
+```
+
+None of them is a PARSE failure — legend-lite parses all of these. They fail at model
+building (unit types, XStore, ModelJoin) or later at query lowering (ModelChainConnection,
+`orElse`, `isNotEmpty` over a `[0..1]` receiver). A parse divergence would surface in the
+parser-equivalence suite instead, and none of these does.
+
 ---
 
 ## F1 — legend-engine crashes with a raw ClassCastException on a mixed `~[...]` column array
@@ -367,6 +381,316 @@ Quarantined as `stress::F8_SettlementTradeDerived`.
 
 ---
 
+## F9 — a table whose name is a reserved SQL word generates unquoted DDL
+
+**Severity: bug.** Legend accepts `Table ORDER` and the generated `CREATE TABLE` does not
+quote it, so the statement is invalid on H2 and every service in the model fails at test
+setup — not with a message about naming, but with a raw JDBC syntax error.
+
+`scripts/corpus/repro/reserved-word-table/model.pure` is one table and two columns:
+
+```
+Table ORDER (ORDER_ID VARCHAR(20) PRIMARY KEY, STATUS VARCHAR(20))
+```
+
+```
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement
+"Create Table [*]ORDER(ORDER_ID VARCHAR(20) NOT NULL,STATUS VARCHAR(20) NULL, PRIMARY KEY(...
+```
+
+**How it stayed hidden.** The stress corpus has had a `Table ORDER` since it was written,
+and 35 services passed over it. The TDS path only creates DDL for tables the test data
+seeds, and nothing seeded ORDER. The first graph-fetch service brought the whole store's
+DDL into play and it failed immediately — so the trigger is not graph fetch itself, it is
+that a different execution path needs more of the schema.
+
+`ORDER` is the only reserved word used as a table name in this corpus; it is renamed to
+`TRADE_ORDER` so the rest can run, and the case is preserved in the repro.
+
+---
+
+## F10 — graph fetch RAISES on an unmapped enum code where a TDS projection returns null
+
+**Severity: an execution-path-dependent semantic.** Same model, same data, same
+EnumerationMapping. The only difference is how the result is shaped, and the two paths
+disagree about whether an unmapped source code is a value or an error.
+
+| execution path | source code with no mapping entry |
+|---|---|
+| `->project(~[...])` | `null`, silently (F2's A14, both engines agree) |
+| `->graphFetch(...)->serialize(...)` | **raises** |
+
+```
+Enumeration mapping failure. Cannot find transformation for source value 'XX'
+for enumeration property 'side' of type demo::Side in enumeration mapping SideMapping
+```
+
+The two repros are the same file except for the query:
+
+```
+repro/unmapped-enum/     ->project(~[id:t|$t.id, side:t|$t.side])          -> null
+repro/enum-graphfetch/   ->graphFetch(#{Trade{id,side}}#)->serialize(...)   -> raises
+```
+
+Both behaviours are defensible in isolation. Raising is arguably the better one — a bad
+feed code is a data-quality event, and the projection path losing it silently is how such
+things stay unnoticed for years. What is hard to defend is that the answer depends on the
+serialization the caller asked for.
+
+Found by combining two features that each already worked: an unmapped enum code and a
+union-mapped class under graph fetch. Neither is unusual; the pair is not tested upstream.
+
+Quarantined as `stress::G3_UnionTreeWithEnum`. `stress::G1_UnionTree` deliberately
+projects no enum, so the union itself stays verified rather than being masked by this.
+
+---
+
+## F11 — a Relation projection is rejected over a ModelChainConnection
+
+**Severity: feature-combination gap.** The Relation paradigm is the newer, recommended
+projection form. M2M through a `ModelChainConnection` is standard. The pair does not work.
+
+Three query forms over an identical relational → source model → M2M chain
+(`scripts/corpus/repro/m2m-relation/`):
+
+| query form | result |
+|---|---|
+| `->project(~[identifier:x\|$x.identifier, ...])` | **fails** at plan generation |
+| `->project([x\|$x.identifier, ...], ['identifier', ...])` | works |
+| `->graphFetch(#{...}#)->serialize(#{...}#)` | works |
+
+```
+Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:26 column:5),
+"Non TDS return type not supported for Model Connections"
+```
+
+The message is accurate but arrives late — at plan generation, not compilation — and does
+not name the service or suggest the legacy form as the workaround.
+
+The corpus works around it by emitting the M2M service in the legacy TDS paradigm, which
+is why that paradigm is now covered end-to-end at all.
+
+---
+
+## F12 — an EnumerationMapping is not applied through a ModelChainConnection
+
+**Severity: silent wrong answer.** The raw storage code arrives where the enum value
+should be, typed as the enum. No error.
+
+Isolated so that only ONE thing differs — same paradigm, same enum, same
+EnumerationMapping, same data, same rows:
+
+```
+src::Trade.all()->project([x|$x.tradeId, x|$x.side], ['id','side'])
+   via src::RelMapping directly        ->  [{"id":"T1","side":"BUY"}, {"id":"T2","side":"SELL"}]
+
+dest::CTrade.all()->project([x|$x.identifier, x|$x.side], ['id','side'])
+   via ModelChainConnection(src::RelMapping) ->  [{"id":"T1","side":"B"}, {"id":"T2","side":"S"}]
+```
+
+The M2M mapping does nothing to `side` but copy it: `side: $src.side`. The source class
+property is typed `src::Side`, and the relational mapping that feeds the chain declares
+`side: EnumerationMapping SideMap: [src::DB] TRADE.SIDE`. Read directly, that translation
+happens; read through the chain, it does not.
+
+`scripts/corpus/repro/m2m-relation/` holds both services over one model, so the diff
+between them is two lines.
+
+Quarantined as `stress::M2_CanonicalWithEnum`. `stress::M1_TradeCanonical` deliberately
+omits the enum so the M2M invariance itself stays verified rather than being masked.
+
+**Worth noting alongside F10.** That was an unmapped code behaving differently across
+execution paths; this is a *mapped* code not being applied on one of them. Enumeration
+mappings appear to be handled per-path rather than once, and each path has its own answer.
+
+---
+
+## F13 — `Otherwise` behaves oppositely under TDS projection and under graph fetch
+
+**Severity: execution-path-dependent semantic.** One mapping, one dataset, one question.
+The two paths do not merely differ in an edge case — they take opposite branches for
+*every* row.
+
+`scripts/corpus/repro/otherwise/` — two people at the same firm. P1 carries the inline
+cache; P2 carries only the fallback FK:
+
+```
+Table PERSON (ID, NAME, FIRM_FK, FIRM_NAME_INLINE)
+Table FIRM   (ID, LEGAL_NAME)
+Join Person_Firm(PERSON.FIRM_FK = FIRM.ID)
+
+firm
+(
+  ~primaryKey ([demo::DB] PERSON.FIRM_NAME_INLINE)
+  legalName: [demo::DB] PERSON.FIRM_NAME_INLINE
+) Otherwise ([firmRoot]: [demo::DB] @Person_Firm)
+
+P1,Ada,F1,Cached Inc
+P2,Grace,F1,            <- cache empty, FK present
+F1,Real Firm Ltd
+```
+
+| | Ada (cache present) | Grace (cache empty) |
+|---|---|---|
+| `->project([x\|$x.firm.legalName], [...])` | `Cached Inc` | **`null`** |
+| `->graphFetch(#{Person{firm{legalName}}}#)` | **`Real Firm Ltd`** | `Real Firm Ltd` |
+
+So the projection path always takes the embedded branch and never falls back; the
+graph-fetch path always takes the join and never uses the embedded.
+
+**I am not asserting which is correct.** There is a reading under which graph fetch is
+right — an embedded block supplies only a subset of the class's properties, so materialising
+a whole object may legitimately require the join regardless of the cache. Under that
+reading the defect is narrower: the projection path returning `null` for a row whose
+target is reachable through the declared fallback join. What is not defensible either way
+is that the two paths disagree on every row of the same mapping.
+
+Quarantined as `stress::O1_CounterpartyOtherwise`, which asserts the semantics the feature
+name implies — cache when present, join when not — and currently fails on the 14 rows that
+should fall back.
+
+**Third in a family.** F10 (an unmapped enum code), F12 (a mapped enum code through a
+model chain) and now F13 all say the same thing: a mapping construct is interpreted by
+each execution path separately, and the paths do not agree. That pattern is worth more
+than any of the three individually.
+
+---
+
+## F14 — `groupBy` on an enum-mapped column groups by the SOURCE CODE, not the value
+
+**Severity: silent wrong answer, and BOTH engines have it.** A rollup returns two rows
+with the SAME key. Every downstream total is wrong and nothing errors.
+
+The generated SQL says it plainly (legend-lite's, but legend-engine's result is identical):
+
+```sql
+SELECT ..., CASE WHEN t0.SIDE = 'B' OR t0.SIDE = 'BOT' THEN 'BUY'
+                 ELSE CASE WHEN t0.SIDE = 'S' THEN 'SELL' ELSE NULL END END AS side,
+       SUM(...) AS totalGross
+FROM TRADE AS t0
+GROUP BY t1.NAME, t2.REGION, t0.SIDE, ...
+                              ^^^^^^^ the RAW column, not the translated expression
+```
+
+The SELECT translates the code; the GROUP BY does not. Any two source codes mapping to
+one enum value therefore produce two groups carrying the same displayed key.
+
+Minimized (`scripts/corpus/repro/groupby-enum/`) — three trades, a many-to-one mapping,
+one aggregate:
+
+```
+BUY: ['B', 'BOT'],  SELL: ['S']
+
+T1,B,100.0
+T2,BOT,200.0
+T3,S,300.0
+```
+
+```
+expected: [ {"side":"BUY","total":300.0}, {"side":"SELL","total":300.0} ]
+actual:   [ {"side":"BUY","total":100.0}, {"side":"SELL","total":300.0},
+            {"side":"BUY","total":200.0} ]
+```
+
+Two rows keyed `"BUY"`. No reading of `groupBy` permits duplicate keys in the result.
+
+**Only reachable with a many-to-one enum mapping.** With a one-to-one mapping, grouping by
+the code and grouping by the value partition identically and the bug is invisible — which
+is presumably why it has survived. The corpus has `BUY: ['B', 'BOT']` because a legacy
+feed code collapsing onto a current one is realistic (seed property A13); it was seeded
+before there was any groupBy to break.
+
+**Found by combination, and only catchable by the oracle.** Both engines agree with each
+other, so the cross-engine differential reports them as matching each other and diverging
+from the reference — exactly the blind spot recorded when the differential was built. This
+is the first finding to land in it.
+
+Quarantined as `stress::F32_TradeRollupEverything`.
+
+---
+
+## F15 — XStore navigation is unsupported in a relational projection; graph fetch handles it
+
+**Severity: unimplemented path, reported as an internal match failure.** A cross-store
+association can be navigated by graph fetch and not by `project()`, and the projection
+failure is a Pure pattern-match error rather than a diagnostic.
+
+`scripts/corpus/repro/xstore/` — two Databases, two connections, one XStore association,
+two trades (one linking to an entity that exists, one to an entity that does not):
+
+```
+ab::Trade_Entity: XStore
+{
+  entity: $this.entityRef == $that.entityId,
+  entityTrades: $this.entityId == $that.entityRef
+}
+```
+
+| query | result |
+|---|---|
+| `->project(~[id:x\|$x.tradeId, ent:x\|$x.entity.name])` | **fails** |
+| `->graphFetch(#{Trade{tradeId, entity{name}}}#)->serialize(...)` | works |
+
+```
+Execution error at (resource:/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure
+line:1700 column:42), "Match failure: [XStorePropertyMappingObject instanceOf
+XStorePropertyMapping]"
+  at ...processPropertyMappingReturnPropertyMapping...
+```
+
+The graph-fetch path returns exactly what it should, absent entity included:
+
+```json
+[ {"tradeId":"T1","entity":{"name":"Acme Ltd"}}, {"tradeId":"T2","entity":null} ]
+```
+
+So the capability exists; the relational SQL generator simply has no branch for
+`XStorePropertyMapping` and falls through to a match failure. A message naming the
+unsupported combination would cost nothing and save a long bisect — in the full corpus
+this manifested as a **hang** rather than an error, which is how it was found.
+
+**Fourth in the execution-path family.** F10 (unmapped enum), F12 (mapped enum through a
+model chain), F13 (`Otherwise`), and now F15 all say the same thing from different angles:
+a mapping construct is interpreted per execution path, and the paths do not agree on what
+is supported, let alone on the answer.
+
+---
+
+## F16 — graph fetch evaluates class constraints; a projection does not, so a partial mapping is valid for one path and fatal for the other
+
+**Severity: path-dependent validity.** Not a wrong answer — a mapping that works perfectly
+under `project()` cannot be used under `graphFetch()` at all, and the message names the
+constraint rather than the missing mapping.
+
+`trading::Trade` carries `[ quantityIsPositive: ($this.quantity > 0.0), ... ]`.
+`external::EntityMapping` maps only the five properties the cross-store service needs —
+`tradeId`, `notional`, `status`, `side`, and a local `+entityRef` — which is legal, and a
+projection over it is fine. A graph fetch over the same mapping fails:
+
+```
+java.lang.IllegalStateException: Unable to evaluate constraint [quantityIsPositive]:
+No mapping for property 'quantity'   Unable to evaluate constraint [priceIsNonNegative]:
+No mapping for property 'price'
+```
+
+**This completes the constraints picture,** which is otherwise contradictory across paths:
+
+| | class constraints |
+|---|---|
+| `->project(~[...])` | **not evaluated at all** — violating rows are returned unchanged (see the non-finding below, `repro/constraint-violation/`) |
+| `->graphFetch(...)->serialize(...)` | **evaluated**, and a mapping that cannot supply a referenced property is rejected outright |
+
+Both behaviours are individually defensible — graph fetch materialises objects, a
+projection does not — but together they mean a constraint is neither reliably enforced nor
+reliably ignorable, and whether a MAPPING is usable depends on which query you write
+against it. A partial mapping is a normal and useful thing; requiring it to satisfy every
+constraint on the class makes it unusable for object-shaped reads.
+
+**Fifth in the execution-path family** (F10, F12, F13, F15, F16). The others were about
+the ANSWER differing; this one is about whether the mapping is legal at all.
+
+---
+
 ## Non-findings, recorded so they are not re-investigated
 
 - **Row order is not asserted by `EqualToJson`.** The comparator is
@@ -378,7 +702,1193 @@ Quarantined as `stress::F8_SettlementTradeDerived`.
 - **Timestamps render as `2024-06-03T19:00:00.000000000+0000`**, dates as `2024-06-03`.
   Not a defect — but undocumented anywhere we could find, and the difference between the
   two is the whole reason 8 of 12 services failed on the first calibrated run.
+- **A graph-fetch result is not a bare array.** `serialize()` wraps it as
+  `{"builder":{"_type":"json"},"values":[...]}`. Not a defect, but an expectation written
+  as a bare array fails with both sides looking identical for the first 300 characters.
+- **Relation class mappings enforce multiplicity; Relational ones do not.** Mapping a
+  nullable column to a `[1]` property is accepted silently by a `Relational` class mapping
+  and rejected by a `Relation` one:
+  `Multiplicity Error: The property 'notional' has a multiplicity range of [1] when the
+  given expression has a multiplicity range of [0..1]`.
+  Not a defect — the Relation paradigm is stricter and arguably right — but it means the
+  same tables need `NOT NULL` to be mappable both ways, and a model that has only ever
+  been mapped relationally will not port cleanly. Surfaced by mapping the same TRADE and
+  BOOK tables through both paradigms (`58-modeljoin-store.pure`).
+- **`~func` names a function by its SHORT signature.** `~func demo::tradeRel():Relation<Any>[1]`
+  resolves; the fully-qualified return type reports
+  `Can't find the packageable element 'demo::tradeRel():meta::pure::metamodel::relation::Relation<...>'`,
+  which reads as a missing function rather than a spelling problem. The mapping section
+  needs `import meta::pure::metamodel::relation::*;` for the short form to resolve.
+- **A legacy `groupBy` takes objects, not a projected TDS.** `all()->project(...)->groupBy(...)`
+  fails with `Index: 3 Size: 2`; the correct shape is `all()->groupBy([keys],[aggs],[names])`.
+  This matters beyond syntax: the AggregationAware rewrite dispatches **only** on that
+  signature, so the same query written in the Relation paradigm silently reads the detail
+  table and still returns the right answer.
+- **Table names are scoped per Database.** Two Databases may each declare `LEGAL_ENTITY`;
+  any tool keying tables globally will bind one mapping to the other's table.
+  `scripts/corpus/model.py` now records the owning Database and refuses a duplicate rather
+  than picking one.
+- **Class constraints are not enforced during relational projection.** A class carrying
+  `[ quantityIsPositive: ($this.quantity > 0.0) ]` returns violating rows unchanged — no
+  error, no filtering, no flag. Three rows in, three rows out, two of them violations
+  (`scripts/corpus/repro/constraint-violation/`). This is almost certainly by design —
+  constraints belong to instance construction and graph fetch, not to TDS projection — but
+  it is worth stating because a corpus author can easily assume a constraint acts as a
+  filter and then write expectations that quietly encode that assumption. Constraints in
+  this corpus therefore buy compile-time coverage and nothing else, which is why every
+  seeded trade satisfies them. **Untested:** whether graph-fetch execution does enforce
+  them. **Answered by F16:** graph fetch does, and it also rejects any mapping that cannot
+  supply a constrained property.
 - **Service testSuites always execute against H2**, whatever the declared connection type;
   `TestRuntimeBuilder` swaps the runtime's connections for a seeded local H2. The stress
   runtime declares DuckDB and the tests still run — so this harness cannot be used for
   dialect-invariance testing.
+- **`Class X projects Y { ... }` crashes the parser with a NullPointerException.** Not
+  "unsupported" — a crash. `DomainParserGrammar` carries a full projection rule set
+  (`classDefinition: ... (PROJECTS projection)`, `projection: dsl | treePath`), so the text
+  parses to a tree; `DomainParseTreeWalker.visitClass` then dereferences `ctx.classBody()`
+  unconditionally and the projection form has none. The user sees
+  `An exception of type 'NullPointerException' occurred, please notify developer` — no line,
+  no column, no construct named. Compare `native function`, which the same walker declines
+  cleanly with "Unsupported syntax"; that is the diagnostic this should produce. Sharper
+  still: legend-engine ships
+  `core_relational/relational/tests/testModel/projectionTestModel.pure`, written in exactly
+  this syntax, because legend-pure's M3 grammar *does* accept it — so the two front ends
+  disagree about a construct present in the repository's own model files.
+  (`scripts/corpus/repro/projects-npe/`)
+- **Four more constructs are declared and then refused by the walker.** `native` and
+  `allVersionsInRange` (Domain/M3), `extend` (embedded GraphQL), `EqualToTDS` (an orphaned
+  grammar with no registered parser and no protocol class). `allVersionsInRange` is the
+  clearest: `DomainParseTreeWalker.java:1742` throws unconditionally — the branch exists
+  only to reject — while `allVersions` on the line above maps to `getAllVersions`. GraphQL's
+  `extend` reaches `throw new RuntimeException("Error")`, a message that names nothing.
+  Each is pinned by a fixture in `scripts/parser/negative/`.
+- **Ten keywords in `AuthenticationStrategyLexerGrammar` are declared and unreachable** —
+  `host`, `port`, `name`, `mode`, `directory`, `account`, `warehouse`, `region`,
+  `projectId`, `defaultDataset`. No rule in its parser grammar references them, so writing
+  `host` in an `auth:` block is answered with `Valid alternatives: ['baseVaultReference',
+  'userNameVaultReference', 'passwordVaultReference']`. Harmless, but it means the lexer
+  advertises a surface the parser does not have, and any tool deriving completions or
+  documentation from the grammar will offer fields that cannot be typed.
+- **A second NullPointerException of the same shape: `actions: [ MyAction ];` on a
+  HostedService.** `postDeploymentAction: actionType (actionBody)?` makes the body optional;
+  `HostedServiceTreeWalker.java:142` dereferences `spec.actionBody().actionValue()`
+  unconditionally. The user gets `An exception of type 'NullPointerException' occurred,
+  please notify developer` — again with no line, no column, no construct named. Two
+  independent instances of *optional grammar element dereferenced without a null check* now
+  suggest a pattern rather than an oversight, and both are reachable by typing.
+  Pinned by `scripts/parser/negative/no-registered-island-processor.pure`.
+- **Two island types have no registered processor anywhere in legend-engine.**
+  `IPostDeploymentActionGrammarParserExtension` and `IDataQualityGrammarParserExtension` have
+  zero implementors repo-wide, so `HostedService.actions` and
+  `DataQualityValidation.persistenceStrategy` reject every value a user could write —
+  `Unsupported type`, `Unsupported Persistence Strategy type`. The same is true of
+  ServiceStore's `security:` scheme, which survives only because `security: []` parses.
+  Worth stating because from outside, "no processor is registered" is indistinguishable from
+  "this construct is invalid" and from "the extension is missing from your classpath" —
+  three causes, one symptom.
+- **`###AuthenticationDemo`'s section parser ships only in test sources.**
+  `AuthenticationDemoParserExtension` lives in `src/test/java`, so the section is
+  unreachable in a deployed engine (`'AuthenticationDemo' is not a known section parser`)
+  while `AuthenticationLexerGrammar`'s other 43 keywords remain reachable through
+  `authentication:` islands. A grammar can therefore be half-live, and nothing in the
+  grammar says which half.
+- **The `###Connection` section accepts an element with no closing brace.** A complete
+  `RelationalDatabaseConnection` whose final `}` is deleted parses without complaint, and so
+  does one followed by a further `###Pure` section — the protocol document then contains both
+  elements, so nothing is lost; the parser simply does not require balance. The same mutation
+  is rejected in `###Pure`, `###Relational`, `###Service` and `###Diagram`, so this is not a
+  general end-of-input leniency but the Connection grammar alone. It means a malformed model
+  round-trips as if well-formed, and any tool that re-emits it will silently repair a file
+  the author never balanced. (`scripts/corpus/repro/unterminated-connection/`)
+- **Date literals are not validated at parse time.** `%2024-13-45` and
+  `%9999-13-45T99:99:99.0000` both parse; the compiler is what rejects them, with
+  `Invalid month: 13`. Worth recording because the obvious assumption runs the other way: a
+  rewrite that validates dates in its lexer would be *wrongly strict* and would reject models
+  legend-engine accepts. Being stricter is still a divergence.
+- **A multiplicity whose lower bound exceeds its upper bound is accepted, and compiles.**
+  `String[2..1]` and `Integer[10..3]` pass both parse and compile; no value can satisfy
+  either. This is not general laxity about multiplicity syntax — `[1..]` *is* a grammar
+  error, so the shape is validated and only the range check is absent. The comparison that
+  makes it a gap rather than a policy: an `Association` with one property also parses, and is
+  then rejected at compile with `Expected 2 properties for an association`. Arity is checked
+  one stage later; multiplicity bounds simply are not.
+  (`scripts/corpus/repro/inverted-multiplicity/`)
+- **Fields that do not belong to the chosen variant are parsed and silently discarded.**
+  Three instances of one shape. `mode: local` alongside `specification:` and `auth:` is
+  accepted, and the walker — which treats local mode as an if/else — replaces both with
+  *synthesised placeholders* (`accountName: "legend-local-snowflake-accountName-..."`); a
+  vault reference written by the author does not appear anywhere in the output. `mappings:`
+  on a `JsonModelConnection` and `class:` on a `ModelChainConnection` are dropped outright,
+  because all three model connections share one `definition` rule and each walker extracts
+  only what its own type needs. No diagnostic in any case. The consequence is that a
+  round-trip through parse-and-compose does not preserve the file: anything re-emitting a
+  model silently rewrites it, and the author is never told which lines stopped existing.
+  (`scripts/corpus/repro/silently-discarded-fields/`)
+- **Any identifier is a valid `###FileGeneration` type — the validation is dead code.**
+  `FileGenerationParseTreeWalker` wraps its type extraction in a catch for
+  `IllegalArgumentException` around a `substring`/`toLowerCase` that cannot throw one, so
+  `"Generation type '...' is not supported."` is unreachable and
+  `CompletelyMadeUpType fx::G { ... }` parses, recording `"type": "completelyMadeUpType"`.
+  The shipped types (Avro, Java, Protobuf, JsonSchema, Cdm, Slang) are enforced nowhere at
+  parse time. (`scripts/corpus/repro/generation-type-unvalidated/`)
+- **Six more unguarded dereferences behind one NullPointerException, in Persistence.**
+  `serviceOutputValue: (identifier | dslNavigationPath)` is one rule with two meanings; the
+  walker picks the accessor by dataset kind (TDS takes `.identifier()`, graph-fetch takes
+  `.dslNavigationPath()`) and never null-checks. Writing the other arm produces
+  `An exception of type 'NullPointerException' occurred, please notify developer`. It is six
+  call sites — `keys` on both sides, `DeleteIndicator.deleteField`, `FieldBased.partitionFields`,
+  `MaxVersion.versionField` — so a fix that patches `keys` alone is incomplete.
+  (`scripts/corpus/repro/persistence-npe/`)
+
+  **This is now a pattern rather than three coincidences.** Eight sites across three
+  unrelated grammars share one shape: *an optional or alternative grammar element
+  dereferenced without a null check*. F17 (`projects`, a null `classBody`), HostedService
+  `actions` (a null `actionBody`), and these six (a null alternative arm). Every one is
+  reachable by typing into a `.pure` file and every one surfaces as a stack trace with no
+  line, no column and no construct named. The grammar says "optional"; the walker assumes
+  "present".
+- **A `DateTime` serializes differently through TDS projection and through graph fetch.**
+  A projection returns `2024-06-03T09:07:00.000000000+0000`; a graph fetch of the same column,
+  same mapping, same row returns `2024-06-03T09:07:00.000000000` — no UTC offset. This is the
+  same family as F10, F12, F13, F15 and F16: a construct is interpreted per execution path and
+  the paths disagree. (`scripts/corpus/repro/timestamp-graphfetch/`)
+
+  Worth recording how it surfaced, because it is the clearest evidence so far for generating
+  instances over hand-written properties. The four hand-written graph-fetch probes never
+  projected a timestamp, so nobody had looked. Sixty *generated* trees ran, ten failed, and
+  the ten were **exactly** the ten containing a `DateTime` anywhere in the tree — an exact
+  correspondence between failure set and cause, which is what turned a batch of red into a
+  finding rather than a flake.
+- **Graph fetch enforces declared multiplicity; TDS projection does not.** A property declared
+  `[1]` whose column holds NULL fails a graph fetch with `Error reading in property 'email'.
+  Property of multiplicity [1] can not be null`, while a projection of the same column returns
+  the null. Not filed as a defect — the engine is right and the model and data genuinely
+  disagree — but it is another instance of the two paths differing, and any corpus with
+  deliberate nulls has to know about it.
+- **Harness note, not an engine defect: a testable run does not release DuckDB connections
+  until the JVM exits.** At 182 testables in one process the pool (100) drains, and every
+  subsequent test fails with `Connection is not available, request timed out after 30001ms`.
+  Recorded here because the failure shape is dangerously misleading — it presents as "every
+  service after a certain point is broken", which is exactly what a real mid-run crash looks
+  like, and the services all pass individually and in small groups. `scripts/corpus/run.py`
+  now batches 40 testables per JVM. Whether the non-release is by design (connections closed
+  at shutdown) or a leak has NOT been established; only the exhaustion is observed.
+- **An Association mapped without the `AssociationMapping ( ... )` wrapper parses, then fails
+  with a diagnostic that names the wrong problem.** Writing
+  `demo::Employment: Relational { employees: [db]@PF, firm: [db]@PF }` -- the shape a user
+  would reach for by analogy with a class mapping -- is accepted by the grammar as a CLASS
+  mapping, and the compiler then reports `Can't find class 'demo::Employment'`. The class is
+  right there; what is missing is the wrapper. A user is sent looking for a missing or
+  misspelled class instead of a missing keyword. Verified independently of the report that
+  surfaced it.
+- **An unregistered Operation function path fails with a raw null-dereference message.**
+  legend-engine registers exactly four operations -- `union`, `special_union`, `inheritance`,
+  `merge` -- keyed by exact fully-qualified name. Any other spelling (a short `union(a,b)`, a
+  plausible-but-absent `intersection_...`) parses, and the compiler then reports
+  `Cannot invoke "String.startsWith(String)" because "id" is null`: the walker stores the
+  `null` returned by its lookup map and something downstream dereferences it. No source
+  information, the offending name is not echoed, and the four valid operations are not
+  listed -- so the one piece of information the user needs is exactly what is missing.
+
+  **Ninth instance of the pattern.** F17 (`projects`), HostedService `actions`, the six
+  Persistence `serviceOutputValue` sites, and now this: an optional or alternative element
+  whose absence is not checked before use. Four unrelated grammars.
+- **`merge` written with `union`'s argument shape compiles into a merge with no predicate.**
+  `merge_OperationSetImplementation_1__SetImplementation_MANY_(a, b)` -- no bracketed id
+  list, no lambda -- takes the plain `parameters` grammar branch and yields
+  `operation = MERGE` with `validationFunction = null`. The correct form is
+  `merge_...([a, b], lambda)`. A user who copies a `union` and changes the word gets a merge
+  that silently has nothing to merge on. Verified.
+- **Dynafunction names in a property mapping are validated at neither parse nor compile
+  time.** `label: totallyBogusFunctionName([db]T.A, [db]T.B)` compiles clean, and so does
+  `upper(...)` -- which is not a dynafunction at all (the real names are `toUpper`/`toLower`).
+  Validity is decided much later, at SQL generation, by `DbExtension.dynaFuncDispatch`
+  against the `dynaFnToSql` registry. So a user who types `subtsring` gets no error from the
+  parser, no error from the compiler, and a failure only when the query runs -- and the
+  corpus cannot use "it compiles" as evidence that a dynafunction is real. Verified both
+  cases directly.
+
+  The real registry is 178 names: 111 dialect-independent in
+  `core_relational/.../sqlQueryToString/extensionDefaults.pure`, 74 in the H2 extension
+  (10 overriding), plus `case`, `not` and `extractFromSemiStructured` special-cased in
+  `dbExtension.pure#processDynaFunction`. Confirmed ABSENT in every dialect: `upper`,
+  `lower`, `substr`, `nvl`, `ifnull`, `len`, `to_char`, `date_part`.
+- **`concat`'s NULL semantics depend on the database dialect, so the same model returns
+  different answers on different stores.** Legend lowers the `concat` dynafunction to
+  `concat(a, b)` -- the SQL *function*, which ignores NULLs -- on DuckDB, Snowflake and
+  BigQuery, and to `a || b` -- the *operator*, which propagates NULL -- on Postgres. With one
+  argument NULL, the first group returns the other argument and Postgres returns NULL.
+
+  Not a performance or plan difference: an ANSWER difference, from one model and one set of
+  rows. Found by giving a generated dynafunction service a row with a NULL argument and
+  having an independent oracle disagree with the engine; the oracle was the side that was
+  wrong, and correcting it is what surfaced the dialect split.
+  (`scripts/corpus/hier.py`, service `stress::H1_IssuerLabel`)
+- **A cross-database join compiles and then cannot execute.** `Join J([dbA]T.c = [dbB]U.c)`
+  is accepted by the grammar, accepted by the compiler, and used happily in a join-chain
+  property mapping. The planner then emits a SINGLE SQL statement joining both tables --
+  which cannot work, because the two stores are two physical connections: whichever one runs
+  the statement, the other's table is absent (`Catalog Error: Table with name HIER_ISSUER
+  does not exist`).
+
+  Not a packaging problem: the runtime connects both stores and both `###Data` elements are
+  referenced by the test suite. A single relational join cannot span connections at all --
+  that is what XStore exists for. So the construct is reachable, compiles clean, and fails
+  only at execution, with an error that names a missing table rather than an impossible
+  join. Pinned by `stress::H1_InstrumentReach`.
+- **A Binding transformer returns each value as its raw JSON TOKEN, not as its declared
+  type.** A property read out of a JSON payload through
+  `prop: Binding path::B : [db]T.JSON_COL` comes back as the literal text of its token:
+
+      declared type      payload      returned
+      String[0..1]       "energy"     "\"energy\""   -- the quotes are part of the value
+      Integer[0..1]      7            "7"            -- a STRING, not an integer
+      Float[0..1]        1.5          "1.5"          -- a STRING, not a float
+      Boolean[0..1]      true         true           -- correct
+
+  So this is not a quoting bug on strings, which is how it first appeared. Every value is
+  handed back as text regardless of the property's declared type, and Boolean is the single
+  exception -- its JSON token is already a boolean literal, so returning the token happens
+  to be right. An `Integer` property yielding the string `"7"` violates its own type
+  signature, and any arithmetic downstream of it fails or coerces silently.
+
+  `repro/binding-json-token/` projects all four types from one payload, which is what
+  separates "strings are quoted" from "everything is a token". Pinned by
+  `stress::H_IssuerBinding`; `stress::H_IssuerBindingBool` projects the boolean leaf
+  separately and PASSES, so the feature has a working demonstration rather than only a
+  pinned defect. Both are kept apart from `stress::H_Issuer` so the embedded-property
+  coverage on the same class stays green.
+
+- **`!=` is the only comparison that keeps a row whose operand is NULL.** Filtering
+  `demo::Thing.all()->filter(t | $t.name != 'none')` over a table where one row has a NULL
+  `NAME` returns that row. The same query with `==` excludes it, and so does an ordered
+  comparison (`>`). Those three cannot all be right:
+
+      SQL three-valued logic     `NULL <> 'x'` is UNKNOWN, so `!=` must EXCLUDE the row
+      Pure collection semantics  `[] == 'x'` is false, so `!=` is TRUE and keeps the row --
+                                 but then `>` should not be excluding it either
+
+  So this is an inconsistency in the engine's own filter lowering rather than a disagreement
+  about which model to prefer: whichever semantics Legend intends, either `!=` or `>` is
+  wrong. `repro/not-equals-null/` pins all three operators side by side, and the `==` and
+  `>` cases PASS there -- that is the evidence identifying `!=` as the odd one rather than
+  the oracle.
+
+  The practical impact is silent and one-directional: every `!=` filter in a Legend query
+  admits rows the author almost certainly meant to exclude, and only for the rows where the
+  column is absent -- so it is invisible on data without NULLs and shows up as a handful of
+  unexpected rows on data with them.
+
+  Found by the combination matrix, indirectly. The corpus seeder had been putting a NULL in
+  only the FIRST nullable column of each table; when that was corrected to every nullable
+  column, four generated services diverged at once. Until a `!=` predicate could meet a
+  NULL, nothing in 180 services had ever exercised the rule. Pinned by
+  `stress::D_CashSettlementDense`, `D_TradeReportStatusDense`, `D_DepartmentDense` and
+  `D_TeamDense`.
+- **A graph fetch returning exactly one row serializes `values` as an object, not a
+  one-element array.** The same query shape over a two-row table produces
+  `"values": [ {...}, {...} ]`; over a one-row table it produces `"values": { ... }`. Same
+  mapping, same serialization format, same graph -- the JSON *type* of `values` depends on
+  how many rows came back.
+
+  The impact is that every consumer of a graph-fetch result has to handle both shapes, and
+  a consumer written against multi-row results keeps working until a filter happens to
+  narrow the result to one. `repro/graphfetch-single-row/` pins the two cases side by side;
+  the two-row case passes there, which is what identifies the row count as the variable.
+
+  Found by the corpus rather than aimed at: a seed change left one generated graph-fetch
+  service with a single surviving row, and it began failing while its 59 siblings passed.
+  Pinned by `stress::GG_PortfolioTree`.
+- **A mapping over a `TabularFunction` compiles but cannot be tested: `###Data` materializes
+  Tables only.** Declaring `TabularFunction ROLLUP (...)` inside a Schema, mapping a class
+  over it, and seeding it exactly as a Table is seeded fails at test-session setup with
+  `Table "ROLLUP" not found in Schema "analytics" in Database(s) demo::DB`. A real Table in
+  the same Schema, seeded the same way in the same element, works -- that is the control in
+  `repro/tabularfunction-untestable/`.
+
+  So the construct is reachable by the grammar and accepted by the compiler, and
+  unreachable by Legend's own testable framework. Any mapping that uses one is untestable by
+  construction, which means the feature cannot be covered by a service test at all -- not
+  merely that this corpus has not covered it.
+
+  Found while closing the gap between features that are PRESENT and features that are
+  EXECUTED: it is the one entry in the taxonomy that cannot be closed from the corpus side.
+- **`forAll` over a to-many has no SQL translation.** `$firm.employees->forAll(e | $e.salary >
+  50)` inside a `project()` fails at plan generation with *"No SQL translation exists for the
+  PURE function `forAll_T_MANY__Function_1__Boolean_1_`"*. Its counterpart `exists` translates
+  fine, and so do `isEmpty` and `isNotEmpty`, over the same association and the same rows --
+  which is what makes this a gap in one function rather than a limit on to-many predicates
+  generally.
+
+  The asymmetry matters because `forAll` is the natural way to express a universal
+  constraint over a collection ("every leg settles in the same currency"), and the workaround
+  -- `->filter(not p)->isEmpty()` -- is not obviously equivalent to a reader, particularly
+  over an empty collection where `forAll` is vacuously true.
+
+  Pinned by `repro/exists-empty-tomany/`, which projects `exists` and `isEmpty` beside it
+  over a firm with two employees and a firm with none; those PASS, and are what identify
+  `forAll` as the odd one.
+- **A `REAL` column parses, compiles, and cannot be executed on DuckDB.** A class mapped to a
+  `REAL` column fails at execution with *"Match failure: RealObject instanceOf Real"* at
+  `core_relational_duckdb/relational/typeConversion.pure`. The grammar accepts the type and
+  the compiler accepts the mapping; only the connector's type conversion does not handle it.
+
+  Ten other SQL types were probed the same way, one column each, same mapping shape, same
+  connection: `VARCHAR`, `CHAR`, `INTEGER`, `BIGINT`, `SMALLINT`, `DOUBLE`, `DECIMAL(18,4)`,
+  `BIT`, `DATE` and `TIMESTAMP` all round-trip correctly. That is what identifies `REAL`
+  rather than the probe -- `repro/real-type-unconvertible/` carries the failing case and the
+  `DOUBLE` control beside it.
+
+  Worth noting `DECIMAL(18,4)` returns `2.5000` rather than `2.5`: the declared scale is
+  preserved in the serialized form, which is defensible but is a difference a consumer
+  comparing text rather than parsed numbers would trip on.
+- **A model constraint is ENFORCED through graph fetch and IGNORED through TDS projection.**
+  One class, one constraint (`nonNegative: $this.balance >= 0.0`), one mapping, two seeded
+  rows of which one violates it. Two query shapes over exactly that:
+
+      ->project(~[id, balance])                    returns BOTH rows, violation included
+      ->graphFetch(#{...}#)->serialize(#{...}#)    ERRORS: "Constraint :[nonNegative]
+                                                   violated in the Class Acct"
+
+  So whether a constraint means anything depends on the shape of the query that reads the
+  data. A team relying on constraints for data quality gets enforcement from one access path
+  and silence from the other, and the silent path is the one most services use.
+
+  Neither behaviour is obviously the wrong one in isolation -- there is a defensible reading
+  where a projection is a relational query that never materializes an instance, and another
+  where a constraint is part of what the class MEANS. What is not defensible is that the two
+  disagree, because a model cannot be validated by testing one path.
+
+  This is the third divergence of the same family: F10 (graph fetch raises on an unmapped
+  enum code where TDS returns null) and F24 (graph fetch drops the UTC offset TDS includes).
+  Recorded together they say something stronger than any of them alone -- the two execution
+  paths do not share a semantics, and which one a service gets is decided by its query shape.
+  `repro/constraint-tds-vs-graphfetch/` carries both services over the same rows.
+- **The relational store grammar declares a documentation string on six rules and rejects it
+  in all six.** `RelationalParserGrammar.g4` gives `documentation?` to `database`, `schema`,
+  `table`, `columnDefinition`, `view` and `filter`, and `documentation: STRING`. A leading
+  string in any of those positions fails with *"Unexpected token"* -- as a single-quoted
+  string and as a text block alike.
+
+  The control is what makes it specific rather than a syntax mistake on my part: the same
+  elements without the leading string parse, and **stereotypes and tagged values in the
+  adjacent slot parse**, including on the same element. So the elements, the section and the
+  surrounding syntax are all fine; it is the documentation slot itself.
+  `repro/relational-documentation/` carries the rejected forms commented out beside the
+  accepted control.
+
+  It is not confined to the relational grammar. `DomainParserGrammar.g4` declares
+  `classDefinition: documentation? CLASS ...` in the same shape, and a leading string on a
+  Class is rejected there too, in both string forms. So the documentation slot is declared
+  across DSLs and writable in none of them.
+
+  Corroborating but not conclusive: the engine's own relational round-trip tests never write
+  a documented table, view, schema, column or filter -- consistent with the slot never
+  having worked.
+
+  The practical impact is small but the shape is the interesting part. A grammar that
+  advertises a construct it cannot accept is the same class of problem as `EqualToTDS`
+  (a complete grammar pair with no registered parser) and the walker-rejected
+  type-parameter forms: the .g4 is not a reliable description of what the engine takes, so
+  any tool generating Legend source from the grammar -- or any human reading it -- will
+  produce input the parser refuses. Documentation on a table has to be written as a
+  `doc.doc` tagged value instead.
+- **An `ExecutionEnvironment` that mixes a nested entry with a single one crashes the parser
+  with a `NullPointerException`.** The grammar puts both under one `executions` list --
+  `executions: (singleExecEnv | multiExecEnv)*` -- so an environment holding
+
+      PROD: [ primary: { mapping: m::M; runtime: r::R; } ],
+      UAT:  { mapping: m::M; runtime: r::R; }
+
+  is a combination it accepts. It throws, in either order. Each form on its own parses
+  cleanly, which is what identifies the mixture rather than either construct.
+
+  The failure mode is the point. An NPE is not a diagnostic: it names no element, no line
+  and no construct, so an author who writes the two forms in one environment -- which is the
+  natural thing to do the moment one environment needs two datasets and another needs one --
+  is told only that something was null. Every other rejection in this corpus's experience
+  names what it did not like.
+
+  `repro/execenv-mixed-npe/` carries the two working forms as controls with the mixed ones
+  commented out.
+
+## F35 — DuckDB lowers `dayOfYear` to `day()`, which is the day of the MONTH
+
+`dayOfYear` on 2024-06-03 returns **3**. The answer is 155.
+
+The cause is one line, and it is visible next to the line it was copied from:
+
+    218:  dynaFnToSql('dayOfMonth',  $allStates,  ^ToSql(format='day(%s)')),
+    221:  dynaFnToSql('dayOfYear',   $allStates,  ^ToSql(format='day(%s)')),
+
+in `duckdbExtension.pure`. The two entries are byte-identical, so `dayOfYear` and
+`dayOfMonth` compile to the same SQL and `dayOfYear` silently answers the other question.
+DuckDB has `dayofyear(...)`, and every other dialect in the tree gets it right —
+Postgres and Redshift `date_part('doy', %s)`, ClickHouse `toDayOfYear`, SQL Server and
+Databricks and Sybase and MemSQL `dayofyear`, Spanner `extract(dayofyear from %s)`. DuckDB
+is alone.
+
+What makes this one worth reporting is that it cannot fail loudly. There is no error and no
+type mismatch: both functions return an Integer, and for the first twelve days of any month
+the two answers are both plausible small numbers. A test written on 2024-06-03 that asserts
+`3` locks the bug in. It is only detectable by computing the expected value from the input
+date independently of the engine, which is what this corpus does.
+
+`repro/dayofyear-is-dayofmonth/` asserts 155 and currently fails.
+
+## F36 — Five functions are in `getSupportedFunctions()` and cannot be executed
+
+Probing each registered function in a real property mapping turns up five that are listed and
+still cannot be used, in three distinct ways:
+
+    previousDayOfWeek     [unsupported-api] The function '...' (state: [Select, false])
+    mostRecentDayOfWeek   is not supported yet
+    between
+    parseBoolean
+
+    eq                    dyna function [eq] is not registered in
+    removeDuplicates      meta::relational::functions::sqlQueryToString::DynaFunctionRegistry
+    reverse
+    sort
+
+**All thirty calendar aggregations are in the second group.** `ytd`, `mtd`, `qtd`, `wtd`,
+`priorDay`, `pwtd`, `p12wtd`, `annualized` and the rest — every one of them is registered in
+`getSupportedFunctions()` and absent from the `DynaFunctionRegistry`, so none of them can be
+used in a relational query at all. That is an entire documented feature area, and the only
+way to discover it is to call one.
+
+The second message is the more interesting one. These are in `getSupportedFunctions()`
+and absent from the `DynaFunctionRegistry` that the lowering actually consults, so the two
+registries disagree with each other — the first says yes and the second has never heard of
+them. None of these are exotic: `between`, `parseBoolean`, `sort` and `reverse` are likelier
+to appear in a real query than most of the 262.
+
+`getSupportedFunctions()` is the map the engine consults before reporting "No SQL translation
+exists for the PURE function", so it reads as the authoritative list of what a query may
+contain. Here it routes to a handler that then refuses, which makes the registry an
+over-report rather than a contract.
+
+That distinction matters beyond the two names. Anything deciding *in advance* whether a query
+is expressible — a planner choosing between relational and in-memory execution, an editor
+graying out unavailable functions, a generator building queries from the registry — will
+consult this map and be told yes. The refusal arrives after the query is built and dispatched.
+
+Found by `scripts/corpus/probe_functions.py`, which runs one column per registered function
+and drops whatever the engine names, so a refusal identifies itself instead of failing a
+980-cell matrix with no indication of which cell was at fault.
+
+## F37 — `substring` computes a different answer in SQL than in Pure
+
+`substring('alpha', 2, 4)` returns **`ph`** evaluated in memory and **`lpha`** pushed into
+SQL. Both run in this engine, on the same string, with the same arguments.
+
+`repro/substring-two-answers/` runs each path as its own service. The in-memory one PASSES,
+which is what makes this a defect and not a corpus assumption: the corpus and the engine's
+own evaluator agree, and only the relational lowering dissents.
+
+The two conventions:
+
+| | start | third argument |
+| --- | --- | --- |
+| Pure, in memory | 0-based | end index, exclusive |
+| Relational, DuckDB | 1-based | **length** |
+
+Pure's semantics are Java's `String.substring(begin, end)`, which the platform's own code
+relies on — `dataquality_test_utils.pure` writes `$innerStr->substring(0, $paramEndIdx + 1)`,
+a zero start and a `+1` to make the end exclusive. Neither is compatible with a length.
+
+The lowering is a pass-through with a comment already on it:
+
+    dynaFnToSql('substring', $allStates, ^ToSql(format='substring%s', ...)),
+    // TODO - pure uses 0-based indexing, duck db returns location with 1-based index,
+    // keeping this as H2 also returns 1-based currently, many user tests need to be fixed
+
+So the index base is known. The third argument does not appear to be: passing Pure's
+`(start, end)` straight into SQL's `substring(string, start, length)` reinterprets the third
+argument as a length, which is a second and independent divergence. On `('alpha', 2, 4)` the
+base costs one character of offset and the length costs two more.
+
+The TODO also records why it stands — "many user tests need to be fixed". Those tests were
+presumably written by running the query and recording the result, which is exactly how a
+defect becomes a specification. It is worth separating the two questions: whether to change
+the behaviour is a compatibility decision, but the current state is that one function name
+means two different things depending on where the planner decides to evaluate it, and
+nothing in the model says which one a given query will get.
+
+## F38 — `firstDayOfWeek` returns a DateTime through a StrictDate property
+
+Four properties, all declared `StrictDate[0..1]`, all computed from one DATE column by the
+same family of functions:
+
+    "mon" : "2024-06-01"
+    "qtr" : "2024-04-01"
+    "yr"  : "2024-01-01"
+    "wk"  : "2024-06-03T00:00:00.000000000+0000"
+
+The seed date is itself a Monday, so `firstDayOfWeek` returns the input unchanged and the
+only difference between the fourth column and the other three is how it is rendered.
+
+The cause is in the lowerings. Three use `date_trunc`, which leaves a DATE a DATE; the fourth
+uses date arithmetic, which promotes to TIMESTAMP:
+
+    firstDayOfMonth    date_trunc('month', %s)
+    firstDayOfQuarter  date_trunc('quarter', %s)
+    firstDayOfYear     date_trunc('year', %s)
+    firstDayOfWeek     date_add(%s, to_days(cast(-(isodow(%s)-1) as integer)))
+
+What the row demonstrates is not the promotion itself but that the promotion survives the
+model. The property says `StrictDate`, and the declared type does not narrow the value on the
+way out — the SQL expression's result type wins. A consumer reading this column gets a
+different string shape depending on which function produced it, and the model gives no
+warning because all four properties have the same declared type.
+
+`adjust` behaves the same way: `adjust(2024-06-03, 5, 'DAYS')` through a `StrictDate`
+property returns `2024-06-08T00:00:00.000000000+0000`. The value is right and the type is
+not, and again the lowering is date arithmetic rather than a truncation. So this is not one
+function's slip -- any date function whose SQL promotes to TIMESTAMP carries the promotion
+out through a StrictDate property, and the two found so far are simply the two the corpus
+has run.
+
+Related to F24, where the same DateTime differs between TDS projection and graph fetch. Both
+say the same thing: serialization follows the execution path, not the declared type.
+
+## F39 — `startsWith`/`endsWith`/`contains` are false for every row when the pattern is a column
+
+    startsWith(S, P)   with S = 'alpha', P = 'a'   ->   false
+
+No error, no warning, no refusal. The predicate is simply always false.
+
+`repro/like-pattern-from-column/` runs each of the three predicates twice, once with a literal
+pattern and once with a column pattern, over four rows covering every NULL combination. The
+literal form is correct in all four. The column form is `false` wherever the subject is
+non-NULL — including the row where both operands are present and genuinely match.
+
+The cause is that the pattern operand is assumed to be a literal:
+
+    function transformLikeParamsDefault(params: String[2]):String[*]
+    {
+       let likeExpression = $params->at(1)->removeQuotes()->escapeLikeExprDefault();
+
+Its quotes are stripped and it is interpolated into the quoted LIKE pattern, so a column
+reference becomes literal text:
+
+    "root".S like 'root.P%'
+
+That one mechanism explains every cell of the table: false where the subject is non-NULL,
+NULL where it is NULL (`NULL like '...'` being NULL).
+
+Three functions share the helper, and the helper lives in `extensionDefaults.pure` rather than
+in a dialect, so this is unlikely to be DuckDB-specific — DuckDB is simply what this corpus
+executes.
+
+The shape is worth noting separately from the defect. Everything about this query is legal:
+it compiles, it plans, it executes, it returns the right number of rows with the right types.
+A `filter` built on it returns an empty result, which is a perfectly plausible answer. Any
+test written by running the query and recording the output would have enshrined `false` as
+correct — which is precisely why the expectation here is computed from the inputs instead.
+
+Found by the combination matrix rather than by looking: the cell
+`col_bool_starts_nullable_embedded` disagreed with the oracle, and the disagreement survived
+narrowing from "embedded property" to "nullable operand" to the actual variable, which was
+that the matrix passes a second COLUMN where a hand-written test would have typed a literal.
+
+
+## F40 — `isEmpty` in an aggregate position generates invalid SQL
+
+    ->groupBy(~[g], ~[ f0: x|$x.v : agg|$agg->isEmpty() ])
+
+produces
+
+    select "root".G as "g", "root".V is null as "f0" from T as "root" group by 1
+
+which the database refuses: `"root".V` is in the select list neither aggregated nor grouped.
+
+`isEmpty` over a collection asks whether it has any elements, and the SQL for that is
+`count(...) = 0`. The lowering emits `V is null` instead — which is what `isEmpty` means for a
+single optional value, not for a group. The aggregate position is lost, so the statement comes
+out malformed rather than merely wrong. `isNotEmpty` is identical.
+
+Both functions are correct in the position this corpus normally uses them, over a to-many end,
+where they run across 40 services and 105 relationship ends. It is the aggregate position
+alone that mistranslates.
+
+The diagnostic is worth noting separately. The error is raised by the JDBC driver and quotes
+generated SQL:
+
+    Binder Error: column "V" must appear in the GROUP BY clause or be used in an
+    aggregate function ... LINE 2: select "root".G as "g", "root".V is null as "f0"
+
+It names no function, no property and no mapping. An author is shown a database complaining
+about a GROUP BY they never wrote.
+
+`repro/isempty-aggregate-invalid-sql/`.
+
+## F41 — `first()` on a relation returns every row
+
+    ->project(~[g, v])->sort([~v->ascending(), ~g->ascending()])->first()
+
+over four rows returns four rows. The operation is not applied, and nothing says so.
+
+`core/src/test/resources/stress/80-relation-first.pure` asserts the single row `first` means
+and fails. The query sorts on two columns because one of them has a duplicate: without a total
+order the expectation would be unfalsifiable, which the relation probe learned the hard way.
+
+The shape of this defect is what makes it serious rather than annoying. The result is
+well-formed, correctly typed, and correctly ordered — the right answer to a different
+question. `first()` is normally written to avoid materialising a large result, so the failure
+mode is that a guard against a million rows returns a million rows, and every assertion about
+the CONTENT of those rows still passes.
+
+## F42 — `last()` generates SQL that mixes column types into one list
+
+    Binder Error: Cannot create a list of types VARCHAR and INTEGER -
+    an explicit cast is required
+    LINE 2: select (cast(list_valu...
+
+The lowering builds a SQL list from the row's columns, which requires every column to share a
+type. Any relation containing both a string and a number fails — which is nearly every
+relation anyone would write.
+
+Unlike F41 this one is loud, but the diagnostic comes from the database and names neither
+`last` nor the query that produced it.
+
+`first()` behaves the same way over a to-many NAVIGATION, where the consequence is different
+and worse. Projecting `k` and `$x.kids->map(c|$c.v)->first()` over three parents owning 3, 2
+and 0 children returns **six rows** — one per child — instead of three:
+
+    engine   P1/3  P1/1  P1/2  P2/5  P2/5  P3/null
+    oracle   P1/3  P2/5  P3/null
+
+So the operation that was supposed to reduce each parent's collection to one value leaves the
+join un-reduced, and the result has the wrong CARDINALITY rather than merely the wrong
+content. A caller projecting one row per parent gets one row per child, and every value in it
+is a real value from a real child, so nothing about the data looks wrong.
+
+Worth recording how nearly this was misreported. Compared row by row against a three-row
+expectation, the six-row result reads as P1→3, P2→1, P3→2 — values apparently leaking from
+one parent to another, which would be a far more dramatic and completely fictional finding.
+The shape has to be checked before the cells; `probe_collection.py` now stops at a row-count
+mismatch for that reason.
+
+Both were found by `scripts/corpus/probe_relation.py`. Neither operation had ever been
+executed by this corpus: the density scoreboard counted "relation operations" as a single
+construct which `project` satisfied, so sixteen operations and seven window functions were
+reported covered on the strength of one.
+
+## F43 — Most collection functions do not work over a to-many end
+
+Twenty-three collection functions projected over `$x.kids`, for parents owning 3, 2 and 0
+children. Three work: `isEmpty`, `isNotEmpty`, `exists`.
+
+The rest fail in four distinct ways, and the largest group fails with a message that is not
+merely unhelpful but self-contradictory. `distinct`, `removeDuplicates`, `take`, `drop`,
+`slice`, `size`, `filter`, `init`, `tail` and `add` all produce:
+
+    NODE VALIDATION ERROR: positionBeforeLastApplyJoinTreeNode
+    root
+    DOESN'T CONTAIN:
+    root
+
+`root` does not contain `root`. Whatever internal invariant this is checking, the text names
+no function, no property and no mapping, and its single concrete assertion is a contradiction.
+An author who writes `$x.kids->take(2)` — an entirely ordinary thing to write — gets this.
+
+`first`, `last`, `sort`, `sortBy` and `reverse` are silently not applied (F41). `contains` is
+rejected with *"Parameter to IN operation isn't a literal!"* and `concatenate` with *"Cannot
+cast a collection of size 2 to multiplicity [1]"* — diagnosable, at least.
+
+`count`, `map` and `joinStrings` are correct over a populated collection and wrong over an
+empty one, returning 1 and NULL and NULL where the answers are 0, 0 and `''`. That is F6,
+already quarantined across six services; the probe finding it independently is evidence the
+probe works rather than a new defect.
+
+The seed's third parent owns no children for exactly that reason. Every aggregate-shaped
+collection function differs between an empty and a populated collection, and F6 lives only
+there — a probe with three well-populated parents would have found none of it.
+
+`repro/collection-over-tomany/`.
+
+## F44 — The projection spelling decides which database the query runs on
+
+One model, one mapping, one seed, one date, one connection declaring `type: DuckDB`:
+
+    ->project(~[doy:x|$x.doy])         relation form  ->  3
+    ->project([x|$x.doy], ['doy'])     TDS form       ->  155
+
+`dayOfYear(2024-06-03)` is 155. The relation form returns 3 because DuckDB lowers `dayOfYear`
+to `day()` (F35). The TDS form returns the correct answer because it is not running on DuckDB.
+
+The direct evidence is not the arithmetic but the exceptions. TDS-form queries fail with **H2**
+diagnostics:
+
+    org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement
+    "RANK() OVER (PARTITION BY root.G ORDER BY NULL[*])"; expected "ORDER BY"
+
+from a file whose only connection is a DuckDB one and which never mentions H2.
+
+This matters more than any single lowering bug. A test suite exists to check behaviour against
+the database the system will use; if the projection spelling silently picks a different one,
+a TDS-form suite passes on H2 while production runs DuckDB, and every dialect-specific defect
+— F35, F37, F38, F39, all of them found through the relation form — is invisible to it. Two
+spellings of the same query give two answers with nothing in the model, the runtime or the
+connection to explain why.
+
+This corpus was lucky rather than careful: 185 of its 189 service queries use the relation
+form, so its DuckDB findings stand. The four that do not are named in
+`repro/projection-form-picks-the-database/`, and one of them is deliberate — the in-memory
+half of F37, which is supposed not to reach SQL.
+
+Found by `scripts/corpus/probe_tds.py`, where `concatenate` and `olapGroupBy` fail with H2
+syntax errors. A DuckDB-only corpus should not be able to produce an H2 diagnostic, and that
+is the whole reason this was looked at.
+
+## F45 — Two-argument `max`/`min` fail inside the string formatter
+
+    max(T.I, T.J)
+
+    Execution error: "Unused format args. [2] arguments provided"
+
+`max` and `min` are in `getSupportedFunctions()` and have two-argument Pure signatures, but
+their only relational lowering is the single-argument aggregate:
+
+    dynaFnToSql('max', $allStates, ^ToSql(format='max(%s)')),
+
+so a two-argument call supplies two arguments to a format string with one slot. What surfaces
+is not "this function is not supported here" but an internal complaint from the string
+formatter about unused arguments — a message about the engine's own templating, addressed to
+someone who wrote a query.
+
+`greatest` and `least` are the two-argument spellings that do work; both execute and agree
+with the oracle. So the capability exists and only this spelling of it fails, which makes the
+diagnostic the whole problem: an author who writes `max(a, b)` needs to be told to write
+`greatest(a, b)`, and is instead told about format args.
+
+Related, and the same shape as the `DurationUnit.DAYS` trap in F36: inside a relational
+mapping `@X` is a JOIN reference, so `cast(T.I, @Float)` is read as a join named `Float` —
+*"Can't find join 'Float' in database 'DB'"*. Relational mapping syntax claims the punctuation
+that these type-level operations need, and the resulting message describes the misreading
+rather than the mistake.
+
+## F46 — The regexp functions advertise arities their lowering cannot accept
+
+    regexpLike(S, 'ph')        Execution error: The system is trying to get an element
+                               at offset 2 where the collection is of size 2
+    regexpLike(S, 'ph', 'i')   works
+
+Both overloads are registered:
+
+    regexpLike_String_1__String_1__Boolean_1_
+    regexpLike_String_1__String_1__RegexpParameter_$1_MANY$__Boolean_1_
+
+and the lowering is typed to exactly one arity:
+
+    dynaFnToSql('regexpCount',   ... transform={p:String[3]|...}),
+    dynaFnToSql('regexpIndexOf', ... transform={p:String[4]|...}),
+    dynaFnToSql('regexpExtract', ... transform={p:String[5]|...}),
+
+so the shorter form — the one the registry lists first and the one anyone writes first —
+reaches a transform that indexes past its own argument list.
+
+Working arities, established by trying them: `matches(S,p)`; `regexpLike(S,p,flags)`;
+`regexpCount(S,p,flags)`; `regexpIndexOf(S,p,1,flags)`; `regexpExtract(S,p,1,1,flags)`. For
+`regexpReplace` no arity was found that works — three arguments and four both fail.
+
+The diagnostic is the substantive complaint. An internal bounds error naming no function, no
+argument and no overload describes the engine's list handling to someone who wrote a query,
+while the fact they need — this overload has no lowering, pass the flags — is sitting in the
+transform's type signature.
+
+`repro/regexp-arity/`.
+
+## F47 — A missing set id on an association end fails as "Void not supported!"
+
+    meta::pure::router::store::routing::Void not supported!
+
+An association end pointing at a class that is mapped with an explicit SET ID must name the
+source and target set ids:
+
+    legs: [store::DB]@OtcTrade_Leg                              -- compiles, then fails
+    legs[otcBase, derivatives_SwapLeg]: [store::DB]@OtcTrade_Leg -- works
+
+The unqualified form compiles cleanly and fails at plan generation with the assertion above.
+It names no association, no class, no set and no mapping, and its text has nothing to do with
+what is wrong.
+
+This matters because a class needs a set id exactly when it is the root of a subtype
+hierarchy — which is how any product taxonomy is modelled. So the shape that requires the
+qualified spelling is also the shape most likely to have several associations hanging off it,
+and every one of them will fail this way until each end is qualified by hand.
+
+### Correction
+
+This finding was first published as "an association cannot be navigated to a class mapped in
+a non-default schema", which is wrong. The failing case happened to involve a schema, and I
+generalised from one example without testing the generalisation. Two later cases produced the
+identical error with no schema anywhere — an OTC trade to its legs, and a trade to its option
+terms — and a minimal two-class model then reproduced it with one set implementation, no
+subtypes and no schema at all. Naming the set ids fixed all three.
+
+What is left is a real finding, and a smaller one: the diagnostic. The engine knows which end
+it could not resolve and says `Void not supported!` instead. The schema part was my error, and
+the corpus now navigates schema-qualified tables in `CB_SchemaReach` without complaint.
+
+`repro/association-set-id-routing/`.
+
+## F48 — Three clock functions serialize as a structured object, not a date
+
+`firstDayOfThisMonth()`, `firstDayOfThisYear()` and `firstDayOfThisQuarter()` come back as a
+nested object rather than a value:
+
+    { "offset": { "totalSeconds": -14400, "id": "-04:00",
+                  "rules": { "fixedOffset": true, "transitions": [], "transitionRules": [] } },
+      "nano": 0, "year": 2026, "monthValue": 8, "dayOfMonth": 1,
+      "hour": 0, "minute": 0, "second": 0,
+      "month": "AUGUST", "dayOfWeek": "SATURDAY", "dayOfYear": 213 }
+
+That is a Java `ZonedDateTime` reflected into JSON, transition rules and all. The declared
+return type is a date.
+
+The inconsistency is what makes it a defect rather than a format choice: `today()`, in the
+same projection of the same service, returns `"2026-08-19T00:00:00.000000000+0000"` — a
+string. So two clock functions of the same shape serialize two different ways, and one of
+them exposes the engine's internal time representation to any caller parsing the result.
+
+A consumer reading `firstDayOfThisMonth()` gets an object whose shape depends on the JVM's
+timezone database rather than on the model.
+
+Found by `scripts/corpus/probe_functions.py`, which compares every registered function's
+result against an independently computed one. These three cannot agree with the oracle by
+construction — they read the clock — but the probe still runs them, and the SHAPE of the
+disagreement is what surfaced this.
+
+## F49 — An inherited association cannot be navigated from a subtype set
+
+    meta::pure::router::store::routing::Void not supported!
+
+A class mapped with subtype sets declares its associations once, on the base:
+
+    derivatives::TradeLegs: Relational
+    {
+       AssociationMapping ( legs[otcBase, derivatives_SwapLeg]: [store::DB]@OtcTrade_Leg, ... )
+    }
+
+Every subtype inherits `legs` -- that is what inheritance means, and Pure agrees. But the end
+names the BASE's set id, so a query ROOTED at a subtype set and navigating `legs` fails during
+plan generation with the same assertion as F47, which names nothing.
+
+The workaround is not obvious either, because the association cannot simply be re-declared per
+subtype: there is one association, and its ends already name a source and target. With
+fifty-eight subtypes over one base, qualifying every end for every subtype is not a
+workaround so much as a different model.
+
+What makes this worth reporting separately from F47 is that the same navigation succeeds from
+some shapes and not others. The corpus's taxonomy services reach `legs` and `optionTerms`
+from a subtype root without complaint; the to-many generator's shape over the identical ends
+does not. So it is not "subtypes cannot navigate" -- it is narrower than that, and the error
+message distinguishes neither case.
+
+Found while adding 93 reference-data subtypes: the corpus reader had just been taught to
+propagate associations to subclasses (which Legend semantics require and it was not doing),
+and forty generated services appeared and failed at once.
+
+## F50 — A derived Boolean compared to a boolean literal generates invalid SQL
+
+    ->filter({x | $x.isFinal == false})
+
+    java.sql.SQLException: Parser Error: syntax error at or near "="
+
+`isFinal` is a derived property returning `Boolean[1]`. The query compiles, the plan
+generates, and the SQL the plan carries is rejected by the database's own parser -- so nothing
+between writing the filter and running it reports a problem.
+
+Seven variants over one five-row model separate it precisely:
+
+| filter | result |
+| --- | --- |
+| `$x.isFinal == false` | Parser Error |
+| `$x.isFinal == true` | Parser Error |
+| `$x.isFinal` | works |
+| `!$x.isFinal` | works |
+| `$x.doubled > 0.0` (derived Float) | works |
+| `$x.tag == 'FINAL!'` (derived String) | works |
+| `$x.status == 'FINAL'` (the derivation, written out at the call site) | works |
+
+It is not derived properties in filters, and it is not `==` in filters. It is exactly a
+derived Boolean compared with `==` to a boolean literal, in either direction.
+
+The workaround is `!$x.isFinal`. The two forms are not interchangeable on an OPTIONAL boolean
+-- truthiness for an absent value is a different question from `== false` -- so on a `[0..1]`
+property there is no rewrite that is obviously equivalent.
+
+What makes this worth reporting is how ordinary the shape is. A thousand services in this
+corpus projected derived properties constantly and filtered on one never; projecting puts the
+expression in the SELECT list, which is a different path and a working one. Adding a derived
+boolean and then asking for the rows where it is not set is the first thing anyone does with
+one, and it is the case that fails.
+
+Repro: `repro/derived-boolean-equals-literal/`, `scripts/corpus/probe_derived_filter.py`.
+
+## F51 — `isEmpty()` over a to-many reached by a NON-KEY join returns one row per joined row
+
+    Join T_Above(T.GRP = {target}.GRP and T.RNK < {target}.RNK)
+
+    ->project(~[id: x|$x.id, noneAbove: x|$x.above->isEmpty()])
+
+Six input rows produce seven output rows: the row with two rows above it is returned twice.
+The pattern is one row per joined row, floored at one by the outer join — the aggregation
+that should collapse the set was not applied.
+
+Every boolean is correct, which is what makes this expensive to find. It presents as
+duplicate rows rather than as a wrong answer, so it reads like a data-quality problem; and on
+a fan-out of one it does not present at all.
+
+**Corrected.** This was first reported as a defect in SELF-joins, on the evidence of two
+self-joins that showed it and one plain foreign-key association that did not. That was the
+wrong boundary drawn from the wrong controls. An `or` join between two DIFFERENT tables --
+
+    Join T_Tags(T.ID = TAG.FOR_ID or T.GRP = TAG.FOR_GRP)
+
+-- duplicates identically. The corpus found this itself, three commits later: a generated
+emptiness service over `trading::Trade` picked up a routing association matched on venue or
+product and returned every trade twice.
+
+The line is between a join the planner can index on and one it must evaluate row by row:
+
+| join | `isEmpty()` |
+| --- | --- |
+| `T.ID = K.PARENT_ID` (key equality, different tables) | correct |
+| `T.GRP = {target}.GRP and T.ID <> {target}.ID` (self, equality) | duplicates |
+| `T.GRP = {target}.GRP and T.RNK < {target}.RNK` (self, inequality) | duplicates |
+| `T.ID = TAG.FOR_ID or T.GRP = TAG.FOR_GRP` (different tables, disjunction) | duplicates |
+
+So it is any join whose condition is not a single key equality. Neither self-ness nor
+inequality is the discriminator.
+
+`->count()` over the identical end returns six rows, so it is `isEmpty` specifically rather
+than aggregates in general.
+
+Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.
+
+## F52 — Both ends of a `{target}` self-join return the same set
+
+    Association ineq::Above { below: ineq::P[*]; above: ineq::P[*]; }
+
+`above` and `below` are opposite directions of one inequality. Navigating `below` returns
+`above`'s rows: the row of rank 1 reports something below it, and the row of rank 3 reports
+nothing below it. Both are exactly backwards.
+
+The join condition is written from one side -- `T.RNK < {target}.RNK` says *the target is
+higher* -- so the reverse end requires swapping which row plays `{target}`. Nothing appears
+to do that.
+
+There is a modelling question underneath: nothing in the model distinguishes the two ends.
+They have the same owner, the same target and the same join, and only their NAMES differ. So
+a reader cannot infer the direction, and this corpus's oracle does not try -- the direction is
+a declared list (`oracle.SELF_JOIN_REVERSE`), on the same footing as its cross-store links,
+because a guess returns a well-formed set from the wrong direction. Whatever the fix, the
+engine needs the same information from somewhere.
+
+Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.
+
+## F53 — A `REAL` column cannot be read under DuckDB
+
+    Table T ( K VARCHAR(8) PRIMARY KEY, C_REAL REAL )
+
+    Execution error at (resource:/core_relational_duckdb/relational/typeConversion.pure
+    line:59 column:12), "Match failure: RealObject instanceOf Real"
+
+The failure is at table creation rather than at projection, so one `REAL` column takes down
+every service reading any table in the same file, and the message names neither the column
+nor the table nor the type as written.
+
+Thirteen types were tried, one model each -- a type that cannot be created takes every other
+type in the file with it, so they cannot share one. `REAL` is the only failure. `VARCHAR`,
+`CHAR`, `INTEGER`, `SMALLINT`, `BIGINT`, `TINYINT`, `DOUBLE`, `FLOAT`, `DECIMAL`, `NUMERIC`,
+`DATE` and `BIT` all round-trip correctly.
+
+`FLOAT` passing is what makes this worth reporting rather than filing as an unsupported type:
+in DuckDB `REAL` and `FLOAT` are the same 4-byte type, so the two declarations describe the
+same column and only one of them can be read.
+
+It went unfound because every one of this corpus's ~370 tables used `VARCHAR`, `DOUBLE`,
+`INTEGER`, `DATE`, `TIMESTAMP` or `BIT`. `REAL` is ISO SQL, accepted by the grammar, and the
+obvious declaration for a percentage -- it had never been written.
+
+Workaround: `FLOAT` or `DOUBLE`.
+
+Repro: `repro/real-column-type/`, `scripts/corpus/probe_column_types.py`.
+
+## F54 — A qualified property that concatenates fabricates a value on a broken chain
+
+    $x.target.label('BBG')
+
+with `label(vendor: String[1]) { $vendor + '/' + $this.name + ':' + $this.targetId }` and
+`$x.target` landing on nothing, returns `"BBG/:"` — the body evaluated with every `$this.`
+component empty. Not null, not an error: a string in exactly the right shape, built out of a
+row that is not there.
+
+Three rows, four projections through the same broken chain, and only one is wrong:
+
+| projection | result |
+| --- | --- |
+| plain property `$x.target.name` | null — correct |
+| derived property `$x.target.twiceSize` | null — correct |
+| qualified property doing ARITHMETIC `$x.target.scaled(100.0)` | null — correct |
+| qualified property doing CONCATENATION `$x.target.label('BBG')` | **`"BBG/:"`** |
+
+So it is neither qualified properties nor broken chains in general. The arithmetic case over
+the SAME absent object is correct, because `null * 100.0` is null where
+`'' + '/' + '' + ':' + ''` is a perfectly good string. Whatever supplies `$this` for the
+call is supplying an empty object rather than declining to make the call.
+
+What makes it worth more than its size: every other case yields null, which a caller
+notices. This one yields a plausible identifier — a vendor ticker, a composite key, a display
+label — for a row that does not exist. That is the shape of value most likely to be used as a
+lookup key downstream and least likely to be checked.
+
+Found by a generated service, not by looking: `$curve.benchmarkSeries.tickerOn('BBG')` over
+eight curves, three without a benchmark series. The generator reached that chain only because
+a project had just been linked into the executable corpus, which changed what was in range.
+
+Repro: `repro/qualified-property-broken-chain/`,
+`scripts/corpus/probe_qualified_broken_chain.py`.
+
+## F55 — `graphFetch` of a sub-object mapped in an INCLUDED mapping dies at initialisation
+
+    Mapping down::M ( include up::M   ... down::Root ... )
+
+    |down::Root.all()->graphFetch(#{ down::Root { rootId, midByProperty { midName } } }#)
+
+    Execution error at (resource:/core_relational/relational/graphFetch/
+      relationalGraphFetch.pure line:557 column:68),
+      "Cast exception: RelationalPropertyMapping cannot be cast to XStorePropertyMapping"
+
+`midByProperty` is an ordinary relational property over an ordinary join between two tables
+in one database. `XStorePropertyMapping` is what Legend uses for a property whose ends are in
+DIFFERENT STORES, so something on the graphFetch path has decided that a set contributed by
+an included mapping is in another store.
+
+Seven cases separate it, each in its own file because the failure is fatal at
+initialisation:
+
+| root's mapping | sub-object's set from | edge | |
+| --- | --- | --- | --- |
+| `up::M` | `up::M` | property over join | initialises |
+| `up::M` | `up::M` | association | initialises |
+| `down::M` | — (no sub-object) | — | initialises |
+| `down::M` | `up::M`, **root too** | property over join | initialises |
+| `down::M` | `up::M` | property over join | **fails** |
+| `down::M` | `up::M` | association | **fails** |
+| `down::M` | `up::M` | two hops | **fails** |
+
+The fourth row is what pins it: the same tree, the same join, the same including mapping,
+differing only in that the ROOT is also in the included mapping — and it works. So it is not
+the include, the edge style, the hop count, or graphFetch generally. It is an edge that
+leaves the including mapping for a mapping that mapping includes.
+
+The same edge PROJECTS correctly. `$x.bucket.ladder.name` reads two hops across the same
+boundary and returns the right rows, so the join lowers fine and only the tree form fails.
+
+Why a large corpus never found it: ~150 domain mappings included side by side into one
+`stress::AllMapping` are SIBLINGS, and no include relation holds between any two of them.
+The shape needs a mapping that includes a mapping — which first appeared when a linked
+project that itself depends on another linked project was pulled into the executable corpus.
+
+It is fatal at test-suite INITIALISATION, so it cannot be quarantined: a quarantine excuses a
+failure and this one never reports one. Everything sharing its JVM batch reports `MISSING`
+with no cause named.
+
+Workaround: project the fields instead of fetching the tree, or flatten the two mappings into
+one.
+
+Repro: `repro/graphfetch-included-mapping/`,
+`scripts/corpus/probe_graphfetch_included_mapping.py`.
+
+## F56 — A subtype set that `extends` a filtered set does not inherit the parent's `~filter`
+
+    xf::Equity[xfEquity] extends [xfBase]: Relational
+    { ~filter [xf::DB]XfEquityRows        // INSTRUMENT_TYPE = 'EQUITY'
+      ... }
+
+    xf::CommonStock[xfCommon] extends [xfEquity]: Relational
+    { ~filter [xf::DB]XfCommonRows        // INSTRUMENT_SUBTYPE = 'COMMON'
+      ... }
+
+`CommonStock.all()` applies the child's filter ALONE. With six rows, one of them a BOND whose
+subtype column says `COMMON`:
+
+| query | returns |
+| --- | --- |
+| `Instrument.all()` — root set, unfiltered | all six |
+| `Equity.all()` | the three equities; correctly excludes the bond |
+| `CommonStock.all()` | `I-EQ-COMMON` **and the bond** |
+
+`Class CommonStock extends Equity`, so every CommonStock is an Equity — yet `CommonStock.all()`
+returns a row `Equity.all()` excludes. A subclass instance that is not an instance of its
+superclass, from two queries that both succeed silently.
+
+The second case has unrelated columns and is worse:
+
+    Filter XfCallRows(XF_INSTRUMENT.PUT_CALL = 'CALL')
+    xf::CallOption[xfCall] extends [xfOption]: Relational { ~filter XfCallRows ... }
+
+`CallOption.all()` returns a row whose `INSTRUMENT_TYPE` is `SWAP` — it carries a `PUT_CALL`
+value, and that is the entire test. `Option.all()` returns nothing.
+
+This is the standard instrument-master shape: one wide table, a discriminator, a set per
+subtype. Child filters are WRITTEN as though they compose — `INSTRUMENT_SUBTYPE = 'COMMON'`
+says nothing about the type, because the type is the parent's business. If they do not
+compose, every child filter must restate its whole ancestry, and one that does not is
+silently wrong rather than rejected.
+
+It bites only on rows whose discriminators disagree, which a seed built to be tidy never
+contains. Found by asking the question before seeding a project shaped this way, rather than
+by hitting it.
+
+If it is by design, the case to answer is that nothing enforces it: `extends [parentSet]`
+inherits the parent's main table and property mappings, so dropping only the filter is a
+special case neither the grammar nor any diagnostic mentions.
+
+Workaround: restate the ancestry in every child filter — `INSTRUMENT_TYPE = 'EQUITY' and
+INSTRUMENT_SUBTYPE = 'COMMON'`.
+
+Repro: `repro/extends-filter-not-inherited/`, `scripts/corpus/probe_extends_filter.py`.
+
+## F57 — A class-typed property mapped over a join with no target set id fails at execution
+
+    market: [core_calendar::Store] @Cc_MarketCycle
+
+compiles; navigating it fails at test-suite initialisation with
+
+    "meta::pure::router::store::routing::Void not supported!"
+
+naming no class, no property, no mapping, no store and no file. `market[ccMarket]: ...`
+passes. Six cases establish that the id is simply REQUIRED: it fails identically whether the
+query resolves against the property's own mapping or one that includes it, and marking the
+target set `*` does not stand in for it.
+
+A join CHAIN ending `| [store]TABLE.COLUMN` lands on a column rather than a class and needs
+no id — 281 of those are fine.
+
+Two things make this worth reporting beyond the missing diagnostic.
+
+**It is silent until execution.** All 56 projects in `projects/` compile — alone with their
+declared closure and all together — and a sweep found **112 of these in 8 of them**: risk-core
+31, custody-core 29, cash-core 28, core-account 11, core-calendar 5, core-units 4,
+product-core 3, core-instrument 1. Every one would fail the moment it was navigated. One of
+those projects is already linked into the executable corpus with 29 passing services, and it
+passes only because nothing navigates the property that carries it.
+
+**The message cannot be acted on.** `Void not supported!` is raised from a routing assert with
+no context, and it is fatal at test-suite INITIALISATION rather than at execution — so it
+takes every service sharing its JVM with it, and they report as `MISSING` with no cause. It
+was seen once, misattributed to hop count and to a schema, and reverted; a fourteen-case
+navigation probe then exonerated both and could not reproduce it, because every property in
+that probe was written with an id. The corpus always writes them, so the absent thing was
+never the variable.
+
+Workaround: name the target set id on every class-typed property mapped over a join.
+
+Repro: `repro/join-property-no-set-id/`, `scripts/corpus/probe_missing_setid.py`. Prevented
+going forward by `unroutable()` in `scripts/projects/check.py`.

@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token 'connection'. Valid alternatives: ['mappings', 'connections', 'connectionStores']
+//
+// `connection:` (singular) is legal ONLY inside a SingleConnectionRuntime. A plain Runtime
+// takes `connections:` (store-keyed) or `connectionStores:` (connection-keyed) and neither
+// collapses to the singular form even when there is exactly one connection.
+//
+// Two element types, four keywords, three of which differ by one character. A rewrite with
+// one runtime-body routine accepts all four everywhere; the inverse case is pinned in
+// neg-connection-singleruntime-plural-connections.pure. runtime-forms.pure writes both
+// elements legally and cannot see either direction.
+###Runtime
+Runtime fixture::neg::SingularConnection
+{
+   connection: fixture::neg::Conn;
+   mappings:
+   [
+      fixture::neg::PersonMapping
+   ];
+}

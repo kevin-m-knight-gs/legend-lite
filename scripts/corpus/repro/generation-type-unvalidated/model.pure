@@ -1,0 +1,21 @@
+// F22 -- any identifier is a valid ###FileGeneration type; the validation is dead code.
+//
+// Run:
+//   java -cp <runner>/target/classes:$(cat cp.txt) perf.ParseMain model.pure
+// Observed: ok. The protocol records  "type": "completelyMadeUpType".
+//
+// FileGenerationParseTreeWalker wraps its type extraction in a catch for
+// IllegalArgumentException around a substring/toLowerCase that cannot throw one, so the
+// message "Generation type '...' is not supported." is unreachable. The shipped types are
+// Avro, Java, Protobuf, JsonSchema, Cdm, Slang; none of them is enforced at parse time.
+//
+// Consequence worth stating: `FileGeneration` -- the literal token the lexer declares as the
+// element keyword -- is itself accepted as a generation TYPE, which is why the positive
+// fixture covers that keyword by naming an element with it. The token has no privileged
+// position; the grammar rule is `identifier qualifiedName { ... }` and the walker validates
+// nothing.
+###FileGeneration
+CompletelyMadeUpType fx::repro::Generated
+{
+   generationOutputPath: 'x';
+}

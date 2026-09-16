@@ -1,0 +1,61 @@
+###Pure
+
+// core-ratings -- L0, no dependencies.
+//
+// A credit rating is not a fact, it is a fact WITH A DATE. Moody's had General Electric at
+// Aa3 in 2015 and A2 by 2018; asking "what is GE's rating" without saying when is asking the
+// wrong question. So the version class here carries the <<temporal.businesstemporal>>
+// stereotype, and `all()` on it stops meaning "every row" and starts meaning "the version in
+// force at a date": core_ratings::RatingVersion.all(%2024-03-31).
+//
+// Downstream projects (credit-core and everything above it) inherit that: the moment they
+// navigate to RatingVersion they must supply a date, and the date crosses the project
+// boundary with them.
+
+// A rating agency. FOR: naming who published a rating, and which of the two symbol
+// families -- alphabetic (AAA/AA+/A-) or alphanumeric (Aaa/Aa1/Baa3) -- their scale uses.
+Class core_ratings::CrAgency
+{
+  agencyId: String[1];
+  agencyName: String[1];
+  scaleFamily: String[0..1];
+}
+
+// One notch on one agency's long-term issuer scale. FOR: turning an opaque symbol into
+// something orderable and comparable across agencies -- S&P AAA/AA+/AA/AA-/A+/.../BBB-/BB+/
+// .../D against Moody's Aaa/Aa1/Aa2/Aa3/A1/.../Baa3/Ba1/.../C -- via a notch number, and
+// for recording where the investment-grade line falls (BBB-, Baa3).
+Class core_ratings::CrRatingScale
+{
+  symbol: String[1];
+  notch: Integer[0..1];
+  isInvestmentGrade: Boolean[0..1];
+  agency: core_ratings::CrAgency[0..1];
+}
+
+// The rating an entity carried over a span of time. FOR: answering "what was it in March",
+// which is the entire reason this project exists.
+//
+// There are deliberately NO from/thru properties here. The milestoning columns live on
+// CR_RATING_MS and the engine supplies the predicate; exposing them as properties would let
+// a query filter on them by hand and quietly bypass the mechanism.
+Class <<temporal.businesstemporal>> core_ratings::RatingVersion
+{
+   entityId: String[1];
+   rating: String[0..1];
+   agency: String[0..1];
+}
+
+// A published rating action -- upgrade, downgrade, affirmation, outlook change, or a
+// placement on watch. FOR: the event log that explains WHY the milestoned history has a
+// boundary on a given day; the version table says the rating changed, this says who moved it
+// and from what to what.
+Class core_ratings::CrRatingAction
+{
+  actionId: String[1];
+  entityId: String[0..1];
+  actionType: String[0..1];
+  priorRating: String[0..1];
+  newRating: String[0..1];
+  actionAgency: core_ratings::CrAgency[0..1];
+}

@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token '('. Valid alternatives: ['extends', 'projects', '[', '<']
+//
+// A Class body is BRACES. Every store-side construct in the language -- Database, Mapping,
+// View, Table -- is parens, and one section header away from here `Mapping x ( ... )` is
+// correct. This is the single most likely delimiter to be got wrong by muscle memory, in
+// either direction (mapping-braces-not-parens.pure pins the mirror).
+//
+// The alternatives list is the useful part to keep: after a class's qualified name the
+// grammar accepts exactly extends, projects, '[' (constraints) or '<' (type parameters).
+// Not '('. A rewrite that treats brackets interchangeably has no reason to ever notice.
+###Pure
+Class fixture::neg::ParenBody
+(
+   code: String[1];
+)

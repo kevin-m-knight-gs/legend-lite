@@ -1,0 +1,353 @@
+###Pure
+// The instrument master.
+//
+// One base class, eight asset-class subtypes, and a second level of subtypes underneath
+// four of them. All of it lives on ONE table: the asset classes differ in which COLUMNS
+// carry meaning, not in where the row lives, and a discriminator column decides which
+// subtype a row is. That is what the ~filter subtype mapping in core_instrument::Mapping
+// expresses, and it is why the subtype-specific properties are all [0..1] -- a column that
+// means something for a bond means nothing for a depositary receipt, and the type is the
+// honest place to say so.
+//
+// This is a layer-0 project: it has no dependencies, and everything downstream that talks
+// about "an instrument" extends core_instrument::Instrument or its base set [ciBase].
+
+// How the firm classifies an instrument for reporting and for capital. Transformed from
+// the CI_INSTRUMENT.ASSET_CLASS code column by CiAssetClassMapping.
+Enum core_instrument::AssetClass
+{
+   EQUITY,
+   FIXED_INCOME,
+   LISTED_DERIVATIVE,
+   OTC_DERIVATIVE,
+   FUND,
+   STRUCTURED
+}
+
+// Where an instrument is in its own life. Not a trade state -- an instrument that has
+// matured stays in the master for ever, because trades against it still need pricing.
+Enum core_instrument::InstrumentStatus
+{
+   ACTIVE,
+   SUSPENDED,
+   MATURED,
+   DELISTED
+}
+
+// When the holder may exercise. The single fact that changes how an option is priced.
+Enum core_instrument::OptionStyle
+{
+   AMERICAN,
+   EUROPEAN,
+   BERMUDAN
+}
+
+// What actually changes hands at expiry: the asset, or the difference in money.
+Enum core_instrument::SettlementMethod
+{
+   CASH,
+   PHYSICAL
+}
+
+// How the coupon is struck. Drives whether a bond needs a forward curve to value.
+Enum core_instrument::CouponType
+{
+   FIXED,
+   FLOATING,
+   ZERO,
+   STEP_UP
+}
+
+// Everything the firm knows about every instrument regardless of asset class: how to
+// identify it, what currency it is in, whether it is still tradable. The root of the
+// hierarchy and the type every downstream project refers to.
+Class core_instrument::Instrument
+{
+   instrumentId: String[1];
+   // The discriminator. Its value is what decides which subtype a row is; the ~filter on
+   // each subtype set in the mapping reads exactly this column.
+   instrumentType: String[1];
+   instrumentSubType: String[0..1];
+   name: String[1];
+   assetClass: core_instrument::AssetClass[1];
+   status: core_instrument::InstrumentStatus[1];
+   currency: String[1];
+   isin: String[0..1];
+   cusip: String[0..1];
+   sedol: String[0..1];
+   figi: String[0..1];
+   issuerName: String[0..1];
+   countryOfIssue: String[0..1];
+   primaryExchangeMic: String[0..1];
+   lotSize: Integer[0..1];
+   listingDate: StrictDate[0..1];
+   maturityDate: StrictDate[0..1];
+   isActive: Boolean[1];
+   description: String[0..1];
+
+   identifiers: core_instrument::InstrumentIdentifier[*];
+
+   // Whether the instrument has a stated end date at all -- the one fact that separates
+   // the perpetual asset classes (equity, ETF, receipts) from the dated ones.
+   isDated() { $this.maturityDate->isNotEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ the eight asset classes
+
+// An ownership share in a company. What distinguishes it: there is no maturity and no
+// issuer promise to pay -- the value is a residual claim, so the facts that matter are the
+// size of the claim (shares outstanding, share class) and what it pays out.
+Class core_instrument::Equity extends core_instrument::Instrument
+{
+   shareClass: String[0..1];
+   sharesOutstanding: Float[0..1];
+   votingRightsPerShare: Float[0..1];
+   dividendYield: Float[0..1];
+   freeFloatPercent: Float[0..1];
+   gicsSector: String[0..1];
+}
+
+// A debt claim with a schedule. What distinguishes it: the issuer owes a known series of
+// cash flows on known dates, so the coupon, the day count and the redemption terms are the
+// instrument, and the credit of the issuer is what the price is really about.
+Class core_instrument::Bond extends core_instrument::Instrument
+{
+   couponRate: Float[0..1];
+   couponType: core_instrument::CouponType[0..1];
+   couponFrequency: Integer[0..1];
+   faceValue: Float[0..1];
+   dayCountConvention: String[0..1];
+   seniority: String[0..1];
+   creditRating: String[0..1];
+   issueDate: StrictDate[0..1];
+   isCallable: Boolean[0..1];
+   firstCallDate: StrictDate[0..1];
+}
+
+// An exchange-traded obligation to transact a standard quantity on a stated date. What
+// distinguishes it: the contract is defined by the exchange, not by the counterparties, so
+// the tick, the contract size, the notice dates and the margin are all given.
+Class core_instrument::Future extends core_instrument::Instrument
+{
+   contractMonth: String[0..1];
+   contractSize: Float[0..1];
+   tickSize: Float[0..1];
+   tickValue: Float[0..1];
+   lastTradingDate: StrictDate[0..1];
+   firstNoticeDate: StrictDate[0..1];
+   settlementMethod: core_instrument::SettlementMethod[0..1];
+   initialMargin: Float[0..1];
+   underlyingInstrumentId: String[0..1];
+}
+
+// A right, not an obligation, to transact at a fixed price. What distinguishes it: the
+// strike and the exercise window, because the whole value is the optionality those two
+// define over an underlying the option does not itself own.
+Class core_instrument::Option extends core_instrument::Instrument
+{
+   strikePrice: Float[0..1];
+   expiryDate: StrictDate[0..1];
+   optionStyle: core_instrument::OptionStyle[0..1];
+   settlementMethod: core_instrument::SettlementMethod[0..1];
+   contractSize: Float[0..1];
+   underlyingInstrumentId: String[0..1];
+   putCall: String[0..1];
+}
+
+// A bilateral agreement to exchange two streams of payments. What distinguishes it: there
+// is no principal changing hands and no exchange defining the terms -- the notional, the
+// two legs and the clearing arrangement are negotiated, so they are the instrument.
+Class core_instrument::Swap extends core_instrument::Instrument
+{
+   notional: Float[0..1];
+   fixedRate: Float[0..1];
+   floatingIndex: String[0..1];
+   floatingSpread: Float[0..1];
+   effectiveDate: StrictDate[0..1];
+   terminationDate: StrictDate[0..1];
+   paymentFrequency: String[0..1];
+   dayCountConvention: String[0..1];
+   isCleared: Boolean[0..1];
+   clearingHouse: String[0..1];
+}
+
+// A fund whose units trade on an exchange like a share. What distinguishes it: it is a
+// wrapper over a basket, so the facts that matter are what it tracks, how well it tracks
+// it, and what the wrapper costs.
+Class core_instrument::ExchangeTradedFund extends core_instrument::Instrument
+{
+   fundName: String[0..1];
+   trackingIndexName: String[0..1];
+   expenseRatio: Float[0..1];
+   netAssetValue: Float[0..1];
+   trackingError: Float[0..1];
+   replicationMethod: String[0..1];
+   isLeveraged: Boolean[0..1];
+   leverageMultiple: Float[0..1];
+   assetsUnderManagement: Float[0..1];
+}
+
+// A long-dated right to subscribe for shares, issued by the company itself or by a bank.
+// What distinguishes it from an option: exercising an issuer warrant creates NEW shares,
+// so it dilutes, and the exercise ratio rather than a contract size is the conversion.
+Class core_instrument::Warrant extends core_instrument::Instrument
+{
+   strikePrice: Float[0..1];
+   expiryDate: StrictDate[0..1];
+   exerciseRatio: Float[0..1];
+   underlyingInstrumentId: String[0..1];
+   isCovered: Boolean[0..1];
+   isDilutive: Boolean[0..1];
+   noticePeriodDays: Integer[0..1];
+}
+
+// A locally-traded certificate over shares held abroad by a depositary bank. What
+// distinguishes it: it is not the share -- it is a claim on a share sitting in the home
+// market, so the ratio, the depositary and whether the issuer sponsors it are the facts
+// that make two receipts over the same company different instruments.
+Class core_instrument::DepositaryReceipt extends core_instrument::Instrument
+{
+   underlyingInstrumentId: String[0..1];
+   ratioToUnderlying: Float[0..1];
+   depositaryBank: String[0..1];
+   homeMarketMic: String[0..1];
+   isSponsored: Boolean[0..1];
+   programmeLevel: String[0..1];
+}
+
+// ------------------------------------------------------------------ second-level subtypes
+// Same table, same discriminator idea one level down: INSTRUMENT_SUBTYPE narrows a row
+// that INSTRUMENT_TYPE has already placed in an asset class.
+
+// The ordinary share: last in liquidation, and the only equity line that votes on the
+// board. It adds no column of its own -- what makes it a common share is what it does NOT
+// have, which is a fixed dividend and a preference.
+Class core_instrument::CommonStock extends core_instrument::Equity
+{
+}
+
+// Equity that behaves like debt: a stated dividend that ranks ahead of the common line,
+// and no vote. Those terms -- the rate, whether missed dividends accumulate, what it is
+// worth in a wind-up -- are the instrument.
+Class core_instrument::PreferredStock extends core_instrument::Equity
+{
+   preferredDividendRate: Float[0..1];
+   isCumulative: Boolean[0..1];
+   liquidationPreference: Float[0..1];
+   isConvertibleToCommon: Boolean[0..1];
+}
+
+// Sovereign debt. Distinguished by having no issuer credit spread to speak of in its own
+// currency, and by the inflation-linked variants that governments alone issue at scale.
+Class core_instrument::GovernmentBond extends core_instrument::Bond
+{
+   issuingSovereign: String[0..1];
+   isInflationLinked: Boolean[0..1];
+   inflationIndexName: String[0..1];
+   auctionDate: StrictDate[0..1];
+}
+
+// Debt issued by a company. Distinguished by the things that only matter when the issuer
+// can fail: whether the claim is secured, where it sits in the sector, what the covenants
+// promise.
+Class core_instrument::CorporateBond extends core_instrument::Bond
+{
+   issuerTicker: String[0..1];
+   industrySector: String[0..1];
+   isSecured: Boolean[0..1];
+   covenantPackage: String[0..1];
+}
+
+// A bond carrying an embedded equity option. Distinguished by the conversion terms: the
+// ratio and price that decide when the holder stops being a lender and becomes a
+// shareholder.
+Class core_instrument::ConvertibleBond extends core_instrument::Bond
+{
+   conversionRatio: Float[0..1];
+   conversionPrice: Float[0..1];
+   underlyingEquityId: String[0..1];
+   isMandatory: Boolean[0..1];
+}
+
+// A future on a physical good. Distinguished by delivery: there is a place the goods go
+// and a grade they must meet, which is why the first notice date is a real risk.
+Class core_instrument::CommodityFuture extends core_instrument::Future
+{
+   deliveryLocation: String[0..1];
+   gradeSpecification: String[0..1];
+   storageCostPerUnit: Float[0..1];
+}
+
+// A future on a stock index. Distinguished by having nothing to deliver: the index is a
+// number, so it settles in cash against a multiplier.
+Class core_instrument::EquityIndexFuture extends core_instrument::Future
+{
+   underlyingIndexName: String[0..1];
+   indexMultiplier: Float[0..1];
+}
+
+// The right to BUY at the strike. Adds no column: the direction is the whole difference,
+// and the PUT_CALL discriminator is where it lives.
+Class core_instrument::CallOption extends core_instrument::Option
+{
+}
+
+// The right to SELL at the strike. The mirror of the call, and separated because portfolio
+// and risk code almost always wants one and not the other.
+Class core_instrument::PutOption extends core_instrument::Option
+{
+}
+
+// Fixed against floating in a single currency. Distinguished by the reset: the floating
+// leg is re-struck against an index on a schedule, which is the only moving part.
+Class core_instrument::InterestRateSwap extends core_instrument::Swap
+{
+   resetFrequency: String[0..1];
+   indexTenor: String[0..1];
+}
+
+// Protection against a named entity defaulting. Distinguished by having a reference entity
+// rather than a rate: what is being swapped is a premium for a contingent payment, so the
+// recovery assumption and the restructuring clause are the terms that matter.
+Class core_instrument::CreditDefaultSwap extends core_instrument::Swap
+{
+   referenceEntity: String[0..1];
+   referenceObligation: String[0..1];
+   recoveryRate: Float[0..1];
+   restructuringClause: String[0..1];
+}
+
+// The whole economic return of an asset in exchange for funding. Distinguished by the
+// reference asset: the payer never owns it, and the receiver gets the price moves and the
+// income without holding it.
+Class core_instrument::TotalReturnSwap extends core_instrument::Swap
+{
+   referenceAssetId: String[0..1];
+   fundingSpread: Float[0..1];
+   returnPayerName: String[0..1];
+}
+
+// ------------------------------------------------------------------ supporting reference
+
+// One instrument's identifier under one external scheme. Separate from the base class
+// because the relationship is one-to-many and time-varying: an instrument keeps its ISIN
+// and changes its ticker, and both must be searchable.
+Class core_instrument::InstrumentIdentifier
+{
+   instrumentId: String[1];
+   scheme: String[1];
+   identifierValue: String[1];
+   isPrimary: Boolean[1];
+   assignedDate: StrictDate[0..1];
+}
+
+// The asset-class code table itself: what each code means and how the regulator groups it.
+// Exists so downstream projects can label an AssetClass without hard-coding the strings.
+Class core_instrument::AssetClassDefinition
+{
+   code: String[1];
+   assetClass: core_instrument::AssetClass[1];
+   displayName: String[1];
+   regulatoryCategory: String[0..1];
+   isDerivative: Boolean[1];
+}

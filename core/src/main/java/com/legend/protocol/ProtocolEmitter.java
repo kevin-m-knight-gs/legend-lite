@@ -722,9 +722,26 @@ public final class ProtocolEmitter {
     }
 
     static void relOp(StringBuilder b, Protocol.PRelOp op) {
+        relOp(b, op, true);
+    }
+
+    /** Opens an operation object: {@code {"_type":"<tag>",} when typed,
+     *  a bare {@code {} when the element rides an {@code Object}-typed
+     *  field (the engine's {@code Literal.value} inside a literalList),
+     *  where Jackson writes no type id — the fields and their order are
+     *  otherwise identical. */
+    private static void open(StringBuilder b, boolean typed, String tag) {
+        b.append('{');
+        if (typed) {
+            b.append("\"_type\":\"").append(tag).append("\",");
+        }
+    }
+
+    static void relOp(StringBuilder b, Protocol.PRelOp op, boolean typed) {
         switch (op) {
             case Protocol.PRelLambda l -> {
-                b.append("{\"_type\":\"relationalLambda\",\"body\":");
+                open(b, typed, "relationalLambda");
+                b.append("\"body\":");
                 relOp(b, l.body());
                 b.append(",\"parameterNames\":[");
                 for (int i = 0; i < l.parameterNames().size(); i++) {
@@ -738,14 +755,16 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
             case Protocol.PLambdaParam p -> {
-                b.append("{\"_type\":\"lambdaParameter\",\"name\":");
+                open(b, typed, "lambdaParameter");
+                b.append("\"name\":");
                 str(b, p.name());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, p.sourceInformation());
                 b.append('}');
             }
             case Protocol.PDynaFunc f -> {
-                b.append("{\"_type\":\"dynaFunc\",\"funcName\":");
+                open(b, typed, "dynaFunc");
+                b.append("\"funcName\":");
                 str(b, f.funcName());
                 b.append(",\"parameters\":[");
                 for (int i = 0; i < f.parameters().size(); i++) {
@@ -759,7 +778,8 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
             case Protocol.PColumnRef c -> {
-                b.append("{\"_type\":\"column\",\"column\":");
+                open(b, typed, "column");
+                b.append("\"column\":");
                 str(b, c.column());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, c.sourceInformation());
@@ -770,7 +790,8 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
             case Protocol.PElemtWithJoins ej -> {
-                b.append("{\"_type\":\"elemtWithJoins\",\"joins\":[");
+                open(b, typed, "elemtWithJoins");
+                b.append("\"joins\":[");
                 for (int i = 0; i < ej.joins().size(); i++) {
                     if (i > 0) {
                         b.append(',');
@@ -787,29 +808,25 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
             case Protocol.PRelLiteralList ll -> {
-                b.append("{\"_type\":\"literalList\",\"sourceInformation\":");
+                open(b, typed, "literalList");
+                b.append("\"sourceInformation\":");
                 srcInfo(b, ll.sourceInformation());
                 b.append(",\"values\":[");
                 for (int i = 0; i < ll.values().size(); i++) {
                     if (i > 0) {
                         b.append(',');
                     }
-                    Protocol.PRelLiteral it = ll.values().get(i);
-                    b.append("{\"_type\":\"literal\",\"value\":"
-                            + "{\"sourceInformation\":");
-                    srcInfo(b, it.sourceInformation());
-                    b.append(",\"value\":");
-                    if (it.value() instanceof String sv) {
-                        str(b, sv);
-                    } else {
-                        b.append(it.value());
-                    }
-                    b.append("}}");
+                    // each element rides a Literal wrapper whose value is
+                    // an Object field: the element emits UNTYPED
+                    b.append("{\"_type\":\"literal\",\"value\":");
+                    relOp(b, ll.values().get(i), false);
+                    b.append('}');
                 }
                 b.append("]}");
             }
             case Protocol.PRelLiteral l -> {
-                b.append("{\"_type\":\"literal\",\"sourceInformation\":");
+                open(b, typed, "literal");
+                b.append("\"sourceInformation\":");
                 srcInfo(b, l.sourceInformation());
                 b.append(",\"value\":");
                 if (l.value() instanceof String sv) {
@@ -985,6 +1002,8 @@ public final class ProtocolEmitter {
                                 }
                                 b.append("]}");
                             }
+                            case Protocol.PExtractSubQueriesAsCtesPostProcessor cte ->
+                                b.append("{\"_type\":\"ExtractSubQueriesAsCTEsPostProcessor\"}");
                         }
                     }
                     b.append(']');
@@ -1073,11 +1092,15 @@ public final class ProtocolEmitter {
                     + "\"port\":0}");
             return;
         }
-        if ("BigQueryFunctionDeploymentConfiguration".equals(fa.kind())) {
+        if ("BigQueryFunctionDeploymentConfiguration".equals(fa.kind())
+                || "MemSqlFunctionDeploymentConfiguration".equals(fa.kind())) {
             // NAMELESS element: no name/package/sourceInformation on the
-            // wire (probe 2026-08-14)
-            b.append("{\"_type\":\"bigQueryFunctionConfig\","
-                    + "\"activationConnection\":{\"_type\":"
+            // wire (probe 2026-08-14; MemSqlFunctionTreeWalker.visitDeploymentConfig
+            // sets only activationConnection — same walker shape, tag
+            // packageJSONType + "Config")
+            b.append("{\"_type\":\"").append(
+                    fa.kind().startsWith("BigQuery") ? "bigQueryFunctionConfig" : "memSqlFunctionConfig")
+                    .append("\",\"activationConnection\":{\"_type\":"
                     + "\"connectionPointer\",\"connection\":");
             str(b, java.util.Objects.requireNonNull(
                     fa.activationConnection()));

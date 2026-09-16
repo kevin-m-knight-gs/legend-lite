@@ -1,0 +1,121 @@
+// COVERS HostedServiceLexerGrammar: HostedService, import, pattern, ownership, UserList, users, Deployment, identifier, function, documentation, autoActivateUpdates, generateLineage, storeModel, activationConfiguration, binding, contentType, postValidations, description, params, assertions, testSuites, data, connections, tests, parameters, serializationFormat, keys, asserts, ExecutionEnvironment, executions, mapping, runtime, HostedServiceDeploymentConfiguration, stereotypes, tags, stage, list
+//
+// Everything the ###HostedService section defines: the service element, the standalone
+// ExecutionEnvironment element, and the (empty-bodied) deployment configuration element.
+//
+// Non-obvious things, all verified against the parser rather than guessed:
+//
+//   - `binding` needs TWO semicolons. serviceBindingOrContent is
+//         (serviceBinding | serviceContentType) SEMI_COLON
+//     and serviceBinding ALREADY ends in SEMI_COLON, so `binding: p::B;;` is the only
+//     spelling that parses. serviceContentType has no trailing SEMI_COLON of its own, so
+//     `contentType: '...';` takes one. That asymmetry is in the .g4, not a typo here.
+//
+//   - `stereotypes`, `tags`, `stage` and `list` are keywords of this lexer that NO parser
+//     rule other than `identifier` mentions -- `stage` in particular has a rule,
+//     `deploymentStage`, that nothing references (deploymentConfigs is an empty brace
+//     pair). They are reachable only by NAMING something with them, so they are used here
+//     as execution-environment keys, a test-suite id and a test id.
+//     `<<profile.stereotype>>` does NOT reach the STEREOTYPES token; that is the
+//     `stereotypes` parser rule inherited from M3, which is spelled with angle brackets.
+//
+//   - `pattern`, `function` and `ownership` are all REQUIRED (HostedServiceTreeWalker
+//     .java:98,100,106), so neither service below can be trimmed further.
+//
+//   - `actions` is deliberately absent -- see the report; nothing implements
+//     IPostDeploymentActionGrammarParserExtension, so the walker throws "Unsupported
+//     syntax" at HostedServiceTreeWalker.java:152 for every possible action body.
+###HostedService
+import fixture::hs::*;
+
+HostedService <<fixture::hs::Profile.reviewed>> {fixture::hs::Profile.team = 'rates'} fixture::hs::UserOwned
+{
+   pattern: '/fixture/hosted/{key}';
+   ownership: UserList { users: ['user1', 'user2'] };
+   function: fixture::hs::queryFunction(Integer[1]):String[1];
+   documentation: 'a hosted service owned by an explicit user list';
+   autoActivateUpdates: true;
+   generateLineage: true;
+   storeModel: false;
+   activationConfiguration: fixture::hs::Config;
+   contentType: 'application/json';
+   binding: fixture::hs::Binding;;
+   postValidations:
+   [
+      {
+         description: 'no name may begin with X';
+         params: [];
+         assertions: [
+            noLeadingX: tds: TabularDataSet[1]|$tds->filter(row|$row.getString('name')->startsWith('X'))->meta::legend::service::validation::assertTabularDataSetEmpty('found one');
+         ];
+      }
+   ]
+   testSuites:
+   [
+      stage:
+      {
+         data:
+         [
+            connections:
+            [
+               c1:
+                  ExternalFormat
+                  #{
+                     contentType: 'application/x.flatdata';
+                     data: 'NAME\nAda\n';
+                  }#
+            ]
+         ]
+         tests:
+         [
+            list:
+            {
+               parameters:
+               [
+                  key = 1
+               ]
+               serializationFormat: PURE;
+               keys: ['k1', 'k2'];
+               asserts:
+               [
+                  a1:
+                     EqualTo
+                     #{
+                        expected: '[{"name":"Ada"}]';
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}
+
+HostedService fixture::hs::DeploymentOwned
+{
+   pattern: '/fixture/hosted/deployment';
+   ownership: Deployment { identifier: '17' };
+   function: fixture::hs::otherFunction():String[1];
+   documentation: 'a hosted service owned by a deployment identifier';
+   autoActivateUpdates: false;
+}
+
+ExecutionEnvironment fixture::hs::ExecEnv
+{
+   executions:
+   [
+      stereotypes:
+      {
+         mapping: fixture::hs::Mapping;
+         runtime: fixture::hs::Runtime;
+      },
+      tags:
+      {
+         mapping: fixture::hs::Mapping2;
+         runtime: fixture::hs::Runtime2;
+      }
+   ];
+}
+
+HostedServiceDeploymentConfiguration fixture::hs::DeployConfig
+{
+}

@@ -1,0 +1,53 @@
+// COVERS DiagramLexerGrammar: Diagram, classView, propertyView, generalizationView, class, position, rectangle, points, property, hideProperties, hideStereotype, hideTaggedValue, import
+//
+// The whole ###Diagram section. class, position and rectangle are required in every
+// classView; the three hide* flags are optional booleans, and are singular keywords even
+// though the protocol fields they set are plural.
+###Diagram
+import fixture::dia::*;
+
+Diagram fixture::dia::Overview
+{
+   classView personView
+   {
+      class: fixture::dia::Person;
+      position: (123.123,23.23);
+      rectangle: (120.84765625,58.0);
+      hideProperties: true;
+   }
+   classView firmView
+   {
+      class: fixture::dia::Firm;
+      position: (-123.123,23.0);
+      rectangle: (12.23,-90.0);
+      hideProperties: false;
+      hideTaggedValue: true;
+      hideStereotype: true;
+   }
+   classView 4cec85f9-9b66-450a-bdcb-c855aa0314e1
+   {
+      class: fixture::dia::Address;
+      position: (568.0,404.0);
+      rectangle: (108.64453125,44.0);
+   }
+   propertyView
+   {
+      property: fixture::dia::Person.firm;
+      source: personView;
+      target: firmView;
+      points: [(0.3,2.23E-8),(2.23E10,23.23)];
+   }
+   propertyView
+   {
+      property: fixture::dia::Person.address;
+      source: personView;
+      target: 4cec85f9-9b66-450a-bdcb-c855aa0314e1;
+      points: [];
+   }
+   generalizationView
+   {
+      source: firmView;
+      target: personView;
+      points: [(123.123,23.23)];
+   }
+}

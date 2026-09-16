@@ -1,0 +1,24 @@
+// REJECTS: Unexpected token
+//
+// `binding: X;` with ONE semicolon. The rule is
+//     serviceBindingOrContent : (serviceBinding | serviceContentType) SEMI_COLON
+// and serviceBinding ALREADY ends in SEMI_COLON of its own, so the only spelling that parses
+// is `binding: fixture::hs::Binding;;` -- two of them, as written in
+// ../fixtures/t2-hostedservice.pure. serviceContentType has no trailing SEMI_COLON, so its
+// sibling `contentType: '...';` takes exactly one.
+//
+// Nobody writes a double semicolon on purpose, which is exactly why it needs pinning: a
+// rewrite normalises the two arms, accepts one semicolon for both, and every existing
+// HostedService in the wild -- all of which carry two -- then fails to parse. The asymmetry
+// is not a typo in the .g4; it is load-bearing for real files.
+//
+// The rest of this element is minimal and valid: pattern, ownership and function are the
+// three required fields (HostedServiceTreeWalker:98,100,106).
+###HostedService
+HostedService fixture::neg::SingleSemicolonBinding
+{
+   pattern: '/hs';
+   ownership: Deployment { identifier: '1' };
+   function: fixture::neg::f():String[1];
+   binding: fixture::neg::Binding;
+}

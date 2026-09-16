@@ -1,0 +1,69 @@
+###Relational
+
+// fee_core::Store INCLUDES core_tenor::Store, which is what makes CTN_BUCKET nameable here.
+// The included tables are not copied: Fee_ScheduleBucket is a join declared in THIS database
+// over one local table and one table owned by core-tenor.
+Database fee_core::Store
+(
+   include core_tenor::Store
+
+   Table FEE_PRODUCT
+   (
+      PRODUCT_CODE VARCHAR(20) PRIMARY KEY,
+      NAME VARCHAR(128),
+      ASSET_CLASS VARCHAR(24),
+      BILLING_CCY CHAR(3),
+      IS_ACTIVE BIT
+   )
+
+   Table FEE_TIER
+   (
+      TIER_CODE VARCHAR(16) PRIMARY KEY,
+      NAME VARCHAR(64),
+      TIER_RANK INTEGER,
+      MIN_NOTIONAL DOUBLE
+   )
+
+   // THE COMPOSITE PRIMARY KEY. Three columns, all three load-bearing: the same product at
+   // the same tier is repriced over time, and the same product on the same day is priced
+   // differently per tier. DAYS_TO_MATURITY is deliberately NOT a bucket id -- there is no
+   // bucket id to store, which is why the far side of the tenor join is a range.
+   Table FEE_SCHEDULE
+   (
+      PRODUCT_CODE VARCHAR(20) PRIMARY KEY,
+      TIER_CODE VARCHAR(16) PRIMARY KEY,
+      EFFECTIVE_DATE DATE PRIMARY KEY,
+      DAYS_TO_MATURITY INTEGER,
+      RATE_BASIS_POINTS DOUBLE,
+      MINIMUM_FEE DOUBLE,
+      MAXIMUM_FEE DOUBLE,
+      FEE_CCY CHAR(3)
+   )
+
+   Table FEE_WAIVER
+   (
+      WAIVER_ID VARCHAR(32) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(20),
+      TIER_CODE VARCHAR(16),
+      EFFECTIVE_DATE DATE,
+      REASON_CODE VARCHAR(24),
+      WAIVED_BASIS_POINTS DOUBLE,
+      IS_FULL_WAIVER BIT,
+      GRANTED_ON DATE,
+      EXPIRES_ON DATE
+   )
+
+   // ---------------------------------------------------------------- the point of fee-core
+   // A RANGE JOIN whose far side, CTN_BUCKET, is a table in ANOTHER PROJECT. Half-open
+   // [MIN_DAYS, MAX_DAYS) so a schedule at a boundary matches exactly one bucket. One line,
+   // because a wrapped join condition is not parsed.
+   Join Fee_ScheduleBucket(FEE_SCHEDULE.DAYS_TO_MATURITY >= CTN_BUCKET.MIN_DAYS and FEE_SCHEDULE.DAYS_TO_MATURITY < CTN_BUCKET.MAX_DAYS)
+
+   // Ordinary key joins, for contrast.
+   Join Fee_ScheduleProduct(FEE_SCHEDULE.PRODUCT_CODE = FEE_PRODUCT.PRODUCT_CODE)
+
+   Join Fee_ScheduleTier(FEE_SCHEDULE.TIER_CODE = FEE_TIER.TIER_CODE)
+
+   // The composite key, paid for on the way back: a waiver has to match all three columns.
+   Join Fee_WaiverSchedule(FEE_WAIVER.PRODUCT_CODE = FEE_SCHEDULE.PRODUCT_CODE and FEE_WAIVER.TIER_CODE = FEE_SCHEDULE.TIER_CODE and FEE_WAIVER.EFFECTIVE_DATE = FEE_SCHEDULE.EFFECTIVE_DATE)
+)

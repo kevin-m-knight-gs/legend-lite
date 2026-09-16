@@ -1,0 +1,71 @@
+// Feature 7: MANY-to-MANY association across a bridge/link table.
+// Both ends are to-many and both traverse the link table via a two-join chain,
+// in mirrored order.
+// Source: legend-engine core_relational .../tests/mapping/join/advancedRelationalSetUp.pure
+//         (Mapping ...::chainedJoins):
+//             firm      : [db]@Person_FirmPersonBridge > @Firm_FirmPersonBridge
+//             employees : [db]@Firm_FirmPersonBridge   > @Person_FirmPersonBridge
+//         here lifted out of the class mappings into an AssociationMapping block.
+// The (INNER) variant, also upstream, is shown on the `employees` end.
+###Pure
+Class demo::Person
+{
+  firstName: String[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+}
+
+Association demo::FirmPerson
+{
+  employees: demo::Person[*];
+  firms: demo::Firm[*];
+}
+
+###Relational
+Database demo::db
+(
+  Table personTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200)
+  )
+  Table firmPersonBridgeTable
+  (
+    PERSONID INTEGER,
+    FIRMID INTEGER
+  )
+  Table firmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGALNAME VARCHAR(200)
+  )
+
+  Join Person_FirmPersonBridge(personTable.ID = firmPersonBridgeTable.PERSONID)
+  Join Firm_FirmPersonBridge(firmTable.ID = firmPersonBridgeTable.FIRMID)
+)
+
+###Mapping
+Mapping demo::AssociationManyToMany
+(
+  demo::Person[per1]: Relational
+  {
+    firstName: [demo::db]personTable.FIRSTNAME
+  }
+
+  demo::Firm[fir1]: Relational
+  {
+    legalName: [demo::db]firmTable.LEGALNAME
+  }
+
+  demo::FirmPerson: Relational
+  {
+    AssociationMapping
+    (
+      firms[per1, fir1]: [demo::db]@Person_FirmPersonBridge > @Firm_FirmPersonBridge,
+      employees[fir1, per1]: [demo::db]@Firm_FirmPersonBridge > (INNER) @Person_FirmPersonBridge
+    )
+  }
+)

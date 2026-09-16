@@ -392,10 +392,10 @@ final class ArchitectureTest {
      * construction sites are now pinned rather than merely discouraged.
      *
      * <p>{@link com.legend.parser.OverlayElementSink} is the only legitimate
-     * producer. {@code ElementParser} is a NAMED, TEMPORARY exemption for the
-     * ###Data crutch and dies with PARSER_COMPLETENESS_PLAN.md §3.1, which
-     * gives data elements a real model type — the same "whitelist ratcheted to
-     * empty" discipline the zero-regex gate uses.
+     * producer. {@code ElementParser} WAS a named, temporary exemption for the
+     * ###Data crutch; PARSER_COMPLETENESS_PLAN.md §3.1 landed 2026-09-16 —
+     * data elements are {@code DataDefinition} now — and the whitelist is
+     * empty, as the zero-regex gate's discipline demands.
      *
      * <p>KNOWN BLIND SPOT, verified by deliberately violating the rule: ArchUnit
      * sees constructor calls, field and return types, but NOT pattern-matching
@@ -409,7 +409,6 @@ final class ArchitectureTest {
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses()
             .that().resideOutsideOfPackages("com.legend.model..")
             .and().haveSimpleNameNotContaining("OverlayElementSink")
-            .and().haveSimpleNameNotContaining("ElementParser")  // TEMPORARY: ###Data, plan §3.1
             .should().dependOnClassesThat()
                     .haveSimpleName("OpaqueElementDefinition")
             .as("Invariant 12: only the OVERLAY seam mints opaque elements —"
@@ -915,7 +914,13 @@ final class ArchitectureTest {
                 "com.legend.exec.SqlTypeCensus.SLACK_SAMPLES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
-                "com.legend.server.serial.SerializerRegistry.SERIALIZERS");
+                "com.legend.server.serial.SerializerRegistry.SERIALIZERS",
+                // a SESSION's established test-data setups (2026-09-16): the
+                // engine loads a LocalH2 connection's data when it opens the
+                // connection, once; this keys that fact on the session itself
+                // (WeakHashMap — the fact lives exactly as long as the
+                // connection) and re-seeds after a writing statement
+                "com.legend.StatementExecutor.ESTABLISHED");
         java.util.List<String> violations = new java.util.ArrayList<>();
         for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
             if (jc.getPackageName().startsWith("com.legend.cache")) {

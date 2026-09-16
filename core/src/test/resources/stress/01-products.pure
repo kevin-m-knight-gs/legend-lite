@@ -1,3 +1,9 @@
+###Pure
+// An EXPLICIT section header, where this file relied on ###Pure being the default.
+// That held only while nothing preceded it. The moment a linked project's files were
+// concatenated in front, this file inherited whatever section they left open and its
+// classes were handed to the wrong parser -- failing the whole corpus with a bare
+// `Unexpected token` naming no file and no line.
 // ============================================================
 // Products Domain — Financial instruments and derivatives
 // 10 classes, ~15 properties each

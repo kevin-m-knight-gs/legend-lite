@@ -1,0 +1,55 @@
+###Mapping
+Mapping reporting::AggregationAwareMapping
+(
+    *reporting::TradeFact: AggregationAware
+    {
+        Views:
+        [
+            (
+                ~modelOperation:
+                {
+                    // false: the query's grouping must be EXACTLY the view's. With true,
+                    // a coarser grouping could aggregate further on top of the
+                    // pre-aggregate, which is a different claim and worth its own case.
+                    ~canAggregate false,
+                    ~groupByFunctions
+                    (
+                        $this.bookId
+                    ),
+                    ~aggregateValues
+                    (
+                        ( ~mapFn: $this.notional, ~aggregateFn: $mapped->sum() )
+                    )
+                },
+                ~aggregateMapping: Relational
+                {
+                    ~primaryKey
+                    (
+                        [store::DB] TRADE_BY_BOOK.BOOK_ID
+                    )
+                    ~mainTable [store::DB] TRADE_BY_BOOK
+                    bookId: [store::DB] TRADE_BY_BOOK.BOOK_ID,
+                    notional: [store::DB] TRADE_BY_BOOK.TOTAL_NOTIONAL
+                }
+            )
+        ],
+        ~mainMapping: Relational
+        {
+            ~primaryKey
+            (
+                [store::DB] TRADE.TRADE_ID
+            )
+            ~mainTable [store::DB] TRADE
+            bookId: [store::DB] TRADE.BOOK_ID,
+            notional: [store::DB] TRADE.NOTIONAL
+        }
+    }
+)
+
+
+###Runtime
+Runtime stress::AggregationRT
+{
+    mappings: [ reporting::AggregationAwareMapping ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}

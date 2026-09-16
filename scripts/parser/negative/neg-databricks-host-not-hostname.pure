@@ -1,0 +1,29 @@
+// REJECTS: Unexpected token 'host'. Valid alternatives: ['protocol', 'httpPath', 'hostname', 'port']
+//
+// `host:` on a Databricks datasource specification, which spells it `hostname`. Every other
+// vendor in this batch that has a machine address calls it `host` -- MemSql, Trino, Oracle,
+// Aurora, Redshift, and the Static spec that predates all of them -- and Databricks alone
+// does not.
+//
+// These are separate token namespaces, not one shared vocabulary with per-vendor subsets:
+// DatabricksLexerGrammar declares its own four tokens and imports none of the others. So a
+// rewrite backed by a single field table keyed on name, which is what the near-identical
+// shape of these specs invites, accepts `host` here and would have to be told, vendor by
+// vendor, which spelling each one owns.
+//
+// The alternative list in the message is the entire Databricks grammar: four tokens, all four
+// required by the walker even though the .g4 makes every one optional.
+###Connection
+RelationalDatabaseConnection fixture::neg::DatabricksHost
+{
+   store: fixture::neg::Db;
+   type: Databricks;
+   specification: Databricks
+   {
+      host: 'dbc-1234.cloud.databricks.com';
+      port: '443';
+      protocol: 'https';
+      httpPath: '/sql/1.0/endpoints/abc123';
+   };
+   auth: Test;
+}

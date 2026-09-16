@@ -1,0 +1,424 @@
+###Relational
+// The risk store. Every table is RSK_, every join Rsk_ and every filter Rsk, so nothing here
+// can collide with another project in the graph.
+//
+// It INCLUDES both dependencies' stores, which is what lets a join in this file name
+// CI_INSTRUMENT and CPR_CONSENSUS_PRICE without redeclaring them. A sensitivity points at an
+// instrument in core-instrument and at the consensus mark in core-price, and those are joins
+// rather than copied columns.
+//
+// The element this project exists for is the VIEW at the bottom of the file.
+//
+// Datatypes: NUMERIC(24,8) for greeks, shocks, levels and money -- eight places because a
+// delta per basis point on a large notional is small and exact; FLOAT for percentages,
+// correlations and confidence levels, which are ratios and are allowed to be approximate;
+// SMALLINT wherever the number is bounded by construction (a bucket sequence, a tenor in
+// days, a scenario count, a severity); CHAR(3) for a currency. REAL is not used anywhere: it
+// parses and then cannot be read back at execution (docs/UPSTREAM_FINDINGS.md F53).
+Database risk_core::Store
+(
+   include core_instrument::Store
+   include core_price::Store
+
+   // The factor master. One wide table for all six factor types, told apart by FACTOR_TYPE;
+   // the type-specific columns are nullable because a delivery location means nothing to a
+   // rates factor -- which is exactly the shape a ~filter subtype mapping is for.
+   Table RSK_RISK_FACTOR
+   (
+      FACTOR_ID VARCHAR(32) PRIMARY KEY,
+      FACTOR_TYPE VARCHAR(20) NOT NULL,
+      FACTOR_NAME VARCHAR(120) NOT NULL,
+      CURRENCY CHAR(3),
+      CURVE_NAME VARCHAR(60),
+      UNDERLYING_INSTRUMENT_ID VARCHAR(60),
+      QUOTATION_UNIT VARCHAR(8),
+      SHOCK_UNIT VARCHAR(8),
+      DECIMALS SMALLINT,
+      IS_ACTIVE BIT,
+      START_DATE DATE,
+
+      // rates
+      CURVE_CONVENTION VARCHAR(20),
+      COMPOUNDING VARCHAR(16),
+      INDEX_TENOR VARCHAR(8),
+      IS_OVERNIGHT_INDEX BIT,
+
+      // credit spread
+      REFERENCE_ENTITY_ID VARCHAR(40),
+      SENIORITY VARCHAR(30),
+      RESTRUCTURING_CLAUSE VARCHAR(12),
+      RECOVERY_RATE FLOAT,
+
+      // equity
+      ISSUER_TICKER VARCHAR(12),
+      GICS_SECTOR VARCHAR(60),
+      INDEX_NAME VARCHAR(60),
+      IS_BASKET BIT,
+
+      // fx
+      BASE_CURRENCY CHAR(3),
+      QUOTE_CURRENCY CHAR(3),
+      IS_PEGGED BIT,
+
+      // commodity
+      COMMODITY_GROUP VARCHAR(24),
+      DELIVERY_LOCATION VARCHAR(40),
+      CONTRACT_MONTH VARCHAR(8),
+      GRADE VARCHAR(24),
+
+      // volatility
+      SURFACE_NAME VARCHAR(60),
+      MONEYNESS FLOAT,
+      EXPIRY_TENOR VARCHAR(8),
+      IS_SMILE_AWARE BIT
+   )
+
+   // The levels the factors actually had. Keyed by factor, date and tenor: a curve is a set
+   // of pillars and each pillar is a row.
+   Table RSK_FACTOR_CURVE_POINT
+   (
+      FACTOR_ID VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      TENOR_CODE VARCHAR(8) PRIMARY KEY,
+      TENOR_DAYS SMALLINT,
+      LEVEL_VALUE NUMERIC(24,8),
+      IS_INTERPOLATED BIT,
+      SOURCE_NAME VARCHAR(40)
+   )
+
+   // Pairwise correlations. WINDOW_DAYS is part of the key -- a 60-day and a 250-day
+   // correlation are different rows, not different columns.
+   Table RSK_FACTOR_CORRELATION
+   (
+      FACTOR_ID_A VARCHAR(32) PRIMARY KEY,
+      FACTOR_ID_B VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      WINDOW_DAYS SMALLINT PRIMARY KEY,
+      CORRELATION FLOAT,
+      METHOD_CODE VARCHAR(8),
+      IS_STRESSED BIT
+   )
+
+   // The five greeks as rows: DELTA, GAMMA, VEGA, THETA, RHO.
+   Table RSK_GREEK_MEASURE
+   (
+      MEASURE_CODE VARCHAR(12) PRIMARY KEY,
+      MEASURE_NAME VARCHAR(40) NOT NULL,
+      DERIVATIVE_ORDER SMALLINT,
+      PER_UNIT VARCHAR(12),
+      IS_SECOND_ORDER BIT,
+      DESCRIPTION VARCHAR(200)
+   )
+
+   // The leg table -- the biggest table in the project by three orders of magnitude, and the
+   // one the VIEW below groups. One row per leg per factor per date, carrying the whole
+   // greek vector at NUMERIC(24,8).
+   Table RSK_SENSITIVITY
+   (
+      SENSITIVITY_ID VARCHAR(48) PRIMARY KEY,
+      COB_DATE DATE NOT NULL,
+      FACTOR_ID VARCHAR(32) NOT NULL,
+      PORTFOLIO_ID VARCHAR(24) NOT NULL,
+      POSITION_ID VARCHAR(48) NOT NULL,
+      INSTRUMENT_ID VARCHAR(60) NOT NULL,
+      CURRENCY CHAR(3),
+      DELTA_VALUE NUMERIC(24,8),
+      GAMMA_VALUE NUMERIC(24,8),
+      VEGA_VALUE NUMERIC(24,8),
+      THETA_VALUE NUMERIC(24,8),
+      RHO_VALUE NUMERIC(24,8),
+      SHOCK_SIZE NUMERIC(24,8),
+      CALC_METHOD VARCHAR(16),
+      TENOR_CODE VARCHAR(8),
+      TENOR_DAYS SMALLINT,
+      IS_MATERIAL BIT,
+      CALCULATED_AT TIMESTAMP
+   )
+
+   // Cross terms, keyed by a PAIR of factors -- which is why they cannot live on the leg row.
+   Table RSK_CROSS_GAMMA
+   (
+      COB_DATE DATE PRIMARY KEY,
+      PORTFOLIO_ID VARCHAR(24) PRIMARY KEY,
+      FACTOR_ID_A VARCHAR(32) PRIMARY KEY,
+      FACTOR_ID_B VARCHAR(32) PRIMARY KEY,
+      CROSS_VALUE NUMERIC(24,8),
+      SHOCK_A NUMERIC(24,8),
+      SHOCK_B NUMERIC(24,8),
+      CURRENCY CHAR(3),
+      IS_MATERIAL BIT
+   )
+
+   // Ladder headers.
+   Table RSK_LADDER
+   (
+      LADDER_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE NOT NULL,
+      PORTFOLIO_ID VARCHAR(24) NOT NULL,
+      FACTOR_ID VARCHAR(32) NOT NULL,
+      LADDER_TYPE VARCHAR(8),
+      MEASURE_CODE VARCHAR(12),
+      BUCKET_COUNT SMALLINT,
+      TOTAL_VALUE NUMERIC(24,8),
+      CURRENCY CHAR(3),
+      IS_COMPLETE BIT
+   )
+
+   // The buckets. BUCKET_SEQ is in the key because the order of the buckets is part of what
+   // a ladder is.
+   Table RSK_LADDER_BUCKET
+   (
+      LADDER_ID VARCHAR(40) PRIMARY KEY,
+      BUCKET_SEQ SMALLINT PRIMARY KEY,
+      BUCKET_LABEL VARCHAR(24),
+      TENOR_CODE VARCHAR(8),
+      TENOR_DAYS SMALLINT,
+      STRIKE_LEVEL NUMERIC(24,8),
+      BUCKET_VALUE NUMERIC(24,8),
+      WEIGHT_PCT FLOAT,
+      IS_PILLAR BIT
+   )
+
+   // The reporting unit everything below is keyed by.
+   Table RSK_PORTFOLIO
+   (
+      PORTFOLIO_ID VARCHAR(24) PRIMARY KEY,
+      PORTFOLIO_NAME VARCHAR(120) NOT NULL,
+      DESK_CODE VARCHAR(12),
+      BASE_CURRENCY CHAR(3),
+      RISK_OWNER VARCHAR(60),
+      PARENT_PORTFOLIO_ID VARCHAR(24),
+      HIERARCHY_LEVEL SMALLINT,
+      IS_TRADING BIT,
+      OPEN_DATE DATE
+   )
+
+   // VaR. The widest composite key in the project: portfolio, date, confidence, horizon and
+   // method together, because 99%/10-day historical and 95%/1-day Monte Carlo are two
+   // measures of one book and a shorter key would have them fight over a row.
+   Table RSK_VAR_MEASURE
+   (
+      PORTFOLIO_ID VARCHAR(24) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      CONFIDENCE_PCT FLOAT PRIMARY KEY,
+      HORIZON_DAYS SMALLINT PRIMARY KEY,
+      METHOD_CODE VARCHAR(8) PRIMARY KEY,
+      VAR_AMOUNT NUMERIC(24,8),
+      PRIOR_VAR_AMOUNT NUMERIC(24,8),
+      CURRENCY CHAR(3),
+      SCENARIO_COUNT SMALLINT,
+      IS_APPROVED BIT,
+      COMPUTED_AT TIMESTAMP
+   )
+
+   // Expected shortfall, on the VaR's key minus the method -- ES is quoted per confidence
+   // and horizon, and the method is an implementation detail of the tail rather than part of
+   // the measure's identity.
+   Table RSK_EXPECTED_SHORTFALL
+   (
+      PORTFOLIO_ID VARCHAR(24) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      CONFIDENCE_PCT FLOAT PRIMARY KEY,
+      HORIZON_DAYS SMALLINT PRIMARY KEY,
+      ES_AMOUNT NUMERIC(24,8),
+      TAIL_SCENARIO_COUNT SMALLINT,
+      LIQUIDITY_HORIZON_DAYS SMALLINT,
+      STRESS_PERIOD_START DATE,
+      STRESS_PERIOD_END DATE,
+      CURRENCY CHAR(3),
+      IS_STRESSED_CALIBRATION BIT
+   )
+
+   // Yesterday's VaR against what happened.
+   Table RSK_VAR_BACKTEST
+   (
+      PORTFOLIO_ID VARCHAR(24) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      VAR_AMOUNT NUMERIC(24,8),
+      ACTUAL_PNL NUMERIC(24,8),
+      IS_EXCEPTION BIT,
+      EXCEPTION_COUNT_250D SMALLINT,
+      ZONE_CODE VARCHAR(8),
+      CURRENCY CHAR(3)
+   )
+
+   Table RSK_STRESS_SCENARIO
+   (
+      SCENARIO_ID VARCHAR(32) PRIMARY KEY,
+      SCENARIO_NAME VARCHAR(120) NOT NULL,
+      SCENARIO_TYPE VARCHAR(16),
+      SEVERITY SMALLINT,
+      REFERENCE_PERIOD VARCHAR(40),
+      HORIZON_DAYS SMALLINT,
+      IS_REGULATORY BIT,
+      OWNER_TEAM VARCHAR(40),
+      APPROVED_ON DATE
+   )
+
+   // One factor's move inside one scenario. A scenario says exactly one thing about each
+   // factor it touches, so the key is the pair.
+   Table RSK_SCENARIO_SHOCK
+   (
+      SCENARIO_ID VARCHAR(32) PRIMARY KEY,
+      FACTOR_ID VARCHAR(32) PRIMARY KEY,
+      SHOCK_TYPE VARCHAR(12),
+      SHOCK_VALUE NUMERIC(24,8),
+      SHOCK_UNIT VARCHAR(8),
+      IS_RELATIVE BIT
+   )
+
+   // Scenario times portfolio times date: re-running yesterday's scenario on today's book is
+   // a new result, not an update.
+   Table RSK_STRESS_RESULT
+   (
+      SCENARIO_ID VARCHAR(32) PRIMARY KEY,
+      PORTFOLIO_ID VARCHAR(24) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      PNL_IMPACT NUMERIC(24,8),
+      BASE_VALUE NUMERIC(24,8),
+      STRESSED_VALUE NUMERIC(24,8),
+      WORST_FACTOR_ID VARCHAR(32),
+      CURRENCY CHAR(3),
+      IS_BREACH BIT,
+      COMPUTED_AT TIMESTAMP
+   )
+
+   Table RSK_RISK_LIMIT
+   (
+      LIMIT_ID VARCHAR(32) PRIMARY KEY,
+      PORTFOLIO_ID VARCHAR(24) NOT NULL,
+      FACTOR_ID VARCHAR(32),
+      LIMIT_TYPE VARCHAR(12),
+      MEASURE_CODE VARCHAR(12),
+      LIMIT_AMOUNT NUMERIC(24,8),
+      WARNING_PCT FLOAT,
+      CURRENCY CHAR(3),
+      EFFECTIVE_FROM DATE,
+      EFFECTIVE_TO DATE,
+      OWNER_TEAM VARCHAR(40),
+      IS_HARD BIT
+   )
+
+   // The daily series. LIMIT_AMOUNT is repeated here rather than read through the join: a
+   // limit raised next month must not restate what the headroom was today.
+   Table RSK_LIMIT_UTILISATION
+   (
+      LIMIT_ID VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      USED_AMOUNT NUMERIC(24,8),
+      LIMIT_AMOUNT NUMERIC(24,8),
+      UTILISATION_PCT FLOAT,
+      HEADROOM NUMERIC(24,8),
+      IS_WARNING BIT,
+      IS_BREACH BIT
+   )
+
+   // Breaches, sequenced within the day: one limit can breach twice on two intraday marks
+   // and each needs its own approval.
+   Table RSK_LIMIT_BREACH
+   (
+      LIMIT_ID VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      BREACH_SEQ SMALLINT PRIMARY KEY,
+      BREACH_AMOUNT NUMERIC(24,8),
+      EXCESS_PCT FLOAT,
+      RAISED_AT TIMESTAMP,
+      STATUS VARCHAR(12),
+      APPROVED_BY VARCHAR(60),
+      CLOSED_ON DATE
+   )
+
+   // The few attributes risk holds about an instrument that the instrument master does not.
+   // Keyed by the upstream instrument id, so it is a side table on CI_INSTRUMENT rather than
+   // a second instrument master.
+   Table RSK_INSTRUMENT_RISK
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      RISK_MODEL VARCHAR(20),
+      PRICING_LIBRARY VARCHAR(40),
+      IS_VOL_SENSITIVE BIT,
+      DEFAULT_SHOCK_BP SMALLINT,
+      FACTOR_COUNT SMALLINT
+   )
+
+   // ------------------------------------------------------------------------------------
+   // The aggregation, IN THE STORE
+   // ------------------------------------------------------------------------------------
+   // This is a Legend View, not a database view: no DDL is created for it, nothing seeds it,
+   // and the engine folds the GROUP BY into the SQL it generates whenever a query touches
+   // RSK_FACTOR_TOTAL. A risk report asks "what is the total delta to EUR-3M today" and gets
+   // one row per factor per date instead of a scan of every leg -- which for a real book is
+   // six figures of rows per factor.
+   //
+   // ~groupBy takes COLUMN REFERENCES, not expressions: the grouping is FACTOR_ID and
+   // COB_DATE themselves, and the aggregates are the only place a function appears.
+   //
+   // The grouping columns are the PRIMARY KEY of the result, which is what makes the view
+   // joinable -- Rsk_FactorTotal below hangs it off RSK_RISK_FACTOR, and the class
+   // risk_core::RskFactorTotal is rooted at it.
+   //
+   // What a grouping does NOT produce: a factor with no legs on a date forms no group and is
+   // absent, rather than appearing with a total of zero. Anything needing the zero must
+   // outer-join from RSK_RISK_FACTOR instead.
+   View RSK_FACTOR_TOTAL
+   (
+     ~groupBy
+     (
+       RSK_SENSITIVITY.FACTOR_ID,
+       RSK_SENSITIVITY.COB_DATE
+     )
+     FACTOR_ID: RSK_SENSITIVITY.FACTOR_ID PRIMARY KEY,
+     COB_DATE: RSK_SENSITIVITY.COB_DATE PRIMARY KEY,
+     TOTAL_DELTA: sum(RSK_SENSITIVITY.DELTA_VALUE),
+     LEG_COUNT: count(RSK_SENSITIVITY.SENSITIVITY_ID)
+   )
+
+   // ---- joins within this project ----
+   Join Rsk_SensitivityFactor(RSK_SENSITIVITY.FACTOR_ID = RSK_RISK_FACTOR.FACTOR_ID)
+   Join Rsk_SensitivityPortfolio(RSK_SENSITIVITY.PORTFOLIO_ID = RSK_PORTFOLIO.PORTFOLIO_ID)
+   Join Rsk_FactorCurvePoint(RSK_FACTOR_CURVE_POINT.FACTOR_ID = RSK_RISK_FACTOR.FACTOR_ID)
+   // The factor to its pre-aggregated daily totals. This is the join that makes the VIEW
+   // reachable by navigation rather than only by a query that names it.
+   Join Rsk_FactorTotal(RSK_FACTOR_TOTAL.FACTOR_ID = RSK_RISK_FACTOR.FACTOR_ID)
+   Join Rsk_LadderBucket(RSK_LADDER_BUCKET.LADDER_ID = RSK_LADDER.LADDER_ID)
+   Join Rsk_LadderFactor(RSK_LADDER.FACTOR_ID = RSK_RISK_FACTOR.FACTOR_ID)
+   Join Rsk_LadderGreek(RSK_LADDER.MEASURE_CODE = RSK_GREEK_MEASURE.MEASURE_CODE)
+   Join Rsk_PortfolioVar(RSK_VAR_MEASURE.PORTFOLIO_ID = RSK_PORTFOLIO.PORTFOLIO_ID)
+   // VaR to the expected shortfall behind it: four columns, because ES is quoted on the
+   // VaR's key minus the method.
+   Join Rsk_VarShortfall(RSK_VAR_MEASURE.PORTFOLIO_ID = RSK_EXPECTED_SHORTFALL.PORTFOLIO_ID and RSK_VAR_MEASURE.COB_DATE = RSK_EXPECTED_SHORTFALL.COB_DATE and RSK_VAR_MEASURE.CONFIDENCE_PCT = RSK_EXPECTED_SHORTFALL.CONFIDENCE_PCT and RSK_VAR_MEASURE.HORIZON_DAYS = RSK_EXPECTED_SHORTFALL.HORIZON_DAYS)
+   Join Rsk_ScenarioShock(RSK_SCENARIO_SHOCK.SCENARIO_ID = RSK_STRESS_SCENARIO.SCENARIO_ID)
+   Join Rsk_ShockFactor(RSK_SCENARIO_SHOCK.FACTOR_ID = RSK_RISK_FACTOR.FACTOR_ID)
+   Join Rsk_ScenarioResult(RSK_STRESS_RESULT.SCENARIO_ID = RSK_STRESS_SCENARIO.SCENARIO_ID)
+   Join Rsk_ResultPortfolio(RSK_STRESS_RESULT.PORTFOLIO_ID = RSK_PORTFOLIO.PORTFOLIO_ID)
+   Join Rsk_LimitPortfolio(RSK_RISK_LIMIT.PORTFOLIO_ID = RSK_PORTFOLIO.PORTFOLIO_ID)
+   Join Rsk_LimitUtilisation(RSK_LIMIT_UTILISATION.LIMIT_ID = RSK_RISK_LIMIT.LIMIT_ID)
+   Join Rsk_LimitBreach(RSK_LIMIT_BREACH.LIMIT_ID = RSK_RISK_LIMIT.LIMIT_ID)
+
+   // ---- joins that cross a project boundary ----
+   // Both endpoints are visible because this database includes both stores.
+   Join Rsk_SensitivityInstrument(RSK_SENSITIVITY.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Rsk_FactorInstrument(RSK_RISK_FACTOR.UNDERLYING_INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   // The leg to the mark it was bumped around: two columns, which is exactly the consensus
+   // price's key in core-price -- instrument and date, with no source leg.
+   Join Rsk_SensitivityPrice(RSK_SENSITIVITY.INSTRUMENT_ID = CPR_CONSENSUS_PRICE.INSTRUMENT_ID and RSK_SENSITIVITY.COB_DATE = CPR_CONSENSUS_PRICE.OBS_DATE)
+   // A factor to every consensus mark on its underlying, to-many over date.
+   Join Rsk_FactorPrice(RSK_RISK_FACTOR.UNDERLYING_INSTRUMENT_ID = CPR_CONSENSUS_PRICE.INSTRUMENT_ID)
+   // The risk side table hanging off the upstream instrument master.
+   Join Rsk_InstrumentRiskAttr(CI_INSTRUMENT.INSTRUMENT_ID = RSK_INSTRUMENT_RISK.INSTRUMENT_ID)
+
+   // ---- filters ----
+   // The six factor types. Each selects a real subset, which is what makes each subtype a
+   // type worth having rather than an alias for the base.
+   Filter RskRatesFactorRows(RSK_RISK_FACTOR.FACTOR_TYPE = 'RATES')
+   Filter RskCreditSpreadFactorRows(RSK_RISK_FACTOR.FACTOR_TYPE = 'CREDIT_SPREAD')
+   Filter RskEquityFactorRows(RSK_RISK_FACTOR.FACTOR_TYPE = 'EQUITY')
+   Filter RskFxFactorRows(RSK_RISK_FACTOR.FACTOR_TYPE = 'FX')
+   Filter RskCommodityFactorRows(RSK_RISK_FACTOR.FACTOR_TYPE = 'COMMODITY')
+   Filter RskVolatilityFactorRows(RSK_RISK_FACTOR.FACTOR_TYPE = 'VOL')
+   // The legs a report shows. The immaterial tail is most of the rows and none of the risk.
+   Filter RskMaterialRows(RSK_SENSITIVITY.IS_MATERIAL = 1)
+   // Breaches still open. A null test rather than a boolean literal -- `= true` is not
+   // parseable in a Filter (CONTRACT.md).
+   Filter RskOpenBreachRows(RSK_LIMIT_BREACH.CLOSED_ON is null)
+)

@@ -1,0 +1,13 @@
+// REJECTS: Field 'modelIncludes' is required
+//
+// A Binding requires contentType AND modelIncludes. `schemaSet`/`schemaId` are the OPTIONAL
+// pair -- the positive fixture's SchemalessBinding proves a Binding with no schema set at
+// all is legal -- so the natural guess about which fields are mandatory is backwards.
+//
+// A rewrite that makes the schema reference required and the model list optional gets both
+// halves wrong and still parses every real-world Binding.
+###ExternalFormat
+Binding fixture::neg::BindingWithoutModelIncludes
+{
+   contentType: 'application/json';
+}

@@ -1,0 +1,35 @@
+// Feature 3 variant: Otherwise on a NESTED embedded property (person -> firm -> address).
+// The fallback set id (addr1) supplies `street`, which is not in the denormalized block.
+// Verified: parses and compiles.
+###Pure
+Class demo::Address { name: String[1]; street: String[1]; }
+Class demo::Firm { legalName: String[1]; address: demo::Address[1]; }
+Class demo::Person { firstName: String[1]; firm: demo::Firm[1]; }
+###Relational
+Database demo::db
+(
+  Table T (ID INTEGER PRIMARY KEY, FN VARCHAR(200), LN VARCHAR(200), AN VARCHAR(200), AID INTEGER)
+  Table ADDR (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), STREET VARCHAR(200))
+  Join T_Addr(T.AID = ADDR.ID)
+)
+###Mapping
+Mapping demo::M
+(
+  demo::Person[p]: Relational
+  {
+    firstName: [demo::db]T.FN,
+    firm
+    (
+      legalName: [demo::db]T.LN,
+      address
+      (
+        name: [demo::db]T.AN
+      ) Otherwise ( [addr1]: [demo::db]@T_Addr )
+    )
+  }
+  demo::Address[addr1]: Relational
+  {
+    name: [demo::db]ADDR.NAME,
+    street: [demo::db]ADDR.STREET
+  }
+)

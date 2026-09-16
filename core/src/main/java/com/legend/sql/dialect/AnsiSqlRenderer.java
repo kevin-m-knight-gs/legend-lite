@@ -652,10 +652,16 @@ public class AnsiSqlRenderer implements SqlDialect {
                     + " IS NOT DISTINCT FROM " + expr(a.get(1), 4) + ")";
             case NULL_SAFE_NOT_EQUAL -> "(" + expr(a.get(0), 4)
                     + " IS DISTINCT FROM " + expr(a.get(1), 4) + ")";
-            // MUST-honor semantics (PHASE_HIJ_LOWERING.md):
-            // operands render ABOVE TIMES precedence: a composite child
-            // ((2*t)/(1+p)) must parenthesize or SQL re-associates it
-            case DIVIDE -> "((1.0 * " + expr(a.get(0), 7) + ") / " + expr(a.get(1), 7) + ")";
+            // MUST-honor semantics (PHASE_HIJ_LOWERING.md): Pure's
+            // divide(Number, Number) IS a Float — the division itself is a
+            // DOUBLE division, so both operands cast BEFORE it (a cast
+            // after would keep the operands' arithmetic: integers truncate,
+            // decimals divide exactly on H2 — 36-digit NUMERIC — and round
+            // to a double the engine's double division need not reach;
+            // stress corpus 2026-09-16: 936 notionalPerRiskPoint rows).
+            // The former `1.0 *` promotion only dodged integer truncation.
+            case DIVIDE -> "(CAST(" + expr(a.get(0), 0) + " AS DOUBLE) / CAST("
+                    + expr(a.get(1), 0) + " AS DOUBLE))";
             case MOD -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "
                     + expr(a.get(1), 0) + ", " + expr(a.get(1), 0) + ")";
             case REM -> "MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ")";
@@ -1167,6 +1173,75 @@ public class AnsiSqlRenderer implements SqlDialect {
      * dynamic-pivot minted-name decode saw 'ID' for 'id'). */
     protected String aliasIdent(String name) {
         return ident(name);
+    }
+
+    // ---- DDL (2026-09-16): the store's declared shape, rendered here like
+    // a query. ONE identifier rule per dialect (the query rule, ident()),
+    // ONE type spelling (ddlType); the engine-text renderer overrides the
+    // deltas its goldens pin. Keys and nullability are the STORE's
+    // declarations and always render.
+
+    @Override
+    public String render(com.legend.sql.SqlDdl ddl) {
+        return switch (ddl) {
+            case com.legend.sql.SqlDdl.CreateTable ct -> {
+                StringBuilder sb = new StringBuilder("Create Table ")
+                        .append(ddlQualified(ct.schema(), ct.table())).append("(");
+                boolean first = true;
+                for (com.legend.sql.SqlDdl.Column col : ct.columns()) {
+                    if (!first) {
+                        sb.append(ddlColumnSeparator());
+                    }
+                    first = false;
+                    sb.append(ddlIdentifier(col.name(), col.declaredQuoted()))
+                            .append(' ').append(ddlType(col.type()))
+                            .append(col.primaryKey() || col.notNull() ? " NOT NULL" : " NULL");
+                }
+                java.util.List<String> pks = ct.columns().stream()
+                        .filter(com.legend.sql.SqlDdl.Column::primaryKey)
+                        .map(col -> ddlKeyIdentifier(col.name(), col.declaredQuoted()))
+                        .toList();
+                if (!pks.isEmpty()) {
+                    // the engine joins the pk names with a bare comma
+                    // (translateCreateTableStatementDefault)
+                    sb.append(", PRIMARY KEY(").append(String.join(",", pks)).append(')');
+                }
+                yield sb.append(");").toString();
+            }
+            case com.legend.sql.SqlDdl.DropTable dt ->
+                    "Drop table if exists " + ddlQualified(dt.schema(), dt.table()) + ";";
+            case com.legend.sql.SqlDdl.CreateSchema cs ->
+                    "Create Schema if not exists " + cs.schema() + ";";
+            case com.legend.sql.SqlDdl.DropSchema ds ->
+                    "Drop schema if exists " + ds.schema() + " cascade;";
+        };
+    }
+
+    /** {@code schema.table}; the default schema spells bare. */
+    protected String ddlQualified(@com.legend.Nullable String schema, String table) {
+        return schema == null || schema.isEmpty() || "default".equals(schema)
+                ? table : schema + "." + table;
+    }
+
+    /** A store column's declared type, spelled for this target (the H2
+     *  base; a dialect overrides the few it spells otherwise). */
+    protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
+        return DdlSpelling.h2Type(t);
+    }
+
+    /** A column identifier in DDL: the dialect's ONE identifier rule
+     *  ({@link #ident}); a declared-quoted name keeps its quotes. */
+    protected String ddlIdentifier(String name, boolean declaredQuoted) {
+        return declaredQuoted ? '"' + name + '"' : ident(name);
+    }
+
+    /** A key-list identifier ({@code PRIMARY KEY(...)}): the column rule. */
+    protected String ddlKeyIdentifier(String name, boolean declaredQuoted) {
+        return ddlIdentifier(name, declaredQuoted);
+    }
+
+    protected String ddlColumnSeparator() {
+        return ", ";
     }
 
     protected String ident(String name) {

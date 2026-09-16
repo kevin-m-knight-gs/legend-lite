@@ -312,6 +312,13 @@ final class ConnectionEmitters {
                 // (C12 byte pin)
                 b.append('}');
             }
+            // the four db-extension specs below: fields alphabetical, nulls
+            // omitted, sourceInformation present (their walkers set it)
+            case Protocol.PAthenaSpec s -> vendorDatasourceSpec(b, s);
+            case Protocol.PAuroraSpec s -> vendorDatasourceSpec(b, s);
+            case Protocol.PGlobalAuroraSpec s -> vendorDatasourceSpec(b, s);
+            case Protocol.PMemSqlSpec s -> vendorDatasourceSpec(b, s);
+            case Protocol.POracleSpec s -> vendorDatasourceSpec(b, s);
             case Protocol.PTrinoSpec s -> {
                 b.append("{\"_type\":\"Trino\"");
                 if (s.catalog() != null) {
@@ -381,5 +388,104 @@ final class ConnectionEmitters {
                 b.append('}');
             }
                                 }
+    }
+
+    /** The five vendor specs added 2026-09-16 (Athena, Aurora, GlobalAurora,
+     *  MemSql, Oracle) — split from {@link #datasourceSpec} at the case seam
+     *  (CodeShapeGuardrailTest: one method, one screen). */
+    static void vendorDatasourceSpec(StringBuilder b, Protocol.PDatasourceSpec d) {
+        switch (d) {
+            case Protocol.PAthenaSpec s -> {
+                b.append("{\"_type\":\"athena\"");
+                if (s.athenaEndpoint() != null) {
+                    b.append(",\"athenaEndpoint\":");
+                    str(b, s.athenaEndpoint());
+                }
+                if (s.catalog() != null) {
+                    b.append(",\"catalog\":");
+                    str(b, s.catalog());
+                }
+                if (s.database() != null) {
+                    b.append(",\"database\":");
+                    str(b, s.database());
+                }
+                if (s.outputLocation() != null) {
+                    b.append(",\"outputLocation\":");
+                    str(b, s.outputLocation());
+                }
+                b.append(",\"region\":");
+                str(b, s.region());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                if (s.workGroup() != null) {
+                    b.append(",\"workGroup\":");
+                    str(b, s.workGroup());
+                }
+                b.append('}');
+            }
+            case Protocol.PAuroraSpec s -> {
+                b.append("{\"_type\":\"aurora\"");
+                if (s.clusterInstanceHostPattern() != null) {
+                    b.append(",\"clusterInstanceHostPattern\":");
+                    str(b, s.clusterInstanceHostPattern());
+                }
+                b.append(",\"host\":");
+                str(b, s.host());
+                b.append(",\"name\":");
+                str(b, s.name());
+                b.append(",\"port\":").append(s.port());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PGlobalAuroraSpec s -> {
+                b.append("{\"_type\":\"globalAurora\",\"globalClusterInstanceHostPatterns\":[");
+                for (int i = 0; i < s.globalClusterInstanceHostPatterns().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    str(b, s.globalClusterInstanceHostPatterns().get(i));
+                }
+                b.append("],\"host\":");
+                str(b, s.host());
+                b.append(",\"name\":");
+                str(b, s.name());
+                b.append(",\"port\":").append(s.port());
+                b.append(",\"region\":");
+                str(b, s.region());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PMemSqlSpec s -> {
+                b.append("{\"_type\":\"memSql\"");
+                if (s.databaseName() != null) {
+                    b.append(",\"databaseName\":");
+                    str(b, s.databaseName());
+                }
+                b.append(",\"host\":");
+                str(b, s.host());
+                b.append(",\"port\":").append(s.port());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                if (s.useSsl() != null) {
+                    b.append(",\"useSsl\":").append(s.useSsl());
+                }
+                b.append('}');
+            }
+            case Protocol.POracleSpec s -> {
+                b.append("{\"_type\":\"oracle\",\"host\":");
+                str(b, s.host());
+                b.append(",\"port\":").append(s.port());
+                if (s.serviceName() != null) {
+                    b.append(",\"serviceName\":");
+                    str(b, s.serviceName());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, s.sourceInformation());
+                b.append('}');
+            }
+            default -> throw new IllegalStateException("not a vendor datasource spec: " + d.getClass().getSimpleName());
+        }
     }
 }

@@ -1,0 +1,64 @@
+###Mapping
+// Two mappings of ONE class over ONE table, differing only in whether the embedded
+// counterparty falls back. The pair is the assertion: the Otherwise version must equal
+// what the canonical model returns, and the embedded-only version must NOT.
+Mapping reporting::PartialEmbeddedMapping
+(
+    // Embedded only. Where the cache is blank the counterparty is simply absent.
+    trading::Trade: Relational {
+        ~primaryKey ([store::DB] TRADE_FLAT_PARTIAL.TRADE_ID)
+        ~mainTable [store::DB] TRADE_FLAT_PARTIAL
+        tradeId: [store::DB] TRADE_FLAT_PARTIAL.TRADE_ID,
+        notional: [store::DB] TRADE_FLAT_PARTIAL.NOTIONAL,
+        status: [store::DB] TRADE_FLAT_PARTIAL.STATUS,
+        counterparty
+        (
+            ~primaryKey ([store::DB] TRADE_FLAT_PARTIAL.CPTY_ID_INLINE)
+            counterpartyId: [store::DB] TRADE_FLAT_PARTIAL.CPTY_ID_INLINE,
+            legalName: [store::DB] TRADE_FLAT_PARTIAL.CPTY_NAME_INLINE,
+            lei: [store::DB] TRADE_FLAT_PARTIAL.CPTY_LEI_INLINE
+        )
+    }
+)
+
+Mapping reporting::OtherwiseMapping
+(
+    // The fallback target. Otherwise names a ROOT set implementation of the property's
+    // type, so one has to exist for counterparty::Counterparty in this mapping.
+    counterparty::Counterparty[cptyRoot]: Relational {
+        ~primaryKey ([store::DB] COUNTERPARTY.COUNTERPARTY_ID)
+        ~mainTable [store::DB] COUNTERPARTY
+        counterpartyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
+        legalName: [store::DB] COUNTERPARTY.LEGAL_NAME,
+        lei: [store::DB] COUNTERPARTY.LEI
+    }
+
+    trading::Trade: Relational {
+        ~primaryKey ([store::DB] TRADE_FLAT_PARTIAL.TRADE_ID)
+        ~mainTable [store::DB] TRADE_FLAT_PARTIAL
+        tradeId: [store::DB] TRADE_FLAT_PARTIAL.TRADE_ID,
+        notional: [store::DB] TRADE_FLAT_PARTIAL.NOTIONAL,
+        status: [store::DB] TRADE_FLAT_PARTIAL.STATUS,
+        counterparty
+        (
+            ~primaryKey ([store::DB] TRADE_FLAT_PARTIAL.CPTY_ID_INLINE)
+            counterpartyId: [store::DB] TRADE_FLAT_PARTIAL.CPTY_ID_INLINE,
+            legalName: [store::DB] TRADE_FLAT_PARTIAL.CPTY_NAME_INLINE,
+            lei: [store::DB] TRADE_FLAT_PARTIAL.CPTY_LEI_INLINE
+        ) Otherwise ([cptyRoot]: [store::DB] @TradeFlatPartial_Counterparty)
+    }
+)
+
+
+###Runtime
+Runtime stress::PartialEmbeddedRT
+{
+    mappings: [ reporting::PartialEmbeddedMapping ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime stress::OtherwiseRT
+{
+    mappings: [ reporting::OtherwiseMapping ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}

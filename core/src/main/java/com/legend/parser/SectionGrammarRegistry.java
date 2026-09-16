@@ -77,7 +77,8 @@ public final class SectionGrammarRegistry {
                                 "SnowflakeAppDeploymentConfiguration")));
         m.put("MemSql",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "MemSql", java.util.Set.of("MemSqlFunction")));
+                        "MemSql", java.util.Set.of("MemSqlFunction",
+                                "MemSqlFunctionDeploymentConfiguration")));
         m.put("BigQuery",
                 new com.legend.parser.section.FunctionActivatorSectionGrammar(
                         "BigQuery", java.util.Set.of("BigQueryFunction",

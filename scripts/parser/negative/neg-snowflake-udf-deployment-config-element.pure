@@ -1,0 +1,20 @@
+// REJECTS: Unexpected token 'SnowflakeUDFDeploymentConfiguration'. Valid alternatives: ['SnowflakeApp', 'SnowflakeAppDeploymentConfiguration', 'SnowflakeM2MUdf']
+//
+// `SnowflakeUDFDeploymentConfiguration` used as an element keyword. The token is declared by
+// SnowflakeLexerGrammar and it is NOT dead -- it appears in the `identifier` alternation, so
+// it is a perfectly good name for something -- but no element rule produces it:
+// SnowflakeParserGrammar.g4:87 lists only SNOWFLAKE_APP__CONFIGURATION as a deployment config.
+//
+// So the grammar declares the deployment configuration of the M2M UDF activator and provides
+// no way to write one. The only reachable spelling is as a NAME, which is what the last
+// element of ../fixtures/t2-snowflake.pure does.
+//
+// A rewrite that builds its element table from the token list -- a natural thing to do when
+// three of the four vocabulary entries ARE elements -- gains a fourth element kind that
+// upstream cannot parse and no protocol class consumes. The alternative list in the message
+// is the authoritative set.
+###Snowflake
+SnowflakeUDFDeploymentConfiguration fixture::neg::UdfConfig
+{
+   activationConnection : fixture::neg::Conn;
+}

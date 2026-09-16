@@ -1,0 +1,160 @@
+// COVERS PersistenceLexerGrammar: Persistence, doc, trigger, service, persister, Batch, Streaming, sink, Relational, ObjectStorage, database, binding, targetShape, Flat, MultiFlat, modelClass, targetName, partitionFields, deduplicationStrategy, None, AnyVersion, MaxVersion, versionField, DuplicateCount, duplicateCountName, transactionScope, SINGLE_TARGET, ALL_TARGETS, parts, modelProperty, notifier, notifyees, Email, address, PagerDuty, url, ingestMode, NontemporalSnapshot, auditing, DateTime, dateTimeName
+//
+// The v1 `persister:` branch -- the arm the .g4 still marks "remove once v2 is rolled out",
+// which is nonetheless the only arm the whole Persistence corpus in this repo has ever
+// exercised at zero. Four Persistence elements, because the alternations are exclusive:
+//
+//   * persister is Streaming XOR Batch. Streaming takes only a sink; Batch REQUIRES all
+//     three of sink, targetShape and ingestMode (PersistenceParseTreeWalker.java:907-925),
+//     so a Batch element cannot be trimmed down to isolate one keyword.
+//   * sink is Relational{database} XOR ObjectStorage{binding}.
+//   * targetShape is Flat XOR MultiFlat, and MultiFlat's transactionScope is a single
+//     required field, so SINGLE_TARGET and ALL_TARGETS need one element each.
+//   * the four deduplicationStrategy arms (None / AnyVersion / MaxVersion{versionField} /
+//     DuplicateCount{duplicateCountName}) are per-part, so a MultiFlat with four parts
+//     covers all four in one element -- which is why the parts list below is longer than
+//     any upstream test's.
+//
+// `doc`, `trigger` and `service` are REQUIRED on every Persistence element. `trigger:` is an
+// island-typed dispatch like `platform:`; only `Manual` and `Cron` are registered
+// (PersistenceParserExtension.java:50-51), so `Manual` is the only spelling that survives
+// the walker without a value block.
+###Persistence
+Persistence test::persistence::FlatBatch
+{
+  doc: 'batch persister, relational sink, flat target shape';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: DateTime
+      {
+        dateTimeName: 'AUDIT_TS';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+      partitionFields: [propertyA, propertyB];
+      deduplicationStrategy: None;
+    }
+  }
+}
+
+Persistence test::persistence::MultiFlatBatch
+{
+  doc: 'batch persister, object storage sink, multi-flat target shape';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: ObjectStorage
+    {
+      binding: test::persistence::Binding;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: MultiFlat
+    {
+      modelClass: test::persistence::WrapperClass;
+      transactionScope: ALL_TARGETS;
+      parts:
+      [
+        {
+          modelProperty: property1;
+          targetName: 'TestDataset1';
+          partitionFields: [propertyA, propertyB];
+          deduplicationStrategy: AnyVersion;
+        },
+        {
+          modelProperty: property2;
+          targetName: 'TestDataset2';
+          deduplicationStrategy: MaxVersion
+          {
+            versionField: updateDateTime;
+          }
+        },
+        {
+          modelProperty: property3;
+          targetName: 'TestDataset3';
+          deduplicationStrategy: DuplicateCount
+          {
+            duplicateCountName: 'duplicateCount';
+          }
+        },
+        {
+          modelProperty: property4;
+          targetName: 'TestDataset4';
+          deduplicationStrategy: None;
+        }
+      ];
+    }
+  }
+}
+
+Persistence test::persistence::SingleTargetScope
+{
+  doc: 'multi-flat with the other transaction scope';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: MultiFlat
+    {
+      modelClass: test::persistence::WrapperClass;
+      transactionScope: SINGLE_TARGET;
+      parts:
+      [
+        {
+          modelProperty: property1;
+          targetName: 'TestDataset1';
+        }
+      ];
+    }
+  }
+}
+
+Persistence test::persistence::StreamingWithNotifier
+{
+  doc: 'streaming persister takes a sink and nothing else';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Streaming
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+  }
+  notifier:
+  {
+    notifyees:
+    [
+      Email
+      {
+        address: 'x.y@z.com';
+      },
+      PagerDuty
+      {
+        url: 'https://x.com';
+      }
+    ];
+  }
+}

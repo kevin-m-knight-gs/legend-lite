@@ -488,10 +488,10 @@ public final class ElementParser implements TokenStreamCursor {
      */
     /**
      * A {@code ###Data} element on the RUNNER path. It is fully parsed —
-     * the same grammar the byte-parity harness proves — and carried as the
-     * sealed opaque element with its protocol JSON: legend-lite's compile
-     * model has no data-element concept, so nothing here can be opened, but
-     * the element is still indexed and named rather than silently dropped.
+     * the same grammar the byte-parity harness proves — and carried as a
+     * {@link com.legend.model.DataDefinition}: the protocol body is the
+     * model's (a data element is data, never compiled), indexed and named
+     * so a test suite's {@code Reference #{ path }#} resolves to it.
      */
     /** PROTOCOL-FIRST. */
     private PackageableElement dataElement() {
@@ -502,8 +502,7 @@ public final class ElementParser implements TokenStreamCursor {
         parseDecorations();
         parseQualifiedName();
         skipBalancedBlock();         // { <body> }
-        return new com.legend.model.OpaqueElementDefinition(de.qualifiedName(),
-                "Data", com.legend.protocol.ProtocolEmitter.emitElement(de));
+        return new com.legend.model.DataDefinition(de.qualifiedName(), de);
     }
 
     private boolean skipTopLevelNonElement() {

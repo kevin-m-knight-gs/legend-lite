@@ -1,0 +1,216 @@
+// The four mapping features that needed neither oracle work nor a reader change:
+// embedded property mappings, a Binding transformer, association ends with explicit
+// source/target set ids, and a mapping include with STORE SUBSTITUTION.
+//
+// Built on the hier:: domain rather than the trading one on purpose. `model.py` keys a
+// property's column by CLASS, not by (mapping, class), so a class mapped twice collapses to
+// one view in the reader -- and every trading class is already mapped flatly. Putting these
+// on fresh classes keeps the reader honest until that limitation is fixed.
+//
+// Every spelling here was verified in scripts/corpus/verified/ before being written, which
+// mattered: `prop() { ... }` is NOT embedded syntax (the empty parens belong to Inline), and
+// the AssociationMapping(...) wrapper is mandatory rather than decorative -- omitting it
+// PARSES, and then reports "Can't find class", pointing at the wrong thing entirely.
+###Pure
+Class hier::Issuer
+{
+   issuerId: String[1];
+   legalName: String[1];
+   // Mapped as an EMBEDDED property: no table of its own, its columns live on the issuer's
+   // row. The corpus had none of these, so nothing ever produced a sub-object that is not
+   // backed by a join.
+   contact: hier::Contact[0..1];
+   // Backed by a JSON column through a Binding transformer.
+   profile: hier::Profile[0..1];
+}
+
+Class hier::Contact
+{
+   email: String[0..1];
+   phone: String[0..1];
+}
+
+// A class whose mapping TRANSFORMS rather than copies. Every property below is computed
+// by the store, so nothing here can be checked by comparing columns -- the oracle has to
+// evaluate the same function independently, which is why oracle._dynafunction exists and
+// why it refuses names it has no implementation for.
+Class hier::InstrumentReach
+{
+   instrumentId: String[1];
+   // Reached by a two-hop join CHAIN: instrument -> issuer -> country.
+   countryName: String[0..1];
+   // The same chain with a dynafunction wrapped round it.
+   upperCountry: String[0..1];
+}
+
+Class hier::IssuerLabel
+{
+   issuerId: String[1];
+   // concat over two columns, one of which is NULL for some rows: concat over NULL is NULL,
+   // not the other argument and not the empty string.
+   fullLabel: String[0..1];
+   upperName: String[0..1];
+   lowerName: String[0..1];
+}
+
+Class hier::Profile
+{
+   sector: String[0..1];
+   headquarters: String[0..1];
+   // BOOLEAN, deliberately. Every other type read through a Binding comes back as its raw
+   // JSON TOKEN rendered as a string -- `"\"energy\""` for a String, `"7"` for an Integer
+   // (F27) -- so no other type can carry a PASSING assertion. A boolean's JSON token is
+   // already a boolean literal, and it survives. Without this the Binding transformer had
+   // no executing service at all: its only coverage was a quarantined one, which pins a
+   // defect but does not show the feature working.
+   flagged: Boolean[0..1];
+}
+
+Association hier::InstrumentIssuer
+{
+   issuer: hier::Issuer[0..1];
+   instruments: hier::Instrument[*];
+}
+
+###Relational
+Database hier::IssuerDB
+(
+   Table HIER_ISSUER
+   (
+      ISSUER_ID VARCHAR(64) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      CONTACT_EMAIL VARCHAR(200),
+      CONTACT_PHONE VARCHAR(64),
+      PROFILE_JSON VARCHAR(1000),
+      COUNTRY_CODE VARCHAR(16)
+   )
+
+   // Cross-database join. `include` is NOT required for one -- [db] pointers resolve
+   // globally -- which is why this works without IssuerDB including HierDB.
+   Join HierIssuer_Instrument([hier::IssuerDB]HIER_ISSUER.ISSUER_ID = [hier::HierDB]HIER_INSTRUMENT.ISSUER_ID)
+
+   // A second hop, so a join CHAIN (@A > @B) has somewhere to go. One join can only ever
+   // produce a single-hop mapping, which is what the whole base model has.
+   Table HIER_COUNTRY
+   (
+      COUNTRY_CODE VARCHAR(16) PRIMARY KEY,
+      COUNTRY_NAME VARCHAR(120)
+   )
+   // A REAL foreign key, so the seeder populates it from actual country rows. Joined on
+   // an arbitrary column instead, the chain resolved correctly and returned NULL for every
+   // row -- a green test proving nothing, which is the failure mode a corpus is most likely
+   // to ship.
+   Join HierIssuer_Country([hier::IssuerDB]HIER_ISSUER.COUNTRY_CODE = [hier::IssuerDB]HIER_COUNTRY.COUNTRY_CODE)
+   Join HierInstrument_Issuer([hier::HierDB]HIER_INSTRUMENT.ISSUER_ID = [hier::IssuerDB]HIER_ISSUER.ISSUER_ID)
+
+   Filter NamedCountry([hier::IssuerDB]HIER_COUNTRY.COUNTRY_NAME is not null)
+)
+
+// A SECOND database with the same shape, so `include ... [A -> B]` has somewhere to
+// substitute TO. Store substitution is meaningless with one store, which is why a model
+// with a single Database can never exercise it.
+Database hier::IssuerDBProd
+(
+   Table HIER_ISSUER
+   (
+      ISSUER_ID VARCHAR(64) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      CONTACT_EMAIL VARCHAR(200),
+      CONTACT_PHONE VARCHAR(64),
+      PROFILE_JSON VARCHAR(1000),
+      COUNTRY_CODE VARCHAR(16)
+   )
+)
+
+###ExternalFormat
+Binding hier::ProfileBinding
+{
+   contentType: 'application/json';
+   modelIncludes:
+   [
+      hier::Profile
+   ];
+}
+
+###Mapping
+Mapping hier::IssuerMapping
+(
+   *hier::Issuer[issuer]: Relational
+   {
+      ~primaryKey ( [hier::IssuerDB]HIER_ISSUER.ISSUER_ID )
+      ~mainTable [hier::IssuerDB]HIER_ISSUER
+      issuerId: [hier::IssuerDB]HIER_ISSUER.ISSUER_ID,
+      legalName: [hier::IssuerDB]HIER_ISSUER.LEGAL_NAME,
+
+      // EMBEDDED: `prop ( sub: col )`. Parentheses, and NO empty () after the name --
+      // `prop()` is Inline's spelling, not this one.
+      contact
+      (
+         email: [hier::IssuerDB]HIER_ISSUER.CONTACT_EMAIL,
+         phone: [hier::IssuerDB]HIER_ISSUER.CONTACT_PHONE
+      ),
+
+      // BINDING TRANSFORMER: a complex-typed property read out of one column through an
+      // external-format Binding.
+      profile: Binding hier::ProfileBinding : [hier::IssuerDB]HIER_ISSUER.PROFILE_JSON
+   }
+
+   // DYNAFUNCTION property mappings (A3). ~distinct (B4) on the same set, so the two
+   // interact: a transform that collapses distinct source rows onto the same value makes
+   // ~distinct observable in a way a plain column mapping never would.
+   //
+   // toUpper / toLower, NOT upper / lower -- those do not exist, and NOTHING validates the
+   // name at parse or compile. A typo here compiles clean and fails at SQL generation.
+   hier::IssuerLabel[label]: Relational
+   {
+      ~distinct
+      ~mainTable [hier::IssuerDB]HIER_ISSUER
+      issuerId: [hier::IssuerDB]HIER_ISSUER.ISSUER_ID,
+      fullLabel: concat([hier::IssuerDB]HIER_ISSUER.LEGAL_NAME, [hier::IssuerDB]HIER_ISSUER.CONTACT_EMAIL),
+      upperName: toUpper([hier::IssuerDB]HIER_ISSUER.LEGAL_NAME),
+      lowerName: toLower([hier::IssuerDB]HIER_ISSUER.LEGAL_NAME)
+   }
+
+   // JOIN CHAIN (A2), DYNAFUNCTION OVER A JOIN (A4), and ~filter VIA A JOIN (B3).
+   //
+   // Three constraints, all verified and all easy to get wrong:
+   //   * a join TYPE is rejected on the FIRST hop of a property mapping, though it is legal
+   //     from hop 2 and legal on hop 1 of a ~filter;
+   //   * the ~filter-via-join form needs the PIPE -- `~filter [db]@J | [db]Filter` -- which
+   //     our own rosetta doc omits;
+   //   * the store qualifier is required on the first hop and optional afterwards.
+   hier::InstrumentReach[reach]: Relational
+   {
+      ~filter [hier::HierDB]@HierInstrument_Venue > @HierVenue_Region | [hier::HierDB]NamedRegion
+      ~mainTable [hier::HierDB]HIER_INSTRUMENT
+      instrumentId: [hier::HierDB]HIER_INSTRUMENT.INSTRUMENT_ID,
+      // Two hops, both inside hier::HierDB, so this EXECUTES. The cross-database variant
+      // is declared in the store above and covered by F26 as compile-only.
+      countryName: [hier::HierDB]@HierInstrument_Venue > @HierVenue_Region | [hier::HierDB]HIER_REGION.REGION_NAME,
+      upperCountry: toUpper([hier::HierDB]@HierInstrument_Venue > @HierVenue_Region | [hier::HierDB]HIER_REGION.REGION_NAME)
+   }
+
+   // ASSOCIATION MAPPING with explicit SOURCE and TARGET set ids on each end. The ids
+   // matter here rather than being ceremony: hier::Instrument has three sets (base, bond,
+   // opt), so an unqualified end would be ambiguous about which one it connects.
+   //
+   // The AssociationMapping(...) wrapper is mandatory. Without it this still PARSES -- the
+   // grammar reads it as a class mapping -- and then fails with "Can't find class
+   // 'hier::InstrumentIssuer'", which names the wrong problem entirely.
+   hier::InstrumentIssuer: Relational
+   {
+      AssociationMapping
+      (
+         instruments[issuer, base]: [hier::IssuerDB]@HierIssuer_Instrument,
+         issuer[base, issuer]: [hier::IssuerDB]@HierIssuer_Instrument
+      )
+   }
+)
+
+// STORE SUBSTITUTION: the same mappings, retargeted at the production database. Everything
+// the included mapping says about IssuerDB now applies to IssuerDBProd, with no mapping
+// re-stated.
+Mapping hier::IssuerMappingProd
+(
+   include hier::IssuerMapping[hier::IssuerDB->hier::IssuerDBProd]
+)

@@ -1,0 +1,19 @@
+###Mapping
+Mapping trading::ExecutedMapping
+(
+    include trading::Codes
+
+    trading::ExecutedTrade: Relational {
+        ~filter [store::DB] ExecutedTrades
+        ~primaryKey ([store::DB] TRADE.TRADE_ID)
+        ~mainTable [store::DB] TRADE
+        tradeId: [store::DB] TRADE.TRADE_ID,
+        tradeDate: [store::DB] TRADE.TRADE_DATE,
+        quantity: [store::DB] TRADE.QUANTITY,
+        price: [store::DB] TRADE.PRICE,
+        notional: [store::DB] TRADE.NOTIONAL,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE.SIDE,
+        status: [store::DB] TRADE.STATUS,
+        currency: [store::DB] TRADE.CURRENCY
+    }
+)

@@ -1,0 +1,19 @@
+// REJECTS: Service mcpServer should be a valid identifier ([a-zA-Z_][a-zA-Z0-9_]*)
+//
+// Same shape as the execution-param key, different element: `mcpServer:` takes an
+// `identifier`, quoted strings are identifiers, and the walker then applies a regex the
+// grammar knows nothing about. 'not-a-valid-identifier' is a legal STRING and an illegal
+// mcpServer name.
+###Service
+Service fixture::neg::BadMcpServerName
+{
+   pattern: '/x';
+   documentation: 'd';
+   mcpServer: 'not-a-valid-identifier';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+}

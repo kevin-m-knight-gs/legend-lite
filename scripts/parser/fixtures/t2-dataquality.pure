@@ -1,0 +1,82 @@
+// COVERS DataQualityLexerGrammar: DataQualityValidation, context, fromDataSpace, fromMappingAndRuntime, validationTree, filter, ->subType(@, DataQualityRelationValidation, query, validations, name, description, assertion, type, ROW_LEVEL, AGGREGATE, DataQualityRelationComparison, source, target, keys, columnsToCompare, strategy, MD5Hash, sourceHashColumn, targetHashColumn, aggregatedHash, expectedMatch
+//
+// All three element kinds this section defines -- classValidationDefinition,
+// relationValidationDefinition and relationComparisonDefinition -- plus both arms of
+// `context:` (a dqContext takes exactly one of fromDataSpace / fromMappingAndRuntime, so
+// they need two elements) and both `type:` values.
+//
+// `->subType(@Type)` is DataQuality's OWN SUBTYPE_START token, not the GraphFetchTree one.
+// It appears in `graphPath` and `subTypeGraphPath`, i.e. inside the `$[ ... ]$` validation
+// tree, so a downcast is written here on a property node. Note the tree delimiters are
+// `$[` / `]$` and the constraint list is angle brackets: `Person<constraintA, 'constraint b'>`.
+//
+// Two keywords of this grammar are NOT covered and cannot be, for two different reasons:
+//   - testSuites / data / tests / asserts: present in the .g4 of the legend-engine
+//     checkout the census reads, absent from the 4.138.2 jars this harness parses with
+//     (DataQualityLexerGrammar there declares no DQ_TEST_SUITES token). Version skew.
+//   - persistenceStrategy: reachable in the grammar but rejected by the walker. Nothing in
+//     the repository implements IDataQualityGrammarParserExtension
+//     .getExtraDataQualityPersistenceStrategyParsers(), so parseIsland's orElseThrow at
+//     IDataQualityGrammarParserExtension.java:81 always fires.
+###DataQualityValidation
+DataQualityValidation fixture::dq::PersonFromDataSpace
+{
+   context: fromDataSpace(fixture::dq::PersonDataSpace, 'Local_Context');
+   validationTree: $[
+      fixture::dq::Person<ageMustBePositive, 'nameMust NotBeBlank'>{
+        lastName,
+        name,
+        addresses<streetMustNotBeBlank>{
+          addressId
+        },
+        primaryAddress->subType(@fixture::dq::UkAddress){
+          postcode
+        }
+      }
+    ]$;
+   filter: p: fixture::dq::Person[1]|$p.age >= 18;
+}
+
+DataQualityValidation fixture::dq::PersonFromMappingAndRuntime
+{
+   context: fromMappingAndRuntime(fixture::dq::PersonMapping, fixture::dq::PersonRuntime);
+   validationTree: $[
+      fixture::dq::Person{
+        name
+      }
+    ]$;
+}
+
+DataQualityRelationValidation fixture::dq::RowLevelValidation
+{
+   query: |#>{fixture::dq::Store.myTable}#->filter(c|$c.name == 'ok')->from(fixture::dq::DevRuntime);
+   validations: [
+   {
+     name: 'nameIsNotError';
+     description: 'a row level validation';
+     assertion: row|$row.name != 'error';
+     type: ROW_LEVEL;
+   },
+   {
+     name: 'relationIsNotEmpty';
+     description: 'an aggregate validation';
+     assertion: rel|$rel->assertRelationNotEmpty();
+     type: AGGREGATE;
+   }
+   ];
+}
+
+DataQualityRelationComparison fixture::dq::Reconciliation
+{
+   source: src|#>{fixture::dq::Store.sourceTable}#->filter(c|$c.active == true);
+   target: tgt|#>{fixture::dq::Store.targetTable}#->filter(c|$c.active == true);
+   keys: [id, name];
+   columnsToCompare: [amount, quantity];
+   strategy: MD5Hash
+   {
+     sourceHashColumn: srcHash;
+     targetHashColumn: tgtHash;
+     aggregatedHash: true;
+   };
+   expectedMatch: 0.99;
+}

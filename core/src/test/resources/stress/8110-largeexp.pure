@@ -1,0 +1,212 @@
+###Pure
+// Large exposures: what the firm owes to whom, as a supervisor wants it.
+//
+// This domain exists to put three constructs next to things they had never met. `composite
+// PK`, `join non-equality` and `join with or` each had fifteen or more uncovered feature
+// pairs, and always for the same reason -- each lived alone on a class carrying nothing else.
+// A large-exposures return carries all three honestly:
+//
+//   * it is keyed by report, cob date and line number, and by nothing shorter
+//   * the threshold band a line falls in is a property of its percentage, so the join to it
+//     is a RANGE and there is no key to join on
+//   * an exemption attaches to a counterparty OR to a country, and the rule table holds both
+//     kinds, so the join is a disjunction
+//
+// It sits in its own SCHEMA, because a regulatory extract is not a trading table, and because
+// nothing in this corpus had ever mapped a schema-qualified table -- the one Schema that was
+// declared was mapped by nothing and seeded with nothing.
+//
+// The datatypes are deliberately varied: SMALLINT for the line number, CHAR(2) for the ISO
+// country, NUMERIC(20,2) for the money and REAL for the percentage. Every table here before
+// used VARCHAR, DOUBLE, INTEGER, DATE, TIMESTAMP or BIT, so four of the reader's known types
+// had never been declared by anything.
+Enum largeexp::ExposureClass
+{
+   INSTITUTION,
+   CORPORATE,
+   SOVEREIGN,
+   COVERED_BOND,
+   FUND
+}
+
+Class largeexp::ExposureLine
+[
+   // Validations a returns engine would actually enforce. Every seeded line satisfies them;
+   // whether a VIOLATING row is rejected or ignored during relational execution is a
+   // separate question and is isolated in repro/ rather than mixed in here.
+   //
+   // Fully parenthesised, because Pure binds && tighter than the comparison operators.
+   grossCoversNet: ($this.grossExposure >= $this.netExposure),
+   creditRiskMitigationIsNonNegative: ($this.crmEffect >= 0.0),
+   lineNumberIsPositive: ($this.lineNumber > 0)
+]
+{
+   reportId: String[1];
+   cobDate: StrictDate[1];
+   lineNumber: Integer[1];
+   counterpartyId: String[1];
+   // Null where the counterparty belongs to no connected group, which is the case the
+   // grouping rules exist for and the case a naive group-by drops.
+   groupId: String[0..1];
+   countryCode: String[1];
+   exposureClass: largeexp::ExposureClass[1];
+   grossExposure: Float[1];
+   crmEffect: Float[1];
+   netExposure: Float[1];
+   pctOfCapital: Float[1];
+   reportedAt: DateTime[1];
+   isExempt: Boolean[1];
+
+   // What the mitigation actually bought, as a fraction of the gross. Division, so the
+   // engine is in double from here on.
+   mitigationRatio() { $this.crmEffect / $this.grossExposure } : Float[1];
+   // The headroom to the 25% limit, in percentage points. Negative on a breach, which is
+   // the number a supervisor reads first.
+   headroomToLimit() { 25.0 - $this.pctOfCapital } : Float[1];
+   // A qualified property: the net exposure converted at a rate the caller supplies.
+   netExposureIn(fxRate: Float[1]) { $this.netExposure * $fxRate } : Float[1];
+}
+
+// The lines above the reporting threshold. A ~filter over the same table, and it selects
+// ten of twelve -- so it is doing real work rather than selecting everything.
+Class largeexp::ReportableLine extends largeexp::ExposureLine
+{
+}
+
+// The distinct (report, date) pairs. Mapped ~distinct over the line table, which has several
+// rows for each -- so twelve rows collapse to three.
+Class largeexp::ReturnHeader
+{
+   reportId: String[1];
+   cobDate: StrictDate[1];
+   // A DYNAFUNCTION: the return's reference, built in the mapping rather than stored.
+   returnRef: String[1];
+}
+
+// The band a line's percentage falls in. There is no key: which band applies is a property
+// of the number, so the join is `pct >= floor and pct < ceiling`.
+Class largeexp::ThresholdBand
+{
+   bandId: String[1];
+   bandName: String[1];
+   floorPct: Float[1];
+   ceilingPct: Float[1];
+   isReportable: Boolean[1];
+   isBreach: Boolean[1];
+   note: String[1];
+}
+
+// An exemption rule, which attaches to a counterparty or to a country and never to both.
+Class largeexp::ExemptionRule
+{
+   ruleId: String[1];
+   exemptCounterpartyId: String[0..1];
+   exemptCountryCode: String[0..1];
+   basis: String[1];
+   note: String[1];
+}
+
+// The band a line falls in. A RANGE join from a composite-key class.
+Association largeexp::LineThreshold
+{
+   bandedLines: largeexp::ExposureLine[*];
+   thresholdBand: largeexp::ThresholdBand[0..1];
+}
+
+// The exemptions that reach a line, by counterparty OR by country. TO-MANY, because an
+// unqualified `or` says "every rule that applies" and a line can match on both axes.
+Association largeexp::LineExemptions
+{
+   exemptedLines: largeexp::ExposureLine[*];
+   exemptionRules: largeexp::ExemptionRule[*];
+}
+
+###Mapping
+Mapping largeexp::LargeExposureMapping
+(
+   largeexp::ExposureClass: EnumerationMapping ExposureClassMapping
+   {
+      INSTITUTION: ['INSTITUTION'],
+      CORPORATE: ['CORPORATE'],
+      SOVEREIGN: ['SOVEREIGN'],
+      COVERED_BOND: ['COVERED_BOND'],
+      FUND: ['FUND']
+   }
+
+   // The composite key, over a SCHEMA-qualified table. All three columns: report and line
+   // alone collide across cob dates, and report and date alone collide across lines.
+   largeexp::ExposureLine[expLine]: Relational
+   {
+      ~primaryKey ( [store::DB]regrpt.EXPOSURE_LINE.REPORT_ID, [store::DB]regrpt.EXPOSURE_LINE.COB_DATE, [store::DB]regrpt.EXPOSURE_LINE.LINE_NO )
+      ~mainTable [store::DB]regrpt.EXPOSURE_LINE
+      reportId: [store::DB]regrpt.EXPOSURE_LINE.REPORT_ID,
+      cobDate: [store::DB]regrpt.EXPOSURE_LINE.COB_DATE,
+      lineNumber: [store::DB]regrpt.EXPOSURE_LINE.LINE_NO,
+      counterpartyId: [store::DB]regrpt.EXPOSURE_LINE.COUNTERPARTY_ID,
+      groupId: [store::DB]regrpt.EXPOSURE_LINE.GROUP_ID,
+      countryCode: [store::DB]regrpt.EXPOSURE_LINE.COUNTRY_CODE,
+      exposureClass: EnumerationMapping ExposureClassMapping: [store::DB]regrpt.EXPOSURE_LINE.EXPOSURE_CLASS,
+      grossExposure: [store::DB]regrpt.EXPOSURE_LINE.GROSS_EXPOSURE,
+      crmEffect: [store::DB]regrpt.EXPOSURE_LINE.CRM_EFFECT,
+      netExposure: [store::DB]regrpt.EXPOSURE_LINE.NET_EXPOSURE,
+      pctOfCapital: [store::DB]regrpt.EXPOSURE_LINE.PCT_OF_CAPITAL,
+      reportedAt: [store::DB]regrpt.EXPOSURE_LINE.REPORTED_AT,
+      isExempt: [store::DB]regrpt.EXPOSURE_LINE.IS_EXEMPT
+   }
+
+   largeexp::ReportableLine[expReportable] extends [expLine]: Relational
+   {
+      ~filter [store::DB]ReportableLineRows
+   }
+
+   largeexp::ReturnHeader[expHeader]: Relational
+   {
+      ~distinct
+      ~mainTable [store::DB]regrpt.EXPOSURE_LINE
+      reportId: [store::DB]regrpt.EXPOSURE_LINE.REPORT_ID,
+      cobDate: [store::DB]regrpt.EXPOSURE_LINE.COB_DATE,
+      returnRef: concat([store::DB]regrpt.EXPOSURE_LINE.REPORT_ID, [store::DB]regrpt.EXPOSURE_LINE.COUNTRY_CODE)
+   }
+
+   largeexp::ThresholdBand[expBand]: Relational
+   {
+      ~primaryKey ( [store::DB]regrpt.EXPOSURE_THRESHOLD.BAND_ID )
+      ~mainTable [store::DB]regrpt.EXPOSURE_THRESHOLD
+      bandId: [store::DB]regrpt.EXPOSURE_THRESHOLD.BAND_ID,
+      bandName: [store::DB]regrpt.EXPOSURE_THRESHOLD.BAND_NAME,
+      floorPct: [store::DB]regrpt.EXPOSURE_THRESHOLD.FLOOR_PCT,
+      ceilingPct: [store::DB]regrpt.EXPOSURE_THRESHOLD.CEILING_PCT,
+      isReportable: [store::DB]regrpt.EXPOSURE_THRESHOLD.IS_REPORTABLE,
+      isBreach: [store::DB]regrpt.EXPOSURE_THRESHOLD.IS_BREACH,
+      note: [store::DB]regrpt.EXPOSURE_THRESHOLD.NOTE
+   }
+
+   largeexp::ExemptionRule[expRule]: Relational
+   {
+      ~primaryKey ( [store::DB]regrpt.EXEMPTION_RULE.RULE_ID )
+      ~mainTable [store::DB]regrpt.EXEMPTION_RULE
+      ruleId: [store::DB]regrpt.EXEMPTION_RULE.RULE_ID,
+      exemptCounterpartyId: [store::DB]regrpt.EXEMPTION_RULE.EXEMPT_CPTY_ID,
+      exemptCountryCode: [store::DB]regrpt.EXEMPTION_RULE.EXEMPT_COUNTRY,
+      basis: [store::DB]regrpt.EXEMPTION_RULE.BASIS,
+      note: [store::DB]regrpt.EXEMPTION_RULE.NOTE
+   }
+
+   largeexp::LineThreshold: Relational
+   {
+      AssociationMapping
+      (
+         thresholdBand[expLine, expBand]: [store::DB]@Line_ThresholdBand,
+         bandedLines[expBand, expLine]: [store::DB]@Line_ThresholdBand
+      )
+   }
+
+   largeexp::LineExemptions: Relational
+   {
+      AssociationMapping
+      (
+         exemptionRules[expLine, expRule]: [store::DB]@Line_ExemptionRule,
+         exemptedLines[expRule, expLine]: [store::DB]@Line_ExemptionRule
+      )
+   }
+)

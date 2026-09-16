@@ -1,0 +1,26 @@
+// REJECTS: URL is not valid
+//
+// `clusterDetails: # URL { 'http://...' }#` with the url QUOTED. The island body is not Legend
+// grammar at all: the text between the braces is handed to a URL island parser which runs it
+// through java.net's URL machinery, so quotes are part of the string and make it malformed.
+// The legal spelling is bare -- `# URL { http://dummyurl.com:1234/api }#` -- and it is the one
+// place in this corpus where a url is NOT a quoted string.
+//
+// Two divergences in one construct. A rewrite that lexes island bodies as Legend tokens sees a
+// STRING and accepts it happily; and a rewrite that treats the island as an opaque payload,
+// deferring validation to compile time, accepts every malformed url. legend-engine parses AND
+// validates the url before the element exists.
+//
+// Compare ../fixtures/t2-deephaven.pure, where `serverUrl:` in the neighbouring connection IS
+// a quoted string and the unquoted form is refused with "Unexpected token 'http'" -- opposite
+// conventions, adjacent grammars.
+###Connection
+Elasticsearch7ClusterConnection fixture::neg::QuotedClusterUrl
+{
+  store: fixture::neg::Store;
+  clusterDetails: # URL { 'http://dummyurl.com:1234/api' }#;
+  authentication: # UserPassword {
+    username: 'u';
+    password: EnvironmentSecret { envVariableName: 'v'; };
+  }#;
+}

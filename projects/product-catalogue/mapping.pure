@@ -1,0 +1,560 @@
+###Mapping
+// ============================================================
+// product_catalogue::Mapping
+// ============================================================
+// It INCLUDES both dependencies' mappings, which is what makes three different kinds of
+// cross-project reference below resolvable at once:
+//
+//  * `extends [pprPricedProduct]` and `extends [pprAutocall]` -- set ids that live in
+//    product-pricing. Extending is what makes the catalogue sets short rather than enormous:
+//    the primary key, the main table CI_INSTRUMENT and every inherited column mapping come
+//    from the set being extended, across THREE project boundaries
+//    (pct -> ppr -> prd -> ci).
+//  * `dataset[sdiDataset]`, `publication[sdiPublication]`, `consumer[sdiConsumer]`,
+//    `acknowledgement[sdiAck]` -- property mappings whose TARGET set id lives in
+//    static-distribution. Note `sdiAck`, not `sdiAcknowledgement`.
+//  * `pricingRun[pprPricingRun]` -- the same, into product-pricing.
+//
+// Both dependencies name every set id explicitly, so there is no `product_pricing_
+// PprPricedProduct` or `static_distribution_SdiAcknowledgement` default to fall back on, and
+// every id below is taken from the dependency's MANIFEST (or, for product-pricing, from its
+// mapping) rather than guessed.
+//
+// core_instrument::Mapping arrives twice -- through product_core (via product_pricing) and
+// through reference_data (via static_distribution). A diamond include is fine and resolves
+// to one. Do NOT include either of them, or product_core::Mapping, a second time: they are
+// not declared dependencies of this project.
+//
+// Three shape facts, stated once here rather than inferred from four hundred lines below:
+//
+//  * The main table of every catalogue-product set is core-instrument's CI_INSTRUMENT, three
+//    projects up. This project's own columns live in pct.PCT_CATALOGUE_ENTRY and are reached
+//    through Pct_EntryInstrument, so a property mapping reads
+//    `[product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.COL` and a
+//    two-hop one reads `@Pct_EntryInstrument > @Pct_EntryCatalogue`.
+//  * Every set that adds a property declares it on its OWN set. A property declared on a
+//    subclass cannot be mapped on the parent's set -- the trap product-core and
+//    product-pricing both recorded, and the reason PctWithdrawnProduct's five columns are on
+//    [pctWithdrawn] and not on [pctProduct].
+//  * The two `~distinct` sets have NO table of their own and their `~primaryKey` names the
+//    COLLAPSED column, never the source table's own key. Directive order is `~distinct`,
+//    `~primaryKey`, `~mainTable`.
+//
+// No EnumerationMapping is needed: this project declares no enums, and the two enum-valued
+// properties it inherits (assetClass, status from core-instrument; manufacturerCountry,
+// settlementCurrency from product-core) are already transformed by the included mappings.
+Mapping product_catalogue::Mapping
+(
+   include product_pricing::Mapping
+   include static_distribution::Mapping
+
+   // ================================================================================
+   // 1. THE TWO ~DISTINCT SETS -- no table, one over ours, one over a dependency's
+   // ================================================================================
+
+   // The jurisdictions the catalogue is barred in anywhere. PCT_JURISDICTION_BAR is keyed on
+   // (INSTRUMENT_ID, JURISDICTION_CODE), so keying this set that way would leave one row per
+   // bar and the ~distinct would collapse nothing. Keyed on JURISDICTION_CODE alone, forty
+   // products barred in one country become one row. JURISDICTION_NAME and
+   // JURISDICTION_REGION are safe to map here because they are facts about the jurisdiction,
+   // repeated identically on every bar row for it.
+   *product_catalogue::PctBarredJurisdiction[pctBarredJurisdiction]: Relational
+   {
+      ~distinct
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_JURISDICTION_BAR
+      jurisdictionCode: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_CODE,
+      jurisdictionName: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_NAME,
+      jurisdictionRegion: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_REGION
+   }
+
+   // The pricing desks that manufacture anything at all -- collapsed across the project
+   // boundary. PPR_PRODUCT_PRICING is keyed on INSTRUMENT_ID and stamps PRICING_DESK on
+   // every product row, so the distinct values of that column ARE the manufacturing-desk
+   // universe, and a desk pricing three hundred products is three hundred rows there and
+   // one row here.
+   *product_catalogue::PctManufacturingDesk[pctManufacturingDesk]: Relational
+   {
+      ~distinct
+      ~primaryKey ( [product_pricing::Store]PPR_PRODUCT_PRICING.PRICING_DESK )
+      ~mainTable [product_pricing::Store]PPR_PRODUCT_PRICING
+      manufacturingDeskName: [product_pricing::Store]PPR_PRODUCT_PRICING.PRICING_DESK
+   }
+
+   // ================================================================================
+   // 2. THE CATALOGUE OVERLAY -- extending product-pricing's sets
+   // ================================================================================
+
+   // The root of this project's overlay, and the point where it joins the dependency's
+   // taxonomy. It adds no primary key and no main table -- both come from [pprPricedProduct],
+   // which took them from [prdProduct], which took them from [ciBase] -- only the join to
+   // this project's overlay table and the filter that says the entry has been published.
+   product_catalogue::PctCatalogueProduct[pctProduct] extends [pprPricedProduct]: Relational
+   {
+      ~filter [product_catalogue::Store]@Pct_EntryInstrument | [product_catalogue::Store]PctListedRows
+      salesStatus: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SALES_STATUS,
+      catalogueCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.CATALOGUE_CODE,
+      salesName: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SALES_NAME,
+      salesHeadline: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SALES_HEADLINE,
+      primaryChannelCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.PRIMARY_CHANNEL_CODE,
+      salesDeskCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SALES_DESK_CODE,
+      targetMarketCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.TARGET_MARKET_CODE,
+      strategyCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.STRATEGY_CODE,
+      trainingCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.TRAINING_CODE,
+      salesWrapper: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SALES_WRAPPER,
+      minimumTicketAmount: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.MIN_TICKET_AMOUNT,
+      minimumTicketCurrency: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.MIN_TICKET_CURRENCY,
+      listedOn: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.LISTED_ON,
+      deListedOn: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.DE_LISTED_ON,
+      isFeatured: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.IS_FEATURED,
+      salesRank: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SALES_RANK,
+      documentPackCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.DOCUMENT_PACK_CODE,
+      catalogue[pctCatalogue]: [product_catalogue::Store]@Pct_EntryInstrument > @Pct_EntryCatalogue,
+      channel[pctChannel]: [product_catalogue::Store]@Pct_EntryInstrument > @Pct_EntryChannel,
+      salesDesk[pctSalesDesk]: [product_catalogue::Store]@Pct_EntryInstrument > @Pct_EntryDesk,
+      targetMarketProfile[pctTargetMarket]: [product_catalogue::Store]@Pct_EntryInstrument > @Pct_EntryTargetMarket,
+      distributionStrategy[pctStrategy]: [product_catalogue::Store]@Pct_EntryInstrument > @Pct_EntryStrategy,
+      requiredTraining[pctTraining]: [product_catalogue::Store]@Pct_EntryInstrument > @Pct_EntryTraining,
+      categoryEligibilities[pctEligibility]: [product_catalogue::Store]@Pct_InstrumentEligibility,
+      jurisdictionBars[pctJurisdictionBar]: [product_catalogue::Store]@Pct_InstrumentBar,
+      documentRequirements[pctDocRequirement]: [product_catalogue::Store]@Pct_InstrumentDocRequirement,
+      documents[pctDocument]: [product_catalogue::Store]@Pct_InstrumentDocument,
+      salesRestrictions[pctRestriction]: [product_catalogue::Store]@Pct_InstrumentRestriction,
+      indicativePrices[pctIndicativePrice]: [product_catalogue::Store]@Pct_InstrumentIndicativePrice,
+      commissionTerms[pctCommission]: [product_catalogue::Store]@Pct_InstrumentCommission
+   }
+
+   // ---- the four sales statuses, on this project's own SALES_STATUS column ----
+   // Each extends [pctProduct], so the chain to the base is five links long:
+   // status -> pctProduct -> pprPricedProduct -> prdProduct -> ciBase, crossing a project
+   // boundary three times.
+
+   product_catalogue::PctOfferableProduct[pctOfferable] extends [pctProduct]: Relational
+   {
+      ~filter [product_catalogue::Store]@Pct_EntryInstrument | [product_catalogue::Store]PctOfferableRows
+      offerableFrom: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.OFFERABLE_FROM,
+      maximumTicketAmount: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.MAX_TICKET_AMOUNT,
+      hasOnlineFactsheet: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.HAS_ONLINE_FACTSHEET,
+      quoteTurnaroundMinutes: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.QUOTE_TURNAROUND_MINUTES,
+      isSelfServiceEligible: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.IS_SELF_SERVICE
+   }
+
+   product_catalogue::PctRestrictedProduct[pctRestricted] extends [pctProduct]: Relational
+   {
+      ~filter [product_catalogue::Store]@Pct_EntryInstrument | [product_catalogue::Store]PctRestrictedRows
+      restrictionReason: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.RESTRICTION_REASON,
+      approverRole: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.APPROVER_ROLE,
+      needsSecondSignoff: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.NEEDS_SECOND_SIGNOFF,
+      restrictionReviewOn: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.RESTRICTION_REVIEW_ON,
+      maxClientsPerMonth: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.MAX_CLIENTS_PER_MONTH
+   }
+
+   // The population this project exists to keep visible: no longer offered, still held.
+   product_catalogue::PctWithdrawnProduct[pctWithdrawn] extends [pctProduct]: Relational
+   {
+      ~filter [product_catalogue::Store]@Pct_EntryInstrument | [product_catalogue::Store]PctWithdrawnRows
+      withdrawnReason: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.WITHDRAWN_REASON,
+      holdingsMayContinue: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.HOLDINGS_MAY_CONTINUE,
+      lastTradeOn: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.LAST_TRADE_ON,
+      runoffEndOn: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.RUNOFF_END_ON,
+      successorProductCode: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SUCCESSOR_PRODUCT_CODE
+   }
+
+   product_catalogue::PctPipelineProduct[pctPipeline] extends [pctProduct]: Relational
+   {
+      ~filter [product_catalogue::Store]@Pct_EntryInstrument | [product_catalogue::Store]PctPipelineRows
+      pipelineStage: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.PIPELINE_STAGE,
+      expectedLaunchOn: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.EXPECTED_LAUNCH_ON,
+      sponsorDesk: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SPONSOR_DESK,
+      launchBlocker: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.LAUNCH_BLOCKER,
+      pilotClientCount: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.PILOT_CLIENT_COUNT
+   }
+
+   // ---- one concrete payoff, extending product-pricing's own concrete set ----
+   // This does not extend [pctProduct]; it extends [pprAutocall], because the facts it adds
+   // are facts about that payoff. Its filter is on SALES_WRAPPER rather than SALES_STATUS,
+   // precisely because it is on a different branch and must not be cut by the same column
+   // twice.
+   product_catalogue::PctCataloguedAutocall[pctAutocall] extends [pprAutocall]: Relational
+   {
+      ~filter [product_catalogue::Store]@Pct_EntryInstrument | [product_catalogue::Store]PctAutocallWrapperRows
+      salesPitchSummary: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.SALES_PITCH_SUMMARY,
+      couponDisplayPercent: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.COUPON_DISPLAY_PCT,
+      isCapitalAtRiskFlagged: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.IS_CAPITAL_AT_RISK_FLAGGED,
+      illustrationScenarioCount: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.ILLUSTRATION_SCENARIO_COUNT,
+      requiresRiskWarningCall: [product_catalogue::Store]@Pct_EntryInstrument | pct.PCT_CATALOGUE_ENTRY.REQUIRES_RISK_WARNING_CALL
+   }
+
+   // ================================================================================
+   // 3. THE CATALOGUE ITSELF -- our own tables in the `pct` SCHEMA
+   //    every reference is [product_catalogue::Store]pct.TABLE.COLUMN
+   // ================================================================================
+
+   *product_catalogue::PctCatalogue[pctCatalogue]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_CATALOGUE.CATALOGUE_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_CATALOGUE
+      catalogueCode: [product_catalogue::Store]pct.PCT_CATALOGUE.CATALOGUE_CODE,
+      catalogueName: [product_catalogue::Store]pct.PCT_CATALOGUE.CATALOGUE_NAME,
+      edition: [product_catalogue::Store]pct.PCT_CATALOGUE.EDITION,
+      regionCode: [product_catalogue::Store]pct.PCT_CATALOGUE.REGION_CODE,
+      audience: [product_catalogue::Store]pct.PCT_CATALOGUE.AUDIENCE,
+      ownerDesk: [product_catalogue::Store]pct.PCT_CATALOGUE.OWNER_DESK,
+      datasetCode: [product_catalogue::Store]pct.PCT_CATALOGUE.DATASET_CODE,
+      retiredOn: [product_catalogue::Store]pct.PCT_CATALOGUE.RETIRED_ON,
+      versions[pctVersion]: [product_catalogue::Store]@Pct_CatalogueVersion,
+      dataset[sdiDataset]: [product_catalogue::Store]@Pct_CatalogueDataset
+   }
+
+   *product_catalogue::PctCatalogueVersion[pctVersion]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.VERSION_ID )
+      ~mainTable [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION
+      versionId: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.VERSION_ID,
+      catalogueCode: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.CATALOGUE_CODE,
+      versionNumber: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.VERSION_NUMBER,
+      publishedOn: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.PUBLISHED_ON,
+      publicationId: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.PUBLICATION_ID,
+      entryCount: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.ENTRY_COUNT,
+      withdrawnCount: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.WITHDRAWN_COUNT,
+      approvedBy: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.APPROVED_BY,
+      supersededOn: [product_catalogue::Store]pct.PCT_CATALOGUE_VERSION.SUPERSEDED_ON,
+      catalogue[pctCatalogue]: [product_catalogue::Store]@Pct_CatalogueVersion,
+      lines[pctLine]: [product_catalogue::Store]@Pct_LineVersion,
+      publication[sdiPublication]: [product_catalogue::Store]@Pct_VersionPublication,
+      distributions[pctDistribution]: [product_catalogue::Store]@Pct_DistributionVersion
+   }
+
+   *product_catalogue::PctCatalogueLine[pctLine]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.VERSION_ID,
+         [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.INSTRUMENT_ID
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_CATALOGUE_LINE
+      versionId: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.VERSION_ID,
+      instrumentId: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.INSTRUMENT_ID,
+      pagePosition: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.POSITION_NUMBER,
+      headline: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.HEADLINE,
+      printedOfferPrice: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.PRINTED_OFFER_PRICE,
+      isNewThisEdition: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.IS_NEW_THIS_EDITION,
+      isHighlighted: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.IS_HIGHLIGHTED,
+      removalNote: [product_catalogue::Store]pct.PCT_CATALOGUE_LINE.REMOVAL_NOTE,
+      version[pctVersion]: [product_catalogue::Store]@Pct_LineVersion,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentLine
+   }
+
+   // The two static-distribution property mappings that make the catalogue a DISTRIBUTED
+   // document rather than a stored one: the consumer it went to, and the acknowledgement row
+   // whose acknowledgedAt is null until that consumer fills it in.
+   *product_catalogue::PctCatalogueDistribution[pctDistribution]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_DISTRIBUTION.VERSION_ID,
+         [product_catalogue::Store]pct.PCT_DISTRIBUTION.CONSUMER_ID
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_DISTRIBUTION
+      versionId: [product_catalogue::Store]pct.PCT_DISTRIBUTION.VERSION_ID,
+      consumerId: [product_catalogue::Store]pct.PCT_DISTRIBUTION.CONSUMER_ID,
+      publicationId: [product_catalogue::Store]pct.PCT_DISTRIBUTION.PUBLICATION_ID,
+      sentAt: [product_catalogue::Store]pct.PCT_DISTRIBUTION.SENT_AT,
+      deliveryFormat: [product_catalogue::Store]pct.PCT_DISTRIBUTION.DELIVERY_FORMAT,
+      recipientCount: [product_catalogue::Store]pct.PCT_DISTRIBUTION.RECIPIENT_COUNT,
+      failureCode: [product_catalogue::Store]pct.PCT_DISTRIBUTION.FAILURE_CODE,
+      version[pctVersion]: [product_catalogue::Store]@Pct_DistributionVersion,
+      consumer[sdiConsumer]: [product_catalogue::Store]@Pct_DistributionConsumer,
+      acknowledgement[sdiAck]: [product_catalogue::Store]@Pct_DistributionAck
+   }
+
+   // ================================================================================
+   // 4. WHO MAY BE SOLD WHAT
+   // ================================================================================
+
+   *product_catalogue::PctSalesChannel[pctChannel]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_CHANNEL.CHANNEL_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_CHANNEL
+      channelCode: [product_catalogue::Store]pct.PCT_CHANNEL.CHANNEL_CODE,
+      channelName: [product_catalogue::Store]pct.PCT_CHANNEL.CHANNEL_NAME,
+      channelKind: [product_catalogue::Store]pct.PCT_CHANNEL.CHANNEL_KIND,
+      isAdvised: [product_catalogue::Store]pct.PCT_CHANNEL.IS_ADVISED,
+      needsSuitabilityTest: [product_catalogue::Store]pct.PCT_CHANNEL.NEEDS_SUITABILITY_TEST,
+      minimumClientAssets: [product_catalogue::Store]pct.PCT_CHANNEL.MIN_CLIENT_ASSETS,
+      retiredOn: [product_catalogue::Store]pct.PCT_CHANNEL.RETIRED_ON
+   }
+
+   // `manufacturer` targets the ~distinct set whose main table is product-pricing's
+   // PPR_PRODUCT_PRICING: a sales desk faces a manufacturing desk that exists because some
+   // product is priced by it.
+   *product_catalogue::PctSalesDesk[pctSalesDesk]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_SALES_DESK.DESK_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_SALES_DESK
+      deskCode: [product_catalogue::Store]pct.PCT_SALES_DESK.DESK_CODE,
+      deskName: [product_catalogue::Store]pct.PCT_SALES_DESK.DESK_NAME,
+      regionCode: [product_catalogue::Store]pct.PCT_SALES_DESK.REGION_CODE,
+      jurisdictionCode: [product_catalogue::Store]pct.PCT_SALES_DESK.JURISDICTION_CODE,
+      manufacturingDeskName: [product_catalogue::Store]pct.PCT_SALES_DESK.MANUFACTURING_DESK,
+      headOfDesk: [product_catalogue::Store]pct.PCT_SALES_DESK.HEAD_OF_DESK,
+      headcount: [product_catalogue::Store]pct.PCT_SALES_DESK.HEADCOUNT,
+      closedOn: [product_catalogue::Store]pct.PCT_SALES_DESK.CLOSED_ON,
+      manufacturer[pctManufacturingDesk]: [product_catalogue::Store]@Pct_DeskManufacturer
+   }
+
+   *product_catalogue::PctClientCategory[pctClientCategory]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY.CATEGORY_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY
+      categoryCode: [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY.CATEGORY_CODE,
+      categoryName: [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY.CATEGORY_NAME,
+      regulatoryBasis: [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY.REGULATORY_BASIS,
+      needsAppropriatenessTest: [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY.NEEDS_APPROPRIATENESS_TEST,
+      needsSuitabilityReport: [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY.NEEDS_SUITABILITY_REPORT,
+      maxComplexityScore: [product_catalogue::Store]pct.PCT_CLIENT_CATEGORY.MAX_COMPLEXITY_SCORE,
+      eligibilities[pctEligibility]: [product_catalogue::Store]@Pct_EligibilityCategory
+   }
+
+   *product_catalogue::PctCategoryEligibility[pctEligibility]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.INSTRUMENT_ID,
+         [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.CATEGORY_CODE
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY
+      instrumentId: [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.INSTRUMENT_ID,
+      categoryCode: [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.CATEGORY_CODE,
+      eligibilityStatus: [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.ELIGIBILITY_STATUS,
+      rationale: [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.RATIONALE,
+      assessedOn: [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.ASSESSED_ON,
+      reviewDueOn: [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.REVIEW_DUE_ON,
+      approvedBy: [product_catalogue::Store]pct.PCT_CATEGORY_ELIGIBILITY.APPROVED_BY,
+      category[pctClientCategory]: [product_catalogue::Store]@Pct_EligibilityCategory,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentEligibility
+   }
+
+   *product_catalogue::PctTargetMarket[pctTargetMarket]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_TARGET_MARKET.TARGET_MARKET_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_TARGET_MARKET
+      targetMarketCode: [product_catalogue::Store]pct.PCT_TARGET_MARKET.TARGET_MARKET_CODE,
+      investorType: [product_catalogue::Store]pct.PCT_TARGET_MARKET.INVESTOR_TYPE,
+      knowledgeLevel: [product_catalogue::Store]pct.PCT_TARGET_MARKET.KNOWLEDGE_LEVEL,
+      riskTolerance: [product_catalogue::Store]pct.PCT_TARGET_MARKET.RISK_TOLERANCE,
+      horizonMonths: [product_catalogue::Store]pct.PCT_TARGET_MARKET.HORIZON_MONTHS,
+      lossBearing: [product_catalogue::Store]pct.PCT_TARGET_MARKET.LOSS_BEARING,
+      objective: [product_catalogue::Store]pct.PCT_TARGET_MARKET.OBJECTIVE,
+      exclusions[pctNegativeTarget]: [product_catalogue::Store]@Pct_NegativeTargetMarket
+   }
+
+   *product_catalogue::PctNegativeTarget[pctNegativeTarget]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.TARGET_MARKET_CODE,
+         [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.EXCLUSION_CODE
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET
+      targetMarketCode: [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.TARGET_MARKET_CODE,
+      exclusionCode: [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.EXCLUSION_CODE,
+      exclusionKind: [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.EXCLUSION_KIND,
+      exclusionText: [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.EXCLUSION_TEXT,
+      isHardBar: [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.IS_HARD_BAR,
+      addedOn: [product_catalogue::Store]pct.PCT_NEGATIVE_TARGET.ADDED_ON,
+      targetMarket[pctTargetMarket]: [product_catalogue::Store]@Pct_NegativeTargetMarket
+   }
+
+   *product_catalogue::PctDistributionStrategy[pctStrategy]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY.STRATEGY_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY
+      strategyCode: [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY.STRATEGY_CODE,
+      strategyName: [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY.STRATEGY_NAME,
+      requiresAdvice: [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY.REQUIRES_ADVICE,
+      requiresAppropriateness: [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY.REQUIRES_APPROPRIATENESS,
+      allowsExecutionOnly: [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY.ALLOWS_EXECUTION_ONLY,
+      coolingOffDays: [product_catalogue::Store]pct.PCT_DISTRIBUTION_STRATEGY.COOLING_OFF_DAYS
+   }
+
+   // ================================================================================
+   // 5. WHERE IT MAY NOT BE SOLD
+   // ================================================================================
+
+   // The source table of the `~distinct` barred-jurisdiction set above, mapped here at its
+   // own full (product, jurisdiction) grain. The two sets share a main table and disagree
+   // about what a row is, which is the whole point of `~distinct`.
+   *product_catalogue::PctJurisdictionBar[pctJurisdictionBar]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.INSTRUMENT_ID,
+         [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_CODE
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_JURISDICTION_BAR
+      instrumentId: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.INSTRUMENT_ID,
+      jurisdictionCode: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_CODE,
+      jurisdictionName: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_NAME,
+      jurisdictionRegion: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.JURISDICTION_REGION,
+      barType: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.BAR_TYPE,
+      reasonCode: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.REASON_CODE,
+      legalReference: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.LEGAL_REFERENCE,
+      imposedOn: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.IMPOSED_ON,
+      liftedOn: [product_catalogue::Store]pct.PCT_JURISDICTION_BAR.LIFTED_ON,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentBar
+   }
+
+   // `barredJurisdiction` targets the ~distinct set: the restriction names a jurisdiction,
+   // and the jurisdiction universe is the collapsed bar table.
+   *product_catalogue::PctSalesRestriction[pctRestriction]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.RESTRICTION_ID )
+      ~mainTable [product_catalogue::Store]pct.PCT_SALES_RESTRICTION
+      restrictionId: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.RESTRICTION_ID,
+      instrumentId: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.INSTRUMENT_ID,
+      restrictionKind: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.RESTRICTION_KIND,
+      channelCode: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.CHANNEL_CODE,
+      jurisdictionCode: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.JURISDICTION_CODE,
+      thresholdAmount: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.THRESHOLD_AMOUNT,
+      thresholdCurrency: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.THRESHOLD_CURRENCY,
+      effectiveOn: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.EFFECTIVE_ON,
+      expiresOn: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.EXPIRES_ON,
+      note: [product_catalogue::Store]pct.PCT_SALES_RESTRICTION.NOTE,
+      channel[pctChannel]: [product_catalogue::Store]@Pct_RestrictionChannel,
+      barredJurisdiction[pctBarredJurisdiction]: [product_catalogue::Store]@Pct_RestrictionJurisdiction,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentRestriction
+   }
+
+   *product_catalogue::PctWithdrawal[pctWithdrawal]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_WITHDRAWAL.WITHDRAWAL_ID )
+      ~mainTable [product_catalogue::Store]pct.PCT_WITHDRAWAL
+      withdrawalId: [product_catalogue::Store]pct.PCT_WITHDRAWAL.WITHDRAWAL_ID,
+      instrumentId: [product_catalogue::Store]pct.PCT_WITHDRAWAL.INSTRUMENT_ID,
+      withdrawnOn: [product_catalogue::Store]pct.PCT_WITHDRAWAL.WITHDRAWN_ON,
+      reasonCode: [product_catalogue::Store]pct.PCT_WITHDRAWAL.REASON_CODE,
+      reasonText: [product_catalogue::Store]pct.PCT_WITHDRAWAL.REASON_TEXT,
+      holdingsMayContinue: [product_catalogue::Store]pct.PCT_WITHDRAWAL.HOLDINGS_MAY_CONTINUE,
+      runoffEndOn: [product_catalogue::Store]pct.PCT_WITHDRAWAL.RUNOFF_END_ON,
+      successorInstrumentId: [product_catalogue::Store]pct.PCT_WITHDRAWAL.SUCCESSOR_INSTRUMENT_ID,
+      decidedBy: [product_catalogue::Store]pct.PCT_WITHDRAWAL.DECIDED_BY,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentWithdrawal
+   }
+
+   // ================================================================================
+   // 6. WHAT HAS TO BE IN THE PACK
+   // ================================================================================
+
+   *product_catalogue::PctDocumentRequirement[pctDocRequirement]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.INSTRUMENT_ID,
+         [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.DOCUMENT_TYPE
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT
+      instrumentId: [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.INSTRUMENT_ID,
+      documentType: [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.DOCUMENT_TYPE,
+      isPreSale: [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.IS_PRE_SALE,
+      maxAgeDays: [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.MAX_AGE_DAYS,
+      regulationCode: [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.REGULATION_CODE,
+      waiverStatus: [product_catalogue::Store]pct.PCT_DOC_REQUIREMENT.WAIVER_STATUS,
+      documents[pctDocument]: [product_catalogue::Store]@Pct_DocumentRequirement,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentDocRequirement
+   }
+
+   *product_catalogue::PctDocument[pctDocument]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_DOCUMENT.DOCUMENT_ID )
+      ~mainTable [product_catalogue::Store]pct.PCT_DOCUMENT
+      documentId: [product_catalogue::Store]pct.PCT_DOCUMENT.DOCUMENT_ID,
+      instrumentId: [product_catalogue::Store]pct.PCT_DOCUMENT.INSTRUMENT_ID,
+      documentType: [product_catalogue::Store]pct.PCT_DOCUMENT.DOCUMENT_TYPE,
+      versionLabel: [product_catalogue::Store]pct.PCT_DOCUMENT.VERSION_LABEL,
+      effectiveOn: [product_catalogue::Store]pct.PCT_DOCUMENT.EFFECTIVE_ON,
+      expiresOn: [product_catalogue::Store]pct.PCT_DOCUMENT.EXPIRES_ON,
+      primaryLanguage: [product_catalogue::Store]pct.PCT_DOCUMENT.PRIMARY_LANGUAGE,
+      storageUri: [product_catalogue::Store]pct.PCT_DOCUMENT.STORAGE_URI,
+      approvedBy: [product_catalogue::Store]pct.PCT_DOCUMENT.APPROVED_BY,
+      requirement[pctDocRequirement]: [product_catalogue::Store]@Pct_DocumentRequirement,
+      languages[pctDocLanguage]: [product_catalogue::Store]@Pct_DocumentLanguage
+   }
+
+   *product_catalogue::PctDocumentLanguage[pctDocLanguage]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.DOCUMENT_ID,
+         [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.LANGUAGE_CODE
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_DOC_LANGUAGE
+      documentId: [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.DOCUMENT_ID,
+      languageCode: [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.LANGUAGE_CODE,
+      translatedTitle: [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.TRANSLATED_TITLE,
+      translatedOn: [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.TRANSLATED_ON,
+      translator: [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.TRANSLATOR,
+      isVerified: [product_catalogue::Store]pct.PCT_DOC_LANGUAGE.IS_VERIFIED,
+      document[pctDocument]: [product_catalogue::Store]@Pct_DocumentLanguage
+   }
+
+   // ================================================================================
+   // 7. PRICE AND REWARD
+   // ================================================================================
+
+   // `pricingRun` targets product-pricing's [pprPricingRun]: the indicative price the
+   // catalogue prints is built from a model price, and this is the run that produced it.
+   *product_catalogue::PctIndicativePrice[pctIndicativePrice]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.INSTRUMENT_ID,
+         [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.AS_OF_DATE
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE
+      instrumentId: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.INSTRUMENT_ID,
+      asOfDate: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.AS_OF_DATE,
+      indicativeBid: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.INDICATIVE_BID,
+      indicativeOffer: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.INDICATIVE_OFFER,
+      modelPrice: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.MODEL_PRICE,
+      spreadBasisPoints: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.SPREAD_BPS,
+      priceCurrency: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.PRICE_CURRENCY,
+      runId: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.RUN_ID,
+      isStale: [product_catalogue::Store]pct.PCT_INDICATIVE_PRICE.IS_STALE,
+      pricingRun[pprPricingRun]: [product_catalogue::Store]@Pct_PriceRun,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentIndicativePrice
+   }
+
+   *product_catalogue::PctCommissionTerm[pctCommission]: Relational
+   {
+      ~primaryKey
+      (
+         [product_catalogue::Store]pct.PCT_COMMISSION.INSTRUMENT_ID,
+         [product_catalogue::Store]pct.PCT_COMMISSION.CHANNEL_CODE
+      )
+      ~mainTable [product_catalogue::Store]pct.PCT_COMMISSION
+      instrumentId: [product_catalogue::Store]pct.PCT_COMMISSION.INSTRUMENT_ID,
+      channelCode: [product_catalogue::Store]pct.PCT_COMMISSION.CHANNEL_CODE,
+      upfrontBasisPoints: [product_catalogue::Store]pct.PCT_COMMISSION.UPFRONT_BPS,
+      trailBasisPoints: [product_catalogue::Store]pct.PCT_COMMISSION.TRAIL_BPS,
+      capAmount: [product_catalogue::Store]pct.PCT_COMMISSION.CAP_AMOUNT,
+      capCurrency: [product_catalogue::Store]pct.PCT_COMMISSION.CAP_CURRENCY,
+      mustBeDisclosed: [product_catalogue::Store]pct.PCT_COMMISSION.MUST_BE_DISCLOSED,
+      effectiveOn: [product_catalogue::Store]pct.PCT_COMMISSION.EFFECTIVE_ON,
+      channel[pctChannel]: [product_catalogue::Store]@Pct_CommissionChannel,
+      product[pctProduct]: [product_catalogue::Store]@Pct_InstrumentCommission
+   }
+
+   *product_catalogue::PctSalesTraining[pctTraining]: Relational
+   {
+      ~primaryKey ( [product_catalogue::Store]pct.PCT_TRAINING.TRAINING_CODE )
+      ~mainTable [product_catalogue::Store]pct.PCT_TRAINING
+      trainingCode: [product_catalogue::Store]pct.PCT_TRAINING.TRAINING_CODE,
+      trainingName: [product_catalogue::Store]pct.PCT_TRAINING.TRAINING_NAME,
+      hours: [product_catalogue::Store]pct.PCT_TRAINING.HOURS,
+      refreshMonths: [product_catalogue::Store]pct.PCT_TRAINING.REFRESH_MONTHS,
+      needsExam: [product_catalogue::Store]pct.PCT_TRAINING.NEEDS_EXAM,
+      passMarkPercent: [product_catalogue::Store]pct.PCT_TRAINING.PASS_MARK_PCT,
+      providedBy: [product_catalogue::Store]pct.PCT_TRAINING.PROVIDED_BY
+   }
+)

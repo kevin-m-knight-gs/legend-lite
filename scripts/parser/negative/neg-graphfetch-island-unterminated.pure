@@ -1,0 +1,25 @@
+// REJECTS: Unexpected token '<EOF>'. Valid alternatives: [',', ')']
+//
+// A `#{` graph fetch island closed with a plain ')' instead of `}#`. The parser runs to
+// end-of-input rather than accepting the enclosing delimiter as a terminator.
+//
+// unterminated-embedded-data.pure pins the same failure mode for a ###Data island; this
+// one matters separately because the graph fetch island lives INSIDE an expression, where
+// a ')' is genuinely expected soon (it is the argument list of graphFetch). A rewrite that
+// scans for a closing bracket to delimit the island -- rather than requiring the '}#'
+// digraph -- has a plausible-looking candidate right there, truncates the tree at it, and
+// produces a model that parses with properties missing.
+###Pure
+Class fixture::neg::Cat
+{
+   name: String[1];
+}
+
+function fixture::neg::unterminatedTree(): meta::pure::metamodel::type::Any[*]
+{
+   fixture::neg::Cat.all()->graphFetch(#{
+      fixture::neg::Cat {
+         name
+      }
+   )
+}

@@ -45,7 +45,7 @@ final class SeedSqlForms {
                 return new ExecutionResult.Collection(new java.util.ArrayList<>(
                         com.legend.exec.Ddl.setUpDataSqlsTextFromRecords(
                                 records, db2,
-                                f -> env.ctx().findDatabase(f))),
+                                f -> env.ctx().findDatabase(f), StatementExecutor.ENGINE_TEXT)),
                         com.legend.compiler.element.type.Type.Primitive.STRING);
             }
         }
@@ -57,8 +57,8 @@ final class SeedSqlForms {
                 : env.ctx().findDatabase(dbFqn).orElse(null);
         return new ExecutionResult.Collection(new java.util.ArrayList<>(
                 dbDef != null ? com.legend.exec.Ddl.setUpDataSqlsText(csv,
-                        dbDef, f -> env.ctx().findDatabase(f))
-                        : com.legend.exec.CsvSeed.sqls(csv, dbFqn, env.ctx())),
+                        dbDef, f -> env.ctx().findDatabase(f), StatementExecutor.ENGINE_TEXT)
+                        : com.legend.exec.CsvSeed.sqls(csv, dbFqn, env.ctx(), env.dialect())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -109,7 +109,7 @@ final class SeedSqlForms {
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef spr
                 ? spr.fullPath() : null;
         return new ExecutionResult.Collection(new java.util.ArrayList<>(
-                com.legend.exec.CsvSeed.sqls(seedCsv, seedDb, env.ctx())),
+                com.legend.exec.CsvSeed.sqls(seedCsv, seedDb, env.ctx(), env.dialect())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 }

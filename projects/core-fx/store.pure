@@ -1,0 +1,82 @@
+###Relational
+
+// The core-fx database. Four tables, and the interesting one is CFX_RATE: its primary key
+// is three columns, because (pair, cob date) does not identify a rate. On 2025-06-30
+// EURUSD has a SPOT, a 1M FORWARD, a 3M FORWARD and a WM/R FIXING, all different numbers,
+// and a two-column key would have to pick one and lose the rest.
+//
+// Table names are CFX_*, joins are Cfx_*, per the project contract -- set ids and filter
+// names are a single global namespace in Legend, and a collision fails the whole graph
+// with a message that names the id but not the project that introduced it.
+Database core_fx::Store
+(
+   // The pair definitions: what the market quotes, and which way round.
+   Table CFX_CURRENCY_PAIR
+   (
+      PAIR_CODE VARCHAR(6) PRIMARY KEY,
+      BASE_CCY VARCHAR(3) NOT NULL,
+      QUOTE_CCY VARCHAR(3) NOT NULL,
+      QUOTED_INVERTED BIT,
+      PIP_FACTOR DOUBLE,
+      QUOTE_PRECISION INTEGER,
+      IS_MAJOR BIT
+   )
+
+   // THE COMPOSITE PRIMARY KEY. Three columns, all three load-bearing:
+   //   PAIR_CODE  EURUSD is not GBPUSD
+   //   COB_DATE   yesterday's spot is not today's
+   //   RATE_TYPE  SPOT, FORWARD and FIXING for one pair on one day are three rows
+   // TENOR and FORWARD_POINTS are nullable because they are meaningful only on the
+   // FORWARD rows; a SPOT row carrying a tenor would be a data error.
+   Table CFX_RATE
+   (
+      PAIR_CODE VARCHAR(6) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      RATE_TYPE VARCHAR(10) PRIMARY KEY,
+      BID DOUBLE,
+      ASK DOUBLE,
+      MID DOUBLE,
+      TENOR VARCHAR(10),
+      FORWARD_POINTS DOUBLE,
+      SOURCE_CODE VARCHAR(10),
+      IS_OFFICIAL BIT
+   )
+
+   // Who published the rate and at what snap instant.
+   Table CFX_FIXING_SOURCE
+   (
+      SOURCE_CODE VARCHAR(10) PRIMARY KEY,
+      SOURCE_NAME VARCHAR(100),
+      FIXING_TIME VARCHAR(10),
+      TIME_ZONE VARCHAR(40),
+      IS_REGULATED BIT
+   )
+
+   // Crosses that are triangulated rather than quoted. Keyed by (cross, cob date) -- a
+   // cross has no rate type because it is derived from whichever legs it names.
+   Table CFX_CROSS_RATE
+   (
+      CROSS_CODE VARCHAR(6) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      VEHICLE_CCY VARCHAR(3),
+      LEG_ONE_CODE VARCHAR(6),
+      LEG_TWO_CODE VARCHAR(6),
+      CROSS_MID DOUBLE
+   )
+
+   // A rate to the pair it quotes -- one leg only, since the pair code alone identifies
+   // a pair even though it does not identify a rate.
+   Join Cfx_RatePair(CFX_RATE.PAIR_CODE = CFX_CURRENCY_PAIR.PAIR_CODE)
+
+   // A rate to its publisher, so a report can say "WM/R 16:00 London" rather than 'WMR'.
+   Join Cfx_RateSource(CFX_RATE.SOURCE_CODE = CFX_FIXING_SOURCE.SOURCE_CODE)
+
+   // A cross to the pair definition of each of its two legs. Two separate joins on the
+   // same target table, because EURJPY reaches EURUSD and USDJPY by different columns.
+   Join Cfx_CrossLegOnePair(CFX_CROSS_RATE.LEG_ONE_CODE = CFX_CURRENCY_PAIR.PAIR_CODE)
+   Join Cfx_CrossLegTwoPair(CFX_CROSS_RATE.LEG_TWO_CODE = CFX_CURRENCY_PAIR.PAIR_CODE)
+
+   // Only the rates the firm books against. Indications are kept in the table because a
+   // data-quality screen wants to see them, and excluded here because a valuation does not.
+   Filter CfxOfficialOnly(CFX_RATE.IS_OFFICIAL = 1)
+)

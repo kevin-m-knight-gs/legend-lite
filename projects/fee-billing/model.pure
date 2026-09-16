@@ -1,0 +1,386 @@
+###Pure
+
+// fee-billing, layer 2. Depends on `fee-core` (products, tiers, the banded schedule) and
+// `client-core` (the client relationship and its mandate), and on nothing else.
+//
+// The shape worth noticing: a billing run for a PERIOD produces one INVOICE per client, an
+// invoice holds LINES by fee type, and a line picks its rate out of a band by a RANGE JOIN
+// on tenor days -- the band is not stored on the line. What makes billing harder than it
+// looks is that the MINIMUM and the CAP are properties of the INVOICE, not of a line: you
+// cannot floor each line and add them up, because the floor applies once to the whole
+// invoice. So the two corrections live on BIL_INVOICE as `minimumTopUp` and `capReduction`
+// and the line-level numbers stay uncorrected.
+//
+// The three *Total classes are rooted on store VIEWS -- the AGGREGATION shape. One instance
+// of BilInvoiceTotal is an INVOICE, not a line; one BilFeeTypeTotal is an (invoice, fee
+// type) pair.
+
+// FOR: naming the stretch of calendar being billed -- 2026-Q1, or a month. A period is
+// opened, billed possibly several times, and then CLOSED, after which a rerun has to become
+// an adjustment instead. `closedOn` being null is the whole state machine.
+Class fee_billing::BilBillingPeriod
+{
+   periodCode: String[1];
+   periodType: String[1];
+   startDate: StrictDate[1];
+   endDate: StrictDate[1];
+   accrualBasis: String[1];
+   closedOn: StrictDate[0..1];
+
+   runs: fee_billing::BilBillingRun[*];
+
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: one pass of the biller over one period. A period is billed DRAFT first and FINAL
+// later, and a rerun is a third run over the same period -- so the run, not the period, is
+// what an invoice belongs to. `completedOn` null means the run is still in flight and its
+// invoices are not yet quotable to a client.
+Class fee_billing::BilBillingRun
+{
+   runId: String[1];
+   periodCode: String[1];
+   runType: String[1];
+   runStatus: String[1];
+   startedOn: DateTime[1];
+   completedOn: DateTime[0..1];
+   invoiceCount: Integer[1];
+   triggeredBy: String[1];
+
+   period: fee_billing::BilBillingPeriod[0..1];
+   invoices: fee_billing::BilInvoice[*];
+   total: fee_billing::BilRunTotal[0..1];
+
+   isComplete() { $this.completedOn->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: the commercial terms we bill a client on -- which tier they price at, what currency
+// they are invoiced in, and the two numbers that make billing awkward: the MINIMUM fee and
+// the CAP, both PER INVOICE. Dated, because a renegotiation is a new agreement row rather
+// than an edit; the mandate is optional because a client can be billed at relationship level
+// with no mandate named.
+Class fee_billing::BilBillingAgreement
+{
+   agreementId: String[1];
+   clientId: String[1];
+   mandateId: String[0..1];
+   tierCode: String[1];
+   billingCurrency: String[1];
+
+   // Per INVOICE. Not per line -- see BilInvoice.
+   minimumFee: Float[1];
+   maximumFee: Float[0..1];
+
+   roundingMode: String[1];
+   paymentTermsDays: Integer[1];
+   effectiveFrom: StrictDate[1];
+   effectiveTo: StrictDate[0..1];
+
+   // Cross-project: the tier this agreement prices at is fee-core's, and the client and
+   // mandate are client-core's. None of the three is copied here beyond its key column.
+   tier: fee_core::FeeTier[0..1];
+   client: client_core::CliClient[0..1];
+   mandate: client_core::CliMandate[0..1];
+
+   invoices: fee_billing::BilInvoice[*];
+
+   isCapped() { $this.maximumFee->isNotEmpty() } : Boolean[1];
+   isCurrent() { $this.effectiveTo->isEmpty() } : Boolean[1];
+}
+
+// FOR: the kind of fee a line is -- MANAGEMENT, CUSTODY, TRANSACTION, PERFORMANCE. Reference
+// data, so an invoice can be totalled by fee type and posted to the right GL account without
+// the line carrying either the label or the account.
+Class fee_billing::BilFeeType
+{
+   feeTypeCode: String[1];
+   name: String[1];
+   category: String[1];
+   isRecurring: Boolean[1];
+   glAccount: String[1];
+   displayOrder: Integer[1];
+
+   lines: fee_billing::BilInvoiceLine[*];
+}
+
+// FOR: one rate over one HALF-OPEN band of tenor days -- the thing a line's rate is looked up
+// in. This is the billing run's own snapshot of a fee-core schedule, banded: fee-core stores
+// a rate against a single `daysToMaturity`, and a biller needs the band it sits in so a line
+// at any tenor resolves. `[minDays, maxDays)` so a line exactly on a boundary lands in one
+// band and not two.
+//
+// `schedule` reaches back to fee-core through all THREE columns of its composite key -- one
+// or two of them does not identify a schedule row.
+Class fee_billing::BilRateBand
+{
+   bandId: String[1];
+   productCode: String[1];
+   tierCode: String[1];
+   effectiveDate: StrictDate[1];
+
+   // The band. Inclusive lower, exclusive upper.
+   minDays: Integer[1];
+   maxDays: Integer[1];
+
+   rateBasisPoints: Float[1];
+   flatFee: Float[1];
+   feeCurrency: String[1];
+
+   schedule: fee_core::FeeSchedule[0..1];
+   lines: fee_billing::BilInvoiceLine[*];
+
+   // Both operands are Float, so this stays Float; `/` would widen anyway.
+   rate() { $this.rateBasisPoints / 10000.0 } : Float[1];
+
+   spanDays() { $this.maxDays - $this.minDays } : Integer[1];
+
+   covers(days: Integer[1])
+   {
+      ($days >= $this.minDays) && ($days < $this.maxDays)
+   } : Boolean[1];
+}
+
+// FOR: what one client owes for one run -- THE class of this project.
+//
+// The minimum and the cap live HERE and not on the line, and that is the whole point. Sum the
+// lines, add adjustments, take credits off, and only THEN compare the result to the
+// agreement's floor and ceiling: `minimumTopUp` is what had to be added to reach the floor,
+// `capReduction` is what had to be taken off to respect the ceiling. Flooring each line
+// separately gives a different and wrong answer, and there is no way to write it as a
+// per-line property.
+Class fee_billing::BilInvoice
+{
+   invoiceId: String[1];
+   invoiceNumber: String[1];
+   runId: String[1];
+   clientId: String[1];
+   agreementId: String[1];
+   periodCode: String[1];
+
+   issueDate: StrictDate[1];
+   dueDate: StrictDate[1];
+   invoiceCurrency: String[1];
+   invoiceStatus: String[1];
+
+   // The two PER-INVOICE corrections. Zero when the invoice landed inside the band.
+   minimumTopUp: Float[1];
+   capReduction: Float[1];
+
+   taxAmount: Float[1];
+   totalDue: Float[1];
+   paidOn: StrictDate[0..1];
+
+   run: fee_billing::BilBillingRun[0..1];
+   agreement: fee_billing::BilBillingAgreement[0..1];
+   lines: fee_billing::BilInvoiceLine[*];
+   credits: fee_billing::BilCredit[*];
+   adjustments: fee_billing::BilAdjustment[*];
+   disputes: fee_billing::BilDispute[*];
+
+   // Cross-project: whose invoice this is.
+   client: client_core::CliClient[0..1];
+
+   // Into the aggregations.
+   total: fee_billing::BilInvoiceTotal[0..1];
+   feeTypeTotals: fee_billing::BilFeeTypeTotal[*];
+
+   lineGross() { $this.lines.grossAmount->sum() } : Float[1];
+   lineNet() { $this.lines.netAmount->sum() } : Float[1];
+   creditTotal() { $this.credits.amount->sum() } : Float[1];
+   adjustmentTotal() { $this.adjustments.amount->sum() } : Float[1];
+
+   // What the lines say, before the floor and the ceiling are consulted.
+   chargeBeforeLimits()
+   {
+      ($this.lineNet() + $this.adjustmentTotal()) - $this.creditTotal()
+   } : Float[1];
+
+   // What the client is actually charged. The two corrections are per invoice.
+   chargeAfterLimits()
+   {
+      ($this.chargeBeforeLimits() + $this.minimumTopUp) - $this.capReduction
+   } : Float[1];
+
+   isBelowMinimum() { $this.minimumTopUp > 0.0 } : Boolean[1];
+   isCapped() { $this.capReduction > 0.0 } : Boolean[1];
+   isPaid() { $this.paidOn->isNotEmpty() } : Boolean[1];
+   hasOpenDispute() { $this.disputes->exists(d | $d.resolvedOn->isEmpty()) } : Boolean[1];
+}
+
+// FOR: one charge on an invoice, of one fee type, against one product. `tenorDays` is the
+// weighted tenor of whatever was billed, and it carries NO band id: which band priced it
+// falls out of the RANGE JOIN Bil_LineRateBand, exactly as fee-core resolves a schedule
+// against a tenor bucket.
+//
+// `netAmount` is gross less the line's own discount and NOTHING else -- the invoice's floor
+// and ceiling have not been applied and cannot be, because they are not divisible by line.
+Class fee_billing::BilInvoiceLine
+{
+   lineId: String[1];
+   invoiceId: String[1];
+   lineSeq: Integer[1];
+   feeTypeCode: String[1];
+   productCode: String[1];
+   tierCode: String[1];
+   description: String[1];
+
+   billableAmount: Float[1];
+
+   // Where on the tenor ladder this line sits. The band itself is NOT stored.
+   tenorDays: Integer[1];
+
+   appliedRateBasisPoints: Float[1];
+   grossAmount: Float[1];
+   discountAmount: Float[1];
+   netAmount: Float[1];
+   itemCount: Integer[1];
+   isEstimated: Boolean[1];
+
+   invoice: fee_billing::BilInvoice[0..1];
+   feeType: fee_billing::BilFeeType[0..1];
+   adjustments: fee_billing::BilAdjustment[*];
+   disputes: fee_billing::BilDispute[*];
+
+   // The band, reached by RANGE on tenorDays.
+   band: fee_billing::BilRateBand[0..1];
+
+   // Cross-project: the billable product, from fee-core.
+   product: fee_core::FeeProduct[0..1];
+
+   appliedRate() { $this.appliedRateBasisPoints / 10000.0 } : Float[1];
+
+   // What the rate says the line should be, for checking the stored gross against.
+   recomputedGross()
+   {
+      $this.billableAmount * ($this.appliedRateBasisPoints / 10000.0)
+   } : Float[1];
+
+   // `itemCount` is Integer and `netAmount` is Float, and Integer * Float types as Number,
+   // so the division needs its Integer side widened explicitly.
+   averagePerItem() { $this.netAmount / $this.itemCount->toFloat() } : Float[1];
+
+   isDisputed() { $this.disputes->exists(d | $d.resolvedOn->isEmpty()) } : Boolean[1];
+}
+
+// FOR: money handed back on an invoice -- a goodwill gesture, a service failure, a
+// double-billed line found later. A credit is raised against the INVOICE even when it came
+// from a single bad line, because that is where it nets off; `sourceInvoiceId` points at the
+// invoice the mistake was on when the credit lands on a later one.
+Class fee_billing::BilCredit
+{
+   creditId: String[1];
+   invoiceId: String[1];
+   reasonCode: String[1];
+   amount: Float[1];
+   creditCurrency: String[1];
+   issuedOn: StrictDate[1];
+   appliedOn: StrictDate[0..1];
+   approvedBy: String[0..1];
+   sourceInvoiceId: String[0..1];
+
+   invoice: fee_billing::BilInvoice[0..1];
+
+   isApplied() { $this.appliedOn->isNotEmpty() } : Boolean[1];
+   isApproved() { $this.approvedBy->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: a signed correction posted onto an invoice, either at invoice level or against one
+// line. Unlike a credit it can be POSITIVE -- an underbill found in review is an adjustment
+// upward. `lineId` is optional and that optionality is the point: an invoice-level
+// adjustment has no line to belong to.
+Class fee_billing::BilAdjustment
+{
+   adjustmentId: String[1];
+   invoiceId: String[1];
+   lineId: String[0..1];
+   adjustmentType: String[1];
+   amount: Float[1];
+   reason: String[1];
+   raisedBy: String[1];
+   approvedBy: String[0..1];
+   raisedOn: StrictDate[1];
+   postedOn: StrictDate[0..1];
+
+   invoice: fee_billing::BilInvoice[0..1];
+   line: fee_billing::BilInvoiceLine[0..1];
+
+   isPosted() { $this.postedOn->isNotEmpty() } : Boolean[1];
+   isIncrease() { $this.amount > 0.0 } : Boolean[1];
+}
+
+// FOR: a client saying a charge is wrong, and what happened next. Open until `resolvedOn`;
+// resolved in the client's favour it becomes a credit, which is why `creditId` is here and
+// optional. A disputed invoice is still a valid invoice -- the dispute does not change the
+// numbers, the resulting credit does.
+Class fee_billing::BilDispute
+{
+   disputeId: String[1];
+   invoiceId: String[1];
+   lineId: String[0..1];
+   raisedOn: StrictDate[1];
+   raisedBy: String[1];
+   disputedAmount: Float[1];
+   disputeStatus: String[1];
+   resolutionCode: String[0..1];
+   resolvedOn: StrictDate[0..1];
+   creditId: String[0..1];
+
+   invoice: fee_billing::BilInvoice[0..1];
+   line: fee_billing::BilInvoiceLine[0..1];
+
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the aggregate classes
+//
+// Rooted on store VIEWS, not tables. One instance is a GROUP: the primary key of each set is
+// the view's ~groupBy and nothing else.
+
+// FOR: the invoice read as one row -- what its lines add up to, without walking them. The
+// grain is the INVOICE, so this is where a line total belongs and where the per-invoice floor
+// and cap are compared against something.
+Class fee_billing::BilInvoiceTotal
+{
+   invoiceId: String[1];
+   lineCount: Integer[1];
+   totalBillable: Float[1];
+   totalGross: Float[1];
+   totalDiscount: Float[1];
+   totalNet: Float[1];
+   largestLineNet: Float[1];
+
+   invoice: fee_billing::BilInvoice[0..1];
+
+   // Float / Integer widens to Float on its own.
+   averageLineNet() { $this.totalNet / $this.lineCount } : Float[1];
+}
+
+// FOR: the run read as one row -- how many invoices it cut and what they came to, including
+// how much of the total was the floor rather than the fees. `totalMinimumTopUp` against
+// `totalNet` is the number that says whether the minimums are doing the billing.
+Class fee_billing::BilRunTotal
+{
+   runId: String[1];
+   invoiceCount: Integer[1];
+   totalTax: Float[1];
+   totalDue: Float[1];
+   totalMinimumTopUp: Float[1];
+   totalCapReduction: Float[1];
+
+   run: fee_billing::BilBillingRun[0..1];
+}
+
+// FOR: one invoice broken down by fee type -- the line an invoice actually prints, since a
+// client reads "custody 4,210" and not eleven custody lines. The grain is the PAIR, so an
+// instance is an (invoice, fee type) and never a line.
+Class fee_billing::BilFeeTypeTotal
+{
+   invoiceId: String[1];
+   feeTypeCode: String[1];
+   lineCount: Integer[1];
+   totalGross: Float[1];
+   totalNet: Float[1];
+
+   invoice: fee_billing::BilInvoice[0..1];
+   feeType: fee_billing::BilFeeType[0..1];
+}

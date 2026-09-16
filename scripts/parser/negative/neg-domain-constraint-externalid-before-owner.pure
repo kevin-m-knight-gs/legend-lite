@@ -1,0 +1,24 @@
+// REJECTS: Unexpected token '~owner:'
+//
+// The companion to ordering-constraint-clauses.pure, which moves ~message to the front.
+// This one swaps only the two OPTIONAL leading clauses -- ~externalId before ~owner -- and
+// is still a parse error, because the sequence is positional throughout, not just around
+// the required ~function.
+//
+// This is the shape most likely to slip through a rewrite. Moving ~message ahead of
+// ~function looks wrong to a human reader; swapping two adjacent metadata annotations that
+// carry no dependency on one another looks like formatting. A parser that loops over
+// "which clause is next" accepts it, and the model then loads on one engine only.
+###Pure
+Class fixture::neg::SwappedConstraintHead
+[
+   swapped
+   (
+      ~externalId: 'RISK-003'
+      ~owner: riskOps
+      ~function: $this.code->length() > 2
+   )
+]
+{
+   code: String[1];
+}

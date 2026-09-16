@@ -1,0 +1,52 @@
+###Pure
+Class demo::union::Product
+{
+  code: String[1];
+  description: String[1];
+}
+
+###Relational
+Database demo::store::ProductDB
+(
+  Table ListedProductTable
+  (
+    id INTEGER PRIMARY KEY,
+    code VARCHAR(20),
+    description VARCHAR(200)
+  )
+  Table OtcProductTable
+  (
+    id INTEGER PRIMARY KEY,
+    code VARCHAR(20),
+    description VARCHAR(200)
+  )
+)
+
+###Mapping
+Mapping demo::ProductRouterUnionMapping
+(
+  demo::union::Product[listedProduct]: Relational
+  {
+    ~primaryKey
+    (
+      [demo::store::ProductDB]ListedProductTable.id
+    )
+    ~mainTable [demo::store::ProductDB]ListedProductTable
+    code: [demo::store::ProductDB]ListedProductTable.code,
+    description: [demo::store::ProductDB]ListedProductTable.description
+  }
+
+  demo::union::Product[otcProduct]: Relational
+  {
+    ~primaryKey
+    (
+      [demo::store::ProductDB]OtcProductTable.id
+    )
+    ~mainTable [demo::store::ProductDB]OtcProductTable
+  }
+
+  *demo::union::Product[productRoot]: Operation
+  {
+    meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_(listedProduct, otcProduct)
+  }
+)

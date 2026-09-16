@@ -1,0 +1,750 @@
+###Mapping
+// The P&L attribution mapping, and the logical half of THE DIAMOND.
+//
+// It INCLUDES both dependency mappings, which is what makes the cross-project property
+// mappings below resolvable: `position[pkPosition]` and `valuation[vcValuation]` name set ids
+// that live in position-keeping and valuation-core respectively, and they only exist here
+// because both mappings were included.
+//
+// BOTH upstream projects name every set id EXPLICITLY, so the default ids
+// (`position_keeping_Position`, `valuation_core_VcValuation`) DO NOT EXIST. Every property
+// mapping that crosses a boundary therefore names the id from that project's MANIFEST rather
+// than guessing a default -- `[pkPosition]`, `[pkPositionMovement]`, `[pkMovementTotal]`,
+// `[pkAccountInstrumentLifetime]`, `[pkAccountDayTotal]`, `[pkInstrumentDayTotal]`,
+// `[pkPositionRun]`, `[vcValuation]`, `[vcAccrual]`, `[vcRun]`, `[vcReportingCurrency]`.
+// This project does the same, so a downstream project must name `[pnlLine]` and the rest.
+//
+// Set ids are a GLOBAL namespace across the whole graph, not scoped to a mapping, so every id
+// here is prefixed `pnl`. One collision fails every project at once with a message that names
+// the id and not the project that introduced it.
+//
+// Every ~primaryKey below names between one and six columns. The five-column keys are the
+// project's grain: an attribution run plus position-keeping's whole four-column position key.
+//
+// Two shapes are worth reading for:
+//
+//   FILTER-SUBTYPES  [pnlComponent] is the base set over PNL_COMPONENT; the six sets after it
+//                    `extends [pnlComponent]` and add nothing but a ~filter on COMPONENT_CODE
+//                    and the columns that mean something for that one cause. The key, the main
+//                    table and the eight shared column mappings all come from the set they
+//                    extend.
+//
+//   AGGREGATE SETS   the last five are rooted on VIEWS. Their primary key IS the view's
+//                    ~groupBy, so one instance of PnlAccountDayTotal is one account-day GROUP
+//                    and never a P&L line.
+//
+// Note what is NOT mapped: `unexplainedPnl()`, `totalUnexplained()`, `movePct()` and the rest
+// are derived properties -- some of them calling valuation-core functions -- and a derived
+// property needs no mapping at all. The residual is computed in the model, not stored here.
+Mapping pnl_attribution::Mapping
+(
+   include position_keeping::Mapping
+   include valuation_core::Mapping
+
+   // ------------------------------------------------------------ the run
+   // Keyed by ATTRIBUTION_ID alone, and reaching BOTH upstream runs: `valuationRun[vcRun]`
+   // and `positionRun[pkPositionRun]` are the diamond stated at batch level.
+   pnl_attribution::PnlAttributionRun[pnlRun]: Relational
+   {
+      ~primaryKey ( [pnl_attribution::Store]PNL_RUN.ATTRIBUTION_ID )
+      ~mainTable [pnl_attribution::Store]PNL_RUN
+      attributionId: [pnl_attribution::Store]PNL_RUN.ATTRIBUTION_ID,
+      cobDate: [pnl_attribution::Store]PNL_RUN.COB_DATE,
+      priorCobDate: [pnl_attribution::Store]PNL_RUN.PRIOR_COB_DATE,
+      valuationRunId: [pnl_attribution::Store]PNL_RUN.VALUATION_RUN_ID,
+      priorValuationRunId: [pnl_attribution::Store]PNL_RUN.PRIOR_VALUATION_RUN_ID,
+      positionRunSeq: [pnl_attribution::Store]PNL_RUN.POSITION_RUN_SEQ,
+      methodCode: [pnl_attribution::Store]PNL_RUN.METHOD_CODE,
+      reportingCurrency: [pnl_attribution::Store]PNL_RUN.REPORTING_CCY,
+      status: [pnl_attribution::Store]PNL_RUN.STATUS,
+      lineCount: [pnl_attribution::Store]PNL_RUN.LINE_COUNT,
+      brokenLineCount: [pnl_attribution::Store]PNL_RUN.BROKEN_LINE_COUNT,
+      totalPnl: [pnl_attribution::Store]PNL_RUN.TOTAL_PNL,
+      totalResidual: [pnl_attribution::Store]PNL_RUN.TOTAL_RESIDUAL,
+      startedAt: [pnl_attribution::Store]PNL_RUN.STARTED_AT,
+      isSignedOff: [pnl_attribution::Store]PNL_RUN.IS_SIGNED_OFF,
+      // CROSS-PROJECT, both halves. Upstream ids, because no default id exists for either.
+      valuationRun[vcRun]: [pnl_attribution::Store]@Pnl_RunValuationRun,
+      positionRun[pkPositionRun]: [pnl_attribution::Store]@Pnl_RunPositionRun,
+      method[pnlMethod]: [pnl_attribution::Store]@Pnl_RunMethod,
+      lines[pnlLine]: [pnl_attribution::Store]@Pnl_RunLines,
+      signOffs[pnlSignOff]: [pnl_attribution::Store]@Pnl_RunSignOffs,
+      runTotal[pnlRunTotal]: [pnl_attribution::Store]@Pnl_RunRunTotal,
+      componentTotals[pnlComponentTotal]: [pnl_attribution::Store]@Pnl_RunComponentTotals
+   }
+
+   // ------------------------------------------------------------ THE DIAMOND
+   // Five key columns, and four cross-project property mappings that close it: the position
+   // and the valuation, each for today and for the prior day. `position[pkPosition]` reaches
+   // a class that itself resolves core_instrument::Instrument; `valuation[vcValuation]`
+   // reaches one that knows the instrument only as a string. Same row, same string, one
+   // security.
+   pnl_attribution::PnlLine[pnlLine]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_LINE.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_LINE.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_LINE.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_LINE.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_LINE.COB_DATE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_LINE
+      attributionId: [pnl_attribution::Store]PNL_LINE.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_LINE.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_LINE.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_LINE.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_LINE.COB_DATE,
+      scope([pnl_attribution::Store]PNL_LINE)
+      (
+         priorCobDate: PRIOR_COB_DATE,
+         valuationRunId: VALUATION_RUN_ID,
+         priorValuationRunId: PRIOR_VALUATION_RUN_ID,
+         openingQuantity: OPENING_QUANTITY,
+         closingQuantity: CLOSING_QUANTITY,
+         openingMarketValue: OPENING_MARKET_VALUE,
+         closingMarketValue: CLOSING_MARKET_VALUE,
+         priceEffect: PRICE_EFFECT,
+         fxEffect: FX_EFFECT,
+         carryEffect: CARRY_EFFECT,
+         feeEffect: FEE_EFFECT,
+         tradeEffect: TRADE_EFFECT,
+         amendmentEffect: AMENDMENT_EFFECT,
+         realisedPnl: REALISED_PNL,
+         unrealisedPnl: UNREALISED_PNL,
+         cleanPnl: CLEAN_PNL,
+         accruedPnl: ACCRUED_PNL,
+         pnlCurrency: PNL_CURRENCY,
+         reportingCurrency: REPORTING_CCY,
+         fxRate: FX_RATE,
+         attributionQuality: ATTRIBUTION_QUALITY,
+         isExplained: IS_EXPLAINED,
+         methodCode: METHOD_CODE
+      ),
+      // ---- THE DIAMOND, today ----
+      position[pkPosition]: [pnl_attribution::Store]@Pnl_LinePosition,
+      valuation[vcValuation]: [pnl_attribution::Store]@Pnl_LineValuation,
+      // ---- THE DIAMOND, yesterday. The same two sets, reached by a different join ----
+      priorPosition[pkPosition]: [pnl_attribution::Store]@Pnl_LinePriorPosition,
+      openingValuation[vcValuation]: [pnl_attribution::Store]@Pnl_LineOpeningValuation,
+      // ---- other reaches across the two boundaries ----
+      movementTotal[pkMovementTotal]: [pnl_attribution::Store]@Pnl_LineMovementTotal,
+      lifetime[pkAccountInstrumentLifetime]: [pnl_attribution::Store]@Pnl_LineLifetime,
+      accrual[vcAccrual]: [pnl_attribution::Store]@Pnl_LineAccrual,
+      // ---- within this project ----
+      run[pnlRun]: [pnl_attribution::Store]@Pnl_RunLines,
+      method[pnlMethod]: [pnl_attribution::Store]@Pnl_LineMethod,
+      bridge[pnlValueBridge]: [pnl_attribution::Store]@Pnl_LineValueBridge,
+      residual[pnlResidual]: [pnl_attribution::Store]@Pnl_LineResidual,
+      realisedSplit[pnlRealisedSplit]: [pnl_attribution::Store]@Pnl_LineRealisedSplit,
+      cleanDirtySplit[pnlCleanDirtySplit]: [pnl_attribution::Store]@Pnl_LineCleanDirty,
+      components[pnlComponent]: [pnl_attribution::Store]@Pnl_LineComponents,
+      explainSteps[pnlExplainStep]: [pnl_attribution::Store]@Pnl_LineExplainSteps,
+      carryAccruals[pnlCarryAccrual]: [pnl_attribution::Store]@Pnl_LineCarryAccruals,
+      feeCharges[pnlFeeCharge]: [pnl_attribution::Store]@Pnl_LineFeeCharges,
+      tradePnls[pnlTradePnl]: [pnl_attribution::Store]@Pnl_LineTradePnl,
+      amendments[pnlAmendment]: [pnl_attribution::Store]@Pnl_LineAmendments,
+      breaks[pnlBreak]: [pnl_attribution::Store]@Pnl_LineBreaks,
+      // ---- into the aggregations ----
+      accountDayTotal[pnlAccountDayTotal]: [pnl_attribution::Store]@Pnl_LineAccountDayTotal,
+      instrumentDayTotal[pnlInstrumentDayTotal]: [pnl_attribution::Store]@Pnl_LineInstrumentDayTotal,
+      currencyTotal[pnlCurrencyTotal]: [pnl_attribution::Store]@Pnl_LineCurrencyTotal,
+      runTotal[pnlRunTotal]: [pnl_attribution::Store]@Pnl_LineRunTotal
+   }
+
+   // ------------------------------------------------------------ the reconciliation
+   pnl_attribution::PnlValueBridge[pnlValueBridge]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_VALUE_BRIDGE.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_VALUE_BRIDGE.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_VALUE_BRIDGE.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_VALUE_BRIDGE.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_VALUE_BRIDGE.COB_DATE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_VALUE_BRIDGE
+      attributionId: [pnl_attribution::Store]PNL_VALUE_BRIDGE.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_VALUE_BRIDGE.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_VALUE_BRIDGE.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_VALUE_BRIDGE.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_VALUE_BRIDGE.COB_DATE,
+      scope([pnl_attribution::Store]PNL_VALUE_BRIDGE)
+      (
+         openingValue: OPENING_VALUE,
+         closingValue: CLOSING_VALUE,
+         openingValueReporting: OPENING_VALUE_REPORTING,
+         closingValueReporting: CLOSING_VALUE_REPORTING,
+         openingFxRate: OPENING_FX_RATE,
+         closingFxRate: CLOSING_FX_RATE,
+         openingQuantity: OPENING_QUANTITY,
+         closingQuantity: CLOSING_QUANTITY,
+         valueCurrency: VALUE_CURRENCY,
+         reportingCurrency: REPORTING_CCY
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineValueBridge
+   }
+
+   // THE RESIDUAL. Same five-column grain as the line it belongs to.
+   pnl_attribution::PnlResidual[pnlResidual]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_RESIDUAL.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_RESIDUAL.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_RESIDUAL.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_RESIDUAL.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_RESIDUAL.COB_DATE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_RESIDUAL
+      attributionId: [pnl_attribution::Store]PNL_RESIDUAL.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_RESIDUAL.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_RESIDUAL.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_RESIDUAL.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_RESIDUAL.COB_DATE,
+      scope([pnl_attribution::Store]PNL_RESIDUAL)
+      (
+         residualAmount: RESIDUAL_AMOUNT,
+         residualPct: RESIDUAL_PCT,
+         tolerancePct: TOLERANCE_PCT,
+         toleranceAmount: TOLERANCE_AMOUNT,
+         policyCode: POLICY_CODE,
+         isWithinTolerance: IS_WITHIN_TOLERANCE,
+         explainedOn: EXPLAINED_ON,
+         explainedBy: EXPLAINED_BY,
+         residualReason: RESIDUAL_REASON
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineResidual,
+      policy[pnlTolerancePolicy]: [pnl_attribution::Store]@Pnl_ResidualPolicy
+   }
+
+   // The explain waterfall. Six key columns: the line's five plus the step order.
+   pnl_attribution::PnlExplainStep[pnlExplainStep]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_EXPLAIN_STEP.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_EXPLAIN_STEP.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_EXPLAIN_STEP.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_EXPLAIN_STEP.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_EXPLAIN_STEP.COB_DATE,
+         [pnl_attribution::Store]PNL_EXPLAIN_STEP.STEP_SEQ
+      )
+      ~mainTable [pnl_attribution::Store]PNL_EXPLAIN_STEP
+      attributionId: [pnl_attribution::Store]PNL_EXPLAIN_STEP.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_EXPLAIN_STEP.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_EXPLAIN_STEP.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_EXPLAIN_STEP.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_EXPLAIN_STEP.COB_DATE,
+      stepSeq: [pnl_attribution::Store]PNL_EXPLAIN_STEP.STEP_SEQ,
+      scope([pnl_attribution::Store]PNL_EXPLAIN_STEP)
+      (
+         stepCode: STEP_CODE,
+         stepLabel: STEP_LABEL,
+         openingBalance: OPENING_BALANCE,
+         stepAmount: STEP_AMOUNT,
+         closingBalance: CLOSING_BALANCE,
+         isSubtotal: IS_SUBTOTAL
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineExplainSteps
+   }
+
+   // ------------------------------------------------------------ the two splits
+   pnl_attribution::PnlRealisedSplit[pnlRealisedSplit]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_REALISED_SPLIT.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_REALISED_SPLIT.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_REALISED_SPLIT.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_REALISED_SPLIT.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_REALISED_SPLIT.COB_DATE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_REALISED_SPLIT
+      attributionId: [pnl_attribution::Store]PNL_REALISED_SPLIT.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_REALISED_SPLIT.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_REALISED_SPLIT.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_REALISED_SPLIT.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_REALISED_SPLIT.COB_DATE,
+      scope([pnl_attribution::Store]PNL_REALISED_SPLIT)
+      (
+         realisedPnl: REALISED_PNL,
+         unrealisedPnl: UNREALISED_PNL,
+         realisedFromClosures: REALISED_FROM_CLOSURES,
+         openingUnrealised: OPENING_UNREALISED,
+         closingUnrealised: CLOSING_UNREALISED,
+         closedQuantity: CLOSED_QUANTITY,
+         matchingMethod: MATCHING_METHOD
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineRealisedSplit
+   }
+
+   pnl_attribution::PnlCleanDirtySplit[pnlCleanDirtySplit]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_CLEAN_DIRTY.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_CLEAN_DIRTY.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_CLEAN_DIRTY.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_CLEAN_DIRTY.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_CLEAN_DIRTY.COB_DATE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_CLEAN_DIRTY
+      attributionId: [pnl_attribution::Store]PNL_CLEAN_DIRTY.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_CLEAN_DIRTY.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_CLEAN_DIRTY.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_CLEAN_DIRTY.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_CLEAN_DIRTY.COB_DATE,
+      scope([pnl_attribution::Store]PNL_CLEAN_DIRTY)
+      (
+         cleanPnl: CLEAN_PNL,
+         accruedPnl: ACCRUED_PNL,
+         dirtyPnl: DIRTY_PNL,
+         openingAccrued: OPENING_ACCRUED,
+         closingAccrued: CLOSING_ACCRUED,
+         couponPaid: COUPON_PAID,
+         dayCountBasis: DAY_COUNT_BASIS
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineCleanDirty
+   }
+
+   // ------------------------------------------------------------ the component family
+   //
+   // One table, seven types. [pnlComponent] carries the six-column key, the main table and
+   // the eight shared columns; each subtype below adds a ~filter and nothing else it does not
+   // need. Adding a seventh cause is a class, a Filter and a three-line set.
+   pnl_attribution::PnlComponent[pnlComponent]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_COMPONENT.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_COMPONENT.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_COMPONENT.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_COMPONENT.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_COMPONENT.COB_DATE,
+         [pnl_attribution::Store]PNL_COMPONENT.COMPONENT_CODE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_COMPONENT
+      attributionId: [pnl_attribution::Store]PNL_COMPONENT.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_COMPONENT.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_COMPONENT.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_COMPONENT.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_COMPONENT.COB_DATE,
+      componentCode: [pnl_attribution::Store]PNL_COMPONENT.COMPONENT_CODE,
+      scope([pnl_attribution::Store]PNL_COMPONENT)
+      (
+         componentAmount: COMPONENT_AMOUNT,
+         amountInReporting: AMOUNT_IN_REPORTING,
+         componentCurrency: COMPONENT_CCY,
+         fxRate: FX_RATE,
+         contributionPct: CONTRIBUTION_PCT,
+         quantityUsed: QUANTITY_USED,
+         computedSeq: COMPUTED_SEQ,
+         isEstimated: IS_ESTIMATED
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineComponents,
+      componentTotal[pnlComponentTotal]: [pnl_attribution::Store]@Pnl_ComponentComponentTotal
+   }
+
+   // The market moved.
+   pnl_attribution::PnlPriceEffect[pnlPriceEffect] extends [pnlComponent]: Relational
+   {
+      ~filter [pnl_attribution::Store]PnlPriceRows
+      openPrice: [pnl_attribution::Store]PNL_COMPONENT.OPEN_PRICE,
+      closePrice: [pnl_attribution::Store]PNL_COMPONENT.CLOSE_PRICE
+   }
+
+   // The rate moved.
+   pnl_attribution::PnlFxEffect[pnlFxEffect] extends [pnlComponent]: Relational
+   {
+      ~filter [pnl_attribution::Store]PnlFxRows
+      openFxRate: [pnl_attribution::Store]PNL_COMPONENT.OPEN_FX_RATE,
+      closeFxRate: [pnl_attribution::Store]PNL_COMPONENT.CLOSE_FX_RATE
+   }
+
+   // Time passed.
+   pnl_attribution::PnlCarryEffect[pnlCarryEffect] extends [pnlComponent]: Relational
+   {
+      ~filter [pnl_attribution::Store]PnlCarryRows
+      carryType: [pnl_attribution::Store]PNL_COMPONENT.CARRY_TYPE,
+      dayCountFraction: [pnl_attribution::Store]PNL_COMPONENT.DAY_COUNT_FRACTION
+   }
+
+   // Money left regardless.
+   pnl_attribution::PnlFeeEffect[pnlFeeEffect] extends [pnlComponent]: Relational
+   {
+      ~filter [pnl_attribution::Store]PnlFeeRows
+      feeType: [pnl_attribution::Store]PNL_COMPONENT.FEE_TYPE,
+      feeRateBps: [pnl_attribution::Store]PNL_COMPONENT.FEE_RATE_BPS
+   }
+
+   // The firm traded.
+   pnl_attribution::PnlNewTradeEffect[pnlNewTradeEffect] extends [pnlComponent]: Relational
+   {
+      ~filter [pnl_attribution::Store]PnlNewTradeRows
+      tradeCount: [pnl_attribution::Store]PNL_COMPONENT.TRADE_COUNT,
+      tradedQuantity: [pnl_attribution::Store]PNL_COMPONENT.TRADED_QUANTITY
+   }
+
+   // History was restated.
+   pnl_attribution::PnlAmendmentEffect[pnlAmendmentEffect] extends [pnlComponent]: Relational
+   {
+      ~filter [pnl_attribution::Store]PnlAmendmentRows
+      amendmentCount: [pnl_attribution::Store]PNL_COMPONENT.AMENDMENT_COUNT,
+      restatedFrom: [pnl_attribution::Store]PNL_COMPONENT.RESTATED_FROM
+   }
+
+   // ------------------------------------------------------------ the detail rows
+   pnl_attribution::PnlCarryAccrual[pnlCarryAccrual]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_CARRY_ACCRUAL.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_CARRY_ACCRUAL.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_CARRY_ACCRUAL.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_CARRY_ACCRUAL.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_CARRY_ACCRUAL.COB_DATE,
+         [pnl_attribution::Store]PNL_CARRY_ACCRUAL.CARRY_TYPE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_CARRY_ACCRUAL
+      attributionId: [pnl_attribution::Store]PNL_CARRY_ACCRUAL.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_CARRY_ACCRUAL.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_CARRY_ACCRUAL.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_CARRY_ACCRUAL.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_CARRY_ACCRUAL.COB_DATE,
+      carryType: [pnl_attribution::Store]PNL_CARRY_ACCRUAL.CARRY_TYPE,
+      scope([pnl_attribution::Store]PNL_CARRY_ACCRUAL)
+      (
+         accrualAmount: ACCRUAL_AMOUNT,
+         carryRate: CARRY_RATE,
+         dayCountFraction: DAY_COUNT_FRACTION,
+         periodStartDate: PERIOD_START_DATE,
+         periodEndDate: PERIOD_END_DATE,
+         accrualCurrency: ACCRUAL_CCY,
+         isPaid: IS_PAID
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineCarryAccruals,
+      // CROSS-PROJECT: the coupon strand reconciles to valuation-core's own accrual row.
+      valuationAccrual[vcAccrual]: [pnl_attribution::Store]@Pnl_CarryAccrualSource
+   }
+
+   pnl_attribution::PnlFeeCharge[pnlFeeCharge]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_FEE_CHARGE.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_FEE_CHARGE.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_FEE_CHARGE.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_FEE_CHARGE.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_FEE_CHARGE.COB_DATE,
+         [pnl_attribution::Store]PNL_FEE_CHARGE.FEE_SEQ
+      )
+      ~mainTable [pnl_attribution::Store]PNL_FEE_CHARGE
+      attributionId: [pnl_attribution::Store]PNL_FEE_CHARGE.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_FEE_CHARGE.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_FEE_CHARGE.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_FEE_CHARGE.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_FEE_CHARGE.COB_DATE,
+      feeSeq: [pnl_attribution::Store]PNL_FEE_CHARGE.FEE_SEQ,
+      scope([pnl_attribution::Store]PNL_FEE_CHARGE)
+      (
+         feeType: FEE_TYPE,
+         feeAmount: FEE_AMOUNT,
+         feeCurrency: FEE_CCY,
+         feeRateBps: FEE_RATE_BPS,
+         chargedBy: CHARGED_BY,
+         invoiceReference: INVOICE_REFERENCE,
+         isAccrued: IS_ACCRUED
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineFeeCharges
+   }
+
+   pnl_attribution::PnlTradePnl[pnlTradePnl]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_TRADE_PNL.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_TRADE_PNL.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_TRADE_PNL.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_TRADE_PNL.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_TRADE_PNL.COB_DATE,
+         [pnl_attribution::Store]PNL_TRADE_PNL.TRADE_REFERENCE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_TRADE_PNL
+      attributionId: [pnl_attribution::Store]PNL_TRADE_PNL.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_TRADE_PNL.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_TRADE_PNL.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_TRADE_PNL.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_TRADE_PNL.COB_DATE,
+      tradeReference: [pnl_attribution::Store]PNL_TRADE_PNL.TRADE_REFERENCE,
+      scope([pnl_attribution::Store]PNL_TRADE_PNL)
+      (
+         tradeQuantity: TRADE_QUANTITY,
+         tradePrice: TRADE_PRICE,
+         tradeCash: TRADE_CASH,
+         dayOnePnl: DAY_ONE_PNL,
+         feeAmount: FEE_AMOUNT,
+         tradeCurrency: TRADE_CCY,
+         movementSeq: MOVEMENT_SEQ,
+         isSameDayClose: IS_SAME_DAY_CLOSE
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineTradePnl,
+      // CROSS-PROJECT: back to the position movement that caused the day-one P&L.
+      movement[pkPositionMovement]: [pnl_attribution::Store]@Pnl_TradePnlMovement
+   }
+
+   pnl_attribution::PnlAmendment[pnlAmendment]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_AMENDMENT.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_AMENDMENT.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_AMENDMENT.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_AMENDMENT.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_AMENDMENT.COB_DATE,
+         [pnl_attribution::Store]PNL_AMENDMENT.AMENDMENT_SEQ
+      )
+      ~mainTable [pnl_attribution::Store]PNL_AMENDMENT
+      attributionId: [pnl_attribution::Store]PNL_AMENDMENT.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_AMENDMENT.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_AMENDMENT.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_AMENDMENT.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_AMENDMENT.COB_DATE,
+      amendmentSeq: [pnl_attribution::Store]PNL_AMENDMENT.AMENDMENT_SEQ,
+      scope([pnl_attribution::Store]PNL_AMENDMENT)
+      (
+         amendmentType: AMENDMENT_TYPE,
+         originalCobDate: ORIGINAL_COB_DATE,
+         amountBefore: AMOUNT_BEFORE,
+         amountAfter: AMOUNT_AFTER,
+         reason: REASON,
+         raisedBy: RAISED_BY,
+         approvedBy: APPROVED_BY,
+         raisedOn: RAISED_ON
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineAmendments
+   }
+
+   pnl_attribution::PnlAttributionBreak[pnlBreak]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_BREAK.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_BREAK.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_BREAK.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_BREAK.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_BREAK.COB_DATE,
+         [pnl_attribution::Store]PNL_BREAK.BREAK_CODE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_BREAK
+      attributionId: [pnl_attribution::Store]PNL_BREAK.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_BREAK.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_BREAK.ACCOUNT_NO,
+      instrumentId: [pnl_attribution::Store]PNL_BREAK.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_BREAK.COB_DATE,
+      breakCode: [pnl_attribution::Store]PNL_BREAK.BREAK_CODE,
+      scope([pnl_attribution::Store]PNL_BREAK)
+      (
+         policyCode: POLICY_CODE,
+         severity: SEVERITY,
+         breakAmount: BREAK_AMOUNT,
+         breakPct: BREAK_PCT,
+         detectedOn: DETECTED_ON,
+         resolvedOn: RESOLVED_ON,
+         assignedTo: ASSIGNED_TO
+      ),
+      line[pnlLine]: [pnl_attribution::Store]@Pnl_LineBreaks,
+      policy[pnlTolerancePolicy]: [pnl_attribution::Store]@Pnl_BreakPolicy
+   }
+
+   // ------------------------------------------------------------ the policy layer
+   pnl_attribution::PnlTolerancePolicy[pnlTolerancePolicy]: Relational
+   {
+      ~primaryKey ( [pnl_attribution::Store]PNL_TOLERANCE_POLICY.POLICY_CODE )
+      ~mainTable [pnl_attribution::Store]PNL_TOLERANCE_POLICY
+      policyCode: [pnl_attribution::Store]PNL_TOLERANCE_POLICY.POLICY_CODE,
+      assetClass: [pnl_attribution::Store]PNL_TOLERANCE_POLICY.ASSET_CLASS,
+      methodCode: [pnl_attribution::Store]PNL_TOLERANCE_POLICY.METHOD_CODE,
+      residualTolerancePct: [pnl_attribution::Store]PNL_TOLERANCE_POLICY.RESIDUAL_TOLERANCE_PCT,
+      residualToleranceAmount: [pnl_attribution::Store]PNL_TOLERANCE_POLICY.RESIDUAL_TOLERANCE_AMOUNT,
+      escalationLevel: [pnl_attribution::Store]PNL_TOLERANCE_POLICY.ESCALATION_LEVEL,
+      isDefault: [pnl_attribution::Store]PNL_TOLERANCE_POLICY.IS_DEFAULT,
+      method[pnlMethod]: [pnl_attribution::Store]@Pnl_PolicyMethod,
+      residuals[pnlResidual]: [pnl_attribution::Store]@Pnl_ResidualPolicy,
+      breaks[pnlBreak]: [pnl_attribution::Store]@Pnl_BreakPolicy
+   }
+
+   pnl_attribution::PnlAttributionMethod[pnlMethod]: Relational
+   {
+      ~primaryKey ( [pnl_attribution::Store]PNL_METHOD.METHOD_CODE )
+      ~mainTable [pnl_attribution::Store]PNL_METHOD
+      methodCode: [pnl_attribution::Store]PNL_METHOD.METHOD_CODE,
+      methodName: [pnl_attribution::Store]PNL_METHOD.METHOD_NAME,
+      effectOrder: [pnl_attribution::Store]PNL_METHOD.EFFECT_ORDER,
+      isSequential: [pnl_attribution::Store]PNL_METHOD.IS_SEQUENTIAL,
+      crossTermHandling: [pnl_attribution::Store]PNL_METHOD.CROSS_TERM_HANDLING,
+      expectedResidualPct: [pnl_attribution::Store]PNL_METHOD.EXPECTED_RESIDUAL_PCT,
+      runs[pnlRun]: [pnl_attribution::Store]@Pnl_RunMethod,
+      lines[pnlLine]: [pnl_attribution::Store]@Pnl_LineMethod,
+      policies[pnlTolerancePolicy]: [pnl_attribution::Store]@Pnl_PolicyMethod
+   }
+
+   pnl_attribution::PnlSignOff[pnlSignOff]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_SIGN_OFF.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_SIGN_OFF.SIGN_OFF_SEQ
+      )
+      ~mainTable [pnl_attribution::Store]PNL_SIGN_OFF
+      attributionId: [pnl_attribution::Store]PNL_SIGN_OFF.ATTRIBUTION_ID,
+      signOffSeq: [pnl_attribution::Store]PNL_SIGN_OFF.SIGN_OFF_SEQ,
+      signOffRole: [pnl_attribution::Store]PNL_SIGN_OFF.SIGN_OFF_ROLE,
+      signedBy: [pnl_attribution::Store]PNL_SIGN_OFF.SIGNED_BY,
+      signedOn: [pnl_attribution::Store]PNL_SIGN_OFF.SIGNED_ON,
+      commentary: [pnl_attribution::Store]PNL_SIGN_OFF.COMMENTARY,
+      isFinal: [pnl_attribution::Store]PNL_SIGN_OFF.IS_FINAL,
+      run[pnlRun]: [pnl_attribution::Store]@Pnl_RunSignOffs
+   }
+
+   // ------------------------------------------------------------ THE AGGREGATE SETS
+   //
+   // Rooted on views. The primary key IS the ~groupBy, so an instance is a group and never a
+   // line. Two of them reach position-keeping's own groups -- view to view, across a project
+   // boundary, without either side reading a row.
+
+   pnl_attribution::PnlAccountDayTotal[pnlAccountDayTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.INSTITUTION_ID,
+         [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.ACCOUNT_NO,
+         [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.COB_DATE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL
+      attributionId: [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.ATTRIBUTION_ID,
+      institutionId: [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.INSTITUTION_ID,
+      accountNo: [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.ACCOUNT_NO,
+      cobDate: [pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL.COB_DATE,
+      scope([pnl_attribution::Store]PNL_ACCOUNT_DAY_TOTAL)
+      (
+         lineCount: LINE_COUNT,
+         totalOpeningValue: TOTAL_OPENING_VALUE,
+         totalClosingValue: TOTAL_CLOSING_VALUE,
+         totalPriceEffect: TOTAL_PRICE_EFFECT,
+         totalFxEffect: TOTAL_FX_EFFECT,
+         totalCarryEffect: TOTAL_CARRY_EFFECT,
+         totalFeeEffect: TOTAL_FEE_EFFECT,
+         totalTradeEffect: TOTAL_TRADE_EFFECT,
+         totalAmendmentEffect: TOTAL_AMENDMENT_EFFECT,
+         totalRealisedPnl: TOTAL_REALISED_PNL,
+         totalUnrealisedPnl: TOTAL_UNREALISED_PNL
+      ),
+      lines[pnlLine]: [pnl_attribution::Store]@Pnl_LineAccountDayTotal,
+      // CROSS-PROJECT, GROUP TO GROUP.
+      positionTotal[pkAccountDayTotal]: [pnl_attribution::Store]@Pnl_AccountDayTotalPositionTotal
+   }
+
+   pnl_attribution::PnlInstrumentDayTotal[pnlInstrumentDayTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL.INSTRUMENT_ID,
+         [pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL.COB_DATE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL
+      attributionId: [pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL.ATTRIBUTION_ID,
+      instrumentId: [pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL.INSTRUMENT_ID,
+      cobDate: [pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL.COB_DATE,
+      scope([pnl_attribution::Store]PNL_INSTRUMENT_DAY_TOTAL)
+      (
+         accountCount: ACCOUNT_COUNT,
+         totalOpeningValue: TOTAL_OPENING_VALUE,
+         totalClosingValue: TOTAL_CLOSING_VALUE,
+         totalPriceEffect: TOTAL_PRICE_EFFECT,
+         totalFxEffect: TOTAL_FX_EFFECT,
+         totalCarryEffect: TOTAL_CARRY_EFFECT,
+         totalFeeEffect: TOTAL_FEE_EFFECT,
+         totalTradeEffect: TOTAL_TRADE_EFFECT,
+         totalAmendmentEffect: TOTAL_AMENDMENT_EFFECT,
+         totalRealisedPnl: TOTAL_REALISED_PNL,
+         totalUnrealisedPnl: TOTAL_UNREALISED_PNL
+      ),
+      lines[pnlLine]: [pnl_attribution::Store]@Pnl_LineInstrumentDayTotal,
+      // CROSS-PROJECT, GROUP TO GROUP.
+      positionTotal[pkInstrumentDayTotal]: [pnl_attribution::Store]@Pnl_InstrumentDayTotalPositionTotal
+   }
+
+   pnl_attribution::PnlCurrencyTotal[pnlCurrencyTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_CURRENCY_TOTAL.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_CURRENCY_TOTAL.PNL_CURRENCY
+      )
+      ~mainTable [pnl_attribution::Store]PNL_CURRENCY_TOTAL
+      attributionId: [pnl_attribution::Store]PNL_CURRENCY_TOTAL.ATTRIBUTION_ID,
+      pnlCurrency: [pnl_attribution::Store]PNL_CURRENCY_TOTAL.PNL_CURRENCY,
+      scope([pnl_attribution::Store]PNL_CURRENCY_TOTAL)
+      (
+         lineCount: LINE_COUNT,
+         totalClosingValue: TOTAL_CLOSING_VALUE,
+         totalFxEffect: TOTAL_FX_EFFECT,
+         totalPriceEffect: TOTAL_PRICE_EFFECT,
+         totalRealisedPnl: TOTAL_REALISED_PNL,
+         totalUnrealisedPnl: TOTAL_UNREALISED_PNL
+      ),
+      lines[pnlLine]: [pnl_attribution::Store]@Pnl_LineCurrencyTotal,
+      // CROSS-PROJECT, from a group into valuation-core.
+      reportingCurrencyRef[vcReportingCurrency]: [pnl_attribution::Store]@Pnl_CurrencyTotalReportingCurrency
+   }
+
+   pnl_attribution::PnlRunTotal[pnlRunTotal]: Relational
+   {
+      ~primaryKey ( [pnl_attribution::Store]PNL_RUN_TOTAL.ATTRIBUTION_ID )
+      ~mainTable [pnl_attribution::Store]PNL_RUN_TOTAL
+      attributionId: [pnl_attribution::Store]PNL_RUN_TOTAL.ATTRIBUTION_ID,
+      scope([pnl_attribution::Store]PNL_RUN_TOTAL)
+      (
+         lineCount: LINE_COUNT,
+         accountCount: ACCOUNT_COUNT,
+         totalOpeningValue: TOTAL_OPENING_VALUE,
+         totalClosingValue: TOTAL_CLOSING_VALUE,
+         totalPriceEffect: TOTAL_PRICE_EFFECT,
+         totalFxEffect: TOTAL_FX_EFFECT,
+         totalCarryEffect: TOTAL_CARRY_EFFECT,
+         totalFeeEffect: TOTAL_FEE_EFFECT,
+         totalTradeEffect: TOTAL_TRADE_EFFECT,
+         totalAmendmentEffect: TOTAL_AMENDMENT_EFFECT,
+         totalRealisedPnl: TOTAL_REALISED_PNL,
+         totalUnrealisedPnl: TOTAL_UNREALISED_PNL
+      ),
+      run[pnlRun]: [pnl_attribution::Store]@Pnl_RunRunTotal,
+      lines[pnlLine]: [pnl_attribution::Store]@Pnl_LineRunTotal
+   }
+
+   // The totals table of the explain itself, grouped out of the COMPONENT table.
+   pnl_attribution::PnlComponentTotal[pnlComponentTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [pnl_attribution::Store]PNL_COMPONENT_TOTAL.ATTRIBUTION_ID,
+         [pnl_attribution::Store]PNL_COMPONENT_TOTAL.COMPONENT_CODE
+      )
+      ~mainTable [pnl_attribution::Store]PNL_COMPONENT_TOTAL
+      attributionId: [pnl_attribution::Store]PNL_COMPONENT_TOTAL.ATTRIBUTION_ID,
+      componentCode: [pnl_attribution::Store]PNL_COMPONENT_TOTAL.COMPONENT_CODE,
+      scope([pnl_attribution::Store]PNL_COMPONENT_TOTAL)
+      (
+         componentCount: COMPONENT_COUNT,
+         totalAmount: TOTAL_AMOUNT,
+         totalInReporting: TOTAL_IN_REPORTING,
+         largestAmount: LARGEST_AMOUNT,
+         smallestAmount: SMALLEST_AMOUNT
+      ),
+      run[pnlRun]: [pnl_attribution::Store]@Pnl_RunComponentTotals,
+      components[pnlComponent]: [pnl_attribution::Store]@Pnl_ComponentComponentTotal
+   }
+)

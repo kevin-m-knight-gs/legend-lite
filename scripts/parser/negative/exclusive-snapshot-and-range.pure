@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token ','
+//
+// business() milestoning is EITHER the snapshot form (BUS_SNAPSHOT_DATE) OR the range form
+// (BUS_FROM/BUS_THRU). This asks for both in one entry. Unlike the auth case above, this
+// one IS enforced by the grammar -- businessMilestoning has two disjoint alternatives -- so
+// it fails at the comma rather than with a named-field message.
+//
+// The pair is deliberate: two mutual-exclusion rules, enforced at two different layers,
+// producing two different diagnostics. A rewrite has to get both layers right.
+###Relational
+Database fixture::neg::BothMilestonings
+(
+   Table T
+   (
+      milestoning
+      (
+         business(BUS_SNAPSHOT_DATE = SNAP, BUS_FROM = FROM_Z, BUS_THRU = THRU_Z)
+      )
+      ID VARCHAR(32) PRIMARY KEY,
+      SNAP DATE, FROM_Z DATE, THRU_Z DATE
+   )
+)

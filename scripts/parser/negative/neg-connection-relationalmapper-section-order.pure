@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token 'SchemaMappers'. Valid alternatives: [')']
+//
+// A RelationalMapper element's three sections are ordered:
+//     DatabaseMappers? SchemaMappers? TableMappers?
+// each optional, none repeatable. This writes TableMappers before SchemaMappers.
+//
+// They are semicolon-terminated named sections in a parenthesised body -- the exact shape
+// of a record whose fields may be given in any order, and there is no reason a reader would
+// think otherwise. A rewrite that reads them as such is more permissive than legend-engine,
+// which is the divergence that never shows up as a failure.
+###QueryPostProcessor
+RelationalMapper fixture::neg::SectionOrder
+(
+   TableMappers:
+   [
+      fixture::neg::AccountDB.alloytest.ACCOUNT -> 'AccountTable'
+   ];
+   SchemaMappers:
+   [
+      fixture::neg::AccountDB.alloytest -> 'AlloySchema'
+   ];
+)

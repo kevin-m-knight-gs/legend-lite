@@ -1,0 +1,892 @@
+###Pure
+
+// margin-calc -- how much collateral a counterparty has to have posted by tonight, and
+// whether we are allowed to ask for it. Layer 2: it depends on position-keeping (what is
+// held, and therefore what is exposed) and on risk-core (the sensitivities the initial
+// margin model is actually computed from), and on nothing else.
+//
+// The two constructs this project carries for the graph:
+//
+//   FUNCTIONS   twelve standalone `function` elements in `margin_calc::`. Margin arithmetic
+//               is small and gets written wrong: a haircut is `v * (1 - h)` and not
+//               `v - h`, a close-out scaling is `sqrt(days)` and not `days`, and two
+//               correlated charges add under `sqrt(a^2 + b^2 + 2*rho*a*b)` and not under
+//               `a + b`. Each of those is one function here, called from the derived
+//               properties, so the rule exists once and every project above this one gets
+//               the same answer.
+//
+//   AGGREGATION two store Views, `MGN_PORTFOLIO_MARGIN_TOTAL` and
+//               `MGN_RISK_CLASS_SENS_TOTAL`, each mapped onto a class whose primary key IS
+//               its `~groupBy`. One instance of MgnPortfolioMarginTotal is a netting set
+//               and a day, never a position. A third aggregation is READ rather than
+//               declared: MgnConcentrationAddOn navigates into risk-core's own store view
+//               `RSK_FACTOR_TOTAL`, so a concentration charge is measured against the
+//               firm-wide delta in a factor without this project summing a single leg.
+//
+// The domain, in the order the numbers are produced:
+//
+//   1  a SIMM sensitivity is the risk-core leg with a RISK CLASS, a BUCKET and a RISK
+//      WEIGHT attached -- MgnSimmSensitivity, weighted = raw * weight
+//   2  weighted sensitivities aggregate inside a risk class under a correlation, giving
+//      MgnRiskClassMargin; risk classes aggregate again into MgnInitialMargin
+//   3  that one-day number is scaled to a CLOSE-OUT PERIOD at a CONFIDENCE LEVEL -- ten
+//      days, 99% -- because margin has to survive the time it takes to hedge or replace a
+//      defaulted book, not one day of it
+//   4  add-ons for CONCENTRATION (a position too big for its own market) and for LIQUIDITY
+//      (a position that takes longer than the baseline horizon to unwind) sit on top
+//   5  VARIATION MARGIN settles the day's mark-to-market move in cash, every day
+//   6  collateral already held is valued AFTER HAIRCUT
+//   7  and then the MINIMUM TRANSFER AMOUNT decides whether the call is made at all: a
+//      shortfall below the MTA is a real shortfall that nobody is allowed to ask for,
+//      which is why MgnMarginCall carries both grossCallAmount and callAmount
+//
+// Prefixes per the project contract: classes Mgn*, tables MGN_*, joins Mgn_*, filters Mgn*,
+// set ids mgn*, functions mgn*.
+
+// ---------------------------------------------------------------- the agreement
+
+// The margin agreement itself -- the CSA or clearing rulebook that says what may be
+// demanded from whom and when. FOR: holding the negotiated parameters (threshold, minimum
+// transfer amount, close-out period, confidence level) that every number below is computed
+// against, so a call can be explained by pointing at one row.
+Class margin_calc::MgnMarginAgreement
+[
+   // A negative threshold would mean collateral is owed before any exposure exists.
+   thresholdIsNotNegative: ($this.threshold >= 0.0),
+   // An MTA of zero means every penny is callable; a negative one means nothing.
+   mtaIsNotNegative: ($this.minimumTransferAmount >= 0.0),
+   // A close-out period of zero would scale the whole initial margin to nothing.
+   closeOutIsPositive: ($this.closeOutPeriodDays > 0)
+]
+{
+   // The key: the agreement reference as it appears on the executed document.
+   agreementId: String[1];
+   // CSA, CTA, GMRA_ANNEX or CCP_RULEBOOK. A cleared rulebook has no negotiated threshold.
+   agreementType: String[1];
+   // Who is on the other side. A legal entity id, not a trading account.
+   counterpartyId: String[1];
+   // Our own entity -- the institution half of position-keeping's account key.
+   institutionId: String[1];
+   // ISO 4217 the thresholds and the call are denominated in.
+   baseCurrency: String[1];
+   // Unsecured exposure the agreement tolerates before any collateral is owed at all.
+   threshold: Float[1];
+   // THE MTA. A shortfall smaller than this is not callable -- see MgnMarginCall.
+   minimumTransferAmount: Float[1];
+   // Calls are rounded UP to a multiple of this, in the caller's favour.
+   roundingAmount: Float[1];
+   // Collateral owed regardless of exposure -- the independent amount, posted up front.
+   independentAmount: Float[1];
+   // DAILY, WEEKLY or INTRADAY. Anything but DAILY lengthens the effective close-out.
+   marginCallFrequency: String[1];
+   // SMALLINT: the margin period of risk in business days. 10 bilateral, 5 cleared.
+   closeOutPeriodDays: Integer[1];
+   // The confidence the initial margin is sized at, e.g. 0.99. A ratio, so FLOAT.
+   confidencePct: Float[1];
+   // True when both sides post. A one-way CSA collects and never delivers.
+   isBilateral: Boolean[1];
+   // SIMM, GRID or SCHEDULE -- which initial margin model this agreement is on.
+   imMethod: String[1];
+   // When the document took effect.
+   effectiveFrom: StrictDate[1];
+   // Absent while the agreement is live. A null test, not a boolean, is what the store
+   // filter can screen on.
+   terminatedOn: StrictDate[0..1];
+
+   // Whether the agreement is still in force. Absence of a termination date is the fact.
+   isLive() { $this.terminatedOn->isEmpty() } : Boolean[1];
+   // Square-root-of-time scaling from one day to the close-out period -- the multiplier
+   // every initial margin under this agreement is scaled by.
+   closeOutScalar() { margin_calc::mgnCloseOutScalar($this.closeOutPeriodDays) } : Float[1];
+   // Exposure that may stand uncollateralised: the threshold, less the independent amount
+   // already sitting there.
+   effectiveThreshold() { $this.threshold - $this.independentAmount } : Float[1];
+   // The exposure a call actually starts at. Not the threshold: the threshold plus the MTA,
+   // because the first callable penny is the one that clears both.
+   callTriggerLevel() { $this.threshold + $this.minimumTransferAmount } : Float[1];
+
+   // What has been called under it, what has settled in cash, what has been pledged, and
+   // the netting sets it covers.
+   calls: margin_calc::MgnMarginCall[*];
+   variationMargins: margin_calc::MgnVariationMargin[*];
+   haircuts: margin_calc::MgnCollateralHaircut[*];
+   portfolios: margin_calc::MgnMarginPortfolio[*];
+}
+
+// A netting set: the smallest group of trades whose margin is computed together and whose
+// collateral is fungible. FOR: being the grain initial margin is calculated at, and the
+// bridge from an agreement to a risk-core risk portfolio and a position-keeping account.
+Class margin_calc::MgnMarginPortfolio
+{
+   // The key.
+   marginPortfolioId: String[1];
+   // The agreement that governs it.
+   agreementId: String[1];
+   // risk-core's portfolio the sensitivities are produced under. Same book, other system.
+   riskPortfolioId: String[1];
+   // Institution half of position-keeping's account key.
+   institutionId: String[1];
+   // Account half. Together with the institution these reach CA_ACCOUNT.
+   accountNo: String[1];
+   // ISO 4217 the margin is reported in.
+   baseCurrency: String[1];
+   // SIMM, GRID or SCHEDULE. May differ from the agreement's when a product is carved out.
+   imMethod: String[1];
+   // True when collateral is held at a third-party custodian rather than by the collector.
+   isSegregated: Boolean[1];
+   // The netting set code as the legal opinion refers to it.
+   nettingSetCode: String[1];
+
+   // Whether this set is margined by the sensitivity-based calculation at all. A GRID or
+   // SCHEDULE set has no SIMM sensitivities and its MgnRiskClassMargin rows will be empty.
+   isSimm() { $this.imMethod == 'SIMM' } : Boolean[1];
+   // The full account key as one string, in position-keeping's own order.
+   accountKey() { $this.institutionId + '|' + $this.accountNo } : String[1];
+
+   agreement: margin_calc::MgnMarginAgreement[0..1];
+   // CROSS-PROJECT: the risk-core portfolio whose sensitivities feed this netting set.
+   riskPortfolio: risk_core::RskRiskPortfolio[0..1];
+   initialMargins: margin_calc::MgnInitialMargin[*];
+   riskClassMargins: margin_calc::MgnRiskClassMargin[*];
+   simmSensitivities: margin_calc::MgnSimmSensitivity[*];
+   positionMargins: margin_calc::MgnPositionMargin[*];
+   concentrationAddOns: margin_calc::MgnConcentrationAddOn[*];
+   liquidityAddOns: margin_calc::MgnLiquidityAddOn[*];
+   // INTO THE AGGREGATION: one row per day, and never a position row.
+   marginTotals: margin_calc::MgnPortfolioMarginTotal[*];
+}
+
+// One execution of the margin batch. FOR: making a day's calls reproducible -- a call
+// belongs to a run, and a re-run on the same date is a different run and not an overwrite.
+Class margin_calc::MgnMarginRun
+{
+   // Part 1 of the key: the close-of-business date margined as of.
+   cobDate: StrictDate[1];
+   // Part 2: which run on that date. The overnight run and the 11am re-run are both kept.
+   runSeq: Integer[1];
+   // EOD, INTRADAY or ADHOC.
+   runType: String[1];
+   // PENDING, RUNNING, COMPLETE or FAILED.
+   runStatus: String[1];
+   // When it started, to the second.
+   startedAt: DateTime[1];
+   // Absent until it finishes.
+   completedAt: DateTime[0..1];
+   // How many agreements it margined.
+   agreementCount: Integer[1];
+   // How many calls it produced.
+   callCount: Integer[1];
+   // How many shortfalls it found and was not allowed to call, because of the MTA. This is
+   // the number an operations desk actually watches: it is uncollateralised exposure that
+   // is invisible on the call report.
+   suppressedCallCount: Integer[1];
+   // The sum of what was called, in the reporting currency.
+   totalCalledAmount: Float[1];
+
+   // Whether the run is finished. The status, not the timestamp, is the authority.
+   isComplete() { $this.runStatus == 'COMPLETE' } : Boolean[1];
+   // The share of shortfalls the MTA swallowed. `/` widens to Float even on two Integers.
+   suppressedPct() { $this.suppressedCallCount / $this.callCount } : Float[1];
+   // Average size of a call this run, for a sanity check on the batch.
+   averageCallAmount() { $this.totalCalledAmount / $this.callCount->toFloat() } : Float[1];
+
+   calls: margin_calc::MgnMarginCall[*];
+}
+
+// ---------------------------------------------------------------- the call
+
+// The margin call: one agreement, one day, one number, and the decision about whether that
+// number may be demanded. FOR: recording BOTH the shortfall that exists and the amount that
+// is callable after the minimum transfer amount, because they are different and only the
+// second one gets sent.
+Class margin_calc::MgnMarginCall
+[
+   // A required margin is a requirement, not a credit.
+   requiredIsNotNegative: ($this.requiredMargin >= 0.0),
+   // The MTA is copied onto the call so it can be explained without reading the agreement,
+   // and a negative copy would mean every shortfall is callable.
+   mtaIsNotNegative: ($this.minimumTransferAmount >= 0.0)
+]
+{
+   // Part 1 of the key.
+   agreementId: String[1];
+   // Part 2. One call per agreement per day.
+   cobDate: StrictDate[1];
+   // The run that produced it.
+   runSeq: Integer[1];
+   // DELIVER (they post to us) or RETURN (we give collateral back).
+   callDirection: String[1];
+   // Total margin required: initial + variation + add-ons.
+   requiredMargin: Float[1];
+   // The initial margin component -- sized to the close-out period.
+   initialMarginAmount: Float[1];
+   // The variation margin component -- today's mark-to-market move.
+   variationMarginAmount: Float[1];
+   // Concentration and liquidity add-ons, together.
+   addOnAmount: Float[1];
+   // Collateral already held, valued AFTER haircut. Never the market value.
+   collateralValue: Float[1];
+   // The agreement's threshold, copied onto the call.
+   threshold: Float[1];
+   // The agreement's MTA, copied onto the call.
+   minimumTransferAmount: Float[1];
+   // The agreement's rounding increment, copied onto the call.
+   roundingAmount: Float[1];
+   // What is owed before the MTA is applied. The honest number.
+   grossCallAmount: Float[1];
+   // What is actually demanded: zero when the gross is under the MTA, rounded otherwise.
+   callAmount: Float[1];
+   // ISO 4217 the call is made in.
+   callCurrency: String[1];
+   // False when a shortfall existed and no call went out.
+   isCallMade: Boolean[1];
+   // BELOW_MTA, DISPUTED, HOLIDAY or AGREEMENT_TERMINATED. Absent when a call was made.
+   suppressedReason: String[0..1];
+   // When the notice went out. Absent when no call was made.
+   issuedAt: DateTime[0..1];
+   // Absent until the collateral arrives -- what the store filter screens on.
+   settledOn: StrictDate[0..1];
+   // Absent unless the counterparty disagreed with the number.
+   disputeCode: String[0..1];
+
+   // The shortfall from first principles: required, less what is held, less what the
+   // agreement lets stand uncollateralised. Delegated to the function so that no project
+   // above this one subtracts the threshold twice.
+   exposureAboveThreshold() { margin_calc::mgnCallAmount($this.requiredMargin, $this.collateralValue, $this.threshold) } : Float[1];
+   // THE MTA TEST. Whether the shortfall clears the minimum transfer amount at all.
+   meetsMinimumTransfer() { margin_calc::mgnMeetsMta($this.grossCallAmount, $this.minimumTransferAmount) } : Boolean[1];
+   // The shortfall after the MTA has had its say: the gross, or nothing.
+   transferableAmount() { margin_calc::mgnAfterMinimumTransfer($this.grossCallAmount, $this.minimumTransferAmount) } : Float[1];
+   // The same amount rounded up to the agreement's increment, in the collector's favour.
+   roundedCallAmount() { margin_calc::mgnRoundUp(margin_calc::mgnAfterMinimumTransfer($this.grossCallAmount, $this.minimumTransferAmount), $this.roundingAmount) } : Float[1];
+   // Exposure that stays uncollateralised BECAUSE of the MTA -- the whole gross when the
+   // call is suppressed, and nothing when it is made. The residual risk of the MTA, stated.
+   uncollateralisedByMta() { if(margin_calc::mgnMeetsMta($this.grossCallAmount, $this.minimumTransferAmount), |0.0, |$this.grossCallAmount) } : Float[1];
+   // Held against required. Below 1.0 is a shortfall; `/` widens, so Float.
+   coverageRatio() { $this.collateralValue / $this.requiredMargin } : Float[1];
+   // Whether the collateral has actually turned up.
+   isSettled() { $this.settledOn->isNotEmpty() } : Boolean[1];
+   // Whether anyone is arguing about it.
+   isDisputed() { $this.disputeCode->isNotEmpty() } : Boolean[1];
+
+   agreement: margin_calc::MgnMarginAgreement[0..1];
+   run: margin_calc::MgnMarginRun[0..1];
+   variationMargin: margin_calc::MgnVariationMargin[0..1];
+}
+
+// Variation margin: the day's mark-to-market move, settled in cash, every day. FOR: keeping
+// the settled leg separate from the initial margin leg -- VM extinguishes an exposure that
+// has already happened, IM covers one that has not, and netting them hides both.
+Class margin_calc::MgnVariationMargin
+{
+   // Part 1 of the key.
+   agreementId: String[1];
+   // Part 2. One VM row per agreement per day, which is what "settled daily" means.
+   cobDate: StrictDate[1];
+   // Yesterday's mark on the netted portfolio.
+   priorMarkToMarket: Float[1];
+   // Today's mark on the same portfolio.
+   currentMarkToMarket: Float[1];
+   // The move that is being settled. Should equal current - prior; when it does not, one of
+   // the two marks came from a different snapshot.
+   mtmChange: Float[1];
+   // ISO 4217 the VM settles in -- the agreement's eligible cash currency.
+   vmCurrency: String[1];
+   // The cash moving today, signed: positive is received.
+   vmAmount: Float[1];
+   // Everything settled under this agreement before today.
+   cumulativeVmPosted: Float[1];
+   // When the cash actually moves. Usually T+1.
+   settlementDate: StrictDate[1];
+   // SMALLINT: how many business days after cob. The gap the IM close-out has to cover.
+   settlementLagDays: Integer[1];
+   // The rate posted VM cash earns while it sits there: EFFR, ESTR, SONIA.
+   interestRateCode: String[1];
+   // True once the cash has moved.
+   isSettled: Boolean[1];
+
+   // The move re-derived from the two marks -- the data-quality screen on mtmChange.
+   dailyMove() { $this.currentMarkToMarket - $this.priorMarkToMarket } : Float[1];
+   // The discrepancy between the stored move and the derived one. Should be zero.
+   markConsistency() { $this.mtmChange - ($this.currentMarkToMarket - $this.priorMarkToMarket) } : Float[1];
+   // Whether we are the one collecting today.
+   isCollectingSide() { $this.currentMarkToMarket > 0.0 } : Boolean[1];
+   // Cumulative position after today's settlement.
+   netPosted() { $this.cumulativeVmPosted + $this.vmAmount } : Float[1];
+   // The exposure the settlement lag leaves open even under a perfect daily VM: today's
+   // move, carried over the days before the cash lands, at square-root-of-time.
+   lagExposure() { margin_calc::mgnScaleToCloseOut($this.dailyMove()->abs(), $this.settlementLagDays) } : Float[1];
+
+   agreement: margin_calc::MgnMarginAgreement[0..1];
+   call: margin_calc::MgnMarginCall[0..1];
+}
+
+// Initial margin for one netting set on one day under one model. FOR: holding the one-day
+// number, the close-out period and confidence it was scaled to, and the add-ons stacked on
+// it, so that the final figure can be taken apart into the four things that made it.
+Class margin_calc::MgnInitialMargin
+[
+   // Scaling by the square root of zero days would zero the whole charge.
+   horizonIsPositive: ($this.closeOutPeriodDays > 0),
+   // A confidence level is a probability, and 1.0 is not a level anyone can calibrate to.
+   confidenceIsAFraction: (($this.confidencePct > 0.0) && ($this.confidencePct < 1.0))
+]
+{
+   // Part 1 of the key.
+   marginPortfolioId: String[1];
+   // Part 2.
+   cobDate: StrictDate[1];
+   // Part 3: SIMM, GRID or HIST_VAR. The same set on the same day has a number under each,
+   // because the regulatory figure and the internal one are both kept.
+   methodCode: String[1];
+   // The confidence the charge is sized at, e.g. 0.99.
+   confidencePct: Float[1];
+   // SMALLINT: the margin period of risk, in business days.
+   closeOutPeriodDays: Integer[1];
+   // The charge over a ONE DAY move, before any horizon scaling. The model's raw output.
+   oneDayMargin: Float[1];
+   // The same charge carried to the close-out period.
+   scaledMargin: Float[1];
+   // The concentration add-on for this set and day, summed over its factors.
+   concentrationAddOn: Float[1];
+   // The liquidity add-on, summed over its buckets.
+   liquidityAddOn: Float[1];
+   // What is finally demanded: scaled, plus both add-ons.
+   totalInitialMargin: Float[1];
+   // ISO 4217.
+   imCurrency: String[1];
+   // True when this is the figure filed with the regulator rather than the internal one.
+   isRegulatory: Boolean[1];
+   // The calibration the model ran under, e.g. SIMM_2.6. Two dates under two versions are
+   // not comparable and the version is how anyone finds out.
+   modelVersion: String[1];
+
+   // The square-root-of-time multiplier this row's horizon implies.
+   horizonScalar() { margin_calc::mgnCloseOutScalar($this.closeOutPeriodDays) } : Float[1];
+   // The scaled charge re-derived from the one-day number -- should equal scaledMargin.
+   scaledFromOneDay() { margin_calc::mgnScaleToCloseOut($this.oneDayMargin, $this.closeOutPeriodDays) } : Float[1];
+   // Both add-ons together.
+   addOnTotal() { $this.concentrationAddOn + $this.liquidityAddOn } : Float[1];
+   // What share of the charge is add-on rather than model. A large share means the model is
+   // being corrected rather than used.
+   addOnPct() { ($this.concentrationAddOn + $this.liquidityAddOn) / $this.scaledMargin } : Float[1];
+   // The whole calculation in one call, from the one-day number out: scale to close-out,
+   // then add the add-ons. The identity totalInitialMargin is checked against.
+   marginFromModel() { margin_calc::mgnTotalInitialMargin($this.oneDayMargin, $this.closeOutPeriodDays, $this.concentrationAddOn, $this.liquidityAddOn) } : Float[1];
+
+   portfolio: margin_calc::MgnMarginPortfolio[0..1];
+   riskClassMargins: margin_calc::MgnRiskClassMargin[*];
+}
+
+// ---------------------------------------------------------------- SIMM
+
+// One row of the SIMM calibration: the risk weight and the correlations that apply to a
+// bucket of a risk class. FOR: being the parameter table the sensitivity-based calculation
+// reads, so a weight is data that can be re-published, not a constant in a formula.
+Class margin_calc::MgnSimmBucket
+{
+   // Part 1 of the key: IR, FX, EQ, CM or CR.
+   riskClass: String[1];
+   // Part 2: the bucket within the class -- a currency group for IR, a sector for EQ.
+   bucketCode: String[1];
+   // What the bucket is called in the methodology document.
+   bucketName: String[1];
+   // THE RISK WEIGHT. A delta sensitivity times this is a charge.
+   riskWeight: Float[1];
+   // The weight applied to a vega sensitivity in the same bucket.
+   vegaRiskWeight: Float[1];
+   // Correlation between two factors INSIDE this bucket -- how much of the gross nets off.
+   intraBucketCorrelation: Float[1];
+   // Correlation between this bucket and another in the same risk class.
+   interBucketCorrelation: Float[1];
+   // The size at which a position starts attracting a concentration add-on.
+   concentrationThreshold: Float[1];
+   // SMALLINT: how many days the methodology assumes it takes to exit this bucket.
+   liquidityHorizonDays: Integer[1];
+   // The multiplier on the curvature (second-order) leg for this bucket.
+   curvatureScale: Float[1];
+
+   // Apply this bucket's weight to a sensitivity the caller supplies. The one place a
+   // sensitivity meets a weight, so nobody has to remember which way round it goes.
+   weightFor(sensitivity: Float[1]) { margin_calc::mgnWeightedSensitivity($sensitivity, $this.riskWeight) } : Float[1];
+   // The same for a vega leg.
+   vegaWeightFor(sensitivity: Float[1]) { margin_calc::mgnWeightedSensitivity($sensitivity, $this.vegaRiskWeight) } : Float[1];
+   // Scaling from the methodology's ten-day baseline to this bucket's own horizon.
+   liquidityScalar() { ($this.liquidityHorizonDays->toFloat() / 10.0)->sqrt() } : Float[1];
+   // Two weighted sensitivities in this bucket, combined under its intra-bucket
+   // correlation. This is the aggregation step of the whole calculation.
+   aggregateWithin(sensitivityA: Float[1], sensitivityB: Float[1]) { margin_calc::mgnCorrelatedAggregate($sensitivityA, $sensitivityB, $this.intraBucketCorrelation) } : Float[1];
+
+   sensitivities: margin_calc::MgnSimmSensitivity[*];
+}
+
+// A risk-core sensitivity with a SIMM risk class, bucket and risk weight attached, and the
+// weighted number that results. FOR: being the leg the sensitivity-based calculation
+// actually sums -- the point where a risk number stops being a greek and becomes a charge.
+Class margin_calc::MgnSimmSensitivity
+[
+   // A weight below zero would flip the sign of a charge.
+   weightIsNotNegative: ($this.riskWeight >= 0.0),
+   // The concentration factor is a multiplier of at least one -- it never reduces a charge.
+   concentrationIsAtLeastOne: ($this.concentrationRiskFactor >= 1.0)
+]
+{
+   // Part 1 of the key, and risk-core's own sensitivity id -- this row is that leg, mapped.
+   sensitivityId: String[1];
+   // Part 2. The same leg id is re-published every day with a new weight.
+   cobDate: StrictDate[1];
+   // Which netting set the charge lands in.
+   marginPortfolioId: String[1];
+   // IR, FX, EQ, CM or CR.
+   riskClass: String[1];
+   // The bucket within the class -- what picks the weight out of MgnSimmBucket.
+   bucketCode: String[1];
+   // risk-core's factor this leg is measured against.
+   factorId: String[1];
+   // DELTA, VEGA or CURVATURE. The three legs of the calculation, kept apart.
+   riskType: String[1];
+   // The unweighted sensitivity as risk-core produced it.
+   rawSensitivity: Float[1];
+   // ISO 4217 the sensitivity is expressed in.
+   sensitivityCurrency: String[1];
+   // The weight taken from the bucket and frozen onto this row, so a recalibration does not
+   // silently restate yesterday's margin.
+   riskWeight: Float[1];
+   // raw * weight. Stored, and re-derivable from the two above.
+   weightedSensitivity: Float[1];
+   // SIMM's CR: max(1, sqrt(|S| / T)). One when the position is not concentrated.
+   concentrationRiskFactor: Float[1];
+   // The tenor the sensitivity sits at, where the class has a curve. Absent for FX spot.
+   tenorCode: String[0..1];
+   // True when the concentration factor came out above one.
+   isConcentrated: Boolean[1];
+
+   // The weighted number re-derived. Should equal weightedSensitivity; when it does not,
+   // the row was written under a weight that has since been restated.
+   weighted() { margin_calc::mgnWeightedSensitivity($this.rawSensitivity, $this.riskWeight) } : Float[1];
+   // The weighted number after the concentration multiplier -- what actually aggregates.
+   concentrationScaled() { $this.weightedSensitivity * $this.concentrationRiskFactor } : Float[1];
+   // Size regardless of direction, which is what a concentration test measures.
+   absWeighted() { $this.weightedSensitivity->abs() } : Float[1];
+   // This leg combined with another under a correlation the caller supplies. The aggregation
+   // step, exposed on the leg so a bucket total can be built two legs at a time.
+   aggregateWith(other: Float[1], correlation: Float[1]) { margin_calc::mgnCorrelatedAggregate($this.weightedSensitivity, $other, $correlation) } : Float[1];
+   // The same leg carried to a close-out period the caller names.
+   overCloseOut(closeOutPeriodDays: Integer[1]) { margin_calc::mgnScaleToCloseOut($this.weightedSensitivity, $closeOutPeriodDays) } : Float[1];
+
+   // CROSS-PROJECT: the risk-core leg this row weights. The greeks live there and are not
+   // copied here -- only the delta that was selected, and the weight applied to it.
+   riskLeg: risk_core::RskSensitivity[0..1];
+   // CROSS-PROJECT: the factor itself, for the currency and quotation unit.
+   factor: risk_core::RskRiskFactor[0..1];
+   bucket: margin_calc::MgnSimmBucket[0..1];
+   portfolio: margin_calc::MgnMarginPortfolio[0..1];
+   // INTO THE AGGREGATION: the risk-class total this leg is one of.
+   riskClassTotal: margin_calc::MgnRiskClassSensitivityTotal[0..1];
+}
+
+// The margin for one risk class of one netting set on one day, after the legs inside it
+// have been aggregated under correlation. FOR: showing the netting benefit -- the gap
+// between the gross sum of the legs and the correlated total is the whole reason a
+// sensitivity-based calculation is not just an addition.
+Class margin_calc::MgnRiskClassMargin
+{
+   // Part 1 of the key.
+   marginPortfolioId: String[1];
+   // Part 2.
+   cobDate: StrictDate[1];
+   // Part 3: IR, FX, EQ, CM or CR.
+   riskClass: String[1];
+   // The delta leg of the class, aggregated.
+   deltaMargin: Float[1];
+   // The vega leg.
+   vegaMargin: Float[1];
+   // The curvature leg -- the second-order correction for a large move.
+   curvatureMargin: Float[1];
+   // The correlation the buckets in this class were combined under.
+   intraClassCorrelation: Float[1];
+   // How many legs went into it. A one-leg "aggregate" is a single position in disguise.
+   sensitivityCount: Integer[1];
+   // The sum of |weighted sensitivity| over the legs -- no netting at all.
+   grossSensitivity: Float[1];
+   // The same legs after correlation. Never larger than the gross.
+   netSensitivity: Float[1];
+   // The charge for this class: the three legs combined.
+   riskClassMargin: Float[1];
+   // ISO 4217.
+   marginCurrency: String[1];
+
+   // The three legs added flat, before any cross-leg correlation.
+   beforeCorrelation() { $this.deltaMargin + $this.vegaMargin + $this.curvatureMargin } : Float[1];
+   // What correlation took off the gross.
+   nettingBenefit() { $this.grossSensitivity - $this.netSensitivity } : Float[1];
+   // The same as a fraction of the gross -- the number a margin optimiser is paid to raise.
+   nettingBenefitPct() { ($this.grossSensitivity - $this.netSensitivity) / $this.grossSensitivity } : Float[1];
+   // This class combined with another class's charge under this row's correlation. The
+   // second aggregation step: buckets into a class, classes into an initial margin.
+   aggregateWith(other: Float[1]) { margin_calc::mgnCorrelatedAggregate($this.riskClassMargin, $other, $this.intraClassCorrelation) } : Float[1];
+   // The class charge carried to a close-out period.
+   overCloseOut(closeOutPeriodDays: Integer[1]) { margin_calc::mgnScaleToCloseOut($this.riskClassMargin, $closeOutPeriodDays) } : Float[1];
+
+   portfolio: margin_calc::MgnMarginPortfolio[0..1];
+   initialMargins: margin_calc::MgnInitialMargin[*];
+   // INTO THE AGGREGATION: the view over the legs behind this charge.
+   sensitivityTotal: margin_calc::MgnRiskClassSensitivityTotal[0..1];
+}
+
+// ---------------------------------------------------------------- add-ons
+
+// The charge for holding more of one risk factor than the market can absorb. FOR: pricing
+// the fact that a big position cannot be closed out at the mid -- the model's own close-out
+// assumption is false above a threshold, and this is what is charged instead.
+Class margin_calc::MgnConcentrationAddOn
+{
+   // Part 1 of the key.
+   marginPortfolioId: String[1];
+   // Part 2.
+   cobDate: StrictDate[1];
+   // Part 3: the risk class the concentration is measured within.
+   riskClass: String[1];
+   // Part 4: the factor concentrated in. Joins to risk-core's factor AND to its store view.
+   factorId: String[1];
+   // The netted sensitivity to that factor in this set, signed.
+   netSensitivity: Float[1];
+   // The bucket's threshold, copied onto the row so the charge can be explained.
+   concentrationThreshold: Float[1];
+   // |netSensitivity| / threshold, stored. Below 1.0 there is no concentration.
+   concentrationRatio: Float[1];
+   // The percentage add-on the ratio implies.
+   addOnPct: Float[1];
+   // The money.
+   addOnAmount: Float[1];
+   // ISO 4217.
+   addOnCurrency: String[1];
+   // The bucket that drove it, where several contribute.
+   drivingBucketCode: String[1];
+   // True when the ratio is above one.
+   isBreaching: Boolean[1];
+
+   // The ratio re-derived, on size rather than direction: a large short is as hard to close
+   // out as a large long.
+   ratioOverThreshold() { $this.netSensitivity->abs() / $this.concentrationThreshold } : Float[1];
+   // SIMM's concentration multiplier: max(1, sqrt(|S| / T)). Never below one, so a small
+   // position is charged the model's number and nothing more.
+   concentrationFactor() { margin_calc::mgnConcentrationFactor($this.netSensitivity, $this.concentrationThreshold) } : Float[1];
+   // The add-on this row implies on a base charge the caller supplies.
+   addOnFrom(base: Float[1]) { margin_calc::mgnAddOn($base, $this.addOnPct) } : Float[1];
+   // How much of the FIRM's whole delta in this factor sits in this one netting set. This
+   // is the number the add-on ought to be calibrated on, and it is read straight out of
+   // risk-core's aggregate rather than summed here.
+   shareOfFirmFactorDelta() { $this.netSensitivity / $this.factorTotal.totalDelta->toOne() } : Float[1];
+
+   portfolio: margin_calc::MgnMarginPortfolio[0..1];
+   // CROSS-PROJECT, INTO AN AGGREGATION SOMEONE ELSE DECLARED: risk-core's RSK_FACTOR_TOTAL
+   // view, grouped by factor and date. Navigating here crosses into a GROUP BY and never
+   // touches a sensitivity leg.
+   factorTotal: risk_core::RskFactorTotal[0..1];
+}
+
+// The charge for a position that takes longer to unwind than the model's baseline horizon.
+// FOR: separating the liquidity correction from the concentration one -- a position can be
+// small and still sit in an illiquid bucket, and the two are charged for different reasons.
+Class margin_calc::MgnLiquidityAddOn
+{
+   // Part 1 of the key.
+   marginPortfolioId: String[1];
+   // Part 2.
+   cobDate: StrictDate[1];
+   // Part 3: the bucket whose horizon is being corrected for.
+   bucketCode: String[1];
+   // The risk class the bucket belongs to.
+   riskClass: String[1];
+   // SMALLINT: how long this bucket really takes to exit.
+   liquidityHorizonDays: Integer[1];
+   // SMALLINT: the horizon the model already assumes. Usually 10.
+   baselineHorizonDays: Integer[1];
+   // The notional exposed in this bucket, signed.
+   positionNotional: Float[1];
+   // What the market clears in a day. The denominator of the honest horizon.
+   averageDailyVolume: Float[1];
+   // How many days this position would take at a participation rate, as calculated.
+   daysToLiquidate: Float[1];
+   // The percentage add-on the horizon gap implies.
+   addOnPct: Float[1];
+   // The money.
+   addOnAmount: Float[1];
+   // ISO 4217.
+   addOnCurrency: String[1];
+
+   // Square-root-of-time from the baseline horizon to this bucket's own. The multiplier the
+   // whole add-on exists to apply.
+   horizonScalar() { ($this.liquidityHorizonDays->toFloat() / $this.baselineHorizonDays->toFloat())->sqrt() } : Float[1];
+   // Days to liquidate re-derived from size and volume, ignoring participation limits.
+   impliedDaysToLiquidate() { $this.positionNotional->abs() / $this.averageDailyVolume } : Float[1];
+   // Whether the position is genuinely slower than the model assumes.
+   exceedsBaseline() { $this.liquidityHorizonDays > $this.baselineHorizonDays } : Boolean[1];
+   // The add-on on a base charge the caller supplies.
+   addOnFrom(base: Float[1]) { margin_calc::mgnAddOn($base, $this.addOnPct) } : Float[1];
+   // A base charge carried to this bucket's real horizon rather than the baseline one.
+   overRealHorizon(base: Float[1]) { margin_calc::mgnScaleToCloseOut($base, $this.liquidityHorizonDays) } : Float[1];
+
+   portfolio: margin_calc::MgnMarginPortfolio[0..1];
+}
+
+// ---------------------------------------------------------------- collateral
+
+// The haircut schedule for one asset under one agreement. FOR: turning a market value into
+// the collateral value that counts against a call -- a bond worth 100 does not extinguish
+// 100 of exposure, and the difference is negotiated per asset class and per agreement.
+Class margin_calc::MgnCollateralHaircut
+[
+   // A haircut is a fraction of value taken off, so it lives in [0, 1).
+   haircutIsAFraction: (($this.haircutPct >= 0.0) && ($this.haircutPct < 1.0)),
+   // Same for the currency-mismatch haircut applied on top of it.
+   fxHaircutIsAFraction: (($this.fxHaircutPct >= 0.0) && ($this.fxHaircutPct < 1.0))
+]
+{
+   // Part 1 of the key.
+   agreementId: String[1];
+   // Part 2: what is pledged.
+   collateralAssetId: String[1];
+   // CASH, GOVT_BOND, CORP_BOND, EQUITY or GOLD. What the schedule bands on.
+   assetClass: String[1];
+   // The rating band the schedule bands on, where it does: AAA_AA, A_BBB, BELOW.
+   issuerRating: String[1];
+   // ISO 4217 the asset is denominated in.
+   currencyCode: String[1];
+   // What it is worth in the market today, before anything is taken off.
+   marketValue: Float[1];
+   // THE HAIRCUT: the fraction of value the collector will not credit.
+   haircutPct: Float[1];
+   // A second haircut when the collateral currency is not the agreement's base currency.
+   fxHaircutPct: Float[1];
+   // The market value after both haircuts -- what actually counts against the call.
+   haircutValue: Float[1];
+   // The most of a call this one asset may cover, so a pledge cannot be one name.
+   concentrationCapPct: Float[1];
+   // False when the asset falls outside the agreement's eligibility schedule entirely.
+   isEligible: Boolean[1];
+
+   // Market value after the asset haircut alone.
+   valueAfterHaircut() { margin_calc::mgnHaircut($this.marketValue, $this.haircutPct) } : Float[1];
+   // After both haircuts, applied MULTIPLICATIVELY rather than added -- 8% then 4% is not
+   // 12%, and adding them overstates the collateral taken off.
+   valueAfterAllHaircuts() { margin_calc::mgnHaircut(margin_calc::mgnHaircut($this.marketValue, $this.haircutPct), $this.fxHaircutPct) } : Float[1];
+   // The two haircuts as one effective rate, for a schedule that wants to print one number.
+   effectiveHaircutPct() { 1.0 - ((1.0 - $this.haircutPct) * (1.0 - $this.fxHaircutPct)) } : Float[1];
+   // The value the concentration cap allows this asset to contribute to a call it is
+   // pledged against.
+   cappedContribution(callAmount: Float[1]) { $callAmount * $this.concentrationCapPct } : Float[1];
+
+   agreement: margin_calc::MgnMarginAgreement[0..1];
+}
+
+// The margin attributed back to one position -- the same four-column grain position-keeping
+// uses. FOR: answering "which holding is costing me the margin", which a portfolio-level
+// number never can, and which is what a desk changes its book on.
+Class margin_calc::MgnPositionMargin
+{
+   // The four columns of position-keeping's key, in its order. Dropping any one merges
+   // positions that are genuinely different.
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // The netting set the position's margin lands in.
+   marginPortfolioId: String[1];
+   // The agreement above that.
+   agreementId: String[1];
+   // What is exposed on this line, in the margin currency.
+   exposureAmount: Float[1];
+   // The initial margin attributed to it.
+   initialMarginAmount: Float[1];
+   // The variation margin attributed to it.
+   variationMarginAmount: Float[1];
+   // Its share of the add-ons.
+   addOnAmount: Float[1];
+   // ISO 4217.
+   marginCurrency: String[1];
+   // The blended risk weight the attribution used.
+   riskWeight: Float[1];
+   // False for a position the agreement excludes -- a legacy trade outside the netting set.
+   isMarginEligible: Boolean[1];
+
+   // Everything charged against this line.
+   totalMargin() { $this.initialMarginAmount + $this.variationMarginAmount + $this.addOnAmount } : Float[1];
+   // Margin as a fraction of exposure -- comparable across lines of different size.
+   marginRate() { ($this.initialMarginAmount + $this.variationMarginAmount + $this.addOnAmount) / $this.exposureAmount } : Float[1];
+   // The exposure at its risk weight, which is where the attribution starts.
+   weightedExposure() { margin_calc::mgnWeightedSensitivity($this.exposureAmount, $this.riskWeight) } : Float[1];
+   // This line's share of its netting set's whole initial margin, read out of the
+   // aggregation rather than by summing the other lines.
+   shareOfPortfolioMargin() { $this.initialMarginAmount / $this.portfolioTotal.totalInitialMargin->toOne() } : Float[1];
+
+   // CROSS-PROJECT: the position itself, on all four key columns. Fewer would cross dates
+   // or institutions.
+   position: position_keeping::Position[0..1];
+   portfolio: margin_calc::MgnMarginPortfolio[0..1];
+   // INTO THE AGGREGATION.
+   portfolioTotal: margin_calc::MgnPortfolioMarginTotal[0..1];
+}
+
+// ---------------------------------------------------------------- the aggregations
+
+// AGGREGATE on a store view: one netting set, one day, its position margins totalled. FOR:
+// letting a call be assembled without reading a position row -- the engine folds the GROUP
+// BY into the SQL, and a set with no positions on a date forms no group and is absent
+// rather than showing a total of zero.
+Class margin_calc::MgnPortfolioMarginTotal
+{
+   // The grouping, and therefore the key.
+   marginPortfolioId: String[1];
+   cobDate: StrictDate[1];
+   // count(INSTRUMENT_ID) over the group -- how many lines the total stands on.
+   positionCount: Integer[1];
+   // sum(INITIAL_MARGIN_AMOUNT) over the group.
+   totalInitialMargin: Float[1];
+   // sum(VARIATION_MARGIN_AMOUNT).
+   totalVariationMargin: Float[1];
+   // sum(ADDON_AMOUNT).
+   totalAddOn: Float[1];
+   // sum(EXPOSURE_AMOUNT).
+   totalExposure: Float[1];
+   // max(INITIAL_MARGIN_AMOUNT) -- the single worst line in the set.
+   largestPositionMargin: Float[1];
+
+   // Everything charged to the set that day.
+   totalMargin() { $this.totalInitialMargin + $this.totalVariationMargin + $this.totalAddOn } : Float[1];
+   // The average line. `/` widens to Float, which is what the contract requires here.
+   averageMarginPerPosition() { ($this.totalInitialMargin + $this.totalVariationMargin) / $this.positionCount } : Float[1];
+   // Margin as a fraction of exposure at set level.
+   marginRate() { $this.totalInitialMargin / $this.totalExposure } : Float[1];
+   // Whether one line is carrying the set. Above a half, the "portfolio" margin is a
+   // position margin wearing a group's clothes.
+   isSinglePositionDriven() { ($this.largestPositionMargin / $this.totalInitialMargin) > 0.5 } : Boolean[1];
+
+   portfolio: margin_calc::MgnMarginPortfolio[0..1];
+   positionMargins: margin_calc::MgnPositionMargin[*];
+}
+
+// AGGREGATE on a store view: one netting set, one day, one risk class, its weighted
+// sensitivities totalled. FOR: giving the sensitivity-based calculation its gross number
+// and its leg count in one row, so the correlated total in MgnRiskClassMargin has something
+// to be compared against.
+Class margin_calc::MgnRiskClassSensitivityTotal
+{
+   // The grouping, and therefore the key. Three columns, one more than the portfolio view.
+   marginPortfolioId: String[1];
+   cobDate: StrictDate[1];
+   riskClass: String[1];
+   // count(SENSITIVITY_ID) over the group.
+   sensitivityCount: Integer[1];
+   // sum(WEIGHTED_SENSITIVITY) -- signed, so longs and shorts net inside the group.
+   totalWeightedSensitivity: Float[1];
+   // sum(RAW_SENSITIVITY), before any weight. The two together say what the weights did.
+   totalRawSensitivity: Float[1];
+   // max(WEIGHTED_SENSITIVITY) -- the biggest single leg in the class.
+   largestWeightedSensitivity: Float[1];
+
+   // The average leg.
+   averageWeightedSensitivity() { $this.totalWeightedSensitivity / $this.sensitivityCount } : Float[1];
+   // The blended weight the group came out at, which is the only place the two sums meet.
+   impliedRiskWeight() { $this.totalWeightedSensitivity / $this.totalRawSensitivity } : Float[1];
+   // What share of the class sits in its largest leg.
+   largestShare() { $this.largestWeightedSensitivity / $this.totalWeightedSensitivity } : Float[1];
+   // Whether one factor is driving the class, in which case the correlation aggregation is
+   // not doing any work and the concentration add-on is the number that matters.
+   isSingleFactorDriven() { ($this.largestWeightedSensitivity / $this.totalWeightedSensitivity) > 0.5 } : Boolean[1];
+
+   riskClassMargin: margin_calc::MgnRiskClassMargin[0..1];
+   sensitivities: margin_calc::MgnSimmSensitivity[*];
+}
+
+// ---------------------------------------------------------------- exported functions
+//
+// The margin arithmetic, as standalone `function` elements. Every one of these is one line,
+// and that is the point: each is a rule that a downstream project (regulatory-capital,
+// risk-dashboard) would otherwise re-implement, and three of them are rules that are
+// routinely re-implemented WRONG.
+
+// A haircut is a fraction of value REMOVED, so it multiplies by (1 - h). Writing
+// `$marketValue - $haircutPct` type-checks and is nonsense; this exists so nobody does.
+function margin_calc::mgnHaircut(marketValue: Float[1], haircutPct: Float[1]): Float[1]
+{
+   $marketValue * (1.0 - $haircutPct)
+}
+
+// A sensitivity scaled to its risk weight -- the single step that turns a greek into a
+// charge, and the innermost operation of the whole sensitivity-based calculation.
+function margin_calc::mgnWeightedSensitivity(sensitivity: Float[1], riskWeight: Float[1]): Float[1]
+{
+   $sensitivity * $riskWeight
+}
+
+// TWO CHARGES AGGREGATED UNDER A CORRELATION: sqrt(a^2 + b^2 + 2*rho*a*b). At rho = 1 this
+// is a + b and at rho = 0 it is the Pythagorean sum; anywhere in between it is neither, and
+// adding correlated charges flat is the single most common way to overstate margin.
+function margin_calc::mgnCorrelatedAggregate(chargeA: Float[1], chargeB: Float[1], correlation: Float[1]): Float[1]
+{
+   (($chargeA * $chargeA) + ($chargeB * $chargeB) + (2.0 * $correlation * $chargeA * $chargeB))->sqrt()
+}
+
+// Square-root-of-time: the multiplier that carries a one-day move to a close-out period.
+// Ten days is sqrt(10) ~ 3.16 times a one-day move, NOT ten times it.
+function margin_calc::mgnCloseOutScalar(closeOutPeriodDays: Integer[1]): Float[1]
+{
+   $closeOutPeriodDays->toFloat()->sqrt()
+}
+
+// A one-day charge carried to the close-out period the agreement negotiated.
+function margin_calc::mgnScaleToCloseOut(oneDayValue: Float[1], closeOutPeriodDays: Integer[1]): Float[1]
+{
+   $oneDayValue * margin_calc::mgnCloseOutScalar($closeOutPeriodDays)
+}
+
+// An add-on stated as a percentage of a base charge.
+function margin_calc::mgnAddOn(baseCharge: Float[1], addOnPct: Float[1]): Float[1]
+{
+   $baseCharge * $addOnPct
+}
+
+// SIMM's concentration multiplier: max(1, sqrt(|S| / T)). Never below one, because a
+// position under the threshold is charged the model's number and no less.
+function margin_calc::mgnConcentrationFactor(netSensitivity: Float[1], concentrationThreshold: Float[1]): Float[1]
+{
+   [1.0, ($netSensitivity->abs() / $concentrationThreshold)->sqrt()]->max()
+}
+
+// The whole initial margin, from the model's one-day output: scale to the close-out period,
+// then stack the add-ons. The add-ons are NOT scaled again -- they are already sized to the
+// horizon they correct for, and scaling them twice is a double count.
+function margin_calc::mgnTotalInitialMargin(oneDayValue: Float[1], closeOutPeriodDays: Integer[1], concentrationAddOn: Float[1], liquidityAddOn: Float[1]): Float[1]
+{
+   margin_calc::mgnScaleToCloseOut($oneDayValue, $closeOutPeriodDays) + $concentrationAddOn + $liquidityAddOn
+}
+
+// The shortfall: what is required, less what is held after haircut, less the exposure the
+// agreement lets stand uncollateralised. Subtracting the threshold twice -- once here and
+// once in a downstream report -- is the classic error this centralises away.
+function margin_calc::mgnCallAmount(requiredMargin: Float[1], collateralValue: Float[1], threshold: Float[1]): Float[1]
+{
+   $requiredMargin - $collateralValue - $threshold
+}
+
+// THE MINIMUM TRANSFER AMOUNT TEST. Whether a shortfall may be demanded at all.
+function margin_calc::mgnMeetsMta(callAmount: Float[1], minimumTransferAmount: Float[1]): Boolean[1]
+{
+   $callAmount >= $minimumTransferAmount
+}
+
+// The MTA applied: the WHOLE shortfall once it clears the minimum, and nothing below it.
+// The MTA is a threshold on whether to call, not a deductible from what is called.
+function margin_calc::mgnAfterMinimumTransfer(callAmount: Float[1], minimumTransferAmount: Float[1]): Float[1]
+{
+   if(margin_calc::mgnMeetsMta($callAmount, $minimumTransferAmount), |$callAmount, |0.0)
+}
+
+// Rounding UP to the agreement's increment, in the collector's favour. `ceiling` returns an
+// Integer and `Integer * Float` types as Number, so the cast back to Float is not optional.
+function margin_calc::mgnRoundUp(callAmount: Float[1], roundingAmount: Float[1]): Float[1]
+{
+   ($callAmount / $roundingAmount)->ceiling()->toFloat() * $roundingAmount
+}

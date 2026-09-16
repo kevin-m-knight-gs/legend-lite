@@ -1,0 +1,19 @@
+// COVERS DuckDBLexerGrammar: DuckDB, path
+//
+// Every token DuckDBLexerGrammar.g4 declares -- the whole grammar is two keywords, and
+// duckDBDatasourceSpecification admits exactly one element. Syntax from legend-engine's
+// TestDuckDBConnectionGrammarRoundtrip.testDuckDbDatabaseConnection.
+//
+// `path` is optional (`( path )*`), so `specification: DuckDB { }` also parses; it is
+// written here because the COVERS claim has to appear in the code.
+###Connection
+RelationalDatabaseConnection fixture::t2::DuckDBFull
+{
+  store: fixture::t2::Db;
+  type: DuckDB;
+  specification: DuckDB
+  {
+    path: '/test';
+  };
+  auth: Test;
+}

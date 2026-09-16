@@ -1,0 +1,39 @@
+// REJECTS: Field 'tests' is required
+//
+// A serviceTestSuite may carry `data:` and MUST carry `tests:`. The grammar's suite body is
+// `( serviceTestSuiteData | serviceTestSuiteTests )*` -- both optional, both repeatable --
+// so a suite consisting of nothing but connection data parses cleanly and is refused only
+// afterwards, by name.
+//
+// A suite with data and no tests is exactly what a half-written test file looks like, which
+// is why a permissive rewrite would load it without complaint.
+###Service
+Service fixture::neg::SuiteWithoutTests
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         data:
+         [
+            connections:
+            [
+               c1:
+                  ExternalFormat
+                  #{
+                     contentType: 'application/json';
+                     data: '[]';
+                  }#
+            ]
+         ]
+      }
+   ]
+}

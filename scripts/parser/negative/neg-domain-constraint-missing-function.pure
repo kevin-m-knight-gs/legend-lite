@@ -1,0 +1,25 @@
+// REJECTS: Unexpected token '~enforcementLevel:'
+//
+// Of the five constraint clauses, ~function is the ONLY required one: the rule is
+//     ~owner? ~externalId? ~function ~enforcementLevel? ~message?
+// This writes four optional clauses in perfectly legal order and omits the mandatory one.
+//
+// The failure point is what makes it worth pinning. The parser does not notice "you never
+// gave me a function" at the closing paren -- it reports ~enforcementLevel, because after
+// ~externalId the only token the rule can accept next is '~function'. A rewrite that
+// collects clauses into a map and validates required-ness afterwards will produce a
+// completely different (and later) diagnostic, or none at all if the check is forgotten.
+###Pure
+Class fixture::neg::NoFunctionClause
+[
+   incomplete
+   (
+      ~owner: riskOps
+      ~externalId: 'RISK-002'
+      ~enforcementLevel: Error
+      ~message: 'there is no ~function clause here'
+   )
+]
+{
+   code: String[1];
+}

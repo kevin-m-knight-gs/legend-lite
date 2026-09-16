@@ -1,0 +1,21 @@
+// REJECTS: Field 'points' is required
+//
+// `points` is REQUIRED on a propertyView, and this is the surprising one: an empty list is
+// legal (`points: [];` appears in diagram-full.pure), so the field carries no information
+// when omitted -- and is still mandatory.
+//
+// That combination is what a rewrite gets wrong. "Required" and "may be empty" look
+// contradictory, so the natural implementation defaults a missing points to [] and moves
+// on. It produces the identical protocol legend-engine would have produced from `points:
+// [];` -- which is exactly why nothing downstream ever notices the file should not have
+// loaded.
+###Diagram
+Diagram fixture::neg::NoPoints
+{
+   propertyView
+   {
+      property: fixture::neg::Person.firm;
+      source: a;
+      target: b;
+   }
+}

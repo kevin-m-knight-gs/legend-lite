@@ -1,0 +1,31 @@
+// REJECTS: Field 'auditing' is required
+//
+// `nontemporalSnapshot: INGEST_MODE_NONTEMPORAL_SNAPSHOT BRACE_OPEN (auditing)* BRACE_CLOSE`
+// -- the .g4 says zero auditing blocks are fine, so this tree BUILDS. The requirement is
+// PersistenceParseTreeWalker.visitNontemporalSnapshot (line ~1202), which calls
+// validateAndExtractRequiredField on ctx.auditing().
+//
+// A parser generated straight from the grammar accepts an empty ingest-mode body for every
+// one of the seven modes. This file and its six siblings pin that gap mode by mode.
+###Persistence
+Persistence test::persistence::neg::NonTemporalSnapshotNoAuditing
+{
+  doc: 'nontemporal snapshot with an empty body';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

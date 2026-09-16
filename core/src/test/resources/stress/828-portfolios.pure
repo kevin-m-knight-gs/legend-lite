@@ -1,0 +1,228 @@
+###Pure
+// Portfolios: how positions are grouped, and under whose rules.
+//
+// 18 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 18 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class portfolios::PortfolioRecord
+{
+   portfolioId: String[1];
+   portfolioType: String[1];
+   portfolioName: String[1];
+   baseCurrency: String[1];
+   navUsd: Float[1];
+   inceptionDate: StrictDate[1];
+   benchmarkId: String[1];
+   isActive: Boolean[1];
+   managerId: String[0..1];
+   closedOn: StrictDate[0..1];
+
+   // NAV in millions, which is how every allocation table is drawn.
+   navMillions() { $this.navUsd / 1000000.0 } : Float[1];
+}
+
+// One client, bespoke guidelines.
+Class portfolios::SegregatedMandatePortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Many clients, one strategy.
+Class portfolios::PooledFundPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// European retail fund rules, with hard diversification limits.
+Class portfolios::UcitsPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Everything UCITS is not.
+Class portfolios::AlternativeInvestmentFund extends portfolios::PortfolioRecord
+{
+}
+
+// Short-dated, and expected to be worth par tomorrow.
+Class portfolios::MoneyMarketPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Judged on tracking error rather than return.
+Class portfolios::IndexTrackerPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Rules-based tilts away from capitalisation weights.
+Class portfolios::SmartBetaPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Allocating across classes rather than within one.
+Class portfolios::MultiAssetPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Matching a pension's liabilities, not beating an index.
+Class portfolios::LiabilityDrivenPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Derivatives adjusting exposure without touching the underlying.
+Class portfolios::OverlayPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Positions designated against a specific exposure.
+Class portfolios::HedgePortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Held with intent to trade, marked daily.
+Class portfolios::TradingBookPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Held to maturity, accrual accounted, different capital rules.
+Class portfolios::BankingBookPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// House risk.
+Class portfolios::ProprietaryBookPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// The firm's own money launching a strategy.
+Class portfolios::SeedCapitalPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Holding other funds.
+Class portfolios::FundOfFundsPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Illiquid, valued quarterly, and hard to benchmark.
+Class portfolios::PrivateMarketsPortfolio extends portfolios::PortfolioRecord
+{
+}
+
+// Screened on environmental and social criteria.
+Class portfolios::SustainablePortfolio extends portfolios::PortfolioRecord
+{
+}
+
+###Mapping
+Mapping portfolios::PortfoliosMapping
+(
+   *portfolios::PortfolioRecord[portfoliosBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PORTFOLIO_REGISTER.PORTFOLIO_ID )
+      ~mainTable [store::DB]PORTFOLIO_REGISTER
+      portfolioId: [store::DB]PORTFOLIO_REGISTER.PORTFOLIO_ID,
+      portfolioType: [store::DB]PORTFOLIO_REGISTER.PORTFOLIO_TYPE,
+      portfolioName: [store::DB]PORTFOLIO_REGISTER.PORTFOLIO_NAME,
+      baseCurrency: [store::DB]PORTFOLIO_REGISTER.BASE_CURRENCY,
+      navUsd: [store::DB]PORTFOLIO_REGISTER.NAV_USD,
+      inceptionDate: [store::DB]PORTFOLIO_REGISTER.INCEPTION_DATE,
+      benchmarkId: [store::DB]PORTFOLIO_REGISTER.BENCHMARK_ID,
+      isActive: [store::DB]PORTFOLIO_REGISTER.IS_ACTIVE,
+      managerId: [store::DB]PORTFOLIO_REGISTER.MANAGER_ID,
+      closedOn: [store::DB]PORTFOLIO_REGISTER.CLOSED_ON
+   }
+
+   portfolios::SegregatedMandatePortfolio[pfSegregatedMandate] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfSegregatedMandateRows
+   }
+
+   portfolios::PooledFundPortfolio[pfPooledFund] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfPooledFundRows
+   }
+
+   portfolios::UcitsPortfolio[pfUcits] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfUcitsRows
+   }
+
+   portfolios::AlternativeInvestmentFund[pfAif] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfAifRows
+   }
+
+   portfolios::MoneyMarketPortfolio[pfMoneyMarketPortfolio] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfMoneyMarketPortfolioRows
+   }
+
+   portfolios::IndexTrackerPortfolio[pfIndexTracker] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfIndexTrackerRows
+   }
+
+   portfolios::SmartBetaPortfolio[pfSmartBeta] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfSmartBetaRows
+   }
+
+   portfolios::MultiAssetPortfolio[pfMultiAsset] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfMultiAssetRows
+   }
+
+   portfolios::LiabilityDrivenPortfolio[pfLdi] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfLdiRows
+   }
+
+   portfolios::OverlayPortfolio[pfOverlay] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfOverlayRows
+   }
+
+   portfolios::HedgePortfolio[pfHedgePortfolio] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfHedgePortfolioRows
+   }
+
+   portfolios::TradingBookPortfolio[pfTradingBook] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfTradingBookRows
+   }
+
+   portfolios::BankingBookPortfolio[pfBankingBook] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfBankingBookRows
+   }
+
+   portfolios::ProprietaryBookPortfolio[pfPropBook] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfPropBookRows
+   }
+
+   portfolios::SeedCapitalPortfolio[pfSeedCapital] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfSeedCapitalRows
+   }
+
+   portfolios::FundOfFundsPortfolio[pfFundOfFundsPf] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfFundOfFundsPfRows
+   }
+
+   portfolios::PrivateMarketsPortfolio[pfPrivateMarkets] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfPrivateMarketsRows
+   }
+
+   portfolios::SustainablePortfolio[pfSriPortfolio] extends [portfoliosBase]: Relational
+   {
+      ~filter [store::DB]PfSriPortfolioRows
+   }
+)

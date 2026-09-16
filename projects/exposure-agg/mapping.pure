@@ -1,0 +1,518 @@
+###Mapping
+// exposure_agg::Mapping -- 23 class sets, four of them rooted on aggregation Views.
+//
+// BOTH DEPENDENCY MAPPINGS ARE INCLUDED, and for the same reason the store includes both
+// databases: the property mappings below navigate into credit-core's and collateral-core's
+// sets by id, and a mapping can only name a set it can see. Each of those two mappings
+// already includes core_party::Mapping, so core-party's sets arrive here twice by two routes.
+// That is the diamond at the mapping level and it is the thing worth proving compiles.
+//
+// Every set id here is explicit and `exa`-prefixed. Set ids are a GLOBAL namespace in Legend:
+// one collision anywhere in the graph fails the entire compile with a message that names the
+// id and not the project. Naming them explicitly also means the DEFAULT ids
+// (exposure_agg_ExaNetExposure and the rest) do NOT exist, so anything downstream that
+// `extends` one of these or writes a cross-project AssociationMapping against it must name
+// the explicit id from the manifest.
+//
+// The cross-project property mappings name the DEPENDENCIES' explicit ids -- cdcObligor,
+// cdcExposure, cdcRiskMeasure, cdcPortfolio, colAgreement, colCollateral, colValuation,
+// colMarginCall, colConcentrationLimit. Their default ids do not exist either.
+Mapping exposure_agg::Mapping
+(
+   include credit_core::Mapping
+   include collateral_core::Mapping
+
+   // ------------------------------------------------------------ the apex of the diamond
+   //
+   // The two legs leave from here. `obligor` goes into credit-core, `agreements` goes into
+   // collateral-core, and both are reached from the one ENTITY_ID column.
+   *exposure_agg::ExaCounterparty[exaCounterparty]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_COUNTERPARTY.COUNTERPARTY_ID )
+      ~mainTable [exposure_agg::Store]EXA_COUNTERPARTY
+      counterpartyId: [exposure_agg::Store]EXA_COUNTERPARTY.COUNTERPARTY_ID,
+      entityId: [exposure_agg::Store]EXA_COUNTERPARTY.ENTITY_ID,
+      obligorId: [exposure_agg::Store]EXA_COUNTERPARTY.OBLIGOR_ID,
+      primaryAgreementId: [exposure_agg::Store]EXA_COUNTERPARTY.PRIMARY_AGREEMENT_ID,
+      counterpartyName: [exposure_agg::Store]EXA_COUNTERPARTY.COUNTERPARTY_NAME,
+      sector: [exposure_agg::Store]EXA_COUNTERPARTY.SECTOR,
+      isFinancialInstitution: [exposure_agg::Store]EXA_COUNTERPARTY.IS_FINANCIAL_INSTITUTION,
+      coverageStartDate: [exposure_agg::Store]EXA_COUNTERPARTY.COVERAGE_START_DATE,
+      coverageEndDate: [exposure_agg::Store]EXA_COUNTERPARTY.COVERAGE_END_DATE,
+      obligor[cdcObligor]: [exposure_agg::Store]@Exa_Counterparty_Obligor,
+      agreements[colAgreement]: [exposure_agg::Store]@Exa_Counterparty_Agreement,
+      nettingSets[exaNettingSet]: [exposure_agg::Store]@Exa_Counterparty_NettingSet,
+      netExposures[exaNetExposure]: [exposure_agg::Store]@Exa_Counterparty_NetExposure,
+      dayTotals[exaCounterpartyDayNet]: [exposure_agg::Store]@Exa_Counterparty_DayNet,
+      reviews[exaReview]: [exposure_agg::Store]@Exa_Counterparty_Review,
+      addOns[exaConcentrationAddOn]: [exposure_agg::Store]@Exa_Counterparty_AddOn
+   }
+
+   // ------------------------------------------------------------ netting
+
+   *exposure_agg::ExaNettingSet[exaNettingSet]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_NETTING_SET.NETTING_SET_ID )
+      ~mainTable [exposure_agg::Store]EXA_NETTING_SET
+      nettingSetId: [exposure_agg::Store]EXA_NETTING_SET.NETTING_SET_ID,
+      counterpartyId: [exposure_agg::Store]EXA_NETTING_SET.COUNTERPARTY_ID,
+      agreementId: [exposure_agg::Store]EXA_NETTING_SET.AGREEMENT_ID,
+      nettingSetName: [exposure_agg::Store]EXA_NETTING_SET.NETTING_SET_NAME,
+      nettingBasis: [exposure_agg::Store]EXA_NETTING_SET.NETTING_BASIS,
+      isEnforceable: [exposure_agg::Store]EXA_NETTING_SET.IS_ENFORCEABLE,
+      jurisdiction: [exposure_agg::Store]EXA_NETTING_SET.JURISDICTION,
+      opinionDate: [exposure_agg::Store]EXA_NETTING_SET.OPINION_DATE,
+      baseCurrency: [exposure_agg::Store]EXA_NETTING_SET.BASE_CURRENCY,
+      closedDate: [exposure_agg::Store]EXA_NETTING_SET.CLOSED_DATE,
+      counterparty[exaCounterparty]: [exposure_agg::Store]@Exa_Counterparty_NettingSet,
+      agreement[colAgreement]: [exposure_agg::Store]@Exa_NettingSet_Agreement,
+      members[exaNettingSetMember]: [exposure_agg::Store]@Exa_NettingSet_Member,
+      netExposures[exaNetExposure]: [exposure_agg::Store]@Exa_NettingSet_NetExposure,
+      thresholds[exaThresholdApplication]: [exposure_agg::Store]@Exa_NettingSet_Threshold,
+      dayTotals[exaNettingSetDayNet]: [exposure_agg::Store]@Exa_NettingSet_DayNet
+   }
+
+   // The composite key is the point of this set: (NETTING_SET_ID, EXPOSURE_ID). Keyed by the
+   // exposure alone it could not record an exposure moving between sets, which is exactly
+   // what a renegotiated master agreement does.
+   *exposure_agg::ExaNettingSetMember[exaNettingSetMember]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_NETTING_SET_MEMBER.NETTING_SET_ID,
+         [exposure_agg::Store]EXA_NETTING_SET_MEMBER.EXPOSURE_ID
+      )
+      ~mainTable [exposure_agg::Store]EXA_NETTING_SET_MEMBER
+      nettingSetId: [exposure_agg::Store]EXA_NETTING_SET_MEMBER.NETTING_SET_ID,
+      exposureId: [exposure_agg::Store]EXA_NETTING_SET_MEMBER.EXPOSURE_ID,
+      includedFrom: [exposure_agg::Store]EXA_NETTING_SET_MEMBER.INCLUDED_FROM,
+      includedTo: [exposure_agg::Store]EXA_NETTING_SET_MEMBER.INCLUDED_TO,
+      inclusionReason: [exposure_agg::Store]EXA_NETTING_SET_MEMBER.INCLUSION_REASON,
+      isCarveOut: [exposure_agg::Store]EXA_NETTING_SET_MEMBER.IS_CARVE_OUT,
+      nettingSet[exaNettingSet]: [exposure_agg::Store]@Exa_NettingSet_Member,
+      exposure[cdcExposure]: [exposure_agg::Store]@Exa_Member_Exposure
+   }
+
+   // ------------------------------------------------------------ the gross side
+
+   *exposure_agg::ExaExposureLine[exaExposureLine]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_EXPOSURE_LINE.LINE_ID )
+      ~mainTable [exposure_agg::Store]EXA_EXPOSURE_LINE
+      lineId: [exposure_agg::Store]EXA_EXPOSURE_LINE.LINE_ID,
+      netExposureId: [exposure_agg::Store]EXA_EXPOSURE_LINE.NET_EXPOSURE_ID,
+      nettingSetId: [exposure_agg::Store]EXA_EXPOSURE_LINE.NETTING_SET_ID,
+      exposureId: [exposure_agg::Store]EXA_EXPOSURE_LINE.EXPOSURE_ID,
+      measureId: [exposure_agg::Store]EXA_EXPOSURE_LINE.MEASURE_ID,
+      asOfDate: [exposure_agg::Store]EXA_EXPOSURE_LINE.AS_OF_DATE,
+      grossAmount: [exposure_agg::Store]EXA_EXPOSURE_LINE.GROSS_AMOUNT,
+      addOnAmount: [exposure_agg::Store]EXA_EXPOSURE_LINE.ADD_ON_AMOUNT,
+      currency: [exposure_agg::Store]EXA_EXPOSURE_LINE.CURRENCY,
+      basisCode: [exposure_agg::Store]EXA_EXPOSURE_LINE.BASIS_CODE,
+      netExposure[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Line,
+      exposure[cdcExposure]: [exposure_agg::Store]@Exa_Line_Exposure,
+      riskMeasure[cdcRiskMeasure]: [exposure_agg::Store]@Exa_Line_RiskMeasure,
+      basis[exaValuationBasis]: [exposure_agg::Store]@Exa_Line_Basis
+   }
+
+   *exposure_agg::ExaValuationBasis[exaValuationBasis]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_VALUATION_BASIS.BASIS_CODE )
+      ~mainTable [exposure_agg::Store]EXA_VALUATION_BASIS
+      basisCode: [exposure_agg::Store]EXA_VALUATION_BASIS.BASIS_CODE,
+      basisName: [exposure_agg::Store]EXA_VALUATION_BASIS.BASIS_NAME,
+      measuresPfe: [exposure_agg::Store]EXA_VALUATION_BASIS.MEASURES_PFE,
+      horizonDays: [exposure_agg::Store]EXA_VALUATION_BASIS.HORIZON_DAYS,
+      confidenceLevel: [exposure_agg::Store]EXA_VALUATION_BASIS.CONFIDENCE_LEVEL,
+      methodology: [exposure_agg::Store]EXA_VALUATION_BASIS.METHODOLOGY,
+      netExposures[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Basis,
+      exposureLines[exaExposureLine]: [exposure_agg::Store]@Exa_Line_Basis
+   }
+
+   // ------------------------------------------------------------ the collateral side
+   //
+   // The two OR-JOIN navigations live here. `wrongWayRules` and `concentrationBuckets` each
+   // resolve over an unqualified `or` and each return EVERY policy row that hits on either
+   // axis -- to-many, as the class declares.
+   *exposure_agg::ExaCollateralPosition[exaCollateralPosition]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_COLLATERAL_POSITION.POSITION_ID )
+      ~mainTable [exposure_agg::Store]EXA_COLLATERAL_POSITION
+      positionId: [exposure_agg::Store]EXA_COLLATERAL_POSITION.POSITION_ID,
+      netExposureId: [exposure_agg::Store]EXA_COLLATERAL_POSITION.NET_EXPOSURE_ID,
+      nettingSetId: [exposure_agg::Store]EXA_COLLATERAL_POSITION.NETTING_SET_ID,
+      collateralId: [exposure_agg::Store]EXA_COLLATERAL_POSITION.COLLATERAL_ID,
+      counterpartyId: [exposure_agg::Store]EXA_COLLATERAL_POSITION.COUNTERPARTY_ID,
+      issuerEntityId: [exposure_agg::Store]EXA_COLLATERAL_POSITION.ISSUER_ENTITY_ID,
+      assetClass: [exposure_agg::Store]EXA_COLLATERAL_POSITION.ASSET_CLASS,
+      asOfDate: [exposure_agg::Store]EXA_COLLATERAL_POSITION.AS_OF_DATE,
+      marketValue: [exposure_agg::Store]EXA_COLLATERAL_POSITION.MARKET_VALUE,
+      haircutPct: [exposure_agg::Store]EXA_COLLATERAL_POSITION.HAIRCUT_PCT,
+      fxHaircutPct: [exposure_agg::Store]EXA_COLLATERAL_POSITION.FX_HAIRCUT_PCT,
+      collateralValue: [exposure_agg::Store]EXA_COLLATERAL_POSITION.COLLATERAL_VALUE,
+      currency: [exposure_agg::Store]EXA_COLLATERAL_POSITION.CURRENCY,
+      isDisputed: [exposure_agg::Store]EXA_COLLATERAL_POSITION.IS_DISPUTED,
+      netExposure[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Position,
+      collateral[colCollateral]: [exposure_agg::Store]@Exa_Position_Collateral,
+      valuation[colValuation]: [exposure_agg::Store]@Exa_Position_Valuation,
+      haircuts[exaHaircutApplication]: [exposure_agg::Store]@Exa_Position_Haircut,
+      wrongWayRules[exaWrongWayRule]: [exposure_agg::Store]@Exa_WrongWayScope,
+      concentrationBuckets[exaConcentrationBucket]: [exposure_agg::Store]@Exa_ConcentrationScope,
+      issuerTotal[exaCollateralIssuerTotal]: [exposure_agg::Store]@Exa_Position_IssuerTotal
+   }
+
+   // COMPOSITE KEY (POSITION_ID, AS_OF_DATE): the haircut struck today and the haircut struck
+   // yesterday are two rows, because the call that was disputed was made on the old one.
+   *exposure_agg::ExaHaircutApplication[exaHaircutApplication]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.POSITION_ID,
+         [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.AS_OF_DATE
+      )
+      ~mainTable [exposure_agg::Store]EXA_HAIRCUT_APPLICATION
+      positionId: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.POSITION_ID,
+      asOfDate: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.AS_OF_DATE,
+      haircutSource: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.HAIRCUT_SOURCE,
+      baseHaircutPct: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.BASE_HAIRCUT_PCT,
+      fxHaircutPct: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.FX_HAIRCUT_PCT,
+      maturityHaircutPct: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.MATURITY_HAIRCUT_PCT,
+      appliedHaircutPct: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.APPLIED_HAIRCUT_PCT,
+      ratingBand: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.RATING_BAND,
+      approvedBy: [exposure_agg::Store]EXA_HAIRCUT_APPLICATION.APPROVED_BY,
+      position[exaCollateralPosition]: [exposure_agg::Store]@Exa_Position_Haircut
+   }
+
+   // ------------------------------------------------------------ THE GRAIN
+   //
+   // The first set in the graph whose row has a credit number and a collateral number on it
+   // at the same time. Everything below it is explanation and everything above it is a group.
+   *exposure_agg::ExaNetExposure[exaNetExposure]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_NET_EXPOSURE.NET_EXPOSURE_ID )
+      ~mainTable [exposure_agg::Store]EXA_NET_EXPOSURE
+      netExposureId: [exposure_agg::Store]EXA_NET_EXPOSURE.NET_EXPOSURE_ID,
+      runId: [exposure_agg::Store]EXA_NET_EXPOSURE.RUN_ID,
+      counterpartyId: [exposure_agg::Store]EXA_NET_EXPOSURE.COUNTERPARTY_ID,
+      nettingSetId: [exposure_agg::Store]EXA_NET_EXPOSURE.NETTING_SET_ID,
+      portfolioId: [exposure_agg::Store]EXA_NET_EXPOSURE.PORTFOLIO_ID,
+      asOfDate: [exposure_agg::Store]EXA_NET_EXPOSURE.AS_OF_DATE,
+      basisCode: [exposure_agg::Store]EXA_NET_EXPOSURE.BASIS_CODE,
+      grossExposure: [exposure_agg::Store]EXA_NET_EXPOSURE.GROSS_EXPOSURE,
+      collateralValue: [exposure_agg::Store]EXA_NET_EXPOSURE.COLLATERAL_VALUE,
+      netExposure: [exposure_agg::Store]EXA_NET_EXPOSURE.NET_EXPOSURE_AMOUNT,
+      independentAmount: [exposure_agg::Store]EXA_NET_EXPOSURE.INDEPENDENT_AMOUNT,
+      thresholdAmount: [exposure_agg::Store]EXA_NET_EXPOSURE.THRESHOLD_AMOUNT,
+      concentrationAddOn: [exposure_agg::Store]EXA_NET_EXPOSURE.CONCENTRATION_ADD_ON,
+      wrongWayMultiplier: [exposure_agg::Store]EXA_NET_EXPOSURE.WRONG_WAY_MULTIPLIER,
+      reportingCurrency: [exposure_agg::Store]EXA_NET_EXPOSURE.REPORTING_CURRENCY,
+      isStale: [exposure_agg::Store]EXA_NET_EXPOSURE.IS_STALE,
+      counterparty[exaCounterparty]: [exposure_agg::Store]@Exa_Counterparty_NetExposure,
+      nettingSet[exaNettingSet]: [exposure_agg::Store]@Exa_NettingSet_NetExposure,
+      run[exaRun]: [exposure_agg::Store]@Exa_NetExposure_Run,
+      basis[exaValuationBasis]: [exposure_agg::Store]@Exa_NetExposure_Basis,
+      portfolio[cdcPortfolio]: [exposure_agg::Store]@Exa_NetExposure_Portfolio,
+      exposureLines[exaExposureLine]: [exposure_agg::Store]@Exa_NetExposure_Line,
+      collateralPositions[exaCollateralPosition]: [exposure_agg::Store]@Exa_NetExposure_Position,
+      assessments[exaWrongWayAssessment]: [exposure_agg::Store]@Exa_NetExposure_Assessment,
+      adjustments[exaAdjustment]: [exposure_agg::Store]@Exa_NetExposure_Adjustment,
+      shortfalls[exaShortfall]: [exposure_agg::Store]@Exa_NetExposure_Shortfall,
+      breaks[exaBreak]: [exposure_agg::Store]@Exa_NetExposure_Break,
+      counterpartyDayNet[exaCounterpartyDayNet]: [exposure_agg::Store]@Exa_NetExposure_CounterpartyDayNet,
+      nettingSetDayNet[exaNettingSetDayNet]: [exposure_agg::Store]@Exa_NetExposure_NettingSetDayNet,
+      portfolioDayNet[exaPortfolioDayNet]: [exposure_agg::Store]@Exa_NetExposure_PortfolioDayNet
+   }
+
+   *exposure_agg::ExaExposureRun[exaRun]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_RUN.RUN_ID )
+      ~mainTable [exposure_agg::Store]EXA_RUN
+      runId: [exposure_agg::Store]EXA_RUN.RUN_ID,
+      asOfDate: [exposure_agg::Store]EXA_RUN.AS_OF_DATE,
+      runType: [exposure_agg::Store]EXA_RUN.RUN_TYPE,
+      startedAt: [exposure_agg::Store]EXA_RUN.STARTED_AT,
+      completedAt: [exposure_agg::Store]EXA_RUN.COMPLETED_AT,
+      exposureCount: [exposure_agg::Store]EXA_RUN.EXPOSURE_COUNT,
+      sourceSystem: [exposure_agg::Store]EXA_RUN.SOURCE_SYSTEM,
+      triggeredBy: [exposure_agg::Store]EXA_RUN.TRIGGERED_BY,
+      netExposures[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Run
+   }
+
+   // ------------------------------------------------------------ wrong-way risk
+
+   // The other end of the first OR-JOIN. `scopedCollateral` returns every position caught on
+   // either axis, which is why it is to-many.
+   *exposure_agg::ExaWrongWayRule[exaWrongWayRule]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_WRONG_WAY_RULE.RULE_ID )
+      ~mainTable [exposure_agg::Store]EXA_WRONG_WAY_RULE
+      ruleId: [exposure_agg::Store]EXA_WRONG_WAY_RULE.RULE_ID,
+      ruleName: [exposure_agg::Store]EXA_WRONG_WAY_RULE.RULE_NAME,
+      ruleBasis: [exposure_agg::Store]EXA_WRONG_WAY_RULE.RULE_BASIS,
+      relatedEntityId: [exposure_agg::Store]EXA_WRONG_WAY_RULE.RELATED_ENTITY_ID,
+      relatedAssetClass: [exposure_agg::Store]EXA_WRONG_WAY_RULE.RELATED_ASSET_CLASS,
+      correlationLevel: [exposure_agg::Store]EXA_WRONG_WAY_RULE.CORRELATION_LEVEL,
+      multiplier: [exposure_agg::Store]EXA_WRONG_WAY_RULE.MULTIPLIER,
+      isSpecific: [exposure_agg::Store]EXA_WRONG_WAY_RULE.IS_SPECIFIC,
+      effectiveDate: [exposure_agg::Store]EXA_WRONG_WAY_RULE.EFFECTIVE_DATE,
+      expiryDate: [exposure_agg::Store]EXA_WRONG_WAY_RULE.EXPIRY_DATE,
+      scopedCollateral[exaCollateralPosition]: [exposure_agg::Store]@Exa_WrongWayScope,
+      assessments[exaWrongWayAssessment]: [exposure_agg::Store]@Exa_Assessment_Rule
+   }
+
+   *exposure_agg::ExaWrongWayAssessment[exaWrongWayAssessment]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.ASSESSMENT_ID )
+      ~mainTable [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT
+      assessmentId: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.ASSESSMENT_ID,
+      netExposureId: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.NET_EXPOSURE_ID,
+      ruleId: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.RULE_ID,
+      asOfDate: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.AS_OF_DATE,
+      wrongWayType: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.WRONG_WAY_TYPE,
+      matchedOnAxis: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.MATCHED_ON_AXIS,
+      correlationEstimate: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.CORRELATION_ESTIMATE,
+      appliedMultiplier: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.APPLIED_MULTIPLIER,
+      upliftAmount: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.UPLIFT_AMOUNT,
+      assessedBy: [exposure_agg::Store]EXA_WRONG_WAY_ASSESSMENT.ASSESSED_BY,
+      netExposure[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Assessment,
+      rule[exaWrongWayRule]: [exposure_agg::Store]@Exa_Assessment_Rule
+   }
+
+   // ------------------------------------------------------------ concentration
+
+   // The other end of the second OR-JOIN.
+   *exposure_agg::ExaConcentrationBucket[exaConcentrationBucket]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.BUCKET_CODE )
+      ~mainTable [exposure_agg::Store]EXA_CONCENTRATION_BUCKET
+      bucketCode: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.BUCKET_CODE,
+      bucketName: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.BUCKET_NAME,
+      bucketBasis: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.BUCKET_BASIS,
+      bucketIssuerId: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.BUCKET_ISSUER_ID,
+      bucketAssetClass: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.BUCKET_ASSET_CLASS,
+      isSingleName: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.IS_SINGLE_NAME,
+      thresholdPct: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.THRESHOLD_PCT,
+      isRegulatory: [exposure_agg::Store]EXA_CONCENTRATION_BUCKET.IS_REGULATORY,
+      bucketedCollateral[exaCollateralPosition]: [exposure_agg::Store]@Exa_ConcentrationScope,
+      addOns[exaConcentrationAddOn]: [exposure_agg::Store]@Exa_Bucket_AddOn,
+      rates[exaAddOnRate]: [exposure_agg::Store]@Exa_Bucket_Rate
+   }
+
+   // COMPOSITE KEY (BUCKET_CODE, BAND_CODE): every bucket has its own curve over the same
+   // bands, so the band alone is not a key.
+   *exposure_agg::ExaAddOnRate[exaAddOnRate]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_ADD_ON_RATE.BUCKET_CODE,
+         [exposure_agg::Store]EXA_ADD_ON_RATE.BAND_CODE
+      )
+      ~mainTable [exposure_agg::Store]EXA_ADD_ON_RATE
+      bucketCode: [exposure_agg::Store]EXA_ADD_ON_RATE.BUCKET_CODE,
+      bandCode: [exposure_agg::Store]EXA_ADD_ON_RATE.BAND_CODE,
+      minSharePct: [exposure_agg::Store]EXA_ADD_ON_RATE.MIN_SHARE_PCT,
+      maxSharePct: [exposure_agg::Store]EXA_ADD_ON_RATE.MAX_SHARE_PCT,
+      addOnRatePct: [exposure_agg::Store]EXA_ADD_ON_RATE.ADD_ON_RATE_PCT,
+      isRegulatory: [exposure_agg::Store]EXA_ADD_ON_RATE.IS_REGULATORY,
+      bucket[exaConcentrationBucket]: [exposure_agg::Store]@Exa_Bucket_Rate
+   }
+
+   *exposure_agg::ExaConcentrationAddOn[exaConcentrationAddOn]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.ADD_ON_ID )
+      ~mainTable [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON
+      addOnId: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.ADD_ON_ID,
+      counterpartyId: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.COUNTERPARTY_ID,
+      bucketCode: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.BUCKET_CODE,
+      limitId: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.LIMIT_ID,
+      asOfDate: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.AS_OF_DATE,
+      exposedValue: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.EXPOSED_VALUE,
+      bucketSharePct: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.BUCKET_SHARE_PCT,
+      excessPct: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.EXCESS_PCT,
+      appliedRatePct: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.APPLIED_RATE_PCT,
+      addOnAmount: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.ADD_ON_AMOUNT,
+      isBreach: [exposure_agg::Store]EXA_CONCENTRATION_ADD_ON.IS_BREACH,
+      counterparty[exaCounterparty]: [exposure_agg::Store]@Exa_Counterparty_AddOn,
+      bucket[exaConcentrationBucket]: [exposure_agg::Store]@Exa_Bucket_AddOn,
+      concentrationLimit[colConcentrationLimit]: [exposure_agg::Store]@Exa_AddOn_Limit
+   }
+
+   // ------------------------------------------------------------ what happens to the net
+
+   // COMPOSITE KEY (NETTING_SET_ID, AS_OF_DATE): the CSA terms are re-applied daily and
+   // yesterday's application is still the answer to yesterday's question.
+   *exposure_agg::ExaThresholdApplication[exaThresholdApplication]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.NETTING_SET_ID,
+         [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.AS_OF_DATE
+      )
+      ~mainTable [exposure_agg::Store]EXA_THRESHOLD_APPLICATION
+      nettingSetId: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.NETTING_SET_ID,
+      asOfDate: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.AS_OF_DATE,
+      thresholdAmount: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.THRESHOLD_AMOUNT,
+      minimumTransferAmount: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.MINIMUM_TRANSFER_AMOUNT,
+      independentAmount: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.INDEPENDENT_AMOUNT,
+      roundingAmount: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.ROUNDING_AMOUNT,
+      requiredCollateral: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.REQUIRED_COLLATERAL,
+      deliveredCollateral: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.DELIVERED_COLLATERAL,
+      appliedBy: [exposure_agg::Store]EXA_THRESHOLD_APPLICATION.APPLIED_BY,
+      nettingSet[exaNettingSet]: [exposure_agg::Store]@Exa_NettingSet_Threshold
+   }
+
+   *exposure_agg::ExaExposureAdjustment[exaAdjustment]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_ADJUSTMENT.ADJUSTMENT_ID )
+      ~mainTable [exposure_agg::Store]EXA_ADJUSTMENT
+      adjustmentId: [exposure_agg::Store]EXA_ADJUSTMENT.ADJUSTMENT_ID,
+      netExposureId: [exposure_agg::Store]EXA_ADJUSTMENT.NET_EXPOSURE_ID,
+      adjustmentType: [exposure_agg::Store]EXA_ADJUSTMENT.ADJUSTMENT_TYPE,
+      adjustmentAmount: [exposure_agg::Store]EXA_ADJUSTMENT.ADJUSTMENT_AMOUNT,
+      reason: [exposure_agg::Store]EXA_ADJUSTMENT.REASON,
+      raisedBy: [exposure_agg::Store]EXA_ADJUSTMENT.RAISED_BY,
+      raisedDate: [exposure_agg::Store]EXA_ADJUSTMENT.RAISED_DATE,
+      approvedBy: [exposure_agg::Store]EXA_ADJUSTMENT.APPROVED_BY,
+      approvedDate: [exposure_agg::Store]EXA_ADJUSTMENT.APPROVED_DATE,
+      expiryDate: [exposure_agg::Store]EXA_ADJUSTMENT.EXPIRY_DATE,
+      netExposure[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Adjustment
+   }
+
+   *exposure_agg::ExaCollateralShortfall[exaShortfall]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_SHORTFALL.SHORTFALL_ID )
+      ~mainTable [exposure_agg::Store]EXA_SHORTFALL
+      shortfallId: [exposure_agg::Store]EXA_SHORTFALL.SHORTFALL_ID,
+      netExposureId: [exposure_agg::Store]EXA_SHORTFALL.NET_EXPOSURE_ID,
+      asOfDate: [exposure_agg::Store]EXA_SHORTFALL.AS_OF_DATE,
+      requiredValue: [exposure_agg::Store]EXA_SHORTFALL.REQUIRED_VALUE,
+      heldValue: [exposure_agg::Store]EXA_SHORTFALL.HELD_VALUE,
+      shortfallAmount: [exposure_agg::Store]EXA_SHORTFALL.SHORTFALL_AMOUNT,
+      ageDays: [exposure_agg::Store]EXA_SHORTFALL.AGE_DAYS,
+      escalationLevel: [exposure_agg::Store]EXA_SHORTFALL.ESCALATION_LEVEL,
+      clearedDate: [exposure_agg::Store]EXA_SHORTFALL.CLEARED_DATE,
+      netExposure[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Shortfall
+   }
+
+   // The reconciliation set: the only place in the graph where a credit number and a
+   // collateral number are compared, because it is the only place both are present.
+   *exposure_agg::ExaExposureBreak[exaBreak]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_BREAK.BREAK_ID )
+      ~mainTable [exposure_agg::Store]EXA_BREAK
+      breakId: [exposure_agg::Store]EXA_BREAK.BREAK_ID,
+      netExposureId: [exposure_agg::Store]EXA_BREAK.NET_EXPOSURE_ID,
+      callId: [exposure_agg::Store]EXA_BREAK.CALL_ID,
+      breakType: [exposure_agg::Store]EXA_BREAK.BREAK_TYPE,
+      creditSideAmount: [exposure_agg::Store]EXA_BREAK.CREDIT_SIDE_AMOUNT,
+      collateralSideAmount: [exposure_agg::Store]EXA_BREAK.COLLATERAL_SIDE_AMOUNT,
+      toleranceAmount: [exposure_agg::Store]EXA_BREAK.TOLERANCE_AMOUNT,
+      detectedDate: [exposure_agg::Store]EXA_BREAK.DETECTED_DATE,
+      resolvedDate: [exposure_agg::Store]EXA_BREAK.RESOLVED_DATE,
+      resolvedBy: [exposure_agg::Store]EXA_BREAK.RESOLVED_BY,
+      netExposure[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_Break,
+      marginCall[colMarginCall]: [exposure_agg::Store]@Exa_Break_MarginCall
+   }
+
+   *exposure_agg::ExaCreditOfficerReview[exaReview]: Relational
+   {
+      ~primaryKey ( [exposure_agg::Store]EXA_REVIEW.REVIEW_ID )
+      ~mainTable [exposure_agg::Store]EXA_REVIEW
+      reviewId: [exposure_agg::Store]EXA_REVIEW.REVIEW_ID,
+      counterpartyId: [exposure_agg::Store]EXA_REVIEW.COUNTERPARTY_ID,
+      asOfDate: [exposure_agg::Store]EXA_REVIEW.AS_OF_DATE,
+      reviewedNet: [exposure_agg::Store]EXA_REVIEW.REVIEWED_NET,
+      officer: [exposure_agg::Store]EXA_REVIEW.OFFICER,
+      comment: [exposure_agg::Store]EXA_REVIEW.COMMENT,
+      signedOffDate: [exposure_agg::Store]EXA_REVIEW.SIGNED_OFF_DATE,
+      nextReviewDate: [exposure_agg::Store]EXA_REVIEW.NEXT_REVIEW_DATE,
+      counterparty[exaCounterparty]: [exposure_agg::Store]@Exa_Counterparty_Review
+   }
+
+   // ------------------------------------------------------------ THE AGGREGATE SETS
+   //
+   // Rooted on Views. The ~primaryKey IS the ~groupBy, so an instance is a GROUP: querying one
+   // of these folds a GROUP BY into the SQL instead of reading the rows underneath it.
+
+   // THE HEADLINE SET: net exposure per counterparty per date, which is what a credit officer
+   // reads. Everything else in this project exists so that this set's four numbers can be
+   // believed.
+   *exposure_agg::ExaCounterpartyDayNet[exaCounterpartyDayNet]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.COUNTERPARTY_ID,
+         [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.AS_OF_DATE
+      )
+      ~mainTable [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET
+      counterpartyId: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.COUNTERPARTY_ID,
+      asOfDate: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.AS_OF_DATE,
+      nettingSetCount: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.NETTING_SET_COUNT,
+      totalGrossExposure: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.TOTAL_GROSS_EXPOSURE,
+      totalCollateralValue: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.TOTAL_COLLATERAL_VALUE,
+      totalNetExposure: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.TOTAL_NET_EXPOSURE,
+      largestNetExposure: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.LARGEST_NET_EXPOSURE,
+      totalConcentrationAddOn: [exposure_agg::Store]EXA_COUNTERPARTY_DAY_NET.TOTAL_CONCENTRATION_ADD_ON,
+      counterparty[exaCounterparty]: [exposure_agg::Store]@Exa_Counterparty_DayNet,
+      netExposures[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_CounterpartyDayNet
+   }
+
+   *exposure_agg::ExaNettingSetDayNet[exaNettingSetDayNet]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.NETTING_SET_ID,
+         [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.AS_OF_DATE
+      )
+      ~mainTable [exposure_agg::Store]EXA_NETTING_SET_DAY_NET
+      nettingSetId: [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.NETTING_SET_ID,
+      asOfDate: [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.AS_OF_DATE,
+      exposureCount: [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.EXPOSURE_COUNT,
+      totalGrossExposure: [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.TOTAL_GROSS_EXPOSURE,
+      totalCollateralValue: [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.TOTAL_COLLATERAL_VALUE,
+      totalNetExposure: [exposure_agg::Store]EXA_NETTING_SET_DAY_NET.TOTAL_NET_EXPOSURE,
+      nettingSet[exaNettingSet]: [exposure_agg::Store]@Exa_NettingSet_DayNet,
+      netExposures[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_NettingSetDayNet
+   }
+
+   // Grouped out of the POSITION table and by the ISSUER -- the one dimension the net
+   // exposure row does not carry, and the one the concentration add-on is charged from.
+   *exposure_agg::ExaCollateralIssuerTotal[exaCollateralIssuerTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.COUNTERPARTY_ID,
+         [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.ISSUER_ENTITY_ID,
+         [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.AS_OF_DATE
+      )
+      ~mainTable [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL
+      counterpartyId: [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.COUNTERPARTY_ID,
+      issuerEntityId: [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.ISSUER_ENTITY_ID,
+      asOfDate: [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.AS_OF_DATE,
+      pieceCount: [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.PIECE_COUNT,
+      totalMarketValue: [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.TOTAL_MARKET_VALUE,
+      totalCollateralValue: [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.TOTAL_COLLATERAL_VALUE,
+      largestPieceValue: [exposure_agg::Store]EXA_COLLATERAL_ISSUER_TOTAL.LARGEST_PIECE_VALUE,
+      positions[exaCollateralPosition]: [exposure_agg::Store]@Exa_Position_IssuerTotal
+   }
+
+   // The set with a CROSS-PROJECT join leaving a ~groupBy: an aggregate still knows whose
+   // credit portfolio it is.
+   *exposure_agg::ExaPortfolioDayNet[exaPortfolioDayNet]: Relational
+   {
+      ~primaryKey
+      (
+         [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.PORTFOLIO_ID,
+         [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.AS_OF_DATE
+      )
+      ~mainTable [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET
+      portfolioId: [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.PORTFOLIO_ID,
+      asOfDate: [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.AS_OF_DATE,
+      counterpartyCount: [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.COUNTERPARTY_COUNT,
+      totalGrossExposure: [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.TOTAL_GROSS_EXPOSURE,
+      totalNetExposure: [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.TOTAL_NET_EXPOSURE,
+      largestNetExposure: [exposure_agg::Store]EXA_PORTFOLIO_DAY_NET.LARGEST_NET_EXPOSURE,
+      portfolio[cdcPortfolio]: [exposure_agg::Store]@Exa_PortfolioDayNet_Portfolio,
+      netExposures[exaNetExposure]: [exposure_agg::Store]@Exa_NetExposure_PortfolioDayNet
+   }
+)

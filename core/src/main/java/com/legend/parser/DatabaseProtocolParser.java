@@ -914,10 +914,30 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     /** {@code [} opens either a db-qualifier or a literal list — a literal
      *  or string first token means list. */
-    private boolean looksLikeLiteralList() {
-        TokenType n = peek(1);
-        return n == TokenType.INTEGER || n == TokenType.FLOAT
-                || n == TokenType.STRING;
+    /** At a {@code [}: is this a {@code databasePointer} ({@code [db]}
+     *  qualifying what follows) rather than a {@code
+     *  functionOperationArgumentArray}? The engine's ANTLR prediction
+     *  settles the same ambiguity: the bracket holds exactly one qualified
+     *  name AND the token after {@code ]} continues an operation (an
+     *  identifier, a quoted identifier, {@code @} or {@code (}). An array
+     *  is anything else — a constant or a nested {@code [} inside, or a
+     *  {@code ]} closing straight onto {@code ,} {@code ]} {@code )}. */
+    private boolean looksLikeDbPointer() {
+        int i = pos + 1;
+        if (!isIdentifierToken(tokens.type(i))) {
+            return false;
+        }
+        i++;
+        while (i + 1 < tokens.count() && tokens.type(i) == TokenType.PATH_SEPARATOR
+                && isIdentifierToken(tokens.type(i + 1))) {
+            i += 2;
+        }
+        if (i >= tokens.count() || tokens.type(i) != TokenType.BRACKET_CLOSE) {
+            return false;
+        }
+        TokenType after = i + 1 < tokens.count() ? tokens.type(i + 1) : TokenType.EOF;
+        return isIdentifierToken(after) || after == TokenType.QUOTED_STRING
+                || after == TokenType.AT || after == TokenType.PAREN_OPEN;
     }
 
     /** One function-operation argument: an operation, or a LAMBDA (4.145.0
@@ -1017,7 +1037,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     spanOf(s, s)), "{target}",
                     span);
         }
-        if (peek() == TokenType.BRACKET_OPEN && !looksLikeLiteralList()
+        if (peek() == TokenType.BRACKET_OPEN && looksLikeDbPointer()
                 && bracketLeadsToAt()) {
             // [db]@Join — bracket-qualified join nav; span INCLUDES the db
             // pointer (probe assoc-spans E=16 at the '[')
@@ -1034,7 +1054,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             }
             return parseJoinNav(db, schemaCtx, bS, firstType);
         }
-        if (peek() == TokenType.BRACKET_OPEN && !looksLikeLiteralList()) {
+        if (peek() == TokenType.BRACKET_OPEN && looksLikeDbPointer()) {
             // [db]table.col — bracket-qualified ref: the bracket db becomes
             // the pointer's database; ptr srcInfo = TABLE token only,
             // column span starts at the BRACKET (probe db-qualified)
@@ -1087,25 +1107,17 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     db, schema, table, spanOf(firstTok, tblEndTok)), table,
                     spanOf(s, pos - 1));
         }
-        if (peek() == TokenType.BRACKET_OPEN && looksLikeLiteralList()) {
+        if (peek() == TokenType.BRACKET_OPEN) {
+            // functionOperationArgumentArray: every element is itself a
+            // function-operation argument (constant, column, dynaFunc,
+            // lambda, nested array) — the engine's walker visits each
+            // through visitFunctionOperationArgument, so the same entry
+            // parses each element here
             int lS = pos;
             advance();
-            List<Protocol.PRelLiteral> items = new ArrayList<>();
+            List<Protocol.PRelOp> items = new ArrayList<>();
             while (peek() != TokenType.BRACKET_CLOSE && !atEnd()) {
-                int iS = pos;
-                Object v;
-                if (peek() == TokenType.STRING) {
-                    v = TokenStreamCursor.unquoteAndUnescape(text(), this);
-                } else if (peek() == TokenType.INTEGER) {
-                    v = Long.parseLong(text());
-                } else if (peek() == TokenType.FLOAT) {
-                    v = Double.parseDouble(text());
-                } else {
-                    throw error("unsupported literal-list element: "
-                            + safeText());
-                }
-                advance();
-                items.add(new Protocol.PRelLiteral(v, spanOf(iS, iS)));
+                items.add(parseFunctionArgument(schemaCtx));
                 match(TokenType.COMMA);
             }
             expect(TokenType.BRACKET_CLOSE);

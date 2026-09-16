@@ -1,0 +1,311 @@
+###Pure
+
+// ============================================================
+// core-geo (L0) -- where a thing is, in three levels
+// ============================================================
+// The one job of this project is the JOIN CHAIN. A country sits in a UN M49 sub-region, a
+// sub-region sits in a coverage macro-region (AMER/EMEA/APAC), and a country accedes to an
+// economic bloc through a dated membership row. So a downstream project that owns nothing
+// but a two-letter country code can reach a macro-region in two hops and a bloc in two more,
+// without ever declaring a join of its own -- it navigates ASSOCIATION ENDS.
+//
+// It has no dependencies on purpose. A geography that referred to a currency enum would make
+// core-types a transitive dependency of everything that needs to know where a client is.
+//
+// The codes here are the real ones -- ISO 3166-1 alpha-2 and alpha-3, ISO 3166-2 for
+// subdivisions, UN M49 for the sub-regions, ISO 639-1 for languages, IANA for time zones --
+// because a geography whose codes are invented is a geography nobody can join to a vendor
+// feed. Values are given in the comments; the tables are declared and unseeded, per contract.
+
+// ---------------------------------------------------------------- level 3: macro-region
+// FOR: the coverage bucket a desk, a report or a headcount is actually organised by. Three
+// values in practice -- AMER, EMEA, APAC -- which is why it is a table and not an enum: the
+// fourth one always arrives (LATAM split out of AMER) and an enum change is a recompile of
+// every project above this one.
+Class core_geo::CgMacroRegion
+{
+   macroRegionId: String[1];
+   // AMER, EMEA, APAC.
+   code: String[1];
+   name: String[1];
+   description: String[0..1];
+   // The office the region is run from: 'New York', 'London', 'Hong Kong'.
+   headquartersCity: String[0..1];
+   isActive: Boolean[1];
+}
+
+// ---------------------------------------------------------------- level 2: sub-region
+// FOR: the middle hop of the chain, and the only level with an external standard behind it.
+// UN M49 geographic sub-regions -- Western Europe (155), Northern America (021),
+// South-Eastern Asia (035) -- so a country's sub-region can be checked against a published
+// list rather than argued about.
+Class core_geo::CgSubRegion
+{
+   subRegionId: String[1];
+   // UN M49 numeric code as a string, because '021' is not 21.
+   m49Code: String[1];
+   name: String[1];
+   // The M49 continental region this sits under: Europe, Asia, Americas, Africa, Oceania.
+   continent: String[0..1];
+   isActive: Boolean[1];
+}
+
+// ---------------------------------------------------------------- level 1: country
+// FOR: the anchor of the whole project. Everything downstream keys on the alpha-2 code, so
+// that is the primary key: a client's domicile, an instrument's listing venue and a legal
+// entity's jurisdiction all spell the same country the same way.
+Class core_geo::CgCountry
+{
+   // ISO 3166-1 alpha-2: US, GB, DE, FR, JP, SG, BR, ZA.
+   countryCode: String[1];
+   // ISO 3166-1 alpha-3: USA, GBR, DEU, FRA, JPN, SGP, BRA, ZAF.
+   alpha3Code: String[1];
+   // ISO 3166-1 numeric, kept as a string to preserve the leading zeros (US is '840',
+   // Australia is '036').
+   numericCode: String[0..1];
+   // The short name a report prints: 'Germany', not 'Federal Republic of Germany'.
+   name: String[1];
+   officialName: String[0..1];
+   // False for the dependent territories that still carry their own alpha-2 code and their
+   // own market infrastructure -- HK, PR, GI. Downstream regulatory scope turns on this.
+   isSovereign: Boolean[1];
+   // ISO 4217 alpha code of the country's legal tender, as a STRING rather than a reference
+   // to core-types: see the header on why this project has no dependencies.
+   currencyCode: String[0..1];
+   // E.164 country calling code, '+44'.
+   callingCode: String[0..1];
+   // ccTLD, '.de'.
+   topLevelDomain: String[0..1];
+   // -------- the join chain, flattened.
+   // These two are the point of the project. They are NOT stored on CG_COUNTRY: the mapping
+   // reaches them through @Cg_CountrySubRegion > @Cg_SubRegionMacroRegion, two hops, so a
+   // downstream query can group by macro-region without navigating anything or knowing that
+   // sub-regions exist at all. The association ends remain available for the callers that
+   // want the objects rather than the labels.
+   macroRegionCode: String[0..1];
+   macroRegionName: String[0..1];
+}
+
+// FOR: the level below a country -- ISO 3166-2 states, provinces and cantons. Present
+// because tax and regulatory reporting is subdivision-level in exactly the places that
+// matter most (US states, Canadian provinces, Swiss cantons) and a country-only geography
+// forces every one of those projects to invent its own.
+Class core_geo::CgSubdivision
+{
+   // ISO 3166-2, which already carries its country: 'US-NY', 'DE-BY', 'CH-ZH', 'CA-ON'.
+   subdivisionCode: String[1];
+   name: String[1];
+   // What the country itself calls this level: state, province, canton, prefecture, region.
+   category: String[1];
+   // The bare code without the country prefix, 'NY', for feeds that only send that.
+   localCode: String[0..1];
+   isActive: Boolean[1];
+}
+
+// FOR: a place with coordinates and a clock -- financial centres, capitals, the seat of a
+// bloc. Separate from CgCountry because the questions asked of a city (what time is it
+// there, is the market open) are answered by the time zone, and a country can span twelve
+// of them.
+Class core_geo::CgCity
+{
+   cityId: String[1];
+   name: String[1];
+   // True for the seat of national government. Not the same as "largest": Washington,
+   // Canberra and Brasilia are all capitals and none is its country's largest city.
+   isCapital: Boolean[1];
+   // True for the cities that carry a market: London, New York, Tokyo, Singapore, Frankfurt.
+   isFinancialCentre: Boolean[1];
+   population: Integer[0..1];
+   latitude: Float[0..1];
+   longitude: Float[0..1];
+}
+
+// FOR: the clock, so that a settlement cut-off or a market open can be stated as a local
+// time and resolved. IANA names rather than abbreviations because 'CST' is three different
+// zones and 'Europe/Berlin' is one.
+Class core_geo::CgTimeZone
+{
+   timeZoneId: String[1];
+   // IANA tz database name: 'Europe/London', 'America/New_York', 'Asia/Singapore'.
+   ianaName: String[1];
+   // Standard-time offset in MINUTES, not hours, because India is +330 and Nepal is +345.
+   utcOffsetMinutes: Integer[1];
+   observesDaylightSaving: Boolean[1];
+   // 'GMT', 'EST', 'SGT' -- for display only, never for arithmetic.
+   abbreviation: String[0..1];
+}
+
+// ---------------------------------------------------------------- the bloc branch
+// FOR: the economic bloc a country belongs to -- EU, EEA, USMCA, ASEAN, MERCOSUR, EFTA.
+// This is the third level of the second chain, and it is the level most rules are actually
+// written at: a MiFID obligation is an EU obligation, not a German one.
+Class core_geo::CgBloc
+{
+   blocId: String[1];
+   // The short name everyone uses: EU, EEA, USMCA, ASEAN, MERCOSUR, EFTA, GCC.
+   code: String[1];
+   // 'European Union', 'United States-Mexico-Canada Agreement',
+   // 'Association of Southeast Asian Nations', 'Mercado Comun del Sur'.
+   name: String[1];
+   // CUSTOMS_UNION, SINGLE_MARKET, FREE_TRADE_AREA, MONETARY_UNION, POLITICAL_UNION.
+   // The type is what tells a downstream rule whether goods, capital or people move.
+   blocType: String[1];
+   // The EU dates from Maastricht in 1993, ASEAN from Bangkok in 1967, USMCA from 2020
+   // (NAFTA, which it replaced, from 1994).
+   foundedYear: Integer[0..1];
+   // Where the secretariat sits: Brussels, Jakarta, Montevideo.
+   seatCity: String[0..1];
+   // Denormalised on purpose, so a bloc can be listed without counting its memberships.
+   memberCount: Integer[0..1];
+   // True only for the blocs with a shared currency -- and note it is the euro AREA that
+   // has one, not the EU: Sweden and Poland are EU members outside it.
+   hasCommonCurrency: Boolean[1];
+}
+
+// FOR: the hop between a country and a bloc, and the reason it is a class rather than a
+// direct association. Membership is DATED and it is not permanent: the UK acceded to the EU
+// in 1973 and left in 2020, Croatia acceded in 2013. A join table with no attributes could
+// not say either of those things, and every consumer would have to hardcode Brexit.
+Class core_geo::CgBlocMembership
+{
+   membershipId: String[1];
+   accessionDate: StrictDate[0..1];
+   // Populated only for the exits: 2020-01-31 for GB in the EU.
+   exitDate: StrictDate[0..1];
+   // MEMBER, CANDIDATE, ASSOCIATE, OBSERVER, FORMER.
+   status: String[1];
+   // False for the associate and observer rows, which do not carry the bloc's obligations.
+   isFullMember: Boolean[1];
+   // Some blocs let a member sit out part of the deal -- the Danish and Irish opt-outs.
+   hasOptOut: Boolean[0..1];
+   notes: String[0..1];
+}
+
+// FOR: the agreements a bloc is party to, so that a rule can be attached to the instrument
+// that created it rather than to the bloc as a whole. USMCA replaced NAFTA in 2020; CETA
+// binds the EU to Canada; the EEA Agreement is what extends the single market to Norway,
+// Iceland and Liechtenstein.
+Class core_geo::CgTradeAgreement
+{
+   agreementId: String[1];
+   name: String[1];
+   shortName: String[0..1];
+   signedDate: StrictDate[0..1];
+   inForceDate: StrictDate[0..1];
+   // FREE_TRADE, CUSTOMS, INVESTMENT, MUTUAL_RECOGNITION.
+   agreementType: String[1];
+   isInForce: Boolean[1];
+}
+
+// FOR: the numbers about a country, kept off CgCountry so that the identity of a country --
+// its codes and its name -- is stable while the statistics are restated every year. One row
+// per country per reference year, which is why it carries the year.
+Class core_geo::CgCountryProfile
+{
+   // The alpha-2 code, repeated here so the profile is identifiable on its own -- a TDS of
+   // profiles with no country column is a TDS of anonymous numbers.
+   countryCode: String[1];
+   population: Integer[0..1];
+   areaSqKm: Float[0..1];
+   gdpUsd: Float[0..1];
+   gdpPerCapitaUsd: Float[0..1];
+   // World Bank lending groups: HIGH, UPPER_MIDDLE, LOWER_MIDDLE, LOW.
+   incomeGroup: String[0..1];
+   // True for the 38 OECD members. Carried here rather than as a bloc membership because
+   // the OECD is not an economic bloc: it confers no trade terms.
+   isOecdMember: Boolean[0..1];
+   referenceYear: Integer[1];
+}
+
+// FOR: what a country speaks officially, which drives document language and disclosure
+// requirements. Many-to-one on purpose: Switzerland has four, Canada two, Singapore four.
+Class core_geo::CgOfficialLanguage
+{
+   languageId: String[1];
+   // ISO 639-1 two-letter code: en, de, fr, it, rm, ja, ms, zh, ta.
+   iso639Code: String[1];
+   name: String[1];
+   // The one used for legal instruments where a country has several.
+   isPrimary: Boolean[1];
+}
+
+// ---------------------------------------------------------------- associations
+// These end names ARE the public surface of this project. A downstream class associated to
+// CgCountry navigates them by name, so they are chosen to read as a sentence at the call
+// site -- $client.domicile.subRegion.macroRegion.code -- and are not to be renamed.
+
+// Hop 3 of the chain: sub-region up to macro-region.
+Association core_geo::CgSubRegionInMacroRegion
+{
+   macroRegion: core_geo::CgMacroRegion[1];
+   subRegions: core_geo::CgSubRegion[*];
+}
+
+// Hop 2 of the chain: country up to sub-region. Together with the association above this is
+// the two-join walk a downstream project makes to reach a coverage region.
+Association core_geo::CgCountryInSubRegion
+{
+   subRegion: core_geo::CgSubRegion[1];
+   countries: core_geo::CgCountry[*];
+}
+
+// The bloc chain, first leg. `blocMemberships` rather than `blocs` because the target is
+// the dated membership, not the bloc -- naming it `blocs` would promise a hop it does not
+// make.
+Association core_geo::CgCountryBlocMembership
+{
+   country: core_geo::CgCountry[1];
+   blocMemberships: core_geo::CgBlocMembership[*];
+}
+
+// The bloc chain, second leg. $country.blocMemberships->filter(m | $m.status == 'MEMBER')
+// .bloc.code is the two-hop walk to "which blocs is this country in today".
+Association core_geo::CgBlocMembershipBloc
+{
+   bloc: core_geo::CgBloc[1];
+   memberships: core_geo::CgBlocMembership[*];
+}
+
+// Country down to its ISO 3166-2 subdivisions.
+Association core_geo::CgCountrySubdivision
+{
+   country: core_geo::CgCountry[1];
+   subdivisions: core_geo::CgSubdivision[*];
+}
+
+// Country down to its cities.
+Association core_geo::CgCountryCity
+{
+   country: core_geo::CgCountry[1];
+   cities: core_geo::CgCity[*];
+}
+
+// City across to its clock. The third hop of a different chain:
+// $country.cities->filter(c | $c.isCapital).timeZone.utcOffsetMinutes.
+Association core_geo::CgCityTimeZone
+{
+   timeZone: core_geo::CgTimeZone[1];
+   citiesInZone: core_geo::CgCity[*];
+}
+
+// Country across to its statistics. [0..1] on both ends: a country may have no profile
+// loaded for the current reference year, and a profile without a country is not a thing.
+Association core_geo::CgCountryProfileLink
+{
+   country: core_geo::CgCountry[0..1];
+   profile: core_geo::CgCountryProfile[0..1];
+}
+
+// Bloc down to the agreements that constitute it.
+Association core_geo::CgBlocTradeAgreement
+{
+   bloc: core_geo::CgBloc[1];
+   tradeAgreements: core_geo::CgTradeAgreement[*];
+}
+
+// Country down to its official languages.
+Association core_geo::CgCountryLanguage
+{
+   country: core_geo::CgCountry[1];
+   officialLanguages: core_geo::CgOfficialLanguage[*];
+}

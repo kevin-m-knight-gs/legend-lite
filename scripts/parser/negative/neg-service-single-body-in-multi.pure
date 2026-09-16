@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token 'mapping'. Valid alternatives: ['executions', 'query', 'key']
+//
+// The mirror image: a Multi execution given the Single execution's flat mapping/runtime
+// body. Multi takes query, key and executions['...'] blocks; a bare `mapping:` is refused
+// even though it is the most natural thing to write and means something obvious.
+###Service
+Service fixture::neg::MultiWithMapping
+{
+   pattern: '/fixture/neg/multiwithmapping';
+   documentation: 'Single-only mapping/runtime directly inside a Multi execution';
+   execution: Multi
+   {
+      mapping: fixture::neg::Mapping;
+      runtime: fixture::neg::Runtime;
+   }
+}

@@ -1,0 +1,29 @@
+// REJECTS: Field 'warehouse' is required
+//
+// A Snowflake CONNECTION spec with name, account, region and cloudType but no `warehouse`.
+// This is the OTHER SnowflakeLexerGrammar -- two grammar files in two modules share that stem
+// and the keyword census merges them (see ../fixtures/t2-snowflake.pure, which has to cover
+// both halves in one file). ./neg-snowflake-permission-scheme.pure pins the activator half;
+// this pins the connection half.
+//
+// snowflakeDatasourceSpecification lists sixteen elements under a `( ... )*`, all optional and
+// order-free, and the walker then requires four of them -- name, account, warehouse, region --
+// while leaving the other twelve genuinely optional. A rewrite reading the .g4 finds a
+// sixteen-field bag with no distinguished members and accepts an unreachable warehouse.
+//
+// `cloudType` is supplied deliberately: it is one of the optional twelve, so its presence
+// cannot be what satisfies or fails the check.
+###Connection
+RelationalDatabaseConnection fixture::neg::SnowflakeNoWarehouse
+{
+   store: fixture::neg::Db;
+   type: Snowflake;
+   specification: Snowflake
+   {
+      name: 'test';
+      account: 'account';
+      region: 'us-east-1';
+      cloudType: 'aws';
+   };
+   auth: Test;
+}

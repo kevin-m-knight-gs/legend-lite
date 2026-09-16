@@ -1,0 +1,486 @@
+###Relational
+// exposure_agg::Store -- nineteen tables, four aggregation VIEWS, two OR-JOINS of this
+// project's own, and the pair of joins that closes the diamond.
+//
+// BOTH DEPENDENCY STORES ARE INCLUDED, and that is the interesting part of this file. Each of
+// them already includes core_party::Store -- credit-core to reach CP_LEGAL_ENTITY for its
+// obligor, collateral-core to reach it for its issuers, counterparties and custodians -- so
+// including both here brings core-party in twice by two different routes. That is what a
+// diamond IS at the store level, and it is the thing this project exists to prove compiles.
+//
+// The diamond is CLOSED by two joins that leave EXA_COUNTERPARTY:
+//
+//     Exa_Counterparty_Obligor      EXA_COUNTERPARTY.ENTITY_ID = CDC_OBLIGOR.ENTITY_ID
+//     Exa_Counterparty_Agreement    EXA_COUNTERPARTY.ENTITY_ID = COL_AGREEMENT.COUNTERPARTY_ENTITY_ID
+//
+// Both are written against a DEPENDENCY's table and neither names CP_LEGAL_ENTITY, even
+// though CP_LEGAL_ENTITY is visible here through the double include. That restraint is the
+// contract: core-party is not a declared dependency of exposure-agg, so the join that
+// reunites the two legs is written over the two things this project is allowed to see. The
+// shared ancestor is where the two legs came FROM; it is not where they meet.
+Database exposure_agg::Store
+(
+   include credit_core::Store
+   include collateral_core::Store
+
+   // ---------------------------------------------------------- the apex
+
+   // ENTITY_ID is the column the whole project turns on: it is the party-master key that
+   // CDC_OBLIGOR and COL_AGREEMENT each carry independently, and holding it here once is what
+   // lets a credit exposure and a piece of collateral end up on the same row.
+   Table EXA_COUNTERPARTY
+   (
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      OBLIGOR_ID VARCHAR(32),
+      PRIMARY_AGREEMENT_ID VARCHAR(40),
+      COUNTERPARTY_NAME VARCHAR(200),
+      SECTOR VARCHAR(60),
+      IS_FINANCIAL_INSTITUTION BIT,
+      COVERAGE_START_DATE DATE,
+      COVERAGE_END_DATE DATE
+   )
+
+   // ---------------------------------------------------------- netting
+
+   Table EXA_NETTING_SET
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      AGREEMENT_ID VARCHAR(40),
+      NETTING_SET_NAME VARCHAR(160) NOT NULL,
+      NETTING_BASIS VARCHAR(24) NOT NULL,
+      IS_ENFORCEABLE BIT,
+      JURISDICTION VARCHAR(40),
+      OPINION_DATE DATE,
+      BASE_CURRENCY VARCHAR(3) NOT NULL,
+      CLOSED_DATE DATE
+   )
+
+   // COMPOSITE KEY. Neither column alone is the grain: an exposure moves between sets when a
+   // master agreement is renegotiated, and both memberships are true of different dates.
+   Table EXA_NETTING_SET_MEMBER
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      EXPOSURE_ID VARCHAR(40) PRIMARY KEY,
+      INCLUDED_FROM DATE,
+      INCLUDED_TO DATE,
+      INCLUSION_REASON VARCHAR(200),
+      IS_CARVE_OUT BIT
+   )
+
+   // ---------------------------------------------------------- the gross side
+
+   Table EXA_EXPOSURE_LINE
+   (
+      LINE_ID VARCHAR(40) PRIMARY KEY,
+      NET_EXPOSURE_ID VARCHAR(40) NOT NULL,
+      NETTING_SET_ID VARCHAR(40) NOT NULL,
+      EXPOSURE_ID VARCHAR(40) NOT NULL,
+      MEASURE_ID VARCHAR(40),
+      AS_OF_DATE DATE,
+      GROSS_AMOUNT DOUBLE,
+      ADD_ON_AMOUNT DOUBLE,
+      CURRENCY VARCHAR(3) NOT NULL,
+      BASIS_CODE VARCHAR(24)
+   )
+
+   Table EXA_VALUATION_BASIS
+   (
+      BASIS_CODE VARCHAR(24) PRIMARY KEY,
+      BASIS_NAME VARCHAR(120) NOT NULL,
+      MEASURES_PFE BIT,
+      HORIZON_DAYS INTEGER,
+      CONFIDENCE_LEVEL DOUBLE,
+      METHODOLOGY VARCHAR(60)
+   )
+
+   // ---------------------------------------------------------- the collateral side
+
+   // ISSUER_ENTITY_ID and ASSET_CLASS are the LEFT-HAND SIDE OF BOTH OR-JOINS below. They are
+   // denormalised onto this table on purpose and for the same reason collateral-core
+   // denormalised them onto COL_COLLATERAL: a join condition cannot hop through another table
+   // to reach the issuer, so the two axes wrong-way risk and concentration are scoped on have
+   // to be columns here. Both are NOT NULL, which is stricter than collateral-core is -- a
+   // piece whose issuer could not be resolved never becomes an exposure-agg position.
+   Table EXA_COLLATERAL_POSITION
+   (
+      POSITION_ID VARCHAR(40) PRIMARY KEY,
+      NET_EXPOSURE_ID VARCHAR(40) NOT NULL,
+      NETTING_SET_ID VARCHAR(40) NOT NULL,
+      COLLATERAL_ID VARCHAR(40) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      ISSUER_ENTITY_ID VARCHAR(40) NOT NULL,
+      ASSET_CLASS VARCHAR(40) NOT NULL,
+      AS_OF_DATE DATE,
+      MARKET_VALUE DOUBLE,
+      HAIRCUT_PCT DOUBLE,
+      FX_HAIRCUT_PCT DOUBLE,
+      COLLATERAL_VALUE DOUBLE,
+      CURRENCY VARCHAR(3) NOT NULL,
+      IS_DISPUTED BIT
+   )
+
+   // COMPOSITE KEY: one haircut application per position per day. A haircut restruck tomorrow
+   // is a new row, because the call that was disputed was made on the old one.
+   Table EXA_HAIRCUT_APPLICATION
+   (
+      POSITION_ID VARCHAR(40) PRIMARY KEY,
+      AS_OF_DATE DATE PRIMARY KEY,
+      HAIRCUT_SOURCE VARCHAR(24) NOT NULL,
+      BASE_HAIRCUT_PCT DOUBLE,
+      FX_HAIRCUT_PCT DOUBLE,
+      MATURITY_HAIRCUT_PCT DOUBLE,
+      APPLIED_HAIRCUT_PCT DOUBLE,
+      RATING_BAND VARCHAR(16),
+      APPROVED_BY VARCHAR(80)
+   )
+
+   // ---------------------------------------------------------- the grain
+
+   // DOUBLE throughout, never REAL: REAL parses and compiles and then cannot be read at
+   // execution (docs/UPSTREAM_FINDINGS.md F53).
+   Table EXA_NET_EXPOSURE
+   (
+      NET_EXPOSURE_ID VARCHAR(40) PRIMARY KEY,
+      RUN_ID VARCHAR(40),
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      NETTING_SET_ID VARCHAR(40) NOT NULL,
+      PORTFOLIO_ID VARCHAR(32),
+      AS_OF_DATE DATE,
+      BASIS_CODE VARCHAR(24),
+      GROSS_EXPOSURE DOUBLE,
+      COLLATERAL_VALUE DOUBLE,
+      NET_EXPOSURE_AMOUNT DOUBLE,
+      INDEPENDENT_AMOUNT DOUBLE,
+      THRESHOLD_AMOUNT DOUBLE,
+      CONCENTRATION_ADD_ON DOUBLE,
+      WRONG_WAY_MULTIPLIER DOUBLE,
+      REPORTING_CURRENCY VARCHAR(3) NOT NULL,
+      IS_STALE BIT
+   )
+
+   Table EXA_RUN
+   (
+      RUN_ID VARCHAR(40) PRIMARY KEY,
+      AS_OF_DATE DATE,
+      RUN_TYPE VARCHAR(24) NOT NULL,
+      STARTED_AT TIMESTAMP,
+      COMPLETED_AT TIMESTAMP,
+      EXPOSURE_COUNT INTEGER,
+      SOURCE_SYSTEM VARCHAR(60),
+      TRIGGERED_BY VARCHAR(60)
+   )
+
+   // ---------------------------------------------------------- wrong-way risk
+
+   // THE TABLE THE FIRST OR-JOIN READS.
+   //
+   // RELATED_ENTITY_ID and RELATED_ASSET_CLASS are both nullable and exactly one is populated
+   // per row: a wrong-way rule names a related entity or names a class of assets. Neither
+   // column can be made NOT NULL and neither can be dropped, which is why the join to the
+   // collateral position has to be a disjunction rather than a key match.
+   Table EXA_WRONG_WAY_RULE
+   (
+      RULE_ID VARCHAR(40) PRIMARY KEY,
+      RULE_NAME VARCHAR(160) NOT NULL,
+      RULE_BASIS VARCHAR(16) NOT NULL,
+      RELATED_ENTITY_ID VARCHAR(40),
+      RELATED_ASSET_CLASS VARCHAR(40),
+      CORRELATION_LEVEL VARCHAR(16),
+      MULTIPLIER DOUBLE,
+      IS_SPECIFIC BIT,
+      EFFECTIVE_DATE DATE,
+      EXPIRY_DATE DATE
+   )
+
+   Table EXA_WRONG_WAY_ASSESSMENT
+   (
+      ASSESSMENT_ID VARCHAR(40) PRIMARY KEY,
+      NET_EXPOSURE_ID VARCHAR(40) NOT NULL,
+      RULE_ID VARCHAR(40),
+      AS_OF_DATE DATE,
+      WRONG_WAY_TYPE VARCHAR(16) NOT NULL,
+      MATCHED_ON_AXIS VARCHAR(16),
+      CORRELATION_ESTIMATE DOUBLE,
+      APPLIED_MULTIPLIER DOUBLE,
+      UPLIFT_AMOUNT DOUBLE,
+      ASSESSED_BY VARCHAR(80)
+   )
+
+   // ---------------------------------------------------------- concentration
+
+   // THE TABLE THE SECOND OR-JOIN READS. Same disjunctive shape, different policy.
+   Table EXA_CONCENTRATION_BUCKET
+   (
+      BUCKET_CODE VARCHAR(40) PRIMARY KEY,
+      BUCKET_NAME VARCHAR(160) NOT NULL,
+      BUCKET_BASIS VARCHAR(16) NOT NULL,
+      BUCKET_ISSUER_ID VARCHAR(40),
+      BUCKET_ASSET_CLASS VARCHAR(40),
+      IS_SINGLE_NAME BIT,
+      THRESHOLD_PCT DOUBLE,
+      IS_REGULATORY BIT
+   )
+
+   // COMPOSITE KEY: the band alone is not a key, because every bucket has its own curve over
+   // the same bands.
+   Table EXA_ADD_ON_RATE
+   (
+      BUCKET_CODE VARCHAR(40) PRIMARY KEY,
+      BAND_CODE VARCHAR(24) PRIMARY KEY,
+      MIN_SHARE_PCT DOUBLE,
+      MAX_SHARE_PCT DOUBLE,
+      ADD_ON_RATE_PCT DOUBLE,
+      IS_REGULATORY BIT
+   )
+
+   Table EXA_CONCENTRATION_ADD_ON
+   (
+      ADD_ON_ID VARCHAR(40) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      BUCKET_CODE VARCHAR(40) NOT NULL,
+      LIMIT_ID VARCHAR(40),
+      AS_OF_DATE DATE,
+      EXPOSED_VALUE DOUBLE,
+      BUCKET_SHARE_PCT DOUBLE,
+      EXCESS_PCT DOUBLE,
+      APPLIED_RATE_PCT DOUBLE,
+      ADD_ON_AMOUNT DOUBLE,
+      IS_BREACH BIT
+   )
+
+   // ---------------------------------------------------------- what happens to the net
+
+   // COMPOSITE KEY: the CSA terms are re-applied every day and yesterday's application is
+   // still the answer to yesterday's question.
+   Table EXA_THRESHOLD_APPLICATION
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      AS_OF_DATE DATE PRIMARY KEY,
+      THRESHOLD_AMOUNT DOUBLE,
+      MINIMUM_TRANSFER_AMOUNT DOUBLE,
+      INDEPENDENT_AMOUNT DOUBLE,
+      ROUNDING_AMOUNT DOUBLE,
+      REQUIRED_COLLATERAL DOUBLE,
+      DELIVERED_COLLATERAL DOUBLE,
+      APPLIED_BY VARCHAR(80)
+   )
+
+   Table EXA_ADJUSTMENT
+   (
+      ADJUSTMENT_ID VARCHAR(40) PRIMARY KEY,
+      NET_EXPOSURE_ID VARCHAR(40) NOT NULL,
+      ADJUSTMENT_TYPE VARCHAR(32) NOT NULL,
+      ADJUSTMENT_AMOUNT DOUBLE,
+      REASON VARCHAR(400),
+      RAISED_BY VARCHAR(80),
+      RAISED_DATE DATE,
+      APPROVED_BY VARCHAR(80),
+      APPROVED_DATE DATE,
+      EXPIRY_DATE DATE
+   )
+
+   Table EXA_SHORTFALL
+   (
+      SHORTFALL_ID VARCHAR(40) PRIMARY KEY,
+      NET_EXPOSURE_ID VARCHAR(40) NOT NULL,
+      AS_OF_DATE DATE,
+      REQUIRED_VALUE DOUBLE,
+      HELD_VALUE DOUBLE,
+      SHORTFALL_AMOUNT DOUBLE,
+      AGE_DAYS INTEGER,
+      ESCALATION_LEVEL VARCHAR(24),
+      CLEARED_DATE DATE
+   )
+
+   // The reconciliation between the two legs of the diamond. CALL_ID reaches
+   // collateral-core's margin call; the credit side of the comparison arrives through
+   // NET_EXPOSURE_ID.
+   Table EXA_BREAK
+   (
+      BREAK_ID VARCHAR(40) PRIMARY KEY,
+      NET_EXPOSURE_ID VARCHAR(40) NOT NULL,
+      CALL_ID VARCHAR(40),
+      BREAK_TYPE VARCHAR(32) NOT NULL,
+      CREDIT_SIDE_AMOUNT DOUBLE,
+      COLLATERAL_SIDE_AMOUNT DOUBLE,
+      TOLERANCE_AMOUNT DOUBLE,
+      DETECTED_DATE DATE,
+      RESOLVED_DATE DATE,
+      RESOLVED_BY VARCHAR(80)
+   )
+
+   Table EXA_REVIEW
+   (
+      REVIEW_ID VARCHAR(40) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      AS_OF_DATE DATE,
+      REVIEWED_NET DOUBLE,
+      OFFICER VARCHAR(80) NOT NULL,
+      COMMENT VARCHAR(400),
+      SIGNED_OFF_DATE DATE,
+      NEXT_REVIEW_DATE DATE
+   )
+
+   // ---------------------------------------------------------- THE AGGREGATIONS
+   //
+   // Legend Views, not database views: no DDL is created for them and nothing seeds them. The
+   // ~groupBy IS the primary key, so an instance of the class mapped onto one is a GROUP.
+
+   // THE HEADLINE. One line per counterparty per day: gross, collateral, net. The grouping
+   // drops NETTING_SET_ID, which is the point -- a counterparty with four netting sets is one
+   // credit decision, and the sets exist because netting is a legal question rather than a
+   // commercial one.
+   View EXA_COUNTERPARTY_DAY_NET
+   (
+      ~groupBy
+      (
+         EXA_NET_EXPOSURE.COUNTERPARTY_ID,
+         EXA_NET_EXPOSURE.AS_OF_DATE
+      )
+      COUNTERPARTY_ID: EXA_NET_EXPOSURE.COUNTERPARTY_ID PRIMARY KEY,
+      AS_OF_DATE: EXA_NET_EXPOSURE.AS_OF_DATE PRIMARY KEY,
+      NETTING_SET_COUNT: count(EXA_NET_EXPOSURE.NETTING_SET_ID),
+      TOTAL_GROSS_EXPOSURE: sum(EXA_NET_EXPOSURE.GROSS_EXPOSURE),
+      TOTAL_COLLATERAL_VALUE: sum(EXA_NET_EXPOSURE.COLLATERAL_VALUE),
+      TOTAL_NET_EXPOSURE: sum(EXA_NET_EXPOSURE.NET_EXPOSURE_AMOUNT),
+      LARGEST_NET_EXPOSURE: max(EXA_NET_EXPOSURE.NET_EXPOSURE_AMOUNT),
+      TOTAL_CONCENTRATION_ADD_ON: sum(EXA_NET_EXPOSURE.CONCENTRATION_ADD_ON)
+   )
+
+   // One level down: the grain a collateral operations desk works at, because a margin call
+   // is made per agreement and never per counterparty.
+   View EXA_NETTING_SET_DAY_NET
+   (
+      ~groupBy
+      (
+         EXA_NET_EXPOSURE.NETTING_SET_ID,
+         EXA_NET_EXPOSURE.AS_OF_DATE
+      )
+      NETTING_SET_ID: EXA_NET_EXPOSURE.NETTING_SET_ID PRIMARY KEY,
+      AS_OF_DATE: EXA_NET_EXPOSURE.AS_OF_DATE PRIMARY KEY,
+      EXPOSURE_COUNT: count(EXA_NET_EXPOSURE.NET_EXPOSURE_ID),
+      TOTAL_GROSS_EXPOSURE: sum(EXA_NET_EXPOSURE.GROSS_EXPOSURE),
+      TOTAL_COLLATERAL_VALUE: sum(EXA_NET_EXPOSURE.COLLATERAL_VALUE),
+      TOTAL_NET_EXPOSURE: sum(EXA_NET_EXPOSURE.NET_EXPOSURE_AMOUNT)
+   )
+
+   // Grouped out of the POSITION table rather than the net-exposure table, and by the one
+   // dimension the net exposure row does not carry: the ISSUER. This is what the
+   // concentration add-on is charged from.
+   View EXA_COLLATERAL_ISSUER_TOTAL
+   (
+      ~groupBy
+      (
+         EXA_COLLATERAL_POSITION.COUNTERPARTY_ID,
+         EXA_COLLATERAL_POSITION.ISSUER_ENTITY_ID,
+         EXA_COLLATERAL_POSITION.AS_OF_DATE
+      )
+      COUNTERPARTY_ID: EXA_COLLATERAL_POSITION.COUNTERPARTY_ID PRIMARY KEY,
+      ISSUER_ENTITY_ID: EXA_COLLATERAL_POSITION.ISSUER_ENTITY_ID PRIMARY KEY,
+      AS_OF_DATE: EXA_COLLATERAL_POSITION.AS_OF_DATE PRIMARY KEY,
+      PIECE_COUNT: count(EXA_COLLATERAL_POSITION.POSITION_ID),
+      TOTAL_MARKET_VALUE: sum(EXA_COLLATERAL_POSITION.MARKET_VALUE),
+      TOTAL_COLLATERAL_VALUE: sum(EXA_COLLATERAL_POSITION.COLLATERAL_VALUE),
+      LARGEST_PIECE_VALUE: max(EXA_COLLATERAL_POSITION.COLLATERAL_VALUE)
+   )
+
+   // The grouping that crosses counterparties, because credit-core's portfolio does.
+   View EXA_PORTFOLIO_DAY_NET
+   (
+      ~groupBy
+      (
+         EXA_NET_EXPOSURE.PORTFOLIO_ID,
+         EXA_NET_EXPOSURE.AS_OF_DATE
+      )
+      PORTFOLIO_ID: EXA_NET_EXPOSURE.PORTFOLIO_ID PRIMARY KEY,
+      AS_OF_DATE: EXA_NET_EXPOSURE.AS_OF_DATE PRIMARY KEY,
+      COUNTERPARTY_COUNT: count(EXA_NET_EXPOSURE.COUNTERPARTY_ID),
+      TOTAL_GROSS_EXPOSURE: sum(EXA_NET_EXPOSURE.GROSS_EXPOSURE),
+      TOTAL_NET_EXPOSURE: sum(EXA_NET_EXPOSURE.NET_EXPOSURE_AMOUNT),
+      LARGEST_NET_EXPOSURE: max(EXA_NET_EXPOSURE.NET_EXPOSURE_AMOUNT)
+   )
+
+   // ---------------------------------------------------------- THE OR-JOINS
+   //
+   // One line each -- a wrapped join condition is house style here because the corpus reader
+   // refuses one rather than silently dropping it. The `or` is unqualified, so every rule
+   // that applies on either axis comes back, which is why both ends of each association are
+   // to-many. A gilt posted by a UK bank matches the "UK sovereign issuer" line AND the
+   // "government bonds" class line, and wrong-way risk needs both to pick the harshest.
+
+   Join Exa_WrongWayScope(EXA_COLLATERAL_POSITION.ISSUER_ENTITY_ID = EXA_WRONG_WAY_RULE.RELATED_ENTITY_ID or EXA_COLLATERAL_POSITION.ASSET_CLASS = EXA_WRONG_WAY_RULE.RELATED_ASSET_CLASS)
+   Join Exa_ConcentrationScope(EXA_COLLATERAL_POSITION.ISSUER_ENTITY_ID = EXA_CONCENTRATION_BUCKET.BUCKET_ISSUER_ID or EXA_COLLATERAL_POSITION.ASSET_CLASS = EXA_CONCENTRATION_BUCKET.BUCKET_ASSET_CLASS)
+
+   // ---------------------------------------------------------- THE DIAMOND, CLOSED
+   //
+   // Two joins leaving one column of one table, in opposite directions: one into credit-core,
+   // one into collateral-core. Neither names CP_LEGAL_ENTITY, which is visible here only
+   // because both dependencies dragged it in, and which this project is not permitted to
+   // refer to.
+   Join Exa_Counterparty_Obligor(EXA_COUNTERPARTY.ENTITY_ID = CDC_OBLIGOR.ENTITY_ID)
+   Join Exa_Counterparty_Agreement(EXA_COUNTERPARTY.ENTITY_ID = COL_AGREEMENT.COUNTERPARTY_ENTITY_ID)
+
+   // The rest of the crossings, at row level rather than at party level.
+   Join Exa_NettingSet_Agreement(EXA_NETTING_SET.AGREEMENT_ID = COL_AGREEMENT.AGREEMENT_ID)
+   Join Exa_Member_Exposure(EXA_NETTING_SET_MEMBER.EXPOSURE_ID = CDC_EXPOSURE.EXPOSURE_ID)
+   Join Exa_Line_Exposure(EXA_EXPOSURE_LINE.EXPOSURE_ID = CDC_EXPOSURE.EXPOSURE_ID)
+   Join Exa_Line_RiskMeasure(EXA_EXPOSURE_LINE.MEASURE_ID = CDC_RISK_MEASURE.MEASURE_ID)
+   Join Exa_NetExposure_Portfolio(EXA_NET_EXPOSURE.PORTFOLIO_ID = CDC_PORTFOLIO.PORTFOLIO_ID)
+   Join Exa_Position_Collateral(EXA_COLLATERAL_POSITION.COLLATERAL_ID = COL_COLLATERAL.COLLATERAL_ID)
+   Join Exa_AddOn_Limit(EXA_CONCENTRATION_ADD_ON.LIMIT_ID = COL_CONCENTRATION_LIMIT.LIMIT_ID)
+   Join Exa_Break_MarginCall(EXA_BREAK.CALL_ID = COL_MARGIN_CALL.CALL_ID)
+
+   // Two columns, because COL_VALUATION is keyed by two: the mark that belongs to THIS date
+   // and not the last one filed. Matching on the collateral id alone would return the whole
+   // price history and quietly multiply the collateral.
+   Join Exa_Position_Valuation(EXA_COLLATERAL_POSITION.COLLATERAL_ID = COL_VALUATION.COLLATERAL_ID and EXA_COLLATERAL_POSITION.AS_OF_DATE = COL_VALUATION.VALUATION_DATE)
+
+   // ---------------------------------------------------------- inside the project
+
+   Join Exa_Counterparty_NettingSet(EXA_COUNTERPARTY.COUNTERPARTY_ID = EXA_NETTING_SET.COUNTERPARTY_ID)
+   Join Exa_Counterparty_NetExposure(EXA_COUNTERPARTY.COUNTERPARTY_ID = EXA_NET_EXPOSURE.COUNTERPARTY_ID)
+   Join Exa_Counterparty_Review(EXA_COUNTERPARTY.COUNTERPARTY_ID = EXA_REVIEW.COUNTERPARTY_ID)
+   Join Exa_Counterparty_AddOn(EXA_COUNTERPARTY.COUNTERPARTY_ID = EXA_CONCENTRATION_ADD_ON.COUNTERPARTY_ID)
+   Join Exa_NettingSet_Member(EXA_NETTING_SET.NETTING_SET_ID = EXA_NETTING_SET_MEMBER.NETTING_SET_ID)
+   Join Exa_NettingSet_NetExposure(EXA_NETTING_SET.NETTING_SET_ID = EXA_NET_EXPOSURE.NETTING_SET_ID)
+   Join Exa_NettingSet_Threshold(EXA_NETTING_SET.NETTING_SET_ID = EXA_THRESHOLD_APPLICATION.NETTING_SET_ID)
+   Join Exa_NetExposure_Line(EXA_NET_EXPOSURE.NET_EXPOSURE_ID = EXA_EXPOSURE_LINE.NET_EXPOSURE_ID)
+   Join Exa_NetExposure_Position(EXA_NET_EXPOSURE.NET_EXPOSURE_ID = EXA_COLLATERAL_POSITION.NET_EXPOSURE_ID)
+   Join Exa_NetExposure_Assessment(EXA_NET_EXPOSURE.NET_EXPOSURE_ID = EXA_WRONG_WAY_ASSESSMENT.NET_EXPOSURE_ID)
+   Join Exa_NetExposure_Adjustment(EXA_NET_EXPOSURE.NET_EXPOSURE_ID = EXA_ADJUSTMENT.NET_EXPOSURE_ID)
+   Join Exa_NetExposure_Shortfall(EXA_NET_EXPOSURE.NET_EXPOSURE_ID = EXA_SHORTFALL.NET_EXPOSURE_ID)
+   Join Exa_NetExposure_Break(EXA_NET_EXPOSURE.NET_EXPOSURE_ID = EXA_BREAK.NET_EXPOSURE_ID)
+   Join Exa_NetExposure_Run(EXA_RUN.RUN_ID = EXA_NET_EXPOSURE.RUN_ID)
+   Join Exa_NetExposure_Basis(EXA_VALUATION_BASIS.BASIS_CODE = EXA_NET_EXPOSURE.BASIS_CODE)
+   Join Exa_Line_Basis(EXA_VALUATION_BASIS.BASIS_CODE = EXA_EXPOSURE_LINE.BASIS_CODE)
+   Join Exa_Position_Haircut(EXA_COLLATERAL_POSITION.POSITION_ID = EXA_HAIRCUT_APPLICATION.POSITION_ID)
+   Join Exa_Assessment_Rule(EXA_WRONG_WAY_RULE.RULE_ID = EXA_WRONG_WAY_ASSESSMENT.RULE_ID)
+   Join Exa_Bucket_AddOn(EXA_CONCENTRATION_BUCKET.BUCKET_CODE = EXA_CONCENTRATION_ADD_ON.BUCKET_CODE)
+   Join Exa_Bucket_Rate(EXA_CONCENTRATION_BUCKET.BUCKET_CODE = EXA_ADD_ON_RATE.BUCKET_CODE)
+
+   // ---------------------------------------------------------- into the aggregations
+   //
+   // Each of these crosses from rows to GROUPS: a net exposure reaches its counterparty's day
+   // total without reading another net exposure row.
+   Join Exa_NetExposure_CounterpartyDayNet(EXA_NET_EXPOSURE.COUNTERPARTY_ID = EXA_COUNTERPARTY_DAY_NET.COUNTERPARTY_ID and EXA_NET_EXPOSURE.AS_OF_DATE = EXA_COUNTERPARTY_DAY_NET.AS_OF_DATE)
+   Join Exa_NetExposure_NettingSetDayNet(EXA_NET_EXPOSURE.NETTING_SET_ID = EXA_NETTING_SET_DAY_NET.NETTING_SET_ID and EXA_NET_EXPOSURE.AS_OF_DATE = EXA_NETTING_SET_DAY_NET.AS_OF_DATE)
+   Join Exa_NetExposure_PortfolioDayNet(EXA_NET_EXPOSURE.PORTFOLIO_ID = EXA_PORTFOLIO_DAY_NET.PORTFOLIO_ID and EXA_NET_EXPOSURE.AS_OF_DATE = EXA_PORTFOLIO_DAY_NET.AS_OF_DATE)
+   Join Exa_Position_IssuerTotal(EXA_COLLATERAL_POSITION.COUNTERPARTY_ID = EXA_COLLATERAL_ISSUER_TOTAL.COUNTERPARTY_ID and EXA_COLLATERAL_POSITION.ISSUER_ENTITY_ID = EXA_COLLATERAL_ISSUER_TOTAL.ISSUER_ENTITY_ID and EXA_COLLATERAL_POSITION.AS_OF_DATE = EXA_COLLATERAL_ISSUER_TOTAL.AS_OF_DATE)
+   Join Exa_Counterparty_DayNet(EXA_COUNTERPARTY.COUNTERPARTY_ID = EXA_COUNTERPARTY_DAY_NET.COUNTERPARTY_ID)
+   Join Exa_NettingSet_DayNet(EXA_NETTING_SET.NETTING_SET_ID = EXA_NETTING_SET_DAY_NET.NETTING_SET_ID)
+
+   // CROSS-PROJECT FROM A GROUP rather than from a row: an aggregate still knows whose
+   // portfolio it is. The one join in this project that leaves a ~groupBy.
+   Join Exa_PortfolioDayNet_Portfolio(EXA_PORTFOLIO_DAY_NET.PORTFOLIO_ID = CDC_PORTFOLIO.PORTFOLIO_ID)
+
+   // ---------------------------------------------------------- filters
+   //
+   // Null tests, never boolean literals: a Filter will not take `= true`.
+   Filter ExaOpenBreaks(EXA_BREAK.RESOLVED_DATE is null)
+   Filter ExaUnsignedReviews(EXA_REVIEW.SIGNED_OFF_DATE is null)
+   Filter ExaCurrentWrongWayRules(EXA_WRONG_WAY_RULE.EXPIRY_DATE is null)
+   Filter ExaLiveNettingSets(EXA_NETTING_SET.CLOSED_DATE is null)
+   Filter ExaOpenShortfalls(EXA_SHORTFALL.CLEARED_DATE is null)
+)

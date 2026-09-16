@@ -1,0 +1,360 @@
+###Relational
+// ============================================================
+// collateral_mgmt::Store -- thirteen tables, one aggregation view, one disjunction
+// ============================================================
+// The store INCLUDES both dependency stores, which is what lets the joins at the bottom name
+// COP_POSTING_PLAN, COP_INVENTORY_LOT, COP_SUBSTITUTION_PROPOSAL, NET_SET and
+// NET_CAPITAL_TREATMENT unqualified. A cross-boundary join has to be declared in a database
+// from which BOTH sides are visible, and that is this one.
+//
+// This store sits at the bottom of a DIAMOND: collateral_core::Store arrives through
+// collateral_opt::Store and again through legal_netting::Store's exposure_agg include, and
+// core_party::Store arrives by more paths than that. Each of them is one database either way.
+//
+// Nothing about an agreement, a Schedule A line, a netting set or an inventory lot is restated
+// here. What is here is only what the DESK knows and neither dependency does: what was called,
+// what was argued about, what was agreed, what settled, and what the cash earned overnight.
+//
+// Names are CMG_ / Cmg_ / Cmg prefixed. A filter name and a set id are GLOBAL namespaces in
+// Legend, so nothing here can be called what it would be called if this were the only project.
+//
+// Declared and unseeded. No ###Data element, no Runtime.
+Database collateral_mgmt::Store
+(
+   include collateral_opt::Store
+   include legal_netting::Store
+
+   // ---- the terms that gate the call --------------------------------------------------------
+   // Keyed by its own id rather than by AGREEMENT_ID: one master carries separate VM and IM
+   // terms, and an amendment is a second row, not an overwrite.
+   Table CMG_MARGIN_TERMS
+   (
+      TERMS_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      // The reach into legal-netting.
+      NETTING_SET_ID VARCHAR(40),
+      MARGIN_TYPE VARCHAR(16) NOT NULL,
+      BASE_CURRENCY VARCHAR(3) NOT NULL,
+      // THE THRESHOLD and THE MINIMUM TRANSFER AMOUNT: between them they decide whether a
+      // call happens at all. Both are DOUBLE and not REAL -- REAL parses and cannot be read.
+      THRESHOLD_AMOUNT DOUBLE,
+      MINIMUM_TRANSFER_AMOUNT DOUBLE,
+      ROUNDING_INCREMENT DOUBLE,
+      INDEPENDENT_AMOUNT DOUBLE,
+      CALL_FREQUENCY VARCHAR(24) NOT NULL,
+      NOTIFICATION_TIME VARCHAR(16),
+      SUBSTITUTION_CONSENT_REQUIRED BIT NOT NULL,
+      EFFECTIVE_DATE DATE NOT NULL,
+      TERMINATED_DATE DATE
+   )
+
+   // ---- the call -----------------------------------------------------------------------------
+   // A ROW EXISTS EVEN WHEN NO CALL WAS MADE. IS_BELOW_MTA is the reason, and the desk has to
+   // be able to evidence it. THRESHOLD_APPLIED and MTA_APPLIED are copies of the values used
+   // on the day, not pointers at CMG_MARGIN_TERMS, because tomorrow's amendment must not
+   // silently rewrite today's call.
+   Table CMG_MARGIN_CALL
+   (
+      CALL_ID VARCHAR(48) PRIMARY KEY,
+      COB_DATE DATE NOT NULL,
+      NETTING_SET_ID VARCHAR(40) NOT NULL,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      TERMS_ID VARCHAR(40),
+      // Into collateral-opt: the plan that decided what to send.
+      PLAN_ID VARCHAR(40),
+      DIRECTION VARCHAR(16) NOT NULL,
+      EXPOSURE_AMOUNT DOUBLE,
+      COLLATERAL_HELD_VALUE DOUBLE,
+      THRESHOLD_APPLIED DOUBLE,
+      MTA_APPLIED DOUBLE,
+      CREDIT_SUPPORT_AMOUNT DOUBLE,
+      ROUNDED_CALL_AMOUNT DOUBLE,
+      CALL_CURRENCY VARCHAR(3) NOT NULL,
+      CALL_STATUS VARCHAR(24) NOT NULL,
+      ISSUED_AT TIMESTAMP,
+      RESPONSE_DEADLINE TIMESTAMP,
+      IS_BELOW_MTA BIT NOT NULL,
+      CLOSED_ON DATE
+   )
+
+   // COMPOSITE (call, sequence). The same status recurs -- disputed, agreed, re-disputed after
+   // a fail -- and a status column on the call cannot say when either happened.
+   Table CMG_CALL_EVENT
+   (
+      CALL_ID VARCHAR(48) PRIMARY KEY,
+      EVENT_SEQ INTEGER PRIMARY KEY,
+      EVENT_TYPE VARCHAR(24) NOT NULL,
+      EVENT_AT TIMESTAMP NOT NULL,
+      RAISED_BY_SIDE VARCHAR(8) NOT NULL,
+      ACTOR VARCHAR(120),
+      EVENT_NOTE VARCHAR(400)
+   )
+
+   // ---- the dispute ---------------------------------------------------------------------------
+   // DISPUTED_AMOUNT is the number the desk chases; UNDISPUTED_AMOUNT still moves today.
+   //
+   // COB_DATE and DISPUTE_STATUS are denormalised onto this table because the view below groups
+   // on them, and a Legend view groups over COLUMNS OF THE TABLE IT READS. Reaching COB_DATE
+   // through CMG_MARGIN_CALL would be tidier and would make the aggregation unwritable.
+   Table CMG_DISPUTE
+   (
+      DISPUTE_ID VARCHAR(48) PRIMARY KEY,
+      CALL_ID VARCHAR(48) NOT NULL,
+      COB_DATE DATE NOT NULL,
+      RAISED_BY_SIDE VARCHAR(8) NOT NULL,
+      DISPUTED_AMOUNT DOUBLE,
+      UNDISPUTED_AMOUNT DOUBLE,
+      DISPUTE_REASON VARCHAR(40) NOT NULL,
+      DISPUTE_STATUS VARCHAR(24) NOT NULL,
+      RAISED_ON DATE NOT NULL,
+      ESCALATED_ON DATE,
+      RESOLVED_ON DATE,
+      RESOLUTION_METHOD VARCHAR(32),
+      AGE_IN_DAYS INTEGER
+   )
+
+   // COMPOSITE (dispute, item). One dispute is almost never one cause.
+   Table CMG_DISPUTE_ITEM
+   (
+      DISPUTE_ID VARCHAR(48) PRIMARY KEY,
+      ITEM_CODE VARCHAR(40) PRIMARY KEY,
+      ITEM_CATEGORY VARCHAR(32) NOT NULL,
+      EXPOSURE_ID VARCHAR(40),
+      COLLATERAL_ID VARCHAR(40),
+      OUR_AMOUNT DOUBLE,
+      THEIR_AMOUNT DOUBLE,
+      ITEM_CURRENCY VARCHAR(3) NOT NULL,
+      ITEM_STATUS VARCHAR(24) NOT NULL,
+      RESOLVED_ON DATE
+   )
+
+   // Keyed on the call: one agreed transfer per call at most. ORIGINAL_CALL_AMOUNT is carried
+   // so the shortfall is readable without a hop back to the call.
+   Table CMG_AGREED_TRANSFER
+   (
+      CALL_ID VARCHAR(48) PRIMARY KEY,
+      AGREED_AMOUNT DOUBLE,
+      AGREED_CURRENCY VARCHAR(3) NOT NULL,
+      AGREED_ON DATE NOT NULL,
+      AGREED_BY VARCHAR(120),
+      SETTLEMENT_DATE DATE NOT NULL,
+      IS_PARTIAL_AGREEMENT BIT NOT NULL,
+      ORIGINAL_CALL_AMOUNT DOUBLE,
+      AGREEMENT_NOTE VARCHAR(400)
+   )
+
+   // ---- delivery and settlement ----------------------------------------------------------------
+   // The grain is the MOVEMENT: one agreed transfer is met with three bonds and a cash residual,
+   // and a substitution is two movements in opposite directions.
+   Table CMG_MOVEMENT
+   (
+      MOVEMENT_ID VARCHAR(48) PRIMARY KEY,
+      CALL_ID VARCHAR(48),
+      // Into collateral-opt: the lot that went out.
+      LOT_ID VARCHAR(40),
+      MOVEMENT_TYPE VARCHAR(24) NOT NULL,
+      COLLATERAL_KIND VARCHAR(16) NOT NULL,
+      INSTRUMENT_ID VARCHAR(60),
+      QUANTITY DOUBLE,
+      MARKET_VALUE DOUBLE,
+      HAIRCUT_PCT DOUBLE,
+      POST_VALUE DOUBLE,
+      MOVEMENT_CURRENCY VARCHAR(3) NOT NULL,
+      VALUE_DATE DATE NOT NULL,
+      INSTRUCTION_STATUS VARCHAR(24) NOT NULL,
+      SUBSTITUTION_ID VARCHAR(40)
+   )
+
+   // Keyed on the movement. An instruction is ours; a settlement is the market's, and the
+   // difference between the two is a live exposure the books show as covered.
+   Table CMG_SETTLEMENT
+   (
+      MOVEMENT_ID VARCHAR(48) PRIMARY KEY,
+      SETTLEMENT_STATUS VARCHAR(24) NOT NULL,
+      INSTRUCTED_VALUE DOUBLE,
+      SETTLED_VALUE DOUBLE,
+      SETTLED_ON DATE,
+      FAIL_REASON VARCHAR(40),
+      FAIL_DAYS INTEGER,
+      CUSTODIAN_REF VARCHAR(60),
+      IS_PARTIAL BIT NOT NULL
+   )
+
+   // The taker's CONSENT is the column that makes this a request. PROPOSAL_ID reaches back into
+   // collateral-opt and is nullable: a desk also substitutes for reasons the optimiser knows
+   // nothing about -- a recall, a corporate action, a coupon it does not want to chase.
+   Table CMG_SUBSTITUTION
+   (
+      SUBSTITUTION_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      PROPOSAL_ID VARCHAR(40),
+      OUTGOING_COLLATERAL_ID VARCHAR(40) NOT NULL,
+      INCOMING_LOT_ID VARCHAR(40),
+      SUBSTITUTION_REASON VARCHAR(40) NOT NULL,
+      REQUESTED_ON DATE NOT NULL,
+      CONSENT_STATUS VARCHAR(24) NOT NULL,
+      CONSENT_DEADLINE DATE,
+      CONSENT_RECEIVED_ON DATE,
+      OUTGOING_VALUE DOUBLE,
+      INCOMING_VALUE DOUBLE,
+      REFUSAL_REASON VARCHAR(400)
+   )
+
+   // ---- cash collateral and its interest ---------------------------------------------------------
+   // COMPOSITE (agreement, currency, date). AGREEMENT_ID and BALANCE_CURRENCY are the LEFT-HAND
+   // SIDE of this project's or-join.
+   Table CMG_CASH_BALANCE
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      BALANCE_CURRENCY VARCHAR(3) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      NETTING_SET_ID VARCHAR(40),
+      OPENING_BALANCE DOUBLE,
+      DELIVERIES DOUBLE,
+      RETURNS DOUBLE,
+      CLOSING_BALANCE DOUBLE,
+      IS_POSTED_BY_US BIT NOT NULL
+   )
+
+   // THE TABLE THE OR-JOIN READS.
+   //
+   // AGREEMENT_ID and RATE_CURRENCY are both nullable and exactly one is populated per row: an
+   // interest election is negotiated in a particular CSA, or it is the house rate for a
+   // currency, never both on one row. Neither column can be made NOT NULL and neither can be
+   // dropped, which is why the join to the balance is a disjunction and not a key match.
+   Table CMG_CASH_RATE_SCHEDULE
+   (
+      RATE_SET_ID VARCHAR(40) PRIMARY KEY,
+      RATE_BASIS VARCHAR(24) NOT NULL,
+      AGREEMENT_ID VARCHAR(40),
+      RATE_CURRENCY VARCHAR(3),
+      RATE_INDEX VARCHAR(24) NOT NULL,
+      SPREAD_BPS DOUBLE,
+      // Where there is no floor the accrual goes NEGATIVE and the poster of cash pays. Not an
+      // error, and not to be clamped.
+      HAS_ZERO_FLOOR BIT NOT NULL,
+      DAY_COUNT_BASIS VARCHAR(16) NOT NULL,
+      COMPOUNDING_METHOD VARCHAR(24) NOT NULL,
+      EFFECTIVE_FROM DATE NOT NULL,
+      EXPIRY_DATE DATE
+   )
+
+   // COMPOSITE (agreement, currency, date) -- the same grain as the balance, because that is
+   // the grain the rate applies at. The rate and the day-count fraction are stored beside the
+   // amount so the number is reproducible when the index is restated months later.
+   Table CMG_INTEREST_ACCRUAL
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      ACCRUAL_CURRENCY VARCHAR(3) PRIMARY KEY,
+      ACCRUAL_DATE DATE PRIMARY KEY,
+      RATE_SET_ID VARCHAR(40),
+      BALANCE_AMOUNT DOUBLE,
+      APPLIED_RATE_PCT DOUBLE,
+      DAY_COUNT_FRACTION DOUBLE,
+      ACCRUED_AMOUNT DOUBLE,
+      IS_NEGATIVE_ACCRUAL BIT NOT NULL,
+      PAYMENT_ID VARCHAR(40)
+   )
+
+   // IS_NETTED_INTO_CALL is why this is a table and not a derived total: interest rolled into
+   // the next call never appears in a cash statement, and a model that only knows the paid case
+   // reconciles to the custodian and not to the counterparty.
+   Table CMG_INTEREST_PAYMENT
+   (
+      PAYMENT_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      PAYMENT_CURRENCY VARCHAR(3) NOT NULL,
+      PERIOD_START DATE NOT NULL,
+      PERIOD_END DATE NOT NULL,
+      ACCRUED_TOTAL DOUBLE,
+      PAID_AMOUNT DOUBLE,
+      IS_NETTED_INTO_CALL BIT NOT NULL,
+      NETTED_INTO_CALL_ID VARCHAR(48),
+      PAYMENT_STATUS VARCHAR(24) NOT NULL,
+      PAID_ON DATE
+   )
+
+   // ---- THE AGGREGATION -----------------------------------------------------------------------
+   // A Legend View, not a database view: no DDL is created, nothing seeds it, and the GROUP BY
+   // is folded into whatever SQL a query over the class generates.
+   //
+   // The desk's morning worklist. Grouped (date, status) over the disputes, which is why those
+   // two columns had to be denormalised onto CMG_DISPUTE above. The grouping columns are the
+   // view's primary key, which is what makes it joinable back onto CMG_DISPUTE.
+   View CMG_DISPUTE_DAY_SUMMARY
+   (
+      ~groupBy
+      (
+         CMG_DISPUTE.COB_DATE,
+         CMG_DISPUTE.DISPUTE_STATUS
+      )
+      COB_DATE: CMG_DISPUTE.COB_DATE PRIMARY KEY,
+      DISPUTE_STATUS: CMG_DISPUTE.DISPUTE_STATUS PRIMARY KEY,
+      DISPUTE_COUNT: count(CMG_DISPUTE.DISPUTE_ID),
+      TOTAL_DISPUTED: sum(CMG_DISPUTE.DISPUTED_AMOUNT),
+      TOTAL_UNDISPUTED: sum(CMG_DISPUTE.UNDISPUTED_AMOUNT),
+      // One 200m dispute and forty 500k ones are the same total and not the same day.
+      LARGEST_DISPUTED: max(CMG_DISPUTE.DISPUTED_AMOUNT)
+   )
+
+   // ---- THE DISJUNCTION -------------------------------------------------------------------------
+   // One line, `or` unqualified, so every rate election that applies on either axis comes back --
+   // which is why both ends of CmgApplicableCashRates are to-many. A balance under a CSA with a
+   // bespoke EUR spread matches its own agreement row AND the EUR house-rate row, and the
+   // agreement-specific one governs.
+   //
+   // A THIRD, DIFFERENT disjunction in this graph: collateral-core's is issuer-or-asset-class
+   // and decides eligibility, collateral-opt's is instrument-or-issuer and decides opportunity
+   // cost, and this one is agreement-or-currency and decides what the cash earns overnight.
+   Join Cmg_BalanceCashRate(CMG_CASH_BALANCE.AGREEMENT_ID = CMG_CASH_RATE_SCHEDULE.AGREEMENT_ID or CMG_CASH_BALANCE.BALANCE_CURRENCY = CMG_CASH_RATE_SCHEDULE.RATE_CURRENCY)
+
+   // ---- the ordinary key joins --------------------------------------------------------------------
+   Join Cmg_TermsCall(CMG_MARGIN_CALL.TERMS_ID = CMG_MARGIN_TERMS.TERMS_ID)
+   Join Cmg_CallEvent(CMG_CALL_EVENT.CALL_ID = CMG_MARGIN_CALL.CALL_ID)
+   Join Cmg_CallDispute(CMG_DISPUTE.CALL_ID = CMG_MARGIN_CALL.CALL_ID)
+   Join Cmg_DisputeItem(CMG_DISPUTE_ITEM.DISPUTE_ID = CMG_DISPUTE.DISPUTE_ID)
+   Join Cmg_CallAgreedTransfer(CMG_AGREED_TRANSFER.CALL_ID = CMG_MARGIN_CALL.CALL_ID)
+   Join Cmg_CallMovement(CMG_MOVEMENT.CALL_ID = CMG_MARGIN_CALL.CALL_ID)
+   Join Cmg_MovementSettlement(CMG_SETTLEMENT.MOVEMENT_ID = CMG_MOVEMENT.MOVEMENT_ID)
+   Join Cmg_SubstitutionMovement(CMG_MOVEMENT.SUBSTITUTION_ID = CMG_SUBSTITUTION.SUBSTITUTION_ID)
+   Join Cmg_AccrualPayment(CMG_INTEREST_ACCRUAL.PAYMENT_ID = CMG_INTEREST_PAYMENT.PAYMENT_ID)
+   Join Cmg_CallNettedInterest(CMG_INTEREST_PAYMENT.NETTED_INTO_CALL_ID = CMG_MARGIN_CALL.CALL_ID)
+
+   // THREE columns, because the balance and the accrual are both keyed on three. Any two of
+   // them attach every day's accrual to every day's balance.
+   Join Cmg_BalanceAccrual(CMG_CASH_BALANCE.AGREEMENT_ID = CMG_INTEREST_ACCRUAL.AGREEMENT_ID and CMG_CASH_BALANCE.BALANCE_CURRENCY = CMG_INTEREST_ACCRUAL.ACCRUAL_CURRENCY and CMG_CASH_BALANCE.COB_DATE = CMG_INTEREST_ACCRUAL.ACCRUAL_DATE)
+
+   // TWO columns onto the rollup: a summary row is keyed on the pair, so both must match or a
+   // dispute picks up every other status's totals.
+   Join Cmg_DisputeDaySummary(CMG_DISPUTE.COB_DATE = CMG_DISPUTE_DAY_SUMMARY.COB_DATE and CMG_DISPUTE.DISPUTE_STATUS = CMG_DISPUTE_DAY_SUMMARY.DISPUTE_STATUS)
+
+   // ---- across the boundary into collateral-opt -------------------------------------------------
+   Join Cmg_CallFundingPlan(CMG_MARGIN_CALL.PLAN_ID = COP_POSTING_PLAN.PLAN_ID)
+   Join Cmg_MovementLot(CMG_MOVEMENT.LOT_ID = COP_INVENTORY_LOT.LOT_ID)
+   Join Cmg_SubstitutionProposal(CMG_SUBSTITUTION.PROPOSAL_ID = COP_SUBSTITUTION_PROPOSAL.PROPOSAL_ID)
+
+   // ---- across the boundary into legal-netting --------------------------------------------------
+   // The defining reach. NET_SET is the closure of the master agreement, and it is the
+   // population a call is made against -- see MANIFEST.md on why this and not the other class
+   // in this graph that is keyed on NETTING_SET_ID.
+   Join Cmg_CallNettingSet(CMG_MARGIN_CALL.NETTING_SET_ID = NET_SET.NETTING_SET_ID)
+   Join Cmg_TermsNettingSet(CMG_MARGIN_TERMS.NETTING_SET_ID = NET_SET.NETTING_SET_ID)
+   Join Cmg_BalanceNettingSet(CMG_CASH_BALANCE.NETTING_SET_ID = NET_SET.NETTING_SET_ID)
+
+   // TWO columns, (set, date). The treatment a call was struck against is the one for that day.
+   Join Cmg_CallCapitalTreatment(CMG_MARGIN_CALL.NETTING_SET_ID = NET_CAPITAL_TREATMENT.NETTING_SET_ID and CMG_MARGIN_CALL.COB_DATE = NET_CAPITAL_TREATMENT.COB_DATE)
+
+   // ---- filters -----------------------------------------------------------------------------------
+   // Declared and unapplied, for a downstream mapping to reference by name. No boolean literal
+   // anywhere: a null test, or `= 1` / `= 0` against a BIT, because `= true` does not parse.
+   Filter CmgOpenCalls(CMG_MARGIN_CALL.CLOSED_ON is null)
+   // The calls that were actually made. IS_BELOW_MTA = 1 is the row for the call that was owed
+   // and not sent, and it must stay visible in the unfiltered population.
+   Filter CmgCallsMade(CMG_MARGIN_CALL.IS_BELOW_MTA = 0)
+   Filter CmgLiveDisputes(CMG_DISPUTE.RESOLVED_ON is null)
+   Filter CmgEscalatedDisputes(CMG_DISPUTE.ESCALATED_ON is not null)
+   Filter CmgCurrentMarginTerms(CMG_MARGIN_TERMS.TERMINATED_DATE is null)
+   Filter CmgLiveCashRates(CMG_CASH_RATE_SCHEDULE.EXPIRY_DATE is null)
+   Filter CmgFailedSettlements(CMG_SETTLEMENT.FAIL_REASON is not null)
+   Filter CmgPendingSubstitutions(CMG_SUBSTITUTION.CONSENT_RECEIVED_ON is null)
+)

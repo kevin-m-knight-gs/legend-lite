@@ -1,0 +1,288 @@
+###Mapping
+// credit-limits' mapping.
+//
+// It INCLUDES both dependency mappings, which is what makes the upstream set ids resolvable
+// here: `cdcObligor` and `cdcExposure` from credit-core, `limLimit`, `limUtilisation`,
+// `limMeasure`, `limBreach`, `limApprover` and `limUplift` from limit-core. Both projects name
+// their set ids explicitly, so the DEFAULT ids (`credit_core_CdcObligor`, `limit_core_LimLimit`
+// and the rest) do not exist and a property mapping that named one would fail. Neither
+// core_party::Mapping nor core_book::Mapping nor core_ratings::Mapping is included here: they
+// arrive with their dependents, and core-party arrives twice, by both paths of the diamond.
+//
+// Every set id declared here is prefixed `clm`. Set ids are a GLOBAL namespace in Legend: one
+// collision anywhere in the graph fails the whole compile with a message that names the id and
+// not the project.
+//
+// The milestoning shows up in exactly one place below -- clmLimitStanding's ~primaryKey names
+// FROM_Z -- and nowhere else. The property mappings that REACH a milestoned class
+// (`standing` here, and everything credit-core does to get to the ratings) restate nothing:
+// the join is a plain key equality and the engine adds the date predicate when the query
+// supplies a business date.
+Mapping credit_limits::Mapping
+(
+   include credit_core::Mapping
+   include limit_core::Mapping
+
+   // How an exposure becomes a limit number, reaching limit-core for the measure it feeds.
+   *credit_limits::ClmMeasureBasis[clmMeasureBasis]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_MEASURE_BASIS.MEASURE_CODE )
+      ~mainTable [credit_limits::Store]CLM_MEASURE_BASIS
+      measureCode: [credit_limits::Store]CLM_MEASURE_BASIS.MEASURE_CODE,
+      basisCode: [credit_limits::Store]CLM_MEASURE_BASIS.BASIS_CODE,
+      basisName: [credit_limits::Store]CLM_MEASURE_BASIS.BASIS_NAME,
+      includesUndrawn: [credit_limits::Store]CLM_MEASURE_BASIS.INCLUDES_UNDRAWN,
+      appliesCcf: [credit_limits::Store]CLM_MEASURE_BASIS.APPLIES_CCF,
+      exposureFactor: [credit_limits::Store]CLM_MEASURE_BASIS.EXPOSURE_FACTOR,
+      measure[limMeasure]: [credit_limits::Store]@Clm_Basis_LimMeasure
+   }
+
+   // The anchor set. Three of its property mappings cross a project boundary and one of them
+   // -- `standing` -- crosses a temporal one into this project's own milestoned table.
+   *credit_limits::ClmCreditLimit[clmCreditLimit]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID )
+      ~mainTable [credit_limits::Store]CLM_CREDIT_LIMIT
+      creditLimitId: [credit_limits::Store]CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID,
+      bookId: [credit_limits::Store]CLM_CREDIT_LIMIT.BOOK_ID,
+      counterpartyId: [credit_limits::Store]CLM_CREDIT_LIMIT.COUNTERPARTY_ID,
+      measureCode: [credit_limits::Store]CLM_CREDIT_LIMIT.MEASURE_CODE,
+      obligorId: [credit_limits::Store]CLM_CREDIT_LIMIT.OBLIGOR_ID,
+      portfolioId: [credit_limits::Store]CLM_CREDIT_LIMIT.PORTFOLIO_ID,
+      approvedThreshold: [credit_limits::Store]CLM_CREDIT_LIMIT.APPROVED_THRESHOLD,
+      monitoringThreshold: [credit_limits::Store]CLM_CREDIT_LIMIT.MONITORING_THRESHOLD,
+      currencyCode: [credit_limits::Store]CLM_CREDIT_LIMIT.CURRENCY_CODE,
+      effectiveFrom: [credit_limits::Store]CLM_CREDIT_LIMIT.EFFECTIVE_FROM,
+      retiredOn: [credit_limits::Store]CLM_CREDIT_LIMIT.RETIRED_ON,
+      isActive: [credit_limits::Store]CLM_CREDIT_LIMIT.IS_ACTIVE,
+      // Into limit-core, both on the three-column join.
+      limit[limLimit]: [credit_limits::Store]@Clm_Limit_LimLimit,
+      currentUsage[limUtilisation]: [credit_limits::Store]@Clm_Limit_LimUtilisation,
+      // Into credit-core, and thereby onto the route to the milestoned ratings.
+      obligor[cdcObligor]: [credit_limits::Store]@Clm_Limit_Obligor,
+      // INTO OUR OWN MILESTONED SET. Nothing about the milestoning is restated on this side.
+      standing[clmLimitStanding]: [credit_limits::Store]@Clm_Limit_Standing,
+      utilisations[clmUtilisationLine]: [credit_limits::Store]@Clm_Limit_Utilisation,
+      uplifts[clmUplift]: [credit_limits::Store]@Clm_Limit_Uplift,
+      excesses[clmExcess]: [credit_limits::Store]@Clm_Limit_Excess
+   }
+
+   // THE MILESTONED SET. FROM_Z is part of ~primaryKey -- one limit has many spans, and the
+   // span is only identified once you say which one. FROM_Z and THRU_Z appear here and nowhere
+   // on the class: the engine adds the date predicate itself.
+   *credit_limits::ClmLimitStanding[clmLimitStanding]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_LIMIT_STANDING_MS.CREDIT_LIMIT_ID, [credit_limits::Store]CLM_LIMIT_STANDING_MS.FROM_Z )
+      ~mainTable [credit_limits::Store]CLM_LIMIT_STANDING_MS
+      creditLimitId: [credit_limits::Store]CLM_LIMIT_STANDING_MS.CREDIT_LIMIT_ID,
+      approvedThreshold: [credit_limits::Store]CLM_LIMIT_STANDING_MS.APPROVED_THRESHOLD,
+      monitoringThreshold: [credit_limits::Store]CLM_LIMIT_STANDING_MS.MONITORING_THRESHOLD,
+      currencyCode: [credit_limits::Store]CLM_LIMIT_STANDING_MS.CURRENCY_CODE,
+      setAgainstRating: [credit_limits::Store]CLM_LIMIT_STANDING_MS.SET_AGAINST_RATING,
+      statusCode: [credit_limits::Store]CLM_LIMIT_STANDING_MS.STATUS_CODE,
+      approvedBy: [credit_limits::Store]CLM_LIMIT_STANDING_MS.APPROVED_BY,
+      changeReasonCode: [credit_limits::Store]CLM_LIMIT_STANDING_MS.CHANGE_REASON_CODE
+   }
+
+   // The grain, keyed on (limit, date).
+   *credit_limits::ClmUtilisationLine[clmUtilisationLine]: Relational
+   {
+      ~primaryKey
+      (
+         [credit_limits::Store]CLM_UTILISATION_LINE.CREDIT_LIMIT_ID,
+         [credit_limits::Store]CLM_UTILISATION_LINE.AS_OF_DATE
+      )
+      ~mainTable [credit_limits::Store]CLM_UTILISATION_LINE
+      creditLimitId: [credit_limits::Store]CLM_UTILISATION_LINE.CREDIT_LIMIT_ID,
+      asOfDate: [credit_limits::Store]CLM_UTILISATION_LINE.AS_OF_DATE,
+      utilisedAmount: [credit_limits::Store]CLM_UTILISATION_LINE.UTILISED_AMOUNT,
+      exposureAmount: [credit_limits::Store]CLM_UTILISATION_LINE.EXPOSURE_AMOUNT,
+      drawnAmount: [credit_limits::Store]CLM_UTILISATION_LINE.DRAWN_AMOUNT,
+      undrawnAmount: [credit_limits::Store]CLM_UTILISATION_LINE.UNDRAWN_AMOUNT,
+      appliedThreshold: [credit_limits::Store]CLM_UTILISATION_LINE.APPLIED_THRESHOLD,
+      headroomAmount: [credit_limits::Store]CLM_UTILISATION_LINE.HEADROOM_AMOUNT,
+      utilisationPct: [credit_limits::Store]CLM_UTILISATION_LINE.UTILISATION_PCT,
+      ratingSymbolApplied: [credit_limits::Store]CLM_UTILISATION_LINE.RATING_SYMBOL_APPLIED,
+      currencyCode: [credit_limits::Store]CLM_UTILISATION_LINE.CURRENCY_CODE,
+      contributorCount: [credit_limits::Store]CLM_UTILISATION_LINE.CONTRIBUTOR_COUNT,
+      isBreached: [credit_limits::Store]CLM_UTILISATION_LINE.IS_BREACHED,
+      calculatedAt: [credit_limits::Store]CLM_UTILISATION_LINE.CALCULATED_AT,
+      creditLimit[clmCreditLimit]: [credit_limits::Store]@Clm_Limit_Utilisation,
+      contributions[clmContribution]: [credit_limits::Store]@Clm_Line_Contribution,
+      excesses[clmExcess]: [credit_limits::Store]@Clm_Line_Excess
+   }
+
+   // What made the number up, reaching credit-core for the exposure row itself.
+   *credit_limits::ClmExposureContribution[clmContribution]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_CONTRIBUTION.CONTRIBUTION_ID )
+      ~mainTable [credit_limits::Store]CLM_CONTRIBUTION
+      contributionId: [credit_limits::Store]CLM_CONTRIBUTION.CONTRIBUTION_ID,
+      creditLimitId: [credit_limits::Store]CLM_CONTRIBUTION.CREDIT_LIMIT_ID,
+      asOfDate: [credit_limits::Store]CLM_CONTRIBUTION.AS_OF_DATE,
+      exposureId: [credit_limits::Store]CLM_CONTRIBUTION.EXPOSURE_ID,
+      grossAmount: [credit_limits::Store]CLM_CONTRIBUTION.GROSS_AMOUNT,
+      contributedAmount: [credit_limits::Store]CLM_CONTRIBUTION.CONTRIBUTED_AMOUNT,
+      ccfApplied: [credit_limits::Store]CLM_CONTRIBUTION.CCF_APPLIED,
+      currencyCode: [credit_limits::Store]CLM_CONTRIBUTION.CURRENCY_CODE,
+      isMitigated: [credit_limits::Store]CLM_CONTRIBUTION.IS_MITIGATED,
+      exposure[cdcExposure]: [credit_limits::Store]@Clm_Contribution_Exposure,
+      line[clmUtilisationLine]: [credit_limits::Store]@Clm_Line_Contribution
+   }
+
+   // The credit view of a crossing, tied to the limits system's own breach when there is one.
+   *credit_limits::ClmExcess[clmExcess]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_EXCESS.EXCESS_ID )
+      ~mainTable [credit_limits::Store]CLM_EXCESS
+      excessId: [credit_limits::Store]CLM_EXCESS.EXCESS_ID,
+      creditLimitId: [credit_limits::Store]CLM_EXCESS.CREDIT_LIMIT_ID,
+      asOfDate: [credit_limits::Store]CLM_EXCESS.AS_OF_DATE,
+      breachId: [credit_limits::Store]CLM_EXCESS.BREACH_ID,
+      breachedThreshold: [credit_limits::Store]CLM_EXCESS.BREACHED_THRESHOLD,
+      observedAmount: [credit_limits::Store]CLM_EXCESS.OBSERVED_AMOUNT,
+      excessAmount: [credit_limits::Store]CLM_EXCESS.EXCESS_AMOUNT,
+      approvedAmount: [credit_limits::Store]CLM_EXCESS.APPROVED_AMOUNT,
+      excessPct: [credit_limits::Store]CLM_EXCESS.EXCESS_PCT,
+      severity: [credit_limits::Store]CLM_EXCESS.SEVERITY,
+      currencyCode: [credit_limits::Store]CLM_EXCESS.CURRENCY_CODE,
+      ratingSymbolApplied: [credit_limits::Store]CLM_EXCESS.RATING_SYMBOL_APPLIED,
+      detectedAt: [credit_limits::Store]CLM_EXCESS.DETECTED_AT,
+      clearedOn: [credit_limits::Store]CLM_EXCESS.CLEARED_ON,
+      clearanceNote: [credit_limits::Store]CLM_EXCESS.CLEARANCE_NOTE,
+      creditLimit[clmCreditLimit]: [credit_limits::Store]@Clm_Limit_Excess,
+      line[clmUtilisationLine]: [credit_limits::Store]@Clm_Line_Excess,
+      approvals[clmExcessApproval]: [credit_limits::Store]@Clm_Excess_Approval,
+      tickets[clmEscalationTicket]: [credit_limits::Store]@Clm_Excess_Ticket,
+      sourceBreach[limBreach]: [credit_limits::Store]@Clm_Excess_LimBreach
+   }
+
+   // One row per level of the chain; the approver is limit-core's delegation row.
+   *credit_limits::ClmExcessApproval[clmExcessApproval]: Relational
+   {
+      ~primaryKey
+      (
+         [credit_limits::Store]CLM_EXCESS_APPROVAL.EXCESS_ID,
+         [credit_limits::Store]CLM_EXCESS_APPROVAL.APPROVAL_LEVEL
+      )
+      ~mainTable [credit_limits::Store]CLM_EXCESS_APPROVAL
+      excessId: [credit_limits::Store]CLM_EXCESS_APPROVAL.EXCESS_ID,
+      approvalLevel: [credit_limits::Store]CLM_EXCESS_APPROVAL.APPROVAL_LEVEL,
+      approverId: [credit_limits::Store]CLM_EXCESS_APPROVAL.APPROVER_ID,
+      decisionCode: [credit_limits::Store]CLM_EXCESS_APPROVAL.DECISION_CODE,
+      approvedExcess: [credit_limits::Store]CLM_EXCESS_APPROVAL.APPROVED_EXCESS,
+      decidedOn: [credit_limits::Store]CLM_EXCESS_APPROVAL.DECIDED_ON,
+      expiresOn: [credit_limits::Store]CLM_EXCESS_APPROVAL.EXPIRES_ON,
+      decidedAt: [credit_limits::Store]CLM_EXCESS_APPROVAL.DECIDED_AT,
+      conditionText: [credit_limits::Store]CLM_EXCESS_APPROVAL.CONDITION_TEXT,
+      excess[clmExcess]: [credit_limits::Store]@Clm_Excess_Approval,
+      approver[limApprover]: [credit_limits::Store]@Clm_Approval_LimApprover
+   }
+
+   // The temporary uplift, mirrored from limit-core's when that is where it was granted.
+   *credit_limits::ClmTemporaryUplift[clmUplift]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_TEMP_UPLIFT.UPLIFT_ID )
+      ~mainTable [credit_limits::Store]CLM_TEMP_UPLIFT
+      upliftId: [credit_limits::Store]CLM_TEMP_UPLIFT.UPLIFT_ID,
+      creditLimitId: [credit_limits::Store]CLM_TEMP_UPLIFT.CREDIT_LIMIT_ID,
+      sourceUpliftId: [credit_limits::Store]CLM_TEMP_UPLIFT.SOURCE_UPLIFT_ID,
+      baseThreshold: [credit_limits::Store]CLM_TEMP_UPLIFT.BASE_THRESHOLD,
+      upliftAmount: [credit_limits::Store]CLM_TEMP_UPLIFT.UPLIFT_AMOUNT,
+      liftedThreshold: [credit_limits::Store]CLM_TEMP_UPLIFT.LIFTED_THRESHOLD,
+      currencyCode: [credit_limits::Store]CLM_TEMP_UPLIFT.CURRENCY_CODE,
+      effectiveFrom: [credit_limits::Store]CLM_TEMP_UPLIFT.EFFECTIVE_FROM,
+      expiresOn: [credit_limits::Store]CLM_TEMP_UPLIFT.EXPIRES_ON,
+      reasonCode: [credit_limits::Store]CLM_TEMP_UPLIFT.REASON_CODE,
+      approvedBy: [credit_limits::Store]CLM_TEMP_UPLIFT.APPROVED_BY,
+      approvedAt: [credit_limits::Store]CLM_TEMP_UPLIFT.APPROVED_AT,
+      isRevoked: [credit_limits::Store]CLM_TEMP_UPLIFT.IS_REVOKED,
+      creditLimit[clmCreditLimit]: [credit_limits::Store]@Clm_Limit_Uplift,
+      sourceUplift[limUplift]: [credit_limits::Store]@Clm_Uplift_LimUplift
+   }
+
+   // The frozen daily rating capture. `obligor` is the near end of the route to the milestoned
+   // ratings; the far end is credit-core's own join, and this mapping does not restate it.
+   *credit_limits::ClmRatingOverlay[clmRatingOverlay]: Relational
+   {
+      ~primaryKey
+      (
+         [credit_limits::Store]CLM_RATING_OVERLAY.OBLIGOR_ID,
+         [credit_limits::Store]CLM_RATING_OVERLAY.AS_OF_DATE
+      )
+      ~mainTable [credit_limits::Store]CLM_RATING_OVERLAY
+      obligorId: [credit_limits::Store]CLM_RATING_OVERLAY.OBLIGOR_ID,
+      asOfDate: [credit_limits::Store]CLM_RATING_OVERLAY.AS_OF_DATE,
+      capturedSymbol: [credit_limits::Store]CLM_RATING_OVERLAY.CAPTURED_SYMBOL,
+      capturedAgency: [credit_limits::Store]CLM_RATING_OVERLAY.CAPTURED_AGENCY,
+      notch: [credit_limits::Store]CLM_RATING_OVERLAY.NOTCH,
+      isInvestmentGrade: [credit_limits::Store]CLM_RATING_OVERLAY.IS_INVESTMENT_GRADE,
+      thresholdFactor: [credit_limits::Store]CLM_RATING_OVERLAY.THRESHOLD_FACTOR,
+      captureSourceCode: [credit_limits::Store]CLM_RATING_OVERLAY.CAPTURE_SOURCE_CODE,
+      capturedAt: [credit_limits::Store]CLM_RATING_OVERLAY.CAPTURED_AT,
+      obligor[cdcObligor]: [credit_limits::Store]@Clm_Overlay_Obligor
+   }
+
+   // Who was told, and whether they answered.
+   *credit_limits::ClmEscalationTicket[clmEscalationTicket]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_ESCALATION_TICKET.TICKET_ID )
+      ~mainTable [credit_limits::Store]CLM_ESCALATION_TICKET
+      ticketId: [credit_limits::Store]CLM_ESCALATION_TICKET.TICKET_ID,
+      excessId: [credit_limits::Store]CLM_ESCALATION_TICKET.EXCESS_ID,
+      severityCode: [credit_limits::Store]CLM_ESCALATION_TICKET.SEVERITY_CODE,
+      notifyRole: [credit_limits::Store]CLM_ESCALATION_TICKET.NOTIFY_ROLE,
+      ownerId: [credit_limits::Store]CLM_ESCALATION_TICKET.OWNER_ID,
+      responseMinutes: [credit_limits::Store]CLM_ESCALATION_TICKET.RESPONSE_MINUTES,
+      requiredApprovalLevel: [credit_limits::Store]CLM_ESCALATION_TICKET.REQUIRED_APPROVAL_LEVEL,
+      raisedAt: [credit_limits::Store]CLM_ESCALATION_TICKET.RAISED_AT,
+      respondedAt: [credit_limits::Store]CLM_ESCALATION_TICKET.RESPONDED_AT,
+      statusCode: [credit_limits::Store]CLM_ESCALATION_TICKET.STATUS_CODE,
+      excess[clmExcess]: [credit_limits::Store]@Clm_Excess_Ticket
+   }
+
+   // The report run.
+   *credit_limits::ClmDailyLimitReport[clmDailyReport]: Relational
+   {
+      ~primaryKey ( [credit_limits::Store]CLM_DAILY_REPORT.REPORT_ID )
+      ~mainTable [credit_limits::Store]CLM_DAILY_REPORT
+      reportId: [credit_limits::Store]CLM_DAILY_REPORT.REPORT_ID,
+      reportDate: [credit_limits::Store]CLM_DAILY_REPORT.REPORT_DATE,
+      portfolioId: [credit_limits::Store]CLM_DAILY_REPORT.PORTFOLIO_ID,
+      frameworkId: [credit_limits::Store]CLM_DAILY_REPORT.FRAMEWORK_ID,
+      reportingCurrency: [credit_limits::Store]CLM_DAILY_REPORT.REPORTING_CURRENCY,
+      limitCount: [credit_limits::Store]CLM_DAILY_REPORT.LIMIT_COUNT,
+      excessCount: [credit_limits::Store]CLM_DAILY_REPORT.EXCESS_COUNT,
+      activeUpliftCount: [credit_limits::Store]CLM_DAILY_REPORT.ACTIVE_UPLIFT_COUNT,
+      totalApprovedThreshold: [credit_limits::Store]CLM_DAILY_REPORT.TOTAL_APPROVED_THRESHOLD,
+      totalUtilised: [credit_limits::Store]CLM_DAILY_REPORT.TOTAL_UTILISED,
+      producedAt: [credit_limits::Store]CLM_DAILY_REPORT.PRODUCED_AT,
+      statusCode: [credit_limits::Store]CLM_DAILY_REPORT.STATUS_CODE,
+      lines[clmReportLine]: [credit_limits::Store]@Clm_Report_Line
+   }
+
+   // The printed row, keyed by (run, limit).
+   *credit_limits::ClmDailyReportLine[clmReportLine]: Relational
+   {
+      ~primaryKey
+      (
+         [credit_limits::Store]CLM_DAILY_REPORT_LINE.REPORT_ID,
+         [credit_limits::Store]CLM_DAILY_REPORT_LINE.CREDIT_LIMIT_ID
+      )
+      ~mainTable [credit_limits::Store]CLM_DAILY_REPORT_LINE
+      reportId: [credit_limits::Store]CLM_DAILY_REPORT_LINE.REPORT_ID,
+      creditLimitId: [credit_limits::Store]CLM_DAILY_REPORT_LINE.CREDIT_LIMIT_ID,
+      asOfDate: [credit_limits::Store]CLM_DAILY_REPORT_LINE.AS_OF_DATE,
+      obligorName: [credit_limits::Store]CLM_DAILY_REPORT_LINE.OBLIGOR_NAME,
+      utilisedAmount: [credit_limits::Store]CLM_DAILY_REPORT_LINE.UTILISED_AMOUNT,
+      appliedThreshold: [credit_limits::Store]CLM_DAILY_REPORT_LINE.APPLIED_THRESHOLD,
+      headroomAmount: [credit_limits::Store]CLM_DAILY_REPORT_LINE.HEADROOM_AMOUNT,
+      utilisationPct: [credit_limits::Store]CLM_DAILY_REPORT_LINE.UTILISATION_PCT,
+      ratingSymbol: [credit_limits::Store]CLM_DAILY_REPORT_LINE.RATING_SYMBOL,
+      hasActiveUplift: [credit_limits::Store]CLM_DAILY_REPORT_LINE.HAS_ACTIVE_UPLIFT,
+      statusCode: [credit_limits::Store]CLM_DAILY_REPORT_LINE.STATUS_CODE,
+      sortOrder: [credit_limits::Store]CLM_DAILY_REPORT_LINE.SORT_ORDER,
+      report[clmDailyReport]: [credit_limits::Store]@Clm_Report_Line,
+      creditLimit[clmCreditLimit]: [credit_limits::Store]@Clm_ReportLine_Limit
+   }
+)

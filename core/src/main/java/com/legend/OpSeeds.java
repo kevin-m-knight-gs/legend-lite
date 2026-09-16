@@ -78,7 +78,7 @@ final class OpSeeds {
             if (db == null) {
                 continue;
             }
-            for (DatabaseDefinition.TableDefinition t : db.tables()) {
+            for (DatabaseDefinition.TableDefinition t : db.defaultSchemaTables()) {
                 for (DatabaseDefinition.ColumnDefinition c : t.columns()) {
                     rows.dataType(columnTypeId(dbFqn, "default", t.name(), c.name()), c.dataType());
                 }
@@ -103,10 +103,8 @@ final class OpSeeds {
             if (db == null) {
                 continue;
             }
-            for (DatabaseDefinition.ViewDefinition v : db.views()) {
-                if (!inDeclaredSchema(db, v)) {
-                    viewColumns(dbFqn, db, "default", v);
-                }
+            for (DatabaseDefinition.ViewDefinition v : db.defaultSchemaViews()) {
+                viewColumns(dbFqn, db, "default", v);
             }
             for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
                 for (DatabaseDefinition.ViewDefinition v : s.views()) {
@@ -114,16 +112,6 @@ final class OpSeeds {
                 }
             }
         }
-    }
-
-    private static boolean inDeclaredSchema(DatabaseDefinition db,
-            DatabaseDefinition.ViewDefinition v) {
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            if (s.views().stream().anyMatch(x -> x.name().equals(v.name()))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void viewColumns(String dbFqn, DatabaseDefinition db, String schema,

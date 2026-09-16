@@ -1,0 +1,27 @@
+// REJECTS: Unexpected token ''1234''
+//
+// `port: '1234';` on a Trino specification. Trino types its port as INTEGER, so the quoted
+// form does not parse -- the opposite of MemSql and Databricks, which type theirs as STRING
+// and reject the bare integer (./neg-memsql-port-integer-literal.pure).
+//
+// The two fixtures are a matched pair on purpose. The same field name, in two connection
+// blocks a user would consider interchangeable, has two mutually exclusive spellings, and
+// neither vendor's grammar hints at which camp it is in. A rewrite that accepts both forms
+// everywhere passes every positive fixture in ../fixtures/ and is wrong about eight grammars.
+//
+// Trino's INTEGER camp also holds Redshift `port`, Oracle `port`, Aurora `port` and Spanner
+// `proxyPort`, all verified against this runner.
+###Connection
+RelationalDatabaseConnection fixture::neg::TrinoStringPort
+{
+  store: fixture::neg::Db;
+  type: Trino;
+  specification: Trino
+  {
+    host: 'trino.example.com';
+    port: '1234';
+    catalog: 'tpch';
+    schema: 'tiny';
+  };
+  auth: Test;
+}

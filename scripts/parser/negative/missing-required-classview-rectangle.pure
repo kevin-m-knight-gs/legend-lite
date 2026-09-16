@@ -1,0 +1,15 @@
+// REJECTS: Field 'rectangle' is required
+//
+// classView requires class, position AND rectangle. Only rectangle is omitted here, so the
+// message names the one missing field rather than failing on structure -- which is the
+// behaviour being pinned. Legend reports required-field violations by NAME, after the tree
+// is built, not as a parse error at the closing brace.
+###Diagram
+Diagram fixture::neg::NoRectangle
+{
+   classView v1
+   {
+      class: fixture::neg::Person;
+      position: (1.0,2.0);
+   }
+}

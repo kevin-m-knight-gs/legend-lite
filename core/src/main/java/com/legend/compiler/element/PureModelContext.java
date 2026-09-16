@@ -394,6 +394,12 @@ public final class PureModelContext implements ModelContext {
         return model.findRuntime(fqn);
     }
 
+    @Override
+    public java.util.Optional<com.legend.model.DataDefinition> findData(String fqn) {
+        Objects.requireNonNull(fqn, "fqn");
+        return model.findData(fqn);
+    }
+
     /** Overlay view: SHARES the base context wholesale (model, compilers,
      * memo caches) and adds the driver-supplied runtime + connection. */
     private PureModelContext(PureModelContext base,

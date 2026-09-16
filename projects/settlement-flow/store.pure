@@ -1,0 +1,218 @@
+###Relational
+// settlement_flow::Store -- twelve SFL_ tables and the joins that reach out of them.
+//
+// The two `include`s are the whole reason a four-hop chain is possible from here. Including
+// settlement_core::Store makes SC_* visible AND transitively CC_* and CP_*, because that
+// store itself includes core_calendar::Store and core_party::Store. Including
+// cash_core::Store makes CSH_* visible and CA_* with it. Neither is re-declared and neither
+// calendar table is copied: a join written here can start on an SFL_ table and end on a
+// table owned four projects away.
+//
+// Do NOT `include core_calendar::Store` here as well. It is already in scope through
+// settlement_core::Store and including it twice re-declares its tables.
+//
+// Every table is SFL_, every join Sfl_, every filter Sfl. Table, join and filter namespaces
+// are global in Legend, so a collision fails the whole graph naming only the element.
+Database settlement_flow::Store
+(
+   include settlement_core::Store
+   include cash_core::Store
+
+   // The bridge. INSTRUCTION_ID points at settlement-core, the three cash columns at
+   // cash-core, and no other table in the graph carries both.
+   Table SFL_CASH_SETTLEMENT_LINK
+   (
+      LINK_ID VARCHAR(40) PRIMARY KEY,
+      // -> SC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID
+      INSTRUCTION_ID VARCHAR(40) NOT NULL,
+      // -> CSH_CASH_MOVEMENT (INSTITUTION_ID, ACCOUNT_NO, MOVEMENT_ID); nullable because
+      // the link is made when the instruction is released and the cash may not be booked.
+      INSTITUTION_ID VARCHAR(20),
+      ACCOUNT_NO VARCHAR(34),
+      MOVEMENT_ID VARCHAR(40),
+      LINK_KIND VARCHAR(12) NOT NULL,
+      LINK_STATUS VARCHAR(12) NOT NULL,
+      LINKED_ON DATE NOT NULL,
+      // DOUBLE and not REAL: REAL parses and then cannot be read back.
+      EXPECTED_AMOUNT DOUBLE NOT NULL,
+      EXPECTED_VALUE_DATE DATE NOT NULL,
+      MATCH_CONFIDENCE INTEGER NOT NULL
+   )
+
+   Table SFL_PAYMENT_ROUTE
+   (
+      ROUTE_ID VARCHAR(32) PRIMARY KEY,
+      LINK_ID VARCHAR(40) NOT NULL,
+      MANDATE_ID VARCHAR(32),
+      ROUTE_KIND VARCHAR(16) NOT NULL,
+      AGENT_BIC VARCHAR(11),
+      CORRESPONDENT_BIC VARCHAR(11),
+      IS_DIRECT BIT,
+      LEG_HOPS INTEGER NOT NULL
+   )
+
+   // Venue plus currency decides the account. PLACE_BIC is settlement-core's key,
+   // (INSTITUTION_ID, ACCOUNT_NO) is cash-core's -- one row, two projects' keys.
+   Table SFL_NOSTRO_MANDATE
+   (
+      MANDATE_ID VARCHAR(32) PRIMARY KEY,
+      // -> SC_PLACE_OF_SETTLEMENT.PLACE_BIC
+      PLACE_BIC VARCHAR(11) NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      // -> CSH_CASH_ACCOUNT_PROFILE (INSTITUTION_ID, ACCOUNT_NO)
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      IS_PRIMARY BIT,
+      EFFECTIVE_FROM DATE NOT NULL,
+      EFFECTIVE_TO DATE
+   )
+
+   Table SFL_RECONCILIATION
+   (
+      RECON_ID VARCHAR(40) PRIMARY KEY,
+      LINK_ID VARCHAR(40) NOT NULL,
+      RECON_STATUS VARCHAR(16) NOT NULL,
+      RECONCILED_ON DATE NOT NULL,
+      AMOUNT_DIFFERENCE DOUBLE NOT NULL,
+      VALUE_DATE_DIFFERENCE_DAYS INTEGER NOT NULL,
+      TOLERANCE_APPLIED DOUBLE NOT NULL
+   )
+
+   // The five cash columns are the bank statement line the break was raised against, which
+   // is a five-column key in cash-core and is matched in full by Sfl_BreakStatementLine.
+   Table SFL_RECON_BREAK
+   (
+      BREAK_ID VARCHAR(40) PRIMARY KEY,
+      RECON_ID VARCHAR(40) NOT NULL,
+      BREAK_TYPE VARCHAR(20) NOT NULL,
+      BREAK_AMOUNT DOUBLE NOT NULL,
+      DETECTED_ON DATE NOT NULL,
+      RESOLVED_ON DATE,
+      ASSIGNED_TO VARCHAR(60),
+      COMMENTARY VARCHAR(200),
+      INSTITUTION_ID VARCHAR(20),
+      ACCOUNT_NO VARCHAR(34),
+      CURRENCY_CODE VARCHAR(3),
+      STATEMENT_DATE DATE,
+      LINE_NO INTEGER
+   )
+
+   Table SFL_SETTLEMENT_CLAIM
+   (
+      CLAIM_ID VARCHAR(40) PRIMARY KEY,
+      LINK_ID VARCHAR(40) NOT NULL,
+      // -> SC_FAIL_REASON.REASON_CODE, the CSD's own code list
+      FAIL_REASON_CODE VARCHAR(12),
+      CLAIM_TYPE VARCHAR(20) NOT NULL,
+      CLAIM_STATUS VARCHAR(12) NOT NULL,
+      CLAIM_AMOUNT DOUBLE NOT NULL,
+      CLAIM_CURRENCY VARCHAR(3) NOT NULL,
+      RAISED_ON DATE NOT NULL,
+      SETTLED_ON DATE,
+      DAYS_LATE INTEGER NOT NULL,
+      INTEREST_RATE DOUBLE NOT NULL
+   )
+
+   Table SFL_CLAIM_INTEREST
+   (
+      CLAIM_ID VARCHAR(40) PRIMARY KEY,
+      ACCRUAL_DATE DATE PRIMARY KEY,
+      ACCRUAL_BASIS VARCHAR(10) NOT NULL,
+      DAILY_AMOUNT DOUBLE NOT NULL,
+      CUMULATIVE_AMOUNT DOUBLE NOT NULL
+   )
+
+   Table SFL_CLAIM_EVENT
+   (
+      CLAIM_ID VARCHAR(40) PRIMARY KEY,
+      EVENT_SEQ INTEGER PRIMARY KEY,
+      EVENT_TYPE VARCHAR(24) NOT NULL,
+      EVENT_DATE DATE NOT NULL,
+      RESULTING_STATUS VARCHAR(12) NOT NULL,
+      ACTIONED_BY VARCHAR(60),
+      NOTE VARCHAR(200)
+   )
+
+   Table SFL_FAIL_COST
+   (
+      COST_ID VARCHAR(40) PRIMARY KEY,
+      CLAIM_ID VARCHAR(40),
+      COST_TYPE VARCHAR(20) NOT NULL,
+      COST_AMOUNT DOUBLE NOT NULL,
+      COST_CURRENCY VARCHAR(3) NOT NULL,
+      BOOKED_ON DATE NOT NULL,
+      IS_PASSED_ON BIT
+   )
+
+   Table SFL_CASH_FORECAST
+   (
+      FORECAST_ID VARCHAR(40) PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      FORECAST_DATE DATE NOT NULL,
+      EXPECTED_CREDITS DOUBLE NOT NULL,
+      EXPECTED_DEBITS DOUBLE NOT NULL,
+      CONFIRMED_AMOUNT DOUBLE NOT NULL,
+      GENERATED_ON DATE NOT NULL
+   )
+
+   Table SFL_FORECAST_LINE
+   (
+      FORECAST_ID VARCHAR(40) PRIMARY KEY,
+      LINE_SEQ INTEGER PRIMARY KEY,
+      LINK_ID VARCHAR(40),
+      DIRECTION VARCHAR(6) NOT NULL,
+      AMOUNT DOUBLE NOT NULL,
+      IS_CONFIRMED BIT
+   )
+
+   Table SFL_FUNDING_SHORTFALL
+   (
+      SHORTFALL_ID VARCHAR(40) PRIMARY KEY,
+      FORECAST_ID VARCHAR(40) NOT NULL,
+      INSTITUTION_ID VARCHAR(20),
+      ACCOUNT_NO VARCHAR(34),
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      VALUE_DATE DATE NOT NULL,
+      SHORTFALL_AMOUNT DOUBLE NOT NULL,
+      COVERED_AMOUNT DOUBLE NOT NULL,
+      ESCALATION_LEVEL INTEGER NOT NULL,
+      RESOLVED_ON DATE
+   )
+
+   // ---- joins inside this project ------------------------------------------------------
+   Join Sfl_LinkRoute(SFL_PAYMENT_ROUTE.LINK_ID = SFL_CASH_SETTLEMENT_LINK.LINK_ID)
+   Join Sfl_RouteMandate(SFL_PAYMENT_ROUTE.MANDATE_ID = SFL_NOSTRO_MANDATE.MANDATE_ID)
+   Join Sfl_LinkReconciliation(SFL_RECONCILIATION.LINK_ID = SFL_CASH_SETTLEMENT_LINK.LINK_ID)
+   Join Sfl_ReconBreak(SFL_RECONCILIATION.RECON_ID = SFL_RECON_BREAK.RECON_ID)
+   Join Sfl_LinkClaim(SFL_SETTLEMENT_CLAIM.LINK_ID = SFL_CASH_SETTLEMENT_LINK.LINK_ID)
+   Join Sfl_ClaimAccrual(SFL_SETTLEMENT_CLAIM.CLAIM_ID = SFL_CLAIM_INTEREST.CLAIM_ID)
+   Join Sfl_ClaimEvent(SFL_SETTLEMENT_CLAIM.CLAIM_ID = SFL_CLAIM_EVENT.CLAIM_ID)
+   Join Sfl_ClaimCost(SFL_FAIL_COST.CLAIM_ID = SFL_SETTLEMENT_CLAIM.CLAIM_ID)
+   Join Sfl_ForecastLine(SFL_CASH_FORECAST.FORECAST_ID = SFL_FORECAST_LINE.FORECAST_ID)
+   Join Sfl_ForecastShortfall(SFL_CASH_FORECAST.FORECAST_ID = SFL_FUNDING_SHORTFALL.FORECAST_ID)
+   Join Sfl_LineLink(SFL_FORECAST_LINE.LINK_ID = SFL_CASH_SETTLEMENT_LINK.LINK_ID)
+
+   // ---- joins into settlement-core -----------------------------------------------------
+   // Sfl_LinkInstruction is the FIRST HOP of the four-hop chain. Hops two, three and four
+   // (Sc_InstructionSsi, Sc_SsiPlace, Sc_PlaceCalendar) are settlement-core's own joins and
+   // are reached through the include without being redeclared.
+   Join Sfl_LinkInstruction(SFL_CASH_SETTLEMENT_LINK.INSTRUCTION_ID = SC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID)
+   Join Sfl_ClaimFailReason(SFL_SETTLEMENT_CLAIM.FAIL_REASON_CODE = SC_FAIL_REASON.REASON_CODE)
+   Join Sfl_MandatePlace(SFL_NOSTRO_MANDATE.PLACE_BIC = SC_PLACE_OF_SETTLEMENT.PLACE_BIC)
+
+   // ---- joins into cash-core -----------------------------------------------------------
+   // Every one of these matches the FULL cash-core key: three columns to a movement, two to
+   // an account profile, five to a statement line, four to a balance. cash-core has no
+   // synthetic ids and a partial match would silently fan out.
+   Join Sfl_LinkMovement(SFL_CASH_SETTLEMENT_LINK.INSTITUTION_ID = CSH_CASH_MOVEMENT.INSTITUTION_ID and SFL_CASH_SETTLEMENT_LINK.ACCOUNT_NO = CSH_CASH_MOVEMENT.ACCOUNT_NO and SFL_CASH_SETTLEMENT_LINK.MOVEMENT_ID = CSH_CASH_MOVEMENT.MOVEMENT_ID)
+   Join Sfl_MandateCashProfile(SFL_NOSTRO_MANDATE.INSTITUTION_ID = CSH_CASH_ACCOUNT_PROFILE.INSTITUTION_ID and SFL_NOSTRO_MANDATE.ACCOUNT_NO = CSH_CASH_ACCOUNT_PROFILE.ACCOUNT_NO)
+   Join Sfl_BreakStatementLine(SFL_RECON_BREAK.INSTITUTION_ID = CSH_STATEMENT_LINE.INSTITUTION_ID and SFL_RECON_BREAK.ACCOUNT_NO = CSH_STATEMENT_LINE.ACCOUNT_NO and SFL_RECON_BREAK.CURRENCY_CODE = CSH_STATEMENT_LINE.CURRENCY_CODE and SFL_RECON_BREAK.STATEMENT_DATE = CSH_STATEMENT_LINE.STATEMENT_DATE and SFL_RECON_BREAK.LINE_NO = CSH_STATEMENT_LINE.LINE_NO)
+   Join Sfl_ShortfallBalance(SFL_FUNDING_SHORTFALL.INSTITUTION_ID = CSH_CASH_BALANCE.INSTITUTION_ID and SFL_FUNDING_SHORTFALL.ACCOUNT_NO = CSH_CASH_BALANCE.ACCOUNT_NO and SFL_FUNDING_SHORTFALL.CURRENCY_CODE = CSH_CASH_BALANCE.CURRENCY_CODE and SFL_FUNDING_SHORTFALL.VALUE_DATE = CSH_CASH_BALANCE.BALANCE_DATE)
+
+   // Null tests, not boolean literals: `= true` is not accepted by the filter grammar.
+   Filter SflOpenBreak(SFL_RECON_BREAK.RESOLVED_ON is null)
+   Filter SflOpenClaim(SFL_SETTLEMENT_CLAIM.SETTLED_ON is null)
+   Filter SflLiveMandate(SFL_NOSTRO_MANDATE.EFFECTIVE_TO is null)
+)

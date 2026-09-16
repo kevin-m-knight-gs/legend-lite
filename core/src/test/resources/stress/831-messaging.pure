@@ -1,0 +1,268 @@
+###Pure
+// Messaging: what arrived on the wire, in which format, and whether it parsed.
+//
+// 22 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 22 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class messaging::InboundMessage
+{
+   messageId: String[1];
+   messageType: String[1];
+   protocol: String[1];
+   senderBic: String[1];
+   receivedAt: DateTime[1];
+   byteCount: Integer[1];
+   status: String[1];
+   isDuplicate: Boolean[1];
+   parsedAt: DateTime[0..1];
+   errorDetail: String[0..1];
+
+   // Kilobytes, which is the unit a throughput chart uses.
+   sizeKb() { $this.byteCount / 1024.0 } : Float[1];
+}
+
+// Single customer credit transfer.
+Class messaging::SwiftMt103 extends messaging::InboundMessage
+{
+}
+
+// General financial institution transfer.
+Class messaging::SwiftMt202 extends messaging::InboundMessage
+{
+}
+
+// A cover payment carrying the underlying customer details.
+Class messaging::SwiftMt202Cov extends messaging::InboundMessage
+{
+}
+
+// FX confirmation.
+Class messaging::SwiftMt300 extends messaging::InboundMessage
+{
+}
+
+// Fixed loan or deposit confirmation.
+Class messaging::SwiftMt320 extends messaging::InboundMessage
+{
+}
+
+// Statement of holdings.
+Class messaging::SwiftMt535 extends messaging::InboundMessage
+{
+}
+
+// Statement of transactions.
+Class messaging::SwiftMt536 extends messaging::InboundMessage
+{
+}
+
+// Receive free.
+Class messaging::SwiftMt540 extends messaging::InboundMessage
+{
+}
+
+// Receive against payment.
+Class messaging::SwiftMt541 extends messaging::InboundMessage
+{
+}
+
+// Deliver free.
+Class messaging::SwiftMt542 extends messaging::InboundMessage
+{
+}
+
+// Deliver against payment.
+Class messaging::SwiftMt543 extends messaging::InboundMessage
+{
+}
+
+// Settlement status advice, which is where a fail first shows.
+Class messaging::SwiftMt548 extends messaging::InboundMessage
+{
+}
+
+// Statement message from the correspondent.
+Class messaging::SwiftMt950 extends messaging::InboundMessage
+{
+}
+
+// The ISO 20022 successor to MT103.
+Class messaging::Pacs008Message extends messaging::InboundMessage
+{
+}
+
+// The successor to MT202.
+Class messaging::Pacs009Message extends messaging::InboundMessage
+{
+}
+
+// The successor to MT950, with far richer structure.
+Class messaging::Camt053Message extends messaging::InboundMessage
+{
+}
+
+// Debit and credit notifications.
+Class messaging::Camt054Message extends messaging::InboundMessage
+{
+}
+
+// FIX 35=D, the order itself.
+Class messaging::FixNewOrderSingle extends messaging::InboundMessage
+{
+}
+
+// FIX 35=8, every state change of that order.
+Class messaging::FixExecutionReport extends messaging::InboundMessage
+{
+}
+
+// FIX 35=F.
+Class messaging::FixOrderCancelRequest extends messaging::InboundMessage
+{
+}
+
+// XML for OTC derivative confirmations.
+Class messaging::FpmlTradeMessage extends messaging::InboundMessage
+{
+}
+
+// Post-trade allocation.
+Class messaging::FixmlAllocationMessage extends messaging::InboundMessage
+{
+}
+
+###Mapping
+Mapping messaging::MessagingMapping
+(
+   *messaging::InboundMessage[messagingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]INBOUND_MESSAGE.MESSAGE_ID )
+      ~mainTable [store::DB]INBOUND_MESSAGE
+      messageId: [store::DB]INBOUND_MESSAGE.MESSAGE_ID,
+      messageType: [store::DB]INBOUND_MESSAGE.MESSAGE_TYPE,
+      protocol: [store::DB]INBOUND_MESSAGE.PROTOCOL,
+      senderBic: [store::DB]INBOUND_MESSAGE.SENDER_BIC,
+      receivedAt: [store::DB]INBOUND_MESSAGE.RECEIVED_AT,
+      byteCount: [store::DB]INBOUND_MESSAGE.BYTE_COUNT,
+      status: [store::DB]INBOUND_MESSAGE.STATUS,
+      isDuplicate: [store::DB]INBOUND_MESSAGE.IS_DUPLICATE,
+      parsedAt: [store::DB]INBOUND_MESSAGE.PARSED_AT,
+      errorDetail: [store::DB]INBOUND_MESSAGE.ERROR_DETAIL
+   }
+
+   messaging::SwiftMt103[msgMt103] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt103Rows
+   }
+
+   messaging::SwiftMt202[msgMt202] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt202Rows
+   }
+
+   messaging::SwiftMt202Cov[msgMt202cov] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt202covRows
+   }
+
+   messaging::SwiftMt300[msgMt300] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt300Rows
+   }
+
+   messaging::SwiftMt320[msgMt320] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt320Rows
+   }
+
+   messaging::SwiftMt535[msgMt535] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt535Rows
+   }
+
+   messaging::SwiftMt536[msgMt536] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt536Rows
+   }
+
+   messaging::SwiftMt540[msgMt540] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt540Rows
+   }
+
+   messaging::SwiftMt541[msgMt541] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt541Rows
+   }
+
+   messaging::SwiftMt542[msgMt542] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt542Rows
+   }
+
+   messaging::SwiftMt543[msgMt543] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt543Rows
+   }
+
+   messaging::SwiftMt548[msgMt548] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt548Rows
+   }
+
+   messaging::SwiftMt950[msgMt950] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgMt950Rows
+   }
+
+   messaging::Pacs008Message[msgPacs008] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgPacs008Rows
+   }
+
+   messaging::Pacs009Message[msgPacs009] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgPacs009Rows
+   }
+
+   messaging::Camt053Message[msgCamt053] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgCamt053Rows
+   }
+
+   messaging::Camt054Message[msgCamt054] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgCamt054Rows
+   }
+
+   messaging::FixNewOrderSingle[msgFixNewOrder] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgFixNewOrderRows
+   }
+
+   messaging::FixExecutionReport[msgFixExecReport] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgFixExecReportRows
+   }
+
+   messaging::FixOrderCancelRequest[msgFixCancel] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgFixCancelRows
+   }
+
+   messaging::FpmlTradeMessage[msgFpmlTrade] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgFpmlTradeRows
+   }
+
+   messaging::FixmlAllocationMessage[msgFixmlAlloc] extends [messagingBase]: Relational
+   {
+      ~filter [store::DB]MsgFixmlAllocRows
+   }
+)

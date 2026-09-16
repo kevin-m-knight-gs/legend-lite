@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token
+//
+// A local mapping property -- the `+name` form, which declares a property that exists only
+// in this mapping -- must carry a full type AND multiplicity: `+extraId: String[1]: <op>`.
+// The multiplicity brackets are not optional.
+//
+// Two colons and a bracketed multiplicity in one line is odd enough that a rewrite is
+// likely to make the multiplicity default to [1], which is what the type alone would
+// suggest. That silently accepts declarations legend-engine refuses. Adding `[1]` makes
+// this parse.
+###Mapping
+Mapping fixture::neg::LocalPropNoMultiplicity
+(
+   fixture::neg::Person: Relational
+   {
+      ~mainTable [fixture::neg::Db]T
+      +extraId: String: [fixture::neg::Db]T.ID
+   }
+)

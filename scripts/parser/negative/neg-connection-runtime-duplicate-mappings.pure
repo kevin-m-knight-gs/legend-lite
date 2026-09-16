@@ -1,0 +1,22 @@
+// REJECTS: Field 'mappings' should be specified only once
+//
+// `mappings:` may appear at most once on a Runtime. The grammar says `(mappings |
+// connections | connectionStoresList)*` -- a star, so any number of each -- and the
+// singularity is enforced afterwards by the walker.
+//
+// Repetition is a plausible thing to write, because the field's value is already a LIST:
+// two mappings blocks reads as an obvious shorthand for one longer list, and a rewrite that
+// accumulates as it loops implements exactly that without deciding to. It then silently
+// keeps the first, or the last, or both -- three engines, three answers.
+###Runtime
+Runtime fixture::neg::TwoMappings
+{
+   mappings:
+   [
+      fixture::neg::PersonMapping
+   ];
+   mappings:
+   [
+      fixture::neg::FirmMapping
+   ];
+}

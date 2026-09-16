@@ -207,3 +207,11 @@ Association org::Team_Approver
     team: org::Team[1];
     approvers: org::Approver[*];
 }
+
+// L4 — the recursive end of the org chart. Both ends are org::Trader, which is what makes
+// the underlying join need {target}.
+Association org::Trader_Manager
+{
+    manager: org::Trader[0..1];
+    reports: org::Trader[*];
+}

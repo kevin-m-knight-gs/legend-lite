@@ -57,6 +57,23 @@ public final class DuckDb extends AnsiSqlRenderer {
         super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
     }
 
+    /** DuckDB DDL: a store FLOAT is DOUBLE (H2's FLOAT is double
+     *  precision; DuckDB's is single), a BIT column is BOOLEAN.
+     *  Identifiers follow the ONE DuckDB rule ({@code ident}: the DuckDB
+     *  lexicon quotes the words DuckDB reserves — default, else, do ...). */
+    @Override
+    protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
+        if (t instanceof com.legend.sql.SqlDdl.ColumnType.Plain p) {
+            if (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.FLOAT) {
+                return "DOUBLE";
+            }
+            if (p.kind() == com.legend.sql.SqlDdl.ColumnType.Kind.BIT) {
+                return "BOOLEAN";
+            }
+        }
+        return super.ddlType(t);
+    }
+
     @Override
     protected String call(SqlExpr.Call c, int parentPrec) {
         // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):

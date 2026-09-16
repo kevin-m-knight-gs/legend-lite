@@ -1,0 +1,50 @@
+###Pure
+Class demo::extend::A
+{
+  id: Integer[1];
+  aName: String[1];
+}
+
+Class demo::extend::B extends demo::extend::A
+{
+  bName: String[1];
+}
+
+Class demo::extend::C extends demo::extend::B
+{
+  cName: String[1];
+}
+
+###Relational
+Database demo::store::ExtendDB
+(
+  Table ABC
+  (
+    id INTEGER PRIMARY KEY,
+    aName VARCHAR(200),
+    bName VARCHAR(200),
+    cName VARCHAR(200)
+  )
+)
+
+###Mapping
+Mapping demo::ExtendMapping
+(
+  *demo::extend::A[a]: Relational
+  {
+    ~primaryKey ([demo::store::ExtendDB]ABC.id)
+    ~mainTable [demo::store::ExtendDB]ABC
+    id: [demo::store::ExtendDB]ABC.id,
+    aName: [demo::store::ExtendDB]ABC.aName
+  }
+
+  *demo::extend::B[b] extends [a]: Relational
+  {
+    bName: [demo::store::ExtendDB]ABC.bName
+  }
+
+  *demo::extend::C[c] extends [b]: Relational
+  {
+    cName: [demo::store::ExtendDB]ABC.cName
+  }
+)

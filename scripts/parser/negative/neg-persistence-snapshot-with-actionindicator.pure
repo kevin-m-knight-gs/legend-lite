@@ -1,0 +1,34 @@
+// REJECTS: Unexpected token 'actionIndicator'. Valid alternatives: ['partitioning']
+//
+// `datasetType:` is Snapshot XOR Delta and their sub-blocks do not overlap:
+//
+//   datasetSnapshot: DATASET_SNAPSHOT BRACE_OPEN (partitioning)*    BRACE_CLOSE
+//   datasetDelta:    DATASET_DELTA    BRACE_OPEN (actionIndicator)* BRACE_CLOSE
+//
+// Both bodies may be empty, so the keyword alone decides, and an actionIndicator under a
+// Snapshot has nowhere to go. A parser that models datasetType as one node with an optional
+// partitioning and an optional actionIndicator accepts this.
+###Persistence
+Persistence test::persistence::neg::SnapshotWithActionIndicator
+{
+  doc: 'a snapshot dataset carrying a delta action indicator';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Snapshot
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    {
+    }
+  ];
+}

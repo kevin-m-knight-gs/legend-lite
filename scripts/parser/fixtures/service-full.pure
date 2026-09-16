@@ -1,0 +1,123 @@
+// COVERS ServiceLexerGrammar: ownership, DID, UserList, users, owners, autoActivateUpdates, postValidations, params, assertions, mcpServer, test, list, parameters, title, stereotypes, tags, import
+// COVERS M3LexerGrammar: toBytes
+//
+// The stress corpus writes 89 services and covers 20 of the 41 Service keywords, because it
+// only ever needs pattern/documentation/execution/testSuites. Ownership, post-validations,
+// the legacy test block and the MCP server declaration were all dark.
+//
+// `toBytes` is declared HERE rather than in the M3 fixture. In a function body `toBytes(x)`
+// lexes as an ordinary function call; M3's TO_BYTES token is reachable only from
+// primitiveValueAtomic, which is test-parameter and EqualTo-expected position. This is that
+// position, so the token is genuinely exercised.
+###Pure
+Profile fixture::svc::SvcProfile
+{
+   stereotypes: [reviewed];
+   tags: [team];
+}
+
+###Service
+import fixture::svc::*;
+
+Service <<fixture::svc::SvcProfile.reviewed>> {fixture::svc::SvcProfile.team = 'rates'} fixture::svc::Owned
+{
+   pattern: '/fixture/owned';
+   title: 'Owned service';
+   owners:
+   [
+      'ownerName',
+      'ownerName2'
+   ];
+   ownership: DID { identifier: '12345' };
+   documentation: 'ownership via a deployment identifier';
+   autoActivateUpdates: true;
+   mcpServer: fixtureServer;
+   execution: Single
+   {
+      query: |fixture::svc::Person.all()->project([col(p|$p.name, 'name')]);
+      mapping: fixture::svc::Mapping;
+      runtime: fixture::svc::Runtime;
+   }
+   postValidations:
+   [
+      {
+         description: 'no name may begin with X';
+         params: [];
+         assertions: [
+            noLeadingX: tds: TabularDataSet[1]|$tds->filter(row|$row.getString('name')->startsWith('X'))->meta::legend::service::validation::assertTabularDataSetEmpty('found a name beginning with X');
+         ];
+      }
+   ]
+}
+
+Service fixture::svc::UserOwned
+{
+   pattern: '/fixture/userOwned';
+   ownership: UserList { users: ['12345', '789'] };
+   documentation: 'ownership via an explicit user list';
+   autoActivateUpdates: false;
+   execution: Single
+   {
+      query: |fixture::svc::Person.all()->project([col(p|$p.name, 'name')]);
+      mapping: fixture::svc::Mapping;
+      runtime: fixture::svc::Runtime;
+   }
+   test: Single
+   {
+      data: 'legacy test data';
+      asserts:
+      [
+         { [list(['param', 'param2'])], |'testexpression' },
+         { [list([1, 2]), 1], |'testexpression3' }
+      ];
+   }
+}
+
+Service fixture::svc::Parameterised
+{
+   pattern: '/fixture/parameterised';
+   documentation: 'test parameters, including a toBytes literal';
+   autoActivateUpdates: false;
+   execution: Single
+   {
+      query: data: Byte[*]|fixture::svc::Person.all()->project([col(p|$p.name, 'name')]);
+      mapping: fixture::svc::Mapping;
+      runtime: fixture::svc::Runtime;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         data:
+         [
+            connections:
+            [
+               c1:
+                  ExternalFormat
+                  #{
+                     contentType: 'application/x.flatdata';
+                     data: 'NAME\nAda\n';
+                  }#
+            ]
+         ]
+         tests:
+         [
+            t1:
+            {
+               parameters:
+               [
+                  data = toBytes('[{"name":"Ada"}]')
+               ]
+               asserts:
+               [
+                  a1:
+                     EqualTo
+                     #{
+                        expected: '[{"name":"Ada"}]';
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

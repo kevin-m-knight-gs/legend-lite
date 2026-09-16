@@ -1,0 +1,62 @@
+// COVERS RelationalLexerGrammar: BUS_SNAPSHOT_DATE, PROCESSING_SNAPSHOT_DATE, THRU_IS_INCLUSIVE, OUT_IS_INCLUSIVE
+//
+// The stress corpus milestones two tables, both with the FROM/THRU and IN/OUT range forms.
+// The SNAPSHOT forms and both inclusive flags were never written.
+//
+// Snapshot and range are mutually exclusive per milestoning entry, which is why this needs
+// several tables rather than one. Clause order inside the range form is fixed: the inclusive
+// flag must precede INFINITY_DATE.
+###Relational
+Database fixture::rel::MilestonedDb
+(
+   Table BUS_SNAPSHOT
+   (
+      milestoning
+      (
+         business(BUS_SNAPSHOT_DATE = BUSINESS_DATE)
+      )
+      ID VARCHAR(32) PRIMARY KEY,
+      BUSINESS_DATE DATE,
+      RATING VARCHAR(8)
+   )
+
+   Table PROC_SNAPSHOT
+   (
+      milestoning
+      (
+         processing(PROCESSING_SNAPSHOT_DATE = SNAPSHOT_DATE)
+      )
+      ID VARCHAR(32) PRIMARY KEY,
+      SNAPSHOT_DATE DATE,
+      RATING VARCHAR(8)
+   )
+
+   Table INCLUSIVE_BITEMPORAL
+   (
+      milestoning
+      (
+         processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, OUT_IS_INCLUSIVE = true, INFINITY_DATE = %9999-12-31T00:00:00.0000),
+         business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, THRU_IS_INCLUSIVE = true, INFINITY_DATE = %9999-12-31T00:00:00.0000)
+      )
+      ID VARCHAR(32) PRIMARY KEY,
+      IN_Z DATE,
+      OUT_Z DATE,
+      FROM_Z DATE,
+      THRU_Z DATE,
+      RATING VARCHAR(8)
+   )
+
+   Table EXCLUSIVE_BITEMPORAL
+   (
+      milestoning
+      (
+         processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, OUT_IS_INCLUSIVE = false),
+         business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, THRU_IS_INCLUSIVE = false)
+      )
+      ID VARCHAR(32) PRIMARY KEY,
+      IN_Z DATE,
+      OUT_Z DATE,
+      FROM_Z DATE,
+      THRU_Z DATE
+   )
+)

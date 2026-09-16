@@ -1,0 +1,1138 @@
+###Pure
+// pnl-attribution -- WHY THE BOOK IS WORTH A DIFFERENT NUMBER TODAY THAN IT WAS YESTERDAY.
+//
+// Layer 2. Depends on position-keeping (what is held) and valuation-core (what it is worth),
+// and on nothing else. Their own dependencies -- core-instrument, core-account, core-price,
+// core-fx -- are in the compile closure but are NOT referred to here: every fact this project
+// needs about an instrument, an account, a price or a rate is reached THROUGH one of the two
+// declared dependencies, which is what makes the declaration honest.
+//
+// ------------------------------------------------------------------ THE DIAMOND
+//
+// This is the shape the project exists for. Both dependencies know about the same security,
+// and they arrived at it by different routes:
+//
+//   position-keeping  ->  core-instrument      RESOLVED. Position.instrument is a real
+//                                              core_instrument::Instrument, reached on a
+//                                              one-column join to CI_INSTRUMENT.
+//
+//   valuation-core    ->  core-price           BY IDENTIFIER ONLY. A price observation is
+//                     ->  core-fx              keyed by INSTRUMENT_ID and never joins to the
+//                                              instrument master; the id is carried, the
+//                                              object is not.
+//
+// So the two halves of the same security's day are held in two places that agree on nothing
+// but a string. PnlLine is where they are joined back together: one row keyed by
+// (attribution, institution, account, instrument, cob date) that reaches BOTH
+// position_keeping::Position on the position's whole four-column key AND
+// valuation_core::VcValuation on the valuation's whole three-column key -- and reaches each
+// of them TWICE, once for today and once for the prior day, because P&L is a difference and
+// a difference needs both ends.
+//
+// Closing the diamond is not decoration. `line.position.instrument` and
+// `line.valuation.priceObservation` must be the same security or the attribution is
+// attributing one instrument's price move to another instrument's holding, and nothing in
+// either upstream project can detect that. Here the join keys make it true by construction.
+//
+// ------------------------------------------------------------------ WHAT P&L ATTRIBUTION IS
+//
+// A day's P&L on a position is one number -- the change in market value -- and nobody can act
+// on one number. Attribution splits it into causes:
+//
+//   PRICE      the instrument moved, at yesterday's quantity and yesterday's FX rate
+//   FX         the rate moved, at yesterday's price and yesterday's quantity
+//   CARRY      time passed: coupon accrued, dividend went ex, financing was charged
+//   FEE        commissions, custody, brokerage -- money that left regardless of the market
+//   TRADE      positions opened today, marked from execution price to close
+//   AMEND      restatements of a PRIOR day's P&L booked into today
+//
+// Those six, added to the opening market value, should reproduce the closing market value.
+// The amount by which they do not is the RESIDUAL, and the residual is the number risk
+// management actually reads: a clean explain with a large residual is not an explain, it is
+// six plausible numbers and an admission. Every other class here exists to make the residual
+// small, or to say who owns it when it is not.
+//
+// Two further splits cut across all six:
+//
+//   REALISED vs UNREALISED   what closing out crystallised, against what the remaining stock
+//                            would crystallise. Tax and accounting treat them differently.
+//   CLEAN vs DIRTY           P&L excluding accrued interest, against P&L including it. A bond
+//                            desk is judged on clean; the balance sheet moves on dirty.
+//
+// ------------------------------------------------------------------ CONSTRUCTS
+//
+//   AGGREGATION   five of the classes below are not rows, they are per-group TOTALS mapped
+//                 onto store Views whose ~groupBy is their primary key: by account-day, by
+//                 instrument-day, by currency, by whole run, and by component code. Each one
+//                 carries the same totalUnexplained() derivation as a single line, which is
+//                 the point -- the residual is readable at every level of the book without
+//                 the reader summing anything.
+//
+//   FLOAT/NUMERIC money is NUMERIC(20,6) because a P&L explain must reconcile to the last
+//                 unit; rates, ratios and percentages are FLOAT because they are compared
+//                 against a tolerance and never for equality.
+//
+// Prefixes per the project contract: classes Pnl*, tables PNL_*, joins Pnl_*, filters Pnl*,
+// set ids pnl*.
+
+// ------------------------------------------------------------------ the run
+
+// ONE EXECUTION OF THE ATTRIBUTION BATCH for one cob date -- and the place the diamond is
+// declared at the top level, because a run names BOTH the position-keeping run and the
+// valuation run whose outputs it differenced. Keyed by attributionId alone: the run is what
+// makes every line key unique, so it cannot itself be keyed by anything below it.
+Class pnl_attribution::PnlAttributionRun
+[
+   // A run that attributes today against a date on or after today is differencing nothing.
+   priorDateIsEarlier: $this.priorCobDate < $this.cobDate,
+   // A residual larger than the P&L it explains means the explain has failed outright.
+   lineCountIsPositive: $this.lineCount > 0
+]
+{
+   // The key. Carried on every line, component, residual and break this run produced.
+   attributionId: String[1];
+   // The business date attributed.
+   cobDate: StrictDate[1];
+   // The date differenced against -- yesterday's close, or the last date the book was valued.
+   priorCobDate: StrictDate[1];
+   // The valuation-core run that produced today's marks.
+   valuationRunId: String[1];
+   // The valuation-core run that produced the prior day's marks. Two runs, not one, because
+   // a value change is only meaningful between two runs that each finished.
+   priorValuationRunId: String[1];
+   // The position-keeping run sequence for cobDate, completing the other half of the diamond.
+   positionRunSeq: Integer[1];
+   // Which attribution method was used -- see PnlAttributionMethod.
+   methodCode: String[1];
+   // ISO 4217 every reported total is stated in.
+   reportingCurrency: String[1];
+   // PENDING, RUNNING, COMPLETE, FAILED.
+   status: String[1];
+   // How many P&L lines the run wrote.
+   lineCount: Integer[1];
+   // How many of them breached their residual tolerance. The pair of counts is the run's own
+   // quality metric, in the same way a valuation run's unpriced count is.
+   brokenLineCount: Integer[1];
+   // The run's total P&L, in the reporting currency.
+   totalPnl: Float[1];
+   // The run's total unexplained residual, same currency. This is the headline number.
+   totalResidual: Float[1];
+   // When the batch started, to the second.
+   startedAt: DateTime[1];
+   // True once every sign-off role has signed. Nothing may be reported before it.
+   isSignedOff: Boolean[1];
+
+   // CROSS-PROJECT, both sides of the diamond, at run level.
+   valuationRun: valuation_core::VcValuationRun[0..1];
+   positionRun: position_keeping::PositionRun[0..1];
+
+   method: pnl_attribution::PnlAttributionMethod[0..1];
+   lines: pnl_attribution::PnlLine[*];
+   signOffs: pnl_attribution::PnlSignOff[*];
+   runTotal: pnl_attribution::PnlRunTotal[0..1];
+   componentTotals: pnl_attribution::PnlComponentTotal[*];
+
+   // What share of the day's P&L the run could not explain. Float because it is a ratio, and
+   // because `/` widens to Float regardless of its operands.
+   residualPct() { $this.totalResidual / $this.totalPnl } : Float[1];
+   // Share of lines that breached tolerance. Integer / Integer still widens to Float.
+   brokenPct() { $this.brokenLineCount / $this.lineCount } : Float[1];
+   // A run that has not completed has not produced an explain anyone may read.
+   isComplete() { $this.status == 'COMPLETE' } : Boolean[1];
+   // A one-line label for a report header.
+   runLabel() { $this.attributionId + ' ' + $this.status } : String[1];
+}
+
+// ------------------------------------------------------------------ the grain
+
+// THE P&L LINE, and THE DIAMOND. One position, on one day, attributed by one run: the six
+// effects that explain the day, the realised/unrealised and clean/dirty splits of it, and the
+// two market values it must reconcile between.
+//
+// The key is five columns -- the attribution run plus position-keeping's whole four-column
+// position grain -- because the same position attributed by two runs is two answers and a
+// firm keeps both, exactly as it keeps two valuations of one instrument.
+//
+// This class is the root of the project. `position` and `valuation` are the two halves of the
+// diamond; `priorPosition` and `openingValuation` are the same two halves one day earlier,
+// which is what a difference requires.
+Class pnl_attribution::PnlLine
+[
+   // Six effects that do not net to the value change is exactly what the residual measures,
+   // so nothing here constrains that. What IS constrained: a line must know both ends.
+   closingIsAfterOpening: $this.priorCobDate < $this.cobDate
+]
+{
+   // Part 1 of the key: which attribution run produced this explain.
+   attributionId: String[1];
+   // Parts 2 and 3: the account, which is TWO columns because core-account keys it that way
+   // and position-keeping carries the pair whole. Matching on accountNo alone would pick up
+   // accounts at other institutions that reused the number.
+   institutionId: String[1];
+   accountNo: String[1];
+   // Part 4: the instrument. This single string is the ONLY thing the two upstream projects
+   // agree on, and joining on it is what closes the diamond.
+   instrumentId: String[1];
+   // Part 5: the business date attributed.
+   cobDate: StrictDate[1];
+
+   // The date differenced against, and the two valuation runs the two ends came from. These
+   // three are the coordinates of the "yesterday" side of the diamond.
+   priorCobDate: StrictDate[1];
+   valuationRunId: String[1];
+   priorValuationRunId: String[1];
+
+   // The two ends of the day, in quantity and in money. openingMarketValue is the prior run's
+   // close carried forward rather than recomputed, so a disagreement is visible rather than
+   // silently corrected -- the same discipline position-keeping applies to opening quantity.
+   openingQuantity: Float[1];
+   closingQuantity: Float[1];
+   openingMarketValue: Float[1];
+   closingMarketValue: Float[1];
+
+   // ---- the six effects, which are the whole point of the class ----
+   // The instrument's own price moved, held at YESTERDAY's quantity and YESTERDAY's rate, so
+   // the number is the market's contribution and not the trader's.
+   priceEffect: Float[1];
+   // The rate moved, held at yesterday's price and quantity. Separate from price because a
+   // desk long a foreign asset can be right about the asset and lose money anyway.
+   fxEffect: Float[1];
+   // Time passed: coupon accrued, dividend went ex, financing was charged. Earned by holding.
+   carryEffect: Float[1];
+   // Commissions, custody and brokerage -- money that left whatever the market did.
+   feeEffect: Float[1];
+   // Positions opened TODAY, marked from execution price to the close. Not a price move: the
+   // firm did not hold this at the open, so it cannot be attributed to the open.
+   tradeEffect: Float[1];
+   // Restatements of a PRIOR day's P&L booked into today, because the prior day is closed and
+   // cannot be reopened. An amendment effect is an admission with a number attached.
+   amendmentEffect: Float[1];
+
+   // ---- the two splits that cut across all six ----
+   // What closing out crystallised today, from position-keeping's lot closures.
+   realisedPnl: Float[1];
+   // What the stock still held would crystallise at today's mark.
+   unrealisedPnl: Float[1];
+   // P&L EXCLUDING accrued interest -- what a bond desk is judged on.
+   cleanPnl: Float[1];
+   // The accrued leg alone. cleanPnl + accruedPnl is the dirty P&L the balance sheet moves on.
+   accruedPnl: Float[1];
+
+   // ISO 4217 the P&L above is denominated in -- the instrument's currency.
+   pnlCurrency: String[1];
+   // ISO 4217 the run reports in.
+   reportingCurrency: String[1];
+   // The rate carrying pnlCurrency into reportingCurrency. FLOAT: it is a ratio.
+   fxRate: Float[1];
+   // How much of the value change the six effects covered, 0.0 to 1.0. The screen a reviewer
+   // sorts on before reading anything else.
+   attributionQuality: Float[1];
+   // False while the residual is still outside tolerance and unowned.
+   isExplained: Boolean[1];
+   // Which method split the day. Two methods give two different splits of the same total.
+   methodCode: String[1];
+
+   // ---- THE DIAMOND, today ----
+   // position-keeping's side: the holding, on its whole four-column key. Through it the line
+   // reaches a REAL core_instrument::Instrument -- the route this project never takes itself.
+   position: position_keeping::Position[0..1];
+   // valuation-core's side: the mark, on its whole three-column key. Through it the line
+   // reaches core-price and core-fx, which know the instrument only as an id.
+   valuation: valuation_core::VcValuation[0..1];
+
+   // ---- THE DIAMOND, yesterday ----
+   // The same two, one day earlier. A P&L is a difference; without these it is a level.
+   priorPosition: position_keeping::Position[0..1];
+   openingValuation: valuation_core::VcValuation[0..1];
+
+   // ---- other reaches across the two boundaries ----
+   // position-keeping's own aggregate of the day's movements. Comparing its netQuantityDelta
+   // against closingQuantity - openingQuantity is what separates tradeEffect from priceEffect.
+   movementTotal: position_keeping::MovementTotal[0..1];
+   // The whole holding history, date dropped -- for a line whose residual needs context.
+   lifetime: position_keeping::AccountInstrumentLifetime[0..1];
+   // valuation-core's accrual for this instrument and date: the authority behind carryEffect.
+   accrual: valuation_core::VcAccrual[0..1];
+
+   // ---- within this project ----
+   run: pnl_attribution::PnlAttributionRun[0..1];
+   method: pnl_attribution::PnlAttributionMethod[0..1];
+   bridge: pnl_attribution::PnlValueBridge[0..1];
+   residual: pnl_attribution::PnlResidual[0..1];
+   realisedSplit: pnl_attribution::PnlRealisedSplit[0..1];
+   cleanDirtySplit: pnl_attribution::PnlCleanDirtySplit[0..1];
+   components: pnl_attribution::PnlComponent[*];
+   explainSteps: pnl_attribution::PnlExplainStep[*];
+   carryAccruals: pnl_attribution::PnlCarryAccrual[*];
+   feeCharges: pnl_attribution::PnlFeeCharge[*];
+   tradePnls: pnl_attribution::PnlTradePnl[*];
+   amendments: pnl_attribution::PnlAmendment[*];
+   breaks: pnl_attribution::PnlAttributionBreak[*];
+
+   // The aggregates this line rolls up into. Navigating any of these crosses into a GROUP BY
+   // and never into another line.
+   accountDayTotal: pnl_attribution::PnlAccountDayTotal[0..1];
+   instrumentDayTotal: pnl_attribution::PnlInstrumentDayTotal[0..1];
+   currencyTotal: pnl_attribution::PnlCurrencyTotal[0..1];
+   runTotal: pnl_attribution::PnlRunTotal[0..1];
+
+   // The four-part identity as one string, for a message that must name a line.
+   lineKey() { $this.institutionId + '/' + $this.accountNo + '/' + $this.instrumentId } : String[1];
+   // THE NUMBER TO BE EXPLAINED. Everything else in this project is an attempt on it.
+   marketValueChange() { $this.closingMarketValue - $this.openingMarketValue } : Float[1];
+   // THE EXPLAIN. Six causes, added up.
+   explainedPnl() { $this.priceEffect + $this.fxEffect + $this.carryEffect + $this.feeEffect + $this.tradeEffect + $this.amendmentEffect } : Float[1];
+   // THE RESIDUAL, derived rather than stored: value change minus what the six causes claim.
+   // Nothing stores it on the line, because a stored total is one more thing that can
+   // disagree with its parts -- and this particular disagreement is the whole subject.
+   unexplainedPnl() { ($this.closingMarketValue - $this.openingMarketValue) - ($this.priceEffect + $this.fxEffect + $this.carryEffect + $this.feeEffect + $this.tradeEffect + $this.amendmentEffect) } : Float[1];
+   // What the market did to the position, ignoring what the firm did. Price plus FX.
+   marketEffect() { $this.priceEffect + $this.fxEffect } : Float[1];
+   // What the firm did, ignoring the market. Trades, fees and restatements.
+   activityEffect() { $this.tradeEffect + $this.feeEffect + $this.amendmentEffect } : Float[1];
+   // The split tax and accounting care about.
+   totalPnl() { $this.realisedPnl + $this.unrealisedPnl } : Float[1];
+   // Clean plus accrued: the dirty P&L. The two are reported to different audiences.
+   dirtyPnl() { $this.cleanPnl + $this.accruedPnl } : Float[1];
+   // What the day did to the holding. Negative is a net sale.
+   quantityChange() { $this.closingQuantity - $this.openingQuantity } : Float[1];
+   // The day's return on the opening value. Float, because it is a ratio.
+   returnPct() { ($this.closingMarketValue - $this.openingMarketValue) / $this.openingMarketValue } : Float[1];
+   // The day's P&L carried into the reporting currency at the line's own rate.
+   pnlInReporting() { ($this.realisedPnl + $this.unrealisedPnl) * $this.fxRate } : Float[1];
+}
+
+// ------------------------------------------------------------------ the reconciliation
+
+// THE VALUE BRIDGE: the two market values the explain must get between, in both currencies
+// and with both FX rates, on the line's own five-column key. Kept out of PnlLine because a
+// reconciliation is read on its own -- it is the first thing opened when a residual is large,
+// and it must show whether the gap is in the value, the rate, or the quantity.
+Class pnl_attribution::PnlValueBridge
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   // Yesterday's and today's market value, in the INSTRUMENT's currency.
+   openingValue: Float[1];
+   closingValue: Float[1];
+   // The same two carried into the reporting currency, each at ITS OWN day's rate. Converting
+   // the change is not the same as changing the conversion, and this class shows both.
+   openingValueReporting: Float[1];
+   closingValueReporting: Float[1];
+   // The two rates. FLOAT, because they are ratios compared against a tolerance.
+   openingFxRate: Float[1];
+   closingFxRate: Float[1];
+   // The two quantities, so a value change caused by a trade is separable from one caused by
+   // a mark.
+   openingQuantity: Float[1];
+   closingQuantity: Float[1];
+   valueCurrency: String[1];
+   reportingCurrency: String[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+
+   // The change to be explained, in the instrument's currency.
+   valueChange() { $this.closingValue - $this.openingValue } : Float[1];
+   // The change as the reporting currency sees it -- different from valueChange * a rate,
+   // whenever the rate moved, which is precisely what fxEffect is for.
+   valueChangeReporting() { $this.closingValueReporting - $this.openingValueReporting } : Float[1];
+   // CROSS-PROJECT FUNCTION CALL. The percentage move is valuation-core's definition of a
+   // deviation, called rather than re-derived, so this project and every valuation break in
+   // the firm measure a move the same way.
+   movePct() { valuation_core::vcDeviationPct($this.openingValue, $this.closingValue) } : Float[1];
+   // How far the rate itself moved, by the same shared definition.
+   ratePct() { valuation_core::vcDeviationPct($this.openingFxRate, $this.closingFxRate) } : Float[1];
+   // Quantity change, which is the part of the value change no price explains.
+   quantityChange() { $this.closingQuantity - $this.openingQuantity } : Float[1];
+}
+
+// THE UNEXPLAINED RESIDUAL, on its own row, per line. THE NUMBER RISK MANAGEMENT READS.
+//
+// It is stored here as well as derivable on PnlLine, and the two must agree -- that is the
+// point. The derived one is what the arithmetic says; this one is what the run wrote, held to
+// a tolerance, owned by a person and closed with a reason. A residual with no owner is not a
+// residual, it is a rounding error someone is hoping about.
+Class pnl_attribution::PnlResidual
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   // The amount the six effects failed to account for, in the line's P&L currency.
+   residualAmount: Float[1];
+   // The same as a fraction of the value change -- what a tolerance is actually stated in.
+   residualPct: Float[1];
+   // The tolerance from the policy that applied, copied onto the row so a later change to the
+   // policy does not silently re-judge a closed day.
+   tolerancePct: Float[1];
+   // The absolute floor beneath which a percentage is meaningless: a 40% residual on a
+   // 3-unit position is not a control failure.
+   toleranceAmount: Float[1];
+   // Which PnlTolerancePolicy was applied.
+   policyCode: String[1];
+   // The run's own verdict, evaluated against both the percentage and the amount.
+   isWithinTolerance: Boolean[1];
+   // When someone accounted for it. Absent while still unexplained.
+   explainedOn: StrictDate[0..1];
+   // Who did.
+   explainedBy: String[0..1];
+   // What they said: LATE_TRADE, STALE_FX, MODEL_CHANGE, CROSS_TERM, ROUNDING.
+   residualReason: String[0..1];
+
+   line: pnl_attribution::PnlLine[0..1];
+   policy: pnl_attribution::PnlTolerancePolicy[0..1];
+
+   // Absence of an explanation date is the only honest test of still-open. The history stays.
+   isExplained() { $this.explainedOn->isEmpty()->not() } : Boolean[1];
+   // How far past tolerance it went, as a ratio. Above 1.0 is a breach.
+   breachRatio() { $this.residualPct / $this.tolerancePct } : Float[1];
+}
+
+// ONE RUNG OF THE EXPLAIN WALK: the ordered waterfall from opening market value to closing
+// market value, one row per step. Keyed by the line plus a sequence, because the ORDER is
+// part of the answer -- a sequential attribution that applies FX before price gives different
+// numbers than one that applies price first, and the difference is the cross term.
+Class pnl_attribution::PnlExplainStep
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // Where in the walk this step sits. 1 is the opening balance.
+   stepSeq: Integer[1];
+
+   // OPEN, PRICE, FX, CARRY, FEE, TRADE, AMEND, RESIDUAL, CLOSE.
+   stepCode: String[1];
+   // What the step is called on the report.
+   stepLabel: String[1];
+   // The running balance before this step.
+   openingBalance: Float[1];
+   // What the step added. Signed.
+   stepAmount: Float[1];
+   // The running balance after it.
+   closingBalance: Float[1];
+   // True for a rung that restates a subtotal rather than adding anything new.
+   isSubtotal: Boolean[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+
+   // Re-derive the closing balance from the other two. When this does not equal
+   // closingBalance the walk was written from more than one snapshot.
+   balanceCheck() { $this.openingBalance + $this.stepAmount } : Float[1];
+   // The step's share of the balance it started from.
+   stepPct() { $this.stepAmount / $this.openingBalance } : Float[1];
+}
+
+// ------------------------------------------------------------------ the two cross-cutting splits
+
+// REALISED AGAINST UNREALISED, per line. Realised is what position-keeping's lot closures
+// crystallised today; unrealised is what the remaining stock would crystallise at today's
+// mark. They are separate rows of thought because tax and accounting treat them differently,
+// and because only one of them moves on a day with no trades.
+Class pnl_attribution::PnlRealisedSplit
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   // Crystallised today.
+   realisedPnl: Float[1];
+   // Not crystallised: what the stock still held is worth against what it cost.
+   unrealisedPnl: Float[1];
+   // The part of realised that came from matching sales against lots, as opposed to from a
+   // corporate action or an expiry. The two are realised for different reasons.
+   realisedFromClosures: Float[1];
+   // Yesterday's and today's unrealised, so the CHANGE in unrealised is visible: a day can
+   // realise a gain and lose more than it realised.
+   openingUnrealised: Float[1];
+   closingUnrealised: Float[1];
+   // How much stock was closed out to produce realisedFromClosures.
+   closedQuantity: Float[1];
+   // WHICH lot-matching rule decided it: FIFO, LIFO, HIFO, AVERAGE. The realised number is
+   // only defensible with the rule that produced it, exactly as position-keeping records.
+   matchingMethod: String[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+
+   // The two halves are only ever summed, never stored summed.
+   totalPnl() { $this.realisedPnl + $this.unrealisedPnl } : Float[1];
+   // What the day did to unrealised, which is the half a mark moves.
+   unrealisedChange() { $this.closingUnrealised - $this.openingUnrealised } : Float[1];
+   // Realised as a share of the whole. Float, because it is a ratio.
+   realisedShare() { $this.realisedPnl / ($this.realisedPnl + $this.unrealisedPnl) } : Float[1];
+   // The part of realised that did NOT come from lot matching -- corporate actions, expiries.
+   realisedFromEvents() { $this.realisedPnl - $this.realisedFromClosures } : Float[1];
+}
+
+// CLEAN AGAINST DIRTY, per line. Clean P&L excludes interest accrued since the last coupon;
+// dirty includes it. The distinction is inherited straight from valuation-core's price stack:
+// a bond quoted at 98.50 with 1.25 accrued does not settle at 98.50, and a P&L that does not
+// say which of the two it means cannot be reconciled to either the desk or the balance sheet.
+Class pnl_attribution::PnlCleanDirtySplit
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   // P&L on the ex-interest leg -- what the desk is judged on.
+   cleanPnl: Float[1];
+   // The accrued leg alone -- earned by the passage of time, not by being right.
+   accruedPnl: Float[1];
+   // Clean plus accrued, as the run wrote it. dirtyCheck() re-derives it.
+   dirtyPnl: Float[1];
+   // Accrued at both ends of the day, per the valuation. Their difference is one day's carry
+   // and should equal accruedPnl on a day with no coupon.
+   openingAccrued: Float[1];
+   closingAccrued: Float[1];
+   // A coupon that actually paid today, which resets accrued to zero and breaks the identity
+   // above -- which is why it is a column and not an assumption.
+   couponPaid: Float[1];
+   // ACT/360, ACT/365, 30/360. Carried because the accrual is only checkable with it.
+   dayCountBasis: String[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+
+   // Re-derive dirty from its parts. Disagreement with dirtyPnl means two snapshots.
+   dirtyCheck() { $this.cleanPnl + $this.accruedPnl } : Float[1];
+   // One day's movement in accrued, before any coupon payment.
+   accruedChange() { $this.closingAccrued - $this.openingAccrued } : Float[1];
+   // Movement in accrued once a paid coupon is added back -- the identity that should hold
+   // against accruedPnl on every day, coupon or not.
+   accruedChangeExCoupon() { ($this.closingAccrued - $this.openingAccrued) + $this.couponPaid } : Float[1];
+   // Accrued as a share of the dirty P&L: how much of the day was earned rather than won.
+   accruedShare() { $this.accruedPnl / $this.dirtyPnl } : Float[1];
+}
+
+// ------------------------------------------------------------------ the components
+
+// ONE ATTRIBUTED AMOUNT OF ONE KIND on one line -- the detail behind the six summary effects
+// carried on PnlLine, in the same relationship as position-keeping's lots to its average
+// cost. Keyed by the line's five columns plus the component code, so the same effect cannot
+// be attributed twice to one line.
+//
+// This is the BASE of a filter-subtype family: six subtypes over one table, each selecting
+// its own COMPONENT_CODE and adding only the columns that mean anything for that cause. A
+// price effect has an opening and closing price; a fee effect has a rate in basis points;
+// neither has any use for the other's columns, and one table with a filter per subtype says
+// that without six near-identical copies of the same eight column mappings.
+Class pnl_attribution::PnlComponent
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // PRICE, FX, CARRY, FEE, TRADE or AMEND -- and the discriminator the subtypes filter on.
+   componentCode: String[1];
+
+   // The attributed money, in the component's own currency. NUMERIC: it must add up exactly.
+   componentAmount: Float[1];
+   // The same amount carried into the reporting currency at fxRate.
+   amountInReporting: Float[1];
+   // ISO 4217 componentAmount is denominated in. A fee can be charged in a currency that is
+   // neither the instrument's nor the firm's.
+   componentCurrency: String[1];
+   // The rate that carried it. FLOAT: a ratio.
+   fxRate: Float[1];
+   // This component's share of the line's total explained P&L, for a contribution report.
+   contributionPct: Float[1];
+   // The quantity the effect was evaluated at. Which quantity -- opening or closing -- is
+   // decided by the method, and storing the one actually used is what makes the number
+   // reproducible a year later.
+   quantityUsed: Float[1];
+   // Where in the sequential walk this component was computed. Order changes the answer.
+   computedSeq: Integer[1];
+   // True when the amount is a plug rather than a computation -- an estimate the run could
+   // not derive and should not be trusted to reconcile.
+   isEstimated: Boolean[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+   componentTotal: pnl_attribution::PnlComponentTotal[0..1];
+
+   // The component in reporting terms, re-derived from the amount and the rate rather than
+   // read from amountInReporting -- the two disagreeing is a rate-snapshot break.
+   reportingCheck() { $this.componentAmount * $this.fxRate } : Float[1];
+   // Magnitude regardless of sign, for ranking causes by how much they moved the day.
+   absoluteAmount() { $this.componentAmount->abs() } : Float[1];
+}
+
+// THE PRICE EFFECT: the instrument's own quoted price moved, evaluated at yesterday's
+// quantity and yesterday's rate so that the number is the market's contribution alone. The
+// largest component on almost every equity line, and the one a trader argues with.
+Class pnl_attribution::PnlPriceEffect extends pnl_attribution::PnlComponent
+{
+   // The mark the day opened at, in the instrument's currency.
+   openPrice: Float[1];
+   // The mark it closed at.
+   closePrice: Float[1];
+
+   // What the market did per unit.
+   priceMove() { $this.closePrice - $this.openPrice } : Float[1];
+   // CROSS-PROJECT FUNCTION CALL. Re-derive the effect as valuation-core would value it:
+   // quantity times the move. When this does not equal componentAmount, the run and the
+   // valuation library disagree about the same arithmetic and one of them is wrong.
+   effectCheck() { valuation_core::vcMarketValue($this.quantityUsed, $this.closePrice - $this.openPrice) } : Float[1];
+   // The move as a percentage, by valuation-core's shared definition of a deviation.
+   movePct() { valuation_core::vcDeviationPct($this.openPrice, $this.closePrice) } : Float[1];
+}
+
+// THE FX EFFECT: the rate moved, evaluated at yesterday's price and quantity. Held apart from
+// the price effect because a desk long a foreign asset can be entirely right about the asset
+// and still lose money, and telling it so is the only useful thing this split does.
+Class pnl_attribution::PnlFxEffect extends pnl_attribution::PnlComponent
+{
+   // The rate the day opened at, pointing component currency -> reporting currency.
+   openFxRate: Float[1];
+   // The rate it closed at.
+   closeFxRate: Float[1];
+
+   // What the rate did.
+   rateMove() { $this.closeFxRate - $this.openFxRate } : Float[1];
+   // The rate move as a percentage, by the same shared definition every valuation break uses.
+   rateMovePct() { valuation_core::vcDeviationPct($this.openFxRate, $this.closeFxRate) } : Float[1];
+}
+
+// THE CARRY EFFECT: what the position earned or paid simply for existing over one day --
+// coupon accrued, dividend gone ex, financing charged on a borrow. The only effect that is
+// non-zero on a day when neither the market nor the firm did anything at all.
+Class pnl_attribution::PnlCarryEffect extends pnl_attribution::PnlComponent
+{
+   // COUPON, DIVIDEND, FINANCING, BORROW_FEE.
+   carryType: String[1];
+   // The day-count fraction the accrual was computed over, from valuation-core's convention.
+   dayCountFraction: Float[1];
+
+   // The carry grossed up to a full period, for comparison against the instrument's coupon.
+   annualisedCarry() { $this.componentAmount / $this.dayCountFraction } : Float[1];
+   // Carry per unit held, which is what a financing desk actually quotes.
+   carryPerUnit() { $this.componentAmount / $this.quantityUsed } : Float[1];
+}
+
+// THE FEE EFFECT: commission, custody, brokerage and exchange charges -- money that left
+// whatever the market did. Small per line and never small in total, which is why it is a
+// named cause rather than something swept into the residual.
+Class pnl_attribution::PnlFeeEffect extends pnl_attribution::PnlComponent
+{
+   // COMMISSION, CUSTODY, BROKERAGE, EXCHANGE, CLEARING.
+   feeType: String[1];
+   // The rate charged, in basis points of notional. FLOAT: a ratio.
+   feeRateBps: Float[1];
+
+   // The rate as a plain fraction, so nobody divides by 10000 in a report and gets it wrong.
+   feeRate() { $this.feeRateBps / 10000.0 } : Float[1];
+   // The notional the fee implies, back-solved from the amount and the rate -- a cheap check
+   // that the fee was charged on the trade it claims to have been charged on.
+   impliedNotional() { $this.componentAmount / ($this.feeRateBps / 10000.0) } : Float[1];
+}
+
+// THE NEW-TRADE EFFECT: positions opened TODAY, marked from execution price to the close.
+// Deliberately not a price effect -- the firm did not hold this at the open, so attributing
+// it to the opening position would credit the market with a decision the trader made.
+Class pnl_attribution::PnlNewTradeEffect extends pnl_attribution::PnlComponent
+{
+   // How many trades went into the effect.
+   tradeCount: Integer[1];
+   // Their net quantity, signed.
+   tradedQuantity: Float[1];
+
+   // Average day-one P&L per trade -- the number that says whether execution was good.
+   pnlPerTrade() { $this.componentAmount / $this.tradeCount } : Float[1];
+   // Day-one P&L per unit traded, comparable across trade sizes.
+   pnlPerUnit() { $this.componentAmount / $this.tradedQuantity } : Float[1];
+}
+
+// THE AMENDMENT EFFECT: restatements of a PRIOR day's P&L booked into today, because a closed
+// day cannot be reopened. This is the cause that makes a P&L series honest -- without it, a
+// correction either vanishes or silently reprints history.
+Class pnl_attribution::PnlAmendmentEffect extends pnl_attribution::PnlComponent
+{
+   // How many amendments were booked.
+   amendmentCount: Integer[1];
+   // The cob date being restated. Absent when the amendment corrects today itself.
+   restatedFrom: StrictDate[0..1];
+
+   // True when this really is a restatement of history rather than a same-day fix.
+   restatesPriorDay() { $this.restatedFrom->isEmpty()->not() } : Boolean[1];
+   // Average size of an amendment, for spotting one large correction hiding among small ones.
+   averageAmendment() { $this.componentAmount / $this.amendmentCount } : Float[1];
+}
+
+// ------------------------------------------------------------------ the detail rows
+
+// ONE STRAND OF CARRY on one line, per kind: the coupon, the dividend or the financing charge
+// separately, rather than netted into one number nobody can take apart. Keyed by the line's
+// five columns plus the carry type. Reaches valuation-core's own accrual, which is the
+// authority for the coupon strand.
+Class pnl_attribution::PnlCarryAccrual
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // COUPON, DIVIDEND, FINANCING, BORROW_FEE -- and the discriminator.
+   carryType: String[1];
+
+   // The money accrued on this strand for this one day.
+   accrualAmount: Float[1];
+   // The annual rate it was accrued at. FLOAT: a ratio.
+   carryRate: Float[1];
+   // The fraction of a year one day represents under the applicable convention.
+   dayCountFraction: Float[1];
+   // The period the strand is accruing over.
+   periodStartDate: StrictDate[1];
+   periodEndDate: StrictDate[1];
+   // ISO 4217 the accrual is denominated in.
+   accrualCurrency: String[1];
+   // True once the cash has actually moved, which is when carry stops being a P&L item and
+   // becomes a settlement one.
+   isPaid: Boolean[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+   // CROSS-PROJECT. valuation-core's accrual for the same instrument and date -- the coupon
+   // strand here should reconcile to it, and reconciling to a shared row beats reconciling
+   // to a shared assumption.
+   valuationAccrual: valuation_core::VcAccrual[0..1];
+
+   // The daily rate this strand implies, for comparison against the instrument's terms.
+   dailyRate() { $this.carryRate * $this.dayCountFraction } : Float[1];
+}
+
+// ONE FEE ACTUALLY CHARGED against this position today, as its own row: the detail behind the
+// fee effect. Keyed by the line's five columns plus a sequence, because a single day can
+// carry a commission, a custody charge and an exchange fee and netting them loses the ability
+// to challenge any one of them.
+Class pnl_attribution::PnlFeeCharge
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   feeSeq: Integer[1];
+
+   // COMMISSION, CUSTODY, BROKERAGE, EXCHANGE, CLEARING.
+   feeType: String[1];
+   // The money charged. Negative to P&L by convention, stored as booked.
+   feeAmount: Float[1];
+   // ISO 4217 it was charged in.
+   feeCurrency: String[1];
+   // The rate applied, in basis points.
+   feeRateBps: Float[1];
+   // Who charged it: the broker, the custodian, the exchange.
+   chargedBy: String[1];
+   // The invoice it will appear on, absent while the charge is still an accrual.
+   invoiceReference: String[0..1];
+   // True while the fee is accrued rather than invoiced.
+   isAccrued: Boolean[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+
+   // The rate as a plain fraction.
+   feeRate() { $this.feeRateBps / 10000.0 } : Float[1];
+}
+
+// ONE TRADE'S DAY-ONE P&L: a trade executed today, marked from its execution price to the
+// close, on its own row. Keyed by the line's five columns plus the trade reference -- the
+// same reference position-keeping carries on the movement, which is how a day-one number is
+// traced back to the movement that caused it.
+Class pnl_attribution::PnlTradePnl
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // The booking system's reference, matching PositionMovement.tradeReference upstream.
+   tradeReference: String[1];
+
+   // How much was traded, signed: negative is a sale.
+   tradeQuantity: Float[1];
+   // What it was executed at.
+   tradePrice: Float[1];
+   // The cash that moved, signed the opposite way to the quantity.
+   tradeCash: Float[1];
+   // Execution price to close, times quantity: the P&L the trade earned on its first day.
+   dayOnePnl: Float[1];
+   // Fees charged on this trade specifically, which day-one P&L is usually quoted before.
+   feeAmount: Float[1];
+   // ISO 4217 the trade settled in.
+   tradeCurrency: String[1];
+   // position-keeping's movement sequence, so the join back to the movement is exact.
+   movementSeq: Integer[1];
+   // True when the trade was opened and closed the same day and never became a position.
+   isSameDayClose: Boolean[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+   // CROSS-PROJECT. The position-keeping movement this trade is, on the position's four
+   // columns plus the movement sequence.
+   movement: position_keeping::PositionMovement[0..1];
+
+   // CROSS-PROJECT FUNCTION CALL. The notional as valuation-core computes a market value:
+   // quantity times price, and never re-written here.
+   notional() { valuation_core::vcMarketValue($this.tradeQuantity, $this.tradePrice) } : Float[1];
+   // Day-one P&L after the fees the trade itself incurred -- the number that decides whether
+   // the trade was worth doing.
+   netTradePnl() { $this.dayOnePnl - $this.feeAmount } : Float[1];
+   // Day-one P&L per unit, comparable across sizes.
+   pnlPerUnit() { $this.dayOnePnl / $this.tradeQuantity } : Float[1];
+}
+
+// A RESTATEMENT OF A PRIOR DAY'S P&L, booked into today because the prior day is closed.
+// Keyed by the line's five columns plus a sequence. Kept as its own row, with the before and
+// the after both present, so the original figure and the correction are each still readable
+// afterwards -- exactly the discipline position-keeping applies to a position adjustment.
+Class pnl_attribution::PnlAmendment
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   amendmentSeq: Integer[1];
+
+   // LATE_TRADE, CANCEL, REBOOK, PRICE_CORRECTION, FEE_CORRECTION.
+   amendmentType: String[1];
+   // The cob date being restated -- earlier than cobDate by construction.
+   originalCobDate: StrictDate[1];
+   // What the prior day said.
+   amountBefore: Float[1];
+   // What it should have said.
+   amountAfter: Float[1];
+   // Why a human overrode a computed number.
+   reason: String[1];
+   raisedBy: String[1];
+   // Absent while pending. Nobody's own amendment counts until someone else signs it.
+   approvedBy: String[0..1];
+   raisedOn: StrictDate[1];
+
+   line: pnl_attribution::PnlLine[0..1];
+
+   // The correction itself: what lands in today's amendment effect.
+   amendmentDelta() { $this.amountAfter - $this.amountBefore } : Float[1];
+   // The correction as a fraction of what was originally reported.
+   amendmentPct() { ($this.amountAfter - $this.amountBefore) / $this.amountBefore } : Float[1];
+   // Signed off by a second person, or not yet.
+   isApproved() { $this.approvedBy->isEmpty()->not() } : Boolean[1];
+}
+
+// A RESIDUAL THAT BREACHED ITS TOLERANCE and now belongs to somebody. Keyed by the line's five
+// columns plus the break code, so the same kind of break cannot be raised twice on one line.
+// This is the row a control function works through each morning; the residual is the number,
+// this is the obligation it creates.
+Class pnl_attribution::PnlAttributionBreak
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // RESIDUAL_PCT, RESIDUAL_ABS, NO_PRIOR_VALUATION, QTY_MISMATCH, FX_STALE, SIGN_FLIP.
+   breakCode: String[1];
+
+   // The policy whose tolerance was breached.
+   policyCode: String[1];
+   // 1 (informational) to 5 (blocks the run's sign-off).
+   severity: Integer[1];
+   // How much was outside tolerance, in the line's P&L currency.
+   breakAmount: Float[1];
+   // The same as a fraction. FLOAT: a ratio.
+   breakPct: Float[1];
+   detectedOn: StrictDate[1];
+   // Absent until someone resolves it.
+   resolvedOn: StrictDate[0..1];
+   assignedTo: String[0..1];
+
+   line: pnl_attribution::PnlLine[0..1];
+   policy: pnl_attribution::PnlTolerancePolicy[0..1];
+
+   // Open until resolved. Absence of a resolution date is the only honest test.
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+   // True for a break that stops the run being signed off at all.
+   isBlocking() { $this.severity >= 5 } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ the policy layer
+
+// HOW BIG A RESIDUAL IS ALLOWED TO BE before it becomes somebody's problem, per asset class.
+// Keyed by policyCode. Stated as BOTH a percentage and an absolute floor, because a
+// percentage alone raises a break on every three-unit position and an absolute alone raises
+// none on a billion-dollar one.
+Class pnl_attribution::PnlTolerancePolicy
+{
+   // The policy identifier, e.g. GOVT_BOND_EOD.
+   policyCode: String[1];
+   // What it applies to: BOND, EQUITY, FUTURE, SWAP, FUND.
+   assetClass: String[1];
+   // The attribution method this policy assumes -- tolerances are only meaningful against a
+   // method, since a method that ignores cross terms has a structurally larger residual.
+   methodCode: String[1];
+   // The percentage of the value change a residual may reach. FLOAT: a tolerance.
+   residualTolerancePct: Float[1];
+   // The absolute floor beneath which the percentage is not applied.
+   residualToleranceAmount: Float[1];
+   // How far up the firm a breach is escalated: 1 desk, 2 product control, 3 CRO.
+   escalationLevel: Integer[1];
+   // True for the fallback applied to an asset class with no more specific policy.
+   isDefault: Boolean[1];
+
+   method: pnl_attribution::PnlAttributionMethod[0..1];
+   residuals: pnl_attribution::PnlResidual[*];
+   breaks: pnl_attribution::PnlAttributionBreak[*];
+}
+
+// HOW THE DAY WAS SPLIT: the algorithm that turned one value change into six causes. Keyed by
+// methodCode. This is data and not a comment because two methods give two different -- both
+// correct -- splits of the same total, and a residual can only be judged against the method
+// that produced it.
+Class pnl_attribution::PnlAttributionMethod
+{
+   // SEQUENTIAL, SIMULTANEOUS, TAYLOR, FULL_REVAL.
+   methodCode: String[1];
+   // What it is called in the P&L policy document.
+   methodName: String[1];
+   // The order effects are applied in, as one string: 'PRICE,FX,CARRY,FEE,TRADE,AMEND'. Under
+   // a sequential method this ordering IS the answer.
+   effectOrder: String[1];
+   // True when effects are applied one at a time, each on the state left by the last.
+   isSequential: Boolean[1];
+   // What is done with the cross term -- the piece that belongs to price and FX jointly:
+   // DROPPED, PRORATED, SEPARATE, or NONE for a simultaneous method that has none.
+   crossTermHandling: String[1];
+   // The residual this method is expected to leave even when everything is right. A method
+   // that drops cross terms cannot reconcile to zero and pretending otherwise wastes a
+   // control function's morning.
+   expectedResidualPct: Float[1];
+
+   runs: pnl_attribution::PnlAttributionRun[*];
+   lines: pnl_attribution::PnlLine[*];
+   policies: pnl_attribution::PnlTolerancePolicy[*];
+}
+
+// ONE ROLE'S SIGN-OFF ON A RUN. Keyed by (attributionId, signOffSeq). A P&L run is not a
+// number until the desk, product control and finance have each accepted it, and keeping the
+// three as separate rows is what lets a report say which of them is still missing.
+Class pnl_attribution::PnlSignOff
+{
+   attributionId: String[1];
+   signOffSeq: Integer[1];
+
+   // DESK, PRODUCT_CONTROL, FINANCE, RISK.
+   signOffRole: String[1];
+   signedBy: String[1];
+   signedOn: StrictDate[1];
+   // What they said when they signed, which on a large-residual day is the whole record.
+   commentary: String[0..1];
+   // True for the sign-off that closes the run. Exactly one row per run should carry it.
+   isFinal: Boolean[1];
+
+   run: pnl_attribution::PnlAttributionRun[0..1];
+}
+
+// ------------------------------------------------------------------ THE AGGREGATIONS
+//
+// The five classes below are mapped onto store Views. Their rows are GROUPS, not lines: a
+// query for one of them makes the engine fold a GROUP BY into its SQL rather than read every
+// line and total it in memory. Note what a grouping does NOT produce -- an account with no
+// P&L lines on a date forms no group and is simply absent, rather than appearing with a total
+// of zero. That is the same behaviour position-keeping's four views have, and it is why a
+// missing book shows up as a missing row and not as a book that made nothing.
+//
+// Every one of them carries totalUnexplained(): the residual, readable at book level, at
+// security level, at currency level and for the whole run, without the reader adding
+// anything up.
+
+// ONE ACCOUNT'S WHOLE DAY OF P&L, as one row. This is the top of a desk's daily report: what
+// the book made, split six ways, and how much of it nobody can account for. Grouped by
+// (attributionId, institutionId, accountNo, cobDate) -- the account key is two columns here as
+// it is everywhere the account appears.
+Class pnl_attribution::PnlAccountDayTotal
+{
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   cobDate: StrictDate[1];
+
+   // How many positions contributed.
+   lineCount: Integer[1];
+   // The two ends of the book's day.
+   totalOpeningValue: Float[1];
+   totalClosingValue: Float[1];
+   // The six causes, summed over the book.
+   totalPriceEffect: Float[1];
+   totalFxEffect: Float[1];
+   totalCarryEffect: Float[1];
+   totalFeeEffect: Float[1];
+   totalTradeEffect: Float[1];
+   totalAmendmentEffect: Float[1];
+   // And the two cross-cutting splits.
+   totalRealisedPnl: Float[1];
+   totalUnrealisedPnl: Float[1];
+
+   lines: pnl_attribution::PnlLine[*];
+   // CROSS-PROJECT, VIEW TO VIEW. position-keeping's own account-day group, so a P&L total
+   // and a position total for the same account-day are one navigation apart and neither
+   // reads a row. This is the diamond restated at the level of groups.
+   positionTotal: position_keeping::AccountDayTotal[0..1];
+
+   // What the book's value did.
+   valueChange() { $this.totalClosingValue - $this.totalOpeningValue } : Float[1];
+   // What the six causes claim.
+   totalExplained() { $this.totalPriceEffect + $this.totalFxEffect + $this.totalCarryEffect + $this.totalFeeEffect + $this.totalTradeEffect + $this.totalAmendmentEffect } : Float[1];
+   // THE BOOK'S UNEXPLAINED RESIDUAL. The number a desk head is asked about.
+   totalUnexplained() { ($this.totalClosingValue - $this.totalOpeningValue) - ($this.totalPriceEffect + $this.totalFxEffect + $this.totalCarryEffect + $this.totalFeeEffect + $this.totalTradeEffect + $this.totalAmendmentEffect) } : Float[1];
+   // Realised plus unrealised, never stored summed.
+   totalPnl() { $this.totalRealisedPnl + $this.totalUnrealisedPnl } : Float[1];
+   // The book's return on its opening value.
+   returnPct() { ($this.totalClosingValue - $this.totalOpeningValue) / $this.totalOpeningValue } : Float[1];
+   // Average P&L per line. `/` widens to Float even against an Integer count.
+   averageLinePnl() { ($this.totalRealisedPnl + $this.totalUnrealisedPnl) / $this.lineCount } : Float[1];
+}
+
+// ONE INSTRUMENT'S P&L ACROSS EVERY ACCOUNT ON ONE DAY, as one row. The grouping drops the
+// account, which is the point: this answers "what did the firm make on this security", which
+// is what a concentration review and a single-name post-mortem both ask and the line table
+// cannot answer without scanning.
+Class pnl_attribution::PnlInstrumentDayTotal
+{
+   attributionId: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   // How many accounts held it.
+   accountCount: Integer[1];
+   totalOpeningValue: Float[1];
+   totalClosingValue: Float[1];
+   totalPriceEffect: Float[1];
+   totalFxEffect: Float[1];
+   totalCarryEffect: Float[1];
+   totalFeeEffect: Float[1];
+   totalTradeEffect: Float[1];
+   totalAmendmentEffect: Float[1];
+   totalRealisedPnl: Float[1];
+   totalUnrealisedPnl: Float[1];
+
+   lines: pnl_attribution::PnlLine[*];
+   // CROSS-PROJECT, VIEW TO VIEW. position-keeping's net inventory in the same security on
+   // the same day -- the other half of the diamond, group against group.
+   positionTotal: position_keeping::InstrumentDayTotal[0..1];
+
+   valueChange() { $this.totalClosingValue - $this.totalOpeningValue } : Float[1];
+   totalExplained() { $this.totalPriceEffect + $this.totalFxEffect + $this.totalCarryEffect + $this.totalFeeEffect + $this.totalTradeEffect + $this.totalAmendmentEffect } : Float[1];
+   // The security's unexplained residual. A single name that will not reconcile across every
+   // account holding it is a data problem, not a trading one.
+   totalUnexplained() { ($this.totalClosingValue - $this.totalOpeningValue) - ($this.totalPriceEffect + $this.totalFxEffect + $this.totalCarryEffect + $this.totalFeeEffect + $this.totalTradeEffect + $this.totalAmendmentEffect) } : Float[1];
+   totalPnl() { $this.totalRealisedPnl + $this.totalUnrealisedPnl } : Float[1];
+   // How much of the security's day was the market moving, rather than the firm trading.
+   marketShare() { ($this.totalPriceEffect + $this.totalFxEffect) / ($this.totalRealisedPnl + $this.totalUnrealisedPnl) } : Float[1];
+}
+
+// ONE CURRENCY'S SHARE OF A RUN, as one row. The grouping drops the account, the instrument
+// AND the date, keeping only the run and the currency -- which is exactly the cut a treasury
+// desk reads, because an FX effect concentrated in one currency is a hedging decision and the
+// same total spread evenly is not.
+Class pnl_attribution::PnlCurrencyTotal
+{
+   attributionId: String[1];
+   // ISO 4217 -- and half the grouping.
+   pnlCurrency: String[1];
+
+   lineCount: Integer[1];
+   totalClosingValue: Float[1];
+   // The FX effect is the reason this cut exists.
+   totalFxEffect: Float[1];
+   totalPriceEffect: Float[1];
+   totalRealisedPnl: Float[1];
+   totalUnrealisedPnl: Float[1];
+
+   lines: pnl_attribution::PnlLine[*];
+   // CROSS-PROJECT, from a group. valuation-core's definition of this currency as one the
+   // firm reports in, with its rounding rule -- so a currency subtotal is rounded the way
+   // the valuation of the same currency is.
+   reportingCurrencyRef: valuation_core::VcReportingCurrency[0..1];
+
+   totalPnl() { $this.totalRealisedPnl + $this.totalUnrealisedPnl } : Float[1];
+   // How much of this currency's P&L was the rate rather than the assets.
+   fxShare() { $this.totalFxEffect / ($this.totalRealisedPnl + $this.totalUnrealisedPnl) } : Float[1];
+   // FX effect as a fraction of the exposure it arose on.
+   fxOnValue() { $this.totalFxEffect / $this.totalClosingValue } : Float[1];
+}
+
+// THE WHOLE RUN AS ONE ROW: every line, every account, every instrument, totalled. The
+// grouping keeps only the attribution id. This is the firm-level explain -- the six causes
+// and the residual for the entire book -- and it is one grouped read rather than a scan.
+Class pnl_attribution::PnlRunTotal
+{
+   attributionId: String[1];
+
+   lineCount: Integer[1];
+   accountCount: Integer[1];
+   totalOpeningValue: Float[1];
+   totalClosingValue: Float[1];
+   totalPriceEffect: Float[1];
+   totalFxEffect: Float[1];
+   totalCarryEffect: Float[1];
+   totalFeeEffect: Float[1];
+   totalTradeEffect: Float[1];
+   totalAmendmentEffect: Float[1];
+   totalRealisedPnl: Float[1];
+   totalUnrealisedPnl: Float[1];
+
+   run: pnl_attribution::PnlAttributionRun[0..1];
+   lines: pnl_attribution::PnlLine[*];
+
+   valueChange() { $this.totalClosingValue - $this.totalOpeningValue } : Float[1];
+   totalExplained() { $this.totalPriceEffect + $this.totalFxEffect + $this.totalCarryEffect + $this.totalFeeEffect + $this.totalTradeEffect + $this.totalAmendmentEffect } : Float[1];
+   // THE FIRM'S UNEXPLAINED RESIDUAL FOR THE DAY. One number, and the one that decides
+   // whether the run is signed off or sent back.
+   totalUnexplained() { ($this.totalClosingValue - $this.totalOpeningValue) - ($this.totalPriceEffect + $this.totalFxEffect + $this.totalCarryEffect + $this.totalFeeEffect + $this.totalTradeEffect + $this.totalAmendmentEffect) } : Float[1];
+   totalPnl() { $this.totalRealisedPnl + $this.totalUnrealisedPnl } : Float[1];
+   // The residual as a fraction of the value change -- the run's headline quality metric,
+   // and what the sign-off threshold is actually stated in.
+   unexplainedPct() { (($this.totalClosingValue - $this.totalOpeningValue) - ($this.totalPriceEffect + $this.totalFxEffect + $this.totalCarryEffect + $this.totalFeeEffect + $this.totalTradeEffect + $this.totalAmendmentEffect)) / ($this.totalClosingValue - $this.totalOpeningValue) } : Float[1];
+   // Average P&L per account, for a size sanity check on the run.
+   averageAccountPnl() { ($this.totalRealisedPnl + $this.totalUnrealisedPnl) / $this.accountCount } : Float[1];
+}
+
+// ONE CAUSE, TOTALLED OVER A WHOLE RUN -- the totals table of the explain itself. Grouped by
+// (attributionId, componentCode) out of the COMPONENT table rather than the line table, which
+// is what makes it a different question: not "what did this book make" but "how much of the
+// firm's day was FX". The largest and smallest contributions come with it, because a total of
+// zero built from two enormous opposite numbers is not a total of zero in any useful sense.
+Class pnl_attribution::PnlComponentTotal
+{
+   attributionId: String[1];
+   // PRICE, FX, CARRY, FEE, TRADE, AMEND -- and half the grouping.
+   componentCode: String[1];
+
+   // How many component rows went into it.
+   componentCount: Integer[1];
+   // The cause's total, in the components' own currencies -- meaningful only when they agree,
+   // which is why the reporting-currency total sits beside it.
+   totalAmount: Float[1];
+   // The same total in the run's reporting currency. This is the comparable one.
+   totalInReporting: Float[1];
+   // The largest and smallest single contribution, which is how a total is sanity-checked.
+   largestAmount: Float[1];
+   smallestAmount: Float[1];
+
+   run: pnl_attribution::PnlAttributionRun[0..1];
+   components: pnl_attribution::PnlComponent[*];
+
+   // Average contribution per line touched by this cause.
+   averageAmount() { $this.totalInReporting / $this.componentCount } : Float[1];
+   // The spread between the biggest positive and the biggest negative contribution. A wide
+   // spread on a small total means the cause is netting, not absent.
+   amountSpread() { $this.largestAmount - $this.smallestAmount } : Float[1];
+}

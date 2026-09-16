@@ -1,0 +1,25 @@
+// F20 -- a multiplicity whose lower bound exceeds its upper bound is accepted, and COMPILES.
+//
+// Run:
+//   java -cp <engine-runner>/target/classes:$(cat cp.txt) perf.ParseMain model.pure --compile
+//
+// Observed: ok  [compiles]
+// Expected: rejected somewhere -- no value can ever satisfy [2..1].
+//
+// This is not a parse-stage complaint. `[1..]` (open upper bound) IS a grammar error, so the
+// multiplicity syntax is validated; what is missing is the range check, and the compiler does
+// not add one either. The property is simply unsatisfiable and nothing says so.
+//
+// Contrast, in the same file: an Association with one property parses and is then rejected at
+// COMPILE with "Expected 2 properties for an association". So arity IS checked one stage
+// later -- the pattern exists, multiplicity bounds are just not part of it.
+//
+// Found while verifying a permissiveness report rather than while looking for defects: the
+// claim was "reversed multiplicity parses", and it turned out to compile too.
+###Pure
+Class fx::repro::Impossible
+{
+   // Lower bound 2, upper bound 1. Accepted through parse AND compile.
+   never: String[2..1];
+   alsoNever: Integer[10..3];
+}

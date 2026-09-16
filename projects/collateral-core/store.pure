@@ -1,0 +1,253 @@
+###Relational
+// The collateral store. Layer 1: it INCLUDES the two stores it depends on, because the joins
+// at the bottom of this file cross into CP_LEGAL_ENTITY, CI_INSTRUMENT and CI_ASSET_CLASS and
+// a join cannot name a table its database has not included.
+//
+// The two joins that matter are Col_EligibilityRule and Col_ConcentrationScope. Both are
+// DISJUNCTIONS -- `a.X = b.X or a.Y = b.Y` -- and both are written on ONE line, because a
+// wrapped join condition is not parsed. That single `or` is the whole point of the project:
+// eligibility is negotiated on two independent axes and a piece of collateral qualifies on
+// either, so the condition cannot be decomposed into two joins without losing the rows that
+// match both.
+Database collateral_core::Store
+(
+   include core_party::Store
+   include core_instrument::Store
+
+   Table COL_AGREEMENT
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_TYPE VARCHAR(24) NOT NULL,
+      PRINCIPAL_ENTITY_ID VARCHAR(40) NOT NULL,
+      COUNTERPARTY_ENTITY_ID VARCHAR(40) NOT NULL,
+      GOVERNING_LAW VARCHAR(40),
+      BASE_CURRENCY VARCHAR(3) NOT NULL,
+      THRESHOLD_AMOUNT DOUBLE,
+      MINIMUM_TRANSFER_AMOUNT DOUBLE,
+      INDEPENDENT_AMOUNT DOUBLE,
+      ROUNDING_AMOUNT DOUBLE,
+      IS_BILATERAL BIT,
+      ALLOWS_REHYPOTHECATION BIT,
+      EFFECTIVE_DATE DATE,
+      TERMINATION_DATE DATE,
+      // The two schedules an agreement points at. Nullable: a one-way agreement over cash
+      // needs neither.
+      ELIGIBILITY_SCHEDULE_ID VARCHAR(32),
+      HAIRCUT_SCHEDULE_ID VARCHAR(32)
+   )
+
+   Table COL_ELIGIBILITY_SCHEDULE
+   (
+      SCHEDULE_ID VARCHAR(32) PRIMARY KEY,
+      SCHEDULE_NAME VARCHAR(160) NOT NULL,
+      SCHEDULE_VERSION VARCHAR(16) NOT NULL,
+      EFFECTIVE_DATE DATE,
+      REVIEW_DATE DATE,
+      APPROVED_BY VARCHAR(80),
+      IS_REGULATORY BIT,
+      NOTE VARCHAR(400)
+   )
+
+   // THE TABLE THE OR-JOIN READS.
+   //
+   // ELIGIBLE_ISSUER_ID and ELIGIBLE_ASSET_CLASS are both nullable and exactly one is
+   // populated per row: a Schedule A line names an issuer or names a class. Neither column
+   // can be made NOT NULL and neither can be dropped, which is why the join to the collateral
+   // has to be a disjunction rather than a key match.
+   Table COL_ELIGIBILITY_RULE
+   (
+      RULE_ID VARCHAR(40) PRIMARY KEY,
+      SCHEDULE_ID VARCHAR(32) NOT NULL,
+      RULE_BASIS VARCHAR(16) NOT NULL,
+      ELIGIBLE_ISSUER_ID VARCHAR(40),
+      ELIGIBLE_ASSET_CLASS VARCHAR(40),
+      MIN_RATING VARCHAR(10),
+      MAX_RESIDUAL_YEARS DOUBLE,
+      MAX_HAIRCUT_PCT DOUBLE,
+      CURRENCY_RESTRICTION VARCHAR(3),
+      IS_EXCLUSION BIT,
+      EFFECTIVE_DATE DATE,
+      EXPIRY_DATE DATE
+   )
+
+   // The second disjunctive table: a cap scoped the same two ways.
+   Table COL_CONCENTRATION_LIMIT
+   (
+      LIMIT_ID VARCHAR(40) PRIMARY KEY,
+      SCHEDULE_ID VARCHAR(32) NOT NULL,
+      LIMIT_BASIS VARCHAR(16) NOT NULL,
+      LIMIT_ISSUER_ID VARCHAR(40),
+      LIMIT_ASSET_CLASS VARCHAR(40),
+      MAX_PCT_OF_PORTFOLIO DOUBLE,
+      MAX_NOTIONAL DOUBLE,
+      CURRENCY VARCHAR(3),
+      IS_HARD_LIMIT BIT,
+      BREACH_ACTION VARCHAR(40)
+   )
+
+   Table COL_HAIRCUT_SCHEDULE
+   (
+      HAIRCUT_SCHEDULE_ID VARCHAR(32) PRIMARY KEY,
+      SCHEDULE_NAME VARCHAR(160) NOT NULL,
+      METHODOLOGY VARCHAR(40) NOT NULL,
+      IS_REGULATORY BIT,
+      EFFECTIVE_DATE DATE,
+      REVIEW_FREQUENCY VARCHAR(24)
+   )
+
+   // COMPOSITE KEY, three columns. A haircut is a cell in a grid: schedule, asset class and
+   // rating band. Any shorter key makes 0.5% on short AAA govvies and 25% on long unrated
+   // equity the same row.
+   Table COL_HAIRCUT_BAND
+   (
+      HAIRCUT_SCHEDULE_ID VARCHAR(32) PRIMARY KEY,
+      ASSET_CLASS VARCHAR(40) PRIMARY KEY,
+      RATING_BAND VARCHAR(16) PRIMARY KEY,
+      MIN_RESIDUAL_YEARS DOUBLE,
+      MAX_RESIDUAL_YEARS DOUBLE,
+      HAIRCUT_PCT DOUBLE,
+      FX_HAIRCUT_PCT DOUBLE,
+      IS_FLOOR BIT
+   )
+
+   Table COL_ACCOUNT
+   (
+      ACCOUNT_ID VARCHAR(40) PRIMARY KEY,
+      ACCOUNT_NAME VARCHAR(160) NOT NULL,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      CUSTODIAN_ENTITY_ID VARCHAR(40),
+      ACCOUNT_TYPE VARCHAR(24) NOT NULL,
+      CURRENCY VARCHAR(3),
+      IS_SEGREGATED BIT,
+      IS_TRIPARTY BIT,
+      OPENED_DATE DATE,
+      CLOSED_DATE DATE
+   )
+
+   // ISSUER_ID and ASSET_CLASS are the LEFT-HAND SIDE of both or-joins. They are denormalised
+   // onto the collateral on purpose: a join condition cannot hop through CI_INSTRUMENT to
+   // reach the issuer, so the two axes eligibility is negotiated on have to be columns here.
+   Table COL_COLLATERAL
+   (
+      COLLATERAL_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      ACCOUNT_ID VARCHAR(40),
+      INSTRUMENT_ID VARCHAR(60),
+      ISSUER_ID VARCHAR(40),
+      ASSET_CLASS VARCHAR(40) NOT NULL,
+      DIRECTION VARCHAR(12) NOT NULL,
+      QUANTITY DOUBLE,
+      NOMINAL_AMOUNT DOUBLE,
+      CURRENCY VARCHAR(3) NOT NULL,
+      MARKET_VALUE DOUBLE,
+      RATING_BAND VARCHAR(16),
+      RESIDUAL_YEARS DOUBLE,
+      POSTED_DATE DATE,
+      RETURN_DATE DATE,
+      IS_REHYPOTHECATED BIT
+   )
+
+   // COMPOSITE KEY: one mark per piece per day.
+   Table COL_VALUATION
+   (
+      COLLATERAL_ID VARCHAR(40) PRIMARY KEY,
+      VALUATION_DATE DATE PRIMARY KEY,
+      CLEAN_PRICE DOUBLE,
+      ACCRUED_INTEREST DOUBLE,
+      MARKET_VALUE DOUBLE,
+      HAIRCUT_PCT DOUBLE,
+      COLLATERAL_VALUE DOUBLE,
+      FX_RATE DOUBLE,
+      VALUATION_SOURCE VARCHAR(40),
+      IS_DISPUTED BIT
+   )
+
+   Table COL_MARGIN_CALL
+   (
+      CALL_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      CALL_DATE DATE,
+      CALL_TYPE VARCHAR(8) NOT NULL,
+      EXPOSURE_AMOUNT DOUBLE,
+      COLLATERAL_HELD_VALUE DOUBLE,
+      CALL_AMOUNT DOUBLE,
+      CURRENCY VARCHAR(3) NOT NULL,
+      CALL_STATUS VARCHAR(24) NOT NULL,
+      ISSUED_BY_ENTITY_ID VARCHAR(40),
+      AGREED_DATE DATE,
+      SETTLED_DATE DATE
+   )
+
+   // COMPOSITE KEY: a call is met out of several pieces and a piece is split across calls.
+   Table COL_ALLOCATION
+   (
+      CALL_ID VARCHAR(40) PRIMARY KEY,
+      COLLATERAL_ID VARCHAR(40) PRIMARY KEY,
+      ALLOCATED_QUANTITY DOUBLE,
+      ALLOCATED_MARKET_VALUE DOUBLE,
+      APPLIED_HAIRCUT_PCT DOUBLE,
+      ALLOCATED_COLLATERAL_VALUE DOUBLE,
+      ALLOCATION_DATE DATE,
+      IS_PENDING BIT
+   )
+
+   Table COL_SUBSTITUTION
+   (
+      SUBSTITUTION_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      OUTGOING_COLLATERAL_ID VARCHAR(40) NOT NULL,
+      INCOMING_COLLATERAL_ID VARCHAR(40),
+      REQUEST_DATE DATE,
+      SETTLEMENT_DATE DATE,
+      SUBSTITUTION_STATUS VARCHAR(24) NOT NULL,
+      REASON VARCHAR(200),
+      VALUE_DIFFERENCE DOUBLE
+   )
+
+   // ---- THE DISJUNCTIONS ----
+   //
+   // One line each. `or` between the two axes, unqualified, so every rule that applies on
+   // either axis comes back -- which is why both association ends over these joins are
+   // to-many. A French government bond matches the "French Republic" issuer line and the
+   // "government bonds" asset-class line, and margin needs both.
+   Join Col_EligibilityRule(COL_COLLATERAL.ISSUER_ID = COL_ELIGIBILITY_RULE.ELIGIBLE_ISSUER_ID or COL_COLLATERAL.ASSET_CLASS = COL_ELIGIBILITY_RULE.ELIGIBLE_ASSET_CLASS)
+   Join Col_ConcentrationScope(COL_COLLATERAL.ISSUER_ID = COL_CONCENTRATION_LIMIT.LIMIT_ISSUER_ID or COL_COLLATERAL.ASSET_CLASS = COL_CONCENTRATION_LIMIT.LIMIT_ASSET_CLASS)
+
+   // ---- the ordinary key joins ----
+   Join Col_AgreementSchedule(COL_AGREEMENT.ELIGIBILITY_SCHEDULE_ID = COL_ELIGIBILITY_SCHEDULE.SCHEDULE_ID)
+   Join Col_ScheduleRule(COL_ELIGIBILITY_SCHEDULE.SCHEDULE_ID = COL_ELIGIBILITY_RULE.SCHEDULE_ID)
+   Join Col_ScheduleLimit(COL_ELIGIBILITY_SCHEDULE.SCHEDULE_ID = COL_CONCENTRATION_LIMIT.SCHEDULE_ID)
+   Join Col_AgreementHaircutSchedule(COL_AGREEMENT.HAIRCUT_SCHEDULE_ID = COL_HAIRCUT_SCHEDULE.HAIRCUT_SCHEDULE_ID)
+   Join Col_HaircutBand(COL_HAIRCUT_SCHEDULE.HAIRCUT_SCHEDULE_ID = COL_HAIRCUT_BAND.HAIRCUT_SCHEDULE_ID)
+   Join Col_AgreementCollateral(COL_AGREEMENT.AGREEMENT_ID = COL_COLLATERAL.AGREEMENT_ID)
+   Join Col_AgreementAccount(COL_AGREEMENT.AGREEMENT_ID = COL_ACCOUNT.AGREEMENT_ID)
+   Join Col_AccountCollateral(COL_ACCOUNT.ACCOUNT_ID = COL_COLLATERAL.ACCOUNT_ID)
+   Join Col_CollateralValuation(COL_COLLATERAL.COLLATERAL_ID = COL_VALUATION.COLLATERAL_ID)
+   Join Col_AgreementCall(COL_AGREEMENT.AGREEMENT_ID = COL_MARGIN_CALL.AGREEMENT_ID)
+   Join Col_CallAllocation(COL_MARGIN_CALL.CALL_ID = COL_ALLOCATION.CALL_ID)
+   Join Col_CollateralAllocation(COL_COLLATERAL.COLLATERAL_ID = COL_ALLOCATION.COLLATERAL_ID)
+   Join Col_AgreementSubstitution(COL_AGREEMENT.AGREEMENT_ID = COL_SUBSTITUTION.AGREEMENT_ID)
+
+   // Two joins over one table, differing only in which column the collateral id matches --
+   // the substitution's outgoing leg and its incoming leg.
+   Join Col_OutgoingCollateral(COL_COLLATERAL.COLLATERAL_ID = COL_SUBSTITUTION.OUTGOING_COLLATERAL_ID)
+   Join Col_IncomingCollateral(COL_COLLATERAL.COLLATERAL_ID = COL_SUBSTITUTION.INCOMING_COLLATERAL_ID)
+
+   // The asset-class axis alone, into the haircut grid.
+   Join Col_CollateralHaircutBand(COL_COLLATERAL.ASSET_CLASS = COL_HAIRCUT_BAND.ASSET_CLASS)
+
+   // ---- across the project boundary ----
+   Join Col_CollateralInstrument(COL_COLLATERAL.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Col_RuleAssetClass(COL_ELIGIBILITY_RULE.ELIGIBLE_ASSET_CLASS = CI_ASSET_CLASS.CODE)
+   Join Col_CollateralIssuer(COL_COLLATERAL.ISSUER_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   Join Col_RuleEligibleIssuer(COL_ELIGIBILITY_RULE.ELIGIBLE_ISSUER_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   Join Col_AgreementPrincipal(COL_AGREEMENT.PRINCIPAL_ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   Join Col_AgreementCounterparty(COL_AGREEMENT.COUNTERPARTY_ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   Join Col_AccountCustodian(COL_ACCOUNT.CUSTODIAN_ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+
+   // Null tests rather than boolean literals: a Filter will not take `= true`.
+   Filter ColHeldCollateral(COL_COLLATERAL.RETURN_DATE is null)
+   Filter ColOpenMarginCalls(COL_MARGIN_CALL.SETTLED_DATE is null)
+   Filter ColLiveAgreements(COL_AGREEMENT.TERMINATION_DATE is null)
+   Filter ColCurrentRules(COL_ELIGIBILITY_RULE.EXPIRY_DATE is null)
+)

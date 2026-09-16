@@ -1,0 +1,141 @@
+// COVERS AuthenticationLexerGrammar: UserPassword, username, password, ApiKey, location, keyName, value, EncryptedPrivateKey, userName, privateKey, passphrase, GCPWIFWithAWSIdP, serviceAccountEmail, idP, AWSIdP, accountId, region, role, GCPWorkload, workload, projectNumber, poolId, providerId, PropertiesFileSecret, propertyName, EnvironmentSecret, envVariableName, SystemPropertiesSecret, systemPropertyName, AWSSecretsManagerSecret, secretId, versionId, versionStage, awsCredentials, Default, Static, accessKeyId, secretAccessKey, STSAssumeRole, roleArn, roleSessionName, Kerberos, psk
+// COVERS MongoDBConnectionLexerGrammar: database, store, serverURLs, authentication
+//
+// AuthenticationLexerGrammar is a DIFFERENT grammar from AuthenticationStrategyLexerGrammar
+// (the one inside `auth:` in a RelationalDatabaseConnection, covered by connection-auth.pure).
+// They overlap in spelling only: `Static` here is an AWS credentials kind, `Static` there is
+// a datasource specification, and the two lexers are unrelated token namespaces.
+//
+// WHERE THIS GRAMMAR IS REACHED FROM, and why not from its own section. The grammar defines
+// an `AuthenticationDemo` element and a `###AuthenticationDemo` section, but the
+// SectionParser that registers that name lives in **src/test/java** --
+// legend-engine-xt-authentication-grammar/src/test/java/.../from/demo/
+// AuthenticationDemoParserExtension.java:48 -- so it is not in the shipped jar and
+// `###AuthenticationDemo` is answered with "'AuthenticationDemo' is not a known section
+// parser". What IS shipped is AuthenticationGrammarParserExtension (src/main/java), whose
+// getExtraAuthenticationParsers / getExtraCredentialVaultSecretParsers dispatch the island
+// forms by name. So the whole grammar is reachable through ANY connection with an
+// `authentication:` island -- MongoDB, Elasticsearch, Deephaven, ServiceStore -- and that is
+// how it is exercised here.
+//
+// Three keywords are therefore NOT covered and are not coverable from a .pure file:
+// `AuthenticationDemo`, `authentication` and `import`. All three are consumed only by rules
+// `definition` / `imports` / `authenticationDemo`, and nothing outside the test-only section
+// parser ever calls AuthenticationParserGrammar.definition(). (`authentication` does appear
+// below, but as MongoDBConnectionLexerGrammar's AUTHENTICATION token -- a different grammar
+// -- so it is declared against MongoDB, not against this one.)
+//
+// Island shapes worth noting: `# Kerberos { }#` must be EMPTY, its rule is literally `EOF`.
+// `awsCredentials` recurses, so STSAssumeRole nests another awsCredentials and that is how
+// STSAssumeRole and Static both appear in one tree. Every `secret_value` position
+// (password, value, privateKey, passphrase, accessKeyId, secretAccessKey) takes the same
+// four vault kinds, so they are spread across the elements rather than stacked.
+###Connection
+MongoDBConnection fixture::auth::UserPass
+{
+  database: legend_db;
+  store: fixture::mongo::Db;
+  serverURLs: [localhost:27017];
+  authentication: # UserPassword {
+    username: 'alice';
+    password: PropertiesFileSecret
+    {
+      propertyName: 'property1';
+    };
+  }#;
+}
+
+MongoDBConnection fixture::auth::ApiKeyConn
+{
+  database: legend_db;
+  store: fixture::mongo::Db;
+  serverURLs: [localhost:27017];
+  authentication: # ApiKey {
+    location: 'header';
+    keyName: 'key1';
+    value: EnvironmentSecret
+    {
+      envVariableName: 'env1';
+    };
+  }#;
+}
+
+MongoDBConnection fixture::auth::EncryptedKeyPair
+{
+  database: legend_db;
+  store: fixture::mongo::Db;
+  serverURLs: [localhost:27017];
+  authentication: # EncryptedPrivateKey {
+    userName: 'alice';
+    privateKey: SystemPropertiesSecret
+    {
+      systemPropertyName: 'some.property';
+    };
+    passphrase: AWSSecretsManagerSecret
+    {
+      secretId: 'secret1';
+      versionId: 'versionId1';
+      versionStage: 'versionStage1';
+      awsCredentials: Default
+      {
+      }
+    };
+  }#;
+}
+
+MongoDBConnection fixture::auth::GcpWifWithAwsIdp
+{
+  database: legend_db;
+  store: fixture::mongo::Db;
+  serverURLs: [localhost:27017];
+  authentication: # GCPWIFWithAWSIdP {
+    serviceAccountEmail: 'a@b.com';
+    idP: AWSIdP
+    {
+      accountId: 'account1';
+      region: 'region1';
+      role: 'role1';
+      awsCredentials: STSAssumeRole
+      {
+        roleArn: 'arn1';
+        roleSessionName: 'session1';
+        awsCredentials: Static
+        {
+          accessKeyId: PropertiesFileSecret
+          {
+            propertyName: 'property1';
+          };
+          secretAccessKey: PropertiesFileSecret
+          {
+            propertyName: 'property2';
+          };
+        }
+      }
+    }
+    workload: GCPWorkload
+    {
+      projectNumber: 'project1';
+      providerId: 'provider1';
+      poolId: 'pool1';
+    }
+  }#;
+}
+
+MongoDBConnection fixture::auth::KerberosConn
+{
+  database: legend_db;
+  store: fixture::mongo::Db;
+  serverURLs: [localhost:27017];
+  authentication: # Kerberos {
+  }#;
+}
+
+MongoDBConnection fixture::auth::PskConn
+{
+  database: legend_db;
+  store: fixture::mongo::Db;
+  serverURLs: [localhost:27017];
+  authentication: # PSK {
+    psk: 'abcde';
+  }#;
+}

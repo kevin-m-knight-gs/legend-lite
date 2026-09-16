@@ -1,0 +1,22 @@
+// REJECTS: Unsupported join type 'LEFT'. The supported join types are: [INNER, OUTER]
+//
+// The optional `(...)` prefix on a join pointer is a join TYPE, and the grammar accepts any
+// identifier there -- `(PAREN_OPEN identifier PAREN_CLOSE)? joinPointer`. The closed set
+// {INNER, OUTER} is checked in the walker, and it is checked twice: once on the head of a
+// join sequence and once on each `>` continuation.
+//
+// LEFT is the join type every SQL author reaches for first, so a rewrite that stores
+// whatever identifier it finds -- which is what the grammar tells it to do -- accepts a
+// model legend-engine rejects, and the difference only appears when generation runs.
+###Relational
+Database fixture::neg::JoinTypeLeft
+(
+   Table T (ID VARCHAR(32) PRIMARY KEY, U_ID VARCHAR(32))
+   Table U (ID VARCHAR(32) PRIMARY KEY, VAL VARCHAR(32))
+   Join TU(T.U_ID = U.ID)
+   View V
+   (
+      id: T.ID PRIMARY KEY,
+      val: (LEFT)@TU | U.VAL
+   )
+)

@@ -118,7 +118,9 @@ class DuckDbRenderTest {
     @Test
     @DisplayName("MUST-honor semantics: float division, positive mod, rem")
     void semanticContract() {
-        assertEquals("((1.0 * t0.A) / t0.B)",
+        // divide IS a DOUBLE division (Pure divide(Number, Number): Float) — both
+        // operands cast BEFORE it; the `1.0 *` promotion died 2026-09-16
+        assertEquals("(CAST(t0.A AS DOUBLE) / CAST(t0.B AS DOUBLE))",
                 renderExpr(SqlExpr.Call.of(SqlFn.DIVIDE, col("A"), col("B"))));
         assertEquals("MOD(MOD(t0.A, t0.B) + t0.B, t0.B)",
                 renderExpr(SqlExpr.Call.of(SqlFn.MOD, col("A"), col("B"))));

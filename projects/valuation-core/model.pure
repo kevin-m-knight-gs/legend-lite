@@ -1,0 +1,440 @@
+###Pure
+
+// valuation-core -- what a position is WORTH, and what that is worth in the currency the
+// firm reports in. Layer 1: it depends on core-price (the price that goes into the
+// valuation) and on core-fx (the rate that carries it into the reporting currency).
+//
+// The point of this project in the graph is the CROSS-PROJECT FUNCTION CALL. A valuation
+// does not re-implement FX arithmetic; `VcValuation.valueInReporting()` is a derived
+// property whose body is `core_fx::convert(...)`, so the conversion rule lives in exactly
+// one place and every project above this one inherits it. Getting that call to resolve
+// across a project boundary -- a function element in another package, invoked from inside
+// a derived property body -- is the thing this project exists to prove.
+//
+// The second theme is the price stack, which is three numbers and not one:
+//
+//   cleanPrice        the quoted price, excluding interest earned since the last coupon
+//   accruedInterest   that interest, per unit
+//   dirtyPrice        clean + accrued -- what actually settles
+//
+// A bond quoted at 98.50 with 1.25 of accrued does not settle at 98.50, and a valuation
+// that stores only "price" cannot say which of the two it means. So all three are carried,
+// and `accrualCheck()` re-derives the accrued from the other two as a data-quality screen.
+//
+// Prefixes per the project contract: classes Vc*, tables VC_*, joins Vc_*, filters Vc*,
+// set ids vc*, functions vc*.
+
+// A single instrument's value on a single cob date, produced by a single valuation run --
+// the grain of this project and the class every downstream project reaches for.
+//
+// Identity is the triple (runId, instrumentId, cobDate). All three are load-bearing: the
+// same instrument on the same date is valued more than once, because the overnight run and
+// the intraday re-run are different answers and a firm keeps both.
+Class valuation_core::VcValuation
+[
+   // The dirty price includes accrued, so it can never sit below the clean price.
+   dirtyCoversClean: $this.dirtyPrice >= $this.cleanPrice,
+   // A negative accrual is a sign error, not a market event.
+   accruedIsNotNegative: $this.accruedInterest >= 0.0,
+   // A zero FX rate would silently zero every reported value downstream.
+   fxRateIsPositive: $this.fxRate > 0.0
+]
+{
+   // Part 1 of the key: which valuation run produced this number.
+   runId: String[1];
+   // Part 2 of the key: what was valued. Matches core-price's INSTRUMENT_ID.
+   instrumentId: String[1];
+   // Part 3 of the key: the close-of-business date valued as of.
+   cobDate: StrictDate[1];
+   // How many units are held. Signed: a short position is negative.
+   quantity: Float[1];
+   // The quoted price, EXCLUDING interest earned since the last coupon.
+   cleanPrice: Float[1];
+   // Interest earned since the last coupon, per unit. Zero for equities.
+   accruedInterest: Float[1];
+   // What actually settles: clean + accrued, per unit.
+   dirtyPrice: Float[1];
+   // quantity * dirtyPrice, in the INSTRUMENT's currency. Not yet comparable across a book.
+   marketValue: Float[1];
+   // ISO 4217 the marketValue is denominated in -- the instrument's own currency.
+   instrumentCurrency: String[1];
+   // ISO 4217 the firm reports in. Usually USD, and never assumed.
+   reportingCurrency: String[1];
+   // The pair the conversion is quoted on, e.g. EURUSD. Joins to core-fx.
+   fxPairCode: String[1];
+   // SPOT, FORWARD or FIXING -- part of core-fx's three-column rate key, so it must be
+   // carried here or the join fans out across a day's rates.
+   fxRateType: String[1];
+   // The rate itself, already pointing instrument-currency -> reporting-currency. If the
+   // pair is quotedInverted the run applied core_fx::invert before storing it.
+   fxRate: Float[1];
+   // Which core-price vendor's observation the price came from.
+   priceSourceId: String[1];
+   // False when the run could not find a usable price -- see VcUnpricedValuation.
+   isPriced: Boolean[1];
+
+   // ---- THE CROSS-PROJECT CALL ---------------------------------------------------------
+   // The market value expressed in the reporting currency. The arithmetic is one multiply
+   // and it still is not written here: core-fx owns conversion, this project calls it. Every
+   // P&L, exposure and client statement above this layer reads this property, so the rule
+   // it encodes is applied identically everywhere by construction.
+   valueInReporting() { core_fx::convert($this.marketValue, $this.fxRate) } : Float[1];
+
+   // The clean value -- the same conversion applied to the ex-interest leg, which is what a
+   // bond desk quotes and what a coupon accrual report reconciles against.
+   cleanValueInReporting() { core_fx::convert($this.cleanPrice * $this.quantity, $this.fxRate) } : Float[1];
+
+   // The accrued leg alone, converted. valueInReporting minus this is cleanValueInReporting,
+   // which is the identity an accrual break report checks.
+   accruedValueInReporting() { core_fx::convert($this.accruedInterest * $this.quantity, $this.fxRate) } : Float[1];
+
+   // Re-derive accrued from the two prices. Should equal accruedInterest; when it does not,
+   // one of the three numbers was loaded from a different snapshot than the other two.
+   accrualCheck() { $this.dirtyPrice - $this.cleanPrice } : Float[1];
+
+   // Accrued as a fraction of the dirty price. `/` widens to Float even on integers, so this
+   // is declared Float[1] as the contract requires.
+   accruedPct() { $this.accruedInterest / $this.dirtyPrice } : Float[1];
+
+   // The rate flipped, for a report that wants to state the value back in the instrument's
+   // currency without re-reading the pair.
+   inverseFxRate() { core_fx::invert($this.fxRate) } : Float[1];
+
+   // ---- across the project boundary ----------------------------------------------------
+   // The core-price observation this valuation priced off -- reached by the full
+   // (instrument, date, source) triple, which is core-price's whole composite key.
+   priceObservation: core_price::CprPriceObservation[0..1];
+   // The core-fx rate row the fxRate was taken from -- reached by (pair, date, type),
+   // which is core-fx's whole composite key.
+   fxRateRow: core_fx::CfxRate[0..1];
+
+   // ---- within this project --------------------------------------------------------------
+   // The batch that produced this valuation.
+   run: valuation_core::VcValuationRun[0..1];
+   // The accrual behind accruedInterest, on instrument and date.
+   accrual: valuation_core::VcAccrual[0..1];
+   // The price the run chose, and what it was chosen over.
+   priceInput: valuation_core::VcPriceInput[0..1];
+   // Every adjustment stacked on this valuation, in no particular order -- the sequence
+   // is a property of the adjustment, not of this link.
+   adjustments: valuation_core::VcMarkAdjustment[*];
+   // Every tolerance break raised against it.
+   breaks: valuation_core::VcValuationBreak[*];
+}
+
+// The valuations a run could NOT price: same table, same key, filtered to the rows where
+// isPriced is false. A named type rather than a predicate, because an unpriced valuation is
+// an operational item with an owner, and downstream projects query for it directly.
+Class valuation_core::VcUnpricedValuation extends valuation_core::VcValuation
+{
+   // Why no price was found: NO_SOURCE, STALE, NOT_COVERED, SUSPENDED.
+   unpricedReason: String[0..1];
+   // Whether the run fell back to the previous good price rather than leaving a hole.
+   carriedForward: Boolean[0..1];
+}
+
+// One execution of the valuation process: a batch, its cob date, and whether it finished.
+// Every VcValuation belongs to exactly one, which is what makes re-running a date safe.
+Class valuation_core::VcValuationRun
+{
+   // The run identifier carried on every valuation it produced.
+   runId: String[1];
+   // The cob date the whole run values as of.
+   cobDate: StrictDate[1];
+   // ISO 4217 the run reports in -- fixed for the run, not per valuation.
+   reportingCurrency: String[1];
+   // EOD, INTRADAY or ADHOC. An intraday re-run does not replace the EOD run.
+   runType: String[1];
+   // PENDING, RUNNING, COMPLETE or FAILED.
+   status: String[1];
+   // How many valuations the run wrote.
+   valuationCount: Integer[1];
+   // How many it could not price. The pair of counts is the run's own quality metric.
+   unpricedCount: Integer[1];
+   // When the run started, to the second.
+   startedAt: DateTime[1];
+   // True once the run is signed off and may be reported from.
+   isSignedOff: Boolean[1];
+   // Coverage: the share of the run that got a price. Float, because it is a ratio.
+   pricedPct() { ($this.valuationCount - $this.unpricedCount) / $this.valuationCount } : Float[1];
+   // A one-line label for a report header, so the header does not concatenate it itself.
+   runLabel() { $this.runType + ' ' + $this.status } : String[1];
+   // The per-currency subtotals this run wrote.
+   summaries: valuation_core::VcValuationSummary[*];
+   // The currency the run reports in, with its rounding rule.
+   reportingCurrencyRef: valuation_core::VcReportingCurrency[0..1];
+}
+
+// The interest accrual behind a valuation's accruedInterest: the coupon, the day count and
+// the period it was earned over. Keyed by (instrumentId, cobDate) -- one accrual per
+// instrument per day, independent of which run reads it.
+Class valuation_core::VcAccrual
+{
+   // Which instrument is accruing.
+   instrumentId: String[1];
+   // The date accrued to.
+   cobDate: StrictDate[1];
+   // Start of the current coupon period.
+   periodStartDate: StrictDate[1];
+   // End of it -- the next coupon date.
+   periodEndDate: StrictDate[1];
+   // The annual coupon rate as a fraction, e.g. 0.045 for 4.5%.
+   couponRate: Float[1];
+   // Face amount the coupon is computed on.
+   notional: Float[1];
+   // The day-count fraction for the elapsed part of the period, e.g. ACT/360.
+   dayCountFraction: Float[1];
+   // The day-count convention the fraction was computed under: ACT/360, ACT/365, 30/360.
+   dayCountBasis: String[1];
+   // The money accrued so far this period.
+   accruedAmount: Float[1];
+   // Accrued per unit of notional -- the number that lands on VcValuation.accruedInterest.
+   accruedPerUnit() { $this.accruedAmount / $this.notional } : Float[1];
+}
+
+// How a value was arrived at: a quoted market price, a model, or a broker mark. The method
+// decides what tolerance a break is measured against, so it is data and not a comment.
+Class valuation_core::VcValuationMethod
+{
+   // Short code carried on a policy, e.g. MARK, MODEL, BROKER, MATRIX.
+   methodCode: String[1];
+   // What it is called in the valuation policy document.
+   methodName: String[1];
+   // True when the number comes from a model rather than an observed trade.
+   isModelBased: Boolean[1];
+   // True when an independent price verification team must sign the number off.
+   requiresIpv: Boolean[1];
+   // The percentage move that raises a break under this method. Model marks tolerate more.
+   tolerancePct: Float[1];
+   // Fair-value hierarchy level under IFRS 13: 1 quoted, 2 observable, 3 unobservable.
+   fairValueLevel: Integer[1];
+}
+
+// The firm's exposure to one currency out of one run, and the same exposure carried into
+// the reporting currency. This is the aggregate twin of VcValuation: valuations are per
+// instrument, exposure is per currency, and both cross the FX boundary the same way.
+Class valuation_core::VcFxExposure
+{
+   // Which run the exposure was measured in.
+   runId: String[1];
+   // The currency exposed to, ISO 4217.
+   currencyCode: String[1];
+   // The pair the exposure is converted on, in market convention order.
+   fxPairCode: String[1];
+   // Net exposure in that currency, signed.
+   exposureAmount: Float[1];
+   // The rate as the market quotes it -- NOT pre-flipped, unlike VcValuation.fxRate.
+   fxRate: Float[1];
+   // Copied from core-fx's pair definition: true when the market puts USD on the base side,
+   // so the conversion has to invert before multiplying.
+   quotedInverted: Boolean[1];
+   // The reporting currency this exposure is measured into.
+   reportingCurrency: String[1];
+   // True when the exposure is inside the desk's standing FX limit.
+   isWithinLimit: Boolean[1];
+
+   // Convention-safe conversion, delegated whole to core-fx: convertQuoted decides whether
+   // to invert from `quotedInverted` rather than making this project remember which of the
+   // majors quotes USD as the base currency.
+   exposureInReporting() { core_fx::convertQuoted($this.exposureAmount, $this.fxRate, $this.quotedInverted) } : Float[1];
+   // The rate pointing the other way, for a report stating the reporting-currency amount
+   // back in the exposed currency.
+   inverseRate() { core_fx::invert($this.fxRate) } : Float[1];
+   // core-fx's own definition of the pair -- the authority on `quotedInverted`, which this
+   // class copies onto its row so a valuation run does not have to join to convert.
+   pair: core_fx::CfxCurrencyPair[0..1];
+}
+
+// A manual adjustment applied on top of a computed valuation: a fair-value reserve, a
+// liquidity haircut, a day-one P&L deferral. Keyed by (runId, instrumentId, adjustmentSeq)
+// because several adjustments stack on one valuation and the order they were booked in is
+// part of the audit trail.
+Class valuation_core::VcMarkAdjustment
+{
+   // The run the adjustment belongs to.
+   runId: String[1];
+   // The valuation being adjusted.
+   instrumentId: String[1];
+   // Which adjustment this is, within the instrument and run. 1, 2, 3...
+   adjustmentSeq: Integer[1];
+   // RESERVE, HAIRCUT, DAY1, XVA, CLOSEOUT.
+   adjustmentType: String[1];
+   // The money added to the valuation, in the instrument's currency. Usually negative.
+   adjustmentAmount: Float[1];
+   // The rate to carry the adjustment into the reporting currency.
+   fxRate: Float[1];
+   // Free text: why a human overrode a computed number.
+   reason: String[0..1];
+   // Who signed it off. Absent while pending.
+   approvedBy: String[0..1];
+   // True once approved. An unapproved adjustment is excluded from reported value.
+   isApproved: Boolean[1];
+   // The adjustment in the reporting currency -- the same core-fx call the valuation uses,
+   // so an adjustment and the value it adjusts are converted identically.
+   adjustmentInReporting() { core_fx::convert($this.adjustmentAmount, $this.fxRate) } : Float[1];
+}
+
+// A tolerance break: the run's value disagreed with an independent check by more than the
+// method allows. Keyed by (runId, instrumentId, breakSeq) -- one valuation can break more
+// than one check.
+Class valuation_core::VcValuationBreak
+{
+   // The run that raised it.
+   runId: String[1];
+   // The instrument whose value broke.
+   instrumentId: String[1];
+   // Which break this is for that instrument in that run.
+   breakSeq: Integer[1];
+   // What broke: PRICE_TOL, FX_TOL, STALE_PRICE, NO_CONSENSUS, ACCRUAL_MISMATCH.
+   breakCode: String[1];
+   // 1 (informational) to 5 (blocks sign-off).
+   severity: Integer[1];
+   // The absolute difference, in the reporting currency.
+   differenceAmount: Float[1];
+   // The same difference as a fraction of the value -- what the tolerance is stated in.
+   differencePct: Float[1];
+   // When it was raised.
+   raisedAt: DateTime[1];
+   // True once someone has explained or corrected it.
+   isResolved: Boolean[1];
+}
+
+// The rule that decides where a price comes from for a class of instruments: which vendor,
+// which method, and how old a price may be before it stops counting. Keyed by policyCode.
+Class valuation_core::VcPricingPolicy
+{
+   // The policy identifier, e.g. GOVT_BOND_EOD.
+   policyCode: String[1];
+   // What it applies to: BOND, EQUITY, FUTURE, SWAP, FUND.
+   assetClass: String[1];
+   // The VcValuationMethod to use.
+   methodCode: String[1];
+   // The core-price vendor to prefer.
+   preferredSourceId: String[1];
+   // How stale a price may be, in business days, before the valuation is marked unpriced.
+   maxPriceAgeDays: Integer[1];
+   // The tolerance override for this asset class, when it differs from the method's.
+   tolerancePct: Float[1];
+   // True when this is the fallback for an asset class with no more specific policy.
+   isDefault: Boolean[1];
+   // The method this policy names.
+   method: valuation_core::VcValuationMethod[0..1];
+   // The core-price vendor it prefers -- across the boundary, into the other project.
+   preferredSource: core_price::CprPriceSource[0..1];
+}
+
+// A currency the firm can report in, and how values are rounded when it does. Separate from
+// core-price's quote currency: a price currency is what the market quotes, a reporting
+// currency is what a set of books is added up in.
+Class valuation_core::VcReportingCurrency
+{
+   // ISO 4217, and the key.
+   currencyCode: String[1];
+   // The name as it appears on a statement.
+   currencyName: String[1];
+   // Decimal places a reported value is rounded to: 2 for USD, 0 for JPY.
+   roundingDecimals: Integer[1];
+   // The pair quoted against the firm's base currency, e.g. EURUSD for EUR.
+   basePairCode: String[1];
+   // True for the firm's own base currency -- exactly one row should have it.
+   isFirmBase: Boolean[1];
+   // core-fx's definition of the pair this currency is quoted against the firm's base on.
+   basePair: core_fx::CfxCurrencyPair[0..1];
+}
+
+// A run's total, per currency: the aggregate that a P&L or client-reporting project reads
+// instead of summing every valuation itself. Keyed by (runId, currencyCode).
+Class valuation_core::VcValuationSummary
+{
+   // The run summarised.
+   runId: String[1];
+   // The instrument currency the subtotal is for.
+   currencyCode: String[1];
+   // The sum of marketValue over that currency, in that currency.
+   totalMarketValue: Float[1];
+   // The rate used to carry the whole subtotal across.
+   fxRate: Float[1];
+   // How many valuations went into it.
+   positionCount: Integer[1];
+   // How many of them were unpriced -- the subtotal is only as good as this is small.
+   unpricedCount: Integer[1];
+   // The subtotal in the reporting currency, via core-fx. Converting the total once is not
+   // the same as summing converted values when rates differ per row, which is why the
+   // summary carries its own rate.
+   totalInReporting() { core_fx::convert($this.totalMarketValue, $this.fxRate) } : Float[1];
+   // Average value per position, for a size sanity check on the run.
+   averagePositionValue() { $this.totalMarketValue / $this.positionCount } : Float[1];
+}
+
+// The price actually used by a run, recorded next to the alternatives it was chosen over.
+// Keyed by (runId, instrumentId). This is where core-price's two-sided quote lands: a mid
+// is not stored, it is derived from the bid and ask with core-fx's midOf.
+Class valuation_core::VcPriceInput
+{
+   // The run that selected this price.
+   runId: String[1];
+   // The instrument it was selected for.
+   instrumentId: String[1];
+   // The core-price vendor it came from.
+   sourceId: String[1];
+   // The price the run used, in the instrument's currency.
+   priceUsed: Float[1];
+   // The vendor's bid at selection time.
+   bidPrice: Float[1];
+   // The vendor's ask at selection time.
+   askPrice: Float[1];
+   // ISO 4217 the price is quoted in.
+   priceCurrency: String[1];
+   // How many business days old the price was when used. 0 is same-day.
+   priceAgeDays: Integer[1];
+   // True when the run took a cross-vendor consensus rather than one vendor's number.
+   isConsensus: Boolean[1];
+   // The mid of the two-way price, from core-fx's helper rather than re-written here --
+   // every project that writes ($bid + $ask) / 2.0 itself is one that can write it wrong.
+   midPrice() { core_fx::midOf($this.bidPrice, $this.askPrice) } : Float[1];
+   // The spread the run accepted, as a fraction of the mid.
+   spreadPct() { ($this.askPrice - $this.bidPrice) / $this.priceUsed } : Float[1];
+   // The core-price vendor the price came from.
+   source: core_price::CprPriceSource[0..1];
+}
+
+// ------------------------------------------------------------------ exported functions
+// The valuation arithmetic downstream projects (pnl-attribution, product-pricing,
+// client-reporting) call rather than re-derive. Two of the four are thin wrappers over
+// core-fx: the cross-project call again, this time at function level rather than inside a
+// derived property.
+
+// The dirty price: what settles, as opposed to what is quoted. This is the definition the
+// whole project rests on, and it is one line precisely so nobody writes it differently.
+function valuation_core::vcDirtyPrice(cleanPrice: Float[1], accruedInterest: Float[1]): Float[1]
+{
+   $cleanPrice + $accruedInterest
+}
+
+// Market value in the instrument's own currency: units times what one unit settles at.
+function valuation_core::vcMarketValue(quantity: Float[1], dirtyPrice: Float[1]): Float[1]
+{
+   $quantity * $dirtyPrice
+}
+
+// Market value in the reporting currency, in one call. Delegates the conversion to core-fx
+// so that this project never multiplies by an FX rate itself.
+function valuation_core::vcMarketValueInReporting(quantity: Float[1], dirtyPrice: Float[1], fxRate: Float[1]): Float[1]
+{
+   core_fx::convert(valuation_core::vcMarketValue($quantity, $dirtyPrice), $fxRate)
+}
+
+// The whole valuation in one call, convention-safe: clean and accrued in, reporting-currency
+// value out, with core-fx deciding from `quotedInverted` which way the rate points. This is
+// the entry point a downstream project should prefer.
+function valuation_core::vcValueQuoted(quantity: Float[1], cleanPrice: Float[1], accruedInterest: Float[1], fxRate: Float[1], quotedInverted: Boolean[1]): Float[1]
+{
+   core_fx::convertQuoted(valuation_core::vcMarketValue($quantity, valuation_core::vcDirtyPrice($cleanPrice, $accruedInterest)), $fxRate, $quotedInverted)
+}
+
+// The difference between two valuations of the same thing, as a fraction of the first --
+// what a tolerance in VcValuationMethod.tolerancePct is compared against.
+function valuation_core::vcDeviationPct(valueOne: Float[1], valueTwo: Float[1]): Float[1]
+{
+   ($valueTwo - $valueOne) / $valueOne
+}

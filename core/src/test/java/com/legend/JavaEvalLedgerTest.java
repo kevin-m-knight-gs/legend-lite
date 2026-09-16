@@ -606,7 +606,12 @@ class JavaEvalLedgerTest {
             // adds PUSH_DOWN_ENUM_TRANSFORM (the engine's contextWithEnumPushDown)
             // and the plan printer is told the flag — orchestration of a
             // compile-time fact, no value evaluated in Java
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2036),
+            // 2036 -> 2089 (2026-09-16): a declared connection's test data
+            // (LocalH2 testDataSetupCSV/Sqls on an ELEMENT runtime) seeds the
+            // session at establishment — the engine's own step, missing here
+            // before — once per session, re-seeded after a writing statement;
+            // orchestration of declared facts, no value evaluated in Java
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2091),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

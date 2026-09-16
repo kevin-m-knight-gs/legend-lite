@@ -1,0 +1,177 @@
+###Relational
+// The corporate-actions store.
+//
+// Four tables. EVT_CORPORATE_EVENT is wide and carries every action type, told apart by
+// EVENT_TYPE; the per-type columns are all nullable, because a redemption price means
+// nothing on a stock split. That is the shape a ~filter subtype mapping is for, and it is
+// the same argument core-instrument makes for CI_INSTRUMENT one layer down.
+//
+// The two `include`s are what make the cross-boundary joins below legal. An included
+// database's tables are addressable as if they were declared here, so Evt_EventInstrument
+// can name CI_INSTRUMENT and Evt_DateCalendar can name CC_CALENDAR without either project
+// knowing this one exists.
+//
+// Nothing is seeded: no ###Data element and no Runtime, per the contract.
+Database event_core::Store
+(
+   include core_instrument::Store
+   include core_calendar::Store
+
+   // One row per corporate action. EVENT_TYPE is the discriminator the Filters below read;
+   // EVENT_TYPE_CODE is the same fact as a mappable code, so the model can expose an enum
+   // without the subtype filters having to match on a transformed value.
+   //
+   // EX_DATE, RECORD_DATE and PAY_DATE are the ANNOUNCED dates. Whether each is a business
+   // day on the market's calendar is a row in EVT_EVENT_DATE, not a flag here: the answer
+   // differs per date and per calendar, and this table has no business storing it.
+   Table EVT_CORPORATE_EVENT
+   (
+      EVENT_ID VARCHAR(40) PRIMARY KEY,
+      EVENT_TYPE VARCHAR(30) NOT NULL,
+      EVENT_TYPE_CODE VARCHAR(30),
+      EVENT_STATUS VARCHAR(20),
+      INSTRUMENT_ID VARCHAR(60) NOT NULL,
+      MARKET_MIC VARCHAR(4),
+      CURRENCY VARCHAR(3),
+      ANNOUNCEMENT_DATE DATE NOT NULL,
+      EX_DATE DATE,
+      RECORD_DATE DATE,
+      PAY_DATE DATE,
+      DATE_CONVENTION VARCHAR(24),
+      IS_ELECTIVE BIT,
+      SOURCE_REFERENCE VARCHAR(120),
+      CANCELLED_ON DATE,
+
+      // cash dividend
+      GROSS_AMOUNT_PER_SHARE DOUBLE,
+      NET_AMOUNT_PER_SHARE DOUBLE,
+      WITHHOLDING_TAX_RATE DOUBLE,
+      DIVIDEND_FREQUENCY VARCHAR(20),
+      IS_SPECIAL BIT,
+      DECLARED_CURRENCY VARCHAR(3),
+
+      // stock split
+      SPLIT_FROM_SHARES INTEGER,
+      SPLIT_TO_SHARES INTEGER,
+      IS_REVERSE BIT,
+      FRACTIONAL_HANDLING VARCHAR(24),
+
+      // rights issue
+      SUBSCRIPTION_PRICE DOUBLE,
+      RIGHTS_PER_SHARE_HELD DOUBLE,
+      NEW_SHARES_PER_RIGHT DOUBLE,
+      IS_TRADABLE BIT,
+      SUBSCRIPTION_START_DATE DATE,
+      SUBSCRIPTION_END_DATE DATE,
+      RIGHTS_ISIN VARCHAR(12),
+
+      // merger
+      ACQUIRER_NAME VARCHAR(200),
+      ACQUIRER_INSTRUMENT_ID VARCHAR(60),
+      SHARE_EXCHANGE_RATIO DOUBLE,
+      CASH_PER_SHARE DOUBLE,
+      EFFECTIVE_DATE DATE,
+      IS_HOSTILE BIT,
+      CONSIDERATION_TYPE VARCHAR(24),
+
+      // spin-off
+      SPUN_OFF_ENTITY_NAME VARCHAR(200),
+      SPUN_OFF_INSTRUMENT_ID VARCHAR(60),
+      DISTRIBUTION_RATIO DOUBLE,
+      PARENT_COST_BASIS_PCT DOUBLE,
+      IS_TAX_FREE BIT,
+
+      // tender offer -- the elective one
+      OFFER_PRICE DOUBLE,
+      OFFER_CURRENCY VARCHAR(3),
+      ELECTION_DEADLINE DATE,
+      MINIMUM_TENDER_PCT DOUBLE,
+      MAXIMUM_SHARES_SOUGHT DOUBLE,
+      PRORATION_APPLIES BIT,
+      OFFEROR_NAME VARCHAR(200),
+
+      // call redemption
+      REDEMPTION_PRICE_PCT DOUBLE,
+      CALL_TYPE VARCHAR(24),
+      NOTICE_DATE DATE,
+      IS_PARTIAL BIT,
+      REDEEMED_FRACTION DOUBLE,
+      ACCRUED_INTEREST_PAID BIT
+   )
+
+   // One row per date per event, and the reason core-calendar is a dependency.
+   // CALENDAR_ID points at CC_CALENDAR; ADJUSTED_DATE is where CONVENTION rolled
+   // ANNOUNCED_DATE when IS_BUSINESS_DAY was false. Rolling is per date, not per event:
+   // a pay date rolls FOLLOWING and a record date does not roll at all.
+   Table EVT_EVENT_DATE
+   (
+      EVENT_DATE_ID VARCHAR(48) PRIMARY KEY,
+      EVENT_ID VARCHAR(40) NOT NULL,
+      DATE_ROLE VARCHAR(24) NOT NULL,
+      ANNOUNCED_DATE DATE NOT NULL,
+      ADJUSTED_DATE DATE NOT NULL,
+      IS_BUSINESS_DAY BIT,
+      CONVENTION VARCHAR(24),
+      CALENDAR_ID VARCHAR(8) NOT NULL,
+      MARKET_MIC VARCHAR(4)
+   )
+
+   // The choices an elective event publishes. IS_DEFAULT is the one the issuer applies to
+   // a holder who never answers; RESPONSE_DEADLINE is per option because a custodian's own
+   // cutoff sits ahead of the issuer's.
+   Table EVT_ELECTION_OPTION
+   (
+      OPTION_ID VARCHAR(48) PRIMARY KEY,
+      EVENT_ID VARCHAR(40) NOT NULL,
+      OPTION_CODE VARCHAR(16) NOT NULL,
+      OPTION_DESCRIPTION VARCHAR(200),
+      CONSIDERATION_TYPE VARCHAR(24),
+      CASH_PER_SHARE DOUBLE,
+      SHARES_PER_SHARE DOUBLE,
+      IS_DEFAULT BIT,
+      RESPONSE_DEADLINE DATE
+   )
+
+   // What a holder actually elected. ALLOCATED_QUANTITY is set only when the offer was
+   // oversubscribed and the acceptance was scaled back, so its presence IS the proration.
+   Table EVT_ELECTION
+   (
+      ELECTION_ID VARCHAR(48) PRIMARY KEY,
+      EVENT_ID VARCHAR(40) NOT NULL,
+      OPTION_ID VARCHAR(48) NOT NULL,
+      ACCOUNT_REFERENCE VARCHAR(60) NOT NULL,
+      QUANTITY_ELECTED DOUBLE NOT NULL,
+      ELECTION_STATUS VARCHAR(20),
+      SUBMITTED_ON DATE,
+      ALLOCATED_QUANTITY DOUBLE
+   )
+
+   // ---- joins inside this project ----
+   Join Evt_EventDate(EVT_EVENT_DATE.EVENT_ID = EVT_CORPORATE_EVENT.EVENT_ID)
+   Join Evt_EventElectionOption(EVT_ELECTION_OPTION.EVENT_ID = EVT_CORPORATE_EVENT.EVENT_ID)
+   Join Evt_EventElection(EVT_ELECTION.EVENT_ID = EVT_CORPORATE_EVENT.EVENT_ID)
+   Join Evt_ElectionOption(EVT_ELECTION.OPTION_ID = EVT_ELECTION_OPTION.OPTION_ID)
+
+   // ---- joins that CROSS a project boundary ----
+   // Legal only because of the two includes above. Each is a plain equi-join on a key this
+   // project stores and the other project owns; neither dependency is modified.
+   Join Evt_EventInstrument(EVT_CORPORATE_EVENT.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Evt_EventMarket(EVT_CORPORATE_EVENT.MARKET_MIC = CC_MARKET.MARKET_MIC)
+   Join Evt_DateCalendar(EVT_EVENT_DATE.CALENDAR_ID = CC_CALENDAR.CALENDAR_ID)
+   Join Evt_DateMarket(EVT_EVENT_DATE.MARKET_MIC = CC_MARKET.MARKET_MIC)
+
+   // ---- the subtype discriminator filters ----
+   // One per action type, each matching EVENT_TYPE. String comparisons, not boolean
+   // literals: a Filter will not take `= true`.
+   Filter EvtCashDividendRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'CASH_DIVIDEND')
+   Filter EvtStockSplitRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'STOCK_SPLIT')
+   Filter EvtRightsIssueRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'RIGHTS_ISSUE')
+   Filter EvtMergerRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'MERGER')
+   Filter EvtSpinOffRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'SPIN_OFF')
+   Filter EvtTenderOfferRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'TENDER_OFFER')
+   Filter EvtCallRedemptionRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'CALL_REDEMPTION')
+
+   // Not withdrawn. Written as a null test rather than `IS_CANCELLED = false`, which the
+   // Filter grammar rejects.
+   Filter EvtLiveEvents(EVT_CORPORATE_EVENT.CANCELLED_ON is null)
+)

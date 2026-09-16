@@ -1,0 +1,339 @@
+###Pure
+// Middle office: what happens to a trade after it is booked.
+//
+// The lifecycle event is the spine. Eleven event types, each meaning something different
+// about which columns are populated -- a rate reset has a fixing and no notional change, a
+// partial termination has a notional change and no fixing, a compression has neither and
+// moves no cash. Modelling that as one table with an EVENT_TYPE discriminator is what a
+// trade-capture system does; modelling it as eleven tables is what a data warehouse does
+// after someone has regretted the first attempt.
+//
+// Then the two things a middle office spends its day on: confirmations, which have to match
+// the counterparty's version, and breaks, which are what happens when they do not.
+Class middleoffice::LifecycleEvent
+{
+   eventId: String[1];
+   otcId: String[1];
+   eventType: String[1];
+   eventDate: StrictDate[1];
+   effectiveDate: StrictDate[1];
+   status: String[1];
+   initiatedBy: String[1];
+   // Populated only by the events that change size. Absent, not zero: a reset does not
+   // change the notional by nothing, it does not change it at all.
+   notionalDelta: Float[0..1];
+   // Populated only by resets and fixings.
+   fixingRate: Float[0..1];
+   cashFlow: Float[0..1];
+   counterpartyRef: String[0..1];
+   notes: String[0..1];
+
+   // Days from event to effective. A same-day event is zero, and a T+2 novation is two.
+   settlementLagDays() { dateDiff($this.eventDate, $this.effectiveDate, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[1];
+}
+
+// The booking itself. Every trade has exactly one.
+Class middleoffice::NewTradeEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// A term corrected after booking. Carries no notional change and no cash.
+Class middleoffice::AmendmentEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// Part of the notional unwound, with a break cost.
+Class middleoffice::PartialTerminationEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// The whole trade unwound. One here was CANCELLED after being raised.
+Class middleoffice::FullTerminationEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// The counterparty stepped out and another stepped in.
+Class middleoffice::NovationEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// Notional netted away in a compression cycle. No cash moves.
+Class middleoffice::CompressionEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// Notional added to an existing trade rather than booking a new one.
+Class middleoffice::IncreaseEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// A floating leg fixing, which produces a cash flow and no notional change.
+Class middleoffice::RateResetEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// An FX or index fixing observed. Carries a rate and no cash of its own.
+Class middleoffice::FixingEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// An option exercised. Pending until the counterparty acknowledges.
+Class middleoffice::ExerciseEvent extends middleoffice::LifecycleEvent
+{
+}
+
+// A determinations-committee ruling on a reference entity.
+Class middleoffice::CreditEventEvent extends middleoffice::LifecycleEvent
+{
+}
+
+Class middleoffice::Confirmation
+{
+   confirmationId: String[1];
+   otcId: String[1];
+   method: String[1];
+   // Null for paper and email: there is no platform, rather than an unnamed one.
+   platform: String[0..1];
+   sentAt: DateTime[1];
+   // Null while a confirmation is outstanding or disputed.
+   matchedAt: DateTime[0..1];
+   status: String[1];
+   chaseCount: Integer[1];
+   affirmedBy: String[0..1];
+
+   // Hours to match. Null while unmatched, which is the number a middle office reports on.
+   hoursToMatch() { dateDiff($this.sentAt, $this.matchedAt, meta::pure::functions::date::DurationUnit.HOURS) } : Integer[0..1];
+}
+
+Class middleoffice::TradeBreak
+{
+   breakId: String[1];
+   otcId: String[1];
+   breakType: String[1];
+   detectedDate: StrictDate[1];
+   severity: String[1];
+   status: String[1];
+   assignedTo: String[1];
+   // Null while the break is open, which is what an ageing report keys on.
+   resolvedDate: StrictDate[0..1];
+   ageDays: Integer[1];
+   // A confirmation break has no single disputed field; an economic one does.
+   fieldName: String[0..1];
+   ourValue: String[0..1];
+   theirValue: String[0..1];
+}
+
+// The economics disagree -- a strike, a rate, a notional.
+Class middleoffice::EconomicBreak extends middleoffice::TradeBreak
+{
+}
+
+// No confirmation matched. The oldest break here is 144 days.
+Class middleoffice::ConfirmationBreak extends middleoffice::TradeBreak
+{
+}
+
+// Cash or securities did not move as instructed.
+Class middleoffice::SettlementBreak extends middleoffice::TradeBreak
+{
+}
+
+// The two sides identify the same thing differently.
+Class middleoffice::ReferenceDataBreak extends middleoffice::TradeBreak
+{
+}
+
+// The marks disagree by more than the tolerance.
+Class middleoffice::ValuationBreak extends middleoffice::TradeBreak
+{
+}
+
+// The margin call amounts disagree.
+Class middleoffice::CollateralBreak extends middleoffice::TradeBreak
+{
+}
+
+Association middleoffice::TradeLifecycle
+{
+   eventTrade: derivatives::OtcTrade[0..1];
+   lifecycleEvents: middleoffice::LifecycleEvent[*];
+}
+
+Association middleoffice::TradeConfirmation
+{
+   confirmedTrade: derivatives::OtcTrade[0..1];
+   confirmations: middleoffice::Confirmation[*];
+}
+
+Association middleoffice::TradeBreaks
+{
+   brokenTrade: derivatives::OtcTrade[0..1];
+   breaks: middleoffice::TradeBreak[*];
+}
+
+###Mapping
+Mapping middleoffice::MiddleOfficeMapping
+(
+   *middleoffice::LifecycleEvent[lifecycleBase]: Relational
+   {
+      ~primaryKey ( [store::DB]LIFECYCLE_EVENT.EVENT_ID )
+      ~mainTable [store::DB]LIFECYCLE_EVENT
+      eventId: [store::DB]LIFECYCLE_EVENT.EVENT_ID,
+      otcId: [store::DB]LIFECYCLE_EVENT.OTC_ID,
+      eventType: [store::DB]LIFECYCLE_EVENT.EVENT_TYPE,
+      eventDate: [store::DB]LIFECYCLE_EVENT.EVENT_DATE,
+      effectiveDate: [store::DB]LIFECYCLE_EVENT.EFFECTIVE_DATE,
+      status: [store::DB]LIFECYCLE_EVENT.STATUS,
+      initiatedBy: [store::DB]LIFECYCLE_EVENT.INITIATED_BY,
+      notionalDelta: [store::DB]LIFECYCLE_EVENT.NOTIONAL_DELTA,
+      fixingRate: [store::DB]LIFECYCLE_EVENT.FIXING_RATE,
+      cashFlow: [store::DB]LIFECYCLE_EVENT.CASH_FLOW,
+      counterpartyRef: [store::DB]LIFECYCLE_EVENT.COUNTERPARTY_REF,
+      notes: [store::DB]LIFECYCLE_EVENT.NOTES
+   }
+
+   middleoffice::NewTradeEvent[evtNewTrade] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtNewTradeRows
+   }
+
+   middleoffice::AmendmentEvent[evtAmendment] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtAmendmentRows
+   }
+
+   middleoffice::PartialTerminationEvent[evtPartialTermination] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtPartialTerminationRows
+   }
+
+   middleoffice::FullTerminationEvent[evtFullTermination] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtFullTerminationRows
+   }
+
+   middleoffice::NovationEvent[evtNovation] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtNovationRows
+   }
+
+   middleoffice::CompressionEvent[evtCompression] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtCompressionRows
+   }
+
+   middleoffice::IncreaseEvent[evtIncrease] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtIncreaseRows
+   }
+
+   middleoffice::RateResetEvent[evtRateReset] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtRateResetRows
+   }
+
+   middleoffice::FixingEvent[evtFixing] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtFixingRows
+   }
+
+   middleoffice::ExerciseEvent[evtExercise] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtExerciseRows
+   }
+
+   middleoffice::CreditEventEvent[evtCreditEvent] extends [lifecycleBase]: Relational
+   {
+      ~filter [store::DB]EvtCreditEventRows
+   }
+
+   middleoffice::Confirmation: Relational
+   {
+      ~primaryKey ( [store::DB]CONFIRMATION_MO.CONFIRMATION_ID )
+      ~mainTable [store::DB]CONFIRMATION_MO
+      confirmationId: [store::DB]CONFIRMATION_MO.CONFIRMATION_ID,
+      otcId: [store::DB]CONFIRMATION_MO.OTC_ID,
+      method: [store::DB]CONFIRMATION_MO.METHOD,
+      platform: [store::DB]CONFIRMATION_MO.PLATFORM,
+      sentAt: [store::DB]CONFIRMATION_MO.SENT_AT,
+      matchedAt: [store::DB]CONFIRMATION_MO.MATCHED_AT,
+      status: [store::DB]CONFIRMATION_MO.STATUS,
+      chaseCount: [store::DB]CONFIRMATION_MO.CHASE_COUNT,
+      affirmedBy: [store::DB]CONFIRMATION_MO.AFFIRMED_BY
+   }
+
+   *middleoffice::TradeBreak[breakBase]: Relational
+   {
+      ~primaryKey ( [store::DB]TRADE_BREAK.BREAK_ID )
+      ~mainTable [store::DB]TRADE_BREAK
+      breakId: [store::DB]TRADE_BREAK.BREAK_ID,
+      otcId: [store::DB]TRADE_BREAK.OTC_ID,
+      breakType: [store::DB]TRADE_BREAK.BREAK_TYPE,
+      detectedDate: [store::DB]TRADE_BREAK.DETECTED_DATE,
+      severity: [store::DB]TRADE_BREAK.SEVERITY,
+      status: [store::DB]TRADE_BREAK.STATUS,
+      assignedTo: [store::DB]TRADE_BREAK.ASSIGNED_TO,
+      resolvedDate: [store::DB]TRADE_BREAK.RESOLVED_DATE,
+      ageDays: [store::DB]TRADE_BREAK.AGE_DAYS,
+      fieldName: [store::DB]TRADE_BREAK.FIELD_NAME,
+      ourValue: [store::DB]TRADE_BREAK.OUR_VALUE,
+      theirValue: [store::DB]TRADE_BREAK.THEIR_VALUE
+   }
+
+   middleoffice::EconomicBreak[brkEconomicBreak] extends [breakBase]: Relational
+   {
+      ~filter [store::DB]BrkEconomicBreakRows
+   }
+
+   middleoffice::ConfirmationBreak[brkConfirmationBreak] extends [breakBase]: Relational
+   {
+      ~filter [store::DB]BrkConfirmationBreakRows
+   }
+
+   middleoffice::SettlementBreak[brkSettlementBreak] extends [breakBase]: Relational
+   {
+      ~filter [store::DB]BrkSettlementBreakRows
+   }
+
+   middleoffice::ReferenceDataBreak[brkReferenceDataBreak] extends [breakBase]: Relational
+   {
+      ~filter [store::DB]BrkReferenceDataBreakRows
+   }
+
+   middleoffice::ValuationBreak[brkValuationBreak] extends [breakBase]: Relational
+   {
+      ~filter [store::DB]BrkValuationBreakRows
+   }
+
+   middleoffice::CollateralBreak[brkCollateralBreak] extends [breakBase]: Relational
+   {
+      ~filter [store::DB]BrkCollateralBreakRows
+   }
+
+   middleoffice::TradeLifecycle: Relational
+   {
+      AssociationMapping
+      (
+         lifecycleEvents[otcBase, lifecycleBase]: [store::DB]@OtcTrade_LifecycleEvent,
+         eventTrade[lifecycleBase, otcBase]: [store::DB]@OtcTrade_LifecycleEvent
+      )
+   }
+
+   middleoffice::TradeConfirmation: Relational
+   {
+      AssociationMapping
+      (
+         confirmations[otcBase, middleoffice_Confirmation]: [store::DB]@OtcTrade_ConfirmationMo,
+         confirmedTrade[middleoffice_Confirmation, otcBase]: [store::DB]@OtcTrade_ConfirmationMo
+      )
+   }
+
+   middleoffice::TradeBreaks: Relational
+   {
+      AssociationMapping
+      (
+         breaks[otcBase, breakBase]: [store::DB]@OtcTrade_Break,
+         brokenTrade[breakBase, otcBase]: [store::DB]@OtcTrade_Break
+      )
+   }
+)

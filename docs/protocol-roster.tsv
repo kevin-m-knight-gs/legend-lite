@@ -75,7 +75,9 @@ asciiFoldingTokenFilter	org.finos.legend.engine.protocol.store.elasticsearch.v7.
 assertFail	org.finos.legend.engine.protocol.pure.v1.model.test.assertion.status.AssertFail	UNCOVERED
 assertPass	org.finos.legend.engine.protocol.pure.v1.model.test.assertion.status.AssertPass	UNCOVERED
 association	org.finos.legend.engine.protocol.pure.m3.relationship.Association	COVERED
+athena	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.connection.specification.AthenaDatasourceSpecification	COVERED
 auditingDateTime	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.persistence.relational.temporality.auditing.AuditingDateTime	COVERED
+aurora	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.connection.specification.AuroraDatasourceSpecification	COVERED
 authenticationDemo	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.authentication.demo.AuthenticationDemo	UNCOVERED
 autoDateHistogramAggregate	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.AutoDateHistogramAggregate	UNCOVERED
 autoDateHistogramAggregation	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.AutoDateHistogramAggregation	UNCOVERED
@@ -409,6 +411,7 @@ geoTileGridBucket	org.finos.legend.engine.protocol.store.elasticsearch.v7.specif
 getRequest	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.indices.get.GetRequest	UNCOVERED
 globalAggregate	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.GlobalAggregate	UNCOVERED
 globalAggregation	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.GlobalAggregation	UNCOVERED
+globalAurora	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.connection.specification.GlobalAuroraDatasourceSpecification	COVERED
 globalGraphFetchExecutionNode	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.graphFetch.StoreMappingGlobalGraphFetchExecutionNode	UNCOVERED
 graphFetchExecutionNode	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.graphFetch.GraphFetchExecutionNode	UNCOVERED
 graphFetchM2M	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.GraphFetchM2MExecutionNode	UNCOVERED
@@ -581,6 +584,7 @@ md5Hash	org.finos.legend.engine.protocol.dataquality.metamodel.MD5HashStrategy	C
 measure	org.finos.legend.engine.protocol.pure.m3.type.Measure	COVERED
 medianAbsoluteDeviationAggregate	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.MedianAbsoluteDeviationAggregate	UNCOVERED
 medianAbsoluteDeviationAggregation	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.MedianAbsoluteDeviationAggregation	UNCOVERED
+memSql	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.connection.specification.MemSqlDatasourceSpecification	UNCOVERED
 memSqlFunction	org.finos.legend.engine.protocol.memsqlFunction.metamodel.MemSqlFunction	COVERED
 memSqlFunctionArtifact	org.finos.legend.engine.protocol.memsqlFunction.deployment.MemSqlFunctionArtifact	UNCOVERED
 memSqlFunctionConfig	org.finos.legend.engine.protocol.memsqlFunction.metamodel.MemSqlFunctionDeploymentConfiguration	COVERED
@@ -677,6 +681,7 @@ openPointInTimeRequest	org.finos.legend.engine.protocol.store.elasticsearch.v7.s
 operation	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.mapping.OperationClassMapping	COVERED
 operationDefinition	org.finos.legend.engine.protocol.graphQL.metamodel.executable.OperationDefinition	UNCOVERED
 orOperatorExpression	org.finos.legend.engine.protocol.deephaven.metamodel.OrOperatorExpression	UNCOVERED
+oracle	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.connection.specification.OracleDatasourceSpecification	COVERED
 otherwiseEmbeddedPropertyMapping	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.mapping.OtherwiseEmbeddedRelationalPropertyMapping	COVERED
 overwrite	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.persistence.relational.temporality.updatesHandling.Overwrite	COVERED
 packageableElementPtr	org.finos.legend.engine.protocol.pure.m3.valuespecification.constant.PackageableElementPtr	COVERED

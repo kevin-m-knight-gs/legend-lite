@@ -59,29 +59,83 @@ final class UnionSynthesis {
      * that way). A plain function reference: an include is a call. The
      * own record is searched first (a hoisted copy shadows the include's). */
     static String memberFunction(ResolvedMapping md, ClassMapping member) {
-        String defining = md.qualifiedName();
         String id = ResolvedMapping.idOf(member);
-        long setsOfClass = 0;
         for (LegacyMappingDefinition m : md.closure()) {
-            boolean here = false;
-            long n = 0;
             for (ClassMapping cm : m.classMappings()) {
-                if (cm.className().equals(member.className())) {
-                    n++;
-                    if (ResolvedMapping.idOf(cm).equals(id)) {
-                        here = true;
+                if (cm.className().equals(member.className()) && ResolvedMapping.idOf(cm).equals(id)) {
+                    return memberFunction(new PinTarget(m, member));
+                }
+            }
+        }
+        return memberFunction(new PinTarget(md.closure().get(0), member));
+    }
+
+    /** The set's own function under the mapping that DEFINES it. */
+    static String memberFunction(PinTarget pt) {
+        ClassMapping member = pt.set();
+        long setsOfClass = pt.defining().classMappings().stream()
+                .filter(cm -> cm.className().equals(member.className())).count();
+        return member.root() || setsOfClass <= 1
+                ? com.legend.compiler.SynthFqn.mappingClass(pt.defining().qualifiedName(), member.className())
+                : com.legend.compiler.SynthFqn.mappingClassSet(pt.defining().qualifiedName(),
+                        member.className(), ResolvedMapping.idOf(member));
+    }
+
+    /** A property pin ({@code prop[setId]}) resolved: the set and the
+     * mapping that defines it. */
+    record PinTarget(LegacyMappingDefinition defining, ClassMapping set) {
+    }
+
+    /** A pin is a NAME (engine: {@code targetSetImplementationId} is a
+     * string the QUERIED mapping resolves at query time; the compiler
+     * accepts a pin its own closure cannot see — the stress corpus'
+     * {@code book[positions_Book]} in a project mapping that does not
+     * include the positions mapping). The defining mapping's closure
+     * resolves it first; otherwise the whole model does, by effective
+     * set id — the same set any including mapping resolves, as long as
+     * the id is unique model-wide. Null when no set carries the id;
+     * loud when several do (the pin is ambiguous, not resolvable). The
+     * route names the set's function under ITS defining mapping; the
+     * queried mapping binds that function at query time like every
+     * other route. Declared divergence: a query under a mapping that
+     * cannot see the set still navigates here, where the engine fails. */
+    static @com.legend.Nullable PinTarget resolvePin(ResolvedMapping md,
+            @com.legend.Nullable String setId, ModelBuilder model) {
+        if (setId == null) {
+            return null;
+        }
+        ClassMapping own = md.set(setId);
+        if (own != null) {
+            // the defining mapping: matched by class + effective id (the
+            // closure hands out SUBSTITUTED copies, never the same object)
+            for (LegacyMappingDefinition m : md.closure()) {
+                for (ClassMapping cm : m.classMappings()) {
+                    if (cm.className().equals(own.className())
+                            && setId.equals(ResolvedMapping.idOf(cm))) {
+                        return new PinTarget(m, own);
                     }
                 }
             }
-            if (here) {
-                defining = m.qualifiedName();
-                setsOfClass = n;
-                break;
-            }
+            return new PinTarget(md.closure().get(0), own);
         }
-        return member.root() || setsOfClass <= 1
-                ? com.legend.compiler.SynthFqn.mappingClass(defining, member.className())
-                : com.legend.compiler.SynthFqn.mappingClassSet(defining, member.className(), id);
+        List<PinTarget> hits = pinOwners(setId, model);
+        return hits.size() == 1 ? hits.get(0) : null;
+    }
+
+    /** Every mapping in the model defining a set with effective id
+     * {@code setId} — one is a resolvable pin; several, an AMBIGUOUS one
+     * (the poison reason names them; the property drops from this
+     * synthesis exactly as an unknown pin does). */
+    static List<PinTarget> pinOwners(String setId, ModelBuilder model) {
+        List<PinTarget> hits = new ArrayList<>();
+        model.legacyMappings().forEach(m -> {
+            for (ClassMapping cm : m.classMappings()) {
+                if (setId.equals(ResolvedMapping.idOf(cm))) {
+                    hits.add(new PinTarget(m, cm));
+                }
+            }
+        });
+        return hits;
     }
 
     /** THE STACK (legacy routes as composition, design §9/§11): an
@@ -284,19 +338,28 @@ final class UnionSynthesis {
             long distinctPins = e.getValue().stream()
                     .map(PropertyMapping.Join::targetSetId).distinct().count();
             for (PropertyMapping.Join j : e.getValue()) {
-                ClassMapping set = md.set(j.targetSetId());
-                if (set == null) {
-                    poison = "unknown mapping set '" + j.targetSetId() + "'";
+                PinTarget pin = resolvePin(md, j.targetSetId(), model);
+                if (pin == null) {
+                    List<PinTarget> owners = j.targetSetId() == null ? List.of()
+                            : pinOwners(j.targetSetId(), model);
+                    poison = owners.size() > 1
+                            ? "an AMBIGUOUS mapping set '" + j.targetSetId()
+                                    + "' (not visible through the includes; defined by "
+                                    + owners.stream().map(o -> o.defining().qualifiedName()).toList() + ")"
+                            : "unknown mapping set '" + j.targetSetId() + "'";
                     break;
                 }
+                ClassMapping set = pin.set();
                 int ord = memberIds == null ? -1
                         : md.memberOrdinal(memberIds, j.targetSetId());
                 // engine rootClassMappingByClass — ONE owner, the resolved
                 // mapping (audit 2026-09-15 P2-2: the inline count here
                 // judged sole-ness over the QUERYING mapping's own sets
-                // while the set itself was resolved through the closure)
+                // while the set itself was resolved through the closure).
+                // A set OUTSIDE this closure is never this mapping's root:
+                // its route names the set's function (pinned-single).
                 boolean rootOrSole = set instanceof ClassMapping.Relational
-                        && md.isRootOrSole(set);
+                        && md.set(j.targetSetId()) != null && md.isRootOrSole(set);
                 if (ord >= 0) {
                     routes.add(new UnionRoute(ord, j));
                 } else if (memberIds != null && distinctPins > 1) {

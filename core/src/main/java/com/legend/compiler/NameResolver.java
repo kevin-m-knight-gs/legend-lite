@@ -340,6 +340,10 @@ public final class NameResolver {
             // routes them by FQN and never opens them, so there are no names
             // to resolve (Phase M step 3)
             case com.legend.model.OpaqueElementDefinition oe -> oe;
+            // a data element is DATA: its body names stores and tables by
+            // their written paths, read by a test runner at provisioning
+            // time — nothing in it resolves against the model's names
+            case com.legend.model.DataDefinition dd -> dd;
             case com.legend.model.PrimitiveExtensionDefinition pe -> {
                 // base primitives (String, Integer...) pass through resolveName
                 // unchanged; an extension-of-extension base resolves via imports
@@ -1317,8 +1321,10 @@ public final class NameResolver {
         if (mappings == rd.mappings() && !bindingsChanged && !inlineChanged) {
             return rd;
         }
+        Map<String, String> ids = new java.util.LinkedHashMap<>();
+        rd.connectionIds().forEach((id, store) -> ids.put(id, resolveName(store, scope)));
         return new RuntimeDefinition(rd.qualifiedName(), mappings, bindings,
-                rd.jsonConnections(), inline);
+                rd.jsonConnections(), inline, ids);
     }
 
     private static ServiceDefinition resolveService(
@@ -1354,8 +1360,8 @@ public final class NameResolver {
         }
         return new ServiceDefinition(sd.qualifiedName(), sd.pattern(), nn(body),
                 sd.documentation(), mappingRef, runtimeRef,
-                sd.testSuitesSource(), sd.owners(), sd.autoActivateUpdates(),
-                multi, sd.testSource());
+                sd.testSuites(), sd.owners(), sd.autoActivateUpdates(),
+                multi, sd.test());
     }
 
     private static com.legend.model.DataSpaceDefinition resolveDataSpace(

@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token 'pattern'. Valid alternatives: ['executions']
+//
+// The reverse of neg-service-runtimecomponents-in-execution.pure: a Service keyword inside
+// an ExecutionEnvironment. `execEnvs` is `EXEC_ENV qualifiedName { executions }` -- ONE arm,
+// no options -- so pattern, documentation, execution and testSuites are all illegal here.
+//
+// A rewritten parser that treats ###Service as "one element shape with optional fields"
+// accepts this and produces an ExecutionEnvironment carrying a pattern that legend-engine
+// has no field for.
+###Service
+ExecutionEnvironment fixture::neg::EnvWithPattern
+{
+   pattern: '/fixture/neg/env';
+   executions:
+   [
+      UAT:
+      {
+         mapping: fixture::neg::Mapping;
+         runtime: fixture::neg::Runtime;
+      }
+   ];
+}

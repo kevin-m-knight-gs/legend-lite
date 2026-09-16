@@ -1,0 +1,209 @@
+###Pure
+// Price sources: where a mark came from, which decides how much it can be trusted.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class pricesources::PriceSourceRecord
+{
+   recordId: String[1];
+   sourceType: String[1];
+   instrumentRef: String[1];
+   cobDate: StrictDate[1];
+   price: Float[1];
+   currency: String[1];
+   confidenceScore: Float[1];
+   isPrimary: Boolean[1];
+   contributorCount: Integer[0..1];
+   challengedBy: String[0..1];
+
+   // Confidence expressed as a percentage, which is how a price-verification
+   // report grades a source.
+   confidencePct() { $this.confidenceScore * 100.0 } : Float[1];
+}
+
+// Direct from the venue, and the only true primary source.
+Class pricesources::ExchangeFeedSource extends pricesources::PriceSourceRecord
+{
+}
+
+// Aggregated across venues, with a latency cost.
+Class pricesources::ConsolidatedTapeSource extends pricesources::PriceSourceRecord
+{
+}
+
+// A vendor's blend, whose methodology is not published.
+Class pricesources::VendorCompositeSource extends pricesources::PriceSourceRecord
+{
+}
+
+// Indicative, and not necessarily tradeable.
+Class pricesources::BrokerQuoteSource extends pricesources::PriceSourceRecord
+{
+}
+
+// Firm, and therefore worth more.
+Class pricesources::ExecutableQuoteSource extends pricesources::PriceSourceRecord
+{
+}
+
+// A model's opinion where nothing trades. Most of the bond market.
+Class pricesources::EvaluatedPriceSource extends pricesources::PriceSourceRecord
+{
+}
+
+// Interpolated from comparable bonds.
+Class pricesources::MatrixPriceSource extends pricesources::PriceSourceRecord
+{
+}
+
+// The desk's own mark, which independent price verification exists to check.
+Class pricesources::InternalMarkSource extends pricesources::PriceSourceRecord
+{
+}
+
+// After that check has moved it.
+Class pricesources::IpvAdjustedSource extends pricesources::PriceSourceRecord
+{
+}
+
+// Contributed marks, cleaned and averaged.
+Class pricesources::ConsensusServiceSource extends pricesources::PriceSourceRecord
+{
+}
+
+// The CCP's official settlement price.
+Class pricesources::ClearingHouseSettlementSource extends pricesources::PriceSourceRecord
+{
+}
+
+// From a closing or credit-event auction.
+Class pricesources::AuctionPriceSource extends pricesources::PriceSourceRecord
+{
+}
+
+// A fund's published net asset value.
+Class pricesources::NavPriceSource extends pricesources::PriceSourceRecord
+{
+}
+
+// A published administered benchmark.
+Class pricesources::BenchmarkFixingSource extends pricesources::PriceSourceRecord
+{
+}
+
+// Pure model output with no market input at all.
+Class pricesources::ModelPriceSource extends pricesources::PriceSourceRecord
+{
+}
+
+// Yesterday's price, used again. Always a flag.
+Class pricesources::StaleCarryForwardSource extends pricesources::PriceSourceRecord
+{
+}
+
+###Mapping
+Mapping pricesources::PricesourcesMapping
+(
+   *pricesources::PriceSourceRecord[pricesourcesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PRICE_SOURCE_RECORD.RECORD_ID )
+      ~mainTable [store::DB]PRICE_SOURCE_RECORD
+      recordId: [store::DB]PRICE_SOURCE_RECORD.RECORD_ID,
+      sourceType: [store::DB]PRICE_SOURCE_RECORD.SOURCE_TYPE,
+      instrumentRef: [store::DB]PRICE_SOURCE_RECORD.INSTRUMENT_REF,
+      cobDate: [store::DB]PRICE_SOURCE_RECORD.COB_DATE,
+      price: [store::DB]PRICE_SOURCE_RECORD.PRICE,
+      currency: [store::DB]PRICE_SOURCE_RECORD.CURRENCY,
+      confidenceScore: [store::DB]PRICE_SOURCE_RECORD.CONFIDENCE_SCORE,
+      isPrimary: [store::DB]PRICE_SOURCE_RECORD.IS_PRIMARY,
+      contributorCount: [store::DB]PRICE_SOURCE_RECORD.CONTRIBUTOR_COUNT,
+      challengedBy: [store::DB]PRICE_SOURCE_RECORD.CHALLENGED_BY
+   }
+
+   pricesources::ExchangeFeedSource[srcExchangeFeed] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcExchangeFeedRows
+   }
+
+   pricesources::ConsolidatedTapeSource[srcConsolidatedTape] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcConsolidatedTapeRows
+   }
+
+   pricesources::VendorCompositeSource[srcVendorComposite] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcVendorCompositeRows
+   }
+
+   pricesources::BrokerQuoteSource[srcBrokerQuote] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcBrokerQuoteRows
+   }
+
+   pricesources::ExecutableQuoteSource[srcExecutableQuote] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcExecutableQuoteRows
+   }
+
+   pricesources::EvaluatedPriceSource[srcEvaluatedPrice] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcEvaluatedPriceRows
+   }
+
+   pricesources::MatrixPriceSource[srcMatrixPrice] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcMatrixPriceRows
+   }
+
+   pricesources::InternalMarkSource[srcInternalMark] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcInternalMarkRows
+   }
+
+   pricesources::IpvAdjustedSource[srcIpvAdjusted] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcIpvAdjustedRows
+   }
+
+   pricesources::ConsensusServiceSource[srcConsensusService] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcConsensusServiceRows
+   }
+
+   pricesources::ClearingHouseSettlementSource[srcClearingHouseSettle] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcClearingHouseSettleRows
+   }
+
+   pricesources::AuctionPriceSource[srcAuctionPrice] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcAuctionPriceRows
+   }
+
+   pricesources::NavPriceSource[srcNavPrice] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcNavPriceRows
+   }
+
+   pricesources::BenchmarkFixingSource[srcBenchmarkFixing] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcBenchmarkFixingRows
+   }
+
+   pricesources::ModelPriceSource[srcModelPrice] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcModelPriceRows
+   }
+
+   pricesources::StaleCarryForwardSource[srcStaleCarryForward] extends [pricesourcesBase]: Relational
+   {
+      ~filter [store::DB]SrcStaleCarryForwardRows
+   }
+)

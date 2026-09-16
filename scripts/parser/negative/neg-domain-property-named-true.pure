@@ -1,0 +1,17 @@
+// REJECTS: Unexpected token 'true'
+//
+// The INVERSE of keyword-as-identifier.pure, and the reason that fixture is not the whole
+// story. Domain's identifier rule is extremely permissive -- `Class`, `let`, `all`,
+// `toBytes`, `as`, `native`, `projects`, `stereotypes` are every one of them legal
+// property names, as the alternatives list in this very message advertises. `true` is not,
+// because boolean literals are lexed by a different rule that the identifier arm does not
+// include.
+//
+// So a rewrite cannot get this right with either blanket policy. "Keywords are reserved"
+// rejects a property called `Class`; "any word is an identifier" accepts a property called
+// `true`. The line is drawn in a specific place and has to be copied, not reasoned out.
+###Pure
+Class fixture::neg::PropertyNamedTrue
+{
+   true: String[1];
+}

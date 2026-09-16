@@ -1,0 +1,38 @@
+// REJECTS: Unexpected token 'sink'. Valid alternatives: ['keys', 'deduplication', 'datasetType']
+//
+// v1 and v2 are two whole DSLs sharing an element. `persister:` and `serviceOutputTargets:`
+// are siblings in the `persistence` rule -- both optional, and the walker accepts an element
+// carrying BOTH or NEITHER -- but they nest nothing inside each other: a persister's sink
+// and target shape have no meaning inside a service output.
+//
+// Here the v1 sink block is written inside a v2 TDS service output, which is the mistake
+// available to anyone migrating between the two. The words are all in the vocabulary; only
+// the nesting is wrong.
+###Persistence
+Persistence test::persistence::neg::PersisterInsideServiceOutput
+{
+  doc: 'a v1 sink block nested inside a v2 service output';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      sink: Relational
+      {
+        database: test::persistence::Database;
+      }
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    {
+    }
+  ];
+}

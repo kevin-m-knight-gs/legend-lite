@@ -1,0 +1,229 @@
+###Pure
+// Custody: what the firm has told its custodian to do, and whether it happened.
+//
+// 18 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 18 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class custody::CustodyInstruction
+{
+   instructionId: String[1];
+   instructionType: String[1];
+   accountId: String[1];
+   securityId: String[1];
+   quantity: Integer[1];
+   valueDate: StrictDate[1];
+   status: String[1];
+   custodian: String[1];
+   isUrgent: Boolean[1];
+   settledOn: StrictDate[0..1];
+
+   // Days late, null while unsettled. A settled-on-time instruction is zero; an
+   // unsettled one is not zero, it is unknown, and a fails report turns on that.
+   daysLate() { dateDiff($this.valueDate, $this.settledOn, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[0..1];
+}
+
+// Hold the asset and do nothing else.
+Class custody::SafekeepingInstruction extends custody::CustodyInstruction
+{
+}
+
+// Securities move only if cash does. The default.
+Class custody::DeliveryVersusPaymentInstruction extends custody::CustodyInstruction
+{
+}
+
+// Securities move alone, which is where the risk is.
+Class custody::FreeOfPaymentInstruction extends custody::CustodyInstruction
+{
+}
+
+// The buy side of DVP.
+Class custody::ReceiveVersusPaymentInstruction extends custody::CustodyInstruction
+{
+}
+
+// Between two accounts at the same custodian.
+Class custody::InternalTransferInstruction extends custody::CustodyInstruction
+{
+}
+
+// Out to another custodian, which is slower and riskier.
+Class custody::ExternalTransferInstruction extends custody::CustodyInstruction
+{
+}
+
+// Encumbering an asset without moving it.
+Class custody::PledgeInstruction extends custody::CustodyInstruction
+{
+}
+
+// Unencumbering it.
+Class custody::PledgeReleaseInstruction extends custody::CustodyInstruction
+{
+}
+
+// Buying fund units at the next valuation point.
+Class custody::FundSubscriptionInstruction extends custody::CustodyInstruction
+{
+}
+
+// Selling them, with a notice period.
+Class custody::FundRedemptionInstruction extends custody::CustodyInstruction
+{
+}
+
+// Redeeming one share class into another.
+Class custody::FundSwitchInstruction extends custody::CustodyInstruction
+{
+}
+
+// Voting shares held in custody.
+Class custody::ProxyVoteInstruction extends custody::CustodyInstruction
+{
+}
+
+// Choosing between cash and stock on a voluntary event.
+Class custody::CorporateActionElection extends custody::CustodyInstruction
+{
+}
+
+// Recovering withholding under a treaty.
+Class custody::TaxReclaimInstruction extends custody::CustodyInstruction
+{
+}
+
+// Collecting a dividend or coupon.
+Class custody::IncomeCollectionInstruction extends custody::CustodyInstruction
+{
+}
+
+// Putting a holding into a name.
+Class custody::RegistrationInstruction extends custody::CustodyInstruction
+{
+}
+
+// Moving it into another.
+Class custody::ReregistrationInstruction extends custody::CustodyInstruction
+{
+}
+
+// Responding to a mandatory event with options.
+Class custody::StockSituationInstruction extends custody::CustodyInstruction
+{
+}
+
+###Mapping
+Mapping custody::CustodyMapping
+(
+   *custody::CustodyInstruction[custodyBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CUSTODY_INSTRUCTION.INSTRUCTION_ID )
+      ~mainTable [store::DB]CUSTODY_INSTRUCTION
+      instructionId: [store::DB]CUSTODY_INSTRUCTION.INSTRUCTION_ID,
+      instructionType: [store::DB]CUSTODY_INSTRUCTION.INSTRUCTION_TYPE,
+      accountId: [store::DB]CUSTODY_INSTRUCTION.ACCOUNT_ID,
+      securityId: [store::DB]CUSTODY_INSTRUCTION.SECURITY_ID,
+      quantity: [store::DB]CUSTODY_INSTRUCTION.QUANTITY,
+      valueDate: [store::DB]CUSTODY_INSTRUCTION.VALUE_DATE,
+      status: [store::DB]CUSTODY_INSTRUCTION.STATUS,
+      custodian: [store::DB]CUSTODY_INSTRUCTION.CUSTODIAN,
+      isUrgent: [store::DB]CUSTODY_INSTRUCTION.IS_URGENT,
+      settledOn: [store::DB]CUSTODY_INSTRUCTION.SETTLED_ON
+   }
+
+   custody::SafekeepingInstruction[custSafekeeping] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustSafekeepingRows
+   }
+
+   custody::DeliveryVersusPaymentInstruction[custDeliveryVsPayment] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustDeliveryVsPaymentRows
+   }
+
+   custody::FreeOfPaymentInstruction[custFreeOfPayment] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustFreeOfPaymentRows
+   }
+
+   custody::ReceiveVersusPaymentInstruction[custReceiveVsPayment] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustReceiveVsPaymentRows
+   }
+
+   custody::InternalTransferInstruction[custInternalTransfer] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustInternalTransferRows
+   }
+
+   custody::ExternalTransferInstruction[custExternalTransfer] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustExternalTransferRows
+   }
+
+   custody::PledgeInstruction[custPledge] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustPledgeRows
+   }
+
+   custody::PledgeReleaseInstruction[custReleasePledge] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustReleasePledgeRows
+   }
+
+   custody::FundSubscriptionInstruction[custSubscription] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustSubscriptionRows
+   }
+
+   custody::FundRedemptionInstruction[custRedemptionInstr] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustRedemptionInstrRows
+   }
+
+   custody::FundSwitchInstruction[custSwitch] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustSwitchRows
+   }
+
+   custody::ProxyVoteInstruction[custProxyVote] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustProxyVoteRows
+   }
+
+   custody::CorporateActionElection[custCorporateElection] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustCorporateElectionRows
+   }
+
+   custody::TaxReclaimInstruction[custTaxReclaim] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustTaxReclaimRows
+   }
+
+   custody::IncomeCollectionInstruction[custIncomeCollection] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustIncomeCollectionRows
+   }
+
+   custody::RegistrationInstruction[custRegistration] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustRegistrationRows
+   }
+
+   custody::ReregistrationInstruction[custReregistration] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustReregistrationRows
+   }
+
+   custody::StockSituationInstruction[custStockSituation] extends [custodyBase]: Relational
+   {
+      ~filter [store::DB]CustStockSituationRows
+   }
+)

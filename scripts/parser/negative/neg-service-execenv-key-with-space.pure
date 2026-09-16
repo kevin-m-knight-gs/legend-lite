@@ -1,0 +1,20 @@
+// REJECTS: Execution param key cannot contain spaces. Invalid Key: UAT env
+//
+// An execution-environment key is an `identifier`, and `identifier` admits a quoted STRING,
+// so 'UAT env' lexes and parses perfectly. The walker then refuses it because the key is
+// used as a lookup name.
+//
+// Nothing in the .g4 expresses this. A generated parser accepts the quoted form
+// unconditionally -- which is the whole category this corpus exists to catch.
+###Service
+ExecutionEnvironment fixture::neg::EnvKeyWithSpace
+{
+   executions:
+   [
+      'UAT env':
+      {
+         mapping: fixture::neg::M;
+         runtime: fixture::neg::R;
+      }
+   ];
+}

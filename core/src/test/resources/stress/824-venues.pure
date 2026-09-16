@@ -1,0 +1,228 @@
+###Pure
+// Venues and infrastructure: where a trade executes, clears, settles and is reported.
+//
+// 18 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 18 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class venues::TradingVenue
+{
+   venueId: String[1];
+   venueType: String[1];
+   venueName: String[1];
+   mic: String[1];
+   country: String[1];
+   timezone: String[1];
+   isActive: Boolean[1];
+   dailyVolumeUsd: Float[1];
+   operator: String[0..1];
+   closesAt: String[0..1];
+
+   // Volume in millions, which is the unit a venue-share slide is drawn in.
+   volumeMillions() { $this.dailyVolumeUsd / 1000000.0 } : Float[1];
+}
+
+// A full exchange, with the heaviest obligations.
+Class venues::RegulatedMarketVenue extends venues::TradingVenue
+{
+}
+
+// Multilateral, non-discretionary, lighter than an exchange.
+Class venues::MultilateralTradingFacility extends venues::TradingVenue
+{
+}
+
+// Discretionary execution, non-equity only.
+Class venues::OrganisedTradingFacility extends venues::TradingVenue
+{
+}
+
+// A firm dealing on own account against clients, outside a venue.
+Class venues::SystematicInternaliser extends venues::TradingVenue
+{
+}
+
+// No pre-trade transparency, subject to caps.
+Class venues::DarkPoolVenue extends venues::TradingVenue
+{
+}
+
+// Frequent short auctions rather than continuous trading.
+Class venues::PeriodicAuctionVenue extends venues::TradingVenue
+{
+}
+
+// Dealer-to-client, quote driven.
+Class venues::RequestForQuotePlatform extends venues::TradingVenue
+{
+}
+
+// Voice and hybrid, between dealers.
+Class venues::InterdealerBrokerVenue extends venues::TradingVenue
+{
+}
+
+// Novates both sides and takes the credit risk.
+Class venues::CentralCounterparty extends venues::TradingVenue
+{
+}
+
+// Where securities legally live.
+Class venues::CentralSecuritiesDepository extends venues::TradingVenue
+{
+}
+
+// Euroclear and Clearstream.
+Class venues::InternationalCsd extends venues::TradingVenue
+{
+}
+
+// Where reports go to be stored.
+Class venues::TradeRepositoryVenue extends venues::TradingVenue
+{
+}
+
+// Publishes post-trade transparency data.
+Class venues::ApprovedPublicationArrangement extends venues::TradingVenue
+{
+}
+
+// Submits transaction reports to the regulator.
+Class venues::ApprovedReportingMechanism extends venues::TradingVenue
+{
+}
+
+// TARGET2, Fedwire, CHAPS.
+Class venues::PaymentSystemVenue extends venues::TradingVenue
+{
+}
+
+// Messaging rather than settlement.
+Class venues::SwiftNetworkVenue extends venues::TradingVenue
+{
+}
+
+// Payment-versus-payment for FX, which removes Herstatt risk.
+Class venues::ContinuousLinkedSettlement extends venues::TradingVenue
+{
+}
+
+// Financing, custody and clearing bundled.
+Class venues::PrimeBrokerVenue extends venues::TradingVenue
+{
+}
+
+###Mapping
+Mapping venues::VenuesMapping
+(
+   *venues::TradingVenue[venuesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]TRADING_VENUE.VENUE_ID )
+      ~mainTable [store::DB]TRADING_VENUE
+      venueId: [store::DB]TRADING_VENUE.VENUE_ID,
+      venueType: [store::DB]TRADING_VENUE.VENUE_TYPE,
+      venueName: [store::DB]TRADING_VENUE.VENUE_NAME,
+      mic: [store::DB]TRADING_VENUE.MIC,
+      country: [store::DB]TRADING_VENUE.COUNTRY,
+      timezone: [store::DB]TRADING_VENUE.TIMEZONE,
+      isActive: [store::DB]TRADING_VENUE.IS_ACTIVE,
+      dailyVolumeUsd: [store::DB]TRADING_VENUE.DAILY_VOLUME_USD,
+      operator: [store::DB]TRADING_VENUE.OPERATOR,
+      closesAt: [store::DB]TRADING_VENUE.CLOSES_AT
+   }
+
+   venues::RegulatedMarketVenue[venRegulatedMarket] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenRegulatedMarketRows
+   }
+
+   venues::MultilateralTradingFacility[venMtf] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenMtfRows
+   }
+
+   venues::OrganisedTradingFacility[venOtf] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenOtfRows
+   }
+
+   venues::SystematicInternaliser[venSi] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenSiRows
+   }
+
+   venues::DarkPoolVenue[venDarkPool] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenDarkPoolRows
+   }
+
+   venues::PeriodicAuctionVenue[venPeriodicAuction] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenPeriodicAuctionRows
+   }
+
+   venues::RequestForQuotePlatform[venRfqPlatform] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenRfqPlatformRows
+   }
+
+   venues::InterdealerBrokerVenue[venInterdealerBroker] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenInterdealerBrokerRows
+   }
+
+   venues::CentralCounterparty[venCcp] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenCcpRows
+   }
+
+   venues::CentralSecuritiesDepository[venCsd] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenCsdRows
+   }
+
+   venues::InternationalCsd[venIcsd] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenIcsdRows
+   }
+
+   venues::TradeRepositoryVenue[venTradeRepository] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenTradeRepositoryRows
+   }
+
+   venues::ApprovedPublicationArrangement[venApa] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenApaRows
+   }
+
+   venues::ApprovedReportingMechanism[venArm] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenArmRows
+   }
+
+   venues::PaymentSystemVenue[venPaymentSystem] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenPaymentSystemRows
+   }
+
+   venues::SwiftNetworkVenue[venSwiftNetwork] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenSwiftNetworkRows
+   }
+
+   venues::ContinuousLinkedSettlement[venCls] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenClsRows
+   }
+
+   venues::PrimeBrokerVenue[venPrimeBroker] extends [venuesBase]: Relational
+   {
+      ~filter [store::DB]VenPrimeBrokerRows
+   }
+)

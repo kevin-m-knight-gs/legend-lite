@@ -1,0 +1,20 @@
+// REJECTS: Unexpected token 'FunctionJar'. Valid alternatives: ['HostedService', 'ExecutionEnvironment', 'HostedServiceDeploymentConfiguration']
+//
+// A `FunctionJar` element inside `###HostedService`. The two grammars are near-identical --
+// both take `ownership: Deployment { identifier: '...' }`, `function:`, `documentation:` and
+// `activationConfiguration:`, and the body below is legal FunctionJar verbatim -- so the ONLY
+// thing separating them is which section the element is written in.
+//
+// This is the failure mode of a rewrite that dispatches on the ELEMENT keyword rather than on
+// the section: both grammars are loaded, both know the word, and a shared element table would
+// happily route FunctionJar here. legend-engine's `definition` rule is per-section and closed,
+// and the alternative list in the message is the whole set the section admits.
+//
+// Note `HostedServiceDeploymentConfiguration` is in that set and `FunctionJarDeployment...`
+// is not -- the two activator families are entirely disjoint at the section level.
+###HostedService
+FunctionJar fixture::neg::JarInHostedServiceSection
+{
+   ownership: Deployment { identifier: '17' };
+   function: fixture::neg::f():String[1];
+}

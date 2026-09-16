@@ -1,0 +1,169 @@
+###Pure
+
+// ============================================================
+// core-types (L0) -- the vocabulary everything else spells with
+// ============================================================
+// This project exists so that a currency, a country or a unit is the SAME type six layers
+// up as it is here. It has no dependencies on purpose: anything it referred to would become
+// a transitive dependency of every project in the graph.
+//
+// It exports no store and no mapping. Downstream projects map these enums onto their own
+// columns with an enumerationMapping; that is why the values are the wire codes (USD, GB)
+// rather than prose names -- a mapping from 'USD' to USD is the identity and costs nobody a
+// lookup table.
+
+// The governance vocabulary, so that a downstream reviewer can tell a deliberately frozen
+// class from one nobody has looked at yet. Stereotypes are the STATE of an element; tags
+// carry the facts a reviewer needs to chase it -- who to ask, and how stale the answer is.
+// Applied here, and available to every project above for the same purpose.
+Profile core_types::CtGovernance
+{
+   stereotypes: [reviewed, deprecated, restricted];
+   tags: [owner, since, ticket];
+}
+
+// ISO 4217 currency codes. The set is deliberately not "the majors": it spans all three
+// minor-unit widths (0, 2, 3), because a rounding helper that only ever sees 2-digit
+// currencies is a rounding helper nobody has tested. JPY and KWD are here to be awkward.
+Enum core_types::CtCurrency
+{
+   // 2 minor units -- the common case
+   USD, EUR, GBP, CHF, CAD, AUD, SEK, NOK, CNY, SGD, HKD, INR, BRL, MXN, ZAR,
+   // 0 minor units -- an amount in these currencies has no fractional part at all
+   JPY, KRW, CLP, ISK, VND,
+   // 3 minor units -- fils and millimes
+   KWD, BHD, JOD, OMR, TND
+}
+
+// ISO 3166-1 alpha-2 country codes, chosen to cover the currencies above so that a
+// downstream jurisdiction lookup never has to fall back to a null. Alpha-2 rather than
+// alpha-3 because that is what settlement messages and LEI records carry.
+Enum core_types::CtCountry
+{
+   US, GB, DE, FR, CH, CA, AU, SE, NO, CN, SG, HK, IN, BR, MX, ZA,
+   JP, KR, CL, IS, VN,
+   KW, BH, JO, OM, TN
+}
+
+// Physical units of measure for commodity quantities. Named as the market names them, so a
+// contract size can be read against the enum without a conversion note: crude trades in
+// BARREL, gold in TROY_OUNCE, gas in MMBTU or THERM, power in MEGAWATT_HOUR.
+Enum core_types::CtUnitOfMeasure
+{
+   BARREL, TROY_OUNCE, METRIC_TONNE, SHORT_TON, KILOGRAM, POUND,
+   MEGAWATT_HOUR, GIGAJOULE, MMBTU, THERM,
+   BUSHEL, US_GALLON, LITRE
+}
+
+// The rounding intents a downstream calculation is allowed to declare. Deliberately smaller
+// than java.math.RoundingMode: every value here has a defined meaning in a settlement
+// instruction, and UNNECESSARY/HALF_DOWN do not.
+Enum core_types::CtRoundingMode
+{
+   HALF_UP, HALF_EVEN, CEILING, FLOOR, DOWN
+}
+
+// An amount that knows what it is denominated in, so that a Float can never be added to a
+// Float of another currency by accident further up the graph. Stereotyped `reviewed`
+// because downstream projects embed this shape in their own classes and must be able to see
+// that the shape is settled.
+Class <<core_types::CtGovernance.reviewed>>
+      {core_types::CtGovernance.owner = 'ref-data-team',
+       core_types::CtGovernance.since = '2024-01-15'}
+      core_types::CtMoney
+{
+   amount: Float[1];
+   currency: core_types::CtCurrency[1];
+   // The scale this amount SHOULD be carried at. Exposed as a property rather than left to
+   // each caller, so that two projects rounding the same money agree.
+   minorUnits() { core_types::ctMinorUnits($this.currency) } : Integer[1];
+   roundedAmount() { core_types::ctRoundToMinorUnits($this.amount, $this.currency) } : Float[1];
+}
+
+// A physical quantity, kept separate from CtMoney so that a notional in barrels and a
+// notional in dollars cannot be confused by a downstream mapping that only looks at Float.
+Class <<core_types::CtGovernance.reviewed>>
+      {core_types::CtGovernance.owner = 'commodities-ref'}
+      core_types::CtQuantity
+{
+   magnitude: Float[1];
+   unit: core_types::CtUnitOfMeasure[1];
+}
+
+// Where a thing is, for the two questions anyone actually asks of a jurisdiction: what does
+// it settle in, and is it the place we book the risk. Country and currency travel together
+// here because splitting them is what produces GB/USD rows nobody can explain.
+Class core_types::CtJurisdiction
+{
+   country: core_types::CtCountry[1];
+   settlementCurrency: core_types::CtCurrency[1];
+   // Restricted because it drives regulatory reporting scope, not display.
+   <<core_types::CtGovernance.restricted>> taxRegimeCode: String[0..1];
+}
+
+// The four fields a governance review leaves behind. Modelled as a class as well as a
+// profile because a profile is compile-time metadata and cannot be queried: this is the
+// version you can put in a TDS and show to an auditor.
+Class core_types::CtAuditStamp
+{
+   reviewedBy: String[1];
+   reviewedOn: StrictDate[1];
+   {core_types::CtGovernance.ticket = 'REF-1042'} ticketRef: String[0..1];
+   supersedes: String[0..1];
+}
+
+// The pre-decimalisation quantity type, kept only so that existing downstream references do
+// not break in the same release that CtQuantity landed. Stereotyped so nobody builds on it.
+Class <<core_types::CtGovernance.deprecated>>
+      {core_types::CtGovernance.since = '2025-06-30',
+       core_types::CtGovernance.ticket = 'REF-1188'}
+      core_types::CtLegacyLot
+{
+   lots: Integer[1];
+   lotSize: Float[1];
+}
+
+// ---------------------------------------------------------------- functions
+// These are the reason a project this small exists. Each one encodes a fact that is
+// otherwise copy-pasted into every downstream calculation and drifts.
+
+// ISO 4217 minor-unit digits (the "E" exponent of the currency). This is the single fact
+// that stops a JPY amount being reported with two decimal places and a KWD amount losing
+// its third. The default is 2 because that is the ISO default for currencies not listed.
+function core_types::ctMinorUnits(currency: core_types::CtCurrency[1]): Integer[1]
+{
+   if($currency->in([core_types::CtCurrency.JPY, core_types::CtCurrency.KRW,
+                     core_types::CtCurrency.CLP, core_types::CtCurrency.ISK,
+                     core_types::CtCurrency.VND]),
+      | 0,
+      | if($currency->in([core_types::CtCurrency.KWD, core_types::CtCurrency.BHD,
+                          core_types::CtCurrency.JOD, core_types::CtCurrency.OMR,
+                          core_types::CtCurrency.TND]),
+           | 3,
+           | 2))
+}
+
+// Round an amount to the scale its own currency is quoted at. Callers pass a currency, not
+// a scale, so the wrong scale cannot be passed at all -- which is the whole point of pairing
+// this with ctMinorUnits rather than exporting a bare round().
+function core_types::ctRoundToMinorUnits(amount: Float[1], currency: core_types::CtCurrency[1]): Float[1]
+{
+   round($amount, core_types::ctMinorUnits($currency))
+}
+
+// Basis points to a decimal rate. One basis point is 1/10000, and the constant is wrong in
+// somebody's spreadsheet every single time it is retyped; 25bp becomes 0.0025 here and
+// nowhere else.
+function core_types::ctBasisPointsToRate(basisPoints: Float[1]): Float[1]
+{
+   $basisPoints / 10000.0
+}
+
+// A value date `cycleDays` after the trade date, for the T+n conventions that have no
+// calendar attached (T+2 equities, T+1 US cash). It is a CALENDAR-day shift on purpose:
+// holiday adjustment needs a calendar, which is core-calendar's job and not a dependency
+// this layer-0 project is allowed to take.
+function core_types::ctValueDate(tradeDate: StrictDate[1], cycleDays: Integer[1]): Date[1]
+{
+   adjust($tradeDate, $cycleDays, meta::pure::functions::date::DurationUnit.DAYS)
+}

@@ -1,0 +1,83 @@
+###Mapping
+
+// core-fx's mapping: the four classes onto the four CFX_* tables, one root set each.
+//
+// The CfxRate set carries the point of this project -- an explicit three-column
+// ~primaryKey. That is what tells Legend two CFX_RATE rows are DIFFERENT CfxRate
+// instances when they share a pair and a date but differ in rate type; with a one-column
+// key the SPOT and the FIXING for EURUSD on a date would be treated as the same instance
+// and one of them would silently disappear from a result.
+//
+// Set ids are cfx* per the project contract: they are a global namespace across the whole
+// graph, not scoped to this mapping.
+Mapping core_fx::Mapping
+(
+   // The pair definitions. `convention()` is derived and needs no mapping.
+   *core_fx::CfxCurrencyPair[cfxCurrencyPair]: Relational
+   {
+      ~primaryKey ( [core_fx::Store]CFX_CURRENCY_PAIR.PAIR_CODE )
+      ~mainTable [core_fx::Store]CFX_CURRENCY_PAIR
+      pairCode: [core_fx::Store]CFX_CURRENCY_PAIR.PAIR_CODE,
+      baseCurrency: [core_fx::Store]CFX_CURRENCY_PAIR.BASE_CCY,
+      quoteCurrency: [core_fx::Store]CFX_CURRENCY_PAIR.QUOTE_CCY,
+      quotedInverted: [core_fx::Store]CFX_CURRENCY_PAIR.QUOTED_INVERTED,
+      pipFactor: [core_fx::Store]CFX_CURRENCY_PAIR.PIP_FACTOR,
+      quotePrecision: [core_fx::Store]CFX_CURRENCY_PAIR.QUOTE_PRECISION,
+      isMajor: [core_fx::Store]CFX_CURRENCY_PAIR.IS_MAJOR
+   }
+
+   // The rates. THE COMPOSITE KEY: pair, date and type together, in that order.
+   *core_fx::CfxRate[cfxRate]: Relational
+   {
+      ~primaryKey
+      (
+         [core_fx::Store]CFX_RATE.PAIR_CODE,
+         [core_fx::Store]CFX_RATE.COB_DATE,
+         [core_fx::Store]CFX_RATE.RATE_TYPE
+      )
+      ~mainTable [core_fx::Store]CFX_RATE
+      pairCode: [core_fx::Store]CFX_RATE.PAIR_CODE,
+      cobDate: [core_fx::Store]CFX_RATE.COB_DATE,
+      rateType: [core_fx::Store]CFX_RATE.RATE_TYPE,
+      scope([core_fx::Store]CFX_RATE)
+      (
+         bid: BID,
+         ask: ASK,
+         mid: MID,
+         tenor: TENOR,
+         forwardPoints: FORWARD_POINTS,
+         sourceCode: SOURCE_CODE,
+         isOfficial: IS_OFFICIAL
+      )
+   }
+
+   // The publishers.
+   *core_fx::CfxFixingSource[cfxFixingSource]: Relational
+   {
+      ~primaryKey ( [core_fx::Store]CFX_FIXING_SOURCE.SOURCE_CODE )
+      ~mainTable [core_fx::Store]CFX_FIXING_SOURCE
+      sourceCode: [core_fx::Store]CFX_FIXING_SOURCE.SOURCE_CODE,
+      sourceName: [core_fx::Store]CFX_FIXING_SOURCE.SOURCE_NAME,
+      fixingTime: [core_fx::Store]CFX_FIXING_SOURCE.FIXING_TIME,
+      timeZone: [core_fx::Store]CFX_FIXING_SOURCE.TIME_ZONE,
+      isRegulated: [core_fx::Store]CFX_FIXING_SOURCE.IS_REGULATED
+   }
+
+   // The triangulated crosses. A two-column key, deliberately unlike CfxRate: a cross is
+   // identified by what it is and when, with no rate type to distinguish.
+   *core_fx::CfxCrossRate[cfxCrossRate]: Relational
+   {
+      ~primaryKey
+      (
+         [core_fx::Store]CFX_CROSS_RATE.CROSS_CODE,
+         [core_fx::Store]CFX_CROSS_RATE.COB_DATE
+      )
+      ~mainTable [core_fx::Store]CFX_CROSS_RATE
+      crossCode: [core_fx::Store]CFX_CROSS_RATE.CROSS_CODE,
+      cobDate: [core_fx::Store]CFX_CROSS_RATE.COB_DATE,
+      vehicleCurrency: [core_fx::Store]CFX_CROSS_RATE.VEHICLE_CCY,
+      legOneCode: [core_fx::Store]CFX_CROSS_RATE.LEG_ONE_CODE,
+      legTwoCode: [core_fx::Store]CFX_CROSS_RATE.LEG_TWO_CODE,
+      crossMid: [core_fx::Store]CFX_CROSS_RATE.CROSS_MID
+   }
+)

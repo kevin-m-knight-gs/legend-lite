@@ -42,30 +42,44 @@ public final class Ddl {
      * (extensionDefaults.pure:609-620) — reserved-word column quoting,
      * engine type spellings (INT), NULL / NOT NULL nullability,
      * trailing {@code , PRIMARY KEY(...)} with RAW pk names. */
-    public enum Flavor { H2_EXEC, DUCK_EXEC, ENGINE_TEXT }
-
     /** {@code Drop table if exists s.T;} — the engine's
      * dropTableStatement spelling, identical across every flavor. */
-    public static String dropTable(String schema, String table) {
-        return "Drop table if exists " + qualify(schema, table) + ";";
+    public static com.legend.sql.SqlDdl.DropTable dropTable(@com.legend.Nullable String schema,
+            String table) {
+        return new com.legend.sql.SqlDdl.DropTable(schema, table);
     }
 
-    public static String createTable(DatabaseDefinition.TableDefinition def,
-            @com.legend.Nullable String schema) {
-        return createTable(def, schema, Flavor.H2_EXEC);
+    /** The store model's column type as the SQL layer's DECLARED type —
+     *  the one crossing from store model to SQL IR (the SQL layer stands
+     *  alone; {@code Ddl} is the exec-side translator). */
+    public static com.legend.sql.SqlDdl.ColumnType columnType(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.BigInt ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.BIGINT);
+            case RelationalDataType.SmallInt ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.SMALLINT);
+            case RelationalDataType.TinyInt ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.TINYINT);
+            case RelationalDataType.Integer_ ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.INTEGER);
+            case RelationalDataType.Float_ ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.FLOAT);
+            case RelationalDataType.Double_ ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.DOUBLE);
+            case RelationalDataType.Real ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.REAL);
+            case RelationalDataType.Bit ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.BIT);
+            case RelationalDataType.Timestamp ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.TIMESTAMP);
+            case RelationalDataType.Date_ ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.DATE);
+            case RelationalDataType.SemiStructured ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.JSON);
+            case RelationalDataType.Other ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.OTHER);
+            case RelationalDataType.Distinct ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.DISTINCT);
+            case RelationalDataType.Array ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.ARRAY);
+            case RelationalDataType.Object_ ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.OBJECT);
+            case RelationalDataType.Varchar v -> new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", v.size());
+            case RelationalDataType.Char_ c -> new com.legend.sql.SqlDdl.ColumnType.Sized("CHAR", c.size());
+            case RelationalDataType.Binary b -> new com.legend.sql.SqlDdl.ColumnType.Sized("BINARY", b.size());
+            case RelationalDataType.Varbinary v -> new com.legend.sql.SqlDdl.ColumnType.Sized("VARBINARY", v.size());
+            case RelationalDataType.Decimal d -> new com.legend.sql.SqlDdl.ColumnType.Scaled("DECIMAL", d.precision(), d.scale());
+            case RelationalDataType.Numeric n -> new com.legend.sql.SqlDdl.ColumnType.Scaled("NUMERIC", n.precision(), n.scale());
+        };
     }
 
-    public static String createTable(DatabaseDefinition.TableDefinition def,
-            @com.legend.Nullable String schema, boolean duckTarget) {
-        return createTable(def, schema,
-                duckTarget ? Flavor.DUCK_EXEC : Flavor.H2_EXEC);
-    }
-
-    /** THE create-table generator, flavor-dispatched ({@link Flavor});
-     * constraints ride the ENGINE_TEXT flavor only. */
-    public static String createTable(DatabaseDefinition.TableDefinition def,
-            @com.legend.Nullable String schema, Flavor f) {
-        return createTable(def, schema, f, f == Flavor.ENGINE_TEXT);
+    private static com.legend.sql.SqlDdl.ColumnType plain(com.legend.sql.SqlDdl.ColumnType.Kind k) {
+        return new com.legend.sql.SqlDdl.ColumnType.Plain(k);
     }
 
     /** {@code constraints}: emit the engine's {@code NULL}/{@code NOT NULL}
@@ -75,125 +89,21 @@ public final class Ddl {
      * engine's test creates CARRIES its declared key and the live catalog
      * answers {@code fetchDbPrimaryKeysMetaData}); the ambient seed stays
      * unconstrained (this file's header). */
-    public static String createTable(DatabaseDefinition.TableDefinition def,
-            @com.legend.Nullable String schema, Flavor f, boolean constraints) {
-        StringBuilder sb = new StringBuilder("Create Table ")
-                .append(qualify(schema, def.name())).append("(");
-        boolean first = true;
+    /** THE store's declared shape as a DDL node: every column with its
+     *  declared type, nullability and key membership (the engine's
+     *  applyConstraints defaults true — the physical table CARRIES its
+     *  declared key and the live catalog answers fetchDbPrimaryKeysMetaData);
+     *  the dialect renders it ({@link com.legend.sql.dialect.SqlDialect#render(com.legend.sql.SqlDdl)}). */
+    public static com.legend.sql.SqlDdl.CreateTable createTable(
+            DatabaseDefinition.TableDefinition def, @com.legend.Nullable String schema) {
+        java.util.List<com.legend.sql.SqlDdl.Column> cols = new java.util.ArrayList<>();
         for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
-            if (!first) {
-                sb.append(f == Flavor.ENGINE_TEXT ? "," : ", ");
-            }
-            first = false;
-            // Column spelling is PER TARGET (convergence batch A,
-            // 2026-08-28): H2_EXEC follows the engine's own rule plus
-            // the execution necessity (execIdentifier) — the old
-            // full-quote made OUR create disagree with OUR insert's
-            // bare spelling, and only session case-insensitivity
-            // papered over it (engine-cased probe: 300+ seed-replay
-            // failures, all this skew; the engine's java-keyword table
-            // runs BARE on its session — that is what NON_KEYWORDS is
-            // for). DUCK_EXEC keeps the full quote: this DDL executes
-            // DIRECTLY on DuckDB (F7.4 — the boundary serves
-            // hand-written text only) and DuckDB reserves words H2's
-            // session un-reserves (default, else, do ...).
-            // a DECLARED-QUOTED column ("date" DATE in the store
-            // source) KEEPS its quotes — the engine preserves them in
-            // the metamodel and its corpus references the column quoted
-            // (datePeriods calendar: create "date" + insert "date");
-            // our model unquotes the NAME but stamps quoted()
-            sb.append(switch (f) {
-                        case ENGINE_TEXT -> col.quoted()
-                                ? '"' + col.name() + '"'
-                                : processColumnName(col.name());
-                        case H2_EXEC -> col.quoted()
-                                ? '"' + col.name() + '"'
-                                : execIdentifier(col.name());
-                        case DUCK_EXEC -> '"' + col.name() + '"';
-                    })
-                    .append(' ').append(spell(col.dataType(), f));
-            if (constraints) {
-                sb.append(col.primaryKey() || col.notNull()
-                        ? " NOT NULL" : " NULL");
-            }
+            cols.add(new com.legend.sql.SqlDdl.Column(col.name(), col.quoted(), columnType(col.dataType()),
+                    col.notNull(), col.primaryKey()));
         }
-        if (constraints) {
-            // the key list spells each column the way its DEFINITION was
-            // spelled in this flavor: the engine joins the metamodel NAMES
-            // raw, and a declared-quoted column's metamodel name CARRIES
-            // its quotes (datePeriods calendar: PRIMARY KEY("date",
-            // "calendar name")) — our model unquotes the name and stamps
-            // quoted(), so the quotes come back here; the execution
-            // flavors use their own identifier rule (batch 71)
-            java.util.List<String> pks = def.columns().stream()
-                    .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
-                    .map(col -> switch (f) {
-                        case ENGINE_TEXT -> col.quoted()
-                                ? '"' + col.name() + '"' : col.name();
-                        case H2_EXEC -> col.quoted()
-                                ? '"' + col.name() + '"'
-                                : execIdentifier(col.name());
-                        case DUCK_EXEC -> '"' + col.name() + '"';
-                    }).toList();
-            if (!pks.isEmpty()) {
-                // the engine joins the pk NAMES RAW (translateCreateTable-
-                // StatementDefault: '$t.primaryKey->map(c|$c.name)', no
-                // processColumnName) — text parity keeps that spelling
-                sb.append(", PRIMARY KEY(").append(String.join(",", pks))
-                        .append(')');
-            }
-        }
-        return sb.append(");").toString();
+        return new com.legend.sql.SqlDdl.CreateTable(schema, def.name(), cols);
     }
 
-    /** The ENGINE's column-name rule for H2 DDL TEXT — processColumnName
-     * = columnNameToIdentifier THEN processIdentifierWithQuoteChar
-     * (dbExtension.pure:611-614, extensionDefaults.pure:557-563). H2
-     * leaves columnNameToIdentifier UNSET, and the DbConfig accessor
-     * defaults it to IDENTITY (dbExtension.pure:155-158) — the
-     * kerberos/date/first uppercase trio belongs to the dialects that
-     * opt in (redshift, sqlserver, ...), NOT H2; testDDL.pure's goldens
-     * pin bare {@code date}. F3.5 (audit A16): the old reserved-word-
-     * ONLY rule missed the engine's OTHER two quote triggers — pre-
-     * quoted and SPACE-BEARING names — so the corpus's 'Previous Fiscal
-     * Week Year' emitted bare here and the DuckDB boundary's head-quoter
-     * mangled it downstream. Reserved words come from the dialect
-     * lexicon — the ONE H2 list. */
-    private static String processColumnName(String name) {
-        // processIdentifierWithQuoteChar: pre-quoted, reserved, or
-        // space-bearing identifiers quote (embedded quotes stripped).
-        // Audit §11 "three inconsistent quoting rules", adjudicated
-        // (documented-debts 2026-08-18): the strip is the ENGINE'S OWN
-        // rule verbatim (extensionDefaults.pure:559 —
-        // identifier->replace('"','') inside the quote chars), and this
-        // method serves ONLY the ENGINE_TEXT byte-parity flavor.
-        // AnsiSqlRenderer.ident DOUBLES because execution-correct SQL
-        // must; two contracts, not one behavior with two owners. The
-        // third copy (GridReads.q) DIED with Phase 1 (grids are typed relations).
-        if (name.startsWith("\"")
-                || com.legend.sql.dialect.Lexicon.H2_ENGINE_TEXT
-                        .reservedWords()
-                        .contains(name.toLowerCase(java.util.Locale.ROOT))
-                || name.contains(" ")) {
-            return '"' + name.replace("\"", "") + '"';
-        }
-        return name;
-    }
-
-    /** The engine's identifier rule PLUS the EXECUTION necessity: an
-     * identifier that cannot lexically spell BARE (digit-leading, any
-     * non-word char) must quote — the engine's own rule has no such
-     * trigger because it never EXECUTES that DDL (witness:
-     * tableWithQuotedColumns' 1columnStartsWithNumber lives in a
-     * lineage-only model; extensionDefaults.pure:557-563 quotes only
-     * pre-quoted/reserved/space). We execute every module's DDL, and
-     * H2 and DuckDB both reject bare digit-leading identifiers. */
-    private static String execIdentifier(String name) {
-        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-            return '"' + name.replace("\"", "") + '"';
-        }
-        return processColumnName(name);
-    }
 
     /** The ENGINE's setUpDataSQLs TEXT (toDDL.pure:186-195 +
      * loadCsvDataToDbTable): schema drop/create pairs, every table's
@@ -202,8 +112,8 @@ public final class Ddl {
      * unquotes, leading-space-then-quote keeps the cell verbatim; block
      * separators are lines of dashes (the CsvSeed corpus form). */
     public static java.util.List<String> setUpDataSqlsText(String data,
-            DatabaseDefinition db) {
-        return setUpDataSqlsText(data, db, f -> java.util.Optional.empty());
+            DatabaseDefinition db, com.legend.sql.dialect.SqlDialect engineText) {
+        return setUpDataSqlsText(data, db, f -> java.util.Optional.empty(), engineText);
     }
 
     /** Include-closure form (cluster 60 — the engine's {@code
@@ -216,7 +126,8 @@ public final class Ddl {
     public static java.util.List<String> setUpDataSqlsText(String data,
             DatabaseDefinition db,
             java.util.function.Function<String,
-                    java.util.Optional<DatabaseDefinition>> lookup) {
+                    java.util.Optional<DatabaseDefinition>> lookup,
+            com.legend.sql.dialect.SqlDialect engineText) {
         // include-first, group-by-name, table-dedup-by-name (first wins)
         java.util.LinkedHashMap<String,
                 java.util.LinkedHashMap<String,
@@ -229,15 +140,15 @@ public final class Ddl {
                 defaults);
         java.util.List<String> out = new java.util.ArrayList<>();
         for (var sc : named.entrySet()) {
-            out.add("Drop schema if exists " + sc.getKey() + " cascade;");
-            out.add("Create Schema if not exists " + sc.getKey() + ";");
+            out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema(sc.getKey())));
+            out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema(sc.getKey())));
         }
-        out.add("Drop schema if exists default cascade;");
-        out.add("Create Schema if not exists default;");
+        out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema("default")));
+        out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema("default")));
         for (var sc : named.entrySet()) {
             for (var t : sc.getValue().values()) {
-                out.add(dropTable(sc.getKey(), t.name()));
-                out.add(createTable(t, sc.getKey(), Flavor.ENGINE_TEXT));
+                out.add(engineText.render(dropTable(sc.getKey(), t.name())));
+                out.add(engineText.render(createTable(t, sc.getKey())));
             }
         }
         // the parser FLATTENS named-schema tables into the top-level list
@@ -250,8 +161,8 @@ public final class Ddl {
         }
         for (var t : defaults.values()) {
             if (!inSchemas.contains(t.name())) {
-                out.add(dropTable("default", t.name()));
-                out.add(createTable(t, "default", Flavor.ENGINE_TEXT));
+                out.add(engineText.render(dropTable("default", t.name())));
+                out.add(engineText.render(createTable(t, "default")));
             }
         }
         String[] lines = data.split("\n", -1);
@@ -286,17 +197,18 @@ public final class Ddl {
      *  block (blank single-cell records separate blocks). */
     public static java.util.List<String> setUpDataSqlsTextFromRecords(
             java.util.List<java.util.List<String>> records,
-            DatabaseDefinition db) {
+            DatabaseDefinition db, com.legend.sql.dialect.SqlDialect engineText) {
         return setUpDataSqlsTextFromRecords(records, db,
-                f -> java.util.Optional.empty());
+                f -> java.util.Optional.empty(), engineText);
     }
 
     public static java.util.List<String> setUpDataSqlsTextFromRecords(
             java.util.List<java.util.List<String>> records,
             DatabaseDefinition db,
             java.util.function.Function<String,
-                    java.util.Optional<DatabaseDefinition>> lookup) {
-        java.util.List<String> out = setUpDataSqlsText("", db, lookup);
+                    java.util.Optional<DatabaseDefinition>> lookup,
+            com.legend.sql.dialect.SqlDialect engineText) {
+        java.util.List<String> out = setUpDataSqlsText("", db, lookup, engineText);
         int i = 0;
         while (i < records.size()) {
             while (i < records.size() && blankRecord(records.get(i))) {
@@ -395,7 +307,7 @@ public final class Ddl {
             // on a case-sensitive session
             colNames.add(col != null && col.quoted()
                     ? '"' + col.name() + '"'
-                    : execIdentifier(col != null ? col.name() : h));
+                    : com.legend.sql.dialect.DdlSpelling.h2ExecIdentifier(col != null ? col.name() : h));
             String cell = cells.get(c);
             boolean numeric = col != null && isNumericType(col.dataType());
             values.add(numeric ? cell.strip()
@@ -456,11 +368,11 @@ public final class Ddl {
     public static java.util.List<String> metamodelSeed(
             DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows,
-            boolean duckTarget) {
+            com.legend.sql.dialect.SqlDialect dialect) {
         java.util.List<String> out = new java.util.ArrayList<>();
-        out.add("Create Schema if not exists " + schema + ";");
-        out.add(dropTable(schema, def.name()));
-        out.add(createTable(def, schema, duckTarget));
+        out.add(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema)));
+        out.add(dialect.render(dropTable(schema, def.name())));
+        out.add(dialect.render(createTable(def, schema)));
         String ins = metamodelInsert(def, schema, rows);
         if (ins != null) {
             out.add(ins);
@@ -512,19 +424,6 @@ public final class Ddl {
      * from its name (FLOAT is an 8-byte double, BIT a boolean — spelled
      * from the TYPE, never recovered from text, F7.4); engine TEXT is
      * {@link #dataTypeToSqlText}, the ONE engine spelling. */
-    private static String spell(RelationalDataType t, Flavor f) {
-        if (f == Flavor.DUCK_EXEC
-                && t instanceof RelationalDataType.Float_) {
-            return "DOUBLE";
-        }
-        if (f == Flavor.DUCK_EXEC && t instanceof RelationalDataType.Bit) {
-            return "BOOLEAN";
-        }
-        if (f == Flavor.ENGINE_TEXT) {
-            return dataTypeToSqlText(t);
-        }
-        return spell(t);
-    }
 
     /** THE engine {@code dataTypeToSqlText} spelling
      * (platform_store_relational/functions.pure:68-96), spelled ONCE —
@@ -534,49 +433,7 @@ public final class Ddl {
      * Integer spells INT; Other spells OTHER (execution walls — a
      * column of type Other cannot be created). */
     public static String dataTypeToSqlText(RelationalDataType t) {
-        if (t instanceof RelationalDataType.Integer_) {
-            return "INT";
-        }
-        if (t instanceof RelationalDataType.Other) {
-            return "OTHER";
-        }
-        return spell(t);
+        return com.legend.sql.dialect.DdlSpelling.engineText(columnType(t));
     }
 
-    /** The H2-flavored spelling of a store column type. */
-    private static String spell(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.BigInt ignored -> "BIGINT";
-            case RelationalDataType.SmallInt ignored -> "SMALLINT";
-            case RelationalDataType.TinyInt ignored -> "TINYINT";
-            case RelationalDataType.Integer_ ignored -> "INTEGER";
-            // H2's FLOAT is an 8-byte double (duckSpell owns the
-            // DuckDB flavor — F7.4 ended the render-then-regex loop)
-            case RelationalDataType.Float_ ignored -> "FLOAT";
-            case RelationalDataType.Double_ ignored -> "DOUBLE";
-            case RelationalDataType.Real ignored -> "REAL";
-            case RelationalDataType.Bit ignored -> "BIT";
-            case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
-            case RelationalDataType.Date_ ignored -> "DATE";
-            case RelationalDataType.Varchar v -> "VARCHAR(" + v.size() + ")";
-            case RelationalDataType.Char_ c -> "CHAR(" + c.size() + ")";
-            case RelationalDataType.Binary b -> "BINARY(" + b.size() + ")";
-            case RelationalDataType.Varbinary v -> "VARBINARY(" + v.size() + ")";
-            case RelationalDataType.Decimal d ->
-                    "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
-            case RelationalDataType.Numeric n ->
-                    "NUMERIC(" + n.precision() + ", " + n.scale() + ")";
-            case RelationalDataType.SemiStructured ignored -> "JSON";
-            // No DDL spelling by design — EXPLICIT so a new variant is a
-            // compile error here, not a runtime surprise (T3.1).
-            case RelationalDataType.Distinct ignored -> throw new IllegalStateException(
-                    "no DDL spelling for store column type " + t);
-            case RelationalDataType.Other ignored -> throw new IllegalStateException(
-                    "no DDL spelling for store column type " + t);
-            case RelationalDataType.Array ignored -> throw new IllegalStateException(
-                    "no DDL spelling for store column type " + t);
-            case RelationalDataType.Object_ ignored -> throw new IllegalStateException(
-                    "no DDL spelling for store column type " + t);
-        };
-    }
 }

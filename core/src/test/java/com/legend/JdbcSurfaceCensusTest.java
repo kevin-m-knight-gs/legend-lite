@@ -125,6 +125,11 @@ class JdbcSurfaceCensusTest {
             // it to the caller's referee; neither executes a statement of its
             // own (tenet #1 — the database executes what the platform compiles)
             "core/src/main/java/com/legend/test/PureTestRunner.java",
+            // the service test-suite runner (2026-09-16): the same shape —
+            // opens sessions and HANDS them to the platform, whose own
+            // establish step seeds the test runtime's declared data; the
+            // runner executes no SQL of its own (tenet #1)
+            "core/src/main/java/com/legend/test/ServiceTestRunner.java",
             "core/src/main/java/com/legend/test/TestObserver.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
             "core/src/main/java/com/legend/server/QueryService.java",
@@ -403,6 +408,10 @@ class JdbcSurfaceCensusTest {
             // in-memory DuckDB session and HANDS it to the runner, which hands
             // it to the platform; it executes no SQL of its own (tenet #1)
             "core/src/test/java/com/legend/test/PureTestRunnerTest.java",
+            // the stress corpus's service suites (2026-09-16): opens the
+            // in-memory DuckDB sessions the ServiceTestRunner hands to the
+            // platform; executes no SQL of its own
+            "core/src/test/java/com/legend/integration/StressServiceSuitesTest.java",
             // the minimal harness (2026-09-06): opens the DuckDB session and
             // the referee's H2 mirror and HANDS them to the platform; it
             // executes no SQL of its own (tenet #1 — the database executes

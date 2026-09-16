@@ -1,0 +1,31 @@
+// REJECTS: Field 'mergeStrategy' is required
+//
+// NontemporalDelta requires mergeStrategy AND auditing. Here auditing is present and
+// mergeStrategy is not, which is exactly a legal NontemporalSnapshot body under the Delta
+// keyword -- the .g4 cannot tell the two apart because both sub-rules are `(x)*`.
+###Persistence
+Persistence test::persistence::neg::NonTemporalDeltaNoMerge
+{
+  doc: 'nontemporal delta without a merge strategy';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalDelta
+    {
+      auditing: DateTime
+      {
+        dateTimeName: 'AUDIT_TS';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

@@ -1,0 +1,49 @@
+// F21 -- fields that do not belong to the chosen variant are PARSED AND SILENTLY DISCARDED.
+//
+// Run:
+//   java -cp <runner>/target/classes:$(cat cp.txt) perf.TestableMain model.pure --pmcd-json=out.json
+// then inspect out.json.
+//
+// Three instances of one shape, all accepted without a diagnostic:
+//
+// 1. `mode: local` alongside `specification:` and `auth:`. The walker treats local mode as an
+//    if/else -- when it is present the spec and auth branches are never entered. Both blocks
+//    still parse, and the protocol then carries SYNTHESISED placeholders instead:
+//        datasourceSpecification -> accountName "legend-local-snowflake-accountName-fx-Db" ...
+//        authenticationStrategy  -> "snowflakePublic", privateKeyVaultReference "legend-local-..."
+//    The vault reference written below does not appear anywhere in the output. A user who
+//    writes credentials here is told nothing; they are replaced.
+//
+// 2. `mappings:` on a JsonModelConnection. All three model connections share ONE definition
+//    rule and the walker extracts only what its own type needs, so the field is dropped
+//    entirely -- the protocol has only class, url, element.
+//
+// 3. `class:` on a ModelChainConnection. Same cause, same silence.
+//
+// Why it matters beyond tidiness: a round-trip through parse-and-compose does not preserve
+// the file. Anything re-emitting a model silently rewrites it, and the author is never told
+// which of their lines stopped existing. A rewrite that REJECTS these is stricter than
+// legend-engine and would break such files; one that keeps them diverges in the protocol.
+// Either way it has to be a deliberate choice, which is why this is worth recording.
+###Connection
+RelationalDatabaseConnection fx::LocalWithIgnoredCredentials
+{
+   store: fx::Db;
+   type: Snowflake;
+   mode: local;
+   specification: Static { name: 'ignored'; host: 'ignored'; port: 1; };
+   auth: ApiToken { apiToken: 'THIS-VALUE-DISAPPEARS'; };
+}
+
+JsonModelConnection fx::JsonWithIgnoredMappings
+{
+   class: fx::A;
+   url: 'model://a';
+   mappings: [fx::M1, fx::M2];
+}
+
+ModelChainConnection fx::ChainWithIgnoredClass
+{
+   mappings: [fx::M1];
+   class: fx::A;
+}

@@ -1,0 +1,394 @@
+###Relational
+
+// The client-portal store.
+//
+// THE DIAMOND, which is the first thing to know about this file. Both includes below reach
+// `client_core::Store`:
+//
+//    client_portal::Store
+//      +-- client_reporting::Store --+-- client_core::Store --+-- core_party, core_geo
+//      |                             +-- position_keeping::Store
+//      |                             +-- valuation_core::Store
+//      +-- fee_billing::Store -------+-- client_core::Store --+-- core_party, core_geo
+//                                    +-- fee_core::Store ------- core_tenor::Store
+//
+// client-core arrives by TWO routes and resolves to ONE. It does not duplicate and does not
+// error -- probed with a two-table scaffold before any of this was written, because the
+// failure mode would otherwise have surfaced sixteen classes in. fee-billing's MANIFEST warns
+// that including this store transitively brings in `core_tenor::Store` as well, so a
+// downstream project must not include core-tenor, client-core, core-party or core-geo a second
+// time on top of this one.
+//
+// Fourteen dependency stores are on the classpath and only two of them may be NAMED here.
+// Every join below touches CPO_*, CRP_* or BIL_* and nothing else: CLI_CLIENT, PK_POSITION and
+// FEE_SCHEDULE are all reachable and all forbidden, because client-core, position-keeping and
+// fee-core are not declared dependencies of this project. Client ids are carried as columns
+// instead, which is the correct shape anyway -- the portal is entitled per client and never
+// needs to resolve one.
+//
+// The construct this file exists for, besides the associations: the three VIEWS at the foot,
+// whose ~groupBy is their primary key.
+Database client_portal::Store
+(
+   include client_reporting::Store
+   include fee_billing::Store
+
+   // ------------------------------------------------------------------ identity and access
+
+   Table CPO_USER
+   (
+      USER_ID VARCHAR(40) PRIMARY KEY,
+      LOGIN_NAME VARCHAR(120) NOT NULL,
+      DISPLAY_NAME VARCHAR(160) NOT NULL,
+      EMAIL_ADDRESS VARCHAR(200),
+      USER_TYPE VARCHAR(16) NOT NULL,
+      STATUS VARCHAR(16) NOT NULL,
+      ENROLLED_ON DATE NOT NULL,
+      LAST_LOGIN_AT TIMESTAMP,
+      LOCKED_ON DATE,
+      MFA_METHOD VARCHAR(16),
+      PREFERRED_LANGUAGE VARCHAR(8)
+   )
+
+   // CLIENT_ID and MANDATE_ID are client-core's ids carried as plain columns. There is no join
+   // onto CLI_CLIENT anywhere in this file and there must not be: client-core is a transitive
+   // dependency here, not a declared one.
+   Table CPO_ENTITLEMENT
+   (
+      ENTITLEMENT_ID VARCHAR(40) PRIMARY KEY,
+      USER_ID VARCHAR(40),
+      CLIENT_ID VARCHAR(32) NOT NULL,
+      MANDATE_ID VARCHAR(40),
+      SCOPE VARCHAR(16) NOT NULL,
+      PERMISSION_LEVEL VARCHAR(16) NOT NULL,
+      GRANTED_ON DATE NOT NULL,
+      GRANTED_BY VARCHAR(80) NOT NULL,
+      SOURCE_KIND VARCHAR(24) NOT NULL,
+      REVOKED_ON DATE
+   )
+
+   Table CPO_SESSION
+   (
+      SESSION_ID VARCHAR(40) PRIMARY KEY,
+      USER_ID VARCHAR(40),
+      STARTED_AT TIMESTAMP NOT NULL,
+      ENDED_AT TIMESTAMP,
+      END_REASON VARCHAR(16),
+      IP_ADDRESS VARCHAR(45),
+      USER_AGENT VARCHAR(300),
+      DEVICE_TYPE VARCHAR(16),
+      MFA_PASSED BIT NOT NULL,
+      IMPERSONATED_CLIENT_ID VARCHAR(32)
+   )
+
+   // ------------------------------------------------------------------ the menu
+
+   // PARENT_NODE_CODE points back at this same table. The self-join at the foot uses {target}.
+   Table CPO_NAV_NODE
+   (
+      NODE_CODE VARCHAR(32) PRIMARY KEY,
+      PARENT_NODE_CODE VARCHAR(32),
+      LABEL VARCHAR(120) NOT NULL,
+      NODE_TYPE VARCHAR(24) NOT NULL,
+      DISPLAY_ORDER INTEGER NOT NULL,
+      ROUTE_PATH VARCHAR(200),
+      IS_LANDING BIT NOT NULL,
+      RETIRED_ON DATE
+   )
+
+   Table CPO_NODE_ACCESS
+   (
+      NODE_ACCESS_ID VARCHAR(40) PRIMARY KEY,
+      NODE_CODE VARCHAR(32),
+      REQUIRED_PERMISSION VARCHAR(16) NOT NULL,
+      REQUIRED_SCOPE VARCHAR(16) NOT NULL,
+      HIDE_WHEN_DENIED BIT NOT NULL,
+      EFFECTIVE_FROM DATE NOT NULL
+   )
+
+   // ------------------------------------------------------------------ documents
+
+   // STATEMENT_ID reaches CRP_STATEMENT and DELIVERY_ID reaches CRP_DELIVERY; both are
+   // nullable, because a portal-only document has neither. RENDERED_HASH is of the file THIS
+   // store serves, and CRP_DELIVERY.DOCUMENT_HASH is of the file that was dispatched -- two
+   // columns that ought to agree and that nothing forces to.
+   Table CPO_DOCUMENT_ENTRY
+   (
+      ENTRY_ID VARCHAR(40) PRIMARY KEY,
+      STATEMENT_ID VARCHAR(40),
+      DELIVERY_ID VARCHAR(40),
+      CLIENT_ID VARCHAR(32) NOT NULL,
+      NODE_CODE VARCHAR(32),
+      TITLE VARCHAR(200) NOT NULL,
+      DOCUMENT_KIND VARCHAR(24) NOT NULL,
+      PUBLISHED_AT TIMESTAMP NOT NULL,
+      EXPIRES_ON DATE,
+      FILE_SIZE_BYTES INTEGER,
+      IS_DOWNLOADABLE BIT NOT NULL,
+      RENDERED_HASH VARCHAR(64),
+      UNPUBLISHED_ON DATE
+   )
+
+   // OPENED_DATE sits alongside OPENED_AT so the aggregate can group on a DATE. A ~groupBy
+   // takes column REFERENCES and not expressions, so the day has to be a column.
+   Table CPO_DOCUMENT_VIEW
+   (
+      VIEW_ID VARCHAR(40) PRIMARY KEY,
+      ENTRY_ID VARCHAR(40),
+      SESSION_ID VARCHAR(40),
+      USER_ID VARCHAR(40),
+      OPENED_AT TIMESTAMP NOT NULL,
+      OPENED_DATE DATE NOT NULL,
+      SECONDS_ON_PAGE INTEGER,
+      PAGES_SEEN INTEGER,
+      WAS_DOWNLOADED BIT NOT NULL,
+      RENDERED_HASH VARCHAR(64),
+      SOURCE_NODE_CODE VARCHAR(32)
+   )
+
+   // ------------------------------------------------------------------ acknowledgement
+
+   // DISCLOSURE_ID reaches CRP_COSTS_DISCLOSURE. Nullable: not everything demanded of a client
+   // is a costs disclosure.
+   Table CPO_ACK_REQUEST
+   (
+      REQUEST_ID VARCHAR(40) PRIMARY KEY,
+      ENTRY_ID VARCHAR(40),
+      DISCLOSURE_ID VARCHAR(40),
+      CLIENT_ID VARCHAR(32) NOT NULL,
+      RAISED_ON DATE NOT NULL,
+      REQUIRED_BY DATE NOT NULL,
+      REASON_CODE VARCHAR(24) NOT NULL,
+      IS_BLOCKING BIT NOT NULL,
+      ESCALATED_ON DATE,
+      CANCELLED_ON DATE
+   )
+
+   // At most one receipt per request, so REQUEST_ID is the whole key.
+   Table CPO_ACK_RECEIPT
+   (
+      REQUEST_ID VARCHAR(40) PRIMARY KEY,
+      USER_ID VARCHAR(40),
+      SESSION_ID VARCHAR(40),
+      ACCEPTED_AT TIMESTAMP NOT NULL,
+      STATEMENT_TEXT_HASH VARCHAR(64) NOT NULL,
+      IP_ADDRESS VARCHAR(45),
+      WAS_SCROLLED_TO_END BIT NOT NULL,
+      ACCEPTANCE_METHOD VARCHAR(24) NOT NULL
+   )
+
+   // ------------------------------------------------------------------ money on the screen
+
+   // AMOUNT_SHOWN is stored and not read through Cpo_PortalInvoice on purpose: if it ever
+   // disagrees with what fee-billing computes, the disagreement is the finding.
+   Table CPO_INVOICE_VIEW
+   (
+      PORTAL_INVOICE_ID VARCHAR(40) PRIMARY KEY,
+      INVOICE_ID VARCHAR(32) NOT NULL,
+      CLIENT_ID VARCHAR(32) NOT NULL,
+      ENTRY_ID VARCHAR(40),
+      PUBLISHED_AT TIMESTAMP NOT NULL,
+      DISPLAY_STATUS VARCHAR(16) NOT NULL,
+      AMOUNT_SHOWN DOUBLE NOT NULL,
+      OUTSTANDING_AMOUNT DOUBLE NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      DUE_DATE DATE NOT NULL,
+      FIRST_OPENED_AT TIMESTAMP
+   )
+
+   Table CPO_PAYMENT_INSTRUCTION
+   (
+      INSTRUCTION_ID VARCHAR(40) PRIMARY KEY,
+      PORTAL_INVOICE_ID VARCHAR(40),
+      INVOICE_ID VARCHAR(32) NOT NULL,
+      USER_ID VARCHAR(40),
+      SESSION_ID VARCHAR(40),
+      INSTRUCTED_AT TIMESTAMP NOT NULL,
+      AMOUNT DOUBLE NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      METHOD VARCHAR(32) NOT NULL,
+      REFERENCE VARCHAR(64),
+      SETTLED_ON DATE,
+      REJECTED_REASON VARCHAR(400)
+   )
+
+   // ------------------------------------------------------------------ alerts and the trail
+
+   // NOTICE_ID reaches CRP_DEPRECIATION_NOTICE and DISPUTE_ID reaches BIL_DISPUTE -- one
+   // nullable FK into each dependency on the same row, which is what makes this the class the
+   // two sides of the portal meet on.
+   Table CPO_ALERT
+   (
+      ALERT_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32) NOT NULL,
+      USER_ID VARCHAR(40),
+      NOTICE_ID VARCHAR(40),
+      DISPUTE_ID VARCHAR(32),
+      ENTRY_ID VARCHAR(40),
+      ALERT_TYPE VARCHAR(32) NOT NULL,
+      SEVERITY VARCHAR(16) NOT NULL,
+      RAISED_AT TIMESTAMP NOT NULL,
+      EXPIRES_ON DATE,
+      DISMISSED_AT TIMESTAMP,
+      MESSAGE VARCHAR(400) NOT NULL
+   )
+
+   // EVENT_DATE alongside EVENT_AT for the same reason OPENED_DATE exists above.
+   Table CPO_AUDIT_EVENT
+   (
+      EVENT_ID VARCHAR(40) PRIMARY KEY,
+      SESSION_ID VARCHAR(40),
+      USER_ID VARCHAR(40),
+      EVENT_AT TIMESTAMP NOT NULL,
+      EVENT_DATE DATE NOT NULL,
+      EVENT_TYPE VARCHAR(24) NOT NULL,
+      NODE_CODE VARCHAR(32),
+      TARGET_KIND VARCHAR(16),
+      TARGET_ID VARCHAR(40),
+      OUTCOME VARCHAR(16) NOT NULL,
+      DURATION_MS INTEGER,
+      DETAIL VARCHAR(400)
+   )
+
+   // ------------------------------------------------------------------ the aggregations
+   //
+   // Legend views, not database views: no DDL, nothing seeds them, and the engine folds the
+   // GROUP BY into the SQL it generates. Each ~groupBy IS the primary key and is what the row
+   // MEANS. An empty group produces NO ROW -- a document nobody opened is absent from
+   // CPO_ENTRY_VIEW_TOTAL rather than present with a count of zero, so "never opened" is read
+   // from CPO_DOCUMENT_ENTRY and not from here.
+
+   // One row is a DOCUMENT: every opening of it, by anyone, ever.
+   View CPO_ENTRY_VIEW_TOTAL
+   (
+      ~groupBy
+      (
+         CPO_DOCUMENT_VIEW.ENTRY_ID
+      )
+      ENTRY_ID: CPO_DOCUMENT_VIEW.ENTRY_ID PRIMARY KEY,
+      VIEW_COUNT: count(CPO_DOCUMENT_VIEW.VIEW_ID),
+      TOTAL_SECONDS: sum(CPO_DOCUMENT_VIEW.SECONDS_ON_PAGE),
+      TOTAL_PAGES_SEEN: sum(CPO_DOCUMENT_VIEW.PAGES_SEEN),
+      FIRST_OPENED_DATE: min(CPO_DOCUMENT_VIEW.OPENED_DATE),
+      LAST_OPENED_DATE: max(CPO_DOCUMENT_VIEW.OPENED_DATE)
+   )
+
+   // Two group columns, so the grain is the PAIR: one login on one day.
+   View CPO_USER_DAY_TOTAL
+   (
+      ~groupBy
+      (
+         CPO_AUDIT_EVENT.USER_ID,
+         CPO_AUDIT_EVENT.EVENT_DATE
+      )
+      USER_ID: CPO_AUDIT_EVENT.USER_ID PRIMARY KEY,
+      EVENT_DATE: CPO_AUDIT_EVENT.EVENT_DATE PRIMARY KEY,
+      EVENT_COUNT: count(CPO_AUDIT_EVENT.EVENT_ID),
+      TOTAL_DURATION_MS: sum(CPO_AUDIT_EVENT.DURATION_MS)
+   )
+
+   // One row is a CLIENT. The grouping DROPS the invoice, the run and the period, which is
+   // exactly why it cannot be reconstructed from BIL_RUN_TOTAL: a run is not a client.
+   View CPO_CLIENT_OUTSTANDING_TOTAL
+   (
+      ~groupBy
+      (
+         CPO_INVOICE_VIEW.CLIENT_ID
+      )
+      CLIENT_ID: CPO_INVOICE_VIEW.CLIENT_ID PRIMARY KEY,
+      INVOICE_COUNT: count(CPO_INVOICE_VIEW.PORTAL_INVOICE_ID),
+      TOTAL_OUTSTANDING: sum(CPO_INVOICE_VIEW.OUTSTANDING_AMOUNT),
+      TOTAL_SHOWN: sum(CPO_INVOICE_VIEW.AMOUNT_SHOWN),
+      LATEST_DUE_DATE: max(CPO_INVOICE_VIEW.DUE_DATE)
+   )
+
+   // ------------------------------------------------------------------ the self-join
+   //
+   // Both sides are CPO_NAV_NODE. {target} names the FAR side of the same table; without it
+   // the condition reads as a column compared with itself and the menu tree collapses to
+   // every node being its own parent.
+   Join Cpo_NodeParent(CPO_NAV_NODE.PARENT_NODE_CODE = {target}.NODE_CODE)
+
+   // ------------------------------------------------------------------ local key joins
+
+   Join Cpo_UserEntitlements(CPO_ENTITLEMENT.USER_ID = CPO_USER.USER_ID)
+
+   Join Cpo_UserSessions(CPO_SESSION.USER_ID = CPO_USER.USER_ID)
+
+   Join Cpo_NodeAccessRules(CPO_NODE_ACCESS.NODE_CODE = CPO_NAV_NODE.NODE_CODE)
+
+   Join Cpo_EntryNode(CPO_DOCUMENT_ENTRY.NODE_CODE = CPO_NAV_NODE.NODE_CODE)
+
+   Join Cpo_EntryViews(CPO_DOCUMENT_VIEW.ENTRY_ID = CPO_DOCUMENT_ENTRY.ENTRY_ID)
+
+   Join Cpo_SessionViews(CPO_DOCUMENT_VIEW.SESSION_ID = CPO_SESSION.SESSION_ID)
+
+   Join Cpo_UserViews(CPO_DOCUMENT_VIEW.USER_ID = CPO_USER.USER_ID)
+
+   Join Cpo_EntryAckRequests(CPO_ACK_REQUEST.ENTRY_ID = CPO_DOCUMENT_ENTRY.ENTRY_ID)
+
+   Join Cpo_RequestReceipt(CPO_ACK_RECEIPT.REQUEST_ID = CPO_ACK_REQUEST.REQUEST_ID)
+
+   Join Cpo_ReceiptUser(CPO_ACK_RECEIPT.USER_ID = CPO_USER.USER_ID)
+
+   Join Cpo_ReceiptSession(CPO_ACK_RECEIPT.SESSION_ID = CPO_SESSION.SESSION_ID)
+
+   Join Cpo_InvoiceViewEntry(CPO_INVOICE_VIEW.ENTRY_ID = CPO_DOCUMENT_ENTRY.ENTRY_ID)
+
+   Join Cpo_InvoicePayments(CPO_PAYMENT_INSTRUCTION.PORTAL_INVOICE_ID = CPO_INVOICE_VIEW.PORTAL_INVOICE_ID)
+
+   Join Cpo_InstructionUser(CPO_PAYMENT_INSTRUCTION.USER_ID = CPO_USER.USER_ID)
+
+   Join Cpo_AlertUser(CPO_ALERT.USER_ID = CPO_USER.USER_ID)
+
+   Join Cpo_AlertEntry(CPO_ALERT.ENTRY_ID = CPO_DOCUMENT_ENTRY.ENTRY_ID)
+
+   Join Cpo_SessionAudit(CPO_AUDIT_EVENT.SESSION_ID = CPO_SESSION.SESSION_ID)
+
+   Join Cpo_UserAudit(CPO_AUDIT_EVENT.USER_ID = CPO_USER.USER_ID)
+
+   // ------------------------------------------------------------------ onto the views
+
+   Join Cpo_EntryViewTotal(CPO_DOCUMENT_ENTRY.ENTRY_ID = CPO_ENTRY_VIEW_TOTAL.ENTRY_ID)
+
+   Join Cpo_UserActivityTotal(CPO_USER.USER_ID = CPO_USER_DAY_TOTAL.USER_ID)
+
+   Join Cpo_ClientOutstandingTotal(CPO_INVOICE_VIEW.CLIENT_ID = CPO_CLIENT_OUTSTANDING_TOTAL.CLIENT_ID)
+
+   // ------------------------------------------------------------------ across boundaries
+   //
+   // CRP_* is client-reporting's, BIL_* is fee-billing's. Both are nameable only because of the
+   // two includes at the top; neither table is redeclared here. Four into one dependency,
+   // three into the other, and each is a single-column key join because both dependencies key
+   // the rows this project points at by a single id.
+
+   Join Cpo_EntryStatement(CPO_DOCUMENT_ENTRY.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+
+   Join Cpo_EntryDelivery(CPO_DOCUMENT_ENTRY.DELIVERY_ID = CRP_DELIVERY.DELIVERY_ID)
+
+   Join Cpo_RequestDisclosure(CPO_ACK_REQUEST.DISCLOSURE_ID = CRP_COSTS_DISCLOSURE.DISCLOSURE_ID)
+
+   Join Cpo_AlertNotice(CPO_ALERT.NOTICE_ID = CRP_DEPRECIATION_NOTICE.NOTICE_ID)
+
+   Join Cpo_PortalInvoice(CPO_INVOICE_VIEW.INVOICE_ID = BIL_INVOICE.INVOICE_ID)
+
+   Join Cpo_InstructionInvoice(CPO_PAYMENT_INSTRUCTION.INVOICE_ID = BIL_INVOICE.INVOICE_ID)
+
+   Join Cpo_AlertDispute(CPO_ALERT.DISPUTE_ID = BIL_DISPUTE.DISPUTE_ID)
+
+   // ------------------------------------------------------------------------------ filters
+   //
+   // Declared and unapplied, for a downstream mapping to reference. All five are null tests,
+   // because a Filter will not take a boolean literal -- `IS_LANDING = true` is
+   // `Unexpected token 'true'`.
+
+   Filter CpoLiveEntitlements(CPO_ENTITLEMENT.REVOKED_ON is null)
+
+   Filter CpoOpenSessions(CPO_SESSION.ENDED_AT is null)
+
+   Filter CpoPublishedEntries(CPO_DOCUMENT_ENTRY.UNPUBLISHED_ON is null)
+
+   Filter CpoLiveAckRequests(CPO_ACK_REQUEST.CANCELLED_ON is null)
+
+   Filter CpoUndismissedAlerts(CPO_ALERT.DISMISSED_AT is null)
+)

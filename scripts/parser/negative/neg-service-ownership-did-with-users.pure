@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token 'users'. Valid alternatives: ['identifier']
+//
+// `ownership: DID { ... }` takes exactly `identifier: <string>`; `users: [...]` belongs to
+// the UserList form. The two ownership bodies are NOT interchangeable and neither field is
+// optional -- each rule spells out its single mandatory child.
+//
+// A rewritten parser that parses `ownership:` as "a type name followed by a generic brace
+// body" accepts a DID with users and a UserList with an identifier, both of which legend-
+// engine cannot represent.
+###Service
+Service fixture::neg::MixedOwnership
+{
+   pattern: '/fixture/neg/mixedownership';
+   documentation: 'DID body carrying a UserList field';
+   ownership: DID { users: ['12345'] };
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::Mapping;
+      runtime: fixture::neg::Runtime;
+   }
+}

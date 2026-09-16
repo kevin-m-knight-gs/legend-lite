@@ -1,0 +1,20 @@
+// REJECTS: Unknown schema format: NotAFormat
+//
+// `format:` takes a bare VALID_STRING and the grammar constrains it no further -- the set of
+// formats is an extension point (FlatData, JSON, XSD, ...), resolved against the registered
+// external format extensions at walk time.
+//
+// This one is also the packaging canary described in the README: if this message ever
+// changes shape for a format that SHOULD exist, the cause is a missing grammar extension on
+// the classpath rather than a grammar limit.
+###ExternalFormat
+SchemaSet fixture::neg::UnknownFormat
+{
+   format: NotAFormat;
+   schemas: [
+      {
+         id: primary;
+         content: '{}';
+      }
+   ];
+}

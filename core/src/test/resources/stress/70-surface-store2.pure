@@ -1,0 +1,50 @@
+// The remaining STORE constructs, and the model primitives the corpus never used.
+###Pure
+// NO documentation string on this class. `classDefinition: documentation? CLASS ...` is in
+// the domain grammar exactly as it is in the relational one, and a leading string is
+// rejected in both -- as a single-quoted string and as a text block alike (F33). Whatever
+// the documentation slot is for, it is not writable.
+Class surface::Primitives
+{
+   k: String[1];
+   // The primitive types the corpus never wrote. Float and StrictDate it had; these it did
+   // not, and several are distinct engine types rather than spellings of one -- Decimal is
+   // not Float, and Number is the abstract supertype of both.
+   dec: Decimal[0..1];
+   num: Number[0..1];
+   dt: Date[0..1];
+   b: Byte[*];
+   // A precise primitive: a type carrying its own parameters.
+   v: meta::pure::precisePrimitives::Varchar(200)[0..1];
+}
+
+###Relational
+Database surface::JoinDB
+(
+   // A typed store include, and stereotypes plus tagged values on a Table.
+   include surface::MapDB
+
+   Table <<meta::pure::profiles::typemodifiers.abstract>> {doc.doc = 'joined from three sides'} J1
+   (
+      K VARCHAR(64) PRIMARY KEY,
+      N INTEGER,
+      NEXT_K VARCHAR(64)
+   )
+   Table J2 ( K VARCHAR(64) PRIMARY KEY, N INTEGER, NEXT_K VARCHAR(64) )
+   Table J3 ( K VARCHAR(64) PRIMARY KEY, N INTEGER )
+
+   // Every remaining JOIN CONDITION form.
+   Join j_GreaterEqual(J1.N >= J2.N)
+   Join j_IsNull(J1.NEXT_K is null and J2.K = J1.K)
+   Join j_IsNotNull(J1.NEXT_K is not null and J3.K = J1.K)
+   Join j_NumericConst(J1.N = -5 and J2.K = J1.K)
+   // The array argument is the CALL form `in(x, [...])`; the infix `x in [...]` that
+   // reads naturally is rejected.
+   Join j_ArrayArg(in(J1.N, [1, 2, 3]) and J2.K = J1.K)
+   Join j_NestedDyna(concat(toUpper(J1.K), J1.NEXT_K) = J2.K)
+   // The hops a THREE-LINK chain needs.
+   Join j_1to2(J1.NEXT_K = J2.K)
+   Join j_2to3(J2.NEXT_K = J3.K)
+   // A join whose two sides are in DIFFERENT databases, for a cross-store chain hop.
+   Join j_CrossDb([surface::JoinDB]J3.K = [surface::MapDB]LEG.LEG_ID)
+)

@@ -1,0 +1,95 @@
+// COVERS GraphQL: schema, query, mutation, subscription, scalar, type, interface, union, enum, input, fragment, true, false
+// COVERS GraphQL: QUERY, MUTATION, SUBSCRIPTION, FIELD, FRAGMENT_DEFINITION, FRAGMENT_SPREAD, INLINE_FRAGMENT, SCHEMA, SCALAR, OBJECT, FIELD_DEFINITION, ARGUMENT_DEFINITION, INTERFACE, UNION, ENUM, ENUM_VALUE, INPUT_OBJECT, INPUT_FIELD_DEFINITION
+//
+// GraphQL reaches the Pure parser through an EmbeddedPureParser -- GraphQLEmbeddedPureParser
+// returns "GQL" -- so `#GQL{ ... }#` is user-typeable Pure, and the Pure parser must lex the
+// delimiters and hand the body to the GraphQL grammar. Nothing this repository owns had ever
+// written one.
+//
+// The eighteen SHOUTING keywords are directive locations, reachable only from a `directive`
+// declaration. They are the whole reason this fixture declares a directive nothing uses: a
+// realistic GraphQL document would never name all eighteen, so the surface would stay dark.
+//
+// `extend` is NOT here, and not because it is hard to write. GraphQLGrammarParser's
+// visitDefinition has no branch for typeSystemExtension and falls through to
+// `throw new RuntimeException("Error")`. The ANTLR grammar accepts `extend type X { ... }`;
+// the walker behind it does not. It lives in ../negative/ instead, which is the honest
+// place for a construct legend-engine declares and then refuses.
+###Pure
+function fixture::gql::schemaDocument(): meta::pure::metamodel::type::Any[1]
+{
+   #GQL{
+     schema {
+       query: Query
+       mutation: Mutation
+       subscription: Subscription
+     }
+
+     directive @audit on
+         QUERY | MUTATION | SUBSCRIPTION | FIELD | FRAGMENT_DEFINITION |
+         FRAGMENT_SPREAD | INLINE_FRAGMENT | SCHEMA | SCALAR | OBJECT |
+         FIELD_DEFINITION | ARGUMENT_DEFINITION | INTERFACE | UNION | ENUM |
+         ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+     scalar DateTime
+
+     interface Node {
+       id: String
+     }
+
+     type Firm implements Node {
+       id: String
+       legalName: String
+       incorporated: DateTime
+       active: Boolean
+     }
+
+     type Person implements Node {
+       id: String
+       fullName: String
+     }
+
+     union Entity = Firm | Person
+
+     enum Region {
+       EMEA
+       APAC
+       AMERICAS
+     }
+
+     input FirmFilter {
+       legalName: String
+       region: Region
+       active: Boolean = true
+     }
+
+     type Query {
+       firms(filter: FirmFilter, includeInactive: Boolean = false): [Firm]
+       entity(id: String): Entity
+     }
+
+     type Mutation {
+       setActive(id: String, active: Boolean = true): Firm
+     }
+
+     type Subscription {
+       firmChanged: Firm
+     }
+   }#
+}
+
+function fixture::gql::executableDocument(): meta::pure::metamodel::type::Any[1]
+{
+   #GQL{
+     fragment firmFields on Firm {
+       id
+       legalName
+     }
+
+     query getFirms {
+       firms {
+         ...firmFields
+       }
+     }
+   }#
+}

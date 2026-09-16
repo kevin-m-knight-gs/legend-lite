@@ -1,0 +1,27 @@
+// REJECTS: Field 'targetShape' is required
+//
+// `batchPersister: PERSISTER_BATCH BRACE_OPEN (persisterSink | targetShape | ingestMode)*
+// BRACE_CLOSE` -- all three optional to the grammar, all three required by
+// visitBatchPersister. Drop targetShape and what is left is a legal `Streaming` persister
+// body plus an ingest mode.
+//
+// sink is checked first and targetShape second, so this file is what reaches the second
+// check.
+###Persistence
+Persistence test::persistence::neg::BatchNoTargetShape
+{
+  doc: 'batch persister with no target shape';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+  }
+}

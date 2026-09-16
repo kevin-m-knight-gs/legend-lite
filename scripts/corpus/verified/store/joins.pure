@@ -1,0 +1,108 @@
+###Relational
+Database store::joins::JoinsDB
+(
+  Table PersonTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    FIRM_ID INTEGER,
+    ADDR_ID INTEGER,
+    START_DATE DATE,
+    END_DATE DATE,
+    RANK INTEGER,
+    CODE VARCHAR(20),
+    PREFIX VARCHAR(10)
+  )
+
+  Table FirmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    REGION VARCHAR(20) PRIMARY KEY,
+    LEGALNAME VARCHAR(200),
+    MIN_RANK INTEGER,
+    MAX_RANK INTEGER,
+    KEY VARCHAR(40),
+    NAME_UPPER VARCHAR(200)
+  )
+
+  Table OrgTable
+  (
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(200),
+    PARENT_ID INTEGER,
+    REGION VARCHAR(20)
+  )
+
+  // 4: join on multiple columns with `and`
+  Join Person_Firm_Multi(PersonTable.FIRM_ID = FirmTable.ID and PersonTable.LASTNAME = FirmTable.REGION)
+
+  // 5: non-equality operators -- >, <, >=, <>
+  Join Person_Firm_Range(PersonTable.RANK > FirmTable.MIN_RANK and PersonTable.RANK < FirmTable.MAX_RANK)
+  Join Person_Firm_GtEq(PersonTable.RANK >= FirmTable.MIN_RANK and PersonTable.LASTNAME <> FirmTable.LEGALNAME)
+  Join Person_Firm_LtEq(PersonTable.RANK <= FirmTable.MAX_RANK and PersonTable.LASTNAME != FirmTable.LEGALNAME)
+
+  // 5: `is null` / `is not null` combined with an equi-join
+  Join Person_Firm_Nulls(PersonTable.FIRM_ID = FirmTable.ID and PersonTable.END_DATE is null and PersonTable.START_DATE is not null)
+
+  // 6: join with `or`
+  Join Person_Firm_Or(PersonTable.FIRM_ID = FirmTable.ID or PersonTable.LASTNAME = FirmTable.LEGALNAME)
+
+  // 6: mixed `and`/`or` -- the `or` group must be parenthesised to bind correctly
+  Join Person_Firm_AndOr(PersonTable.FIRM_ID = FirmTable.ID and (PersonTable.RANK > FirmTable.MIN_RANK or PersonTable.RANK < FirmTable.MAX_RANK))
+
+  // 7: dynafunction on the left side only
+  Join Person_Firm_Concat(concat(PersonTable.PREFIX, PersonTable.CODE) = FirmTable.KEY)
+
+  // 7: dynafunction on both sides
+  Join Person_Firm_UpperLower(upper(PersonTable.LASTNAME) = upper(FirmTable.LEGALNAME))
+  Join Person_Firm_Lower(lower(PersonTable.LASTNAME) = lower(FirmTable.LEGALNAME))
+  Join Person_Firm_Substring(substring(PersonTable.CODE, 1, 3) = substring(FirmTable.KEY, 1, 3))
+
+  // 8: self-join via {target}
+  Join Org_Parent(OrgTable.PARENT_ID = {target}.ID)
+  Join Org_Parent_Multi(OrgTable.PARENT_ID = {target}.ID and OrgTable.REGION = {target}.REGION)
+)
+
+###Pure
+Class store::joins::Person
+{
+  firstName: String[1];
+  firmName: String[0..1];
+  firmByRange: String[0..1];
+  firmByNulls: String[0..1];
+  firmByOr: String[0..1];
+  firmByConcat: String[0..1];
+  firmByUpper: String[0..1];
+}
+
+Class store::joins::Org
+{
+  name: String[1];
+  parentName: String[0..1];
+  grandParentName: String[0..1];
+}
+
+###Mapping
+Mapping store::joins::JoinsMapping
+(
+  *store::joins::Person: Relational
+  {
+    ~mainTable [store::joins::JoinsDB]PersonTable
+    firstName: [store::joins::JoinsDB]PersonTable.FIRSTNAME,
+    firmName: [store::joins::JoinsDB]@Person_Firm_Multi | FirmTable.LEGALNAME,
+    firmByRange: [store::joins::JoinsDB]@Person_Firm_Range | FirmTable.LEGALNAME,
+    firmByNulls: [store::joins::JoinsDB]@Person_Firm_Nulls | FirmTable.LEGALNAME,
+    firmByOr: [store::joins::JoinsDB]@Person_Firm_Or | FirmTable.LEGALNAME,
+    firmByConcat: [store::joins::JoinsDB]@Person_Firm_Concat | FirmTable.LEGALNAME,
+    firmByUpper: [store::joins::JoinsDB]@Person_Firm_UpperLower | FirmTable.LEGALNAME
+  }
+
+  *store::joins::Org: Relational
+  {
+    ~mainTable [store::joins::JoinsDB]OrgTable
+    name: [store::joins::JoinsDB]OrgTable.NAME,
+    parentName: [store::joins::JoinsDB]@Org_Parent | OrgTable.NAME,
+    grandParentName: [store::joins::JoinsDB]@Org_Parent > @Org_Parent | OrgTable.NAME
+  }
+)

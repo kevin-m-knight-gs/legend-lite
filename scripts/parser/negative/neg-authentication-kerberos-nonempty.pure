@@ -1,0 +1,27 @@
+// REJECTS: Unexpected token 'psk'
+//
+// `# Kerberos { psk: 'abcde'; }#` -- a Kerberos authentication island with a body. The rule
+// for this island is literally `EOF`: it takes no fields at all, and the only spelling that
+// parses is the empty `# Kerberos { }#` in ../fixtures/t2-authentication.pure.
+//
+// An island type with a mandatory-empty body is the one shape a rewrite has no reason to
+// implement. Islands are parsed by dispatching the body text to a registered sub-parser, and
+// the natural degenerate case -- no fields, so nothing to parse, so accept anything and build
+// the empty object -- is exactly the wrong one. The field written here is borrowed from the
+// PSK island next door, so it is a real field of a real authentication kind in the same
+// grammar, dispatched by name.
+//
+// This is also the boundary that makes `authentication:` islands parseable at all: the body is
+// handed to AuthenticationGrammarParserExtension by KIND, so the kind name alone decides which
+// fields exist. Get the dispatch table right and get the empty case wrong, and every Kerberos
+// connection in the corpus still parses.
+###Connection
+MongoDBConnection fixture::neg::KerberosWithBody
+{
+  database: legend_db;
+  store: fixture::neg::Db;
+  serverURLs: [localhost:27017];
+  authentication: # Kerberos {
+    psk: 'abcde';
+  }#;
+}

@@ -1,0 +1,190 @@
+###Relational
+
+// ============================================================
+// core_geo::Store -- eleven tables, and the joins that chain them
+// ============================================================
+// The table names are the contract's: CG_ prefix, so nothing here can collide with the
+// forty-odd other projects that share one flat graph. The joins are Cg_ prefixed for the
+// same reason, even though a join is scoped to its Database and could not collide.
+//
+// Every join below is written FROM the many side TO the one side, which is not cosmetic:
+// a property mapping's join chain (@A > @B) only stays single-valued if each hop is
+// many-to-one, and the chain on CgCountry.macroRegionCode depends on that.
+//
+// Declared and unseeded, per the contract. No ###Data element, no Runtime.
+Database core_geo::Store
+(
+   // ---- level 3: the coverage region a desk is organised by -------------------------
+   Table CG_MACRO_REGION
+   (
+      MACRO_REGION_ID VARCHAR(16) PRIMARY KEY,
+      CODE VARCHAR(8) NOT NULL,
+      NAME VARCHAR(64) NOT NULL,
+      DESCRIPTION VARCHAR(400),
+      HEADQUARTERS_CITY VARCHAR(64),
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   // ---- level 2: UN M49 sub-region ---------------------------------------------------
+   Table CG_SUB_REGION
+   (
+      SUB_REGION_ID VARCHAR(16) PRIMARY KEY,
+      M49_CODE VARCHAR(8) NOT NULL,
+      NAME VARCHAR(64) NOT NULL,
+      CONTINENT VARCHAR(32),
+      IS_ACTIVE BIT NOT NULL,
+      // FK up to the macro-region. This column is the second hop of the chain.
+      MACRO_REGION_ID VARCHAR(16)
+   )
+
+   // ---- level 1: the country, keyed by ISO 3166-1 alpha-2 ----------------------------
+   Table CG_COUNTRY
+   (
+      COUNTRY_CODE VARCHAR(2) PRIMARY KEY,
+      ALPHA3_CODE VARCHAR(3) NOT NULL,
+      NUMERIC_CODE VARCHAR(3),
+      NAME VARCHAR(128) NOT NULL,
+      OFFICIAL_NAME VARCHAR(200),
+      IS_SOVEREIGN BIT NOT NULL,
+      CURRENCY_CODE VARCHAR(3),
+      CALLING_CODE VARCHAR(8),
+      TOP_LEVEL_DOMAIN VARCHAR(8),
+      // FK down to the sub-region. This column is the first hop of the chain, and it is the
+      // ONLY geography column on this table -- there is deliberately no MACRO_REGION_ID and
+      // no BLOC_CODE here, because a denormalised copy is the thing that goes stale.
+      SUB_REGION_ID VARCHAR(16)
+   )
+
+   Table CG_SUBDIVISION
+   (
+      SUBDIVISION_CODE VARCHAR(8) PRIMARY KEY,
+      NAME VARCHAR(128) NOT NULL,
+      CATEGORY VARCHAR(32) NOT NULL,
+      LOCAL_CODE VARCHAR(8),
+      IS_ACTIVE BIT NOT NULL,
+      COUNTRY_CODE VARCHAR(2)
+   )
+
+   Table CG_CITY
+   (
+      CITY_ID VARCHAR(24) PRIMARY KEY,
+      NAME VARCHAR(128) NOT NULL,
+      IS_CAPITAL BIT NOT NULL,
+      IS_FINANCIAL_CENTRE BIT NOT NULL,
+      POPULATION INTEGER,
+      LATITUDE DOUBLE,
+      LONGITUDE DOUBLE,
+      COUNTRY_CODE VARCHAR(2),
+      TIME_ZONE_ID VARCHAR(24)
+   )
+
+   Table CG_TIME_ZONE
+   (
+      TIME_ZONE_ID VARCHAR(24) PRIMARY KEY,
+      IANA_NAME VARCHAR(64) NOT NULL,
+      // Minutes, so +05:45 is representable. INTEGER and not SMALLINT because the range is
+      // -720..+840 and a reader should not have to check that it fits.
+      UTC_OFFSET_MINUTES INTEGER NOT NULL,
+      OBSERVES_DAYLIGHT_SAVING BIT NOT NULL,
+      ABBREVIATION VARCHAR(8)
+   )
+
+   // ---- the bloc branch --------------------------------------------------------------
+   Table CG_BLOC
+   (
+      BLOC_ID VARCHAR(16) PRIMARY KEY,
+      CODE VARCHAR(16) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      BLOC_TYPE VARCHAR(32) NOT NULL,
+      FOUNDED_YEAR INTEGER,
+      SEAT_CITY VARCHAR(64),
+      MEMBER_COUNT INTEGER,
+      HAS_COMMON_CURRENCY BIT NOT NULL
+   )
+
+   // The hop between a country and a bloc. Its own table because membership is dated:
+   // one row per (country, bloc) accession, and GB/EU has an EXIT_DATE.
+   Table CG_BLOC_MEMBERSHIP
+   (
+      MEMBERSHIP_ID VARCHAR(32) PRIMARY KEY,
+      ACCESSION_DATE DATE,
+      EXIT_DATE DATE,
+      STATUS VARCHAR(16) NOT NULL,
+      IS_FULL_MEMBER BIT NOT NULL,
+      HAS_OPT_OUT BIT,
+      NOTES VARCHAR(400),
+      COUNTRY_CODE VARCHAR(2),
+      BLOC_ID VARCHAR(16)
+   )
+
+   Table CG_TRADE_AGREEMENT
+   (
+      AGREEMENT_ID VARCHAR(24) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      SHORT_NAME VARCHAR(32),
+      SIGNED_DATE DATE,
+      IN_FORCE_DATE DATE,
+      AGREEMENT_TYPE VARCHAR(32) NOT NULL,
+      IS_IN_FORCE BIT NOT NULL,
+      BLOC_ID VARCHAR(16)
+   )
+
+   // Keyed by country alone rather than (country, year): the table holds the CURRENT
+   // vintage, and REFERENCE_YEAR says which one it is. A history would want the composite
+   // key, and that is a different project's problem.
+   Table CG_COUNTRY_PROFILE
+   (
+      COUNTRY_CODE VARCHAR(2) PRIMARY KEY,
+      POPULATION INTEGER,
+      AREA_SQ_KM DOUBLE,
+      GDP_USD DOUBLE,
+      GDP_PER_CAPITA_USD DOUBLE,
+      INCOME_GROUP VARCHAR(16),
+      IS_OECD_MEMBER BIT,
+      REFERENCE_YEAR INTEGER NOT NULL
+   )
+
+   Table CG_OFFICIAL_LANGUAGE
+   (
+      LANGUAGE_ID VARCHAR(24) PRIMARY KEY,
+      ISO639_CODE VARCHAR(2) NOT NULL,
+      NAME VARCHAR(64) NOT NULL,
+      IS_PRIMARY BIT NOT NULL,
+      COUNTRY_CODE VARCHAR(2)
+   )
+
+   // ---- the chain ---------------------------------------------------------------------
+   // These two, in this order, are what the whole project exists to offer:
+   //   CG_COUNTRY -> CG_SUB_REGION -> CG_MACRO_REGION
+   // Two joins, three tables, and both hops many-to-one so the chain stays single-valued.
+   Join Cg_CountrySubRegion(CG_COUNTRY.SUB_REGION_ID = CG_SUB_REGION.SUB_REGION_ID)
+   Join Cg_SubRegionMacroRegion(CG_SUB_REGION.MACRO_REGION_ID = CG_MACRO_REGION.MACRO_REGION_ID)
+
+   // The second chain, through the dated membership row:
+   //   CG_COUNTRY -> CG_BLOC_MEMBERSHIP -> CG_BLOC
+   // Not chained in a property mapping, because the first hop is one-to-MANY (a country is
+   // in several blocs) and a chained property mapping over it would silently multiply rows.
+   // Exposed as association ends instead, where the [*] cardinality is honest.
+   Join Cg_CountryMembership(CG_BLOC_MEMBERSHIP.COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+   Join Cg_MembershipBloc(CG_BLOC_MEMBERSHIP.BLOC_ID = CG_BLOC.BLOC_ID)
+
+   // ---- the rest ----------------------------------------------------------------------
+   // A downstream project can chain a third hop off these without declaring anything of its
+   // own: @Cg_CountryCity > @Cg_CityTimeZone reaches the clock from a country.
+   Join Cg_CountrySubdivision(CG_SUBDIVISION.COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+   Join Cg_CountryCity(CG_CITY.COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+   Join Cg_CityTimeZone(CG_CITY.TIME_ZONE_ID = CG_TIME_ZONE.TIME_ZONE_ID)
+   Join Cg_CountryProfile(CG_COUNTRY_PROFILE.COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+   Join Cg_BlocAgreement(CG_TRADE_AGREEMENT.BLOC_ID = CG_BLOC.BLOC_ID)
+   Join Cg_CountryLanguage(CG_OFFICIAL_LANGUAGE.COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+
+   // ---- filters ------------------------------------------------------------------------
+   // Two filters, both prefixed because a filter name is a GLOBAL namespace in Legend and
+   // one collision fails the entire graph. Neither is applied to a mapping set here: they
+   // are declared so a downstream mapping can reference them by name.
+   // Rows that can actually walk the chain -- a country with no sub-region reaches no
+   // macro-region and would drop out of a grouped report as a silent null.
+   Filter CgPlacedCountry(CG_COUNTRY.SUB_REGION_ID is not null)
+   // Full members only, which excludes the CANDIDATE, ASSOCIATE, OBSERVER and FORMER rows.
+   Filter CgCurrentBlocMembership(CG_BLOC_MEMBERSHIP.STATUS = 'MEMBER')
+)

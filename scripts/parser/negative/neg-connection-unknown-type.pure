@@ -1,0 +1,16 @@
+// REJECTS: Unsupported connection value type: NoSuchConnection
+//
+// The ###Connection section is pure island routing: `connection: connectionType
+// qualifiedName connectionValue` where connectionType is any `identifier` and the value is
+// an opaque brace-balanced blob. The section grammar has no list of connection types and
+// cannot have one -- every store extension registers its own.
+//
+// So the ONLY thing standing between a typo and a silently-loaded connection is the registry
+// lookup, and this pins that it happens. It doubles as the packaging canary: if a connection
+// type that should exist ever produces this message, the extension is missing from the
+// classpath rather than from the grammar.
+###Connection
+NoSuchConnection fixture::neg::UnknownConnectionType
+{
+   url: 'model://fixture/person.json';
+}

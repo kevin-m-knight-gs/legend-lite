@@ -1,0 +1,760 @@
+###Mapping
+
+// ============================================================
+// regulatory_capital::Mapping -- 32 sets, five of them filter subtypes, three of them groups
+// ============================================================
+// THREE INCLUDES, AND WHAT THEY BUY. A class-valued property mapping can only name a set that
+// exists in THIS mapping's scope, so the ten cross-project properties below need all three
+// dependency mappings present: `[exaNetExposure]`, `[exaCounterpartyDayNet]`,
+// `[exaNettingSet]` and `[exaCounterparty]` from exposure-agg, `[rexTransaction]` and
+// `[rexReportingEntity]` from regulatory-extract, `[mgnMarginPortfolio]` and
+// `[mgnInitialMargin]` from margin-calc.
+//
+// Every one of those ids is EXPLICIT in its own project, which means the default ids
+// (`exposure_agg_ExaNetExposure`, `margin_calc_MgnInitialMargin`) do not exist to fall back
+// on, and every id below was read out of a MANIFEST rather than guessed. Two of them do not
+// follow their class name and are worth pointing at: `[exaCounterpartyDayNet]` is a set over
+// a VIEW, and `[mgnInitialMargin]` has a three-column key.
+//
+// The same closure arrives here as in the store, and nothing outside the three dependencies
+// is named: no `credit_`, `collateral_`, `trade_`, `reference_`, `client_`, `position_` or
+// `risk_` package appears in this file, although every one of their mappings is present.
+//
+// SCHEMAS. This project's tables are in the default schema; regulatory-extract's are in
+// `rex`, so the two chained property mappings that land on its columns write
+// `[regulatory_extract::Store]rex.REX_TRANSACTION.REGIME_CODE` -- store, schema, table,
+// column. The other two dependencies use the default schema and take no segment.
+//
+// THE FIVE FILTER SUBTYPES. `[rcpExposure]` is the ROOT set (`*`) over RCP_EXPOSURE, so
+// unqualified, RcpExposure.all() is the whole regulatory book. Five sets extend it, each
+// adding one `~filter` from this project's store and only the columns and links that mean
+// something once the row is known to be of that type. None restates the key, the main table,
+// or any of the fifty inherited property mappings.
+//
+//    RcpStandardisedExposure[rcpSaExposure]        RcpStandardisedRows      APPROACH_CODE = 'SA'
+//    RcpIrbExposure[rcpIrbExposure]                RcpIrbRows               APPROACH_CODE = 'IRB'
+//    RcpCounterpartyCreditExposure[rcpCcrExposure] RcpCounterpartyRiskRows  EXPOSURE_TYPE_CODE = 'DERIVATIVE'
+//    RcpDefaultedExposure[rcpDefaulted]            RcpDefaultedRows         DEFAULT_STATUS = 'DEFAULTED'
+//    RcpUnmitigatedExposure[rcpUnmitigated]        RcpUnmitigatedRows       CRM_ID is null
+//
+// They are NOT disjoint, and that is the point. An IRB derivative that has defaulted is a
+// row of `rcpIrbExposure`, of `rcpCcrExposure` AND of `rcpDefaulted`, because the approach
+// is an identity, the product type is another identity, and default is a state. Counting the
+// book by summing the five sets double-counts; that is a property of the domain and not of
+// the mapping.
+//
+// THE THREE GROUPS. The last three sets are rooted on VIEWS, and their `~primaryKey` is the
+// view's `~groupBy` -- which is what makes one instance a GROUP and not a row. Navigating
+// `exposure.rwaCell` crosses into a GROUP BY and can never come back out to another
+// exposure.
+//
+// SET IDS ARE A GLOBAL NAMESPACE. Every one below is explicit and `rcp`-prefixed, so the
+// default ids (`regulatory_capital_RcpExposure`) do not exist, and a downstream
+// `extends [...]` or cross-project AssociationMapping must name the explicit one.
+Mapping regulatory_capital::Mapping
+(
+   include exposure_agg::Mapping
+   include regulatory_extract::Mapping
+   include margin_calc::Mapping
+
+   // ---- the run and the entity -----------------------------------------------------------
+
+   regulatory_capital::RcpCapitalRun[rcpRun]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_CAPITAL_RUN.RUN_ID )
+      ~mainTable [regulatory_capital::Store]RCP_CAPITAL_RUN
+      runId: [regulatory_capital::Store]RCP_CAPITAL_RUN.RUN_ID,
+      reportingDate: [regulatory_capital::Store]RCP_CAPITAL_RUN.REPORTING_DATE,
+      runType: [regulatory_capital::Store]RCP_CAPITAL_RUN.RUN_TYPE,
+      frameworkVersion: [regulatory_capital::Store]RCP_CAPITAL_RUN.FRAMEWORK_VERSION,
+      startedAt: [regulatory_capital::Store]RCP_CAPITAL_RUN.STARTED_AT,
+      completedAt: [regulatory_capital::Store]RCP_CAPITAL_RUN.COMPLETED_AT,
+      exposureCount: [regulatory_capital::Store]RCP_CAPITAL_RUN.EXPOSURE_COUNT,
+      unclassifiedCount: [regulatory_capital::Store]RCP_CAPITAL_RUN.UNCLASSIFIED_COUNT,
+      triggeredBy: [regulatory_capital::Store]RCP_CAPITAL_RUN.TRIGGERED_BY,
+      exposures[rcpExposure]: [regulatory_capital::Store]@Rcp_RunExposures
+   }
+
+   // The one link out to regulatory-extract that is not about a trade: the same firm entity
+   // as the reporting side holds it, kept as a link rather than merged, because the two
+   // systems disagreeing about who reported is itself a finding.
+   regulatory_capital::RcpReportingEntity[rcpEntity]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_REPORTING_ENTITY.ENTITY_ID )
+      ~mainTable [regulatory_capital::Store]RCP_REPORTING_ENTITY
+      entityId: [regulatory_capital::Store]RCP_REPORTING_ENTITY.ENTITY_ID,
+      entityName: [regulatory_capital::Store]RCP_REPORTING_ENTITY.ENTITY_NAME,
+      consolidationBasis: [regulatory_capital::Store]RCP_REPORTING_ENTITY.CONSOLIDATION_BASIS,
+      competentAuthority: [regulatory_capital::Store]RCP_REPORTING_ENTITY.COMPETENT_AUTHORITY,
+      jurisdiction: [regulatory_capital::Store]RCP_REPORTING_ENTITY.JURISDICTION,
+      reportingCurrency: [regulatory_capital::Store]RCP_REPORTING_ENTITY.REPORTING_CURRENCY,
+      regulatoryEntityId: [regulatory_capital::Store]RCP_REPORTING_ENTITY.REGULATORY_ENTITY_ID,
+      isGloballySystemic: [regulatory_capital::Store]RCP_REPORTING_ENTITY.IS_GLOBALLY_SYSTEMIC,
+      deconsolidatedOn: [regulatory_capital::Store]RCP_REPORTING_ENTITY.DECONSOLIDATED_ON,
+      reportingProfile[rexReportingEntity]: [regulatory_capital::Store]@Rcp_EntityReportingProfile,
+      ownFunds[rcpOwnFunds]: [regulatory_capital::Store]@Rcp_EntityOwnFunds,
+      requirements[rcpRequirement]: [regulatory_capital::Store]@Rcp_EntityRequirements,
+      rwaTotals[rcpEntityRwaTotal]: [regulatory_capital::Store]@Rcp_EntityRwaTotals
+   }
+
+   // ---- the root set: every regulatory exposure, of whatever approach --------------------
+   // The three-way fan-in is the last block of property mappings: three class-valued ones
+   // onto three different projects' sets, and three chained ones that land on a dependency's
+   // COLUMN. Both forms are here on purpose -- a capital return needs the objects to explain
+   // a number and the flattened values to group without walking them.
+   *regulatory_capital::RcpExposure[rcpExposure]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_EXPOSURE.EXPOSURE_ID )
+      ~mainTable [regulatory_capital::Store]RCP_EXPOSURE
+      exposureId: [regulatory_capital::Store]RCP_EXPOSURE.EXPOSURE_ID,
+      entityId: [regulatory_capital::Store]RCP_EXPOSURE.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_EXPOSURE.REPORTING_DATE,
+      runId: [regulatory_capital::Store]RCP_EXPOSURE.RUN_ID,
+      counterpartyId: [regulatory_capital::Store]RCP_EXPOSURE.COUNTERPARTY_ID,
+      approachCode: [regulatory_capital::Store]RCP_EXPOSURE.APPROACH_CODE,
+      exposureClassCode: [regulatory_capital::Store]RCP_EXPOSURE.EXPOSURE_CLASS_CODE,
+      exposureTypeCode: [regulatory_capital::Store]RCP_EXPOSURE.EXPOSURE_TYPE_CODE,
+      originalExposure: [regulatory_capital::Store]RCP_EXPOSURE.ORIGINAL_EXPOSURE,
+      undrawnAmount: [regulatory_capital::Store]RCP_EXPOSURE.UNDRAWN_AMOUNT,
+      creditConversionFactor: [regulatory_capital::Store]RCP_EXPOSURE.CREDIT_CONVERSION_FACTOR,
+      exposureValue: [regulatory_capital::Store]RCP_EXPOSURE.EXPOSURE_VALUE,
+      exposureAfterCrm: [regulatory_capital::Store]RCP_EXPOSURE.EXPOSURE_AFTER_CRM,
+      riskWeightPct: [regulatory_capital::Store]RCP_EXPOSURE.RISK_WEIGHT_PCT,
+      riskWeightedAmount: [regulatory_capital::Store]RCP_EXPOSURE.RISK_WEIGHTED_AMOUNT,
+      residualMaturityYears: [regulatory_capital::Store]RCP_EXPOSURE.RESIDUAL_MATURITY_YEARS,
+      currency: [regulatory_capital::Store]RCP_EXPOSURE.CURRENCY,
+      crmId: [regulatory_capital::Store]RCP_EXPOSURE.CRM_ID,
+      reportId: [regulatory_capital::Store]RCP_EXPOSURE.REPORT_ID,
+      netExposureId: [regulatory_capital::Store]RCP_EXPOSURE.NET_EXPOSURE_ID,
+      ecaiRatingSymbol: [regulatory_capital::Store]RCP_EXPOSURE.ECAI_RATING_SYMBOL,
+      creditQualityStep: [regulatory_capital::Store]RCP_EXPOSURE.CREDIT_QUALITY_STEP,
+      isUnrated: [regulatory_capital::Store]RCP_EXPOSURE.IS_UNRATED,
+      supportingFactor: [regulatory_capital::Store]RCP_EXPOSURE.SUPPORTING_FACTOR,
+      modelId: [regulatory_capital::Store]RCP_EXPOSURE.MODEL_ID,
+      ratingGrade: [regulatory_capital::Store]RCP_EXPOSURE.RATING_GRADE,
+      pointInTimePd: [regulatory_capital::Store]RCP_EXPOSURE.POINT_IN_TIME_PD,
+      lossGivenDefault: [regulatory_capital::Store]RCP_EXPOSURE.LOSS_GIVEN_DEFAULT,
+      assetCorrelation: [regulatory_capital::Store]RCP_EXPOSURE.ASSET_CORRELATION,
+      maturityAdjustment: [regulatory_capital::Store]RCP_EXPOSURE.MATURITY_ADJUSTMENT,
+      expectedLossAmount: [regulatory_capital::Store]RCP_EXPOSURE.EXPECTED_LOSS_AMOUNT,
+      nettingSetId: [regulatory_capital::Store]RCP_EXPOSURE.NETTING_SET_ID,
+      replacementCost: [regulatory_capital::Store]RCP_EXPOSURE.REPLACEMENT_COST,
+      potentialFutureExposure: [regulatory_capital::Store]RCP_EXPOSURE.POTENTIAL_FUTURE_EXPOSURE,
+      alphaFactor: [regulatory_capital::Store]RCP_EXPOSURE.ALPHA_FACTOR,
+      defaultStatus: [regulatory_capital::Store]RCP_EXPOSURE.DEFAULT_STATUS,
+      defaultedOn: [regulatory_capital::Store]RCP_EXPOSURE.DEFAULTED_ON,
+      specificProvision: [regulatory_capital::Store]RCP_EXPOSURE.SPECIFIC_PROVISION,
+      realisedLoss: [regulatory_capital::Store]RCP_EXPOSURE.REALISED_LOSS,
+
+      // this project's own graph
+      exposureClass[rcpExposureClass]: [regulatory_capital::Store]@Rcp_ExposureClass,
+      creditRiskMitigation[rcpCrm]: [regulatory_capital::Store]@Rcp_ExposureCrm,
+      run[rcpRun]: [regulatory_capital::Store]@Rcp_RunExposures,
+      entity[rcpEntity]: [regulatory_capital::Store]@Rcp_EntityExposures,
+      nettingSetCapital[rcpNettingSetCapital]: [regulatory_capital::Store]@Rcp_ExposureNettingSetCapital,
+      // into this project's own two groups
+      rwaCell[rcpRwaCell]: [regulatory_capital::Store]@Rcp_ExposureRwaCell,
+      entityRwaTotal[rcpEntityRwaTotal]: [regulatory_capital::Store]@Rcp_ExposureEntityTotal,
+
+      // THE FAN-IN, as objects. Three projects, one row.
+      netExposure[exaNetExposure]: [regulatory_capital::Store]@Rcp_ExposureNetExposure,
+      counterpartyDayNet[exaCounterpartyDayNet]: [regulatory_capital::Store]@Rcp_ExposureCounterpartyDayNet,
+      transactionReport[rexTransaction]: [regulatory_capital::Store]@Rcp_ExposureTransactionReport,
+
+      // THE FAN-IN, flattened. The leading @Join names THIS store, where the join is
+      // declared; the final segment names the store the COLUMN lives in, which is the
+      // dependency's. Note the `rex.` schema segment on the third one and its absence on the
+      // first two -- exposure-agg puts its tables in the default schema and
+      // regulatory-extract does not.
+      creditSystemNetExposure: [regulatory_capital::Store]@Rcp_ExposureNetExposure | [exposure_agg::Store]EXA_NET_EXPOSURE.NET_EXPOSURE_AMOUNT,
+      creditSystemCollateralValue: [regulatory_capital::Store]@Rcp_ExposureNetExposure | [exposure_agg::Store]EXA_NET_EXPOSURE.COLLATERAL_VALUE,
+      reportedRegimeCode: [regulatory_capital::Store]@Rcp_ExposureTransactionReport | [regulatory_extract::Store]rex.REX_TRANSACTION.REGIME_CODE
+   }
+
+   // ---- the five filter subtypes ---------------------------------------------------------
+   // One ~filter and a handful of mappings each. Everything else -- the key, the table, the
+   // forty-odd inherited columns and the whole fan-in above -- comes from [rcpExposure].
+
+   // The standardised rows. The two links here are the grid lookup: a rating symbol maps to
+   // a credit quality step, and the step and the exposure class index one cell of the grid.
+   // Neither means anything on an IRB row, which is why they are not on the root set.
+   regulatory_capital::RcpStandardisedExposure[rcpSaExposure] extends [rcpExposure]: Relational
+   {
+      ~filter [regulatory_capital::Store]RcpStandardisedRows
+      qualityStep[rcpQualityStep]: [regulatory_capital::Store]@Rcp_ExposureQualityStep,
+      gridWeight[rcpRiskWeight]: [regulatory_capital::Store]@Rcp_ExposureGridWeight
+   }
+
+   // The modelled rows. The link is to the PERMISSION as much as to the model: a withdrawn
+   // approval sends the whole book back to the standardised grid.
+   regulatory_capital::RcpIrbExposure[rcpIrbExposure] extends [rcpExposure]: Relational
+   {
+      ~filter [regulatory_capital::Store]RcpIrbRows
+      model[rcpIrbModel]: [regulatory_capital::Store]@Rcp_ExposureModel,
+      parameterSet[rcpParameterSet]: [regulatory_capital::Store]@Rcp_ExposureParameterSet
+   }
+
+   // The derivative rows. OVERLAPS both of the above: a derivative is on the standardised or
+   // the IRB approach for the credit leg and under SA-CCR for the exposure measure, and the
+   // two facts are independent.
+   regulatory_capital::RcpCounterpartyCreditExposure[rcpCcrExposure] extends [rcpExposure]: Relational
+   {
+      ~filter [regulatory_capital::Store]RcpCounterpartyRiskRows
+      nettingSet[rcpNettingSetCapital]: [regulatory_capital::Store]@Rcp_ExposureNettingSetCapital,
+      ccrTotal[rcpCcrTotal]: [regulatory_capital::Store]@Rcp_ExposureCcrTotal
+   }
+
+   // The defaulted rows. A STATE and not an approach, so this overlaps all three above. The
+   // three columns here only exist once the row is known to have defaulted: what the workout
+   // has recovered, and what triggered the default in the first place.
+   regulatory_capital::RcpDefaultedExposure[rcpDefaulted] extends [rcpExposure]: Relational
+   {
+      ~filter [regulatory_capital::Store]RcpDefaultedRows
+      workoutStatus: [regulatory_capital::Store]RCP_EXPOSURE.WORKOUT_STATUS,
+      recoveryToDate: [regulatory_capital::Store]RCP_EXPOSURE.RECOVERY_TO_DATE,
+      daysPastDue: [regulatory_capital::Store]RCP_EXPOSURE.DAYS_PAST_DUE
+   }
+
+   // The unsecured rows, as a NULL TEST rather than a flag. An exposure can be unmitigated
+   // because nothing was offered, because what was offered was ineligible, or because the
+   // documentation is still open -- three different problems that one boolean would flatten.
+   regulatory_capital::RcpUnmitigatedExposure[rcpUnmitigated] extends [rcpExposure]: Relational
+   {
+      ~filter [regulatory_capital::Store]RcpUnmitigatedRows
+      mitigationGapReason: [regulatory_capital::Store]RCP_EXPOSURE.MITIGATION_GAP_REASON,
+      policyExceptionRef: [regulatory_capital::Store]RCP_EXPOSURE.POLICY_EXCEPTION_REF
+   }
+
+   // ---- the standardised grid, as data ----------------------------------------------------
+
+   regulatory_capital::RcpExposureClass[rcpExposureClass]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_EXPOSURE_CLASS.EXPOSURE_CLASS_CODE )
+      ~mainTable [regulatory_capital::Store]RCP_EXPOSURE_CLASS
+      exposureClassCode: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.EXPOSURE_CLASS_CODE,
+      exposureClassName: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.EXPOSURE_CLASS_NAME,
+      legalReference: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.LEGAL_REFERENCE,
+      isRatingSensitive: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.IS_RATING_SENSITIVE,
+      defaultRiskWeightPct: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.DEFAULT_RISK_WEIGHT_PCT,
+      isIrbEligible: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.IS_IRB_ELIGIBLE,
+      correlationFloor: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.CORRELATION_FLOOR,
+      retiredOn: [regulatory_capital::Store]RCP_EXPOSURE_CLASS.RETIRED_ON,
+      riskWeights[rcpRiskWeight]: [regulatory_capital::Store]@Rcp_ClassRiskWeights,
+      exposures[rcpExposure]: [regulatory_capital::Store]@Rcp_ExposureClass
+   }
+
+   // TWO KEY COLUMNS: the agency and the symbol. One agency's A- is another's A3.
+   regulatory_capital::RcpCreditQualityStep[rcpQualityStep]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.ECAI_CODE,
+         [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.RATING_SYMBOL
+      )
+      ~mainTable [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP
+      ecaiCode: [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.ECAI_CODE,
+      ratingSymbol: [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.RATING_SYMBOL,
+      qualityStep: [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.QUALITY_STEP,
+      benchmarkDefaultRate: [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.BENCHMARK_DEFAULT_RATE,
+      isLongTerm: [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.IS_LONG_TERM,
+      mappedFrom: [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.MAPPED_FROM,
+      mappedTo: [regulatory_capital::Store]RCP_CREDIT_QUALITY_STEP.MAPPED_TO
+   }
+
+   // TWO KEY COLUMNS: one cell of the grid is a class and a step, and neither alone is it.
+   regulatory_capital::RcpRiskWeight[rcpRiskWeight]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_RISK_WEIGHT.EXPOSURE_CLASS_CODE,
+         [regulatory_capital::Store]RCP_RISK_WEIGHT.CREDIT_QUALITY_STEP
+      )
+      ~mainTable [regulatory_capital::Store]RCP_RISK_WEIGHT
+      exposureClassCode: [regulatory_capital::Store]RCP_RISK_WEIGHT.EXPOSURE_CLASS_CODE,
+      creditQualityStep: [regulatory_capital::Store]RCP_RISK_WEIGHT.CREDIT_QUALITY_STEP,
+      riskWeightPct: [regulatory_capital::Store]RCP_RISK_WEIGHT.RISK_WEIGHT_PCT,
+      shortTermRiskWeightPct: [regulatory_capital::Store]RCP_RISK_WEIGHT.SHORT_TERM_RISK_WEIGHT_PCT,
+      jurisdiction: [regulatory_capital::Store]RCP_RISK_WEIGHT.JURISDICTION,
+      effectiveFrom: [regulatory_capital::Store]RCP_RISK_WEIGHT.EFFECTIVE_FROM,
+      supersededOn: [regulatory_capital::Store]RCP_RISK_WEIGHT.SUPERSEDED_ON,
+      exposureClass[rcpExposureClass]: [regulatory_capital::Store]@Rcp_ClassRiskWeights
+   }
+
+   // ---- the modelled side -----------------------------------------------------------------
+
+   regulatory_capital::RcpIrbModel[rcpIrbModel]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_IRB_MODEL.MODEL_ID )
+      ~mainTable [regulatory_capital::Store]RCP_IRB_MODEL
+      modelId: [regulatory_capital::Store]RCP_IRB_MODEL.MODEL_ID,
+      modelName: [regulatory_capital::Store]RCP_IRB_MODEL.MODEL_NAME,
+      irbApproach: [regulatory_capital::Store]RCP_IRB_MODEL.IRB_APPROACH,
+      exposureClassCode: [regulatory_capital::Store]RCP_IRB_MODEL.EXPOSURE_CLASS_CODE,
+      approvalReference: [regulatory_capital::Store]RCP_IRB_MODEL.APPROVAL_REFERENCE,
+      approvedOn: [regulatory_capital::Store]RCP_IRB_MODEL.APPROVED_ON,
+      withdrawnOn: [regulatory_capital::Store]RCP_IRB_MODEL.WITHDRAWN_ON,
+      lastValidatedOn: [regulatory_capital::Store]RCP_IRB_MODEL.LAST_VALIDATED_ON,
+      supervisoryMultiplier: [regulatory_capital::Store]RCP_IRB_MODEL.SUPERVISORY_MULTIPLIER,
+      parameterSets[rcpParameterSet]: [regulatory_capital::Store]@Rcp_ModelParameterSets
+   }
+
+   // TWO KEY COLUMNS: grade 5 of one model is not grade 5 of another.
+   regulatory_capital::RcpIrbParameterSet[rcpParameterSet]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.MODEL_ID,
+         [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.RATING_GRADE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_IRB_PARAMETER_SET
+      modelId: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.MODEL_ID,
+      ratingGrade: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.RATING_GRADE,
+      gradePd: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.GRADE_PD,
+      gradeLgd: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.GRADE_LGD,
+      gradeEadFactor: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.GRADE_EAD_FACTOR,
+      assumedMaturityYears: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.ASSUMED_MATURITY_YEARS,
+      obligorCount: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.OBLIGOR_COUNT,
+      observedDefaultRate: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.OBSERVED_DEFAULT_RATE,
+      calibratedOn: [regulatory_capital::Store]RCP_IRB_PARAMETER_SET.CALIBRATED_ON,
+      model[rcpIrbModel]: [regulatory_capital::Store]@Rcp_ModelParameterSets
+   }
+
+   // ---- credit risk mitigation ------------------------------------------------------------
+
+   regulatory_capital::RcpCreditRiskMitigation[rcpCrm]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_CRM.CRM_ID )
+      ~mainTable [regulatory_capital::Store]RCP_CRM
+      crmId: [regulatory_capital::Store]RCP_CRM.CRM_ID,
+      protectionType: [regulatory_capital::Store]RCP_CRM.PROTECTION_TYPE,
+      methodCode: [regulatory_capital::Store]RCP_CRM.METHOD_CODE,
+      collateralTypeCode: [regulatory_capital::Store]RCP_CRM.COLLATERAL_TYPE_CODE,
+      collateralValue: [regulatory_capital::Store]RCP_CRM.COLLATERAL_VALUE,
+      collateralHaircutPct: [regulatory_capital::Store]RCP_CRM.COLLATERAL_HAIRCUT_PCT,
+      fxHaircutPct: [regulatory_capital::Store]RCP_CRM.FX_HAIRCUT_PCT,
+      maturityMismatchAdjustment: [regulatory_capital::Store]RCP_CRM.MATURITY_MISMATCH_ADJUSTMENT,
+      coveredAmount: [regulatory_capital::Store]RCP_CRM.COVERED_AMOUNT,
+      isEligible: [regulatory_capital::Store]RCP_CRM.IS_ELIGIBLE,
+      ineligibilityReason: [regulatory_capital::Store]RCP_CRM.INELIGIBILITY_REASON,
+      protectionStart: [regulatory_capital::Store]RCP_CRM.PROTECTION_START,
+      protectionEnd: [regulatory_capital::Store]RCP_CRM.PROTECTION_END,
+      guarantee[rcpGuarantee]: [regulatory_capital::Store]@Rcp_CrmGuarantee,
+      haircutSchedule[rcpHaircut]: [regulatory_capital::Store]@Rcp_CrmHaircutSchedule,
+      exposures[rcpExposure]: [regulatory_capital::Store]@Rcp_CrmExposures
+   }
+
+   // TWO KEY COLUMNS: the published grid is banded on the collateral type AND the residual
+   // maturity, and a haircut without its band is not a haircut.
+   regulatory_capital::RcpSupervisoryHaircut[rcpHaircut]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.COLLATERAL_TYPE_CODE,
+         [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.RESIDUAL_MATURITY_BAND
+      )
+      ~mainTable [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT
+      collateralTypeCode: [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.COLLATERAL_TYPE_CODE,
+      residualMaturityBand: [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.RESIDUAL_MATURITY_BAND,
+      haircutPct: [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.HAIRCUT_PCT,
+      fxMismatchHaircutPct: [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.FX_MISMATCH_HAIRCUT_PCT,
+      holdingPeriodDays: [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.HOLDING_PERIOD_DAYS,
+      creditQualityStep: [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.CREDIT_QUALITY_STEP,
+      isSovereignIssue: [regulatory_capital::Store]RCP_SUPERVISORY_HAIRCUT.IS_SOVEREIGN_ISSUE
+   }
+
+   regulatory_capital::RcpGuarantee[rcpGuarantee]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_GUARANTEE.GUARANTEE_ID )
+      ~mainTable [regulatory_capital::Store]RCP_GUARANTEE
+      guaranteeId: [regulatory_capital::Store]RCP_GUARANTEE.GUARANTEE_ID,
+      protectionProviderId: [regulatory_capital::Store]RCP_GUARANTEE.PROTECTION_PROVIDER_ID,
+      instrumentType: [regulatory_capital::Store]RCP_GUARANTEE.INSTRUMENT_TYPE,
+      protectedObligorId: [regulatory_capital::Store]RCP_GUARANTEE.PROTECTED_OBLIGOR_ID,
+      notionalAmount: [regulatory_capital::Store]RCP_GUARANTEE.NOTIONAL_AMOUNT,
+      coveredExposureAmount: [regulatory_capital::Store]RCP_GUARANTEE.COVERED_EXPOSURE_AMOUNT,
+      providerRiskWeightPct: [regulatory_capital::Store]RCP_GUARANTEE.PROVIDER_RISK_WEIGHT_PCT,
+      originalRiskWeightPct: [regulatory_capital::Store]RCP_GUARANTEE.ORIGINAL_RISK_WEIGHT_PCT,
+      isUnconditional: [regulatory_capital::Store]RCP_GUARANTEE.IS_UNCONDITIONAL,
+      coversRestructuring: [regulatory_capital::Store]RCP_GUARANTEE.COVERS_RESTRUCTURING,
+      maturityDate: [regulatory_capital::Store]RCP_GUARANTEE.MATURITY_DATE
+   }
+
+   // ---- counterparty credit risk ----------------------------------------------------------
+   // THREE cross-project property mappings on one set, into TWO projects: exposure-agg's
+   // legal view of the netting set, margin-calc's operational view of it, and the initial
+   // margin margin-calc actually computed for it at its own three-column grain.
+
+   regulatory_capital::RcpNettingSetCapital[rcpNettingSetCapital]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.NETTING_SET_ID,
+         [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL
+      nettingSetId: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.NETTING_SET_ID,
+      reportingDate: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.REPORTING_DATE,
+      counterpartyId: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.COUNTERPARTY_ID,
+      entityId: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.ENTITY_ID,
+      marginedStatus: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.MARGINED_STATUS,
+      currentMarkToMarket: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.CURRENT_MARK_TO_MARKET,
+      netCollateralHeld: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.NET_COLLATERAL_HELD,
+      replacementCost: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.REPLACEMENT_COST,
+      potentialFutureExposure: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.POTENTIAL_FUTURE_EXPOSURE,
+      pfeMultiplier: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.PFE_MULTIPLIER,
+      aggregateAddOn: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.AGGREGATE_ADD_ON,
+      alphaFactor: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.ALPHA_FACTOR,
+      exposureAtDefault: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.EXPOSURE_AT_DEFAULT,
+      marginPeriodOfRiskDays: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.MARGIN_PERIOD_OF_RISK_DAYS,
+      marginPortfolioId: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.MARGIN_PORTFOLIO_ID,
+      marginMethodCode: [regulatory_capital::Store]RCP_NETTING_SET_CAPITAL.MARGIN_METHOD_CODE,
+      hedgingSets[rcpHedgingSet]: [regulatory_capital::Store]@Rcp_NettingSetHedgingSets,
+      cvaCharge[rcpCvaCharge]: [regulatory_capital::Store]@Rcp_NettingSetCvaCharge,
+      ccrTotal[rcpCcrTotal]: [regulatory_capital::Store]@Rcp_NettingSetCcrTotal,
+      exaNettingSet[exaNettingSet]: [regulatory_capital::Store]@Rcp_NettingSetExaNettingSet,
+      marginPortfolio[mgnMarginPortfolio]: [regulatory_capital::Store]@Rcp_NettingSetMarginPortfolio,
+      modelInitialMargin[mgnInitialMargin]: [regulatory_capital::Store]@Rcp_NettingSetInitialMargin,
+      modelTotalInitialMargin: [regulatory_capital::Store]@Rcp_NettingSetInitialMargin | [margin_calc::Store]MGN_INITIAL_MARGIN.TOTAL_INITIAL_MARGIN
+   }
+
+   regulatory_capital::RcpHedgingSet[rcpHedgingSet]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_HEDGING_SET.HEDGING_SET_ID )
+      ~mainTable [regulatory_capital::Store]RCP_HEDGING_SET
+      hedgingSetId: [regulatory_capital::Store]RCP_HEDGING_SET.HEDGING_SET_ID,
+      nettingSetId: [regulatory_capital::Store]RCP_HEDGING_SET.NETTING_SET_ID,
+      reportingDate: [regulatory_capital::Store]RCP_HEDGING_SET.REPORTING_DATE,
+      assetClass: [regulatory_capital::Store]RCP_HEDGING_SET.ASSET_CLASS,
+      hedgingSetKey: [regulatory_capital::Store]RCP_HEDGING_SET.HEDGING_SET_KEY,
+      tradeCount: [regulatory_capital::Store]RCP_HEDGING_SET.TRADE_COUNT,
+      netAdjustedNotional: [regulatory_capital::Store]RCP_HEDGING_SET.NET_ADJUSTED_NOTIONAL,
+      grossAdjustedNotional: [regulatory_capital::Store]RCP_HEDGING_SET.GROSS_ADJUSTED_NOTIONAL,
+      supervisoryFactor: [regulatory_capital::Store]RCP_HEDGING_SET.SUPERVISORY_FACTOR,
+      maturityFactor: [regulatory_capital::Store]RCP_HEDGING_SET.MATURITY_FACTOR,
+      nettingSet[rcpNettingSetCapital]: [regulatory_capital::Store]@Rcp_NettingSetHedgingSets,
+      addOns[rcpAddOn]: [regulatory_capital::Store]@Rcp_HedgingSetAddOns
+   }
+
+   // TWO KEY COLUMNS: a hedging set can carry more than one add-on where a basis or
+   // volatility bucket splits it.
+   regulatory_capital::RcpSaccrAddOn[rcpAddOn]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_SACCR_ADD_ON.HEDGING_SET_ID,
+         [regulatory_capital::Store]RCP_SACCR_ADD_ON.ASSET_CLASS
+      )
+      ~mainTable [regulatory_capital::Store]RCP_SACCR_ADD_ON
+      hedgingSetId: [regulatory_capital::Store]RCP_SACCR_ADD_ON.HEDGING_SET_ID,
+      assetClass: [regulatory_capital::Store]RCP_SACCR_ADD_ON.ASSET_CLASS,
+      supervisoryDelta: [regulatory_capital::Store]RCP_SACCR_ADD_ON.SUPERVISORY_DELTA,
+      adjustedNotional: [regulatory_capital::Store]RCP_SACCR_ADD_ON.ADJUSTED_NOTIONAL,
+      supervisoryFactor: [regulatory_capital::Store]RCP_SACCR_ADD_ON.SUPERVISORY_FACTOR,
+      maturityFactor: [regulatory_capital::Store]RCP_SACCR_ADD_ON.MATURITY_FACTOR,
+      addOnAmount: [regulatory_capital::Store]RCP_SACCR_ADD_ON.ADD_ON_AMOUNT,
+      aggregationCorrelation: [regulatory_capital::Store]RCP_SACCR_ADD_ON.AGGREGATION_CORRELATION,
+      hedgingSet[rcpHedgingSet]: [regulatory_capital::Store]@Rcp_HedgingSetAddOns
+   }
+
+   // ---- CVA --------------------------------------------------------------------------------
+
+   regulatory_capital::RcpCvaCharge[rcpCvaCharge]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_CVA_CHARGE.COUNTERPARTY_ID,
+         [regulatory_capital::Store]RCP_CVA_CHARGE.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_CVA_CHARGE
+      counterpartyId: [regulatory_capital::Store]RCP_CVA_CHARGE.COUNTERPARTY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_CVA_CHARGE.REPORTING_DATE,
+      entityId: [regulatory_capital::Store]RCP_CVA_CHARGE.ENTITY_ID,
+      approachCode: [regulatory_capital::Store]RCP_CVA_CHARGE.APPROACH_CODE,
+      effectiveExposure: [regulatory_capital::Store]RCP_CVA_CHARGE.EFFECTIVE_EXPOSURE,
+      effectiveMaturityYears: [regulatory_capital::Store]RCP_CVA_CHARGE.EFFECTIVE_MATURITY_YEARS,
+      creditSpreadRiskWeight: [regulatory_capital::Store]RCP_CVA_CHARGE.CREDIT_SPREAD_RISK_WEIGHT,
+      discountFactor: [regulatory_capital::Store]RCP_CVA_CHARGE.DISCOUNT_FACTOR,
+      standaloneCharge: [regulatory_capital::Store]RCP_CVA_CHARGE.STANDALONE_CHARGE,
+      hedgeBenefit: [regulatory_capital::Store]RCP_CVA_CHARGE.HEDGE_BENEFIT,
+      cvaCapitalCharge: [regulatory_capital::Store]RCP_CVA_CHARGE.CVA_CAPITAL_CHARGE,
+      cvaRiskWeightedAmount: [regulatory_capital::Store]RCP_CVA_CHARGE.CVA_RISK_WEIGHTED_AMOUNT,
+      isExempt: [regulatory_capital::Store]RCP_CVA_CHARGE.IS_EXEMPT,
+      exemptionReason: [regulatory_capital::Store]RCP_CVA_CHARGE.EXEMPTION_REASON,
+      hedges[rcpCvaHedge]: [regulatory_capital::Store]@Rcp_CvaChargeHedges,
+      ccrTotal[rcpCcrTotal]: [regulatory_capital::Store]@Rcp_CvaChargeCcrTotal,
+      counterparty[exaCounterparty]: [regulatory_capital::Store]@Rcp_CvaChargeCounterparty
+   }
+
+   regulatory_capital::RcpCvaHedge[rcpCvaHedge]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_CVA_HEDGE.HEDGE_ID )
+      ~mainTable [regulatory_capital::Store]RCP_CVA_HEDGE
+      hedgeId: [regulatory_capital::Store]RCP_CVA_HEDGE.HEDGE_ID,
+      counterpartyId: [regulatory_capital::Store]RCP_CVA_HEDGE.COUNTERPARTY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_CVA_HEDGE.REPORTING_DATE,
+      hedgeType: [regulatory_capital::Store]RCP_CVA_HEDGE.HEDGE_TYPE,
+      referenceEntityId: [regulatory_capital::Store]RCP_CVA_HEDGE.REFERENCE_ENTITY_ID,
+      notionalAmount: [regulatory_capital::Store]RCP_CVA_HEDGE.NOTIONAL_AMOUNT,
+      maturityYears: [regulatory_capital::Store]RCP_CVA_HEDGE.MATURITY_YEARS,
+      indexCorrelation: [regulatory_capital::Store]RCP_CVA_HEDGE.INDEX_CORRELATION,
+      isEligible: [regulatory_capital::Store]RCP_CVA_HEDGE.IS_ELIGIBLE,
+      ineligibilityReason: [regulatory_capital::Store]RCP_CVA_HEDGE.INELIGIBILITY_REASON,
+      recognisedAmount: [regulatory_capital::Store]RCP_CVA_HEDGE.RECOGNISED_AMOUNT,
+      charge[rcpCvaCharge]: [regulatory_capital::Store]@Rcp_CvaChargeHedges
+   }
+
+   // ---- operational risk --------------------------------------------------------------------
+
+   regulatory_capital::RcpOperationalRiskIndicator[rcpOpRiskIndicator]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.ENTITY_ID,
+         [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.FINANCIAL_YEAR
+      )
+      ~mainTable [regulatory_capital::Store]RCP_OP_RISK_INDICATOR
+      entityId: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.ENTITY_ID,
+      financialYear: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.FINANCIAL_YEAR,
+      ildcComponent: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.ILDC_COMPONENT,
+      servicesComponent: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.SERVICES_COMPONENT,
+      financialComponent: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.FINANCIAL_COMPONENT,
+      businessIndicator: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.BUSINESS_INDICATOR,
+      biBucket: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.BI_BUCKET,
+      marginalCoefficient: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.MARGINAL_COEFFICIENT,
+      isAudited: [regulatory_capital::Store]RCP_OP_RISK_INDICATOR.IS_AUDITED,
+      charges[rcpOpRiskCharge]: [regulatory_capital::Store]@Rcp_IndicatorCharges
+   }
+
+   regulatory_capital::RcpOperationalRiskCharge[rcpOpRiskCharge]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_OP_RISK_CHARGE.ENTITY_ID,
+         [regulatory_capital::Store]RCP_OP_RISK_CHARGE.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_OP_RISK_CHARGE
+      entityId: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.REPORTING_DATE,
+      financialYear: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.FINANCIAL_YEAR,
+      businessIndicatorComponent: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.BUSINESS_INDICATOR_COMPONENT,
+      lossComponent: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.LOSS_COMPONENT,
+      lossDataYears: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.LOSS_DATA_YEARS,
+      averageAnnualLoss: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.AVERAGE_ANNUAL_LOSS,
+      largestSingleLoss: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.LARGEST_SINGLE_LOSS,
+      internalLossMultiplier: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.INTERNAL_LOSS_MULTIPLIER,
+      operationalRiskCapital: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.OPERATIONAL_RISK_CAPITAL,
+      operationalRiskWeightedAmount: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.OPERATIONAL_RISK_WEIGHTED_AMOUNT,
+      ilmIsNeutralised: [regulatory_capital::Store]RCP_OP_RISK_CHARGE.ILM_IS_NEUTRALISED,
+      indicator[rcpOpRiskIndicator]: [regulatory_capital::Store]@Rcp_IndicatorCharges
+   }
+
+   // ---- own funds, the total, and the floor -------------------------------------------------
+
+   regulatory_capital::RcpOwnFunds[rcpOwnFunds]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_OWN_FUNDS.ENTITY_ID,
+         [regulatory_capital::Store]RCP_OWN_FUNDS.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_OWN_FUNDS
+      entityId: [regulatory_capital::Store]RCP_OWN_FUNDS.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_OWN_FUNDS.REPORTING_DATE,
+      commonEquityTier1: [regulatory_capital::Store]RCP_OWN_FUNDS.COMMON_EQUITY_TIER_1,
+      cet1Deductions: [regulatory_capital::Store]RCP_OWN_FUNDS.CET1_DEDUCTIONS,
+      cet1AfterDeductions: [regulatory_capital::Store]RCP_OWN_FUNDS.CET1_AFTER_DEDUCTIONS,
+      additionalTier1: [regulatory_capital::Store]RCP_OWN_FUNDS.ADDITIONAL_TIER_1,
+      tier2Capital: [regulatory_capital::Store]RCP_OWN_FUNDS.TIER_2_CAPITAL,
+      tier1Capital: [regulatory_capital::Store]RCP_OWN_FUNDS.TIER_1_CAPITAL,
+      totalCapital: [regulatory_capital::Store]RCP_OWN_FUNDS.TOTAL_CAPITAL,
+      unverifiedInterimProfit: [regulatory_capital::Store]RCP_OWN_FUNDS.UNVERIFIED_INTERIM_PROFIT,
+      leverageExposureMeasure: [regulatory_capital::Store]RCP_OWN_FUNDS.LEVERAGE_EXPOSURE_MEASURE,
+      entity[rcpEntity]: [regulatory_capital::Store]@Rcp_EntityOwnFunds
+   }
+
+   regulatory_capital::RcpCapitalRequirement[rcpRequirement]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.ENTITY_ID,
+         [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT
+      entityId: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.REPORTING_DATE,
+      runId: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.RUN_ID,
+      creditRiskWeightedAmount: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.CREDIT_RISK_WEIGHTED_AMOUNT,
+      standardisedCreditRwa: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.STANDARDISED_CREDIT_RWA,
+      counterpartyCreditRwa: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.COUNTERPARTY_CREDIT_RWA,
+      cvaRiskWeightedAmount: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.CVA_RISK_WEIGHTED_AMOUNT,
+      marketRiskWeightedAmount: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.MARKET_RISK_WEIGHTED_AMOUNT,
+      operationalRiskWeightedAmount: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.OPERATIONAL_RISK_WEIGHTED_AMOUNT,
+      preFloorRiskWeightedAmount: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.PRE_FLOOR_RISK_WEIGHTED_AMOUNT,
+      totalRiskWeightedAmount: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.TOTAL_RISK_WEIGHTED_AMOUNT,
+      minimumCapitalRequirement: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.MINIMUM_CAPITAL_REQUIREMENT,
+      pillar2RequirementPct: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.PILLAR_2_REQUIREMENT_PCT,
+      cet1Ratio: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.CET1_RATIO,
+      tier1Ratio: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.TIER_1_RATIO,
+      totalCapitalRatio: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.TOTAL_CAPITAL_RATIO,
+      filedOn: [regulatory_capital::Store]RCP_CAPITAL_REQUIREMENT.FILED_ON,
+      entity[rcpEntity]: [regulatory_capital::Store]@Rcp_EntityRequirements,
+      ownFunds[rcpOwnFunds]: [regulatory_capital::Store]@Rcp_RequirementOwnFunds,
+      outputFloor[rcpOutputFloor]: [regulatory_capital::Store]@Rcp_RequirementOutputFloor,
+      bufferRequirement[rcpBufferRequirement]: [regulatory_capital::Store]@Rcp_RequirementBuffer,
+      operationalRiskCharge[rcpOpRiskCharge]: [regulatory_capital::Store]@Rcp_RequirementOpRisk
+   }
+
+   regulatory_capital::RcpOutputFloor[rcpOutputFloor]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_OUTPUT_FLOOR.ENTITY_ID,
+         [regulatory_capital::Store]RCP_OUTPUT_FLOOR.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_OUTPUT_FLOOR
+      entityId: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.REPORTING_DATE,
+      fullStandardisedRwa: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.FULL_STANDARDISED_RWA,
+      modelledRwa: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.MODELLED_RWA,
+      floorCalibrationPct: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.FLOOR_CALIBRATION_PCT,
+      flooredRwa: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.FLOORED_RWA,
+      appliedRwa: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.APPLIED_RWA,
+      isFloorBinding: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.IS_FLOOR_BINDING,
+      phaseInYear: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.PHASE_IN_YEAR,
+      transitionalCapPct: [regulatory_capital::Store]RCP_OUTPUT_FLOOR.TRANSITIONAL_CAP_PCT,
+      requirement[rcpRequirement]: [regulatory_capital::Store]@Rcp_RequirementOutputFloor
+   }
+
+   // ---- buffers and distributions -------------------------------------------------------
+
+   regulatory_capital::RcpCapitalBuffer[rcpBuffer]: Relational
+   {
+      ~primaryKey ( [regulatory_capital::Store]RCP_CAPITAL_BUFFER.BUFFER_CODE )
+      ~mainTable [regulatory_capital::Store]RCP_CAPITAL_BUFFER
+      bufferCode: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.BUFFER_CODE,
+      bufferName: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.BUFFER_NAME,
+      bufferType: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.BUFFER_TYPE,
+      bufferRatePct: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.BUFFER_RATE_PCT,
+      settingAuthority: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.SETTING_AUTHORITY,
+      jurisdiction: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.JURISDICTION,
+      meetableWithTier: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.MEETABLE_WITH_TIER,
+      systemicBucket: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.SYSTEMIC_BUCKET,
+      announcedOn: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.ANNOUNCED_ON,
+      effectiveFrom: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.EFFECTIVE_FROM,
+      revokedOn: [regulatory_capital::Store]RCP_CAPITAL_BUFFER.REVOKED_ON
+   }
+
+   regulatory_capital::RcpBufferRequirement[rcpBufferRequirement]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.ENTITY_ID,
+         [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT
+      entityId: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.REPORTING_DATE,
+      conservationBufferPct: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.CONSERVATION_BUFFER_PCT,
+      countercyclicalBufferPct: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.COUNTERCYCLICAL_BUFFER_PCT,
+      globalSystemicBufferPct: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.GLOBAL_SYSTEMIC_BUFFER_PCT,
+      otherSystemicBufferPct: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.OTHER_SYSTEMIC_BUFFER_PCT,
+      systemicRiskBufferPct: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.SYSTEMIC_RISK_BUFFER_PCT,
+      combinedBufferPct: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.COMBINED_BUFFER_PCT,
+      combinedBufferAmount: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.COMBINED_BUFFER_AMOUNT,
+      cet1AvailableForBuffer: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.CET1_AVAILABLE_FOR_BUFFER,
+      isBreached: [regulatory_capital::Store]RCP_BUFFER_REQUIREMENT.IS_BREACHED,
+      requirement[rcpRequirement]: [regulatory_capital::Store]@Rcp_RequirementBuffer,
+      restriction[rcpRestriction]: [regulatory_capital::Store]@Rcp_BufferRestriction
+   }
+
+   regulatory_capital::RcpDistributionRestriction[rcpRestriction]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.ENTITY_ID,
+         [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION
+      entityId: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.REPORTING_DATE,
+      mdaQuartile: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.MDA_QUARTILE,
+      payoutFactorPct: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.PAYOUT_FACTOR_PCT,
+      distributableProfits: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.DISTRIBUTABLE_PROFITS,
+      maximumDistributableAmount: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.MAXIMUM_DISTRIBUTABLE_AMOUNT,
+      distributionsMadeInPeriod: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.DISTRIBUTIONS_MADE_IN_PERIOD,
+      proposedDividend: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.PROPOSED_DIVIDEND,
+      proposedVariableRemuneration: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.PROPOSED_VARIABLE_REMUNERATION,
+      isRestricted: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.IS_RESTRICTED,
+      capitalConservationPlanRef: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.CAPITAL_CONSERVATION_PLAN_REF,
+      planApprovedOn: [regulatory_capital::Store]RCP_DISTRIBUTION_RESTRICTION.PLAN_APPROVED_ON,
+      bufferRequirement[rcpBufferRequirement]: [regulatory_capital::Store]@Rcp_BufferRestriction
+   }
+
+   // ---- the three groups ------------------------------------------------------------------
+   // Rooted on VIEWS. The ~primaryKey IS the view's ~groupBy, which is what makes one
+   // instance a GROUP and not a row: navigating in crosses a GROUP BY and cannot come back
+   // out. An absent group is not a zero -- a cell with no exposures on a date does not form.
+
+   regulatory_capital::RcpRwaByApproachClass[rcpRwaCell]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.REPORTING_DATE,
+         [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.APPROACH_CODE,
+         [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.EXPOSURE_CLASS_CODE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS
+      reportingDate: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.REPORTING_DATE,
+      approachCode: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.APPROACH_CODE,
+      exposureClassCode: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.EXPOSURE_CLASS_CODE,
+      exposureCount: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.EXPOSURE_COUNT,
+      totalOriginalExposure: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.TOTAL_ORIGINAL_EXPOSURE,
+      totalExposureValue: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.TOTAL_EXPOSURE_VALUE,
+      totalExposureAfterCrm: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.TOTAL_EXPOSURE_AFTER_CRM,
+      totalRiskWeightedAmount: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.TOTAL_RISK_WEIGHTED_AMOUNT,
+      largestExposureValue: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.LARGEST_EXPOSURE_VALUE,
+      totalExpectedLoss: [regulatory_capital::Store]RCP_RWA_BY_APPROACH_CLASS.TOTAL_EXPECTED_LOSS,
+      exposures[rcpExposure]: [regulatory_capital::Store]@Rcp_ExposureRwaCell,
+      exposureClass[rcpExposureClass]: [regulatory_capital::Store]@Rcp_ClassRwaCells
+   }
+
+   regulatory_capital::RcpEntityRwaTotal[rcpEntityRwaTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.ENTITY_ID,
+         [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL
+      entityId: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.ENTITY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.REPORTING_DATE,
+      exposureCount: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.EXPOSURE_COUNT,
+      totalExposureValue: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.TOTAL_EXPOSURE_VALUE,
+      totalExposureAfterCrm: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.TOTAL_EXPOSURE_AFTER_CRM,
+      totalRiskWeightedAmount: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.TOTAL_RISK_WEIGHTED_AMOUNT,
+      largestRiskWeightedAmount: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.LARGEST_RISK_WEIGHTED_AMOUNT,
+      totalExpectedLoss: [regulatory_capital::Store]RCP_ENTITY_RWA_TOTAL.TOTAL_EXPECTED_LOSS,
+      entity[rcpEntity]: [regulatory_capital::Store]@Rcp_EntityRwaTotals,
+      exposures[rcpExposure]: [regulatory_capital::Store]@Rcp_ExposureEntityTotal
+   }
+
+   regulatory_capital::RcpCounterpartyCcrTotal[rcpCcrTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.COUNTERPARTY_ID,
+         [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.REPORTING_DATE
+      )
+      ~mainTable [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL
+      counterpartyId: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.COUNTERPARTY_ID,
+      reportingDate: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.REPORTING_DATE,
+      nettingSetCount: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.NETTING_SET_COUNT,
+      totalReplacementCost: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.TOTAL_REPLACEMENT_COST,
+      totalPotentialFutureExposure: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.TOTAL_POTENTIAL_FUTURE_EXPOSURE,
+      totalExposureAtDefault: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.TOTAL_EXPOSURE_AT_DEFAULT,
+      totalCollateralHeld: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.TOTAL_COLLATERAL_HELD,
+      largestNettingSetEad: [regulatory_capital::Store]RCP_COUNTERPARTY_CCR_TOTAL.LARGEST_NETTING_SET_EAD,
+      nettingSets[rcpNettingSetCapital]: [regulatory_capital::Store]@Rcp_NettingSetCcrTotal,
+      cvaCharge[rcpCvaCharge]: [regulatory_capital::Store]@Rcp_CvaChargeCcrTotal
+   }
+)

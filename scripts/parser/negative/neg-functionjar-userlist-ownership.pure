@@ -1,0 +1,24 @@
+// REJECTS: Unexpected token 'UserList'. Valid alternatives: ['Deployment']
+//
+// `ownership: UserList { users: [...] }` on a FunctionJar. HostedService accepts exactly two
+// ownership arms -- `UserList { users: [...] }` and `Deployment { identifier: '...' }`, both
+// exercised in ../fixtures/t2-hostedservice.pure -- and FunctionJar accepts only the second:
+//     functionJarOwnership : FUNCTIONJAR_OWNERSHIP COLON deployment SEMI_COLON
+// with no alternation at all.
+//
+// The two grammars share the `ownership` keyword, the `Deployment` keyword, the `identifier`
+// keyword and the surrounding element shape, and they are usually described together as "the
+// function activators". A rewrite with one shared ownership parser is more permissive here
+// and nothing downstream would notice: DeploymentOwner and UserListOwner are both valid
+// protocol classes, so the extra arm produces a well-formed model of an element kind that
+// cannot exist.
+//
+// Same story, opposite direction, for the REQUIRED-ness of the field: see
+// ./neg-memsqlfunction-missing-ownership.pure -- MemSqlFunction requires `ownership` and
+// BigQueryFunction, whose grammar is otherwise identical, does not.
+###FunctionJar
+FunctionJar fixture::neg::UserOwnedJar
+{
+   ownership: UserList { users: ['user1'] };
+   function: fixture::neg::f():String[1];
+}

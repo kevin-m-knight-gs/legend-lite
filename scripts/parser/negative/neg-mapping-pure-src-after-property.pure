@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token
+//
+// A Pure instance class mapping is `(~src | ~filter)* (propertyMapping (, propertyMapping)*)?`.
+// The source and filter clauses form a prefix; once a property mapping has been read, no
+// ~src may follow.
+//
+// Property mappings here are separated by COMMAS and the clauses are not, which is the tell
+// -- but a rewrite that reads the body as a comma-free sequence of "clause or mapping" gets
+// a parser that accepts ~src anywhere, including between two property mappings. Hoisting
+// the ~src above the property makes this parse.
+###Mapping
+Mapping fixture::neg::SrcAfterProperty
+(
+   fixture::neg::Person: Pure
+   {
+      firstName: $src.first,
+      ~src fixture::neg::SrcPerson
+   }
+)

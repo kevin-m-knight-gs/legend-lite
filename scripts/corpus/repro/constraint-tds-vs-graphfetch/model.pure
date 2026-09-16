@@ -1,0 +1,61 @@
+// Can a model CONSTRAINT be exercised by a service test? The corpus has zero constraints,
+// and before adding any it is worth knowing whether a violated one is observable at all
+// through a relational query -- constraints are validation, not projection, so they may
+// simply not participate in `project()`.
+Class demo::Acct
+[
+  nonNegative: $this.balance >= 0.0
+]
+{
+  id: String[1];
+  balance: Float[0..1];
+}
+
+###Relational
+Database demo::DB ( Table ACCT (ID VARCHAR(20) PRIMARY KEY, BALANCE DOUBLE) )
+
+###Mapping
+Mapping demo::M
+( demo::Acct: Relational { ~primaryKey ([demo::DB]ACCT.ID) ~mainTable [demo::DB] ACCT
+    id: [demo::DB]ACCT.ID, balance: [demo::DB]ACCT.BALANCE } )
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{ Relational #{ default.ACCT: 'ID,BALANCE\n' + 'A1,10.0\n' + 'A2,-5.0\n'; }# }
+
+###Service
+Service demo::ConstraintViolated
+{
+  pattern: '/constraintViolated';
+  documentation: 'A2 VIOLATES nonNegative. Does a relational projection notice? The expectation below assumes it does not -- that constraints do not participate in a TDS projection and both rows come back.';
+  execution: Single
+  {
+    query: |demo::Acct.all()->project(~[id:x|$x.id, balance:x|$x.balance]);
+    mapping: demo::M; runtime: demo::RT;
+  }
+  testSuites: [ s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson
+      #{ expected: ExternalFormat #{ contentType: 'application/json';
+         data: '[{"id":"A1","balance":10.0},{"id":"A2","balance":-5.0}]'; }#; }# ] } ] } ]
+}
+
+Service demo::ConstraintGraphFetch
+{
+  pattern: '/constraintGraphFetch';
+  documentation: 'The SAME violating row through a GRAPH FETCH rather than a projection. TDS ignores the constraint; graph fetch has diverged from TDS twice before (F10 raises where TDS returns null, F24 drops a UTC offset), so whether it enforces here is worth knowing rather than assuming.';
+  execution: Single
+  {
+    query: |demo::Acct.all()->graphFetch(#{demo::Acct{id,balance}}#)->serialize(#{demo::Acct{id,balance}}#);
+    mapping: demo::M; runtime: demo::RT;
+  }
+  testSuites: [ s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { asserts: [ a: EqualToJson
+      #{ expected: ExternalFormat #{ contentType: 'application/json';
+         data: '{"builder":{"_type":"json"},"values":[{"id":"A1","balance":10.0},{"id":"A2","balance":-5.0}]}'; }#; }# ] } ] } ]
+}

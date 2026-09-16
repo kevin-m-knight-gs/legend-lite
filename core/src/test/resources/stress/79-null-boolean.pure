@@ -1,0 +1,136 @@
+###Pure
+// F39 -- startsWith/endsWith/contains return FALSE for every row when the pattern argument
+// is a column rather than a literal.
+//
+// One row, every value NULL, six properties all declared `Boolean[0..1]`:
+//
+//   stored      the nullable BIT column, projected directly
+//   starts      startsWith(nullVarchar, 'a')   ->  `S like 'a%'`
+//   ends        endsWith(nullVarchar, 'a')     ->  `S like '%a'`
+//   has         contains(nullVarchar, 'a')     ->  `S like '%a%'`
+//   isNul       isNull(nullVarchar)            ->  `S is null`
+//   eq          nullVarchar = 'a'              ->  `S = 'a'`
+//
+// In SQL every one of those expressions except `is null` evaluates to NULL when S is NULL --
+// that is three-valued logic, and it is the whole reason `is null` exists as a separate
+// operator. The question this asks is whether the distinction survives to the caller.
+//
+// It matters because `Boolean[0..1]` is exactly the type that CAN carry the distinction. A
+// consumer reading `false` cannot tell "the string does not start with 'a'" from "there is
+// no string", and those support different decisions.
+Class nb::Row
+{
+   k: String[1];
+   stored: Boolean[0..1];
+   starts: Boolean[0..1];
+   ends: Boolean[0..1];
+   has: Boolean[0..1];
+   isNul: Boolean[0..1];
+   eq: Boolean[0..1];
+   // The same three predicates with the pattern supplied by a COLUMN rather than a literal.
+   // `startsWith` lowers to `%s like '%s%%'`, a format whose second slot is written to hold
+   // a quoted literal; handing it a column expression is a different code path even though
+   // it is the same function at the model level.
+   startsCol: Boolean[0..1];
+   endsCol: Boolean[0..1];
+   hasCol: Boolean[0..1];
+}
+
+###Relational
+Database nb::DB
+(
+   Table NB ( K VARCHAR(10) PRIMARY KEY, S VARCHAR(20), P VARCHAR(20), B BIT )
+)
+
+###Mapping
+Mapping nb::M
+(
+   nb::Row: Relational
+   {
+      ~primaryKey ( [nb::DB]NB.K )
+      ~mainTable [nb::DB]NB
+      k: [nb::DB]NB.K,
+      stored: [nb::DB]NB.B,
+      starts: startsWith([nb::DB]NB.S, 'a'),
+      ends: endsWith([nb::DB]NB.S, 'a'),
+      has: contains([nb::DB]NB.S, 'a'),
+      isNul: isNull([nb::DB]NB.S),
+      eq: [nb::DB]NB.S = 'a',
+      startsCol: startsWith([nb::DB]NB.S, [nb::DB]NB.P),
+      endsCol: endsWith([nb::DB]NB.S, [nb::DB]NB.P),
+      hasCol: contains([nb::DB]NB.S, [nb::DB]NB.P)
+   }
+)
+
+###Connection
+RelationalDatabaseConnection nb::Conn
+{ store: nb::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime nb::RT
+{ mappings: [ nb::M ]; connections: [ nb::DB: [ env: nb::Conn ] ]; }
+
+###Data
+Data nb::Seed
+{
+  Relational
+  #{
+    default.NB:
+      // Three rows separate WHICH operand is null: both, then the pattern only, then the
+      // subject only. One all-null row could not tell them apart.
+      'K,S,P,B\n' +
+      'R1,,,\n' +
+      'R2,alpha,,\n' +
+      'R3,,a,\n' +
+      // The control. Both operands present and genuinely matching: 'alpha' starts with 'a',
+      // ends with 'a', and contains 'a'. If the column-pattern predicates are false HERE,
+      // the problem is not NULL handling at all.
+      'R4,alpha,a,\n';
+  }#
+}
+
+###Service
+Service stress::F39_NullBoolean
+{
+   pattern: '/stress/f39';
+   documentation: 'startsWith/endsWith/contains with a literal pattern and with a column pattern, over NULL and non-NULL operands.';
+   execution: Single
+   {
+      query: |nb::Row.all()->project(
+                 ~[ stored:x|$x.stored, starts:x|$x.starts, ends:x|$x.ends,
+                    has:x|$x.has, isNul:x|$x.isNul, eq:x|$x.eq,
+                    startsCol:x|$x.startsCol, endsCol:x|$x.endsCol, hasCol:x|$x.hasCol ]);
+      mapping: nb::M;
+      runtime: nb::RT;
+   }
+   testSuites:
+   [
+      F39_NullBoolean_suite:
+      {
+         data: [ connections: [ env: Reference #{ nb::Seed }# ] ]
+         tests:
+         [
+            three_valued:
+            {
+               serializationFormat: PURE_TDSOBJECT;
+               asserts:
+               [
+                  // SQL's own answers: every predicate over a NULL operand is NULL, except
+                  // `is null`, which is true. Asserted as SQL defines them rather than as
+                  // the engine returns them -- an expectation copied from the engine would
+                  // record whatever it does as correct, which is how this class of defect
+                  // survives.
+                  a: EqualToJson
+                     #{
+                        expected: ExternalFormat
+                          #{
+                            contentType: 'application/json';
+                            data: '[ { "stored" : null, "starts" : null, "ends" : null, "has" : null, "isNul" : true, "eq" : null, "startsCol" : null, "endsCol" : null, "hasCol" : null }, { "stored" : null, "starts" : true, "ends" : true, "has" : true, "isNul" : false, "eq" : false, "startsCol" : null, "endsCol" : null, "hasCol" : null }, { "stored" : null, "starts" : null, "ends" : null, "has" : null, "isNul" : true, "eq" : null, "startsCol" : null, "endsCol" : null, "hasCol" : null }, { "stored" : null, "starts" : true, "ends" : true, "has" : true, "isNul" : false, "eq" : false, "startsCol" : true, "endsCol" : true, "hasCol" : true } ]';
+                          }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

@@ -1,0 +1,68 @@
+// Feature 10: association mapping in a mapping that INCLUDES another mapping.
+// Neither Person nor Firm is mapped in demo::AssociationWithIncludes -- both set ids
+// (per1, fir1) are resolved out of the included demo::BaseMapping.
+// Source: legend-engine core_relational .../tests/mapping/association/testAssociationMapping.pure
+//         (associationMappingWithIncludes) rendered in the Legend text grammar's
+//         `include mapping <path>` form (TestMappingGrammarRoundtrip.java:51).
+###Pure
+Class demo::Person
+{
+  firstName: String[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+}
+
+Association demo::Employment
+{
+  employees: demo::Person[*];
+  firm: demo::Firm[0..1];
+}
+
+###Relational
+Database demo::db
+(
+  Table personTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    FIRMID INTEGER
+  )
+  Table firmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGALNAME VARCHAR(200)
+  )
+
+  Join Firm_Person(personTable.FIRMID = firmTable.ID)
+)
+
+###Mapping
+Mapping demo::BaseMapping
+(
+  demo::Person[per1]: Relational
+  {
+    firstName: [demo::db]personTable.FIRSTNAME
+  }
+
+  demo::Firm[fir1]: Relational
+  {
+    legalName: [demo::db]firmTable.LEGALNAME
+  }
+)
+
+Mapping demo::AssociationWithIncludes
+(
+  include mapping demo::BaseMapping
+
+  demo::Employment: Relational
+  {
+    AssociationMapping
+    (
+      employees[fir1, per1]: [demo::db]@Firm_Person,
+      firm[per1, fir1]: [demo::db]@Firm_Person
+    )
+  }
+)

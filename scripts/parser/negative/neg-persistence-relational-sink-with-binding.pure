@@ -1,0 +1,30 @@
+// REJECTS: Unexpected token 'binding'. Valid alternatives: ['database']
+//
+// `sink:` is Relational{database} XOR ObjectStorage{binding}. The two sub-rules are
+// `(sinkDatabase)*` and `(sinkBinding)*` -- each accepts an EMPTY body, so which sink kind
+// you wrote is decided entirely by the keyword and the field inside is unconstrained by it
+// in every direction the grammar can express. What it CAN express is that `binding` is not
+// one of the relational sink's fields, which is what this file writes.
+###Persistence
+Persistence test::persistence::neg::RelationalSinkWithBinding
+{
+  doc: 'relational sink given an object storage binding';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      binding: test::persistence::Binding;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

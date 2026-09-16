@@ -1,0 +1,17 @@
+// REJECTS: Unexpected token 'neg'. Valid alternatives: ['*']
+//
+// Legend imports are PACKAGE imports only: `import a::b::*;`. There is no single-element
+// import, and the trailing `::*` is part of the grammar rather than a convention.
+//
+// The alternatives list says it exactly: after `import fixture::` the only acceptable token
+// is '*'. A rewrite that parses an import as "a qualified path, optionally ending in *"
+// accepts `import fixture::neg::Person;`, which reads as obviously reasonable, resolves to
+// nothing, and makes every element in the file rely on a path that legend-engine would
+// have refused to accept in the first place.
+###Pure
+import fixture::neg;
+
+Class fixture::neg::Imported
+{
+   code: String[1];
+}

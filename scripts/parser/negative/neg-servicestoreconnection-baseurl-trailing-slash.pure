@@ -1,0 +1,20 @@
+// REJECTS: baseUrl should not end with '/'
+//
+// A ServiceStoreConnection whose `baseUrl` ends in '/'. The whole grammar of this element is
+// two fields, `store` and `baseUrl: STRING`, and both are present and syntactically perfect.
+// The rejection comes from ServiceStoreConnectionParseTreeWalker:61 inspecting the LAST
+// CHARACTER of a string literal.
+//
+// This is value validation at its purest -- a two-token grammar with a content rule on one of
+// them -- and it is the most easily lost kind, because a trailing slash on a base url is
+// harmless everywhere else in software. Combined with the service-side rule that a `path:`
+// must START with '/' (see ./neg-servicestore-path-param-not-in-path.pure for that walker),
+// legend-engine is enforcing a specific concatenation contract at parse time.
+//
+// ../fixtures/t2-servicestore.pure writes 'http://example.org' for exactly this reason.
+###Connection
+ServiceStoreConnection fixture::neg::TrailingSlashBaseUrl
+{
+  store: fixture::neg::Store;
+  baseUrl: 'http://example.org/';
+}

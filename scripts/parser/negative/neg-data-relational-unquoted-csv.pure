@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token 'id'
+//
+// Two embedded-data types, one letter apart, with incompatible payloads. `Relational` takes
+// QUOTED csv -- `rows: STRING ('+' STRING)*` -- while `Relation` takes UNQUOTED inline csv
+// lexed cell by cell in a dedicated lexer mode. This file gives Relational the Relation
+// payload.
+//
+// Note the asymmetry, which is why this fixture points this way round: the other direction
+// is ACCEPTED. A `Relation` island handed quoted-csv text lexes the quotes as ordinary cell
+// characters and yields a table with nonsense column names, so only this direction is
+// pinnable.
+###Data
+Data fixture::neg::RelationalUnquotedCsv
+{
+   fixture::neg::Db:
+      Relational
+      #{
+         default.PERSON:
+            id, name
+            1 , Ada;
+      }#;
+}

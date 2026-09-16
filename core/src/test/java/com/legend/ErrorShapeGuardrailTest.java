@@ -48,6 +48,12 @@ class ErrorShapeGuardrailTest {
             // abort the run on the next kind); the harness carried these
             // same four before the extraction
             Map.entry("PureTestRunner.java", 4),
+            // the service test-suite runner (2026-09-16): the same four
+            // designed boundaries — a test's harness failure, its resolve
+            // and execute failures, each becoming a FAIL result carrying the
+            // platform's whole message (a failing test never aborts the
+            // run), and a session that fails to close
+            Map.entry("ServiceTestRunner.java", 4),
             // F3.1b (2026-08-16): isValidJson delegates the VARIANT gate
             // to the platform reader; ANY parse failure means not-JSON —
             // a designed total catch (the reader throws ISE/SIOOBE/NFE
@@ -146,7 +152,7 @@ class ErrorShapeGuardrailTest {
     // result carrying the platform's whole message — the designed sentinel
     // of a test runner (a failing test must never abort the run); the
     // harness had the same two catches before it moved into the product.
-    private static final int CATCH_RETURNS_VALUE = 17;
+    private static final int CATCH_RETURNS_VALUE = 19;   // 17 -> 19 (2026-09-16: ServiceTestRunner's resolve/execute FAIL sentinels, the PureTestRunner pair's twins)
 
     /** {@code endsWith("::…")} identification sites — the suffix-match
      * idiom exact-FQN doctrine retires; may only shrink. */

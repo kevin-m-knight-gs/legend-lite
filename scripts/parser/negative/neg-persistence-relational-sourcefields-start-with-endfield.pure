@@ -1,0 +1,55 @@
+// REJECTS: Unexpected token 'endField'. Valid alternatives: ['startField']
+//
+// `sourceFields:` is Start{startField} XOR StartAndEnd{startField, endField} -- the same
+// "one arm is a prefix of the other" shape as the transaction derivations in the outer
+// grammar, and here the .g4 DOES distinguish them, because Start's body is
+// `(sourceFieldStart)*` with no endField alternative.
+//
+// So the two halves of the same distinction land on opposite sides of the parser/walker
+// line: writing endField under Start is a parse error, while OMITTING endField under
+// StartAndEnd is a walker rejection. Neither is discoverable from the other.
+###Persistence
+Persistence test::persistence::neg::RelationalStartWithEndField
+{
+  doc: 'a start-only source field set carrying an end field';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableA;
+      database: test::persistence::Database;
+      temporality: Bitemporal
+      {
+        processingDimension: BatchId
+        {
+          batchIdIn: batch_in;
+          batchIdOut: batch_out;
+        }
+        sourceDerivedDimension: DateTime
+        {
+          dateTimeStart: from_z;
+          dateTimeEnd: thru_z;
+          sourceFields: Start
+          {
+            endField: timeOut;
+            startField: timeIn;
+          }
+        }
+      }
+    }#
+  ];
+}

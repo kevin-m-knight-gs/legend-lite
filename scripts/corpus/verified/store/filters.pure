@@ -1,0 +1,95 @@
+###Relational
+Database store::filters::FilterDB
+(
+  Table PERSON_FIRM_DENORM
+  (
+    OID INTEGER PRIMARY KEY,
+    DLEVEL VARCHAR(2),
+    PERSON_FIRSTNAME VARCHAR(200),
+    PERSON_FIRM_OID INTEGER,
+    FIRM_LEGALNAME VARCHAR(200),
+    STATUS VARCHAR(10)
+  )
+
+  Table EMPLOYEE
+  (
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(200),
+    DEPT_ID INTEGER,
+    ACTIVE VARCHAR(1)
+  )
+
+  Table DEPARTMENT
+  (
+    ID INTEGER PRIMARY KEY,
+    CITY VARCHAR(50)
+  )
+
+  Join Emp_Dept(EMPLOYEE.DEPT_ID = DEPARTMENT.ID)
+  Join firmEmployees(PERSON_FIRM_DENORM.PERSON_FIRM_OID = {target}.OID)
+
+  // plain Filter
+  Filter ActiveFilter(EMPLOYEE.ACTIVE = 'Y')
+  Filter NycDeptFilter(DEPARTMENT.CITY = 'NYC')
+
+  // MultiGrainFilter -- same shape as Filter, different keyword; it tells the
+  // planner the rows of one physical table carry several logical grains.
+  MultiGrainFilter personGrain(PERSON_FIRM_DENORM.DLEVEL = 'P')
+  MultiGrainFilter firmGrain(PERSON_FIRM_DENORM.DLEVEL = 'F')
+)
+
+###Pure
+Class store::filters::Employee
+{
+  name: String[1];
+}
+
+Class store::filters::NycEmployee
+{
+  name: String[1];
+}
+
+Class store::filters::Person
+{
+  firstName: String[1];
+}
+
+Class store::filters::Firm
+{
+  legalName: String[1];
+}
+
+###Mapping
+Mapping store::filters::FilterMapping
+(
+  // ~filter <dbPointer><FilterName>
+  *store::filters::Employee: Relational
+  {
+    ~filter [store::filters::FilterDB]ActiveFilter
+    ~mainTable [store::filters::FilterDB]EMPLOYEE
+    name: [store::filters::FilterDB]EMPLOYEE.NAME
+  }
+
+  // ~filter reached through a join: ~filter [db](INNER) @Join | [db]FilterName
+  *store::filters::NycEmployee: Relational
+  {
+    ~filter [store::filters::FilterDB] (INNER) @Emp_Dept | [store::filters::FilterDB]NycDeptFilter
+    ~mainTable [store::filters::FilterDB]EMPLOYEE
+    name: [store::filters::FilterDB]EMPLOYEE.NAME
+  }
+
+  // a MultiGrainFilter is referenced with exactly the same ~filter syntax
+  *store::filters::Person: Relational
+  {
+    ~filter [store::filters::FilterDB]personGrain
+    ~mainTable [store::filters::FilterDB]PERSON_FIRM_DENORM
+    firstName: [store::filters::FilterDB]PERSON_FIRM_DENORM.PERSON_FIRSTNAME
+  }
+
+  *store::filters::Firm: Relational
+  {
+    ~filter [store::filters::FilterDB]firmGrain
+    ~mainTable [store::filters::FilterDB]PERSON_FIRM_DENORM
+    legalName: [store::filters::FilterDB]PERSON_FIRM_DENORM.FIRM_LEGALNAME
+  }
+)

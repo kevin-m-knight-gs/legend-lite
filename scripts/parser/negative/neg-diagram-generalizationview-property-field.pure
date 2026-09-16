@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token 'property'. Valid alternatives: ['points', 'source', 'target']
+//
+// The three view kinds have DIFFERENT field sets, and unlike the required/only-once rules
+// this one is in the grammar. A generalizationView takes source, target and points; a
+// propertyView takes those plus `property`, which is what identifies the edge.
+//
+// The alternatives list enumerates the whole legal set, which makes this the cheapest
+// possible pin on view-kind field partitioning. A rewrite that parses "a view is a name,
+// a brace block, and a bag of colon-terminated fields" -- an entirely reasonable shape,
+// since classView, propertyView and generalizationView look identical from the outside --
+// accepts a property on a generalization edge and emits protocol with a dangling reference.
+###Diagram
+Diagram fixture::neg::GenWithProperty
+{
+   generalizationView
+   {
+      property: fixture::neg::Person.firm;
+      source: a;
+      target: b;
+      points: [];
+   }
+}

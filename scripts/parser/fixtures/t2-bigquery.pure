@@ -1,0 +1,58 @@
+// COVERS BigQueryLexerGrammar: BigQuery, projectId, defaultDataset, proxyHost, proxyPort
+// COVERS BigQueryFunctionLexerGrammar: BigQueryFunction, functionName, function, ownership, Deployment, identifier, description, activationConfiguration, BigQueryFunctionDeploymentConfiguration, activationConnection, stage
+//
+// Two unrelated grammars that happen to share a vendor, in the two sections that route to
+// them: BigQueryLexerGrammar is the relational datasource spec (###Connection), and
+// BigQueryFunctionLexerGrammar is the function activator, whose section is `###BigQuery`
+// (BigQueryFunctionGrammarParserExtension.java:38, `NAME = "BigQuery"` -- NOT
+// `###BigQueryFunction`, which is the trap).
+//
+// Connection syntax from TestBigQueryConnectionGrammarRoundtrip; activator syntax from
+// TestBigQueryFunctionRoundtrip.
+//
+// `stage` is reachable only as an identifier. BigQueryFunctionParserGrammar.g4:67 defines a
+// `stage` rule, but `definition` (line 29) admits only bigQueryFunction and deploymentConfig,
+// and `deploymentConfig` (line 58) contains just activationConnection -- nothing references
+// the rule, so `stage : '...';` cannot be written inside any element. The token survives
+// only through the `identifier` alternation (line 19), so the fixture names an element with
+// it. That is also why `BigQueryFunctionDeploymentConfiguration` needs its own top-level
+// element: it is an element keyword, not a field.
+//
+// Note ownership is OPTIONAL for BigQueryFunction (validateAndExtractOptionalField,
+// BigQueryFunctionTreeWalker.java) whereas MemSqlFunction requires it -- the two grammars
+// look identical and are not.
+###Connection
+RelationalDatabaseConnection fixture::bq::Conn
+{
+   store: fixture::bq::Db;
+   type: BigQuery;
+   specification: BigQuery
+   {
+      projectId: 'proj1';
+      defaultDataset: 'dataset1';
+      proxyHost: 'proxyHost1';
+      proxyPort: 'proxyPort1';
+   };
+   auth: GCPApplicationDefaultCredentials;
+}
+
+###BigQuery
+BigQueryFunction <<fixture::bq::A.test>> {fixture::bq::A.val = 'ok'} fixture::bq::MyFunction
+{
+   functionName : 'MyFunction';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'myFunctionOwnership' };
+   description : 'A super nice function!';
+   activationConfiguration : fixture::bq::Conn;
+}
+
+BigQueryFunction fixture::bq::stage
+{
+   functionName : 'KeywordNamedFunction';
+   function : zxx(Integer[1]):String[1];
+}
+
+BigQueryFunctionDeploymentConfiguration fixture::bq::Config
+{
+   activationConnection : fixture::bq::Conn;
+}

@@ -1,0 +1,334 @@
+###Pure
+// Back office: where cash actually moves.
+//
+// Four things in a chain. A standing settlement instruction says where to send money for a
+// counterparty and currency; a payment is an instruction to move some; a nostro movement is
+// what the correspondent bank says actually happened; and a reconciliation item is the
+// difference between the last two.
+//
+// The reconciliation is the point, and it only works because the seed does NOT mirror itself:
+// one statement line has no payment behind it, one payment never reached the statement, and
+// one pair agrees on amount and differs on value date. Those are the three outcomes a
+// reconciliation exists to produce, and each is a different class.
+Class backoffice::SettlementInstruction
+{
+   ssiId: String[1];
+   counterpartyId: String[1];
+   // Null for a securities instruction: it settles a position, not an amount.
+   currency: String[0..1];
+   instrumentType: String[1];
+   correspondentBic: String[1];
+   accountNumber: String[1];
+   placeOfSettlement: String[1];
+   isDefault: Boolean[1];
+   effectiveFrom: StrictDate[1];
+   // Null while an instruction is current. The superseded one has a date, and a query keyed
+   // on isDefault alone would still pick it up.
+   effectiveTo: StrictDate[0..1];
+   status: String[1];
+}
+
+Class backoffice::Payment
+{
+   paymentId: String[1];
+   otcId: String[1];
+   ssiId: String[1];
+   paymentType: String[1];
+   direction: String[1];
+   amount: Float[1];
+   currency: String[1];
+   valueDate: StrictDate[1];
+   status: String[1];
+   // Null unless it settled. Failed, cancelled and pending all have none.
+   settledAt: DateTime[0..1];
+   reference: String[0..1];
+   // Populated only when something went wrong, which is the column an exception report reads.
+   failReason: String[0..1];
+
+   // Signed by direction, which is how a cash ladder wants it rather than as a magnitude.
+   signedAmount() { if($this.direction == 'OUT', |$this.amount * -1.0, |$this.amount) } : Float[1];
+}
+
+// A bank-to-bank transfer. The workhorse of OTC settlement.
+Class backoffice::SwiftMt202Payment extends backoffice::Payment
+{
+}
+
+// The euro RTGS system. Same-day, central-bank money.
+Class backoffice::Target2Payment extends backoffice::Payment
+{
+}
+
+// The US RTGS equivalent.
+Class backoffice::FedwirePayment extends backoffice::Payment
+{
+}
+
+// Both sides held with us, so nothing leaves the building.
+Class backoffice::BookTransferPayment extends backoffice::Payment
+{
+}
+
+Class backoffice::NostroAccount
+{
+   nostroId: String[1];
+   correspondentBic: String[1];
+   currency: String[1];
+   accountNumber: String[1];
+   accountName: String[1];
+   openingBalance: Float[1];
+   isActive: Boolean[1];
+   lastReconciled: StrictDate[1];
+}
+
+Class backoffice::NostroMovement
+{
+   movementId: String[1];
+   nostroId: String[1];
+   valueDate: StrictDate[1];
+   amount: Float[1];
+   currency: String[1];
+   statementRef: String[1];
+   narrative: String[1];
+   postedAt: DateTime[1];
+}
+
+Class backoffice::ReconciliationItem
+{
+   reconId: String[1];
+   nostroId: String[1];
+   // Null on an unmatched STATEMENT item: there is no payment behind it.
+   paymentId: String[0..1];
+   // Null on an unmatched LEDGER item, for the mirror reason.
+   movementId: String[0..1];
+   itemType: String[1];
+   amount: Float[1];
+   currency: String[1];
+   reconDate: StrictDate[1];
+   status: String[1];
+   // Null on a matched item: nobody is assigned to something that agrees.
+   assignedTo: String[0..1];
+   ageDays: Integer[1];
+}
+
+// Ledger and statement agree. The outcome nobody looks at.
+Class backoffice::MatchedItem extends backoffice::ReconciliationItem
+{
+}
+
+// On the correspondent's statement and not in our ledger --
+// a receipt we were not expecting.
+Class backoffice::UnmatchedStatementItem extends backoffice::ReconciliationItem
+{
+}
+
+// In our ledger and not on the statement. The 44-day-old one
+// here is a failed payment nobody chased.
+Class backoffice::UnmatchedLedgerItem extends backoffice::ReconciliationItem
+{
+}
+
+// Right amount, wrong day. Matched on money and broken on
+// timing, which is the break a naive amount-only reconciliation misses entirely.
+Class backoffice::ValueDateMismatchItem extends backoffice::ReconciliationItem
+{
+}
+
+Association backoffice::CounterpartyInstructions
+{
+   ssiCounterparty: counterparty::Counterparty[0..1];
+   instructions: backoffice::SettlementInstruction[*];
+}
+
+Association backoffice::InstructionPayments
+{
+   instruction: backoffice::SettlementInstruction[0..1];
+   payments: backoffice::Payment[*];
+}
+
+Association backoffice::TradePayments
+{
+   paidTrade: derivatives::OtcTrade[0..1];
+   tradePayments: backoffice::Payment[*];
+}
+
+Association backoffice::NostroMovements
+{
+   nostro: backoffice::NostroAccount[0..1];
+   movements: backoffice::NostroMovement[*];
+}
+
+Association backoffice::NostroReconciliation
+{
+   reconNostro: backoffice::NostroAccount[0..1];
+   reconItems: backoffice::ReconciliationItem[*];
+}
+
+###Mapping
+Mapping backoffice::BackOfficeMapping
+(
+   backoffice::SettlementInstruction: Relational
+   {
+      ~primaryKey ( [store::DB]BO_SSI.SSI_ID )
+      ~mainTable [store::DB]BO_SSI
+      ssiId: [store::DB]BO_SSI.SSI_ID,
+      counterpartyId: [store::DB]BO_SSI.COUNTERPARTY_ID,
+      currency: [store::DB]BO_SSI.CURRENCY,
+      instrumentType: [store::DB]BO_SSI.INSTRUMENT_TYPE,
+      correspondentBic: [store::DB]BO_SSI.CORRESPONDENT_BIC,
+      accountNumber: [store::DB]BO_SSI.ACCOUNT_NUMBER,
+      placeOfSettlement: [store::DB]BO_SSI.PLACE_OF_SETTLEMENT,
+      isDefault: [store::DB]BO_SSI.IS_DEFAULT,
+      effectiveFrom: [store::DB]BO_SSI.EFFECTIVE_FROM,
+      effectiveTo: [store::DB]BO_SSI.EFFECTIVE_TO,
+      status: [store::DB]BO_SSI.STATUS
+   }
+
+   *backoffice::Payment[paymentBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PAYMENT.PAYMENT_ID )
+      ~mainTable [store::DB]PAYMENT
+      paymentId: [store::DB]PAYMENT.PAYMENT_ID,
+      otcId: [store::DB]PAYMENT.OTC_ID,
+      ssiId: [store::DB]PAYMENT.SSI_ID,
+      paymentType: [store::DB]PAYMENT.PAYMENT_TYPE,
+      direction: [store::DB]PAYMENT.DIRECTION,
+      amount: [store::DB]PAYMENT.AMOUNT,
+      currency: [store::DB]PAYMENT.CURRENCY,
+      valueDate: [store::DB]PAYMENT.VALUE_DATE,
+      status: [store::DB]PAYMENT.STATUS,
+      settledAt: [store::DB]PAYMENT.SETTLED_AT,
+      reference: [store::DB]PAYMENT.REFERENCE,
+      failReason: [store::DB]PAYMENT.FAIL_REASON
+   }
+
+   backoffice::SwiftMt202Payment[paySwiftMt202] extends [paymentBase]: Relational
+   {
+      ~filter [store::DB]PaySwiftMt202Rows
+   }
+
+   backoffice::Target2Payment[payTarget2] extends [paymentBase]: Relational
+   {
+      ~filter [store::DB]PayTarget2Rows
+   }
+
+   backoffice::FedwirePayment[payFedwire] extends [paymentBase]: Relational
+   {
+      ~filter [store::DB]PayFedwireRows
+   }
+
+   backoffice::BookTransferPayment[payBookTransfer] extends [paymentBase]: Relational
+   {
+      ~filter [store::DB]PayBookTransferRows
+   }
+
+   backoffice::NostroAccount: Relational
+   {
+      ~primaryKey ( [store::DB]BO_NOSTRO.NOSTRO_ID )
+      ~mainTable [store::DB]BO_NOSTRO
+      nostroId: [store::DB]BO_NOSTRO.NOSTRO_ID,
+      correspondentBic: [store::DB]BO_NOSTRO.CORRESPONDENT_BIC,
+      currency: [store::DB]BO_NOSTRO.CURRENCY,
+      accountNumber: [store::DB]BO_NOSTRO.ACCOUNT_NUMBER,
+      accountName: [store::DB]BO_NOSTRO.ACCOUNT_NAME,
+      openingBalance: [store::DB]BO_NOSTRO.OPENING_BALANCE,
+      isActive: [store::DB]BO_NOSTRO.IS_ACTIVE,
+      lastReconciled: [store::DB]BO_NOSTRO.LAST_RECONCILED
+   }
+
+   backoffice::NostroMovement: Relational
+   {
+      ~primaryKey ( [store::DB]NOSTRO_MOVEMENT.MOVEMENT_ID )
+      ~mainTable [store::DB]NOSTRO_MOVEMENT
+      movementId: [store::DB]NOSTRO_MOVEMENT.MOVEMENT_ID,
+      nostroId: [store::DB]NOSTRO_MOVEMENT.NOSTRO_ID,
+      valueDate: [store::DB]NOSTRO_MOVEMENT.VALUE_DATE,
+      amount: [store::DB]NOSTRO_MOVEMENT.AMOUNT,
+      currency: [store::DB]NOSTRO_MOVEMENT.CURRENCY,
+      statementRef: [store::DB]NOSTRO_MOVEMENT.STATEMENT_REF,
+      narrative: [store::DB]NOSTRO_MOVEMENT.NARRATIVE,
+      postedAt: [store::DB]NOSTRO_MOVEMENT.POSTED_AT
+   }
+
+   *backoffice::ReconciliationItem[reconBase]: Relational
+   {
+      ~primaryKey ( [store::DB]RECON_ITEM.RECON_ID )
+      ~mainTable [store::DB]RECON_ITEM
+      reconId: [store::DB]RECON_ITEM.RECON_ID,
+      nostroId: [store::DB]RECON_ITEM.NOSTRO_ID,
+      paymentId: [store::DB]RECON_ITEM.PAYMENT_ID,
+      movementId: [store::DB]RECON_ITEM.MOVEMENT_ID,
+      itemType: [store::DB]RECON_ITEM.ITEM_TYPE,
+      amount: [store::DB]RECON_ITEM.AMOUNT,
+      currency: [store::DB]RECON_ITEM.CURRENCY,
+      reconDate: [store::DB]RECON_ITEM.RECON_DATE,
+      status: [store::DB]RECON_ITEM.STATUS,
+      assignedTo: [store::DB]RECON_ITEM.ASSIGNED_TO,
+      ageDays: [store::DB]RECON_ITEM.AGE_DAYS
+   }
+
+   backoffice::MatchedItem[recMatched] extends [reconBase]: Relational
+   {
+      ~filter [store::DB]RecMatchedRows
+   }
+
+   backoffice::UnmatchedStatementItem[recUnmatchedStatement] extends [reconBase]: Relational
+   {
+      ~filter [store::DB]RecUnmatchedStatementRows
+   }
+
+   backoffice::UnmatchedLedgerItem[recUnmatchedLedger] extends [reconBase]: Relational
+   {
+      ~filter [store::DB]RecUnmatchedLedgerRows
+   }
+
+   backoffice::ValueDateMismatchItem[recValueDateMismatch] extends [reconBase]: Relational
+   {
+      ~filter [store::DB]RecValueDateMismatchRows
+   }
+
+   backoffice::CounterpartyInstructions: Relational
+   {
+      AssociationMapping
+      (
+         instructions: [store::DB]@Counterparty_Ssi,
+         ssiCounterparty: [store::DB]@Counterparty_Ssi
+      )
+   }
+
+   backoffice::InstructionPayments: Relational
+   {
+      AssociationMapping
+      (
+         payments[backoffice_SettlementInstruction, paymentBase]: [store::DB]@Ssi_Payment,
+         instruction[paymentBase, backoffice_SettlementInstruction]: [store::DB]@Ssi_Payment
+      )
+   }
+
+   backoffice::TradePayments: Relational
+   {
+      AssociationMapping
+      (
+         tradePayments[otcBase, paymentBase]: [store::DB]@OtcTrade_Payment,
+         paidTrade[paymentBase, otcBase]: [store::DB]@OtcTrade_Payment
+      )
+   }
+
+   backoffice::NostroMovements: Relational
+   {
+      AssociationMapping
+      (
+         movements: [store::DB]@Nostro_Movement,
+         nostro: [store::DB]@Nostro_Movement
+      )
+   }
+
+   backoffice::NostroReconciliation: Relational
+   {
+      AssociationMapping
+      (
+         reconItems[backoffice_NostroAccount, reconBase]: [store::DB]@Nostro_ReconItem,
+         reconNostro[reconBase, backoffice_NostroAccount]: [store::DB]@Nostro_ReconItem
+      )
+   }
+)

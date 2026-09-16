@@ -1,0 +1,463 @@
+###Mapping
+// The collateral mapping. It INCLUDES both dependency mappings, because the association
+// mappings at the bottom name set ids that live in them -- `cpLegalEntity` from core-party
+// and `ciBase` / `ciAssetClassDefinition` from core-instrument. Those are the explicit ids
+// those projects declared; the default ids (`core_party_LegalEntity`, and so on) do not
+// exist, so the bare `prop: [db]@Join` form would not resolve and every end below names
+// [source, target] instead.
+//
+// Every set id here is prefixed `col`, since set ids are a GLOBAL namespace in Legend: one
+// collision fails the whole graph with a message that names the id and not the project.
+Mapping collateral_core::Mapping
+(
+   include core_party::Mapping
+   include core_instrument::Mapping
+
+   collateral_core::ColCollateralAgreement[colAgreement]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_AGREEMENT.AGREEMENT_ID )
+      ~mainTable [collateral_core::Store]COL_AGREEMENT
+      agreementId: [collateral_core::Store]COL_AGREEMENT.AGREEMENT_ID,
+      agreementType: [collateral_core::Store]COL_AGREEMENT.AGREEMENT_TYPE,
+      principalEntityId: [collateral_core::Store]COL_AGREEMENT.PRINCIPAL_ENTITY_ID,
+      counterpartyEntityId: [collateral_core::Store]COL_AGREEMENT.COUNTERPARTY_ENTITY_ID,
+      governingLaw: [collateral_core::Store]COL_AGREEMENT.GOVERNING_LAW,
+      baseCurrency: [collateral_core::Store]COL_AGREEMENT.BASE_CURRENCY,
+      thresholdAmount: [collateral_core::Store]COL_AGREEMENT.THRESHOLD_AMOUNT,
+      minimumTransferAmount: [collateral_core::Store]COL_AGREEMENT.MINIMUM_TRANSFER_AMOUNT,
+      independentAmount: [collateral_core::Store]COL_AGREEMENT.INDEPENDENT_AMOUNT,
+      roundingAmount: [collateral_core::Store]COL_AGREEMENT.ROUNDING_AMOUNT,
+      isBilateral: [collateral_core::Store]COL_AGREEMENT.IS_BILATERAL,
+      allowsRehypothecation: [collateral_core::Store]COL_AGREEMENT.ALLOWS_REHYPOTHECATION,
+      effectiveDate: [collateral_core::Store]COL_AGREEMENT.EFFECTIVE_DATE,
+      terminationDate: [collateral_core::Store]COL_AGREEMENT.TERMINATION_DATE,
+      eligibilityScheduleId: [collateral_core::Store]COL_AGREEMENT.ELIGIBILITY_SCHEDULE_ID,
+      haircutScheduleId: [collateral_core::Store]COL_AGREEMENT.HAIRCUT_SCHEDULE_ID
+   }
+
+   collateral_core::ColEligibilitySchedule[colEligibilitySchedule]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.SCHEDULE_ID )
+      ~mainTable [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE
+      scheduleId: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.SCHEDULE_ID,
+      scheduleName: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.SCHEDULE_NAME,
+      scheduleVersion: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.SCHEDULE_VERSION,
+      effectiveDate: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.EFFECTIVE_DATE,
+      reviewDate: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.REVIEW_DATE,
+      approvedBy: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.APPROVED_BY,
+      isRegulatory: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.IS_REGULATORY,
+      note: [collateral_core::Store]COL_ELIGIBILITY_SCHEDULE.NOTE
+   }
+
+   // The disjunctive rule. Both axis columns are mapped as ordinary optional properties --
+   // the disjunction lives in the JOIN, not in the class.
+   collateral_core::ColEligibilityRule[colEligibilityRule]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_ELIGIBILITY_RULE.RULE_ID )
+      ~mainTable [collateral_core::Store]COL_ELIGIBILITY_RULE
+      ruleId: [collateral_core::Store]COL_ELIGIBILITY_RULE.RULE_ID,
+      scheduleId: [collateral_core::Store]COL_ELIGIBILITY_RULE.SCHEDULE_ID,
+      ruleBasis: [collateral_core::Store]COL_ELIGIBILITY_RULE.RULE_BASIS,
+      eligibleIssuerId: [collateral_core::Store]COL_ELIGIBILITY_RULE.ELIGIBLE_ISSUER_ID,
+      eligibleAssetClass: [collateral_core::Store]COL_ELIGIBILITY_RULE.ELIGIBLE_ASSET_CLASS,
+      minRating: [collateral_core::Store]COL_ELIGIBILITY_RULE.MIN_RATING,
+      maxResidualYears: [collateral_core::Store]COL_ELIGIBILITY_RULE.MAX_RESIDUAL_YEARS,
+      maxHaircutPct: [collateral_core::Store]COL_ELIGIBILITY_RULE.MAX_HAIRCUT_PCT,
+      currencyRestriction: [collateral_core::Store]COL_ELIGIBILITY_RULE.CURRENCY_RESTRICTION,
+      isExclusion: [collateral_core::Store]COL_ELIGIBILITY_RULE.IS_EXCLUSION,
+      effectiveDate: [collateral_core::Store]COL_ELIGIBILITY_RULE.EFFECTIVE_DATE,
+      expiryDate: [collateral_core::Store]COL_ELIGIBILITY_RULE.EXPIRY_DATE
+   }
+
+   collateral_core::ColConcentrationLimit[colConcentrationLimit]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_CONCENTRATION_LIMIT.LIMIT_ID )
+      ~mainTable [collateral_core::Store]COL_CONCENTRATION_LIMIT
+      limitId: [collateral_core::Store]COL_CONCENTRATION_LIMIT.LIMIT_ID,
+      scheduleId: [collateral_core::Store]COL_CONCENTRATION_LIMIT.SCHEDULE_ID,
+      limitBasis: [collateral_core::Store]COL_CONCENTRATION_LIMIT.LIMIT_BASIS,
+      limitIssuerId: [collateral_core::Store]COL_CONCENTRATION_LIMIT.LIMIT_ISSUER_ID,
+      limitAssetClass: [collateral_core::Store]COL_CONCENTRATION_LIMIT.LIMIT_ASSET_CLASS,
+      maxPctOfPortfolio: [collateral_core::Store]COL_CONCENTRATION_LIMIT.MAX_PCT_OF_PORTFOLIO,
+      maxNotional: [collateral_core::Store]COL_CONCENTRATION_LIMIT.MAX_NOTIONAL,
+      currency: [collateral_core::Store]COL_CONCENTRATION_LIMIT.CURRENCY,
+      isHardLimit: [collateral_core::Store]COL_CONCENTRATION_LIMIT.IS_HARD_LIMIT,
+      breachAction: [collateral_core::Store]COL_CONCENTRATION_LIMIT.BREACH_ACTION
+   }
+
+   collateral_core::ColHaircutSchedule[colHaircutSchedule]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_HAIRCUT_SCHEDULE.HAIRCUT_SCHEDULE_ID )
+      ~mainTable [collateral_core::Store]COL_HAIRCUT_SCHEDULE
+      haircutScheduleId: [collateral_core::Store]COL_HAIRCUT_SCHEDULE.HAIRCUT_SCHEDULE_ID,
+      scheduleName: [collateral_core::Store]COL_HAIRCUT_SCHEDULE.SCHEDULE_NAME,
+      methodology: [collateral_core::Store]COL_HAIRCUT_SCHEDULE.METHODOLOGY,
+      isRegulatory: [collateral_core::Store]COL_HAIRCUT_SCHEDULE.IS_REGULATORY,
+      effectiveDate: [collateral_core::Store]COL_HAIRCUT_SCHEDULE.EFFECTIVE_DATE,
+      reviewFrequency: [collateral_core::Store]COL_HAIRCUT_SCHEDULE.REVIEW_FREQUENCY
+   }
+
+   // Three key columns. Two of them would merge every rating band in a schedule.
+   collateral_core::ColHaircutBand[colHaircutBand]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_core::Store]COL_HAIRCUT_BAND.HAIRCUT_SCHEDULE_ID,
+         [collateral_core::Store]COL_HAIRCUT_BAND.ASSET_CLASS,
+         [collateral_core::Store]COL_HAIRCUT_BAND.RATING_BAND
+      )
+      ~mainTable [collateral_core::Store]COL_HAIRCUT_BAND
+      haircutScheduleId: [collateral_core::Store]COL_HAIRCUT_BAND.HAIRCUT_SCHEDULE_ID,
+      assetClass: [collateral_core::Store]COL_HAIRCUT_BAND.ASSET_CLASS,
+      ratingBand: [collateral_core::Store]COL_HAIRCUT_BAND.RATING_BAND,
+      minResidualYears: [collateral_core::Store]COL_HAIRCUT_BAND.MIN_RESIDUAL_YEARS,
+      maxResidualYears: [collateral_core::Store]COL_HAIRCUT_BAND.MAX_RESIDUAL_YEARS,
+      haircutPct: [collateral_core::Store]COL_HAIRCUT_BAND.HAIRCUT_PCT,
+      fxHaircutPct: [collateral_core::Store]COL_HAIRCUT_BAND.FX_HAIRCUT_PCT,
+      isFloor: [collateral_core::Store]COL_HAIRCUT_BAND.IS_FLOOR
+   }
+
+   collateral_core::ColCollateralAccount[colAccount]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_ACCOUNT.ACCOUNT_ID )
+      ~mainTable [collateral_core::Store]COL_ACCOUNT
+      accountId: [collateral_core::Store]COL_ACCOUNT.ACCOUNT_ID,
+      accountName: [collateral_core::Store]COL_ACCOUNT.ACCOUNT_NAME,
+      agreementId: [collateral_core::Store]COL_ACCOUNT.AGREEMENT_ID,
+      custodianEntityId: [collateral_core::Store]COL_ACCOUNT.CUSTODIAN_ENTITY_ID,
+      accountType: [collateral_core::Store]COL_ACCOUNT.ACCOUNT_TYPE,
+      currency: [collateral_core::Store]COL_ACCOUNT.CURRENCY,
+      isSegregated: [collateral_core::Store]COL_ACCOUNT.IS_SEGREGATED,
+      isTriparty: [collateral_core::Store]COL_ACCOUNT.IS_TRIPARTY,
+      openedDate: [collateral_core::Store]COL_ACCOUNT.OPENED_DATE,
+      closedDate: [collateral_core::Store]COL_ACCOUNT.CLOSED_DATE
+   }
+
+   // The left-hand side of both disjunctions.
+   collateral_core::ColCollateral[colCollateral]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_COLLATERAL.COLLATERAL_ID )
+      ~mainTable [collateral_core::Store]COL_COLLATERAL
+      collateralId: [collateral_core::Store]COL_COLLATERAL.COLLATERAL_ID,
+      agreementId: [collateral_core::Store]COL_COLLATERAL.AGREEMENT_ID,
+      accountId: [collateral_core::Store]COL_COLLATERAL.ACCOUNT_ID,
+      instrumentId: [collateral_core::Store]COL_COLLATERAL.INSTRUMENT_ID,
+      issuerId: [collateral_core::Store]COL_COLLATERAL.ISSUER_ID,
+      assetClass: [collateral_core::Store]COL_COLLATERAL.ASSET_CLASS,
+      direction: [collateral_core::Store]COL_COLLATERAL.DIRECTION,
+      quantity: [collateral_core::Store]COL_COLLATERAL.QUANTITY,
+      nominalAmount: [collateral_core::Store]COL_COLLATERAL.NOMINAL_AMOUNT,
+      currency: [collateral_core::Store]COL_COLLATERAL.CURRENCY,
+      marketValue: [collateral_core::Store]COL_COLLATERAL.MARKET_VALUE,
+      ratingBand: [collateral_core::Store]COL_COLLATERAL.RATING_BAND,
+      residualYears: [collateral_core::Store]COL_COLLATERAL.RESIDUAL_YEARS,
+      postedDate: [collateral_core::Store]COL_COLLATERAL.POSTED_DATE,
+      returnDate: [collateral_core::Store]COL_COLLATERAL.RETURN_DATE,
+      isRehypothecated: [collateral_core::Store]COL_COLLATERAL.IS_REHYPOTHECATED
+   }
+
+   collateral_core::ColCollateralValuation[colValuation]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_core::Store]COL_VALUATION.COLLATERAL_ID,
+         [collateral_core::Store]COL_VALUATION.VALUATION_DATE
+      )
+      ~mainTable [collateral_core::Store]COL_VALUATION
+      collateralId: [collateral_core::Store]COL_VALUATION.COLLATERAL_ID,
+      valuationDate: [collateral_core::Store]COL_VALUATION.VALUATION_DATE,
+      cleanPrice: [collateral_core::Store]COL_VALUATION.CLEAN_PRICE,
+      accruedInterest: [collateral_core::Store]COL_VALUATION.ACCRUED_INTEREST,
+      marketValue: [collateral_core::Store]COL_VALUATION.MARKET_VALUE,
+      haircutPct: [collateral_core::Store]COL_VALUATION.HAIRCUT_PCT,
+      collateralValue: [collateral_core::Store]COL_VALUATION.COLLATERAL_VALUE,
+      fxRate: [collateral_core::Store]COL_VALUATION.FX_RATE,
+      valuationSource: [collateral_core::Store]COL_VALUATION.VALUATION_SOURCE,
+      isDisputed: [collateral_core::Store]COL_VALUATION.IS_DISPUTED
+   }
+
+   collateral_core::ColMarginCall[colMarginCall]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_MARGIN_CALL.CALL_ID )
+      ~mainTable [collateral_core::Store]COL_MARGIN_CALL
+      callId: [collateral_core::Store]COL_MARGIN_CALL.CALL_ID,
+      agreementId: [collateral_core::Store]COL_MARGIN_CALL.AGREEMENT_ID,
+      callDate: [collateral_core::Store]COL_MARGIN_CALL.CALL_DATE,
+      callType: [collateral_core::Store]COL_MARGIN_CALL.CALL_TYPE,
+      exposureAmount: [collateral_core::Store]COL_MARGIN_CALL.EXPOSURE_AMOUNT,
+      collateralHeldValue: [collateral_core::Store]COL_MARGIN_CALL.COLLATERAL_HELD_VALUE,
+      callAmount: [collateral_core::Store]COL_MARGIN_CALL.CALL_AMOUNT,
+      currency: [collateral_core::Store]COL_MARGIN_CALL.CURRENCY,
+      callStatus: [collateral_core::Store]COL_MARGIN_CALL.CALL_STATUS,
+      issuedByEntityId: [collateral_core::Store]COL_MARGIN_CALL.ISSUED_BY_ENTITY_ID,
+      agreedDate: [collateral_core::Store]COL_MARGIN_CALL.AGREED_DATE,
+      settledDate: [collateral_core::Store]COL_MARGIN_CALL.SETTLED_DATE
+   }
+
+   collateral_core::ColAllocation[colAllocation]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_core::Store]COL_ALLOCATION.CALL_ID,
+         [collateral_core::Store]COL_ALLOCATION.COLLATERAL_ID
+      )
+      ~mainTable [collateral_core::Store]COL_ALLOCATION
+      callId: [collateral_core::Store]COL_ALLOCATION.CALL_ID,
+      collateralId: [collateral_core::Store]COL_ALLOCATION.COLLATERAL_ID,
+      allocatedQuantity: [collateral_core::Store]COL_ALLOCATION.ALLOCATED_QUANTITY,
+      allocatedMarketValue: [collateral_core::Store]COL_ALLOCATION.ALLOCATED_MARKET_VALUE,
+      appliedHaircutPct: [collateral_core::Store]COL_ALLOCATION.APPLIED_HAIRCUT_PCT,
+      allocatedCollateralValue: [collateral_core::Store]COL_ALLOCATION.ALLOCATED_COLLATERAL_VALUE,
+      allocationDate: [collateral_core::Store]COL_ALLOCATION.ALLOCATION_DATE,
+      isPending: [collateral_core::Store]COL_ALLOCATION.IS_PENDING
+   }
+
+   collateral_core::ColSubstitution[colSubstitution]: Relational
+   {
+      ~primaryKey ( [collateral_core::Store]COL_SUBSTITUTION.SUBSTITUTION_ID )
+      ~mainTable [collateral_core::Store]COL_SUBSTITUTION
+      substitutionId: [collateral_core::Store]COL_SUBSTITUTION.SUBSTITUTION_ID,
+      agreementId: [collateral_core::Store]COL_SUBSTITUTION.AGREEMENT_ID,
+      outgoingCollateralId: [collateral_core::Store]COL_SUBSTITUTION.OUTGOING_COLLATERAL_ID,
+      incomingCollateralId: [collateral_core::Store]COL_SUBSTITUTION.INCOMING_COLLATERAL_ID,
+      requestDate: [collateral_core::Store]COL_SUBSTITUTION.REQUEST_DATE,
+      settlementDate: [collateral_core::Store]COL_SUBSTITUTION.SETTLEMENT_DATE,
+      substitutionStatus: [collateral_core::Store]COL_SUBSTITUTION.SUBSTITUTION_STATUS,
+      reason: [collateral_core::Store]COL_SUBSTITUTION.REASON,
+      valueDifference: [collateral_core::Store]COL_SUBSTITUTION.VALUE_DIFFERENCE
+   }
+
+   // ---------------------------------------------------------------- the or-joins
+
+   // THE ONE THAT MATTERS. Both ends read the same disjunctive join, from opposite sides.
+   collateral_core::ColEligibilityMatch: Relational
+   {
+      AssociationMapping
+      (
+         matchingRules[colCollateral, colEligibilityRule]: [collateral_core::Store]@Col_EligibilityRule,
+         eligibleCollateral[colEligibilityRule, colCollateral]: [collateral_core::Store]@Col_EligibilityRule
+      )
+   }
+
+   collateral_core::ColConcentrationScope: Relational
+   {
+      AssociationMapping
+      (
+         applicableLimits[colCollateral, colConcentrationLimit]: [collateral_core::Store]@Col_ConcentrationScope,
+         limitedCollateral[colConcentrationLimit, colCollateral]: [collateral_core::Store]@Col_ConcentrationScope
+      )
+   }
+
+   collateral_core::ColCollateralHaircutBands: Relational
+   {
+      AssociationMapping
+      (
+         candidateBands[colCollateral, colHaircutBand]: [collateral_core::Store]@Col_CollateralHaircutBand,
+         bandedCollateral[colHaircutBand, colCollateral]: [collateral_core::Store]@Col_CollateralHaircutBand
+      )
+   }
+
+   // ---------------------------------------------------------------- within this project
+
+   collateral_core::ColAgreementSchedule: Relational
+   {
+      AssociationMapping
+      (
+         eligibilitySchedule[colAgreement, colEligibilitySchedule]: [collateral_core::Store]@Col_AgreementSchedule,
+         agreements[colEligibilitySchedule, colAgreement]: [collateral_core::Store]@Col_AgreementSchedule
+      )
+   }
+
+   collateral_core::ColScheduleRules: Relational
+   {
+      AssociationMapping
+      (
+         rules[colEligibilitySchedule, colEligibilityRule]: [collateral_core::Store]@Col_ScheduleRule,
+         ruleSchedule[colEligibilityRule, colEligibilitySchedule]: [collateral_core::Store]@Col_ScheduleRule
+      )
+   }
+
+   collateral_core::ColScheduleLimits: Relational
+   {
+      AssociationMapping
+      (
+         concentrationLimits[colEligibilitySchedule, colConcentrationLimit]: [collateral_core::Store]@Col_ScheduleLimit,
+         limitSchedule[colConcentrationLimit, colEligibilitySchedule]: [collateral_core::Store]@Col_ScheduleLimit
+      )
+   }
+
+   collateral_core::ColAgreementHaircutSchedule: Relational
+   {
+      AssociationMapping
+      (
+         haircutSchedule[colAgreement, colHaircutSchedule]: [collateral_core::Store]@Col_AgreementHaircutSchedule,
+         haircutAgreements[colHaircutSchedule, colAgreement]: [collateral_core::Store]@Col_AgreementHaircutSchedule
+      )
+   }
+
+   collateral_core::ColHaircutBands: Relational
+   {
+      AssociationMapping
+      (
+         bands[colHaircutSchedule, colHaircutBand]: [collateral_core::Store]@Col_HaircutBand,
+         bandSchedule[colHaircutBand, colHaircutSchedule]: [collateral_core::Store]@Col_HaircutBand
+      )
+   }
+
+   collateral_core::ColAgreementCollateral: Relational
+   {
+      AssociationMapping
+      (
+         collateral[colAgreement, colCollateral]: [collateral_core::Store]@Col_AgreementCollateral,
+         agreement[colCollateral, colAgreement]: [collateral_core::Store]@Col_AgreementCollateral
+      )
+   }
+
+   collateral_core::ColAgreementAccounts: Relational
+   {
+      AssociationMapping
+      (
+         accounts[colAgreement, colAccount]: [collateral_core::Store]@Col_AgreementAccount,
+         accountAgreement[colAccount, colAgreement]: [collateral_core::Store]@Col_AgreementAccount
+      )
+   }
+
+   collateral_core::ColAccountCollateral: Relational
+   {
+      AssociationMapping
+      (
+         accountCollateral[colAccount, colCollateral]: [collateral_core::Store]@Col_AccountCollateral,
+         account[colCollateral, colAccount]: [collateral_core::Store]@Col_AccountCollateral
+      )
+   }
+
+   collateral_core::ColCollateralValuations: Relational
+   {
+      AssociationMapping
+      (
+         valuations[colCollateral, colValuation]: [collateral_core::Store]@Col_CollateralValuation,
+         valuedCollateral[colValuation, colCollateral]: [collateral_core::Store]@Col_CollateralValuation
+      )
+   }
+
+   collateral_core::ColAgreementCalls: Relational
+   {
+      AssociationMapping
+      (
+         marginCalls[colAgreement, colMarginCall]: [collateral_core::Store]@Col_AgreementCall,
+         callAgreement[colMarginCall, colAgreement]: [collateral_core::Store]@Col_AgreementCall
+      )
+   }
+
+   collateral_core::ColCallAllocations: Relational
+   {
+      AssociationMapping
+      (
+         allocations[colMarginCall, colAllocation]: [collateral_core::Store]@Col_CallAllocation,
+         marginCall[colAllocation, colMarginCall]: [collateral_core::Store]@Col_CallAllocation
+      )
+   }
+
+   collateral_core::ColCollateralAllocations: Relational
+   {
+      AssociationMapping
+      (
+         collateralAllocations[colCollateral, colAllocation]: [collateral_core::Store]@Col_CollateralAllocation,
+         allocatedCollateral[colAllocation, colCollateral]: [collateral_core::Store]@Col_CollateralAllocation
+      )
+   }
+
+   collateral_core::ColAgreementSubstitutions: Relational
+   {
+      AssociationMapping
+      (
+         substitutions[colAgreement, colSubstitution]: [collateral_core::Store]@Col_AgreementSubstitution,
+         substitutionAgreement[colSubstitution, colAgreement]: [collateral_core::Store]@Col_AgreementSubstitution
+      )
+   }
+
+   collateral_core::ColOutgoingSubstitutions: Relational
+   {
+      AssociationMapping
+      (
+         substitutionsOut[colCollateral, colSubstitution]: [collateral_core::Store]@Col_OutgoingCollateral,
+         outgoingCollateral[colSubstitution, colCollateral]: [collateral_core::Store]@Col_OutgoingCollateral
+      )
+   }
+
+   collateral_core::ColIncomingSubstitutions: Relational
+   {
+      AssociationMapping
+      (
+         substitutionsIn[colCollateral, colSubstitution]: [collateral_core::Store]@Col_IncomingCollateral,
+         incomingCollateral[colSubstitution, colCollateral]: [collateral_core::Store]@Col_IncomingCollateral
+      )
+   }
+
+   // ---------------------------------------------------------------- across the boundary
+   // Every end names the DEPENDENCY's explicit set id -- `ciBase`, `ciAssetClassDefinition`,
+   // `cpLegalEntity` -- because those projects declared theirs and the defaults do not exist.
+
+   collateral_core::ColCollateralInstrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument[colCollateral, ciBase]: [collateral_core::Store]@Col_CollateralInstrument,
+         collateralPieces[ciBase, colCollateral]: [collateral_core::Store]@Col_CollateralInstrument
+      )
+   }
+
+   collateral_core::ColCollateralIssuer: Relational
+   {
+      AssociationMapping
+      (
+         issuer[colCollateral, cpLegalEntity]: [collateral_core::Store]@Col_CollateralIssuer,
+         issuedCollateral[cpLegalEntity, colCollateral]: [collateral_core::Store]@Col_CollateralIssuer
+      )
+   }
+
+   collateral_core::ColRuleEligibleIssuer: Relational
+   {
+      AssociationMapping
+      (
+         eligibleIssuer[colEligibilityRule, cpLegalEntity]: [collateral_core::Store]@Col_RuleEligibleIssuer,
+         issuerRules[cpLegalEntity, colEligibilityRule]: [collateral_core::Store]@Col_RuleEligibleIssuer
+      )
+   }
+
+   collateral_core::ColRuleAssetClass: Relational
+   {
+      AssociationMapping
+      (
+         eligibleAssetClassDefinition[colEligibilityRule, ciAssetClassDefinition]: [collateral_core::Store]@Col_RuleAssetClass,
+         assetClassRules[ciAssetClassDefinition, colEligibilityRule]: [collateral_core::Store]@Col_RuleAssetClass
+      )
+   }
+
+   collateral_core::ColAgreementPrincipal: Relational
+   {
+      AssociationMapping
+      (
+         principalEntity[colAgreement, cpLegalEntity]: [collateral_core::Store]@Col_AgreementPrincipal,
+         principalAgreements[cpLegalEntity, colAgreement]: [collateral_core::Store]@Col_AgreementPrincipal
+      )
+   }
+
+   collateral_core::ColAgreementCounterparty: Relational
+   {
+      AssociationMapping
+      (
+         counterpartyEntity[colAgreement, cpLegalEntity]: [collateral_core::Store]@Col_AgreementCounterparty,
+         counterpartyAgreements[cpLegalEntity, colAgreement]: [collateral_core::Store]@Col_AgreementCounterparty
+      )
+   }
+
+   collateral_core::ColAccountCustodian: Relational
+   {
+      AssociationMapping
+      (
+         custodian[colAccount, cpLegalEntity]: [collateral_core::Store]@Col_AccountCustodian,
+         custodiedAccounts[cpLegalEntity, colAccount]: [collateral_core::Store]@Col_AccountCustodian
+      )
+   }
+)

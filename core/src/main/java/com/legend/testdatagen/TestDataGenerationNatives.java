@@ -41,7 +41,8 @@ public final class TestDataGenerationNatives {
      * re-evaluation is sound). */
     public static TypedSpec foldCensus(TypedSpec stmt, ModelContext ctx,
             java.sql.Connection conn,
-            List<TypedSpec> letPrefix) {
+            List<TypedSpec> letPrefix,
+            com.legend.sql.dialect.SqlDialect engineText) {
         if (stmt instanceof TypedCsvCensus cc) {
             return literal(cc, ctx);
         }
@@ -73,12 +74,12 @@ public final class TestDataGenerationNatives {
         List<TypedSpec> out = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec r = foldCensus(k, ctx, conn, letPrefix);
+            TypedSpec r = foldCensus(k, ctx, conn, letPrefix, engineText);
             changed |= r != k;
             out.add(r);
         }
         return postFold(changed ? stmt.withChildren(out) : stmt, ctx,
-                letPrefix);
+                letPrefix, engineText);
     }
 
     /** Bottom-up constant folds the spliced-literal world enables
@@ -89,7 +90,8 @@ public final class TestDataGenerationNatives {
      * literals so assertTestData's body lowers wholesale. Non-literal
      * spellings are untouched (the statement-level K-arm owns them). */
     private static TypedSpec postFold(TypedSpec n, ModelContext ctx,
-            List<TypedSpec> letPrefix) {
+            List<TypedSpec> letPrefix,
+            com.legend.sql.dialect.SqlDialect engineText) {
         if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
             TypedSpec lit = com.legend.resolver.Pipelines.instanceLiteralProp(pa);
             if (lit != null) {
@@ -113,7 +115,7 @@ public final class TestDataGenerationNatives {
             // node construction; this layer computes the strings only
             return com.legend.compiler.spec.CsvCensusChecker.literalStrings(
                     com.legend.exec.Ddl.setUpDataSqlsText(
-                            csv.value(), db, f -> ctx.findDatabase(f)),
+                            csv.value(), db, f -> ctx.findDatabase(f), engineText),
                     nc.info());
         }
         return n;

@@ -1,0 +1,105 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+  lastName: String[1];
+}
+
+Class test::FirmSummary
+{
+  firmId: Integer[1];
+  headCount: Integer[1];
+}
+
+Class test::DistinctCity
+{
+  city: String[1];
+}
+
+Class test::CityView
+{
+  city: String[1];
+  personCount: Integer[1];
+}
+
+###Relational
+Database test::db
+(
+  Schema sales
+  (
+    Table PERSON_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      FIRSTNAME VARCHAR(200),
+      LASTNAME VARCHAR(200),
+      CITY VARCHAR(200),
+      FIRM_ID INTEGER,
+      ACTIVE INTEGER
+    )
+
+    // View directive order differs from a class mapping:
+    //   ~filter, ~groupBy, ~distinct, then the column mappings
+    View CITY_VIEW
+    (
+      ~filter ActiveFilter
+      ~groupBy (sales.PERSON_TBL.CITY)
+      ~distinct
+      city: sales.PERSON_TBL.CITY PRIMARY KEY,
+      personCount: count(sales.PERSON_TBL.ID)
+    )
+  )
+
+  Filter ActiveFilter(sales.PERSON_TBL.ACTIVE = 1)
+)
+
+###Mapping
+Mapping test::M
+(
+  // Class-mapping directive order is fixed by the grammar:
+  //   ~filter, ~distinct, ~groupBy, ~primaryKey, ~mainTable
+  // Any other order is a PARSER error.
+  *test::Person: Relational
+  {
+    ~filter [test::db]ActiveFilter
+    ~distinct
+    ~primaryKey
+    (
+      [test::db]sales.PERSON_TBL.ID
+    )
+    ~mainTable [test::db]sales.PERSON_TBL
+    firstName: [test::db]sales.PERSON_TBL.FIRSTNAME,
+    lastName: [test::db]sales.PERSON_TBL.LASTNAME
+  }
+
+  // ~groupBy sits between ~distinct and ~primaryKey
+  *test::FirmSummary: Relational
+  {
+    ~groupBy
+    (
+      [test::db]sales.PERSON_TBL.FIRM_ID
+    )
+    ~primaryKey
+    (
+      [test::db]sales.PERSON_TBL.FIRM_ID
+    )
+    ~mainTable [test::db]sales.PERSON_TBL
+    firmId: [test::db]sales.PERSON_TBL.FIRM_ID,
+    headCount: count([test::db]sales.PERSON_TBL.ID)
+  }
+
+  // ~distinct on its own
+  *test::DistinctCity: Relational
+  {
+    ~distinct
+    ~mainTable [test::db]sales.PERSON_TBL
+    city: [test::db]sales.PERSON_TBL.CITY
+  }
+
+  // a class mapped onto a View exactly like a Table
+  *test::CityView: Relational
+  {
+    ~mainTable [test::db]sales.CITY_VIEW
+    city: [test::db]sales.CITY_VIEW.city,
+    personCount: [test::db]sales.CITY_VIEW.personCount
+  }
+)

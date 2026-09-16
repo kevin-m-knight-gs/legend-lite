@@ -53,6 +53,13 @@ class MutationFuzzTest {
                     "drop-final-delimiter :: t2-databricks.pure",
                     "drop-final-delimiter :: t2-deephaven.pure",
                     "drop-final-delimiter :: t2-duckdb.pure",
+                    // the same F19 engine tolerance, the three vendor-spec
+                    // fixtures whose connection is the file's LAST element
+                    // (2026-09-16, gate 8 first run after the Athena/Aurora/
+                    // GlobalAurora/MemSql/Oracle specs landed)
+                    "drop-final-delimiter :: t2-athena.pure",
+                    "drop-final-delimiter :: t2-aurora.pure",
+                    "drop-final-delimiter :: t2-oracle.pure",
                     "drop-final-delimiter :: t2-elasticsearch.pure",
                     "drop-final-delimiter :: t2-mongodb.pure",
                     "drop-final-delimiter :: t2-redshift.pure",

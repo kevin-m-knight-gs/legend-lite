@@ -1,0 +1,24 @@
+###Relational
+Database core_tenor::Store
+(
+    Table CTN_TENOR_LADDER (LADDER_ID VARCHAR(64) PRIMARY KEY, NAME VARCHAR(128), DAY_COUNT_CONVENTION VARCHAR(32), IS_DEFAULT BIT)
+
+    // The bucket table: two bounds and no join key. MAX_DAYS on the 10y+ bucket is a
+    // sentinel far beyond any tenor, so the half-open interval stays closed at the top.
+    Table CTN_BUCKET (BUCKET_ID VARCHAR(64) PRIMARY KEY, LADDER_ID VARCHAR(64), BAND_CODE VARCHAR(16), LABEL VARCHAR(32), MIN_DAYS INTEGER, MAX_DAYS INTEGER, SORT_ORDER INTEGER)
+
+    // The other side of the range join: something dated, carrying DAYS_AWAY and no bucket.
+    Table CTN_DATED_ITEM (ITEM_ID VARCHAR(64) PRIMARY KEY, ITEM_KIND VARCHAR(16), VALUE_DATE DATE, DAYS_AWAY INTEGER, AMOUNT DOUBLE, CURRENCY VARCHAR(8))
+
+    Table CTN_BUCKET_PROFILE (PROFILE_ID VARCHAR(64) PRIMARY KEY, BUCKET_ID VARCHAR(64), AS_OF_DATE DATE, ITEM_COUNT INTEGER, TOTAL_AMOUNT DOUBLE)
+
+    // The RANGE join. Not a key lookup: which bucket applies is a property of the number of
+    // days, so the condition is `>=` on the lower bound and `<` on the upper. Half-open on
+    // purpose -- a closed upper bound would match two buckets at every boundary.
+    Join Ctn_DatedBucket(CTN_DATED_ITEM.DAYS_AWAY >= CTN_BUCKET.MIN_DAYS and CTN_DATED_ITEM.DAYS_AWAY < CTN_BUCKET.MAX_DAYS)
+
+    // An ordinary key join, for contrast: a bucket belongs to a named ladder.
+    Join Ctn_BucketLadder(CTN_BUCKET.LADDER_ID = CTN_TENOR_LADDER.LADDER_ID)
+
+    Join Ctn_ProfileBucket(CTN_BUCKET_PROFILE.BUCKET_ID = CTN_BUCKET.BUCKET_ID)
+)

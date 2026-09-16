@@ -1,0 +1,209 @@
+###Pure
+// Margin: what was called, by whom, and whether it was met or disputed.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class margincalls::MarginCallRecord
+{
+   callId: String[1];
+   callType: String[1];
+   counterpartyId: String[1];
+   callAmount: Float[1];
+   agreedAmount: Float[1];
+   currency: String[1];
+   calledOn: StrictDate[1];
+   status: String[1];
+   isDisputed: Boolean[1];
+   settledOn: StrictDate[0..1];
+
+   // The disputed amount: what we called less what they agreed. Zero on a clean
+   // call, and the number a collateral desk chases on every other.
+   disputedAmount() { $this.callAmount - $this.agreedAmount } : Float[1];
+}
+
+// Posted up front against future exposure.
+Class margincalls::InitialMarginCall extends margincalls::MarginCallRecord
+{
+}
+
+// Daily settlement of mark-to-market.
+Class margincalls::VariationMarginCall extends margincalls::MarginCallRecord
+{
+}
+
+// Bilateral initial margin under the uncleared rules.
+Class margincalls::UnclearedMarginRuleCall extends margincalls::MarginCallRecord
+{
+}
+
+// Below this the call is not made at all.
+Class margincalls::MinimumTransferAmountCall extends margincalls::MarginCallRecord
+{
+}
+
+// Exposure above an agreed unsecured threshold.
+Class margincalls::ThresholdCall extends margincalls::MarginCallRecord
+{
+}
+
+// An add-on unrelated to current exposure.
+Class margincalls::IndependentAmountCall extends margincalls::MarginCallRecord
+{
+}
+
+// Made during the day after a large move.
+Class margincalls::IntradayMarginCall extends margincalls::MarginCallRecord
+{
+}
+
+// An add-on for a position too large to liquidate quickly.
+Class margincalls::ConcentrationMarginCall extends margincalls::MarginCallRecord
+{
+}
+
+// For instruments with thin markets.
+Class margincalls::LiquidityAddOnCall extends margincalls::MarginCallRecord
+{
+}
+
+// Where exposure rises as the counterparty's credit falls.
+Class margincalls::WrongWayRiskAddOn extends margincalls::MarginCallRecord
+{
+}
+
+// The two sides disagree about the amount.
+Class margincalls::MarginDisputeItem extends margincalls::MarginCallRecord
+{
+}
+
+// Swapping one posted asset for another.
+Class margincalls::CollateralSubstitutionCall extends margincalls::MarginCallRecord
+{
+}
+
+// Exposure fell, so collateral comes back.
+Class margincalls::CollateralReturnCall extends margincalls::MarginCallRecord
+{
+}
+
+// Remuneration on cash collateral.
+Class margincalls::MarginInterestCall extends margincalls::MarginCallRecord
+{
+}
+
+// The haircut changed, so the requirement did.
+Class margincalls::HaircutAdjustmentCall extends margincalls::MarginCallRecord
+{
+}
+
+// A CCP's mutualised loss buffer, not margin at all.
+Class margincalls::DefaultFundContribution extends margincalls::MarginCallRecord
+{
+}
+
+###Mapping
+Mapping margincalls::MargincallsMapping
+(
+   *margincalls::MarginCallRecord[margincallsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]MGN_CALL.CALL_ID )
+      ~mainTable [store::DB]MGN_CALL
+      callId: [store::DB]MGN_CALL.CALL_ID,
+      callType: [store::DB]MGN_CALL.CALL_TYPE,
+      counterpartyId: [store::DB]MGN_CALL.COUNTERPARTY_ID,
+      callAmount: [store::DB]MGN_CALL.CALL_AMOUNT,
+      agreedAmount: [store::DB]MGN_CALL.AGREED_AMOUNT,
+      currency: [store::DB]MGN_CALL.CURRENCY,
+      calledOn: [store::DB]MGN_CALL.CALLED_ON,
+      status: [store::DB]MGN_CALL.STATUS,
+      isDisputed: [store::DB]MGN_CALL.IS_DISPUTED,
+      settledOn: [store::DB]MGN_CALL.SETTLED_ON
+   }
+
+   margincalls::InitialMarginCall[mgnInitialMargin] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnInitialMarginRows
+   }
+
+   margincalls::VariationMarginCall[mgnVariationMargin] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnVariationMarginRows
+   }
+
+   margincalls::UnclearedMarginRuleCall[mgnImUmr] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnImUmrRows
+   }
+
+   margincalls::MinimumTransferAmountCall[mgnMinimumTransfer] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnMinimumTransferRows
+   }
+
+   margincalls::ThresholdCall[mgnThresholdCall] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnThresholdCallRows
+   }
+
+   margincalls::IndependentAmountCall[mgnIndependentAmount] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnIndependentAmountRows
+   }
+
+   margincalls::IntradayMarginCall[mgnIntradayCall] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnIntradayCallRows
+   }
+
+   margincalls::ConcentrationMarginCall[mgnConcentrationCall] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnConcentrationCallRows
+   }
+
+   margincalls::LiquidityAddOnCall[mgnLiquidityAddOn] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnLiquidityAddOnRows
+   }
+
+   margincalls::WrongWayRiskAddOn[mgnWrongWayAddOn] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnWrongWayAddOnRows
+   }
+
+   margincalls::MarginDisputeItem[mgnMarginDispute] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnMarginDisputeRows
+   }
+
+   margincalls::CollateralSubstitutionCall[mgnSubstitution] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnSubstitutionRows
+   }
+
+   margincalls::CollateralReturnCall[mgnReturnCall] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnReturnCallRows
+   }
+
+   margincalls::MarginInterestCall[mgnInterestCall] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnInterestCallRows
+   }
+
+   margincalls::HaircutAdjustmentCall[mgnHaircutAdjustment] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnHaircutAdjustmentRows
+   }
+
+   margincalls::DefaultFundContribution[mgnDefaultFund] extends [margincallsBase]: Relational
+   {
+      ~filter [store::DB]MgnDefaultFundRows
+   }
+)

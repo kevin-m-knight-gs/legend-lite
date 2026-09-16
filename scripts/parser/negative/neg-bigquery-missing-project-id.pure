@@ -1,0 +1,27 @@
+// REJECTS: Field 'projectId' is required
+//
+// A BigQuery datasource specification with `defaultDataset` and no `projectId`. This is
+// BigQueryLexerGrammar, the connection spec -- a different grammar from
+// BigQueryFunctionLexerGrammar, which happens to share the vendor and is pinned by
+// ./neg-bigqueryfunction-wrong-section-name.pure.
+//
+// The grammar makes all four fields optional; the walker requires projectId and defaultDataset
+// and leaves proxyHost/proxyPort optional. Spanner, whose spec looks like the same idea with
+// more parts, shares `projectId`, `proxyHost` and `proxyPort` and does NOT share
+// `defaultDataset` -- writing it in a Spanner block is refused with an alternative list, and
+// writing Spanner's `instanceId` here is refused likewise. So the overlap between the two
+// Google specs is a coincidence of naming, not a shared base.
+//
+// A rewrite with one Google-cloud field table gets a parser that accepts every combination of
+// the union and requires none of it.
+###Connection
+RelationalDatabaseConnection fixture::neg::BigQueryNoProjectId
+{
+   store: fixture::neg::Db;
+   type: BigQuery;
+   specification: BigQuery
+   {
+      defaultDataset: 'dataset1';
+   };
+   auth: Test;
+}

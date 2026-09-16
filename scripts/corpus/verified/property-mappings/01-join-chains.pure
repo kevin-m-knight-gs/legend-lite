@@ -1,0 +1,70 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+  lastName: String[1];
+  firmName: String[1];
+  firmCity: String[1];
+  firmCountry: String[1];
+}
+
+Class test::Firm
+{
+  legalName: String[1];
+}
+
+###Relational
+Database test::db
+(
+  Schema sales
+  (
+    Table PERSON_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      FIRSTNAME VARCHAR(200),
+      LASTNAME VARCHAR(200),
+      FIRM_ID INTEGER
+    )
+    Table FIRM_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200),
+      ADDR_ID INTEGER
+    )
+    Table ADDR_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      CITY VARCHAR(200),
+      COUNTRY_ID INTEGER
+    )
+    Table COUNTRY_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      NAME VARCHAR(200)
+    )
+  )
+
+  Join Person_Firm(sales.PERSON_TBL.FIRM_ID = sales.FIRM_TBL.ID)
+  Join Firm_Addr(sales.FIRM_TBL.ADDR_ID = sales.ADDR_TBL.ID)
+  Join Addr_Country(sales.ADDR_TBL.COUNTRY_ID = sales.COUNTRY_TBL.ID)
+)
+
+###Mapping
+Mapping test::M
+(
+  *test::Person: Relational
+  {
+    ~mainTable [test::db]sales.PERSON_TBL
+    firstName: [test::db]sales.PERSON_TBL.FIRSTNAME,
+    lastName: [test::db]sales.PERSON_TBL.LASTNAME,
+    firmName: [test::db]@Person_Firm | sales.FIRM_TBL.LEGAL_NAME,
+    firmCity: [test::db]@Person_Firm > @Firm_Addr | sales.ADDR_TBL.CITY,
+    firmCountry: [test::db]@Person_Firm > [test::db]@Firm_Addr > [test::db]@Addr_Country | [test::db]sales.COUNTRY_TBL.NAME
+  }
+
+  *test::Firm: Relational
+  {
+    ~mainTable [test::db]sales.FIRM_TBL
+    legalName: [test::db]sales.FIRM_TBL.LEGAL_NAME
+  }
+)

@@ -555,7 +555,8 @@ public final class SystemMetamodel {
                     (
                         mapping_fqn VARCHAR(1024) PRIMARY KEY,
                         name VARCHAR(256) PRIMARY KEY,
-                        enumeration_fqn VARCHAR(1024) NOT NULL
+                        enumeration_fqn VARCHAR(1024) NOT NULL,
+                        ordinal INTEGER NOT NULL
                     )
                     Table enum_value_mappings
                     (

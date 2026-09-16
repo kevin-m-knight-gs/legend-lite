@@ -1,0 +1,19 @@
+// REJECTS: Field 'query' is required
+//
+// Inside `execution: Single` all three of query, mapping and runtime are required, and the
+// keyword is `query` even though the grammar rule and the protocol field are both called
+// `func`. The diagnostic uses the grammar spelling.
+//
+// Nested required fields are easy to lose: the outer element's required-field check is the
+// visible one, and this one lives two levels down in visitExecution.
+###Service
+Service fixture::neg::NoQuery
+{
+   pattern: '/fixture/neg/noquery';
+   documentation: 'a single execution with no query';
+   execution: Single
+   {
+      mapping: fixture::neg::Mapping;
+      runtime: fixture::neg::Runtime;
+   }
+}

@@ -1,0 +1,30 @@
+###Service
+Service demo::OtherwiseGraph
+{
+  pattern: '/otherwiseGraph';
+  documentation: 'P1 has the cache, P2 does not. Otherwise should resolve P2 via the join.';
+  execution: Single
+  {
+    query: |demo::Person.all()->graphFetch(#{demo::Person{name,firm{legalName}}}#)->serialize(#{demo::Person{name,firm{legalName}}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+                 data: '[]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

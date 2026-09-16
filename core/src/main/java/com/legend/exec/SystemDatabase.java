@@ -123,11 +123,10 @@ public final class SystemDatabase {
         for (String setup : dialect.sessionSetup()) {
             Executor.executeRaw(c, setup);
         }
-        boolean duckTarget = !dialect.rawH2IsNative();
         for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
             for (DatabaseDefinition.TableDefinition def : schema.tables()) {
                 List<List<String>> r = rows.computeIfAbsent(def.name(), rowsOf);
-                for (String stmt : Ddl.metamodelSeed(def, schema.name(), r, duckTarget)) {
+                for (String stmt : Ddl.metamodelSeed(def, schema.name(), r, dialect)) {
                     Executor.executeRaw(c, stmt);
                 }
             }

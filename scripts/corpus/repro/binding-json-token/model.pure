@@ -1,0 +1,74 @@
+Class demo::Payload
+{
+  sector: String[0..1];
+  rank: Integer[0..1];
+  score: Float[0..1];
+  active: Boolean[0..1];
+}
+
+Class demo::Holder
+{
+  id: String[1];
+  payload: demo::Payload[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table HOLDER (ID VARCHAR(20) PRIMARY KEY, PAYLOAD VARCHAR(400))
+)
+
+###ExternalFormat
+Binding demo::B
+{
+  contentType: 'application/json';
+  modelIncludes: [ demo::Payload ];
+}
+
+###Mapping
+Mapping demo::M
+(
+  demo::Holder: Relational
+  { ~primaryKey ( [demo::DB] HOLDER.ID ) ~mainTable [demo::DB] HOLDER
+    id: [demo::DB]HOLDER.ID,
+    payload: Binding demo::B : [demo::DB]HOLDER.PAYLOAD }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT
+{ mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.HOLDER:
+      'ID,PAYLOAD\n' +
+      'H1,"{""sector"":""energy"",""rank"":7,""score"":1.5,""active"":true}"\n';
+  }#
+}
+
+###Service
+Service demo::BindingTypes
+{
+  pattern: '/bindingTypes';
+  documentation: 'F27 shows a String read through a Binding comes back JSON-ENCODED. Does the same happen to an Integer, a Float and a Boolean, or is it specific to strings?';
+  execution: Single
+  {
+    query: |demo::Holder.all()->project(~[sector:x|$x.payload.sector, rank:x|$x.payload.rank, score:x|$x.payload.score, active:x|$x.payload.active]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests: [ t: { serializationFormat: PURE_TDSOBJECT;
+        asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[{"sector":"energy","rank":7,"score":1.5,"active":true}]'; }#; }# ] } ] }
+  ]
+}

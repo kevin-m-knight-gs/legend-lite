@@ -1,0 +1,17 @@
+// REJECTS: Unexpected token '%latest'
+//
+// `%latest` is CoreLexerGrammar's one keyword and it is not a general-purpose date literal.
+// It is a milestoning date parameter, legal only in the argument positions that take one
+// (`.all(%latest)`, milestoned property calls). Bound to a variable in a function body it
+// is not a value at all.
+//
+// The whole grammar is a single token, which is exactly why it invites the shortcut: a
+// rewrite lexes '%latest' alongside the '%'-prefixed date literals it already handles --
+// they share a prefix and a lexer rule shape -- and thereby makes it an expression
+// everywhere. Nothing rejects it afterwards, because downstream a date is a date.
+###Pure
+function fixture::neg::latestValue(): Date[1]
+{
+   let d = %latest;
+   $d;
+}

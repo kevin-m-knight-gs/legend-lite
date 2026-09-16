@@ -1,0 +1,20 @@
+// REJECTS: Unexpected token ','. Valid alternatives: [')']
+//
+// A position is exactly TWO numbers. Not a variadic coordinate list, not a tuple whose
+// arity the walker checks later -- the grammar closes the paren after the second, which is
+// why the only alternative offered at the third comma is ')'.
+//
+// Arity fixed in the grammar is the kind of thing a rewrite most easily loosens: parsing
+// `(` numberList `)` and taking the first two is simpler than parsing `(` num `,` num `)`,
+// handles both the position and the rectangle rules with one routine, and accepts a third
+// coordinate that then vanishes without trace.
+###Diagram
+Diagram fixture::neg::ThreeCoordinates
+{
+   classView v1
+   {
+      class: fixture::neg::Person;
+      position: (1.0,2.0,3.0);
+      rectangle: (10.0,20.0);
+   }
+}

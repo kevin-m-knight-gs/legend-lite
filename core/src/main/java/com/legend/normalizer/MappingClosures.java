@@ -188,7 +188,9 @@ final class MappingClosures {
                 if (!seen.add(inc.mappingPath())) {
                     continue;
                 }
-                LegacyMappingDefinition included = surfaceOf(inc.mappingPath()).orElseThrow(() -> MissProbe.neverFired("MappingClosures#1"));
+                LegacyMappingDefinition included = surfaceOf(inc.mappingPath()).orElseThrow(
+                        () -> MissProbe.neverFired("MappingClosures#1 (include of '"
+                                + inc.mappingPath() + "' has no mapping surface)"));
                 Map<String, ClassMapping> local = new LinkedHashMap<>();
                 walkSets(included.includes(), local, seen);
                 for (ClassMapping cm : included.classMappings()) {

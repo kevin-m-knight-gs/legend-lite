@@ -1,0 +1,39 @@
+// REJECTS: Field 'sourceDateTimeOutField' is required
+//
+// The deepest required-field check in the grammar: ingestMode > transactionMilestoning >
+// DateTime scheme > derivation > field. `SourceSpecifiesInAndOutDateTime` differs from
+// `SourceSpecifiesInDateTime` only in requiring the out field, and the .g4 expresses that
+// difference as `(transactionDerivationInField | transactionDerivationOutField)*` versus
+// `(transactionDerivationInField)*` -- i.e. it does not express it at all, since both stars
+// accept the shorter form.
+###Persistence
+Persistence test::persistence::neg::TxnDerivationNoOutField
+{
+  doc: 'source-specifies-in-and-out derivation naming only the in field';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: UnitemporalSnapshot
+    {
+      transactionMilestoning: DateTime
+      {
+        dateTimeInName: 'IN_Z';
+        dateTimeOutName: 'OUT_Z';
+        derivation: SourceSpecifiesInAndOutDateTime
+        {
+          sourceDateTimeInField: sourceIn;
+        }
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

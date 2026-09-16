@@ -1,0 +1,253 @@
+###Mapping
+
+// ============================================================
+// static_distribution::Mapping -- 13 sets, two of which have no table
+// ============================================================
+// Includes BOTH dependency mappings, which is what puts their set ids in scope: static-core
+// names its sets (`stcCodeList`, `stcCodeValue`, `stcDataOwner`) and reference-data names
+// its thirty (`rdReferenceSource`, ...), so the DEFAULT ids (`static_core_StcCodeList`) do
+// not exist and every class-valued property here has to name the explicit target.
+//
+// static_core::Mapping itself includes core_units::Mapping and reference_data::Mapping
+// includes core_instrument::Mapping and core_geo::Mapping -- all three arrive transitively
+// and none is included again here, because including a mapping twice is an error and because
+// none of those projects is a declared dependency of this one.
+//
+// THE TWO ~DISTINCT SETS are the point of the project. Each has no table of its own and each
+// collapses a repeated column on a DEPENDENCY's table into the universe of its distinct
+// values, one per schema:
+//
+//   sdiDomain        over  stc.STC_CODE_LIST.DOMAIN_CODE      (static-core's `stc` schema)
+//   sdiUpstreamField over  RD_SOURCE_PRECEDENCE.FIELD_NAME    (reference-data's default one)
+//
+// In both, `~primaryKey` names the COLLAPSED column and not the source table's own key.
+// STC_CODE_LIST is keyed on LIST_CODE and RD_SOURCE_PRECEDENCE on (FIELD_NAME, SOURCE_ID);
+// keying either set that way would leave one row per source row and the `~distinct` would
+// collapse nothing. Directive order is ~distinct, ~primaryKey, ~mainTable.
+Mapping static_distribution::Mapping
+(
+   include static_core::Mapping
+   include reference_data::Mapping
+
+   // ================================================================================
+   // 1. THE TWO ~DISTINCT SETS -- no table, one per dependency schema
+   // ================================================================================
+
+   // The distributable subject areas. static-core stamps DOMAIN_CODE on every code-list
+   // header, many lists to a domain, so the distinct values of that column ARE the domain
+   // universe and it is complete by construction.
+   *static_distribution::SdiDistributedDomain[sdiDomain]: Relational
+   {
+      ~distinct
+      ~primaryKey ( [static_core::Store]stc.STC_CODE_LIST.DOMAIN_CODE )
+      ~mainTable [static_core::Store]stc.STC_CODE_LIST
+      domainCode: [static_core::Store]stc.STC_CODE_LIST.DOMAIN_CODE,
+      publishingOwnerCode: [static_core::Store]stc.STC_CODE_LIST.OWNER_CODE
+   }
+
+   // The fields whose upstream source is contended. reference-data's precedence table carries
+   // FIELD_NAME once per (field, source), so a field with four ranked sources is four rows
+   // there and one row here.
+   *static_distribution::SdiUpstreamField[sdiUpstreamField]: Relational
+   {
+      ~distinct
+      ~primaryKey ( [reference_data::Store]RD_SOURCE_PRECEDENCE.FIELD_NAME )
+      ~mainTable [reference_data::Store]RD_SOURCE_PRECEDENCE
+      fieldName: [reference_data::Store]RD_SOURCE_PRECEDENCE.FIELD_NAME,
+      fallbackAllowed: [reference_data::Store]RD_SOURCE_PRECEDENCE.IS_FALLBACK_ALLOWED
+   }
+
+   // ================================================================================
+   // 2. OUR OWN TABLES, all in the `sdi` SCHEMA
+   //    every reference is [static_distribution::Store]sdi.TABLE.COLUMN
+   // ================================================================================
+
+   *static_distribution::SdiChannel[sdiChannel]: Relational
+   {
+      ~primaryKey ( [static_distribution::Store]sdi.SDI_CHANNEL.CHANNEL_CODE )
+      ~mainTable [static_distribution::Store]sdi.SDI_CHANNEL
+      channelCode: [static_distribution::Store]sdi.SDI_CHANNEL.CHANNEL_CODE,
+      channelName: [static_distribution::Store]sdi.SDI_CHANNEL.CHANNEL_NAME,
+      transport: [static_distribution::Store]sdi.SDI_CHANNEL.TRANSPORT,
+      endpointUri: [static_distribution::Store]sdi.SDI_CHANNEL.ENDPOINT_URI,
+      isEncrypted: [static_distribution::Store]sdi.SDI_CHANNEL.IS_ENCRYPTED,
+      retiredOn: [static_distribution::Store]sdi.SDI_CHANNEL.RETIRED_ON
+   }
+
+   *static_distribution::SdiConsumer[sdiConsumer]: Relational
+   {
+      ~primaryKey ( [static_distribution::Store]sdi.SDI_CONSUMER.CONSUMER_ID )
+      ~mainTable [static_distribution::Store]sdi.SDI_CONSUMER
+      consumerId: [static_distribution::Store]sdi.SDI_CONSUMER.CONSUMER_ID,
+      consumerName: [static_distribution::Store]sdi.SDI_CONSUMER.CONSUMER_NAME,
+      contactEmail: [static_distribution::Store]sdi.SDI_CONSUMER.CONTACT_EMAIL,
+      escalationTeam: [static_distribution::Store]sdi.SDI_CONSUMER.ESCALATION_TEAM,
+      channelCode: [static_distribution::Store]sdi.SDI_CONSUMER.CHANNEL_CODE,
+      onboardedOn: [static_distribution::Store]sdi.SDI_CONSUMER.ONBOARDED_ON,
+      offboardedOn: [static_distribution::Store]sdi.SDI_CONSUMER.OFFBOARDED_ON,
+      ackSlaHours: [static_distribution::Store]sdi.SDI_CONSUMER.ACK_SLA_HOURS,
+      channel[sdiChannel]: [static_distribution::Store]@Sdi_ConsumerChannel,
+      subscriptions[sdiSubscription]: [static_distribution::Store]@Sdi_SubscriptionConsumer
+   }
+
+   // The four cross-project property mappings all live on this set: two into static-core's
+   // `stc` schema, one into reference-data, and one onto our own `~distinct` field set.
+   *static_distribution::SdiDataset[sdiDataset]: Relational
+   {
+      ~primaryKey ( [static_distribution::Store]sdi.SDI_DATASET.DATASET_CODE )
+      ~mainTable [static_distribution::Store]sdi.SDI_DATASET
+      datasetCode: [static_distribution::Store]sdi.SDI_DATASET.DATASET_CODE,
+      datasetName: [static_distribution::Store]sdi.SDI_DATASET.DATASET_NAME,
+      listCode: [static_distribution::Store]sdi.SDI_DATASET.LIST_CODE,
+      domainCode: [static_distribution::Store]sdi.SDI_DATASET.DOMAIN_CODE,
+      ownerCode: [static_distribution::Store]sdi.SDI_DATASET.OWNER_CODE,
+      sourceId: [static_distribution::Store]sdi.SDI_DATASET.SOURCE_ID,
+      primaryFieldName: [static_distribution::Store]sdi.SDI_DATASET.PRIMARY_FIELD_NAME,
+      retiredOn: [static_distribution::Store]sdi.SDI_DATASET.RETIRED_ON,
+      sourceList[stcCodeList]: [static_distribution::Store]@Sdi_DatasetList,
+      contentOwner[stcDataOwner]: [static_distribution::Store]@Sdi_DatasetOwner,
+      upstreamSource[rdReferenceSource]: [static_distribution::Store]@Sdi_DatasetSource,
+      governedField[sdiUpstreamField]: [static_distribution::Store]@Sdi_DatasetField,
+      publications[sdiPublication]: [static_distribution::Store]@Sdi_PublicationDataset
+   }
+
+   *static_distribution::SdiSubscription[sdiSubscription]: Relational
+   {
+      ~primaryKey
+      (
+         [static_distribution::Store]sdi.SDI_SUBSCRIPTION.CONSUMER_ID,
+         [static_distribution::Store]sdi.SDI_SUBSCRIPTION.DATASET_CODE
+      )
+      ~mainTable [static_distribution::Store]sdi.SDI_SUBSCRIPTION
+      consumerId: [static_distribution::Store]sdi.SDI_SUBSCRIPTION.CONSUMER_ID,
+      datasetCode: [static_distribution::Store]sdi.SDI_SUBSCRIPTION.DATASET_CODE,
+      subscribedOn: [static_distribution::Store]sdi.SDI_SUBSCRIPTION.SUBSCRIBED_ON,
+      cancelledOn: [static_distribution::Store]sdi.SDI_SUBSCRIPTION.CANCELLED_ON,
+      deliveryFormat: [static_distribution::Store]sdi.SDI_SUBSCRIPTION.DELIVERY_FORMAT,
+      isMandatory: [static_distribution::Store]sdi.SDI_SUBSCRIPTION.IS_MANDATORY,
+      consumer[sdiConsumer]: [static_distribution::Store]@Sdi_SubscriptionConsumer,
+      dataset[sdiDataset]: [static_distribution::Store]@Sdi_SubscriptionDataset
+   }
+
+   *static_distribution::SdiSchedule[sdiSchedule]: Relational
+   {
+      ~primaryKey ( [static_distribution::Store]sdi.SDI_SCHEDULE.SCHEDULE_ID )
+      ~mainTable [static_distribution::Store]sdi.SDI_SCHEDULE
+      scheduleId: [static_distribution::Store]sdi.SDI_SCHEDULE.SCHEDULE_ID,
+      datasetCode: [static_distribution::Store]sdi.SDI_SCHEDULE.DATASET_CODE,
+      frequency: [static_distribution::Store]sdi.SDI_SCHEDULE.FREQUENCY,
+      cutoffTime: [static_distribution::Store]sdi.SDI_SCHEDULE.CUTOFF_TIME,
+      timeZone: [static_distribution::Store]sdi.SDI_SCHEDULE.TIME_ZONE,
+      graceMinutes: [static_distribution::Store]sdi.SDI_SCHEDULE.GRACE_MINUTES,
+      nextRunDate: [static_distribution::Store]sdi.SDI_SCHEDULE.NEXT_RUN_DATE,
+      dataset[sdiDataset]: [static_distribution::Store]@Sdi_ScheduleDataset
+   }
+
+   *static_distribution::SdiPublication[sdiPublication]: Relational
+   {
+      ~primaryKey ( [static_distribution::Store]sdi.SDI_PUBLICATION.PUBLICATION_ID )
+      ~mainTable [static_distribution::Store]sdi.SDI_PUBLICATION
+      publicationId: [static_distribution::Store]sdi.SDI_PUBLICATION.PUBLICATION_ID,
+      datasetCode: [static_distribution::Store]sdi.SDI_PUBLICATION.DATASET_CODE,
+      versionNumber: [static_distribution::Store]sdi.SDI_PUBLICATION.VERSION_NUMBER,
+      checksum: [static_distribution::Store]sdi.SDI_PUBLICATION.CHECKSUM,
+      rowCount: [static_distribution::Store]sdi.SDI_PUBLICATION.ROW_COUNT,
+      expectedRowCount: [static_distribution::Store]sdi.SDI_PUBLICATION.EXPECTED_ROW_COUNT,
+      publishedAt: [static_distribution::Store]sdi.SDI_PUBLICATION.PUBLISHED_AT,
+      scheduleId: [static_distribution::Store]sdi.SDI_PUBLICATION.SCHEDULE_ID,
+      retractedOn: [static_distribution::Store]sdi.SDI_PUBLICATION.RETRACTED_ON,
+      dataset[sdiDataset]: [static_distribution::Store]@Sdi_PublicationDataset,
+      schedule[sdiSchedule]: [static_distribution::Store]@Sdi_PublicationSchedule,
+      items[sdiPublicationItem]: [static_distribution::Store]@Sdi_ItemPublication,
+      acknowledgements[sdiAck]: [static_distribution::Store]@Sdi_AckPublication
+   }
+
+   // Three-part key, and the composite cross-schema join to static-core's code value.
+   *static_distribution::SdiPublicationItem[sdiPublicationItem]: Relational
+   {
+      ~primaryKey
+      (
+         [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.PUBLICATION_ID,
+         [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.LIST_CODE,
+         [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.VALUE_CODE
+      )
+      ~mainTable [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM
+      publicationId: [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.PUBLICATION_ID,
+      listCode: [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.LIST_CODE,
+      valueCode: [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.VALUE_CODE,
+      changeType: [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.CHANGE_TYPE,
+      itemChecksum: [static_distribution::Store]sdi.SDI_PUBLICATION_ITEM.ITEM_CHECKSUM,
+      publication[sdiPublication]: [static_distribution::Store]@Sdi_ItemPublication,
+      codeValue[stcCodeValue]: [static_distribution::Store]@Sdi_ItemValue
+   }
+
+   *static_distribution::SdiAcknowledgement[sdiAck]: Relational
+   {
+      ~primaryKey
+      (
+         [static_distribution::Store]sdi.SDI_ACK.PUBLICATION_ID,
+         [static_distribution::Store]sdi.SDI_ACK.CONSUMER_ID
+      )
+      ~mainTable [static_distribution::Store]sdi.SDI_ACK
+      publicationId: [static_distribution::Store]sdi.SDI_ACK.PUBLICATION_ID,
+      consumerId: [static_distribution::Store]sdi.SDI_ACK.CONSUMER_ID,
+      acknowledgedAt: [static_distribution::Store]sdi.SDI_ACK.ACKNOWLEDGED_AT,
+      reportedChecksum: [static_distribution::Store]sdi.SDI_ACK.REPORTED_CHECKSUM,
+      ackStatus: [static_distribution::Store]sdi.SDI_ACK.ACK_STATUS,
+      rejectionReason: [static_distribution::Store]sdi.SDI_ACK.REJECTION_REASON,
+      publication[sdiPublication]: [static_distribution::Store]@Sdi_AckPublication,
+      consumer[sdiConsumer]: [static_distribution::Store]@Sdi_AckConsumer
+   }
+
+   *static_distribution::SdiDeliveryAttempt[sdiDelivery]: Relational
+   {
+      ~primaryKey ( [static_distribution::Store]sdi.SDI_DELIVERY.ATTEMPT_ID )
+      ~mainTable [static_distribution::Store]sdi.SDI_DELIVERY
+      attemptId: [static_distribution::Store]sdi.SDI_DELIVERY.ATTEMPT_ID,
+      publicationId: [static_distribution::Store]sdi.SDI_DELIVERY.PUBLICATION_ID,
+      consumerId: [static_distribution::Store]sdi.SDI_DELIVERY.CONSUMER_ID,
+      channelCode: [static_distribution::Store]sdi.SDI_DELIVERY.CHANNEL_CODE,
+      attemptNumber: [static_distribution::Store]sdi.SDI_DELIVERY.ATTEMPT_NUMBER,
+      startedAt: [static_distribution::Store]sdi.SDI_DELIVERY.STARTED_AT,
+      completedAt: [static_distribution::Store]sdi.SDI_DELIVERY.COMPLETED_AT,
+      bytesSent: [static_distribution::Store]sdi.SDI_DELIVERY.BYTES_SENT,
+      failureCode: [static_distribution::Store]sdi.SDI_DELIVERY.FAILURE_CODE,
+      publication[sdiPublication]: [static_distribution::Store]@Sdi_DeliveryPublication,
+      consumer[sdiConsumer]: [static_distribution::Store]@Sdi_DeliveryConsumer,
+      channel[sdiChannel]: [static_distribution::Store]@Sdi_DeliveryChannel
+   }
+
+   *static_distribution::SdiRetraction[sdiRetraction]: Relational
+   {
+      ~primaryKey ( [static_distribution::Store]sdi.SDI_RETRACTION.RETRACTION_ID )
+      ~mainTable [static_distribution::Store]sdi.SDI_RETRACTION
+      retractionId: [static_distribution::Store]sdi.SDI_RETRACTION.RETRACTION_ID,
+      publicationId: [static_distribution::Store]sdi.SDI_RETRACTION.PUBLICATION_ID,
+      raisedOn: [static_distribution::Store]sdi.SDI_RETRACTION.RAISED_ON,
+      reasonCode: [static_distribution::Store]sdi.SDI_RETRACTION.REASON_CODE,
+      reasonText: [static_distribution::Store]sdi.SDI_RETRACTION.REASON_TEXT,
+      raisedBy: [static_distribution::Store]sdi.SDI_RETRACTION.RAISED_BY,
+      replacementPublicationId: [static_distribution::Store]sdi.SDI_RETRACTION.REPLACEMENT_PUBLICATION_ID,
+      publication[sdiPublication]: [static_distribution::Store]@Sdi_RetractionPublication
+   }
+
+   // `domain` targets the `~distinct` set, whose main table is stc.STC_CODE_LIST: an
+   // entitlement is granted against a domain that exists because some list is in it.
+   *static_distribution::SdiEntitlement[sdiEntitlement]: Relational
+   {
+      ~primaryKey
+      (
+         [static_distribution::Store]sdi.SDI_ENTITLEMENT.CONSUMER_ID,
+         [static_distribution::Store]sdi.SDI_ENTITLEMENT.DOMAIN_CODE
+      )
+      ~mainTable [static_distribution::Store]sdi.SDI_ENTITLEMENT
+      consumerId: [static_distribution::Store]sdi.SDI_ENTITLEMENT.CONSUMER_ID,
+      domainCode: [static_distribution::Store]sdi.SDI_ENTITLEMENT.DOMAIN_CODE,
+      grantedOn: [static_distribution::Store]sdi.SDI_ENTITLEMENT.GRANTED_ON,
+      revokedOn: [static_distribution::Store]sdi.SDI_ENTITLEMENT.REVOKED_ON,
+      mayRedistribute: [static_distribution::Store]sdi.SDI_ENTITLEMENT.MAY_REDISTRIBUTE,
+      restrictionNote: [static_distribution::Store]sdi.SDI_ENTITLEMENT.RESTRICTION_NOTE,
+      consumer[sdiConsumer]: [static_distribution::Store]@Sdi_EntitlementConsumer,
+      domain[sdiDomain]: [static_distribution::Store]@Sdi_EntitlementDomain
+   }
+)

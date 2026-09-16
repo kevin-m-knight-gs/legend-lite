@@ -44,4 +44,10 @@ public interface SqlDialect {
         return false;
     }
 
+    /** DDL rendered like a query (2026-09-16): the dialect spells the
+     *  store's declared shape — its identifier rule, its type names.
+     *  Retires the {@code Ddl.Flavor} enum and the {@code rawH2IsNative()}
+     *  ternaries that chose it: a target is decided INSIDE its dialect. */
+    String render(com.legend.sql.SqlDdl ddl);
+
 }

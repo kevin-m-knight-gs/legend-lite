@@ -1,0 +1,116 @@
+###Relational
+Database store::views::ViewsDB
+(
+  Table orderTable
+  (
+    ID INTEGER PRIMARY KEY,
+    accountID INTEGER,
+    quantity INTEGER,
+    price DECIMAL(18, 4),
+    prodName VARCHAR(100)
+  )
+
+  Table orderPnlTable
+  (
+    ORDER_ID INTEGER PRIMARY KEY,
+    pnl DOUBLE,
+    supportContact VARCHAR(100)
+  )
+
+  Table accountTable
+  (
+    ID INTEGER PRIMARY KEY,
+    name VARCHAR(200)
+  )
+
+  Join OrderPnlTable_Order(orderPnlTable.ORDER_ID = orderTable.ID)
+  Join Order_Account(orderTable.accountID = accountTable.ID)
+
+  Filter NonNegativePnlFilter(orderPnlTable.pnl > 0)
+
+  // ~filter + ~distinct + join-based column + join-chain column
+  View orderPnlView
+  (
+    ~filter NonNegativePnlFilter
+    ~distinct
+    ORDER_ID: orderPnlTable.ORDER_ID PRIMARY KEY,
+    pnl: orderPnlTable.pnl,
+    accountId: @OrderPnlTable_Order > @Order_Account | accountTable.ID,
+    supportContact: orderPnlTable.supportContact
+  )
+
+  // ~groupBy with an aggregate over a join
+  View accountOrderPnlView
+  (
+    ~groupBy (orderTable.accountID)
+    accountId: orderTable.accountID PRIMARY KEY,
+    orderPnl: sum(@OrderPnlTable_Order | orderPnlTable.pnl)
+  )
+
+  // dynafunction columns
+  View orderComputedView
+  (
+    id: orderTable.ID PRIMARY KEY,
+    label: concat('ORD-', orderTable.prodName),
+    upperName: upper(orderTable.prodName),
+    lowerName: lower(orderTable.prodName),
+    shortName: substring(orderTable.prodName, 1, 3),
+    lineTotal: multiply(orderTable.quantity, orderTable.price)
+  )
+
+  // ~filter reached through a join, plus ~groupBy and ~distinct together
+  View orderFilteredThroughJoinView
+  (
+    ~filter [store::views::ViewsDB]@OrderPnlTable_Order | [store::views::ViewsDB]NonNegativePnlFilter
+    ~groupBy (orderTable.accountID)
+    ~distinct
+    accountId: orderTable.accountID PRIMARY KEY,
+    qty: sum(orderTable.quantity)
+  )
+)
+
+###Pure
+Class store::views::OrderPnl
+{
+  pnl: Float[1];
+  accountId: Integer[0..1];
+}
+
+Class store::views::AccountPnl
+{
+  accountId: Integer[1];
+  orderPnl: Float[0..1];
+}
+
+Class store::views::OrderLabel
+{
+  label: String[0..1];
+  upperName: String[0..1];
+  lineTotal: Float[0..1];
+}
+
+###Mapping
+Mapping store::views::ViewsMapping
+(
+  *store::views::OrderPnl: Relational
+  {
+    ~mainTable [store::views::ViewsDB]orderPnlView
+    pnl: [store::views::ViewsDB]orderPnlView.pnl,
+    accountId: [store::views::ViewsDB]orderPnlView.accountId
+  }
+
+  *store::views::AccountPnl: Relational
+  {
+    ~mainTable [store::views::ViewsDB]accountOrderPnlView
+    accountId: [store::views::ViewsDB]accountOrderPnlView.accountId,
+    orderPnl: [store::views::ViewsDB]accountOrderPnlView.orderPnl
+  }
+
+  *store::views::OrderLabel: Relational
+  {
+    ~mainTable [store::views::ViewsDB]orderComputedView
+    label: [store::views::ViewsDB]orderComputedView.label,
+    upperName: [store::views::ViewsDB]orderComputedView.upperName,
+    lineTotal: [store::views::ViewsDB]orderComputedView.lineTotal
+  }
+)

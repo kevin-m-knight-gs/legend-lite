@@ -1,0 +1,404 @@
+// ============================================================
+// settlement-flow (L2) -- settlement instructions become cash, and what happens when they
+// do not
+// ============================================================
+// Depends on settlement-core (the instruction, the venue, the fail reason) and on cash-core
+// (the movement, the balance, the statement line). It refers to settlement_core:: and
+// cash_core:: and to the tables those two projects put in scope through their own includes,
+// and to nothing else outside settlement_flow::.
+//
+// The sentence this project models: an instruction settles, a cash movement is booked on its
+// value date, the two are reconciled, and a fail produces a claim. Nothing here re-declares
+// an instruction or a movement -- both are reached by ASSOCIATION, which is the construct
+// this layer exists to exercise alongside the join chain.
+//
+// The join chain. settlement-core already reaches a calendar in TWO hops
+// (instruction -> CC_MARKET -> CC_CALENDAR). Standing one layer further out, the same
+// calendar is FOUR hops from a settlement link
+//
+//    SFL_CASH_SETTLEMENT_LINK -> SC_SETTLEMENT_INSTRUCTION -> SC_STANDING_INSTRUCTION
+//                             -> SC_PLACE_OF_SETTLEMENT    -> CC_CALENDAR
+//
+// and SIX from a claim, which goes the long way round through the counterparty's custodian.
+// Every hop is many-to-ONE, which is the only reason the property is single-valued; a
+// to-many hop anywhere in the chain makes the whole thing a list and the compiler will not
+// say so politely.
+
+###Pure
+
+// FOR: the one row that says "this settlement instruction's cash leg is this cash movement".
+// The central fact of the project and the anchor of every chain below. It is a class and not
+// a pair of foreign keys on either side because the link is itself dated, statused and
+// disputable: a settlement can be matched to the wrong movement, and unpicking that is an
+// operational event with an owner.
+Class settlement_flow::SflCashSettlementLink
+{
+   linkId: String[1];
+   // CASH_LEG | PVP_NEAR | PVP_FAR | FEE -- which of an instruction's cash flows this is.
+   linkKind: String[1];
+   // PROPOSED | MATCHED | CONFIRMED | REJECTED
+   linkStatus: String[1];
+   linkedOn: StrictDate[1];
+   // What the instruction said the cash would be, frozen at link time. The movement's own
+   // amount is on the movement; the difference between them is the reconciliation.
+   expectedAmount: Float[1];
+   expectedValueDate: StrictDate[1];
+   // 0..100. Auto-matching writes it; a human override writes 100.
+   matchConfidence: Integer[1];
+
+   // ---- the FOUR-HOP join chain, ending in a calendar column two projects away ----
+   // link -> instruction -> SSI -> place of settlement -> calendar. Not one of these is a
+   // column on SFL_CASH_SETTLEMENT_LINK, and that is the point: re-point a venue at another
+   // calendar and every link re-reads it.
+   settlementCalendarId: String[0..1];
+   settlementCentre: String[0..1];
+   settlementWeekendDays: String[0..1];
+
+   isMatched() { $this.linkStatus == 'MATCHED' } : Boolean[1];
+   isConfirmed() { $this.linkStatus == 'CONFIRMED' } : Boolean[1];
+}
+
+// FOR: the path the cash actually takes to reach the place of settlement -- direct to the
+// venue's cash account, or through a correspondent. Separate from the link because the same
+// instruction can be re-routed after a fail without the link changing.
+Class settlement_flow::SflPaymentRoute
+{
+   routeId: String[1];
+   // DIRECT | CORRESPONDENT | INTERNAL_BOOK
+   routeKind: String[1];
+   agentBic: String[0..1];
+   correspondentBic: String[0..1];
+   isDirect: Boolean[1];
+   // Number of correspondents between us and the venue. The reason a payment lands late.
+   legHops: Integer[1];
+
+   isIndirect() { $this.isDirect == false } : Boolean[1];
+}
+
+// FOR: the standing rule naming WHICH of our cash accounts serves a given place of
+// settlement in a given currency. The nostro mandate is why a route can be computed rather
+// than keyed: given a venue and a currency, the account follows.
+Class settlement_flow::SflNostroMandate
+{
+   mandateId: String[1];
+   currencyCode: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   isPrimary: Boolean[1];
+   effectiveFrom: StrictDate[1];
+   effectiveTo: StrictDate[0..1];
+
+   // Open-ended, therefore the one in force. The end date is tested, not a status flag.
+   isOpenEnded() { $this.effectiveTo->isEmpty() } : Boolean[1];
+}
+
+// FOR: the comparison of what the instruction said the cash would be against what the cash
+// book actually booked. One row per link per run; the differences it records are the whole
+// reason the two systems are kept separate rather than merged.
+Class settlement_flow::SflReconciliation
+{
+   reconId: String[1];
+   // CLEAN | AMOUNT_BREAK | DATE_BREAK | MISSING | DUPLICATE
+   reconStatus: String[1];
+   reconciledOn: StrictDate[1];
+   // Expected minus booked. Signed, because which way it is wrong matters.
+   amountDifference: Float[1];
+   // Expected value date minus actual, in days. Positive means the cash came late.
+   valueDateDifferenceDays: Integer[1];
+   toleranceApplied: Float[1];
+
+   isClean() { ($this.amountDifference == 0.0) && ($this.valueDateDifferenceDays == 0) } : Boolean[1];
+   withinTolerance() { $this.amountDifference->abs() <= $this.toleranceApplied } : Boolean[1];
+
+   // ---- a three-hop chain the other way, into the cash book ----
+   // reconciliation -> link -> movement, ending on the movement's own value date. The date
+   // the break is measured against is never copied onto the reconciliation row.
+   bookedValueDate: StrictDate[0..1];
+   bookedAmount: Float[0..1];
+}
+
+// FOR: one unexplained difference a reconciliation found, with an owner and a resolution
+// date. A reconciliation is a verdict; a break is a piece of work.
+Class settlement_flow::SflReconciliationBreak
+{
+   breakId: String[1];
+   // AMOUNT | VALUE_DATE | UNMATCHED_OURS | UNMATCHED_THEIRS | CURRENCY
+   breakType: String[1];
+   breakAmount: Float[1];
+   detectedOn: StrictDate[1];
+   resolvedOn: StrictDate[0..1];
+   assignedTo: String[0..1];
+   commentary: String[0..1];
+
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the compensation a counterparty owes us because their fail kept our cash out of our
+// account. The thing a failed settlement produces, and the reason a settlement fail is a
+// P&L event and not only an operational one.
+Class settlement_flow::SflSettlementClaim
+{
+   claimId: String[1];
+   // INTEREST | BUY_IN | PENALTY | CSDR_CASH_PENALTY
+   claimType: String[1];
+   // RAISED | AGREED | DISPUTED | PAID | WITHDRAWN
+   claimStatus: String[1];
+   claimAmount: Float[1];
+   claimCurrency: String[1];
+   raisedOn: StrictDate[1];
+   settledOn: StrictDate[0..1];
+   // Days between intended and actual settlement -- the quantity being charged for.
+   daysLate: Integer[1];
+   // Annual rate the interest claim is struck at.
+   interestRate: Float[1];
+
+   isOpen() { $this.settledOn->isEmpty() } : Boolean[1];
+   isPaid() { $this.claimStatus == 'PAID' } : Boolean[1];
+   isDisputed() { $this.claimStatus == 'DISPUTED' } : Boolean[1];
+   // Both operands are Float, so this stays Float. Written with an Integer anywhere in it
+   // the result would type as Number and the declared Float[1] would not accept it.
+   dailyInterest() { ($this.claimAmount * $this.interestRate) / 365.0 } : Float[1];
+
+   // ---- the SIX-HOP join chain: the long way round to the same calendar ----
+   // claim -> link -> instruction -> SSI -> custodian -> place -> calendar. The claim is
+   // computed in business days, so the calendar the days were counted on is part of the
+   // claim's evidence, and it is six joins away without being one column anywhere.
+   claimCalendarId: String[0..1];
+   claimSettlementCentre: String[0..1];
+   claimWeekendDays: String[0..1];
+   // ---- four hops into the cash book: the pool the late money should have landed in ----
+   fundingPoolName: String[0..1];
+}
+
+// FOR: interest accrued on an open claim, one row per day. Split from the claim because a
+// claim that runs three weeks is negotiated on its daily detail, not on its total.
+Class settlement_flow::SflClaimInterestAccrual
+{
+   claimId: String[1];
+   accrualDate: StrictDate[1];
+   // ACT/360 | ACT/365
+   accrualBasis: String[1];
+   dailyAmount: Float[1];
+   cumulativeAmount: Float[1];
+}
+
+// FOR: the dated audit trail of a claim -- raised, disputed, agreed, paid. The claim carries
+// only its current status; this carries how it got there, which is what the counterparty
+// argues with.
+Class settlement_flow::SflClaimEvent
+{
+   claimId: String[1];
+   eventSeq: Integer[1];
+   eventType: String[1];
+   eventDate: StrictDate[1];
+   resultingStatus: String[1];
+   actionedBy: String[0..1];
+   note: String[0..1];
+}
+
+// FOR: the cash a settlement account is expected to see on one value date in one currency,
+// built from the links that point at it. The forward-looking half of this project: the
+// reconciliation looks back at what happened, the forecast looks at what is about to.
+Class settlement_flow::SflCashForecast
+{
+   forecastId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   currencyCode: String[1];
+   forecastDate: StrictDate[1];
+   expectedCredits: Float[1];
+   expectedDebits: Float[1];
+   // The part of the above already confirmed by the venue, as opposed to merely instructed.
+   confirmedAmount: Float[1];
+   generatedOn: StrictDate[1];
+
+   netExpected() { $this.expectedCredits - $this.expectedDebits } : Float[1];
+}
+
+// FOR: one settlement link's contribution to a forecast. Kept as rows rather than a sum so
+// that a forecast that moves can be explained by the instruction that moved it.
+Class settlement_flow::SflForecastLine
+{
+   forecastId: String[1];
+   lineSeq: Integer[1];
+   // CREDIT | DEBIT, from the forecast account's point of view.
+   direction: String[1];
+   amount: Float[1];
+   isConfirmed: Boolean[1];
+
+   // -1.0 and not -1: an Integer factor would type the product as Number.
+   signedAmount() { if($this.direction == 'CREDIT', | $this.amount, | $this.amount * -1.0) } : Float[1];
+}
+
+// FOR: the gap between the cash a value date needs and the cash that will be there. The
+// output the treasury desk actually reads, and the reason settlement and cash are modelled
+// together at all.
+Class settlement_flow::SflFundingShortfall
+{
+   shortfallId: String[1];
+   currencyCode: String[1];
+   valueDate: StrictDate[1];
+   shortfallAmount: Float[1];
+   coveredAmount: Float[1];
+   // 0 = none, 1 = desk, 2 = treasury, 3 = CFO.
+   escalationLevel: Integer[1];
+   resolvedOn: StrictDate[0..1];
+
+   isCovered() { $this.coveredAmount >= $this.shortfallAmount } : Boolean[1];
+   uncoveredAmount() { $this.shortfallAmount - $this.coveredAmount } : Float[1];
+   // Float over Float. Declared Float[1] because `/` widens even when it does not have to.
+   coverageRatio() { $this.coveredAmount / $this.shortfallAmount } : Float[1];
+}
+
+// FOR: what a fail cost US, as opposed to what we are claiming from someone else. The two
+// are different numbers and only one of them is recoverable: a claim is an asset, a cost is
+// a charge, and pretending they are the same is how fail cost disappears from a P&L.
+Class settlement_flow::SflSettlementFailCost
+{
+   costId: String[1];
+   // FUNDING | PENALTY | BUY_IN_LOSS | OPERATIONAL
+   costType: String[1];
+   costAmount: Float[1];
+   costCurrency: String[1];
+   bookedOn: StrictDate[1];
+   // Whether it was recharged to the counterparty via the claim.
+   isPassedOn: Boolean[1];
+
+   isAbsorbed() { $this.isPassedOn == false } : Boolean[1];
+}
+
+// ============================================================
+// Associations
+// ============================================================
+// Both ends of every one of these is a property, so they are declared here and mapped in
+// mapping.pure inside an `AssociationMapping( ... )` block. The four that CROSS A PROJECT
+// BOUNDARY are the interesting ones: they add a property to a class this project does not
+// own -- `ScSettlementInstruction.cashLinks`, `CshCashMovement.settlementLinks` -- which is
+// exactly what a layer above two domains is for, and is why neither dependency needed a
+// column pointing forwards at this one.
+
+// ---- across the boundary -----------------------------------------------------------
+
+// THE ONE THAT MATTERS. An instruction produces cash; the cash movement is not a settlement
+// concept and the instruction is not a cash concept, so the fact that joins them lives here.
+// To-many on the instruction side because a PVP instruction has two cash legs and a re-book
+// leaves the old link in place.
+Association settlement_flow::SflLinkInstruction
+{
+   instruction: settlement_core::ScSettlementInstruction[1];
+   cashLinks: settlement_flow::SflCashSettlementLink[*];
+}
+
+// The other half of the same sentence. [0..1] on the movement: a link is created when the
+// instruction is released and the movement may not exist yet, which is precisely the state
+// the reconciliation is looking for.
+Association settlement_flow::SflLinkMovement
+{
+   movement: cash_core::CshCashMovement[0..1];
+   settlementLinks: settlement_flow::SflCashSettlementLink[*];
+}
+
+// Why the claim exists, in the CSD's own vocabulary. The reason code is settlement-core's
+// table, not an enum, so this is a join and not a value.
+Association settlement_flow::SflClaimFailReason
+{
+   failReason: settlement_core::ScFailReason[0..1];
+   claims: settlement_flow::SflSettlementClaim[*];
+}
+
+// A nostro mandate is stated per venue, so it points at settlement-core's place.
+Association settlement_flow::SflMandatePlace
+{
+   place: settlement_core::ScPlaceOfSettlement[1];
+   nostroMandates: settlement_flow::SflNostroMandate[*];
+}
+
+// ...and at the cash-core account profile on the other side, which is the whole content of
+// a mandate: this venue, this currency, that account.
+Association settlement_flow::SflMandateCashProfile
+{
+   cashProfile: cash_core::CshCashAccountProfile[0..1];
+   mandates: settlement_flow::SflNostroMandate[*];
+}
+
+// The bank's own line, when the break is against the statement rather than against our book.
+Association settlement_flow::SflBreakStatementLine
+{
+   statementLine: cash_core::CshStatementLine[0..1];
+   settlementBreaks: settlement_flow::SflReconciliationBreak[*];
+}
+
+// A shortfall is measured against the balance that will be struck on the value date.
+Association settlement_flow::SflShortfallBalance
+{
+   balance: cash_core::CshCashBalance[0..1];
+   settlementShortfalls: settlement_flow::SflFundingShortfall[*];
+}
+
+// ---- inside this project -----------------------------------------------------------
+
+Association settlement_flow::SflLinkRouting
+{
+   route: settlement_flow::SflPaymentRoute[0..1];
+   routedLink: settlement_flow::SflCashSettlementLink[1];
+}
+
+Association settlement_flow::SflRouteMandate
+{
+   mandate: settlement_flow::SflNostroMandate[0..1];
+   mandatedRoutes: settlement_flow::SflPaymentRoute[*];
+}
+
+Association settlement_flow::SflLinkReconciliation
+{
+   reconciliation: settlement_flow::SflReconciliation[0..1];
+   reconciledLink: settlement_flow::SflCashSettlementLink[1];
+}
+
+Association settlement_flow::SflReconciliationBreaks
+{
+   breaks: settlement_flow::SflReconciliationBreak[*];
+   brokenReconciliation: settlement_flow::SflReconciliation[1];
+}
+
+Association settlement_flow::SflLinkClaims
+{
+   claims: settlement_flow::SflSettlementClaim[*];
+   claimedLink: settlement_flow::SflCashSettlementLink[1];
+}
+
+Association settlement_flow::SflClaimAccruals
+{
+   accruals: settlement_flow::SflClaimInterestAccrual[*];
+   accruedClaim: settlement_flow::SflSettlementClaim[1];
+}
+
+Association settlement_flow::SflClaimEvents
+{
+   events: settlement_flow::SflClaimEvent[*];
+   eventClaim: settlement_flow::SflSettlementClaim[1];
+}
+
+Association settlement_flow::SflClaimCosts
+{
+   costs: settlement_flow::SflSettlementFailCost[*];
+   costClaim: settlement_flow::SflSettlementClaim[0..1];
+}
+
+Association settlement_flow::SflForecastLines
+{
+   lines: settlement_flow::SflForecastLine[*];
+   forecast: settlement_flow::SflCashForecast[1];
+}
+
+Association settlement_flow::SflForecastShortfalls
+{
+   shortfalls: settlement_flow::SflFundingShortfall[*];
+   shortfallForecast: settlement_flow::SflCashForecast[1];
+}
+
+Association settlement_flow::SflLineLink
+{
+   sourceLink: settlement_flow::SflCashSettlementLink[0..1];
+   forecastLines: settlement_flow::SflForecastLine[*];
+}

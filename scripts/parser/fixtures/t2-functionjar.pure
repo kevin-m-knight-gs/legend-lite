@@ -1,0 +1,31 @@
+// COVERS FunctionJarLexerGrammar: FunctionJar, import, ownership, Deployment, identifier, function, documentation, activationConfiguration, stereotypes, tags
+//
+// The complete FunctionJar grammar -- it is a ten-token section and this is all of it.
+//
+// `ownership` has ONE arm here, unlike HostedService: functionJarOwnership is
+//     FUNCTIONJAR_OWNERSHIP COLON deployment SEMI_COLON
+// with no UserList alternative, so `Deployment { identifier: '...' }` is the only ownership
+// that exists in this grammar.
+//
+// `stereotypes` and `tags` are declared by the lexer and appear only in the `identifier`
+// rule -- there is no `stereotypes:` field on a FunctionJar. They are reached the one way
+// they can be: by naming elements with them. (The `<<a::A.test>>` form on the second
+// element is M3's `stereotypes` PARSER rule, a different thing entirely, and does not
+// touch the STEREOTYPES token.)
+###FunctionJar
+import fixture::fj::*;
+
+FunctionJar fixture::fj::stereotypes
+{
+   ownership: Deployment { identifier: '17' };
+   function: fixture::fj::queryFunction(Integer[1]):String[1];
+   documentation: 'a function jar named with a reserved word';
+   activationConfiguration: fixture::fj::JarConfig;
+}
+
+FunctionJar <<fixture::fj::Profile.reviewed>> {fixture::fj::Profile.team = 'rates'} fixture::fj::tags
+{
+   ownership: Deployment { identifier: '18' };
+   function: fixture::fj::otherFunction():String[1];
+   documentation: 'a second jar, stereotyped and tagged the M3 way';
+}

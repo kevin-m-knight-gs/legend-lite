@@ -1,0 +1,16 @@
+// REJECTS: Unexpected token
+//
+// A Database body is `(include | includeStore)* (schema | table | view | join | ...)*`.
+// The includes are not a set of statements that may appear anywhere -- they are a PREFIX.
+// This puts one after a Table.
+//
+// Nothing about the surface suggests order matters: both are top-level entries in the same
+// parenthesised body, and every other list in this grammar is unordered. A rewrite that
+// loops "read the next Database entry, dispatch on its keyword" accepts this without ever
+// noticing it made a choice. The legal form (include first) parses.
+###Relational
+Database fixture::neg::IncludeLate
+(
+   Table T (ID VARCHAR(32) PRIMARY KEY)
+   include fixture::neg::Other
+)

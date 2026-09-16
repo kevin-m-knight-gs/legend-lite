@@ -1,0 +1,109 @@
+// ============================================================
+// External party system (L5) — a SECOND store
+// ============================================================
+// Everything until now lives in one Database. Real firms do not: the counterparty
+// reference master is somebody else's system, and a trade is related to it by a foreign
+// key that no join in either store can express, because a join is confined to one store.
+//
+// XStore is how Legend relates classes across stores. The link is a PREDICATE over local
+// properties, not a join: `$this.entityRef == $that.entityId`.
+###Pure
+Class external::LegalEntity
+{
+    entityId: String[1];
+    registeredName: String[1];
+    jurisdiction: String[1];
+    isSanctioned: Boolean[1];
+}
+
+Association external::Trade_LegalEntity
+{
+    legalEntity: external::LegalEntity[0..1];
+    entityTrades: trading::Trade[*];
+}
+
+###Relational
+// A separate Database, not another schema in store::DB. That distinction is the whole
+// point: no Join can span two Databases.
+Database external::EntityDB
+(
+    // EXT_ prefix, not LEGAL_ENTITY: store::DB already declares a table by that name for
+    // the org domain. Legend scopes table names per Database so both are legal, but any
+    // tooling that keys them globally -- including the reader in scripts/corpus/model.py
+    // -- would bind one mapping to the other's table. The reader now REFUSES a duplicate
+    // rather than picking one, which is how this was caught.
+    Table EXT_LEGAL_ENTITY (ENTITY_ID VARCHAR(200) PRIMARY KEY, REGISTERED_NAME VARCHAR(200), JURISDICTION VARCHAR(50), IS_SANCTIONED BIT)
+)
+
+###Mapping
+// The entity side lives in its OWN mapping, deliberately. external::EntityMapping below
+// re-maps trading::Trade (to attach a local property) and declares the XStore link, and
+// scripts/corpus/model.py cannot read either -- so if the LegalEntity bindings lived
+// there too, the oracle would have no idea what registeredName means.
+Mapping external::LegalEntityMapping
+(
+    external::LegalEntity: Relational {
+        ~primaryKey ([external::EntityDB] EXT_LEGAL_ENTITY.ENTITY_ID)
+        ~mainTable [external::EntityDB] EXT_LEGAL_ENTITY
+        entityId: [external::EntityDB] EXT_LEGAL_ENTITY.ENTITY_ID,
+        registeredName: [external::EntityDB] EXT_LEGAL_ENTITY.REGISTERED_NAME,
+        jurisdiction: [external::EntityDB] EXT_LEGAL_ENTITY.JURISDICTION,
+        isSanctioned: [external::EntityDB] EXT_LEGAL_ENTITY.IS_SANCTIONED
+    }
+)
+
+Mapping external::EntityMapping
+(
+    include trading::Codes
+    include external::LegalEntityMapping
+
+    // The trade side, carrying a LOCAL property: a column that is not a class property
+    // but exists purely to key the cross-store link. `+name: Type[m]: column`.
+    trading::Trade: Relational {
+        ~primaryKey ([store::DB] TRADE.TRADE_ID)
+        ~mainTable [store::DB] TRADE
+        tradeId: [store::DB] TRADE.TRADE_ID,
+        notional: [store::DB] TRADE.NOTIONAL,
+        status: [store::DB] TRADE.STATUS,
+        // quantity and price are mapped only because trading::Trade's CONSTRAINTS
+        // reference them. A projection over this mapping does not need them; a graph
+        // fetch refuses to run without them (F16). Neither is queried by X0.
+        quantity: [store::DB] TRADE.QUANTITY,
+        price: [store::DB] TRADE.PRICE,
+        side: EnumerationMapping SideMapping: [store::DB] TRADE.SIDE,
+        +entityRef: String[0..1]: [store::DB] TRADE.COUNTERPARTY_ID
+    }
+
+    // The cross-store link. Not a Join -- a predicate over the two sides.
+    external::Trade_LegalEntity: XStore
+    {
+        legalEntity: $this.entityRef == $that.entityId,
+        entityTrades: $this.entityId == $that.entityRef
+    }
+)
+
+
+###Connection
+RelationalDatabaseConnection external::Conn
+{
+    store: external::EntityDB;
+    type: DuckDB;
+    specification: DuckDB { };
+    auth: Test;
+}
+
+###Runtime
+// TWO stores in one runtime, each with its own connection. A cross-store query needs
+// both, and the test data has to seed both.
+Runtime stress::XStoreRT
+{
+    mappings:
+    [
+        external::EntityMapping
+    ];
+    connections:
+    [
+        store::DB: [ environment: store::Conn ],
+        external::EntityDB: [ entities: external::Conn ]
+    ];
+}

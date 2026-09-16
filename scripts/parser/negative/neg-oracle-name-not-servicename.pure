@@ -1,0 +1,26 @@
+// REJECTS: Unexpected token 'name'. Valid alternatives: ['host', 'port', 'serviceName']
+//
+// `name:` on an Oracle specification. Oracle is a four-token grammar -- Oracle, host, port,
+// serviceName -- and it has no NAME token at all: the database is addressed by `serviceName`,
+// which is Oracle's own concept and not a rename of anything.
+//
+// This is the same class of divergence as ./neg-databricks-host-not-hostname.pure and worth
+// pinning separately because it fails in the other direction: there, a universal field name
+// was missing from one vendor; here, the vendor uses a word no other vendor in the batch has,
+// while `name` -- which Aurora, Redshift and Static all accept -- is absent. The two together
+// bracket the assumption that these specs are one schema with optional fields.
+//
+// The alternative list is the complete Oracle datasource surface.
+###Connection
+RelationalDatabaseConnection fixture::neg::OracleName
+{
+  store: fixture::neg::Db;
+  type: Oracle;
+  specification: Oracle
+  {
+    name: 'name';
+    host: 'host';
+    port: 1234;
+  };
+  auth: Test;
+}

@@ -1,0 +1,73 @@
+// Feature 6: association mapping end that navigates a JOIN CHAIN, not a single join.
+// Person reaches its Firm through an intermediate CONTRACT table: two hops.
+// Source: legend-engine core_relational .../tests/mapping/union/testUnionBiTemporalSelfJoinDuplicateColumn.pure
+//         ("owner[selectAccount, selectPerson]: [db]@A > [db]@B")
+//         and .../tests/mapping/association/testAssociationEmbedded.pure
+//         ("location[f1_address,loc]: [myDB]@Firm_Address_location > @Address_location").
+// Exact spelling: joins are chained left to right with `>`. The store qualifier
+// `[db]` is required on the FIRST join and optional on the rest.
+###Pure
+Class demo::Person
+{
+  firstName: String[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+}
+
+Association demo::Employment
+{
+  employees: demo::Person[*];
+  firm: demo::Firm[0..1];
+}
+
+###Relational
+Database demo::db
+(
+  Table personTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200)
+  )
+  Table contractTable
+  (
+    ID INTEGER PRIMARY KEY,
+    PERSONID INTEGER,
+    FIRMID INTEGER
+  )
+  Table firmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGALNAME VARCHAR(200)
+  )
+
+  Join Person_Contract(personTable.ID = contractTable.PERSONID)
+  Join Contract_Firm(contractTable.FIRMID = firmTable.ID)
+)
+
+###Mapping
+Mapping demo::AssociationJoinChain
+(
+  demo::Person[per1]: Relational
+  {
+    firstName: [demo::db]personTable.FIRSTNAME
+  }
+
+  demo::Firm[fir1]: Relational
+  {
+    legalName: [demo::db]firmTable.LEGALNAME
+  }
+
+  demo::Employment: Relational
+  {
+    AssociationMapping
+    (
+      // fully qualified on every hop
+      firm[per1, fir1]: [demo::db]@Person_Contract > [demo::db]@Contract_Firm,
+      // store qualifier omitted after the first hop -- also legal
+      employees[fir1, per1]: [demo::db]@Contract_Firm > @Person_Contract
+    )
+  }
+)

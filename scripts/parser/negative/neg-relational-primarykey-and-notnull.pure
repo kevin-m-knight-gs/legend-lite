@@ -1,0 +1,18 @@
+// REJECTS: Unexpected token
+//
+// A column definition ends with `(PRIMARY_KEY | NOT_NULL)?` -- an ALTERNATION, not a set.
+// A column may be declared a primary key, or not null, but never both in one declaration.
+//
+// This is where SQL intuition actively misleads: `ID VARCHAR(32) PRIMARY KEY NOT NULL` is
+// ordinary DDL, and a rewrite that models the tail as a loop of optional column flags --
+// the natural design, since more flags could be added -- accepts it. legend-engine does
+// not. Dropping `NOT NULL` makes this parse.
+###Relational
+Database fixture::neg::PkAndNotNull
+(
+   Table T
+   (
+      ID VARCHAR(32) PRIMARY KEY NOT NULL,
+      VAL VARCHAR(32)
+   )
+)

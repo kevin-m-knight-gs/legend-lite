@@ -1,0 +1,82 @@
+###Relational
+Database store::crossdb::PersonDB
+(
+  Table personTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(100),
+    LASTNAME VARCHAR(100),
+    FIRMID INTEGER
+  )
+)
+
+###Relational
+Database store::crossdb::FirmDB
+(
+  Table firmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGALNAME VARCHAR(100)
+  )
+)
+
+// A "cross-database" join in Legend is expressed by a third Database that
+// `include`s both, then declares the Join over the merged namespace.
+###Relational
+Database store::crossdb::MainDB
+(
+  include store::crossdb::PersonDB
+  include store::crossdb::FirmDB
+
+  Join Firm_Person([store::crossdb::MainDB]personTable.FIRMID = [store::crossdb::MainDB]firmTable.ID)
+)
+
+// The same Join written with explicit pointers at the *included* databases.
+###Relational
+Database store::crossdb::DirectDB
+(
+  include store::crossdb::PersonDB
+  include store::crossdb::FirmDB
+
+  Join Firm_Person_Direct([store::crossdb::PersonDB]personTable.FIRMID = [store::crossdb::FirmDB]firmTable.ID)
+)
+
+// A Join may also point at tables in two databases it does NOT include -- the
+// compiler resolves the pointers globally, so `include` is not required to
+// *declare* the join (it is required to reference the tables unqualified).
+###Relational
+Database store::crossdb::NoIncludeDB
+(
+  Join Firm_Person_NoInclude([store::crossdb::PersonDB]personTable.FIRMID = [store::crossdb::FirmDB]firmTable.ID)
+)
+
+###Pure
+Class store::crossdb::Person
+{
+  firstName: String[1];
+  firmName: String[0..1];
+}
+
+Class store::crossdb::PersonDirect
+{
+  firstName: String[1];
+  firmName: String[0..1];
+}
+
+###Mapping
+Mapping store::crossdb::CrossMapping
+(
+  *store::crossdb::Person: Relational
+  {
+    ~mainTable [store::crossdb::MainDB]personTable
+    firstName: [store::crossdb::MainDB]personTable.FIRSTNAME,
+    firmName: [store::crossdb::MainDB]@Firm_Person | firmTable.LEGALNAME
+  }
+
+  *store::crossdb::PersonDirect: Relational
+  {
+    ~mainTable [store::crossdb::DirectDB]personTable
+    firstName: [store::crossdb::DirectDB]personTable.FIRSTNAME,
+    firmName: [store::crossdb::DirectDB]@Firm_Person_Direct | firmTable.LEGALNAME
+  }
+)

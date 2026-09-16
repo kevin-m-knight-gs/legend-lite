@@ -1,0 +1,17 @@
+// REJECTS: is not supported
+//
+// DomainParseTreeWalker.java:1742 throws unconditionally on allVersionsInRange. The branch
+// exists only to reject; `allVersions`, handled on the line above, maps to getAllVersions.
+// Rejected on businesstemporal and bitemporal classes alike.
+###Pure
+import meta::pure::profiles::*;
+
+Class <<temporal.businesstemporal>> fixture::neg::Product
+{
+   name: String[1];
+}
+
+function fixture::neg::versionsInWindow(): meta::pure::metamodel::type::Any[*]
+{
+   fixture::neg::Product.allVersionsInRange(%2018-1-1, %2018-1-9)
+}

@@ -1,0 +1,20 @@
+// REJECTS: Unexpected token 'runtime'. Valid alternatives: ['mapping']
+//
+// A singleExecEnv is `identifier COLON { serviceMapping (serviceRuntime | serviceRuntimeComponents)+ }`
+// -- ORDERED, unlike every other body in this grammar, with `mapping` first and mandatory.
+//
+// Note what the message says: at this position the only alternative is 'mapping'. That
+// ordering is a property of the rule itself rather than of a later validation, and it is the
+// opposite of the Service body, where order is free. Getting this backwards produces a
+// parser that accepts both orders and refuses neither.
+###Service
+ExecutionEnvironment fixture::neg::EnvWithoutMapping
+{
+   executions:
+   [
+      UAT:
+      {
+         runtime: fixture::neg::R;
+      }
+   ];
+}

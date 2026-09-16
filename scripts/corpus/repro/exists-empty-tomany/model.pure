@@ -1,0 +1,66 @@
+// Does an EMPTY to-many break `exists`/`isEmpty` the way F6 breaks `count()`?
+// forAll has NO SQL translation at all, so it is dropped here. F2 has no employees. count() returns 1 there instead of 0 (F6). If exists/isEmpty are
+// computed the same way they will be wrong too; if not, a whole family of to-many queries
+// is testable that the corpus has never written.
+Class demo::Firm { name: String[1]; }
+Class demo::Employee { name: String[1]; salary: Integer[0..1]; }
+Association demo::Firm_Employee { firm: demo::Firm[1]; employees: demo::Employee[*]; }
+
+###Relational
+Database demo::DB
+(
+  Table FIRM     (ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50))
+  Table EMPLOYEE (ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50), SALARY INTEGER, FIRM_ID VARCHAR(20))
+  Join Firm_Employee(EMPLOYEE.FIRM_ID = FIRM.ID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Firm: Relational { ~primaryKey ([demo::DB]FIRM.ID) ~mainTable [demo::DB] FIRM   name: [demo::DB] FIRM.NAME }
+  demo::Employee: Relational { ~primaryKey ([demo::DB]EMPLOYEE.ID) ~mainTable [demo::DB] EMPLOYEE
+     name: [demo::DB] EMPLOYEE.NAME, salary: [demo::DB] EMPLOYEE.SALARY }
+  demo::Firm_Employee: Relational {
+    AssociationMapping ( firm: [demo::DB] @Firm_Employee, employees: [demo::DB] @Firm_Employee )
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.FIRM: 'ID,NAME\n' + 'F1,HasTwo\n' + 'F2,HasNone\n';
+    default.EMPLOYEE: 'ID,NAME,SALARY,FIRM_ID\n' + 'E1,Ada,100,F1\n' + 'E2,Grace,200,F1\n';
+  }#
+}
+
+###Service
+Service demo::ExistsEmpty
+{
+  pattern: '/existsEmpty';
+  documentation: 'exists / isEmpty / forAll over a to-many that is EMPTY for F2. Correct: F1 exists=true isEmpty=false forAll=true(all>50); F2 exists=false isEmpty=true forAll=true(vacuous).';
+  execution: Single
+  {
+    query: |demo::Firm.all()->project(~[
+        name:f|$f.name,
+        anyEmp:f|$f.employees->exists(e|$e.salary > 50),
+        noEmp:f|$f.employees->isEmpty()
+      ]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests: [ t: { serializationFormat: PURE_TDSOBJECT;
+        asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[{"name":"HasTwo","anyEmp":true,"noEmp":false},{"name":"HasNone","anyEmp":false,"noEmp":true}]'; }#; }# ] } ] }
+  ]
+}

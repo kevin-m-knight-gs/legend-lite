@@ -1,0 +1,130 @@
+// Multi-environment ROUTING: the constructs that let one model serve dev, uat and prod.
+// The corpus had none of them -- sixteen runtimes, all named directly by one service each.
+//
+// Legend offers no `Runtime { includes: ... }`; the token does not exist. Composition is
+// expressible only through the three forms below, which is why all three are here rather
+// than one representative.
+###Runtime
+// A runtime binding ONE connection to SEVERAL stores, rather than one connection per store.
+Runtime surface::SharedConnRT
+{
+   mappings:
+   [
+      combo::ComboMapping
+   ];
+   connectionStores:
+   [
+      combo::ComboConn:
+      [
+         combo::ComboDB
+      ]
+   ];
+}
+
+// The single-connection shorthand: no per-store binding at all.
+SingleConnectionRuntime surface::SingleRT
+{
+   mappings:
+   [
+      combo::ComboMapping
+   ];
+   connection: combo::ComboConn;
+}
+
+###Service
+// KEY-BASED ROUTING. One query, one mapping, a runtime chosen per key at execution time.
+// This is the direct answer to "how does one model serve dev/uat/prod".
+Service surface::MultiRouted
+{
+   pattern: '/surface/multiRouted';
+   owners:
+   [
+      'risk-team',
+      'ops-team'
+   ];
+   documentation: 'One query routed to a different runtime per environment key.';
+   autoActivateUpdates: true;
+   execution: Multi
+   {
+      query: |combo::Scoped.all()->project(~[rootId: x|$x.rootId])->sort([~rootId->ascending()]);
+      key: 'env';
+      executions['PROD']:
+      {
+         mapping: combo::ComboMapping;
+         runtime: combo::ComboRT;
+      }
+      executions['UAT']:
+      {
+         mapping: combo::ComboMapping;
+         runtime: surface::SingleRT;
+      }
+   }
+}
+
+// The two OWNERSHIP models, on separate services: `owners` (a bare list, above) and
+// `ownership` (a structured model) are MUTUALLY EXCLUSIVE -- carrying both is accepted by
+// the grammar and rejected by the compiler with "Cannot use both ownership model and
+// explicit owners list."
+Service surface::DidOwned
+{
+   pattern: '/surface/didOwned';
+   ownership: DID { identifier: 'SURFACE-1234' };
+   documentation: 'Ownership by deployment identifier rather than by a user list.';
+   execution: Single
+   {
+      query: |combo::Scoped.all()->project(~[rootId: x|$x.rootId]);
+      mapping: combo::ComboMapping;
+      runtime: combo::ComboRT;
+   }
+}
+
+// The other ownership form, and a runtime written INLINE on the service rather than named.
+Service surface::EmbeddedRuntimeService
+{
+   pattern: '/surface/embeddedRuntime';
+   ownership: UserList { users: ['analyst-1'] };
+   documentation: 'The runtime is written inline, so the service carries its own wiring.';
+   execution: Single
+   {
+      query: |combo::Scoped.all()->project(~[rootId: x|$x.rootId]);
+      mapping: combo::ComboMapping;
+      runtime:
+      #{
+         mappings:
+         [
+            combo::ComboMapping
+         ];
+         connections:
+         [
+            combo::ComboDB:
+            [
+               comboEnv: combo::ComboConn
+            ]
+         ];
+      }#;
+   }
+}
+
+// NAMED ENVIRONMENTS as a first-class element, including the RuntimeComponents form, which
+// carries a class and a binding alongside the runtime.
+ExecutionEnvironment surface::Environments
+{
+   executions:
+   [
+      PROD:
+      {
+         mapping: combo::ComboMapping;
+         runtime: combo::ComboRT;
+      },
+      UAT:
+      {
+         mapping: combo::ComboMapping;
+         runtimeComponents:
+         {
+            runtime: surface::SharedConnRT;
+            class: combo::Scoped;
+            binding: hier::ProfileBinding;
+         }
+      }
+   ];
+}

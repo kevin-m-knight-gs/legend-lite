@@ -1,0 +1,25 @@
+// REJECTS: Field 'assertions' is required
+//
+// The third of postValidation's three mandatory fields. Paired with
+// missing-required-postvalidation-description.pure, which omits the first: the point of
+// having both is that the walker names WHICH field is missing rather than failing generically
+// on the block, and it must name the right one.
+###Service
+Service fixture::neg::NoAssertions
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   postValidations:
+   [
+      {
+         description: 'd';
+         params: [];
+      }
+   ]
+}

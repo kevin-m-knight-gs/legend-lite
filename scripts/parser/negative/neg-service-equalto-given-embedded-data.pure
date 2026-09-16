@@ -1,0 +1,46 @@
+// REJECTS: Unexpected token '#{'. Valid alternatives: ['.']
+//
+// `EqualTo` takes a PRIMITIVE value: its whole grammar is
+// `expectedDefinition: EXPECTED COLON primitiveValue SEMI_COLON`. An embedded-data body
+// belongs to `EqualToJson`, whose expected is an `embeddedData` island.
+//
+// Two assertion types, the same field name, incompatible value grammars -- and the natural
+// rewrite gives both of them one permissive "expected: anything" rule. The parser here has
+// already committed to a qualifiedName and offers only '.' as a continuation.
+###Service
+Service fixture::neg::EqualToWithEmbeddedData
+{
+   pattern: '/x';
+   documentation: 'd';
+   execution: Single
+   {
+      query: |fixture::neg::Person.all();
+      mapping: fixture::neg::M;
+      runtime: fixture::neg::R;
+   }
+   testSuites:
+   [
+      suite1:
+      {
+         tests:
+         [
+            t1:
+            {
+               asserts:
+               [
+                  a1:
+                     EqualTo
+                     #{
+                        expected:
+                           ExternalFormat
+                           #{
+                              contentType: 'application/json';
+                              data: '{}';
+                           }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

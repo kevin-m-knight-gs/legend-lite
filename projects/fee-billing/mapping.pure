@@ -1,0 +1,268 @@
+###Mapping
+
+// The fee-billing mapping. It INCLUDES both upstream mappings, so the sets this project's
+// joins land on -- `feeSchedule`, `feeProduct`, `feeTier` for the fee side, `cliClient` and
+// `cliMandate` for the client side -- already exist and are not redefined here.
+//
+// The same transitive story as the store: `fee_core::Mapping` already includes
+// `core_tenor::Mapping`, and `client_core::Mapping` already includes `core_party::Mapping`
+// and `core_geo::Mapping`. Neither is included again below.
+//
+// Every cross-project property mapping names its set id explicitly -- `tier[feeTier]`,
+// `client[cliClient]` -- because BOTH upstream projects give their sets explicit ids, so the
+// default ids (`fee_core_FeeTier`, `client_core_CliClient`) do not exist to fall back on.
+//
+// The last three sets are rooted on VIEWS. Their primary key is the view's ~groupBy, so one
+// instance of BilInvoiceTotal is an invoice-shaped GROUP and never a line.
+Mapping fee_billing::Mapping
+(
+   include fee_core::Mapping
+   include client_core::Mapping
+
+   fee_billing::BilBillingPeriod[bilPeriod]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_PERIOD.PERIOD_CODE )
+      ~mainTable [fee_billing::Store]BIL_PERIOD
+      periodCode: [fee_billing::Store]BIL_PERIOD.PERIOD_CODE,
+      periodType: [fee_billing::Store]BIL_PERIOD.PERIOD_TYPE,
+      startDate: [fee_billing::Store]BIL_PERIOD.START_DATE,
+      endDate: [fee_billing::Store]BIL_PERIOD.END_DATE,
+      accrualBasis: [fee_billing::Store]BIL_PERIOD.ACCRUAL_BASIS,
+      closedOn: [fee_billing::Store]BIL_PERIOD.CLOSED_ON,
+      runs[bilRun]: [fee_billing::Store]@Bil_RunPeriod
+   }
+
+   fee_billing::BilBillingRun[bilRun]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_RUN.RUN_ID )
+      ~mainTable [fee_billing::Store]BIL_RUN
+      runId: [fee_billing::Store]BIL_RUN.RUN_ID,
+      periodCode: [fee_billing::Store]BIL_RUN.PERIOD_CODE,
+      runType: [fee_billing::Store]BIL_RUN.RUN_TYPE,
+      runStatus: [fee_billing::Store]BIL_RUN.RUN_STATUS,
+      startedOn: [fee_billing::Store]BIL_RUN.STARTED_ON,
+      completedOn: [fee_billing::Store]BIL_RUN.COMPLETED_ON,
+      invoiceCount: [fee_billing::Store]BIL_RUN.INVOICE_COUNT,
+      triggeredBy: [fee_billing::Store]BIL_RUN.TRIGGERED_BY,
+      period[bilPeriod]: [fee_billing::Store]@Bil_RunPeriod,
+      invoices[bilInvoice]: [fee_billing::Store]@Bil_InvoiceRun,
+      total[bilRunTotal]: [fee_billing::Store]@Bil_RunTotal
+   }
+
+   // Three cross-project property mappings on one set: one into fee-core, two into
+   // client-core.
+   fee_billing::BilBillingAgreement[bilAgreement]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_AGREEMENT.AGREEMENT_ID )
+      ~mainTable [fee_billing::Store]BIL_AGREEMENT
+      agreementId: [fee_billing::Store]BIL_AGREEMENT.AGREEMENT_ID,
+      clientId: [fee_billing::Store]BIL_AGREEMENT.CLIENT_ID,
+      mandateId: [fee_billing::Store]BIL_AGREEMENT.MANDATE_ID,
+      tierCode: [fee_billing::Store]BIL_AGREEMENT.TIER_CODE,
+      billingCurrency: [fee_billing::Store]BIL_AGREEMENT.BILLING_CCY,
+      minimumFee: [fee_billing::Store]BIL_AGREEMENT.MINIMUM_FEE,
+      maximumFee: [fee_billing::Store]BIL_AGREEMENT.MAXIMUM_FEE,
+      roundingMode: [fee_billing::Store]BIL_AGREEMENT.ROUNDING_MODE,
+      paymentTermsDays: [fee_billing::Store]BIL_AGREEMENT.PAYMENT_TERMS_DAYS,
+      effectiveFrom: [fee_billing::Store]BIL_AGREEMENT.EFFECTIVE_FROM,
+      effectiveTo: [fee_billing::Store]BIL_AGREEMENT.EFFECTIVE_TO,
+      tier[feeTier]: [fee_billing::Store]@Bil_AgreementTier,
+      client[cliClient]: [fee_billing::Store]@Bil_AgreementClient,
+      mandate[cliMandate]: [fee_billing::Store]@Bil_AgreementMandate,
+      invoices[bilInvoice]: [fee_billing::Store]@Bil_InvoiceAgreement
+   }
+
+   fee_billing::BilFeeType[bilFeeType]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_FEE_TYPE.FEE_TYPE_CODE )
+      ~mainTable [fee_billing::Store]BIL_FEE_TYPE
+      feeTypeCode: [fee_billing::Store]BIL_FEE_TYPE.FEE_TYPE_CODE,
+      name: [fee_billing::Store]BIL_FEE_TYPE.NAME,
+      category: [fee_billing::Store]BIL_FEE_TYPE.CATEGORY,
+      isRecurring: [fee_billing::Store]BIL_FEE_TYPE.IS_RECURRING,
+      glAccount: [fee_billing::Store]BIL_FEE_TYPE.GL_ACCOUNT,
+      displayOrder: [fee_billing::Store]BIL_FEE_TYPE.DISPLAY_ORDER,
+      lines[bilInvoiceLine]: [fee_billing::Store]@Bil_LineFeeType
+   }
+
+   // `schedule` crosses to fee-core over all three key columns; there is no shorter way to
+   // name a schedule row.
+   fee_billing::BilRateBand[bilRateBand]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_RATE_BAND.BAND_ID )
+      ~mainTable [fee_billing::Store]BIL_RATE_BAND
+      bandId: [fee_billing::Store]BIL_RATE_BAND.BAND_ID,
+      productCode: [fee_billing::Store]BIL_RATE_BAND.PRODUCT_CODE,
+      tierCode: [fee_billing::Store]BIL_RATE_BAND.TIER_CODE,
+      effectiveDate: [fee_billing::Store]BIL_RATE_BAND.EFFECTIVE_DATE,
+      minDays: [fee_billing::Store]BIL_RATE_BAND.MIN_DAYS,
+      maxDays: [fee_billing::Store]BIL_RATE_BAND.MAX_DAYS,
+      rateBasisPoints: [fee_billing::Store]BIL_RATE_BAND.RATE_BASIS_POINTS,
+      flatFee: [fee_billing::Store]BIL_RATE_BAND.FLAT_FEE,
+      feeCurrency: [fee_billing::Store]BIL_RATE_BAND.FEE_CCY,
+      schedule[feeSchedule]: [fee_billing::Store]@Bil_BandSchedule,
+      lines[bilInvoiceLine]: [fee_billing::Store]@Bil_LineRateBand
+   }
+
+   fee_billing::BilInvoice[bilInvoice]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_INVOICE.INVOICE_ID )
+      ~mainTable [fee_billing::Store]BIL_INVOICE
+      invoiceId: [fee_billing::Store]BIL_INVOICE.INVOICE_ID,
+      invoiceNumber: [fee_billing::Store]BIL_INVOICE.INVOICE_NUMBER,
+      runId: [fee_billing::Store]BIL_INVOICE.RUN_ID,
+      clientId: [fee_billing::Store]BIL_INVOICE.CLIENT_ID,
+      agreementId: [fee_billing::Store]BIL_INVOICE.AGREEMENT_ID,
+      periodCode: [fee_billing::Store]BIL_INVOICE.PERIOD_CODE,
+      issueDate: [fee_billing::Store]BIL_INVOICE.ISSUE_DATE,
+      dueDate: [fee_billing::Store]BIL_INVOICE.DUE_DATE,
+      invoiceCurrency: [fee_billing::Store]BIL_INVOICE.INVOICE_CCY,
+      invoiceStatus: [fee_billing::Store]BIL_INVOICE.INVOICE_STATUS,
+      minimumTopUp: [fee_billing::Store]BIL_INVOICE.MINIMUM_TOP_UP,
+      capReduction: [fee_billing::Store]BIL_INVOICE.CAP_REDUCTION,
+      taxAmount: [fee_billing::Store]BIL_INVOICE.TAX_AMOUNT,
+      totalDue: [fee_billing::Store]BIL_INVOICE.TOTAL_DUE,
+      paidOn: [fee_billing::Store]BIL_INVOICE.PAID_ON,
+      run[bilRun]: [fee_billing::Store]@Bil_InvoiceRun,
+      agreement[bilAgreement]: [fee_billing::Store]@Bil_InvoiceAgreement,
+      lines[bilInvoiceLine]: [fee_billing::Store]@Bil_InvoiceLines,
+      credits[bilCredit]: [fee_billing::Store]@Bil_InvoiceCredits,
+      adjustments[bilAdjustment]: [fee_billing::Store]@Bil_InvoiceAdjustments,
+      disputes[bilDispute]: [fee_billing::Store]@Bil_InvoiceDisputes,
+      // Cross-project, onto client-core's own set id.
+      client[cliClient]: [fee_billing::Store]@Bil_InvoiceClient,
+      total[bilInvoiceTotal]: [fee_billing::Store]@Bil_InvoiceTotal,
+      feeTypeTotals[bilFeeTypeTotal]: [fee_billing::Store]@Bil_InvoiceFeeTypeTotal
+   }
+
+   // `band` is the RANGE JOIN landing. Nothing on this set stores a band id.
+   fee_billing::BilInvoiceLine[bilInvoiceLine]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_INVOICE_LINE.LINE_ID )
+      ~mainTable [fee_billing::Store]BIL_INVOICE_LINE
+      lineId: [fee_billing::Store]BIL_INVOICE_LINE.LINE_ID,
+      invoiceId: [fee_billing::Store]BIL_INVOICE_LINE.INVOICE_ID,
+      lineSeq: [fee_billing::Store]BIL_INVOICE_LINE.LINE_SEQ,
+      feeTypeCode: [fee_billing::Store]BIL_INVOICE_LINE.FEE_TYPE_CODE,
+      productCode: [fee_billing::Store]BIL_INVOICE_LINE.PRODUCT_CODE,
+      tierCode: [fee_billing::Store]BIL_INVOICE_LINE.TIER_CODE,
+      description: [fee_billing::Store]BIL_INVOICE_LINE.DESCRIPTION,
+      billableAmount: [fee_billing::Store]BIL_INVOICE_LINE.BILLABLE_AMOUNT,
+      tenorDays: [fee_billing::Store]BIL_INVOICE_LINE.TENOR_DAYS,
+      appliedRateBasisPoints: [fee_billing::Store]BIL_INVOICE_LINE.APPLIED_RATE_BPS,
+      grossAmount: [fee_billing::Store]BIL_INVOICE_LINE.GROSS_AMOUNT,
+      discountAmount: [fee_billing::Store]BIL_INVOICE_LINE.DISCOUNT_AMOUNT,
+      netAmount: [fee_billing::Store]BIL_INVOICE_LINE.NET_AMOUNT,
+      itemCount: [fee_billing::Store]BIL_INVOICE_LINE.ITEM_COUNT,
+      isEstimated: [fee_billing::Store]BIL_INVOICE_LINE.IS_ESTIMATED,
+      invoice[bilInvoice]: [fee_billing::Store]@Bil_InvoiceLines,
+      feeType[bilFeeType]: [fee_billing::Store]@Bil_LineFeeType,
+      adjustments[bilAdjustment]: [fee_billing::Store]@Bil_LineAdjustments,
+      disputes[bilDispute]: [fee_billing::Store]@Bil_LineDisputes,
+      // THE RANGE JOIN.
+      band[bilRateBand]: [fee_billing::Store]@Bil_LineRateBand,
+      // Cross-project, onto fee-core's own set id.
+      product[feeProduct]: [fee_billing::Store]@Bil_LineProduct
+   }
+
+   fee_billing::BilCredit[bilCredit]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_CREDIT.CREDIT_ID )
+      ~mainTable [fee_billing::Store]BIL_CREDIT
+      creditId: [fee_billing::Store]BIL_CREDIT.CREDIT_ID,
+      invoiceId: [fee_billing::Store]BIL_CREDIT.INVOICE_ID,
+      reasonCode: [fee_billing::Store]BIL_CREDIT.REASON_CODE,
+      amount: [fee_billing::Store]BIL_CREDIT.AMOUNT,
+      creditCurrency: [fee_billing::Store]BIL_CREDIT.CREDIT_CCY,
+      issuedOn: [fee_billing::Store]BIL_CREDIT.ISSUED_ON,
+      appliedOn: [fee_billing::Store]BIL_CREDIT.APPLIED_ON,
+      approvedBy: [fee_billing::Store]BIL_CREDIT.APPROVED_BY,
+      sourceInvoiceId: [fee_billing::Store]BIL_CREDIT.SOURCE_INVOICE_ID,
+      invoice[bilInvoice]: [fee_billing::Store]@Bil_InvoiceCredits
+   }
+
+   fee_billing::BilAdjustment[bilAdjustment]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_ADJUSTMENT.ADJUSTMENT_ID )
+      ~mainTable [fee_billing::Store]BIL_ADJUSTMENT
+      adjustmentId: [fee_billing::Store]BIL_ADJUSTMENT.ADJUSTMENT_ID,
+      invoiceId: [fee_billing::Store]BIL_ADJUSTMENT.INVOICE_ID,
+      lineId: [fee_billing::Store]BIL_ADJUSTMENT.LINE_ID,
+      adjustmentType: [fee_billing::Store]BIL_ADJUSTMENT.ADJUSTMENT_TYPE,
+      amount: [fee_billing::Store]BIL_ADJUSTMENT.AMOUNT,
+      reason: [fee_billing::Store]BIL_ADJUSTMENT.REASON,
+      raisedBy: [fee_billing::Store]BIL_ADJUSTMENT.RAISED_BY,
+      approvedBy: [fee_billing::Store]BIL_ADJUSTMENT.APPROVED_BY,
+      raisedOn: [fee_billing::Store]BIL_ADJUSTMENT.RAISED_ON,
+      postedOn: [fee_billing::Store]BIL_ADJUSTMENT.POSTED_ON,
+      invoice[bilInvoice]: [fee_billing::Store]@Bil_InvoiceAdjustments,
+      line[bilInvoiceLine]: [fee_billing::Store]@Bil_LineAdjustments
+   }
+
+   fee_billing::BilDispute[bilDispute]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_DISPUTE.DISPUTE_ID )
+      ~mainTable [fee_billing::Store]BIL_DISPUTE
+      disputeId: [fee_billing::Store]BIL_DISPUTE.DISPUTE_ID,
+      invoiceId: [fee_billing::Store]BIL_DISPUTE.INVOICE_ID,
+      lineId: [fee_billing::Store]BIL_DISPUTE.LINE_ID,
+      raisedOn: [fee_billing::Store]BIL_DISPUTE.RAISED_ON,
+      raisedBy: [fee_billing::Store]BIL_DISPUTE.RAISED_BY,
+      disputedAmount: [fee_billing::Store]BIL_DISPUTE.DISPUTED_AMOUNT,
+      disputeStatus: [fee_billing::Store]BIL_DISPUTE.DISPUTE_STATUS,
+      resolutionCode: [fee_billing::Store]BIL_DISPUTE.RESOLUTION_CODE,
+      resolvedOn: [fee_billing::Store]BIL_DISPUTE.RESOLVED_ON,
+      creditId: [fee_billing::Store]BIL_DISPUTE.CREDIT_ID,
+      invoice[bilInvoice]: [fee_billing::Store]@Bil_InvoiceDisputes,
+      line[bilInvoiceLine]: [fee_billing::Store]@Bil_LineDisputes
+   }
+
+   // -------------------------------------------------------------- the AGGREGATE sets
+   //
+   // Rooted on the three views. The primary key IS the ~groupBy, so an instance is a group.
+
+   fee_billing::BilInvoiceTotal[bilInvoiceTotal]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_INVOICE_TOTAL.INVOICE_ID )
+      ~mainTable [fee_billing::Store]BIL_INVOICE_TOTAL
+      invoiceId: [fee_billing::Store]BIL_INVOICE_TOTAL.INVOICE_ID,
+      lineCount: [fee_billing::Store]BIL_INVOICE_TOTAL.LINE_COUNT,
+      totalBillable: [fee_billing::Store]BIL_INVOICE_TOTAL.TOTAL_BILLABLE,
+      totalGross: [fee_billing::Store]BIL_INVOICE_TOTAL.TOTAL_GROSS,
+      totalDiscount: [fee_billing::Store]BIL_INVOICE_TOTAL.TOTAL_DISCOUNT,
+      totalNet: [fee_billing::Store]BIL_INVOICE_TOTAL.TOTAL_NET,
+      largestLineNet: [fee_billing::Store]BIL_INVOICE_TOTAL.LARGEST_LINE_NET,
+      invoice[bilInvoice]: [fee_billing::Store]@Bil_InvoiceTotal
+   }
+
+   fee_billing::BilRunTotal[bilRunTotal]: Relational
+   {
+      ~primaryKey ( [fee_billing::Store]BIL_RUN_TOTAL.RUN_ID )
+      ~mainTable [fee_billing::Store]BIL_RUN_TOTAL
+      runId: [fee_billing::Store]BIL_RUN_TOTAL.RUN_ID,
+      invoiceCount: [fee_billing::Store]BIL_RUN_TOTAL.INVOICE_COUNT,
+      totalTax: [fee_billing::Store]BIL_RUN_TOTAL.TOTAL_TAX,
+      totalDue: [fee_billing::Store]BIL_RUN_TOTAL.TOTAL_DUE,
+      totalMinimumTopUp: [fee_billing::Store]BIL_RUN_TOTAL.TOTAL_MINIMUM_TOP_UP,
+      totalCapReduction: [fee_billing::Store]BIL_RUN_TOTAL.TOTAL_CAP_REDUCTION,
+      run[bilRun]: [fee_billing::Store]@Bil_RunTotal
+   }
+
+   // Two key columns: the grain is (invoice, fee type).
+   fee_billing::BilFeeTypeTotal[bilFeeTypeTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [fee_billing::Store]BIL_FEE_TYPE_TOTAL.INVOICE_ID,
+         [fee_billing::Store]BIL_FEE_TYPE_TOTAL.FEE_TYPE_CODE
+      )
+      ~mainTable [fee_billing::Store]BIL_FEE_TYPE_TOTAL
+      invoiceId: [fee_billing::Store]BIL_FEE_TYPE_TOTAL.INVOICE_ID,
+      feeTypeCode: [fee_billing::Store]BIL_FEE_TYPE_TOTAL.FEE_TYPE_CODE,
+      lineCount: [fee_billing::Store]BIL_FEE_TYPE_TOTAL.LINE_COUNT,
+      totalGross: [fee_billing::Store]BIL_FEE_TYPE_TOTAL.TOTAL_GROSS,
+      totalNet: [fee_billing::Store]BIL_FEE_TYPE_TOTAL.TOTAL_NET,
+      invoice[bilInvoice]: [fee_billing::Store]@Bil_InvoiceFeeTypeTotal,
+      feeType[bilFeeType]: [fee_billing::Store]@Bil_FeeTypeTotalFeeType
+   }
+)

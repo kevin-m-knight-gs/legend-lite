@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token '('. Valid alternatives: ['[']
+//
+// A function body is BRACES; the only thing that may appear between the return type and
+// the body is a bracketed pre-constraint list, which is why '[' is the sole alternative
+// offered.
+//
+// That single-element alternatives list is the fixture's real content. It proves the
+// constraint block is positionally pinned between signature and body -- not floating
+// anywhere in the declaration -- and it proves parens are not an accepted body form even
+// though the function's own parameter list, three tokens earlier, is parens.
+###Pure
+function fixture::neg::parenBody(n: Integer[1]): Integer[1]
+(
+   $n * 2;
+)

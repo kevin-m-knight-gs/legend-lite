@@ -1,0 +1,19 @@
+// REJECTS: EngineException: Error
+//
+// GraphQL type-system extensions. GraphQLGrammarParser.visitDefinition has no branch for
+// typeSystemExtension and falls through to `throw new RuntimeException("Error")`, so all
+// six extension rules -- scalar, type, interface, union, schema, enum -- are unreachable
+// through the embedded parser. The message is literally "Error".
+###Pure
+function fixture::neg::extendsAType(): meta::pure::metamodel::type::Any[1]
+{
+   #GQL{
+     type Firm {
+       id: String
+     }
+
+     extend type Firm {
+       rank: Int
+     }
+   }#
+}

@@ -1485,7 +1485,7 @@ final class ElementParserTest {
         AppliedFunction getAll = assertInstanceOf(AppliedFunction.class, s.functionBody());
         assertEquals("getAll", getAll.function());
         assertEquals(List.of(new PackageableElementPtr("Person")), getAll.parameters());
-        assertEquals(null, s.testSuitesSource(), "testSuites absent → null");
+        assertEquals(null, s.testSuites(), "testSuites absent → null");
     }
 
     @Test
@@ -1530,8 +1530,9 @@ final class ElementParserTest {
                 }
                 """);
         ServiceDefinition s = (ServiceDefinition) m.elements().get(0);
-        assertNotNull(s.testSuitesSource(),
+        assertNotNull(s.testSuites(),
                 "testSuites presence must reach the model");
+        assertEquals(1, s.testSuites().size(), "one typed suite reaches the model");
     }
 
     @Test

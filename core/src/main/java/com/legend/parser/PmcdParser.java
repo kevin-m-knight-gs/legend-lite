@@ -651,6 +651,8 @@ public final class PmcdParser {
                     // (EXACT kind names; no suffix matching)
                     path = "BigQueryFunctionDeploymentConfiguration"
                             .equals(fa.kind())
+                            || "MemSqlFunctionDeploymentConfiguration"
+                                    .equals(fa.kind())
                             || "HostedServiceDeploymentConfiguration"
                                     .equals(fa.kind())
                             ? null : fa.qualifiedName();

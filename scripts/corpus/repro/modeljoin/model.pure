@@ -1,0 +1,62 @@
+Class demo::Trade
+{
+  tradeId: String[1];
+  notional: Float[1];
+}
+
+Class demo::Book
+{
+  bookId: String[1];
+  name: String[1];
+}
+
+Association demo::Trade_Book
+{
+  book: demo::Book[0..1];
+  trades: demo::Trade[*];
+}
+
+###Relational
+Database demo::DB
+(
+  Table TRADE (TRADE_ID VARCHAR(20) PRIMARY KEY, NOTIONAL DOUBLE NOT NULL, BOOK_ID VARCHAR(20))
+  Table BOOK  (BOOK_ID VARCHAR(20) PRIMARY KEY, NAME VARCHAR(50) NOT NULL)
+)
+
+###Pure
+function demo::tradeRel(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+  #>{demo::DB.TRADE}#->select(~[TRADE_ID, NOTIONAL, BOOK_ID])
+}
+
+function demo::bookRel(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+  #>{demo::DB.BOOK}#->select(~[BOOK_ID, NAME])
+}
+
+###Mapping
+import meta::pure::metamodel::relation::*;
+import meta::pure::metamodel::type::*;
+
+Mapping demo::M
+(
+  *demo::Trade[t]: Relation
+  {
+    ~func demo::tradeRel():Relation<Any>[1]
+    tradeId: TRADE_ID,
+    notional: NOTIONAL,
+    +bookRef: String[0..1]: BOOK_ID
+  }
+
+  *demo::Book[b]: Relation
+  {
+    ~func demo::bookRel():Relation<Any>[1]
+    bookId: BOOK_ID,
+    name: NAME
+  }
+
+  *demo::Trade_Book: ModelJoin
+  {
+    {book: demo::Book[1], trades: demo::Trade[1]|$book.bookId == $trades.bookRef}
+  }
+)

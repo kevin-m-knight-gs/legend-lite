@@ -1,0 +1,23 @@
+// REJECTS: Unexpected token 'name'. Valid alternatives: ['path']
+//
+// `name:` on a DuckDB specification. DuckDB is the smallest grammar in the corpus -- two
+// keywords, DuckDB and path -- and duckDBDatasourceSpecification admits exactly one element,
+// which is optional, so `specification: DuckDB { }` parses and `specification: DuckDB { name:
+// 'mydb'; }` does not.
+//
+// An embedded file-backed database is the case where a rewrite is most tempted to be
+// generous: `name`, `database`, `databaseName` and `path` all mean the same thing to a DuckDB
+// user, and three of the four are real field names in neighbouring grammars in this same
+// section (MemSql has `databaseName`, Athena has `database`, Aurora has `name`). legend-engine
+// accepts exactly one of them here, and the one-element alternative list says which.
+###Connection
+RelationalDatabaseConnection fixture::neg::DuckDBName
+{
+  store: fixture::neg::Db;
+  type: DuckDB;
+  specification: DuckDB
+  {
+    name: 'mydb';
+  };
+  auth: Test;
+}

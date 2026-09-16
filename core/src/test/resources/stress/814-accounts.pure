@@ -1,0 +1,249 @@
+###Pure
+// Accounts: whose money it is, where it sits, and what may be done with it.
+//
+// 20 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 20 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class accounts::AccountRecord
+{
+   accountId: String[1];
+   accountType: String[1];
+   accountName: String[1];
+   currency: String[1];
+   balance: Float[1];
+   openedOn: StrictDate[1];
+   isSegregated: Boolean[1];
+   ownerId: String[1];
+   custodian: String[0..1];
+   closedOn: StrictDate[0..1];
+
+   // Days open, and null once closed -- an account that has been shut has a life,
+   // not an age.
+   daysOpen() { dateDiff($this.openedOn, $this.closedOn, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[0..1];
+}
+
+// Segregated client money. Cannot be commingled with the firm's.
+Class accounts::ClientCashAccount extends accounts::AccountRecord
+{
+}
+
+// Client assets held in custody, legally theirs.
+Class accounts::ClientSecuritiesAccount extends accounts::AccountRecord
+{
+}
+
+// The firm's own money.
+Class accounts::FirmCashAccount extends accounts::AccountRecord
+{
+}
+
+// The firm's own positions.
+Class accounts::FirmSecuritiesAccount extends accounts::AccountRecord
+{
+}
+
+// Our account at another bank.
+Class accounts::NostroAccountType extends accounts::AccountRecord
+{
+}
+
+// Their account with us. The mirror image.
+Class accounts::VostroAccountType extends accounts::AccountRecord
+{
+}
+
+// Where an unidentified receipt sits until somebody claims it.
+Class accounts::SuspenseAccount extends accounts::AccountRecord
+{
+}
+
+// Held at a clearing house for margin and settlement.
+Class accounts::ClearingAccount extends accounts::AccountRecord
+{
+}
+
+// Initial and variation margin.
+Class accounts::MarginAccount extends accounts::AccountRecord
+{
+}
+
+// Many clients in one account at the custodian.
+Class accounts::OmnibusAccount extends accounts::AccountRecord
+{
+}
+
+// One client, individually identifiable at the custodian.
+Class accounts::SegregatedAccount extends accounts::AccountRecord
+{
+}
+
+// A third party manages collateral movements between two counterparties.
+Class accounts::TriPartyAccount extends accounts::AccountRecord
+{
+}
+
+// House risk-taking.
+Class accounts::ProprietaryTradingAccount extends accounts::AccountRecord
+{
+}
+
+// Positions designated as hedges, with their own accounting treatment.
+Class accounts::HedgeAccount extends accounts::AccountRecord
+{
+}
+
+// Where a mis-booked trade is parked until it is corrected.
+Class accounts::ErrorAccount extends accounts::AccountRecord
+{
+}
+
+// Commissions and charges.
+Class accounts::FeeAccount extends accounts::AccountRecord
+{
+}
+
+// Withholding and transaction taxes.
+Class accounts::TaxAccount extends accounts::AccountRecord
+{
+}
+
+// Cash awaiting or arising from settlement.
+Class accounts::SettlementAccount extends accounts::AccountRecord
+{
+}
+
+// Pledged assets, ours or theirs.
+Class accounts::CollateralAccount extends accounts::AccountRecord
+{
+}
+
+// Safekeeping, with no trading permission.
+Class accounts::CustodyAccount extends accounts::AccountRecord
+{
+}
+
+###Mapping
+Mapping accounts::AccountsMapping
+(
+   *accounts::AccountRecord[accountsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]ACCOUNT_REGISTER.ACCOUNT_ID )
+      ~mainTable [store::DB]ACCOUNT_REGISTER
+      accountId: [store::DB]ACCOUNT_REGISTER.ACCOUNT_ID,
+      accountType: [store::DB]ACCOUNT_REGISTER.ACCOUNT_TYPE,
+      accountName: [store::DB]ACCOUNT_REGISTER.ACCOUNT_NAME,
+      currency: [store::DB]ACCOUNT_REGISTER.CURRENCY,
+      balance: [store::DB]ACCOUNT_REGISTER.BALANCE,
+      openedOn: [store::DB]ACCOUNT_REGISTER.OPENED_ON,
+      isSegregated: [store::DB]ACCOUNT_REGISTER.IS_SEGREGATED,
+      ownerId: [store::DB]ACCOUNT_REGISTER.OWNER_ID,
+      custodian: [store::DB]ACCOUNT_REGISTER.CUSTODIAN,
+      closedOn: [store::DB]ACCOUNT_REGISTER.CLOSED_ON
+   }
+
+   accounts::ClientCashAccount[acctClientCash] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctClientCashRows
+   }
+
+   accounts::ClientSecuritiesAccount[acctClientSecurities] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctClientSecuritiesRows
+   }
+
+   accounts::FirmCashAccount[acctFirmCash] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctFirmCashRows
+   }
+
+   accounts::FirmSecuritiesAccount[acctFirmSecurities] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctFirmSecuritiesRows
+   }
+
+   accounts::NostroAccountType[acctNostro] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctNostroRows
+   }
+
+   accounts::VostroAccountType[acctVostro] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctVostroRows
+   }
+
+   accounts::SuspenseAccount[acctSuspense] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctSuspenseRows
+   }
+
+   accounts::ClearingAccount[acctClearing] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctClearingRows
+   }
+
+   accounts::MarginAccount[acctMargin] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctMarginRows
+   }
+
+   accounts::OmnibusAccount[acctOmnibus] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctOmnibusRows
+   }
+
+   accounts::SegregatedAccount[acctSegregated] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctSegregatedRows
+   }
+
+   accounts::TriPartyAccount[acctTriParty] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctTriPartyRows
+   }
+
+   accounts::ProprietaryTradingAccount[acctProprietary] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctProprietaryRows
+   }
+
+   accounts::HedgeAccount[acctHedge] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctHedgeRows
+   }
+
+   accounts::ErrorAccount[acctErrorAccount] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctErrorAccountRows
+   }
+
+   accounts::FeeAccount[acctFeeAccount] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctFeeAccountRows
+   }
+
+   accounts::TaxAccount[acctTaxAccount] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctTaxAccountRows
+   }
+
+   accounts::SettlementAccount[acctSettlementAccount] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctSettlementAccountRows
+   }
+
+   accounts::CollateralAccount[acctCollateralAccount] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctCollateralAccountRows
+   }
+
+   accounts::CustodyAccount[acctCustody] extends [accountsBase]: Relational
+   {
+      ~filter [store::DB]AcctCustodyRows
+   }
+)

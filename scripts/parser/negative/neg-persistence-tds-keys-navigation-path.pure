@@ -1,0 +1,42 @@
+// REJECTS: An exception of type 'NullPointerException' occurred
+//
+// UPSTREAM DEFECT, pinned deliberately.
+//
+// `serviceOutputValue: (identifier | dslNavigationPath)` is ONE rule with two meanings. The
+// walker chooses which half is real by the enclosing dataset kind, not by what was written:
+//
+//   visitTdsDatasetKeys        ctx.serviceOutputValue().identifier()
+//   visitGraphFetchDatasetKeys ctx.serviceOutputValue().dslNavigationPath()
+//
+// (PersistenceParseTreeWalker.java:416-433.) Neither checks. Write a navigation path under a
+// TDS service output and `.identifier()` returns null, which is then passed straight to
+// PureGrammarParserUtility.fromIdentifier -- so legend-engine answers a type error in the
+// user's input with "please notify developer" and no source information.
+//
+// The fixture is here because the input MUST be rejected and a conforming parser has to
+// reject it; the fact that the rejection arrives as an NPE is the defect, and if upstream
+// ever fixes it into a real parser error this fixture fails and says so.
+###Persistence
+Persistence test::persistence::neg::TdsKeysAsPaths
+{
+  doc: 'a TDS service output whose keys are graph-fetch navigation paths';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        #/test::example::MyType/prop#
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    {
+    }
+  ];
+}

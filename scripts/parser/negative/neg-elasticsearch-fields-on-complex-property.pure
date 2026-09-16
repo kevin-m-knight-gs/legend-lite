@@ -1,0 +1,30 @@
+// REJECTS: Unexpected token 'fields'. Valid alternatives: ['properties']
+//
+// `fields:` inside an `Object` property. Elasticsearch splits its property bodies in two:
+// scalarPropertyContent admits only `fields:` (sub-fields of a leaf, e.g. an analysed Text
+// alongside a raw Keyword) and complexPropertyContent admits only `properties:` (the members
+// of an Object or Nested). The two keywords are not interchangeable in either direction --
+// `properties:` under a `Keyword` is refused with the mirror-image message.
+//
+// The property TYPE selects which body rule applies, so the constraint is a dependency between
+// a type token and the field names legal after it, one rule away. A rewrite with a single
+// property-body parser -- accepting both keywords and sorting it out later, which costs
+// nothing and produces a valid-looking protocol object either way -- is more permissive here
+// and its output is a mapping Elasticsearch itself would reject.
+//
+// ../fixtures/t2-elasticsearch.pure writes both shapes for exactly this reason.
+###Elasticsearch
+Elasticsearch7Cluster fixture::neg::FieldsOnObject
+{
+  indices: [
+    index1: {
+      properties: [
+        prop1: Object {
+          fields: [
+            raw: Keyword
+          ];
+        }
+      ];
+    }
+  ];
+}

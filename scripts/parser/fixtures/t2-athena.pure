@@ -1,0 +1,29 @@
+// COVERS AthenaLexerGrammar: Athena, region, database, workGroup, outputLocation, catalog, athenaEndpoint
+//
+// Every token AthenaLexerGrammar.g4 declares. Syntax from legend-engine's
+// TestAthenaConnectionGrammarRoundtrip.testConnectionGrammarWithAllParameters.
+//
+// Athena is the one grammar in this batch with no host/port: it is addressed by `region`
+// plus an S3 `outputLocation`, with `athenaEndpoint` as the optional override. All six
+// elements are STRING; `outputLocation: '1234'` in the upstream test is a quoted string,
+// not an integer.
+###Connection
+RelationalDatabaseConnection fixture::t2::AthenaFull
+{
+  store: fixture::t2::Db;
+  type: Athena;
+  specification: Athena
+  {
+    region: 'region';
+    database: 'dbname';
+    workGroup: 'workGroupX';
+    outputLocation: '1234';
+    catalog: 'catalogA';
+    athenaEndpoint: 'http://endpoint';
+  };
+  auth: UserNamePassword
+  {
+    userNameVaultReference: 'user';
+    passwordVaultReference: 'pwd';
+  };
+}

@@ -1,0 +1,1037 @@
+###Pure
+
+// ============================================================================================
+// firm_balance_sheet -- the balance sheet, five levels above core-types
+// ============================================================================================
+// LAYER 3, the deepest project in the graph. Three declared dependencies:
+//
+//    pnl-attribution   layer 2  (position-keeping, valuation-core)
+//    exposure-agg      layer 2  (credit-core, collateral-core)
+//    liquidity-view    layer 2  (cash-core, funding-core)
+//
+// Their transitive closure is seventeen projects and everything in it is VISIBLE here:
+// CT_CURRENCY, CP_LEGAL_ENTITY, CI_INSTRUMENT, CA_ACCOUNT all arrive by two or three routes.
+// Not one of them is named anywhere in this project. Every fact taken from below layer 2 is
+// reached THROUGH one of the three declared dependencies -- `$line.netExposure.counterparty`
+// gets to a legal entity without this file ever writing `core_party`, and a currency is a
+// three-character String here because `core_types::CtCurrency` belongs to somebody else's
+// declaration. That restraint is the whole point of the depth: a reference from here is five
+// hops from a leaf, and an undeclared one would still compile in the full graph and fail the
+// moment the project is compiled with its own closure.
+//
+// WHAT A BALANCE SHEET IS FOR. Assets on one side, liabilities and equity on the other, and
+// the two sides equal because they are the same money counted twice -- once by what the firm
+// holds and once by whose it is. Everything below exists to make that identity survive
+// contact with a bank:
+//
+//   MEASUREMENT BASIS. The same bond is three different numbers depending on why it is held.
+//   Amortised cost if it is held to collect, FVOCI if it is held to collect and to sell,
+//   FVTPL if neither. The basis is not a presentational choice; it decides whether a price
+//   move lands in profit, in reserves, or nowhere at all.
+//
+//   THE BOOK BOUNDARY. Trading book against banking book. The trading book is marked daily
+//   and its moves are pnl-attribution's subject; the banking book is accrued and its moves
+//   are provisions. A position moving across the boundary is a capital event.
+//
+//   DERIVATIVES BEFORE NETTING. Gross positive value is an asset, gross negative value is a
+//   liability, and both are enormous. What nets is a legal question answered by
+//   exposure-agg's netting sets, not an accounting one, and the balance sheet shows the
+//   gross AND the offset so a reader can see which regime produced the number.
+//
+//   HQLA BY LEVEL. The liquidity buffer is a subset of the assets, sliced by a different
+//   taxonomy (L1 / L2A / L2B, after haircut, after cap) than the statement uses. This
+//   project holds the bridge between the two, which is why it depends on liquidity-view.
+//
+//   GOODWILL AND THE DEDUCTIONS. Goodwill is an asset that carries no capital. So are most
+//   intangibles, deferred tax on losses, and holdings in other financials over a threshold.
+//   The deduction table is the list of things on the left-hand side that regulators refuse
+//   to count, and it is the honest half of every capital ratio.
+//
+//   PROVISIONS. Money already lost and not yet paid out -- expected credit losses by stage,
+//   litigation, restructuring. Opening plus charge less utilisation less release is closing,
+//   and the balance-sheet number is only the last of those five.
+//
+//   AND THE EQUITY THAT BALANCES IT. Share capital, retained earnings, OCI reserves,
+//   non-controlling interests. It is a residual by construction, and every arithmetic error
+//   anywhere above lands in it.
+//
+// CONSTRUCTS. An AGGREGATION shape -- four `~groupBy` views totalling the line table at four
+// widths, of which `FBS_SIDE_TOTAL` is literally the balance check -- and a SCHEMA of this
+// project's own, `fbs`, so a statement cannot be confused with a trading table by a DBA, a
+// backup policy, or a downstream mapping.
+//
+// No enums, no profiles, no functions, no associations, no ###Data, no Runtime.
+
+// -------------------------------------------------------------------- the statement itself
+
+// FOR: the header of one balance sheet -- one institution, one date, one reporting currency.
+// Everything else in this project hangs off this key. The three totals are STORED because
+// they are what was published; `balanceDifference()` recomputes nothing and instead states
+// the identity that must hold, so a published statement that does not balance says so.
+Class firm_balance_sheet::FbsBalanceSheet
+[
+   assetsArePositive: $this.totalAssets > 0.0
+]
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reportingCurrency: String[1];
+   basisOfPreparation: String[1];
+   consolidationScope: String[1];
+   statementStatus: String[1];
+   runId: String[0..1];
+   pnlAttributionId: String[0..1];
+   nsfrScenarioCurrency: String[0..1];
+   totalAssets: Float[1];
+   totalLiabilities: Float[1];
+   totalEquity: Float[1];
+   preparedBy: String[0..1];
+   preparedAt: DateTime[0..1];
+   signedOffOn: StrictDate[0..1];
+
+   run: firm_balance_sheet::FbsBalanceSheetRun[0..1];
+   lines: firm_balance_sheet::FbsLineItem[*];
+   sideTotals: firm_balance_sheet::FbsSideTotal[*];
+   categoryTotals: firm_balance_sheet::FbsCategoryTotal[*];
+   balanceChecks: firm_balance_sheet::FbsBalanceCheck[*];
+   attestations: firm_balance_sheet::FbsAttestation[*];
+   retainedEarnings: firm_balance_sheet::FbsRetainedEarnings[0..1];
+   hqlaStock: firm_balance_sheet::FbsHqlaStock[*];
+   equityBalances: firm_balance_sheet::FbsEquityBalance[*];
+
+   // Straight into pnl-attribution's own `~groupBy` view: the firm's whole day of P&L as one
+   // row, without reading a P&L line. This is the join that makes the movement in retained
+   // earnings checkable against the movement in market value.
+   pnlRunTotal: pnl_attribution::PnlRunTotal[0..1];
+   // And into liquidity-view's one-year ratio, on institution, currency and date.
+   nsfrResult: liquidity_view::LqvNsfrResult[0..1];
+
+   // The identity. Zero, or somebody has some explaining to do.
+   balanceDifference() { $this.totalAssets - ($this.totalLiabilities + $this.totalEquity) } : Float[1];
+   isBalanced() { ($this.totalAssets - ($this.totalLiabilities + $this.totalEquity))->abs() < 1.0 } : Boolean[1];
+   // Equity over assets. The crudest solvency number there is and still the first one read.
+   equityRatio() { $this.totalEquity / $this.totalAssets } : Float[1];
+   leverageMultiple() { $this.totalAssets / $this.totalEquity } : Float[1];
+   isPublished() { $this.signedOffOn->isNotEmpty() } : Boolean[1];
+   statementKey() { $this.institutionId + '/' + $this.reportingCurrency } : String[1];
+}
+
+// FOR: the batch that produced a statement. An incomplete run is a run whose numbers must
+// not be read, and it names the two upstream runs it consumed so a disagreement can be
+// traced to which of them moved.
+Class firm_balance_sheet::FbsBalanceSheetRun
+{
+   runId: String[1];
+   asOfDate: StrictDate[1];
+   runType: String[1];
+   runStatus: String[1];
+   startedAt: DateTime[0..1];
+   completedAt: DateTime[0..1];
+   lineCount: Integer[0..1];
+   rejectedLineCount: Integer[0..1];
+   exposureRunId: String[0..1];
+   pnlAttributionId: String[0..1];
+   triggeredBy: String[0..1];
+
+   statements: firm_balance_sheet::FbsBalanceSheet[*];
+   lines: firm_balance_sheet::FbsLineItem[*];
+   // The two upstream batches, named rather than copied.
+   pnlRun: pnl_attribution::PnlAttributionRun[0..1];
+   exposureRun: exposure_agg::ExaExposureRun[0..1];
+
+   isComplete() { $this.runStatus == 'COMPLETE' } : Boolean[1];
+   rejectedPct() { ($this.rejectedLineCount->orElse(0)->toFloat() * 100.0) / $this.lineCount->orElse(1)->toFloat() } : Float[1];
+}
+
+// -------------------------------------------------------------------------- the line grain
+
+// FOR: one line of the statement -- the grain everything totals from, and the ROOT of a
+// filter-subtype family split three ways by which side of the sheet the row is on. The
+// measurement basis, the book and the fair-value level all live here because they are
+// properties of the LINE and not of the instrument: the same bond in two books is two rows
+// carrying two bases.
+//
+// `carryingAmount` is what appears in the statement. `grossAmount` less `impairmentAmount`
+// should reproduce it, and where it does not an adjustment was posted.
+Class firm_balance_sheet::FbsLineItem
+{
+   lineId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reportingCurrency: String[1];
+   side: String[1];
+   categoryCode: String[1];
+   basisCode: String[1];
+   bookCode: String[1];
+   fairValueLevel: String[0..1];
+   carryingAmount: Float[1];
+   grossAmount: Float[0..1];
+   impairmentAmount: Float[0..1];
+   priorCarryingAmount: Float[0..1];
+   localCurrency: String[0..1];
+   localAmount: Float[0..1];
+   fxRate: Float[0..1];
+   runId: String[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+   category: firm_balance_sheet::FbsCategory[0..1];
+   basis: firm_balance_sheet::FbsMeasurementBasis[0..1];
+   book: firm_balance_sheet::FbsBookClassification[0..1];
+   valuationLevel: firm_balance_sheet::FbsFairValueLevel[0..1];
+   run: firm_balance_sheet::FbsBalanceSheetRun[0..1];
+   adjustments: firm_balance_sheet::FbsAccountingAdjustment[*];
+   categoryTotal: firm_balance_sheet::FbsCategoryTotal[0..1];
+   basisTotal: firm_balance_sheet::FbsBasisTotal[0..1];
+   bookTotal: firm_balance_sheet::FbsBookTotal[0..1];
+   sideTotal: firm_balance_sheet::FbsSideTotal[0..1];
+   // Out of this project: the credit system's view of the same balance, where there is one.
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+
+   netAmount() { $this.grossAmount->orElse($this.carryingAmount) - $this.impairmentAmount->orElse(0.0) } : Float[1];
+   movement() { $this.carryingAmount - $this.priorCarryingAmount->orElse(0.0) } : Float[1];
+   movementPct() { ($this.carryingAmount - $this.priorCarryingAmount->orElse(0.0)) / $this.priorCarryingAmount->orElse(1.0) } : Float[1];
+   // The stated carrying amount against gross-less-impairment. Non-zero means an adjustment.
+   impairmentCheck() { $this.carryingAmount - ($this.grossAmount->orElse($this.carryingAmount) - $this.impairmentAmount->orElse(0.0)) } : Float[1];
+   coverageRatio() { $this.impairmentAmount->orElse(0.0) / $this.grossAmount->orElse(1.0) } : Float[1];
+   isAsset() { $this.side == 'ASSET' } : Boolean[1];
+   isFairValued() { $this.basisCode == 'FVTPL' || $this.basisCode == 'FVOCI' } : Boolean[1];
+   isTradingBook() { $this.bookCode == 'TRADING' } : Boolean[1];
+   // Back into the currency the ledger actually posts in.
+   reportingFromLocal() { $this.localAmount->orElse(0.0) * $this.fxRate->orElse(1.0) } : Float[1];
+   lineKey() { $this.institutionId + '/' + $this.categoryCode + '/' + $this.lineId } : String[1];
+}
+
+// FOR: the left-hand side. Adds only what an asset has and a liability does not -- whether
+// the row is part of the liquidity buffer, how much of it is pledged away, and how many days
+// it would take to turn into cash. `~filter FbsAssetRows`, SIDE = 'ASSET'.
+Class firm_balance_sheet::FbsAssetLine extends firm_balance_sheet::FbsLineItem
+{
+   isHqla: Boolean[0..1];
+   hqlaLevelCode: String[0..1];
+   encumberedAmount: Float[0..1];
+   liquidityDays: Integer[0..1];
+   hqlaHoldingId: String[0..1];
+
+   // The holding as liquidity-view knows it: same asset, different taxonomy, different
+   // haircut. The two numbers are allowed to differ and the difference is the point.
+   hqlaHolding: liquidity_view::LqvHqlaHolding[0..1];
+
+   // What is actually free. A pledged asset is on the balance sheet and not in the buffer.
+   unencumberedAmount() { $this.carryingAmount - $this.encumberedAmount->orElse(0.0) } : Float[1];
+   encumbranceRatio() { $this.encumberedAmount->orElse(0.0) / $this.carryingAmount } : Float[1];
+   isLiquidWithinMonth() { $this.liquidityDays->orElse(999) <= 30 } : Boolean[1];
+}
+
+// FOR: the right-hand side above the line. What the firm owes, when it falls due, whether it
+// is secured, and to whom -- the three facts that decide whether a liability is funding or a
+// run risk. `~filter FbsLiabilityRows`, SIDE = 'LIABILITY'.
+Class firm_balance_sheet::FbsLiabilityLine extends firm_balance_sheet::FbsLineItem
+{
+   maturityDate: StrictDate[0..1];
+   isSecured: Boolean[0..1];
+   fundingType: String[0..1];
+   counterpartyId: String[0..1];
+   isDemandDeposit: Boolean[0..1];
+
+   isPerpetual() { $this.maturityDate->isEmpty() } : Boolean[1];
+   isCallableFunding() { $this.isDemandDeposit->orElse(false) || $this.maturityDate->isEmpty() } : Boolean[1];
+}
+
+// FOR: the right-hand side below the line -- the residual. Carries which equity component
+// the row rolls into and whether the regulator lets it count as CET1, which are two
+// different questions with two different answers for the same share.
+// `~filter FbsEquityRows`, SIDE = 'EQUITY'.
+Class firm_balance_sheet::FbsEquityLine extends firm_balance_sheet::FbsLineItem
+{
+   equityComponentCode: String[0..1];
+   isCet1Eligible: Boolean[0..1];
+   nonControllingInterest: Float[0..1];
+
+   attributableToParent() { $this.carryingAmount - $this.nonControllingInterest->orElse(0.0) } : Float[1];
+   countsAsCet1() { $this.isCet1Eligible->orElse(false) } : Boolean[1];
+}
+
+// ------------------------------------------------------------------------- the classifiers
+
+// FOR: the statement taxonomy -- where a line prints, in what order, under which note.
+// `parentCode` is a plain String and not a resolved parent: a self-join would let a reader
+// walk the hierarchy in SQL, and a balance-sheet taxonomy is small enough that walking it
+// in the model is cheaper than the join it would cost every query that does not.
+Class firm_balance_sheet::FbsCategory
+{
+   categoryCode: String[1];
+   categoryName: String[1];
+   parentCode: String[0..1];
+   side: String[1];
+   statementOrder: Integer[0..1];
+   isSubtotal: Boolean[0..1];
+   noteReference: String[0..1];
+   retiredOn: StrictDate[0..1];
+
+   lines: firm_balance_sheet::FbsLineItem[*];
+   totals: firm_balance_sheet::FbsCategoryTotal[*];
+
+   isTopLevel() { $this.parentCode->isEmpty() } : Boolean[1];
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: how a line was measured, which decides where its movements go. AC, FVOCI, FVTPL.
+// `movementsThrough` is the whole of IFRS 9 in one column: P&L, OCI, or nowhere.
+// `recyclesToPl` is the difference between an FVOCI debt instrument and an FVOCI equity one,
+// and it is why the same three letters mean two things.
+Class firm_balance_sheet::FbsMeasurementBasis
+{
+   basisCode: String[1];
+   basisName: String[1];
+   standardReference: String[0..1];
+   movementsThrough: String[1];
+   isFairValue: Boolean[1];
+   requiresEcl: Boolean[0..1];
+   recyclesToPl: Boolean[0..1];
+
+   lines: firm_balance_sheet::FbsLineItem[*];
+   basisTotals: firm_balance_sheet::FbsBasisTotal[*];
+   ociReserves: firm_balance_sheet::FbsOciReserve[*];
+
+   isAmortisedCost() { $this.basisCode == 'AC' } : Boolean[1];
+   hitsProfitAndLoss() { $this.movementsThrough == 'PL' } : Boolean[1];
+   hitsOtherComprehensiveIncome() { $this.movementsThrough == 'OCI' } : Boolean[1];
+}
+
+// FOR: the trading book / banking book boundary. Intent, not instrument: the boundary is a
+// policy document, and `boundaryPolicyRef` names it because moving a position across is an
+// event a regulator will ask about by reference.
+Class firm_balance_sheet::FbsBookClassification
+{
+   bookCode: String[1];
+   bookName: String[1];
+   intent: String[1];
+   isTrading: Boolean[1];
+   defaultBasisCode: String[0..1];
+   capitalTreatment: String[0..1];
+   boundaryPolicyRef: String[0..1];
+
+   defaultBasis: firm_balance_sheet::FbsMeasurementBasis[0..1];
+   lines: firm_balance_sheet::FbsLineItem[*];
+   bookTotals: firm_balance_sheet::FbsBookTotal[*];
+
+   isMarkedDaily() { $this.isTrading } : Boolean[1];
+   usesMarketRisk() { $this.capitalTreatment == 'MARKET_RISK' } : Boolean[1];
+}
+
+// FOR: the fair-value hierarchy, Level 1 to Level 3. What it is FOR is disclosure: a firm
+// with a large Level 3 book is telling you that a material part of its assets is worth
+// whatever its own model says, and the level is the only column that admits it.
+Class firm_balance_sheet::FbsFairValueLevel
+{
+   levelCode: String[1];
+   levelName: String[1];
+   inputType: String[1];
+   isObservable: Boolean[1];
+   requiresDisclosure: Boolean[0..1];
+   levelRank: Integer[0..1];
+
+   lines: firm_balance_sheet::FbsLineItem[*];
+
+   isModelled() { $this.levelCode == 'L3' } : Boolean[1];
+}
+
+// --------------------------------------------------------- trading book vs banking book
+
+// FOR: the trading-book detail behind a fair-valued line -- and the point in this project
+// where the balance sheet meets pnl-attribution at its own grain. The five columns of
+// `Fbs_TradingPositionPnlLine` are exactly pnl-attribution's key, so `pnlLine` reaches the
+// day's explain for this position: what the balance sheet carries and why it moved, side by
+// side, without either project restating the other's arithmetic.
+//
+// The two reserves are the honest part: a mid-market fair value is not a realisable one, and
+// bid-offer and model reserves are what comes off before the number is published.
+Class firm_balance_sheet::FbsTradingBookPosition
+{
+   lineId: String[1];
+   institutionId: String[1];
+   accountNo: String[0..1];
+   instrumentId: String[0..1];
+   cobDate: StrictDate[0..1];
+   pnlAttributionId: String[0..1];
+   quantity: Float[0..1];
+   fairValue: Float[1];
+   dayOneProfit: Float[0..1];
+   bidOfferReserve: Float[0..1];
+   modelReserve: Float[0..1];
+   isLong: Boolean[0..1];
+   deskCode: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+   // THE DEEP JOIN: five columns into PNL_LINE, which is itself the apex of
+   // pnl-attribution's own diamond over position-keeping and valuation-core.
+   pnlLine: pnl_attribution::PnlLine[0..1];
+
+   totalReserve() { $this.bidOfferReserve->orElse(0.0) + $this.modelReserve->orElse(0.0) } : Float[1];
+   prudentValue() { $this.fairValue - ($this.bidOfferReserve->orElse(0.0) + $this.modelReserve->orElse(0.0)) } : Float[1];
+   reservePct() { ($this.bidOfferReserve->orElse(0.0) + $this.modelReserve->orElse(0.0)) / $this.fairValue } : Float[1];
+   isShort() { $this.isLong->orElse(true) == false } : Boolean[1];
+}
+
+// FOR: the banking-book detail behind an amortised-cost line. A loan is not a price, it is a
+// schedule: gross carrying amount, the effective interest rate that unwinds the premium, the
+// accrued interest nobody has paid yet, and the allowance that says how much of it will
+// never arrive. The IFRS 9 stage is the single column that decides whether that allowance is
+// twelve-month or lifetime.
+Class firm_balance_sheet::FbsBankingBookAsset
+{
+   lineId: String[1];
+   productType: String[1];
+   originationDate: StrictDate[0..1];
+   maturityDate: StrictDate[0..1];
+   grossCarryingAmount: Float[1];
+   effectiveInterestRate: Float[0..1];
+   unamortisedPremium: Float[0..1];
+   accruedInterest: Float[0..1];
+   eclStage: Integer[0..1];
+   allowanceAmount: Float[0..1];
+   isPurchasedCreditImpaired: Boolean[0..1];
+   netExposureId: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+   eclAllowances: firm_balance_sheet::FbsEclAllowance[*];
+   // The credit system's number for the same borrower, reached through exposure-agg.
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+
+   netCarryingAmount() { $this.grossCarryingAmount - $this.allowanceAmount->orElse(0.0) } : Float[1];
+   amortisedCostWithAccrual() { ($this.grossCarryingAmount - $this.allowanceAmount->orElse(0.0)) + $this.accruedInterest->orElse(0.0) } : Float[1];
+   coverageRatio() { $this.allowanceAmount->orElse(0.0) / $this.grossCarryingAmount } : Float[1];
+   isCreditImpaired() { $this.eclStage->orElse(1) == 3 } : Boolean[1];
+   isLifetimeEcl() { $this.eclStage->orElse(1) >= 2 } : Boolean[1];
+}
+
+// ------------------------------------------------------- derivatives, before any netting
+
+// FOR: a derivative carried as an ASSET at its gross positive fair value, before a single
+// offset. This is the number that makes a bank's balance sheet look the size it does, and it
+// is the number IFRS requires unless the offset criteria are met. CVA comes off it because
+// the counterparty may not pay; FVA because funding the position is not free.
+Class firm_balance_sheet::FbsDerivativeAsset
+{
+   derivativeAssetId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   nettingSetId: String[0..1];
+   netExposureId: String[0..1];
+   counterpartyId: String[0..1];
+   productClass: String[1];
+   notional: Float[0..1];
+   grossPositiveValue: Float[1];
+   cvaAdjustment: Float[0..1];
+   fvaAdjustment: Float[0..1];
+   isCleared: Boolean[0..1];
+   currency: String[0..1];
+   lineId: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+   netting: firm_balance_sheet::FbsNettingAdjustment[0..1];
+   // exposure-agg's netting set is the LEGAL answer to what may be offset. This project does
+   // not re-derive enforceability; it reads it.
+   nettingSet: exposure_agg::ExaNettingSet[0..1];
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+   // Straight into exposure-agg's `~groupBy` view: this counterparty's whole day, one row.
+   counterpartyDayNet: exposure_agg::ExaCounterpartyDayNet[0..1];
+
+   carryingValue() { $this.grossPositiveValue - ($this.cvaAdjustment->orElse(0.0) + $this.fvaAdjustment->orElse(0.0)) } : Float[1];
+   totalValuationAdjustment() { $this.cvaAdjustment->orElse(0.0) + $this.fvaAdjustment->orElse(0.0) } : Float[1];
+   cvaPct() { $this.cvaAdjustment->orElse(0.0) / $this.grossPositiveValue } : Float[1];
+   isBilateral() { $this.isCleared->orElse(false) == false } : Boolean[1];
+}
+
+// FOR: the same trade seen from the other side of zero -- a derivative carried as a
+// LIABILITY at its gross negative value. It exists as its own class rather than a sign on
+// the asset because the balance sheet presents the two separately and the netting that
+// collapses them is an event with its own row.
+Class firm_balance_sheet::FbsDerivativeLiability
+{
+   derivativeLiabilityId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   nettingSetId: String[0..1];
+   netExposureId: String[0..1];
+   counterpartyId: String[0..1];
+   productClass: String[1];
+   notional: Float[0..1];
+   grossNegativeValue: Float[1];
+   dvaAdjustment: Float[0..1];
+   fvaAdjustment: Float[0..1];
+   isCleared: Boolean[0..1];
+   currency: String[0..1];
+   lineId: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+   netting: firm_balance_sheet::FbsNettingAdjustment[0..1];
+   nettingSet: exposure_agg::ExaNettingSet[0..1];
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+
+   // DVA is the gain a firm books because its own credit got worse. Subtracting it from a
+   // liability is arithmetically identical to and morally distinct from everything else here.
+   carryingValue() { $this.grossNegativeValue - ($this.dvaAdjustment->orElse(0.0) + $this.fvaAdjustment->orElse(0.0)) } : Float[1];
+   dvaPct() { $this.dvaAdjustment->orElse(0.0) / $this.grossNegativeValue } : Float[1];
+   isBilateral() { $this.isCleared->orElse(false) == false } : Boolean[1];
+}
+
+// FOR: what actually nets, per netting set per day. Gross both ways, the offset applied, net
+// both ways. `offsetBasis` records WHICH regime allowed it -- IAS 32 is stricter than
+// US GAAP's ASC 815-10-45, and the same book is a different size under each, which is the
+// single largest reconciling item between a European and an American balance sheet.
+Class firm_balance_sheet::FbsNettingAdjustment
+{
+   nettingSetId: String[1];
+   asOfDate: StrictDate[1];
+   institutionId: String[1];
+   grossAssetAmount: Float[1];
+   grossLiabilityAmount: Float[1];
+   offsetAmount: Float[1];
+   netAssetAmount: Float[0..1];
+   netLiabilityAmount: Float[0..1];
+   isBalanceSheetNetted: Boolean[0..1];
+   offsetBasis: String[0..1];
+   legalOpinionRef: String[0..1];
+
+   derivativeAssets: firm_balance_sheet::FbsDerivativeAsset[*];
+   derivativeLiabilities: firm_balance_sheet::FbsDerivativeLiability[*];
+   collateralOffsets: firm_balance_sheet::FbsCollateralOffset[*];
+   nettingSet: exposure_agg::ExaNettingSet[0..1];
+
+   // The balance-sheet shrinkage the legal opinion buys, in money.
+   balanceSheetReduction() { $this.offsetAmount * 2.0 } : Float[1];
+   assetAfterOffset() { $this.grossAssetAmount - $this.offsetAmount } : Float[1];
+   liabilityAfterOffset() { $this.grossLiabilityAmount - $this.offsetAmount } : Float[1];
+   offsetPct() { $this.offsetAmount / $this.grossAssetAmount } : Float[1];
+   // Stated net against recomputed net. Non-zero means somebody offset something twice.
+   netAssetCheck() { $this.netAssetAmount->orElse($this.grossAssetAmount - $this.offsetAmount) - ($this.grossAssetAmount - $this.offsetAmount) } : Float[1];
+   isNettedOnBalanceSheet() { $this.isBalanceSheetNetted->orElse(false) } : Boolean[1];
+}
+
+// FOR: collateral taken against a derivative, and how much of it the balance sheet is
+// allowed to offset. Cash offsets and securities generally do not, which is why both amounts
+// are held and only one of them feeds `offsetAppliedAmount`. `rehypothecatedAmount` is the
+// part that has been lent on again and is therefore somebody else's asset too.
+Class firm_balance_sheet::FbsCollateralOffset
+{
+   offsetId: String[1];
+   nettingSetId: String[1];
+   positionId: String[0..1];
+   asOfDate: StrictDate[1];
+   cashCollateralAmount: Float[0..1];
+   securitiesCollateralAmount: Float[0..1];
+   offsetAppliedAmount: Float[1];
+   isCash: Boolean[0..1];
+   currency: String[0..1];
+   rehypothecatedAmount: Float[0..1];
+
+   netting: firm_balance_sheet::FbsNettingAdjustment[0..1];
+   // exposure-agg's collateral position, haircut and all.
+   collateralPosition: exposure_agg::ExaCollateralPosition[0..1];
+
+   totalCollateral() { $this.cashCollateralAmount->orElse(0.0) + $this.securitiesCollateralAmount->orElse(0.0) } : Float[1];
+   // What was taken but could not be offset. Still on the balance sheet, both sides.
+   ineligibleAmount() { ($this.cashCollateralAmount->orElse(0.0) + $this.securitiesCollateralAmount->orElse(0.0)) - $this.offsetAppliedAmount } : Float[1];
+   offsetEfficiency() { $this.offsetAppliedAmount / ($this.cashCollateralAmount->orElse(0.0) + $this.securitiesCollateralAmount->orElse(1.0)) } : Float[1];
+   isRehypothecated() { $this.rehypothecatedAmount->orElse(0.0) > 0.0 } : Boolean[1];
+}
+
+// -------------------------------------------------------------------------- HQLA by level
+
+// FOR: the bridge between the balance sheet's assets and the liquidity buffer, at the grain
+// liquidity-view reports on -- one institution, one date, one HQLA level, one currency. The
+// balance-sheet amount and the weighted amount are BOTH held because they are different
+// numbers for the same assets: the statement counts them at carrying value, the LCR counts
+// them after haircut and after the L2 cap, and the gap between the two is the reason this
+// project depends on liquidity-view at all.
+Class firm_balance_sheet::FbsHqlaStock
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   hqlaLevelCode: String[1];
+   reportingCurrency: String[1];
+   balanceSheetAmount: Float[1];
+   unencumberedAmount: Float[0..1];
+   haircutAmount: Float[0..1];
+   weightedAmount: Float[1];
+   capExcessAmount: Float[0..1];
+   holdingCount: Integer[0..1];
+   scenarioId: String[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+   // liquidity-view's own definitions: the level with its standard haircut and cap, and the
+   // ratio the buffer was built for.
+   level: liquidity_view::LqvHqlaLevel[0..1];
+   lcrResult: liquidity_view::LqvLcrResult[0..1];
+
+   // How much of the balance-sheet amount survives to the buffer.
+   recognisedPct() { ($this.weightedAmount * 100.0) / $this.balanceSheetAmount } : Float[1];
+   haircutPct() { ($this.haircutAmount->orElse(0.0) * 100.0) / $this.balanceSheetAmount } : Float[1];
+   // What the cap threw away. Real assets, real liquidity, no regulatory credit.
+   cappedAway() { $this.capExcessAmount->orElse(0.0) } : Float[1];
+   isLevelOne() { $this.hqlaLevelCode == 'L1' } : Boolean[1];
+   averageHoldingSize() { $this.balanceSheetAmount / $this.holdingCount->orElse(1)->toFloat() } : Float[1];
+}
+
+// ------------------------------------------- goodwill, intangibles and what never counts
+
+// FOR: goodwill, per cash-generating unit. What it is FOR, honestly, is being tested: it is
+// the amount by which an acquisition cost more than the things it bought, it never
+// amortises, and it sits there until an impairment test says it does not. `recoverableAmount`
+// against `carryingAmount` IS the test, and `discountRate` is the assumption the whole answer
+// turns on.
+Class firm_balance_sheet::FbsGoodwill
+{
+   goodwillId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   cashGeneratingUnit: String[1];
+   acquisitionDate: StrictDate[0..1];
+   grossGoodwill: Float[1];
+   accumulatedImpairment: Float[0..1];
+   carryingAmount: Float[1];
+   recoverableAmount: Float[0..1];
+   lastTestedOn: StrictDate[0..1];
+   discountRate: Float[0..1];
+   lineId: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+   deductions: firm_balance_sheet::FbsCapitalDeduction[*];
+
+   // Positive means the unit is worth less than the books say and an impairment is due.
+   headroom() { $this.recoverableAmount->orElse(0.0) - $this.carryingAmount } : Float[1];
+   isImpaired() { $this.recoverableAmount->orElse(0.0) < $this.carryingAmount } : Boolean[1];
+   impairmentToDatePct() { ($this.accumulatedImpairment->orElse(0.0) * 100.0) / $this.grossGoodwill } : Float[1];
+   isTested() { $this.lastTestedOn->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: everything else with no physical form -- capitalised software, customer lists,
+// licences. Distinguished from goodwill because these DO amortise, and distinguished from
+// each other by `isInternallyGenerated`, which is the column that decides whether the cost
+// was allowed onto the balance sheet at all.
+Class firm_balance_sheet::FbsIntangibleAsset
+{
+   intangibleId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   intangibleType: String[1];
+   costAmount: Float[1];
+   accumulatedAmortisation: Float[0..1];
+   carryingAmount: Float[1];
+   usefulLifeYears: Integer[0..1];
+   isInternallyGenerated: Boolean[0..1];
+   lineId: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+   deductions: firm_balance_sheet::FbsCapitalDeduction[*];
+
+   netBookValue() { $this.costAmount - $this.accumulatedAmortisation->orElse(0.0) } : Float[1];
+   amortisedPct() { ($this.accumulatedAmortisation->orElse(0.0) * 100.0) / $this.costAmount } : Float[1];
+   annualCharge() { $this.costAmount / $this.usefulLifeYears->orElse(1)->toFloat() } : Float[1];
+   isFullyAmortised() { $this.accumulatedAmortisation->orElse(0.0) >= $this.costAmount } : Boolean[1];
+}
+
+// FOR: the assets that never make it into capital. This is the reconciling table between
+// accounting equity and regulatory capital, and it is the honest half of every ratio: an
+// intangible is a real asset and worth nothing in a resolution, so it comes straight off
+// CET1. Some deductions are absolute, some only bite above a threshold and the remainder is
+// risk-weighted instead, which is why both `deductedAmount` and `riskWeightedRemainder`
+// exist on one row.
+Class firm_balance_sheet::FbsCapitalDeduction
+{
+   deductionId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   deductionCode: String[1];
+   deductionTier: String[1];
+   balanceSheetAmount: Float[1];
+   thresholdAmount: Float[0..1];
+   deductedAmount: Float[1];
+   riskWeightedRemainder: Float[0..1];
+   regulationReference: String[0..1];
+   isFullyDeducted: Boolean[0..1];
+   goodwillId: String[0..1];
+   intangibleId: String[0..1];
+   lineId: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+   goodwill: firm_balance_sheet::FbsGoodwill[0..1];
+   intangible: firm_balance_sheet::FbsIntangibleAsset[0..1];
+
+   // What the balance sheet keeps and capital does not.
+   retainedOnBalanceSheet() { $this.balanceSheetAmount - $this.deductedAmount } : Float[1];
+   deductionPct() { ($this.deductedAmount * 100.0) / $this.balanceSheetAmount } : Float[1];
+   excessOverThreshold() { $this.balanceSheetAmount - $this.thresholdAmount->orElse(0.0) } : Float[1];
+   isThresholdDeduction() { $this.thresholdAmount->isNotEmpty() } : Boolean[1];
+   hitsCommonEquity() { $this.deductionTier == 'CET1' } : Boolean[1];
+}
+
+// -------------------------------------------------------------------------- provisions
+
+// FOR: money already lost and not yet paid out. The balance-sheet number is `closingBalance`
+// and it is the least interesting of the five: opening plus charge less utilised less
+// released is the ROLL-FORWARD, and a provision that is released in one quarter and
+// re-charged in the next is a different animal from one that was simply spent.
+Class firm_balance_sheet::FbsProvision
+{
+   provisionId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   provisionType: String[1];
+   openingBalance: Float[1];
+   chargeAmount: Float[0..1];
+   utilisedAmount: Float[0..1];
+   releasedAmount: Float[0..1];
+   closingBalance: Float[1];
+   expectedSettlementDate: StrictDate[0..1];
+   isDiscounted: Boolean[0..1];
+   lineId: String[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+
+   // Opening + charge - utilised - released. Should equal `closingBalance`.
+   rollForward() { (($this.openingBalance + $this.chargeAmount->orElse(0.0)) - $this.utilisedAmount->orElse(0.0)) - $this.releasedAmount->orElse(0.0) } : Float[1];
+   rollForwardCheck() { $this.closingBalance - ((($this.openingBalance + $this.chargeAmount->orElse(0.0)) - $this.utilisedAmount->orElse(0.0)) - $this.releasedAmount->orElse(0.0)) } : Float[1];
+   netCharge() { $this.chargeAmount->orElse(0.0) - $this.releasedAmount->orElse(0.0) } : Float[1];
+   utilisationPct() { ($this.utilisedAmount->orElse(0.0) * 100.0) / $this.openingBalance } : Float[1];
+   isReleasing() { $this.releasedAmount->orElse(0.0) > $this.chargeAmount->orElse(0.0) } : Boolean[1];
+}
+
+// FOR: the expected-credit-loss allowance, split by IFRS 9 stage. Stage 1 is twelve-month
+// ECL, stages 2 and 3 are lifetime, and the migration between them is what makes a loan book
+// look fine one quarter and not the next. `postModelAdjustment` is the overlay a credit
+// committee applied because the model had not seen the current situation before, and it is
+// held separately precisely so it cannot be mistaken for a modelled number.
+Class firm_balance_sheet::FbsEclAllowance
+{
+   allowanceId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   eclStage: Integer[1];
+   portfolioCode: String[1];
+   grossExposureAmount: Float[1];
+   twelveMonthEcl: Float[0..1];
+   lifetimeEcl: Float[0..1];
+   allowanceAmount: Float[1];
+   modelCode: String[0..1];
+   postModelAdjustment: Float[0..1];
+   netExposureId: String[0..1];
+
+   bankingAssets: firm_balance_sheet::FbsBankingBookAsset[*];
+   // exposure-agg's net exposure for the same obligor, after collateral. An allowance that
+   // ignores the collateral and a net exposure that counts it are two legitimate numbers,
+   // and having both on one navigation is the reason for the dependency.
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+
+   coverageRatio() { ($this.allowanceAmount * 100.0) / $this.grossExposureAmount } : Float[1];
+   modelledAmount() { $this.allowanceAmount - $this.postModelAdjustment->orElse(0.0) } : Float[1];
+   overlayPct() { ($this.postModelAdjustment->orElse(0.0) * 100.0) / $this.allowanceAmount } : Float[1];
+   isLifetime() { $this.eclStage >= 2 } : Boolean[1];
+   isCreditImpaired() { $this.eclStage == 3 } : Boolean[1];
+   // What migrating a loan from stage 1 to stage 2 costs, in money: the twelve-month number
+   // is replaced by the lifetime one and the difference is charged on the day it moves.
+   stageMigrationCost() { $this.lifetimeEcl->orElse(0.0) - $this.twelveMonthEcl->orElse(0.0) } : Float[1];
+}
+
+// ------------------------------------------------------- the equity that balances it
+
+// FOR: the taxonomy of equity. Share capital, share premium, retained earnings, OCI
+// reserves, AT1. `isDistributable` and `capitalTier` are the two questions asked of every
+// component and they have different answers: a reserve can be regulatory capital and still
+// not be payable as a dividend.
+Class firm_balance_sheet::FbsEquityComponent
+{
+   componentCode: String[1];
+   componentName: String[1];
+   componentType: String[1];
+   capitalTier: String[0..1];
+   isDistributable: Boolean[0..1];
+   isRecyclable: Boolean[0..1];
+   presentationOrder: Integer[0..1];
+
+   balances: firm_balance_sheet::FbsEquityBalance[*];
+   ociReserves: firm_balance_sheet::FbsOciReserve[*];
+
+   isCommonEquity() { $this.capitalTier == 'CET1' } : Boolean[1];
+   isPayable() { $this.isDistributable->orElse(false) } : Boolean[1];
+}
+
+// FOR: one equity component's balance on one statement, with its movement. Split between
+// the parent and the minority because a consolidated balance sheet includes subsidiaries the
+// group does not wholly own, and the residual belongs to two sets of shareholders.
+Class firm_balance_sheet::FbsEquityBalance
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   componentCode: String[1];
+   reportingCurrency: String[1];
+   openingBalance: Float[1];
+   movementAmount: Float[0..1];
+   closingBalance: Float[1];
+   attributableToParent: Float[0..1];
+   nonControllingInterest: Float[0..1];
+   lineId: String[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+   component: firm_balance_sheet::FbsEquityComponent[0..1];
+   line: firm_balance_sheet::FbsLineItem[0..1];
+
+   // Opening + movement should equal closing.
+   movementCheck() { $this.closingBalance - ($this.openingBalance + $this.movementAmount->orElse(0.0)) } : Float[1];
+   ownershipSplitCheck() { $this.closingBalance - ($this.attributableToParent->orElse($this.closingBalance) + $this.nonControllingInterest->orElse(0.0)) } : Float[1];
+   minorityPct() { ($this.nonControllingInterest->orElse(0.0) * 100.0) / $this.closingBalance } : Float[1];
+   movementPct() { ($this.movementAmount->orElse(0.0) * 100.0) / $this.openingBalance } : Float[1];
+}
+
+// FOR: the reserve where FVOCI movements go to wait. It is the direct consequence of the
+// measurement basis: a bond held to collect AND sell moves in value, the move is real, and
+// it lands here instead of in profit. `recycledToPl` is what left this reserve when the bond
+// was finally sold -- for a debt instrument. For an equity instrument it is permanently zero
+// and `isRecyclable` says so, which is the whole of the FVOCI election in two columns.
+Class firm_balance_sheet::FbsOciReserve
+{
+   reserveId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reserveType: String[1];
+   basisCode: String[0..1];
+   grossReserve: Float[1];
+   deferredTax: Float[0..1];
+   netReserve: Float[1];
+   recycledToPl: Float[0..1];
+   isRecyclable: Boolean[0..1];
+   componentCode: String[0..1];
+
+   basis: firm_balance_sheet::FbsMeasurementBasis[0..1];
+   component: firm_balance_sheet::FbsEquityComponent[0..1];
+
+   taxCheck() { $this.netReserve - ($this.grossReserve - $this.deferredTax->orElse(0.0)) } : Float[1];
+   effectiveTaxPct() { ($this.deferredTax->orElse(0.0) * 100.0) / $this.grossReserve } : Float[1];
+   isLoss() { $this.netReserve < 0.0 } : Boolean[1];
+   isTrapped() { $this.isRecyclable->orElse(true) == false } : Boolean[1];
+}
+
+// FOR: the one line of equity the income statement writes into. Opening plus the profit for
+// the period less dividends declared plus everything else equals closing, and
+// `pnlRunTotal.totalPnl()` is where the middle term is supposed to have come from. Where the
+// two disagree, either the P&L was restated or the equity was, and the disagreement is more
+// informative than either number alone.
+Class firm_balance_sheet::FbsRetainedEarnings
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reportingCurrency: String[1];
+   openingRetained: Float[1];
+   profitForPeriod: Float[1];
+   dividendsDeclared: Float[0..1];
+   otherMovements: Float[0..1];
+   closingRetained: Float[1];
+   pnlAttributionId: String[0..1];
+   isVerified: Boolean[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+   // The firm's whole day of P&L, as one row, from pnl-attribution's `~groupBy` view.
+   pnlRunTotal: pnl_attribution::PnlRunTotal[0..1];
+
+   rollForward() { (($this.openingRetained + $this.profitForPeriod) - $this.dividendsDeclared->orElse(0.0)) + $this.otherMovements->orElse(0.0) } : Float[1];
+   rollForwardCheck() { $this.closingRetained - ((($this.openingRetained + $this.profitForPeriod) - $this.dividendsDeclared->orElse(0.0)) + $this.otherMovements->orElse(0.0)) } : Float[1];
+   payoutRatio() { ($this.dividendsDeclared->orElse(0.0) * 100.0) / $this.profitForPeriod } : Float[1];
+   isLossMaking() { $this.profitForPeriod < 0.0 } : Boolean[1];
+   growthPct() { (($this.closingRetained - $this.openingRetained) * 100.0) / $this.openingRetained } : Float[1];
+}
+
+// ------------------------------------------------------------------------------- control
+
+// FOR: a manual journal against a line. Every balance sheet has some, and what the class is
+// FOR is making them visible: who raised it, who approved it, and whether it has been
+// reversed. A live adjustment with no approver is the row an auditor is looking for.
+Class firm_balance_sheet::FbsAccountingAdjustment
+{
+   adjustmentId: String[1];
+   lineId: String[1];
+   asOfDate: StrictDate[1];
+   adjustmentType: String[1];
+   adjustmentAmount: Float[1];
+   reason: String[0..1];
+   raisedBy: String[0..1];
+   raisedOn: StrictDate[0..1];
+   approvedBy: String[0..1];
+   approvedOn: StrictDate[0..1];
+   reversedOn: StrictDate[0..1];
+
+   line: firm_balance_sheet::FbsLineItem[0..1];
+
+   isApproved() { $this.approvedOn->isNotEmpty() } : Boolean[1];
+   isLive() { $this.reversedOn->isEmpty() } : Boolean[1];
+   isUnapprovedAndLive() { $this.approvedOn->isEmpty() && $this.reversedOn->isEmpty() } : Boolean[1];
+   absoluteAmount() { $this.adjustmentAmount->abs() } : Float[1];
+}
+
+// FOR: a stated equality that did not hold. Assets against liabilities-plus-equity is the
+// obvious one; the class is generic (`checkType`, `leftAmount`, `rightAmount`) because the
+// same shape catches gross derivatives against netted derivatives, HQLA against the LCR
+// numerator, and retained earnings against the P&L run, and a reader wants all of them in
+// one place rather than four differently-named tables.
+Class firm_balance_sheet::FbsBalanceCheck
+{
+   checkId: String[1];
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reportingCurrency: String[1];
+   checkType: String[1];
+   leftAmount: Float[1];
+   rightAmount: Float[1];
+   differenceAmount: Float[0..1];
+   toleranceAmount: Float[0..1];
+   severity: String[0..1];
+   detectedAt: DateTime[0..1];
+   resolvedOn: StrictDate[0..1];
+   owner: String[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+
+   computedDifference() { $this.leftAmount - $this.rightAmount } : Float[1];
+   // Stated difference against recomputed. Two ways to be wrong, and they disagree.
+   differenceCheck() { $this.differenceAmount->orElse($this.leftAmount - $this.rightAmount) - ($this.leftAmount - $this.rightAmount) } : Float[1];
+   breachRatio() { ($this.leftAmount - $this.rightAmount)->abs() / $this.toleranceAmount->orElse(1.0) } : Float[1];
+   isWithinTolerance() { ($this.leftAmount - $this.rightAmount)->abs() <= $this.toleranceAmount->orElse(0.0) } : Boolean[1];
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+   isBlocking() { $this.severity == 'BLOCKING' && $this.resolvedOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: one role's acceptance of a statement. An unattested balance sheet is unread rather
+// than wrong; `withdrawnOn` exists because an attestation can be taken back, and a statement
+// whose only attestation has been withdrawn is in a worse state than one that never had one.
+Class firm_balance_sheet::FbsAttestation
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   roleCode: String[1];
+   attestedBy: String[0..1];
+   attestedAt: DateTime[0..1];
+   attestationStatus: String[1];
+   commentary: String[0..1];
+   withdrawnOn: StrictDate[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+
+   isCurrent() { $this.withdrawnOn->isEmpty() } : Boolean[1];
+   isAccepted() { $this.attestationStatus == 'ACCEPTED' && $this.withdrawnOn->isEmpty() } : Boolean[1];
+}
+
+// ============================================================================================
+// THE AGGREGATION SHAPE -- four classes rooted at `~groupBy` VIEWS, not tables
+// ============================================================================================
+// Each of the four is one row per group over `fbs.FBS_LINE_ITEM`, at four different widths.
+// Their primary key IS the grouping, so navigating into one crosses into a GROUP BY and never
+// into another line. A group with no lines FORMS NO GROUP and is absent rather than zero: a
+// category with nothing in it on a date does not appear, and a downstream report that must
+// print every category on every day drives from `FbsCategory` and outer-joins.
+//
+// Every sum is `Float[0..1]`, because a sum over a nullable column is nullable, so every
+// derived property below `->orElse(0.0)` before it does arithmetic. `count()` is Integer.
+
+// FOR: the statement as it is actually printed -- one row per category per statement, which
+// is the line a reader sees. Grouped from the line table, so it can never disagree with it.
+Class firm_balance_sheet::FbsCategoryTotal
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reportingCurrency: String[1];
+   categoryCode: String[1];
+   lineCount: Integer[1];
+   totalCarrying: Float[0..1];
+   totalGross: Float[0..1];
+   totalImpairment: Float[0..1];
+   totalPriorCarrying: Float[0..1];
+   largestLine: Float[0..1];
+   smallestLine: Float[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+   category: firm_balance_sheet::FbsCategory[0..1];
+   lines: firm_balance_sheet::FbsLineItem[*];
+
+   movement() { $this.totalCarrying->orElse(0.0) - $this.totalPriorCarrying->orElse(0.0) } : Float[1];
+   movementPct() { (($this.totalCarrying->orElse(0.0) - $this.totalPriorCarrying->orElse(0.0)) * 100.0) / $this.totalPriorCarrying->orElse(1.0) } : Float[1];
+   averageLine() { $this.totalCarrying->orElse(0.0) / $this.lineCount->toFloat() } : Float[1];
+   coverageRatio() { $this.totalImpairment->orElse(0.0) / $this.totalGross->orElse(1.0) } : Float[1];
+   // A total of zero built from two enormous opposite numbers is not a total of zero in any
+   // sense a reader cares about, which is what max and min are here for.
+   spread() { $this.largestLine->orElse(0.0) - $this.smallestLine->orElse(0.0) } : Float[1];
+   concentrationPct() { ($this.largestLine->orElse(0.0) * 100.0) / $this.totalCarrying->orElse(1.0) } : Float[1];
+}
+
+// FOR: the measurement-basis disclosure -- how much of each side of the sheet is at
+// amortised cost, at FVOCI and at FVTPL. Grouped by basis AND side because "how much is fair
+// valued" is a different question for assets and for liabilities and the netted answer is
+// meaningless.
+Class firm_balance_sheet::FbsBasisTotal
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reportingCurrency: String[1];
+   basisCode: String[1];
+   side: String[1];
+   lineCount: Integer[1];
+   totalCarrying: Float[0..1];
+   totalGross: Float[0..1];
+   totalImpairment: Float[0..1];
+   largestLine: Float[0..1];
+
+   basis: firm_balance_sheet::FbsMeasurementBasis[0..1];
+   lines: firm_balance_sheet::FbsLineItem[*];
+
+   averageLine() { $this.totalCarrying->orElse(0.0) / $this.lineCount->toFloat() } : Float[1];
+   netOfImpairment() { $this.totalGross->orElse(0.0) - $this.totalImpairment->orElse(0.0) } : Float[1];
+   isFairValueBasis() { $this.basisCode == 'FVTPL' || $this.basisCode == 'FVOCI' } : Boolean[1];
+   concentrationPct() { ($this.largestLine->orElse(0.0) * 100.0) / $this.totalCarrying->orElse(1.0) } : Float[1];
+}
+
+// FOR: the book boundary in money -- trading book against banking book, per side. This is the
+// row a regulator reads first, because a position that migrated across the boundary changed
+// its capital treatment without changing anything about itself.
+Class firm_balance_sheet::FbsBookTotal
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   bookCode: String[1];
+   side: String[1];
+   lineCount: Integer[1];
+   totalCarrying: Float[0..1];
+   totalPriorCarrying: Float[0..1];
+   largestLine: Float[0..1];
+
+   book: firm_balance_sheet::FbsBookClassification[0..1];
+   lines: firm_balance_sheet::FbsLineItem[*];
+
+   movement() { $this.totalCarrying->orElse(0.0) - $this.totalPriorCarrying->orElse(0.0) } : Float[1];
+   averageLine() { $this.totalCarrying->orElse(0.0) / $this.lineCount->toFloat() } : Float[1];
+   isTradingBook() { $this.bookCode == 'TRADING' } : Boolean[1];
+   dayMovePct() { (($this.totalCarrying->orElse(0.0) - $this.totalPriorCarrying->orElse(0.0)) * 100.0) / $this.totalPriorCarrying->orElse(1.0) } : Float[1];
+}
+
+// FOR: the balance check itself, computed rather than stated. Three rows per statement --
+// ASSET, LIABILITY, EQUITY -- grouped straight from the line table, so the sum of the last
+// two against the first is the identity with nothing in between it and the data.
+// `FbsBalanceSheet.totalAssets` is what was published; this is what the lines say.
+Class firm_balance_sheet::FbsSideTotal
+{
+   institutionId: String[1];
+   asOfDate: StrictDate[1];
+   reportingCurrency: String[1];
+   side: String[1];
+   lineCount: Integer[1];
+   totalCarrying: Float[0..1];
+   totalGross: Float[0..1];
+   totalImpairment: Float[0..1];
+   totalPriorCarrying: Float[0..1];
+
+   statement: firm_balance_sheet::FbsBalanceSheet[0..1];
+   lines: firm_balance_sheet::FbsLineItem[*];
+
+   movement() { $this.totalCarrying->orElse(0.0) - $this.totalPriorCarrying->orElse(0.0) } : Float[1];
+   averageLine() { $this.totalCarrying->orElse(0.0) / $this.lineCount->toFloat() } : Float[1];
+   netOfImpairment() { $this.totalGross->orElse(0.0) - $this.totalImpairment->orElse(0.0) } : Float[1];
+   isAssetSide() { $this.side == 'ASSET' } : Boolean[1];
+}

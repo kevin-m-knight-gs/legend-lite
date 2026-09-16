@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token 'executions'. Valid alternatives: ['query', 'mapping', 'runtime']
+//
+// `executions['key']: { ... }` is the Multi execution's keyed-parameter form. A Single
+// execution has no such arm -- it takes query, mapping and runtime, flat.
+//
+// Paired with neg-service-single-body-in-multi.pure. The two execution flavours share the
+// `execution:` keyword and differ only in the word that follows, which is exactly the kind
+// of distinction a rewritten parser collapses into one permissive body rule.
+###Service
+Service fixture::neg::SingleWithExecutions
+{
+   pattern: '/fixture/neg/singlewithexecutions';
+   documentation: 'Multi-only executions[...] inside a Single execution';
+   execution: Single
+   {
+      executions['UAT']:
+      {
+         mapping: fixture::neg::Mapping;
+         runtime: fixture::neg::Runtime;
+      }
+   }
+}

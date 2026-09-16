@@ -1,0 +1,43 @@
+// REJECTS: Field 'updatesHandling' is required
+//
+// The relational island repeats the outer grammar's shape one level down:
+// `nontemporal: NONE BRACE_OPEN (auditing | updatesHandling)* BRACE_CLOSE`, where
+// visitNontemporal treats `auditing` as OPTIONAL and `updatesHandling` as REQUIRED.
+//
+// That asymmetry is invisible in the .g4 and is the reverse of what the outer Persistence
+// grammar does with the same word: `auditing` is REQUIRED on four of the seven v1 ingest
+// modes. Same keyword, opposite obligation, two grammars apart.
+###Persistence
+Persistence test::persistence::neg::RelationalNoUpdatesHandling
+{
+  doc: 'a non-temporal relational target with no updates handling';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    Relational
+    #{
+      table: TableA;
+      database: test::persistence::Database;
+      temporality: None
+      {
+        auditing: DateTime
+        {
+          dateTimeName: audit_timestamp;
+        }
+      }
+    }#
+  ];
+}

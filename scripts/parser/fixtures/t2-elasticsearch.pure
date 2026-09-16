@@ -1,0 +1,82 @@
+// COVERS ElasticsearchLexerGrammar: import, Elasticsearch7Cluster, indices, properties, fields, Keyword, Text, Date, Short, Byte, Integer, Long, Float, HalfFloat, Double, Boolean, Object, Nested
+// COVERS ElasticsearchConnectionLexerGrammar: store, clusterDetails, authentication
+//
+// The whole Elasticsearch V7 store surface: an `Elasticsearch7Cluster` with one index,
+// every scalar property type, both complex property types (`Object`, `Nested`) with their
+// nested `properties`, and a scalar carrying sub-`fields`.
+//
+// The two content forms are not interchangeable. `scalarPropertyContent` accepts only
+// `fields:` and `complexPropertyContent` accepts only `properties:` -- writing `fields`
+// under an `Object` or `properties` under a `Keyword` is a parse error, so both shapes
+// need their own property here.
+//
+// `clusterDetails` takes an island whose body is NOT Legend grammar: `# URL { <url> }#`
+// passes the raw text to the URL island parser, which is why the url is unquoted there
+// while every other url in this corpus is a STRING. The `//` inside it is url syntax, not
+// a comment -- the island is lexed by its own parser.
+###Elasticsearch
+import abc::*;
+
+Elasticsearch7Cluster fixture::es::Store
+{
+  indices: [
+    index1: {
+      properties: [
+        prop1: Keyword {
+          fields: [
+            english: Text {
+              fields: [
+                raw: Keyword
+              ];
+            }
+          ];
+        },
+        prop2: Text,
+        prop3: Date,
+        prop4: Short,
+        prop5: Byte,
+        prop6: Integer,
+        prop7: Long,
+        prop8: Float,
+        prop9: HalfFloat,
+        prop10: Double,
+        prop11: Boolean,
+        prop12: Object {
+          properties: [
+            nested1: Keyword,
+            nestedObject: Object {
+              properties: [
+                deep1: Integer
+              ];
+            }
+          ];
+        },
+        prop13: Nested {
+          properties: [
+            nested2: Keyword
+          ];
+        }
+      ];
+    },
+    'index-WrappedOnQuotes': {
+      properties: [
+        'prop1-wrapped': Keyword
+      ];
+    }
+  ];
+}
+
+
+###Connection
+Elasticsearch7ClusterConnection fixture::es::Conn
+{
+  store: fixture::es::Store;
+  clusterDetails: # URL { http://dummyurl.com:1234/api }#;
+  authentication: # UserPassword {
+    username: 'hello_user';
+    password: SystemPropertiesSecret
+    {
+      systemPropertyName: 'sys.prop.name';
+    };
+  }#;
+}

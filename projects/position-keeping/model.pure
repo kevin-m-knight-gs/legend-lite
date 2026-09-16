@@ -1,0 +1,376 @@
+###Pure
+// position-keeping -- WHAT A FIRM OWNS, PER ACCOUNT, PER INSTRUMENT, PER DAY.
+//
+// Layer 1. Depends on core-instrument (what the thing is) and core-account (whose it is),
+// and on nothing else.
+//
+// Two shapes drive the whole project.
+//
+//   COMPOSITE KEY  A position is (account, instrument, cob date) and is not identified by
+//                  anything shorter. The same instrument in the same account on two dates
+//                  is TWO positions, not one row that moves -- that is the entire reason
+//                  position keeping exists, because yesterday's close is what today's open
+//                  is reconciled against and it must still be there to look at. And
+//                  because core-account keys an account by (institutionId, accountNo), the
+//                  account half of that key is TWO columns, not one: a position carries
+//                  INSTITUTION_ID and ACCOUNT_NO and the join to CA_ACCOUNT matches both.
+//                  So the grain of PK_POSITION is FOUR columns, and every child record --
+//                  movement, lot, adjustment, ladder entry, break -- carries all four plus
+//                  its own discriminator.
+//
+//   AGGREGATION    Four of the classes below are not events. They are per-group TOTALS:
+//                  one row per account per day, one row per instrument per day, one row
+//                  per position per day summarising its movements, and one row per
+//                  account-instrument pair over its whole life. Each is mapped onto a
+//                  store View whose ~groupBy IS its primary key, so an instance of
+//                  AccountDayTotal is a GROUP and never an event. This is what a
+//                  statement, a firm-wide inventory check and a holding history actually
+//                  read, and reading them does not pull the underlying position rows.
+//
+// Nothing here is milestoned. A position is already dated by its own key; layering
+// business time on top of COB_DATE would be two answers to one question.
+
+// ------------------------------------------------------------------ the grain
+
+// THE POSITION. What one account held in one instrument at the close of one business
+// day: how much it opened with, how much it closed with, what that stock cost, and what
+// has and has not yet been earned on it. This class is the root of the project and the
+// thing every downstream project joins to.
+Class position_keeping::Position
+{
+   // The key, and all four parts of it are required. institutionId + accountNo is the
+   // account (core-account's key, carried whole); instrumentId is core-instrument's key;
+   // cobDate is the close-of-business date this row states the holding as at.
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   // Quantity. openingQuantity is yesterday's closingQuantity, copied forward by the run
+   // rather than recomputed, so a break between the two is visible instead of silently
+   // corrected. settledQuantity is what has actually settled; pendingQuantity is what is
+   // traded but not yet delivered, and the two need not sum to closing on a fail.
+   openingQuantity: Float[1];
+   closingQuantity: Float[1];
+   settledQuantity: Float[1];
+   pendingQuantity: Float[0..1];
+
+   // Cost. averageCost is the weighted average unit cost of the stock still held, in
+   // costCurrency (the instrument's currency, not the account's).
+   averageCost: Float[1];
+   costCurrency: String[1];
+   costBasisAmount: Float[1];
+
+   // Value and P&L. realisedPnl is what closing out has already crystallised on this
+   // instrument in this account up to this cob date; unrealisedPnl is what the remaining
+   // stock would crystallise at marketPrice. They are separate because tax and accounting
+   // treat them differently, and because only one of them changes when nothing is traded.
+   marketPrice: Float[0..1];
+   marketValue: Float[0..1];
+   realisedPnl: Float[1];
+   unrealisedPnl: Float[1];
+   pnlCurrency: String[1];
+
+   positionStatus: String[1];
+   isShort: Boolean[1];
+   lastMovementDate: StrictDate[0..1];
+
+   // The batch that produced this row, so a position can always be traced to a run.
+   runSeq: Integer[1];
+
+   // CROSS-PROJECT. Both ends of the key resolve to another project's class.
+   account: core_account::Account[1];
+   instrument: core_instrument::Instrument[1];
+
+   run: position_keeping::PositionRun[1];
+
+   movements: position_keeping::PositionMovement[*];
+   lots: position_keeping::PositionLot[*];
+   adjustments: position_keeping::PositionAdjustment[*];
+   ladder: position_keeping::SettlementLadderEntry[*];
+   breaks: position_keeping::PositionBreak[*];
+
+   // The aggregates this position rolls up into. Navigating any of these crosses into a
+   // GROUP BY and never into another position row.
+   movementTotal: position_keeping::MovementTotal[0..1];
+   accountDayTotal: position_keeping::AccountDayTotal[0..1];
+   instrumentDayTotal: position_keeping::InstrumentDayTotal[0..1];
+   lifetime: position_keeping::AccountInstrumentLifetime[0..1];
+
+   // The four-part identity as one string, for messages that must name a position
+   // without carrying four fields.
+   positionKey() { $this.institutionId + '/' + $this.accountNo + '/' + $this.instrumentId } : String[1];
+
+   // What the day did to the holding. Signed: negative is a net sale.
+   quantityChange() { $this.closingQuantity - $this.openingQuantity } : Float[1];
+
+   // Total P&L is only ever the sum of the two halves; nothing stores it, because a
+   // stored total is one more thing that can disagree with its parts.
+   totalPnl() { $this.realisedPnl + $this.unrealisedPnl } : Float[1];
+
+   // Traded but undelivered. A non-zero value on an old cob date is a settlement fail.
+   unsettledQuantity() { $this.closingQuantity - $this.settledQuantity } : Float[1];
+}
+
+// ------------------------------------------------------------------ what moved it
+
+// ONE THING THAT CHANGED A POSITION during its cob date -- a buy, a sale, a transfer in,
+// a corporate action entitlement. Keyed by the position's four columns plus a sequence,
+// because two buys of the same instrument in the same account on the same day are two
+// movements and must not collapse into one.
+Class position_keeping::PositionMovement
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   movementSeq: Integer[1];
+
+   movementType: String[1];
+   tradeReference: String[0..1];
+   quantityDelta: Float[1];
+   signedCash: Float[1];
+   price: Float[0..1];
+   settlementDate: StrictDate[0..1];
+   sourceSystem: String[1];
+
+   position: position_keeping::Position[1];
+}
+
+// ------------------------------------------------------------------ cost, lot by lot
+
+// ONE PARCEL OF STOCK BOUGHT AT ONE PRICE, still open or closed on this cob date. The
+// average cost on the position is a summary; this is the detail it is computed from, and
+// it is what a realised-P&L calculation actually consumes, because which lot you sell
+// decides what you realise. Keyed by the position's four columns plus the lot id.
+Class position_keeping::PositionLot
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   lotId: String[1];
+
+   openDate: StrictDate[1];
+   openQuantity: Float[1];
+   remainingQuantity: Float[1];
+   unitCost: Float[1];
+   lotCurrency: String[1];
+   closedOn: StrictDate[0..1];
+
+   position: position_keeping::Position[1];
+   closures: position_keeping::LotClosure[*];
+
+   // A lot is open until it is fully consumed. Absence of a close date is the only
+   // honest test -- a lot can be reopened by a cancellation.
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+
+   // What is left of the parcel, at what it cost.
+   remainingCost() { $this.remainingQuantity * $this.unitCost } : Float[1];
+}
+
+// ONE MATCH OF A SALE AGAINST ONE LOT -- the event that turns unrealised P&L into
+// realised P&L. Keyed by the lot's five columns plus a sequence, because one sale can eat
+// several lots and one lot can be eaten by several sales. matchingMethod records WHICH
+// rule chose this lot (FIFO, LIFO, HIFO, AVERAGE), since the realised amount is only
+// defensible with it.
+Class position_keeping::LotClosure
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   lotId: String[1];
+   closureSeq: Integer[1];
+
+   closedQuantity: Float[1];
+   closePrice: Float[1];
+   realisedAmount: Float[1];
+   matchingMethod: String[1];
+   movementSeq: Integer[0..1];
+
+   lot: position_keeping::PositionLot[1];
+}
+
+// A DELIBERATE OVERRIDE OF A COMPUTED POSITION, booked by a human and approved by another
+// one. Kept as its own row rather than folded into the position, so the computed figure
+// and the correction are both still readable afterwards. Keyed by the position's four
+// columns plus a sequence.
+Class position_keeping::PositionAdjustment
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   adjustmentSeq: Integer[1];
+
+   adjustmentType: String[1];
+   quantityDelta: Float[0..1];
+   amountDelta: Float[0..1];
+   reason: String[1];
+   raisedBy: String[1];
+   approvedBy: String[0..1];
+   raisedOn: StrictDate[1];
+
+   position: position_keeping::Position[1];
+
+   // Nobody's own adjustment counts until someone else signs it.
+   isApproved() { $this.approvedBy->isEmpty()->not() } : Boolean[1];
+}
+
+// WHAT IS STILL EXPECTED TO SETTLE OUT OF THIS POSITION, ON ONE FUTURE DATE. Keyed by the
+// position's four columns plus the settlement date: a position on one cob date can have
+// deliveries due on several later dates, and each is its own row. This is the shape a
+// funding or a fails report reads.
+Class position_keeping::SettlementLadderEntry
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   settlementDate: StrictDate[1];
+
+   expectedQuantity: Float[1];
+   expectedCash: Float[1];
+   ladderCurrency: String[1];
+   isOverdue: Boolean[1];
+
+   position: position_keeping::Position[1];
+}
+
+// A DISAGREEMENT ABOUT A POSITION that somebody has to resolve -- opening quantity not
+// equal to yesterday's close, movements not summing to the day's change, custodian saying
+// something else. Keyed by the position's four columns plus the break code, so the same
+// kind of break cannot be raised twice on one position.
+Class position_keeping::PositionBreak
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   breakCode: String[1];
+
+   breakQuantity: Float[0..1];
+   breakAmount: Float[0..1];
+   severity: String[1];
+   detectedOn: StrictDate[1];
+   resolvedOn: StrictDate[0..1];
+   assignedTo: String[0..1];
+
+   position: position_keeping::Position[1];
+
+   // Open until it is resolved. Same reasoning as an account restriction upstream: the
+   // history stays, so only the absence of a resolution date means still open.
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+}
+
+// ONE EXECUTION OF THE POSITION-KEEPING BATCH for one cob date. Keyed by (cobDate,
+// runSeq) because a day can be run more than once -- an intraday estimate, a close, then
+// a rerun after a late trade -- and every position row names the run that made it.
+Class position_keeping::PositionRun
+{
+   cobDate: StrictDate[1];
+   runSeq: Integer[1];
+
+   runType: String[1];
+   runStatus: String[1];
+   startedOn: StrictDate[1];
+   completedOn: StrictDate[0..1];
+   positionCount: Integer[0..1];
+   triggeredBy: String[1];
+
+   positions: position_keeping::Position[*];
+
+   // A run that has not finished has not produced a usable set of positions.
+   isComplete() { $this.completedOn->isEmpty()->not() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ the aggregates
+//
+// The four classes below are mapped onto store Views. Their rows are GROUPS, not events:
+// a query for one of them makes the engine fold a GROUP BY into its SQL rather than read
+// the position rows and total them in memory. Note what a group does NOT produce -- an
+// account with no positions on a date forms no group and is simply absent, rather than
+// appearing with a total of zero.
+
+// ONE ACCOUNT'S WHOLE BOOK ON ONE DAY, as one row. This is what the top of a client
+// statement says: how many lines, what they are worth, what has been made on them. The
+// grouping is (institutionId, accountNo, cobDate) -- the account key is two columns here
+// as everywhere else in this project.
+Class position_keeping::AccountDayTotal
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   cobDate: StrictDate[1];
+
+   positionCount: Integer[1];
+   totalMarketValue: Float[0..1];
+   totalCostBasis: Float[1];
+   totalRealisedPnl: Float[1];
+   totalUnrealisedPnl: Float[1];
+
+   account: core_account::Account[1];
+   positions: position_keeping::Position[*];
+
+   totalPnl() { $this.totalRealisedPnl + $this.totalUnrealisedPnl } : Float[1];
+
+   // Division widens to Float even when both sides are Integer, so this is Float[1] and
+   // could not be Integer[1] whatever the operands were.
+   averageLineValue() { $this.totalCostBasis / $this.positionCount } : Float[1];
+}
+
+// ONE INSTRUMENT ACROSS EVERY ACCOUNT ON ONE DAY, as one row: the firm's net inventory in
+// that security. The grouping is (instrumentId, cobDate) and deliberately drops the
+// account, which is exactly the question a stock-record or an issuer-concentration check
+// asks and the position table cannot answer without scanning.
+Class position_keeping::InstrumentDayTotal
+{
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   accountCount: Integer[1];
+   netQuantity: Float[1];
+   longestQuantity: Float[0..1];
+   totalMarketValue: Float[0..1];
+
+   instrument: core_instrument::Instrument[1];
+   positions: position_keeping::Position[*];
+}
+
+// ONE POSITION'S DAY OF MOVEMENTS, TOTALLED. Same four-column grain as the position
+// itself, but built by grouping the movement rows -- so comparing this against the
+// position's own quantityChange() is the reconciliation that raises a break, and it costs
+// one grouped read instead of fetching every movement.
+Class position_keeping::MovementTotal
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+
+   movementCount: Integer[1];
+   netQuantityDelta: Float[1];
+   netCash: Float[1];
+
+   position: position_keeping::Position[1];
+}
+
+// ONE ACCOUNT'S WHOLE HISTORY IN ONE INSTRUMENT, as one row. The grouping drops the cob
+// date -- the one thing every other key in this project keeps -- which is what makes it
+// a holding history rather than a position: first and last day held, how many days, and
+// everything ever realised on it.
+Class position_keeping::AccountInstrumentLifetime
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+
+   dayCount: Integer[1];
+   firstCobDate: StrictDate[1];
+   lastCobDate: StrictDate[1];
+   lifetimeRealisedPnl: Float[1];
+
+   account: core_account::Account[1];
+   instrument: core_instrument::Instrument[1];
+   positions: position_keeping::Position[*];
+}

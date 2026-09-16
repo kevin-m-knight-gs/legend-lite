@@ -1,0 +1,35 @@
+###Pure
+Class demo::merge::Person
+{
+  firstName: String[0..1];
+  lastName: String[0..1];
+}
+
+Class demo::merge::S_First
+{
+  firstName: String[1];
+}
+
+Class demo::merge::S_Last
+{
+  lastName: String[1];
+}
+
+###Mapping
+Mapping demo::MergeMappingTrivial
+(
+  demo::merge::Person[s1]: Pure
+  {
+    ~src demo::merge::S_First
+    firstName: $src.firstName
+  }
+  demo::merge::Person[s2]: Pure
+  {
+    ~src demo::merge::S_Last
+    lastName: $src.lastName
+  }
+  *demo::merge::Person: Operation
+  {
+    meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_([s1,s2],{|true})
+  }
+)

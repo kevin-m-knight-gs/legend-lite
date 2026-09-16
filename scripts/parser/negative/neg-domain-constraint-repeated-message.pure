@@ -1,0 +1,24 @@
+// REJECTS: no viable alternative at input ''first'~message:'
+//
+// Each constraint clause may appear AT MOST ONCE. The clause sequence has no repetition
+// operator at all, so a second ~message is not "the last one wins" and not "override" --
+// it is unparseable.
+//
+// Contrast with exclusive-two-auth-strategies.pure, where the same idea (a field given
+// twice) is caught by the WALKER with a named-field message, because the connection rule
+// really is an unordered `( ... )*`. Two constructs, two layers, two diagnostics. A rewrite
+// that implements both as "parse a bag of key/value clauses" gets the wrong answer twice:
+// it accepts this one, and it accepts the connection one too.
+###Pure
+Class fixture::neg::TwoMessages
+[
+   c1
+   (
+      ~function: $this.code->length() > 2
+      ~message: 'first'
+      ~message: 'second'
+   )
+]
+{
+   code: String[1];
+}

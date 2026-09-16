@@ -503,7 +503,8 @@ final class JoinChainEmission {
         for (UnionSynthesis.UnionRoute route : routes) {
             PropertyMapping.Join j = route.join();
             List<JoinChainElement> chain = j.joins();
-            ClassMapping member = md.set(j.targetSetId());
+            UnionSynthesis.PinTarget pin = UnionSynthesis.resolvePin(md, j.targetSetId(), model);
+            ClassMapping member = pin == null ? null : pin.set();
             // a ROUTE INTO A ~func MEMBER (A13): the route's rows are the
             // function's rows, its key a column of them (the join names the
             // relation the function reads); a chain pushed into such an arm
@@ -580,7 +581,7 @@ final class JoinChainEmission {
             // a ROOT route beside others names the root set's own function
             // (its class-level function); the queried mapping resolves it
             ValueSpecification target = new AppliedFunction(
-                    UnionSynthesis.memberFunction(md, java.util.Objects.requireNonNull(member)),
+                    UnionSynthesis.memberFunction(java.util.Objects.requireNonNull(pin)),
                     List.of());
             out.add(new AppliedFunction(Pure.Lite.ROUTE, List.of(target, rows,
                     new LambdaFunction(List.of(s, t), List.of(cond)))));

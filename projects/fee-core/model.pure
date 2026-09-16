@@ -1,0 +1,89 @@
+###Pure
+
+// fee-core, layer 1. Depends on core-types (currency enum, basis-point helper) and
+// core-tenor (the bucket class and, more importantly, the bucket TABLE).
+//
+// The shape worth noticing: a FeeSchedule carries `daysToMaturity` and no bucket id, exactly
+// as core_tenor::CtnDatedItem does -- but the bucket table it resolves against lives in
+// ANOTHER PROJECT. The join is declared here, over a table this store only `include`s.
+
+// FOR: naming a billable product and the currency its fees are charged in. A schedule is
+// keyed by product code, so this is the table that says what those codes mean.
+Class fee_core::FeeProduct
+{
+   productCode: String[1];
+   name: String[1];
+   assetClass: String[1];
+   billingCurrency: core_types::CtCurrency[1];
+   isActive: Boolean[1];
+   schedules: fee_core::FeeSchedule[*];
+}
+
+// FOR: the client tier a schedule is priced for -- RETAIL pays more than INSTITUTIONAL for
+// the same product and the same tenor band. The second column of the composite key.
+Class fee_core::FeeTier
+{
+   tierCode: String[1];
+   name: String[1];
+   rank: Integer[1];
+   minNotional: Float[1];
+   schedules: fee_core::FeeSchedule[*];
+}
+
+// FOR: one banded fee rate -- THE class of this project.
+//
+// Identity is the COMPOSITE KEY (productCode, tierCode, effectiveDate): the same product at
+// the same tier is repriced over time, and two rows sharing a product and a tier are
+// different schedules if they start on different days. Drop any of the three and distinct
+// rows collapse into one instance.
+//
+// `bucket` is [0..1] and has no key column behind it. Which tenor band a schedule prices is
+// a property of `daysToMaturity`, resolved by the RANGE join Fee_ScheduleBucket against
+// core-tenor's CTN_BUCKET. That is the cross-project range join this project exists for.
+Class fee_core::FeeSchedule
+{
+   productCode: String[1];
+   tierCode: String[1];
+   effectiveDate: StrictDate[1];
+
+   // Where on the tenor ladder this row sits. The band itself is NOT stored.
+   daysToMaturity: Integer[1];
+
+   rateBasisPoints: Float[1];
+   minimumFee: Float[1];
+   maximumFee: Float[0..1];
+   feeCurrency: core_types::CtCurrency[1];
+
+   product: fee_core::FeeProduct[0..1];
+   tier: fee_core::FeeTier[0..1];
+   waivers: fee_core::FeeWaiver[*];
+
+   // The tenor bucket, reached by RANGE across the project boundary.
+   bucket: core_tenor::CtnTenorBucket[0..1];
+
+   // bp -> decimal, using the dependency's function rather than dividing here. Float
+   // because the helper returns Float and because `/` widens anyway.
+   rate() { core_types::ctBasisPointsToRate($this.rateBasisPoints) } : Float[1];
+
+   // What a notional of `amount` is charged, before any waiver and before the floor is
+   // applied. The floor itself is a comparison the caller makes against `minimumFee`.
+   grossFee(notional: Float[1])
+   {
+      $notional * core_types::ctBasisPointsToRate($this.rateBasisPoints)
+   } : Float[1];
+}
+
+// FOR: taking a fee off, wholly or in part, for a stated reason -- a promotional period, a
+// negotiated concession, a regulatory exemption. It reaches its schedule by the SAME three
+// columns that key the schedule, which is what a composite key costs downstream.
+Class fee_core::FeeWaiver
+{
+   waiverId: String[1];
+   reasonCode: String[1];
+   waivedBasisPoints: Float[1];
+   isFullWaiver: Boolean[1];
+   grantedOn: StrictDate[1];
+   expiresOn: StrictDate[0..1];
+
+   schedule: fee_core::FeeSchedule[0..1];
+}

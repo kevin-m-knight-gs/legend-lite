@@ -1,0 +1,38 @@
+// ============================================================
+// Shared functions (L6) — business rules that outlive one query
+// ============================================================
+// A rule written once and called from several places is the whole point of having
+// functions in a model: the alternative is the same predicate copy-pasted into a dozen
+// services, drifting apart. These are called extension-style, `$x->pkg::fn()`.
+//
+// They are also a distinct COMPILATION path — a function body is type-checked
+// independently of any service, and its return multiplicity is part of its signature.
+###Pure
+
+// A rule that answers a question about a trade using two of its columns. Both are [1],
+// so the arithmetic needs no optionality discharge — unlike netCost, which is why that
+// one had to be withdrawn (F7).
+function stress::rules::isLargeTrade(t: trading::Trade[1]): Boolean[1]
+{
+   ($t.quantity * $t.price) > 250000.0
+}
+
+// A rule over an ENUM-typed property. Reading an enum inside a function body is a
+// different path from projecting it, and the corpus has three findings about enums being
+// handled per-path (F10, F12, F13) — so it is worth pinning that this one agrees.
+function stress::rules::isBuy(t: trading::Trade[1]): Boolean[1]
+{
+   $t.side == trading::Side.BUY
+}
+
+// A rule with a PARAMETER, so the same function answers differently per call.
+function stress::rules::exceeds(t: trading::Trade[1], threshold: Float[1]): Boolean[1]
+{
+   ($t.quantity * $t.price) > $threshold
+}
+
+// A rule reached across an association: the function itself navigates.
+function stress::rules::counterpartyRegion(t: trading::Trade[1]): String[0..1]
+{
+   $t.counterparty.country.region
+}

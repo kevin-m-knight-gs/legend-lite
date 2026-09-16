@@ -1,0 +1,71 @@
+// F24 -- a DateTime serializes differently through TDS projection and through graph fetch.
+//
+// Run:
+//   java -cp <runner>/target/classes:$(cat cp.txt) perf.TestableMain model.pure
+//
+// Both services read the SAME column of the SAME row through the SAME mapping. The
+// assertions below record what each execution path actually returns:
+//
+//   projection   "2024-06-03T09:07:00.000000000+0000"     <- UTC offset present
+//   graph fetch  "2024-06-03T09:07:00.000000000"          <- offset absent
+//
+// Same data, same column, two execution paths, two serializations. This is the same family
+// as F10, F12, F13, F15 and F16: a construct is interpreted per execution path and the
+// paths do not agree.
+//
+// Found by GENERATED graph-fetch instances (scripts/corpus/graphs.py). The four hand-written
+// graph probes never projected a timestamp, so nobody had looked. Ten of sixty generated
+// trees failed, and the ten were exactly the ten containing a DateTime anywhere in the tree
+// -- an exact correspondence, which is what made it a finding rather than a flake.
+###Pure
+Class repro::ts::Event
+{
+   eventId: String[1];
+   occurredAt: DateTime[0..1];
+}
+
+###Relational
+Database repro::ts::Db
+(
+   Table EVENT
+   (
+      EVENT_ID VARCHAR(32) PRIMARY KEY,
+      OCCURRED_AT TIMESTAMP
+   )
+)
+
+###Mapping
+Mapping repro::ts::Map
+(
+   repro::ts::Event: Relational
+   {
+      ~mainTable [repro::ts::Db]EVENT
+      eventId: [repro::ts::Db]EVENT.EVENT_ID,
+      occurredAt: [repro::ts::Db]EVENT.OCCURRED_AT
+   }
+)
+
+###Runtime
+Runtime repro::ts::RT
+{
+   mappings: [repro::ts::Map];
+   connections:
+   [
+      repro::ts::Db:
+      [
+         c1: #{ RelationalDatabaseConnection { store: repro::ts::Db; type: H2;
+               specification: LocalH2 { }; auth: DefaultH2; } }#
+      ]
+   ];
+}
+
+###Data
+Data repro::ts::TestData
+{
+   Relational
+   #{
+    default.EVENT:
+      'EVENT_ID,OCCURRED_AT\n' +
+      'E-1,2024-06-03 09:07:00\n';
+   }#
+}

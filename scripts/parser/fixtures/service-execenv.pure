@@ -1,0 +1,61 @@
+// COVERS ServiceLexerGrammar: ExecutionEnvironment, runtimeComponents, class, binding
+//
+// ExecutionEnvironment is the OTHER top-level element of the ###Service section -- the
+// section rule is `imports (service | execEnvs)* EOF` -- and `runtimeComponents`, `class`
+// and `binding` are legal nowhere else. All three of the nesting forms are here, because
+// `executions:` accepts a flat list of environments or a list of nested ones and only the
+// nested arm exercises the recursive rule.
+###Service
+ExecutionEnvironment fixture::env::Simple
+{
+   executions:
+   [
+      UAT:
+      {
+         mapping: fixture::env::Mapping1;
+         runtime: fixture::env::Runtime1;
+      },
+      PROD:
+      {
+         mapping: fixture::env::Mapping2;
+         runtime: fixture::env::Runtime2;
+      }
+   ];
+}
+
+ExecutionEnvironment fixture::env::WithComponents
+{
+   executions:
+   [
+      UAT:
+      {
+         mapping: fixture::env::Mapping1;
+         runtimeComponents:
+         {
+            class: fixture::env::Person;
+            binding: fixture::env::PersonBinding;
+            runtime: fixture::env::Runtime1;
+         }
+      }
+   ];
+}
+
+ExecutionEnvironment fixture::env::Nested
+{
+   executions:
+   [
+      UAT:
+      [
+         abc:
+         {
+            mapping: fixture::env::Mapping1;
+            runtime: fixture::env::Runtime1;
+         },
+         xyz:
+         {
+            mapping: fixture::env::Mapping2;
+            runtime: fixture::env::Runtime2;
+         }
+      ]
+   ];
+}

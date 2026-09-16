@@ -1,0 +1,19 @@
+// REJECTS: Unexpected token ':'. Valid alternatives: ['.']
+//
+// The Relational embedded-data island addresses tables as `schema.TABLE`, never as a bare
+// table name: `csvTable: schema DOT table COLON rows SEMI_COLON`. The schema segment is not
+// optional and there is no default.
+//
+// Legend elsewhere lets a default schema be elided -- `[Db]PERSON` in a relational mapping
+// resolves against the default schema -- so eliding it here is the consistent-looking guess
+// and the wrong one.
+###Data
+Data fixture::neg::RelationalWithoutSchema
+{
+   fixture::neg::Db:
+      Relational
+      #{
+         PERSON:
+            'id,name\n1,Ada\n';
+      }#;
+}

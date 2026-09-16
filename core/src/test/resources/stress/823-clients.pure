@@ -1,0 +1,249 @@
+###Pure
+// Clients: who the firm faces, and under what regulatory classification.
+//
+// 20 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 20 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class clients::ClientEntity
+{
+   clientId: String[1];
+   clientType: String[1];
+   legalName: String[1];
+   domicile: String[1];
+   classification: String[1];
+   onboardedOn: StrictDate[1];
+   aumUsd: Float[1];
+   isActive: Boolean[1];
+   lei: String[0..1];
+   terminatedOn: StrictDate[0..1];
+
+   // Tenure in days, null once the relationship ends -- a closed client has a
+   // duration, not an age.
+   tenureDays() { dateDiff($this.onboardedOn, $this.terminatedOn, meta::pure::functions::date::DurationUnit.DAYS) } : Integer[0..1];
+}
+
+// Leveraged, active, and the heaviest user of prime services.
+Class clients::HedgeFundClient extends clients::ClientEntity
+{
+}
+
+// Benchmarked, unleveraged, and enormous.
+Class clients::LongOnlyAssetManager extends clients::ClientEntity
+{
+}
+
+// Long-dated liabilities, which is why they buy the 2049s.
+Class clients::PensionFundClient extends clients::ClientEntity
+{
+}
+
+// Capital-constrained under Solvency II.
+Class clients::InsuranceCompanyClient extends clients::ClientEntity
+{
+}
+
+// State money with a very long horizon.
+Class clients::SovereignWealthFundClient extends clients::ClientEntity
+{
+}
+
+// Reserves management, and a different legal status entirely.
+Class clients::CentralBankClient extends clients::ClientEntity
+{
+}
+
+// A counterparty and a competitor at once.
+Class clients::CommercialBankClient extends clients::ClientEntity
+{
+}
+
+// Intermediating for others.
+Class clients::BrokerDealerClient extends clients::ClientEntity
+{
+}
+
+// Hedging real business exposures, not speculating.
+Class clients::CorporateTreasuryClient extends clients::ClientEntity
+{
+}
+
+// Private wealth, institutional behaviour.
+Class clients::FamilyOfficeClient extends clients::ClientEntity
+{
+}
+
+// Aggregating retail money into institutional tickets.
+Class clients::PrivateBankClient extends clients::ClientEntity
+{
+}
+
+// Daily liquidity constrains everything it does.
+Class clients::MutualFundClient extends clients::ClientEntity
+{
+}
+
+// Creating and redeeming baskets.
+Class clients::EtfSponsorClient extends clients::ClientEntity
+{
+}
+
+// Two-way prices, thin margins, high turnover.
+Class clients::MarketMakerClient extends clients::ClientEntity
+{
+}
+
+// Own capital, no clients, latency-sensitive.
+Class clients::ProprietaryTradingFirm extends clients::ClientEntity
+{
+}
+
+// Public money with statutory investment limits.
+Class clients::MunicipalityClient extends clients::ClientEntity
+{
+}
+
+// Development banks and similar.
+Class clients::SupranationalClient extends clients::ClientEntity
+{
+}
+
+// Bankruptcy-remote, single-purpose, and thinly capitalised.
+Class clients::SpecialPurposeVehicleClient extends clients::ClientEntity
+{
+}
+
+// Allocating to other managers.
+Class clients::FundOfFundsClient extends clients::ClientEntity
+{
+}
+
+// The highest protection and the tightest suitability rules.
+Class clients::RetailClient extends clients::ClientEntity
+{
+}
+
+###Mapping
+Mapping clients::ClientsMapping
+(
+   *clients::ClientEntity[clientsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CLIENT_ENTITY.CLIENT_ID )
+      ~mainTable [store::DB]CLIENT_ENTITY
+      clientId: [store::DB]CLIENT_ENTITY.CLIENT_ID,
+      clientType: [store::DB]CLIENT_ENTITY.CLIENT_TYPE,
+      legalName: [store::DB]CLIENT_ENTITY.LEGAL_NAME,
+      domicile: [store::DB]CLIENT_ENTITY.DOMICILE,
+      classification: [store::DB]CLIENT_ENTITY.CLASSIFICATION,
+      onboardedOn: [store::DB]CLIENT_ENTITY.ONBOARDED_ON,
+      aumUsd: [store::DB]CLIENT_ENTITY.AUM_USD,
+      isActive: [store::DB]CLIENT_ENTITY.IS_ACTIVE,
+      lei: [store::DB]CLIENT_ENTITY.LEI,
+      terminatedOn: [store::DB]CLIENT_ENTITY.TERMINATED_ON
+   }
+
+   clients::HedgeFundClient[cliHedgeFund] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliHedgeFundRows
+   }
+
+   clients::LongOnlyAssetManager[cliLongOnly] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliLongOnlyRows
+   }
+
+   clients::PensionFundClient[cliPensionFund] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliPensionFundRows
+   }
+
+   clients::InsuranceCompanyClient[cliInsurance] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliInsuranceRows
+   }
+
+   clients::SovereignWealthFundClient[cliSovereignWealth] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliSovereignWealthRows
+   }
+
+   clients::CentralBankClient[cliCentralBank] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliCentralBankRows
+   }
+
+   clients::CommercialBankClient[cliCommercialBank] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliCommercialBankRows
+   }
+
+   clients::BrokerDealerClient[cliBrokerDealer] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliBrokerDealerRows
+   }
+
+   clients::CorporateTreasuryClient[cliCorporateTreasury] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliCorporateTreasuryRows
+   }
+
+   clients::FamilyOfficeClient[cliFamilyOffice] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliFamilyOfficeRows
+   }
+
+   clients::PrivateBankClient[cliPrivateBank] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliPrivateBankRows
+   }
+
+   clients::MutualFundClient[cliMutualFundClient] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliMutualFundClientRows
+   }
+
+   clients::EtfSponsorClient[cliEtfSponsor] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliEtfSponsorRows
+   }
+
+   clients::MarketMakerClient[cliMarketMaker] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliMarketMakerRows
+   }
+
+   clients::ProprietaryTradingFirm[cliProprietaryFirm] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliProprietaryFirmRows
+   }
+
+   clients::MunicipalityClient[cliMunicipality] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliMunicipalityRows
+   }
+
+   clients::SupranationalClient[cliSupranationalClient] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliSupranationalClientRows
+   }
+
+   clients::SpecialPurposeVehicleClient[cliSpv] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliSpvRows
+   }
+
+   clients::FundOfFundsClient[cliFundOfFunds] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliFundOfFundsRows
+   }
+
+   clients::RetailClient[cliRetail] extends [clientsBase]: Relational
+   {
+      ~filter [store::DB]CliRetailRows
+   }
+)

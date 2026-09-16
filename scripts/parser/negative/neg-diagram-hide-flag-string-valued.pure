@@ -1,0 +1,22 @@
+// REJECTS: Unexpected token ''true''
+//
+// hideProperties / hideStereotype / hideTaggedValue are BOOLEAN-valued: the literal `true`
+// or `false`, not the string 'true'. Legend's own diagram serialisations are machine
+// written, so the quoted form is what appears when a value is round-tripped through a
+// format that has no booleans -- which is most of them.
+//
+// This is the inverse of neg-domain-property-named-true.pure and belongs beside it: there
+// the bare word `true` was rejected because a boolean literal is not an identifier; here
+// the quoted 'true' is rejected because a string is not a boolean. Three spellings of one
+// word, and each grammar position accepts exactly one of them.
+###Diagram
+Diagram fixture::neg::StringFlag
+{
+   classView v1
+   {
+      class: fixture::neg::Person;
+      position: (1.0,2.0);
+      rectangle: (10.0,20.0);
+      hideProperties: 'true';
+   }
+}

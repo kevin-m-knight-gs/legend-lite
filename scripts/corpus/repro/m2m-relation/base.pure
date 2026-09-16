@@ -1,0 +1,87 @@
+Enum src::Side
+{
+  BUY,
+  SELL
+}
+
+Class src::Trade
+{
+  tradeId: String[1];
+  qty: Float[1];
+  side: src::Side[1];
+}
+
+Class dest::CTrade
+{
+  identifier: String[1];
+  units: Float[1];
+  side: src::Side[1];
+}
+
+###Relational
+Database src::DB
+(
+  Table TRADE (TRADE_ID VARCHAR(20) PRIMARY KEY, QTY DOUBLE, SIDE VARCHAR(10))
+)
+
+###Mapping
+Mapping src::RelMapping
+(
+  src::Side: EnumerationMapping SideMap
+  {
+    BUY: ['B'],
+    SELL: ['S']
+  }
+
+  src::Trade: Relational {
+    ~mainTable [src::DB] TRADE
+    tradeId: [src::DB] TRADE.TRADE_ID,
+    qty: [src::DB] TRADE.QTY,
+    side: EnumerationMapping SideMap: [src::DB] TRADE.SIDE
+  }
+)
+
+Mapping dest::M2M
+(
+  *dest::CTrade: Pure
+  {
+    ~src src::Trade
+    identifier: $src.tradeId,
+    units: $src.qty,
+    side: $src.side
+  }
+)
+
+###Connection
+RelationalDatabaseConnection src::Conn
+{ store: src::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+ModelChainConnection dest::Chain
+{
+  mappings: [
+    src::RelMapping
+  ];
+}
+
+###Runtime
+Runtime dest::RT
+{
+  mappings: [ dest::M2M ];
+  connections:
+  [
+    ModelStore: [ chain: dest::Chain ],
+    src::DB: [ env: src::Conn ]
+  ];
+}
+
+###Data
+Data src::Seed
+{
+  Relational
+  #{
+    default.TRADE:
+      'TRADE_ID,QTY,SIDE\n' +
+      'T1,100.0,B\n' +
+      'T2,250.0,S\n';
+  }#
+}

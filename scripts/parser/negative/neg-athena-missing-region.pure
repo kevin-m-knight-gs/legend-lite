@@ -1,0 +1,28 @@
+// REJECTS: Field 'region' is required
+//
+// An Athena specification with database, workGroup and outputLocation but no `region`.
+// athenaDatasourceSpecification is a `( ... )*` alternation over six optional elements, so
+// this parses cleanly and the requirement is applied by the walker afterwards.
+//
+// Athena is the one vendor in this batch with no host and no port -- it is addressed by
+// `region` plus an S3 `outputLocation` -- so `region` here is not a convenience label but the
+// endpoint itself, and its being required is the analogue of `host` being required elsewhere.
+// A rewrite reading the .g4 alone finds every field optional and accepts an unaddressable
+// connection.
+//
+// `athenaEndpoint` is the optional override and is deliberately absent below: supplying it
+// does not satisfy the requirement, which is what makes the check a fixed one rather than a
+// one-of-these-two.
+###Connection
+RelationalDatabaseConnection fixture::neg::AthenaMissingRegion
+{
+  store: fixture::neg::Db;
+  type: Athena;
+  specification: Athena
+  {
+    database: 'dbname';
+    workGroup: 'workGroupX';
+    outputLocation: 's3://bucket/prefix';
+  };
+  auth: Test;
+}

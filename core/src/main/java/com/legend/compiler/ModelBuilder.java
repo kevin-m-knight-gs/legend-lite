@@ -135,6 +135,8 @@ public final class ModelBuilder {
     private final ArrayList<LegacyMappingDefinition> legacyMappings = new ArrayList<>();
     private final ArrayList<MappingDefinition>     mappings      = new ArrayList<>();
     private final ArrayList<ServiceDefinition>     services      = new ArrayList<>();
+    /** {@code ###Data} elements — the bodies test suites reference by name. */
+    private final ArrayList<com.legend.model.DataDefinition> dataElements = new ArrayList<>();
     private final ArrayList<RuntimeDefinition>     runtimes      = new ArrayList<>();
     private final ArrayList<ConnectionDefinition>  connections   = new ArrayList<>();
     /** Named model-store connections (Json/Xml/ModelChain) — indexed so a
@@ -316,6 +318,8 @@ public final class ModelBuilder {
                 case LegacyMappingDefinition md -> ingestLegacyMapping(md);
                 case MappingDefinition md -> putAtId(mappings, intern(md.qualifiedName()), md);
                 case ServiceDefinition sd -> putAtId(services, intern(sd.qualifiedName()), sd);
+                case com.legend.model.DataDefinition dd ->
+                        putAtId(dataElements, intern(dd.qualifiedName()), dd);
                 case ConnectionDefinition cd -> putAtId(connections, intern(cd.qualifiedName()), cd);
                 case com.legend.model.ModelConnectionDefinition mc ->
                         modelConnections.put(mc.qualifiedName(), mc);
@@ -352,6 +356,7 @@ public final class ModelBuilder {
             case LegacyMappingDefinition md -> idGet(legacyMappings, id) == md;
             case MappingDefinition md -> idGet(mappings, id) == md;
             case ServiceDefinition sd -> idGet(services, id) == sd;
+            case com.legend.model.DataDefinition dd -> idGet(dataElements, id) == dd;
             case ConnectionDefinition cd -> idGet(connections, id) == cd;
             case RuntimeDefinition rd -> idGet(runtimes, id) == rd;
             case Function fn -> {
@@ -837,6 +842,11 @@ public final class ModelBuilder {
     /** O(1). Returns {@link ServiceDefinition} for {@code fqn}, if any. */
     public Optional<ServiceDefinition> findService(String fqn) {
         return Optional.ofNullable(idGet(services, symbols.resolveId(fqn)));
+    }
+
+    /** O(1). Returns the {@code ###Data} element for {@code fqn}, if any. */
+    public Optional<com.legend.model.DataDefinition> findData(String fqn) {
+        return Optional.ofNullable(idGet(dataElements, symbols.resolveId(fqn)));
     }
 
     /** O(1). Returns {@link RuntimeDefinition} for {@code fqn}, if any. */

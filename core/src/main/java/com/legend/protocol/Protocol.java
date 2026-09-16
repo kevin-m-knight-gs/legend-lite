@@ -937,10 +937,16 @@ public final class Protocol {
             implements PRelOp {
     }
 
-    /** {@code [1,2,3]} — items emit the NESTED literal form
-     *  ({@code {"_type":"literal","value":{span,value}}}), unlike the flat
-     *  scalar literal (probe proc-snapshot-array-json). */
-    public record PRelLiteralList(List<PRelLiteral> values,
+    /** {@code [1,2,3]} / {@code [T.A, T.B]} — a {@code functionOperationArgumentArray}:
+     *  every element is a function-operation argument in its own right (a
+     *  constant, a column, a dynaFunc, a nested array — the engine's
+     *  RelationalParseTreeWalker visits each through
+     *  visitFunctionOperationArgument). Items emit the NESTED literal form
+     *  ({@code {"_type":"literal","value":<the element, UNTYPED>}}): the
+     *  engine's {@code Literal.value} is an {@code Object} field, so Jackson
+     *  writes the element's fields without a {@code _type} of its own
+     *  (probe proc-snapshot-array-json pins the constant case). */
+    public record PRelLiteralList(List<PRelOp> values,
                                   com.legend.protocol.SourceInfo sourceInformation)
             implements PRelOp {
     }
@@ -2291,9 +2297,19 @@ public final class Protocol {
     }
 
     /** Connection post-processor flavors: the {@code mapper} table/schema
-     *  renamer and the {@code relationalMapper} pointer list. */
+     *  renamer, the {@code relationalMapper} pointer list and the bare
+     *  {@code ExtractSubQueriesAsCTEsPostProcessor} keyword. */
     public sealed interface PPostProcessor
-            permits PMapperPostProcessor, PRelationalMapperPostProcessor {
+            permits PMapperPostProcessor, PRelationalMapperPostProcessor,
+                    PExtractSubQueriesAsCtesPostProcessor {
+    }
+
+    /** {@code _type:"ExtractSubQueriesAsCTEsPostProcessor"} — the bare
+     *  keyword form; the engine's record has no field beyond its span
+     *  (RelationalGrammarParserExtension: the parser instantiates it and
+     *  sets sourceInformation only), so the wire is the tag alone. */
+    public record PExtractSubQueriesAsCtesPostProcessor()
+            implements PPostProcessor {
     }
 
     /** {@code _type:"mapper"} post-processor: table/schema mappers; a table
@@ -2328,7 +2344,58 @@ public final class Protocol {
     public sealed interface PDatasourceSpec
             permits PH2Local, PStaticSpec, PH2EmbeddedSpec, PDuckDBSpec,
             PSQLiteSpec, PSnowflakeSpec, PSpannerSpec, PDatabricksSpec,
-            PBigQuerySpec, PRedshiftSpec, PTrinoSpec {
+            PBigQuerySpec, PRedshiftSpec, PTrinoSpec, PAthenaSpec, PAuroraSpec,
+            PGlobalAuroraSpec, PMemSqlSpec, POracleSpec {
+    }
+
+    /** {@code _type:"athena"} — AthenaParserGrammar: {@code region} required,
+     *  the rest optional (AthenaGrammarParserExtension). */
+    public record PAthenaSpec(@com.legend.Nullable String athenaEndpoint,
+                              @com.legend.Nullable String catalog,
+                              @com.legend.Nullable String database,
+                              @com.legend.Nullable String outputLocation,
+                              String region,
+                              @com.legend.Nullable String workGroup,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"aurora"} — AuroraParserGrammar auroraDsp: host, port,
+     *  name required; clusterInstanceHostPattern optional. */
+    public record PAuroraSpec(@com.legend.Nullable String clusterInstanceHostPattern,
+                              String host, String name, long port,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"globalAurora"} — AuroraParserGrammar globalAuroraDsp:
+     *  host, port, name, region and the pattern list all required. */
+    public record PGlobalAuroraSpec(List<String> globalClusterInstanceHostPatterns,
+                                    String host, String name, long port, String region,
+                                    com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+        public PGlobalAuroraSpec {
+            globalClusterInstanceHostPatterns = List.copyOf(globalClusterInstanceHostPatterns);
+        }
+    }
+
+    /** {@code _type:"memSql"} — MemSqlParserGrammar: host and port required
+     *  (port a STRING in source, an int on the wire — the engine's walker
+     *  runs Integer.valueOf at parse time); databaseName and useSsl
+     *  (a STRING read as a Boolean) optional. */
+    public record PMemSqlSpec(@com.legend.Nullable String databaseName,
+                              String host, long port,
+                              @com.legend.Nullable Boolean useSsl,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code _type:"oracle"} — OracleParserGrammar: host and port
+     *  required, serviceName optional. */
+    public record POracleSpec(String host, long port,
+                              @com.legend.Nullable String serviceName,
+                              com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
     }
 
     /** {@code _type:"h2Embedded"} — EmbeddedH2 { name; directory;

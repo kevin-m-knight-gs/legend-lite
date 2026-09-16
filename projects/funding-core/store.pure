@@ -1,0 +1,201 @@
+###Relational
+
+// funding-core's tables. Two things carry the project.
+//
+// FND_CURVE_MS is MILESTONED: the milestoning block comes first inside the parentheses, ahead
+// of the columns, and the primary key is composite (CURVE_ID + FROM_Z) because the whole
+// point is several rows per curve. INFINITY_DATE is present so %latest works; without it the
+// milestoning parses, compiles and serves dated queries, and only %latest fails, late, at
+// plan generation.
+//
+// Fnd_CashflowPoint and Fnd_CashflowTenorBucket are RANGE joins: `>=` on the lower bound and
+// `<` on the upper, half-open on purpose, because a closed upper bound would match two
+// buckets at every boundary. The second of them crosses a project boundary into core_tenor's
+// CTN_BUCKET, which has no key a cashflow could hold instead.
+Database funding_core::Store
+(
+  include core_account::Store
+  include core_tenor::Store
+
+  Table FND_DESK
+  (
+    DESK_ID VARCHAR(20) PRIMARY KEY,
+    DESK_NAME VARCHAR(120),
+    LEGAL_ENTITY_CODE VARCHAR(20),
+    REGION_CODE VARCHAR(8),
+    IS_ACTIVE BIT
+  )
+
+  Table FND_BENCHMARK_INDEX
+  (
+    INDEX_CODE VARCHAR(20) PRIMARY KEY,
+    INDEX_NAME VARCHAR(120),
+    CURRENCY_CODE VARCHAR(3),
+    COMPOUNDING VARCHAR(20),
+    DAY_COUNT_CONVENTION VARCHAR(20)
+  )
+
+  // The curve's stable identity. Never versioned -- FND_CURVE_MS is where the numbers move.
+  Table FND_CURVE
+  (
+    CURVE_ID VARCHAR(20) PRIMARY KEY,
+    CURVE_NAME VARCHAR(120),
+    CURRENCY_CODE VARCHAR(3),
+    CURVE_TYPE VARCHAR(20),
+    LADDER_ID VARCHAR(64),
+    DESK_ID VARCHAR(20),
+    INDEX_CODE VARCHAR(20)
+  )
+
+  // The milestoned history of the curve. FROM_Z / THRU_Z appear here and in the mapping's
+  // ~primaryKey and on no class property: the engine supplies the date predicate itself.
+  Table FND_CURVE_MS
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31)
+    )
+    CURVE_ID VARCHAR(20) PRIMARY KEY,
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE,
+    CURVE_NAME VARCHAR(120),
+    CURRENCY_CODE VARCHAR(3),
+    METHODOLOGY VARCHAR(40),
+    BENCHMARK_CODE VARCHAR(20),
+    BASE_RATE_BPS INTEGER,
+    STATUS VARCHAR(20),
+    APPROVED_BY VARCHAR(60)
+  )
+
+  // The right-hand side of the range join: two day bounds and a rate, keyed by the curve and
+  // a sequence rather than by the bounds. BUCKET_ID is optional and only there so the same
+  // row is also reachable by key from CTN_BUCKET.
+  Table FND_CURVE_POINT
+  (
+    CURVE_ID VARCHAR(20) PRIMARY KEY,
+    POINT_SEQ INTEGER PRIMARY KEY,
+    BUCKET_ID VARCHAR(64),
+    MIN_DAYS INTEGER,
+    MAX_DAYS INTEGER,
+    TRANSFER_RATE_BPS INTEGER,
+    LIQUIDITY_SPREAD_BPS INTEGER
+  )
+
+  Table FND_LIQUIDITY_PREMIUM
+  (
+    CURVE_ID VARCHAR(20) PRIMARY KEY,
+    BUCKET_ID VARCHAR(64) PRIMARY KEY,
+    FUNDING_CLASS VARCHAR(20) PRIMARY KEY,
+    PREMIUM_BPS INTEGER,
+    HAIRCUT_PCT DOUBLE
+  )
+
+  // The left-hand side of both range joins. DAYS_TO_MATURITY and no bucket, no point.
+  // INSTITUTION_ID + ACCOUNT_NO because core-account's key is two columns.
+  Table FND_CASHFLOW
+  (
+    CASHFLOW_ID VARCHAR(40) PRIMARY KEY,
+    INSTITUTION_ID VARCHAR(20),
+    ACCOUNT_NO VARCHAR(34),
+    CURVE_ID VARCHAR(20),
+    FLOW_TYPE VARCHAR(20),
+    VALUE_DATE DATE,
+    MATURITY_DATE DATE,
+    DAYS_TO_MATURITY INTEGER,
+    NOTIONAL DOUBLE,
+    CURRENCY_CODE VARCHAR(3)
+  )
+
+  Table FND_TRANSFER_PRICE
+  (
+    PRICE_ID VARCHAR(40) PRIMARY KEY,
+    CASHFLOW_ID VARCHAR(40),
+    CURVE_ID VARCHAR(20),
+    PRICED_AS_OF DATE,
+    APPLIED_RATE_BPS INTEGER,
+    PREMIUM_BPS INTEGER,
+    CHARGE_AMOUNT DOUBLE
+  )
+
+  Table FND_FUNDING_REQUEST
+  (
+    REQUEST_ID VARCHAR(40) PRIMARY KEY,
+    INSTITUTION_ID VARCHAR(20),
+    ACCOUNT_NO VARCHAR(34),
+    DESK_ID VARCHAR(20),
+    REQUESTED_ON DATE,
+    TENOR_DAYS INTEGER,
+    REQUESTED_AMOUNT DOUBLE,
+    CURRENCY_CODE VARCHAR(3),
+    STATUS VARCHAR(20)
+  )
+
+  // Keyed by the account's own composite key: exactly one funding profile per account.
+  Table FND_ACCOUNT_PROFILE
+  (
+    INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+    ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+    CURVE_ID VARCHAR(20),
+    FUNDING_CLASS VARCHAR(20),
+    EFFECTIVE_FROM DATE,
+    IS_EXEMPT BIT
+  )
+
+  Table FND_CURVE_APPROVAL
+  (
+    APPROVAL_ID VARCHAR(40) PRIMARY KEY,
+    CURVE_ID VARCHAR(20),
+    DESK_ID VARCHAR(20),
+    APPROVED_ON DATE,
+    APPROVED_BY VARCHAR(60),
+    COMMITTEE VARCHAR(60),
+    CHANGE_REASON VARCHAR(200)
+  )
+
+  Table FND_BUCKET_ROLLUP
+  (
+    ROLLUP_ID VARCHAR(40) PRIMARY KEY,
+    CURVE_ID VARCHAR(20),
+    BUCKET_ID VARCHAR(64),
+    AS_OF_DATE DATE,
+    CASHFLOW_COUNT INTEGER,
+    TOTAL_NOTIONAL DOUBLE,
+    WEIGHTED_RATE_BPS INTEGER
+  )
+
+  // ---------------------------------------------------------------- the two RANGE joins
+
+  // Within this project. A cashflow's days to maturity land inside exactly one point of its
+  // own curve, so the condition is the curve equality AND the half-open interval. One line:
+  // a wrapped join condition is not parsed.
+  Join Fnd_CashflowPoint(FND_CASHFLOW.CURVE_ID = FND_CURVE_POINT.CURVE_ID and FND_CASHFLOW.DAYS_TO_MATURITY >= FND_CURVE_POINT.MIN_DAYS and FND_CASHFLOW.DAYS_TO_MATURITY < FND_CURVE_POINT.MAX_DAYS)
+
+  // Across the project boundary, into core_tenor. CTN_BUCKET has no key a cashflow could
+  // hold, which is the whole reason core-tenor exists in this project's dependency list.
+  Join Fnd_CashflowTenorBucket(FND_CASHFLOW.DAYS_TO_MATURITY >= CTN_BUCKET.MIN_DAYS and FND_CASHFLOW.DAYS_TO_MATURITY < CTN_BUCKET.MAX_DAYS)
+
+  // ---------------------------------------------------------------- ordinary key joins
+
+  Join Fnd_CurveDesk(FND_CURVE.DESK_ID = FND_DESK.DESK_ID)
+  Join Fnd_CurveBenchmark(FND_CURVE.INDEX_CODE = FND_BENCHMARK_INDEX.INDEX_CODE)
+  Join Fnd_CurvePoints(FND_CURVE.CURVE_ID = FND_CURVE_POINT.CURVE_ID)
+  Join Fnd_CashflowCurve(FND_CASHFLOW.CURVE_ID = FND_CURVE.CURVE_ID)
+  Join Fnd_PriceCashflow(FND_TRANSFER_PRICE.CASHFLOW_ID = FND_CASHFLOW.CASHFLOW_ID)
+  Join Fnd_RequestDesk(FND_FUNDING_REQUEST.DESK_ID = FND_DESK.DESK_ID)
+  Join Fnd_ProfileCurve(FND_ACCOUNT_PROFILE.CURVE_ID = FND_CURVE.CURVE_ID)
+  Join Fnd_ApprovalCurve(FND_CURVE_APPROVAL.CURVE_ID = FND_CURVE.CURVE_ID)
+  Join Fnd_ApprovalDesk(FND_CURVE_APPROVAL.DESK_ID = FND_DESK.DESK_ID)
+  Join Fnd_RollupCurve(FND_BUCKET_ROLLUP.CURVE_ID = FND_CURVE.CURVE_ID)
+
+  // The keyed route to the same bucket class the range joins reach. Reporting rolls up by
+  // key; pricing bands by range.
+  Join Fnd_PointTenorBucket(FND_CURVE_POINT.BUCKET_ID = CTN_BUCKET.BUCKET_ID)
+  Join Fnd_PremiumTenorBucket(FND_LIQUIDITY_PREMIUM.BUCKET_ID = CTN_BUCKET.BUCKET_ID)
+  Join Fnd_RollupTenorBucket(FND_BUCKET_ROLLUP.BUCKET_ID = CTN_BUCKET.BUCKET_ID)
+
+  // Two columns every time, because core-account's account key is two columns and a
+  // single-column join here would match accounts at other institutions.
+  Join Fnd_CashflowAccount(FND_CASHFLOW.INSTITUTION_ID = CA_ACCOUNT.INSTITUTION_ID and FND_CASHFLOW.ACCOUNT_NO = CA_ACCOUNT.ACCOUNT_NO)
+  Join Fnd_RequestAccount(FND_FUNDING_REQUEST.INSTITUTION_ID = CA_ACCOUNT.INSTITUTION_ID and FND_FUNDING_REQUEST.ACCOUNT_NO = CA_ACCOUNT.ACCOUNT_NO)
+  Join Fnd_ProfileAccount(FND_ACCOUNT_PROFILE.INSTITUTION_ID = CA_ACCOUNT.INSTITUTION_ID and FND_ACCOUNT_PROFILE.ACCOUNT_NO = CA_ACCOUNT.ACCOUNT_NO)
+)

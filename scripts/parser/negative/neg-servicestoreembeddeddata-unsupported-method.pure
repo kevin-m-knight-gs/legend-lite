@@ -1,0 +1,34 @@
+// REJECTS: Unsupported HTTP Method type - TRACE. Supported types are - GET,POST
+//
+// `method: TRACE;` inside a `ServiceStore #{ ... }#` embedded-data island. The island's
+// grammar takes an identifier there, so TRACE, PUT, DELETE and PATCH all lex and parse; the
+// restriction to two verbs is applied while the island is being walked.
+//
+// Two things make this worth a fixture. First, the accepted set is SMALLER than HTTP's and
+// smaller than what a reader would assume from a field called `method` -- a rewrite that
+// validates against a standard HTTP verb list is more permissive on four verbs. Second, the
+// message enumerates the supported set, so this fixture keeps working as documentation of
+// what that set is; if upstream ever adds PUT, this line stops matching and says so.
+//
+// The rest of the stub is minimal but complete -- `response` is a required field of a stub
+// entry, so it is supplied to keep the failure unambiguous.
+###Data
+Data fixture::neg::StubDataBadMethod
+{
+  ServiceStore
+  #{
+    [
+      {
+        request:
+        {
+          method: TRACE;
+          url: '/employees';
+        };
+        response:
+        {
+          body: ExternalFormat #{ contentType: 'application/json'; data: '[]'; }#;
+        };
+      }
+    ]
+  }#
+}

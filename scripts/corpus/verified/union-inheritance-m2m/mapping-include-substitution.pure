@@ -1,0 +1,48 @@
+###Pure
+Class demo::inc::Person
+{
+  id: Integer[1];
+  name: String[1];
+}
+
+###Relational
+Database demo::store::DevDB
+(
+  Table PersonTable (id INTEGER PRIMARY KEY, name VARCHAR(200))
+)
+
+###Relational
+Database demo::store::ProdDB
+(
+  Table PersonTable (id INTEGER PRIMARY KEY, name VARCHAR(200))
+)
+
+###Mapping
+Mapping demo::PersonBaseMapping
+(
+  *demo::inc::Person[person]: Relational
+  {
+    ~primaryKey ([demo::store::DevDB]PersonTable.id)
+    ~mainTable [demo::store::DevDB]PersonTable
+    id: [demo::store::DevDB]PersonTable.id,
+    name: [demo::store::DevDB]PersonTable.name
+  }
+)
+
+###Mapping
+Mapping demo::PersonPlainIncludeMapping
+(
+  include demo::PersonBaseMapping
+)
+
+###Mapping
+Mapping demo::PersonIncludeMappingKeywordMapping
+(
+  include mapping demo::PersonBaseMapping
+)
+
+###Mapping
+Mapping demo::PersonSubstitutedMapping
+(
+  include demo::PersonBaseMapping[demo::store::DevDB->demo::store::ProdDB]
+)

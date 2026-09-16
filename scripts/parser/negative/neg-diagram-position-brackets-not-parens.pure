@@ -1,0 +1,20 @@
+// REJECTS: Unexpected token '['. Valid alternatives: ['(']
+//
+// A point is PARENS `(x,y)`; a list of points is BRACKETS `[(x,y),(x,y)]`. Both appear in
+// the same classView/propertyView block, three lines apart, meaning opposite things.
+//
+// Two coordinates in square brackets is what almost every other format uses for a point
+// (GeoJSON, matplotlib, SVG path data in JSON form), so this is not a slip a reader
+// catches. A rewrite that accepts either delimiter for a coordinate pair also has to
+// decide what `points: [(1.0,2.0)]` means when the outer bracket is now ambiguous with a
+// point -- so the permissiveness is not even locally contained.
+###Diagram
+Diagram fixture::neg::BracketPosition
+{
+   classView v1
+   {
+      class: fixture::neg::Person;
+      position: [1.0,2.0];
+      rectangle: (10.0,20.0);
+   }
+}

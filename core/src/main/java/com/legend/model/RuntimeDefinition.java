@@ -46,13 +46,18 @@ import java.util.Objects;
  *                            names carry the reserved {@code $} sigil;
  *                            {@code ModelBuilder.ingestRuntime} registers them
  *                            so bindings referencing them resolve
+ * @param connectionIds       connection ID &rarr; store FQN, from
+ *                            {@code store: [ id: conn ]} — the key a test
+ *                            suite's {@code data: [ connections: [ id: ... ] ]}
+ *                            addresses its provisioning by
  */
 public record RuntimeDefinition(
         String qualifiedName,
         List<String> mappings,
         Map<String, List<String>> connectionBindings,
         List<JsonModelConnection> jsonConnections,
-        List<PackageableElement> inlineConnections) implements PackageableElement {
+        List<PackageableElement> inlineConnections,
+        Map<String, String> connectionIds) implements PackageableElement {
 
     public RuntimeDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -62,6 +67,18 @@ public record RuntimeDefinition(
         jsonConnections = jsonConnections == null ? List.of() : List.copyOf(jsonConnections);
         inlineConnections = inlineConnections == null ? List.of()
                 : List.copyOf(inlineConnections);
+        connectionIds = connectionIds == null ? Map.of()
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(connectionIds));
+    }
+
+    /** The pre-id shape: every binding's id is unknown ({@link #connectionIds}
+     *  empty). */
+    public RuntimeDefinition(String qualifiedName, List<String> mappings,
+            Map<String, List<String>> connectionBindings,
+            List<JsonModelConnection> jsonConnections,
+            List<PackageableElement> inlineConnections) {
+        this(qualifiedName, mappings, connectionBindings, jsonConnections,
+                inlineConnections, Map.of());
     }
 
     /** Convenience for the overwhelmingly common one-connection-per-store

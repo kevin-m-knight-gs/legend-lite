@@ -1,0 +1,32 @@
+// REJECTS: Unexpected token 'Combined'. Valid alternatives: [';']
+//
+// `supportInfo:` carrying BOTH an Email block and a Combined block. The rule is
+//     supportInfo: SUPPORT_INFO COLON (supportEmail | supportCombinedInfo) SEMI_COLON
+// -- one alternative, then a semicolon. A parser generated from a looser reading (a repeated
+// or optional group, which is how nearly every other field in this grammar is written) would
+// accept the concatenation and silently keep whichever arm it saw last.
+//
+// The two arms are also not merely different spellings of the same record: they build
+// different protocol classes (DataSpaceSupportEmail vs DataSpaceSupportCombinedInfo), so
+// accepting both is not a harmless superset. See ../fixtures/t2-dataspace.pure and
+// ../fixtures/t2-dataspace-email.pure -- the corpus needs TWO positive elements precisely
+// because of this rule.
+###DataSpace
+DataSpace fixture::neg::BothSupportArms
+{
+  executionContexts:
+  [
+    {
+      name: 'Context 1';
+      mapping: fixture::neg::Mapping;
+      defaultRuntime: fixture::neg::Runtime;
+    }
+  ];
+  defaultExecutionContext: 'Context 1';
+  supportInfo: Email {
+    address: 'support@example.org';
+  }
+  Combined {
+    website: 'https://example.org';
+  };
+}

@@ -1,0 +1,46 @@
+###Pure
+Class demo::xsub::A
+{
+  id: Integer[1];
+  aName: String[1];
+}
+
+Class demo::xsub::B extends demo::xsub::A
+{
+  bName: String[1];
+}
+
+###Relational
+Database demo::store::Db1
+(
+  Table ABC (id INTEGER PRIMARY KEY, aName VARCHAR(200), bName VARCHAR(200))
+)
+
+###Relational
+Database demo::store::Db2
+(
+  Table ABC (id INTEGER PRIMARY KEY, aName VARCHAR(200), bName VARCHAR(200))
+)
+
+###Mapping
+Mapping demo::AMapping
+(
+  demo::xsub::A[a]: Relational
+  {
+    ~primaryKey ([demo::store::Db1]ABC.id)
+    ~mainTable [demo::store::Db1]ABC
+    id: [demo::store::Db1]ABC.id,
+    aName: [demo::store::Db1]ABC.aName
+  }
+)
+
+###Mapping
+Mapping demo::BMapping
+(
+  include demo::AMapping[demo::store::Db1->demo::store::Db2]
+
+  demo::xsub::B[b] extends [a]: Relational
+  {
+    bName: [demo::store::Db2]ABC.bName
+  }
+)

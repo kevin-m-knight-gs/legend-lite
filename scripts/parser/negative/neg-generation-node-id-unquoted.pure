@@ -1,0 +1,18 @@
+// REJECTS: Unexpected token 'unquotedId'
+//
+// `id:` on a generation node takes a STRING -- `nodeId: NODE_ID COLON STRING SEMI_COLON`.
+// The identical-looking `id:` inside an ExternalFormat schema entry takes a bare identifier,
+// and `key:`/`title:` elsewhere take strings, so there is no rule to infer.
+//
+// A rewritten parser with one "identifier or string" scalar accepts both spellings
+// everywhere and diverges silently on exactly this.
+###GenerationSpecification
+GenerationSpecification fixture::neg::UnquotedNodeId
+{
+   generationNodes: [
+      {
+         id: unquotedId;
+         generationElement: fixture::neg::AvroConfig;
+      }
+   ];
+}

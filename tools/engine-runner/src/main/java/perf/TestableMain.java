@@ -94,7 +94,29 @@ public class TestableMain
 
         int pass = 0, fail = 0, err = 0;
         System.out.printf("parse %.0f ms   compile %.0f ms   run %.0f ms%n%n", parseMs, compileMs, runMs);
+        // A MultiExecution service returns ONE result per execution KEY, wrapped in a
+        // MultiExecutionServiceTestResult rather than a TestExecuted. Casting blindly
+        // threw a ClassCastException that killed the JVM mid-run, so every service after
+        // it went unreported -- which looked exactly like the runner hanging.
+        List<TestResult> flat = new ArrayList<>();
         for (TestResult r : res.results)
+        {
+            if (r instanceof org.finos.legend.engine.testable.service.result.MultiExecutionServiceTestResult m)
+            {
+                m.getKeyIndexedTestResults().forEach((key, inner) ->
+                {
+                    inner.testSuiteId = r.testSuiteId;
+                    inner.atomicTestId = r.atomicTestId + " [" + key + "]";
+                    flat.add(inner);
+                });
+            }
+            else
+            {
+                flat.add(r);
+            }
+        }
+
+        for (TestResult r : flat)
         {
             String id = r.testSuiteId + " / " + r.atomicTestId;
             if (r instanceof TestError te)

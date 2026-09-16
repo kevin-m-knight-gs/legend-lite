@@ -1,0 +1,30 @@
+// REJECTS: Unexpected token 'transactionScope'. Valid alternatives: ['partitionFields', 'modelClass', 'targetName', 'deduplicationStrategy']
+//
+// targetShape is Flat XOR MultiFlat and the two have disjoint field sets: Flat takes
+// targetName, MultiFlat takes transactionScope and parts, and both take modelClass. Writing
+// a MultiFlat field into a Flat body is the near-miss that a parser treating targetShape as
+// one rule with a union of fields would accept.
+###Persistence
+Persistence test::persistence::neg::FlatWithScope
+{
+  doc: 'flat target shape carrying a multi-flat transaction scope';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      transactionScope: ALL_TARGETS;
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

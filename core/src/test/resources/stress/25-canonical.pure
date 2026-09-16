@@ -1,0 +1,25 @@
+// ============================================================
+// Canonical Domain (L5) — a target model fed by M2M, not by a store
+// ============================================================
+// The chain is relational -> source model -> M2M -> canonical model. A firm's canonical
+// model is rarely mapped straight onto tables; it is derived from whatever the source
+// systems produce, and the derivation is where the interesting mistakes live.
+//
+// This is the fourth invariance: the canonical class carries the SAME facts as
+// trading::Trade, reached through an entirely different execution path -- the M2M engine
+// rather than SQL. It must agree.
+###Pure
+Class canonical::CanonicalTrade
+{
+    // Renamed on the way through, so a mapping that silently passed the source object
+    // along unchanged would not satisfy the projection.
+    identifier: String[1];
+    executedOn: StrictDate[1];
+    grossValue: Float[1];
+    // Computed in the M2M layer, not read from a column: the source has quantity and
+    // price, the canonical model has their product and nothing else.
+    unitPrice: Float[1];
+    units: Float[1];
+    side: trading::Side[1];
+    state: String[1];
+}

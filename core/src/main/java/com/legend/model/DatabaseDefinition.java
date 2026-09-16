@@ -54,6 +54,46 @@ public record DatabaseDefinition(
         multiGrainFilters = multiGrainFilters == null ? List.of() : List.copyOf(multiGrainFilters);
     }
 
+    /** The tables of the synthetic {@code default} schema. The flat
+     * {@link #tables()} list is the BARE-NAME lookup mirror of EVERY
+     * schema's tables (FromProtocol), and {@link #schemas()} holds the
+     * named ones — so a default-schema table is a flat entry no named
+     * schema owns, by IDENTITY (two schemas may declare same-named, even
+     * value-equal, tables). Every walk that pairs a table with its schema
+     * reads here; pairing the flat list with "default" registered each
+     * named-schema table twice (metamodel duplicate-key witness
+     * 2026-09-16: DB2's E.AltID_View and ViewSchema.AltID_View collapsed
+     * onto one "default" id). */
+    public List<TableDefinition> defaultSchemaTables() {
+        java.util.Set<Object> owned = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (SchemaDefinition s : schemas) {
+            owned.addAll(s.tables());
+        }
+        List<TableDefinition> out = new java.util.ArrayList<>();
+        for (TableDefinition t : tables) {
+            if (!owned.contains(t)) {
+                out.add(t);
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    /** The views of the synthetic {@code default} schema — see
+     * {@link #defaultSchemaTables()}. */
+    public List<ViewDefinition> defaultSchemaViews() {
+        java.util.Set<Object> owned = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (SchemaDefinition s : schemas) {
+            owned.addAll(s.views());
+        }
+        List<ViewDefinition> out = new java.util.ArrayList<>();
+        for (ViewDefinition v : views) {
+            if (!owned.contains(v)) {
+                out.add(v);
+            }
+        }
+        return List.copyOf(out);
+    }
+
     /** A named schema containing tables and views. */
     public record SchemaDefinition(
             String name,

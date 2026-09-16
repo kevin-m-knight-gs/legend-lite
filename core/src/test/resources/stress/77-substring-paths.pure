@@ -1,0 +1,181 @@
+###Pure
+// F37 -- `substring` means one thing in Pure and a different thing in SQL.
+//
+// Two services, the same call `substring(s, 2, 4)` on the same string 'alpha', reaching two
+// different evaluators:
+//
+//   F37_SubstringSql    a relational mapping   -> pushed into SQL
+//   F37_SubstringPure   a JSON-fed M2M mapping -> evaluated in memory
+//
+// The JSON source is deliberate and was arrived at the hard way. The first version of this
+// file chained an M2M mapping onto a RELATIONAL source, and both columns came back 'lpha' --
+// because a model chain over a relational store pushes the expression down into SQL, so both
+// halves of the comparison were the same half. A source with no store behind it is the only
+// way to make the in-memory evaluator actually evaluate.
+Class sub::Src
+{
+   k: String[1];
+   s: String[1];
+}
+
+Class sub::Out
+{
+   k: String[1];
+   viaPure: String[0..1];
+}
+
+###Relational
+Database sub::DB
+(
+   Table SRC ( K VARCHAR(10) PRIMARY KEY, S VARCHAR(50) )
+)
+
+###Mapping
+Mapping sub::RM
+(
+   sub::Src: Relational
+   {
+      ~primaryKey ( [sub::DB]SRC.K )
+      ~mainTable [sub::DB]SRC
+      k: [sub::DB]SRC.K,
+      s: substring([sub::DB]SRC.S, 2, 4)
+   }
+)
+
+Mapping sub::PM
+(
+   *sub::Out: Pure
+   {
+      ~src sub::Src
+      k: $src.k,
+      viaPure: $src.s->substring(2, 4)
+   }
+)
+
+###Connection
+RelationalDatabaseConnection sub::Conn
+{ store: sub::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+JsonModelConnection sub::JsonConn
+{
+   class: sub::Src;
+   url: 'data:application/json,{"k":"R1","s":"alpha"}';
+}
+
+###Runtime
+Runtime sub::SqlRT
+{ mappings: [ sub::RM ]; connections: [ sub::DB: [ env: sub::Conn ] ]; }
+
+Runtime sub::PureRT
+{ mappings: [ sub::PM ]; connections: [ ModelStore: [ json: sub::JsonConn ] ]; }
+
+###Data
+Data sub::Seed
+{
+  Relational
+  #{
+    default.SRC:
+      'K,S\n' +
+      'R1,alpha\n';
+  }#
+}
+
+###Service
+Service stress::F37_SubstringSql
+{
+   pattern: '/stress/f37sql';
+   documentation: 'substring(s,2,4) over alpha, pushed into SQL by a relational mapping.';
+   execution: Single
+   {
+      query: |sub::Src.all()->project([ x|$x.s ], ['v']);
+      mapping: sub::RM;
+      runtime: sub::SqlRT;
+   }
+   testSuites:
+   [
+      F37_SubstringSql_suite:
+      {
+         data: [ connections: [ env: Reference #{ sub::Seed }# ] ]
+         tests:
+         [
+            zero_based_exclusive_end:
+            {
+               serializationFormat: PURE_TDSOBJECT;
+               asserts:
+               [
+                  // 'alpha' with a zero-based start and an exclusive end is 'ph' -- the
+                  // Java String.substring contract that Pure's own library code assumes
+                  // when it writes `$s->substring(0, $i + 1)`. Asserted rather than
+                  // recorded: the corpus states what it believes and lets the engine
+                  // disagree, which is the only way a disagreement can be noticed at all.
+                  a: EqualToJson
+                     #{
+                        expected: ExternalFormat
+                          #{
+                            contentType: 'application/json';
+                            data: '[ { "v" : "ph" } ]';
+                          }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}
+
+Service stress::F37_SubstringPure
+{
+   pattern: '/stress/f37pure';
+   documentation: 'substring(s,2,4) over alpha, evaluated in memory from a JSON source.';
+   execution: Single
+   {
+      // Graph fetch, not project(). A TDS query over a model connection is refused with
+      // "Found unexpected connection type for TabularDataSet Query: JsonModelConnection",
+      // so reaching the in-memory evaluator costs a change of query shape as well as a
+      // change of source -- which is why nobody stumbles into this comparison by accident.
+      query: |sub::Out.all()->graphFetch(#{ sub::Out { viaPure } }#)
+                 ->serialize(#{ sub::Out { viaPure } }#);
+      mapping: sub::PM;
+      runtime: sub::PureRT;
+   }
+   testSuites:
+   [
+      F37_SubstringPure_suite:
+      {
+         // A JsonModelConnection needs JSON here, not a relational Data element: binding
+         // `sub::Seed` fails with "Json data should be provided for JsonModelConnection".
+         // The test data replaces the connection's payload, so it must speak its format.
+         data:
+         [
+            connections:
+            [
+               json:
+                  ExternalFormat
+                  #{
+                     contentType: 'application/json';
+                     data: '{"k":"R1","s":"alpha"}';
+                  }#
+            ]
+         ]
+         tests:
+         [
+            zero_based_exclusive_end:
+            {
+               asserts:
+               [
+                  a: EqualToJson
+                     #{
+                        expected: ExternalFormat
+                          #{
+                            contentType: 'application/json';
+                            // Graph fetch serialization wraps the values in a result
+                            // envelope; the assertion has to carry it.
+                            data: '{ "builder" : { "_type" : "json" }, "values" : { "viaPure" : "ph" } }';
+                          }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

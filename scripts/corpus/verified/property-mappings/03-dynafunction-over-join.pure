@@ -1,0 +1,66 @@
+###Pure
+Class test::Person
+{
+  firstName: String[1];
+  firmNameUpper: String[1];
+  firmNameCity: String[1];
+  firmLabel: String[1];
+  countryTrim: String[1];
+  firmRatio: Float[1];
+}
+
+###Relational
+Database test::db
+(
+  Schema sales
+  (
+    Table PERSON_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      FIRSTNAME VARCHAR(200),
+      FIRM_ID INTEGER,
+      FACTOR FLOAT
+    )
+    Table FIRM_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200),
+      ADDR_ID INTEGER,
+      REGION_CODE VARCHAR(10)
+    )
+    Table ADDR_TBL
+    (
+      ID INTEGER PRIMARY KEY,
+      CITY VARCHAR(200),
+      COUNTRY VARCHAR(200)
+    )
+  )
+
+  Join Person_Firm(sales.PERSON_TBL.FIRM_ID = sales.FIRM_TBL.ID)
+  Join Firm_Addr(sales.FIRM_TBL.ADDR_ID = sales.ADDR_TBL.ID)
+)
+
+###Mapping
+Mapping test::M
+(
+  *test::Person: Relational
+  {
+    ~mainTable [test::db]sales.PERSON_TBL
+    firstName: [test::db]sales.PERSON_TBL.FIRSTNAME,
+
+    // dyna function wrapping a 1-hop join navigation
+    firmNameUpper: toUpper([test::db]@Person_Firm | sales.FIRM_TBL.LEGAL_NAME),
+
+    // dyna function combining a local column with a 2-hop join navigation
+    firmNameCity: concat([test::db]@Person_Firm | sales.FIRM_TBL.LEGAL_NAME, ' - ', [test::db]@Person_Firm > @Firm_Addr | sales.ADDR_TBL.CITY),
+
+    // dyna function on the RIGHT of the pipe: join first, then transform the target column
+    countryTrim: [test::db]@Person_Firm > @Firm_Addr | trim([test::db]sales.ADDR_TBL.COUNTRY),
+
+    // nested conditional over a join chain; join type may only be given from the 2nd hop on
+    firmLabel: if(equal([test::db]@Person_Firm > (OUTER) [test::db]@Firm_Addr | [test::db]sales.ADDR_TBL.COUNTRY, 'US'), 'DOMESTIC', 'FOREIGN'),
+
+    // arithmetic mixing joined and local columns
+    firmRatio: divide([test::db]sales.PERSON_TBL.FACTOR, toDecimal([test::db]@Person_Firm | sales.FIRM_TBL.ID))
+  }
+)

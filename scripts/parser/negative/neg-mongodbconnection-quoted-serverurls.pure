@@ -1,0 +1,23 @@
+// REJECTS: Unexpected token ''localhost:27017''
+//
+// `serverURLs: ['localhost:27017'];` with the entries QUOTED. The rule is
+//     serverURL : HOST_STRING COLON INTEGER
+// -- a bare host token and a bare integer, no string literal anywhere -- so the quoted form
+// that every other list of endpoints in this corpus uses is refused here.
+//
+// The value of the fixture is the collision with its own section. MongoDBSchemaLexerGrammar
+// makes double quotes the string form and single quotes invalid
+// (./neg-mongodb-single-quoted-jsonschema.pure); MongoDBConnectionLexerGrammar makes the host
+// list take NO quotes of either kind. Three quoting conventions inside one vendor, chosen per
+// grammar file, and a rewrite that unifies them is more permissive in every direction at once.
+//
+// The port is part of the grammar rather than a separate field, so `serverURLs: [localhost];`
+// does not parse either -- the COLON INTEGER is mandatory.
+###Connection
+MongoDBConnection fixture::neg::QuotedServerUrls
+{
+  database: legend_db;
+  store: fixture::neg::Db;
+  serverURLs: ['localhost:27017'];
+  authentication: # Kerberos { }#;
+}

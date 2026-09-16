@@ -1,0 +1,25 @@
+// REJECTS: Unexpected token 'runtimeComponents'. Valid alternatives: ['query', 'mapping', 'runtime']
+//
+// `runtimeComponents` is an ExecutionEnvironment keyword. It is legal in exactly one place --
+// inside a singleExecEnv of an `ExecutionEnvironment` element -- and nowhere inside a
+// Service's `execution: Single` block, whose only arms are query/mapping/runtime.
+//
+// Both elements live in the SAME section (###Service, `imports (service | execEnvs)* EOF`)
+// and both spell their bodies with `mapping:` and `runtime:`, so a rewritten parser that
+// keeps one shared "execution body" rule will accept this silently. The divergence never
+// shows up as a failure: it shows up as a model legend-lite loads and legend-engine refuses.
+###Service
+Service fixture::neg::ComponentsInExecution
+{
+   pattern: '/fixture/neg/components';
+   documentation: 'runtimeComponents belongs to an ExecutionEnvironment, not a Service execution';
+   execution: Single
+   {
+      runtimeComponents:
+      {
+         class: fixture::neg::Person;
+         binding: fixture::neg::PersonBinding;
+         runtime: fixture::neg::Runtime;
+      }
+   }
+}

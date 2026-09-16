@@ -1,0 +1,59 @@
+// Feature 3: Otherwise embedded property mapping.
+// Sub-properties come from the parent's denormalized table; anything not covered
+// falls back to the named class mapping reached through the join.
+// Source: legend-engine TestEmbeddedRelationalCompilationFromGrammar#embeddedMappingsWithOtherwise
+// Exact spelling: `prop ( ... ) Otherwise ( [setId]: [db]@Join )`
+//   - keyword is `Otherwise`, followed by a PARENTHESISED single entry
+//   - the entry is `[targetSetId]` COLON `[store]@JoinName`
+###Pure
+Class demo::Firm
+{
+  legalName: String[1];
+  otherInformation: String[1];
+}
+
+Class demo::Person
+{
+  name: String[1];
+  firm: demo::Firm[1];
+}
+
+###Relational
+Database demo::db
+(
+  Table employeeFirmDenormTable
+  (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(200),
+    firmId INTEGER,
+    legalName VARCHAR(200)
+  )
+  Table FirmInfoTable
+  (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(200),
+    other VARCHAR(200)
+  )
+
+  Join PersonFirmJoin(employeeFirmDenormTable.firmId = FirmInfoTable.id)
+)
+
+###Mapping
+Mapping demo::EmbeddedOtherwise
+(
+  demo::Firm[firm1]: Relational
+  {
+    legalName: [demo::db]FirmInfoTable.name,
+    otherInformation: [demo::db]FirmInfoTable.other
+  }
+
+  demo::Person[alias1]: Relational
+  {
+    name: [demo::db]employeeFirmDenormTable.name,
+    firm
+    (
+      ~primaryKey ([demo::db]employeeFirmDenormTable.legalName)
+      legalName: [demo::db]employeeFirmDenormTable.legalName
+    ) Otherwise ( [firm1]: [demo::db]@PersonFirmJoin )
+  }
+)

@@ -137,10 +137,12 @@ final class FlattenOps {
             p = switch (op) {
                 case TypedFilter f ->
                         new TypedFilter(p, sub.apply(f.predicate()), p.info());
-                case TypedLimit l -> new TypedLimit(p, l.count(), p.info());
-                case TypedDrop d -> new TypedDrop(p, d.count(), p.info());
+                // the limit family over an ORDERED metamodel collection
+                // counts rows in DECLARATION order (byDeclarationOrder)
+                case TypedLimit l -> new TypedLimit(byDeclarationOrder(p), l.count(), p.info());
+                case TypedDrop d -> new TypedDrop(byDeclarationOrder(p), d.count(), p.info());
                 case TypedSlice sl ->
-                        new TypedSlice(p, sl.start(), sl.stop(), p.info());
+                        new TypedSlice(byDeclarationOrder(p), sl.start(), sl.stop(), p.info());
                 // a sort below the hop orders the source rows the limit
                 // family counts (sortBy->first() before a to-many hop):
                 // its key reads the row like a filter predicate
@@ -509,5 +511,35 @@ final class FlattenOps {
             return n;
         }
         return n.mapChildren(k -> coalesceThreadedReads(k, param, row, coalesce));
+    }
+
+    /** {@code pipeline} sorted by the store's declaration ORDINAL when its
+     * row carries one — an ordered metamodel collection's position IS data
+     * (SyntheticHeads.positionalRows), and the limit family (first/take/
+     * drop/slice) counts rows in that order, never in the scan's (H2 scans
+     * a keyed table in key order; corpus testEnumTheSame: enumeration-
+     * Mappings->first() is Foo by declaration, Active by key). A hop's
+     * target columns arrive renamed {@code prefix + name} by its join, so
+     * the ordinal is read through the join's prefix. A sort already in
+     * force wins; an unordered row passes through untouched. */
+    static TypedSpec byDeclarationOrder(TypedSpec pipeline) {
+        if (pipeline instanceof com.legend.compiler.spec.typed.TypedSortBy
+                || pipeline instanceof com.legend.compiler.spec.typed.TypedSort) {
+            return pipeline;
+        }
+        com.legend.compiler.element.type.Type.RelationType row =
+                com.legend.compiler.element.type.Type.schemaView(pipeline.info().type());
+        if (row == null) {
+            return pipeline;
+        }
+        String ord = com.legend.builtin.SystemMetamodel.ORDINAL_COLUMN;
+        String col = pipeline instanceof com.legend.compiler.spec.typed.TypedJoin j
+                && j.prefix().isPresent() ? j.prefix().get() + ord : ord;
+        if (row.columns().stream().noneMatch(c -> c.name().equals(col))) {
+            return pipeline;
+        }
+        return new com.legend.compiler.spec.typed.TypedSort(pipeline,
+                List.of(new com.legend.compiler.spec.typed.TypedSort.TypedSortKey(col, true, null)),
+                false, pipeline.info());
     }
 }

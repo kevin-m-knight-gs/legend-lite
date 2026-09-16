@@ -1,0 +1,60 @@
+// REJECTS: TestData cannot be empty or null within Persistence TestBatch
+//
+// `persistenceTestBatch: identifier COLON BRACE_OPEN (persistenceTestData |
+// persistenceTestBatchAssert)* BRACE_CLOSE` -- both optional in the .g4, both mandatory in
+// visitTestBatch, and this pair is enforced by a hand-written EngineException rather than
+// validateAndExtractRequiredField, so the message does not follow the "Field 'x' is
+// required" template the rest of the grammar uses.
+//
+// The emptiness check is PER BATCH, which is why `testBatches: [ ]` is legal (and is a
+// positive fixture) while a batch with an empty body is not.
+###Persistence
+Persistence test::persistence::neg::TestBatchNoData
+{
+  doc: 'a test batch with assertions and no data';
+  trigger: Manual;
+  service: test::persistence::Service;
+  serviceOutputTargets:
+  [
+    TDS
+    {
+      keys:
+      [
+        foo
+      ]
+      datasetType: Delta
+      {
+        actionIndicator: None;
+      }
+    }
+    ->
+    {
+    }
+  ];
+  tests:
+  [
+    test1:
+    {
+      testBatches:
+      [
+        testBatch1:
+        {
+          asserts:
+          [
+            assert1:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"Age":12, "Name":"dummy"}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+      isTestDataFromServiceOutput: true;
+    }
+  ]
+}

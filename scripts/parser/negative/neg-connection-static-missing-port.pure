@@ -1,0 +1,22 @@
+// REJECTS: Field 'port' is required
+//
+// A Static datasource specification requires all three of name, host and port. The grammar
+// asks for none of them -- `STATIC_DSP BRACE_OPEN (dbName | dbHost | dbPort)* BRACE_CLOSE`
+// admits an empty body -- so every one of the three is a walker rule.
+//
+// A generated parser therefore accepts `Static { }`, and so does anything that models these
+// blocks as bags of optional settings. Which fields are required varies per specification
+// kind (LocalH2 requires nothing, EmbeddedH2 requires name, directory and autoServerMode),
+// so there is no single default a rewrite can fall back on.
+###Connection
+RelationalDatabaseConnection fixture::neg::StaticNoPort
+{
+   store: fixture::neg::Db;
+   type: SqlServer;
+   specification: Static
+   {
+      name: 'db';
+      host: 'host';
+   };
+   auth: DefaultH2;
+}

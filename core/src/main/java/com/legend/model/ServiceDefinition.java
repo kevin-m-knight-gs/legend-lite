@@ -32,11 +32,12 @@ import java.util.Objects;
  *       Derive on demand from {@link #pattern()}.</li>
  *   <li><strong>No convenience factories.</strong> Records get the canonical
  *       constructor; callers pass {@code null} for missing optional fields.</li>
- *   <li><strong>{@code testSuitesSource} is captured as raw source text</strong>
- *       (not parsed into typed records). Engine skips the block entirely; we
- *       preserve it so Phase B.4 can parse it once
- *       {@code LegacyMappingDefinition.TestSuiteDefinition} lands.
- *       Tracked as decision D-3 in core's README.</li>
+ *   <li><strong>{@code testSuites} and {@code test} are the TYPED protocol
+ *       records</strong> ({@link com.legend.protocol.Protocol.PServiceTestSuite},
+ *       {@link com.legend.protocol.Protocol.PLegacyServiceTest}) — the model
+ *       is a transform on the protocol, and the suites are what a service
+ *       test runner executes (docs/DEFERRED_TEST_EXECUTION.md step 1; the
+ *       raw-text placeholder of decision D-3 is retired).</li>
  *   <li><strong>Unknown top-level keys throw</strong> (engine silently
  *       {@code skipToSemicolon}'s). Matches AGENTS.md invariant 4 (no fallbacks).</li>
  * </ul>
@@ -51,8 +52,10 @@ import java.util.Objects;
  *                          or {@code null} if absent
  * @param runtimeRef        qualified name of the {@code Runtime} bound to this service,
  *                          or {@code null} if absent
- * @param testSuitesSource  raw text inside the {@code testSuites { ... }} block,
- *                          or {@code null} if absent. Parsed in Phase B.4.
+ * @param testSuites        the typed {@code testSuites: [...]} block, or {@code null}
+ *                          if absent
+ * @param test              the typed legacy {@code test: Single {...}} block, or
+ *                          {@code null} if absent
  */
 public record ServiceDefinition(
         String qualifiedName,
@@ -61,11 +64,11 @@ public record ServiceDefinition(
         @com.legend.Nullable String documentation,
         @com.legend.Nullable String mappingRef,
         @com.legend.Nullable String runtimeRef,
-        @com.legend.Nullable String testSuitesSource,
+        @com.legend.Nullable List<com.legend.protocol.Protocol.PServiceTestSuite> testSuites,
         List<String> owners,
         @com.legend.Nullable Boolean autoActivateUpdates,
         @com.legend.Nullable MultiExecution multiExecution,
-        @com.legend.Nullable String testSource)
+        @com.legend.Nullable com.legend.protocol.Protocol.PLegacyServiceTest test)
         implements PackageableElement {
 
     public ServiceDefinition {
@@ -73,6 +76,7 @@ public record ServiceDefinition(
         Objects.requireNonNull(pattern, "Pattern cannot be null");
         Objects.requireNonNull(functionBody, "Function body cannot be null");
         owners = owners == null ? List.of() : List.copyOf(owners);
+        testSuites = testSuites == null ? null : List.copyOf(testSuites);
     }
 
     /** The single-execution shape most callers build. */
@@ -81,9 +85,9 @@ public record ServiceDefinition(
             @com.legend.Nullable String documentation,
             @com.legend.Nullable String mappingRef,
             @com.legend.Nullable String runtimeRef,
-            @com.legend.Nullable String testSuitesSource) {
+            @com.legend.Nullable List<com.legend.protocol.Protocol.PServiceTestSuite> testSuites) {
         this(qualifiedName, pattern, functionBody, documentation, mappingRef,
-                runtimeRef, testSuitesSource, List.of(), null, null, null);
+                runtimeRef, testSuites, List.of(), null, null, null);
     }
 
     /** {@code execution: Multi} — one shared query, an execution-key

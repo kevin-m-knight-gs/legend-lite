@@ -1,0 +1,106 @@
+###Pure
+// F38 -- `firstDayOfWeek` returns a DateTime where its three siblings return a StrictDate.
+//
+// All four properties are declared `StrictDate[0..1]`, all four are computed from the same
+// DATE column by the same family of functions, and three of them come back as '2024-06-03'
+// while the fourth comes back as '2024-06-03T00:00:00.000000000+0000'.
+//
+// The four-column shape is the argument. A single column returning a timestamp could be read
+// as "StrictDate serializes with a time component here" -- a convention, unattractive but
+// consistent. Three siblings on the same row rendering the other way rules that out: the
+// declared type is not deciding the rendering, the SQL expression's own result type is.
+Class fdw::Week
+{
+   k: String[1];
+   ofMonth: StrictDate[0..1];
+   ofQuarter: StrictDate[0..1];
+   ofYear: StrictDate[0..1];
+   ofWeek: StrictDate[0..1];
+}
+
+###Relational
+Database fdw::DB
+(
+   Table WK ( K VARCHAR(10) PRIMARY KEY, D DATE )
+)
+
+###Mapping
+Mapping fdw::M
+(
+   fdw::Week: Relational
+   {
+      ~primaryKey ( [fdw::DB]WK.K )
+      ~mainTable [fdw::DB]WK
+      k: [fdw::DB]WK.K,
+      // date_trunc('month'|'quarter'|'year', d) -- DuckDB keeps a DATE a DATE.
+      ofMonth: firstDayOfMonth([fdw::DB]WK.D),
+      ofQuarter: firstDayOfQuarter([fdw::DB]WK.D),
+      ofYear: firstDayOfYear([fdw::DB]WK.D),
+      // date_add(d, to_days(cast(-(isodow(d)-1) as integer))) -- date_add promotes to
+      // TIMESTAMP, and the promotion reaches the caller through a StrictDate property.
+      ofWeek: firstDayOfWeek([fdw::DB]WK.D)
+   }
+)
+
+###Connection
+RelationalDatabaseConnection fdw::Conn
+{ store: fdw::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime fdw::RT
+{ mappings: [ fdw::M ]; connections: [ fdw::DB: [ env: fdw::Conn ] ]; }
+
+###Data
+Data fdw::Seed
+{
+  Relational
+  #{
+    default.WK:
+      'K,D\n' +
+      'R1,2024-06-03\n';
+  }#
+}
+
+###Service
+Service stress::F38_FirstDayTypes
+{
+   pattern: '/stress/f38';
+   documentation: 'The four first-day-of functions over one date, all declared StrictDate.';
+   execution: Single
+   {
+      query: |fdw::Week.all()->project(
+                 ~[ mon:x|$x.ofMonth, qtr:x|$x.ofQuarter,
+                    yr:x|$x.ofYear, wk:x|$x.ofWeek ]);
+      mapping: fdw::M;
+      runtime: fdw::RT;
+   }
+   testSuites:
+   [
+      F38_FirstDayTypes_suite:
+      {
+         data: [ connections: [ env: Reference #{ fdw::Seed }# ] ]
+         tests:
+         [
+            all_four_are_dates:
+            {
+               serializationFormat: PURE_TDSOBJECT;
+               asserts:
+               [
+                  // 2024-06-03 is itself a Monday, so the week value is the input date and
+                  // no arithmetic can be blamed for the difference -- only the rendering
+                  // differs. Asserted as a StrictDate for all four, which is what all four
+                  // are declared to be.
+                  a: EqualToJson
+                     #{
+                        expected: ExternalFormat
+                          #{
+                            contentType: 'application/json';
+                            data: '[ { "mon" : "2024-06-01", "qtr" : "2024-04-01", "yr" : "2024-01-01", "wk" : "2024-06-03" } ]';
+                          }#;
+                     }#
+               ]
+            }
+         ]
+      }
+   ]
+}

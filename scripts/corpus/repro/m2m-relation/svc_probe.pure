@@ -1,0 +1,35 @@
+###Service
+Service src::S_relTds
+{
+  pattern: '/relTds'; documentation: '';
+  execution: Single
+  {
+    query: |src::Trade.all()->project([x|$x.tradeId, x|$x.side], ['id', 'side']);
+    mapping: src::RelMapping;
+    runtime: src::RelRT;
+  }
+  testSuites: [ s: { data: [ connections: [ env: Reference #{ src::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT;
+      asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[]'; }#; }# ] } ] } ]
+}
+
+Service dest::S_m2mTds
+{
+  pattern: '/m2mTds'; documentation: '';
+  execution: Single
+  {
+    query: |dest::CTrade.all()->project([x|$x.identifier, x|$x.side], ['id', 'side']);
+    mapping: dest::M2M;
+    runtime: dest::RT;
+  }
+  testSuites: [ s: { data: [ connections: [ env: Reference #{ src::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT;
+      asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[]'; }#; }# ] } ] } ]
+}
+
+###Runtime
+Runtime src::RelRT
+{
+  mappings: [ src::RelMapping ];
+  connections: [ src::DB: [ env: src::Conn ] ];
+}

@@ -1,0 +1,270 @@
+###Pure
+// core-price -- price observations as a market-data store actually holds them.
+//
+// The shape that matters here is the COMPOSITE KEY. A price is not keyed by instrument, and
+// it is not keyed by instrument and date: the same instrument on the same date has a
+// DIFFERENT close from every vendor, so the key is (instrument, date, source) and nothing
+// shorter. Two of the three classes that carry a price are keyed that way, and the rest are
+// keyed by whatever part of that triple they are genuinely unique on -- the consensus is one
+// row per (instrument, date) because it is what the vendors collapse to.
+//
+// The second thing this project exists to carry is VARIED DATATYPES. Everything upstream of
+// it declares VARCHAR, DOUBLE, INTEGER, DATE and BIT and stops. Here a decimal-places count
+// and a rolling window are SMALLINT, a currency is CHAR(3), a price is NUMERIC(20,6) because
+// six places is what an FX-adjacent price needs, and a percentage change is FLOAT because it
+// is an approximation and never a money amount. REAL is deliberately absent: it parses and
+// then cannot be read back at execution (docs/UPSTREAM_FINDINGS.md F53).
+
+// A vendor or venue that publishes prices. The "source" leg of the composite key -- every
+// price row in this project points at one of these.
+Class core_price::CprPriceSource
+{
+   sourceId: String[1];
+   sourceName: String[1];
+   // CHAR(4): the fixed-width vendor mnemonic, not a free-text name.
+   vendorCode: String[1];
+   tierCode: String[1];
+   defaultCurrency: String[1];
+   // SMALLINT: rank among sources for the same instrument, 1 being preferred.
+   rankOrder: Integer[1];
+   // SMALLINT: publication lag in seconds; a vendor is minutes behind at worst.
+   latencySeconds: Integer[1];
+   // FLOAT: a measured percentage, so approximate by nature.
+   reliabilityPct: Float[1];
+   isPrimary: Boolean[1];
+   onboardDate: StrictDate[1];
+
+   tier: core_price::CprSourceTier[0..1];
+   coverage: core_price::CprVendorCoverage[*];
+
+   // Whether this source clears the tier's own latency bar. Reads across the join.
+   meetsLatencyBar() { $this.latencySeconds <= 300 } : Boolean[1];
+}
+
+// The quality tier a source sits in -- the approval band that decides whether a price from it
+// may be used at all. Keyed by a single CHAR(1) code.
+Class core_price::CprSourceTier
+{
+   tierCode: String[1];
+   tierName: String[1];
+   minReliabilityPct: Float[1];
+   // SMALLINT: the tier's ceiling on publication lag, in seconds.
+   maxLatencySeconds: Integer[1];
+   isApproved: Boolean[1];
+   note: String[0..1];
+}
+
+// The currency a price is quoted in, keyed by its CHAR(3) ISO code -- a fixed-width primary
+// key, which is what a currency code is and what VARCHAR would misrepresent.
+Class core_price::CprPriceCurrency
+{
+   currencyCode: String[1];
+   currencyName: String[1];
+   // SMALLINT: minor units, 2 for USD, 0 for JPY.
+   minorUnits: Integer[1];
+   // SMALLINT: decimals a QUOTE carries, which is not the same as minor units -- FX quotes
+   // to more places than the currency subdivides into.
+   quoteDecimals: Integer[1];
+   isActive: Boolean[1];
+}
+
+// One vendor's price for one instrument on one date. THE composite-key class of this project:
+// keyed by (instrumentId, observationDate, sourceId), because the same instrument on the same
+// date has a different close from each vendor and a two-column key would silently pick one.
+Class core_price::CprPriceObservation
+[
+   // Fully parenthesised: Pure binds && tighter than the comparison operators.
+   highCoversLow: ($this.highPrice >= $this.lowPrice),
+   closeWithinRange: (($this.closePrice <= $this.highPrice) && ($this.closePrice >= $this.lowPrice)),
+   decimalsArePositive: ($this.priceDecimals >= 0)
+]
+{
+   instrumentId: String[1];
+   observationDate: StrictDate[1];
+   sourceId: String[1];
+   // CHAR(3): the quote currency, denormalized onto the row because a price without its
+   // currency is not a price.
+   currencyCode: String[1];
+   // SMALLINT: how many decimals the vendor published this price to. Rounding downstream
+   // needs it, and it varies by vendor for the same instrument.
+   priceDecimals: Integer[1];
+   // SMALLINT: the vendor's own sequence number within the day, so a late correction can be
+   // told from the original.
+   quoteSequence: Integer[1];
+   // NUMERIC(20,6) each: money, so exact-scale rather than binary floating point.
+   openPrice: Float[1];
+   highPrice: Float[1];
+   lowPrice: Float[1];
+   closePrice: Float[1];
+   // FLOAT: a ratio, not an amount -- approximation is correct here.
+   pctChange: Float[1];
+   volume: Float[0..1];
+   isStale: Boolean[1];
+   capturedAt: DateTime[1];
+
+   source: core_price::CprPriceSource[0..1];
+   quoteCurrency: core_price::CprPriceCurrency[0..1];
+   quote: core_price::CprQuote[0..1];
+   consensus: core_price::CprConsensusPrice[0..1];
+   statistics: core_price::CprPriceStatistic[*];
+   adjustments: core_price::CprPriceAdjustment[*];
+   exceptions: core_price::CprPriceException[*];
+
+   // The midpoint of the day's range -- the number a chart draws when there is no close.
+   midPrice() { ($this.highPrice + $this.lowPrice) / 2.0 } : Float[1];
+   // The day's range as published.
+   priceRange() { $this.highPrice - $this.lowPrice } : Float[1];
+   // Whether the instrument closed up. Reads the FLOAT column, so it is a comparison of
+   // approximations and deliberately excludes exactly-flat.
+   closedUp() { $this.pctChange > 0.0 } : Boolean[1];
+   // The close restated into another currency at a rate the caller supplies.
+   closeIn(fxRate: Float[1]) { $this.closePrice * $fxRate } : Float[1];
+}
+
+// The observations a vendor has stopped refreshing. A ~filter over the same table and the
+// same composite key, so "stale price" is a type rather than a flag every query re-tests.
+Class core_price::CprStalePrice extends core_price::CprPriceObservation
+{
+}
+
+// The bid/ask standing around an observation, keyed by the same triple. Separate from the
+// observation because a quote exists on days a trade does not, and because a spread is a
+// market-structure fact rather than a price.
+Class core_price::CprQuote
+{
+   instrumentId: String[1];
+   observationDate: StrictDate[1];
+   sourceId: String[1];
+   // NUMERIC(20,6): the two sides, at money precision.
+   bidPrice: Float[1];
+   askPrice: Float[1];
+   // SMALLINT: size in lots, which is small by construction.
+   bidSize: Integer[1];
+   askSize: Integer[1];
+   // FLOAT: the spread as a percentage of mid.
+   spreadPct: Float[1];
+   // CHAR(1): the single-letter quote condition a vendor stamps on the tick.
+   quoteCondition: String[1];
+   currencyCode: String[1];
+   isFirm: Boolean[1];
+
+   // The mid of the two-sided quote.
+   midQuote() { ($this.bidPrice + $this.askPrice) / 2.0 } : Float[1];
+}
+
+// A corporate-action factor that restates prices before the effective date. Keyed by
+// (instrument, effective date, sequence) because two actions can land on one day and the
+// order they are applied in changes the answer.
+Class core_price::CprPriceAdjustment
+{
+   instrumentId: String[1];
+   effectiveDate: StrictDate[1];
+   // SMALLINT: the within-day ordering of the factor.
+   adjustmentSeq: Integer[1];
+   adjustmentType: String[1];
+   // NUMERIC(20,6): the factor itself and its running product back to inception.
+   adjustmentFactor: Float[1];
+   cumulativeFactor: Float[1];
+   // FLOAT: the restatement expressed as a percentage, for a human reading the audit trail.
+   pctImpact: Float[1];
+   currencyCode: String[1];
+   isApplied: Boolean[1];
+   appliedOn: StrictDate[0..1];
+}
+
+// What the vendors collapse to: one agreed price per instrument per date. Keyed by
+// (instrument, date) with no source leg, which is precisely what makes it the consensus.
+Class core_price::CprConsensusPrice
+{
+   instrumentId: String[1];
+   observationDate: StrictDate[1];
+   // NUMERIC(20,6): the agreed price.
+   consensusPrice: Float[1];
+   // SMALLINT: how many vendors contributed. Two is not a consensus and the count is what
+   // says so.
+   contributorCount: Integer[1];
+   // FLOAT: how far apart the contributors were, as a percentage.
+   dispersionPct: Float[1];
+   // CHAR(4): the method mnemonic -- MEAN, MEDN, TRIM.
+   methodCode: String[1];
+   currencyCode: String[1];
+   isFinal: Boolean[1];
+
+   contributors: core_price::CprPriceObservation[*];
+
+   // Whether enough vendors agreed for the number to mean anything.
+   isSupported() { $this.contributorCount >= 3 } : Boolean[1];
+}
+
+// A rolling statistic over a price series, keyed by (instrument, date, window) -- the window
+// length is part of the key because 20-day and 60-day are different rows, not different
+// columns.
+Class core_price::CprPriceStatistic
+{
+   instrumentId: String[1];
+   observationDate: StrictDate[1];
+   // SMALLINT: the window in days. 20, 60, 250 -- never large enough for INTEGER.
+   windowDays: Integer[1];
+   // NUMERIC(20,6): the summary prices, at the same precision as what they summarise.
+   meanPrice: Float[1];
+   minPrice: Float[1];
+   maxPrice: Float[1];
+   // FLOAT: volatility and return, both ratios.
+   stdDevPct: Float[1];
+   returnPct: Float[1];
+   // SMALLINT: observations actually present in the window, which is less than windowDays
+   // whenever the instrument did not trade.
+   observationCount: Integer[1];
+   isComplete: Boolean[1];
+
+   // Whether the window is dense enough to quote. Two SMALLINTs divided, so the result is a
+   // Float -- `/` in Pure widens even when both sides are Integer.
+   coveragePct() { ($this.observationCount * 100) / $this.windowDays } : Float[1];
+}
+
+// A break raised when the vendors disagree by more than tolerance. Keyed by (instrument,
+// date, sequence), so a day can carry several breaks and each keeps its own resolution.
+Class core_price::CprPriceException
+{
+   instrumentId: String[1];
+   observationDate: StrictDate[1];
+   // SMALLINT: the break's number within the day.
+   exceptionSeq: Integer[1];
+   // CHAR(4): the fixed-width break code an ops screen sorts on.
+   exceptionCode: String[1];
+   // SMALLINT: severity 1 to 5.
+   severity: Integer[1];
+   // FLOAT: how far the outlier was from consensus, as a percentage.
+   deviationPct: Float[1];
+   raisedAt: DateTime[1];
+   isResolved: Boolean[1];
+   resolution: String[0..1];
+
+   // Whether this one wakes somebody up.
+   isCritical() { $this.severity >= 4 } : Boolean[1];
+}
+
+// Which vendor covers which instrument, and from when. Keyed by (source, instrument) -- the
+// entitlement row that says whether an absent price is a gap or simply out of scope.
+Class core_price::CprVendorCoverage
+{
+   sourceId: String[1];
+   instrumentId: String[1];
+   startDate: StrictDate[1];
+   endDate: StrictDate[0..1];
+   // FLOAT: the percentage of business days the vendor actually publishes on.
+   coveragePct: Float[1];
+   // SMALLINT: preference among vendors covering the same instrument.
+   priority: Integer[1];
+   isActive: Boolean[1];
+   currencyCode: String[1];
+}
+
+// The distinct (instrument, date) pairs that have any price at all, mapped ~distinct over the
+// observation table -- one row where the observation table has one per vendor. The calendar a
+// downstream project asks "did anything price that day".
+Class core_price::CprPriceDay
+{
+   instrumentId: String[1];
+   observationDate: StrictDate[1];
+}

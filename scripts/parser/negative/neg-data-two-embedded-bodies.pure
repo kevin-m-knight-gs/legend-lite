@@ -1,0 +1,24 @@
+// REJECTS: no viable alternative at input 'ExternalFormat#{'
+//
+// A Data element carries AT MOST ONE bare embedded-data body:
+// `dataElement: ... { embeddedData? (dataResolver (dataResolver)*)? }`. Anything beyond the
+// first must be a resolver -- `store::path: <embeddedData>;` -- with a target and a
+// semicolon.
+//
+// The `?` is easy to read as `*`, and the two forms look nearly identical in a real file.
+// A rewrite that accepts a list here builds a Data element with a second payload that
+// legend-engine's protocol has no field for.
+###Data
+Data fixture::neg::TwoEmbeddedBodies
+{
+   ExternalFormat
+   #{
+      contentType: 'application/json';
+      data: '{}';
+   }#
+   ExternalFormat
+   #{
+      contentType: 'application/xml';
+      data: '<a/>';
+   }#
+}

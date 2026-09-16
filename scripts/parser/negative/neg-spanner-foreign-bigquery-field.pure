@@ -1,0 +1,29 @@
+// REJECTS: Unexpected token 'defaultDataset'. Valid alternatives: ['projectId', 'instanceId', 'databaseId', 'proxyHost', 'proxyPort']
+//
+// `defaultDataset:` on a Spanner specification. Spanner and BigQuery are both Google specs in
+// the same section, both address a `projectId`, and both carry `proxyHost`/`proxyPort` -- three
+// of Spanner's five tokens are spelled identically to three of BigQuery's four. The fourth is
+// not shared in either direction: `defaultDataset` is BigQuery-only and `instanceId` /
+// `databaseId` are Spanner-only.
+//
+// A near-total overlap with a disjoint remainder is the configuration most likely to be
+// collapsed by a rewrite, and collapsing it costs nothing visible: the merged parser accepts
+// every positive fixture in ../fixtures/ and produces a well-formed protocol object for a
+// specification that cannot exist.
+//
+// The two lexers share no tokens -- each declares its own PROJECT_ID -- so the overlap is
+// spelling only. See ./neg-bigquery-missing-project-id.pure for the other side.
+###Connection
+RelationalDatabaseConnection fixture::neg::SpannerDefaultDataset
+{
+  store: fixture::neg::Db;
+  type: Spanner;
+  specification: Spanner
+  {
+    defaultDataset: 'd';
+    projectId: 'p';
+    instanceId: 'i';
+    databaseId: 'db';
+  };
+  auth: Test;
+}

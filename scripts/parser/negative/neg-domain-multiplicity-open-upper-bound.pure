@@ -1,0 +1,15 @@
+// REJECTS: Unexpected token
+//
+// `[1..]` is not a multiplicity. Legend spells an unbounded upper bound `[1..*]`; the range
+// form requires BOTH bounds, and the bare '..' has no meaning.
+//
+// Worth pinning because '..' is a real token (DOT_DOT) and because the open-ended range is
+// idiomatic in several neighbouring languages -- Rust, Kotlin, Perl slices. A rewrite that
+// parses multiplicity as "lower, optional '..' , optional upper" accepts this and has to
+// invent an upper bound, silently turning [1..] into [1..*] or into [1..1] depending on
+// which default the author picked. Both are wrong and neither announces itself.
+###Pure
+Class fixture::neg::OpenUpperBound
+{
+   code: String[1..];
+}

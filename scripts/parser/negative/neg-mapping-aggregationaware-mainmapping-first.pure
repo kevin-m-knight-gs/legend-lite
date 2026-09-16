@@ -1,0 +1,43 @@
+// REJECTS: Unexpected token '~mainMapping'. Valid alternatives: ['Views']
+//
+// An AggregationAware class mapping is `Views: [ ... ] , ~mainMapping: <parser> { ... }` in
+// that order. The main mapping -- the detail table, the thing the class really is -- comes
+// LAST, after the list of pre-aggregated views that are only an optimisation.
+//
+// So the natural reading order is the illegal one, and unlike most of this grammar the two
+// parts are separated by a COMMA, which reads like a set rather than a sequence. A rewrite
+// that parses the body as comma-separated named fields accepts either order.
+###Mapping
+Mapping fixture::neg::MainMappingFirst
+(
+   *fixture::neg::TradeFact: AggregationAware
+   {
+      ~mainMapping: Relational
+      {
+         ~mainTable [fixture::neg::Db] TRADE
+         bookId: [fixture::neg::Db] TRADE.BOOK_ID
+      },
+      Views:
+      [
+         (
+            ~modelOperation:
+            {
+               ~canAggregate false,
+               ~groupByFunctions
+               (
+                  $this.bookId
+               ),
+               ~aggregateValues
+               (
+                  ( ~mapFn: $this.notional, ~aggregateFn: $mapped->sum() )
+               )
+            },
+            ~aggregateMapping: Relational
+            {
+               ~mainTable [fixture::neg::Db] TRADE_BY_BOOK
+               bookId: [fixture::neg::Db] TRADE_BY_BOOK.BOOK_ID
+            }
+         )
+      ]
+   }
+)

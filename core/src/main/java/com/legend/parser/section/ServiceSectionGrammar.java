@@ -712,7 +712,13 @@ public final class ServiceSectionGrammar
                 resolvers.add(new Protocol.PServiceTestSuite.PResolverData(
                         null, name, c.spanOf(es, nameEnd),
                         c.spanOf(es, c.pos() - 2)));
-            } else if (c.peek() == TokenType.COLON) {
+            } else if (c.peek() == TokenType.COLON
+                    && !(c.isIdentifierToken(c.peek(1))
+                            && c.peek(2) == TokenType.EQUAL)) {
+                // `path: Kind #{...}#;` is a baseDataResolver; `id :
+                // PURE_TDSOBJECT => ...` is an atomic test spelling its
+                // serializationFormat — the arrow after the identifier
+                // tells them apart (serviceAtomicTest, 4.145.0)
                 c.advance();                        // base resolver
                 Protocol.PEmbeddedDataValue v = com.legend.parser
                         .MappingProtocolParser.parseEmbeddedValueAt(c);

@@ -1,0 +1,17 @@
+// REJECTS: Field 'specification' is required
+//
+// `specification` and `auth` are both REQUIRED on a RelationalDatabaseConnection, and both
+// are optional as far as the grammar is concerned -- the definition rule is a bare
+// `(store | type | auth | specification | ...)*` with no cardinality at all.
+//
+// Everything that makes this connection well-formed is therefore invisible to a generated
+// parser: it will accept a connection with nothing but a store, and the first sign of
+// trouble is a null datasource at execution time. Note the ordering of the checks, too --
+// this reports the missing specification, not the missing auth.
+###Connection
+RelationalDatabaseConnection fixture::neg::NoSpec
+{
+   store: fixture::neg::Db;
+   type: H2;
+   auth: DefaultH2;
+}

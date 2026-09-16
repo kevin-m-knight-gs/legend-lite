@@ -1,0 +1,37 @@
+// REJECTS: Field 'validityMilestoning' is required
+//
+// BitemporalSnapshot needs BOTH milestoning schemes; this one carries only the transaction
+// half. `bitemporalSnapshot: ... (transactionMilestoning | validityMilestoning)* ...` is an
+// unordered star in the .g4, so zero, one or six of either arm all build a tree. The
+// "both are required" rule is two validateAndExtractRequiredField calls in
+// visitBitemporalSnapshot.
+//
+// This is the shape that distinguishes a grammar-derived parser from legend-engine most
+// cheaply: the input is a valid UnitemporalSnapshot body wearing the Bitemporal keyword.
+###Persistence
+Persistence test::persistence::neg::BiSnapshotNoValidity
+{
+  doc: 'bitemporal snapshot missing its validity milestoning';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: BitemporalSnapshot
+    {
+      transactionMilestoning: BatchId
+      {
+        batchIdInName: 'BATCH_IN';
+        batchIdOutName: 'BATCH_OUT';
+      }
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

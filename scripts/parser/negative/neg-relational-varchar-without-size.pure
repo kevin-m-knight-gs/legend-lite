@@ -1,0 +1,14 @@
+// REJECTS: Column data type VARCHAR requires 1 parameter (size)
+//
+// The grammar makes the parameter list optional for EVERY column type -- one rule,
+// `(PAREN_OPEN INTEGER (COMMA INTEGER)? PAREN_CLOSE)?`, shared by all of them. Which types
+// require parameters, and how many, is decided afterwards in the WALKER, type by type.
+//
+// So a parser generated straight from the .g4 accepts a bare VARCHAR and builds a column
+// with no size. Nothing downstream re-checks it. This is the arity half of the rule; the
+// paramless half is in neg-relational-integer-with-size.pure.
+###Relational
+Database fixture::neg::VarcharNoSize
+(
+   Table T (ID VARCHAR PRIMARY KEY)
+)

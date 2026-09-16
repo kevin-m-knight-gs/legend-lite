@@ -1,0 +1,321 @@
+###Pure
+// credit-core -- L1. Depends on core-party (who the obligor legally is) and core-ratings
+// (what the agencies said about it, and WHEN).
+//
+// The shape worth stating once, because one association below is the whole reason this
+// project is in the graph: core_ratings::RatingVersion is <<temporal.businesstemporal>>.
+// A rating is not a value, it is a value with a span. So the moment an exposure here
+// navigates to a rating, the query must supply a date -- CdcObligorRatings carries that
+// obligation ACROSS a project boundary, and nothing in credit_core:: is itself milestoned.
+// A non-temporal class on this side, a temporal class on the other, and the date lands on
+// whoever asks the question.
+//
+// The other reason a rating is reached at all: PD. An obligor rated BBB- by S&P is not
+// 0.31% likely to default because a spreadsheet says so, it is because CdcRatingPd maps
+// that agency symbol, under a named and dated PD model, to a number. Rating -> PD -> EL is
+// the chain, and each hop is a class here.
+//
+// Refers ONLY to core_party:: and core_ratings::.
+
+// The credit view of a counterparty: a legal entity as seen by the credit function.
+// FOR: hanging facilities, ratings and default history off one id without pretending the
+// party master owns any of it. entityId is the reference back to core_party::LegalEntity;
+// an obligor is a ROLE a legal entity plays, so it gets its own id and its own row.
+Class credit_core::CdcObligor
+{
+   obligorId: String[1];
+   // The core_party::LegalEntity key. Also the key CR_RATING_MS is milestoned by, which is
+   // why the rating association joins on this column and not on obligorId.
+   entityId: String[1];
+   obligorName: String[0..1];
+   // The bank's own grade, deliberately NOT the agency rating: internal grades survive an
+   // agency withdrawing coverage.
+   internalGrade: String[0..1];
+   exposureClassCode: String[0..1];
+   onWatchList: Boolean[0..1];
+   isDefaulted: Boolean[0..1];
+   defaultDate: StrictDate[0..1];
+   nextReviewDate: StrictDate[0..1];
+
+   // Default is recorded by a date because a cured default is still a default that happened.
+   hasDefaulted() { $this.defaultDate->isNotEmpty() } : Boolean[1];
+
+   // THE BOUNDARY, spelled as a function. The caller must name a date; there is no
+   // "current rating" to return without one, and this project has no way to invent it.
+   // `obligorRatings` is generated with a date parameter because its target type is
+   // business-temporal -- that generation happens in core-ratings and applies here.
+   ratingsAsOf(businessDate: Date[1])
+   {
+      $this.obligorRatings($businessDate)
+   } : core_ratings::RatingVersion[*];
+}
+
+// The Basel exposure class an obligor is assigned to -- CORPORATE, SOVEREIGN, INSTITUTION,
+// RETAIL_SME. FOR: deciding which risk-weight regime and which PD floor apply, which is a
+// property of the class and not of the individual obligor.
+Class credit_core::CdcExposureClass
+{
+   classCode: String[1];
+   className: String[1];
+   isRetail: Boolean[0..1];
+   // Regulatory PD floor for the class (0.03% for most non-retail exposures).
+   pdFloor: Float[0..1];
+   riskWeightFloor: Float[0..1];
+}
+
+// A credit facility: the committed or uncommitted line an obligor may draw under.
+// FOR: separating what was PROMISED from what was drawn. Undrawn commitment is exposure
+// too -- weighted by the credit conversion factor -- and only the facility knows the CCF.
+Class credit_core::CdcFacility
+{
+   facilityId: String[1];
+   obligorId: String[1];
+   facilityType: String[0..1];
+   commitmentAmount: Float[1];
+   currencyCode: String[0..1];
+   startDate: StrictDate[0..1];
+   maturityDate: StrictDate[0..1];
+   // Basel CCF: the fraction of the undrawn line assumed to be drawn by the time of
+   // default. 1.0 for a committed revolver, 0.2 for a short uncommitted line.
+   creditConversionFactor: Float[0..1];
+   isCommitted: Boolean[0..1];
+   seniority: String[0..1];
+}
+
+// One measured exposure of one obligor under one facility, as at a date.
+// FOR: the grain everything downstream aggregates over. Drawn and undrawn are held apart
+// because they convert to exposure-at-default by different rules.
+Class credit_core::CdcExposure
+{
+   exposureId: String[1];
+   facilityId: String[1];
+   obligorId: String[1];
+   portfolioId: String[0..1];
+   asOfDate: StrictDate[1];
+   drawnAmount: Float[1];
+   undrawnAmount: Float[1];
+   accruedInterest: Float[0..1];
+   currencyCode: String[0..1];
+
+   // `/` widens to Float even where both sides are Integer, so this is declared Float[1].
+   utilisation() { $this.drawnAmount / ($this.drawnAmount + $this.undrawnAmount) } : Float[1];
+
+   grossExposure() { $this.drawnAmount + $this.undrawnAmount } : Float[1];
+}
+
+// A named, versioned, dated PD model. FOR: making a probability of default attributable.
+// Two models can disagree about the same rating on the same day and both be in production
+// -- one through-the-cycle for capital, one point-in-time for IFRS 9 -- so the PD table
+// below is keyed by model as well as by symbol.
+Class credit_core::CdcPdModel
+{
+   modelId: String[1];
+   modelName: String[1];
+   modelVersion: String[0..1];
+   calibrationDate: StrictDate[0..1];
+   isThroughTheCycle: Boolean[0..1];
+   owningTeam: String[0..1];
+}
+
+// THE RATING-IMPLIED PD MAPPING: one agency symbol, under one model, to one probability.
+// FOR: turning `AA-` or `Baa3` -- which is what core_ratings::RatingVersion.rating actually
+// holds, unnormalised, as the agency published it -- into a number that can be multiplied.
+//
+// Keyed (modelId, ratingSymbol): the symbol alone is not a key, because every model
+// calibrates its own curve over the same scale. agencyId is carried so `AA-` from S&P and
+// `Aa3` from Moody's do not collide inside one model.
+Class credit_core::CdcRatingPd
+{
+   modelId: String[1];
+   ratingSymbol: String[1];
+   agencyId: String[0..1];
+   // The notch number from core_ratings::CrRatingScale, restated here so the curve can be
+   // read in order without a join.
+   notch: Integer[0..1];
+   pdValue: Float[1];
+   isInvestmentGrade: Boolean[0..1];
+
+   pdInBasisPoints() { $this.pdValue * 10000.0 } : Float[1];
+}
+
+// A loss-given-default segment: seniority plus collateral type plus jurisdiction of
+// enforcement. FOR: the L in EL. LGD is a property of how you would be repaid, not of who
+// owes you, so it is segmented rather than held per obligor.
+Class credit_core::CdcLgdSegment
+{
+   segmentCode: String[1];
+   segmentName: String[1];
+   seniority: String[0..1];
+   collateralType: String[0..1];
+   lgdValue: Float[1];
+   // Basel requires a downturn LGD where it exceeds the long-run average.
+   downturnLgd: Float[0..1];
+}
+
+// PD, LGD and EAD as actually applied to one exposure on one date, with where each came
+// from. FOR: reproducibility. The same exposure re-measured next quarter is a new row, and
+// the old one still says which model and which segment produced the number that was
+// reported.
+Class credit_core::CdcRiskMeasure
+{
+   measureId: String[1];
+   exposureId: String[1];
+   asOfDate: StrictDate[1];
+   probabilityOfDefault: Float[1];
+   lossGivenDefault: Float[1];
+   exposureAtDefault: Float[1];
+   // RATING_IMPLIED, MODEL, EXPERT_OVERRIDE -- how the PD above was arrived at.
+   pdSource: String[0..1];
+   modelId: String[0..1];
+   segmentCode: String[0..1];
+
+   expectedLoss()
+   {
+      $this.probabilityOfDefault * $this.lossGivenDefault * $this.exposureAtDefault
+   } : Float[1];
+}
+
+// A third-party guarantee over a facility. FOR: credit risk substitution -- an exposure to
+// a weak obligor guaranteed by a strong parent is measured against the GUARANTOR's rating,
+// which is why this class reaches core_party::LegalEntity on its own rather than through
+// the obligor.
+Class credit_core::CdcGuarantee
+{
+   guaranteeId: String[1];
+   facilityId: String[1];
+   // core_party::LegalEntity key of the guarantor. Also the CR_RATING_MS key, so a
+   // downstream project can rate the guarantor by the same route the obligor is rated by.
+   guarantorEntityId: String[1];
+   guaranteeType: String[0..1];
+   coveredAmount: Float[1];
+   isUnconditional: Boolean[0..1];
+   expiryDate: StrictDate[0..1];
+}
+
+// A default event on an obligor: the dated fact that turns a PD into a realised outcome.
+// FOR: the 90-days-past-due / unlikely-to-pay trigger, kept as an event rather than a flag
+// so that cures and re-defaults are both recordable.
+Class credit_core::CdcDefaultEvent
+{
+   eventId: String[1];
+   obligorId: String[1];
+   eventDate: StrictDate[1];
+   eventType: String[0..1];
+   daysPastDue: Integer[0..1];
+   isCured: Boolean[0..1];
+   cureDate: StrictDate[0..1];
+}
+
+// Cash actually recovered after a default, net of the cost of recovering it.
+// FOR: calibrating CdcLgdSegment. Realised LGD is 1 minus this divided by the exposure at
+// default, and without the cost column that number is flattering.
+Class credit_core::CdcRecovery
+{
+   recoveryId: String[1];
+   eventId: String[1];
+   recoveryDate: StrictDate[0..1];
+   recoveredAmount: Float[1];
+   costAmount: Float[0..1];
+   recoverySource: String[0..1];
+
+   netRecovery() { $this.recoveredAmount - $this.costAmount->orElse(0.0) } : Float[1];
+}
+
+// A credit portfolio: the reporting bucket exposures are rolled up into.
+// FOR: giving aggregation somewhere to land that is not the legal hierarchy. A portfolio
+// crosses legal entities on purpose.
+Class credit_core::CdcPortfolio
+{
+   portfolioId: String[1];
+   portfolioName: String[1];
+   businessUnit: String[0..1];
+   reportingCurrency: String[0..1];
+   isTradingBook: Boolean[0..1];
+}
+
+// ---------------------------------------------------------------- associations
+//
+// THE CROSS-PROJECT, CROSS-TEMPORAL ONE.
+//
+// core_ratings::RatingVersion is <<temporal.businesstemporal>>, CdcObligor is not. The
+// association is legal in both directions, and what it buys is that `obligorRatings` is
+// generated on CdcObligor as a DATED property: there is no way to reach a rating from here
+// without saying when. `ratedObligor` in the other direction is an ordinary property,
+// because CdcObligor has no versions to pick between.
+//
+// The multiplicity on the temporal end is [*] deliberately: an obligor has many rating
+// versions, and which one you get is the date's business, not the model's.
+Association credit_core::CdcObligorRatings
+{
+   ratedObligor: credit_core::CdcObligor[0..1];
+   obligorRatings: core_ratings::RatingVersion[*];
+}
+
+// Cross-project, ordinary: the obligor is a role played by a party-master legal entity.
+Association credit_core::CdcObligorEntity
+{
+   obligorEntity: core_party::LegalEntity[0..1];
+   creditObligors: credit_core::CdcObligor[*];
+}
+
+// Cross-project, ordinary: the guarantor is a legal entity too, and a different one.
+Association credit_core::CdcGuarantorEntity
+{
+   guarantorEntity: core_party::LegalEntity[0..1];
+   guaranteesGiven: credit_core::CdcGuarantee[*];
+}
+
+// Own associations, all inside credit_core::.
+Association credit_core::CdcObligorFacilities
+{
+   obligor: credit_core::CdcObligor[0..1];
+   facilities: credit_core::CdcFacility[*];
+}
+
+Association credit_core::CdcFacilityExposures
+{
+   facility: credit_core::CdcFacility[0..1];
+   exposures: credit_core::CdcExposure[*];
+}
+
+Association credit_core::CdcExposureMeasures
+{
+   measuredExposure: credit_core::CdcExposure[0..1];
+   riskMeasures: credit_core::CdcRiskMeasure[*];
+}
+
+Association credit_core::CdcPortfolioExposures
+{
+   portfolio: credit_core::CdcPortfolio[0..1];
+   portfolioExposures: credit_core::CdcExposure[*];
+}
+
+Association credit_core::CdcObligorDefaults
+{
+   defaultedObligor: credit_core::CdcObligor[0..1];
+   defaultEvents: credit_core::CdcDefaultEvent[*];
+}
+
+Association credit_core::CdcEventRecoveries
+{
+   defaultEvent: credit_core::CdcDefaultEvent[0..1];
+   recoveries: credit_core::CdcRecovery[*];
+}
+
+Association credit_core::CdcFacilityGuarantees
+{
+   guaranteedFacility: credit_core::CdcFacility[0..1];
+   guarantees: credit_core::CdcGuarantee[*];
+}
+
+Association credit_core::CdcModelRatingPds
+{
+   pdModel: credit_core::CdcPdModel[0..1];
+   ratingPds: credit_core::CdcRatingPd[*];
+}
+
+Association credit_core::CdcObligorExposureClass
+{
+   exposureClass: credit_core::CdcExposureClass[0..1];
+   classifiedObligors: credit_core::CdcObligor[*];
+}

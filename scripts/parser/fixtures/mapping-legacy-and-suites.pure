@@ -1,0 +1,125 @@
+// COVERS MappingLexerGrammar: include, include , MappingTests, query, data, assert, testSuites, doc, tests, asserts, function
+// COVERS RelationalLexerGrammar: scope, and
+//
+// Two eras of mapping test syntax in one file, because both are still parsed. `MappingTests`
+// with its `query`/`data`/`assert` triple is the legacy block; `testSuites` with `doc`/
+// `function`/`tests`/`asserts` is the modern one. The stress corpus writes testSuites only
+// on Services, never on a Mapping, so every one of these was dark.
+//
+// `include mapping <path>` and `include <path>` are DIFFERENT tokens -- INCLUDETYPE carries
+// the trailing word, which is why one of the declared keywords is 'include ' with a space.
+//
+// `scope` is Mapping surface, not Database surface: a syntactic grouping that the composer
+// flattens back into fully-qualified property mappings. And `and` had never been written by
+// anything here, because every generated join in the stress corpus is single-column.
+###Relational
+Database fixture::map::Db
+(
+   Schema people
+   (
+      Table PERSON
+      (
+         ID VARCHAR(32) PRIMARY KEY,
+         FIRST_NAME VARCHAR(200),
+         LAST_NAME VARCHAR(200),
+         FIRM_ID VARCHAR(32)
+      )
+      Table FIRM
+      (
+         ID VARCHAR(32) PRIMARY KEY,
+         LEGAL_NAME VARCHAR(200),
+         REGION VARCHAR(32)
+      )
+   )
+
+   Join PersonFirm(people.PERSON.FIRM_ID = people.FIRM.ID and people.FIRM.REGION = 'EMEA')
+)
+
+###Mapping
+Mapping fixture::map::Base
+(
+)
+
+Mapping fixture::map::WithScope
+(
+   include fixture::map::Base
+
+   fixture::map::Person: Relational
+   {
+      ~mainTable [fixture::map::Db]people.PERSON
+      scope([fixture::map::Db]people.PERSON)
+      (
+         firstName: FIRST_NAME,
+         lastName: LAST_NAME
+      ),
+      scope([fixture::map::Db])
+      (
+         id: people.PERSON.ID
+      )
+   }
+
+   MappingTests
+   [
+      allPeople
+      (
+         query: |fixture::map::Person.all()->project([p|$p.firstName], ['First Name']);
+         data:
+         [
+            <Relational, CSV, fixture::map::Db, 'people\nPERSON\nID,FIRST_NAME,LAST_NAME,FIRM_ID\n1,Ada,Lovelace,f1\n\n\n\n'>
+         ];
+         assert: '[{"values":["Ada"]}]';
+      )
+   ]
+)
+
+Mapping fixture::map::WithSuites
+(
+   include mapping fixture::map::Base
+
+   fixture::map::Person: Pure
+   {
+      ~src fixture::map::SrcPerson
+      firstName: $src.first
+   }
+
+   testSuites:
+   [
+      suite1:
+      {
+         doc: 'suite level documentation';
+         function: |fixture::map::Person.all()->graphFetch(#{fixture::map::Person{firstName}}#);
+         tests:
+         [
+            test1:
+            {
+               doc: 'test level documentation';
+               data:
+               [
+                  ModelStore:
+                     ModelStore
+                     #{
+                        fixture::map::SrcPerson:
+                           Reference
+                           #{
+                              fixture::map::TestData
+                           }#
+                     }#
+               ];
+               asserts:
+               [
+                  assert1:
+                     EqualToJson
+                     #{
+                        expected:
+                           ExternalFormat
+                           #{
+                              contentType: 'application/json';
+                              data: '{"firstName":"Ada"}';
+                           }#;
+                     }#
+               ];
+            }
+         ];
+      }
+   ]
+)

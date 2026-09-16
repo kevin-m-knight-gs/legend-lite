@@ -1,0 +1,28 @@
+// REJECTS: Unexpected token 'ingestMode'. Valid alternatives: ['sink']
+//
+// `streamingPersister: PERSISTER_STREAMING BRACE_OPEN (persisterSink)* BRACE_CLOSE` -- a
+// sink and nothing else. Batch and Streaming share the `persister:` keyword and the sink
+// sub-block, and differ only in which further blocks are legal, so this is the near-miss
+// that tells the two apart.
+//
+// Unlike most of this grammar's constraints, this one IS in the .g4, which is why it fails
+// at parse time rather than in the walker. The ingest mode is written before the sink so
+// that the expected set ANTLR reports is the one-element set that makes the point.
+###Persistence
+Persistence test::persistence::neg::StreamingWithIngestMode
+{
+  doc: 'streaming persister carrying a batch ingest mode';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Streaming
+  {
+    ingestMode: NontemporalSnapshot
+    {
+      auditing: None;
+    }
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+  }
+}

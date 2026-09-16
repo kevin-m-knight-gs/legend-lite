@@ -1,0 +1,351 @@
+###Pure
+// cash-core -- CASH MOVEMENTS over the accounts held in core-account.
+//
+// Three shapes drive this project, and each is a consequence of how a cash book
+// actually works rather than decoration:
+//
+//   TWO DATES      A movement has a BOOKING DATE (when the entry hit the ledger) and a
+//                  VALUE DATE (when the money is actually good). They are routinely
+//                  different -- a back-valued correction books today for last Tuesday --
+//                  and a balance is only meaningful once you say which of the two it is
+//                  struck on. Every movement here carries both, and CshCashBalance says
+//                  in `balanceBasis` which date it was accumulated by.
+//
+//   EMBEDDED REF   The payment reference block (end-to-end id, scheme, purpose, remittance
+//                  text and the ordering party) is written ONTO the movement row. It is
+//                  what the payment said when it arrived, so it is frozen against the
+//                  movement rather than kept in a reference table that can be corrected
+//                  underneath it. CshPaymentReference and CshOrderingParty are therefore
+//                  VALUE types: structure in the model, columns on the same row in the
+//                  store, no join at query time. The same block is embedded a second time
+//                  on the statement line, because the bank's copy of the reference and
+//                  ours are different facts that have to be compared.
+//
+//   FOREIGN KEY    core-account keys an account by the PAIR (institutionId, accountNo).
+//                  There is no synthetic account id, so every class here that points at
+//                  an account carries BOTH columns and every join to CA_ACCOUNT matches
+//                  on both. A one-column join would silently match an account with the
+//                  same number at another bank.
+//
+// The currency of a movement, a balance, a sweep and an accrual is
+// `core_types::CtCurrency` -- the enum from the types project, not a local copy and not a
+// String. The database still stores ISO codes; cash_core::Mapping turns them into the
+// upstream enum through CshCurrencyMapping.
+
+// The cash-handling configuration of one account: what it settles in, whether it may be
+// swept, how far it may be overdrawn. One row per account, so it is keyed by the account's
+// own composite key and nothing else.
+Class cash_core::CshCashAccountProfile
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   // The enum from core-types. The column holds 'USD'; the model exposes CtCurrency.USD.
+   baseCurrency: core_types::CtCurrency[1];
+   cashAccountType: String[1];
+   overdraftLimit: Float[0..1];
+   cutoffTime: String[0..1];
+   isSweepable: Boolean[1];
+   poolId: String[0..1];
+   openedForCashOn: StrictDate[1];
+   closedForCashOn: StrictDate[0..1];
+
+   account: core_account::Account[1];
+   pool: cash_core::CshCashPool[0..1];
+   movements: cash_core::CshCashMovement[*];
+   balances: cash_core::CshCashBalance[*];
+
+   // Still taking cash until it is closed for cash. Absence of a close date is the only
+   // honest test, and it is also what a store Filter is allowed to express.
+   isOpenForCash() { $this.closedForCashOn->isEmpty() } : Boolean[1];
+
+   // The account's identity as one string, for a display that has no room for two columns.
+   accountKey() { $this.institutionId + '/' + $this.accountNo } : String[1];
+}
+
+// One cash movement in or out of an account: the fact this project exists to record.
+// Identity is (institutionId, accountNo, movementId) -- a movement id is only unique
+// within the account it was booked against.
+Class cash_core::CshCashMovement
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   movementId: String[1];
+   // 'CREDIT' money in, 'DEBIT' money out. The sign lives here and not on the amount, so
+   // an amount is never negative and never has to be checked for it.
+   direction: String[1];
+   amount: Float[1];
+   currency: core_types::CtCurrency[1];
+   // The two dates. Neither is derivable from the other.
+   valueDate: StrictDate[1];
+   bookingDate: StrictDate[1];
+   status: String[1];
+   movementType: String[1];
+   sourceSystem: String[0..1];
+   reconciledOn: StrictDate[0..1];
+   reversalOf: String[0..1];
+
+   // The denormalised payment reference. Same row, no join.
+   paymentReference: cash_core::CshPaymentReference[0..1];
+
+   account: core_account::Account[1];
+   profile: cash_core::CshCashAccountProfile[0..1];
+   statusHistory: cash_core::CshMovementStatusEvent[*];
+
+   isCredit() { $this.direction == 'CREDIT' } : Boolean[1];
+
+   // What the movement does to a balance: credits add, debits subtract.
+   signedAmount() { if($this.direction == 'CREDIT', | $this.amount, | $this.amount * -1.0) } : Float[1];
+
+   // Booked after the day it is good for -- a correction or a late claim. Worth flagging
+   // because it retrospectively changes a balance somebody has already reported.
+   isBackValued() { $this.valueDate < $this.bookingDate } : Boolean[1];
+
+   // The amount at its own currency's scale, using the types project's rounding function
+   // rather than a local guess at how many decimals a currency has.
+   roundedAmount() { $this.amount->core_types::ctRoundToMinorUnits($this.currency) } : Float[1];
+
+   // The same fact as (amount, currency), in the shape the types project defines for it.
+   money() { ^core_types::CtMoney(amount = $this.amount, currency = $this.currency) } : core_types::CtMoney[1];
+}
+
+// EMBEDDED value type: the payment reference block as it arrived, written onto the row of
+// whatever it describes -- a movement or a statement line. It has no table and no root set
+// implementation, and is only reachable through its owner.
+Class cash_core::CshPaymentReference
+{
+   endToEndId: String[0..1];
+   instructionId: String[0..1];
+   scheme: String[0..1];
+   purposeCode: String[0..1];
+   remittanceInfo: String[0..1];
+   chargeBearer: String[0..1];
+
+   // One level deeper, still the same row.
+   orderingParty: cash_core::CshOrderingParty[0..1];
+
+   // A payment we can chase: an end-to-end id is what the sending bank will answer on.
+   isTraceable() { $this.endToEndId->isNotEmpty() } : Boolean[1];
+}
+
+// EMBEDDED value type nested inside the payment reference: who sent the money, as they
+// named themselves on the instruction. Their country is the core-types country enum.
+Class cash_core::CshOrderingParty
+{
+   partyName: String[0..1];
+   bic: String[0..1];
+   partyAccount: String[0..1];
+   country: core_types::CtCountry[0..1];
+}
+
+// A status transition of a movement -- entered, released, settled, reversed. History, so
+// it is keyed by the movement plus a sequence; CshCashMovement.status is the current value.
+Class cash_core::CshMovementStatusEvent
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   movementId: String[1];
+   statusSeq: Integer[1];
+   status: String[1];
+   changedOn: StrictDate[1];
+   reasonCode: String[0..1];
+   changedBy: String[0..1];
+
+   movement: cash_core::CshCashMovement[1];
+}
+
+// The balance of one account in one currency on one date. An account may hold several
+// currencies, so the currency is part of the key and not a property of the account.
+Class cash_core::CshCashBalance
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   currency: core_types::CtCurrency[1];
+   balanceDate: StrictDate[1];
+   // 'VALUE' or 'BOOKING' -- which of the movement's two dates this balance accumulated by.
+   balanceBasis: String[1];
+   openingBalance: Float[1];
+   closingBalance: Float[1];
+   availableBalance: Float[1];
+   pendingCredits: Float[0..1];
+   pendingDebits: Float[0..1];
+   isFinal: Boolean[1];
+
+   account: core_account::Account[1];
+   profile: cash_core::CshCashAccountProfile[0..1];
+   statement: cash_core::CshStatement[0..1];
+   breaks: cash_core::CshBalanceBreak[*];
+   accruals: cash_core::CshInterestAccrual[*];
+
+   // What the day's movements did, net.
+   netMovement() { $this.closingBalance - $this.openingBalance } : Float[1];
+
+   isOverdrawn() { $this.closingBalance < 0.0 } : Boolean[1];
+
+   // Cleared money minus money we can actually use: unavailable funds under a hold.
+   unavailableAmount() { $this.closingBalance - $this.availableBalance } : Float[1];
+}
+
+// The bank's own statement of an account for a date and currency: THEIR version of the
+// day, against which our balance is reconciled. Same grain as CshCashBalance on purpose.
+Class cash_core::CshStatement
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   currency: core_types::CtCurrency[1];
+   statementDate: StrictDate[1];
+   statementRef: String[1];
+   openingBalance: Float[1];
+   closingBalance: Float[1];
+   lineCount: Integer[0..1];
+   receivedOn: StrictDate[0..1];
+   formatCode: String[0..1];
+
+   account: core_account::Account[1];
+   lines: cash_core::CshStatementLine[*];
+
+   statedNetMovement() { $this.closingBalance - $this.openingBalance } : Float[1];
+}
+
+// One line of a bank statement, and the second place the payment reference block is
+// embedded: this is the bank's copy of the reference, which is what makes it comparable
+// with the copy frozen on our own movement.
+Class cash_core::CshStatementLine
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   currency: core_types::CtCurrency[1];
+   statementDate: StrictDate[1];
+   lineNo: Integer[1];
+   movementId: String[0..1];
+   direction: String[1];
+   amount: Float[1];
+   valueDate: StrictDate[1];
+   bookingDate: StrictDate[1];
+   bankRef: String[0..1];
+   matchedOn: StrictDate[0..1];
+
+   // Same value type, different table. No join here either.
+   paymentReference: cash_core::CshPaymentReference[0..1];
+
+   statement: cash_core::CshStatement[1];
+   movement: cash_core::CshCashMovement[0..1];
+
+   // A line we have not tied to one of our movements is the raw material of a break.
+   isUnmatched() { $this.matchedOn->isEmpty() } : Boolean[1];
+}
+
+// A reconciliation break: our balance and the bank's disagree, by this much, for this
+// reason. Keyed by the balance it sits against plus a break code.
+Class cash_core::CshBalanceBreak
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   currency: core_types::CtCurrency[1];
+   balanceDate: StrictDate[1];
+   breakCode: String[1];
+   breakAmount: Float[1];
+   detectedOn: StrictDate[1];
+   resolvedOn: StrictDate[0..1];
+   assignedTo: String[0..1];
+   commentary: String[0..1];
+
+   balance: cash_core::CshCashBalance[1];
+
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+}
+
+// A cash pool: the set of accounts swept together, and the header account the money is
+// concentrated into. Keyed by a pool id, because a pool is our own construct and not the
+// bank's.
+Class cash_core::CshCashPool
+{
+   poolId: String[1];
+   poolName: String[1];
+   poolType: String[1];
+   poolCurrency: core_types::CtCurrency[1];
+   headerInstitutionId: String[1];
+   headerAccountNo: String[1];
+   isNotional: Boolean[1];
+   effectiveFrom: StrictDate[1];
+
+   headerAccount: core_account::Account[1];
+   sweepRules: cash_core::CshSweepRule[*];
+   members: cash_core::CshCashAccountProfile[*];
+}
+
+// A standing instruction to move cash out of one account into another when a threshold is
+// crossed. It names TWO accounts, so it carries two institution/account pairs and joins on
+// both of them separately.
+Class cash_core::CshSweepRule
+{
+   sourceInstitutionId: String[1];
+   sourceAccountNo: String[1];
+   ruleSeq: Integer[1];
+   poolId: String[0..1];
+   targetInstitutionId: String[1];
+   targetAccountNo: String[1];
+   sweepCurrency: core_types::CtCurrency[1];
+   // 'ZERO_BALANCE', 'TARGET_BALANCE', 'THRESHOLD'.
+   sweepType: String[1];
+   targetBalance: Float[0..1];
+   minimumAmount: Float[0..1];
+   frequency: String[1];
+   cutoffTime: String[0..1];
+   activatedOn: StrictDate[1];
+   deactivatedOn: StrictDate[0..1];
+
+   sourceAccount: core_account::Account[1];
+   targetAccount: core_account::Account[1];
+   pool: cash_core::CshCashPool[0..1];
+   executions: cash_core::CshSweepExecution[*];
+
+   isActive() { $this.deactivatedOn->isEmpty() } : Boolean[1];
+
+   // Both ends in one string, because a sweep that reads as one account is a sweep nobody
+   // can check.
+   routeKey() { $this.sourceInstitutionId + '/' + $this.sourceAccountNo + ' -> ' + $this.targetInstitutionId + '/' + $this.targetAccountNo } : String[1];
+}
+
+// One run of a sweep rule on one date: how much actually moved, and which movement was
+// booked for it. Keyed by the rule plus the date, because a rule runs at most once a day.
+Class cash_core::CshSweepExecution
+{
+   sourceInstitutionId: String[1];
+   sourceAccountNo: String[1];
+   ruleSeq: Integer[1];
+   executionDate: StrictDate[1];
+   sweptAmount: Float[1];
+   movementId: String[0..1];
+   status: String[1];
+   balanceBefore: Float[0..1];
+   balanceAfter: Float[0..1];
+   failureReason: String[0..1];
+
+   rule: cash_core::CshSweepRule[1];
+   movement: cash_core::CshCashMovement[0..1];
+
+   // A sweep that booked nothing is not a failure -- it is a day the threshold was never
+   // crossed. Only a status says otherwise.
+   didMove() { $this.sweptAmount > 0.0 } : Boolean[1];
+}
+
+// Interest accrued on a day's cash balance, credit or debit. Same grain as the balance it
+// is computed from, so it hangs off it without a surrogate key.
+Class cash_core::CshInterestAccrual
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   currency: core_types::CtCurrency[1];
+   accrualDate: StrictDate[1];
+   accrualBasis: String[1];
+   annualRate: Float[1];
+   accruedAmount: Float[1];
+   balanceUsed: Float[1];
+   rateSource: String[0..1];
+   isDebitInterest: Boolean[1];
+
+   account: core_account::Account[1];
+
+   // ACT/360 by convention here. Declared Float because `/` widens to Float regardless.
+   dailyRate() { $this.annualRate / 360.0 } : Float[1];
+}

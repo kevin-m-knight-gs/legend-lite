@@ -90,7 +90,7 @@ def widen_filter(f):
 def break_enum_mapping(f):
     """Send the legacy 'BOT' code to the wrong enum value. The DATA is untouched, so only
     a working EnumerationMapping can notice."""
-    f["36"] = _sub_once(f["36"], r"BUY: \['B', 'BOT'\],\n        SELL: \['S'\]",
+    f["35"] = _sub_once(f["35"], r"BUY: \['B', 'BOT'\],\n        SELL: \['S'\]",
                         "BUY: ['B'],\n        SELL: ['S', 'BOT']", "break_enum_mapping")
     return f
 
@@ -100,6 +100,131 @@ def unmapped_enum_code(f):
     not established -- this mutation exists to show the corpus notices, not to assert what
     the engine should do."""
     f["93"] = _sub_once(f["93"], r",BOT,", ",XX,", "unmapped_enum_code")
+    return f
+
+
+def qualified_ignores_arg(f):
+    """Make the qualified property drop its parameter. The two projected rates then both
+    collapse onto the unscaled gross — which is exactly why F7 projects the SAME property
+    twice with different arguments."""
+    f["06"] = _sub_once(
+        f["06"], r"\{ \(\$this\.quantity \* \$this\.price\) \* \$fxRate \}",
+        "{ $this.quantity * $this.price }", "qualified_ignores_arg")
+    return f
+
+
+def relax_constraint(f):
+    """Constraints are not enforced during relational projection, so weakening one must
+    change NOTHING. This mutation is expected to SURVIVE; it is listed so the corpus does
+    not silently start claiming constraint coverage it does not have."""
+    f["06"] = _sub_once(f["06"], r"quantityIsPositive: \(\$this\.quantity > 0\.0\)",
+                        "quantityIsPositive: ($this.quantity > -1.0e9)",
+                        "relax_constraint")
+    return f
+
+
+def break_denormalization(f):
+    """Corrupt ONE cell of the denormalized reporting table so it no longer agrees with
+    the normalized tables it was derived from. N0 (canonical) and N1 (flat) then answer
+    the same question differently, which is precisely what mapping invariance exists to
+    detect. Only N1 should redden — N0 reads the untouched normalized rows."""
+    f["93"] = _sub_once(f["93"], r",Apple Inc,AAPL,", ",Apple Incorporated,AAPL,",
+                        "break_denormalization")
+    return f
+
+
+def break_embedded_mapping(f):
+    """Point one EMBEDDED property at the wrong column of the same flat table. Only N2 —
+    the identical query resolved through reporting::EmbeddedFlatMapping — can notice; N0
+    joins the normalized tables and N1 reads reporting::FlatTrade, so both are untouched.
+    This is what proves the embedded mapping is genuinely being exercised rather than
+    merely compiling."""
+    f["51"] = _sub_once(f["51"], r"name: \[store::DB\] TRADE_FLAT\.INSTR_NAME",
+                        "name: [store::DB] TRADE_FLAT.INSTR_TICKER",
+                        "break_embedded_mapping")
+    return f
+
+
+def shift_milestone_boundary(f):
+    """Move CP-0003's version change one day earlier. T12 (2024-06-06) and T13
+    (2024-06-07) are one day apart specifically to straddle it, so the pair must notice
+    even though every other date is unaffected."""
+    f["93"] = _sub_once(f["93"], r"CP-0003,2024-06-07,", "CP-0003,2024-06-06,",
+                        "shift_milestone_boundary")
+    return f
+
+
+def break_infinity_date(f):
+    """Close an open-ended version with a far-future date that is NOT the declared
+    INFINITY_DATE. Dated queries are unchanged — 2099 is still after every date asked —
+    so ONLY %latest can notice, which is what proves %latest keys on the infinity value
+    rather than on 'the newest row'."""
+    f["93"] = _sub_once(f["93"], r"CP-0002,2013-08-22,9999-12-31,",
+                        "CP-0002,2013-08-22,2099-12-31,", "break_infinity_date")
+    return f
+
+
+def populate_empty_union_leg(f):
+    """Put a row in TRADE_FX, which the corpus asserts is EMPTY. The union then returns
+    21 rows where the whole table has 20."""
+    f["93"] = _sub_once(
+        f["93"],
+        r"(default\.TRADE_FX:\n      '[^']*\\n');",
+        r"\1 +\n      'TRD-9001,2024-06-03,1.0,1.0,1.0,B,EXECUTED,USD,INST-AAPL\\n';",
+        "populate_empty_union_leg")
+    return f
+
+
+def change_view_aggregate(f):
+    """Swap the rollup's sum() for max(). Every group's TOTAL_NOTIONAL then becomes its
+    largest trade instead of the total. Only F20 reads the View, so nothing else moves —
+    and the aggregate-decomposition check in views.py would refuse to build a corpus whose
+    group totals no longer sum to the base table."""
+    f["30"] = _sub_once(f["30"], r"TOTAL_NOTIONAL: sum\(TRADE\.NOTIONAL\)",
+                        "TOTAL_NOTIONAL: max(TRADE.NOTIONAL)", "change_view_aggregate")
+    return f
+
+
+def widen_store_filter(f):
+    """Point the store filter at a different status. E1 (predicate in the MAPPING) then
+    returns a different set from E0 (same predicate in the QUERY), which is the only thing
+    that can detect a store filter silently failing to apply."""
+    f["30"] = _sub_once(f["30"], r"Filter ExecutedTrades\(TRADE\.STATUS = 'EXECUTED'\)",
+                        "Filter ExecutedTrades(TRADE.STATUS = 'SETTLED')",
+                        "widen_store_filter")
+    return f
+
+
+def break_self_join_target(f):
+    """Replace {target} with the table name, turning the self-join into
+    TRADER.MANAGER_ID = TRADER.TRADER_ID -- a tautology every row satisfies against
+    itself. Only F21 walks the manager chain, so nothing else moves."""
+    f["30"] = _sub_once(f["30"],
+                        r"Join Trader_Manager\(TRADER\.MANAGER_ID = \{target\}\.TRADER_ID\)",
+                        "Join Trader_Manager(TRADER.MANAGER_ID = TRADER.TRADER_ID)",
+                        "break_self_join_target")
+    return f
+
+
+def undo_bitemporal_correction(f):
+    """Reopen the superseded row in PROCESSING time, so the correction never closes. B0
+    (believed then) is unaffected -- that row was already in force -- but B1 (believed
+    now) then sees BOTH versions of the same business period, which is precisely the
+    state bitemporality exists to prevent."""
+    f["93"] = _sub_once(f["93"],
+                        r"INST-HSBA,2024-01-01,2024-01-10,9999-12-31,2024-03-01,A,FEED-A",
+                        "INST-HSBA,2024-01-01,2024-01-10,9999-12-31,9999-12-31,A,FEED-A",
+                        "undo_bitemporal_correction")
+    return f
+
+
+def corrupt_function_test(f):
+    """Change one expected value in the FUNCTION test harness. Nothing else reads it --
+    the Service tests have their own expectations -- so only the function testable can
+    notice, which is what proves the second harness is actually asserting."""
+    f["95"] = _sub_once(f["95"], r'"tradeId":"TRD-0001","notional":190500\.0',
+                        '"tradeId":"TRD-0001","notional":190500.01',
+                        "corrupt_function_test")
     return f
 
 
@@ -120,6 +245,23 @@ MUTATIONS = {
     "swap_alias": swap_alias,
     "break_enum_mapping": break_enum_mapping,
     "unmapped_enum_code": unmapped_enum_code,
+    "qualified_ignores_arg": qualified_ignores_arg,
+    "break_denormalization": break_denormalization,
+    "break_embedded_mapping": break_embedded_mapping,
+    "shift_milestone_boundary": shift_milestone_boundary,
+    "break_infinity_date": break_infinity_date,
+    "populate_empty_union_leg": populate_empty_union_leg,
+    "undo_bitemporal_correction": undo_bitemporal_correction,
+    "change_view_aggregate": change_view_aggregate,
+    "widen_store_filter": widen_store_filter,
+    "corrupt_function_test": corrupt_function_test,
+    "break_self_join_target": break_self_join_target,
+}
+
+# Mutations that MUST survive. A corpus claims coverage by what it catches; it should be
+# equally explicit about what it provably does not.
+EXPECTED_SURVIVORS = {
+    "relax_constraint": relax_constraint,
 }
 
 
@@ -128,9 +270,14 @@ def run(work: Path) -> tuple[int, int, str]:
     files = sorted(str(p) for p in work.glob("*.pure"))
     # Both service files: a mutation to the seed can just as easily be caught by the
     # fan-out battery, and excluding it would understate the corpus's sensitivity.
+    # Services AND function testables. Omitting the latter meant a mutation to the
+    # function-test expectations ran nothing at all and was scored as SURVIVED -- the
+    # harness reporting a hole it had itself created.
+    import functest
     testables = [f"--testable={m.group(1)}"
                  for f in sorted(work.glob("9[24]-*.pure"))
                  for m in re.finditer(r"^Service (\S+)", f.read_text(), re.M)]
+    testables += [f"--testable={t}" for t in functest.testables()]
     cp = (RUNNER / "cp.txt").read_text().strip()
     env = dict(os.environ, JAVA_HOME=JAVA_HOME, PATH=f"{JAVA_HOME}/bin:" + os.environ["PATH"])
     r = subprocess.run([f"{JAVA_HOME}/bin/java", "-cp", f"{RUNNER}/target/classes:{cp}",
@@ -145,7 +292,8 @@ def run(work: Path) -> tuple[int, int, str]:
 
 def main() -> None:
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
-    names = [only] if only else list(MUTATIONS)
+    names = [only] if only else list(MUTATIONS) + list(EXPECTED_SURVIVORS)
+    MUTATIONS.update(EXPECTED_SURVIVORS)
 
     print("baseline (unmutated):", end=" ", flush=True)
     with tempfile.TemporaryDirectory() as d:
@@ -167,7 +315,12 @@ def main() -> None:
                 shutil.copy(p, work)
             paths = {"92": work / "92-services.pure",
                      "93": work / "93-testdata.pure",
-                     "36": work / "36-trading-store.pure"}
+                     "35": work / "35-codes-mapping.pure",
+                     "36": work / "36-trading-store.pure",
+                     "06": work / "06-trading.pure",
+                     "51": work / "51-reporting-store.pure",
+                     "30": work / "30-store.pure",
+                     "95": work / "95-function-tests.pure"}
             src = {k: v.read_text() for k, v in paths.items()}
             out = MUTATIONS[name](dict(src))
             for k, path in paths.items():
@@ -177,12 +330,27 @@ def main() -> None:
             # A mutation must cause failures BEYOND the quarantined ones. Comparing
             # against zero would let every mutation "pass" on the back of the six
             # known-failing fan-out services.
-            ok = f1 > f0
+            survivor = name in EXPECTED_SURVIVORS
+            # f1 == -1 means the runner parsed no results: the mutated model did not
+            # compile. That IS detection — the corpus rejected the broken model rather
+            # than answering from it — and scoring it as survival was wrong.
+            rejected = f1 < 0
+            ok = (f1 == f0) if survivor else (rejected or f1 > f0)
             caught.append(ok)
-            print(f"  {name:<16} {p1:>2} passed {f1:>2} failed   "
-                  f"{'CAUGHT' if ok else 'SURVIVED -- assertion is not load-bearing'}{tail}")
+            if survivor:
+                verdict = ("SURVIVED as expected -- constraints are not enforced here"
+                           if ok else "CAUGHT -- unexpected; constraints now bite?")
+            elif rejected:
+                verdict = "CAUGHT (model rejected -- did not compile)"
+            else:
+                verdict = "CAUGHT" if ok else "SURVIVED -- assertion is not load-bearing"
+            counts = "--    " if rejected else f"{p1:>2} passed {f1:>2} failed"
+            print(f"  {name:<24} {counts}   {verdict}"
+                  + ("" if rejected else tail))
 
-    print(f"\n{sum(caught)}/{len(caught)} mutations caught")
+    n_surv = sum(1 for n in names if n in EXPECTED_SURVIVORS)
+    print(f"\n{sum(caught)}/{len(caught)} mutations landed as expected "
+          f"({len(caught) - n_surv} required to be caught, {n_surv} required to survive)")
     if not all(caught):
         raise SystemExit(1)
 

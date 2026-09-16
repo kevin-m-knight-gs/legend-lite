@@ -1,0 +1,23 @@
+// REJECTS: Unexpected token 'Fatal'. Valid alternatives: ['Error', 'Warn']
+//
+// ~enforcementLevel takes a CLOSED set of two keyword values. Error and Warn are lexer
+// tokens of DomainLexerGrammar, not identifiers, so the enumeration is enforced by the
+// grammar and the error names both legal values.
+//
+// The divergence this guards: a rewrite that reads the level as an identifier and maps it
+// to the protocol enum later accepts 'Fatal' at parse time. Worse, because both Error and
+// Warn ARE also listed in Domain's identifier rule (they are usable as property names),
+// the identifier arm is a genuinely tempting implementation -- it makes every existing
+// fixture pass.
+###Pure
+Class fixture::neg::FatalLevel
+[
+   c1
+   (
+      ~function: $this.code->length() > 2
+      ~enforcementLevel: Fatal
+   )
+]
+{
+   code: String[1];
+}

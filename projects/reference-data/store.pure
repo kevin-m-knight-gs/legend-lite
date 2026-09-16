@@ -1,0 +1,335 @@
+###Relational
+// ============================================================
+// reference_data::Store -- 23 RD_ tables, and five filters over somebody else's
+// ============================================================
+// The store INCLUDES both dependencies' stores. That is not decoration:
+//
+//   * core_instrument::Store, because five of our filters are predicates over
+//     CI_INSTRUMENT, and because four of our joins land on it. The filters are declared
+//     HERE and applied in reference_data::Mapping to sets that extend [ciBase] -- the
+//     eligibility universes are views of the master, and nothing is copied.
+//   * core_geo::Store, because RD_ISSUER and RD_VENUE both carry an ISO 3166-1 alpha-2
+//     code and we want to reach the country, and then core-geo's own two-hop chain to the
+//     coverage region, without redeclaring either.
+//
+// Every table is RD_, every join Rd_, every filter Rd -- a filter name and a set id are
+// GLOBAL namespaces in Legend, so a single unprefixed `ActiveRows` here would fail the
+// whole graph with a message naming the id and not this file.
+//
+// Tables are declared and unseeded. No ###Data element, no Runtime.
+Database reference_data::Store
+(
+   include core_instrument::Store
+   include core_geo::Store
+
+   // ---- issuers -----------------------------------------------------------------------
+   // Keyed on ISSUER_ID, but LEGAL_NAME is what joins back to the ~distinct issuer set
+   // derived from CI_INSTRUMENT.ISSUER_NAME, because the master has no issuer id.
+   Table RD_ISSUER
+   (
+      ISSUER_ID VARCHAR(40) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      SHORT_NAME VARCHAR(80),
+      DOMICILE_COUNTRY_CODE VARCHAR(2),
+      SECTOR_CODE VARCHAR(20),
+      INDUSTRY_CODE VARCHAR(20),
+      IS_PUBLICLY_TRADED BIT,
+      IS_FINANCIAL_INSTITUTION BIT,
+      INCORPORATION_DATE DATE,
+      DISSOLVED_DATE DATE
+   )
+
+   Table RD_ISSUER_XREF
+   (
+      ISSUER_ID VARCHAR(40) PRIMARY KEY,
+      SCHEME VARCHAR(20) PRIMARY KEY,
+      IDENTIFIER_VALUE VARCHAR(60) NOT NULL,
+      IS_PRIMARY BIT,
+      ASSIGNED_DATE DATE
+   )
+
+   Table RD_ISSUER_HIERARCHY
+   (
+      LINK_ID VARCHAR(40) PRIMARY KEY,
+      CHILD_ISSUER_ID VARCHAR(40) NOT NULL,
+      PARENT_ISSUER_ID VARCHAR(40) NOT NULL,
+      OWNERSHIP_PCT DOUBLE,
+      IS_ULTIMATE_PARENT BIT,
+      EFFECTIVE_DATE DATE,
+      END_DATE DATE
+   )
+
+   // ---- ratings -----------------------------------------------------------------------
+   Table RD_RATING_AGENCY
+   (
+      AGENCY_ID VARCHAR(20) PRIMARY KEY,
+      NAME VARCHAR(120) NOT NULL,
+      SHORT_CODE VARCHAR(10),
+      IS_ECAI_RECOGNISED BIT,
+      HOME_COUNTRY_CODE VARCHAR(2)
+   )
+
+   // Composite key: 'A+' means one thing on S&P's scale and nothing on Moody's, so the
+   // grade is only identified by the pair. NOTCH_RANK is the comparable value.
+   Table RD_RATING_GRADE
+   (
+      AGENCY_ID VARCHAR(20) PRIMARY KEY,
+      GRADE_CODE VARCHAR(10) PRIMARY KEY,
+      NOTCH_RANK INTEGER NOT NULL,
+      IS_INVESTMENT_GRADE BIT,
+      IS_LONG_TERM BIT,
+      DESCRIPTION VARCHAR(200)
+   )
+
+   Table RD_INSTRUMENT_RATING
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      AGENCY_ID VARCHAR(20) PRIMARY KEY,
+      RATING_DATE DATE PRIMARY KEY,
+      GRADE_CODE VARCHAR(10),
+      OUTLOOK VARCHAR(20),
+      IS_WATCH_NEGATIVE BIT,
+      IS_SOLICITED BIT
+   )
+
+   Table RD_RATING_RULE
+   (
+      RULE_ID VARCHAR(40) PRIMARY KEY,
+      RULE_NAME VARCHAR(120) NOT NULL,
+      AGENCY_ID VARCHAR(20),
+      MINIMUM_NOTCH_RANK INTEGER,
+      SPLIT_RATING_POLICY VARCHAR(20),
+      APPLIES_TO_ASSET_CLASS VARCHAR(40),
+      IS_ACTIVE BIT
+   )
+
+   // ---- indices -----------------------------------------------------------------------
+   Table RD_INDEX_PROVIDER
+   (
+      PROVIDER_ID VARCHAR(20) PRIMARY KEY,
+      NAME VARCHAR(120) NOT NULL,
+      SHORT_CODE VARCHAR(10),
+      LICENCE_REQUIRED BIT
+   )
+
+   Table RD_INDEX
+   (
+      INDEX_ID VARCHAR(40) PRIMARY KEY,
+      PROVIDER_ID VARCHAR(20) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      TICKER VARCHAR(20),
+      CURRENCY_CODE VARCHAR(3),
+      WEIGHTING_SCHEME VARCHAR(30),
+      REBALANCE_FREQUENCY VARCHAR(20),
+      IS_TOTAL_RETURN BIT,
+      LAUNCH_DATE DATE
+   )
+
+   Table RD_INDEX_MEMBERSHIP
+   (
+      INDEX_ID VARCHAR(40) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      EFFECTIVE_DATE DATE PRIMARY KEY,
+      WEIGHT_PCT DOUBLE,
+      SHARE_COUNT DOUBLE,
+      CAP_FACTOR DOUBLE,
+      REMOVAL_DATE DATE
+   )
+
+   Table RD_INDEX_REBALANCE
+   (
+      REBALANCE_ID VARCHAR(40) PRIMARY KEY,
+      INDEX_ID VARCHAR(40) NOT NULL,
+      ANNOUNCEMENT_DATE DATE,
+      EFFECTIVE_DATE DATE,
+      REBALANCE_TYPE VARCHAR(30),
+      CONSTITUENT_COUNT INTEGER
+   )
+
+   // ---- venues ------------------------------------------------------------------------
+   // Keyed by ISO 10383 MIC. COUNTRY_CODE is the alpha-2 core-geo keys on, and it is the
+   // only geography column here: the region is reached through core-geo's chain.
+   Table RD_VENUE
+   (
+      MIC VARCHAR(4) PRIMARY KEY,
+      OPERATING_MIC VARCHAR(4),
+      NAME VARCHAR(200) NOT NULL,
+      COUNTRY_CODE VARCHAR(2),
+      VENUE_TYPE VARCHAR(30),
+      TIME_ZONE_NAME VARCHAR(64),
+      RETIRED_DATE DATE
+   )
+
+   Table RD_VENUE_SEGMENT
+   (
+      SEGMENT_MIC VARCHAR(4) PRIMARY KEY,
+      MIC VARCHAR(4),
+      NAME VARCHAR(200) NOT NULL,
+      SEGMENT_TYPE VARCHAR(30),
+      TICK_SIZE_REGIME VARCHAR(30)
+   )
+
+   Table RD_VENUE_SESSION
+   (
+      SESSION_ID VARCHAR(40) PRIMARY KEY,
+      MIC VARCHAR(4),
+      SESSION_NAME VARCHAR(60) NOT NULL,
+      OPEN_TIME_LOCAL VARCHAR(8),
+      CLOSE_TIME_LOCAL VARCHAR(8),
+      IS_AUCTION BIT,
+      DAY_OF_WEEK VARCHAR(10)
+   )
+
+   // The many-to-many the master's single PRIMARY_EXCHANGE_MIC column cannot hold.
+   Table RD_LISTING
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      MIC VARCHAR(4) PRIMARY KEY,
+      LOCAL_TICKER VARCHAR(20),
+      TRADING_CURRENCY VARCHAR(3),
+      ADMISSION_DATE DATE,
+      DELISTING_DATE DATE,
+      IS_PRIMARY_LISTING BIT,
+      ROUND_LOT_SIZE INTEGER
+   )
+
+   // ---- restrictions ------------------------------------------------------------------
+   Table RD_RESTRICTION_REASON
+   (
+      REASON_CODE VARCHAR(20) PRIMARY KEY,
+      DESCRIPTION VARCHAR(200) NOT NULL,
+      SEVERITY VARCHAR(20),
+      BLOCKS_BUYING BIT,
+      BLOCKS_SELLING BIT,
+      REQUIRES_APPROVAL BIT
+   )
+
+   Table RD_SANCTIONS_PROGRAMME
+   (
+      PROGRAMME_ID VARCHAR(40) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      ISSUING_AUTHORITY VARCHAR(80),
+      TARGET_COUNTRY_CODE VARCHAR(2),
+      EFFECTIVE_DATE DATE,
+      LIFTED_DATE DATE
+   )
+
+   // Either an instrument or an issuer is restricted, so both FK columns are nullable and
+   // exactly one is set. RELEASE_DATE null means still restricted -- see RdCurrentRestriction.
+   Table RD_RESTRICTED_LIST
+   (
+      ENTRY_ID VARCHAR(40) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60),
+      ISSUER_ID VARCHAR(40),
+      REASON_CODE VARCHAR(20),
+      PROGRAMME_ID VARCHAR(40),
+      ADDED_DATE DATE,
+      RELEASE_DATE DATE,
+      ADDED_BY VARCHAR(60),
+      NOTES VARCHAR(400)
+   )
+
+   // ---- classification ----------------------------------------------------------------
+   Table RD_CLASSIFICATION_SCHEME
+   (
+      SCHEME_ID VARCHAR(20) PRIMARY KEY,
+      NAME VARCHAR(120) NOT NULL,
+      ISSUING_BODY VARCHAR(80),
+      VERSION VARCHAR(20),
+      LEVEL_COUNT INTEGER,
+      IS_REGULATORY BIT
+   )
+
+   Table RD_INSTRUMENT_CLASSIFICATION
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      SCHEME_ID VARCHAR(20) PRIMARY KEY,
+      CLASSIFICATION_CODE VARCHAR(30) NOT NULL,
+      LEVEL_NUMBER INTEGER,
+      PARENT_CODE VARCHAR(30),
+      ASSIGNED_DATE DATE,
+      ASSIGNED_BY VARCHAR(60)
+   )
+
+   // ---- golden source -----------------------------------------------------------------
+   Table RD_REFERENCE_SOURCE
+   (
+      SOURCE_ID VARCHAR(20) PRIMARY KEY,
+      NAME VARCHAR(120) NOT NULL,
+      SOURCE_TYPE VARCHAR(30),
+      IS_INTERNAL BIT,
+      REFRESH_FREQUENCY VARCHAR(20),
+      CONTACT_TEAM VARCHAR(60)
+   )
+
+   Table RD_SOURCE_PRECEDENCE
+   (
+      FIELD_NAME VARCHAR(60) PRIMARY KEY,
+      SOURCE_ID VARCHAR(20) PRIMARY KEY,
+      PRECEDENCE_RANK INTEGER NOT NULL,
+      IS_FALLBACK_ALLOWED BIT,
+      EFFECTIVE_DATE DATE
+   )
+
+   Table RD_DQ_RULE
+   (
+      RULE_ID VARCHAR(40) PRIMARY KEY,
+      FIELD_NAME VARCHAR(60) NOT NULL,
+      RULE_TYPE VARCHAR(30),
+      EXPRESSION VARCHAR(400),
+      SEVERITY VARCHAR(20),
+      IS_BLOCKING BIT,
+      OWNING_TEAM VARCHAR(60)
+   )
+
+   // ---- joins into core-geo -----------------------------------------------------------
+   // Many-to-one, so a chained property mapping stays single-valued: our join is hop one
+   // and core-geo's Cg_CountrySubRegion > Cg_SubRegionMacroRegion are hops two and three.
+   Join Rd_IssuerCountry(RD_ISSUER.DOMICILE_COUNTRY_CODE = [core_geo::Store]CG_COUNTRY.COUNTRY_CODE)
+   Join Rd_VenueCountry(RD_VENUE.COUNTRY_CODE = [core_geo::Store]CG_COUNTRY.COUNTRY_CODE)
+   Join Rd_ProgrammeCountry(RD_SANCTIONS_PROGRAMME.TARGET_COUNTRY_CODE = [core_geo::Store]CG_COUNTRY.COUNTRY_CODE)
+
+   // ---- joins into the instrument master ----------------------------------------------
+   Join Rd_RatingInstrument(RD_INSTRUMENT_RATING.INSTRUMENT_ID = [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Rd_MembershipInstrument(RD_INDEX_MEMBERSHIP.INSTRUMENT_ID = [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Rd_ListingInstrument(RD_LISTING.INSTRUMENT_ID = [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Rd_ClassificationInstrument(RD_INSTRUMENT_CLASSIFICATION.INSTRUMENT_ID = [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_ID)
+
+   // ---- joins within this project -----------------------------------------------------
+   Join Rd_IssuerIdentifier(RD_ISSUER.ISSUER_ID = RD_ISSUER_XREF.ISSUER_ID)
+   Join Rd_HierarchyParent(RD_ISSUER_HIERARCHY.PARENT_ISSUER_ID = RD_ISSUER.ISSUER_ID)
+   Join Rd_GradeAgency(RD_RATING_GRADE.AGENCY_ID = RD_RATING_AGENCY.AGENCY_ID)
+   // Composite: a grade is only identified by (agency, code), and the condition must stay
+   // on ONE line -- a wrapped join condition is not parsed.
+   Join Rd_RatingGrade(RD_INSTRUMENT_RATING.AGENCY_ID = RD_RATING_GRADE.AGENCY_ID and RD_INSTRUMENT_RATING.GRADE_CODE = RD_RATING_GRADE.GRADE_CODE)
+   Join Rd_IndexProvider(RD_INDEX.PROVIDER_ID = RD_INDEX_PROVIDER.PROVIDER_ID)
+   Join Rd_MembershipIndex(RD_INDEX_MEMBERSHIP.INDEX_ID = RD_INDEX.INDEX_ID)
+   Join Rd_RebalanceIndex(RD_INDEX_REBALANCE.INDEX_ID = RD_INDEX.INDEX_ID)
+   Join Rd_SegmentVenue(RD_VENUE_SEGMENT.MIC = RD_VENUE.MIC)
+   Join Rd_SessionVenue(RD_VENUE_SESSION.MIC = RD_VENUE.MIC)
+   Join Rd_ListingVenue(RD_LISTING.MIC = RD_VENUE.MIC)
+   Join Rd_RestrictedReason(RD_RESTRICTED_LIST.REASON_CODE = RD_RESTRICTION_REASON.REASON_CODE)
+   Join Rd_RestrictedProgramme(RD_RESTRICTED_LIST.PROGRAMME_ID = RD_SANCTIONS_PROGRAMME.PROGRAMME_ID)
+   Join Rd_ClassificationScheme(RD_INSTRUMENT_CLASSIFICATION.SCHEME_ID = RD_CLASSIFICATION_SCHEME.SCHEME_ID)
+   Join Rd_PrecedenceSource(RD_SOURCE_PRECEDENCE.SOURCE_ID = RD_REFERENCE_SOURCE.SOURCE_ID)
+
+   // ---- THE FIVE FILTERS OVER CI_INSTRUMENT -------------------------------------------
+   // These are the interesting ones. They are declared in OUR store, over a table we do not
+   // own, and applied in reference_data::Mapping to sets that `extends [ciBase]` -- so a
+   // reference-data eligibility universe is a predicate over the instrument master and not
+   // a copy of it. core-instrument declared its own filters on the same table for its own
+   // subtypes; these are ours, Rd-prefixed, and the two sets never collide.
+   //
+   // Note: no boolean literal appears in any of them. `Filter X(T.IS_ACTIVE = true)` fails
+   // with `Unexpected token 'true'`, so each is a null test or a string comparison.
+   Filter RdListedRows([core_instrument::Store]CI_INSTRUMENT.PRIMARY_EXCHANGE_MIC is not null)
+   Filter RdRatedRows([core_instrument::Store]CI_INSTRUMENT.CREDIT_RATING is not null)
+   Filter RdIndexEligibleRows([core_instrument::Store]CI_INSTRUMENT.FREE_FLOAT_PCT is not null)
+   Filter RdRestrictedRows([core_instrument::Store]CI_INSTRUMENT.STATUS = 'SUSPENDED')
+   Filter RdSovereignIssueRows([core_instrument::Store]CI_INSTRUMENT.ISSUING_SOVEREIGN is not null)
+
+   // ---- filters on our own tables -----------------------------------------------------
+   // Declared for downstream projects; not applied to any set here.
+   Filter RdCurrentRestriction(RD_RESTRICTED_LIST.RELEASE_DATE is null)
+   Filter RdActiveVenue(RD_VENUE.RETIRED_DATE is null)
+)

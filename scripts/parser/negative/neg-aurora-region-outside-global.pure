@@ -1,0 +1,29 @@
+// REJECTS: Unexpected token 'region'. Valid alternatives: ['host', 'port', 'name', 'clusterInstanceHostPattern']
+//
+// `region:` inside an `Aurora` block. AuroraLexerGrammar declares ONE token set and TWO
+// datasource specifications over it, and they take different subsets: `Aurora` takes host,
+// port, name and the singular `clusterInstanceHostPattern`; `GlobalAurora` takes host, port,
+// name, `region` and the plural `globalClusterInstanceHostPatterns`. `region` and the plural
+// form are reachable only through GlobalAurora, and the singular form only through Aurora.
+//
+// One grammar, two element shapes, an overlapping-but-unequal field set and no naming
+// convention separating them -- a rewrite that keys fields on the lexer rather than on the
+// chosen specification rule merges the two and accepts a spec that is neither. Both shapes
+// are written out in ../fixtures/t2-aurora.pure for the same reason.
+//
+// `region` is placed first here deliberately: later in the block the parser's error recovery
+// drops the alternative list, and the alternative list is the whole value of this fixture.
+###Connection
+RelationalDatabaseConnection fixture::neg::AuroraRegion
+{
+  store: fixture::neg::Db;
+  type: Aurora;
+  specification: Aurora
+  {
+    region: 'us-east-1';
+    host: 'mydb.cluster-xyz.us-east-1.rds.amazonaws.com';
+    port: 5432;
+    name: 'mydb';
+  };
+  auth: Test;
+}

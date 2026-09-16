@@ -1,0 +1,176 @@
+###Pure
+Enum test::Grade
+{
+  HIGH,
+  LOW
+}
+
+Class test::Employee
+{
+  fullName: String[1];
+  upperName: String[1];
+  lowerName: String[1];
+  initials: String[1];
+  trimmedName: String[1];
+  nickName: String[1];
+  totalComp: Float[1];
+  netComp: Float[1];
+  doubleComp: Float[1];
+  halfComp: Float[1];
+  absComp: Float[1];
+  roundedComp: Float[1];
+  ceilComp: Float[1];
+  floorComp: Float[1];
+  sqrtComp: Float[1];
+  modComp: Integer[1];
+  bandLabel: String[1];
+  gradeLabel: String[1];
+  leftName: String[1];
+  rightName: String[1];
+  namePos: Integer[1];
+  nameLen: Integer[1];
+  paddedName: String[1];
+  replacedName: String[1];
+  reversedName: String[1];
+  joinedName: String[1];
+  ltrimName: String[1];
+  rtrimName: String[1];
+  hiredYear: Integer[1];
+  hiredMonth: Integer[1];
+  hiredDay: Integer[1];
+  hiredQuarter: Integer[1];
+  hiredWeek: Integer[1];
+  hiredDow: Integer[1];
+  hiredDoy: Integer[1];
+  daysSinceHire: Integer[1];
+  hiredMonthStart: Date[1];
+  hiredYearStart: Date[1];
+  compAsString: String[1];
+  compAsFloat: Float[1];
+  compAsDecimal: Decimal[1];
+  compAsInteger: Integer[1];
+  hiredAsDate: Date[1];
+  hashedName: String[1];
+  hashedName2: String[1];
+  isNameNull: Boolean[1];
+  isNameNotNull: Boolean[1];
+  nameGuid: String[1];
+  greatestComp: Float[1];
+  leastComp: Float[1];
+  signComp: Integer[1];
+  powComp: Float[1];
+  expComp: Float[1];
+  logComp: Float[1];
+  sinComp: Float[1];
+  cosComp: Float[1];
+  tanComp: Float[1];
+  splitName: String[1];
+  charName: String[1];
+  asciiName: Integer[1];
+  distanceName: Integer[1];
+  matchesName: Boolean[1];
+  numericName: Boolean[1];
+}
+
+###Relational
+Database test::db
+(
+  Table EMP_TBL
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    NICKNAME VARCHAR(200),
+    BASE FLOAT,
+    BONUS FLOAT,
+    TAX FLOAT,
+    HIRE_DATE DATE,
+    HIRE_STR VARCHAR(30),
+    BAND INTEGER,
+    GRADE_CODE VARCHAR(10)
+  )
+)
+
+###Mapping
+Mapping test::M
+(
+  *test::Employee: Relational
+  {
+    ~mainTable [test::db]EMP_TBL
+
+    // --- string dyna functions ---
+    fullName: concat([test::db]EMP_TBL.FIRSTNAME, ' ', [test::db]EMP_TBL.LASTNAME),
+    upperName: toUpper([test::db]EMP_TBL.FIRSTNAME),
+    lowerName: toLower([test::db]EMP_TBL.FIRSTNAME),
+    initials: substring([test::db]EMP_TBL.FIRSTNAME, 1, 2),
+    trimmedName: trim([test::db]EMP_TBL.FIRSTNAME),
+    ltrimName: ltrim([test::db]EMP_TBL.FIRSTNAME),
+    rtrimName: rtrim([test::db]EMP_TBL.FIRSTNAME),
+    nickName: coalesce([test::db]EMP_TBL.NICKNAME, [test::db]EMP_TBL.FIRSTNAME, 'unknown'),
+    leftName: left([test::db]EMP_TBL.FIRSTNAME, 3),
+    rightName: right([test::db]EMP_TBL.FIRSTNAME, 3),
+    namePos: indexOf([test::db]EMP_TBL.FIRSTNAME, 'a'),
+    nameLen: length([test::db]EMP_TBL.FIRSTNAME),
+    paddedName: lpad([test::db]EMP_TBL.FIRSTNAME, 20, '*'),
+    replacedName: replace([test::db]EMP_TBL.FIRSTNAME, 'J', 'P'),
+    reversedName: reverseString([test::db]EMP_TBL.FIRSTNAME),
+    joinedName: joinStrings([test::db]EMP_TBL.FIRSTNAME, ':'),
+    splitName: splitPart([test::db]EMP_TBL.FIRSTNAME, ',', 1),
+    charName: char(65),
+    asciiName: ascii([test::db]EMP_TBL.FIRSTNAME),
+    distanceName: levenshteinDistance([test::db]EMP_TBL.FIRSTNAME, [test::db]EMP_TBL.LASTNAME),
+    matchesName: matches([test::db]EMP_TBL.FIRSTNAME, 'J.*'),
+    numericName: isNumeric([test::db]EMP_TBL.FIRSTNAME),
+
+    // --- arithmetic dyna functions ---
+    totalComp: plus([test::db]EMP_TBL.BASE, [test::db]EMP_TBL.BONUS),
+    netComp: minus([test::db]EMP_TBL.BASE, [test::db]EMP_TBL.TAX),
+    doubleComp: times([test::db]EMP_TBL.BASE, 2),
+    halfComp: divide([test::db]EMP_TBL.BASE, 2),
+    absComp: abs([test::db]EMP_TBL.TAX),
+    roundedComp: round([test::db]EMP_TBL.BASE),
+    ceilComp: ceiling([test::db]EMP_TBL.BASE),
+    floorComp: floor([test::db]EMP_TBL.BASE),
+    sqrtComp: sqrt([test::db]EMP_TBL.BASE),
+    modComp: mod([test::db]EMP_TBL.BAND, 2),
+    greatestComp: greatest([test::db]EMP_TBL.BASE, [test::db]EMP_TBL.BONUS),
+    leastComp: least([test::db]EMP_TBL.BASE, [test::db]EMP_TBL.BONUS),
+    signComp: sign([test::db]EMP_TBL.BASE),
+    powComp: pow([test::db]EMP_TBL.BASE, 2),
+    expComp: exp([test::db]EMP_TBL.BASE),
+    logComp: log([test::db]EMP_TBL.BASE),
+    sinComp: sin([test::db]EMP_TBL.BASE),
+    cosComp: cos([test::db]EMP_TBL.BASE),
+    tanComp: tan([test::db]EMP_TBL.BASE),
+
+    // --- conditional dyna functions ---
+    bandLabel: if(equal([test::db]EMP_TBL.BAND, 1), 'JUNIOR', 'SENIOR'),
+    gradeLabel: case(equal([test::db]EMP_TBL.BAND, 1), 'ONE', equal([test::db]EMP_TBL.BAND, 2), 'TWO', equal([test::db]EMP_TBL.BAND, 3), 'THREE', sqlNull()),
+    isNameNull: isNull([test::db]EMP_TBL.NICKNAME),
+    isNameNotNull: isNotNull([test::db]EMP_TBL.NICKNAME),
+
+    // --- date dyna functions ---
+    hiredYear: year([test::db]EMP_TBL.HIRE_DATE),
+    hiredMonth: monthNumber([test::db]EMP_TBL.HIRE_DATE),
+    hiredDay: dayOfMonth([test::db]EMP_TBL.HIRE_DATE),
+    hiredQuarter: quarterNumber([test::db]EMP_TBL.HIRE_DATE),
+    hiredWeek: weekOfYear([test::db]EMP_TBL.HIRE_DATE),
+    hiredDow: dayOfWeekNumber([test::db]EMP_TBL.HIRE_DATE),
+    hiredDoy: dayOfYear([test::db]EMP_TBL.HIRE_DATE),
+    daysSinceHire: dateDiff([test::db]EMP_TBL.HIRE_DATE, today(), 'DAYS'),
+    hiredMonthStart: firstDayOfMonth([test::db]EMP_TBL.HIRE_DATE),
+    hiredYearStart: firstDayOfYear([test::db]EMP_TBL.HIRE_DATE),
+
+    // --- cast / parse dyna functions ---
+    compAsString: toString([test::db]EMP_TBL.BASE),
+    compAsFloat: parseFloat([test::db]EMP_TBL.HIRE_STR),
+    compAsDecimal: parseDecimal([test::db]EMP_TBL.HIRE_STR),
+    compAsInteger: parseInteger([test::db]EMP_TBL.HIRE_STR),
+    hiredAsDate: parseDate([test::db]EMP_TBL.HIRE_STR, 'yyyy-MM-dd'),
+
+    // --- misc dyna functions ---
+    hashedName: md5([test::db]EMP_TBL.FIRSTNAME),
+    hashedName2: sha256([test::db]EMP_TBL.FIRSTNAME),
+    nameGuid: generateGuid()
+  }
+)

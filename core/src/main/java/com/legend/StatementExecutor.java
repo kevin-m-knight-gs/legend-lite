@@ -91,6 +91,13 @@ final class StatementExecutor {
      * failures per SETUP UNIT and keeps its emptiness guard). */
     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
      * handed one through the options; the executor never keeps one. */
+    /** The H2 replay ledger records DDL in H2's spelling on EVERY session. */
+    private static final com.legend.sql.dialect.SqlDialect H2_DDL = new com.legend.sql.dialect.H2();
+
+    /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d). */
+    static final com.legend.sql.dialect.SqlDialect ENGINE_TEXT =
+            new com.legend.sql.dialect.EngineStyleH2();
+
     private static void record(ExecEnv env, String sql, boolean query) {
         var r = env.options().recorder();
         if (r != null) {
@@ -240,8 +247,13 @@ final class StatementExecutor {
             // TDG lane S1: the checker's census CARRIER folds to instance
             // literals HERE (orchestration owns testdatagen; the compiler
             // cannot — layering), before resolve sees the statement
-            TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix);
+            TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix, ENGINE_TEXT);
             establishContexts(stmt, env);
+            if (containsEffect(stmt, specs, effectMemo)) {
+                // a writing statement: whatever it changes, the session's
+                // next establishment must re-seed
+                markWriting(env.connection());
+            }
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
                 // let tds = $r.values(->at(0)/->toOne()): over a RELATION-
@@ -1206,7 +1218,7 @@ final class StatementExecutor {
                 ? c.value() : null;
         java.util.List<String> sqls = java.util.List.of();
         if (csv != null && db != null) {
-            sqls = com.legend.exec.Ddl.setUpDataSqlsText(csv, db, lookup);
+            sqls = com.legend.exec.Ddl.setUpDataSqlsText(csv, db, lookup, ENGINE_TEXT);
         }
         com.legend.plan.PlanConn.DsSpec spec = null;
         if (ni.properties().get("datasourceSpecification")
@@ -1220,7 +1232,7 @@ final class StatementExecutor {
                     ? sc2.value() : null;
             java.util.List<String> specSqls = specCsv != null && db != null
                     ? com.legend.exec.Ddl.setUpDataSqlsText(specCsv, db,
-                            lookup)
+                            lookup, ENGINE_TEXT)
                     : java.util.List.of();
             spec = new com.legend.plan.PlanConn.DsSpec(
                     "LocalH2DatasourceSpecification", specCsv, specSqls);
@@ -1978,13 +1990,95 @@ final class StatementExecutor {
         for (com.legend.compiler.spec.typed.TypedFrom fr
                 : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
             setups.addAll(fr.sqlSetups());
-            setups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx()));
+            setups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx(), env.dialect()));
+            // an ELEMENT runtime named by the from(): its declared
+            // connections' test data (the instance form above carries the
+            // same facts on the instance)
+            fr.context().runtime().ifPresent(ref ->
+                    setups.addAll(declaredSetups(ref.fullPath(), env.ctx(), env.dialect())));
+        }
+        // the AMBIENT runtime (the driver's execution context): its
+        // declared connections' test data seeds the session the same way
+        if (env.runtimeFqn() != null) {
+            setups.addAll(declaredSetups(env.runtimeFqn(), env.ctx(), env.dialect()));
+        }
+        if (setups.isEmpty()) {
+            return;
+        }
+        // ONCE PER SESSION: the engine runs a LocalH2 connection's
+        // testDataSetupSqls / testDataSetupCsv when it ESTABLISHES the
+        // connection, not before every query. A session that already
+        // established exactly these setups, and has run no WRITING
+        // statement since, is already in the established state — running
+        // them again would only rebuild the same rows. A write in between
+        // (the per-statement tolerance the harnesses rely on) re-seeds.
+        Established state = ESTABLISHED.computeIfAbsent(env.connection(),
+                c -> new Established());
+        String key = String.join("\n--\n", setups);
+        if (!state.dirty && state.done.contains(key)) {
+            return;
         }
         for (String blob : setups) {
             for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
                 boolean query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
                 record(env, stmt, query);
             }
+        }
+        state.done.add(key);
+        state.dirty = false;
+    }
+
+    /** The test data an ELEMENT runtime's connections declare — every
+     *  {@code LocalH2 { testDataSetupSqls; testDataSetupCSV }} bound under
+     *  it, as the SQL the platform establishes the session with (the CSV
+     *  typed from the bound store's parsed tables, {@link com.legend.exec.CsvSeed}).
+     *  Before 2026-09-16 only the Pure-INSTANCE runtime form seeded; a
+     *  declared connection's data was parsed and carried but never run. */
+    private static java.util.List<String> declaredSetups(String runtimeFqn, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        java.util.Optional<com.legend.model.RuntimeDefinition> rt = ctx.findRuntime(runtimeFqn);
+        if (rt.isEmpty()) {
+            return out;
+        }
+        for (var binding : rt.get().connectionBindings().entrySet()) {
+            String store = binding.getKey();
+            for (String connFqn : binding.getValue()) {
+                ctx.findConnection(connFqn).ifPresent(cd -> {
+                    if (cd.specification()
+                            instanceof com.legend.model.ConnectionSpecification.LocalH2 h2) {
+                        if (h2.testDataSetupSqls() != null) {
+                            out.addAll(h2.testDataSetupSqls());
+                        }
+                        if (h2.testDataSetupCsv() != null) {
+                            String db = ctx.findDatabase(store).isPresent() ? store : null;
+                            out.addAll(com.legend.exec.CsvSeed.sqls(h2.testDataSetupCsv(), db, ctx, dialect));
+                        }
+                    }
+                });
+            }
+        }
+        return out;
+    }
+
+    /** A session's established state: the setup texts run on it, and
+     *  whether a writing statement ran since (then the next establishment
+     *  re-seeds). Keyed by the session itself — the fact lives exactly as
+     *  long as the connection does. */
+    private static final class Established {
+        final java.util.Set<String> done = new java.util.HashSet<>();
+        boolean dirty;
+    }
+
+    private static final java.util.Map<java.sql.Connection, Established> ESTABLISHED =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    /** A statement that WRITES is about to run on {@code connection}: the
+     *  next establishment on it re-seeds. */
+    private static void markWriting(java.sql.Connection connection) {
+        Established state = ESTABLISHED.get(connection);
+        if (state != null) {
+            state.dirty = true;
         }
     }
 
@@ -2668,22 +2762,17 @@ final class StatementExecutor {
         // advisory mirror still needs its H2-flavored stream: the SAME
         // model spells it a second time (recorded only after the session
         // executed — the recording mirrors executed reality).
-        boolean rawH2 = env.dialect().rawH2IsNative();
-        String drop = Ddl.dropTable(schema, table);
-        Executor.executeRaw(connection, drop);
+        Executor.executeRaw(connection, env.dialect().render(Ddl.dropTable(schema, table)));
         // engine parity (batch 71 experiment): the native's DDL carries the
         // declared key and nullability, exactly like the engine's
         // dropAndCreateTableInDb (applyConstraints defaults true)
-        Executor.executeRaw(connection,
-                Ddl.createTable(def, schema,
-                        rawH2 ? Ddl.Flavor.H2_EXEC : Ddl.Flavor.DUCK_EXEC, true));
+        Executor.executeRaw(connection, env.dialect().render(Ddl.createTable(def, schema)));
         // the replay ledger carries the H2 spelling of the DDL on EVERY
         // session (Phase 0.6): the H2 lane's fresh replays inserted into
         // tables nobody created because this recording was gated on the
         // DuckDB session (17 `ADDRESSTABLE not found` declines)
-        record(env, drop, false);
-        record(env, 
-                Ddl.createTable(def, schema, Ddl.Flavor.H2_EXEC, true), false);
+        record(env, H2_DDL.render(Ddl.dropTable(schema, table)), false);
+        record(env, H2_DDL.render(Ddl.createTable(def, schema)), false);
         // (the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY constraints;
         // a record-only ALTER ledger carried them for a metadata replay that
         // no longer exists — deleted with the meta ledger, batch 137)
@@ -2728,7 +2817,7 @@ final class StatementExecutor {
                         ds.args().get(2)).value();
         if (com.legend.compiler.element.type.PlatformTypes
                 .DROP_TABLE_STATEMENT.equals(fqn)) {
-            return Ddl.dropTable(sch, tbl);
+            return ENGINE_TEXT.render(Ddl.dropTable(sch, tbl));
         }
         String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
         com.legend.model.DatabaseDefinition.TableDefinition def =
@@ -2739,7 +2828,7 @@ final class StatementExecutor {
         // the ENGINE_TEXT flavor of the ONE generator (NOT NULL /
         // PRIMARY KEY constraints) — the EXECUTION flavors stay
         // constraint-free for DuckDB re-seeds
-        return Ddl.createTable(def, sch, Ddl.Flavor.ENGINE_TEXT);
+        return ENGINE_TEXT.render(Ddl.createTable(def, sch));
     }
 
     /**

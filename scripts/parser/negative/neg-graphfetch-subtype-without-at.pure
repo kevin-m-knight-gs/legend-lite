@@ -1,0 +1,22 @@
+// REJECTS: Valid alternatives: ['->subType(@', ',', '(']
+//
+// The ENTIRE GraphFetchTree lexer is one token: `SUBTYPE_START: '->subType(@'`. The arrow,
+// the name, the paren and the '@' are a single indivisible lexeme. Dropping the '@' does
+// not produce a subType call with a missing sigil -- it produces no subType token at all,
+// which is why the parser reports the '->' and offers the composite token back verbatim.
+//
+// A rewrite that lexes '->', an identifier, '(' and '@' as four tokens and reassembles them
+// in the parser accepts `->subType(Circle)`, accepts whitespace inside the operator, and
+// accepts `-> subType(@Circle)`. All three are things legend-engine cannot read, and none
+// of them looks wrong.
+###Pure
+function fixture::neg::noAt(): meta::pure::metamodel::type::Any[*]
+{
+   #{
+      fixture::neg::Catalog {
+         shapes->subType(fixture::neg::Circle) {
+            radius
+         }
+      }
+   }#
+}

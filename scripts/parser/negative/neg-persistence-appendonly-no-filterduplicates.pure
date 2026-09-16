@@ -1,0 +1,30 @@
+// REJECTS: Field 'filterDuplicates' is required
+//
+// AppendOnly requires auditing AND filterDuplicates. `filterDuplicates` is a boolean with no
+// default in the parser -- the walker calls validateAndExtractRequiredField on it rather
+// than defaulting to false -- so omitting it is a rejection, not an implicit `false`.
+//
+// Without the block this is a legal NontemporalSnapshot body.
+###Persistence
+Persistence test::persistence::neg::AppendOnlyNoFilter
+{
+  doc: 'append only without filterDuplicates';
+  trigger: Manual;
+  service: test::persistence::Service;
+  persister: Batch
+  {
+    sink: Relational
+    {
+      database: test::persistence::Database;
+    }
+    ingestMode: AppendOnly
+    {
+      auditing: None;
+    }
+    targetShape: Flat
+    {
+      modelClass: test::persistence::ModelClass;
+      targetName: 'TestDataset1';
+    }
+  }
+}

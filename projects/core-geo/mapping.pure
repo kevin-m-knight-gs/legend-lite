@@ -1,0 +1,251 @@
+###Mapping
+
+// ============================================================
+// core_geo::Mapping -- eleven class sets and ten association sets
+// ============================================================
+// Set ids are explicit and cg-prefixed. They are not decoration: a set id is a GLOBAL
+// namespace across the whole compiled graph, so an unprefixed `country` here would fail
+// forty other projects with a message naming the id and not this file.
+//
+// Every association end is mapped with its SOURCE and TARGET set ids -- `end[source, target]`
+// -- rather than left implicit. With one set per class the implicit form would resolve, but
+// the moment any downstream project maps CgCountry to a second set the implicit form becomes
+// ambiguous, and stating the ids costs nothing today.
+Mapping core_geo::Mapping
+(
+   // ---- level 3 ----------------------------------------------------------------------
+   *core_geo::CgMacroRegion[cgMacroRegion]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_MACRO_REGION
+      macroRegionId: [core_geo::Store]CG_MACRO_REGION.MACRO_REGION_ID,
+      code: [core_geo::Store]CG_MACRO_REGION.CODE,
+      name: [core_geo::Store]CG_MACRO_REGION.NAME,
+      description: [core_geo::Store]CG_MACRO_REGION.DESCRIPTION,
+      headquartersCity: [core_geo::Store]CG_MACRO_REGION.HEADQUARTERS_CITY,
+      isActive: [core_geo::Store]CG_MACRO_REGION.IS_ACTIVE
+   }
+
+   // ---- level 2 ----------------------------------------------------------------------
+   *core_geo::CgSubRegion[cgSubRegion]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_SUB_REGION
+      subRegionId: [core_geo::Store]CG_SUB_REGION.SUB_REGION_ID,
+      m49Code: [core_geo::Store]CG_SUB_REGION.M49_CODE,
+      name: [core_geo::Store]CG_SUB_REGION.NAME,
+      continent: [core_geo::Store]CG_SUB_REGION.CONTINENT,
+      isActive: [core_geo::Store]CG_SUB_REGION.IS_ACTIVE
+   }
+
+   // ---- level 1, and the join chain ---------------------------------------------------
+   *core_geo::CgCountry[cgCountry]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_COUNTRY
+      countryCode: [core_geo::Store]CG_COUNTRY.COUNTRY_CODE,
+      alpha3Code: [core_geo::Store]CG_COUNTRY.ALPHA3_CODE,
+      numericCode: [core_geo::Store]CG_COUNTRY.NUMERIC_CODE,
+      name: [core_geo::Store]CG_COUNTRY.NAME,
+      officialName: [core_geo::Store]CG_COUNTRY.OFFICIAL_NAME,
+      isSovereign: [core_geo::Store]CG_COUNTRY.IS_SOVEREIGN,
+      currencyCode: [core_geo::Store]CG_COUNTRY.CURRENCY_CODE,
+      callingCode: [core_geo::Store]CG_COUNTRY.CALLING_CODE,
+      topLevelDomain: [core_geo::Store]CG_COUNTRY.TOP_LEVEL_DOMAIN,
+
+      // THE JOIN CHAIN. Two hops, CG_COUNTRY -> CG_SUB_REGION -> CG_MACRO_REGION, reaching
+      // a column on the third table. The store qualifier is required on the first hop and
+      // optional afterwards; the pipe before the column is not optional at all.
+      macroRegionCode: [core_geo::Store]@Cg_CountrySubRegion > @Cg_SubRegionMacroRegion | [core_geo::Store]CG_MACRO_REGION.CODE,
+      macroRegionName: [core_geo::Store]@Cg_CountrySubRegion > @Cg_SubRegionMacroRegion | [core_geo::Store]CG_MACRO_REGION.NAME
+   }
+
+   *core_geo::CgSubdivision[cgSubdivision]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_SUBDIVISION
+      subdivisionCode: [core_geo::Store]CG_SUBDIVISION.SUBDIVISION_CODE,
+      name: [core_geo::Store]CG_SUBDIVISION.NAME,
+      category: [core_geo::Store]CG_SUBDIVISION.CATEGORY,
+      localCode: [core_geo::Store]CG_SUBDIVISION.LOCAL_CODE,
+      isActive: [core_geo::Store]CG_SUBDIVISION.IS_ACTIVE
+   }
+
+   *core_geo::CgCity[cgCity]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_CITY
+      cityId: [core_geo::Store]CG_CITY.CITY_ID,
+      name: [core_geo::Store]CG_CITY.NAME,
+      isCapital: [core_geo::Store]CG_CITY.IS_CAPITAL,
+      isFinancialCentre: [core_geo::Store]CG_CITY.IS_FINANCIAL_CENTRE,
+      population: [core_geo::Store]CG_CITY.POPULATION,
+      latitude: [core_geo::Store]CG_CITY.LATITUDE,
+      longitude: [core_geo::Store]CG_CITY.LONGITUDE
+   }
+
+   *core_geo::CgTimeZone[cgTimeZone]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_TIME_ZONE
+      timeZoneId: [core_geo::Store]CG_TIME_ZONE.TIME_ZONE_ID,
+      ianaName: [core_geo::Store]CG_TIME_ZONE.IANA_NAME,
+      utcOffsetMinutes: [core_geo::Store]CG_TIME_ZONE.UTC_OFFSET_MINUTES,
+      observesDaylightSaving: [core_geo::Store]CG_TIME_ZONE.OBSERVES_DAYLIGHT_SAVING,
+      abbreviation: [core_geo::Store]CG_TIME_ZONE.ABBREVIATION
+   }
+
+   // ---- the bloc branch ---------------------------------------------------------------
+   *core_geo::CgBloc[cgBloc]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_BLOC
+      blocId: [core_geo::Store]CG_BLOC.BLOC_ID,
+      code: [core_geo::Store]CG_BLOC.CODE,
+      name: [core_geo::Store]CG_BLOC.NAME,
+      blocType: [core_geo::Store]CG_BLOC.BLOC_TYPE,
+      foundedYear: [core_geo::Store]CG_BLOC.FOUNDED_YEAR,
+      seatCity: [core_geo::Store]CG_BLOC.SEAT_CITY,
+      memberCount: [core_geo::Store]CG_BLOC.MEMBER_COUNT,
+      hasCommonCurrency: [core_geo::Store]CG_BLOC.HAS_COMMON_CURRENCY
+   }
+
+   *core_geo::CgBlocMembership[cgBlocMembership]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_BLOC_MEMBERSHIP
+      membershipId: [core_geo::Store]CG_BLOC_MEMBERSHIP.MEMBERSHIP_ID,
+      accessionDate: [core_geo::Store]CG_BLOC_MEMBERSHIP.ACCESSION_DATE,
+      exitDate: [core_geo::Store]CG_BLOC_MEMBERSHIP.EXIT_DATE,
+      status: [core_geo::Store]CG_BLOC_MEMBERSHIP.STATUS,
+      isFullMember: [core_geo::Store]CG_BLOC_MEMBERSHIP.IS_FULL_MEMBER,
+      hasOptOut: [core_geo::Store]CG_BLOC_MEMBERSHIP.HAS_OPT_OUT,
+      notes: [core_geo::Store]CG_BLOC_MEMBERSHIP.NOTES
+   }
+
+   *core_geo::CgTradeAgreement[cgTradeAgreement]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_TRADE_AGREEMENT
+      agreementId: [core_geo::Store]CG_TRADE_AGREEMENT.AGREEMENT_ID,
+      name: [core_geo::Store]CG_TRADE_AGREEMENT.NAME,
+      shortName: [core_geo::Store]CG_TRADE_AGREEMENT.SHORT_NAME,
+      signedDate: [core_geo::Store]CG_TRADE_AGREEMENT.SIGNED_DATE,
+      inForceDate: [core_geo::Store]CG_TRADE_AGREEMENT.IN_FORCE_DATE,
+      agreementType: [core_geo::Store]CG_TRADE_AGREEMENT.AGREEMENT_TYPE,
+      isInForce: [core_geo::Store]CG_TRADE_AGREEMENT.IS_IN_FORCE
+   }
+
+   *core_geo::CgCountryProfile[cgCountryProfile]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_COUNTRY_PROFILE
+      countryCode: [core_geo::Store]CG_COUNTRY_PROFILE.COUNTRY_CODE,
+      population: [core_geo::Store]CG_COUNTRY_PROFILE.POPULATION,
+      areaSqKm: [core_geo::Store]CG_COUNTRY_PROFILE.AREA_SQ_KM,
+      gdpUsd: [core_geo::Store]CG_COUNTRY_PROFILE.GDP_USD,
+      gdpPerCapitaUsd: [core_geo::Store]CG_COUNTRY_PROFILE.GDP_PER_CAPITA_USD,
+      incomeGroup: [core_geo::Store]CG_COUNTRY_PROFILE.INCOME_GROUP,
+      isOecdMember: [core_geo::Store]CG_COUNTRY_PROFILE.IS_OECD_MEMBER,
+      referenceYear: [core_geo::Store]CG_COUNTRY_PROFILE.REFERENCE_YEAR
+   }
+
+   *core_geo::CgOfficialLanguage[cgOfficialLanguage]: Relational
+   {
+      ~mainTable [core_geo::Store]CG_OFFICIAL_LANGUAGE
+      languageId: [core_geo::Store]CG_OFFICIAL_LANGUAGE.LANGUAGE_ID,
+      iso639Code: [core_geo::Store]CG_OFFICIAL_LANGUAGE.ISO639_CODE,
+      name: [core_geo::Store]CG_OFFICIAL_LANGUAGE.NAME,
+      isPrimary: [core_geo::Store]CG_OFFICIAL_LANGUAGE.IS_PRIMARY
+   }
+
+   // ---- associations -------------------------------------------------------------------
+   // The AssociationMapping(...) wrapper is mandatory. Without it the grammar reads the
+   // block as a CLASS mapping and fails with "Can't find class core_geo::CgCountryInSubRegion",
+   // which names the wrong problem entirely.
+   //
+   // Both ends of an association use the SAME join; the engine reverses it for the end that
+   // walks against the declared direction.
+
+   // Hop 2 of the chain, as navigable objects.
+   core_geo::CgCountryInSubRegion: Relational
+   {
+      AssociationMapping
+      (
+         subRegion[cgCountry, cgSubRegion]: [core_geo::Store]@Cg_CountrySubRegion,
+         countries[cgSubRegion, cgCountry]: [core_geo::Store]@Cg_CountrySubRegion
+      )
+   }
+
+   // Hop 3 of the chain, as navigable objects.
+   core_geo::CgSubRegionInMacroRegion: Relational
+   {
+      AssociationMapping
+      (
+         macroRegion[cgSubRegion, cgMacroRegion]: [core_geo::Store]@Cg_SubRegionMacroRegion,
+         subRegions[cgMacroRegion, cgSubRegion]: [core_geo::Store]@Cg_SubRegionMacroRegion
+      )
+   }
+
+   core_geo::CgCountryBlocMembership: Relational
+   {
+      AssociationMapping
+      (
+         country[cgBlocMembership, cgCountry]: [core_geo::Store]@Cg_CountryMembership,
+         blocMemberships[cgCountry, cgBlocMembership]: [core_geo::Store]@Cg_CountryMembership
+      )
+   }
+
+   core_geo::CgBlocMembershipBloc: Relational
+   {
+      AssociationMapping
+      (
+         bloc[cgBlocMembership, cgBloc]: [core_geo::Store]@Cg_MembershipBloc,
+         memberships[cgBloc, cgBlocMembership]: [core_geo::Store]@Cg_MembershipBloc
+      )
+   }
+
+   core_geo::CgCountrySubdivision: Relational
+   {
+      AssociationMapping
+      (
+         country[cgSubdivision, cgCountry]: [core_geo::Store]@Cg_CountrySubdivision,
+         subdivisions[cgCountry, cgSubdivision]: [core_geo::Store]@Cg_CountrySubdivision
+      )
+   }
+
+   core_geo::CgCountryCity: Relational
+   {
+      AssociationMapping
+      (
+         country[cgCity, cgCountry]: [core_geo::Store]@Cg_CountryCity,
+         cities[cgCountry, cgCity]: [core_geo::Store]@Cg_CountryCity
+      )
+   }
+
+   core_geo::CgCityTimeZone: Relational
+   {
+      AssociationMapping
+      (
+         timeZone[cgCity, cgTimeZone]: [core_geo::Store]@Cg_CityTimeZone,
+         citiesInZone[cgTimeZone, cgCity]: [core_geo::Store]@Cg_CityTimeZone
+      )
+   }
+
+   core_geo::CgCountryProfileLink: Relational
+   {
+      AssociationMapping
+      (
+         country[cgCountryProfile, cgCountry]: [core_geo::Store]@Cg_CountryProfile,
+         profile[cgCountry, cgCountryProfile]: [core_geo::Store]@Cg_CountryProfile
+      )
+   }
+
+   core_geo::CgBlocTradeAgreement: Relational
+   {
+      AssociationMapping
+      (
+         bloc[cgTradeAgreement, cgBloc]: [core_geo::Store]@Cg_BlocAgreement,
+         tradeAgreements[cgBloc, cgTradeAgreement]: [core_geo::Store]@Cg_BlocAgreement
+      )
+   }
+
+   core_geo::CgCountryLanguage: Relational
+   {
+      AssociationMapping
+      (
+         country[cgOfficialLanguage, cgCountry]: [core_geo::Store]@Cg_CountryLanguage,
+         officialLanguages[cgCountry, cgOfficialLanguage]: [core_geo::Store]@Cg_CountryLanguage
+      )
+   }
+)

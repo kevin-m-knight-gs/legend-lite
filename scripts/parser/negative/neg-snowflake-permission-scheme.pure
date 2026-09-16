@@ -1,0 +1,23 @@
+// REJECTS: Unknown permission scheme 'PUBLIC'
+//
+// `permissionScheme : PUBLIC;` on a SnowflakeApp. The grammar takes a bare IDENTIFIER there,
+// so any word parses; SnowflakeTreeWalker:113 then resolves it against the
+// SnowflakePermissionScheme enum -- {DEFAULT, SEQUESTERED} -- and throws for anything else.
+//
+// The reason this is the field to pin, and not the field next to it: `accountType` on a
+// Snowflake CONNECTION is also an identifier, also enum-shaped, and is NOT validated. Upstream's
+// own roundtrip test feeds it the literal value `BadOption` and expects it to parse. So the
+// two identifier-valued enum fields of the same vendor have opposite parse-time behaviour, and
+// a rewrite that picks a single policy -- validate all, or validate none -- is wrong on one of
+// them either way. Verified: `accountType: BadOption;` is ACCEPTED by this same runner.
+//
+// Note this is the SnowflakeApp half of the two grammar files that share the stem
+// `SnowflakeLexerGrammar`; see ../fixtures/t2-snowflake.pure, which covers both halves.
+###Snowflake
+SnowflakeApp fixture::neg::BadPermissionScheme
+{
+   applicationName : 'MyApp';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'appOwner'};
+   permissionScheme : PUBLIC;
+}

@@ -1,0 +1,239 @@
+###Relational
+
+// ============================================================
+// client_core::Store -- twelve tables, and the joins that reach out of them
+// ============================================================
+// Two `include`s and nothing else outside CLI_. Including a store is what makes another
+// project's tables addressable in a join declared here: `Cli_ClientCountry` names CG_COUNTRY,
+// which is core-geo's, and only resolves because of the include below.
+//
+// Every join is written FROM the many side TO the one side. That is not tidiness: a property
+// mapping's join chain stays single-valued only if every hop is many-to-one, and three of
+// the chains in mapping.pure are three and four hops long. The one join here that needed
+// care is `Cli_ClientBlocMembership` -- a country belongs to several blocs, so a one-column
+// join to CG_BLOC_MEMBERSHIP would be one-to-many and the chain through it would silently
+// multiply rows. Matching the client's REGULATORY_BLOC_ID as well picks out exactly one
+// membership row.
+//
+// Declared and unseeded, per the contract. No ###Data element, no Runtime.
+Database client_core::Store
+(
+   include core_party::Store
+   include core_geo::Store
+
+   // ---- the relationship ---------------------------------------------------------------
+   // ENTITY_ID reaches core-party. DOMICILE_COUNTRY_CODE is the ONLY geographic column, and
+   // it is alpha-2 so it lines up with CG_COUNTRY.COUNTRY_CODE without translation. There is
+   // deliberately no SUB_REGION_ID and no MACRO_REGION_CODE here: those are joins, because a
+   // copied region column is the one that goes stale.
+   Table CLI_CLIENT
+   (
+      CLIENT_ID VARCHAR(32) PRIMARY KEY,
+      CLIENT_NAME VARCHAR(200) NOT NULL,
+      CLIENT_TYPE VARCHAR(32) NOT NULL,
+      BOOKING_CENTRE VARCHAR(32),
+      // FK into core-party. Nullable: a prospect precedes its confirmed legal entity.
+      ENTITY_ID VARCHAR(40),
+      // FK into core-geo, ISO 3166-1 alpha-2. The head of the chain.
+      DOMICILE_COUNTRY_CODE VARCHAR(2),
+      // FK into core-geo. The second column of the two-column membership join, and what
+      // keeps the bloc chain many-to-one.
+      REGULATORY_BLOC_ID VARCHAR(16),
+      RM_ID VARCHAR(24),
+      STATUS VARCHAR(16) NOT NULL,
+      RELATIONSHIP_START_DATE DATE,
+      RELATIONSHIP_END_DATE DATE,
+      HAS_DISCRETIONARY_MANDATE BIT
+   )
+
+   // ---- classification -------------------------------------------------------------------
+   Table CLI_CLIENT_CATEGORY
+   (
+      CATEGORY_CODE VARCHAR(32) PRIMARY KEY,
+      CATEGORY_NAME VARCHAR(120) NOT NULL,
+      PROTECTION_LEVEL INTEGER NOT NULL,
+      REQUIRES_APPROPRIATENESS_TEST BIT NOT NULL,
+      REQUIRES_BEST_EXECUTION_REPORT BIT NOT NULL,
+      DESCRIPTION VARCHAR(400)
+   )
+
+   // Dated, so "what category were they on the trade date" is answerable. A surrogate key
+   // rather than (CLIENT_ID, CATEGORY_CODE): a client can be opted up, opted back down and
+   // opted up again, and the pair would collide on the third row.
+   Table CLI_CLASSIFICATION
+   (
+      CLASSIFICATION_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      CATEGORY_CODE VARCHAR(32),
+      EFFECTIVE_FROM DATE NOT NULL,
+      EFFECTIVE_TO DATE,
+      BASIS VARCHAR(16) NOT NULL,
+      ASSESSMENT_REFERENCE VARCHAR(64),
+      ASSESSED_BY VARCHAR(80),
+      IS_CLIENT_NOTIFIED BIT
+   )
+
+   // ---- domicile ---------------------------------------------------------------------------
+   Table CLI_DOMICILE
+   (
+      DOMICILE_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      DOMICILE_TYPE VARCHAR(24) NOT NULL,
+      // Alpha-2, joining to CG_COUNTRY.
+      COUNTRY_CODE VARCHAR(2) NOT NULL,
+      EFFECTIVE_FROM DATE NOT NULL,
+      EFFECTIVE_TO DATE,
+      EVIDENCE_TYPE VARCHAR(40),
+      IS_PRIMARY BIT NOT NULL
+   )
+
+   // ---- onboarding ---------------------------------------------------------------------------
+   Table CLI_ONBOARDING_STATE
+   (
+      STATE_CODE VARCHAR(24) PRIMARY KEY,
+      STATE_NAME VARCHAR(80) NOT NULL,
+      SEQUENCE_NO INTEGER NOT NULL,
+      IS_TERMINAL BIT NOT NULL,
+      ALLOWS_TRADING BIT NOT NULL
+   )
+
+   Table CLI_ONBOARDING_CASE
+   (
+      CASE_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      STATE_CODE VARCHAR(24),
+      CASE_TYPE VARCHAR(32) NOT NULL,
+      OPENED_DATE DATE NOT NULL,
+      CLOSED_DATE DATE,
+      KYC_RISK_RATING VARCHAR(16),
+      ASSIGNED_TO VARCHAR(80),
+      OUTCOME_REASON VARCHAR(400),
+      NEXT_REVIEW_DATE DATE
+   )
+
+   // ---- coverage -----------------------------------------------------------------------------
+   Table CLI_RELATIONSHIP_MANAGER
+   (
+      RM_ID VARCHAR(24) PRIMARY KEY,
+      FULL_NAME VARCHAR(160) NOT NULL,
+      EMAIL VARCHAR(160),
+      TEAM_ID VARCHAR(24),
+      // Alpha-2, so coverage reports against the same geography as the clients.
+      DESK_COUNTRY_CODE VARCHAR(2),
+      EMPLOYEE_NUMBER VARCHAR(24),
+      LEFT_ON DATE
+   )
+
+   Table CLI_COVERAGE_TEAM
+   (
+      TEAM_ID VARCHAR(24) PRIMARY KEY,
+      TEAM_NAME VARCHAR(120) NOT NULL,
+      SEGMENT VARCHAR(32) NOT NULL,
+      COST_CENTRE VARCHAR(24),
+      DISBANDED_ON DATE
+   )
+
+   // ---- mandates -------------------------------------------------------------------------------
+   // DOUBLE and not REAL for the money and the fee: REAL parses and cannot be read back
+   // (UPSTREAM_FINDINGS F53).
+   Table CLI_MANDATE
+   (
+      MANDATE_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      MANDATE_NAME VARCHAR(200) NOT NULL,
+      MANDATE_TYPE VARCHAR(24) NOT NULL,
+      BASE_CURRENCY_CODE VARCHAR(3) NOT NULL,
+      BENCHMARK_CODE VARCHAR(32),
+      TARGET_AUM DOUBLE,
+      MANAGEMENT_FEE_BPS DOUBLE,
+      START_DATE DATE NOT NULL,
+      END_DATE DATE
+   )
+
+   Table CLI_MANDATE_RESTRICTION
+   (
+      RESTRICTION_ID VARCHAR(40) PRIMARY KEY,
+      MANDATE_ID VARCHAR(40),
+      RESTRICTION_TYPE VARCHAR(32) NOT NULL,
+      SCOPE_VALUE VARCHAR(64),
+      LIMIT_PERCENTAGE DOUBLE,
+      IS_HARD_LIMIT BIT NOT NULL,
+      EFFECTIVE_FROM DATE,
+      NOTES VARCHAR(400)
+   )
+
+   // ---- suitability ------------------------------------------------------------------------------
+   // Keyed by the client alone: this is the CURRENT profile, and ASSESSED_DATE says when it
+   // was struck. A history of assessments would want a surrogate key and is a different
+   // table.
+   Table CLI_RISK_PROFILE
+   (
+      CLIENT_ID VARCHAR(32) PRIMARY KEY,
+      RISK_TOLERANCE VARCHAR(24) NOT NULL,
+      KNOWLEDGE_LEVEL VARCHAR(16),
+      INVESTMENT_HORIZON_YEARS INTEGER,
+      LOSS_CAPACITY VARCHAR(16),
+      ASSESSED_DATE DATE,
+      REVIEW_DUE_DATE DATE
+   )
+
+   Table CLI_CLIENT_CONTACT
+   (
+      CONTACT_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      FULL_NAME VARCHAR(160) NOT NULL,
+      CONTACT_ROLE VARCHAR(32) NOT NULL,
+      EMAIL VARCHAR(160),
+      PHONE VARCHAR(40),
+      IS_AUTHORISED_SIGNATORY BIT NOT NULL,
+      IS_PRIMARY_CONTACT BIT NOT NULL
+   )
+
+   // ---- joins within this store -------------------------------------------------------------
+   Join Cli_ClientDomicile(CLI_DOMICILE.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Cli_ClientClassification(CLI_CLASSIFICATION.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Cli_CategoryClassification(CLI_CLASSIFICATION.CATEGORY_CODE = CLI_CLIENT_CATEGORY.CATEGORY_CODE)
+   Join Cli_ClientOnboardingCase(CLI_ONBOARDING_CASE.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Cli_CaseState(CLI_ONBOARDING_CASE.STATE_CODE = CLI_ONBOARDING_STATE.STATE_CODE)
+   Join Cli_ClientManager(CLI_CLIENT.RM_ID = CLI_RELATIONSHIP_MANAGER.RM_ID)
+   Join Cli_ManagerTeam(CLI_RELATIONSHIP_MANAGER.TEAM_ID = CLI_COVERAGE_TEAM.TEAM_ID)
+   Join Cli_ClientMandate(CLI_MANDATE.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Cli_MandateRestriction(CLI_MANDATE_RESTRICTION.MANDATE_ID = CLI_MANDATE.MANDATE_ID)
+   Join Cli_ClientRiskProfile(CLI_RISK_PROFILE.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Cli_ClientContact(CLI_CLIENT_CONTACT.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+
+   // ---- joins out of this store, into core-party ----------------------------------------------
+   // One hop to the legal person, from which core-party's own joins can be chained:
+   // @Cli_ClientEntity > @Cp_Entity_Jurisdiction reaches the legal system it is incorporated
+   // under without this project declaring anything about jurisdictions.
+   Join Cli_ClientEntity(CLI_CLIENT.ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+
+   // ---- joins out of this store, into core-geo -------------------------------------------------
+   // The head of the chain. From here core-geo's Cg_CountrySubRegion and
+   // Cg_SubRegionMacroRegion carry the next two hops, both of them many-to-one, so
+   // @Cli_ClientCountry > @Cg_CountrySubRegion > @Cg_SubRegionMacroRegion is single-valued.
+   Join Cli_ClientCountry(CLI_CLIENT.DOMICILE_COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+
+   // The same hop from a dated domicile row.
+   Join Cli_DomicileCountry(CLI_DOMICILE.COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+
+   // TWO columns, and both are needed. CG_BLOC_MEMBERSHIP is keyed by (country, bloc) in
+   // substance, so matching COUNTRY_CODE alone returns every bloc the client's country has
+   // ever acceded to -- one-to-many, and a chained property mapping over it would multiply
+   // rows without saying so. Adding the client's own REGULATORY_BLOC_ID makes the hop
+   // many-to-one, which is what lets the bloc chain be a single-valued property.
+   Join Cli_ClientBlocMembership(CLI_CLIENT.DOMICILE_COUNTRY_CODE = CG_BLOC_MEMBERSHIP.COUNTRY_CODE and CLI_CLIENT.REGULATORY_BLOC_ID = CG_BLOC_MEMBERSHIP.BLOC_ID)
+
+   // The relationship manager's desk country, so a coverage report can be grouped by the
+   // same geography as the client book.
+   Join Cli_ManagerCountry(CLI_RELATIONSHIP_MANAGER.DESK_COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+
+   // ---- filters ---------------------------------------------------------------------------------
+   // Cli-prefixed because a filter name is a GLOBAL namespace in Legend, and none of them
+   // takes a boolean literal -- `IS_ACTIVE = true` does not parse. All three are declared and
+   // left unapplied, for a downstream mapping to reference by name.
+   Filter CliLiveClients(CLI_CLIENT.RELATIONSHIP_END_DATE is null)
+   Filter CliOpenCases(CLI_ONBOARDING_CASE.CLOSED_DATE is null)
+   Filter CliCurrentDomicile(CLI_DOMICILE.EFFECTIVE_TO is null)
+   Filter CliCurrentClassification(CLI_CLASSIFICATION.EFFECTIVE_TO is null)
+)

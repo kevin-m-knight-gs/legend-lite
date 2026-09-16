@@ -1,0 +1,21 @@
+// REJECTS: Unexpected token '~mainTable'
+//
+// `~mainTable` is a relational CLASS MAPPING modifier. A View has no such clause: its
+// source tables come from the columns it projects, and its only modifiers are ~filter,
+// ~groupBy and ~distinct.
+//
+// This is the same trap as ordering-view-modifiers.pure seen from the other side. The two
+// constructs share three modifier spellings out of five, so a rewrite that factors "parse
+// the ~-clauses" into one routine gets a View that accepts ~mainTable and ~primaryKey and a
+// class mapping that accepts them in the View's order. Neither engine would agree with it.
+###Relational
+Database fixture::neg::ViewMainTable
+(
+   Table T (ID VARCHAR(32) PRIMARY KEY, VAL VARCHAR(32))
+   View V
+   (
+      ~mainTable [fixture::neg::ViewMainTable]T
+      id: T.ID PRIMARY KEY,
+      val: T.VAL
+   )
+)

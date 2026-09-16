@@ -1,0 +1,25 @@
+// REJECTS: Unexpected token 'table'. Valid alternatives: ['mappers']
+//
+// A `mapper` post-processor body holds exactly one `mappers:` list, and the table/schema
+// entries live inside it. `mappers` is not optional and not repeatable -- the rule is a
+// bare `identifier BRACE_OPEN mappers BRACE_CLOSE`, with no star and no question mark
+// anywhere.
+//
+// One required child in a braced body is unusual enough in this grammar that a rewrite is
+// likely to model it like every other block -- a loop over optional named fields -- and
+// then accept both an empty `mapper { }` and entries hoisted out of the list, as here.
+###Connection
+RelationalDatabaseConnection fixture::neg::TableWithoutMappers
+{
+   store: fixture::neg::Db;
+   type: H2;
+   specification: LocalH2 {  };
+   auth: DefaultH2;
+   postProcessors:
+   [
+      mapper
+      {
+         table {from: 'a'; to: 'A';}
+      }
+   ];
+}

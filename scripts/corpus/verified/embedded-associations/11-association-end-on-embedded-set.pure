@@ -1,0 +1,87 @@
+// Bonus: association end whose SOURCE is an EMBEDDED set, reached by a join chain.
+// This is the hardest real combination upstream ships: an AssociationMapping end that
+// names the auto-generated id of an embedded property mapping.
+// Source: legend-engine core_relational .../tests/mapping/association/testAssociationEmbedded.pure
+//         AddressLocation: Relational { AssociationMapping (
+//             location[f1_address,loc]: [myDB]@Firm_Address_location > @Address_location ) }
+// Embedded set id rule (from the same file):
+//   * parent class mapping HAS an explicit id  -> `<parentSetId>_<propertyName>`   e.g. f1_address
+//   * parent class mapping has NO explicit id   -> `<class path with '::'->'_'>_<propertyName>`
+//                                                 e.g. meta_relational_tests_model_simple_Person_firm
+// Only ONE end of the association is mapped here; that is legal.
+###Pure
+Class demo::Location
+{
+  place: String[1];
+}
+
+Class demo::Address
+{
+  name: String[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+  address: demo::Address[1];
+}
+
+Association demo::AddressLocation
+{
+  location: demo::Location[0..1];
+  address: demo::Address[0..1];
+}
+
+###Relational
+Database demo::myDB
+(
+  Table PERSON_FIRM_DENORM
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRM_LEGALNAME VARCHAR(200),
+    FIRM_ADDRESS_NAME VARCHAR(200)
+  )
+  Table ADDRESSES
+  (
+    ID INTEGER PRIMARY KEY,
+    NAME VARCHAR(200),
+    LOCATIONID INTEGER
+  )
+  Table LOCATIONS
+  (
+    ID INTEGER PRIMARY KEY,
+    PLACE VARCHAR(200)
+  )
+
+  Join Firm_Address_location(PERSON_FIRM_DENORM.FIRM_ADDRESS_NAME = ADDRESSES.NAME)
+  Join Address_location(ADDRESSES.LOCATIONID = LOCATIONS.ID)
+)
+
+###Mapping
+Mapping demo::AssociationOnEmbeddedSet
+(
+  demo::Firm[f1]: Relational
+  {
+    scope([demo::myDB]PERSON_FIRM_DENORM)
+    (
+      legalName: FIRM_LEGALNAME,
+      address
+      (
+        name: FIRM_ADDRESS_NAME
+      )
+    )
+  }
+
+  demo::Location[loc]: Relational
+  {
+    place: [demo::myDB]LOCATIONS.PLACE
+  }
+
+  demo::AddressLocation: Relational
+  {
+    AssociationMapping
+    (
+      location[f1_address, loc]: [demo::myDB]@Firm_Address_location > @Address_location
+    )
+  }
+)

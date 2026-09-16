@@ -1,0 +1,129 @@
+###Relational
+// The account master's tables. Two things to notice.
+//
+// Every table below CA_INSTITUTION declares MORE THAN ONE PRIMARY KEY column, because
+// the grain is genuinely compound: an account number is unique only within its
+// institution, and a child of an account needs both of those columns plus its own
+// discriminator to be unique. Every join out of CA_ACCOUNT is therefore a two-column
+// join -- a single-column join here would silently match accounts at other banks.
+//
+// CA_ACCOUNT is WIDE on purpose. OWNER_*, TAX_* and CORR_* are the ownership and
+// correspondence blocks written onto the account row, which is why the mapping can
+// bind them as embedded properties and emit no join for them at all.
+Database core_account::Store
+(
+   Table CA_INSTITUTION
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      NAME VARCHAR(200),
+      BIC VARCHAR(11),
+      COUNTRY_CODE VARCHAR(2),
+      REGULATOR VARCHAR(60),
+      IS_ACTIVE BIT
+   )
+
+   Table CA_BRANCH
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      BRANCH_CODE VARCHAR(20) PRIMARY KEY,
+      NAME VARCHAR(200),
+      CITY VARCHAR(80),
+      COUNTRY_CODE VARCHAR(2),
+      IS_ACTIVE BIT
+   )
+
+   Table CA_ACCOUNT
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      ACCOUNT_NAME VARCHAR(200),
+      ACCOUNT_TYPE VARCHAR(30),
+      CURRENCY_CODE VARCHAR(3),
+      STATUS VARCHAR(20),
+      OPENED_ON DATE,
+      CLOSED_ON DATE,
+      IS_SEGREGATED BIT,
+      BRANCH_CODE VARCHAR(20),
+      OWNER_NAME VARCHAR(200),
+      OWNER_TYPE VARCHAR(30),
+      OWNER_LEI VARCHAR(20),
+      OWNER_SINCE DATE,
+      TAX_COUNTRY_CODE VARCHAR(2),
+      TAX_ID_NUMBER VARCHAR(40),
+      TAX_TREATY_STATUS VARCHAR(30),
+      TAX_FORM_EXPIRY DATE,
+      CORR_LINE1 VARCHAR(120),
+      CORR_LINE2 VARCHAR(120),
+      CORR_CITY VARCHAR(80),
+      CORR_POSTCODE VARCHAR(20),
+      CORR_COUNTRY_CODE VARCHAR(2),
+      CORR_EMAIL VARCHAR(120)
+   )
+
+   Table CA_ACCOUNT_IDENTIFIER
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      SCHEME VARCHAR(20) PRIMARY KEY,
+      IDENTIFIER_VALUE VARCHAR(60),
+      IS_PRIMARY BIT,
+      ASSIGNED_ON DATE
+   )
+
+   Table CA_ACCOUNT_STATUS_EVENT
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      EFFECTIVE_FROM DATE PRIMARY KEY,
+      STATUS VARCHAR(20),
+      REASON_CODE VARCHAR(20),
+      RECORDED_BY VARCHAR(60)
+   )
+
+   Table CA_ACCOUNT_RESTRICTION
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      RESTRICTION_CODE VARCHAR(20) PRIMARY KEY,
+      IMPOSED_ON DATE,
+      LIFTED_ON DATE,
+      IMPOSED_BY VARCHAR(60),
+      IS_BLOCKING BIT
+   )
+
+   // The holder block (HOLDER_*) sits on the mandate row for the same reason the
+   // ownership block sits on the account row: a mandate records who was named when it
+   // was granted.
+   Table CA_ACCOUNT_MANDATE
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      MANDATE_SEQ INTEGER PRIMARY KEY,
+      ROLE VARCHAR(30),
+      GRANTED_ON DATE,
+      REVOKED_ON DATE,
+      APPROVAL_LIMIT DOUBLE,
+      HOLDER_NAME VARCHAR(200),
+      HOLDER_ID_TYPE VARCHAR(30),
+      HOLDER_ID_NUMBER VARCHAR(60),
+      HOLDER_COUNTRY_CODE VARCHAR(2)
+   )
+
+   // One column, because an institution is keyed by one.
+   Join Ca_AccountInstitution(CA_ACCOUNT.INSTITUTION_ID = CA_INSTITUTION.INSTITUTION_ID)
+   Join Ca_BranchInstitution(CA_BRANCH.INSTITUTION_ID = CA_INSTITUTION.INSTITUTION_ID)
+
+   // Two columns, because a branch code is only unique within an institution.
+   Join Ca_AccountBranch(CA_ACCOUNT.INSTITUTION_ID = CA_BRANCH.INSTITUTION_ID
+      and CA_ACCOUNT.BRANCH_CODE = CA_BRANCH.BRANCH_CODE)
+
+   // Two columns on every child, because the account key is two columns.
+   Join Ca_AccountIdentifiers(CA_ACCOUNT.INSTITUTION_ID = CA_ACCOUNT_IDENTIFIER.INSTITUTION_ID
+      and CA_ACCOUNT.ACCOUNT_NO = CA_ACCOUNT_IDENTIFIER.ACCOUNT_NO)
+   Join Ca_AccountStatusEvents(CA_ACCOUNT.INSTITUTION_ID = CA_ACCOUNT_STATUS_EVENT.INSTITUTION_ID
+      and CA_ACCOUNT.ACCOUNT_NO = CA_ACCOUNT_STATUS_EVENT.ACCOUNT_NO)
+   Join Ca_AccountRestrictions(CA_ACCOUNT.INSTITUTION_ID = CA_ACCOUNT_RESTRICTION.INSTITUTION_ID
+      and CA_ACCOUNT.ACCOUNT_NO = CA_ACCOUNT_RESTRICTION.ACCOUNT_NO)
+   Join Ca_AccountMandates(CA_ACCOUNT.INSTITUTION_ID = CA_ACCOUNT_MANDATE.INSTITUTION_ID
+      and CA_ACCOUNT.ACCOUNT_NO = CA_ACCOUNT_MANDATE.ACCOUNT_NO)
+)

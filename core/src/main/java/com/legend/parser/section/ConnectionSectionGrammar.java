@@ -748,6 +748,14 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 c.match(TokenType.COMMA);
                 continue;
             }
+            if ("ExtractSubQueriesAsCTEsPostProcessor".equals(kind)) {
+                // the bare keyword form: no body (the engine's
+                // RelationalGrammarParserExtension matches the flavor name
+                // and builds the record with nothing but its span)
+                out.add(new Protocol.PExtractSubQueriesAsCtesPostProcessor());
+                c.match(TokenType.COMMA);
+                continue;
+            }
             if (!"mapper".equals(kind)) {
                 throw c.error("unsupported postProcessor flavor: " + kind);
             }
@@ -870,49 +878,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield new Protocol.PH2Local(csv, sqls,
                         c.spanOf(keywordTok, c.pos() - 1));
             }
-            case "Static" -> {
-                c.expect(TokenType.BRACE_OPEN);
-                String name = null;
-                String host = null;
-                Long port = null;
-                java.util.Set<String> seenKeys9 = new java.util.HashSet<>();
-                while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
-                    String key = c.parseIdentifier();
-                    TokenStreamCursor.once(seenKeys9, key, c);
-                    c.expect(TokenType.COLON);
-                    switch (key) {
-                        // engine spelling: name: IS the databaseName
-                        case "name" -> {
-                            String quoted = c.text();
-                            c.expect(TokenType.STRING);
-                            name = TokenStreamCursor.unquoteAndUnescape(quoted, c);
-                        }
-                        case "host" -> {
-                            String quoted = c.text();
-                            c.expect(TokenType.STRING);
-                            host = TokenStreamCursor.unquoteAndUnescape(quoted, c);
-                        }
-                        case "port" -> {
-                            port = c.consumeLong();
-                        }
-                        default -> throw c.error("unknown Static key: " + key);
-                    }
-                    c.expect(TokenType.SEMI_COLON);
-                }
-                c.expect(TokenType.BRACE_CLOSE);
-                c.expect(TokenType.SEMI_COLON); // span INCLUDES the ';' (probe)
-                if (name == null || host == null) {
-                    throw c.error("Static needs name (or database) and host");
-                }
-                if (port == null) {
-                    // walker: validateAndExtractRequiredField (sibling
-                    // negative neg-connection-static-missing-port)
-                    throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
-                            "Field 'port' is required");
-                }
-                yield new Protocol.PStaticSpec(name, host, port,
-                        c.spanOf(keywordTok, c.pos() - 1));
-            }
+            case "Static" -> parseStaticSpec(c, keywordTok);
             case "DuckDB" -> {
                 // ENGINE-REAL (DuckDBParserGrammar, oracle-verified):
                 // DuckDB { (path: '...';)* } — no path = in-memory
@@ -942,6 +908,11 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             case "Snowflake" -> parseSnowflakeSpec(c, keywordTok);
             case "Redshift" -> parseRedshiftSpec(c, keywordTok);
             case "Trino" -> parseTrinoSpec(c, keywordTok);
+            case "Athena" -> parseAthenaSpec(c, keywordTok);
+            case "Aurora" -> parseAuroraSpec(c, keywordTok);
+            case "GlobalAurora" -> parseGlobalAuroraSpec(c, keywordTok);
+            case "MemSql" -> parseMemSqlSpec(c, keywordTok);
+            case "Oracle" -> parseOracleSpec(c, keywordTok);
             case "Spanner" -> {
                 c.expect(TokenType.BRACE_OPEN);
                 String projectId = null;
@@ -1071,6 +1042,52 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             default -> throw c.error("unsupported datasource specification: "
                     + kind + " (corpus-censused shapes only)");
         };
+    }
+
+    /** {@code Static { name/host/port }} — split from {@link #parseDatasourceSpec}
+     *  at the case seam (CodeShapeGuardrailTest: one method, one screen). */
+    private static Protocol.PDatasourceSpec parseStaticSpec(TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String name = null;
+        String host = null;
+        Long port = null;
+        java.util.Set<String> seenKeys9 = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seenKeys9, key, c);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                // engine spelling: name: IS the databaseName
+                case "name" -> {
+                    String quoted = c.text();
+                    c.expect(TokenType.STRING);
+                    name = TokenStreamCursor.unquoteAndUnescape(quoted, c);
+                }
+                case "host" -> {
+                    String quoted = c.text();
+                    c.expect(TokenType.STRING);
+                    host = TokenStreamCursor.unquoteAndUnescape(quoted, c);
+                }
+                case "port" -> {
+                    port = c.consumeLong();
+                }
+                default -> throw c.error("unknown Static key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON); // span INCLUDES the ';' (probe)
+        if (name == null || host == null) {
+            throw c.error("Static needs name (or database) and host");
+        }
+        if (port == null) {
+            // walker: validateAndExtractRequiredField (sibling
+            // negative neg-connection-static-missing-port)
+            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
+                    "Field 'port' is required");
+        }
+        return new Protocol.PStaticSpec(name, host, port,
+                c.spanOf(keywordTok, c.pos() - 1));
     }
 
     /** Auth span runs the {@code auth} KEYWORD through the last body token
@@ -1463,6 +1480,194 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         }
         return new Protocol.PRedshiftSpec(clusterID, name, endpointURL, host,
                 port, region, c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** {@code Athena { region; database?; workGroup?; outputLocation?;
+     *  catalog?; athenaEndpoint?; }} — every element a STRING
+     *  (AthenaParserGrammar; only region is required). */
+    private static Protocol.PAthenaSpec parseAthenaSpec(
+            TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String region = null;
+        String database = null;
+        String workGroup = null;
+        String outputLocation = null;
+        String catalog = null;
+        String athenaEndpoint = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c, keywordTok);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "region" -> region = SectionParse.stringValue(c);
+                case "database" -> database = SectionParse.stringValue(c);
+                case "workGroup" -> workGroup = SectionParse.stringValue(c);
+                case "outputLocation" -> outputLocation = SectionParse.stringValue(c);
+                case "catalog" -> catalog = SectionParse.stringValue(c);
+                case "athenaEndpoint" -> athenaEndpoint = SectionParse.stringValue(c);
+                default -> throw c.error("unknown Athena key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (region == null) {
+            throw c.error("Athena needs region");
+        }
+        return new Protocol.PAthenaSpec(athenaEndpoint, catalog, database, outputLocation,
+                region, workGroup, c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** {@code Aurora { host; port; name; clusterInstanceHostPattern?; }}
+     *  (AuroraParserGrammar auroraDsp). */
+    private static Protocol.PAuroraSpec parseAuroraSpec(
+            TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String host = null;
+        Long port = null;
+        String name = null;
+        String pattern = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c, keywordTok);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "host" -> host = SectionParse.stringValue(c);
+                case "port" -> port = c.consumeLong();
+                case "name" -> name = SectionParse.stringValue(c);
+                case "clusterInstanceHostPattern" -> pattern = SectionParse.stringValue(c);
+                default -> throw c.error("unknown Aurora key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (host == null || port == null || name == null) {
+            throw c.error("Aurora needs host, port and name");
+        }
+        return new Protocol.PAuroraSpec(pattern, host, name, port,
+                c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** {@code GlobalAurora { host; port; name; region;
+     *  globalClusterInstanceHostPatterns: ['...', ...]; }} — all five
+     *  required (AuroraParserGrammar globalAuroraDsp). */
+    private static Protocol.PGlobalAuroraSpec parseGlobalAuroraSpec(
+            TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String host = null;
+        Long port = null;
+        String name = null;
+        String region = null;
+        List<String> patterns = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c, keywordTok);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "host" -> host = SectionParse.stringValue(c);
+                case "port" -> port = c.consumeLong();
+                case "name" -> name = SectionParse.stringValue(c);
+                case "region" -> region = SectionParse.stringValue(c);
+                case "globalClusterInstanceHostPatterns" -> {
+                    patterns = new ArrayList<>();
+                    c.expect(TokenType.BRACKET_OPEN);
+                    while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                        patterns.add(SectionParse.stringValue(c));
+                        if (!c.match(TokenType.COMMA)) {
+                            break;
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                }
+                default -> throw c.error("unknown GlobalAurora key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (host == null || port == null || name == null || region == null
+                || patterns == null) {
+            throw c.error("GlobalAurora needs host, port, name, region and"
+                    + " globalClusterInstanceHostPatterns");
+        }
+        return new Protocol.PGlobalAuroraSpec(patterns, host, name, port, region,
+                c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** {@code MemSql { host; port: '3306'; databaseName?; useSsl: 'true'?; }}
+     *  — port and useSsl are STRINGS in the grammar, converted at parse time
+     *  exactly as MemSqlGrammarParserExtension does (Integer.valueOf,
+     *  Boolean.valueOf), so a non-numeric port is a parse failure here too. */
+    private static Protocol.PMemSqlSpec parseMemSqlSpec(
+            TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String host = null;
+        Long port = null;
+        String databaseName = null;
+        Boolean useSsl = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c, keywordTok);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "host" -> host = SectionParse.stringValue(c);
+                case "port" -> {
+                    int portTok = c.pos();
+                    String text = SectionParse.stringValue(c);
+                    try {
+                        port = Long.valueOf(text.strip());
+                    } catch (NumberFormatException e) {
+                        throw TokenStreamCursor.throwAt(c.tokens(), portTok,
+                                "MemSql port must be an integer, got '" + text + "'");
+                    }
+                }
+                case "databaseName" -> databaseName = SectionParse.stringValue(c);
+                case "useSsl" -> useSsl = Boolean.valueOf(SectionParse.stringValue(c).strip());
+                default -> throw c.error("unknown MemSql key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (host == null || port == null) {
+            throw c.error("MemSql needs host and port");
+        }
+        return new Protocol.PMemSqlSpec(databaseName, host, port, useSsl,
+                c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** {@code Oracle { host; port; serviceName?; }} (OracleParserGrammar). */
+    private static Protocol.POracleSpec parseOracleSpec(
+            TokenStreamCursor c, int keywordTok) {
+        c.expect(TokenType.BRACE_OPEN);
+        String host = null;
+        Long port = null;
+        String serviceName = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c, keywordTok);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "host" -> host = SectionParse.stringValue(c);
+                case "port" -> port = c.consumeLong();
+                case "serviceName" -> serviceName = SectionParse.stringValue(c);
+                default -> throw c.error("unknown Oracle key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (host == null || port == null) {
+            throw c.error("Oracle needs host and port");
+        }
+        return new Protocol.POracleSpec(host, port, serviceName,
+                c.spanOf(keywordTok, c.pos() - 1));
     }
 
     /** {@code Trino { host; port; catalog?; schema?; clientTags?;

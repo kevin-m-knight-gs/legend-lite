@@ -1,0 +1,38 @@
+// F17 -- `Class X projects Y { ... }` crashes the parser with a NullPointerException.
+//
+// Run:
+//   java -cp <engine-runner>/target/classes:$(cat cp.txt) perf.ParseMain model.pure
+//
+// Observed:
+//   REJECTED: An exception of type 'NullPointerException' occurred, please notify developer
+//
+// Expected: either the construct is supported, or it is declined the way `native` is --
+// "Unsupported syntax", with source information pointing at the element.
+//
+// Cause: DomainParserGrammar has a full projection rule set --
+//   classDefinition: ... (PROJECTS projection) | ...
+//   projection: dsl | treePath
+//   treePath: type alias? stereotypes? taggedValues? treePathClassBody
+// -- so the text parses to a tree. DomainParseTreeWalker.visitClass then dereferences
+// ctx.classBody() unconditionally, and the projection form has no classBody.
+//
+// Reachable by typing into any .pure file, which is what makes it worth reporting: a user
+// gets a stack-trace-grade message with no line, no column and no construct named.
+//
+// The syntax itself is real and in use -- legend-engine ships
+//   .../core_relational/relational/tests/testModel/projectionTestModel.pure
+// which is written exactly this way and is parsed by legend-pure's own M3 grammar, not by
+// Engine's DomainParserGrammar. So the two front ends disagree about a construct that
+// exists in the repository's own model files.
+###Pure
+Class fixture::repro::Person
+{
+   firstName: String[1];
+   lastName: String[1];
+}
+
+Class fixture::repro::PersonProjection projects
+fixture::repro::Person
+{
+   +[firstName, lastName]
+}

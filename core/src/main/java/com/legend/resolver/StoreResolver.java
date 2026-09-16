@@ -3051,9 +3051,14 @@ public final class StoreResolver {
                                         f.predicate(), new java.util.LinkedHashSet<>(),
                                         r -> resolveNested(r, closedCtx))),
                         pipeline.info());
-                case TypedLimit l -> new TypedLimit(pipeline, l.count(), pipeline.info());
-                case TypedDrop d -> new TypedDrop(pipeline, d.count(), pipeline.info());
-                case TypedSlice sl -> new TypedSlice(pipeline, sl.start(), sl.stop(),
+                // a positional op (first/take/drop/slice) over an ORDERED
+                // metamodel collection follows the store's declaration
+                // ordinal, never the scan order (H2 scans a keyed table in
+                // key order; corpus testEnumTheSame: enumerationMappings
+                // ->first() is Foo by declaration, Active by key)
+                case TypedLimit l -> new TypedLimit(FlattenOps.byDeclarationOrder(pipeline), l.count(), pipeline.info());
+                case TypedDrop d -> new TypedDrop(FlattenOps.byDeclarationOrder(pipeline), d.count(), pipeline.info());
+                case TypedSlice sl -> new TypedSlice(FlattenOps.byDeclarationOrder(pipeline), sl.start(), sl.stop(),
                         pipeline.info());
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
                         substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh, sb.key(), context).rewriteLambda(sb.key()),
@@ -3490,4 +3495,5 @@ public final class StoreResolver {
         return sources.dispatch(context.explicitMapping(),
                 context.runtimeFqn(), context.chainMappings(), classFqn);
     }
+
 }

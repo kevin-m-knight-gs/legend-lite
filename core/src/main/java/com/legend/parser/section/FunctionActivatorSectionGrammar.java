@@ -36,6 +36,7 @@ public final class FunctionActivatorSectionGrammar
     private static final Set<String> DEPLOYMENT_CONFIG_KINDS = Set.of(
             "SnowflakeAppDeploymentConfiguration",
             "BigQueryFunctionDeploymentConfiguration",
+            "MemSqlFunctionDeploymentConfiguration",
             "HostedServiceDeploymentConfiguration");
 
     private final String section;

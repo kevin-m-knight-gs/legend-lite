@@ -1,0 +1,67 @@
+###Relational
+
+// This project's own tables live in the `stc` SCHEMA, and core-units' tables live in its
+// `uom` schema, which this store INCLUDES. Two schemas in one database is the point: every
+// reference has to say which one it means, both in the joins below and in the mapping.
+Database static_core::Store
+(
+   include core_units::Store
+
+   Schema stc
+   (
+      Table STC_DATA_OWNER
+      (
+         OWNER_CODE CHAR(6) PRIMARY KEY,
+         OWNER_NAME VARCHAR(60),
+         CONTACT_EMAIL VARCHAR(80),
+         JURISDICTION CHAR(2),
+         IS_PRIMARY_SOURCE BIT
+      )
+
+      Table STC_CODE_LIST
+      (
+         LIST_CODE CHAR(8) PRIMARY KEY,
+         LIST_NAME VARCHAR(60),
+         DOMAIN_CODE CHAR(4),
+         OWNER_CODE CHAR(6),
+         REVIEW_DAYS SMALLINT,
+         PUBLISHED_FROM DATE,
+         RETIRED_ON DATE
+      )
+
+      // Composite key on list and value: the same value code means different things in two
+      // lists, and a value is only unique inside the list that publishes it.
+      Table STC_CODE_VALUE
+      (
+         LIST_CODE CHAR(8) PRIMARY KEY,
+         VALUE_CODE VARCHAR(20) PRIMARY KEY,
+         DISPLAY_NAME VARCHAR(60),
+         DESCRIPTION VARCHAR(200),
+         DISPLAY_ORDER SMALLINT,
+         EFFECTIVE_FROM DATE,
+         EFFECTIVE_THRU DATE
+      )
+
+      // NUMERIC(20,8) for the magnitude, because a standard density that loses a digit is
+      // worse than no standard at all. DOUBLE for the tolerance, never REAL.
+      Table STC_STANDARD_VALUE
+      (
+         STANDARD_CODE VARCHAR(20) PRIMARY KEY,
+         STANDARD_NAME VARCHAR(60),
+         MAGNITUDE NUMERIC(20,8),
+         UNIT_CODE CHAR(6),
+         OWNER_CODE CHAR(6),
+         EFFECTIVE_FROM DATE,
+         TOLERANCE_PCT DOUBLE
+      )
+   )
+
+   // Joins inside this project's own schema.
+   Join Stc_ListOwner(stc.STC_CODE_LIST.OWNER_CODE = stc.STC_DATA_OWNER.OWNER_CODE)
+   Join Stc_ValueList(stc.STC_CODE_VALUE.LIST_CODE = stc.STC_CODE_LIST.LIST_CODE)
+   Join Stc_StandardOwner(stc.STC_STANDARD_VALUE.OWNER_CODE = stc.STC_DATA_OWNER.OWNER_CODE)
+
+   // The cross-project join: this project's `stc` schema to core-units' `uom` schema, both
+   // named explicitly, on one line because a wrapped join condition does not parse.
+   Join Stc_StandardUnit(stc.STC_STANDARD_VALUE.UNIT_CODE = uom.CU_UNIT.UNIT_CODE)
+)

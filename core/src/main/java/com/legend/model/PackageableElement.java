@@ -47,6 +47,7 @@ public sealed interface PackageableElement
                 MappingDefinition,
                 LegacyMappingDefinition,
                 PrimitiveExtensionDefinition,
+                DataDefinition,
                 OpaqueElementDefinition {
 
     /** Fully qualified name, e.g. {@code "model::Person"}. The only identity. */

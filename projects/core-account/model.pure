@@ -1,0 +1,200 @@
+###Pure
+// core-account -- the ACCOUNT MASTER.
+//
+// Two shapes drive everything here, and both are consequences of how account numbers
+// actually work rather than decoration:
+//
+//   COMPOSITE KEY  An account number is issued by an institution and is only unique
+//                  inside it. Sort code 20-00-00 account 12345678 and sort code
+//                  30-96-26 account 12345678 are two different accounts at two
+//                  different banks. So the identity of an account is the PAIR
+//                  (institutionId, accountNo) and every child record -- identifier,
+//                  status event, restriction, mandate -- must carry both columns to
+//                  point back at one. Nothing in this project has a synthetic single
+//                  key, because the domain does not have one.
+//
+//   EMBEDDED       Who owns an account and where they are tax-resident is written ON
+//                  the account row, not in a separate owner table. That is what an
+//                  account master does: the ownership block is captured once at
+//                  onboarding and frozen against the account, so the statement you
+//                  print in 2031 says what the account said then. Ownership,
+//                  TaxResidence, Correspondence and MandateHolder below are therefore
+//                  VALUE types -- structure for the model, columns on the same row for
+//                  the store, and no join at query time.
+
+// An account-issuing institution: a bank, a broker or a custodian. It owns a number
+// range, which is why it is half of every account key in this project.
+Class core_account::Institution
+{
+   institutionId: String[1];
+   name: String[1];
+   bic: String[0..1];
+   countryCode: String[1];
+   regulator: String[0..1];
+   isActive: Boolean[1];
+}
+
+// A branch or office of an institution. Branch codes repeat between institutions, so a
+// branch is keyed by (institutionId, branchCode) -- the same composite shape as an
+// account, one level up.
+Class core_account::Branch
+{
+   institutionId: String[1];
+   branchCode: String[1];
+   name: String[1];
+   city: String[0..1];
+   countryCode: String[1];
+   isActive: Boolean[1];
+
+   institution: core_account::Institution[1];
+}
+
+// The account itself, and the root of this project. Identity is (institutionId,
+// accountNo): the number alone means nothing without the institution that issued it.
+// `ownership` and `correspondence` are complex-typed but live on THIS row.
+Class core_account::Account
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   accountName: String[1];
+   accountType: String[1];
+   currencyCode: String[1];
+   status: String[1];
+   openedOn: StrictDate[1];
+   closedOn: StrictDate[0..1];
+   isSegregated: Boolean[1];
+   branchCode: String[0..1];
+
+   // The denormalised blocks. Same row, no join.
+   ownership: core_account::Ownership[1];
+   correspondence: core_account::Correspondence[0..1];
+
+   institution: core_account::Institution[1];
+   branch: core_account::Branch[0..1];
+   identifiers: core_account::AccountIdentifier[*];
+   statusHistory: core_account::AccountStatusEvent[*];
+   restrictions: core_account::AccountRestriction[*];
+   mandates: core_account::AccountMandate[*];
+
+   // Open until it is closed. A closed account keeps its history, so absence of a
+   // close date is the only honest test.
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+
+   // The account's identity as one string, for display and for messages that have to
+   // name an account without carrying two fields.
+   accountKey() { $this.institutionId + '/' + $this.accountNo } : String[1];
+}
+
+// Whose account it is, as recorded on the account row at onboarding. A value type: it
+// has no key and no table of its own, and is only ever reached through an Account.
+Class core_account::Ownership
+{
+   ownerName: String[1];
+   ownerType: String[1];
+   ownerLei: String[0..1];
+   ownerSince: StrictDate[0..1];
+
+   // Nested one level deeper, still on the same row.
+   taxResidence: core_account::TaxResidence[1];
+}
+
+// Where the owner is tax-resident, which decides withholding. Part of the ownership
+// block rather than a lookup, because the account must remember what was declared even
+// after the owner moves.
+Class core_account::TaxResidence
+{
+   countryCode: String[1];
+   taxIdNumber: String[0..1];
+   treatyStatus: String[0..1];
+   formExpiry: StrictDate[0..1];
+}
+
+// Where statements are sent. Also denormalised onto the account row: this is the
+// address of record for the account, not the current address of a person.
+Class core_account::Correspondence
+{
+   line1: String[1];
+   line2: String[0..1];
+   city: String[1];
+   postcode: String[0..1];
+   countryCode: String[1];
+   email: String[0..1];
+}
+
+// An external name for the account -- IBAN, SWIFT, a market participant code. Keyed by
+// (institutionId, accountNo, scheme) because one account carries one identifier per
+// scheme.
+Class core_account::AccountIdentifier
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   scheme: String[1];
+   identifierValue: String[1];
+   isPrimary: Boolean[1];
+   assignedOn: StrictDate[0..1];
+
+   account: core_account::Account[1];
+}
+
+// One transition in an account's lifecycle -- opened, dormant, frozen, closed -- keyed
+// by (institutionId, accountNo, effectiveFrom). The account row carries the CURRENT
+// status; this carries how it got there.
+Class core_account::AccountStatusEvent
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   effectiveFrom: StrictDate[1];
+   status: String[1];
+   reasonCode: String[0..1];
+   recordedBy: String[0..1];
+
+   account: core_account::Account[1];
+}
+
+// A block on what may be done with the account: a court order, a sanctions hold, a
+// debit freeze. Keyed by (institutionId, accountNo, restrictionCode) so the same
+// restriction cannot be imposed twice.
+Class core_account::AccountRestriction
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   restrictionCode: String[1];
+   imposedOn: StrictDate[1];
+   liftedOn: StrictDate[0..1];
+   imposedBy: String[0..1];
+   isBlocking: Boolean[1];
+
+   account: core_account::Account[1];
+
+   // Still in force while it has not been lifted.
+   isActive() { $this.liftedOn->isEmpty() } : Boolean[1];
+}
+
+// Authority to act on the account: who may sign, for how much. Keyed by
+// (institutionId, accountNo, mandateSeq). The person exercising the authority is an
+// embedded block, because a mandate records who was named on it, not a live link to a
+// party master this layer-0 project does not have.
+Class core_account::AccountMandate
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   mandateSeq: Integer[1];
+   role: String[1];
+   grantedOn: StrictDate[1];
+   revokedOn: StrictDate[0..1];
+   approvalLimit: Float[0..1];
+
+   holder: core_account::MandateHolder[1];
+
+   account: core_account::Account[1];
+}
+
+// The named person on a mandate, as identified when the mandate was granted. A value
+// type on the mandate row.
+Class core_account::MandateHolder
+{
+   holderName: String[1];
+   idType: String[0..1];
+   idNumber: String[0..1];
+   countryCode: String[0..1];
+}

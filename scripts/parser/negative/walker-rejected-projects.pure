@@ -1,0 +1,23 @@
+// REJECTS: NullPointerException
+//
+// `Class X projects Y { ... }`. The grammar has a full projection rule set; the walker
+// NPEs on it, because visitClass dereferences ctx.classBody() and the projection form has
+// none. The observed message is "An exception of type 'NullPointerException' occurred,
+// please notify developer" -- a crash with no source information and no construct named.
+//
+// Filed as an upstream defect. Kept here as a negative fixture because whatever upstream
+// does about it, legend-lite must not accept this silently. If upstream fixes it into a
+// clean diagnostic, this fixture keeps passing (still rejected); if upstream makes the
+// construct WORK, this fixture fails and tells us to move it to the positive corpus.
+###Pure
+Class fixture::neg::Person
+{
+   firstName: String[1];
+   lastName: String[1];
+}
+
+Class fixture::neg::PersonProjection projects
+fixture::neg::Person
+{
+   +[firstName, lastName]
+}
