@@ -50,7 +50,7 @@ same property every one-owner leg of the burndown was buying.
 
 ---
 
-## 2. The five extractions, in value order
+## 2. The extractions, in value order
 
 Each is a separate leg: extract, run both lanes, run the chain, record in `docs/GATES.md`,
 commit named files, push, watch CI. None needs a new test to prove a behaviour (there is no
@@ -73,31 +73,70 @@ replaces all three.
 **Why first:** highest duplication, zero behavioural surface, and it makes the next two
 extractions legible.
 
-### 2.2 `MainTable` — nine methods about one noun
+### 2.2 `MainTable` — one noun, five methods plus two overloads elsewhere
 
-`MappingNormalizer.java:1384`, `:1433`, `:2298`, `:2328`, `:2360` plus the inference helpers
-answer questions about a set's main table: does it have one, which one, inferred or declared,
-what does a view frame do to it. They are scattered through a file about synthesis. They name
-one noun and belong in one file.
+In `MappingNormalizer.java`: `inferMainTable` (`:1384`), `inferMainTableQuiet` (`:1433`),
+`hasMainTable` (`:2298`), `mainTableDefOf` (`:2328`), `mainTableOf` (`:2360`). The view side
+already lives elsewhere — `ViewRelation.inferViewMainTable` (`:440`, `:445`, two overloads) —
+and that split is itself the argument: two files answer "which table backs this set?".
 
 ### 2.3 `RowProjection` — the constructed-object terminus
 
-`translatePmToField` (`:1966`), `buildNewInstance` (`:2713`) and `buildNewInstanceToOne`
-(`:2755`) plus the `CtorField` record are the end of the pipeline: they turn the row into the
-`^Target(...)` instance. This is a distinct job from building the pipeline that produces the
-row.
+`translatePmToField` (`:1966`), the three embedded materializers `materializeEmbedded`,
+`materializeOtherwiseEmbedded`, `materializeInlineEmbedded`, and `buildNewInstance` (`:2713`)
+/ `buildNewInstanceToOne` (`:2755`) plus the `CtorField` record: everything that turns a row
+into the `^Target(...)` instance.
 
-### 2.4 `PureSpecBuilder` — the low-level helper block
+**Do not sweep in the filter family.** `applyFilter`, `applyDirectFilter` and
+`applyJoinMediatedFilter` sit inside the same line range but belong to pipeline construction,
+not projection. Cutting by line range instead of by job is the exact mistake this document
+exists to prevent.
 
-`MappingNormalizer.java:2485` opens a banner literally called "Low-level helpers"; the block
-runs to the next banner. These construct Pure expressions and know nothing about mappings.
-A banner comment is the file admitting the seam.
+### 2.4 The "Low-level helpers" banner — NOT what the audit said
+
+The audit called this block `PureSpecBuilder`, "the 130-line low-level helpers" that
+"construct Pure expressions and know nothing about mappings". **That is wrong for today's
+code, and it was checked on 2026-09-16.** The banner at `MappingNormalizer.java:2485` opens a
+block of exactly six functions:
+
+| function | what it is |
+|---|---|
+| `resolveViewRefsInJoin` (two overloads) | view-reference resolution inside a join condition |
+| `viewChainReaches` | view-reference reachability |
+| `requireNonViewTarget` | a view-target wall |
+| `determineTargetTable` | which table a join condition lands on |
+| `containsTargetColumnRef` | a `{target}` marker probe |
+
+Four of the six are VIEW-reference work and belong with `ViewRelation.java`, which already
+owns that subject; the other two are join-target determination and belong with
+`JoinChainEmission.java` or a small `JoinTarget` file. There is no Pure-expression builder
+here to extract. Take the banner as the seam it marks, not as the file name the audit gave
+it.
 
 ### 2.5 `BuildMode` — the strict/tolerant sentinel
 
 Strict versus tolerant is carried as `wallSink == null` (8 references, `:182`, `:188`, `:204`
 and the driver's arms). The policy is real and documented (B4: the driver alone applies
 strict/module); it deserves a name rather than a null check on a collecting parameter.
+
+### 2.6 The constraint every extraction meets: the shared `Pipeline`
+
+`Pipeline` carries **12 mutable fields** (the accumulating expression, the slot registries,
+the routed-property table, the inline stack, the ledger) and **26 sites** in the package take
+a `Pipeline` parameter. Anything that mutates it cannot be extracted into a file the parent
+merely calls, because the mutation is the return value.
+
+So for each extraction, decide FIRST which of the three it is:
+
+1. **Pure of the pipeline** (`MainTable`, most of `RowProjection`): extract freely.
+2. **Reads the pipeline, returns a value** (`determineTargetTable`): extract, take the
+   pipeline as a parameter, one-way calls.
+3. **Mutates the pipeline** (the hop emitters): extraction here is a REFACTOR OF THE STATE,
+   not a file move. Either leave it, or change `Pipeline` to return a new instance — a
+   separate decision, and out of scope for a first pass.
+
+If an extraction turns out to be kind 3 halfway through, stop and revert rather than
+threading the mutable object through a new seam.
 
 ---
 
@@ -166,9 +205,10 @@ Run the parity test ALONE before the chain (`mvn -o -q -pl parser-equivalence te
 | 1 | `ClassBindingBuilder` (§2.1) | low |
 | 2 | `MainTable` (§2.2) | low |
 | 3 | `RowProjection` (§2.3) | low-moderate |
-| 4 | `PureSpecBuilder` (§2.4) | low |
+| 4 | the "Low-level helpers" banner: view refs to `ViewRelation`, join-target to `JoinChainEmission` (§2.4) | low-moderate |
 | 5 | `BuildMode` (§2.5) | low |
 | 6 | `NormalizationFacts` reshape (§3.1) | moderate |
+| — | anything that MUTATES `Pipeline` (§2.6 kind 3) | not a file move — do not start it as one |
 | — | Phase-D totality (§3.2) | a project; decide separately |
 
 Legs 1 and 2 are the ones I would take first if only two were done: the duplication dies and
@@ -176,7 +216,47 @@ one noun gets a home.
 
 ---
 
-## 6. Pointers
+## 6. How to run one leg (the whole loop, verbatim)
+
+Nothing here is new discipline; it is `docs/GATES.md`'s chain, written out so a cold session
+does not have to assemble it.
+
+```bash
+cd ~/legend/legend-lite
+. tools/oracle-roots.sh                 # resolves $R1/$R2 and FAILS on pin drift
+
+# 1. after each edit: compile, then the unit witnesses of what you touched
+mvn -o -q -pl core test -Dtest='MappingNormalizerTest,OneIndexTest' \
+    -Dsurefire.failIfNoSpecifiedTests=false
+
+# 2. both corpus lanes — the row verdict (install core FIRST or you test a stale jar)
+mvn -o -q -pl core install -DskipTests
+for b in duckdb h2; do
+  mvn -q -o -pl spec test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= \
+      -Drcorpus.backend=$b "$R1" "$R2"
+done
+# expect: roster duckdb EXACT: 108 fail of 2613 / roster h2 EXACT: 444 of 2613
+
+# 3. the parity floor ALONE (or gate 8 eats a chain cycle), then re-pin MIN_MATCHED
+mvn -o -q -pl parser-equivalence test -Dtest=OwnCorpusParityTest \
+    -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2"
+
+# 4. the full chain, ONCE, in the background; the tree is FROZEN until it reports
+GATES_LOG=/tmp/recut/gates.log GATES_PARALLEL=1 caffeinate -dims tools/allgates.sh
+```
+
+Then: append a record to `docs/GATES.md` (why, what landed, rows, chain with per-gate times,
+batch size), `git add` the NAMED files (never `-A`; and in zsh pipe a file list through
+`xargs git add` — an unquoted variable is one pathspec and stages nothing), commit, push, and
+watch CI with `tools/ci-watch.sh <full sha>`. A docs-only push starts no run: the gate
+workflow ignores markdown.
+
+**Single-test iteration** while debugging a lane failure:
+`-Drcorpus.test=<substring>`, and `LEGEND_LITE_DUMP_SQL=1` to see the emitted SQL.
+
+---
+
+## 7. Pointers
 
 - `docs/MAPPING_NORMALIZER_AUDIT_2026_09_15.md` — the audit, with a correction box on P0-0.
 - `docs/mapping-normalizer-audit-2026-09-15/findings/FIXLIST.md` — every row, with the four
