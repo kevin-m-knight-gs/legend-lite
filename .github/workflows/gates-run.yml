@@ -90,6 +90,7 @@ jobs:
             {"name":"gate 6 PCT DuckDB",             "gate":"6","gates":"2,6"},
             {"name":"gate 7 PCT H2 relation",        "gate":"7","gates":"2,7"},
             {"name":"gate 9 Channel B dual-verdict", "gate":"9","gates":"2,9"},
+            {"name":"gate 10 stress corpus",         "gate":"10","gates":"2,10"},
             {"name":"gate 8 parser equivalence",     "gate":"8","gates":"8"}
           ]'
           if [ -n "${WANT:-}" ]; then
@@ -107,7 +108,7 @@ jobs:
           # an empty matrix fails the lanes job with a cryptic runner error —
           # say what actually went wrong instead
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid lanes are 3,4,5,6,7,8,9 (gate 1 always runs, gate 2 is folded into each lane)"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid lanes are 3,4,5,6,7,8,9,10 (gate 1 always runs, gate 2 is folded into each lane)"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"

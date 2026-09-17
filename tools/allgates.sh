@@ -33,7 +33,7 @@ SFLAG=()
 OFF=()
 [ "${MVN_OFFLINE:-1}" = "1" ] && OFF=(-o)
 # Gate subset: GATES=1,2,3 runs only those. Default is all nine.
-WANT=${GATES:-1,2,3,4,5,6,7,8,9}
+WANT=${GATES:-1,2,3,4,5,6,7,8,9,10}
 want() { case ",$WANT," in *",$1,"*) return 0;; *) return 1;; esac; }
 # Default the log to a PER-USER path. A fixed /tmp/gates.log is shared across
 # accounts on this box (it was found owned by another user), so writes fail
@@ -171,7 +171,11 @@ gate1() {
   # $R1/$R2: the suite reads the spec checkouts (PreludeGeneratorTest
   # regenerates prelude.pure from them; SpecBodyCensusTest's typing census is
   # a shrink-only pin over legend-pure).
-  mvn ${OFF[@]+"${OFF[@]}"} -pl core test "$R1" "$R2" > "$OUT/g1.out" 2>&1
+  # the stress corpus is GATE 10 (2026-09-16: inside G1 it pushed the parallel
+  # chain past its 4-minute budget). Excluded BY GROUP: a -Dtest pattern would
+  # make surefire drop the pom's excluded 'heavy' group too (proven: G1 ran the
+  # 10,000-hub benchmark for nine minutes)
+  mvn ${OFF[@]+"${OFF[@]}"} -pl core test -Dsurefire.excludedGroups=heavy,stress "$R1" "$R2" > "$OUT/g1.out" 2>&1
   rec 1 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
 }
 
@@ -370,6 +374,15 @@ gate8() {
 # finished artifact and none of them writes another's directory. Set it on a
 # machine with cores and RAM to spare; the old warning stands otherwise, and
 # concurrent heavy JVMs on a small box get killed.
+gate10() {
+  if ! want 10; then return 0; fi
+  g "GATE10 stress corpus (every stress service suite, DuckDB shared sessions,"
+  g "       MIN_PASS ratchet in StressServiceSuitesTest — its own gate, run in"
+  g "       stream A AFTER gate 1: both build in core/target, 2026-09-16)"
+  mvn ${OFF[@]+"${OFF[@]}"} -pl core test -Dtest=StressServiceSuitesTest -Dsurefire.excludedGroups=heavy "$R1" "$R2" > "$OUT/g10.out" 2>&1
+  rec 10 $?; grep -E "^\[suites\] pass=" "$OUT/g10.out" | tail -1 >> "$L"
+}
+
 stream() {
   local name=$1; shift
   for fn in "$@"; do "$fn"; done
@@ -377,27 +390,33 @@ stream() {
 }
 
 if [ "${GATES_PARALLEL:-0}" = "1" ]; then
-  echo "streams: A(1,3,4,5) B(6,7,9) C(8) in PARALLEL" >> "$L"
+  # one stream per MODULE DIRECTORY: A builds core (1, 10, 3), E spec (4, 5),
+  # B pct (6, 7, 9), C parser-equivalence (8) — two gates of one module never
+  # run at once (they would share its target/)
+  echo "streams: A(1,10,3) E(4,5) B(6,7,9) C(8) in PARALLEL" >> "$L"
   # Each stream is a subshell with its OWN log. Three writers appending to one
   # file can tear a line, and the verdict below is derived from those lines —
   # so they are kept apart and concatenated in a fixed order afterwards, which
   # also makes the log read the same every run. The subshell's own G_T0 keeps
   # each gate's timing honest.
-  ( L="$OUT/stream-A.log"; : > "$L"; stream A gate1 gate3 gate4 gate5 ) &
+  ( L="$OUT/stream-A.log"; : > "$L"; stream A gate1 gate10 gate3 ) &
   PA=$!
+  ( L="$OUT/stream-E.log"; : > "$L"; stream E gate4 gate5 ) &
+  PE=$!
   ( L="$OUT/stream-B.log"; : > "$L"; stream B gate6 gate7 gate9 ) &
   PB=$!
   ( L="$OUT/stream-C.log"; : > "$L"; stream C gate8 ) &
   PC=$!
-  wait $PA; wait $PB; wait $PC
-  cat "$OUT/stream-A.log" "$OUT/stream-B.log" "$OUT/stream-C.log" >> "$L" 2>/dev/null
+  wait $PA; wait $PE; wait $PB; wait $PC
+  cat "$OUT/stream-A.log" "$OUT/stream-E.log" "$OUT/stream-B.log" "$OUT/stream-C.log" >> "$L" 2>/dev/null
   # a subshell cannot mutate the parent's FAILED array, so rebuild it from the
   # verdict lines the streams wrote
   FAILED=()
   while read -r n; do FAILED+=("G$n"); done < <(
     grep -E "^G[0-9]+_EXIT=[1-9]" "$L" | sed -E 's/^G([0-9]+)_EXIT=.*/\1/')
 else
-  stream A gate1 gate3 gate4 gate5
+  stream A gate1 gate10 gate3
+  stream E gate4 gate5
   stream B gate6 gate7 gate9
   stream C gate8
 fi
@@ -410,7 +429,7 @@ fi
 # and the chain reported GREEN. So every SELECTED gate must have written a
 # verdict; a missing one is a failure with its own name, never silence.
 # ("A gate script that cannot fail is not a gate" — the rule this restores.)
-for n in 1 4 5 6 7 8 9; do
+for n in 1 4 5 6 7 8 9 10; do
   want "$n" || continue
   grep -qE "^G${n}_EXIT=" "$L" || {
     echo "G${n} NO VERDICT — its stream did not report (killed? crashed?). NOT a pass." >> "$L"

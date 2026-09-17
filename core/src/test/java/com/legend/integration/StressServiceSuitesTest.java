@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code target/}, and does not yet pin a count. The ratchet arrives with the
  * gate once the numbers are known.
  */
+@org.junit.jupiter.api.Tag("stress")   // GATE 10 (tools/allgates.sh): its own gate, excluded from the core suite by group
 @DisplayName("Stress corpus: service test suites through legend-lite")
 class StressServiceSuitesTest {
 
@@ -138,12 +139,17 @@ class StressServiceSuitesTest {
             // THE RATCHET (2026-09-16, first full run: 2,702 / 2,028 / 6 of 4,736 in
             // 8.5 s execution, 20.7 s wall): the count judged EQUAL to the oracle may
             // only grow. Raise it with every leg that burns a bucket; never lower it.
-            assertTrue(pass.size() >= MIN_PASS, pass.size() + " tests passed, below the"
-                    + " ratchet " + MIN_PASS + " — see target/stress-suites-fail.txt");
+            int floor = h2 ? MIN_PASS_H2 : MIN_PASS;
+            assertTrue(pass.size() >= floor, pass.size() + " tests passed, below the"
+                    + " ratchet " + floor + " — see target/stress-suites-fail.txt");
         }
     }
 
     /** Tests judged equal to the oracle on the first full run. Shrink-proof. */
+    /** The H2 lane's own floor (fresh session per test; the engine's shape): the
+     *  DuckDB floor minus the H2 walls (EPOCH_MS/REVERSE, last-digit floats,
+     *  timestamp text — ledger F-P). */
+    private static final int MIN_PASS_H2 = 4509;
     private static final int MIN_PASS = 4564;   // 2702 -> 2765 -> 4203 -> 4564 (2026-09-16: double division; pins model-wide; association anchors; F-M deeper tails; F-O graph-node key demand)
 
     /** A failure reason with its specifics elided, so alike failures count together. */

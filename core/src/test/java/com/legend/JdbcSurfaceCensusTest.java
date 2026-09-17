@@ -377,7 +377,6 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/integration/SortCheckerTest.java",
             "core/src/test/java/com/legend/integration/SourceUrlUserCallableTest.java",
             "core/src/test/java/com/legend/integration/StreamingIntegrationTest.java",
-            "core/src/test/java/com/legend/integration/StressDomainTest.java",
             "core/src/test/java/com/legend/integration/StressTest.java",
             "core/src/test/java/com/legend/integration/StressTest100K.java",
             "core/src/test/java/com/legend/integration/StressTest10K.java",

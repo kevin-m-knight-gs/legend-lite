@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Every gap here was found by building the stress corpus, and each was previously
  * recorded only as an exclusion ({@link StressCorpus#EXCLUDED},
- * {@code StressDomainTest.UNSUPPORTED_RUNTIMES}) or as prose in
+ * {@code the stress suites test's fail reasons (runtime binding)}) or as prose in
  * {@code docs/UPSTREAM_FINDINGS.md}. An exclusion tells you a thing is skipped; it does
  * not let you SEE the behaviour, and it does not tell you when the gap closes. This does
  * both: each case asserts the CURRENT behaviour, so implementing support makes the
@@ -82,7 +82,7 @@ class LegendLiteGapTest {
     void acceptedAtModelBuildFailLater() {
         // Recorded so nobody looks for a model-build failure that is not there. Where each
         // one actually fails is asserted by the corpus itself:
-        //   ModelChainConnection  -> StressDomainTest.UNSUPPORTED_RUNTIMES (runtime binding)
+        //   ModelChainConnection  -> the stress suites test's fail reasons (runtime binding) (runtime binding)
         //   orElse                -> docs/UPSTREAM_FINDINGS.md F7 (TypeInference, on use)
         //   isNotEmpty over [0..1] -> F8 (null-strict whitelist, on use)
         accepts("ModelChainConnection", """

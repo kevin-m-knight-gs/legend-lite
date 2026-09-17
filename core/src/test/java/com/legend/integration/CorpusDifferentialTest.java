@@ -74,7 +74,7 @@ class CorpusDifferentialTest {
                 if (!Files.exists(exp)) continue;
 
                 var vs = com.legend.compiler.NameResolver.resolveQuery(svc.functionBody());
-                // The service's own runtime, not a fixed one — see StressDomainTest.
+                // The service's own runtime, not a fixed one — see StressServiceSuitesTest.
                 String rt = svc.runtimeRef() != null ? svc.runtimeRef() : "stress::RT";
                 String sql = dialect.render(
                         com.legend.Compiler.lowerResolved(vs, ctx, rt, false));
