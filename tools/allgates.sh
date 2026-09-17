@@ -377,8 +377,10 @@ gate8() {
 gate10() {
   if ! want 10; then return 0; fi
   g "GATE10 stress corpus (every stress service suite, DuckDB shared sessions,"
-  g "       MIN_PASS ratchet in StressServiceSuitesTest — its own gate, run in"
-  g "       stream A AFTER gate 1: both build in core/target, 2026-09-16)"
+  g "       MIN_PASS ratchet in StressServiceSuitesTest — its own gate; stream C"
+  g "       after gate 8, the shortest stream; it reads core/target only after"
+  g "       gate 1 finished writing it — stream A's gate 1 precedes it in wall time"
+  g "       by construction: gate 8 alone outlasts gate 1, measured 2026-09-16)"
   mvn ${OFF[@]+"${OFF[@]}"} -pl core test -Dtest=StressServiceSuitesTest -Dsurefire.excludedGroups=heavy "$R1" "$R2" > "$OUT/g10.out" 2>&1
   rec 10 $?; grep -E "^\[suites\] pass=" "$OUT/g10.out" | tail -1 >> "$L"
 }
@@ -390,35 +392,35 @@ stream() {
 }
 
 if [ "${GATES_PARALLEL:-0}" = "1" ]; then
-  # one stream per MODULE DIRECTORY: A builds core (1, 10, 3), E spec (4, 5),
-  # B pct (6, 7, 9), C parser-equivalence (8) — two gates of one module never
-  # run at once (they would share its target/)
-  echo "streams: A(1,10,3) E(4,5) B(6,7,9) C(8) in PARALLEL" >> "$L"
+  # THREE streams, measured (2026-09-16, 10-core box): a fourth stream
+  # inflates every gate ~1.4x (279 s wall twice); yesterday's three-stream
+  # layout on today's code, stress excluded, measured 264 s (G1 69, G4 97,
+  # G6 130, G8 139 — every gate inside its pre-today range). Gate 10 rides
+  # stream C after gate 8, the shortest stream (build + 139 s), so the wall
+  # stays bound by stream A. Two gates of one module never run at once.
+  echo "streams: A(1,3,4,5) B(6,7,9) C(8,10) in PARALLEL" >> "$L"
   # Each stream is a subshell with its OWN log. Three writers appending to one
   # file can tear a line, and the verdict below is derived from those lines —
   # so they are kept apart and concatenated in a fixed order afterwards, which
   # also makes the log read the same every run. The subshell's own G_T0 keeps
   # each gate's timing honest.
-  ( L="$OUT/stream-A.log"; : > "$L"; stream A gate1 gate10 gate3 ) &
+  ( L="$OUT/stream-A.log"; : > "$L"; stream A gate1 gate3 gate4 gate5 ) &
   PA=$!
-  ( L="$OUT/stream-E.log"; : > "$L"; stream E gate4 gate5 ) &
-  PE=$!
   ( L="$OUT/stream-B.log"; : > "$L"; stream B gate6 gate7 gate9 ) &
   PB=$!
-  ( L="$OUT/stream-C.log"; : > "$L"; stream C gate8 ) &
+  ( L="$OUT/stream-C.log"; : > "$L"; stream C gate8 gate10 ) &
   PC=$!
-  wait $PA; wait $PE; wait $PB; wait $PC
-  cat "$OUT/stream-A.log" "$OUT/stream-E.log" "$OUT/stream-B.log" "$OUT/stream-C.log" >> "$L" 2>/dev/null
+  wait $PA; wait $PB; wait $PC
+  cat "$OUT/stream-A.log" "$OUT/stream-B.log" "$OUT/stream-C.log" >> "$L" 2>/dev/null
   # a subshell cannot mutate the parent's FAILED array, so rebuild it from the
   # verdict lines the streams wrote
   FAILED=()
   while read -r n; do FAILED+=("G$n"); done < <(
     grep -E "^G[0-9]+_EXIT=[1-9]" "$L" | sed -E 's/^G([0-9]+)_EXIT=.*/\1/')
 else
-  stream A gate1 gate10 gate3
-  stream E gate4 gate5
+  stream A gate1 gate3 gate4 gate5
   stream B gate6 gate7 gate9
-  stream C gate8
+  stream C gate8 gate10
 fi
 
 # NO VERDICT IS A FAILURE. Rebuilding the verdict from log lines means a gate
