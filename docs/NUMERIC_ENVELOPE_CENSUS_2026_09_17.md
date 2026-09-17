@@ -160,3 +160,53 @@ double precision keeps its digits (lite today; also what the engine's SQL does, 
 never converts) — then the envelope cast must NOT apply to literal-rooted cells, only to
 computed ones. `Fold.cellText` gets the declared-kind rule with the rest. Size: a lane leg
 of its own, judged by the same table.
+
+## 8. Step 3 attempt (2026-09-17, after the judges adopted Rules 2 and 3 in 7e39648f5) — REVERTED
+
+Edits: Rule 1 only — bare Float literals (`AnsiSqlRenderer.floatLiteral`: the plain Float
+spelling, a point always present), the Decimal→Float property read as a type assertion;
+division untouched. Stress: DuckDB 41 → 20, H2 4,607 → 4,619, zero new rows (the census's
+prediction, exactly).
+
+| lane | result | what it says |
+| --- | --- | --- |
+| G4 DuckDB corpus | LOST 16 (the §7 fourteen + dataType::testSimpleTypeMapping(+Project)) | `expected [19.75D …] actual [19.75 …]` again. The engine's test asserts Float literals and its SQL is `avg(1.0 * AGE)` — the engine PROMOTES the average's argument (`dynaFnToSql('average', … 'avg(1.0 * %s)')`, extensionDefaults.pure :198). Ours is `AVG(t2.AGE)`. Rule 1 has a second engine spelling to adopt, and the referee's byte channel keys the canon of a Float-declared side on the carrier's text (`32.00` vs `32.0`), which Rule 2 says is the same Float |
+| G5 H2 corpus | LOST 2, GAINED 10 | `averageEmployeesAge() expected 68.0, got 68` — the JSON leaf of a Float-declared value H2 computed as an INTEGER (avg over integers on H2 is an integer; the engine's `avg(1.0 * x)` makes it NUMERIC). The same `avg` spelling; and `'Firm D | 52.0'` still `52` — `Fold.cellText`'s conversion did not reach this makeString path |
+| G6 PCT DuckDB | 3 rows: `expected: 32.0 actual: 32.0D`, `0.5` vs `0.5D`, `0.0` vs `0.0D` | lite's PCT adapter returns the WIRE kind (a DECIMAL becomes a pure Decimal — "the P7 relabel is DELETED", pct_adapter.pure). The engine's adapter converts BY THE DECLARED RETURN TYPE (`resultToType`: Float → `cast(@Number)->toFloat()`, pct_relational.pure :171-184). Rule 2 is missing from OUR PCT adapter |
+| G9 Channel B | disagreements: sqrt, pow ×3, cbrt, atan2, tan, sin, asin, atan | the same Float-declared-over-DECIMAL canon question as G4 (the expected literal side is now a DECIMAL carrier, the actual a DOUBLE; the byte canon compares texts, `1.4142135623730951` vs the decimal's) |
+
+**What step 2 did NOT cover, now named.** (a) The referee's BYTE channel: Rule 3 landed only
+in the host lattice (`PureAsserts`), not in the SQL canon — a Float-declared side's canon
+must be the Float print form of the VALUE whatever the carrier's scale (`32.00` → `32.0`),
+digits kept. (b) The PCT adapter: convert by the declared return type (the engine's
+`resultToType`). (c) Rule 1 has more than literals: the engine's aggregate spellings
+(`avg(1.0 * x)`) belong to it. (d) `Fold.cellText` is not the makeString path these rows
+use.
+
+**Order for the next attempt:** (b) and (a) first, emission unchanged, chain green; then
+(c) with Rule 1's literal flips, both stress lanes; (d) found by the H2 row.
+
+## 9. The complete combination (2026-09-17, compiled reference) — measured, REVERTED
+
+Everything at once: bare literals; Decimal→Float read as assertion; `avg(1.0 * x)` (the
+engine's spelling); Float-declared → DOUBLE at the TDS cell, JSON leaf, value roots (keyed by
+the Pure type), grid canon and Float-side canon; the PCT adapter converting by the declared
+return type; pins re-declared; `abs::testBigFloatAbs` registered as an interpreted-only
+expected failure. Stress: DuckDB 41 → 20, H2 4,607 → 4,619, zero new. Chain: G1, G7 green;
+G4 lost 14; G5 lost 9, gained 11; G6 six rows + the adapter-size pin; G9 26 disagreements.
+
+**What moved (progress).** The corpus HOST lattice now AGREES on the sub-aggregation rows
+(`byte-verdict: canonical sorted renders differ (host multiset agreed)`): Rule 3 in the
+referee works. The remaining failures are every place the boundary conversion did NOT
+apply, and they are mechanical:
+
+| where | evidence | cause |
+| --- | --- | --- |
+| `LiteralSpelling.declaredDouble` | H2: `'Firm C | 35.50000000000'`, `'19.75000000000 4'`, JSON `68` (all H2); DuckDB byte canon differs while the host agrees | the helper converts ONLY when the tree's type fact is a known DECIMAL/integer; on H2 the facts are unknown and on DuckDB a computed value's fact is unknown — so nothing converted. It must convert unless the fact is a KNOWN text carrier or already DOUBLE |
+| the TDS-row verdict site (`tdsRowValuesVerdict`, `assertEquals (TDSRow.values)`) | `sqrt::testProject expected [1.0000000000000000D, …] actual [1.0, …]` | Rule 3's `floatDeclared` was threaded through two verdict sites; this third one still judges by carrier |
+| lite's PCT adapter | `32.0` vs `32.0D`, `1.5` vs `1.5D` unchanged | the return-type conversion written in `pct_adapter.pure` did not take effect (`$f->functionReturnType().rawType == Float` never true, or the executed value is not `instanceOf(Number)` at that point) — needs one PCT row run with a print |
+| `PctDisciplineTest` | adapter grew 485 → 491 lines | a pin to bump with the justification once the conversion works |
+| `avg(1.0 * x)` on H2 | NUMERIC scale 11 texts | correct SQL; only visible because the conversion above did not apply at the text boundary |
+
+**Next attempt = these four fixes, nothing else**, then the same judge. Not before CI is
+green (red-ci-stops-the-line, 2026-09-17).

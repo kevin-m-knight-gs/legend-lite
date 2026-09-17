@@ -38,7 +38,20 @@ IS a Float.
   Cells are READ by JDBC kind with identity numeric transformers
   (`RelationalResult.getValue` :572-603, `SetImplTransformers.buildTransformer`).
 
-**Probed 2026-09-17 and rejected:** casting a Float-declared value to DOUBLE at the boundary.
+**Homework 2026-09-17 (read, not inferred).** The engine's relational PCT suites for DuckDB
+and H2 are built with `PureTestBuilderCompiled` (`Test_Relational_DuckDB_PCT.java`:
+`PLATFORM = "compiled"`; `Test_Relational_H2_PCT.java`). In the compiled runtime a Pure
+Float IS `java.lang.Double` (`JavaPurePrimitiveTypeMapping.java` :56-58; a Float literal is
+generated as `(java.lang.Double)<digits>`, :106-108); a Decimal is `java.math.BigDecimal`
+(:110-112). The engine's checked-in DuckDB and H2 PCT manifests
+(`pct-manifests/relational-duckdb/EssentialFunctions_manifest.json`, `relational-h2/…`) do
+NOT exclude `abs::testBigFloatAbs`: compiled, both sides of that assertion are doubles and
+the row passes by losing the same digits on both sides. Lite's PCT lane is the INTERPRETED
+builder (`PureTestBuilderInterpreted`), whose Float is BigDecimal-backed, so the same row
+passes there only by keeping the digits. The two runtimes disagree on this row; the server
+runs compiled.
+
+**Probed 2026-09-17 and rejected — under the INTERPRETED harness:** casting a Float-declared value to DOUBLE at the boundary.
 It reproduces the compiled runtime, not the reference: the PCT lane lost
 `abs::testBigFloatAbs` (`123456789123456780.0` for `…789.99`). Lite's existing design —
 an exact-digit Float literal is DECIMAL-carried under the Float label (AssertVerdicts B8,

@@ -98,8 +98,25 @@ public final class TestAssertions {
             return null;
         }
         if (e instanceof Number en && a instanceof Number an) {
-            return decimal(en).compareTo(decimal(an)) == 0 ? null
-                    : path + " expected " + en + ", got " + an;
+            if (decimal(en).compareTo(decimal(an)) == 0) {
+                return null;
+            }
+            // The corpus referee's DECLARED numeric policy (PureAsserts,
+            // World 1), applied here for the same reason: a Float the
+            // database computes through its C math library (cbrt, pow,
+            // trig) differs by ONE unit in the last place between arm64
+            // and x86_64 (ledger F-AE: the 10 linux + 3 windows CI rows,
+            // all cbrt cells). Two ULP of the larger magnitude, nothing
+            // wider — the double-arithmetic rows of 2026-09-17 are ~50 ULP
+            // off and stay failures under it. Exact values compared above.
+            double de = en.doubleValue();
+            double da = an.doubleValue();
+            if (Double.isFinite(de) && Double.isFinite(da)
+                    && Math.abs(de - da)
+                            <= 2 * Math.ulp(Math.max(Math.abs(de), Math.abs(da)))) {
+                return null;
+            }
+            return path + " expected " + en + ", got " + an;
         }
         if (e instanceof String es && a instanceof String as) {
             return es.equals(as) ? null : path + " expected " + show(es) + ", got " + show(as);
