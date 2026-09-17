@@ -2,8 +2,8 @@
 
 **The goal.** A developer who has never seen this repository clones it, runs one
 command, and gets a verdict — on Windows, macOS or Linux, on any supported LTS JDK,
-with nothing installed but a JDK and git. A team of developers can then work on it at
-the same time without stepping on each other.
+using only the tools a Java developer already has and nothing specific to this project.
+A team of developers can then work on it at the same time without stepping on each other.
 
 **The means.** Maven does all of it. Not Maven plus a shell script that reads Maven's
 console output; not Maven plus two source checkouts the developer has to clone by hand;
@@ -320,7 +320,8 @@ is initially only "compiles".
 ### Phase 1 — A fresh clone is green *(1–2 weeks)*
 
 - Add the Maven wrapper (`mvnw`, `mvnw.cmd`, `.mvn/wrapper/`) pinned to the Maven version
-  the project supports; add `.mvn/jvm.config` for the Maven JVM heap.
+  the project supports, so nobody has to install or guess one; add `.mvn/jvm.config` for
+  the Maven JVM heap.
 - Replace `maven.compiler.source`/`target` with `maven.compiler.release=21`. Add Enforcer
   `requireJavaVersion [21,)` and `requireMavenVersion` at the root. Verify NullAway and
   Error Prone on both 21 and 25 (the JSpecify workaround for 21 is already in
