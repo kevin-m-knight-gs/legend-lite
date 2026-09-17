@@ -72,11 +72,10 @@ Class trading::Trade
     //     requires [1] ("Collection element must have a multiplicity [1] ... Applying
     //     plus"). Pure makes you discharge optionality explicitly rather than letting
     //     NULL propagate, which is a real and defensible design choice.
-    //   - the natural way to discharge it, `->orElse(0.0)`, does not compile in
-    //     legend-lite: "unknown function 'orElse'". See docs/UPSTREAM_FINDINGS.md F7.
-    // Since a derived property is type-checked whether or not any query uses it, keeping
-    // it would make the whole corpus uncompilable in one of the two engines and cost us
-    // the differential. It returns when orElse lands.
+    //   - the natural way to discharge it in USER code is `coalesce($this.commission, 0.0)`
+    //     — the idiom the engine's own relational test corpus uses 120 times and never
+    //     `orElse`, which is an engine-internal convenience (docs/UPSTREAM_FINDINGS.md F7).
+    //     This property stays withdrawn only because it was never part of the differential.
     // An isSettled() { $this.settlementDate->isNotEmpty() } belongs here and is absent
     // for the same structural reason as netCost: it makes the corpus uncompilable in one
     // engine. legend-lite refuses it over a [0..1] receiver --

@@ -26,7 +26,7 @@ Class benchmarks::BenchmarkIndex
    // Day-on-day return in percent. A first observation reads as no move -- stated,
    // because a performance report that showed the whole level as a return would
    // be worse than useless.
-   dailyReturnPct() { ($this.level - $this.previousLevel->orElse($this.level)) * 100.0 / $this.level } : Float[1];
+   dailyReturnPct() { ($this.level - coalesce($this.previousLevel, $this.level)) * 100.0 / $this.level } : Float[1];
 }
 
 // The US large-cap benchmark most equity risk is measured against.

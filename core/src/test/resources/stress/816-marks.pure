@@ -28,13 +28,13 @@ Class marks::MarketDataPoint
    // `$this.value - $this.previousValue` does not compile: previousValue is [0..1] and
    // `minus` requires [1] on both sides -- "Collection element must have a multiplicity
    // [1] ... Applying minus". Optionality has to be discharged BEFORE the arithmetic, and
-   // ->orElse is how Pure does it.
+   // coalesce is how user Pure does it (the engine's own corpus: coalesce, never orElse).
    //
    // Discharging it to the value itself rather than to zero, so a first observation reads
    // as a zero move rather than as a move equal to the whole level. That is a convention,
    // and it is stated rather than hidden: a stale-data check wanting to distinguish "no
    // previous mark" from "unchanged" has to read previousValue directly.
-   dailyChange() { $this.value - $this.previousValue->orElse($this.value) } : Float[1];
+   dailyChange() { $this.value - coalesce($this.previousValue, $this.value) } : Float[1];
 }
 
 // A last traded or composite spot level.

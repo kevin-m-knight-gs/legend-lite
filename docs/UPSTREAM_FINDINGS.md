@@ -261,7 +261,18 @@ build if any of them starts passing, so the fix will not go unnoticed.
 
 ## F7 — legend-lite has no `orElse`
 
-**Severity: missing platform function in legend-lite.**
+**Severity: missing platform function in legend-lite — RE-READ 2026-09-16: non-idiomatic corpus authoring, not a user-visible gap.**
+
+Measured across the engine checkout: `orElse` is called 121 times in 61 files, almost all
+inside the engine's own implementation code (the SQL binding compiler, the RelationalAI
+translator, the XML/JSON format transformations) — engine-internal Pure. In the engine's
+relational test corpus, the user-shaped models our lanes run, it appears ZERO times; that
+corpus discharges optionality with `coalesce` (120 calls). The stress corpus's eight
+`->orElse(...)` sites were ours and are rewritten to `coalesce(...)`, which lite lowers.
+`orElse` remains valid Pure a user could type (a bodied library function,
+`langExtension.pure`, defined as `coalesce`); whether the engine's core function library
+joins the prelude is a scope decision on its own merits (dry run 2026-09-16: +185 bodies,
+zero closure).
 
 `orElse` is the natural way to discharge optionality in Pure, and it is what you must
 reach for because `[0..1] + [0..1]` does not compile (see below). legend-lite rejects the

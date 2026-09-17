@@ -149,8 +149,8 @@ class StressServiceSuitesTest {
     /** The H2 lane's own floor (fresh session per test; the engine's shape): the
      *  DuckDB floor minus the H2 walls (EPOCH_MS/REVERSE, last-digit floats,
      *  timestamp text — ledger F-P). */
-    private static final int MIN_PASS_H2 = 4509;
-    private static final int MIN_PASS = 4564;   // 2702 -> 2765 -> 4203 -> 4564 (2026-09-16: double division; pins model-wide; association anchors; F-M deeper tails; F-O graph-node key demand)
+    private static final int MIN_PASS_H2 = 4571;   // 4509 -> 4571 (2026-09-16: the corpus's orElse sites rewritten to coalesce, the user idiom)
+    private static final int MIN_PASS = 4626;   // 2702 -> 2765 -> 4203 -> 4564 -> 4626 (2026-09-16: double division; pins; association anchors; F-M; F-O; the corpus's orElse sites rewritten to coalesce)
 
     /** A failure reason with its specifics elided, so alike failures count together. */
     private static String bucket(String reason) {
