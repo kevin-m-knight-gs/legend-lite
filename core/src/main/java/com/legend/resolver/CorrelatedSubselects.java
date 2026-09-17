@@ -236,7 +236,18 @@ final class CorrelatedSubselects {
                 return chainedAggSubSource(cs, head, aj);
             }
         }
-        List<String> keyCols = parentEquiKeys(aj.condition(), head);
+        // A PARENT-COPY shape correlates by the PARENT'S PRIMARY KEY (the
+        // exploding subselect's rule, engine #69 goldens: 'root'.ID = sub.ID):
+        // grouping the parent copy by the condition's parent-side columns
+        // multiplies the aggregate by every parent sharing those values
+        // (stress AA_TradeCounts: 8 for 2 — four trades on one venue/type),
+        // and an OR / range condition has no equi keys at all. The condition
+        // rides WHOLE inside the join; FK keys stay the fallback for PK-less
+        // parents.
+        List<String> keyCols = parentKeyColumns(cs);
+        if (keyCols.isEmpty()) {
+            keyCols = parentEquiKeys(aj.condition(), head);
+        }
         ParentCopy pc = java.util.Objects.requireNonNull(
                 parentCopyFor(cs, corrAgg));
         Type.RelationType pcRow = Type.requireRelationSchema(pc.mat().pipeline().info().type());
@@ -468,6 +479,13 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
 
     record ParentCopy(Pipelines.Materialized mat,
             Map<String, Substitution.SubNav> subNavs) {}
+
+    /** The parent's declared ~primaryKey columns, deduplicated; empty for a
+     *  PK-less parent (the caller falls back to the condition's keys). */
+    private List<String> parentKeyColumns(ClassSource cs) {
+        return RelationalRootForm.primaryKeyColumns(cs.classFqn(), cs.pipeline(),
+                cs.mappingFqn(), sources.ctx());
+    }
 
 
     /** Null {@code corr} = an UNCORRELATED parent copy (filter-position
@@ -827,13 +845,16 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         for (TypedSpec b : cond.body()) {
             collectAliasReads(b, srcVar, slots, condSlots);
         }
-        List<String> keyCols = new ArrayList<>();
-        if (condSlots.isEmpty()) {
+        List<String> keyCols = new ArrayList<>(parentKeyColumns(cs));   // the parent's PK first (see corrAggSubSource)
+        if (!keyCols.isEmpty()) {
+            // the condition rides whole inside the join; nothing to mine
+        } else if (condSlots.isEmpty()) {
             List<String> ks = parentKeysLenient(cond.body()
                     .get(cond.body().size() - 1), srcVar);
             if (ks == null || ks.isEmpty()) {
                 throw new NotImplementedException("aggregate over navigation '"
-                        + head + "' requires equi-join parent keys"
+                        + head + "' requires equi-join parent keys, and the parent"
+                        + " class declares no ~primaryKey to correlate by"
                         + " (grouped-subselect emission)");
             }
             keyCols.addAll(ks);
@@ -1062,6 +1083,28 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
                             java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"));
             mapBody = mm.body().get(0);
+            if (corrTp != null && mapBody instanceof com.legend.compiler.spec.typed.TypedCInteger one
+                    && one.value().longValue() == 1L) {
+                // a ROW COUNT (x|1) over the JOINED parent-copy shape: the
+                // LEFT join keeps an unmatched parent as one row, so
+                // COUNT(*) would answer 1 for "no targets" (stress LE2:
+                // matchingRules 1 for 0). Count a TARGET column instead —
+                // NULL on the unmatched row, so the count is 0. The target's
+                // first declared key column when it has one, else its first.
+                java.util.List<String> tpk = RelationalRootForm.primaryKeyColumns(
+                        aj.target().classFqn(), aj.target().pipeline(), cs.mappingFqn(),
+                        sources.ctx());
+                String tcol = tpk.isEmpty() ? aj.targetRow().columns().get(0).name() : tpk.get(0);
+                Type.Column tc = aj.targetRow().columns().stream()
+                        .filter(c -> c.name().equals(tcol)).findFirst()
+                        .orElse(aj.targetRow().columns().get(0));
+                mapBody = new TypedPropertyAccess(
+                        new com.legend.compiler.spec.typed.TypedVariable(
+                                java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
+                                new ExprType(java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"),
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                        corrTp + tc.name(), new ExprType(tc.type(), tc.multiplicity()));
+            }
             leafType = mapBody.info().type();
             leafMult = mapBody.info().multiplicity();
         } else {

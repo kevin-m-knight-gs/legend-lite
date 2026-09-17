@@ -1143,7 +1143,12 @@ final class Fold {
             return e;
         }
         // ONE nine-digit spelling owner (disagree-9 audit): ISO_NANO —
-        // the same convention the value-egress conformance emits
+        // the same convention the value-egress conformance emits. This is
+        // the engine's execute→JSON channel (the corpus lanes' graphFetch
+        // goldens: no zone suffix). The engine's SERVICE-TEST channel spells
+        // a DateTime with '+0000' (stress GG_* trees) — a per-channel
+        // spelling the runner owns, never this envelope (2026-09-16: adding
+        // it here lost 35 corpus rows).
         SqlExpr iso = SqlExpr.Call.of(SqlFn.STRFTIME, e,
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO));
         List<SqlExpr.Case.When> arms = new java.util.ArrayList<>();

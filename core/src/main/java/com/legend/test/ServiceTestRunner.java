@@ -434,7 +434,7 @@ public final class ServiceTestRunner implements AutoCloseable {
     private static @com.legend.Nullable Object cell(@com.legend.Nullable Object v) {
         return switch (v) {
             case null -> null;
-            case PureDateLiteral d -> d.toEngineString();
+            case PureDateLiteral d -> d.toEngineJson();   // the engine's JSON spelling: nanos + "+0000" on time-bearing values
             case Map<?, ?> m -> {
                 Map<String, Object> o = new LinkedHashMap<>();
                 m.forEach((k, x) -> o.put(String.valueOf(k), cell(x)));

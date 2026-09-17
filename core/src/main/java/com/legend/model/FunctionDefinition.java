@@ -132,7 +132,29 @@ public record FunctionDefinition(
      * @param ownerFqn   FQN of the structural owner the body site belonged to
      * @param memberName original member name (derived property / constraint / mapped class / association / route)
      */
-    public record Synthesized(SynthHat hat, String ownerFqn, String memberName) {
+    public record Synthesized(SynthHat hat, String ownerFqn, String memberName,
+                              @com.legend.Nullable String forwardProperty) {
+        public Synthesized(SynthHat hat, String ownerFqn, String memberName) {
+            this(hat, ownerFqn, memberName, null);
+        }
+
+        /** THE FORWARD END of a self-association mapped through ONE join
+         * (2026-09-16, stress CV3/CV6/CV7 + corpus finding F52): the join
+         * text is written from one end's point of view ({@code T.X <
+         * {target}.X}) and nothing in the association distinguishes the
+         * ends but their names; the engine returns the forward set for
+         * BOTH ends (F52). Lite's DECLARED rule: the property the mapping's
+         * FIRST property mapping names walks the join as written (this
+         * predicate is built from that mapping), the other end backwards.
+         * Only an ASSOC synthesis sets it; null = orient by class, or by the
+         * association's own property order (the fallback). Rides the
+         * function's provenance, never the binding table — the legacy and
+         * clean-sheet mapping forms must produce the same bindings. */
+        @Override
+        public @com.legend.Nullable String forwardProperty() {
+            return forwardProperty;
+        }
+
         public Synthesized {
             Objects.requireNonNull(hat, "hat");
             Objects.requireNonNull(ownerFqn, "ownerFqn");

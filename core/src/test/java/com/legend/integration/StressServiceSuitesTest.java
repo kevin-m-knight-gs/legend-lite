@@ -76,7 +76,7 @@ class StressServiceSuitesTest {
         Files.createDirectories(Path.of("target"));
         // per-test progress, flushed as it happens, so a long run can be
         // watched: `tail -f core/target/stress-suites-progress.txt`
-        Path progressPath = Path.of("target/stress-suites-progress.txt");
+        Path progressPath = Path.of("target/stress-suites-progress" + (h2 ? "-h2" : "") + ".txt");
         int done = 0;
         long lastReport = System.nanoTime();
         try (var runner = new ServiceTestRunner(ctx,
@@ -116,9 +116,9 @@ class StressServiceSuitesTest {
             System.out.printf("[suites] sessions opened: %d%n", runner.sessions().size());
         }
         Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/stress-suites-pass.txt"), pass);
-        Files.write(Path.of("target/stress-suites-fail.txt"), fail);
-        Files.write(Path.of("target/stress-suites-skipped.txt"), skipped);
+        Files.write(Path.of("target/stress-suites-pass" + (h2 ? "-h2" : "") + ".txt"), pass);
+        Files.write(Path.of("target/stress-suites-fail" + (h2 ? "-h2" : "") + ".txt"), fail);
+        Files.write(Path.of("target/stress-suites-skipped" + (h2 ? "-h2" : "") + ".txt"), skipped);
         System.out.printf("[suites] pass=%d fail=%d skipped=%d of %d tests in %d ms (execution)"
                 + " — %d ms wall%n", pass.size(), fail.size(), skipped.size(),
                 pass.size() + fail.size() + skipped.size(), execNs / 1_000_000,
@@ -141,7 +141,7 @@ class StressServiceSuitesTest {
             // only grow. Raise it with every leg that burns a bucket; never lower it.
             int floor = h2 ? MIN_PASS_H2 : MIN_PASS;
             assertTrue(pass.size() >= floor, pass.size() + " tests passed, below the"
-                    + " ratchet " + floor + " — see target/stress-suites-fail.txt");
+                    + " ratchet " + floor + " — see target/stress-suites-fail" + (h2 ? "-h2" : "") + ".txt");
         }
     }
 
@@ -149,8 +149,8 @@ class StressServiceSuitesTest {
     /** The H2 lane's own floor (fresh session per test; the engine's shape): the
      *  DuckDB floor minus the H2 walls (EPOCH_MS/REVERSE, last-digit floats,
      *  timestamp text — ledger F-P). */
-    private static final int MIN_PASS_H2 = 4571;   // 4509 -> 4571 (2026-09-16: the corpus's orElse sites rewritten to coalesce, the user idiom)
-    private static final int MIN_PASS = 4626;   // 2702 -> 2765 -> 4203 -> 4564 -> 4626 (2026-09-16: double division; pins; association anchors; F-M; F-O; the corpus's orElse sites rewritten to coalesce)
+    private static final int MIN_PASS_H2 = 4602;   // 4509 -> 4571 -> 4602 (2026-09-16: orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling)
+    private static final int MIN_PASS = 4654;   // 2702 -> 2765 -> 4203 -> 4564 -> 4626 -> 4654 (2026-09-16: double division; pins; association anchors; F-M; F-O; orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling)
 
     /** A failure reason with its specifics elided, so alike failures count together. */
     private static String bucket(String reason) {

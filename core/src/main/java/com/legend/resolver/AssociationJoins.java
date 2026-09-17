@@ -1148,6 +1148,19 @@ final class AssociationJoins {
     record PredMaterial(TypedLambda cond, boolean reverse,
             boolean propertySpace, @com.legend.Nullable String targetSetId) {}
 
+    /** The property that walks a self-association's join AS WRITTEN: the
+     *  synthesized predicate's provenance names it (the mapping's first
+     *  property mapping — FunctionDefinition.Synthesized.forwardProperty);
+     *  the association's own first property is the fallback. */
+    private static String forwardPropertyOf(com.legend.compiler.element.TypedFunction predicate,
+            com.legend.model.AssociationDefinition assoc) {
+        if (predicate.definition() instanceof com.legend.model.FunctionDefinition fd
+                && fd.synthesizedFrom() != null && fd.synthesizedFrom().forwardProperty() != null) {
+            return fd.synthesizedFrom().forwardProperty();
+        }
+        return assoc.property1().propertyName();
+    }
+
     /** The association condition's PARENT side: the column-space
      *  condition and which of its two params is the parent's row. Null
      *  when {@code prop} is not a bound association end of {@code cs}'s
@@ -1224,8 +1237,12 @@ final class AssociationJoins {
                     + classAFqn + "' is neither parent '" + cs.classFqn()
                     + "' nor target '" + targetClass + "'");
         }
+        // a SELF-association: the mapping's forward end walks the join as
+        // written, the other end backwards (AssociationBinding.forwardProperty;
+        // the association's own property order is the fallback)
+        String forward = forwardPropertyOf(fns.get(0), assoc);
         boolean reverse = cs.classFqn().equals(targetClass)
-                ? !assoc.property1().propertyName().equals(real)
+                ? !forward.equals(real)
                 : !parentIsA;
         boolean propSpace = call.args().get(2)
                 instanceof com.legend.compiler.spec.typed.TypedCString;
@@ -1828,8 +1845,9 @@ final class AssociationJoins {
                 String classAFqnE = ((Type.ClassType)
                         fnsE.get(0).parameters().get(0).type()).fqn();
                 boolean parentIsAE = ctx.isSubtype(cs.classFqn(), classAFqnE);
+                String forwardE = forwardPropertyOf(fnsE.get(0), assoc);
                 boolean reverseE = cs.classFqn().equals(targetClass)
-                        ? !assoc.property1().propertyName().equals(real)
+                        ? !forwardE.equals(real)
                         : !parentIsAE;
                 String tgtVarE = condE.parameters().get(reverseE ? 0 : 1);
                 result = tgtVarE;

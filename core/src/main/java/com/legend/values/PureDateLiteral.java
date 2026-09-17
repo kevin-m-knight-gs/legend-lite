@@ -81,6 +81,31 @@ public sealed interface PureDateLiteral
                 PureDateLiteral.DateWithSecond,
                 PureDateLiteral.DateWithSubsecond {
 
+    /** THE ENGINE'S JSON SPELLING of a date value (its ServiceTestRunner /
+     * PURE_TDSOBJECT value transformer, witnessed 2026-09-16 on the stress
+     * corpus): a date-only value prints its literal body; a time-bearing
+     * value prints seconds, NINE fractional digits and the GMT
+     * {@code +0000} suffix whatever precision was written —
+     * {@code 2024-06-03T09:07:00.000000000+0000}. One owner beside
+     * {@link #toEngineString} (the literal body) and {@link #toString}
+     * (Pure's print form). */
+    default String toEngineJson() {
+        return switch (this) {
+            case Year y -> y.toEngineString();
+            case YearMonth ym -> ym.toEngineString();
+            case StrictDate d -> d.toEngineString();
+            case DateWithHour h -> String.format("%d-%02d-%02dT%02d:00:00.000000000+0000",
+                    h.year(), h.month(), h.day(), h.hour());
+            case DateWithMinute m -> String.format("%d-%02d-%02dT%02d:%02d:00.000000000+0000",
+                    m.year(), m.month(), m.day(), m.hour(), m.minute());
+            case DateWithSecond sec -> String.format("%d-%02d-%02dT%02d:%02d:%02d.000000000+0000",
+                    sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(), sec.second());
+            case DateWithSubsecond ss -> String.format("%d-%02d-%02dT%02d:%02d:%02d.%s+0000",
+                    ss.year(), ss.month(), ss.day(), ss.hour(), ss.minute(), ss.second(),
+                    (ss.subsecond() + "000000000").substring(0, 9));
+        };
+    }
+
     /**
      * Canonical engine-faithful spelling without the leading {@code %}
      * prefix and with timezone normalised to GMT (no TZ suffix).

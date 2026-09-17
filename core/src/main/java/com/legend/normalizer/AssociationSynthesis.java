@@ -522,7 +522,8 @@ final class AssociationSynthesis {
                 List.of(body),
                 List.of(), List.of())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(
-                        SynthHat.ASSOC, md.qualifiedName(), am.associationName()));
+                        SynthHat.ASSOC, md.qualifiedName(), am.associationName(),
+                        firstAm.propertyName()));
     }
 
     /**
