@@ -26,6 +26,9 @@ Three commands, each with one job, all runnable on every supported platform:
 | `./mvnw verify` | every developer before pushing; CI on every PR | **Everything.** Compiles, runs every suite including the conformance suites against the pinned upstream release and both database lanes, and fails if anything is wrong. The same command CI runs; the same verdict. |
 | `./mvnw verify -Pregenerate` | a maintainer, moving to a new upstream release | Rewrites the committed generated files and ledgers so the diff can be reviewed as a pull request. |
 
+`mvn` and `./mvnw` are interchangeable throughout: the wrapper exists so a fresh machine
+needs no Maven install, and Enforcer rejects an unsupported one either way.
+
 Acceptance criteria for the programme as a whole:
 
 1. A clean clone plus `./mvnw verify` is green. No checkouts, no environment variables,
@@ -58,7 +61,7 @@ project's verdict.
 
 | | |
 | --- | --- |
-| **No wrapper** | There is no `mvnw`/`mvnw.cmd` and no `.mvn/`. `.sdkmanrc` pins `java=25.0.1-tem`, `maven=3.9.12`; SDKMAN does not run on Windows. The developer guesses a Maven version. |
+| **The toolchain is not enforced** | Nothing in the build checks the JDK or Maven version, so the wrong one fails obscurely instead of clearly. The only statement of the supported versions is `.sdkmanrc` (`java=25.0.1-tem`, `maven=3.9.12`), which Windows cannot read. |
 | **The README describes a deleted module** | Its Quick Start runs `mvn -pl engine test`; the `engine` module no longer exists. Its test counts (1,713 for `core`) are years of work out of date. |
 | **The instructions are agent documents** | `README.md` sends you to `AGENTS.md` ("read by AI coding assistants"), `core/README.md` and `docs/GATES.md`, which is 3,782 lines of dated work records. There are 241 Markdown files at the top level of `docs/` and no index. |
 | **Two checkouts, pinned by SHA** | `spec`, `pct` and `parser-equivalence` read full source trees of `finos/legend-engine` and `finos/legend-pure` through `-Dlegend.engine.root` / `-Dlegend.pure.root`, which must sit on the exact commits in `tools/oracle-pins.env`. Maven cannot fetch them. Without them some tests fail and others skip silently — which is why `allgates.sh` has a skip detector. |
@@ -283,7 +286,7 @@ Two workflows replace three plus a composite action.
 ```
 strategy:
   matrix:
-    os:  [ubuntu-latest, macos-14, windows-2022]
+    os:  [ubuntu-latest, macos-latest, windows-latest]
     jdk: [21, 25]
 run: ./mvnw -B verify
 ```
@@ -295,6 +298,21 @@ which the project already has and should keep.
 
 The `verify` job on `ubuntu-latest / 21` is the required check for merging. The matrix is
 the only thing CI adds that a laptop cannot do.
+
+**On `-latest` rather than pinned images.** The reason to build on macOS and Windows is
+that people develop there, and they keep their machines roughly current. A pinned image
+tests a configuration nobody has, drifts further from the developers every month, and gets
+removed by GitHub in the end anyway — so pinning buys a delay, not an escape. `-latest` is
+not a cliff either: the label rolls over gradually and the old image warns in the logs
+first.
+
+What is worth holding still is the **architecture** axis, which is where this project has
+already been bitten: DuckDB's `percentile_cont` returns a different double on x86_64 than
+on arm64. `macos-latest` is arm64 and the other two legs are x86_64, so the matrix covers
+both by construction — that should be stated in a comment, because it is the reason the
+macOS leg exists, and an Intel macOS leg can be added if that specific combination ever
+matters. If an image rollover does redden the required check one day, pin that one job and
+keep an unpinned nightly as the early warning; do not pin the matrix by default.
 
 ---
 
@@ -319,13 +337,15 @@ is initially only "compiles".
 
 ### Phase 1 — A fresh clone is green *(1–2 weeks)*
 
-- Add the Maven wrapper (`mvnw`, `mvnw.cmd`, `.mvn/wrapper/`) pinned to the Maven version
-  the project supports, so nobody has to install or guess one; add `.mvn/jvm.config` for
-  the Maven JVM heap.
 - Replace `maven.compiler.source`/`target` with `maven.compiler.release=21`. Add Enforcer
-  `requireJavaVersion [21,)` and `requireMavenVersion` at the root. Verify NullAway and
+  `requireJavaVersion [21,)` and `requireMavenVersion` at the root, so an unsupported
+  toolchain fails on the first line with a sentence rather than a stack trace three minutes
+  in. These rules, not the wrapper, are what make the requirement real. Verify NullAway and
   Error Prone on both 21 and 25 (the JSpecify workaround for 21 is already in
   `core/pom.xml` and needs a run to confirm).
+- Add the Maven wrapper (`mvnw`, `mvnw.cmd`, `.mvn/wrapper/`) as a convenience for anyone
+  who would rather not install Maven, and `.mvn/jvm.config` for the Maven JVM heap. An
+  installed `mvn` of a supported version stays a first-class way to build.
 - Add `.gitattributes` and `.editorconfig`.
 - Fix the duplicate `provision` enum value in the `nlq` test model.
 - Tag every test that needs an upstream source checkout, exclude that tag by default, and
