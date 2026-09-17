@@ -3226,10 +3226,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testBigFloatAbs() throws SQLException {
                 // |abs(-123456789123456789.99) == 123456789123456789.99
-                // PLATFORM dialect: legend-pure semantics — precision-
-                // preserving promotion (the PCT reference asserts the exact
-                // digits). The ENGINE surface is CFloat/double; see
-                // SpecParserTest.floatExceedingDoublePrecisionIsDialectSplit.
+                // The PCT reference (the interpreted runtime) backs a Float
+                // with a BigDecimal and asserts the exact digits; the engine's
+                // own relational PCT adapters pass this row. NUMERIC CHARTER
+                // Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): the boundary
+                // assigns the declared KIND (Float) and keeps the carrier's
+                // digits — never a DOUBLE cast (probed 2026-09-17: the cast
+                // lost PCT abs::testBigFloatAbs).
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|meta::pure::functions::math::abs(-123456789123456789.99)",

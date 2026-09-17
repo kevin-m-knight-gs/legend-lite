@@ -78,6 +78,10 @@ public final class LiteralSpelling {
             return v;
         }
         if (t == Type.Primitive.FLOAT) {
+            // (NUMERIC CHARTER Rule 2 is applied by the CALLER for a
+            // Float-DECLARED side — CanonicalRenderSql.wrapWithCanon —
+            // never here: this leaf also spells the FLOAT candidate of
+            // an unrefined Number side, whose wire kind is the answer)
             return floatCanon(v);
         }
         if (t == Type.Primitive.DATE_TIME || t == Type.Primitive.DATE) {
@@ -350,6 +354,20 @@ public final class LiteralSpelling {
      * can never equal legitimate canonical text and the parallel host
      * referee names them residue.
      */
+    /** Rule 2's conversion for a Float-declared cell: CAST AS DOUBLE when
+     * the tree knows the wire is a decimal or an integer kind; a DOUBLE
+     * wire, a text carrier or an unknown fact passes through untouched. */
+    static SqlExpr declaredDouble(SqlExpr v) {
+        if (v.type() instanceof com.legend.sql.TypeFact.Typed t
+                && (t.type() instanceof SqlType.Decimal
+                        || t.type() == SqlType.Scalar.BIGINT
+                        || t.type() == SqlType.Scalar.INTEGER
+                        || t.type() == SqlType.Scalar.HUGEINT)) {
+            return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE);
+        }
+        return v;
+    }
+
     static SqlExpr floatCanon(SqlExpr v) {
         SqlExpr base = new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
         SqlExpr unfolded = exponentUnfold(base);

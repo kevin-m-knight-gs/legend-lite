@@ -567,6 +567,15 @@ public final class SqlTypeCensus {
                 && (meta.equals("SMALLINT") || meta.equals("TINYINT"))) {
             return true;
         }
+        // NUMERIC CHARTER Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): a
+        // Float-DECLARED column (label DOUBLE) may arrive as the database's
+        // DECIMAL — bare literals and DECIMAL columns keep the database's
+        // own kind inside the query; the label carries the declared kind
+        // and the carrier keeps its digits (the engine's TDS decode, `* 1.0`
+        // over a BigDecimal-backed Float). Delivered, never a divergence.
+        if (label == SqlType.Scalar.DOUBLE && meta.startsWith("DECIMAL(")) {
+            return true;
+        }
         // decimal narrowing at the same scale
         if (label instanceof SqlType.Decimal d && meta.startsWith("DECIMAL(")) {
             try {

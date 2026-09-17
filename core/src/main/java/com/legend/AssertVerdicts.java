@@ -370,9 +370,10 @@ final class AssertVerdicts {
                         ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
                 List<Object> a = ik != null
                         ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
+                boolean floatPair = floatDeclared(args.get(0), args.get(1));
                 boolean equal = incidental
-                        ? PureAsserts.assertSameElements(e, a) == null
-                        : PureAsserts.equal(e, a);
+                        ? PureAsserts.assertSameElements(e, a, floatPair) == null
+                        : PureAsserts.equal(e, a, floatPair);
                 // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
                 // host lattice vs host byte channel, measurement only
                 com.legend.exec.CanonicalDivergence.probeEqual(
@@ -432,7 +433,8 @@ final class AssertVerdicts {
                         ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
                 List<Object> a = ik != null
                         ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
-                String d = PureAsserts.assertSameElements(e, a);
+                String d = PureAsserts.assertSameElements(e, a,
+                        floatDeclared(args.get(0), args.get(1)));
                 com.legend.exec.CanonicalDivergence.probeSameElements(
                         e, a, d == null);
                 // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -2326,6 +2328,13 @@ final class AssertVerdicts {
             ExecutionResult.@com.legend.Nullable Tabular grid) {
     }
 
+    /** NUMERIC CHARTER Rule 3: both sides DECLARED Float — their kind is
+     * Float whatever carrier the wire chose (PureAsserts judges by value). */
+    private static boolean floatDeclared(TypedSpec x, TypedSpec y) {
+        return x.info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                && y.info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT;
+    }
+
     private static SideFetch sideCanon(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, boolean canonicalOrder,
@@ -2338,6 +2347,15 @@ final class AssertVerdicts {
             com.legend.exec.CanonicalDivergence.v7SideRows(cells.size());
             return new SideFetch(cells, rider, t);
         }
+        // NUMERIC CHARTER Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): a
+        // side's cells are converted ONCE by the side's DECLARED kind —
+        // IN SQL, on the side's own root select (the value-root envelope
+        // the Lowerer applies to every Float-declared root), never here:
+        // the referee judges values, it never evaluates them (tenet #1,
+        // JavaEvalLedgerTest). Both sides of every verdict ride that same
+        // path, so a DECIMAL carrier under a Float declaration and a Float
+        // literal meet as the SAME kind (Rule 3 then judges same-kind,
+        // same-value).
         return new SideFetch(decodeSide(r), rider, null);
     }
 

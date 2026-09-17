@@ -241,15 +241,49 @@ public final class PureAsserts {
     /** Pure {@code equal(left:Any[*], right:Any[*])} (equal.pure):
      * collection equality is ordered, element-wise. */
     public static boolean equal(List<Object> left, List<Object> right) {
+        return equal(left, right, false);
+    }
+
+    /** NUMERIC CHARTER Rule 3 (docs/NUMERIC_CHARTER_2026_09_17.md): the
+     * kind is the DECLARED kind, not the carrier. When BOTH sides are
+     * Float-declared, a BigDecimal carrier (the database's own DECIMAL
+     * under a Float declaration — the reference runtime's Float is
+     * BigDecimal-backed) and a double carrier are the SAME kind and
+     * compare by canonical value, exactly the Float arm's rule. Every
+     * other pair keeps the carrier-keyed rules below. */
+    public static boolean equal(List<Object> left, List<Object> right,
+            boolean floatDeclared) {
         if (left.size() != right.size()) {
             return false;
         }
         for (int i = 0; i < left.size(); i++) {
-            if (!equalScalar(left.get(i), right.get(i))) {
+            if (!equalScalar(left.get(i), right.get(i), floatDeclared)) {
                 return false;
             }
         }
         return true;
+    }
+
+    public static boolean equalScalar(@com.legend.Nullable Object e,
+            @com.legend.Nullable Object a, boolean floatDeclared) {
+        if (floatDeclared && e instanceof Number && a instanceof Number
+                && (e instanceof BigDecimal || a instanceof BigDecimal)
+                && !isIntegral(e) && !isIntegral(a) && !nonFinite(e) && !nonFinite(a)) {
+            return new BigDecimal(String.valueOf(e))
+                    .compareTo(new BigDecimal(String.valueOf(a))) == 0;
+        }
+        return equalScalar(e, a);
+    }
+
+    /** {@link #assertSameElements(List, List)} under Rule 3's declared kind. */
+    public static @com.legend.Nullable String assertSameElements(
+            List<Object> expected, List<Object> actual, boolean floatDeclared) {
+        List<Object> es = sorted(expected);
+        List<Object> as = sorted(actual);
+        if (equal(es, as, floatDeclared)) {
+            return null;
+        }
+        return "\nexpected: " + joined(es) + "\nactual:   " + joined(as);
     }
 
     /** Element equality: the spec core plus the adjudicated wire

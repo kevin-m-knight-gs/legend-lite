@@ -213,7 +213,7 @@ class JavaEvalLedgerTest {
             // instance rows — spec message text, no verdict is computed
             // here (the verdict rode the database; the message used to
             // wall "toRepresentation for LinkedHashMap is not modeled").
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 313),
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 336),   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
             // in the database (StatementExecutor.evalValue); this file
@@ -473,7 +473,7 @@ class JavaEvalLedgerTest {
             // 1765 -> 1774 (batch 143): the quantified verdict's SOURCE reduces through the
             // inliner with the literal arms on (enumValues()->filter(in) unrolls) — which
             // elements to judge, never a judgment
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1825),   // 1800 -> 1825 (store-substitution leg, 2026-09-13: assertIs over ELEMENT rows adjudicates the identity condition the resolver mints — key equality, the D2 ruling; nothing evaluates host-side) | 1775 -> 1800 (graph-root order rule, 2026-09-13: the JSON verdict reads the chain's ORDER VIEW; the view descends execute frames and graph-fetch/serialize nodes — referee policy, no evaluation) | 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1831),   // 1825 -> 1831 (numeric charter Rule 3, 2026-09-17: the floatDeclared helper + the two typed equality call sites); 1800 -> 1825 (store-substitution leg, 2026-09-13: assertIs over ELEMENT rows adjudicates the identity condition the resolver mints — key equality, the D2 ruling; nothing evaluates host-side) | 1775 -> 1800 (graph-root order rule, 2026-09-13: the JSON verdict reads the chain's ORDER VIEW; the view descends execute frames and graph-fetch/serialize nodes — referee policy, no evaluation) | 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

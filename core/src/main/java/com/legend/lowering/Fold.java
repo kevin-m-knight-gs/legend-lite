@@ -1182,9 +1182,15 @@ final class Fold {
      * the VARCHAR cast. */
     static SqlExpr cellText(com.legend.compiler.element.type.Type t,
             SqlExpr v) {
-        return t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN
-                ? SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v)
-                : new SqlExpr.Cast(v, com.legend.sql.SqlType.Scalar.VARCHAR);
+        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
+            return SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v);
+        }
+        // NUMERIC CHARTER Rule 2: a Float-declared cell converts to DOUBLE
+        // once before it is spelled (a Float computed in an integer or
+        // decimal kind by the database prints 52.0, never 52)
+        SqlExpr cell = t == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                ? LiteralSpelling.declaredDouble(v) : v;
+        return new SqlExpr.Cast(cell, com.legend.sql.SqlType.Scalar.VARCHAR);
     }
 
     /** The whole-row {@code distinct()} directly under a restrict (not the

@@ -3720,3 +3720,37 @@ moved from `Lowerer` (3,490) to `CollectionLanes`. Also carried: the previous en
 times (the wrapper's regex missed the log's spelling).
 
 **Chain.** Green on the first run: G2 27s, G1 92s, G3 17s, G4 131s, G5 49s, G6 168s, G7 55s, G9 46s, G8 193s, G10 67s.
+
+---
+
+## 2026-09-17 — numeric charter, step 2: the judges adopt Rules 2 and 3 (emission unchanged)
+
+**Rows.** Every lane unchanged at today's emission — the point of the step: DuckDB corpus
+108 / H2 440 EXACT, PCT both backends unchanged, Channel B 0 disagreements, stress DuckDB
+4,679 / H2 4,607 (floors unchanged). Charter: docs/NUMERIC_CHARTER_2026_09_17.md; homework:
+docs/NUMERIC_ENVELOPE_CENSUS_2026_09_17.md (§1–§7).
+
+**What landed.** (1) Rule 3 in the corpus referee: when both sides are DECLARED Float, a
+BigDecimal carrier and a double carrier are the SAME kind and compare by canonical value
+(`PureAsserts.equal/equalScalar/assertSameElements(…, floatDeclared)`; `AssertVerdicts`
+passes the sides' declared types at the two verdict sites). (2) Rule 2 in the wire census:
+a DECIMAL wire under a DOUBLE (Float-declared) label is DELIVERED, never a divergence
+(`SqlTypeCensus.delivers`). (3) `Fold.cellText`: a Float-declared cell computed as an
+integer or decimal spells the Float form (`52.0`, never `52`). (4) The referee's side
+fetch no longer needs any Java decode (the Java-evaluation ledger rejected the first
+version — correctly: the referee judges, it never evaluates); `LiteralSpelling.declaredDouble`
+is the one exact conversion helper (integer/decimal fact → DOUBLE) used by cellText.
+
+**Rejected on the way, with evidence.** Casting a Float-declared value to DOUBLE at the
+boundary (TDS cell, JSON leaf, value root, grid canon): round 2 lost PCT
+`abs::testBigFloatAbs` — the PCT reference is the interpreted runtime whose Float is
+BigDecimal-backed, and the engine's own relational adapters pass that row with no
+expected-failure entry. Rule 2 is a KIND assignment, the carrier keeps its digits; lite's
+exact-digit Float design (B8) was already right. Round 1 also moved four mixed-Number
+Channel B rows (the canon change had reached the Float candidate of unrefined Number
+sides) — narrowed, then removed with the cast.
+
+**Pins.** JavaEvalLedgerTest: PureAsserts 313 → 336, AssertVerdicts 1825 → 1831 (judgement
+code only; justifications inline).
+
+**Chain.** Green on the third run: G2 24s, G1 71s, G3 10s, G4 94s, G5 36s, G6 141s, G7 42s, G9 30s, G8 143s, G10 51s (wall ≈ 3.6 min).
