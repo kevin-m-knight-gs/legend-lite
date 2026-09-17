@@ -198,6 +198,9 @@ public final class ServiceTestRunner implements AutoCloseable {
             try {
                 result = Compiler.executeResolved(resolved, rt.ctx(), rt.runtimeFqn(), conn);
             } catch (RuntimeException e) {
+                if (System.getenv("LEGEND_LITE_STACKS") != null) {
+                    e.printStackTrace();   // the same diagnostic switch the resolver walls honor
+                }
                 return fail(svc, suite, test, "execute: " + PureTestRunner.whole(e.getMessage()));
             }
             if (result == null) {

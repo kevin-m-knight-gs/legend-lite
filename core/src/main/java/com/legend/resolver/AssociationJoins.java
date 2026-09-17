@@ -1148,6 +1148,25 @@ final class AssociationJoins {
     record PredMaterial(TypedLambda cond, boolean reverse,
             boolean propertySpace, @com.legend.Nullable String targetSetId) {}
 
+    /** The association condition's PARENT side: the column-space
+     *  condition and which of its two params is the parent's row. Null
+     *  when {@code prop} is not a bound association end of {@code cs}'s
+     *  class or the condition is property-space (route A substitutes it
+     *  through the bindings — no physical key to demand). */
+    record ParentSide(TypedLambda cond, int parentParam) {}
+
+    @com.legend.Nullable ParentSide associationParentSide(ClassSource cs, String prop) {
+        var assoc = ctx.findAssociationOf(cs.classFqn(), prop).orElse(null);
+        var targetClass = assoc == null ? java.util.Optional.<String>empty()
+                : assocTargetClassOf(cs.classFqn(), prop);
+        if (assoc == null || targetClass.isEmpty()
+                || associationBindingInClosure(cs.mappingFqn(), assoc.qualifiedName()).isEmpty()) {
+            return null;
+        }
+        PredMaterial pm = predicateMaterial(cs, assoc, prop, targetClass.get());
+        return pm.propertySpace() ? null : new ParentSide(pm.cond(), pm.reverse() ? 1 : 0);
+    }
+
     private PredMaterial predicateMaterial(ClassSource cs,
             com.legend.model.AssociationDefinition assoc, String real,
             String targetClass) {

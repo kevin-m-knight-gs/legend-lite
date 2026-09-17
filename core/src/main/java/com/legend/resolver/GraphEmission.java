@@ -231,10 +231,33 @@ final class GraphEmission {
                 context, arrayWrap, info, checked);
     }
 
+    /** THE DEMAND SEAM for a graph node's row (F-O, 2026-09-16): an
+     * ASSOCIATION child's condition reads the parent's physical key
+     * columns off THIS row — a routed (union) node projects only what its
+     * own leaves demanded, so the keys widen here BEFORE the row type is
+     * fixed (the stack builder's demandForCondition, the same rule an
+     * association join applies to its target). Rows that carry the keys
+     * already pass through untouched. */
+    private TypedSpec demandAssociationParentKeys(ClassSource cs, TypedSpec pipeline,
+            List<TypedGraphTree> tree) {
+        for (TypedGraphTree node : tree) {
+            if (node.subTypeFqn() == null
+                    && !cs.bindings().containsKey(node.property())
+                    && ctx.findAssociationOf(cs.classFqn(), node.property()).isPresent()) {
+                AssociationJoins.ParentSide ps = assocMaterial.associationParentSide(cs, node.property());
+                if (ps != null) {
+                    pipeline = StackBuilder.demandForCondition(pipeline, ps.cond(), ps.parentParam());
+                }
+            }
+        }
+        return pipeline;
+    }
+
     private TypedSerializeGraph buildGraphNode0(ClassSource cs, TypedSpec pipeline,
             Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
             List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
             ExprType info, boolean checked) {
+        pipeline = demandAssociationParentKeys(cs, pipeline, tree);
         var rowType = Type.requireRelationSchema(pipeline.info().type());
         java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow = v -> new TypedVariable(
                 rowVar, new ExprType(rowType,
