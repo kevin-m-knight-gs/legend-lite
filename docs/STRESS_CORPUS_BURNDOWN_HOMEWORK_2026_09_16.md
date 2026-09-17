@@ -187,11 +187,11 @@ joins, demand the nested condition's parent-side keys on the routed target pipe
   semantics on H2 too (see §6 — do NOT route through `DATEDIFF(HOUR, …)`).
 - **H2-b `CHAR(n)` padding (9 rows).** Probed with the engine's session settings: H2 returns
   `'KG    '` for `CHAR(6)`; DuckDB treats CHAR as VARCHAR. The engine's expected rows say
-  `'KG'`. VERIFY how the engine's `testDataSetupCsv` seeding types its columns (the Pure
-  that turns the connection's CSV into setup SQL; the runtime datasource only receives
-  `setupSQLs`) — if it creates VARCHAR from the CSV, lite's declared-type DDL is MORE
-  faithful to the store than the engine's own seeding, and the honest fix is on the READ
-  (H2 CHAR reads trimmed, as the engine's result path evidently does), not in the DDL.
+  `'KG'`. The engine seeds through `meta::alloy::service::execution::setUpDataSQLs`
+  (`storeContract.pure` 125–140) — the SAME function lite's engine-text DDL mirrors
+  byte-for-byte — so the engine's H2 also holds a padded `CHAR(6)`; its `'KG'` must come
+  from its READ path (result-set to JSON). VERIFY that in the engine's `RelationalResult`
+  serialization, then trim CHAR reads on H2 the same way; the DDL stays declared.
 - **H2-c `REVERSE` (1 row).** The engine's H2 extension registers
   `legend_h2_extension_reverse_string`; lite's corpus lane registers the same aliases per
   session (`H2ExtensionFunctions`), the stress opener does not. Either register them in
