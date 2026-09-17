@@ -2336,6 +2336,7 @@ public final class Pure {
     public static final NativeFunctionDefinition SUBSTR__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::substr(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUBSTR__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::string::substr(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition IS_DISTINCT__T_MANY__ROOT_GRAPH_FETCH_TREE_1 = signature("native function meta::pure::functions::collection::isDistinct<T>(collection:T[*], graphFetchTree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition IS_ALPHA_NUMERIC__STRING_1 = signature("native function meta::pure::functions::string::isAlphaNumeric(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
     // The GENERATED prelude is a MODULE (Prelude.java reads prelude.pure;
     // Compiler.bootLayer compiles it beside the system metamodel —

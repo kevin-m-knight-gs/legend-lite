@@ -273,4 +273,22 @@ static String intervalFn(String unitName) {
             });
         }
     }
+
+    /** Day-granularity comparisons ({@code isOnDay}, {@code isAfterDay},
+     * {@code isOnOrAfterDay}): both operands truncated to the day, then
+     * the comparison — moved from {@link Scalars} at the shape limit. */
+    static void registerDayComparisons(java.util.Map<String, Scalars.Rule> rules) {
+        for (var e : java.util.Map.of(
+                "isOnDay", SqlFn.EQUAL,
+                "isAfterDay", SqlFn.GREATER,
+                "isOnOrAfterDay", SqlFn.GREATER_EQUAL).entrySet()) {
+            for (String f : com.legend.builtin.Pure.nativeKeysAt(e.getKey())) {
+                rules.put(f, (n, args) -> SqlExpr.Call.of(e.getValue(),
+                        new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
+                                List.of(Scalars.dateArg(n.args().get(0), args.get(0)))),
+                        new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
+                                List.of(Scalars.dateArg(n.args().get(1), args.get(1))))));
+            }
+        }
+    }
 }

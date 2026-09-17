@@ -727,28 +727,9 @@ final class Scalars {
                     args.get(0),
                     new SqlExpr.TimestampLit("1970-01-01 00:00:00"))));
         }
-        // Day-granularity comparisons.
-        for (String f : Pure.nativeKeysAt("isOnDay")) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
-                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
-                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
-        }
-        for (String f : Pure.nativeKeysAt("isAfterDay")) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.GREATER,
-                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
-                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
-        }
-        for (String f : Pure.nativeKeysAt("isOnOrAfterDay")) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
-                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
-                    new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
-        }
+        // Day-granularity comparisons (isOnDay/isAfterDay/isOnOrAfterDay)
+        // live with the date-shift machinery — the 3500-line split seam.
+        DateShifts.registerDayComparisons(RULES);
         // Precision predicates: a LITERAL answers from its own written
         // precision; a column answers from its Pure type (StrictDate =
         // day precision, DateTime = SQL TIMESTAMP = full precision).
@@ -2028,6 +2009,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("uniqueValueOnly")) {
             RULES.put(f, (n, args) -> DateShifts.uniqueValueOnly(args));
         }
+        StringPredicates.register(RULES);   // isAlphaNumeric (character-class predicates)
         for (String f : Pure.nativeKeysAt("contains")) {
             RULES.put(f, (n, args) -> {
                 // COLLECTION-callee c1-LITERALS box (DEEP_AUDIT §3);

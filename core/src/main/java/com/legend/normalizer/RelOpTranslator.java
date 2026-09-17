@@ -364,12 +364,20 @@ final class RelOpTranslator {
                     // token/part are strict [1] in pure's signature; a
                     // column operand is SQL-lane null-propagating — the
                     // 'position' toOne idiom (a0 stays bare: pure's own
-                    // first param is [0..1])
+                    // first param is [0..1]).
+                    // INDEX BASE: the dynafunction is SQL's split_part
+                    // (every dialect extension spells it verbatim; parts
+                    // count from 1), pure's splitPart counts from 0
+                    // (splitPart.pure: 'Hello World'->splitPart(' ', 0) is
+                    // 'Hello') — conform by emission, part - 1. (Empty
+                    // tokens still differ: SQL keeps them, pure drops them.)
                     yield new AppliedFunction("splitPart", List.of(a0,
                             toOne(a1),
-                            new AppliedFunction("cast", List.of(toOne(a2),
-                                    new TypeAnnotation.Named(
-                                            new TypeExpression.NameRef("Integer"))))));
+                            AppliedFunction.infixRun("minus", List.of(
+                                    new AppliedFunction("cast", List.of(toOne(a2),
+                                            new TypeAnnotation.Named(
+                                                    new TypeExpression.NameRef("Integer")))),
+                                    new CInteger(1L)))));
             }
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.CASE && call.args().size() >= 3

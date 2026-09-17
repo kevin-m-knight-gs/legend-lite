@@ -639,6 +639,7 @@ FORMAT__STRING_1__ANY_MANY	meta::pure::functions::string::format	meta::pure::fun
 GENERATE_GUID	meta::pure::functions::string::generation::generateGuid	meta::pure::functions::string::generation::generateGuid()
 INDEX_OF__STRING_1__STRING_1	meta::pure::functions::string::indexOf	meta::pure::functions::string::indexOf(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1])
 INDEX_OF__STRING_1__STRING_1__INTEGER_1	meta::pure::functions::string::indexOf	meta::pure::functions::string::indexOf(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::Integer[1])
+IS_ALPHA_NUMERIC__STRING_1	meta::pure::functions::string::isAlphaNumeric	meta::pure::functions::string::isAlphaNumeric(meta::pure::metamodel::type::String[1])
 JARO_WINKLER_SIMILARITY__STRING_1__STRING_1	meta::pure::functions::string::jaroWinklerSimilarity	meta::pure::functions::string::jaroWinklerSimilarity(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1])
 JOIN_STRINGS__STRING_MANY	meta::pure::functions::string::joinStrings	meta::pure::functions::string::joinStrings(meta::pure::metamodel::type::String[*])
 JOIN_STRINGS__STRING_MANY__STRING_1	meta::pure::functions::string::joinStrings	meta::pure::functions::string::joinStrings(meta::pure::metamodel::type::String[*],meta::pure::metamodel::type::String[1])

@@ -105,6 +105,16 @@ public final class DuckDb extends AnsiSqlRenderer {
             return "length(CAST(" + expr(c.args().get(0), 0)
                     + " AS VARCHAR))";
         }
+        // date_trunc('day', ts): DuckDB returns a DATE at day grain and
+        // coarser (TIMESTAMP only for hour and finer); the semantic fact is
+        // pure's firstHourOfDay(Date):DateTime — the engine's H2 keeps the
+        // TIMESTAMP, so this backend casts back to it. The coarser parts
+        // are the Date-typed heads (firstDayOf*) and stay as they are.
+        if (c.fn() == com.legend.sql.SqlFn.DATE_TRUNC
+                && c.args().get(0) instanceof SqlExpr.StringLit part
+                && part.value().equals("day")) {
+            return "CAST(" + super.call(c, 0) + " AS TIMESTAMP)";
+        }
         return super.call(c, parentPrec);
     }
 

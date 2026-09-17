@@ -50,7 +50,7 @@ class DynaFnRegistryTest {
      *  as IS [NOT] DISTINCT FROM, but the engine's new operator NAMES are
      *  not yet claimed) and split — the denominator grew, the platform's
      *  side did not move; each is a leg, not a ledger row. */
-    static final int UNSUPPORTED_MAX = 42;
+    static final int UNSUPPORTED_MAX = 41;   // 42 -> 41 (2026-09-17: isAlphaNumeric is OURS — ledger F-X)
 
     /** One upstream name's facts: registering dialects + inference-map membership. */
     record Upstream(TreeSet<String> dialects, boolean inferred) {

@@ -3660,3 +3660,35 @@ anyone lifting the refusal again meets this finding. The FIXLIST row is correcte
 it: LOST 1 each).
 
 **Chain.** Green on the first run, wall 232 s: G2 24s, G1 72s, G3 11s, G4 85s, G5 39s, G6 133s, G7 41s, G9 34s, G8 141s. Batch size: 3 files (ledger doc, ledger test, GATES).
+
+---
+
+## 2026-09-17 — stress corpus F-X/F-Y/F-Z: isAlphaNumeric is OURS; DuckDB's day-grain date_trunc; the dynafunction splitPart's index base
+
+**Rows.** Stress DuckDB shared 4,654 → 4,672 (66 → 48 fail rows; the 15 `combo::` rows plus 3
+more): `isAlphaNumeric` (4 rows outright) uncovered two more causes behind the same 11
+mappings — `firstHourOfDay` printing a DATE on DuckDB (8 rows) and `splitPart` returning the
+second token (3 rows). Stress H2 fresh 4,596 → 4,600 (baseline RE-MEASURED with the product
+edits stashed; ledger F-AA: the 4,602 written at a4c4a883d was measured with F-W's first
+attempt in the tree and never re-run after its revert — the floor is corrected to the
+measured count). Corpus lanes and PCT: the chain below.
+
+**What landed.** (1) `isAlphaNumeric`: the dynafunction table knew the NAME (generated from
+the engine's dialect extensions) with resolution UNSUPPORTED — a platform function we own
+by the tenet (pure's body is the isDigit/isLetter walk): one membership row, the signature
+GENERATED (`-Dnatives.generate=1`), the dynafunction row flipped to PURE (resolution is
+ours; the generator keeps it), one lowering rule to `REGEXP_FULL_MATCH(x, '[a-zA-Z0-9]+')`
+whose anchoring each dialect already spells. (2) DuckDB's `date_trunc('day', ts)` RETURNS A
+DATE (probed `typeof`; TIMESTAMP only for hour and finer) where the engine's H2 keeps the
+TIMESTAMP — the DuckDB dialect casts the day-grain truncation back (the dialect owns the
+idiom; the lowering stays semantics-only). (3) The mapping-side `splitPart` dynafunction is
+SQL's `split_part` verbatim in every dialect extension (parts from 1); pure's `splitPart`
+counts from 0 (splitPart.pure) and lite's lowering adds one — the translation arm now
+conforms by emission (`cast(part) - 1`). Declared residual divergence: SQL keeps empty
+tokens, pure drops them; no corpus row reaches it.
+
+**Chain.** RED on the first run — G1 the shape guardrail (Scalars.java 3,507 > 3,500: the new rule moved to its own home, StringPredicates, and the three day-comparison rules to DateShifts; Scalars 3,482) and G3 the UNSUPPORTED pin (42 → 41, headroom is not a pin); GREEN on the second (): .
+
+**CI.** a4c4a883d's linux gate 1 failed on `tools/version-report.sh --check` — "Central
+unreachable" resolving engine 4.145.0's pure version (macOS/Windows passed the same step);
+re-run requested. Batch size: 9 product/test files + 2 docs.
