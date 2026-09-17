@@ -136,11 +136,14 @@ final class DeclaredCoercions {
         if (declared == null) {
             return read;
         }
-        // scope-block columns carry no [db] — skip (checker stays loud)
+        // scope-block columns carry no [db] — skip (checker stays loud).
+        // The column's kind resolves THROUGH a view (its column expression's
+        // inferred SQL type — the engine's inferRelationalType), so a
+        // Float property over `HIGHEST_RATE: max(DECIMAL col)` meets the
+        // same Decimal → Float coercion a table column does (ledger F-AB).
         String db = col.database();
-        DatabaseDefinition.ColumnDefinition cd =
-                model.knowledge().column(db, col.table(), col.column()).orElseGet(MissProbe::miss);
-        String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
+        String colKind = db == null ? null
+                : model.knowledge().columnKind(db, col.table(), col.column());
         if (colKind == null || colKind.equals(declared)) {
             return read;
         }

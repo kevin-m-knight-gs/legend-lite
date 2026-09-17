@@ -70,7 +70,7 @@ class ShadowWalkerCensusTest {
             // seam still asks the declared platform kind and the physical
             // kind of a column through these two walkers; pinned at their
             // live call-site counts, shrink-only from here
-            Map.entry("pureKindOf", 2),
+            Map.entry("pureKindOf", 1),
             Map.entry("declaredPlatformKind", 3),
             // OWED: a view's root table is a STORE fact (T4.1 §8 step 3: "the
             // view root and column kind stamped on compiled stores") — it

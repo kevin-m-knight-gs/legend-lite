@@ -373,4 +373,25 @@ final class CollectionLanes {
                         SqlExpr.Call.of(SqlFn.JSON_TYPE, el), new SqlExpr.StringLit("NULL"))),
                 new SqlExpr.NullLit())), el);
     }
+
+    /** uniqueValueOnly over a group (collectionExtension.pure): the
+     * single distinct value, else empty — CASE WHEN COUNT(DISTINCT x)
+     * = 1 THEN MAX(x) END (max of one value IS the value); the 2-arg
+     * form's DEFAULT rides as the CASE else. (Moved from {@link Lowerer}
+     * at the shape limit.) */
+    static SqlExpr uniqueValueOnlyAgg(java.util.List<SqlExpr> extra, SqlExpr value) {
+        SqlExpr uvDefault = extra.isEmpty() ? new SqlExpr.NullLit() : extra.get(0);
+        if (extra.size() > 1) {
+            throw new IllegalStateException("uniqueValueOnly aggregate with "
+                    + extra.size() + " extra arguments");
+        }
+        return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL,
+                        new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.COUNT,
+                                java.util.List.of(value), true, java.util.List.of()),
+                        new SqlExpr.IntLit(1)),
+                new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.MAX,
+                        java.util.List.of(value), false, java.util.List.of()))),
+                uvDefault);
+    }
 }

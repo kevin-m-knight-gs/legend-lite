@@ -3687,8 +3687,36 @@ counts from 0 (splitPart.pure) and lite's lowering adds one — the translation 
 conforms by emission (`cast(part) - 1`). Declared residual divergence: SQL keeps empty
 tokens, pure drops them; no corpus row reaches it.
 
-**Chain.** RED on the first run — G1 the shape guardrail (Scalars.java 3,507 > 3,500: the new rule moved to its own home, StringPredicates, and the three day-comparison rules to DateShifts; Scalars 3,482) and G3 the UNSUPPORTED pin (42 → 41, headroom is not a pin); GREEN on the second (): .
+**Chain.** RED on the first run — G1 the shape guardrail (Scalars.java 3,507 > 3,500: the new rule moved to its own home, StringPredicates, and the three day-comparison rules to DateShifts; Scalars 3,482) and G3 the UNSUPPORTED pin (42 → 41, headroom is not a pin); GREEN on the second: G2 24s, G1 78s, G3 12s, G4 128s, G5 44s, G6 155s, G7 53s, G9 41s, G8 167s, G10 63s.
 
 **CI.** a4c4a883d's linux gate 1 failed on `tools/version-report.sh --check` — "Central
 unreachable" resolving engine 4.145.0's pure version (macOS/Windows passed the same step);
 re-run requested. Batch size: 9 product/test files + 2 docs.
+
+---
+
+## 2026-09-17 — stress corpus F-AB/F-AC/F-AD: view column kinds; grouped-predicate scoping; the routed sub-join's key demand
+
+**Rows.** Stress DuckDB shared 4,672 → 4,679 (48 → 41 fail rows): the four `CURVE_SUMMARY`
+services, the two view-backed graph trees, D_PaymentDense. Stress H2 fresh 4,600 → 4,607 (the two view-backed trees pass on H2 too). Corpus
+lanes and PCT: the chain below.
+
+**What landed.** (1) A computed VIEW column's kind is its expression's inferred SQL type
+(`RelationalTypeInference`, the engine's inferRelationalType, the rule the metamodel store
+already stamps): `KnowledgeLayer.columnKind` falls to it past the plain-column-reference
+arm, and the declared-type coercion asks `columnKind` (view-through) instead of the
+table-only column lookup — `HIGHEST_RATE: max(DECIMAL col)` meets the same Decimal → Float
+coercion a table column does. (2) Post-aggregation predicate resolution scopes by VARIABLE:
+only the lambda's own row reads are the grouped select's projections; a read of any other
+variable is unfoldable there, so the filter isolates the group and correlates from the
+wrapper's WHERE (the exists-over-group PCT shape, valid on H2 and DuckDB). The grouped
+branch used to ignore the variable and resolve the correlated parent's key against the
+view's own projection — `HAVING t3.BOOK_ID = t3.BOOK_ID`. Two attempts on the way are in
+the ledger (an enclosing-scope resolution H2 cannot bind; a forced isolation that inlined
+aggregates into WHERE). (3) The navigation materializer's sub-join
+demands its condition's left-side keys on a ROUTED target pipe before binding (the F-O
+seam) — the route slot had replaced the physical key column. CI: gate 10's artifact now carries the stress ledgers (`core/target/stress-suites-*.txt`) — the x86_64 runners fail gate 10 at 4,662 against the 4,672 floor with no row-level evidence in the log (ledger F-AE). Shape: `uniqueValueOnlyAgg`
+moved from `Lowerer` (3,490) to `CollectionLanes`. Also carried: the previous entry's chain
+times (the wrapper's regex missed the log's spelling).
+
+**Chain.** Green on the first run: G2 27s, G1 92s, G3 17s, G4 131s, G5 49s, G6 168s, G7 55s, G9 46s, G8 193s, G10 67s.

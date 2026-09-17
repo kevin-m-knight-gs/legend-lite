@@ -1279,7 +1279,7 @@ public final class Lowerer {
                     new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(value), false, java.util.List.of()));
         }
         if (fn == SqlAgg.Fn.UNIQUE_VALUE_ONLY) {
-            return uniqueValueOnlyAgg(extra, value);
+            return CollectionLanes.uniqueValueOnlyAgg(extra, value);
         }
         // hashCode over a group: HASH(LIST(values)) — no single SQL
         // reducer. Signed-64 conformance (pure hashCode is Integer[1])
@@ -1582,9 +1582,21 @@ public final class Lowerer {
     }
 
     private Resolution tryPredicate(SqlSelect select, TypedLambda lambda) {
+        String ownVar = lambda.parameters().get(0);
+        // post-aggregation: ONLY the lambda's own row reads are the grouped
+        // select's projections; a read of any OTHER variable (a correlated
+        // child's parent row) is unfoldable here — the filter isolates the
+        // group and correlates from outside, the shape the exists-over-group
+        // PCT rows already take. Before: the parent's key resolved against
+        // the view's own projection, HAVING t.K = t.K (ledger F-AC).
         ColumnResolver columns = select.groupBy().isEmpty()
-                ? scopedResolver(select, lambda.parameters().get(0))
-                : (v, name) -> projectionExprOrThrow(select, name);
+                ? scopedResolver(select, ownVar)
+                : (v, name) -> {
+                    if (v != null && !v.equals(ownVar)) {
+                        throw new UnfoldableRef(name == null ? "<whole variable>" : name);
+                    }
+                    return projectionExprOrThrow(select, name);
+                };
         return attempt(() -> scalar(last(lambda), columns));
     }
 
@@ -1618,27 +1630,6 @@ public final class Lowerer {
             }
         }
         throw new UnfoldableRef(column);
-    }
-
-    /** uniqueValueOnly over a group (collectionExtension.pure): the
-     * single distinct value, else empty — CASE WHEN COUNT(DISTINCT x)
-     * = 1 THEN MAX(x) END (max of one value IS the value); the 2-arg
-     * form's DEFAULT rides as the CASE else. */
-    private static SqlExpr uniqueValueOnlyAgg(List<SqlExpr> extra,
-            SqlExpr value) {
-        SqlExpr uvDefault = extra.isEmpty() ? new SqlExpr.NullLit()
-                : extra.get(0);
-        if (extra.size() > 1) {
-            throw new IllegalStateException(
-                    "uniqueValueOnly aggregate with " + extra.size()
-                            + " extra arguments");
-        }
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL,
-                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(value), true, java.util.List.of()),
-                        new SqlExpr.IntLit(1)),
-                new SqlAgg.Reducer(SqlAgg.Fn.MAX, List.of(value), false, java.util.List.of()))),
-                uvDefault);
     }
 
     /** Whether {@code alias} names a BASE TABLE scan in the from tree —

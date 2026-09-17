@@ -209,4 +209,5 @@ jobs:
             ${{ runner.temp }}/gates*
             legend-lite/parser-equivalence/target/*-report.txt
             legend-lite/docs/RELATIONAL_CORPUS.md
+            legend-lite/core/target/stress-suites-*.txt
           if-no-files-found: ignore

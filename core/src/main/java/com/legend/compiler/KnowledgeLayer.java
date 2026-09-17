@@ -431,11 +431,21 @@ public final class KnowledgeLayer {
             return null;
         }
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
-            if (vc.name().equals(col)
-                    && vc.expression() instanceof com.legend.model.RelationalOperation.ColumnRef cr) {
+            if (!vc.name().equals(col)) {
+                continue;
+            }
+            if (vc.expression() instanceof com.legend.model.RelationalOperation.ColumnRef cr) {
                 String cdb = cr.databaseName() != null ? cr.databaseName() : db;
                 return columnKind(cdb, cr.table(), cr.column(), seen);
             }
+            // a COMPUTED view column (`HIGHEST_RATE: max(RATE.ZERO_RATE)`):
+            // its kind is the expression's inferred SQL type — the
+            // engine's inferRelationalType, the same rule the metamodel
+            // store stamps on every relational-operation row
+            com.legend.model.RelationalDataType t =
+                    com.legend.compiler.element.RelationalTypeInference.infer(
+                            vc.expression(), model.findDatabase(db).orElse(null), null);
+            return t == null ? null : RelationalKinds.pureKindOf(t);
         }
         return null;
     }

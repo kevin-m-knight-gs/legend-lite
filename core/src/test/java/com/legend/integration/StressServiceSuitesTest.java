@@ -149,8 +149,8 @@ class StressServiceSuitesTest {
     /** The H2 lane's own floor (fresh session per test; the engine's shape): the
      *  DuckDB floor minus the H2 walls (EPOCH_MS/REVERSE, last-digit floats,
      *  timestamp text — ledger F-P). */
-    private static final int MIN_PASS_H2 = 4600;   // 4509 -> 4571 -> 4596 -> 4600 (2026-09-16/17: orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling; CORRECTION: the 4602 written at a4c4a883d was measured with the graph-envelope +0000 spelling in the tree, reverted before the commit (ledger F-AA) — 4596 is that commit's measured count; +4 = isAlphaNumeric/splitPart on H2)
-    private static final int MIN_PASS = 4672;   // 2702 -> 2765 -> 4203 -> 4564 -> 4626 -> 4654 -> 4672 (2026-09-16/17: double division; pins; association anchors; F-M; F-O; orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling; isAlphaNumeric + firstHourOfDay on DuckDB + splitPart index base)
+    private static final int MIN_PASS_H2 = 4607;   // 4509 -> 4571 -> 4596 -> 4600 -> 4607 (2026-09-16/17: orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling; CORRECTION: the 4602 written at a4c4a883d was measured with the graph-envelope +0000 spelling in the tree, reverted before the commit (ledger F-AA) — 4596 is that commit's measured count; +4 = isAlphaNumeric/splitPart on H2)
+    private static final int MIN_PASS = 4679;   // 2702 -> 2765 -> 4203 -> 4564 -> 4626 -> 4654 -> 4672 -> 4679 (2026-09-16/17: double division; pins; association anchors; F-M; F-O; orElse → coalesce; OR/range navigation aggregates; timestamp JSON spelling; isAlphaNumeric + firstHourOfDay on DuckDB + splitPart index base; view column kinds + grouped-predicate scoping + routed sub-join key demand)
 
     /** A failure reason with its specifics elided, so alike failures count together. */
     private static String bucket(String reason) {

@@ -51,7 +51,7 @@ class FallbackLedgerTest {
      * 2026-09-15 (audit fix A10b). */
     private static final Map<String, Integer> FUNNEL = new TreeMap<>(Map.ofEntries(
             Map.entry("AssociationSynthesis.java", 1),
-            Map.entry("DeclaredCoercions.java", 3),
+            Map.entry("DeclaredCoercions.java", 2),
             Map.entry("ImplicitInheritance.java", 1),
             Map.entry("JoinChainEmission.java", 4),
             Map.entry("M2mRouteGuards.java", 1),

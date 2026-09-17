@@ -904,6 +904,13 @@ final class NavMaterializer {
                     t, prop, StoreResolver.Context.NONE, false,
                     e.getValue(), subChain,
                     assocSubTails.getOrDefault(prop, Set.of()));
+            // the sub-join's condition reads this target's KEY off the
+            // left row — a ROUTED target projected it under the route
+            // slot and dropped the column (D_PaymentDense: OTC_ID);
+            // demand it back before the join binds (the F-O seam,
+            // ledger F-AD)
+            pipe = StackBuilder.demandForCondition(pipe,
+                    aj.onForm() != null ? aj.onForm().condition() : aj.condition(), 0);
             var leftRow = com.legend.compiler.element.type.Type
                     .requireRelationSchema(pipe.info().type());
             List<com.legend.compiler.element.type.Type.Column> cols =
