@@ -611,7 +611,7 @@ class JavaEvalLedgerTest {
             // session at establishment — the engine's own step, missing here
             // before — once per session, re-seeded after a writing statement;
             // orchestration of declared facts, no value evaluated in Java
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2091),
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2125),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

@@ -1986,9 +1986,45 @@ final class StatementExecutor {
      * the connection, before the query) — once, here, for every route the
      * statement then takes (frames, plan text, verdict sides). */
     private static void establishContexts(TypedSpec statement, ExecEnv env) {
+        // ONCE PER SESSION: the engine runs a LocalH2 connection's
+        // testDataSetupSqls / testDataSetupCsv when it ESTABLISHES the
+        // connection, not before every query. A session that already
+        // established exactly these setups, and has run no WRITING
+        // statement since, is already in the established state — running
+        // them again would only rebuild the same rows. A write in between
+        // (the per-statement tolerance the harnesses rely on) re-seeds.
+        //
+        // THE KEY IS THE SEED'S SOURCES, never its rendered text (2026-09-16:
+        // keying by the text meant regenerating it — CSV parsed, rows typed,
+        // DDL and INSERTs rendered — before EVERY statement only to find the
+        // session already seeded; the DuckDB shared lane went 20.7 s → 50 s
+        // at the DDL leg). The text is a pure function of the from()'s inline
+        // setup values and the named runtimes' definitions with their
+        // connections' definitions (the CSV / SQL exactly as the author wrote
+        // them) for the session's one dialect. Those are RECORDS: the key is
+        // a record of them and value equality does the comparing — no
+        // rendering, no string assembly, and never the model's identity (the
+        // test runner overlays a fresh model per test over the same data).
+        java.util.List<com.legend.compiler.spec.typed.TypedFrom> froms =
+                com.legend.compiler.spec.typed.ExecutionContext.froms(statement);
+        java.util.List<SeedSources.From> fromSources = new java.util.ArrayList<>(froms.size());
+        for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
+            String rtFqn = fr.context().runtime().map(r -> r.fullPath()).orElse(null);
+            fromSources.add(new SeedSources.From(fr.sqlSetups(), fr.csvSetups(),
+                    rtFqn == null ? null : declaredSeed(rtFqn, env.ctx())));
+        }
+        SeedSources key = new SeedSources(fromSources, env.runtimeFqn(),
+                env.runtimeFqn() == null ? null : declaredSeed(env.runtimeFqn(), env.ctx()));
+        if (key.namesNothing()) {
+            return;   // nothing names test data
+        }
+        Established state = ESTABLISHED.computeIfAbsent(env.connection(),
+                c -> new Established());
+        if (!state.dirty && state.done.contains(key)) {
+            return;
+        }
         java.util.List<String> setups = new java.util.ArrayList<>();
-        for (com.legend.compiler.spec.typed.TypedFrom fr
-                : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
+        for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
             setups.addAll(fr.sqlSetups());
             setups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx(), env.dialect()));
             // an ELEMENT runtime named by the from(): its declared
@@ -2001,22 +2037,6 @@ final class StatementExecutor {
         // declared connections' test data seeds the session the same way
         if (env.runtimeFqn() != null) {
             setups.addAll(declaredSetups(env.runtimeFqn(), env.ctx(), env.dialect()));
-        }
-        if (setups.isEmpty()) {
-            return;
-        }
-        // ONCE PER SESSION: the engine runs a LocalH2 connection's
-        // testDataSetupSqls / testDataSetupCsv when it ESTABLISHES the
-        // connection, not before every query. A session that already
-        // established exactly these setups, and has run no WRITING
-        // statement since, is already in the established state — running
-        // them again would only rebuild the same rows. A write in between
-        // (the per-statement tolerance the harnesses rely on) re-seeds.
-        Established state = ESTABLISHED.computeIfAbsent(env.connection(),
-                c -> new Established());
-        String key = String.join("\n--\n", setups);
-        if (!state.dirty && state.done.contains(key)) {
-            return;
         }
         for (String blob : setups) {
             for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
@@ -2066,8 +2086,45 @@ final class StatementExecutor {
      *  re-seeds). Keyed by the session itself — the fact lives exactly as
      *  long as the connection does. */
     private static final class Established {
-        final java.util.Set<String> done = new java.util.HashSet<>();
+        /** the seed SOURCES established on the session (value keys) */
+        final java.util.Set<SeedSources> done = new java.util.HashSet<>();
         boolean dirty;
+    }
+
+    /** WHAT A SEED IS MADE OF — the values the seed text is a pure function
+     *  of, compared by value: each from()'s inline setups and the runtime it
+     *  names; the ambient runtime. A runtime contributes its definition and
+     *  its bound connections' definitions (a LocalH2 specification carries
+     *  the CSV / SQL strings as written). */
+    record SeedSources(java.util.List<From> froms, @com.legend.Nullable String runtimeFqn,
+            @com.legend.Nullable DeclaredSeed runtime) {
+        record From(java.util.List<String> sqlSetups,
+                java.util.List<com.legend.compiler.spec.typed.ExecutionContext.CsvSetup> csvSetups,
+                @com.legend.Nullable DeclaredSeed runtime) {
+        }
+
+        record DeclaredSeed(String runtimeFqn,
+                com.legend.model.@com.legend.Nullable RuntimeDefinition definition,
+                java.util.List<com.legend.model.ConnectionDefinition> connections) {
+        }
+
+        boolean namesNothing() {
+            return froms.isEmpty() && runtimeFqn == null;
+        }
+    }
+
+    /** A named runtime's contribution to the seed sources. */
+    private static SeedSources.DeclaredSeed declaredSeed(String runtimeFqn, ModelContext ctx) {
+        java.util.Optional<com.legend.model.RuntimeDefinition> rt = ctx.findRuntime(runtimeFqn);
+        java.util.List<com.legend.model.ConnectionDefinition> conns = new java.util.ArrayList<>();
+        rt.ifPresent(r -> {
+            for (var binding : r.connectionBindings().entrySet()) {
+                for (String connFqn : binding.getValue()) {
+                    ctx.findConnection(connFqn).ifPresent(conns::add);
+                }
+            }
+        });
+        return new SeedSources.DeclaredSeed(runtimeFqn, rt.orElse(null), conns);
     }
 
     private static final java.util.Map<java.sql.Connection, Established> ESTABLISHED =
