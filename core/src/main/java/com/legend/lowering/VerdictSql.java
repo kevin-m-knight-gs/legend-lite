@@ -267,11 +267,13 @@ public final class VerdictSql {
                 SqlType.Scalar.VARCHAR);
         SqlQuery inner = s.wrapped();
         SqlExpr where = null;
-        if (s.many() && inner instanceof SqlSelect vs && !vs.projections().isEmpty()
+        if (inner instanceof SqlSelect vs && !vs.projections().isEmpty()
                 && vs.projections().get(0).alias() != null) {
-            // pure collections hold no empties: the executor's value decode
-            // DROPS a NULL row of a value collection, and so does the canon
-            // side (a NULL canon over a non-null value stays unjudged)
+            // pure has no null VALUE: the executor's decode drops a NULL row
+            // of a value collection and reads a NULL scalar as the EMPTY
+            // collection — the canon side drops the row on every side, so an
+            // empty [] (one NULL row) frames '[]' and never counts as a null
+            // canon cell (a NULL canon over a non-null value stays unjudged)
             where = SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
                     SqlExpr.Column.of("w", vs.projections().get(0).alias(),
                             SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED));

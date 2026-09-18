@@ -695,6 +695,18 @@ named unjudged + the 3 String-over-INT rows of the open ruling. No other change.
 exact power of two; the differential gate (3.3) is where that would show, and it has a
 witness set of seven.
 
+**Follow-up, same day — the 14 "null canon cell" rows, read:** every one was an EMPTY
+side (`assertEquals([], …)`, `[TDSNull, TDSNull]->firstNotNull()`): the empty `[]` lowers
+to one row whose value is NULL; the frame already spelled it `'[]'` and the verdict was
+true, but the null-cell check counted that row. Pure has no null VALUE — the executor reads
+a NULL scalar as the empty collection and drops NULL rows of a value collection — so the
+canon side now drops a NULL-value row on EVERY side (not only collection sides); a NULL
+canon over a non-null value stays unjudged. Lost 56 → 42: 39 named unjudged (kind-gate
+non-primitive 10, enum cells / literals 12, date literals without a literal channel 8,
+keyless instances 4, tree cells 3, one statement error, one multi-candidate Number) — all
+leg 3.2 — plus the 3 open-ruling rows. Database mode: 2,322 asserts judged in the database
+on DuckDB. Leg 3.1b is closed for the equals / sameElements domain.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

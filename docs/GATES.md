@@ -3942,3 +3942,10 @@ DECLARED-Float cell); two cell sequences (grid row-major / peer elements) and on
 mode: ulp firings 7 = host's 7, the seven sqlFunction rows pass, lost 63 → 56 (53 named
 unjudged + the 3 open-ruling rows). Ledger with reason: AssertVerdicts 2044 → 2057. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4f.
+
+**Leg 3.1b follow-up — the null-canon-cell rows (2026-09-18):** chain GREEN (gates 1–10),
+parallel wall ≈ 4m17s (G2 25; A: G1 76 · G3 11 · G4 108 · G5 37 = 232; B: G6 135 · G7 49 ·
+G9 35 = 219; C: G8 145 · G10 56 = 201). No roster moved. The canon side drops a NULL-value
+row on EVERY side (an empty `[]` is one NULL row; pure has no null value). DuckDB database
+mode: lost 56 → 42 (39 named unjudged for leg 3.2 + 3 open-ruling rows), 2,322 asserts judged
+in the database. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4f follow-up.
