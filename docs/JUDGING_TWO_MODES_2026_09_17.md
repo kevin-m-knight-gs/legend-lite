@@ -268,3 +268,27 @@ AssertVerdicts 1840; JsonCompare row removed with the file). Default mode: DuckD
 H2 430 EXACT. Host mode: DuckDB 108 EXACT; H2 428 — the same two rows as step 2a
 (`mapping::boolean::testProject`, `filter::in::testInWithDynaFunction`: the H2 grid canon's
 TEXT differs while the values are equal — step 3's byte channel). No emission change.
+
+## Step 2 closed — HOST is the only verdict of record (2026-09-18)
+
+The plan (§2 "the switch") kept the mixed verdict as the unset default "until step 3
+lands". Host mode was complete after 2b and matched every roster, so the mixed default had
+nothing left to protect; the user ruled: host only, now. `JudgeMode` has one value (HOST;
+DATABASE is step 3's and is still not selectable), `AssertVerdicts.finish` takes the host
+verdict and nothing else, the byte channel's verdict reaches only the census probe, and the
+five "byte-verdict: canonical renders differ" failure messages are deleted (a message for a
+judgment nobody makes). AssertVerdicts 1840 → 1822 lines.
+
+**Judged.** Chain green, quiet parallel wall ≈ 4m24s. Rosters: DuckDB 108 EXACT unchanged;
+H2 fail roster 430 → 428 (the two rows above PASS — host mode's verdict is the engine's;
+the H2 grid canon text that failed them is step 3's first named database-mode bug); the H2
+unordered register gains `filter::in::testInWithDynaFunction` (it passes through the
+order-lenient retry on H2 exactly as on DuckDB, where the register already listed it — it
+was absent from the H2 register only because it used to fail outright there). Stress
+4,700 / 20, PCT lanes and Channel B unchanged.
+
+**Step 3's homework is written before any edit:** docs/DATABASE_MODE_HOMEWORK_2026_09_18.md
+(the execution model as it is, the corpus measured — 2,687 of 2,767 test functions use
+`let`, 2,339 lets are `execute` frames and those are the only CTE population — the prior
+designs and what each decided, eight decisions proposed, five legs, the traps). Nothing in
+step 3 starts until §3 of that doc is ratified.

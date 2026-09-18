@@ -895,6 +895,7 @@ unordered-chain meta::relational::tests::projection::filter::in::testDeepContain
 unordered-chain meta::relational::tests::projection::filter::in::testDeepIn
 unordered-chain meta::relational::tests::projection::filter::in::testDeepInWithMultipleProject
 unordered-chain meta::relational::tests::projection::filter::in::testIn
+unordered-chain meta::relational::tests::projection::filter::in::testInWithDynaFunction
 unordered-chain meta::relational::tests::projection::filter::in::testInWithListVariable
 unordered-chain meta::relational::tests::projection::filter::in::testInWithOneValue
 unordered-chain meta::relational::tests::projection::filter::in::testInWithVariables

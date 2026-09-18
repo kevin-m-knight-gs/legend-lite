@@ -394,10 +394,7 @@ final class AssertVerdicts {
                         byteVerdict == null ? "" : byteVerdict.detail(),
                         () -> incidental
                                 ? PureAsserts.assertSameElements(e, a)
-                                : PureAsserts.assertEquals(e, a, args.get(0).info().type(), args.get(1).info().type()),
-                        "byte-verdict: canonical renders differ (host"
-                                + " lattice agreed — dual-verdict"
-                                + " divergence, see [canon] census)");
+                                : PureAsserts.assertEquals(e, a, args.get(0).info().type(), args.get(1).info().type()));
             }
             case ASSERT_SAME_ELEMENTS -> {
                 if (args.size() < 2) {
@@ -448,10 +445,7 @@ final class AssertVerdicts {
                 yield finish("assertSameElements", true, d == null,
                         byteVerdict == null ? null : byteVerdict.held(),
                         byteVerdict == null ? "" : byteVerdict.detail(),
-                        () -> d,
-                        "byte-verdict: canonical sorted renders differ"
-                                + " (host multiset agreed — dual-verdict"
-                                + " divergence, see [canon] census)");
+                        () -> d);
             }
             case ASSERT_SIZE -> {
                 if (args.size() < 2) {
@@ -580,10 +574,7 @@ final class AssertVerdicts {
                 yield finish("assertEq", true, d == null,
                         byteVerdict == null ? null : byteVerdict.held(),
                         byteVerdict == null ? "" : byteVerdict.detail(),
-                        () -> d,
-                        "byte-verdict: canonical renders differ (host"
-                                + " lattice agreed — dual-verdict"
-                                + " divergence, see [canon] census)");
+                        () -> d);
             }
             case ASSERT_EQ_WITHIN_TOLERANCE -> {
                 if (args.size() < 3) {
@@ -1023,14 +1014,16 @@ final class AssertVerdicts {
      * impossible: no arm can print the byte-divergence text for a
      * judgment the byte channel never made, because the probe and the
      * message read the same two booleans). */
-    /** The run-level judge mode: read ONCE ({@code -Dlegend.judge.mode=host});
-     * a per-assertion choice is impossible by construction. DATABASE mode is
-     * step 3's and is not selectable yet. */
-    enum JudgeMode { MIXED, HOST }
+    /** The run-level judge mode, read ONCE ({@code -Dlegend.judge.mode});
+     * a per-assertion choice is impossible by construction. HOST is the
+     * verdict of record (JUDGING_TWO_MODES step 2, host-only since
+     * 2026-09-18: the mixed verdict — byte channel of record, host
+     * fallback — is deleted; the byte channel reports as a CENSUS only).
+     * DATABASE mode is step 3's and is not selectable yet. */
+    enum JudgeMode { HOST }
 
     static final JudgeMode JUDGE_MODE = switch (
-            System.getProperty("legend.judge.mode", "").toLowerCase(java.util.Locale.ROOT)) {
-        case "" -> JudgeMode.MIXED;
+            System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
         case "host" -> JudgeMode.HOST;
         default -> throw new com.legend.error.NotImplementedException(
                 "legend.judge.mode='" + System.getProperty("legend.judge.mode")
@@ -1040,29 +1033,27 @@ final class AssertVerdicts {
     private static ExecutionResult finish(String family, boolean wantEqual,
             boolean hostHeld, @com.legend.Nullable Boolean byteHeld,
             String detail,
-            java.util.function.Supplier<@com.legend.Nullable String> hostMessage,
-            String byteMessage) {
+            java.util.function.Supplier<@com.legend.Nullable String> hostMessage) {
         if (byteHeld != null) {
             com.legend.exec.CanonicalDivergence.probeSqlVerdict(family,
                     hostHeld, byteHeld, detail);
         }
-        // JUDGING_TWO_MODES: HOST mode takes the host judge's verdict only
-        // (the byte channel still reports as a census above); the unset
-        // default keeps today's mixed verdict-of-record until step 3 lands
-        boolean held = JUDGE_MODE == JudgeMode.HOST || byteHeld == null ? hostHeld : byteHeld;
-        if (held == wantEqual) {
+        // JUDGING_TWO_MODES: the host judge's verdict is the verdict of
+        // record; the byte channel reported as a census above and never
+        // decides (JUDGE_MODE has one value until step 3 adds DATABASE)
+        if (hostHeld == wantEqual) {
             return ok();
         }
         if (!wantEqual) {
             return fail("assertNotEquals: both sides are equal");
         }
-        String d = hostHeld ? null : hostMessage.get();
-        if (!hostHeld && d == null) {
+        String d = hostMessage.get();
+        if (d == null) {
             throw new IllegalStateException(family
                     + ": verdict/message divergence — the host lattice"
                     + " failed but its message lattice held");
         }
-        return fail(d != null ? d : byteMessage);
+        return fail(d);
     }
 
     // ── §8 LEG 1 (grid canon, fusion-spike F2, user-ratified
@@ -1158,10 +1149,7 @@ final class AssertVerdicts {
                                 + " equal a whole TDS value"
                         : tdsHostMessage(name, PureAsserts.assertEqualsTyped(
                                 com.legend.exec.Equality.grid(e, kinds),
-                                com.legend.exec.Equality.grid(a, kinds))),
-                "byte-verdict: grid canonical renders differ (host"
-                        + " lattice agreed — dual-verdict divergence,"
-                        + " see [canon] census)");
+                                com.legend.exec.Equality.grid(a, kinds))));
     }
 
     /** The TDSRow.values failure narrative — the host lattice's text
@@ -1206,10 +1194,7 @@ final class AssertVerdicts {
                             ? tdsHostMessage(family, d)
                             : family + " (TDSRow.values): cell"
                                     + " multiset differs";
-                },
-                "byte-verdict: grid canonical renders differ (host"
-                        + " lattice agreed — dual-verdict divergence,"
-                        + " see [canon] census)");
+                });
     }
 
     /** {@code sort(<flat cells>)} — a one-argument collection sort over

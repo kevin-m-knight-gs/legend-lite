@@ -286,7 +286,6 @@ meta::relational::tests::json::testResultToJsonStream
 meta::relational::tests::m2m2r::testProp3
 meta::relational::tests::map::testSequenceMapWithConfusingSetImplementation
 meta::relational::tests::map::testSubAggregationMultiLevelJoinString
-meta::relational::tests::mapping::boolean::testProject
 meta::relational::tests::mapping::dataType::testSimpleTypeMappingProject
 meta::relational::tests::mapping::dataType::testSimpleTypeMappingProjectNulls
 meta::relational::tests::mapping::dates::datetime::testProject
@@ -350,7 +349,6 @@ meta::relational::tests::postProcessor::testPostProcessTransformJoinOp
 meta::relational::tests::postProcessor::testSqlRealiasViews
 meta::relational::tests::projection::filter::dates::testDateWithSeconds
 meta::relational::tests::projection::filter::in::H2Test
-meta::relational::tests::projection::filter::in::testInWithDynaFunction
 meta::relational::tests::projection::filter::in::testQualifierWithInThroughJoin
 meta::relational::tests::projection::filter::testChainedFiltersGet
 meta::relational::tests::projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives

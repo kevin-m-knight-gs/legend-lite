@@ -3828,3 +3828,19 @@ Grid cells are judged by their COLUMN's declared kind; the one question it raise
 the engine's own boundary rule — `dataTypeTransformer` converts only numeric declarations,
 every other declaration is the identity — cited in `Equality.effectiveKind`; record in
 docs/JUDGING_TWO_MODES_2026_09_17.md (step 2b).
+
+**Judging: HOST is the only verdict of record (2026-09-18):** chain GREEN (gates 1–10),
+quiet machine, parallel wall ≈ 4m24s (G2 24; A: G1 76 · G3 11 · G4 103 · G5 37 = 227; B:
+G6 144 · G7 43 · G9 33 = 220; C: G8 149 · G10 52 = 201). The mixed verdict (byte channel of
+record, host fallback) is deleted: `JudgeMode {HOST}`, `finish()` takes the host verdict,
+the byte channel feeds the census only, five byte-verdict messages gone; AssertVerdicts
+ledger 1840 → 1822. ROSTER CHANGES with reasons: `h2-fail-roster.txt` −2
+(`mapping::boolean::testProject`, `projection::filter::in::testInWithDynaFunction`: the
+host judge finds their values equal, as the engine does; only the H2 grid canon TEXT
+differed, a step-3 database-mode item named in the two-modes doc); `h2-unordered-register.txt`
++1 (`testInWithDynaFunction` passes through the order-lenient retry on H2 exactly as on
+DuckDB, whose register already lists it — it was absent only because it used to fail
+outright on H2). DuckDB 108 EXACT, stress 4,700 / 20, PCT and Channel B unchanged. A first
+chain was red on G5 for exactly this register row (LOST 1 unordered-chain); the row was
+added with this reason and the chain re-run green. Step 3 homework:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md.
