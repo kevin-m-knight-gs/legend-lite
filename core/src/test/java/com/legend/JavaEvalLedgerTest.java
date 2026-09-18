@@ -624,7 +624,7 @@ class JavaEvalLedgerTest {
             // session at establishment — the engine's own step, missing here
             // before — once per session, re-seeded after a writing statement;
             // orchestration of declared facts, no value evaluated in Java
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2216),   // 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2209),   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

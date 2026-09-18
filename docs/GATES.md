@@ -3897,3 +3897,20 @@ construction anchor names `VerdictSql` (a first chain was red on exactly that an
 recorded in docs/PARKED_WORK_LEDGER.md, re-run green); the harness prints the database-mode
 differential and strength instead of pinning them (leg 3.3 pins). Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4c.
+
+**Judging step 3, leg 3.1b part 1 — the two H2 canon bugs, the prelude fold (2026-09-18):**
+chain GREEN (gates 1–10), quiet machine, parallel wall ≈ 4m07s (G2 24; A: G1 72 · G3 11 ·
+G4 101 · G5 38 = 222; B: G6 138 · G7 45 · G9 34 = 217; C: G8 144 · G10 53 = 197). ROSTER
+CHANGES with reasons: `h2-fail-roster.txt` −1 (`query::view::testAllWithJoinToView`: the H2
+dialect now spells a boolean-TYPED value as `true`/`false` like a boolean-shaped one — a
+product fix, `makeString` over a Boolean printed `FALSE`; H2 428 → 427);
+`h2-unordered-register.txt` +1 (the same test passes through the order-lenient retry, as on
+DuckDB). `wrapTdsCanon` spells a String-declared cell by the WIRE kind from the projection
+expression's type fact (positional only when projections and outputs align — a star
+projection threw on three tds tests before the guard; a first H2 lane caught it, LOST 3,
+fixed before the chain). Byte-vs-host disagreements: H2 6 → 1, DuckDB 0 → 1 (the same row,
+`filter::in::testInWithDynaFunction` — an OPEN RULING recorded in the homework doc §4d: two
+engine tests assert opposite kinds for a String-declared INT column). DuckDB 108 EXACT,
+declines 224 → 216 (a canon that used to error and be silently declined now spells). Ledger:
+StatementExecutor 2216 → 2209 (`evalValue`/`planValue` share `sideBody`). Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4d.

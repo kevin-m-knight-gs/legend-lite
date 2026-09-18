@@ -594,6 +594,43 @@ strength instead of pinning them (the differential gate, 3.3, pins).
 statement with the row canons from `wrapTdsCanon`, the TDSNull sentinel, the H2 boolean
 canon and the wire-kind rule for a non-numeric declaration (the two named H2 canon bugs).
 
+## 4d. Leg 3.1b, part 1 — LANDED 2026-09-18 (the two H2 canon bugs, the prelude fold)
+
+- **The H2 boolean canon.** `H2.variantAwareCast` spelled a boolean-SHAPED expression as
+  `true`/`false` but a boolean-TYPED value (a column) as H2's `TRUE`/`FALSE`. It now honours
+  the value's type fact too. This is a PRODUCT fix with a corpus witness beyond the canon:
+  `query::view::testAllWithJoinToView` (`[$o.id, $o.zeroPnl]->makeString(',')` — `'1,FALSE'`)
+  now passes on H2 (roster 428 → 427; the order-lenient register gains it, as on DuckDB).
+- **The wire kind under a String declaration.** `wrapTdsCanon` spelled a cell by the
+  DECLARED Pure type; the plan's output label is stamp-derived, so a `String[1]` property over
+  an INT column was spelled quoted (`'11'`). It now spells a String-declared cell by the
+  WIRE kind read from the projection expression's own type fact (a table column ref carries
+  its DDL type; only when the projection and output lists align — a star projection does
+  not, and indexing them positionally threw on three tds tests before the guard). On DuckDB
+  this canon used to ERROR (`replace` over an INT) and the old tunnel declined it silently —
+  DuckDB declines 224 → 216, ULP-policy claims 7 → 16.
+- **Prelude fold.** `evalValue` and `planValue` share `sideBody` (the audit's one real
+  duplication).
+- **Judged:** host mode both lanes EXACT (DuckDB 108, H2 427); byte-vs-host disagreements
+  H2 6 → 1, DuckDB 0 → 1 — the SAME row on both: `filter::in::testInWithDynaFunction`,
+  expected `'4'` (a String literal), actual the INT column `interactionTable.ID` under
+  `Interaction.id : String[1]`, host says EQUAL (the executor decodes the cell by its label,
+  VARCHAR), the canon now spells the wire's bare `4`.
+
+**OPEN RULING (recorded, not decided): which engine test is right?** Two engine tests
+assert opposite things for the same shape — a `String[1]` property mapped to an INT column:
+`mapping::tree` asserts the INTEGER `11` (`Account.number` over `accountTable.id`), the
+dyna-function test asserts the STRING `'4'` (`Interaction.id` over `interactionTable.ID`).
+The engine reads a cell by `ResultSetMetaData.getColumnType` (`RelationalResult.java:551`)
+and its `dataTypeTransformer` is the identity for a String declaration, which favours the
+Integer; but the Pure-side TDS is parsed from the engine's JSON result, and how that parse
+treats a numeric JSON value under a String column is the fact not yet read. Until it is:
+the wrap's wire-kind rule stays (both rosters exact, 4 of 5 disagreements gone), the one
+remaining disagreement is named, and the differential gate will hold it up as the first
+host-vs-database difference to rule on. A third H2 host-mode item surfaced beside it: an
+expected `^TDSNull()` cell decodes as the STRING `'null'` on H2 (`expected: [11, 'null']`,
+the five `mapping::tree` rows in the H2 fail roster) — an H2 lane item, named here.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

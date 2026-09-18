@@ -401,7 +401,6 @@ meta::relational::tests::query::sort::testSortByLambdaDeepOptional
 meta::relational::tests::query::take::testFilterLimitInSequenceForTableAccessor
 meta::relational::tests::query::take::testLimitFilterInSequenceForTableAccessor
 meta::relational::tests::query::take::testTakeWithVariables
-meta::relational::tests::query::view::testAllWithJoinToView
 meta::relational::tests::query::view::testViewAll
 meta::relational::tests::query::view::testViewSimpleFilter
 meta::relational::tests::tds::groupBy::GroupByWithIfInMap

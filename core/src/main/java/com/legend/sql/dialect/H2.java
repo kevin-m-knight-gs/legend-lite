@@ -619,8 +619,14 @@ public class H2 extends AnsiSqlRenderer {
      * guessing a column's type. */
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {
+        // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
+        // the two rows host mode lost when the byte channel judged): a
+        // value whose TYPE FACT is BOOLEAN takes the reference spelling
+        // too, not only a boolean-SHAPED expression
+        boolean booleanFact = c.value().type() instanceof com.legend.sql.TypeFact.Typed tf
+                && tf.type() == com.legend.sql.SqlType.Scalar.BOOLEAN;
         if (c.target() == com.legend.sql.SqlType.Scalar.VARCHAR
-                && booleanShaped(c.value())) {
+                && (booleanFact || booleanShaped(c.value()))) {
             String v = expr(c.value(), 0);
             return "CASE WHEN " + v + " THEN 'true' WHEN NOT " + v
                     + " THEN 'false' END";

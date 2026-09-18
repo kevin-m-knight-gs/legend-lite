@@ -358,6 +358,31 @@ public final class CanonicalRenderSql {
         for (int i = 0; i < plan.outputs().size(); i++) {
             com.legend.sql.OutputCol col = plan.outputs().get(i);
             Type kind = schema.columns().get(i).type();
+            // the engine's boundary rule (dataTypeTransformer; the same rule
+            // Equality.effectiveKind applies): a NUMERIC declaration converts
+            // the wire cell; any other declaration keeps the WIRE's kind — a
+            // String-declared property mapped to an INT column delivers the
+            // Integer 11 and spells bare, never quoted (mapping::tree, the
+            // four rows the H2 grid canon lost; leg 3.1b)
+            // (a Boolean or temporal declaration converts too — the
+            // transformer's Boolean and parseDate arms — so only the STRING
+            // declaration is the identity)
+            if (kind == Type.Primitive.STRING) {
+                // the plan's OUTPUT label is stamp-derived (the declaration's
+                // VARCHAR); the WIRE fact is the projection expression's own
+                // type fact (a table column ref carries its DDL type)
+                // (a star projection expands to more outputs than
+                // projections — the positions align only when the counts do)
+                SqlType wireType = plan instanceof com.legend.sql.SqlSelect ps
+                        && ps.projections().size() == plan.outputs().size()
+                        && ps.projections().get(i).expr().type()
+                                instanceof com.legend.sql.TypeFact.Typed tf
+                        ? tf.type() : col.type();
+                Type wire = kindOfSqlType(wireType);
+                if (wire != null) {
+                    kind = wire;
+                }
+            }
             // the §4M scalar precedent, grid form: an ENUM cell has no
             // literal channel — the wire spells the VALUE as a string
             // while pure's enum never equals its name string; a byte

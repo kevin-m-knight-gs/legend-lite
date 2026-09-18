@@ -1168,6 +1168,7 @@ unordered-chain meta::relational::tests::query::routing::testNoRoutingWhenTraver
 unordered-chain meta::relational::tests::query::simple::testAll
 unordered-chain meta::relational::tests::query::simple::testDistinctSize
 unordered-chain meta::relational::tests::query::simple::testSize
+unordered-chain meta::relational::tests::query::view::testAllWithJoinToView
 unordered-chain meta::relational::tests::query::view::testDistinctOnlyIncludesTopLevelColumns
 unordered-chain meta::relational::tests::query::view::testViewPropertyFilterWithPrimaryKey
 unordered-chain meta::relational::tests::query::view::testViewWithJoinsAndDistinct

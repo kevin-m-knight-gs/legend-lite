@@ -2281,6 +2281,20 @@ final class StatementExecutor {
             boolean identity,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
+        // the addDriverTablePkForProject option is part of the EXECUTION
+        return executeTyped(sideBody(value, letPrefix, specs, env, hook), env,
+                rider, identity);
+    }
+
+    /** A VALUE as the executor's body: the let prefix spliced, user calls
+     * inlined (with the caller's envelope hook), natives staged, stores
+     * resolved — the ONE road both {@link #evalValue} and
+     * {@link #planValue} take (leg 3.1b: the audit's one real duplication). */
+    private static java.util.List<TypedSpec> sideBody(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
         single.add(value);
         var inliner = hook == null
@@ -2292,12 +2306,7 @@ final class StatementExecutor {
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
-        com.legend.resolver.StoreResolver sideResolver =
-                resolver(specs, env);
-        body = sideResolver.resolve(body, env.runtimeFqn());
-        // the addDriverTablePkForProject option is part of the EXECUTION
-        return executeTyped(body, env,
-                rider, identity);
+        return resolver(specs, env).resolve(body, env.runtimeFqn());
     }
 
     static ExecutionResult executeTyped(
@@ -2621,18 +2630,7 @@ final class StatementExecutor {
             com.legend.exec.CanonRider rider,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
-        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
-        single.add(value);
-        var inliner = hook == null
-                ? new com.legend.compiler.spec.UserCallInliner(specs)
-                : new com.legend.compiler.spec.UserCallInliner(specs, hook);
-        java.util.List<TypedSpec> body = new java.util.ArrayList<>(
-                inliner.inlineBody(single));
-        env.queryLets().putAll(inliner.queryLets());
-        final java.util.List<TypedSpec> stageEnv = body;
-        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                .stage(b, stageEnv, nativeRoutines(specs, env)));
-        body = resolver(specs, env).resolve(body, env.runtimeFqn());
+        java.util.List<TypedSpec> body = sideBody(value, letPrefix, specs, env, hook);
         java.util.Set<String> stores = new java.util.TreeSet<>();
         for (TypedSpec n : body) {
             collectStores(n, stores);
