@@ -180,8 +180,9 @@ class HarnessDisciplineTest {
             // a bucket, test names — the same display-only class
             // (WholeTestFlip, the old runner and the walk: DELETED in
             // batch 115 — their rows left this list)
-            // 4 -> 3 (JUDGING_TWO_MODES step 2): the row-multiset match moved to Equality
-            Map.entry("TdsCompare.java", 3));
+            // 4 -> 3 -> 2 (JUDGING_TWO_MODES step 2a/2b): the row-multiset
+            // match and its pool moved to Equality
+            Map.entry("TdsCompare.java", 2));
             // (JsonCompare.java's graph-root message sort left this list in
             // step 2: the JSON rules moved to Equality, counted there)
 

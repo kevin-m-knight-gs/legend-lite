@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 /** The graph verdict on an INCIDENTAL-order chain: the ROOT array is a
  *  multiset, nested arrays stay ordered (the union graph-fetch witness:
  *  three firms in H2's arrival order vs DuckDB's, identical content). */
-class JsonCompareUnorderedRootTest {
+class EqualityJsonUnorderedRootTest {
 
     private static final String B = "{\"legalName\":\"Firm B\",\"employees\":[{\"lastName\":\"Bala\"},{\"lastName\":\"Raman\"}]}";
     private static final String X = "{\"legalName\":\"Firm X\",\"employees\":[{\"lastName\":\"Scott\"},{\"lastName\":\"Anand\"}]}";
@@ -25,8 +25,8 @@ class JsonCompareUnorderedRootTest {
         Object expected = Json.parse("[" + B + "," + X + "," + A + "]");
         Object actual = Json.parse("[" + X + "," + A + "," + B + "]");
         assertEquals("$[0].legalName expected Firm B, got Firm X",
-                JsonCompare.document(expected, actual));
-        assertNull(JsonCompare.documentUnorderedRoot(expected, actual));
+                Equality.pureJson(expected, actual));
+        assertNull(Equality.pureJsonUnorderedRoot(expected, actual));
     }
 
     @Test
@@ -38,7 +38,7 @@ class JsonCompareUnorderedRootTest {
         // the sort key is the element's full content, so the swapped
         // employees land the two X's at different positions: the verdict
         // is a difference (never a silent pass), wherever it is reported
-        assertTrue(JsonCompare.documentUnorderedRoot(expected, actual) != null);
+        assertTrue(Equality.pureJsonUnorderedRoot(expected, actual) != null);
     }
 
     @Test
@@ -46,15 +46,15 @@ class JsonCompareUnorderedRootTest {
     void missingElementFails() {
         Object expected = Json.parse("[" + B + "," + X + "]");
         Object actual = Json.parse("[" + X + "]");
-        String d = JsonCompare.documentUnorderedRoot(expected, actual);
+        String d = Equality.pureJsonUnorderedRoot(expected, actual);
         assertTrue(d != null && d.contains("expected 2 element(s), got 1") && d.contains("Firm B"), d);
     }
 
     @Test
     @DisplayName("a non-array root compares as a document")
     void objectRootUnchanged() {
-        assertNull(JsonCompare.documentUnorderedRoot(Json.parse(B), Json.parse(B)));
+        assertNull(Equality.pureJsonUnorderedRoot(Json.parse(B), Json.parse(B)));
         assertEquals("$.legalName expected Firm B, got Firm X",
-                JsonCompare.documentUnorderedRoot(Json.parse(B), Json.parse(X)));
+                Equality.pureJsonUnorderedRoot(Json.parse(B), Json.parse(X)));
     }
 }

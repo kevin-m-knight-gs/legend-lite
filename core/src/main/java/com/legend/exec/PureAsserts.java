@@ -60,6 +60,20 @@ public final class PureAsserts {
         return assertEquals(expected, actual, null, null);
     }
 
+    /** The message for typed sides — the verdict's own cells, so the
+     * narrative can never disagree with the decision. */
+    public static @com.legend.Nullable String assertEqualsTyped(
+            List<Equality.Typed> expected, List<Equality.Typed> actual) {
+        if (Equality.ordered(expected, actual) == null) {
+            return null;
+        }
+        List<Object> e = new ArrayList<>();
+        expected.forEach(t -> e.add(t.value()));
+        List<Object> a = new ArrayList<>();
+        actual.forEach(t -> a.add(t.value()));
+        return "\nexpected: " + reprSide(e) + "\nactual:   " + reprSide(a);
+    }
+
     /** With each side's STATIC type (the {@code instanceOf Type} half of
      * an instance's representation — the wire map carries no type). */
     public static @com.legend.Nullable String assertEquals(
@@ -166,7 +180,7 @@ public final class PureAsserts {
                     + " identity, which is not observable on a value wire"
                     + " (assertEquals is the structural compare)");
         }
-        if (equalScalar(expected, actual)) {
+        if (Equality.same(Equality.Typed.of(expected), Equality.Typed.of(actual))) {
             return null;
         }
         return "\nexpected: " + repr(expected)
@@ -241,42 +255,11 @@ public final class PureAsserts {
 
     /** Pure {@code equal(left:Any[*], right:Any[*])} (equal.pure):
      * collection equality is ordered, element-wise. */
-    // ---- EQUALITY: decided by Equality (host mode's one judge) ----------------
-    // These keep the assert family's MESSAGE shapes; the decision is
-    // Equality's. Kinds: the carrier's unless the caller declares Float.
+    // ---- messages only: the decision is Equality's (host mode's one judge)
 
-    public static boolean equal(List<Object> left, List<Object> right) {
-        return equal(left, right, false);
-    }
-
-    public static boolean equal(List<Object> left, List<Object> right,
-            boolean floatDeclared) {
-        return Equality.ordered(typed(left, floatDeclared), typed(right, floatDeclared)) == null;
-    }
-
-    public static boolean equalScalar(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a) {
-        return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a));
-    }
-
-    public static @com.legend.Nullable String assertSameElements(
-            List<Object> expected, List<Object> actual, boolean floatDeclared) {
-        List<Object> es = sorted(expected);
-        List<Object> as = sorted(actual);
-        if (equal(es, as, floatDeclared)) {
-            return null;
-        }
-        return "\nexpected: " + joined(es) + "\nactual:   " + joined(as);
-    }
-
-    public static boolean equalScalar(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a, boolean floatDeclared) {
-        Type k = floatDeclared ? Type.Primitive.FLOAT : null;
-        return Equality.same(new Equality.Typed(e, k), new Equality.Typed(a, k));
-    }
-
-    private static List<Equality.Typed> typed(List<Object> values, boolean floatDeclared) {
-        return Equality.Typed.all(values, floatDeclared ? Type.Primitive.FLOAT : null);
+    private static boolean equal(List<Object> left, List<Object> right) {
+        return Equality.ordered(Equality.Typed.all(left, null),
+                Equality.Typed.all(right, null)) == null;
     }
 
     private static boolean isIntegral(Object v) {

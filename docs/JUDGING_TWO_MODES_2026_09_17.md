@@ -229,3 +229,42 @@ had hidden behind the byte canon.
 **Next, 2b:** the deletions (`PureAsserts.equalScalar` and the float-declared overloads, the
 second ULP site `TdsCompare.ulpOnlyCellDrift`, `JsonCompare` as a class), grid cells by
 COLUMN kind, and the §5a guardrail.
+
+## Step 2b — LANDED 2026-09-18 (the deletions, grid cells by column kind, the guardrail)
+
+**Deleted, not delegated.** `PureAsserts` no longer has an equality API: `equalScalar`, the
+`floatDeclared` overloads and the carrier lattice are gone (242 → 229 lines; it keeps
+assertSize / assertInstanceOf / repr and one private `equal` that calls Equality).
+`TdsCompare.rowTupleMultiset`, `ulpOnlyCellDrift`, `rowEquals`, `rowsPositional` are gone
+(425 → 366); the leniency-only test the verdict needs is `Equality.differByLeniencyOnly`.
+`JsonCompare` is deleted as a class (its one test became `EqualityJsonUnorderedRootTest`);
+`TestAssertions.equalToJson` is `Equality.serviceJson`. `Math.ulp` has ONE home.
+
+**Grid cells by column kind.** `Equality.grid(cells, columnKinds)` pairs every cell with its
+column's declared Pure type (the `Tabular` column's `pureType`), cycling per row; both the
+verdict (`AssertVerdicts` tdsRowValues arm, `TdsCompare.grids`) and the message go through it.
+This exposed a question the mixed judge had hidden: `mapping::tree`'s
+`Account.number : String[1]` is mapped to `accountTable.id INT`, the grid column says STRING,
+the cell is the Integer 11 and the test asserts `[11, 'OrgName3']`. The product is RIGHT and
+so is the test: the engine's boundary (`dataTypeTransformer`,
+core_relational `execution_relational_execute.pure:299-320`) converts a wire cell only under a
+NUMERIC declaration (Float/Number `* 1.0`, Decimal `toDecimal`) — dates and Booleans arrive
+typed — and EVERY other declaration (String, class, none) is the identity: the cell keeps the
+wire's kind. A declaration is not a cast. So `Equality.effectiveKind` is that rule, cited in
+its javadoc: a Float/Decimal/Integer declaration over a numeric carrier decides the kind;
+anything else takes the carrier's kind. (Reverting to "declared kind always" would have made
+the judge stricter than the engine and failed two engine-green rows — the harness-side patch
+the user rejected on 2026-09-18 was a "numeric family" gate with a wrong story, "metadata the
+judge does not trust"; the metadata is trusted, the engine simply does not convert Strings.)
+
+**The §5a guardrail** (`VerdictChannelRegisterTest`): `Math.ulp` appears in `Equality.java`
+only; every `Equality.*` reference lives in a CLOSED set of callers (AssertVerdicts,
+PureAsserts, TdsCompare, TestAssertions, and Equality's own three tests) — a new caller
+fails the test by name. (The plan said "AssertVerdicts and ServiceTestRunner"; the runner
+reaches Equality through TestAssertions, which is the set's member.)
+
+**Judged.** Register tests green (ledger: Equality 445, PureAsserts 229, TdsCompare 366,
+AssertVerdicts 1840; JsonCompare row removed with the file). Default mode: DuckDB 108 EXACT,
+H2 430 EXACT. Host mode: DuckDB 108 EXACT; H2 428 — the same two rows as step 2a
+(`mapping::boolean::testProject`, `filter::in::testInWithDynaFunction`: the H2 grid canon's
+TEXT differs while the values are equal — step 3's byte channel). No emission change.

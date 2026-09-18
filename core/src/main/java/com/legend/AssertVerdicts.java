@@ -552,7 +552,7 @@ final class AssertVerdicts {
                     yield null;   // non-[1] value arg — generic path
                 }
                 boolean member = coll.stream().anyMatch(x ->
-                        PureAsserts.equalScalar(x, val.get(0)));
+                        com.legend.exec.Equality.same(com.legend.exec.Equality.Typed.of(x), com.legend.exec.Equality.Typed.of(val.get(0))));
                 yield member ? ok()
                         : fail("assertContains: " + coll
                                 + " does not contain " + val.get(0));
@@ -616,7 +616,7 @@ final class AssertVerdicts {
                             env, hook);
                     List<Object> missing = need.stream()
                             .filter(n2 -> have.stream().noneMatch(h ->
-                                    PureAsserts.equalScalar(n2, h)))
+                                    com.legend.exec.Equality.same(com.legend.exec.Equality.Typed.of(n2), com.legend.exec.Equality.Typed.of(h))))
                             .toList();
                     boolean subsetHolds = missing.isEmpty();
                     if (subsetHolds == (fn == NativeFn.Verdict.ASSERT)) {
@@ -1093,20 +1093,26 @@ final class AssertVerdicts {
                         && wrappedRelationStamp(args.get(1), letPrefix))
                 || (bareRowStamp(args.get(1), letPrefix) && ef.grid() != null
                         && wrappedRelationStamp(args.get(0), letPrefix));
+        // the grid's DECLARED column types decide each cell (step 2b)
+        ExecutionResult.Tabular g = af.grid() != null ? af.grid() : ef.grid();
+        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
+        if (g != null) {
+            g.columns().forEach(c -> kinds.add(c.pureType()));
+        }
         boolean hostHeld;
         if (mixedFlatVsTds) {
             hostHeld = false;
         } else {
-            hostHeld = PureAsserts.equal(e, a);
+            List<com.legend.exec.Equality.Typed> te = com.legend.exec.Equality.grid(e, kinds);
+            List<com.legend.exec.Equality.Typed> ta = com.legend.exec.Equality.grid(a, kinds);
+            hostHeld = com.legend.exec.Equality.ordered(te, ta) == null;
             if (!hostHeld && incidental && e.size() == a.size()) {
                 // ROW COHESION (audit 9): the incidental-order fallback
                 // matches ROW TUPLES of the grid's width — cross-row
                 // cell shuffles must FAIL; width 1 = the pool multiset
-                ExecutionResult.Tabular g = af.grid() != null ? af.grid()
-                        : ef.grid();
                 int w = g != null ? g.columns().size() : 1;
-                hostHeld = com.legend.exec.TdsCompare.rowTupleMultiset(
-                        e, a, w > 1 && e.size() % w == 0 ? w : 1);
+                hostHeld = com.legend.exec.Equality.rowMultiset(
+                        te, ta, w > 1 && e.size() % w == 0 ? w : 1);
             }
         }
         Boolean byteHeld = null;
@@ -1133,8 +1139,9 @@ final class AssertVerdicts {
                 // hold BY POLICY — counted in the policy's own census
                 // row, never a disagreement rescue.
                 if (!byteHeld && hostHeld
-                        && com.legend.exec.TdsCompare
-                                .ulpOnlyCellDrift(e, a)) {
+                        && com.legend.exec.Equality.differByLeniencyOnly(
+                                com.legend.exec.Equality.grid(e, kinds),
+                                com.legend.exec.Equality.grid(a, kinds))) {
                     com.legend.exec.CanonicalDivergence.sqlUlpPolicy(
                             "grid " + com.legend.exec.TdsCompare
                                     .firstCanonDiff(es, as2));
@@ -1149,8 +1156,9 @@ final class AssertVerdicts {
                 () -> mixedFlatVsTds
                         ? name + " (TDSRow.values) raw cells do not"
                                 + " equal a whole TDS value"
-                        : tdsHostMessage(name,
-                                PureAsserts.assertEquals(e, a)),
+                        : tdsHostMessage(name, PureAsserts.assertEqualsTyped(
+                                com.legend.exec.Equality.grid(e, kinds),
+                                com.legend.exec.Equality.grid(a, kinds))),
                 "byte-verdict: grid canonical renders differ (host"
                         + " lattice agreed — dual-verdict divergence,"
                         + " see [canon] census)");
@@ -1173,7 +1181,9 @@ final class AssertVerdicts {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
-                && com.legend.exec.TdsCompare.rowTupleMultiset(e, a, 1);
+                && com.legend.exec.Equality.rowMultiset(
+                        com.legend.exec.Equality.Typed.all(e, null),
+                        com.legend.exec.Equality.Typed.all(a, null), 1);
         List<String> ec = sideCellCanons(ef, true);
         List<String> ac = sideCellCanons(af, false);
         Boolean byteHeld = null;
@@ -2099,18 +2109,9 @@ final class AssertVerdicts {
      * PureAsserts OWNS the tolerance, this only vectorizes it. */
     private static boolean withinDeclaredUlp(List<Object> eVals,
             List<Object> aVals) {
-        if (eVals.isEmpty() || eVals.size() != aVals.size()) {
-            return false;
-        }
-        for (int i = 0; i < eVals.size(); i++) {
-            if (!(eVals.get(i) instanceof Double de
-                    && aVals.get(i) instanceof Double da
-                    && Double.isFinite(de) && Double.isFinite(da)
-                    && PureAsserts.equalScalar(de, da))) {
-                return false;
-            }
-        }
-        return true;
+        return com.legend.exec.Equality.differByLeniencyOnly(
+                com.legend.exec.Equality.Typed.all(eVals, null),
+                com.legend.exec.Equality.Typed.all(aVals, null));
     }
 
     /** The RUNTIME numeric kind of a side's fetched values (uniform, or

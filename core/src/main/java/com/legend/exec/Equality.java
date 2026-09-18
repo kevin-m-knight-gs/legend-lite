@@ -118,19 +118,32 @@ public final class Equality {
         };
     }
 
-    /** The kind that decides: a fine declared kind wins; {@code Number}, a
-     * class or no declaration takes the carrier's runtime kind. */
+    /** The kind that decides — the engine's own boundary rule
+     * ({@code dataTypeTransformer}, core_relational execution_relational_execute
+     * .pure:299-320): a NUMERIC declaration converts the wire's cell (Float /
+     * Number {@code * 1.0}, Decimal {@code toDecimal}); dates and Booleans
+     * arrive typed from the database; EVERY OTHER declaration — String, Number
+     * left unrefined, a class, none — is the identity {@code {a | $a}}: the
+     * cell keeps the wire's kind. So {@code Account.number : String[1]} mapped
+     * to {@code accountTable.id INT} (mapping::tree) delivers the Integer 11 in
+     * the engine and in lite alike, and its test asserts {@code [11, 'OrgName3']}
+     * against it — a declaration is not a cast. */
     private static @com.legend.Nullable Type effectiveKind(Typed t) {
         Type k = t.kind();
         if (k instanceof Type.PrecisionDecimal) {
-            return Type.Primitive.DECIMAL;
+            k = Type.Primitive.DECIMAL;
         }
-        if (k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
-                || k == Type.Primitive.INTEGER || k == Type.Primitive.STRING
-                || k == Type.Primitive.BOOLEAN) {
+        Type carrier = carrierKind(t.value());
+        if ((k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
+                || k == Type.Primitive.INTEGER) && isNumericKind(carrier)) {
             return k;
         }
-        return carrierKind(t.value());
+        return carrier;
+    }
+
+    private static boolean isNumericKind(@com.legend.Nullable Type k) {
+        return k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
+                || k == Type.Primitive.INTEGER;
     }
 
     /** Equal, or the first difference. */
@@ -235,6 +248,40 @@ public final class Equality {
             }
         }
         return false;
+    }
+
+    /** A grid's flat cells paired with their COLUMN kinds (cycling per
+     * row) — the TDS's declared column types decide, cell by cell. */
+    public static List<Typed> grid(List<Object> cells, List<Type> columnKinds) {
+        int w = columnKinds.size();
+        List<Typed> out = new ArrayList<>(cells.size());
+        for (int i = 0; i < cells.size(); i++) {
+            out.add(new Typed(cells.get(i), w == 0 ? null : columnKinds.get(i % w)));
+        }
+        return out;
+    }
+
+    /** True when the sides are equal under the judge AND every pair that
+     * is not identical is a finite Double pair — i.e. the ONLY thing
+     * between them is the counted Float leniency. The mixed verdict's
+     * arbitration reads this (a byte canon that differs by the last
+     * digit while the host holds); it goes with the mixed verdict. */
+    public static boolean differByLeniencyOnly(List<Typed> e, List<Typed> a) {
+        if (e.isEmpty() || e.size() != a.size() || ordered(e, a) != null) {
+            return false;
+        }
+        for (int i = 0; i < e.size(); i++) {
+            Object x = e.get(i).value();
+            Object y = a.get(i).value();
+            if (java.util.Objects.equals(x, y)) {
+                continue;
+            }
+            if (!(x instanceof Double dx && y instanceof Double dy
+                    && Double.isFinite(dx) && Double.isFinite(dy))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Rows of width {@code w} as a MULTISET (each expected row consumes one

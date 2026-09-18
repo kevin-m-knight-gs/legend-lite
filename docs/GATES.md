@@ -3811,3 +3811,20 @@ exec funnel, the evaluation ledger (416 lines, a judge), the V3 verdict seam and
 map; VerdictChannelRegister shrank by two; claims ledger regenerated (NumberKinds names the
 arithmetic natives). Two typer facts the judge exposed and fixed: the Number-kind rule reads
 the signature's declared return and covers only plus/minus/times/rem/abs/sum.
+
+**Judging step 2b — the deletions, grid cells by column kind, the §5a guardrail (2026-09-18):**
+chain GREEN (gates 1–10), quiet machine, parallel wall ≈ 4m19s (G2 24; A: G1 74 · G3 11 ·
+G4 111 · G5 39 = 235; B: G6 141 · G7 48 · G9 35 = 224; C: G8 150 · G10 58 = 208). No roster
+moved: corpus DuckDB 108 EXACT, H2 430 EXACT, stress 4,700 / 20, PCT lanes and Channel B
+green; host mode DuckDB EXACT, H2 the same +2 as step 2a. Deleted: `PureAsserts.equalScalar`
+and the float-declared overloads, `TdsCompare.rowTupleMultiset` / `ulpOnlyCellDrift` /
+`rowEquals` / `rowsPositional`, `JsonCompare` (the class; its test is
+`EqualityJsonUnorderedRootTest`). Ledger: Equality 416→445 (the leniency-only test moved
+in), PureAsserts 242→229, TdsCompare 425→366, JsonCompare row removed with the file; the
+sort-site map follows (Equality 4, TdsCompare 2). `VerdictChannelRegisterTest` is now the
+§5a guardrail: `Math.ulp` only in `Equality.java`, `Equality.*` only from a closed caller set.
+Grid cells are judged by their COLUMN's declared kind; the one question it raised
+(`mapping::tree`: a String-declared property over an INT column asserts the Integer 11) is
+the engine's own boundary rule — `dataTypeTransformer` converts only numeric declarations,
+every other declaration is the identity — cited in `Equality.effectiveKind`; record in
+docs/JUDGING_TWO_MODES_2026_09_17.md (step 2b).

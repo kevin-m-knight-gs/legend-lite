@@ -216,8 +216,14 @@ class JavaEvalLedgerTest {
             // NEW ROW (JUDGING_TWO_MODES step 2, 2026-09-17): the host judge —
             // the decision code that lived in the four rows below, in one
             // place; a judge, never an evaluator (it computes no value)
-            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 416),
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 242),   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
+            // 416 -> 441 (step 2b): grid cells by COLUMN kind and the mixed
+            // verdict's leniency-only test moved here from TdsCompare (-59)
+            // and AssertVerdicts; PureAsserts -24, JsonCompare gone (-25)
+            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 445),
+            // 242 -> 218 -> 229 (step 2b): the equality API is gone; the typed
+            // message facade (assertEqualsTyped) builds a grid's narrative
+            // from the SAME typed cells the judge decided — no divergence
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 229),   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
             // in the database (StatementExecutor.evalValue); this file
@@ -801,7 +807,6 @@ class JavaEvalLedgerTest {
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
-            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 25),   // 64 -> 110 (graph-root order rule, 2026-09-13: the multiset ROOT compare + its unpaired-element message — comparison policy under the row verdict's own compile-time order fact; nothing evaluates)
             // 295 -> 431 (V7 §8 leg 1 + user consolidation ruling
             // 2026-08-28): the GRID-CANON byte-channel policies land
             // with the OTHER grid comparison rules — row/cell canon
@@ -819,7 +824,7 @@ class JavaEvalLedgerTest {
             // judge under the verdict's own declared row-multiset
             // policy). All comparison-layer judgment: consumes two
             // produced sides, never produces a result.
-            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 425));
+            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 366));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
@@ -964,12 +969,6 @@ class JavaEvalLedgerTest {
                     // replaced the adapter's remapErrorMessage AND
                     // AssertErrorNative's broad prefix regex
                     "RaisedErrors.java",
-                    // 2026-08-19 phase-2 deep audit: the ONE structural
-                    // tree walker (wire-value trees + parsed JSON
-                    // documents) — the harness's private jsonDeepEquals
-                    // copy DIED here (its claimed ledger exception had
-                    // never been registered)
-                    "JsonCompare.java",
                     // JUDGING_TWO_MODES step 2 (2026-09-17): HOST MODE's ONE
                     // judge — every equality the host answers (scalars by
                     // declared kind, collections, grids, the two JSON rules

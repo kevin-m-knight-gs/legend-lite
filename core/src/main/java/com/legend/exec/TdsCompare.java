@@ -55,47 +55,30 @@ public final class TdsCompare {
         if (e.size() != a.size()) {
             return false;
         }
+        // the grid's DECLARED column types decide each cell (step 2b);
+        // the rows are the judge's, ordered or as a multiset
+        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
+        expected.columns().forEach(c -> kinds.add(c.pureType()));
+        List<Object> ef = new ArrayList<>();
+        e.forEach(ef::addAll);
+        List<Object> af = new ArrayList<>();
+        a.forEach(af::addAll);
+        List<Equality.Typed> te = Equality.grid(ef, kinds);
+        List<Equality.Typed> ta = Equality.grid(af, kinds);
         if (ordered) {
-            return rowsPositional(e, a);
+            return Equality.ordered(te, ta) == null;
         }
-        List<List<Object>> pool = new ArrayList<>(a);
-        for (List<Object> row : e) {
-            int hit = -1;
-            for (int i = 0; i < pool.size(); i++) {
-                if (rowEquals(row, pool.get(i))) {
-                    hit = i;
-                    break;
-                }
-            }
-            if (hit < 0) {
-                return false;
-            }
-            pool.remove(hit);
+        if (!Equality.rowMultiset(te, ta, Math.max(1, kinds.size()))) {
+            return false;
         }
         // C0.4: a multiset pass the POSITIONAL compare would reject is a
         // pass that depends on order leniency — countable per sweep
-        ordLeniency("row-multiset", () -> rowsPositional(e, a));
+        ordLeniency("row-multiset", () -> Equality.ordered(te, ta) == null);
         return true;
     }
 
     /** ROW COHESION (audit 9): an ordered compare's multiset fallback
      * matches ROW TUPLES of width {@code w}, never loose cells. */
-    public static boolean rowTupleMultiset(List<Object> e, List<Object> a,
-            int w) {
-        if (!Equality.rowMultiset(Equality.Typed.all(e, null), Equality.Typed.all(a, null), w)) {
-            return false;
-        }
-        // F2.4: row-tuple multiset leniency, instrumented
-        ordLeniency("row-tuple", () -> {
-            for (int i = 0; i < e.size(); i++) {
-                if (!Equality.same(Equality.Typed.of(e.get(i)), Equality.Typed.of(a.get(i)))) {
-                    return false;
-                }
-            }
-            return true;
-        });
-        return true;
-    }
 
     // ── V7 §8 leg 1: the GRID-CANON byte-channel policies — the
     // flat-cells comparison rules live HERE with the other grid
@@ -253,27 +236,6 @@ public final class TdsCompare {
      * drift — {@link PureAsserts} OWNS the tolerance; this only
      * vectorizes it over cells). Positional by design: the policy
      * never claims multiset-held pairs. */
-    public static boolean ulpOnlyCellDrift(List<Object> e,
-            List<Object> a) {
-        if (e.isEmpty() || e.size() != a.size()) {
-            return false;
-        }
-        for (int i = 0; i < e.size(); i++) {
-            Object x = e.get(i);
-            Object y = a.get(i);
-            if (!Equality.same(Equality.Typed.of(x), Equality.Typed.of(y))) {
-                return false;
-            }
-            if (java.util.Objects.equals(x, y)) {
-                continue;
-            }
-            if (!(x instanceof Double dx && y instanceof Double dy
-                    && Double.isFinite(dx) && Double.isFinite(dy))) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     /** First differing entry of two (sorted) canon lists — the alarm's
      * diagnosis payload (a bare host/sql flag cannot be diagnosed). */
@@ -294,27 +256,7 @@ public final class TdsCompare {
     }
 
 
-    private static boolean rowsPositional(List<List<Object>> e,
-            List<List<Object>> a) {
-        for (int i = 0; i < e.size(); i++) {
-            if (!rowEquals(e.get(i), a.get(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
 
-    private static boolean rowEquals(List<Object> e, List<Object> a) {
-        if (e.size() != a.size()) {
-            return false;
-        }
-        for (int i = 0; i < e.size(); i++) {
-            if (!Equality.same(Equality.Typed.of(e.get(i)), Equality.Typed.of(a.get(i)))) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     /** {@code assertTdsEquivalent} cell comparison (engine
      * tdsEquivalent.pure — moved from the harness's TdsEquivalence at

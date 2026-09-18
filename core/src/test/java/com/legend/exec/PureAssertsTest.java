@@ -26,6 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * adjudicated wire policies the platform owner carries.
  */
 class PureAssertsTest {
+    private static boolean same(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
+        return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a));
+    }
+
+    private static boolean ordered(List<Object> e, List<Object> a) {
+        return Equality.ordered(Equality.Typed.all(e, null), Equality.Typed.all(a, null)) == null;
+    }
+
 
     // ---- assertEquals.pure's own tests --------------------------------
 
@@ -96,8 +104,8 @@ class PureAssertsTest {
     @Test
     @DisplayName("policy: TDSNull sentinel is expected-direction ONLY")
     void tdsNullSentinel() {
-        assertTrue(PureAsserts.equalScalar("TDSNull", null));
-        assertFalse(PureAsserts.equalScalar(null, "TDSNull"),
+        assertTrue(same("TDSNull", null));
+        assertFalse(same(null, "TDSNull"),
                 "a literal 'TDSNull' on OUR wire where a NULL belongs"
                         + " must FAIL (audit 16 F5)");
     }
@@ -105,31 +113,31 @@ class PureAssertsTest {
     @Test
     @DisplayName("policy: integral kinds normalize; cross-kind is false")
     void integralNormalization() {
-        assertTrue(PureAsserts.equalScalar(1L, 1));
-        assertTrue(PureAsserts.equalScalar((short) 5, 5L));
-        assertFalse(PureAsserts.equalScalar(1L, 1.0d),
+        assertTrue(same(1L, 1));
+        assertTrue(same((short) 5, 5L));
+        assertFalse(same(1L, 1.0d),
                 "integral vs float is CROSS-KIND — strict false");
-        assertFalse(PureAsserts.equalScalar(1L, "1"));
+        assertFalse(same(1L, "1"));
     }
 
     @Test
-    @DisplayName("policy: Decimal by compareTo (scale-blind); 2-ULP doubles only")
+    @DisplayName("policy: Decimal scale-SENSITIVE (the engine assert seam); 2-ULP doubles only")
     void numericPolicies() {
         // X2 (VERDICT_RULE_AUDIT): engine Decimal equality is
         // getValue().equals — SCALE-SENSITIVE
-        assertFalse(PureAsserts.equalScalar(
+        assertFalse(same(
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
-        assertTrue(PureAsserts.equalScalar(
+        assertTrue(same(
                 new BigDecimal("1.5"), new BigDecimal("1.5")));
         // X1/X3: NO cross-primitive-kind equality (engine eq requires
         // the same primitive type name)
-        assertFalse(PureAsserts.equalScalar(8L, new BigDecimal("8")));
-        assertFalse(PureAsserts.equalScalar(8.0d, new BigDecimal("8.0")));
+        assertFalse(same(8L, new BigDecimal("8")));
+        assertFalse(same(8.0d, new BigDecimal("8.0")));
         double base = 0.1 + 0.2;   // 0.30000000000000004
-        assertTrue(PureAsserts.equalScalar(base, 0.3 + Math.ulp(0.3)),
+        assertTrue(same(base, 0.3 + Math.ulp(0.3)),
                 "within 2 ULP compares equal (dialect libm)");
-        assertFalse(PureAsserts.equalScalar(0.3d, 0.4d));
-        assertFalse(PureAsserts.equalScalar(Double.NaN, Double.NaN),
+        assertFalse(same(0.3d, 0.4d));
+        assertFalse(same(Double.NaN, Double.NaN),
                 "NaN stays strict — never lenient");
     }
 
@@ -137,18 +145,18 @@ class PureAssertsTest {
     @DisplayName("D-arc: PureDateLiteral is THE wire temporal — precision-sensitive engine equality, bridge DEAD")
     void temporalEquality() {
         var d = com.legend.values.PureDateLiteral.parse("2014-01-01");
-        assertTrue(PureAsserts.equalScalar(d,
+        assertTrue(same(d,
                 com.legend.values.PureDateLiteral.parse("2014-01-01")));
         // engine PureDate.equals is PRECISION-SENSITIVE: same instant,
         // different written precision -> not equal
-        assertFalse(PureAsserts.equalScalar(
+        assertFalse(same(
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00"),
                 com.legend.values.PureDateLiteral.parse("2014-01-01T10:00:00")));
         // the string-carrier bridge DIED with the cutover (partial
         // precision rides the wire natively now): string vs temporal is
         // a TYPE mismatch, false like pure
-        assertFalse(PureAsserts.equalScalar("2014-01-01", d));
-        assertFalse(PureAsserts.equalScalar(d, "2014-01-01"));
+        assertFalse(same("2014-01-01", d));
+        assertFalse(same(d, "2014-01-01"));
     }
 
     // ---- toRepresentation (the one owner) -----------------------------
@@ -218,18 +226,18 @@ class PureAssertsTest {
         // through to raw Java equals — false)
         Map<String, Object> e = Map.of("xs", List.of(1L, 2L));
         Map<String, Object> a = Map.of("xs", List.of(1, 2));
-        assertTrue(PureAsserts.equalScalar(e, a));
-        assertFalse(PureAsserts.equalScalar(
+        assertTrue(same(e, a));
+        assertFalse(same(
                 Map.of("xs", List.of(1L, 2L)), Map.of("xs", List.of(2L, 1L))));
     }
 
     @Test
     @DisplayName("P2-6: document compare — content equality, first-diff path")
     void documentCompare() {
-        assertNull(JsonCompare.document(
+        assertNull(Equality.pureJson(
                 Map.of("a", new BigDecimal("1.0")),
                 Map.of("a", new BigDecimal("1.00"))));
-        String d = JsonCompare.document(
+        String d = Equality.pureJson(
                 Map.of("a", List.of("x", "y")),
                 Map.of("a", List.of("x", "z")));
         assertTrue(d != null && d.startsWith("$.a[1] "), String.valueOf(d));
@@ -238,11 +246,11 @@ class PureAssertsTest {
     @Test
     @DisplayName("equal() over collections: ordered, arity-strict, null-elements")
     void collectionEquality() {
-        assertTrue(PureAsserts.equal(List.of(1L, "a"), List.of(1L, "a")));
-        assertFalse(PureAsserts.equal(List.of(1L, 2L), List.of(2L, 1L)),
+        assertTrue(ordered(List.of(1L, "a"), List.of(1L, "a")));
+        assertFalse(ordered(List.of(1L, 2L), List.of(2L, 1L)),
                 "pure equal() is ORDERED");
-        assertFalse(PureAsserts.equal(List.of(1L), List.of(1L, 1L)));
-        assertTrue(PureAsserts.equal(Arrays.asList((Object) null),
+        assertFalse(ordered(List.of(1L), List.of(1L, 1L)));
+        assertTrue(ordered(Arrays.asList((Object) null),
                 Arrays.asList((Object) null)));
     }
 }

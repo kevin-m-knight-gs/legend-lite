@@ -15,68 +15,72 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * THE Z2 RULING'S GUARD (Charter Clause 2c, ratified 2026-08-19):
- * {@code PureAsserts.equalScalar}/{@code equal} is the VERDICT-CHANNEL
- * equality — World 1's adjudicator over database-produced values,
- * nothing else. Its TEST-CHANNEL tolerance arms (the TDSNull sentinel,
- * the 2-ULP dialect-arithmetic leniency) are sound ONLY because every
- * caller is an adjudicator; product equality is World 2 (an in-query
- * {@code equal()} lowers to SQL — the database is the authority) and
- * must never route through here. This register pins the caller FILE SET
- * mechanically: a new caller is a red build until consciously added
- * with its tenet argument.
+ * JUDGING_TWO_MODES §5a — ONE JUDGE. (a) Exactly one class decides host
+ * equality: the leniency ({@code Math.ulp}) lives in {@code Equality.java}
+ * and nowhere else in the product; (b) the judge's callers are a closed
+ * register — the verdict seam and the delegating message facades; a new
+ * caller registers consciously with its tenet argument (the Charter's
+ * Clause 2c: product equality is World 2, it lowers to SQL).
  */
 class VerdictChannelRegisterTest {
 
-    /** The adjudication cluster — every file permitted to invoke
-     * {@code PureAsserts.equal*}. */
-    private static final List<String> REGISTER = List.of(
-            // the K-arm: statement-root assert-family verdicts (World 1)
+    private static final List<String> JUDGE_CALLERS = List.of(
             "core/src/main/java/com/legend/AssertVerdicts.java",
-            // grid verdicts (corpus/PCT TDS comparison, Clause 2b owner)
-            // tree verdicts (wire-tree leaves ride equalScalar as a
-            // method reference)
-            // the two SPEC fixtures — they pin the adjudicator itself
+            // message facades: the assert family's spellings, decided by the judge
+            "core/src/main/java/com/legend/exec/PureAsserts.java",
+            // the grid compare policy (row order / multiset), cells by the judge
+            "core/src/main/java/com/legend/exec/TdsCompare.java",
+            // the service-test runner's EqualToJson routes to serviceJson
+            "core/src/main/java/com/legend/test/TestAssertions.java",
+            "core/src/test/java/com/legend/exec/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java",
             "core/src/test/java/com/legend/exec/PureAssertsTest.java");
 
+    private static final java.util.regex.Pattern JUDGE_REF =
+            java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");
+
     @Test
-    void equalityCallersAreTheAdjudicationCluster() throws IOException {
-        List<String> found = new ArrayList<>();
+    void theJudgeHasOneHomeAndAClosedSetOfCallers() throws IOException {
+        List<String> callers = new ArrayList<>();
+        List<String> ulpSites = new ArrayList<>();
         for (String root : List.of("src/main/java", "src/test/java",
-                "../pct/src/test/java")) {
+                "../pct/src/test/java", "../spec/src/test/java")) {
             if (!Files.isDirectory(Path.of(root))) {
                 continue;
             }
             try (Stream<Path> s = Files.walk(Path.of(root))) {
-                for (Path f : s.filter(p -> p.toString().endsWith(".java"))
-                        .toList()) {
-                    if (f.getFileName().toString()
-                            .equals("VerdictChannelRegisterTest.java")) {
+                for (Path f : s.filter(p -> p.toString().endsWith(".java")).toList()) {
+                    String name = f.getFileName().toString();
+                    if (name.equals("VerdictChannelRegisterTest.java")
+                            || name.equals("Equality.java")) {
                         continue;
                     }
                     String src = Files.readString(f)
                             .replaceAll("(?s)/\\*.*?\\*/", "")
                             .replaceAll("//.*", "");
-                    if (src.contains("PureAsserts.equal")
-                            || src.contains("PureAsserts::equal")) {
-                        String rel = f.toString().replace(java.io.File.separatorChar, '/')
-                                .replace("../pct/", "pct/");
-                        found.add(rel.startsWith("src/")
-                                ? "core/" + rel : rel);
+                    String rel = f.toString().replace(java.io.File.separatorChar, '/')
+                            .replace("../pct/", "pct/").replace("../spec/", "spec/");
+                    rel = rel.startsWith("src/") ? "core/" + rel : rel;
+                    // the JUDGE's own name as a type reference (never a
+                    // suffix such as EqualityKeys, never the file name)
+                    if (JUDGE_REF.matcher(src).find()) {
+                        callers.add(rel);
+                    }
+                    if (root.equals("src/main/java") && src.contains("Math.ulp(")) {
+                        ulpSites.add(rel);
                     }
                 }
             }
         }
-        found.sort(String::compareTo);
-        List<String> pinned = new ArrayList<>(REGISTER);
+        callers.sort(String::compareTo);
+        List<String> pinned = new ArrayList<>(JUDGE_CALLERS);
         pinned.sort(String::compareTo);
-        assertEquals(pinned, found,
-                "PureAsserts equality has a caller outside the verdict"
-                + " channel (Charter Clause 2c, Z2 ruling): product"
-                + " equality is World 2 — it lowers to SQL. Register an"
-                + " ADJUDICATOR here with its tenet argument; a product"
-                + " caller gets a spec-only comparator instead (no"
-                + " tolerance arms), as a witnessed design leg.");
+        assertEquals(pinned, callers,
+                "the host judge (Equality) has a caller outside the closed"
+                + " register (JUDGING_TWO_MODES §5a): register it consciously"
+                + " with its tenet argument, or route through the verdict seam");
+        assertEquals(List.of(), ulpSites,
+                "the Float leniency has ONE home, Equality.java (§5a): a second"
+                + " Math.ulp site is a second judge");
     }
 }
