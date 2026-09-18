@@ -86,7 +86,11 @@ documented in prose and enforced by shell.
 (gate 7 passes with up to 1 failure and 26 errors), a roster of 23 test class names that
 must each appear in the output, a fully-skipped-class detector, a mid-run tree-mutation
 tripwire, and a three-stream parallel scheduler. None of this is expressible to a
-developer as "run the build".
+developer as "run the build". And policy the script does not run is not enforced at all:
+the H2 stress lane has its floor in code (`MIN_PASS_H2`), but no gate and no workflow runs
+that lane, and the stress ledger records a floor that was wrong when committed and was
+caught only when someone re-ran the lane by hand (F-AA in
+`docs/STRESS_CORPUS_THROUGH_LITE_2026_09_16.md`).
 
 **3. Generated files are committed, and their generators are tests.** `core` ships
 `prelude.pure`, `native-claims.tsv`, `native-membership.tsv` and signature text inside
@@ -94,11 +98,13 @@ developer as "run the build".
 `spec` switched on by flags, and they rewrite files in the working tree. Moving to a new
 upstream release is a 313-line script (`tools/bump.sh`), not a build step.
 
-**4. Module boundaries are not real.** Eight `core` test classes read other modules'
+**4. Module boundaries are not real.** Nine `core` test classes read other modules'
 sources by relative path (`ParserBoundaryArchTest`, `HarnessDisciplineTest`,
 `JavaEvalLedgerTest`, `JdbcSurfaceCensusTest`, `LegacyReachbackCensusTest`,
-`SkipCensusTest`, `VerdictChannelRegisterTest`, `DiagramServiceTest`), and 43 `core`
-test files reference paths under `docs/` or `scripts/`. An edit in `pct` can turn `core`
+`SkipCensusTest`, `VerdictChannelRegisterTest`, `DiagramServiceTest`, and
+`DanglingStateGuardTest`, which walks all five modules). The stress corpus loads eleven of
+its projects from `../projects`, and `ErrorShapeGuardrailTest` still walks `../engine`, a
+deleted module, skipping silently because it is gone. An edit in `pct` can turn `core`
 red, and a new test in `core` can turn `parser-equivalence` red.
 
 ### 2.4 What is already right, and must survive
@@ -158,7 +164,7 @@ build. Maven is also what the upstream projects this one tracks are built with. 
 is the cheapest way to get the properties we want.
 
 **Nothing is CI-only.** Every check in this plan runs from a laptop with one command.
-Two things are deliberately not in `./mvnw verify`:
+Three things are deliberately not in `./mvnw verify`:
 
 - **Accepting a baseline** (`-Dledger.update`) rewrites committed expectations. It is not
   a test, and it is not generation — the build generates everything it can derive, every
@@ -166,6 +172,11 @@ Two things are deliberately not in `./mvnw verify`:
 - **The matrix itself.** Running six OS/JDK combinations at once is a property of having
   six machines, not of the build. Each cell is exactly `./mvnw verify`; a developer runs
   the cell they are sitting in.
+- **Checks that need Python or the real engine.** The corpus generators are Python
+  (§4.8); a scheduled workflow re-runs them and fails if the committed output moved, and a
+  developer can run the same script. Checking the corpus's expectations against real
+  legend-engine takes about an hour (§4.8) and is a maintainer's run. Nothing in `verify`
+  needs either.
 
 Everything else — the conformance suites, both database lanes, the stress corpus, the
 parser differential, the generator verification — is in the default build on every
@@ -175,9 +186,10 @@ platform.
 
 ```
 legend-lite (root pom: versions, plugin management, enforcer rules)
+├── generator             core's upstream-derived sources          (new, built before core)
 ├── core                  the compiler and server      (no upstream dependencies)
 ├── nlq                   natural language → Pure
-├── spec                  generators + their verification
+├── spec                  the relational corpus, its harness, the claims ledger
 ├── pct                   legend-pure's PCT suites
 ├── parser-equivalence    differential parser tests
 ├── corpus                the stress corpus and its runner        (moved out of core)
@@ -186,17 +198,27 @@ legend-lite (root pom: versions, plugin management, enforcer rules)
 └── upstream-runner       today's tools/engine-runner              (in the reactor)
 ```
 
-Two new modules earn their place:
+Three new modules earn their place:
 
+- **`generator`** is the one module that reads upstream to produce what `core` compiles:
+  the prelude, the signature text, the dynafunction registry, and the import sequence. It
+  depends on the upstream artifacts and on nothing of ours, and it is built before `core`
+  (§4.8, phase 4). The generators leave `spec` for it.
 - **`guards`** is where every test that reads another module's sources goes. It is built
   last and depends on everything. An edit in `pct` can then fail `guards`, which is true
-  and reviewable, instead of failing `core`, which is neither.
+  and reviewable, instead of failing `core`, which is neither. It reads the other modules'
+  source trees as files, which rule 2 allows. It cannot take their test classes through a
+  test-jar: under `mvn test` the reactor substitutes the producer's whole
+  `target/test-classes`, service registrations included, and `core`'s once made `###Toy` a
+  known section inside `parser-equivalence` (tried and reverted in `b5ad0b82b`).
 - **`projects`** gives the 56-project Legend graph a test that compiles it, so it stops
   being unbuilt content in a Java repository.
 
 `corpus` moving out of `core` keeps the inner loop short: `core`'s own suite stays the
 thing a developer runs every few minutes, and 4,700 service suites become a module that
-runs in `verify`.
+runs in `verify`. `corpus` depends on `projects`: the stress model loads eleven of the 56
+projects first (`StressCorpus.LINKED_PROJECTS`, read today from `../projects`), so
+`projects` publishes them as an artifact that `corpus` resolves, not as a relative path.
 
 ### 4.2 Inputs Maven owns
 
@@ -205,7 +227,8 @@ same problem.
 
 **legend-pure, and most of legend-engine, is already published.** The `.pure` files the
 tests read from `src/main/resources` are shipped inside the release jars — measured
-byte-identical to the source tree at 5.92.0. `maven-dependency-plugin`'s `copy` goal
+byte-identical to the source tree at 5.92.0, the pin at the time; the pin is now 5.99.0,
+and phase 2 re-measures before relying on it. `maven-dependency-plugin`'s `copy` goal
 hands a module the jar *files* without putting them on a classpath (which matters:
 `core` must resolve zero `org.finos.legend` artifacts, and Enforcer asserts it), and the
 tests open each jar as a zip `FileSystem`. Paths inside a zip walk, resolve, relativize,
@@ -245,15 +268,27 @@ release's own POM and asserted by a test.
 | `version-report.sh --check` | One version property, plus a test that checks it against the release's own POM |
 | Three-stream scheduler | `mvn -T1C`, and surefire/failsafe `forkCount` — a bet on memory, not a translation, and budgeted in phase 1 |
 | Heap set by CI env vars | `.mvn/jvm.config` and an explicit surefire `argLine` |
+| `-Dh2.version=2.4.240` on gate 7's command line | The version in the POM, on that lane's execution (§4.4) |
+| `-Dpct.reuseForks=false`, passed by CI only | One fork per PCT suite everywhere, as the POM's default (§4.7) |
 
 ### 4.4 Lanes are executions, not invocations
 
-The DuckDB and H2 lanes are the same tests under a different property
-(`-Drcorpus.backend=h2`, `LEGENDLITE_PCT_BACKEND=h2`, `-Dstress.backend=h2`). Today that
-means running Maven twice from a script and comparing logs. In the target build each lane
-is a failsafe **execution** with its own `systemPropertyVariables`, its own
-`reportsDirectory`, and its own `summaryFile`. `mvn verify` runs both, reports both, and
-fails if either fails. Gates 4/5, 6/7, and the two stress lanes collapse into executions.
+The DuckDB and H2 lanes are the same tests under a different switch
+(`-Drcorpus.backend=h2`, `-Dstress.backend=h2`, and `LEGENDLITE_PCT_BACKEND=h2`, which is
+an environment variable). Today that means running Maven twice from a script and comparing
+logs. In the target build each lane is a failsafe **execution** with its own
+`systemPropertyVariables` (or `environmentVariables`, until the PCT switch becomes a
+property), its own `reportsDirectory`, and its own `summaryFile`. `mvn verify` runs both,
+reports both, and fails if either fails. Gates 4/5, 6/7, and the two stress lanes collapse
+into executions. The H2 stress lane is in no gate today — gate 10 runs the DuckDB lane
+only — so as an execution it is new coverage, at about two minutes.
+
+One lane differs by more than a switch. Gate 7 runs the PCT relation suite on H2 2.4.240
+by passing `-Dh2.version=2.4.240` on its command line, while `pct/pom.xml` pins 2.1.214,
+and a module resolves one version of a dependency for all of its executions. That
+execution swaps the jar on its own test classpath (failsafe's `classpathDependencyExcludes`
+plus `additionalClasspathDependencies`), or the lane becomes a module of its own. Either
+way the version moves into the POM.
 
 **A second axis is on its way.** The judging program makes the judge a run-level switch,
 `-Dlegend.judge.mode`, read once per JVM (only `host` exists today; leg 3.1 of
@@ -314,7 +349,7 @@ Whether the source-size pins should exist at all is a separate question (§9).
 
 | hazard | the fix |
 | --- | --- |
-| CRLF rewriting the `.pure` corpus | `.gitattributes`: `* text=auto eol=lf` for ordinary sources, and **`*.pure -text`** so git never converts a corpus file in either direction. The exception is load-bearing: `prelude.pure` is stored with mixed endings because upstream's text carries CRLF, and a blanket `eol=lf` would renormalize it and break the byte-exact comparison it exists for. CI then stops configuring git. |
+| CRLF rewriting the `.pure` corpus | `.gitattributes`: `* text=auto eol=lf` for ordinary sources, and **`*.pure -text`** so git never converts a corpus file in either direction. The exception is load-bearing: `prelude.pure` is stored with mixed endings because upstream's text carries CRLF, and a blanket `eol=lf` would renormalize it and break the byte-exact comparison it exists for. Phase 4 stops committing `prelude.pure`, which retires that reason; phase 4 then decides whether the exception stays for the byte-exact `.pure` fixtures or becomes `text eol=lf`. CI then stops configuring git. |
 | Deep upstream paths on Windows | Read inside the zip archives; never unpack them. |
 | Locale-dependent case and formatting | Pin `-Duser.language=en -Duser.country=US -Dfile.encoding=UTF-8` beside the existing `-Duser.timezone=GMT`, in one place. |
 | Shell-only tooling | Deleted, not ported. `mvnw.cmd` is the Windows entry point. |
@@ -332,7 +367,7 @@ set can run everything except the tests that execute SQL. That is worth stating 
 
 ### 4.7 CI
 
-Two workflows replace three plus a composite action.
+Three workflows replace three plus a composite action.
 
 **`build.yml`** — on every push and pull request:
 
@@ -344,13 +379,24 @@ strategy:
 run: ./mvnw -B verify
 ```
 
-Six jobs, every one of them the same command a developer runs. Plus one `actionlint` job,
-which the project already has and should keep.
+Six jobs, every one of them the same command a developer runs. Plus the `actionlint` job
+the project already has; it lives inside `gate.yml` today and moves into `build.yml` before
+phase 3 deletes that file.
 
 **`release.yml`** — on a tag: `./mvnw -B deploy -Prelease`.
 
+**`corpus-generators.yml`** — on a schedule: re-run the Python corpus generators and fail
+if the committed output moved (§4.8). It is the one workflow that needs Python, which is
+why it is not part of `verify`.
+
 The `verify` job on `ubuntu-latest / 21` is the required check for merging. The matrix is
 the only thing CI adds that a laptop cannot do.
+
+**Every cell is exactly `./mvnw verify`, the small one included.** The macOS runner has
+3 vCPU and 7 GB, and a PCT suite's 2–3 GB live set means one fork per suite there. Today
+CI buys that with a flag of its own, `-Dpct.reuseForks=false`; in the target build it is
+the POM's default everywhere, at a measured cost of 11–15 s, so no cell passes anything a
+developer does not.
 
 **On `-latest` rather than pinned images.** The reason to build on macOS and Windows is
 that people develop there, and they keep their machines roughly current. A pinned image
@@ -383,7 +429,7 @@ itself.
 | `native-claims.tsv` (829 rows) | committed; its own header says "the diff is the review" | **committed** | Measured from our own code: one row per `Pure.java` overload, with the `core` classes that claim it. Generating it each build would compare it with itself; its entire job is to make a change in the implemented surface visible in a pull request — as it did when a typer change (`928451d67`) added `NumberKinds` to twenty rows. |
 | `native-membership.tsv` (787 rows) | committed, mixed | **splits** | Membership is a decision we make; the signature text beside it is upstream's. |
 | Expected-failure ledgers, censuses, rosters, corpus scoreboards | committed; several rewritten in the working tree by a test run | **committed**, with the candidate written to `target/` and compared | Same as the claims ledger: they exist to be compared against. |
-| The stress corpus's expected answers | committed | **committed** | They come from executing ~4,700 services against real legend-engine — about an hour, on a runner outside the reactor. A build cannot contain its own oracle. |
+| The stress corpus's expected answers | committed | **committed** | Computed independently by the same Python generators as the sources (next row), then checked against real legend-engine by `scripts/corpus/run.py` through `tools/engine-runner` — about an hour, with `0 unexpected` the only acceptable result. A build cannot contain its own oracle. |
 | The stress corpus's generated sources (~487k lines) | committed, produced by Python | **committed** | Producing them needs Python 3.12 and about ten minutes. Requiring a second toolchain on every developer's machine costs more than it buys; a scheduled job re-runs the generators and fails if the output moved. |
 | Snippets harvested from upstream's test sources | read from a checkout | **committed**, refreshed at bump time (§4.2) | Deriving them each build is the only thing that would make the build reach past Maven; committing them removes the last non-artifact input and makes an upstream change reviewable. |
 | Parser fixture adjudication | committed | **committed** | Which construct is a legal positive and which a deliberate negative is a judgment, not a derivation. |
@@ -462,14 +508,20 @@ is initially only "compiles".
   child POMs today).
 - Rewrite `README.md` for what exists: what the project is, the three commands, the module
   map. Add `CONTRIBUTING.md`, `LICENSE`, and `NOTICE` for upstream-derived files.
-- CI: replace the gate workflows' entry point with `./mvnw -B verify` across
-  `{linux, macos, windows} × {21, 25}`, running whatever is green so far.
+- CI: add `build.yml`, running `./mvnw -B verify` across
+  `{linux, macos, windows} × {21, 25}` with whatever is green so far, **beside** the gate
+  workflows. They keep running until phase 3's exit shows `verify` reproduces them;
+  replacing them now would take the corpus lanes, the H2 PCT lane, Channel B, and parser
+  parity out of CI for two phases. Make one fork per PCT suite the POM's default (§4.7),
+  so no cell needs a flag.
 
 **Exit:** a newcomer on any of the three platforms clones, runs `./mvnw verify`, and sees
 green — and CI proves it on six configurations.
 
 ### Phase 2 — Maven owns the inputs *(2–3 weeks)*
 
+- Re-measure that the release jars' `.pure` text is byte-identical to the source tree at
+  the current pin; §4.2's measurement was at 5.92.0.
 - Read legend-pure's (and legend-engine's published) `.pure` spec text inside the release
   jars via `dependency:copy` plus a zip `FileSystem` helper. Keep the `core` boundary
   intact: jars as files, never on a classpath.
@@ -486,23 +538,30 @@ green — and CI proves it on six configurations.
 **Exit:** a machine with an empty `~/.m2` and no checkouts runs `./mvnw verify` green, and
 the word "checkout" appears nowhere in the build.
 
-### Phase 3 — Maven owns the verdict *(3–4 weeks)*
+### Phase 3 — Maven owns the verdict *(4–5 weeks)*
 
 - Rename the long suites to `*IT` and bind them to failsafe; surefire keeps the unit
   tests. `mvn test` becomes the inner loop by convention, not by flag.
-- Turn each backend lane into a failsafe execution with its own properties and reports.
+- Turn each backend lane into a failsafe execution with its own properties and reports,
+  adding the H2 stress lane that no gate runs today and giving gate 7 its own H2 jar
+  (§4.4).
 - Convert every floor and ceiling into a row ledger (§4.5), and whatever source-size pins
   survive §9's triage.
 - Make a missing upstream input throw rather than assume past it, and keep
-  `SkipCensusTest` as the rule for the skips that legitimately remain.
+  `SkipCensusTest` as the rule for the skips that legitimately remain. Delete the walks
+  over sibling directories that no longer exist (`ErrorShapeGuardrailTest` still walks
+  `../engine`).
 - Move every test write into `target/`; compare against committed baselines instead of
   rewriting them. Add the CI `git diff --exit-code` step.
 - Replace `classpath-convergence.sh` with Enforcer rules, and `version-report.sh` with the
   derived-version test.
-- Move the eight cross-module guard tests into the new `guards` module.
+- Last, once the ledgers are data: move the nine cross-module guard tests into the new
+  `guards` module, and the stress corpus and its runner into `corpus`, so `core`'s suite
+  stays the inner loop (§8, risk 5).
 - Delete `tools/allgates.sh`, `tools/diagnostics.sh`, `tools/corpus-both.sh`,
   `tools/ci-watch.sh`, `tools/classpath-convergence.sh`, `tools/version-report.sh`, and
-  both gate workflows.
+  all three workflows: `gate.yml` and `gates-run.yml` once `build.yml` carries the
+  `actionlint` job, and `diagnostics.yml` with `tools/diagnostics.sh`.
 
 **Exit:** `./mvnw verify` reproduces every gate the chain runs at the time — ten today,
 plus the differential gate if leg 3.3 has landed (§4.4) — locally and in CI, with no shell
@@ -514,37 +573,41 @@ have.
 Execute §4.8: everything derivable becomes a build output, and what remains committed is
 committed for a stated reason.
 
-- **A generator module that depends on the upstream artifacts and on nothing of ours**,
-  running before `core` in the reactor. It writes the prelude, the signature text, the
-  dynafunction registry, and the import sequence into `target/generated-resources` and
-  `target/generated-sources`, which `core` consumes through
-  `build-helper-maven-plugin`. This breaks the `core` ↔ `spec` cycle by construction: the
-  generator knows upstream, `core` knows the generator's output, and the ledgers that
-  measure `core` sit downstream of both.
+- **A `generator` module that depends on the upstream artifacts and on nothing of ours**,
+  built before `core` in the reactor. It runs in `core`'s `generate-sources` phase —
+  `exec-maven-plugin` with the generator and the upstream jars as *plugin* dependencies,
+  which keeps them off `core`'s classpath, where Enforcer's `bannedDependencies` looks —
+  and writes the prelude, the signature text, the dynafunction registry, and the import
+  sequence into `core`'s own `target/generated-resources` and `target/generated-sources`,
+  which `build-helper-maven-plugin` registers. No module reads another's `target/`. This
+  breaks the `core` ↔ `spec` cycle by construction: the generator knows upstream, `core`
+  knows the generator's output, and the ledgers that measure `core` sit downstream of both.
 - **Split the three hand-written files that carry generated regions.** `Pure.java` keeps
   the membership it declares and loses the signature text; the dynafunction registry and
   the import constant become generated sources referenced by hand-written code. Delete
   `CoreTree` and every `../core` write with it.
 - **Delete the committed copies** of everything in §4.8's generated rows, and the
   byte-parity tests that existed only to prove a committed copy was current. Those tests
-  are made redundant by generation, not weakened by it.
+  are made redundant by generation, not weakened by it. With `prelude.pure` gone, decide
+  whether `*.pure -text` stays (§4.6).
 - **One flow for baselines, not five.** Today each ledger has its own flag
   (`-Dprelude.generate`, `-Dnatives.generate`, `-Ddynafn.generate`, `-Dimports.generate`,
   `-Dclaims.generate`). Every remaining baseline writes its candidate to `target/` on
   every run and compares; `-Dledger.update` accepts them all.
-- Bumping the upstream release becomes: change one version property, run `./mvnw verify`,
-  and where a baseline moved, accept it and review the rows. Delete `tools/bump.sh`.
+- Bumping the upstream release becomes: change one version property, refresh the
+  harvested test snippets (§4.2), run `./mvnw verify`, and where a baseline moved, accept
+  it and review the rows. Delete `tools/bump.sh`.
 - Bring `tools/engine-runner` into the reactor as `upstream-runner` so its upstream version
   and its dependency on `legend-lite-core` cannot drift.
 
 **Exit:** no generated artifact is committed except the baselines §4.8 names, each with its
 reason; `git grep` finds no test writing outside `target/`; moving to a new Legend release
-is one property change.
+is one property change and the snippet refresh §4.2 keeps at bump time.
 
-### Phase 5 — The corpus, the projects, and the Python *(2–3 weeks)*
+### Phase 5 — The projects and the Python *(1–2 weeks)*
 
-- Move the stress corpus into its own module with its runner; `core`'s suite stays the
-  inner loop.
+- Make `projects` a module, and switch `corpus`'s eleven linked projects from
+  `../projects` to a dependency on it (§4.1).
 - Give `projects/` a test that compiles all 56 projects, individually and together, so the
   contract in `projects/CONTRACT.md` is enforced by the build rather than by a script.
 - Draw the Python boundary explicitly, and justify it in §4.8's terms: the corpus sources
@@ -664,7 +727,7 @@ independently-green pull requests from landing a broken combination.
 | `tools/diagnostics.sh` | 47 | A tagged failsafe execution (or deletion — they are measurements) |
 | `tools/corpus-both.sh` | 11 | Two failsafe executions |
 | `tools/ci-watch.sh` | 18 | `gh run watch` |
-| `.github/workflows/gate.yml`, `gates-run.yml`, `diagnostics.yml` | 377 | One `build.yml` matrix job running `./mvnw verify` |
+| `.github/workflows/gate.yml`, `gates-run.yml`, `diagnostics.yml` | 377 | One `build.yml` matrix job running `./mvnw verify`, which also takes over the `actionlint` job |
 | `.github/actions/gate-env` | 58 | `actions/setup-java` with `cache: maven` |
 
 About 1,770 lines of shell, pins, and YAML, replaced by POM configuration and test code
@@ -686,8 +749,8 @@ that runs identically on a laptop.
    is nearly a no-op — but `prelude.pure`'s mixed endings are exactly the case a careless
    rule would break, and phase 1 verifies the before-and-after with `git ls-files --eol`.
 5. **Two modules moving (`corpus` out of `core`, `guards` out of everywhere)** touch many
-   files at once. They are cheapest immediately after phase 3, when the ledgers are already
-   data and the verdict is already Maven's.
+   files at once. They are cheapest once the ledgers are data and the verdict is Maven's,
+   which is why both close phase 3.
 
 ---
 
@@ -698,10 +761,12 @@ project is, and each should be settled by the people who own it before the phase
 depends on it.
 
 **Should the ~52 ledger, census, guardrail, and roster tests exist?** Phase 3 relocates the
-eight that read other modules into `guards`, which answers *where* they live without ever
+nine that read other modules into `guards`, which answers *where* they live without ever
 asking *whether* they should. A test that reads another module's Java source to enforce a
 convention is usually a linter rule wearing a test's clothes, and Checkstyle, Spotless, or
-ArchUnit would give a better message for less code. The triage — real behavioral ledger,
+ArchUnit would give a better message for less code — though ArchUnit sees only classes on
+its classpath, and other modules' test classes cannot get there through a test-jar (§4.1),
+so rules over test trees stay source scans. The triage — real behavioral ledger,
 linter rule, or delete — belongs in phase 3, and it may be the difference between a module
 worth having and a module that preserves a cost nobody examined. The first candidate is
 `JavaEvalLedgerTest`: it pins a line count for each file that evaluates in Java, it was
@@ -711,13 +776,14 @@ the same file always conflict on its pin. Not every guard is a candidate, though
 equality (`docs/JUDGING_TWO_MODES_2026_09_17.md` §5) — so for it the question is form, not
 existence.
 
-**Is the module shape right?** The plan adds `corpus`, `projects`, `guards`, and
-`upstream-runner` to the existing five without questioning the five. After phase 4, `spec`
-is a leftover: its generators are gone and what remains is a corpus harness and the claims
-ledger, which may belong with the other conformance modules. Separately, `nlq` calls an
-external LLM and key-gates ten of its tests; whether an LLM-backed module belongs in the
-same reactor as a clean-room compiler is a product question, not a build one. Nine modules
-by accretion is the default outcome if nobody decides.
+**Is the module shape right?** The plan adds `generator`, `corpus`, `projects`, `guards`,
+and `upstream-runner` to the existing five without questioning the five. After phase 4,
+`spec` is a leftover: its generators have moved to `generator`, and what remains is a
+corpus harness and the claims ledger, which may belong with the other conformance modules.
+Separately, `nlq` calls an external LLM and key-gates ten of its tests; whether an
+LLM-backed module belongs in the same reactor as a clean-room compiler is a product
+question, not a build one. Ten modules by accretion is the default outcome if nobody
+decides.
 
 **Should the corpus live in this repository at all?** §4.8 asks only whether the build can
 derive it, and answers no. The unasked question is whether ~487k lines belong in the tree
