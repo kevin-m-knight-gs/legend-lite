@@ -33,8 +33,8 @@ means Bazelisk, which reads `.bazelversion` and runs exactly that Bazel:
 | command | who runs it | what it does |
 | --- | --- | --- |
 | `bazel test --config=quick //...` | every developer, all day | The inner loop: the tests whose `size` is small or medium, and of those only the ones whose inputs changed since the last run. Minutes, not tens of minutes. |
-| `bazel test //...` | every developer before pushing; CI on every PR | **Everything.** Builds every target and runs every test, including the conformance suites against the pinned upstream release and both database lanes, and fails if anything is wrong. Results are cached, so a second run re-executes only the tests whose inputs changed. The same command CI runs; the same verdict. |
-| `bazel run //tools:accept` | a maintainer, after a deliberate change of behavior or upstream release | Accepts new baselines: writes the candidates the last test run produced into the committed ledgers, so the diff can be reviewed as a pull request. Everything a build can derive, it derives — see §4.8. |
+| `bazel test //...` | every developer before pushing; CI on every PR | **Everything.** Builds every target and runs every test except the few measurements tagged `manual` (§4.0), including the conformance suites against the pinned upstream release and both database lanes, and fails if anything is wrong. Results are cached, so a second run re-executes only the tests whose inputs changed. The same command CI runs; the same verdict. |
+| `bazel run //tools:accept` | a maintainer, after a deliberate change of behavior or upstream release | Accepts new baselines: copies the current candidates — from the build, or from the last test run (§4.5) — into the committed files, so the diff can be reviewed as a pull request. Everything a build can derive, it derives — see §4.8. |
 
 Acceptance criteria for the program as a whole:
 
@@ -44,7 +44,7 @@ Acceptance criteria for the program as a whole:
 2. That holds on Windows, macOS (arm64 and x86_64), and Linux, with the tests run on both
    the JDK 21 and the JDK 25 toolchain.
 3. Every input the build reads is declared and pinned: external artifacts and archives in
-   `MODULE.bazel` and its lock file, everything else a file in this repository.
+   `MODULE.bazel` and the lock files beside it, everything else a file in this repository.
 4. A missing input fails the build; it is never skipped past. Skips that remain are
    registered, named, and shrink-only.
 5. No test writes into the working tree; tests write only to Bazel's test output
@@ -147,10 +147,10 @@ red, and a new test in `core` can turn `parser-equivalence` red.
    build failure, never a grep over console output.
 2. **Every input is declared.** A build action or test reads only what its target
    declares: a pinned external — an artifact or archive whose checksum is in
-   `MODULE.bazel` or its lock file — or a file in this repository. On Linux and macOS,
-   Bazel's sandbox and runfiles make an undeclared read fail rather than work by accident;
-   on Windows, where actions run unsandboxed, the same declarations are the rule and the
-   other platforms' CI cells catch a lapse.
+   `MODULE.bazel` or a lock file beside it — or a file in this repository. On Linux and
+   macOS, Bazel's sandbox and runfiles make an undeclared read fail rather than work by
+   accident; on Windows, where actions run unsandboxed, the same declarations are the rule
+   and the other platforms' CI cells catch a lapse.
 3. **A missing input is a failure, and every remaining skip is registered.** A suite that
    cannot reach its input throws rather than assuming past it. Legitimate skips exist —
    a gap waiting on a feature, a test needing a credential — and the project already
@@ -168,8 +168,8 @@ red, and a new test in `core` can turn `parser-equivalence` red.
    build, a `size` on every test (small and medium are the inner loop), `manual` only for
    targets `//...` must skip, and `.bazelrc` configs for modes, not for gates. A newcomer
    should be able to predict what a command does without reading a guide.
-7. **One number, one place.** Versions live once, in `MODULE.bazel` and its lock file;
-   expectations live in committed data files.
+7. **One number, one place.** Versions live once, in `MODULE.bazel` and the lock files
+   beside it; expectations live in committed data files.
 8. **One build system, shaped for Legend projects.** Bazel builds the platform now, and
    Legend projects will build with it (`legend_library`, per
    `docs/BAZEL_DEPENDENCY_PROPOSAL.md`). Choices made here — package layout, rule names,
@@ -200,7 +200,7 @@ And every test that finds a file by relative path must declare it and find it th
 runfiles — 57 test sources today (phase 1).
 
 **Nothing is CI-only.** Every check in this plan runs from a laptop with one command.
-Three things are deliberately not in `bazel test //...`:
+Four things are deliberately not in `bazel test //...`:
 
 - **Accepting a baseline** (`bazel run //tools:accept`) rewrites committed expectations.
   It is not a test, and it is not generation — the build generates everything it can
@@ -215,6 +215,11 @@ Three things are deliberately not in `bazel test //...`:
   developer can run the same script. Checking the corpus's expectations against real
   legend-engine takes about an hour (§4.8) and is a maintainer's run. Nothing in
   `bazel test //...` needs either.
+- **Scale tests and measurements.** `core`'s two scale tests, `ProfileBuildCost` and
+  `StressTestChaotic` — tagged `heavy`, excluded from Maven's default run, and run by no
+  gate today — and the diagnostics battery become `manual` targets, run by name as they
+  are run by hand now. The `heavy` tag itself does not carry over: in `spec` it marks
+  `MinimalCorpusTest`, which is gates 4 and 5 and becomes lane targets (§4.4).
 
 Everything else — the conformance suites, both database lanes, the stress corpus, the
 parser differential, the generator verification — is in the default build on every
@@ -223,7 +228,7 @@ platform.
 ### 4.1 One workspace
 
 ```
-legend-lite/                MODULE.bazel, .bazelversion, .bazelrc
+legend-lite/                MODULE.bazel, .bazelversion, .bazelrc, .bazelignore
 ├── generator/              core's upstream-derived sources   (new; runs before core)
 ├── core/                   the compiler and server           (no upstream dependencies)
 ├── nlq/                    natural language → Pure
@@ -239,12 +244,12 @@ legend-lite/                MODULE.bazel, .bazelversion, .bazelrc
 
 Each directory with a BUILD file is a package, and the heavy suites get targets of their
 own so they can be cached, sized, and scheduled separately. The layout inside each module
-stays as it is — `src/main/java`, `src/test/resources` — because Bazel does not care, and
-moving files is churn the plan does not need. Dependencies between packages exist only as
-`deps` or `data` edges in BUILD files, so the coupling cause 4 describes stops being a
-relative path and becomes a line a reviewer sees.
+stays as it is — `src/main/java`, `src/test/resources` — because Bazel does not care; the
+plan moves files only where a dependency edge demands it (`corpus` and `guards`, below).
+Dependencies between packages exist only as `deps` or `data` edges in BUILD files, so the
+coupling cause 4 describes stops being a relative path and becomes a line a reviewer sees.
 
-Four packages are new or newly built:
+Five packages are new or newly built:
 
 - **`generator`** is the one package that reads upstream to produce what `core` compiles:
   the prelude, the signature text, the dynafunction registry, and the import sequence. It
@@ -252,44 +257,50 @@ Four packages are new or newly built:
   `core`'s BUILD file runs it as a build action and compiles what it writes. The upstream
   jars are that action's inputs, never on `core`'s classpath (§4.8, phase 4). The
   generators leave `spec` for it.
+- **`corpus`** takes the stress corpus and its runner out of `core`, for what they depend
+  on rather than for speed — under Bazel a test's `size` decides whether it is in the
+  inner loop, wherever it lives. The stress corpus is a conformance suite like `pct` and
+  `spec`'s corpus, and it depends on eleven of the projects, which the stress model loads
+  first (`StressCorpus.LINKED_PROJECTS`, read today from `../projects`). Those edges
+  belong to a package of their own, not to the compiler's, and in Bazel they are declared
+  edges to the projects' targets rather than a relative path.
+- **`projects`** gives each of the 56 Legend projects a target of its own. The first form
+  of `legend_library` compiles a project's `.pure` sources against its dependencies' with
+  legend-lite's compiler and fails on any error. That is coarser even than the proposal's
+  fallback, which still emits one output per source file
+  (`docs/BAZEL_DEPENDENCY_PROPOSAL.md` §4), but it makes the projects a checked build.
+  Per-element outputs, lazy loading across projects, and `unused_inputs_list` arrive with
+  the compiler work the proposal describes; the targets, their dependency edges, and the
+  BUILD layout do not change when they do, because phase 5 fixes the rule's interface
+  first.
 - **`guards`** is where every test that reads another package's sources goes. Each
   package exports its sources as a `filegroup` for the purpose, so a guard's reach is a
-  declared dependency: an edit in `pct` can then fail `guards`, which is true and
-  reviewable, instead of failing `core`, which is neither. Bazel also removes the old
+  declared dependency. Declared in `core`, those edges would point from the compiler to
+  every package that uses it; in `guards` the direction stays one-way — everything
+  depends on `core`, and only `guards` depends on everything — so an edit in `pct` can
+  fail `guards`, where a reviewer expects it, and never `core`. Bazel also removes the old
   obstacle to sharing test code: a test can depend on another package's test helpers as
   their own `testonly` library, without the service registration that leaked through a
   Maven test-jar and flipped a `parser-equivalence` verdict (`b5ad0b82b`).
-- **`projects`** gives each of the 56 Legend projects a target of its own. The first form
-  of `legend_library` compiles a project's `.pure` sources against its dependencies' with
-  legend-lite's compiler and fails on any error — the proposal's own fallback granularity
-  (`docs/BAZEL_DEPENDENCY_PROPOSAL.md` §4). Per-element outputs, lazy loading across
-  projects, and `unused_inputs_list` arrive with the compiler work the proposal
-  describes; the targets, their dependency edges, and the BUILD layout do not change when
-  they do.
-- **`upstream-runner`** is today's `tools/engine-runner`, built with the rest, so its
-  upstream version comes from `MODULE.bazel` and cannot drift.
-
-`corpus` moving out of `core` keeps the inner loop short: `core`'s own suite stays the
-thing a developer runs every few minutes, and 4,700 service suites become a package that
-runs in `bazel test //...`. `corpus` depends on eleven of the projects — the stress model
-loads them first (`StressCorpus.LINKED_PROJECTS`, read today from `../projects`) — and in
-Bazel that is a declared edge to their targets, not a relative path.
+- **`upstream-runner`** is today's `tools/engine-runner`, built in place from phase 1 and
+  moved in phase 3, so its upstream version comes from `MODULE.bazel` and cannot drift.
 
 ### 4.2 Inputs Bazel owns
 
-Every external input is pinned in `MODULE.bazel`: the rules themselves, the JDKs, the Java
-artifacts, and the upstream archives. The two source checkouts disappear, in two steps,
-because the two of them are not the same problem.
+Every external input is declared in `MODULE.bazel` and pinned there or in a lock file
+beside it: the rules themselves, the JDKs, the Java artifacts, and the upstream archives.
+The two source checkouts disappear, in two steps, because the two of them are not the same
+problem.
 
 **The JDKs come from the build.** `rules_java` provides remote JDKs for 21 and 25; the
 build compiles for 21 and runs the tests on whichever runtime the config names. Bazel
 itself runs on a JDK it embeds, so the machine needs no Java at all.
 
 **Java artifacts come from Maven Central, not from Maven.** `rules_jvm_external` resolves
-every third-party and upstream artifact into one lock file — pinned, checksummed, one
-version per artifact unless a second repository is named on purpose, as for gate 7's H2
-(§4.4). Maven Central stays the place artifacts come from and go to; Maven the build tool
-is not involved.
+every third-party and upstream artifact into a lock file — pinned, checksummed, one version
+per artifact. The one artifact that needs a second version, gate 7's H2 (§4.4), gets a
+second repository, named on purpose, with a lock file of its own. Maven Central stays the
+place artifacts come from and go to; Maven the build tool is not involved.
 
 **legend-pure, and most of legend-engine, is already published.** The `.pure` files the
 tests read from `src/main/resources` are shipped inside the release jars — measured
@@ -303,10 +314,12 @@ checkout's, so the calling code barely changes.
 **What is genuinely unpublished is upstream's *test* sources** — `parser-equivalence`
 mines Pure snippets embedded in legend-engine's and legend-pure's Java test files, and
 neither project ships a `-test-sources` jar. The snippets are committed here, harvested at
-bump time by a `bazel run` target that reads the tagged source archives — pinned by
-checksum with `http_file`, fetched only when the harvester runs — **inside** the archive
-rather than unpacking it (reading in place is not a nicety: it keeps Windows clear of
-legend-engine's very deep paths, which is why CI has to set `core.longpaths` today).
+bump time by a `bazel run` target that reads the tagged source archives, pinned by
+checksum with `http_file`, **inside** the archive rather than unpacking it (reading in
+place is not a nicety: it keeps Windows clear of legend-engine's very deep paths, which is
+why CI has to set `core.longpaths` today). The harvester is tagged `manual`:
+`bazel test //...` builds every target its pattern matches, tests or not, so an untagged
+harvester would fetch both archives on every developer's first build.
 
 Bazel could make those archives an ordinary build input, so committing the harvest has to
 stand on its remaining reasons, and they suffice: a developer's `bazel test //...` never
@@ -325,7 +338,7 @@ pinned file — and asserted by a test.
 | today | tomorrow |
 | --- | --- |
 | Gate ceilings in bash (`run>=469, fail<=1, err<=26`) | A committed expected-failure ledger; the suite asserts the observed failure set **equals** it |
-| A 23-name roster so a renamed test cannot shrink a gate | Every test target runs under `//...`; targets take their classes by `glob`, so a renamed class stays inside, and a deleted target is a visible line in a BUILD diff |
+| A 23-name roster so a renamed test cannot shrink a gate | Every test target except the `manual` measurements (§4.0) runs under `//...`; targets take their classes by `glob`, so a renamed class stays inside, and a deleted target is a visible line in a BUILD diff |
 | `skipped()` awk detector | A missing upstream input throws instead of assuming; `SkipCensusTest` keeps every remaining skip named and pinned |
 | Tree-mutation tripwire | Tests write only to Bazel's output directories; the sandbox stops any other write on Linux and macOS, and CI checks `git status --porcelain` on every platform |
 | `classpath-convergence.sh` | One version per artifact in the lock file, and a test over a `genquery` of `core`'s dependency closure proving no `org.finos.legend` artifact reaches it |
@@ -363,9 +376,12 @@ and statement, compared by a gate that pins zero disagreements (D7). Bazel does 
 test read another test's output, so the two runs become build actions — the harness, run
 once per backend and mode, writing its verdict file as a declared, cached output — and the
 comparison is the test. Whether the lanes' own verdicts then come from those same outputs,
-so that nothing runs twice, is leg 3.3's to settle. Built this way when leg 3.3 lands, the
-gate is already in the target shape; built as a new stream in `tools/allgates.sh`, it is
-one more thing phase 3 has to port.
+so that nothing runs twice, is leg 3.3's to settle. Leg 3.3 is likely to land before Bazel
+does — legs 3.1a and 3.1b already have — so it will be wired into the gate chain first.
+Keep the chain's part to invocation: each lane writes its verdict file, and the comparison,
+the zero-disagreement pin, and the unjudged ledgers live in a Java test. Phase 3 then ports
+only the invocations — the runs become build actions and the test stays as it is — instead
+of translating policy out of `tools/allgates.sh`.
 
 ### 4.5 Ratchets become data
 
@@ -402,12 +418,18 @@ pct/src/test/resources/expected/relation-h2.tsv
 ```
 
 A new failure names itself. A fixed test fails with "remove this row". Two developers who
-fix different tests touch different lines and git merges them correctly. Every run writes
-its candidate to the test's undeclared outputs; `bazel run //tools:accept` copies it into
-the committed file, which is the one deliberate act a human performs (§4.8). New
-expectations should be born in this shape; the judging program's per-mode unjudged lists
-(homework D3) are the next due. Whether the source-size pins should exist at all is a
-separate question (§9).
+fix different tests touch different lines and git merges them correctly. New expectations
+should be born in this shape; the judging program's per-mode unjudged lists (homework D3)
+are the next due. Whether the source-size pins should exist at all is a separate question
+(§9).
+
+Baselines come in two kinds, and one command accepts both. A **test outcome** — an
+expected-failure set, a roster, a census — gets its candidate from running the tests: each
+run writes it to the test's undeclared outputs. A **derived file** — the claims ledger —
+gets its candidate from the build: an action computes it, and a test compares it with the
+committed copy (§4.8). `bazel run //tools:accept` copies either kind into the workspace,
+which is the one deliberate act a human performs. It is a Java tool like the rest, so it
+runs the same on Windows (rule 5).
 
 ### 4.6 Portability, spelled out
 
@@ -466,16 +488,18 @@ projects keep consuming legend-lite from Maven Central; publishing there needs n
 if the committed output moved (§4.8). It is the one workflow that needs Python, which is
 why it is not part of `bazel test //...`.
 
-The job on `ubuntu-latest` with `jdk21` is the required check for merging. The matrix is
-the only thing CI adds that a laptop cannot do.
+From phase 3's exit, the job on `ubuntu-latest` with `jdk21` is the required check for
+merging; until then the gate workflows are (phase 0). The matrix is the only thing CI adds
+that a laptop cannot do.
 
 **Caching.** Each job restores Bazel's repository and disk caches, so a pull request
 re-runs only the tests its change can affect. A remote cache shared by CI and developers is
 an option (§9), not a requirement.
 
 **Every cell is exactly `bazel test //...`, the small one included.** Settings that change
-how a machine runs the build — how many tests run at once, where the output tree lives —
-may differ per machine; settings that change the verdict may not. Each PCT suite is its own
+how a machine runs the build — how many tests run at once, where the output tree lives,
+which on the Windows cells is the same short root a Windows developer uses (§4.6) — may
+differ per machine; settings that change the verdict may not. Each PCT suite is its own
 target and so its own JVM, which is what CI's `-Dpct.reuseForks=false` buys today; on the
 macOS runner, 3 vCPU and 7 GB, how many of those 2–3 GB suites run at once is a machine
 setting sized by phase 1's measurement.
@@ -567,8 +591,13 @@ gates below shrinks with it.
 Nothing below survives if `main` keeps taking direct pushes: a build fixed on Monday is
 stale by Friday, and a green build means nothing if most commits never ran it.
 
-- Every change lands through a pull request. Required check: `bazel test //...`. Branch
-  protection on. This applies to agent-authored work identically.
+- Every change lands through a pull request, with branch protection on. The required
+  check is the gate workflows CI runs today — the project's verdict until phase 3 — and
+  `build.yml` joins them once phase 1 has it green; from phase 3's exit,
+  `bazel test //...` alone is required. This applies to agent-authored work identically.
+  One wrinkle: `gate.yml` skips documentation-only changes, and GitHub blocks a pull
+  request whose required check never reports, so either the skip goes or a job that does
+  report stands in for it on those changes.
 - A declared public surface (`com.legend.Compiler` and the HTTP API) and versioned
   releases, so other work can depend on something that holds still.
 - `CODEOWNERS`, and a stated review expectation.
@@ -576,19 +605,22 @@ stale by Friday, and a green build means nothing if most commits never ran it.
   change: it is the file most commits touch, so any two pull requests in flight conflict
   at its end (§6). Its gate definitions stay until phase 3 replaces the gates.
 
-**Gated by:** decisions only, and all of them the owners': the protection itself, the
-public surface, the review expectation, and the change of habit the last bullet asks for.
-There is nothing to build.
+**Gated by:** decisions only, and all of them the owners': the protection itself and how
+it treats documentation-only changes, the public surface, the review expectation, and the
+change of habit the last bullet asks for. The only engineering is, at most, that one
+workflow change.
 
-**Exit:** branch protection enabled and a required check configured, even if that check
-is initially only "compiles".
+**Exit:** branch protection enabled, with the gate workflows as the required check.
 
 ### Phase 1 — Bazel builds and tests the project, beside Maven
 
-- **The workspace.** `MODULE.bazel`, `.bazelversion`, and `.bazelrc` at the root, the
-  last carrying the `quick`, `jdk21`, and `jdk25` configs; `rules_java` with the JDK 21
-  and 25 remote toolchains, 21 the default; `rules_jvm_external` with one lock file holding
-  every artifact the POMs name today, one version each; and `contrib_rules_jvm` to run
+- **The workspace.** `MODULE.bazel`, `.bazelversion`, `.bazelrc`, and `.bazelignore` at
+  the root. The `.bazelrc` carries the `quick`, `jdk21`, and `jdk25` configs. The
+  `.bazelignore` lists `experiments/`, whose two prototypes are Bazel workspaces of their
+  own — `legend_rules_test`'s BUILD files load `//:legend.bzl` and repositories only its
+  own `MODULE.bazel` defines — and no part of this build. `rules_java` brings the JDK 21
+  and 25 remote toolchains, 21 the default; `rules_jvm_external`, one lock file holding
+  every artifact the POMs name today, one version each; and `contrib_rules_jvm` runs
   JUnit 5, with the vintage engine for the eight JUnit 3 and 4 classes — the five PCT
   suites among them.
 - **BUILD files for every module, `tools/engine-runner` included.** A `java_library` per
@@ -597,6 +629,8 @@ is initially only "compiles".
   targets, whose deploy jars replace the shaded jars and are built only when asked for;
   and a build action for the Pure PAR `pct` depends on, calling the generator the Maven
   plugin wraps.
+- **One test macro** that every test target uses, carrying the pinned clock, locale, and
+  encoding of §4.6 and the heap, so no target sets them on its own.
 - **Error Prone and NullAway** in the Java toolchain, configured as `core/pom.xml`
   configures them today, and verified on both JDKs — the JSpecify workaround for 21
   included.
@@ -604,14 +638,17 @@ is initially only "compiles".
   relative path today (26 in `core`, 19 in `parser-equivalence`, 6 each in `spec` and
   `pct`). Each declares them and finds them through one small helper — Bazel's runfiles
   under Bazel, the repository root under Maven — whose Maven half goes with Maven in
-  phase 3. The 16 that read or write `target/` and the 24 that write files move to Bazel's
-  test output directories.
-- **Generation modes become `bazel run` targets.** The five `-D*.generate` flags rewrite
-  files in the working tree, which a Bazel test cannot do; each becomes a `bazel run`
-  target that writes into the workspace until phase 4 moves generation into the build.
+  phase 3. The 16 that read or write `target/` and the 24 that write files go through the
+  same helper: under Bazel they write to its test output directories, under Maven where
+  they write today.
+- **Generation modes get `bazel run` targets.** The five `-D*.generate` flags rewrite
+  files in the working tree, which a Bazel test cannot do; each gets a `bazel run` target
+  that writes into the workspace instead. The flags themselves stay for Maven until
+  phase 3 (below), and phase 4 moves generation into the build.
 - Add `.gitattributes` — `* text=auto eol=lf` with `*.pure -text` (§4.6: the exception is
   what keeps `prelude.pure`'s mixed endings intact) — and `.editorconfig`. Confirm with
-  `git ls-files --eol` before and after that exactly the four known exceptions remain.
+  `git ls-files --eol` before and after that exactly the four known exceptions remain, and
+  add the guard test that no two committed paths differ only by case (§4.6).
 - **Measure the full suite, in wall clock and in resident memory**, before anything
   depends on the answer: a cold build that fetches the JDKs and artifacts, a warm one, and
   the full test set serially and in parallel, on a laptop-sized machine of each platform
@@ -622,25 +659,30 @@ is initially only "compiles".
 - Fix the duplicate `provision` enum value in the `nlq` test model.
 - Tag every test that needs an upstream source checkout `manual`, so `//...` leaves it
   out, and convert its skips into failures. This is temporary scaffolding that phase 2
-  removes — its purpose is to make "green on a clean clone" true immediately.
+  removes — its purpose is to make "green on a clean clone" true immediately. The scale
+  tests and the diagnostics battery are `manual` for good (§4.0).
 - Rewrite `README.md` for what exists: what the project is, the three commands, the
   package map. Add `CONTRIBUTING.md` — Bazelisk, the per-platform settings a clean machine
   turned out to need, the IDE plugins — and `LICENSE` and `NOTICE` for upstream-derived
   files.
 - CI: add `build.yml` (§4.7) with whatever is green so far, **beside** the gate workflows.
-  They keep running until phase 3's exit shows `bazel test //...` reproduces them;
-  replacing them now would take the corpus lanes, the H2 PCT lane, Channel B, and parser
-  parity out of CI for two phases.
-- Maven stays untouched, as the reference the Bazel build must match.
+  They stay the required check until phase 3's exit shows `bazel test //...` reproduces
+  them (phase 0); replacing them now would take the corpus lanes, the H2 PCT lane,
+  Channel B, and parser parity out of CI for two phases.
+- The POMs stay untouched, and Maven stays the reference the Bazel build must match. The
+  tests change only in ways both builds accept (the helper above), and the five
+  `-D*.generate` flags keep working, because `tools/bump.sh` runs the generators through
+  Maven until phase 3 replaces it.
 
 **Gated by:** *decisions* — the per-platform settings (as few as a clean machine allows),
-the JUnit runner, and the `LICENSE` and `NOTICE` text for upstream-derived files, which is
-the owners' to confirm. *Verification* — the six-cell matrix green, JDK 21's NullAway run
-included; the settings tried on a clean machine of each platform; and Bazel running
-exactly the tests Maven runs, module by module, on the same commit (Appendix A has Maven's
-counts). *Coordination* — heavy: 57 test sources change how they find files, and every
-test or dependency the judging program adds must reach a BUILD file too. The globs and the
-count check keep the two builds equal.
+and the `LICENSE` and `NOTICE` text for upstream-derived files, which is the owners' to
+confirm. *Verification* — the six-cell matrix green, JDK 21's NullAway run included; the
+settings tried on a clean machine of each platform; and Bazel running exactly the tests
+Maven's default `verify` runs — `stress` included and `heavy` left out, as today — minus
+the checkout suites tagged `manual`, compared module by module on the same commit
+(Appendix A has Maven's counts, taken without checkouts). *Coordination* — heavy: 57 test
+sources change how they find files, and every test or dependency the judging program adds
+must reach a BUILD file too. The globs and the count check keep the two builds equal.
 
 **Exit:** a newcomer on any of the three platforms installs Bazelisk, applies the
 documented settings, clones, runs `bazel test //...`, and sees green — and CI proves it on
@@ -654,12 +696,13 @@ six configurations, test for test with Maven.
   their `.pure` text inside them through a zip `FileSystem` helper. Keep the `core`
   boundary intact: jars as files, never on a classpath.
 - For `parser-equivalence`, commit the snippets harvested from upstream's test sources,
-  and write the harvester: a `bazel run` target over the tagged source archives, pinned
-  with `http_file`. After this `bazel test //...` reaches the network for pinned artifacts
-  and nothing else.
+  and write the harvester: a `manual` `bazel run` target over the tagged source archives,
+  pinned with `http_file` (§4.2). After this `bazel test //...` reaches the network for
+  pinned artifacts and nothing else.
 - Add the derived-version test: the legend-pure version in `MODULE.bazel` must equal what
   the pinned engine release's own POM declares.
-- Remove the phase-1 `manual` tags. Those suites now run in `//...`, everywhere.
+- Remove the `manual` tags phase 1 put on the checkout suites. Those suites now run in
+  `//...`, everywhere.
 - The Maven build keeps its checkouts until phase 3 deletes it; nothing new goes into it.
 
 **Gated by:** *verification* — the byte identity re-measured at the current pin, then a
@@ -689,24 +732,27 @@ and nothing in the Bazel build reads a checkout.
   `version-report.sh`.
 - Replace `tools/bump.sh` with a procedure that needs no Maven — change the release in
   `MODULE.bazel`, repin the lock file, run the generation and harvest targets, accept the
-  baselines — and point `scripts/corpus/run.py` at the upstream runner's Bazel target.
-  Phase 4 shortens the procedure.
-- Last, once the ledgers are data: move the nine cross-module guard tests into `guards`,
-  and the stress corpus and its runner into `corpus`, so `core`'s suite stays the inner
-  loop (§8, risk 8).
+  baselines — and point `scripts/corpus/run.py` at the upstream runner's Bazel target,
+  moving `tools/engine-runner` to `upstream-runner/` in the same change. Phase 4 shortens
+  the procedure.
+- Last, once the ledgers are data: move the nine cross-module guard tests into `guards`
+  and the stress corpus and its runner into `corpus`, so `core`'s package depends on
+  nothing downstream of it (§4.1; §8, risk 8).
 - **Delete Maven, in one change**, once `bazel test //...` reproduces every gate: every
-  `pom.xml`, `.sdkmanrc`, the Maven half of the input helper, `tools/allgates.sh`,
-  `tools/bump.sh`, `tools/diagnostics.sh`, `tools/corpus-both.sh`, `tools/ci-watch.sh`,
-  `tools/classpath-convergence.sh`, `tools/version-report.sh`, `tools/oracle-pins.env`,
-  `tools/oracle-roots.sh`, the composite action, and all three workflows: `gate.yml` and
-  `gates-run.yml` once `build.yml` carries the `actionlint` job, and `diagnostics.yml`
-  with `tools/diagnostics.sh`.
+  `pom.xml`, `.sdkmanrc`, the Maven half of the input helper, the five `-D*.generate`
+  flags, `tools/allgates.sh`, `tools/bump.sh`, `tools/diagnostics.sh`,
+  `tools/corpus-both.sh`, `tools/ci-watch.sh`, `tools/classpath-convergence.sh`,
+  `tools/version-report.sh`, `tools/oracle-pins.env`, `tools/oracle-roots.sh`, the
+  composite action, and all three workflows: `gate.yml` and `gates-run.yml` once
+  `build.yml` carries the `actionlint` job, and `diagnostics.yml` with
+  `tools/diagnostics.sh`.
 
-**Gated by:** *decisions* — three from §9, all needed before the lanes become targets: the
-four-minute budget, which lanes gate pull requests, and the triage of the ledger and
-census tests. *Verification* — the heaviest of any phase: each converted lane must give
-its gate's verdict on the same commit, so every conversion costs a chain run and a
-`bazel test` run side by side, on each platform, and deleting Maven waits for all of them.
+**Gated by:** *decisions* — three from §9: the four-minute budget and which lanes gate
+pull requests, both needed before the lanes become targets, and the triage of the ledger
+and census tests, needed before the ledgers convert. *Verification* — the heaviest of any
+phase: each converted lane must give its gate's verdict on the same commit, so every
+conversion costs a chain run and a `bazel test` run side by side, on each platform, and
+deleting Maven waits for all of them.
 *Coordination* — the real risk. The files holding the floors, ceilings, pins, and rosters
 this phase touches were edited by 32 of the 139 commits between 2026-09-11 and 2026-09-18,
 and the phase moves the stress corpus and nine guard tests between packages while that
@@ -717,7 +763,8 @@ the rebases.
 **Exit:** `bazel test //...` reproduces every gate the chain runs at the time — ten today,
 plus the differential gate if leg 3.3 has landed (§4.4) — locally and in CI, with no shell
 involved; a deliberately broken test fails it for the same reason the gate chain would
-have; and no `pom.xml` and no `mvn` remains in the repository.
+have; no `pom.xml` and no `mvn` remains in the repository; and `build.yml` is the one
+required check.
 
 ### Phase 4 — Generation moves into the build
 
@@ -740,9 +787,8 @@ committed for a stated reason.
   byte-parity tests that existed only to prove a committed copy was current. Those tests
   are made redundant by generation, not weakened by it. With `prelude.pure` gone, decide
   whether `*.pure -text` stays (§4.6).
-- **One flow for baselines.** Every remaining baseline has a test that compares the
-  build's candidate with the committed file, and `//tools:accept` takes new candidates —
-  the shape `write_source_files` from `aspect_bazel_lib` gives files the build derives.
+- **One flow for baselines.** Every baseline that remains is one of §4.5's two kinds — a
+  test outcome or a derived file — compared by a test and accepted by `//tools:accept`.
 - Bumping the upstream release becomes: change the release in `MODULE.bazel`, repin,
   refresh the harvested test snippets (§4.2), run `bazel test //...`, and where a baseline
   moved, accept it and review the rows.
@@ -763,9 +809,12 @@ is a version change, a repin, and the snippet refresh §4.2 keeps at bump time.
 - Give each of the 56 projects its target, with the first form of `legend_library`
   (§4.1): compile the project's `.pure` sources against its dependencies' and fail on any
   error, so the contract in `projects/CONTRACT.md` is enforced by the build rather than by
-  `scripts/projects/check.py`. The rule's name, attributes, and target layout follow
-  `docs/BAZEL_DEPENDENCY_PROPOSAL.md` §4, so its later per-element form changes what the
-  rule produces, not how projects declare themselves.
+  `scripts/projects/check.py`. Fix the rule's interface now, as
+  `docs/BAZEL_DEPENDENCY_PROPOSAL.md` §4 has it: projects declare `srcs`, `model_deps`,
+  and `impl_deps`, even while the first form treats the two kinds of dependency alike.
+  What the per-element form adds — the element list the proposal's module extension
+  produces — arrives through the rule's own `.bzl` file, not through each BUILD file, so
+  that form changes what the rule produces, not how projects declare themselves.
 - Make `corpus`'s eleven linked projects a declared dependency on their targets instead
   of `../projects` (§4.1).
 - Draw the Python boundary explicitly, and justify it in §4.8's terms: the corpus sources
@@ -776,11 +825,13 @@ is a version change, a repin, and the snippet refresh §4.2 keeps at bump time.
 - Port the generators to Java when someone has the appetite: that, and only that, would
   move the corpus sources from "committed with a reason" to "generated like everything
   else". It is not on this critical path, and the §4.8 row should be revisited if it lands.
+- Settle what else lives in `tools/` — four Python scripts, `metamodel-census/`, and
+  `spikes/`: each is declared maintainer tooling or deleted, since the exit leaves no
+  third option.
 
-**Gated by:** *decisions* — where the Python boundary sits, whether the corpus stays in
-this repository at all (§9), and how much of the proposal's `legend_library` interface to
-fix now (its `model_deps` and `impl_deps` among it). *Verification* — the 56 project
-targets, and the first runs of the scheduled generator workflow. *Coordination* — light.
+**Gated by:** *decisions* — where the Python boundary sits, and whether the corpus stays in
+this repository at all (§9). *Verification* — the 56 project targets, and the first runs
+of the scheduled generator workflow. *Coordination* — light.
 
 **Exit:** every directory in the repository is either built by Bazel or explicitly
 declared maintainer tooling, with no third option.
@@ -803,9 +854,9 @@ declared maintainer tooling, with no third option.
   commits, PRs, and release notes.
 - Replace the ad-hoc debug environment variables and `System.out` calls with a logging API.
 - Remove `progress*.txt`, `progress/`, and editor-specific directories from the repository
-  root. `experiments/` stays until `legend_library`'s own tests cover what its Bazel
-  prototypes proved — per-element caching above all — and then retires with a pointer
-  from the proposal.
+  root. `experiments/` stays, outside the build by `.bazelignore`, until
+  `legend_library`'s own tests cover what its Bazel prototypes proved — per-element
+  caching above all — and then retires with a pointer from the proposal.
 
 **Gated by:** *decisions* — the namespace, the `pct` package rename and its deprecation
 path, the version policy, the public surface, and which six documents survive the archive.
@@ -898,10 +949,10 @@ independently-green pull requests from landing a broken combination.
 
 | deleted | lines | replaced by |
 | --- | --- | --- |
-| Every `pom.xml` — the root, five modules, `tools/engine-runner` | 1,118 | `MODULE.bazel`, one lock file, and a BUILD file per package |
+| Every `pom.xml` — the root, five modules, `tools/engine-runner` | 1,118 | `MODULE.bazel`, its lock files, and a BUILD file per package |
 | `.sdkmanrc` | 6 | `.bazelversion`; the JDKs come from the build |
 | `tools/allgates.sh` | 471 | `bazel test //...`: a target per lane, Bazel's scheduler, ledgers |
-| `tools/bump.sh` | 313 | One version in `MODULE.bazel` and a repin; the build generates, `//tools:accept` accepts |
+| `tools/bump.sh` | 313 | One version in `MODULE.bazel`, a repin, and the snippet refresh (§4.2); the build generates, `//tools:accept` accepts |
 | `tools/version-report.sh` | 270 | One version + a derived-version test |
 | `tools/classpath-convergence.sh` | 86 | One version per artifact in the lock file, and the `genquery` test for `core` |
 | `tools/oracle-roots.sh` + `tools/oracle-pins.env` | 119 | Pinned jars and archives in `MODULE.bazel` |
