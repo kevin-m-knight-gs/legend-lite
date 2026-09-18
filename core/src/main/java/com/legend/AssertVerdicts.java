@@ -273,6 +273,7 @@ final class AssertVerdicts {
                 ExecutionResult sv = SqlTextVerdicts.tryArm(name,
                         wantEqual, args, letPrefix, specs, env, hook);
                 if (sv != null) {
+                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "sql-text");
                     yield sv;
                 }
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
@@ -283,6 +284,7 @@ final class AssertVerdicts {
                 ExecutionResult ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
                 if (ra != null) {
+                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "rendered-text");
                     yield ra;
                 }
                 // a bare no-key sort() over a FLAT-CELLS side
@@ -323,6 +325,7 @@ final class AssertVerdicts {
                     boolean held = com.legend.exec.TdsCompare.grids(te,
                             ta, orderView(args.get(1), letPrefix)
                                     == OrderView.SORTED);
+                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "grid-pair");
                     if (held != wantEqual) {
                         yield fail(name + ":\n" + summarize(te)
                                 + "\n does not match:\n" + summarize(ta));
@@ -406,6 +409,7 @@ final class AssertVerdicts {
                 ExecutionResult rse = renderedArm(name, true, args,
                         letPrefix, specs, env, hook, false);
                 if (rse != null) {
+                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "rendered-text");
                     yield rse;
                 }
                 boolean seGridPair = tabularShaped(args.get(0))

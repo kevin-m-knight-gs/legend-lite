@@ -381,8 +381,20 @@ the risk TWO_DESIGN_LEGS §5 ranked fourth is retired. Ordering (P-22): on both 
 verdict must not rely on it — `list(v ORDER BY key)` is explicit on both and costs nothing.
 P-12 (a CTE reading an earlier CTE) holds on both. P-11 stands as recorded in §2b.
 
-**Owed from this leg (small, before 3.1's first edit):** the reason census for the
-un-attempted 1,298 (a `not-attempted <family> <route>` row at each host-only route), the
+**The un-attempted bucket, explained (same day, `not-attempted <family> <route>` rows at
+the three routes that have no byte channel).** DuckDB: assertEquals `sql-text` 991 ·
+`rendered-text` 253 · unaccounted 35; assertSameElements `rendered-text` 19 (all of its 19).
+H2: 929 · 246 · unaccounted 103; 13. So the "never attempted" mass is the SQL-TEXT lane
+(a `toSQLString`/plan producer in an argument: the verdict is ROWS through the replay oracle
+— OUT of step 3 by D8, exactly as the V7 charter partitioned it) plus the RENDERED-TEXT arm
+(exactly one side is a database-rendered grid text — toCSV / toString / join spellings — and
+the peer a string literal: the database already computed the text; the compare is a string
+equality, a one-line SQL predicate — leg 3.1's easiest 272 rows). The `grid-pair` route
+fired 0 times on both lanes (relation-stamped pairs reach the flat-cells verdict instead).
+The 35 / 103 unaccounted are the routes that raise before any channel (a side that errors)
+or the class-value / string-entry inlined roots — small, to be named when 3.1 reaches them.
+
+**Owed from this leg (small, before 3.1's first edit):** the
 round-trip count per lane, and the H2 MATERIALIZED substitute (a probe: does H2 evaluate a
 plain CTE once when referenced twice? If not, the H2 fusion form uses a temporary view or
 runs the frame CTE as a subquery per reference and the differential gate catches drift).

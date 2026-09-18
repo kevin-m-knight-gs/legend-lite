@@ -390,6 +390,16 @@ public final class CanonicalDivergence {
         return DECIMAL_SCALE_ONLY.get();
     }
 
+    /** An assert of {@code family} was judged by a route that has NO
+     * byte channel (the SQL-text rows arm, the rendered-text arm, the
+     * grid-pair arm): counted so "never attempted" has a reason. */
+    public static void sqlRoute(String family, String route) {
+        if (MUTED.get()) {
+            return;
+        }
+        SQL_CENSUS.merge("not-attempted " + family + " " + route, 1L, Long::sum);
+    }
+
     /** An assert of {@code family} enters adjudication. */
     public static void sqlFamily(String family) {
         if (MUTED.get()) {

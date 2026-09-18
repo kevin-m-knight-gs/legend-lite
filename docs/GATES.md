@@ -3862,4 +3862,8 @@ Decimal amended to the compiled reference's scale-sensitive rule. Probes: H2 rej
 ALL, AS MATERIALIZED and data-modifying CTEs; the signed-counts multiset form gives identical
 answers on H2 and DuckDB over duplicates and NULLs (one spelling for both dialects). Ledger
 pins with reasons: AssertVerdicts 1822 → 1823, Equality 445 → 451; `SQL_CENSUS` admitted to
-the ArchitectureTest accumulator list (measurement only).
+the ArchitectureTest accumulator list (measurement only). Follow-up the same day (the
+un-attempted bucket explained): the three routes without a byte channel count themselves
+(`not-attempted <family> sql-text | rendered-text | grid-pair`) — DuckDB equals 991 sql-text
+· 253 rendered-text · 35 unaccounted, sameElements 19 rendered-text; grid-pair 0. AssertVerdicts
+1823 → 1827 with that reason; second chain green, rosters unchanged.
