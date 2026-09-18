@@ -146,6 +146,86 @@ The 67 `if(` tests and 13 loop-shaped asserts are the bodies a single statement 
 express directly; they are named here so they fail as UNJUDGED in database mode by design
 until a leg claims them, never silently host-judged.
 
+## 2b. The single-shot homework that already exists (found 2026-09-18, in order)
+
+The question "did we do our own homework on single-shot asserts" has a long answer: yes,
+four times, and the rounds disagree on one point that this section settles by measurement.
+
+1. **docs/SESSION_HANDOFF_2026_09_02.md §0 Phase 1b (user design, 2026-09-06):** "a test =
+   WITH seeds (relation values for the table refs, bound in the IR) + one verdict SELECT
+   (asserts as boolean columns); retires the splice, the frame route and per-assert verdict
+   queries; real DDL goldens, executeInDb result reads and mid-body reseeds are the exceptions
+   (extra shots)." This is the SEEDS-IN-THE-SHOT design: every table reference becomes a VALUES
+   relation inside the statement, no seeded session.
+2. **docs/TWO_DESIGN_LEGS_2026_09_07.md §2 (research, no execution):** 77.6% of tests
+   (1,998 / 2,575) are already one statement after inlining; the setup wrappers are 28 names in
+   7 shapes, 6 of which unroll; lets: zero rebinds, 60% CTE-able, 31% erased by substitution,
+   262 lets in ~300 tests are host objects (plan handles, engine text); blockers ranked
+   (engine TEXT 159 and plan handles 156 are INHERENT — database-ADJUDICATED not
+   database-COMPUTED, the ledger must say which); the ~700-test pilot; 30 probes (P-01…P-30);
+   risks ranked with the NULL verdict first. It argued the SEEDING BOUNDARY AT THE SESSION
+   from statement counts (26,425 setup statements, "seeds amortize 25:1") and from "DuckDB has
+   no data-modifying CTE" — the latter is about INSERT-as-CTE, which nobody proposed; the
+   former counted statements, not data. Neither was a timing.
+3. **docs/REFEREE_IN_DATABASE_DESIGN_2026_09_07.md + docs/parked/InDbVerdict.java:** the
+   SQL-text lane's golden rows transferred into the session as a typed table and judged by a
+   two-way `EXCEPT ALL` count — the referee leg, a different thing from the assert verdict
+   (TWO_DESIGN_LEGS §6 records the conflation). Its H2 finding stands: H2 has no `EXCEPT ALL`.
+4. **docs/V12_FUSION_SPIKE_2026_08_28.md** (§1 above): nine real tests fused by hand, all
+   verdicts correct; MATERIALIZED; the split rung; JSON by emission.
+5. **docs/END_TO_END_PLAN_2026_09_08.md §6/6b/6f:** the order (referee-in-database, then
+   single-shot), "single-shot's acceptance is host judged ZERO", and the definition of done.
+
+**The fixtures, measured (2026-09-18, the same scanner over the corpus root):** 85 functions
+insert data; 1,632 INSERT statements carry **1,638 rows in total** across 277 distinct tables;
+the largest fixture is `milestoning::initDatabase` at 179 rows, then 126, 123, 103, 95; 51 of
+the 85 fixtures are ≤10 rows, 26 are ≤50, 8 are ≤200, none larger. (CSV-literal fixtures —
+`setupTestData`/`loadAndTestExecution`, 78 tests — are not in this count; they are small
+too but unmeasured.) So the whole corpus's seed DATA is about the size of one modest table.
+
+**The timing, measured (python-duckdb 1.4.4, same engine version as the JDBC pin; 1,000
+statements each, warm; a two-table join + filter + aggregate):**
+
+| fixture in the shot | seeded tables | every table as an inline VALUES CTE | extra per shot |
+|---|---|---|---|
+| 1 table × 10 rows (0.3 KB) | 0.134 ms | 0.378 ms | +0.24 ms |
+| 3 × 30 rows (2.5 KB) | 0.258 ms | 1.666 ms | +1.4 ms |
+| 5 × 60 rows (7.9 KB) | 0.266 ms | 4.775 ms | +4.5 ms |
+| 5 × 180 rows (23.8 KB) | 0.276 ms | 13.965 ms | +13.7 ms |
+| 10 × 180 rows (47.5 KB) | 0.275 ms | 29.137 ms | +28.9 ms |
+| 277 tables × 6 rows, whole corpus fixture inline (53 KB), query touches 2 | — | 206 ms | +206 ms |
+
+The cost is parse + bind of the VALUES text, about 0.6 ms per KB, and it is paid on EVERY
+statement; the seeded query is flat at ~0.27 ms whatever the fixture size. What it means at
+corpus scale (2,613 tests, DuckDB lane ≈ 57 s standalone / ≈ 100 s in the chain today):
+- seeds-in-the-shot with ONLY the tables the test touches (typically 1–5 tables, ≤60 rows):
+  +1 to +5 ms per test ≈ +3–13 s per lane — noticeable, not fatal;
+- seeds-in-the-shot with the package's whole fixture regardless of use: +14–29 ms per test
+  ≈ +40–75 s per lane — that doubles the lane;
+- the whole corpus fixture in every shot: +206 ms per test ≈ +9 minutes — that kills it.
+
+**Decision proposed, D9 — the seeding boundary stays at the SESSION for the corpus lane;
+seeds-in-the-shot is a property of the STATEMENT the product can emit, not of the harness's
+run.** The database-mode verdict statement must reference tables by name exactly as the
+product's query does; nothing in the verdict design depends on where the rows came from. A
+test that NEEDS its own rows (the ~10 DDL-in-body tests, the mid-body reseeds) is an extra
+shot, as Phase 1b already said. The self-contained "one statement carries its own data" form
+is kept as a DIAGNOSTIC and PORTABLE artifact (a failing test reproduced as one pasteable
+statement) and as the natural form for the stress corpus's `###Data` fixtures (per-suite data
+that is already per-test by construction and small) — measured separately before adoption
+there. Rejected: seeds-in-the-shot as the corpus lane's default (the numbers above);
+rejected: the 25:1 statement-count argument as the reason (it was not a measurement of the
+thing that costs, which is text size per statement).
+
+**Three probes settled on the way (TWO_DESIGN_LEGS §4):** P-19 — `(1=1) AND (NULL=1)` returns
+NULL and the driver delivers `None`, not false: every verdict column MUST be written with
+`IS NOT DISTINCT FROM` / `COALESCE(…, false)` so a verdict is never three-valued (the
+document's highest-ranked risk, confirmed). P-01 — DuckDB `EXCEPT ALL` keeps multiplicity.
+P-08 — a data-modifying CTE is rejected: "Not implemented Error: A CTE needs a SELECT" (the
+exact text for the capability wall). P-11 — a plain CTE referenced twice returned the same
+`random()` value in one probe; NOT proof of evaluate-once (one call, one engine build) —
+MATERIALIZED stays the rule.
+
 ## 3. The decisions proposed (each with the alternative rejected and why)
 
 **D1 — the unit of a database-mode verdict is ONE STATEMENT PER ASSERT first, one per
@@ -274,4 +354,7 @@ mean designing the verdict inside the fusion.
 3. The H2 +2 grid-canon text difference, read.
 4. Per-assert round trips today from the trace (`ExecutionTrace`), to set the leg 3.1 and
    3.4 before/after numbers.
-5. Ratification of §3 D1–D8.
+5. Ratification of §3 D1–D8 and §2b D9 (the seeding boundary).
+6. The CSV-literal fixtures' row count (the 78 `setupTestData`/`loadAndTestExecution`
+   tests) and the stress corpus's `###Data` sizes, before the self-contained form is
+   adopted anywhere.
