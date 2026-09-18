@@ -813,8 +813,13 @@ final class ArchitectureTest {
             // the ONE wire-tree walker (P2-4/P2-6): structure is its,
             // the LEAF rule is the lattice's — comparison layer
             .and().doNotHaveFullyQualifiedName("com.legend.exec.JsonCompare")
+            // JUDGING_TWO_MODES step 2: the host judge and the service-test
+            // judge are the seam's own (Equality decides; TestAssertions
+            // routes EqualToJson to it)
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.Equality")
+            .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
             .should().dependOnClassesThat().haveNameMatching(
-                "com\\.legend\\.exec\\.(PureAsserts|CanonicalForm|CanonicalDivergence)")
+                "com\\.legend\\.exec\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)")
             .as("V3: host-verdict classes are reachable only from the"
                     + " verdict/referee seam — register a new dependent"
                     + " consciously or route through the DB byte verdict")

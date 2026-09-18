@@ -431,10 +431,10 @@ meta::pure::functions::lang::toMultiplicity	<T|z>(source:T[*], object:meta::pure
 meta::pure::functions::lang::whenSubType	<T>(source:meta::pure::metamodel::type::Any[*], object:T[1]):T[*]	WHEN_SUB_TYPE__ANY_MANY__T_1	FAMILY	NativeFn.SubtypeForm	
 meta::pure::functions::lang::whenSubType	<T>(source:meta::pure::metamodel::type::Any[0..1], object:T[1]):T[0..1]	WHEN_SUB_TYPE__ANY_01__T_1	FAMILY	NativeFn.SubtypeForm	
 meta::pure::functions::lang::whenSubType	<T>(source:meta::pure::metamodel::type::Any[1], object:T[1]):T[0..1]	WHEN_SUB_TYPE__ANY_1__T_1	FAMILY	NativeFn.SubtypeForm	
-meta::pure::functions::math::abs	(decimal:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1]	ABS__DECIMAL_1	SCALAR_RULE	Scalars.RULES	
-meta::pure::functions::math::abs	(float:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1]	ABS__FLOAT_1	SCALAR_RULE	Scalars.RULES	
-meta::pure::functions::math::abs	(int:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1]	ABS__INTEGER_1	SCALAR_RULE	Scalars.RULES	
-meta::pure::functions::math::abs	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1]	ABS__NUMBER_1	SCALAR_RULE	Scalars.RULES	
+meta::pure::functions::math::abs	(decimal:meta::pure::metamodel::type::Decimal[1]):meta::pure::metamodel::type::Decimal[1]	ABS__DECIMAL_1	SCALAR_RULE	Scalars.RULES	NumberKinds
+meta::pure::functions::math::abs	(float:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Float[1]	ABS__FLOAT_1	SCALAR_RULE	Scalars.RULES	NumberKinds
+meta::pure::functions::math::abs	(int:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1]	ABS__INTEGER_1	SCALAR_RULE	Scalars.RULES	NumberKinds
+meta::pure::functions::math::abs	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1]	ABS__NUMBER_1	SCALAR_RULE	Scalars.RULES	NumberKinds
 meta::pure::functions::math::acos	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	ACOS__NUMBER_1	SCALAR_RULE	Scalars.RULES	
 meta::pure::functions::math::asin	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	ASIN__NUMBER_1	SCALAR_RULE	Scalars.RULES	
 meta::pure::functions::math::atan	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	ATAN__NUMBER_1	SCALAR_RULE	Scalars.RULES	
@@ -485,10 +485,10 @@ meta::pure::functions::math::min	(numbers:meta::pure::metamodel::type::Number[*]
 meta::pure::functions::math::minBy	<T>(colRows:meta::pure::functions::math::mathUtility::RowMapper<T,meta::pure::metamodel::type::Number>[*]):T[0..1]	MIN_BY__ROW_MAPPER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
 meta::pure::functions::math::minBy	<T>(col_to_return:T[*], col_containing_minimum:meta::pure::metamodel::type::Number[*]):T[0..1]	MIN_BY__T_MANY__NUMBER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
 meta::pure::functions::math::minBy	<T>(col_to_return:T[*], col_containing_minimum:meta::pure::metamodel::type::Number[*], n:meta::pure::metamodel::type::Integer[1]):T[*]	MIN_BY__T_MANY__NUMBER_MANY__INTEGER_1	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
-meta::pure::functions::math::minus	(decimal:meta::pure::metamodel::type::Decimal[*]):meta::pure::metamodel::type::Decimal[1]	MINUS__DECIMAL_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
-meta::pure::functions::math::minus	(float:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	MINUS__FLOAT_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
-meta::pure::functions::math::minus	(ints:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	MINUS__INTEGER_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
-meta::pure::functions::math::minus	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	MINUS__NUMBER_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
+meta::pure::functions::math::minus	(decimal:meta::pure::metamodel::type::Decimal[*]):meta::pure::metamodel::type::Decimal[1]	MINUS__DECIMAL_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
+meta::pure::functions::math::minus	(float:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	MINUS__FLOAT_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
+meta::pure::functions::math::minus	(ints:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	MINUS__INTEGER_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
+meta::pure::functions::math::minus	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	MINUS__NUMBER_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
 meta::pure::functions::math::mod	(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1]	MOD__INTEGER_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	
 meta::pure::functions::math::mode	(numbers:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	MODE__FLOAT_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
 meta::pure::functions::math::mode	(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	MODE__INTEGER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
@@ -496,12 +496,12 @@ meta::pure::functions::math::mode	(numbers:meta::pure::metamodel::type::Number[*
 meta::pure::functions::math::percentile	(numbers:meta::pure::metamodel::type::Number[*], percentile:meta::pure::metamodel::type::Float[1]):meta::pure::metamodel::type::Number[0..1]	PERCENTILE__NUMBER_MANY__FLOAT_1	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
 meta::pure::functions::math::percentile	(numbers:meta::pure::metamodel::type::Number[*], percentile:meta::pure::metamodel::type::Float[1], ascending:meta::pure::metamodel::type::Boolean[1], continuous:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Number[0..1]	PERCENTILE__NUMBER_MANY__FLOAT_1__BOOLEAN_1__BOOLEAN_1	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
 meta::pure::functions::math::pi	():meta::pure::metamodel::type::Float[1]	PI	SCALAR_RULE	Scalars.RULES	
-meta::pure::functions::math::plus	(decimal:meta::pure::metamodel::type::Decimal[*]):meta::pure::metamodel::type::Decimal[1]	PLUS__DECIMAL_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	PlatformTypes;QuotedSpecParser
-meta::pure::functions::math::plus	(float:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	PLUS__FLOAT_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	PlatformTypes;QuotedSpecParser
-meta::pure::functions::math::plus	(ints:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	PLUS__INTEGER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	PlatformTypes;QuotedSpecParser
-meta::pure::functions::math::plus	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	PLUS__NUMBER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	PlatformTypes;QuotedSpecParser
+meta::pure::functions::math::plus	(decimal:meta::pure::metamodel::type::Decimal[*]):meta::pure::metamodel::type::Decimal[1]	PLUS__DECIMAL_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	NumberKinds;PlatformTypes;QuotedSpecParser
+meta::pure::functions::math::plus	(float:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	PLUS__FLOAT_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	NumberKinds;PlatformTypes;QuotedSpecParser
+meta::pure::functions::math::plus	(ints:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	PLUS__INTEGER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	NumberKinds;PlatformTypes;QuotedSpecParser
+meta::pure::functions::math::plus	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	PLUS__NUMBER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	NumberKinds;PlatformTypes;QuotedSpecParser
 meta::pure::functions::math::pow	(base:meta::pure::metamodel::type::Number[1], exponent:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1]	POW__NUMBER_1__NUMBER_1	SCALAR_RULE	Scalars.RULES	
-meta::pure::functions::math::rem	(dividend:meta::pure::metamodel::type::Number[1], divisor:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1]	REM__NUMBER_1__NUMBER_1	SCALAR_RULE	Scalars.RULES	
+meta::pure::functions::math::rem	(dividend:meta::pure::metamodel::type::Number[1], divisor:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1]	REM__NUMBER_1__NUMBER_1	SCALAR_RULE	Scalars.RULES	NumberKinds
 meta::pure::functions::math::round	(decimal:meta::pure::metamodel::type::Decimal[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Decimal[1]	ROUND__DECIMAL_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	
 meta::pure::functions::math::round	(float:meta::pure::metamodel::type::Float[1], scale:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Float[1]	ROUND__FLOAT_1__INTEGER_1	SCALAR_RULE	Scalars.RULES	
 meta::pure::functions::math::round	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Integer[1]	ROUND__NUMBER_1	SCALAR_RULE	Scalars.RULES	
@@ -513,15 +513,15 @@ meta::pure::functions::math::stdDev	(numbers:meta::pure::metamodel::type::Number
 meta::pure::functions::math::stdDevPopulation	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	STD_DEV_POPULATION__NUMBER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
 meta::pure::functions::math::stdDevPopulation	<T>(partition:meta::pure::metamodel::relation::Relation<T>[1], window:meta::pure::functions::relation::_Window<T>[1], row:T[1], colToAgg:meta::pure::metamodel::relation::ColSpec<(?:meta::pure::metamodel::type::Number)SUBSETT>[1]):meta::pure::metamodel::type::Number[1]	STD_DEV_POPULATION__RELATION_1__WINDOW_1__T_1__COL_SPEC_1	REDUCER|SCALAR_RULE|WINDOW_AGG	Aggregates.REDUCERS|Scalars.RULES|Windows.AGGREGATES	
 meta::pure::functions::math::stdDevSample	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	STD_DEV_SAMPLE__NUMBER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	
-meta::pure::functions::math::sum	(numbers:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	SUM__FLOAT_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	CorrelatedSubselects
-meta::pure::functions::math::sum	(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	SUM__INTEGER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	CorrelatedSubselects
-meta::pure::functions::math::sum	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	SUM__NUMBER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	CorrelatedSubselects
+meta::pure::functions::math::sum	(numbers:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	SUM__FLOAT_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	CorrelatedSubselects;NumberKinds
+meta::pure::functions::math::sum	(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	SUM__INTEGER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	CorrelatedSubselects;NumberKinds
+meta::pure::functions::math::sum	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	SUM__NUMBER_MANY	REDUCER|SCALAR_RULE	Aggregates.REDUCERS|Scalars.RULES	CorrelatedSubselects;NumberKinds
 meta::pure::functions::math::tan	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	TAN__NUMBER_1	SCALAR_RULE	Scalars.RULES	
 meta::pure::functions::math::tanh	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	TANH__NUMBER_1	SCALAR_RULE	Scalars.RULES	
-meta::pure::functions::math::times	(decimal:meta::pure::metamodel::type::Decimal[*]):meta::pure::metamodel::type::Decimal[1]	TIMES__DECIMAL_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
-meta::pure::functions::math::times	(ints:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	TIMES__FLOAT_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
-meta::pure::functions::math::times	(ints:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	TIMES__INTEGER_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
-meta::pure::functions::math::times	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	TIMES__NUMBER_MANY	SCALAR_RULE	Scalars.RULES	PlatformTypes
+meta::pure::functions::math::times	(decimal:meta::pure::metamodel::type::Decimal[*]):meta::pure::metamodel::type::Decimal[1]	TIMES__DECIMAL_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
+meta::pure::functions::math::times	(ints:meta::pure::metamodel::type::Float[*]):meta::pure::metamodel::type::Float[1]	TIMES__FLOAT_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
+meta::pure::functions::math::times	(ints:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]	TIMES__INTEGER_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
+meta::pure::functions::math::times	(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]	TIMES__NUMBER_MANY	SCALAR_RULE	Scalars.RULES	NumberKinds;PlatformTypes
 meta::pure::functions::math::toDecimal	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Decimal[1]	TO_DECIMAL__NUMBER_1	SCALAR_RULE	Scalars.RULES	Typer
 meta::pure::functions::math::toDegrees	(radians:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	TO_DEGREES__NUMBER_1	SCALAR_RULE	Scalars.RULES	
 meta::pure::functions::math::toFloat	(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]	TO_FLOAT__NUMBER_1	SCALAR_RULE	Scalars.RULES	

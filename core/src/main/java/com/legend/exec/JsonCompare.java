@@ -45,136 +45,21 @@ public final class JsonCompare {
     public static @com.legend.Nullable String document(
             @com.legend.Nullable Object expected,
             @com.legend.Nullable Object actual) {
-        return firstDiff(expected, actual, "$", JsonCompare::documentLeaf);
+        return Equality.pureJson(expected, actual);
     }
 
-    /** PARSED-DOCUMENT equality whose ROOT ARRAY is a multiset: the
-     * verdict for a graph result on an INCIDENTAL-order chain (a root
-     * read with no sort — SQL arrival order, which the engine's golden
-     * took from H2 and ours from DuckDB; the same declared policy the
-     * row verdict applies under the same compile-time fact). Both root
-     * lists are sorted by a canonical text of each element and then
-     * compared element-wise; nested arrays stay ORDERED (a property's
-     * order is the mapping's). Non-array roots compare as
-     * {@link #document}. */
     public static @com.legend.Nullable String documentUnorderedRoot(
             @com.legend.Nullable Object expected,
             @com.legend.Nullable Object actual) {
-        if (expected instanceof List<?> el && actual instanceof List<?> al) {
-            // pair each expected element with an equal actual one (document
-            // equality, order-free); the unpaired elements name the difference
-            List<Object> unmatched = new java.util.ArrayList<>(al);
-            List<Object> missing = new java.util.ArrayList<>();
-            for (Object e : el) {
-                int at = -1;
-                for (int i = 0; i < unmatched.size() && at < 0; i++) {
-                    if (firstDiff(e, unmatched.get(i), "$", JsonCompare::documentLeaf) == null) {
-                        at = i;
-                    }
-                }
-                if (at < 0) {
-                    missing.add(e);
-                } else {
-                    unmatched.remove(at);
-                }
-            }
-            if (missing.isEmpty() && unmatched.isEmpty()) {
-                return null;
-            }
-            return "$ (root array as a multiset) expected " + el.size()
-                    + " element(s), got " + al.size() + "; missing "
-                    + abbreviate(canonicalText(missing)) + ", unexpected "
-                    + abbreviate(canonicalText(unmatched));
-        }
-        return document(expected, actual);
+        return Equality.pureJsonUnorderedRoot(expected, actual);
     }
 
-    /** A canonical text of a parsed value — objects by sorted key,
-     * arrays in order, numbers by numeric value — used ONLY as a sort
-     * key for the multiset root compare (never as the equality). */
     static String canonicalText(@com.legend.Nullable Object v) {
-        if (v instanceof Map<?, ?> m) {
-            StringBuilder sb = new StringBuilder("{");
-            m.keySet().stream().map(String::valueOf).sorted().forEach(k ->
-                    sb.append(k).append(':').append(canonicalText(m.get(k))).append(','));
-            return sb.append('}').toString();
-        }
-        if (v instanceof List<?> l) {
-            StringBuilder sb = new StringBuilder("[");
-            l.forEach(e -> sb.append(canonicalText(e)).append(','));
-            return sb.append(']').toString();
-        }
-        if (v instanceof java.math.BigDecimal d) {
-            return d.stripTrailingZeros().toPlainString();
-        }
-        return String.valueOf(v);
+        return Equality.canonicalText(v);
     }
 
-    /** WIRE-VALUE tree equality: leaves under
-     * {@link PureAsserts#equalScalar} (policies included). */
     public static boolean wireTree(@com.legend.Nullable Object expected,
             @com.legend.Nullable Object actual) {
-        return firstDiff(expected, actual, "$",
-                PureAsserts::equalScalar) == null;
-    }
-
-    /** The ONE walker: containers structurally (objects by key set,
-     * arrays ordered element-wise), leaves by the door's rule. Null =
-     * equal; else the first differing path. */
-    static @com.legend.Nullable String firstDiff(
-            @com.legend.Nullable Object e, @com.legend.Nullable Object a,
-            String path, BiPredicate<Object, Object> leaf) {
-        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
-            if (!em.keySet().equals(am.keySet())) {
-                return path + " expected keys " + em.keySet()
-                        + ", got " + am.keySet();
-            }
-            for (Object k : em.keySet()) {
-                String d = firstDiff(em.get(k), am.get(k),
-                        path + "." + k, leaf);
-                if (d != null) {
-                    return d;
-                }
-            }
-            return null;
-        }
-        if (e instanceof List<?> el && a instanceof List<?> al) {
-            if (el.size() != al.size()) {
-                return path + " expected " + el.size()
-                        + " element(s), got " + al.size();
-            }
-            for (int i = 0; i < el.size(); i++) {
-                String d = firstDiff(el.get(i), al.get(i),
-                        path + "[" + i + "]", leaf);
-                if (d != null) {
-                    return d;
-                }
-            }
-            return null;
-        }
-        // container-vs-leaf mismatches reach the leaf rule and fail there
-        return leaf.test(e, a) ? null
-                : path + " expected " + abbreviate(String.valueOf(e))
-                        + ", got " + abbreviate(String.valueOf(a));
-    }
-
-    /** The DOCUMENT leaf rule: numbers numerically WITHIN kind
-     * (BigDecimal by compareTo — scale drops: the engine prints 5.0
-     * where our envelope prints 5.000000000 for the same DECIMAL(38,9)
-     * value), all else strict. Long-vs-BigDecimal stays UNEQUAL on
-     * purpose — an integer-typed expectation against a decimal wire
-     * value is a typing bug this compare must catch (the migrated
-     * harness rationale, verbatim). */
-    private static boolean documentLeaf(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a) {
-        if (e instanceof java.math.BigDecimal be
-                && a instanceof java.math.BigDecimal ba) {
-            return be.compareTo(ba) == 0;
-        }
-        return java.util.Objects.equals(e, a);
-    }
-
-    private static String abbreviate(String s) {
-        return s.length() <= 120 ? s : s.substring(0, 120) + "…";
+        return Equality.same(Equality.Typed.of(expected), Equality.Typed.of(actual));
     }
 }

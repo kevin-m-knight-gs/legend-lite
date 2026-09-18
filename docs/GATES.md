@@ -3801,3 +3801,13 @@ PCT census MAX_INT_NULL_EMPTY 226→231 (empty-fixture columns of Float-refined 
 carry the DOUBLE label). Ledgers: SqlTextVerdicts 1143→1177 lines (the look-through, routing
 to the platform's inliner), one documented broad catch. Design: docs/NUMERIC_CHARTER_2026_09_17.md,
 docs/JUDGING_TWO_MODES_2026_09_17.md (step 1 record inside), docs/JUDGE_INVENTORY_2026_09_17.md.
+
+**Judging step 2a — the host-mode judge (2026-09-18):** chain GREEN (gates 1–10), quiet
+machine, parallel wall ≈ 4m20s (G2 26; A: G1 75 · G3 11 · G4 110 · G5 38 = 234; B: G6 141 ·
+G7 48 · G9 35 = 224; C: G8 148 · G10 57 = 205). No roster moved in the default mode; host
+mode (`-Dlegend.judge.mode=host`) DuckDB EXACT, H2 +2 explained in
+docs/JUDGING_TWO_MODES_2026_09_17.md (step 2a record). Registers: Equality admitted to the
+exec funnel, the evaluation ledger (416 lines, a judge), the V3 verdict seam and the sort-site
+map; VerdictChannelRegister shrank by two; claims ledger regenerated (NumberKinds names the
+arithmetic natives). Two typer facts the judge exposed and fixed: the Number-kind rule reads
+the signature's declared return and covers only plus/minus/times/rem/abs/sum.

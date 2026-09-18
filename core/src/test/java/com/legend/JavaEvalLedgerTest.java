@@ -213,7 +213,11 @@ class JavaEvalLedgerTest {
             // instance rows — spec message text, no verdict is computed
             // here (the verdict rode the database; the message used to
             // wall "toRepresentation for LinkedHashMap is not modeled").
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 336),   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
+            // NEW ROW (JUDGING_TWO_MODES step 2, 2026-09-17): the host judge —
+            // the decision code that lived in the four rows below, in one
+            // place; a judge, never an evaluator (it computes no value)
+            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 416),
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 242),   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
             // in the database (StatementExecutor.evalValue); this file
@@ -473,7 +477,10 @@ class JavaEvalLedgerTest {
             // 1765 -> 1774 (batch 143): the quantified verdict's SOURCE reduces through the
             // inliner with the literal arms on (enumValues()->filter(in) unrolls) — which
             // elements to judge, never a judgment
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1831),   // 1825 -> 1831 (numeric charter Rule 3, 2026-09-17: the floatDeclared helper + the two typed equality call sites); 1800 -> 1825 (store-substitution leg, 2026-09-13: assertIs over ELEMENT rows adjudicates the identity condition the resolver mints — key equality, the D2 ruling; nothing evaluates host-side) | 1775 -> 1800 (graph-root order rule, 2026-09-13: the JSON verdict reads the chain's ORDER VIEW; the view descends execute frames and graph-fetch/serialize nodes — referee policy, no evaluation) | 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
+            // 1831 -> 1840 (JUDGING_TWO_MODES step 2, 2026-09-17): the run-level
+            // judge mode read once, and each side's values paired with their
+            // DECLARED kind for the host judge — routing, no evaluation
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1840),   // 1825 -> 1831 (numeric charter Rule 3, 2026-09-17: the floatDeclared helper + the two typed equality call sites); 1800 -> 1825 (store-substitution leg, 2026-09-13: assertIs over ELEMENT rows adjudicates the identity condition the resolver mints — key equality, the D2 ruling; nothing evaluates host-side) | 1775 -> 1800 (graph-root order rule, 2026-09-13: the JSON verdict reads the chain's ORDER VIEW; the view descends execute frames and graph-fetch/serialize nodes — referee policy, no evaluation) | 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -794,7 +801,7 @@ class JavaEvalLedgerTest {
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
-            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 110),   // 64 -> 110 (graph-root order rule, 2026-09-13: the multiset ROOT compare + its unpaired-element message — comparison policy under the row verdict's own compile-time order fact; nothing evaluates)
+            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 25),   // 64 -> 110 (graph-root order rule, 2026-09-13: the multiset ROOT compare + its unpaired-element message — comparison policy under the row verdict's own compile-time order fact; nothing evaluates)
             // 295 -> 431 (V7 §8 leg 1 + user consolidation ruling
             // 2026-08-28): the GRID-CANON byte-channel policies land
             // with the OTHER grid comparison rules — row/cell canon
@@ -812,7 +819,7 @@ class JavaEvalLedgerTest {
             // judge under the verdict's own declared row-multiset
             // policy). All comparison-layer judgment: consumes two
             // produced sides, never produces a result.
-            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 444));
+            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 425));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
@@ -963,6 +970,14 @@ class JavaEvalLedgerTest {
                     // copy DIED here (its claimed ledger exception had
                     // never been registered)
                     "JsonCompare.java",
+                    // JUDGING_TWO_MODES step 2 (2026-09-17): HOST MODE's ONE
+                    // judge — every equality the host answers (scalars by
+                    // declared kind, collections, grids, the two JSON rules
+                    // the engine has), the one counted leniency; the lattices
+                    // in PureAsserts / TdsCompare / JsonCompare /
+                    // TestAssertions became delegations to it. It compares
+                    // two produced sides and never produces a value.
+                    "Equality.java",
                     "H2Settings.java",
                     "PctProbe.java",
                     // batch 83 (2026-09-06): the engine's execution-trace

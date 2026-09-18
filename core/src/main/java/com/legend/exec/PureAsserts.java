@@ -3,6 +3,7 @@
 
 package com.legend.exec;
 
+import com.legend.compiler.element.type.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -240,42 +241,24 @@ public final class PureAsserts {
 
     /** Pure {@code equal(left:Any[*], right:Any[*])} (equal.pure):
      * collection equality is ordered, element-wise. */
+    // ---- EQUALITY: decided by Equality (host mode's one judge) ----------------
+    // These keep the assert family's MESSAGE shapes; the decision is
+    // Equality's. Kinds: the carrier's unless the caller declares Float.
+
     public static boolean equal(List<Object> left, List<Object> right) {
         return equal(left, right, false);
     }
 
-    /** NUMERIC CHARTER Rule 3 (docs/NUMERIC_CHARTER_2026_09_17.md): the
-     * kind is the DECLARED kind, not the carrier. When BOTH sides are
-     * Float-declared, a BigDecimal carrier (the database's own DECIMAL
-     * under a Float declaration — the reference runtime's Float is
-     * BigDecimal-backed) and a double carrier are the SAME kind and
-     * compare by canonical value, exactly the Float arm's rule. Every
-     * other pair keeps the carrier-keyed rules below. */
     public static boolean equal(List<Object> left, List<Object> right,
             boolean floatDeclared) {
-        if (left.size() != right.size()) {
-            return false;
-        }
-        for (int i = 0; i < left.size(); i++) {
-            if (!equalScalar(left.get(i), right.get(i), floatDeclared)) {
-                return false;
-            }
-        }
-        return true;
+        return Equality.ordered(typed(left, floatDeclared), typed(right, floatDeclared)) == null;
     }
 
     public static boolean equalScalar(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a, boolean floatDeclared) {
-        if (floatDeclared && e instanceof Number && a instanceof Number
-                && (e instanceof BigDecimal || a instanceof BigDecimal)
-                && !isIntegral(e) && !isIntegral(a) && !nonFinite(e) && !nonFinite(a)) {
-            return new BigDecimal(String.valueOf(e))
-                    .compareTo(new BigDecimal(String.valueOf(a))) == 0;
-        }
-        return equalScalar(e, a);
+            @com.legend.Nullable Object a) {
+        return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a));
     }
 
-    /** {@link #assertSameElements(List, List)} under Rule 3's declared kind. */
     public static @com.legend.Nullable String assertSameElements(
             List<Object> expected, List<Object> actual, boolean floatDeclared) {
         List<Object> es = sorted(expected);
@@ -286,147 +269,24 @@ public final class PureAsserts {
         return "\nexpected: " + joined(es) + "\nactual:   " + joined(as);
     }
 
-    /** Element equality: the spec core plus the adjudicated wire
-     * policies (class doc). The EXPECTED side is the corpus's literal;
-     * the ACTUAL side is the platform's produced value — the sentinel
-     * and the temporal bridge are direction-aware for exactly that
-     * reason. */
     public static boolean equalScalar(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a) {
-        // POLICY: the TDSNull wire sentinel (expected-direction only —
-        // a literal 'TDSNull' on OUR wire where a NULL belongs must
-        // fail, the symmetric grant would mask it; audit 16 F5)
-        if ("TDSNull".equals(e) && a == null) {
-            return true;
-        }
-        if (e == null || a == null) {
-            return e == a;
-        }
-        // X1-X4 (VERDICT_RULE_AUDIT, engine EqualityUtilities.eq):
-        // primitive equality requires the SAME primitive kind — there
-        // is NO cross-kind numeric equality in the engine (the old
-        // integral×Decimal grant MIS-CITED its witness; Float×Decimal
-        // and every other cross pair are FALSE). Same-kind rules:
-        boolean eInt = isIntegral(e);
-        boolean aInt = isIntegral(a);
-        if (eInt || aInt) {
-            if (!(eInt && aInt)) {
-                return false;
-            }
-            // HUGEINT range: longValue() OVERFLOWS BigInteger carriers —
-            // a genuine bug the deleted X1 cross-kind grant had been
-            // masking (testLargePlus exposed it the moment the grant
-            // died); integral equality widens to BigInteger when needed
-            if (e instanceof BigInteger || a instanceof BigInteger) {
-                return toBigInteger(e).equals(toBigInteger(a));
-            }
-            return ((Number) e).longValue() == ((Number) a).longValue();
-        }
-        if (e instanceof BigDecimal || a instanceof BigDecimal) {
-            // X2: engine Decimal equality is getValue().equals —
-            // SCALE-SENSITIVE (its tests spell the exact SQL-arithmetic
-            // scale and pass strict in both engine lanes); a break here
-            // is OUR scale drift, fixed at emission, never re-blurred
-            return e instanceof BigDecimal be && a instanceof BigDecimal ba
-                    && be.equals(ba);
-        }
-        boolean eFp = e instanceof Double || e instanceof Float;
-        boolean aFp = a instanceof Double || a instanceof Float;
-        if (eFp || aFp) {
-            if (!(eFp && aFp)) {
-                return false;
-            }
-            // NON-FINITE first: NaN never equals anything (IEEE; the
-            // engine's BigDecimal-backed floats cannot even hold it);
-            // infinities compare by identity
-            if (nonFinite(e) || nonFinite(a)) {
-                return e instanceof Double de2 && a instanceof Double da2
-                        ? de2.doubleValue() == da2.doubleValue()
-                        : e.equals(a);
-            }
-            // engine Float equality = equals over CANONICALIZED
-            // BigDecimal (FloatCoreInstance.canonicalizeBigDecimal) —
-            // for finite doubles the shortest-repr string compare IS
-            // that canonical-form equality (and unifies zeros)
-            if (new BigDecimal(String.valueOf(e))
-                    .compareTo(new BigDecimal(String.valueOf(a))) == 0) {
-                return true;
-            }
-            // POLICY: 2-ULP dialect-arithmetic leniency — DOUBLE vs
-            // DOUBLE only; NaN, exact zero, and Decimal stay strict
-            if (e instanceof Double de && a instanceof Double da
-                    && !de.isNaN() && !da.isNaN()) {
-                double ulp = Math.ulp(Math.max(Math.abs(de), Math.abs(da)));
-                boolean ok = Math.abs(de - da) <= 2 * ulp;
-                // audit 23 D2 measurement instrument (rides the policy)
-                if (ok && de.doubleValue() != da.doubleValue()
-                        && System.getenv("LL_TOL_COUNT") != null) {
-                    System.err.println("[tol] ulp " + de + " vs " + da);
-                }
-                return ok;
-            }
-            return false;
-        }
-        // TEMPORALS: PureDateLiteral record equality IS the engine's
-        // precision-sensitive PureDate.equals (their variants compare
-        // every component INCLUDING precision) — the old string-carrier
-        // bridge died with the D-arc cutover: partial-precision values
-        // now ride the wire as PureDateLiteral (the fetch seam parses
-        // the precision-faithful VARCHAR convention), so a string
-        // beside a temporal is a TYPE mismatch, false like pure.
-        // WIRE-VALUE TREES (struct cells decoded to maps at egress, and
-        // any lists nested inside them): the ONE walker owns the
-        // structure, THIS method stays the leaf rule (P2-4/P2-6,
-        // 2026-08-19 deep audit — the private Map arm was undocumented
-        // and nested lists fell through to raw Java equals with no pure
-        // numeric semantics)
-        if ((e instanceof Map<?, ?> && a instanceof Map<?, ?>)
-                || (e instanceof List<?> && a instanceof List<?>)) {
-            return JsonCompare.wireTree(e, a);
-        }
-        return e.equals(a);
+            @com.legend.Nullable Object a, boolean floatDeclared) {
+        Type k = floatDeclared ? Type.Primitive.FLOAT : null;
+        return Equality.same(new Equality.Typed(e, k), new Equality.Typed(a, k));
     }
 
-    private static boolean nonFinite(Object v) {
-        return (v instanceof Double d && !Double.isFinite(d))
-                || (v instanceof Float f && !Float.isFinite(f));
-    }
-
-    private static BigInteger toBigInteger(Object v) {
-        return v instanceof BigInteger bi ? bi
-                : BigInteger.valueOf(((Number) v).longValue());
+    private static List<Equality.Typed> typed(List<Object> values, boolean floatDeclared) {
+        return Equality.Typed.all(values, floatDeclared ? Type.Primitive.FLOAT : null);
     }
 
     private static boolean isIntegral(Object v) {
-        return v instanceof Long || v instanceof Integer
-                || v instanceof Short || v instanceof Byte
-                || v instanceof BigInteger;
+        return Equality.isIntegral(v);
     }
 
     private static boolean isTemporal(Object v) {
-        // THE wire temporal type ONLY (D-arc 2026-08-21): a java.sql or
-        // java.time temporal reaching a compare is a fetch-seam LEAK —
-        // it falls through to e.equals(a) (never true cross-kind) and
-        // the canonical-divergence census reports it as unmodeled-kind
         return v instanceof com.legend.values.PureDateLiteral;
     }
 
-
-    // ================================================================
-    // toRepresentation() — pure source spelling of a value (ONE owner;
-    // toRepresentation.pure — the testdatagen port, generalized)
-    // ================================================================
-
-    /** Pure {@code toRepresentation(any:Any[1])}: strings
-     * backslash-escape, temporals take the {@code %} literal form,
-     * Decimal the {@code D} suffix. A class INSTANCE (a wire map) takes
-     * the spec's {@code <id instanceOf T>} form (toRepresentation.pure:
-     * 28): the id is the synthetic site identity when the wire carries
-     * one (F13), else the row's property values in wire order — the
-     * identity a value wire can observe (identity as data); T is the
-     * side's static class. A NAMED packageable element would render as
-     * its path (toRepresentation.pure:27) — a wire map carries no path
-     * (named gap, grows by witness). */
     public static String repr(@com.legend.Nullable Object v) {
         return repr(v, null);
     }
@@ -506,41 +366,10 @@ public final class PureAsserts {
     // ================================================================
 
     static List<Object> sorted(List<Object> values) {
-        List<Object> out = new ArrayList<>(values);
-        out.sort(Comparator.comparingInt(PureAsserts::typeRank)
-                .thenComparing(PureAsserts::withinRank));
+        List<Object> out = new ArrayList<>(values.size());
+        for (Equality.Typed t : Equality.sorted(Equality.Typed.all(values, null))) {
+            out.add(t.value());
+        }
         return out;
-    }
-
-    private static int typeRank(@com.legend.Nullable Object v) {
-        // EXPLICIT kinds only (Charter C2.4: an unmatched kind THROWS,
-        // never becomes a plausible bucket)
-        return switch (v) {
-            case null -> 0;
-            case Number n -> 1;
-            case String s -> 2;
-            case Boolean b -> 3;
-            case com.legend.values.PureDateLiteral d -> 4;
-            case Map<?, ?> m -> 5;
-            default -> throw new com.legend.error.NotImplementedException(
-                    "assertSameElements sort over "
-                            + v.getClass().getName() + " is not modeled");
-        };
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Comparable<Object> withinRank(@com.legend.Nullable Object v) {
-        return (Comparable<Object>) (Comparable<?>) switch (v) {
-            case null -> "";
-            case Number n -> new BigDecimal(String.valueOf(n));
-            case String s -> s;
-            case Boolean b -> b;
-            // temporals BY INSTANT (P2-2, 2026-08-19 deep audit: the
-            // section contract said instant, the code said text — a
-            // date-only vs midnight-datetime mix text-sorted wrong;
-            // the reference native compares temporals by components)
-            case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
-            default -> String.valueOf(v);   // maps: stable text order
-        };
     }
 }

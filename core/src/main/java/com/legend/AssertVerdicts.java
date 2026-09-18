@@ -370,10 +370,11 @@ final class AssertVerdicts {
                         ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
                 List<Object> a = ik != null
                         ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
-                boolean floatPair = floatDeclared(args.get(0), args.get(1));
+                List<com.legend.exec.Equality.Typed> te = typedSide(e, args.get(0));
+                List<com.legend.exec.Equality.Typed> ta = typedSide(a, args.get(1));
                 boolean equal = incidental
-                        ? PureAsserts.assertSameElements(e, a, floatPair) == null
-                        : PureAsserts.equal(e, a, floatPair);
+                        ? com.legend.exec.Equality.sameElements(te, ta) == null
+                        : com.legend.exec.Equality.ordered(te, ta) == null;
                 // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
                 // host lattice vs host byte channel, measurement only
                 com.legend.exec.CanonicalDivergence.probeEqual(
@@ -433,8 +434,9 @@ final class AssertVerdicts {
                         ? restrictToKeys(eVals, ik, env.ctx()) : eVals;
                 List<Object> a = ik != null
                         ? restrictToKeys(aVals, ik, env.ctx()) : aVals;
-                String d = PureAsserts.assertSameElements(e, a,
-                        floatDeclared(args.get(0), args.get(1)));
+                String d = com.legend.exec.Equality.sameElements(
+                        typedSide(e, args.get(0)), typedSide(a, args.get(1))) == null
+                        ? null : PureAsserts.assertSameElements(e, a);
                 com.legend.exec.CanonicalDivergence.probeSameElements(
                         e, a, d == null);
                 // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -529,10 +531,8 @@ final class AssertVerdicts {
                 boolean incidentalRoot = orderView(args.get(1), letPrefix)
                         == OrderView.INCIDENTAL;
                                 String diff = incidentalRoot
-                        ? com.legend.exec.JsonCompare.documentUnorderedRoot(
-                                expected, actual)
-                        : com.legend.exec.JsonCompare.document(
-                                expected, actual);
+                        ? com.legend.exec.Equality.pureJsonUnorderedRoot(expected, actual)
+                        : com.legend.exec.Equality.pureJson(expected, actual);
                 yield diff == null ? ok()
                         : fail("assertJsonStringsEqual: FIRST DIFF at "
                                 + diff);
@@ -1023,6 +1023,20 @@ final class AssertVerdicts {
      * impossible: no arm can print the byte-divergence text for a
      * judgment the byte channel never made, because the probe and the
      * message read the same two booleans). */
+    /** The run-level judge mode: read ONCE ({@code -Dlegend.judge.mode=host});
+     * a per-assertion choice is impossible by construction. DATABASE mode is
+     * step 3's and is not selectable yet. */
+    enum JudgeMode { MIXED, HOST }
+
+    static final JudgeMode JUDGE_MODE = switch (
+            System.getProperty("legend.judge.mode", "").toLowerCase(java.util.Locale.ROOT)) {
+        case "" -> JudgeMode.MIXED;
+        case "host" -> JudgeMode.HOST;
+        default -> throw new com.legend.error.NotImplementedException(
+                "legend.judge.mode='" + System.getProperty("legend.judge.mode")
+                        + "': only 'host' is selectable (database mode is step 3)");
+    };
+
     private static ExecutionResult finish(String family, boolean wantEqual,
             boolean hostHeld, @com.legend.Nullable Boolean byteHeld,
             String detail,
@@ -1032,7 +1046,10 @@ final class AssertVerdicts {
             com.legend.exec.CanonicalDivergence.probeSqlVerdict(family,
                     hostHeld, byteHeld, detail);
         }
-        boolean held = byteHeld != null ? byteHeld : hostHeld;
+        // JUDGING_TWO_MODES: HOST mode takes the host judge's verdict only
+        // (the byte channel still reports as a census above); the unset
+        // default keeps today's mixed verdict-of-record until step 3 lands
+        boolean held = JUDGE_MODE == JudgeMode.HOST || byteHeld == null ? hostHeld : byteHeld;
         if (held == wantEqual) {
             return ok();
         }
@@ -2330,9 +2347,12 @@ final class AssertVerdicts {
 
     /** NUMERIC CHARTER Rule 3: both sides DECLARED Float — their kind is
      * Float whatever carrier the wire chose (PureAsserts judges by value). */
-    private static boolean floatDeclared(TypedSpec x, TypedSpec y) {
-        return x.info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                && y.info().type() == com.legend.compiler.element.type.Type.Primitive.FLOAT;
+    /** A side's values paired with the kind its DECLARATION gives them — the
+     * argument's type (a collection's element type); the judge lets a fine
+     * primitive kind decide and takes the carrier's for Number / classes. */
+    private static List<com.legend.exec.Equality.Typed> typedSide(List<Object> values,
+            TypedSpec arg) {
+        return com.legend.exec.Equality.Typed.all(values, arg.info().type());
     }
 
     private static SideFetch sideCanon(TypedSpec arg,

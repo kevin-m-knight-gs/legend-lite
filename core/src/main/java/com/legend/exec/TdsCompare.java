@@ -82,25 +82,13 @@ public final class TdsCompare {
      * matches ROW TUPLES of width {@code w}, never loose cells. */
     public static boolean rowTupleMultiset(List<Object> e, List<Object> a,
             int w) {
-        List<List<Object>> ep = chunk(e, w);
-        List<List<Object>> ap = chunk(a, w);
-        for (List<Object> row : ep) {
-            int hit = -1;
-            for (int i = 0; i < ap.size(); i++) {
-                if (rowEquals(row, ap.get(i))) {
-                    hit = i;
-                    break;
-                }
-            }
-            if (hit < 0) {
-                return false;
-            }
-            ap.remove(hit);
+        if (!Equality.rowMultiset(Equality.Typed.all(e, null), Equality.Typed.all(a, null), w)) {
+            return false;
         }
         // F2.4: row-tuple multiset leniency, instrumented
         ordLeniency("row-tuple", () -> {
             for (int i = 0; i < e.size(); i++) {
-                if (!PureAsserts.equalScalar(e.get(i), a.get(i))) {
+                if (!Equality.same(Equality.Typed.of(e.get(i)), Equality.Typed.of(a.get(i)))) {
                     return false;
                 }
             }
@@ -273,7 +261,7 @@ public final class TdsCompare {
         for (int i = 0; i < e.size(); i++) {
             Object x = e.get(i);
             Object y = a.get(i);
-            if (!PureAsserts.equalScalar(x, y)) {
+            if (!Equality.same(Equality.Typed.of(x), Equality.Typed.of(y))) {
                 return false;
             }
             if (java.util.Objects.equals(x, y)) {
@@ -305,13 +293,6 @@ public final class TdsCompare {
         return s.length() > 120 ? s.substring(0, 120) + "…" : s;
     }
 
-    private static List<List<Object>> chunk(List<Object> flat, int w) {
-        List<List<Object>> out = new ArrayList<>(flat.size() / w);
-        for (int i = 0; i < flat.size(); i += w) {
-            out.add(new ArrayList<>(flat.subList(i, i + w)));
-        }
-        return out;
-    }
 
     private static boolean rowsPositional(List<List<Object>> e,
             List<List<Object>> a) {
@@ -328,7 +309,7 @@ public final class TdsCompare {
             return false;
         }
         for (int i = 0; i < e.size(); i++) {
-            if (!PureAsserts.equalScalar(e.get(i), a.get(i))) {
+            if (!Equality.same(Equality.Typed.of(e.get(i)), Equality.Typed.of(a.get(i)))) {
                 return false;
             }
         }

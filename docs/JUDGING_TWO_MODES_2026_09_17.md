@@ -143,3 +143,89 @@ DECFLOAT average to DOUBLE itself: `H2AvgDelivers`).
 
 **Next.** Steps 2–4 as written above: the host-mode comparator, the database-mode canon and
 the assert natives, the differential gate.
+
+## Step 2 — the plan (written 2026-09-17, before any edit)
+
+**The one class.** `com.legend.exec.Equality` — the host-mode judge, the engine's
+`EqualityUtilities` rules (interpreted runtime) and its two JSON comparators, in one place.
+It receives VALUES PAIRED WITH THEIR DECLARED KIND (`Equality.Typed(value, Type)`): the
+caller (the corpus referee, the service-test runner) already knows each side's declared Pure
+type — the root type of the assert's arguments, a collection's element type, a grid's column
+types. An unrefined `Number` declaration takes the carrier's runtime kind, as the engine's
+runtime does. Entry points, each returning `null` for equal or the first-difference
+narrative, never a boolean the caller re-interprets:
+
+- `scalar(Typed e, Typed a)` — same kind, then by value: Integer exact; Decimal by the
+  engine's assert-seam `getValue().equals` (SCALE-SENSITIVE — `3.0D ≠ 3.00D`, the
+  equality-worlds fixture's World 1; §2 above said "numeric compare" and was wrong); Float
+  exact, then the ONE declared leniency (2 ULP of the larger magnitude,
+  Double×Double, finite), COUNTED through `Leniency`; String/Boolean exact; dates by the
+  temporal literal; enums by name; class instances by key tree (the caller restricts to keys
+  today — `restrictToKeys` stays the caller's), maps by sorted entries.
+- `ordered(List<Typed>, List<Typed>)` / `sameElements(...)` (sort, then ordered — the
+  engine's `assertSameElements`).
+- `grid(rows, columns kinds, ordered|multiset)` — TDS rows; cells through `scalar`.
+- `pureJson(e, a)` — `assertJsonStringsEqual`: the Pure JSON model's equality (a JSONNumber's
+  kind is part of its value: `68` ≠ `68.0`).
+- `serviceJson(e, a, unorderedRoot)` — `EqualToJson`: the engine's `JsonNodeComparator`
+  (numbers by `decimalValue` compare, kind-blind; null ≡ missing; root array as a multiset
+  where the result carries no order), plus the referee's 2-ULP policy through `Leniency`.
+- Any other shape → `Unjudged(shape)`: the assert FAILS naming the shape.
+
+**The switch.** `-Dlegend.judge.mode=host|database` (run-level; default UNSET = today's
+mixed verdict-of-record until step 3 lands). In host mode `AssertVerdicts.finish` takes the
+host verdict only; the byte channel still runs as a CENSUS (`CanonicalDivergence`) and never
+decides. A per-assertion choice is impossible by construction: the mode is read once.
+
+**Routed through it (and what that deletes):** `AssertVerdicts` ASSERT_EQUALS /
+ASSERT_SAME_ELEMENTS / ASSERT_EQ / tdsRowValuesVerdict / ASSERT_JSON_STRINGS_EQUAL;
+`ServiceTestRunner` EqualToJson. Deleted once routed: `PureAsserts.equalScalar` (the
+carrier lattice) and the threaded `floatDeclared` flag and its overloads;
+`TdsCompare.rowTupleMultiset`'s inner scalar compare and `ulpOnlyCellDrift` (the leniency
+has one home); `JsonCompare.wireTree/document/documentUnorderedRoot` (moved, not copied);
+`TestAssertions.diff`'s numeric leaf. `PureAsserts` keeps only what is not equality
+(assertSize, assertInstanceOf, repr). OUT OF SCOPE, said so: `H2Verify.norm` (B1) is the
+SQL-text replay's cross-engine tolerance — database against database, not host against
+golden — it stays with the replay arm and is step 3's; A7 `assertEqWithinTolerance` keeps its
+own arithmetic (a tolerance assert is not equality).
+
+**The guardrail (§5a).** One test: `Math.ulp` and the leniency counter appear in
+`Equality.java` only; every equality entry (`Equality.*`) is called only from
+`AssertVerdicts` and `ServiceTestRunner`; `PureAsserts.equalScalar` no longer exists.
+
+**Judge.** The chain twice: default mode (today's rosters, EXACT — nothing moved) and
+`legend.judge.mode=host` (rosters EXACT or every difference explained by §1/§2 and pinned
+in this doc). Ledger: `Equality.java` is a NEW evaluator row (THE judge, justified here);
+`PureAsserts`, `AssertVerdicts`, `TdsCompare`, `JsonCompare`, `TestAssertions` shrink.
+Two legs: (2a) the class, the switch, the routing — both chains; (2b) the deletions and the
+guardrail — both chains. No emission changes in either.
+
+## Step 2a — LANDED 2026-09-17 (the class, the switch, the routing)
+
+`com.legend.exec.Equality` decides every host equality: scalars by DECLARED kind (a side's
+values paired with its argument's type; Number / class / none take the carrier's runtime
+kind), Integer exact, Decimal by the engine's scale-sensitive equals, Float exact then the
+ONE counted 2-ULP leniency (`Equality.ulpFirings`), dates by the literal, ordered lists and
+same-elements (sort, then ordered), row multisets, structural instances / maps, and the two
+JSON rules (`pureJson` for `assertJsonStringsEqual`, `serviceJson` for `EqualToJson`). The
+carrier lattices in `PureAsserts`, `TdsCompare`, `JsonCompare`, `TestAssertions` are
+DELEGATIONS now (PureAsserts 336 → 242 lines, JsonCompare 110 → 25, TdsCompare 444 → 425;
+Equality 417); `-Dlegend.judge.mode=host` makes `AssertVerdicts.finish` take the host verdict
+only (the byte channel reports as a census); unset stays today's mixed verdict.
+
+**Judged.** Default mode: corpus DuckDB 108 EXACT, H2 430 EXACT, stress 4,700 / 4,622, PCT
+lanes and Channel B green (no dual-verdict disagreement). HOST mode: DuckDB 108 EXACT;
+H2 428 — two rows PASS in host mode that fail in mixed mode
+(`mapping::boolean::testProject`, `projection::filter::in::testInWithDynaFunction`: "grid
+canonical renders differ (host lattice agreed)" — the H2 grid canon's TEXT differs while the
+values are equal; §1 says the byte channel is the product's judge and it is wrong here, a
+step-3 item). Two things the host judge EXPOSED on the way, both fixed in the product's
+typer, not in the judge: `NumberKinds.refine` was refining a GENERIC native whose type
+variable resolved to Number (`sort` over a mixed list — now the signature's declared return
+type decides), and refining SELECTORS (`max(1.23, 2)` is the Integer 2 — now only the
+arithmetic natives plus/minus/times/rem/abs/sum join). Both are engine facts the mixed judge
+had hidden behind the byte canon.
+
+**Next, 2b:** the deletions (`PureAsserts.equalScalar` and the float-declared overloads, the
+second ULP site `TdsCompare.ulpOnlyCellDrift`, `JsonCompare` as a class), grid cells by
+COLUMN kind, and the §5a guardrail.

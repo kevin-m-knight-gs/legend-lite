@@ -51,13 +51,19 @@ builder (`PureTestBuilderInterpreted`), whose Float is BigDecimal-backed, so the
 passes there only by keeping the digits. The two runtimes disagree on this row; the server
 runs compiled.
 
-**Rule 2a — a Number-DECLARED native result has ONE owner for its kind (2026-09-17).** A
-declaration of `Number` gives the boundary nothing to key on (`rem(5.5, 2)` computes as a
-DECIMAL under Rule 1). The reference decides the kind in one place: every Number-returning
-native ends in `NumericUtilities.toPureNumberValueExpression(result, anyOperandIsDecimal)`
-(legend-pure interpreted `Rem.java` :61-82, `Abs.java` :50-70, `Power.java` :54,
-`NumericAccumulator` for the Number overloads of plus/minus/times) — the kind is the JOIN of
-the operand kinds: any Decimal → Decimal, all Integer → Integer, otherwise Float. Lite
+**Rule 2a — a Number-DECLARED arithmetic native result has ONE owner for its kind
+(2026-09-17).** A declaration of `Number` gives the boundary nothing to key on (`rem(5.5, 2)`
+computes as a DECIMAL under Rule 1). The reference decides the kind in one place for the
+natives that COMPUTE a number: plus, minus, times, rem, abs, sum end in
+`NumericUtilities.toPureNumberValueExpression(result, anyOperandIsDecimal)` (legend-pure
+interpreted `Rem.java` :61-82, `Abs.java` :50-70, `NumericAccumulator` for the Number
+overloads) — the kind is the JOIN of the operand kinds: any Decimal → Decimal, otherwise any
+Float → Float; an all-Integer join is left at Pure's static Number (the boundary converts
+nothing for it). A SELECTOR (max, min, greatest, least) returns the chosen element with its
+OWN kind — `max(1.23, 2)` is the Integer 2 (Channel B, 2026-09-17) — and stays Number; so
+does `pow` (Float for a double operand, Integer for two integers, `Power.java`), and so does
+any GENERIC native whose type variable merely resolved to Number (`sort` over a mixed list
+keeps every element's kind). The refinement reads the SIGNATURE's declared return type. Lite
 owns that rule ONCE, in the typer's refinement of the registered signature's output
 (`Typer.refineNumberKind`, the same seam as the Decimal carrier and parseDate), and the root
 envelope is its one consumer. No per-function lowering rule, no adapter conversion.
