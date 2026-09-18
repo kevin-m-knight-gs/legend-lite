@@ -3782,11 +3782,13 @@ memory 2026-09-17). From here: CI red blocks every push.
 **Chain.** Green on the first run: G2 24s, G1 72s, G3 10s, G4 94s, G5 32s, G6 130s, G7 41s, G9 30s, G8 133s, G10 48s.
 
 **Numeric step 1 — the kind decided once, in SQL, at the root (2026-09-17):** chain GREEN
-(gates 1–10), parallel wall ≈ 7m24s (stream A: G1 111 · G3 21 · G4 207 · G5 77; stream B:
-G6 257 · G7 87 · G9 63; stream C: G8 251 · G10 96; G2 29 first). G4 207 s in the chain
-against 57 s standalone — contention, the same shape as the 2026-09-17 morning chain (188 s);
-the 4-minute parallel budget is NOT met and is owed a lane split (the stress classes moved
-out of G1 already; G4/G8 share the DuckDB instance). Rosters: DuckDB 108 EXACT; H2 440 → 430
+(gates 1–10). CORRECTED: the first green run's 7m24s (G4 207 · G6 257 · G8 251) was
+MACHINE LOAD — stray corpus/stress JVMs from the day's probes plus IntelliJ — not the tree.
+Re-measured on a quiet machine: SERIAL 408 s (G2 25 · G1 42 · G3 7 · G4 59 · G5 26 · G6 86 ·
+G7 28 · G9 20 · G8 89 · G10 26 — every gate faster alone than any prior record) and
+PARALLEL wall 249 s = 4m09s (G2 24; A: G1 70 · G3 10 · G4 107 · G5 38 = 225; B: G6 133 ·
+G7 46 · G9 36 = 215; C: G8 137 · G10 55 = 192), at the recorded numbers. Rule: `ps` for
+java/mvn/duckdb and `uptime` before judging any chain time. Rosters: DuckDB 108 EXACT; H2 440 → 430
 (12 gained by the DOUBLE average, 2 lost to H2's own DECFLOAT/JSON rendering under a Float
 declaration — `graphFetch::tests::qualifier::testSubAggregationInQualifier`,
 `mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping`; H2 lane quick
