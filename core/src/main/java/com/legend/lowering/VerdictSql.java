@@ -64,17 +64,93 @@ public final class VerdictSql {
 
     /** The equality verdict statement over two framed sides. */
     public static SqlQuery equality(Side e, Side a) {
-        List<SqlWith.Cte> ctes = List.of(
-                new SqlWith.Cte("__e", canonRows(e)),
-                new SqlWith.Cte("__a", canonRows(a)));
-        SqlExpr fe = frame("__e", e);
-        SqlExpr fa = frame("__a", a);
+        return statement(canonRows(e), canonRows(a), e.many(), a.many(),
+                e.byCanonText(), List.of());
+    }
+
+    // ── the GRID forms (leg 3.1b): a TABULAR side rides the grid wrap
+    // (CanonicalRenderSql.wrapTdsCanon: __rowcanon + __cell<i>); its value
+    // PEER (a literal list) is framed into rows of the grid's width, or
+    // compared as a loose cell pool (the sameElements form) — the same
+    // rules TdsCompare.peerRowCanons / tdsCellCanons apply in Java.
+
+    /** A grid side: its wrapped plan and its width (columns). */
+    public record GridSide(SqlQuery wrapped, int width) {
+    }
+
+    /** A value peer of a grid: its wrapped plan, the literal-channel canon
+     * column, and whether it is the EXPECTED side (the golden's
+     * {@code 'TDSNull'} string cells spell the bare sentinel there only —
+     * a real 'TDSNull' string on OUR wire stays quoted). */
+    public record PeerSide(SqlQuery wrapped, String canonColumn, boolean expected) {
+    }
+
+    /** {@code assertEquals} over rows: the grid's row canons against the
+     * peer's cells chunked by the grid's width; ordered by arrival, or as
+     * a row multiset when {@code multiset}. {@code gridIsExpected} says
+     * which side the grid is. */
+    public static SqlQuery gridRows(GridSide grid, PeerSide peer,
+            boolean gridIsExpected, boolean multiset) {
+        SqlQuery g = gridRowCanons(grid.wrapped());
+        SqlQuery p = peerRowCanons(peer, grid.width());
+        SqlExpr divisible = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                SqlExpr.Call.of(SqlFn.MOD,
+                        scalarOver("__peer", new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                                List.of(col("__peer", RN)), false, List.of()),
+                                "__n", SqlType.Scalar.BIGINT, null),
+                        new SqlExpr.IntLit(grid.width())),
+                new SqlExpr.IntLit(0));
+        List<SqlWith.Cte> extra = List.of(new SqlWith.Cte("__peer", peerCells(peer)));
+        List<SqlExpr.Case.When> more = List.of(new SqlExpr.Case.When(divisible,
+                new SqlExpr.StringLit("tds-peer: cells not divisible by width "
+                        + grid.width())));
+        return gridIsExpected
+                ? statement(g, p, true, true, multiset, more, extra)
+                : statement(p, g, true, true, multiset, more, extra);
+    }
+
+    /** {@code assertSameElements} over a grid: the loose CELL pool (every
+     * cell of every row) against the peer's cells, as a multiset. */
+    public static SqlQuery gridCells(GridSide grid, PeerSide peer,
+            boolean gridIsExpected) {
+        SqlQuery g = gridCellCanons(grid);
+        SqlQuery p = peerCells(peer);
+        return gridIsExpected
+                ? statement(g, p, true, true, true, List.of())
+                : statement(p, g, true, true, true, List.of());
+    }
+
+    /** Two grids: row canons against row canons. */
+    public static SqlQuery gridPair(SqlQuery e, SqlQuery a, boolean multiset) {
+        return statement(gridRowCanons(e), gridRowCanons(a), true, true, multiset, List.of());
+    }
+
+    private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
+            boolean eMany, boolean aMany, boolean byCanonText,
+            List<SqlExpr.Case.When> moreUnjudged) {
+        return statement(eRows, aRows, eMany, aMany, byCanonText, moreUnjudged, List.of());
+    }
+
+    /** The statement over two ROW SOURCES (each {@code (__c, __rn)}). */
+    private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
+            boolean eMany, boolean aMany, boolean byCanonText,
+            List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes) {
+        List<SqlWith.Cte> ctes = new ArrayList<>(extraCtes);
+        ctes.add(new SqlWith.Cte("__e", eRows));
+        ctes.add(new SqlWith.Cte("__a", aRows));
+        SqlExpr fe = frame("__e", eMany, byCanonText);
+        SqlExpr fa = frame("__a", aMany, byCanonText);
         SqlExpr verdict = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, fe, fa);
-        SqlExpr unjudged = new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.OR, nullCells("__e"), nullCells("__a")),
-                        new SqlExpr.StringLit("null-canon-cell"))),
-                null);
+        List<SqlExpr.Case.When> whens = new ArrayList<>(moreUnjudged);
+        whens.add(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.OR, nullCells("__e"), nullCells("__a")),
+                new SqlExpr.StringLit("null-canon-cell")));
+        // a canon carrying the JSON-tree marker is never comparable (the
+        // Java rule: decline on sight, F10's contract) — unjudged by name
+        whens.add(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.OR, treeCells("__e"), treeCells("__a")),
+                new SqlExpr.StringLit("unclaimable tree cell")));
+        SqlExpr unjudged = new SqlExpr.Case(whens, null);
         List<SqlSelect.Projection> ps = List.of(
                 new SqlSelect.Projection(verdict, VERDICT,
                         new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
@@ -151,6 +227,16 @@ public final class VerdictSql {
                 SqlExpr.Column.of("w", s.wrapped().outputs(), s.canonColumn()),
                 SqlType.Scalar.VARCHAR);
         SqlQuery inner = s.wrapped();
+        SqlExpr where = null;
+        if (s.many() && inner instanceof SqlSelect vs && !vs.projections().isEmpty()
+                && vs.projections().get(0).alias() != null) {
+            // pure collections hold no empties: the executor's value decode
+            // DROPS a NULL row of a value collection, and so does the canon
+            // side (a NULL canon over a non-null value stays unjudged)
+            where = SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                    SqlExpr.Column.of("w", vs.projections().get(0).alias(),
+                            SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED));
+        }
         if (s.byCanonText() && inner instanceof SqlSelect ws && !ws.orderBy().isEmpty()) {
             // a canon-ordered side re-orders by __c in the aggregate; the
             // wrap's own ORDER BY is redundant here and, inlined into a
@@ -167,7 +253,89 @@ public final class VerdictSql {
         return new SqlSelect(List.of(
                         new SqlSelect.Projection(canon, C, cOut),
                         new SqlSelect.Projection(rn, RN, rnOut)),
-                false, new SqlSource.Subselect(inner, "w", null), null,
+                false, new SqlSource.Subselect(inner, "w", null), where,
+                List.of(), null, null, List.of(), null, null,
+                List.of(cOut, rnOut));
+    }
+
+    /** A grid side's row canons in arrival order: {@code SELECT
+     * CAST(w.__rowcanon AS VARCHAR) AS __c, row_number() OVER () AS __rn}. */
+    private static SqlQuery gridRowCanons(SqlQuery wrapped) {
+        return rowsOf(new SqlExpr.Cast(
+                SqlExpr.Column.of("w", wrapped.outputs(), CanonicalRenderSql.ROW_CANON),
+                SqlType.Scalar.VARCHAR), wrapped);
+    }
+
+    /** A grid side's loose CELL pool: one row per cell of every row, the
+     * per-cell canons the wrap projected ({@code __cell<i>}), stacked. */
+    private static SqlQuery gridCellCanons(GridSide grid) {
+        List<SqlQuery> branches = new ArrayList<>();
+        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        for (int i = 0; i < grid.width(); i++) {
+            SqlExpr cell = new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
+                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR);
+            branches.add(new SqlSelect(
+                    List.of(new SqlSelect.Projection(cell, C, cOut)),
+                    false, new SqlSource.Subselect(grid.wrapped(), "w", null), null,
+                    List.of(), null, null, List.of(), null, null, List.of(cOut)));
+        }
+        SqlQuery stacked = branches.size() == 1 ? branches.get(0)
+                : new com.legend.sql.SqlUnion(branches, true, List.of(cOut));
+        // the pool's arrival order is meaningless (a multiset by definition);
+        // __rn exists for the frame's count and the LIMIT 1 read only
+        return rowsOf(SqlExpr.Column.of("w", List.of(cOut), C), stacked);
+    }
+
+    /** The peer's element canons as cells: the literal-channel canon,
+     * the golden's quoted {@code 'TDSNull'} cell spelled as the bare
+     * sentinel on the expected side. */
+    private static SqlQuery peerCells(PeerSide peer) {
+        SqlExpr c = new SqlExpr.Cast(
+                SqlExpr.Column.of("w", peer.wrapped().outputs(), peer.canonColumn()),
+                SqlType.Scalar.VARCHAR);
+        if (peer.expected()) {
+            c = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL, c, new SqlExpr.StringLit("'TDSNull'")),
+                    new SqlExpr.StringLit("TDSNull"))), c);
+        }
+        return rowsOf(c, peer.wrapped());
+    }
+
+    /** The peer's cells chunked into rows of {@code width}: cells in
+     * arrival order, grouped by {@code (rn - 1) - ((rn - 1) MOD width)}
+     * (integer arithmetic on every dialect), each group joined by the
+     * cell separator in cell order — the same framing
+     * {@code TdsCompare.peerRowCanons} writes in Java. Reads the
+     * {@code __peer} CTE ({@link #peerCells}). */
+    private static SqlQuery peerRowCanons(PeerSide peer, int width) {
+        SqlExpr rn = col("__peer", RN);
+        SqlExpr rn0 = SqlExpr.Call.of(SqlFn.MINUS, rn, new SqlExpr.IntLit(1));
+        SqlExpr group = SqlExpr.Call.of(SqlFn.MINUS, rn0,
+                SqlExpr.Call.of(SqlFn.MOD, rn0, new SqlExpr.IntLit(width)));
+        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        SqlExpr joined = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                List.of(col("__peer", C), new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP)),
+                false, List.of(new SqlSelect.SortKey(rn, true, null, null)));
+        SqlExpr first = new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(rn), false, List.of());
+        return new SqlSelect(List.of(
+                        new SqlSelect.Projection(joined, C, cOut),
+                        new SqlSelect.Projection(first, RN, rnOut)),
+                false, cte("__peer"), null, List.of(group), null, null,
+                List.of(), null, null, List.of(cOut, rnOut));
+    }
+
+    /** {@code SELECT <canon> AS __c, row_number() OVER () AS __rn FROM (source) w}. */
+    private static SqlQuery rowsOf(SqlExpr canon, SqlQuery source) {
+        SqlExpr rn = new SqlExpr.WindowCall(
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                List.of(), List.of(), null);
+        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        return new SqlSelect(List.of(
+                        new SqlSelect.Projection(canon, C, cOut),
+                        new SqlSelect.Projection(rn, RN, rnOut)),
+                false, new SqlSource.Subselect(source, "w", null), null,
                 List.of(), null, null, List.of(), null, null,
                 List.of(cOut, rnOut));
     }
@@ -204,6 +372,22 @@ public final class VerdictSql {
                 "__n", SqlType.Scalar.BIGINT, null);
     }
 
+    /** {@code (SELECT count(*) FROM cte WHERE strpos(__c, marker) > 0) > 0}. */
+    private static SqlExpr treeCells(String cteName) {
+        OutputCol out = new OutputCol("__trees", SqlType.Scalar.BIGINT, false);
+        SqlExpr n = new SqlExpr.ScalarSubquery(new SqlSelect(
+                List.of(new SqlSelect.Projection(
+                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(cteName, RN)),
+                                false, List.of()), "__trees", out)),
+                false, cte(cteName),
+                SqlExpr.Call.of(SqlFn.GREATER,
+                        SqlExpr.Call.of(SqlFn.STRPOS, col(cteName, C),
+                                new SqlExpr.StringLit(CanonicalRenderSql.TREE_MARKER)),
+                        new SqlExpr.IntLit(0)),
+                List.of(), null, null, List.of(), null, null, List.of(out)));
+        return SqlExpr.Call.of(SqlFn.GREATER, n, new SqlExpr.IntLit(0));
+    }
+
     /** {@code (SELECT count(*) FROM cte WHERE __c IS NULL) > 0}. */
     private static SqlExpr nullCells(String cteName) {
         OutputCol out = new OutputCol("__nulls", SqlType.Scalar.BIGINT, false);
@@ -218,9 +402,9 @@ public final class VerdictSql {
     }
 
     /** The spec's side framing in SQL. */
-    private static SqlExpr frame(String cteName, Side s) {
+    private static SqlExpr frame(String cteName, boolean many, boolean byCanonText) {
         SqlExpr empty = new SqlExpr.StringLit("[]");
-        if (!s.many()) {
+        if (!many) {
             // a [0..1] side: its one row's canon, or '[]' when there is
             // none or the cell is NULL (every empty form canons '[]')
             return SqlExpr.Call.of(SqlFn.COALESCE,
@@ -229,7 +413,7 @@ public final class VerdictSql {
                     empty);
         }
         SqlExpr n = count(cteName);
-        SqlExpr key = s.byCanonText() ? col(cteName, C) : col(cteName, RN);
+        SqlExpr key = byCanonText ? col(cteName, C) : col(cteName, RN);
         SqlExpr joined = scalarOver(cteName,
                 new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
                         List.of(col(cteName, C), new SqlExpr.StringLit(", ")),

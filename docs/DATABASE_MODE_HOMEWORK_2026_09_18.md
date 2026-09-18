@@ -631,6 +631,47 @@ host-vs-database difference to rule on. A third H2 host-mode item surfaced besid
 expected `^TDSNull()` cell decodes as the STRING `'null'` on H2 (`expected: [11, 'null']`,
 the five `mapping::tree` rows in the H2 fail roster) — an H2 lane item, named here.
 
+## 4e. Leg 3.1b, part 2 — LANDED 2026-09-18 (the grid verdict statement)
+
+**What exists now.** `wrapTdsCanon` appends one canon per CELL (`__cell<i>`) before the
+row canon, so the cell pool needs no string splitting on any dialect (the executor's decode
+reads the first width columns and harvests the row canon at 2·width + 1). `VerdictSql`
+gained the grid forms: `gridRows` (the grid's row canons against the peer's cells chunked by
+the grid's width — cells in ARRIVAL order grouped by `(rn−1) − ((rn−1) MOD width)` and
+joined by the cell separator, the same framing `TdsCompare.peerRowCanons` writes; ordered
+or as a row multiset), `gridCells` (the loose cell pool for `assertSameElements`, a
+`UNION ALL` of the per-cell canons), `gridPair` (two grids' row canons). An expected
+`^TDSNull()` element is rewritten to the string `'TDSNull'` at plan time and the peer rule
+spells it bare on the expected side (direction-aware, as in Java). A canon carrying the
+JSON-tree marker is UNJUDGED ("unclaimable tree cell"). A collection side drops its NULL
+VALUE rows as the executor's value decode does. An unrefined NUMBER grid cell spells by its
+wire kind like a String-declared one.
+
+**A 3.1a hole this closed.** The equals arm skipped the database branch whenever EITHER
+side was a grid (`gridPair` meant "any side tabular"), so grid asserts were silently
+host-judged in database mode — the census showed them as `claimed` (the byte channel) and
+nothing flagged it. Every equals / sameElements assert now routes to the statement in
+database mode; the sorted flat-cells idiom routes as a cell pool.
+
+**Defects the lane forced out of the builder (each a real one):** the sides were planned
+with the canon-text sort, which scrambled a peer's cells across rows (riders plan unsorted;
+the statement orders); the expected `^TDSNull()` rode the JSON carrier as a tree; the value
+decode and the canon harvest had to move with the appended cell columns.
+
+**Judged (DuckDB lane, database mode):**
+
+| | count |
+|---|---|
+| asserts judged in the database — assertEquals / assertSameElements | 1,569 / 723 |
+| tests LOST against the host roster (from 34 before the grids routed; 150 when they first did) | 63 |
+| unjudged: null canon cell 14 · non-primitive kind gate 10 · enum (cell or literal) 12 · no literal channel on the peer 8 (date literals) · keyless instance 4 · tree cell 3 · statement error 1 · unrefined Number 1 | 53 |
+| real differences: the 2-ULP float pairs (sqlFunction acos/asin/…: host mode's declared leniency, not yet a SQL predicate — part 3) | 7 |
+| real differences: `'4'`/`'7'`/`'1'` expected STRINGS over INT columns (the open ruling of §4d — now three witnesses: the dyna-function test, `testSimpleDistinct`, `testSimpleDistinctWithFilter`) | 3 |
+
+**Next (part 3):** the leniency predicate in SQL (`abs(e−a) ≤ 2·ulp(max)` over the value
+columns for finite doubles, positional, counted); then the null-canon-cell 14 read one by
+one; then 3.1c.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

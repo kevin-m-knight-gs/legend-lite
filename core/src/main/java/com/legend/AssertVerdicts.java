@@ -307,6 +307,14 @@ final class AssertVerdicts {
                 // sorting a mixed-type cell pool is never a SQL column
                 TypedSpec cellsE = bareSortOverCells(args.get(0));
                 TypedSpec cellsA = bareSortOverCells(args.get(1));
+                if (JUDGE_MODE == JudgeMode.DATABASE && wantEqual
+                        && (cellsE != null || cellsA != null)) {
+                    // the sorted flat-cells idiom IS the cell-pool multiset
+                    yield databaseVerdict(name, true,
+                            cellsE != null ? cellsE : args.get(0),
+                            cellsA != null ? cellsA : args.get(1),
+                            letPrefix, specs, env, hook, true, true);
+                }
                 if (wantEqual && (cellsE != null || cellsA != null)) {
                     SideFetch ef0 = sideCanon(cellsE != null ? cellsE : args.get(0),
                             letPrefix, specs, env, false, hook);
@@ -361,9 +369,11 @@ final class AssertVerdicts {
                 // host-side instead — semantics-free string sorting.
                 boolean gridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
-                if (JUDGE_MODE == JudgeMode.DATABASE && !gridPair) {
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    // 3.1b: grid sides route too (the statement frames the
+                    // peer by the grid's width; a grid PAIR is unjudged there)
                     yield databaseVerdict(name, wantEqual, args.get(0), args.get(1),
-                            letPrefix, specs, env, hook, incidental);
+                            letPrefix, specs, env, hook, incidental, false);
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                         env, incidental && !gridPair, hook);
@@ -429,9 +439,9 @@ final class AssertVerdicts {
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
-                if (JUDGE_MODE == JudgeMode.DATABASE && !seGridPair) {
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
                     yield databaseVerdict(name, true, args.get(0), args.get(1),
-                            letPrefix, specs, env, hook, true);
+                            letPrefix, specs, env, hook, true, true);
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                         env, !seGridPair, hook);
@@ -1073,7 +1083,8 @@ final class AssertVerdicts {
     private static ExecutionResult databaseVerdict(String name, boolean wantEqual,
             TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook, boolean canonicalOrder) {
+            @com.legend.Nullable SpliceHook hook, boolean canonicalOrder,
+            boolean cellPool) {
         String ke = kindClassOf(eSpec.info().type());
         String ka = kindClassOf(aSpec.info().type());
         boolean anyNil = com.legend.compiler.element.type.PlatformTypes.isNil(eSpec.info().type())
@@ -1095,8 +1106,17 @@ final class AssertVerdicts {
             return fail(name + ": UNJUDGED in database mode — kind-gate: non-primitive ("
                     + typeName(eSpec) + " vs " + typeName(aSpec) + ")");
         }
-        var re = new com.legend.exec.CanonRider(canonicalOrder);
-        var ra = new com.legend.exec.CanonRider(canonicalOrder);
+        // the riders plan WITHOUT the canon-text sort: the statement orders
+        // (string_agg ORDER BY __c for a multiset form) and a grid's value
+        // peer is chunked into rows in its ARRIVAL order — a wrap-time sort
+        // would scramble the cells across rows (3.1b lane witness)
+        var re = new com.legend.exec.CanonRider(false);
+        var ra = new com.legend.exec.CanonRider(false);
+        // the golden's ^TDSNull() cells spell the bare sentinel (direction-
+        // aware: the EXPECTED side only, as TdsCompare.peerElementCanons) —
+        // rewritten at plan time so the cell rides the literal channel as
+        // the string 'TDSNull' the peer rule maps, never a JSON tree
+        eSpec = com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(eSpec);
         StatementExecutor.PlannedValue pe = StatementExecutor.planValue(eSpec, letPrefix, specs, env, re, hook);
         StatementExecutor.PlannedValue pa = StatementExecutor.planValue(aSpec, letPrefix, specs, env, ra, hook);
         // a HOST-CONSTANT side is bound on the OTHER side's database (a
@@ -1107,17 +1127,55 @@ final class AssertVerdicts {
                 : pa.side() != null && !pa.side().storeFree() ? pa.side().connection()
                 : env.connection();
         StatementExecutor.WrappedSide we = pe.side() != null ? pe.side()
-                : constantSide(pe.answered(), eSpec, re, canonicalOrder, env, on);
+                : constantSide(pe.answered(), eSpec, re, false, env, on);
         StatementExecutor.WrappedSide wa = pa.side() != null ? pa.side()
-                : constantSide(pa.answered(), aSpec, ra, canonicalOrder, env, on);
+                : constantSide(pa.answered(), aSpec, ra, false, env, on);
         String why = we == null ? "host-value side (expected): " + describe(pe.answered())
                 : wa == null ? "host-value side (actual): " + describe(pa.answered())
                 : re.declined() != null ? "side-e: " + re.declined()
                 : ra.declined() != null ? "side-a: " + ra.declined()
-                : re.tdsWrapped() || ra.tdsWrapped() ? "grid side (leg 3.1b)"
                 : we.connection() != wa.connection() && !we.storeFree() && !wa.storeFree()
                         ? "sides on different databases"
                 : null;
+        // leg 3.1b — a GRID side (the tabular wrap): the statement compares
+        // its row canons against the peer's cells chunked by the grid's
+        // width (assertEquals) or the loose cell pool (assertSameElements)
+        boolean gridE = why == null && re.tdsWrapped();
+        boolean gridA = why == null && ra.tdsWrapped();
+        if (gridE || gridA) {
+            if (gridE && gridA) {
+                // two grids: their row canons against each other
+                return runVerdict(name, wantEqual,
+                        com.legend.lowering.VerdictSql.gridPair(
+                                java.util.Objects.requireNonNull(we).plan(),
+                                java.util.Objects.requireNonNull(wa).plan(), canonicalOrder),
+                        we.storeFree() ? java.util.Objects.requireNonNull(wa).connection()
+                                : we.connection(), env);
+            } else {
+                StatementExecutor.WrappedSide gw = gridE ? we : wa;
+                com.legend.exec.CanonRider pr = gridE ? ra : re;
+                StatementExecutor.WrappedSide pw = gridE ? wa : we;
+                var schema = com.legend.compiler.element.type.Type.schemaView(
+                        java.util.Objects.requireNonNull(gw).shapeInfo().type());
+                int width = schema == null ? 0 : schema.columns().size();
+                if (width <= 0) {
+                    why = "grid side without a schema view";
+                } else if (!pr.wrapped() || pr.literalIndex() < 0) {
+                    why = "tds-peer: no literal channel";
+                } else {
+                    var grid = new com.legend.lowering.VerdictSql.GridSide(gw.plan(), width);
+                    var peer = new com.legend.lowering.VerdictSql.PeerSide(
+                            java.util.Objects.requireNonNull(pw).plan(),
+                            "__canon" + pr.literalIndex(), !gridE);
+                    com.legend.sql.SqlQuery gq = cellPool
+                            ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE)
+                            : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
+                                    canonicalOrder);
+                    return runVerdict(name, wantEqual, gq,
+                            gw.storeFree() ? pw.connection() : gw.connection(), env);
+                }
+            }
+        }
         // a store-free side rides the store-reading side's database
         java.sql.Connection runOn = we != null && wa != null
                 ? (we.storeFree() ? wa.connection() : we.connection()) : env.connection();
@@ -1151,6 +1209,15 @@ final class AssertVerdicts {
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
                         ra.many(), canonicalOrder));
+        return runVerdict(name, wantEqual, vq, runOn, env);
+    }
+
+    /** Execute a verdict statement on {@code on} and read its one row:
+     * unjudged (counted, the assert fails with the reason), or the verdict
+     * (never NULL) with the two framed canons as the message. */
+    private static ExecutionResult runVerdict(String name, boolean wantEqual,
+            com.legend.sql.SqlQuery vq, java.sql.Connection runOn,
+            StatementExecutor.ExecEnv env) {
         ExecutionResult r;
         try {
             r = com.legend.exec.Executor.execute(env.dialect().render(vq), vq,

@@ -311,6 +311,11 @@ public final class CanonicalRenderSql {
      * silent mis-split. */
     public static final String TDS_CELL_SEP = "\u001F";
 
+    /** The grid wrap's appended columns: the per-ROW canon (last), and
+     * one per-CELL canon per column before it (leg 3.1b). */
+    public static final String ROW_CANON = "__rowcanon";
+    public static final String CELL_CANON = "__cell";
+
     /** V7 §8 leg 1 (fusion-spike F2, user-ratified) — wrap a TABULAR
      * plan so every row carries its canonical text: per-cell
      * PURE-LITERAL spellings ({@link LiteralSpelling#literal} — the
@@ -355,6 +360,10 @@ public final class CanonicalRenderSql {
                     LiteralSpelling.ValueLane.GRID_FETCH);
         }
         SqlExpr row = null;
+        // leg 3.1b: every cell's canon is ALSO projected on its own
+        // (__cell<i>) so the database-mode cell-pool verdict reads cells
+        // without splitting the row canon (no string_split on any dialect)
+        List<SqlExpr> cellCanons = new java.util.ArrayList<>();
         for (int i = 0; i < plan.outputs().size(); i++) {
             com.legend.sql.OutputCol col = plan.outputs().get(i);
             Type kind = schema.columns().get(i).type();
@@ -367,7 +376,9 @@ public final class CanonicalRenderSql {
             // (a Boolean or temporal declaration converts too — the
             // transformer's Boolean and parseDate arms — so only the STRING
             // declaration is the identity)
-            if (kind == Type.Primitive.STRING) {
+            if (kind == Type.Primitive.STRING || kind == Type.Primitive.NUMBER) {
+                // (an unrefined NUMBER declaration likewise: the wire's fine
+                // kind is the cell's — the engine reads by result-set type)
                 // the plan's OUTPUT label is stamp-derived (the declaration's
                 // VARCHAR); the WIRE fact is the projection expression's own
                 // type fact (a table column ref carries its DDL type)
@@ -437,6 +448,7 @@ public final class CanonicalRenderSql {
                             SqlExpr.Call.of(SqlFn.CONCAT, row,
                                     new SqlExpr.StringLit(TDS_CELL_SEP)),
                             cell);
+            cellCanons.add(cell);
         }
         List<com.legend.sql.SqlSelect.Projection> projections =
                 new java.util.ArrayList<>();
@@ -444,10 +456,16 @@ public final class CanonicalRenderSql {
             projections.add(new com.legend.sql.SqlSelect.Projection(
                     SqlExpr.Column.of(null, col), col.name(), col));
         }
+        for (int i = 0; i < cellCanons.size(); i++) {
+            projections.add(new com.legend.sql.SqlSelect.Projection(
+                    cellCanons.get(i), CELL_CANON + i,
+                    new com.legend.sql.OutputCol(CELL_CANON + i,
+                            SqlType.Scalar.VARCHAR, true)));
+        }
         projections.add(new com.legend.sql.SqlSelect.Projection(
                 Objects.requireNonNull(row, "grid canon over 0 columns"),
-                "__rowcanon",
-                new com.legend.sql.OutputCol("__rowcanon",
+                ROW_CANON,
+                new com.legend.sql.OutputCol(ROW_CANON,
                         SqlType.Scalar.VARCHAR, true)));
         return new TdsWrap(new com.legend.sql.SqlSelect(projections,
                 false,

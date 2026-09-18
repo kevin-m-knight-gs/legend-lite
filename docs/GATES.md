@@ -3914,3 +3914,19 @@ engine tests assert opposite kinds for a String-declared INT column). DuckDB 108
 declines 224 → 216 (a canon that used to error and be silently declined now spells). Ledger:
 StatementExecutor 2216 → 2209 (`evalValue`/`planValue` share `sideBody`). Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4d.
+
+**Judging step 3, leg 3.1b part 2 — the grid verdict statement (2026-09-18):** chain
+GREEN (gates 1–10), quiet machine, parallel wall ≈ 4m05s (G2 26; A: G1 76 · G3 11 · G4 97 ·
+G5 35 = 219; B: G6 138 · G7 42 · G9 31 = 211; C: G8 140 · G10 49 = 189). No roster moved in
+host mode. `wrapTdsCanon` appends per-cell canons (`__cell<i>`) before the row canon; the
+executor's decode and harvest moved with them (host lanes EXACT with the wider wrap).
+`VerdictSql` grid forms (rows chunked by width, cell pool, grid pair); expected `^TDSNull()`
+rewritten to the sentinel string in the compiler layer (`VerdictQueries.tdsNullSentinel` —
+a first chain was red on Invariant 7, typed nodes minted outside the compiler layers, fixed
+by moving it); tree-marker canons unjudged; NULL value rows dropped on collection sides;
+NUMBER grid cells spell by wire kind. Closed a 3.1a hole: grid asserts had been host-judged
+in database mode (the "grid pair" gate meant any side tabular). DuckDB database mode:
+2,292 asserts judged in the database (equals 1,569, sameElements 723), 63 tests lost vs
+host: 53 named unjudged, 7 two-ULP float pairs (the leniency predicate, part 3), 3
+String-over-INT rows (the open ruling). Ledger with reasons: AssertVerdicts 1996 → 2044.
+Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4e.

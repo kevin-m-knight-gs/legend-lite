@@ -446,4 +446,46 @@ public final class VerdictQueries {
         reduced.set(last, bare);
         return reduced;
     }
+
+    /** An expected literal collection's {@code ^TDSNull()} elements as the
+     * string {@code 'TDSNull'} (the golden convention's null-cell value;
+     * the peer rule spells it bare on the expected side). All-string
+     * afterwards → a String collection; otherwise the collection keeps
+     * its mixed stamp (the literal channel). Minted HERE (Invariant 7: the
+     * compiler layers own typed nodes), for the database-mode verdict. */
+    public static com.legend.compiler.spec.typed.TypedSpec tdsNullSentinel(
+            com.legend.compiler.spec.typed.TypedSpec spec) {
+        if (!(spec instanceof com.legend.compiler.spec.typed.TypedCollection c)) {
+            return spec;
+        }
+        boolean any = false;
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> out = new java.util.ArrayList<>(c.elements().size());
+        for (com.legend.compiler.spec.typed.TypedSpec e : c.elements()) {
+            if (e instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
+                    && com.legend.compiler.element.type.PlatformTypes.TDS_NULL_FQN
+                            .equals(ni.classFqn())) {
+                any = true;
+                out.add(new com.legend.compiler.spec.typed.TypedCString("TDSNull",
+                        new com.legend.compiler.element.type.ExprType(
+                                com.legend.compiler.element.type.Type.Primitive.STRING,
+                                new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1))));
+            } else {
+                out.add(e);
+            }
+        }
+        if (!any) {
+            return spec;
+        }
+        boolean allStrings = out.stream().allMatch(
+                e -> e instanceof com.legend.compiler.spec.typed.TypedCString);
+        com.legend.compiler.element.type.ExprType info = allStrings
+                ? new com.legend.compiler.element.type.ExprType(
+                        com.legend.compiler.element.type.Type.Primitive.STRING,
+                        new com.legend.compiler.element.type.Multiplicity.Bounded(
+                                out.size(), out.size()))
+                : c.info();
+        return new com.legend.compiler.spec.typed.TypedCollection(out, info,
+                c.rowCells(), c.operatorRun());
+    }
+
 }
