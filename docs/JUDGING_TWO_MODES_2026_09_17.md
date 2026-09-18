@@ -287,6 +287,11 @@ order-lenient retry on H2 exactly as on DuckDB, where the register already liste
 was absent from the H2 register only because it used to fail outright there). Stress
 4,700 / 20, PCT lanes and Channel B unchanged.
 
+**Step 3 in progress (2026-09-18):** leg 3.0 (measurement) and leg 3.1a (the database-mode
+verdict statement for scalar and collection sides; `-Dlegend.judge.mode=database`
+selectable; 1,950 asserts decided in the database on DuckDB, 34 tests unjudged by reason)
+are landed — records in docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4a/§4c.
+
 **Step 3's homework is written before any edit:** docs/DATABASE_MODE_HOMEWORK_2026_09_18.md
 (the execution model as it is, the corpus measured — 2,687 of 2,767 test functions use
 `let`, 2,339 lets are `execute` frames and those are the only CTE population — the prior

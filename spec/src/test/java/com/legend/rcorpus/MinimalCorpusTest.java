@@ -300,6 +300,13 @@ class MinimalCorpusTest {
         int spelling = strength.getOrDefault("SPELLING", 0);
         int weak = strength.getOrDefault("CARDINALITY", 0);
         int[] floor = MinimalCorpus.H2_BACKEND ? H2_STRENGTH : DUCKDB_STRENGTH;
+        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+            // leg 3.1: database mode reports its strength against host mode's
+            // floors; the differential gate (leg 3.3) pins it
+            System.out.println("[corpus2] database-mode strength differential=" + differential
+                    + " (host floor " + floor[0] + ") spelling=" + spelling + " weak=" + weak);
+            return;
+        }
         org.junit.jupiter.api.Assertions.assertTrue(differential >= floor[0],
                 "differential passes (a referee row verdict matched) SHRANK: " + differential
                 + " < " + floor[0] + " — a rows leg stopped being judged; explain or fix");
@@ -624,6 +631,21 @@ class MinimalCorpusTest {
             if (ranNames.contains(r) && !failNames.contains(r)) {
                 gained.add(r);
             }
+        }
+        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+            // leg 3.1: DATABASE mode is judged AGAINST host mode's roster —
+            // the differential is printed (LOST = fails in database mode
+            // only; GAINED = passes in database mode only), never pinned
+            // here; the differential gate (leg 3.3) pins it
+            System.out.println("[corpus2] database-mode " + kind + " diff vs host roster:"
+                    + " lost=" + lost.size() + " gained=" + gained.size());
+            for (String l : lost) {
+                System.out.println("[corpus2] database-mode LOST " + l);
+            }
+            for (String g : gained) {
+                System.out.println("[corpus2] database-mode GAINED " + g);
+            }
+            return;
         }
         if (!lost.isEmpty() || !gained.isEmpty()) {
             StringBuilder sb = new StringBuilder("[" + lane + "] " + kind + " roster != "

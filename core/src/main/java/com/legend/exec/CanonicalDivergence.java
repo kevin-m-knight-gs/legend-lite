@@ -459,6 +459,27 @@ public final class CanonicalDivergence {
         CHANNEL_SEEN.set(false);
     }
 
+    /** Leg 3.1: database mode decided the assert (the verdict row). */
+    public static void sqlJudgedInDatabase(String family) {
+        if (MUTED.get()) {
+            return;
+        }
+        SQL_CENSUS.merge("judged-in-database " + family, 1L, Long::sum);
+        CHANNEL_SEEN.set(true);
+    }
+
+    /** Leg 3.1: database mode could NOT decide the assert — the assert
+     * failed with this reason; the per-mode ceiling the register pins. */
+    public static void sqlUnjudged(String family, String reason) {
+        if (MUTED.get()) {
+            return;
+        }
+        int c = reason.indexOf(':');
+        String head = c < 0 ? reason : reason.substring(0, c);
+        SQL_CENSUS.merge("unjudged " + family + " " + head, 1L, Long::sum);
+        CHANNEL_SEEN.set(true);
+    }
+
     /** An assert of {@code family} enters adjudication. */
     public static void sqlFamily(String family) {
         if (MUTED.get()) {

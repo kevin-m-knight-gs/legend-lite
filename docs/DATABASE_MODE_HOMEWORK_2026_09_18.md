@@ -448,6 +448,148 @@ statement form is adopted, and D9 keeps the corpus lane's seeds at the session. 
 plain CTE once when referenced twice? If not, the H2 fusion form uses a temporary view or
 runs the frame CTE as a subquery per reference and the differential gate catches drift).
 
+## 4b. Leg 3.1 — the plan (written 2026-09-18, before any edit)
+
+**What exists that the verdict statement composes from (read, not assumed).** A side is
+executed by `StatementExecutor.evalValue(arg, …, rider)`; `executePlan` wraps the side's
+lowered `SqlQuery` with `CanonicalRenderSql.wrapWithCanon` (scalar / collection: `SELECT
+value, __canon0[, __canon1, …] FROM (plan) side [ORDER BY canon]`; one canon column per
+candidate kind, the literal channel last) or `wrapTdsCanon` (grid: the per-row canon as the
+last column); `Executor` runs it and harvests the canon columns into the `CanonRider`;
+`AssertVerdicts.frame` then writes the spec's separators around the harvested texts in Java
+(`'[]'` for empty, the bare text for one, `'[a, b]'` for many) and `finish` compares two
+strings. The SQL IR already has `SqlWith`/`Cte`, `OrderedListAgg(value, orderBy)` (rendered
+`list(v ORDER BY k)` on DuckDB — H2 needs its own rendering, `ARRAY_AGG(v ORDER BY k)`),
+`SqlFn.TYPEOF`, and the dialects.
+
+**The statement, one per assert (database mode):**
+
+```sql
+WITH e AS (<wrapped expected plan>), a AS (<wrapped actual plan>)
+SELECT
+  (<frame(e)> IS NOT DISTINCT FROM <frame(a)>) AS verdict,      -- never NULL
+  <frame(e)> AS expected, <frame(a)> AS actual                    -- the evidence = the message
+```
+
+where `frame(s)` is the spec's framing IN SQL: for a scalar side `COALESCE((SELECT __canon
+FROM s), '[]')`; for a collection side `CASE count WHEN 0 THEN '[]' WHEN 1 THEN the one text
+ELSE '[' || array_to_string(list(__canon ORDER BY k), ', ') || ']' END`; `k` is the side's
+own order (the plan's sort keys for a SORTED side; the canon text itself for sameElements
+and for INCIDENTAL-order sides, which the host judge already treats as multisets); a NULL
+canon cell inside a collection is UNJUDGED (the host's `null-canon-cell`). The same statement
+shape serves `assertSameElements` (both sides ordered by canon text), `assertEq` over
+primitives (= `assertEquals`), `assertSize` (`count(*) = n`), `assertEmpty` / `NotEmpty`,
+`assertContains` (`EXISTS`), `assertEqWithinTolerance` (`abs(e - a) <= tol` over the value
+columns), and the grid: the per-row canons from `wrapTdsCanon` framed the same way (row
+canons are already `U+001F`-joined cells; ordered vs multiset by the same rule; the
+TDSNull sentinel already spelled on the expected side at compile time). The 2-ULP leniency:
+`verdict OR (both Double, finite, abs(e - a) <= 2 * ulp(max(|e|,|a|)))` as a second
+column `leniency`, counted by the harness exactly as `Equality.ulpFirings` is today.
+
+**Unrefined-Number sides** (a wrap with more than one candidate: today the verdict layer
+picks the column by the FETCHED value's kind) become, in SQL, a `CASE typeof(value)` over the
+candidates on DuckDB; on H2 (no `typeof`) they are UNJUDGED until the typer refines them
+(NumberKinds already refines the arithmetic natives; the census says `unrefined-number`
+declines are 0 today, so the residual population is the multi-candidate CLAIMED pairs —
+counted first, in 3.1a).
+
+**Sub-legs, each judged by the DuckDB corpus lane in database mode against host mode's
+roster (identical pass/fail per test, or the difference is on the unjudged list by
+reason), then the H2 lane:**
+- **3.1a — plumbing + the scalar/collection equals family.** `JudgeMode.DATABASE`
+  selectable; a `VerdictSql` builder in `lowering` composing the two wrapped plans into the
+  statement above; `AssertVerdicts` in database mode: for `assertEquals` / `assertSameElements`
+  / `assertEq` scalar and collection sides it executes the ONE statement and reads the verdict
+  row (no side values fetched); a side the wrap declines, a multi-candidate side on H2, a
+  null canon cell, a shape without a statement → `Unjudged(<reason>)`, which FAILS the test
+  with the reason (the per-mode unjudged census row). Host mode untouched. Also 3.1a: the
+  multi-candidate-claimed count printed.
+- **3.1b — the grid verdict** (`tdsRowValuesVerdict` / `SameElements`): the two named H2
+  canon bugs first (the boolean canon `FALSE`; the wire-kind rule for a non-numeric
+  declaration — the canon spells by the COLUMN's SQL kind when the Pure declaration is not
+  numeric, the same rule as `Equality.effectiveKind`), then the statement.
+- **3.1c — the one-line families:** size, empty/notEmpty, contains, eq(primitive), assert /
+  assertFalse over a boolean side, the tolerance assert.
+- **3.1d — the rendered-text arm** (272 asserts: a database-rendered text vs a string
+  literal): the statement is `SELECT text IS NOT DISTINCT FROM 'literal'`.
+- **3.1e — the census + the switch's ceilings:** `sql-census` gains `judged-in-database
+  <family>` and `unjudged <family> <reason>` rows; the register pins the database-mode
+  unjudged ceilings per lane, shrink-only.
+
+**Not in 3.1 (named):** JSON asserts (D6, leg 3.2), keyed/identity instances (3.2), the
+SQL-text lane (D8, never), fusion (3.4), any deletion (3.5).
+
+**Traps for 3.1 specifically:** `OrderedListAgg` renders `list(…)` on the ANSI base — H2
+must render `ARRAY_AGG(… ORDER BY …)` and `array_to_string` its own way (a dialect item,
+found before the H2 lane runs, not during); the verdict column must be built with
+`IS NOT DISTINCT FROM` / `COALESCE` end to end (P-19); the statement carries both side plans
+— a side that ERRORS makes the whole statement error, which is UNJUDGED with the error as
+the reason (no bare re-run rescue: that was the mixed verdict's habit); framing a huge
+collection into one string is the same cost as today's Java framing, just in the database.
+
+## 4c. Leg 3.1a — LANDED 2026-09-18 (the verdict statement for scalar and collection sides)
+
+**What exists now.** `-Dlegend.judge.mode=database` is selectable. For `assertEquals`,
+`assertNotEquals`, `assertSameElements` and `assertEq` over scalar and collection sides,
+`AssertVerdicts.databaseVerdict` PLANS both sides (`StatementExecutor.planValue` — the
+executor's typed pipeline split into a shared prelude, the canon wrap and the run, so a side
+is planned exactly as it would execute), composes them with `lowering.VerdictSql.equality`
+into ONE statement (two CTEs of canon texts in arrival order, the spec's framing in SQL,
+`IS NOT DISTINCT FROM`, the evidence columns, an `__unjudged` column) and reads the verdict
+row. A side the pipeline answers as a HOST CONSTANT (a generated seed-data string, a
+rendered DDL text, a folded literal) is bound as a VALUES relation and canon-wrapped like any
+side — database-ADJUDICATED (TWO_DESIGN_LEGS blocker 1's rule); a store-free side runs on the
+store-reading side's database (the system database for a metamodel read). Everything the
+statement cannot decide FAILS the assert with its reason and is counted
+(`sql-census unjudged <family> <reason>`); errors inside the statement are counted then
+surface as themselves — never a bare re-run, never a host rescue. Host mode is untouched:
+the chain's rosters did not move (DuckDB 108, H2 428, stress 4,700, PCT, Channel B).
+
+**Judged (the DuckDB corpus lane in database mode, against host mode's roster):**
+
+| | count |
+|---|---|
+| asserts judged in the database — assertEquals / assertSameElements | 1,259 / 691 |
+| tests LOST against the host roster / GAINED | 34 / 0 |
+| unjudged: null canon cell inside a collection (3.1b, the grid family) | 14 |
+| unjudged: non-primitive kind gate (a class / generic stamp over equal instances — 3.2) | 10 |
+| unjudged: keyless instance side (3.2) | 4 |
+| unjudged: enum on the literal channel (3.2) | 4 |
+| unjudged: statement error (a canon over a JSON-carried plain string — `'ROOT'`) | 1 |
+| strength differential | 1,546 (host floor 1,543) |
+
+Every lost test is one of those rows; none is a wrong verdict. Grid sides
+(`tdsRowValuesVerdict`) still take the host path in database mode — 3.1b. The other
+families (size, empty, contains, boolean asserts, tolerance, JSON, rendered text) — 3.1c/d.
+
+**H2 in database mode (measured, not yet worked):** 1,633 asserts judged, 104 tests lost:
+60 are ONE dialect gap — the literal-channel canon spells through JSON navigation and the
+H2 dialect raises `DialectCapability` ("variant navigation reached a dialect without JSON
+support"; host mode's canon-exec tunnel used to swallow this and re-run bare, which is why
+it never showed) — counted as `dialect-capability`; 15 are `REGEXP_EXTRACT` in a canon
+expression (same tunnel); the rest are the DuckDB rows. The H2 lane's database mode is a
+dialect leg: the canon must DECLINE on H2 where it cannot spell, not raise at render.
+
+**Corrections the lane forced on the builder (each a real defect, all before the chain):**
+the wrapped side's own `ORDER BY` must be dropped for a canon-ordered side — inlined into a
+CTE over a literal side DuckDB rejects "ORDER BY a literal" (the aggregate re-orders by the
+canon text anyway); an Integer canon is the bare number until cast — the framing casts every
+canon to VARCHAR; a static kind gate is the engine's FALSE only for PRIMITIVE kind classes (a
+class-typed side's static class is a declaration, not the value's kind); a constant side is
+bound on the counterpart's database; errors are counted then rethrown (the error-shape
+guardrail: a caught failure that returns a value must be a designed sentinel — it is not,
+the failure is the failure).
+
+**Registers moved, with reasons:** AssertVerdicts 1842 → 1991 and StatementExecutor
+2125 → 2216 (the database path's plumbing — no value compared in Java; leg 3.5 deletes the
+host machinery); the parked-work ledger's WITH-construction anchor names `VerdictSql` beside
+`SqlRewriter` (PARK-2 stays parked); the harness prints the database-mode differential and
+strength instead of pinning them (the differential gate, 3.3, pins).
+
+**Next (3.1b):** the grid verdict — `tdsRowValuesVerdict` / `SameElements` through the
+statement with the row canons from `wrapTdsCanon`, the TDSNull sentinel, the H2 boolean
+canon and the wire-kind rule for a non-numeric declaration (the two named H2 canon bugs).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

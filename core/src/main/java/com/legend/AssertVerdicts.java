@@ -361,6 +361,10 @@ final class AssertVerdicts {
                 // host-side instead — semantics-free string sorting.
                 boolean gridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
+                if (JUDGE_MODE == JudgeMode.DATABASE && !gridPair) {
+                    yield databaseVerdict(name, wantEqual, args.get(0), args.get(1),
+                            letPrefix, specs, env, hook, incidental);
+                }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                         env, incidental && !gridPair, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
@@ -425,6 +429,10 @@ final class AssertVerdicts {
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
+                if (JUDGE_MODE == JudgeMode.DATABASE && !seGridPair) {
+                    yield databaseVerdict(name, true, args.get(0), args.get(1),
+                            letPrefix, specs, env, hook, true);
+                }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                         env, !seGridPair, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
@@ -1040,15 +1048,153 @@ final class AssertVerdicts {
      * 2026-09-18: the mixed verdict — byte channel of record, host
      * fallback — is deleted; the byte channel reports as a CENSUS only).
      * DATABASE mode is step 3's and is not selectable yet. */
-    enum JudgeMode { HOST }
+    enum JudgeMode { HOST, DATABASE }
 
     static final JudgeMode JUDGE_MODE = switch (
             System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
         case "host" -> JudgeMode.HOST;
+        // leg 3.1: the DATABASE decides (VerdictSql); a shape the statement
+        // cannot decide FAILS as unjudged, never falls back to the host
+        case "database" -> JudgeMode.DATABASE;
         default -> throw new com.legend.error.NotImplementedException(
                 "legend.judge.mode='" + System.getProperty("legend.judge.mode")
-                        + "': only 'host' is selectable (database mode is step 3)");
+                        + "': 'host' or 'database'");
     };
+
+    /** DATABASE mode (leg 3.1, docs/DATABASE_MODE_HOMEWORK §4b): both
+     * sides are PLANNED (never executed on their own), composed by
+     * {@link com.legend.lowering.VerdictSql} into ONE statement, and the
+     * database returns the verdict row: {@code __verdict} (never NULL),
+     * the two framed canons as the evidence, and {@code __unjudged} when
+     * the statement could not decide. A side the wrap declines, a
+     * non-SQL side, a grid side (3.1b), a multi-candidate Number side or
+     * an enum on the literal channel is UNJUDGED — the assert FAILS with
+     * the reason and the census counts it; no host judgment is consulted. */
+    private static ExecutionResult databaseVerdict(String name, boolean wantEqual,
+            TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook, boolean canonicalOrder) {
+        String ke = kindClassOf(eSpec.info().type());
+        String ka = kindClassOf(aSpec.info().type());
+        boolean anyNil = com.legend.compiler.element.type.PlatformTypes.isNil(eSpec.info().type())
+                || com.legend.compiler.element.type.PlatformTypes.isNil(aSpec.info().type());
+        boolean anyAny = isAnyStamped(eSpec) || isAnyStamped(aSpec);
+        if (ke != null && ka != null && !anyNil && !anyAny && !ke.equals(ka)) {
+            if (primitiveKindClass(ke) && primitiveKindClass(ka)) {
+                // X4: the engine has no cross-kind PRIMITIVE equality — a
+                // VERDICT (false), decided statically, the one comparison SQL
+                // never sees
+                com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+                return wantEqual ? fail(name + ": kinds differ (" + typeName(eSpec)
+                        + " vs " + typeName(aSpec) + ")") : ok();
+            }
+            // a class / generic side's static class is a declaration, not
+            // the value's kind (a supertype stamp over equal instances):
+            // leg 3.2's instance canon decides; unjudged until then
+            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, "kind-gate: non-primitive");
+            return fail(name + ": UNJUDGED in database mode — kind-gate: non-primitive ("
+                    + typeName(eSpec) + " vs " + typeName(aSpec) + ")");
+        }
+        var re = new com.legend.exec.CanonRider(canonicalOrder);
+        var ra = new com.legend.exec.CanonRider(canonicalOrder);
+        StatementExecutor.PlannedValue pe = StatementExecutor.planValue(eSpec, letPrefix, specs, env, re, hook);
+        StatementExecutor.PlannedValue pa = StatementExecutor.planValue(aSpec, letPrefix, specs, env, ra, hook);
+        // a HOST-CONSTANT side is bound on the OTHER side's database (a
+        // literal evaluates anywhere; a planned side reads where its tables
+        // are — the system database for a metamodel read)
+        java.sql.Connection on = pe.side() != null && !pe.side().storeFree()
+                ? pe.side().connection()
+                : pa.side() != null && !pa.side().storeFree() ? pa.side().connection()
+                : env.connection();
+        StatementExecutor.WrappedSide we = pe.side() != null ? pe.side()
+                : constantSide(pe.answered(), eSpec, re, canonicalOrder, env, on);
+        StatementExecutor.WrappedSide wa = pa.side() != null ? pa.side()
+                : constantSide(pa.answered(), aSpec, ra, canonicalOrder, env, on);
+        String why = we == null ? "host-value side (expected): " + describe(pe.answered())
+                : wa == null ? "host-value side (actual): " + describe(pa.answered())
+                : re.declined() != null ? "side-e: " + re.declined()
+                : ra.declined() != null ? "side-a: " + ra.declined()
+                : re.tdsWrapped() || ra.tdsWrapped() ? "grid side (leg 3.1b)"
+                : we.connection() != wa.connection() && !we.storeFree() && !wa.storeFree()
+                        ? "sides on different databases"
+                : null;
+        // a store-free side rides the store-reading side's database
+        java.sql.Connection runOn = we != null && wa != null
+                ? (we.storeFree() ? wa.connection() : we.connection()) : env.connection();
+        if (why == null && ke != null && ka != null && !anyNil
+                && (anyAny || re.literalOnly() || ra.literalOnly())
+                && (ke.startsWith("enum:") || ka.startsWith("enum:"))) {
+            why = "enum kind has no literal channel";
+        }
+        int ie = -1;
+        int ia = -1;
+        if (why == null) {
+            boolean literal = !anyNil && (anyAny || re.literalOnly() || ra.literalOnly());
+            ie = literal ? re.literalIndex() : 0;
+            ia = literal ? ra.literalIndex() : 0;
+            int bareE = re.kinds().size() - (re.literalIndex() >= 0 ? 1 : 0);
+            int bareA = ra.kinds().size() - (ra.literalIndex() >= 0 ? 1 : 0);
+            if (literal && (ie < 0 || ia < 0)) {
+                why = "no literal channel";
+            } else if (!literal && (bareE > 1 || bareA > 1)) {
+                why = "unrefined-number: multi-candidate side";
+            }
+        }
+        if (why != null) {
+            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, why);
+            return fail(name + ": UNJUDGED in database mode — " + why);
+        }
+        com.legend.sql.SqlQuery vq = com.legend.lowering.VerdictSql.equality(
+                new com.legend.lowering.VerdictSql.Side(
+                        java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,
+                        re.many(), canonicalOrder),
+                new com.legend.lowering.VerdictSql.Side(
+                        java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
+                        ra.many(), canonicalOrder));
+        ExecutionResult r;
+        try {
+            r = com.legend.exec.Executor.execute(env.dialect().render(vq), vq,
+                    new com.legend.compiler.element.type.ExprType(
+                            com.legend.lowering.VerdictSql.schema(),
+                            new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1)),
+                    com.legend.exec.ResultShape.TABULAR, runOn, env.dialect(),
+                    env.trace());
+        } catch (com.legend.error.DataError e) {
+            // the statement itself could not run (a canon expression the
+            // database rejects, a side that errors): counted UNJUDGED with
+            // the database's own words, then the failure surfaces as itself
+            // — never a bare re-run, never a host rescue
+            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, "statement-error: "
+                    + String.valueOf(e.getMessage()).split("\n")[0]);
+            throw e;
+        } catch (com.legend.sql.dialect.DialectCapability e) {
+            // the dialect cannot spell a canon expression (H2: the JSON-
+            // carried literal channel, REGEXP): counted, then surfaces
+            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
+                    + String.valueOf(e.getMessage()).split("\n")[0]);
+            throw e;
+        }
+        if (!(r instanceof ExecutionResult.Tabular t) || t.rows().size() != 1) {
+            throw new IllegalStateException(name + ": the verdict statement returned "
+                    + (r instanceof ExecutionResult.Tabular t2 ? t2.rows().size() + " rows" : "no grid"));
+        }
+        List<Object> row = t.rows().get(0).values();
+        Object unjudged = row.get(3);
+        if (unjudged != null) {
+            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, String.valueOf(unjudged));
+            return fail(name + ": UNJUDGED in database mode — " + unjudged);
+        }
+        if (!(row.get(0) instanceof Boolean held)) {
+            throw new IllegalStateException(name + ": the verdict column is not a boolean: " + row.get(0));
+        }
+        com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+        if (held == wantEqual) {
+            return ok();
+        }
+        return fail(wantEqual
+                ? name + "\nexpected: " + row.get(1) + "\nactual:   " + row.get(2)
+                : "assertNotEquals: both sides are equal");
+    }
 
     private static ExecutionResult finish(String family, boolean wantEqual,
             boolean hostHeld, @com.legend.Nullable Boolean byteHeld,
@@ -1076,6 +1222,48 @@ final class AssertVerdicts {
                     + " failed but its message lattice held");
         }
         return fail(d);
+    }
+
+    /** A side the pipeline ANSWERED as a host constant (a TDG seed string, a
+     * rendered DDL text, a folded literal): bound as a VALUES relation and
+     * canon-wrapped like any side, so the database still compares
+     * (database-ADJUDICATED). Null = no literal spelling for the value's
+     * kind (the caller reports it unjudged by kind). */
+    private static StatementExecutor.@com.legend.Nullable WrappedSide constantSide(
+            @com.legend.Nullable ExecutionResult answered, TypedSpec spec,
+            com.legend.exec.CanonRider rider, boolean canonicalOrder,
+            StatementExecutor.ExecEnv env, java.sql.Connection on) {
+        if (answered == null) {
+            return null;
+        }
+        List<Object> values = decodeSideValues(answered);
+        com.legend.sql.SqlQuery plan = com.legend.lowering.VerdictSql.constantPlan(values);
+        if (plan == null) {
+            return null;
+        }
+        var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(plan, spec.info(),
+                canonicalOrder, com.legend.compiler.element.EqualityKeys
+                        .resolve(env.ctx(), spec.info().type()));
+        if (w.declineReason() != null) {
+            rider.decline(w.declineReason());
+            return new StatementExecutor.WrappedSide(plan, spec.info(),
+                    com.legend.exec.ResultShape.COLLECTION, on, true);
+        }
+        rider.wrap(w.kinds(), w.many(), w.literalIndex());
+        return new StatementExecutor.WrappedSide(w.plan(), spec.info(),
+                com.legend.exec.ResultShape.COLLECTION, on, true);
+    }
+
+    /** The kind classes whose static inequality IS the engine's answer
+     * (primitives and enums); an instance / generic class is a declaration
+     * over values whose equality the instance canon decides. */
+    private static boolean primitiveKindClass(String k) {
+        return k.equals("numeric") || k.equals("string") || k.equals("boolean")
+                || k.equals("temporal") || k.startsWith("enum:");
+    }
+
+    private static String describe(@com.legend.Nullable ExecutionResult r) {
+        return r == null ? "no plan" : r.getClass().getSimpleName();
     }
 
     // ── §8 LEG 1 (grid canon, fusion-spike F2, user-ratified

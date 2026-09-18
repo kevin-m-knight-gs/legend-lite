@@ -3880,3 +3880,20 @@ Probed: H2 2.4.240 re-evaluates a plain CTE per reference (20/20), DuckDB evalua
 (20/20, with or without MATERIALIZED). AssertVerdicts pinned 1842 with reasons (four census
 hooks); no roster moved; no verdict changed. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md
 §4a.
+
+**Judging step 3, leg 3.1a — the database-mode verdict statement (2026-09-18):** chain
+GREEN (gates 1–10), quiet machine, parallel wall ≈ 4m13s (G2 25; A: G1 77 · G3 12 · G4 103 ·
+G5 36 = 228; B: G6 144 · G7 45 · G9 32 = 221; C: G8 153 · G10 51 = 204). No roster moved in
+HOST mode (the chain's mode). NEW: `-Dlegend.judge.mode=database` — `lowering.VerdictSql`
+composes both planned sides (`StatementExecutor.planValue`, the typed pipeline split into
+prelude + wrap + run) into one statement; the verdict row decides; unjudged shapes fail by
+reason and are counted. Judged out of band: DuckDB lane in database mode — 1,950 asserts
+decided in the database, 34 tests lost vs the host roster, every one an unjudged row named
+by reason (null canon cells 14, non-primitive kind gate 10, keyless instances 4, enums 4,
+one statement error), 0 gained; H2 lane 1,633 judged, 104 lost, 60 of them the
+literal-channel JSON navigation the H2 dialect refuses (a dialect leg). Registers with
+reasons: AssertVerdicts 1842 → 1991, StatementExecutor 2125 → 2216; ParkedWorkLedger PARK-2
+construction anchor names `VerdictSql` (a first chain was red on exactly that anchor —
+recorded in docs/PARKED_WORK_LEDGER.md, re-run green); the harness prints the database-mode
+differential and strength instead of pinning them (leg 3.3 pins). Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4c.

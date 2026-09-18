@@ -135,7 +135,11 @@ again, moves it.
 
 ## PARK-2 — A union read twice is built twice (no common-subexpression pass)
 
-**Parked** 2026-09-15 during the same burndown (FIXLIST P4-1).
+**Parked** 2026-09-15 during the same burndown (FIXLIST P4-1). *Anchor note 2026-09-18
+(judging leg 3.1): `VerdictSql` now also constructs a `SqlWith` — the database-mode verdict
+statement (each assert side as a CTE, one verdict row) — which is not a common-subexpression
+pass and does not touch the union lowering; the construction anchor names both files, and
+this item stays parked.*
 
 **What happens today.** A union-mapped class is one whose rows come from several tables
 stacked together. When one query both filters on a related collection and aggregates over

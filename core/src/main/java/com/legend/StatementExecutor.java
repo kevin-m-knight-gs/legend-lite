@@ -2317,7 +2317,28 @@ final class StatementExecutor {
      * place — counted at the verdict seam, never silent. F13c:
      * {@code identityLane} joins the identity lane without a rider
      * (assert-condition sides). */
-    static ExecutionResult executeTyped(
+    /** The typed-execution PRELUDE (leg 3.1 split): every arm that answers
+     * WITHOUT a plan (effects, store navigation, DDL strings, handles, the
+     * effectful map) returns {@link Prelude#answered}; otherwise the body,
+     * root and environment the plan is lowered from. {@link #executeTyped}
+     * and {@link #planValue} share it, so a side is planned exactly as it
+     * would execute. */
+    record Prelude(@com.legend.Nullable ExecutionResult answered,
+            java.util.List<TypedSpec> body, @com.legend.Nullable TypedSpec root,
+            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
+            @com.legend.Nullable ExecEnv env) {
+        static Prelude answered(ExecutionResult r) {
+            return new Prelude(r, java.util.List.of(), null, null, null);
+        }
+        TypedSpec plannedRoot() {
+            return java.util.Objects.requireNonNull(root, "an answered prelude has no root");
+        }
+        ExecEnv plannedEnv() {
+            return java.util.Objects.requireNonNull(env, "an answered prelude has no env");
+        }
+    }
+
+    private static Prelude prelude(
             java.util.List<TypedSpec> body, ExecEnv env,
             com.legend.exec.@com.legend.Nullable CanonRider rider,
             boolean identityLane) {
@@ -2378,26 +2399,26 @@ final class StatementExecutor {
                         "catalog says '" + nc.callee().qualifiedName()
                         + "' is EFFECT but no arm is registered");
             }
-            return arm.run(body, nc, env);
+            return Prelude.answered(arm.run(body, nc, env));
         }
         // ORCHESTRATION-VALUE channel: store navigation resolves against
         // the compiled model (grid reads are typed relations now —
         // Phase 1c endgame; ResultNav deleted)
         if (com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
             ExecutionResult hosted = hostEvalAtSeam(root, java.util.Map.of(), env);
-            if (hosted != null) { return hosted; }
+            if (hosted != null) { return Prelude.answered(hosted); }
         }
         // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
         // the engine walks its Database metamodel, we render from the
         // compiled store model (the lowerer has no model access)
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall ds
                 && com.legend.builtin.NativeFn.DdlStatement.of(ds.callee().qualifiedName()).isPresent()) {
-            return new ExecutionResult.Scalar(ddlStatementString(ds, env),
-                    ds.info().type());
+            return Prelude.answered(new ExecutionResult.Scalar(ddlStatementString(ds, env),
+                    ds.info().type()));
         }
         ExecutionResult handle = orchestrationHandleArm(root, env);
         if (handle != null) {
-            return handle;
+            return Prelude.answered(handle);
         }
         // a COLLECTION whose elements include DDL string generators (the
         // aggregationAware setup shape: [dropSchemaStatement(..), ...]
@@ -2419,8 +2440,8 @@ final class StatementExecutor {
                             + e.getClass().getSimpleName());
                 }
             }
-            return new ExecutionResult.Collection(strs,
-                    com.legend.compiler.element.type.Type.Primitive.STRING);
+            return Prelude.answered(new ExecutionResult.Collection(strs,
+                    com.legend.compiler.element.type.Type.Primitive.STRING));
         }
         // map over an EFFECTFUL lambda ($sqls->map(sql|executeInDb(...))):
         // the source collection evaluates through the pipeline; each
@@ -2457,7 +2478,7 @@ final class StatementExecutor {
                 }
                 last = executeTyped(one, env);
             }
-            return last;
+            return Prelude.answered(last);
         }
         // V11: a canon-riding side SKIPS the literal fold — the fold is
         // a value-fetch optimization, but a requested canon is computed
@@ -2467,6 +2488,23 @@ final class StatementExecutor {
         // the LAST-RESORT value source for literals SQL cannot spell
         // (NUL-bearing strings — DuckDB VARCHAR is NUL-free): the
         // executePlan tunnel returns it with a counted decline.
+        return new Prelude(null, body, root, declaredInfo, env);
+    }
+
+    static ExecutionResult executeTyped(
+            java.util.List<TypedSpec> body, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            boolean identityLane) {
+        ModelContext ctx = env.ctx();
+        Prelude p = prelude(body, env, rider, identityLane);
+        if (p.answered() != null) {
+            return p.answered();
+        }
+        body = p.body();
+        env = p.plannedEnv();
+        java.sql.Connection connection = env.connection();
+        TypedSpec root = p.plannedRoot();
+        com.legend.compiler.element.type.ExprType declaredInfo = p.declaredInfo();
         com.legend.exec.ExecutionResult folded = LiteralFold.fold(root);
         if (folded != null && rider == null) {
             return folded;
@@ -2555,15 +2593,79 @@ final class StatementExecutor {
 
     /** The plan-execution tail of {@link #executeTyped}: V11 canon
      * wrap (when a rider asks) + the one Executor call. */
-    private static ExecutionResult executePlan(com.legend.sql.SqlQuery plan,
+    /** A side's plan after the canon wrap (leg 3.1): what database mode
+     * composes into its verdict statement without executing it. */
+    record WrappedSide(com.legend.sql.SqlQuery plan,
+            com.legend.compiler.element.type.ExprType shapeInfo,
+            com.legend.exec.ResultShape shape,
+            java.sql.Connection connection,
+            boolean storeFree) {
+        /** A side reading no store (a literal, a pure expression) runs on
+         * ANY connection; a side reading a store runs where it was routed. */
+    }
+
+    /** {@link #planValue}'s outcome: a planned side, or the value the
+     * pipeline ANSWERED without a plan (a host constant — database mode
+     * binds a primitive one as a literal side). */
+    record PlannedValue(@com.legend.Nullable WrappedSide side,
+            @com.legend.Nullable ExecutionResult answered) {
+    }
+
+    /** Plan a VALUE the way {@link #evalValue} would execute it, stopping
+     * after the canon wrap: null when the value answers without a plan
+     * (an orchestration handle, an effect, a host-evaluated navigation —
+     * database mode reports those as UNJUDGED by name). */
+    static PlannedValue planValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            com.legend.exec.CanonRider rider,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
+        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+        single.add(value);
+        var inliner = hook == null
+                ? new com.legend.compiler.spec.UserCallInliner(specs)
+                : new com.legend.compiler.spec.UserCallInliner(specs, hook);
+        java.util.List<TypedSpec> body = new java.util.ArrayList<>(
+                inliner.inlineBody(single));
+        env.queryLets().putAll(inliner.queryLets());
+        final java.util.List<TypedSpec> stageEnv = body;
+        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                .stage(b, stageEnv, nativeRoutines(specs, env)));
+        body = resolver(specs, env).resolve(body, env.runtimeFqn());
+        java.util.Set<String> stores = new java.util.TreeSet<>();
+        for (TypedSpec n : body) {
+            collectStores(n, stores);
+        }
+        Prelude p = prelude(body, env, rider, false);
+        if (p.answered() != null) {
+            return new PlannedValue(null, p.answered());
+        }
+        ExecEnv penv = p.plannedEnv();
+        TypedSpec root = p.plannedRoot();
+        com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), penv, penv.ctx(),
+                penv.dialect(), penv.connection(), true);
+        boolean collectionDeclared = p.declaredInfo() != null
+                && p.declaredInfo().type()
+                        instanceof com.legend.compiler.element.type.Type.Primitive
+                && p.declaredInfo().multiplicity()
+                        .requireBounded("result shape").isMany()
+                && com.legend.compiler.element.type.Type
+                        .isRelation(root.info().type());
+        WrappedSide ws = wrapSide(plan, root,
+                collectionDeclared ? p.declaredInfo() : null, rider, penv);
+        return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),
+                ws.connection(), stores.isEmpty()), null);
+    }
+
+    /** The canon wrap of {@link #executePlan}, alone. */
+    private static WrappedSide wrapSide(com.legend.sql.SqlQuery plan,
             TypedSpec root,
             com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
-            com.legend.exec.@com.legend.Nullable CanonRider rider,
-            @com.legend.Nullable ExecutionResult folded, ExecEnv env) {
+            com.legend.exec.@com.legend.Nullable CanonRider rider, ExecEnv env) {
         com.legend.compiler.element.type.ExprType shapeInfo =
                 declaredInfo != null ? declaredInfo
                         : com.legend.exec.ResultShape.valueInfo(root.info());
-        com.legend.sql.SqlQuery bare = plan;
         com.legend.exec.ResultShape shape = declaredInfo != null
                 ? com.legend.exec.ResultShape.COLLECTION
                 : com.legend.exec.ResultShape.of(root);
@@ -2595,6 +2697,19 @@ final class StatementExecutor {
                 plan = w.plan();
             }
         }
+        return new WrappedSide(plan, shapeInfo, shape, env.connection(), false);
+    }
+
+    private static ExecutionResult executePlan(com.legend.sql.SqlQuery plan,
+            TypedSpec root,
+            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            @com.legend.Nullable ExecutionResult folded, ExecEnv env) {
+        com.legend.sql.SqlQuery bare = plan;
+        WrappedSide ws = wrapSide(plan, root, declaredInfo, rider, env);
+        plan = ws.plan();
+        com.legend.compiler.element.type.ExprType shapeInfo = ws.shapeInfo();
+        com.legend.exec.ResultShape shape = ws.shape();
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         if (rider == null) {
             return Executor.execute(dialect.render(plan), plan, shapeInfo,
