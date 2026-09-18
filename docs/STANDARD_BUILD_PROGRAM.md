@@ -458,8 +458,23 @@ bump procedure should say so.
 
 ## 5. The phases
 
-Sizes are rough engineer-weeks for one person fluent in Maven, and assume the phase 0
-decision has been made.
+No phase carries a duration, because effort is not what sets this project's calendar. It
+is built by one developer directing AI agents: every one of the 139 commits on `main`
+between 2026-09-11 and 2026-09-18 is co-authored by Claude. Each phase instead ends with
+what gates it: the **decisions** it needs from the people who own the project, the
+**verification** its exit needs (CI runs and their re-runs, which cost machine time rather
+than effort), anything **outside** the project's control, and the **coordination** it needs
+with work landing on `main` at the same time. Every phase assumes phase 0's decisions have
+been made.
+
+One calibration point, and it is only one. The upstream boundary program
+(`docs/UPSTREAM_BOUNDARY_PROGRAM.md`) made the same kinds of change this plan makes — a new
+module, a groupId rename, Enforcer and ArchUnit bans, generators for `core`'s
+upstream-derived facts, a scripted bump. It went from its plan (`c5121c020`, 2026-09-10
+12:06) to a release bump through `tools/bump.sh` (`0a4a928c6`, 2026-09-11 23:20) in about
+35 hours and 42 commits, 33 of them its own. If that pace holds, the implementation this
+plan describes is days to a couple of weeks of calendar time. That is an extrapolation from
+one program, not a measurement, and none of the gates below shrinks with it.
 
 ### Phase 0 — Decide how `main` is protected *(decision, not engineering)*
 
@@ -475,10 +490,14 @@ stale by Friday, and a green `verify` means nothing if most commits never ran it
   change: it is the file most commits touch, so any two pull requests in flight conflict
   at its end (§6). Its gate definitions stay until phase 3 replaces the gates.
 
+**Gated by:** decisions only, and all of them the owners': the protection itself, the
+public surface, the review expectation, and the change of habit the last bullet asks for.
+There is nothing to build.
+
 **Exit:** branch protection enabled and a required check configured, even if that check
 is initially only "compiles".
 
-### Phase 1 — A fresh clone is green *(1–2 weeks)*
+### Phase 1 — A fresh clone is green
 
 - Replace `maven.compiler.source`/`target` with `maven.compiler.release=21`. Add Enforcer
   `requireJavaVersion [21,)` and `requireMavenVersion` at the root, so an unsupported
@@ -515,10 +534,16 @@ is initially only "compiles".
   parity out of CI for two phases. Make one fork per PCT suite the POM's default (§4.7),
   so no cell needs a flag.
 
+**Gated by:** *decisions* — the toolchain range Enforcer will hold (JDK 21 and 25, a Maven
+floor), and the `LICENSE` and `NOTICE` text for upstream-derived files, which is the
+owners' to confirm. *Verification* — the six-cell matrix green, JDK 21's NullAway run
+included, and the measurement above, taken quiet on a laptop-sized machine and on the
+runners. *Coordination* — light: every POM changes once.
+
 **Exit:** a newcomer on any of the three platforms clones, runs `./mvnw verify`, and sees
 green — and CI proves it on six configurations.
 
-### Phase 2 — Maven owns the inputs *(2–3 weeks)*
+### Phase 2 — Maven owns the inputs
 
 - Re-measure that the release jars' `.pure` text is byte-identical to the source tree at
   the current pin; §4.2's measurement was at 5.92.0.
@@ -535,10 +560,16 @@ green — and CI proves it on six configurations.
   release's own POM declares.
 - Remove the phase-1 exclusion tag. Those suites now run by default, everywhere.
 
+**Gated by:** *verification* — the byte identity re-measured at the current pin, then a
+green run from an empty `~/.m2` with no checkouts, on every cell. *Outside* — upstream's
+releases: a new pin mid-phase means a new harvest, and a release is usable only once it is
+on Maven Central (`tools/bump.sh` records a tagged release that was not). *Coordination* —
+light: three modules change where their inputs come from, not what they test.
+
 **Exit:** a machine with an empty `~/.m2` and no checkouts runs `./mvnw verify` green, and
 the word "checkout" appears nowhere in the build.
 
-### Phase 3 — Maven owns the verdict *(4–5 weeks)*
+### Phase 3 — Maven owns the verdict
 
 - Rename the long suites to `*IT` and bind them to failsafe; surefire keeps the unit
   tests. `mvn test` becomes the inner loop by convention, not by flag.
@@ -563,12 +594,23 @@ the word "checkout" appears nowhere in the build.
   all three workflows: `gate.yml` and `gates-run.yml` once `build.yml` carries the
   `actionlint` job, and `diagnostics.yml` with `tools/diagnostics.sh`.
 
+**Gated by:** *decisions* — four from §9, all needed before the lanes become executions:
+the four-minute budget, `*IT` names or tags, which lanes gate pull requests, and the
+triage of the ledger and census tests. *Verification* — the heaviest of any phase: each
+converted lane must give its gate's verdict on the same commit, so every conversion costs a
+chain run and a `verify` run side by side, on each platform. *Coordination* — the real
+risk. The files holding the floors, ceilings, pins, and rosters this phase touches were
+edited by 32 of the 139 commits between 2026-09-11 and 2026-09-18, and the phase moves the
+stress corpus and nine guard tests between modules while that work continues. It lands as
+small pull requests, one lane or one ledger at a time, or in a window agreed with whoever
+runs the judging program; a long-lived branch will not survive the rebases.
+
 **Exit:** `./mvnw verify` reproduces every gate the chain runs at the time — ten today,
 plus the differential gate if leg 3.3 has landed (§4.4) — locally and in CI, with no shell
 involved; a deliberately broken test fails it for the same reason the gate chain would
 have.
 
-### Phase 4 — Generation moves into the build *(2–3 weeks)*
+### Phase 4 — Generation moves into the build
 
 Execute §4.8: everything derivable becomes a build output, and what remains committed is
 committed for a stated reason.
@@ -600,11 +642,18 @@ committed for a stated reason.
 - Bring `tools/engine-runner` into the reactor as `upstream-runner` so its upstream version
   and its dependency on `legend-lite-core` cannot drift.
 
+**Gated by:** *decisions* — the owners accepting that a bump's review moves from ~690 KB of
+generated diff to the ledger rows (§4.8), and whether `*.pure -text` stays.
+*Verification* — one real upstream bump carried through the new flow end to end.
+*Outside* — that bump needs a new upstream release on Maven Central. *Coordination* —
+moderate: `Pure.java`, the dynafunction registry, and the import constant change shape
+while feature work edits them (`Pure.java` alone was edited by 12 of the 139 commits).
+
 **Exit:** no generated artifact is committed except the baselines §4.8 names, each with its
 reason; `git grep` finds no test writing outside `target/`; moving to a new Legend release
 is one property change and the snippet refresh §4.2 keeps at bump time.
 
-### Phase 5 — The projects and the Python *(1–2 weeks)*
+### Phase 5 — The projects and the Python
 
 - Make `projects` a module, and switch `corpus`'s eleven linked projects from
   `../projects` to a dependency on it (§4.1).
@@ -619,10 +668,14 @@ is one property change and the snippet refresh §4.2 keeps at bump time.
   move the corpus sources from "committed with a reason" to "generated like everything
   else". It is not on this critical path, and the §4.8 row should be revisited if it lands.
 
+**Gated by:** *decisions* — where the Python boundary sits, and whether the corpus stays in
+this repository at all (§9). *Verification* — the 56-project compile test, and the first
+runs of the scheduled generator workflow. *Coordination* — light.
+
 **Exit:** every directory in the repository is either built by Maven or explicitly
 declared maintainer tooling, with no third option.
 
-### Phase 6 — Releases, and documentation a newcomer can use *(2 weeks, then ongoing)*
+### Phase 6 — Releases, and documentation a newcomer can use
 
 - **Settle the namespace first, because the current one cannot be published.** Maven
   Central requires a `groupId` whose ownership the project can prove, and `com.legend` is
@@ -641,10 +694,20 @@ declared maintainer tooling, with no third option.
 - Remove `progress*.txt`, `progress/`, `experiments/`, and editor-specific directories from
   the repository root.
 
-**Exit:** a new developer finds what they need in six documents, and another project can
-depend on a released version without building legend-lite.
+**Gated by:** *decisions* — the namespace, the `pct` package rename and its deprecation
+path, the version policy, the public surface, and which six documents survive the archive.
+*Outside* — more than any other phase: Maven Central verifies namespace ownership before
+the first publish, a FINOS namespace runs on FINOS's process, and publishing needs signing
+keys and repository secrets in place.
 
-**Total: roughly 12–16 engineer-weeks**, phases 1–4 being the load-bearing three-quarters.
+**Exit:** a new developer finds what they need in six documents, and another project can
+depend on a released version without building legend-lite. The documents stay a standing
+duty after it.
+
+**No total.** The calendar is set by the gates: phase 0's and §9's decisions, the
+verification each exit needs, phase 6's outside parties, and — in phase 3 above all —
+coordination with work already landing on `main`. Phases 1 to 4 remain the load-bearing
+ones.
 
 ---
 
