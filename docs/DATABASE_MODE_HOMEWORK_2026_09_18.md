@@ -306,8 +306,12 @@ the stress lane, per-assertion agreement pinned 0, unjudged ceilings per mode; c
 against the 4-minute parallel budget (an extra DuckDB corpus run ≈ 100 s in its own stream).
 
 **Leg 3.4 — whole-function fusion (V13).** Relation lets as `WITH … AS MATERIALIZED`, the
-asserts as verdict columns of one statement per body, the split rung as the diagnostic
-fallback on statement error. Witnesses: the nine spike tests first (they have hand-written
+asserts as ONE ROW EACH of one statement per body (user question 2026-09-18, decided: rows,
+not columns — a fixed schema `assert_ix, family, verdict, expected, actual, unjudged`, a
+`UNION ALL` of one SELECT per assert over the shared CTEs, keyed by the assert's position in
+the body, the same key the differential gate uses; every failing assert reported, not the
+first; leg 3.1a's per-assert SELECT is exactly one of those rows), the split rung as the
+diagnostic fallback on statement error. Witnesses: the nine spike tests first (they have hand-written
 goldens), then the lane. This leg deletes the frame re-execution.
 
 **Leg 3.5 — deletions.** The `sql*` census counters and the byte-verdict plumbing that

@@ -1179,6 +1179,12 @@ final class AssertVerdicts {
                     + (r instanceof ExecutionResult.Tabular t2 ? t2.rows().size() + " rows" : "no grid"));
         }
         List<Object> row = t.rows().get(0).values();
+        if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+            // the SQL dump's companion: the verdict row the statement returned
+            System.err.println("[verdict] " + name + " verdict=" + row.get(0)
+                    + " expected=" + row.get(1) + " actual=" + row.get(2)
+                    + " unjudged=" + row.get(3));
+        }
         Object unjudged = row.get(3);
         if (unjudged != null) {
             com.legend.exec.CanonicalDivergence.sqlUnjudged(name, String.valueOf(unjudged));
