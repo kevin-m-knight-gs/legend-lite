@@ -704,11 +704,6 @@ keys and repository secrets in place.
 depend on a released version without building legend-lite. The documents stay a standing
 duty after it.
 
-**No total.** The calendar is set by the gates: phase 0's and §9's decisions, the
-verification each exit needs, phase 6's outside parties, and — in phase 3 above all —
-coordination with work already landing on `main`. Phases 1 to 4 remain the load-bearing
-ones.
-
 ---
 
 ## 6. Working concurrently
