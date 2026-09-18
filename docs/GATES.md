@@ -3949,3 +3949,15 @@ G9 35 = 219; C: G8 145 · G10 56 = 201). No roster moved. The canon side drops a
 row on EVERY side (an empty `[]` is one NULL row; pure has no null value). DuckDB database
 mode: lost 56 → 42 (39 named unjudged for leg 3.2 + 3 open-ruling rows), 2,322 asserts judged
 in the database. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4f follow-up.
+
+**Judging step 3, leg 3.1c — the one-line families (2026-09-18):** chain GREEN (gates
+1–10), parallel wall ≈ 4m43s (G2 25; A: G1 77 · G3 13 · G4 129 · G5 39 = 258; B: G6 162 ·
+G7 49 · G9 36 = 247; C: G8 172 · G10 57 = 229 — G4/G6/G8 each ~20 s slower than the morning's
+runs; machine, not tree: no gate's work changed in host mode). No roster moved. size /
+empty / notEmpty / contains / assert / assertFalse (+ the forAll-contains subset) / tolerance
+as predicate statements in database mode; counting needs no canon; a class collection is one
+JSON document (new `SqlFn.JSON_ARRAY_LENGTH`, DuckDB `json_array_length`); one canon channel
+per pair for contains. A first chain was red on gate 1: `Math.max` in a verdict file (the
+"judge, never compute" guard) — replaced by a conditional. DuckDB database mode: 3,434
+asserts judged in the database; lost 42 (39 named unjudged + 3 open-ruling rows). Ledger with
+reason: AssertVerdicts 2057 → 2212. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4g.

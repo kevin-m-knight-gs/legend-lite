@@ -707,6 +707,35 @@ keyless instances 4, tree cells 3, one statement error, one multi-candidate Numb
 leg 3.2 — plus the 3 open-ruling rows. Database mode: 2,322 asserts judged in the database
 on DuckDB. Leg 3.1b is closed for the equals / sameElements domain.
 
+## 4g. Leg 3.1c — LANDED 2026-09-18 (the one-line families)
+
+`assertSize`, `assertEmpty` / `assertNotEmpty`, `assertContains`, `assert` / `assertFalse`
+(a boolean condition, and the `forAll-contains` subset idiom), and `assertEqWithinTolerance`
+are one predicate statement each (`VerdictSql.size / empty / contains / condition / subset /
+tolerance`), returned in the same verdict row (no unjudged, no leniency). Each side is planned
+by `planSide` — the same road as an equality side — and:
+- **counting needs no canon**: a collection of instances the canon declines still has a row
+  count (`countRows` over the bare plan, NULL values dropped) — the first cut refused 197
+  size / emptiness asserts for that;
+- **a class collection is ONE JSON document** (a GRAPH-shaped plan): its size is the array's
+  length, or 1 for a bare object, 0 for NULL — the host rule — through a new
+  `SqlFn.JSON_ARRAY_LENGTH` (`json_array_length`; H2 has no JSON, a dialect wall there);
+- **the size rule's envelope**: a relation-rooted execute's `.values` holds ONE TDS
+  (`envelopeValuesRead` → the count is 1), as the host's `envelopeCarriers`;
+- **one canon channel per pair** for `contains` / the subset (both sides literal when either
+  is literal-only, else the bare channel) — the first cut chose per side and compared a
+  quoted string against a bare one;
+- a predicate statement with no CTEs is its bare body (the WITH node refuses an empty list —
+  15 emptiness asserts over graph sides).
+
+**Judged (DuckDB, database mode):** assertSize 679 · assert 354 · assertFalse 19 ·
+assertContains 17 · assertEmpty 20 · assertNotEmpty 13 · assertEqWithinTolerance 10 —
+every assert of those families; with assertEquals 1,598 and assertSameElements 724 that is
+**3,434 asserts decided in the database**; lost 42 = the same 39 named unjudged (leg 3.2) +
+the 3 open-ruling rows; ulp 7. Still host-judged in database mode: assertJsonStringsEqual
+(177, D6 / 3.2), assertIs 4 and assertInstanceOf 1 (identity / type — 3.2 or walled),
+assertTdsEquivalent 2, the rendered-text arm (272, 3.1d), the SQL-text lane (D8).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

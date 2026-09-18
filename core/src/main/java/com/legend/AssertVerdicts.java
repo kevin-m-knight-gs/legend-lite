@@ -485,6 +485,9 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     yield null;
                 }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    yield databaseSize(name, args, letPrefix, specs, env, hook);
+                }
                 Object n = one(side(args.get(1), letPrefix, specs, env, hook),
                         "assertSize size");
                 // D3: the size rule is per-result-kind — grid ROWS,
@@ -572,6 +575,9 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     yield null;
                 }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    yield databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook);
+                }
                 List<Object> coll = side(args.get(0), letPrefix, specs,
                         env, hook);
                 List<Object> val = side(args.get(1), letPrefix, specs,
@@ -614,6 +620,9 @@ final class AssertVerdicts {
                 if (args.size() < 3) {
                     yield null;
                 }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    yield databaseTolerance(name, args, letPrefix, specs, env, hook);
+                }
                 String d = PureAsserts.assertEqWithinTolerance(
                         (Number) one(side(args.get(0), letPrefix, specs, env, hook),
                                 "tolerance expected"),
@@ -626,6 +635,10 @@ final class AssertVerdicts {
             case ASSERT, ASSERT_FALSE -> {
                 if (args.isEmpty()) {
                     yield null;
+                }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    yield databaseCondition(name, args.get(0), fn == NativeFn.Verdict.ASSERT,
+                            letPrefix, specs, env, hook);
                 }
                 // forAll-contains SUBSET (the functionvariables idiom
                 // — the harness's audited fc arm, moved to the owner):
@@ -718,6 +731,10 @@ final class AssertVerdicts {
             case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> {
                 if (args.isEmpty()) {
                     yield null;
+                }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    yield databaseEmpty(name, args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY,
+                            letPrefix, specs, env, hook);
                 }
                 // §8 leg 1: a TABULAR side's emptiness is its ROW count
                 // (engine relation semantics) — no canon involved
@@ -1310,6 +1327,163 @@ final class AssertVerdicts {
                     + " failed but its message lattice held");
         }
         return fail(d);
+    }
+
+    // ── leg 3.1c: the one-line families in database mode. Each side is
+    // planned like an equality side (planSide); the predicate statement
+    // returns the same verdict row; unjudged fails by name.
+
+    /** A planned side for the predicate forms, or a reason it could not be. */
+    private record SideRows(StatementExecutor.@com.legend.Nullable WrappedSide side,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            @com.legend.Nullable String why) {
+        /** The side's canon rows; {@code literal} = the pair compares in the
+         * literal channel (decided for BOTH sides — one channel per pair). */
+        com.legend.sql.SqlQuery rows(boolean literal) {
+            var r = java.util.Objects.requireNonNull(rider);
+            var w = java.util.Objects.requireNonNull(side);
+            int idx = literal && r.literalIndex() >= 0 ? r.literalIndex() : 0;
+            return com.legend.lowering.VerdictSql.sideRows(w.plan(), r.tdsWrapped(),
+                    "__canon" + idx, r.many() || r.tdsWrapped());
+        }
+        /** The side's rows for counting: the canon may have declined. */
+        com.legend.sql.SqlQuery countRows() {
+            var r = java.util.Objects.requireNonNull(rider);
+            var w = java.util.Objects.requireNonNull(side);
+            return r.tdsWrapped() ? rows(false)
+                    : com.legend.lowering.VerdictSql.countRows(w.plan());
+        }
+        java.sql.Connection connection(StatementExecutor.ExecEnv env) {
+            return side != null && !side.storeFree() ? side.connection() : env.connection();
+        }
+    }
+
+    private static SideRows planSide(TypedSpec spec, boolean expected, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook) {
+        return planSide(spec, expected, true, letPrefix, specs, env, hook);
+    }
+
+    /** {@code needCanon} false = the family only COUNTS (size / emptiness):
+     * a declined canon is not a reason, the plan's rows are. */
+    private static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        var rider = new com.legend.exec.CanonRider(false);
+        TypedSpec s = expected ? com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(spec) : spec;
+        StatementExecutor.PlannedValue pv = StatementExecutor.planValue(s, letPrefix, specs, env, rider, hook);
+        StatementExecutor.WrappedSide w = pv.side() != null ? pv.side()
+                : constantSide(pv.answered(), s, rider, false, env, env.connection());
+        if (w == null) {
+            return new SideRows(null, rider, "host-value side: " + describe(pv.answered()));
+        }
+        if (needCanon && rider.declined() != null) {
+            return new SideRows(w, rider, "side: " + rider.declined());
+        }
+        if (needCanon && w.shape() == com.legend.exec.ResultShape.GRAPH) {
+            return new SideRows(w, rider, "graph side (leg 3.2)");
+        }
+        return new SideRows(w, rider, null);
+    }
+
+    private static ExecutionResult unjudged(String name, String why) {
+        com.legend.exec.CanonicalDivergence.sqlUnjudged(name, why);
+        return fail(name + ": UNJUDGED in database mode — " + why);
+    }
+
+    private static ExecutionResult databaseSize(String name, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        SideRows coll = planSide(args.get(0), false, false, letPrefix, specs, env, hook);
+        if (coll.why() != null) {
+            return unjudged(name, coll.why());
+        }
+        SideRows n = planSide(args.get(1), false, letPrefix, specs, env, hook);
+        if (n.why() != null) {
+            return unjudged(name, "size arg: " + n.why());
+        }
+        boolean envelope = java.util.Objects.requireNonNull(coll.rider()).tdsWrapped()
+                && envelopeValuesRead(args.get(0), letPrefix);
+        var cw = java.util.Objects.requireNonNull(coll.side());
+        com.legend.sql.SqlQuery vq = cw.shape() == com.legend.exec.ResultShape.GRAPH
+                ? com.legend.lowering.VerdictSql.sizeOfGraph(cw.plan(), n.rows(false))
+                : com.legend.lowering.VerdictSql.size(coll.countRows(), n.rows(false), envelope);
+        return runVerdict(name, true, vq, coll.connection(env), env);
+    }
+
+    private static ExecutionResult databaseEmpty(String name, TypedSpec arg, boolean wantEmpty,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        SideRows side = planSide(arg, false, false, letPrefix, specs, env, hook);
+        if (side.why() != null) {
+            return unjudged(name, side.why());
+        }
+        var sw = java.util.Objects.requireNonNull(side.side());
+        com.legend.sql.SqlQuery vq = sw.shape() == com.legend.exec.ResultShape.GRAPH
+                ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
+                : com.legend.lowering.VerdictSql.empty(side.countRows(), wantEmpty);
+        return runVerdict(name, true, vq, side.connection(env), env);
+    }
+
+    private static ExecutionResult databaseContains(String name, TypedSpec coll, TypedSpec val,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        SideRows c = planSide(coll, false, letPrefix, specs, env, hook);
+        if (c.why() != null) {
+            return unjudged(name, c.why());
+        }
+        SideRows v = planSide(val, false, letPrefix, specs, env, hook);
+        if (v.why() != null) {
+            return unjudged(name, "value: " + v.why());
+        }
+        var cr = java.util.Objects.requireNonNull(c.rider());
+        var vr = java.util.Objects.requireNonNull(v.rider());
+        boolean literal = cr.literalOnly() || vr.literalOnly();
+        if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
+            return unjudged(name, "no literal channel");
+        }
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.rows(literal)),
+                c.connection(env), env);
+    }
+
+    private static ExecutionResult databaseCondition(String name, TypedSpec cond, boolean wantTrue,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        TypedSpec[] fc = forAllContains(cond);
+        if (fc != null) {
+            SideRows need = planSide(fc[0], false, letPrefix, specs, env, hook);
+            SideRows have = planSide(fc[1], false, letPrefix, specs, env, hook);
+            if (need.why() != null || have.why() != null) {
+                return unjudged(name, "forAll-contains: " + (need.why() != null ? need.why() : have.why()));
+            }
+            var nr = java.util.Objects.requireNonNull(need.rider());
+            var hr = java.util.Objects.requireNonNull(have.rider());
+            boolean literal = nr.literalOnly() || hr.literalOnly();
+            if (literal && (nr.literalIndex() < 0 || hr.literalIndex() < 0)) {
+                return unjudged(name, "forAll-contains: no literal channel");
+            }
+            return runVerdict(name, true, com.legend.lowering.VerdictSql.subset(need.rows(literal), have.rows(literal), wantTrue),
+                    need.connection(env), env);
+        }
+        SideRows side = planSide(cond, false, letPrefix, specs, env, hook);
+        if (side.why() != null) {
+            return unjudged(name, side.why());
+        }
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.rows(false), wantTrue),
+                side.connection(env), env);
+    }
+
+    private static ExecutionResult databaseTolerance(String name, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        SideRows e = planSide(args.get(0), false, letPrefix, specs, env, hook);
+        SideRows a = planSide(args.get(1), false, letPrefix, specs, env, hook);
+        SideRows t = planSide(args.get(2), false, letPrefix, specs, env, hook);
+        String why = e.why() != null ? e.why() : a.why() != null ? a.why() : t.why();
+        if (why != null) {
+            return unjudged(name, why);
+        }
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.rows(false), a.rows(false), t.rows(false)),
+                a.connection(env), env);
     }
 
     /** A side the pipeline ANSWERED as a host constant (a TDG seed string, a

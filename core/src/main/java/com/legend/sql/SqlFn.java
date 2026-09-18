@@ -92,6 +92,8 @@ public enum SqlFn {
     TO_VARIANT, BOOL_TO_TEXT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
+    /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */
+    JSON_ARRAY_LENGTH,
     /** The pretty-printed JSON text (meta::json::toPrettyJSONString). */
     JSON_PRETTY;
 

@@ -133,6 +133,178 @@ public final class VerdictSql {
                 : statement(p, g, true, true, true, List.of());
     }
 
+    // ── the ONE-LINE families (leg 3.1c): size / empty / contains / a boolean
+    // condition / the tolerance assert / the forAll-contains subset — each a
+    // predicate over the same row sources, returned in the same verdict row.
+
+    /** {@code assertSize}: the side's row count against {@code n} (the size
+     * side's one canon text as a BIGINT); {@code envelope} = the read is a
+     * relation-rooted execute's {@code .values}, which holds ONE TDS. */
+    public static SqlQuery size(SqlQuery sideRows, SqlQuery nRows, boolean envelope) {
+        SqlExpr count = envelope ? new SqlExpr.IntLit(1) : count("__a");
+        SqlExpr n = new SqlExpr.Cast(scalarOver("__n", col("__n", C), "__one",
+                SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.BIGINT);
+        return predicate(List.of(new SqlWith.Cte("__a", sideRows), new SqlWith.Cte("__n", nRows)),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, n),
+                new SqlExpr.Cast(n, SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR));
+    }
+
+    /** A GRAPH-shaped side (a class collection serialized as ONE JSON
+     * document): its size is the array's length, or 1 for a bare object —
+     * the host rule ({@code p instanceof List ? size : 1}); a NULL document
+     * counts 0. */
+    public static SqlExpr graphCount(SqlQuery graphPlan) {
+        String alias = graphPlan instanceof SqlSelect ps && !ps.projections().isEmpty()
+                && ps.projections().get(0).alias() != null ? ps.projections().get(0).alias() : "result";
+        OutputCol out = new OutputCol("__doc", SqlType.Scalar.VARCHAR, true);
+        SqlExpr doc = new SqlExpr.ScalarSubquery(new SqlSelect(
+                List.of(new SqlSelect.Projection(
+                        SqlExpr.Column.of("w", alias, SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED),
+                        "__doc", out)),
+                false, new SqlSource.Subselect(graphPlan, "w", null), null,
+                List.of(), null, null, List.of(), 1L, null, List.of(out)));
+        SqlExpr json = new SqlExpr.Cast(doc, SqlType.Scalar.JSON);
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, doc), new SqlExpr.IntLit(0)),
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.JSON_TYPE, json),
+                                new SqlExpr.StringLit("ARRAY")),
+                        SqlExpr.Call.of(SqlFn.JSON_ARRAY_LENGTH, json))),
+                new SqlExpr.IntLit(1));
+    }
+
+    /** {@code assertSize} over a graph side. */
+    public static SqlQuery sizeOfGraph(SqlQuery graphPlan, SqlQuery nRows) {
+        SqlExpr count = graphCount(graphPlan);
+        SqlExpr n = new SqlExpr.Cast(scalarOver("__n", col("__n", C), "__one",
+                SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.BIGINT);
+        return predicate(List.of(new SqlWith.Cte("__n", nRows)),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, n),
+                new SqlExpr.Cast(n, SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR));
+    }
+
+    /** {@code assertEmpty} / {@code assertNotEmpty} over a graph side. */
+    public static SqlQuery emptyOfGraph(SqlQuery graphPlan, boolean wantEmpty) {
+        SqlExpr count = graphCount(graphPlan);
+        SqlExpr isEmpty = SqlExpr.Call.of(SqlFn.EQUAL, count, new SqlExpr.IntLit(0));
+        return predicate(List.of(),
+                wantEmpty ? isEmpty : SqlExpr.Call.of(SqlFn.NOT, isEmpty),
+                new SqlExpr.StringLit(wantEmpty ? "empty" : "not empty"),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR),
+                        new SqlExpr.StringLit(" element(s)")));
+    }
+
+    /** {@code assertEmpty} / {@code assertNotEmpty}: the side's row count. */
+    public static SqlQuery empty(SqlQuery sideRows, boolean wantEmpty) {
+        SqlExpr count = count("__a");
+        SqlExpr isEmpty = SqlExpr.Call.of(SqlFn.EQUAL, count, new SqlExpr.IntLit(0));
+        return predicate(List.of(new SqlWith.Cte("__a", sideRows)),
+                wantEmpty ? isEmpty : SqlExpr.Call.of(SqlFn.NOT, isEmpty),
+                new SqlExpr.StringLit(wantEmpty ? "empty" : "not empty"),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(count, SqlType.Scalar.VARCHAR),
+                        new SqlExpr.StringLit(" element(s)")));
+    }
+
+    /** {@code assertContains}: some element's canon equals the value's. */
+    public static SqlQuery contains(SqlQuery collRows, SqlQuery valRows) {
+        SqlExpr value = scalarOver("__v0", col("__v0", C), "__one", SqlType.Scalar.VARCHAR, 1L);
+        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        SqlExpr member = new SqlExpr.Exists(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
+                false, cte("__a"),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__a", C), value),
+                List.of(), null, null, List.of(), null, null, List.of(one)));
+        return predicate(List.of(new SqlWith.Cte("__a", collRows), new SqlWith.Cte("__v0", valRows)),
+                member, value, frame("__a", true, true));
+    }
+
+    /** {@code assert(cond)} / {@code assertFalse(cond)}: the condition's one
+     * canon text is {@code true} / {@code false}. */
+    public static SqlQuery condition(SqlQuery condRows, boolean wantTrue) {
+        SqlExpr c = scalarOver("__a", col("__a", C), "__one", SqlType.Scalar.VARCHAR, 1L);
+        return predicate(List.of(new SqlWith.Cte("__a", condRows)),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, c, new SqlExpr.StringLit(wantTrue ? "true" : "false")),
+                new SqlExpr.StringLit(wantTrue ? "true" : "false"),
+                SqlExpr.Call.of(SqlFn.COALESCE, c, new SqlExpr.StringLit("[]")));
+    }
+
+    /** {@code assertEqWithinTolerance(e, a, tol)}: {@code |e − a| ≤ tol} over
+     * the three sides' canon texts as DOUBLEs. */
+    public static SqlQuery tolerance(SqlQuery eRows, SqlQuery aRows, SqlQuery tolRows) {
+        SqlExpr e = new SqlExpr.Cast(scalarOver("__e", col("__e", C), "__one", SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.DOUBLE);
+        SqlExpr a = new SqlExpr.Cast(scalarOver("__a", col("__a", C), "__one", SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.DOUBLE);
+        SqlExpr t = new SqlExpr.Cast(scalarOver("__t", col("__t", C), "__one", SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.DOUBLE);
+        SqlExpr within = SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                SqlExpr.Call.of(SqlFn.ABS, SqlExpr.Call.of(SqlFn.MINUS, e, a)), t);
+        return predicate(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows),
+                        new SqlWith.Cte("__t", tolRows)),
+                SqlExpr.Call.of(SqlFn.COALESCE, within, new SqlExpr.BoolLit(false)),
+                new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR));
+    }
+
+    /** The {@code $need->forAll(n | $have->contains($n))} subset idiom:
+     * no needed canon is absent from the haves. */
+    public static SqlQuery subset(SqlQuery needRows, SqlQuery haveRows, boolean wantTrue) {
+        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        SqlExpr present = new SqlExpr.Exists(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
+                false, cte("__h"),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__h", C), col("__n", C)),
+                List.of(), null, null, List.of(), null, null, List.of(one)));
+        SqlExpr missing = new SqlExpr.Exists(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
+                false, cte("__n"), SqlExpr.Call.of(SqlFn.NOT, present),
+                List.of(), null, null, List.of(), null, null, List.of(one)));
+        SqlExpr holds = SqlExpr.Call.of(SqlFn.NOT, missing);
+        return predicate(List.of(new SqlWith.Cte("__n", needRows), new SqlWith.Cte("__h", haveRows)),
+                wantTrue ? holds : missing, new SqlExpr.StringLit(wantTrue ? "subset" : "not a subset"),
+                frame("__n", true, true));
+    }
+
+    /** One verdict row from a predicate: {@code __verdict} never NULL, the
+     * two evidence texts, no unjudged, no leniency. */
+    private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
+            SqlExpr expected, SqlExpr actual) {
+        List<SqlSelect.Projection> ps = List.of(
+                new SqlSelect.Projection(
+                        SqlExpr.Call.of(SqlFn.COALESCE, verdict, new SqlExpr.BoolLit(false)), VERDICT,
+                        new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
+                new SqlSelect.Projection(expected, EXPECTED,
+                        new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, true)),
+                new SqlSelect.Projection(actual, ACTUAL,
+                        new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, true)),
+                new SqlSelect.Projection(new SqlExpr.NullLit(), UNJUDGED,
+                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
+                new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
+                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
+        SqlSelect body = new SqlSelect(ps, false, new SqlSource.Dual(), null,
+                List.of(), null, null, List.of(), null, null, List.of());
+        return ctes.isEmpty() ? body : new SqlWith(ctes, body);   // a WITH needs expressions
+    }
+
+    /** A side's rows for the predicate forms: a grid's row canons, or a
+     * scalar / collection side's canons (NULL values dropped). */
+    public static SqlQuery sideRows(SqlQuery wrapped, boolean grid, String canonColumn, boolean many) {
+        return grid ? gridRowCanons(wrapped)
+                : canonRows(new Side(wrapped, canonColumn, many, false, false));
+    }
+
+    /** A side's rows for COUNTING only (size / emptiness): no canon needed —
+     * a collection of instances the canon declines still has a row count;
+     * NULL values are dropped as everywhere (pure has no null value). */
+    public static SqlQuery countRows(SqlQuery plan) {
+        SqlExpr where = null;
+        if (plan instanceof SqlSelect vs && !vs.projections().isEmpty()
+                && vs.projections().get(0).alias() != null) {
+            where = SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                    SqlExpr.Column.of("w", vs.projections().get(0).alias(),
+                            SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED));
+        }
+        return rowsOf(new SqlExpr.NullLit(), new SqlExpr.NullLit(), plan, where);
+    }
+
     /** Two grids: row canons against row canons. */
     public static SqlQuery gridPair(SqlQuery e, SqlQuery a, boolean multiset) {
         return statement(gridRowCanons(e), gridRowCanons(a), true, true, multiset, List.of());
