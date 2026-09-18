@@ -72,9 +72,12 @@ final class AssertVerdicts {
         // verdict = pass; a raise out of an owned adjudication = fail
         // (side-evaluation errors fail the same test either way — the
         // detail says which). Judgment itself is untouched.
+        boolean settled = false;
+        com.legend.exec.CanonicalDivergence.sqlEnter();   // census: a new assert, no family yet
         try {
             ExecutionResult v = adjudicate(bare, letPrefix, specs, env,
                     rawHook);
+            settled = true;
             if (v != null) {
                 l.verdict(listenerName(bare), true, null);
             }
@@ -83,8 +86,16 @@ final class AssertVerdicts {
                 | com.legend.error.DataError e) {
             // the seam: a FALSE verdict or a side-evaluation data error
             // fails the same test either way — the detail says which
+            settled = true;
+            com.legend.exec.CanonicalDivergence.sqlRaised();
             l.verdict(listenerName(bare), false, e.getMessage());
             throw e;
+        } finally {
+            if (!settled) {
+                // any other exit (a wall, a not-implemented shape) leaves
+                // without a verdict: counted for the census, never caught
+                com.legend.exec.CanonicalDivergence.sqlRaised();
+            }
         }
     }
 
@@ -223,7 +234,7 @@ final class AssertVerdicts {
         List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
                 (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
                 letPrefix, specs);
-        return switch (fn) {
+        ExecutionResult adjudicated = switch (fn) {
             case ASSERT_TDS_EQUIVALENT -> {
             List<TypedSpec> targs = ((bare instanceof TypedUserCall u2)
                     ? u2.args() : ((TypedNativeCall) bare).args());
@@ -705,6 +716,10 @@ final class AssertVerdicts {
                                 : "collection is empty");
             }
         };
+        if (adjudicated == null) {
+            com.legend.exec.CanonicalDivergence.sqlFellThrough();
+        }
+        return adjudicated;
     }
 
     /** A side typed as a SEEDED metaclass (its extent is in the system
@@ -1042,6 +1057,8 @@ final class AssertVerdicts {
         if (byteHeld != null) {
             com.legend.exec.CanonicalDivergence.probeSqlVerdict(family,
                     hostHeld, byteHeld, detail);
+        } else {
+            com.legend.exec.CanonicalDivergence.sqlNoChannel();   // census residue, by construction
         }
         // JUDGING_TWO_MODES: the host judge's verdict is the verdict of
         // record; the byte channel reported as a census above and never

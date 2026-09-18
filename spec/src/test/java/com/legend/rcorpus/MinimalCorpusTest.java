@@ -429,6 +429,9 @@ class MinimalCorpusTest {
                 + " decimal-scale-only=" + com.legend.exec.CanonicalDivergence.decimalScaleOnlyCount()
                 + " disagree=" + com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
                 + " declined=" + com.legend.exec.CanonicalDivergence.sqlDeclinedCount());
+        System.out.println("[corpus2] sql-census round-trips="
+                + com.legend.exec.Executor.roundTrips() + " (every statement the executor"
+                + " sent this JVM: setups, sides, frames, referee replays)");
         com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(
                 r -> System.out.println("[corpus2] sql-disagree " + r.family() + " " + r.detail()));
         if (!only.isEmpty()) {

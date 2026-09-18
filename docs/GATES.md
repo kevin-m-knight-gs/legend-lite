@@ -3867,3 +3867,16 @@ un-attempted bucket explained): the three routes without a byte channel count th
 (`not-attempted <family> sql-text | rendered-text | grid-pair`) — DuckDB equals 991 sql-text
 · 253 rendered-text · 35 unaccounted, sameElements 19 rendered-text; grid-pair 0. AssertVerdicts
 1823 → 1827 with that reason; second chain green, rosters unchanged.
+
+**Leg 3.0 closed (2026-09-18, the census reconciles):** chain GREEN (gates 1–10), parallel
+wall ≈ 4m34s. Added: `Executor.roundTrips()` (every statement through the executor's two JDBC
+entries: DuckDB lane 142,580, H2 138,734); `declined-asserts <family>` (a decline is an event,
+a grid pair records two — the assert counted once); `raised` counted in a `finally` at the
+adjudicator's entry (any exit without a verdict, never caught), nested entries count once;
+`(pre-arm) raised` for a raise before the family arm; `CONTEXT_SOURCE` wired to the running
+test. For assertEquals / assertSameElements / assertEq, claimed + declined-asserts +
+not-attempted = adjudicated EXACTLY on both lanes (DuckDB equals 1,497 + 165 + 1,288 = 2,950).
+Probed: H2 2.4.240 re-evaluates a plain CTE per reference (20/20), DuckDB evaluates once
+(20/20, with or without MATERIALIZED). AssertVerdicts pinned 1842 with reasons (four census
+hooks); no roster moved; no verdict changed. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md
+§4a.

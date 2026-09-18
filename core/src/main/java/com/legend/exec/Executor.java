@@ -41,6 +41,7 @@ public final class Executor {
      * query) — the statement's KIND, from execution. */
     public static boolean executeRaw(Connection connection, String statement) {
         try (Statement st = connection.createStatement()) {
+            ROUND_TRIPS.incrementAndGet();   // the raw-SQL boundary counts too
             return st.execute(statement);
         } catch (SQLException e) {
             // THE SEAM (user directive 2026-09-01): java.sql stops at
@@ -226,11 +227,23 @@ public final class Executor {
         }
     }
 
-    /** Opt-in diagnostic: every executed statement to stderr. */
+    /** Opt-in diagnostic: every executed statement to stderr. Also the
+     * ROUND-TRIP count (leg 3.0, DATABASE_MODE_HOMEWORK §4a): every
+     * statement this executor sends passes here first — measurement
+     * only, printed by the corpus lanes, read by no verdict. */
     private static void dumpSql(String sql) {
+        ROUND_TRIPS.incrementAndGet();
         if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
             System.err.println("[sql] " + sql);
         }
+    }
+
+    private static final java.util.concurrent.atomic.AtomicLong ROUND_TRIPS =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** Statements sent through this executor since the JVM started. */
+    public static long roundTrips() {
+        return ROUND_TRIPS.get();
     }
 
     private static ExecutionResult executePrepared(Connection connection,

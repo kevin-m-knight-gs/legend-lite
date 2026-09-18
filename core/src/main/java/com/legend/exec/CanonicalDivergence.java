@@ -318,6 +318,7 @@ public final class CanonicalDivergence {
             return;
         }
         SQL_CENSUS.merge("claimed " + family, 1L, Long::sum);
+        CHANNEL_SEEN.set(true);
         if (hostHeld == sqlHeld) {
             SQL_AGREE.incrementAndGet();
         } else {
@@ -354,11 +355,17 @@ public final class CanonicalDivergence {
         SQL_DECLINED.incrementAndGet();
         sample(new Row("sqlDecline", false, reason));
         // leg 3.0 census: the decline attributed to the assert family
-        // being adjudicated (the reason's head, before its first ':')
+        // being adjudicated (the reason's head, before its first ':') —
+        // one row per decline EVENT (a grid pair may record one per side)
         int c = reason.indexOf(':');
         String head = c < 0 ? reason : reason.substring(0, c);
         SQL_CENSUS.merge("declined " + CURRENT_FAMILY.get() + " " + head,
                 1L, Long::sum);
+        if (!CHANNEL_SEEN.get()) {
+            // one row per declined ASSERT — what the family's rows sum to
+            SQL_CENSUS.merge("declined-asserts " + CURRENT_FAMILY.get(), 1L, Long::sum);
+        }
+        CHANNEL_SEEN.set(true);
     }
 
     // ── leg 3.0 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4): the
@@ -398,6 +405,58 @@ public final class CanonicalDivergence {
             return;
         }
         SQL_CENSUS.merge("not-attempted " + family + " " + route, 1L, Long::sum);
+        CHANNEL_SEEN.set(true);
+    }
+
+    /** The assert being adjudicated RAISED before any channel judged
+     * (a side that errors, a failed verdict thrown as AssertFailed):
+     * counted on the current family so "never attempted" has a reason. */
+    public static void sqlRaised() {
+        if (MUTED.get() || CHANNEL_SEEN.get()) {
+            return;   // a judged assert that then failed is not "never attempted"
+        }
+        SQL_CENSUS.merge("not-attempted " + CURRENT_FAMILY.get() + " raised",
+                1L, Long::sum);
+        CHANNEL_SEEN.set(true);   // a nested entry's raise is one raise
+    }
+
+    /** The verdict finished with NO byte verdict and no channel spoke
+     * (no claim, no decline, no route): the residue named by
+     * construction, so the census always sums. */
+    public static void sqlNoChannel() {
+        if (MUTED.get() || CHANNEL_SEEN.get()) {
+            return;
+        }
+        SQL_CENSUS.merge("not-attempted " + CURRENT_FAMILY.get() + " no-channel",
+                1L, Long::sum);
+        CHANNEL_SEEN.set(true);
+    }
+
+    /** The current assert's switch arm yielded null (not this arm's
+     * shape; the generic path continues): counted, so "adjudicated"
+     * minus the channels is explained. */
+    public static void sqlFellThrough() {
+        if (MUTED.get()) {
+            return;
+        }
+        SQL_CENSUS.merge("not-attempted " + CURRENT_FAMILY.get() + " fell-through",
+                1L, Long::sum);
+    }
+
+    /** Whether any channel (claim, decline, route) spoke for the current
+     * assert — set by them, reset at {@link #sqlFamily}. */
+    private static final java.util.concurrent.atomic.AtomicBoolean CHANNEL_SEEN =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** A statement-root assert enters the adjudicator, BEFORE its family
+     * is known (the lineage, quantified, if-branch and SQL-text root
+     * arms run first): a raise from there lands on its own row. */
+    public static void sqlEnter() {
+        if (MUTED.get()) {
+            return;
+        }
+        CURRENT_FAMILY.set("(pre-arm)");
+        CHANNEL_SEEN.set(false);
     }
 
     /** An assert of {@code family} enters adjudication. */
@@ -406,6 +465,7 @@ public final class CanonicalDivergence {
             return;
         }
         CURRENT_FAMILY.set(family);
+        CHANNEL_SEEN.set(false);
         SQL_CENSUS.merge("adjudicated " + family, 1L, Long::sum);
     }
 

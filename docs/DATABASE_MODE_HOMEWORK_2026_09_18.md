@@ -394,8 +394,57 @@ fired 0 times on both lanes (relation-stamped pairs reach the flat-cells verdict
 The 35 / 103 unaccounted are the routes that raise before any channel (a side that errors)
 or the class-value / string-entry inlined roots — small, to be named when 3.1 reaches them.
 
-**Owed from this leg (small, before 3.1's first edit):** the
-round-trip count per lane, and the H2 MATERIALIZED substitute (a probe: does H2 evaluate a
+**Evaluate-once, measured (same day, 20 runs each, a CTE holding `RAND()`/`random()` cells
+referenced twice in one statement).** H2 2.4.240: a plain CTE is re-evaluated PER REFERENCE
+— 20 of 20 runs saw different values on the two references, for a scalar CTE, a 3-row VALUES
+CTE and a CTE over a table alike; H2 has no MATERIALIZED. DuckDB 1.4.4: 20 of 20 the SAME on
+all three shapes, with or without MATERIALIZED (so P-11's one-run result was right for DuckDB;
+MATERIALIZED stays the emitted keyword because it is the documented guarantee, not because the
+probe needed it). Consequence for leg 3.4 on H2: a frame read twice inside one statement is
+two executions; a verdict over a nondeterministically ordered frame must reference it ONCE (one
+CTE read, the sides derived from that read) or the H2 lane materializes the frame as a
+temporary table before the verdict statement. Named now, decided at 3.4.
+
+**Round trips, measured (a counter at the executor's two JDBC entries — prepared queries and
+raw statements — printed by the lanes):** DuckDB lane 142,580 statements for 2,613 tests;
+H2 lane 138,734. About 54 statements per test, most of them the session's seeds replayed per
+package plus every assert side and frame re-execution. Leg 3.1 (one statement per assert
+instead of one per side) and 3.4 (one per test body, no frame re-execution) each get their
+before/after from this line.
+
+**The census RECONCILES (final, after four corrections on the same day — each a real
+counting fault, recorded so the next census does not repeat them).** The faults: (1) a
+decline is an EVENT, and a grid pair records one per side — `declined-asserts <family>`
+counts an assert once, the reason rows stay event counts (DuckDB equals: 174 events, 165
+asserts; H2: 319 events, 256 asserts — the H2 `tds-side` 63 were exactly the double
+records); (2) an assert can leave through ANY exception, not only AssertFailed/DataError —
+counted in a `finally` (`raised`), never caught; (3) a nested adjudication's raise passes
+through two entries — one raise; (4) a raise BEFORE the family arm is reached (the lineage,
+quantified, if-branch and SQL-text root arms run first) is its own row, `(pre-arm) raised`,
+not the previous assert's family. With those, for the three families the SQL canon serves,
+claimed + declined-asserts + not-attempted = adjudicated EXACTLY on both lanes:
+
+| family | lane | adjudicated | claimed | declined | not attempted (sql-text · rendered-text · raised) |
+|---|---|---|---|---|---|
+| assertEquals | DuckDB | 2,950 | 1,497 | 165 | 1,288 (991 · 253 · 44) |
+| assertEquals | H2 | 2,761 | 1,164 | 256 | 1,341 (929 · 246 · 166) |
+| assertSameElements | DuckDB | 755 | 686 | 50 | 19 (0 · 19 · 0) |
+| assertSameElements | H2 | 730 | 627 | 60 | 43 (0 · 13 · 30) |
+| assertEq | DuckDB / H2 | 6 / 6 | 6 / 2 | 0 / 3 | 0 / 1 |
+
+Every other family's remainder IS the family-level gap (no SQL arm at all): assertSize
+684 / 675, assert 362 / 362 (15 / 18 raised), assertJsonStringsEqual 177 / 172 (4 / 28
+raised), assertEmpty 20, assertFalse 20, assertContains 17, assertNotEmpty 13,
+assertEqWithinTolerance 11, assertIs 4, assertTdsEquivalent 2, assertInstanceOf 1. Pre-arm
+raises: 5 on DuckDB, 55 on H2 (the H2 walls before an arm is reached). The `raised`
+rows are the assert sides that hit a wall or errored — 44 equals on DuckDB, 166 on H2 — a
+list database mode inherits unchanged (a side that cannot execute is unjudged in every
+mode) and leg 3.2 names by reason.
+
+**Every item leg 3.0 owed is answered above** (census, Decimal pairs, the H2 rows, round
+trips, the H2 evaluate-once probe, the multiset spelling); item 6 (CSV-literal and stress
+`###Data` fixture sizes) stays parked WITH its reason — it matters only if the self-contained
+statement form is adopted, and D9 keeps the corpus lane's seeds at the session. (a probe: does H2 evaluate a
 plain CTE once when referenced twice? If not, the H2 fusion form uses a temporary view or
 runs the frame CTE as a subquery per reference and the differential gate catches drift).
 
