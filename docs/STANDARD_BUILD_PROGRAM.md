@@ -10,9 +10,10 @@ console output; not Maven plus two source checkouts the developer has to clone b
 not Maven plus a Python toolchain. `mvn` decides, and its exit code is the project's
 verdict.
 
-This document is the plan to get there from `main` as it stands. It is written in
-phases, each with an exit condition you can observe. Section 7 lists every bespoke
-script the plan deletes and what replaces it.
+This document is the plan to get there from `main` as it stands — `c062b9bc9`,
+2026-09-18, the commit every count in section 2 describes. It is written in phases, each
+with an exit condition you can observe. Section 7 lists every bespoke script the plan
+deletes and what replaces it.
 
 ---
 
@@ -64,9 +65,9 @@ project's verdict.
 | --- | --- |
 | **The toolchain is not enforced** | Nothing in the build checks the JDK or Maven version, so the wrong one fails obscurely instead of clearly. The only statement of the supported versions is `.sdkmanrc` (`java=25.0.1-tem`, `maven=3.9.12`), which Windows cannot read. |
 | **The README describes a deleted module** | Its Quick Start runs `mvn -pl engine test`; the `engine` module no longer exists. Its test counts (1,713 for `core`) are years of work out of date. |
-| **The instructions are agent documents** | `README.md` sends you to `AGENTS.md` ("read by AI coding assistants"), `core/README.md` and `docs/GATES.md`, which is 3,782 lines of dated work records. There are 241 Markdown files at the top level of `docs/` and no index. |
+| **The instructions are agent documents** | `README.md` sends you to `AGENTS.md` ("read by AI coding assistants"), `core/README.md` and `docs/GATES.md`, which is 3,882 lines of dated work records and grows with most commits. There are 244 Markdown files at the top level of `docs/` and no index. |
 | **Two checkouts, pinned by SHA** | `spec`, `pct`, and `parser-equivalence` read full source trees of `finos/legend-engine` and `finos/legend-pure` through `-Dlegend.engine.root` / `-Dlegend.pure.root`, which must sit on the exact commits in `tools/oracle-pins.env`. Maven cannot fetch them. Without them some tests fail and others skip silently — which is why `allgates.sh` has a skip detector. |
-| **Line endings are unguarded** | There is no `.gitattributes`, so every checkout is at the mercy of the developer's `core.autocrlf`, and CI has to set `core.autocrlf false` and `core.longpaths true` before every checkout. The index itself is in good shape — 2,916 files LF, 10 binary, 4 exceptions — but one exception is `prelude.pure`, whose stored bytes are *mixed* because upstream's own sources carry CRLF and the generator copies their text. Whether a CRLF working tree actually breaks a byte-exact test today is unmeasured; what is certain is that nothing declares the intent. |
+| **Line endings are unguarded** | There is no `.gitattributes`, so every checkout is at the mercy of the developer's `core.autocrlf`, and CI has to set `core.autocrlf false` and `core.longpaths true` before every checkout. The index itself is in good shape — 2,920 files LF, 10 binary, 4 exceptions — but one exception is `prelude.pure`, whose stored bytes are *mixed* because upstream's own sources carry CRLF and the generator copies their text. Whether a CRLF working tree actually breaks a byte-exact test today is unmeasured; what is certain is that nothing declares the intent. |
 | **One LTS is untested** | The POMs set `maven.compiler.source`/`target` to 21 rather than `release`, so builds on a newer JDK can link against newer APIs and still claim 21. CI builds only on JDK 25 (`.github/actions/gate-env` defaults `java-version: "25"`). Nothing runs on 21. |
 | **Basic project files are missing** | No `LICENSE` (the README claims Apache-2.0 and many sources carry the SPDX header), no `NOTICE`, no `CONTRIBUTING.md`, no `CODEOWNERS`, no `.editorconfig`. |
 | **A known red** | `nlq`'s test model declares `provision` twice in `PriceTypeEnum` (`nlq/src/test/resources/nlq/cdm-model.pure:2574-2575`), so that model does not compile and the module's tests fail on a fresh clone. |
@@ -254,15 +255,48 @@ is a failsafe **execution** with its own `systemPropertyVariables`, its own
 `reportsDirectory`, and its own `summaryFile`. `mvn verify` runs both, reports both, and
 fails if either fails. Gates 4/5, 6/7, and the two stress lanes collapse into executions.
 
+**A second axis is on its way.** The judging program makes the judge a run-level switch,
+`-Dlegend.judge.mode`, read once per JVM (only `host` exists today; leg 3.1 of
+`docs/DATABASE_MODE_HOMEWORK_2026_09_18.md` adds `database`), and commits to a permanent
+**differential gate**: the corpus and stress lanes run in both modes, and every assertion
+must get the same verdict from each (`docs/JUDGING_TWO_MODES_2026_09_17.md` §4). The
+homework specifies it as per-assertion verdict files, one per mode per lane, keyed by test
+and statement, compared by a gate that pins zero disagreements (D7). That fits this
+section's model with one addition: a lane becomes backend × mode executions, each writing
+its verdict file to `target/`, and one last execution in the same module compares them. A
+module's executions run in the order its POM declares them, so the comparison needs no
+script. Built this way when leg 3.3 lands, the gate is already in the target shape and
+phase 3 only wires it; built as a new stream in `tools/allgates.sh`, it is one more thing
+phase 3 has to port.
+
 ### 4.5 Ratchets become data
 
-This is the single most important change for working concurrently. Today a scalar floor
-(`MIN_PASS = 4679`, `MIN_PASS_H2 = 4607`, `G7_MIN_RUN=469`) is edited by whoever improves
-the number. Two developers improving different things both edit the same line, and the
-merge is silent about which improvements survived.
+This is the single most important change for working concurrently. Today most
+expectations are scalars in code, of three kinds:
 
-Replace each scalar with a committed file of rows — one row per expected-failing test or
-suite, with its reason — and assert set equality:
+- **pass floors** — `MIN_PASS` and `MIN_PASS_H2` in `StressServiceSuitesTest`, `G7_MIN_RUN`
+  in `tools/allgates.sh`;
+- **census ceilings** — the oracle-declined and spelling ceilings in `MinimalCorpusTest`,
+  `MAX_INT_NULL_EMPTY` in the PCT census;
+- **source-size pins** — `JavaEvalLedgerTest`'s line count for each file that evaluates in
+  Java.
+
+Whoever moves a number edits it, and the numbers move constantly. Between 2026-09-11 and
+2026-09-18 the stress floors changed in nine commits (they now read 4,700 and 4,622), and
+fifteen edited `JavaEvalLedgerTest` — seven of the ten from `adbc284ec` to `c062b9bc9`
+alone, its `AssertVerdicts` pin going 1831 → 1840 → 1822 → 1823 → 1827 → 1842. Two
+developers improving different things both edit the same line, and the merge is silent
+about which improvements survived. A count cannot say which rows it counts:
+`oracle-declined` went 28 → 39 for "eleven helper-shaped plan asserts", described by family
+in a comment, and a different eleven would satisfy the same number. Even the provenance
+drifts: `MIN_PASS`'s history comment still ends at 4,689 while the constant reads 4,700.
+
+The corpus lanes already have the answer. `h2-fail-roster.txt` and the unordered-chain
+registers are one row per test, compared as exact sets. When host-only judging changed how
+one H2 test passed, on 2026-09-18, gate 5 went red naming that test, and the fix was one
+register row with its reason. Extend that shape to every scalar above: a committed file of
+rows — one row per expected-failing test or suite, or per counted case, with its reason —
+and assert set equality:
 
 ```
 corpus/src/test/resources/expected/stress-duckdb.tsv
@@ -272,7 +306,9 @@ pct/src/test/resources/expected/relation-h2.tsv
 A new failure names itself. A fixed test fails with "remove this row". Two developers who
 fix different tests touch different lines and git merges them correctly. Every run writes
 its candidate to `target/`; `-Dledger.update` accepts it into the committed file, which is
-the one deliberate act a human performs (§4.8).
+the one deliberate act a human performs (§4.8). New expectations should be born in this
+shape; the judging program's per-mode unjudged lists (homework D3) are the next due.
+Whether the source-size pins should exist at all is a separate question (§9).
 
 ### 4.6 Portability, spelled out
 
@@ -283,7 +319,7 @@ the one deliberate act a human performs (§4.8).
 | Locale-dependent case and formatting | Pin `-Duser.language=en -Duser.country=US -Dfile.encoding=UTF-8` beside the existing `-Duser.timezone=GMT`, in one place. |
 | Shell-only tooling | Deleted, not ported. `mvnw.cmd` is the Windows entry point. |
 | `/tmp`, `mktemp`, `id -un`, fixed report paths | Gone with the scripts; per-execution `reportsDirectory` under `target/`. |
-| arm64 vs x86_64 floating point | Already handled as a declared tolerance policy in the judges; keep it there, where both platforms can see it, and never in a platform `if`. |
+| arm64 vs x86_64 floating point | Already one declared, counted policy with one home: a 2-ULP leniency in `com.legend.exec.Equality`, and `VerdictChannelRegisterTest` fails if `Math.ulp` appears anywhere else. Database mode will add its SQL twin (homework D4), and the differential gate (§4.4) holds the two to the same answers. Never a platform `if`. |
 | Case-insensitive filesystems | A guard test asserting no two committed paths differ only by case. |
 | JDK differences | `maven.compiler.release=21`, Enforcer `requireJavaVersion [21,)`, and a CI matrix that actually runs 21 and 25. |
 
@@ -344,7 +380,7 @@ itself.
 | The signature text inside `Pure.java` | committed; a `spec` test rewrites the block between markers in a hand-written file | **generated** source; the membership list stays committed | The text is upstream's. A half-generated Java file cannot be a build output, so the file splits: our list of what we claim, their text for each claim. |
 | The DynaFn registry members | a region of a hand-written Java source, patched by a test | **generated** source | A mirror of upstream's registries. |
 | `CORE_IMPORTS` | a Java constant patched by a test | **generated** constant | A mirror of upstream's `CompileContext.META_IMPORTS`. |
-| `native-claims.tsv` (829 rows) | committed; its own header says "the diff is the review" | **committed** | Measured from our own `Pure.java`. Generating it each build would compare it with itself; its entire job is to make a change in the implemented surface visible in a pull request. |
+| `native-claims.tsv` (829 rows) | committed; its own header says "the diff is the review" | **committed** | Measured from our own code: one row per `Pure.java` overload, with the `core` classes that claim it. Generating it each build would compare it with itself; its entire job is to make a change in the implemented surface visible in a pull request — as it did when a typer change (`928451d67`) added `NumberKinds` to twenty rows. |
 | `native-membership.tsv` (787 rows) | committed, mixed | **splits** | Membership is a decision we make; the signature text beside it is upstream's. |
 | Expected-failure ledgers, censuses, rosters, corpus scoreboards | committed; several rewritten in the working tree by a test run | **committed**, with the candidate written to `target/` and compared | Same as the claims ledger: they exist to be compared against. |
 | The stress corpus's expected answers | committed | **committed** | They come from executing ~4,700 services against real legend-engine — about an hour, on a runner outside the reactor. A build cannot contain its own oracle. |
@@ -389,6 +425,9 @@ stale by Friday, and a green `verify` means nothing if most commits never ran it
 - A declared public surface (`com.legend.Compiler` and the HTTP API) and versioned
   releases, so other work can depend on something that holds still.
 - `CODEOWNERS`, and a stated review expectation.
+- Run records move into the pull request. `docs/GATES.md` stops taking a paragraph per
+  change: it is the file most commits touch, so any two pull requests in flight conflict
+  at its end (§6). Its gate definitions stay until phase 3 replaces the gates.
 
 **Exit:** branch protection enabled and a required check configured, even if that check
 is initially only "compiles".
@@ -408,9 +447,12 @@ is initially only "compiles".
   what keeps `prelude.pure`'s mixed endings intact) — and `.editorconfig`. Confirm with
   `git ls-files --eol` before and after that exactly the four known exceptions remain.
 - **Measure the full suite, in wall clock and in resident memory**, before anything
-  depends on the answer: every lane the gates run today, serially and under `-T1C`, on a
-  laptop-sized machine. §6 sets a budget on the strength of it, and phase 3's parallelism
-  is a bet on memory that this measurement settles.
+  depends on the answer: every lane the gates run today plus the H2 stress lane, serially
+  and under `-T1C`, on a laptop-sized machine and on the CI runners. Measure each quiet,
+  with no stray JVMs or IDE builds running: the same chain has measured 7m24s beside a
+  day's leftover JVMs and 4m09s without them (`docs/GATES.md`, 2026-09-17). §6 weighs the
+  project's four-minute budget against the result, and phase 3's parallelism is a bet on
+  memory that this measurement settles.
 - Fix the duplicate `provision` enum value in the `nlq` test model.
 - Tag every test that needs an upstream source checkout, exclude that tag by default, and
   convert its skips into failures. This is temporary scaffolding that phase 2 removes —
@@ -449,7 +491,8 @@ the word "checkout" appears nowhere in the build.
 - Rename the long suites to `*IT` and bind them to failsafe; surefire keeps the unit
   tests. `mvn test` becomes the inner loop by convention, not by flag.
 - Turn each backend lane into a failsafe execution with its own properties and reports.
-- Convert every ceiling and floor into an expected-failure ledger (§4.5).
+- Convert every floor and ceiling into a row ledger (§4.5), and whatever source-size pins
+  survive §9's triage.
 - Make a missing upstream input throw rather than assume past it, and keep
   `SkipCensusTest` as the rule for the skips that legitimately remain.
 - Move every test write into `target/`; compare against committed baselines instead of
@@ -461,9 +504,10 @@ the word "checkout" appears nowhere in the build.
   `tools/ci-watch.sh`, `tools/classpath-convergence.sh`, `tools/version-report.sh`, and
   both gate workflows.
 
-**Exit:** `./mvnw verify` reproduces all ten of today's gates, locally and in CI, with no
-shell involved; a deliberately broken test fails it for the same reason the gate chain
-would have.
+**Exit:** `./mvnw verify` reproduces every gate the chain runs at the time — ten today,
+plus the differential gate if leg 3.3 has landed (§4.4) — locally and in CI, with no shell
+involved; a deliberately broken test fails it for the same reason the gate chain would
+have.
 
 ### Phase 4 — Generation moves into the build *(2–3 weeks)*
 
@@ -528,7 +572,8 @@ declared maintainer tooling, with no third option.
 - Mark everything outside the declared public surface internal.
 - Archive `docs/`. Keep a handful of living documents — getting started, architecture,
   invariants, conformance testing, upstream bumps — and an `adr/` directory for decisions.
-  Retire `GATES.md` as a running log; history belongs in commits, PRs, and release notes.
+  Retire `GATES.md`; it stopped being a running log in phase 0, and history belongs in
+  commits, PRs, and release notes.
 - Replace the ad-hoc debug environment variables and `System.out` calls with a logging API.
 - Remove `progress*.txt`, `progress/`, `experiments/`, and editor-specific directories from
   the repository root.
@@ -542,12 +587,19 @@ depend on a released version without building legend-lite.
 
 ## 6. Working concurrently
 
-A standard build is necessary but not sufficient. Five things decide whether five people
+A standard build is necessary but not sufficient. Six things decide whether five people
 can work at once.
 
 **Shared scalar ratchets are the main hazard.** They are the one construct guaranteed to
 conflict, and to conflict silently in the direction of a false green. §4.5 is the fix, and
 it should land early in phase 3.
+
+**Shared append-only records.** `docs/GATES.md` takes a paragraph from most commits — 100
+of the 139 (merges aside) between 2026-09-11 and 2026-09-18, and eight of the ten from
+`adbc284ec` to `c062b9bc9`. Every paragraph lands at the end of the same file, so any two
+pull requests in flight conflict there. The conflict is loud rather than silent, but it is
+certain, and it grows with the number of people. Phase 0 moves the record into the pull
+request; phase 6 retires the file.
 
 **Cross-module coupling.** Today an edit in `pct` or `parser-equivalence` can fail `core`,
 so two people working in different modules are not actually independent. The `guards`
@@ -566,18 +618,33 @@ a retry loop that hides it.
 **Cadence, and what it actually costs.** With a required check on every pull request,
 `verify` has to stay fast enough to run on every one — and the plan's promise that
 everything lives in the default build is the claim most likely to break here, so it should
-be held to evidence rather than to a budget invented for the purpose.
+be held to evidence.
 
 What is measured today: a `verify` that omits the corpus lanes, the ChannelB suites, the
 H2 relation lane, the H2 stress lane, and the parser sweep against a full corpus takes
-8 min 37 s serially (Appendix A). The project's own gate timings put the complete set at
-roughly ten to twelve minutes serial on a fast machine, and about four and a half minutes
-as three parallel streams. So the promise is probably keepable — but only through the
-parallelism that `tools/allgates.sh` warns gets JVMs killed on small machines, because a
-PCT suite's live set is 2–3 GB and `-T1C` multiplies it by the number of cores.
+8 min 37 s serially (Appendix A). The gate chain — core's clean compile and all ten gates —
+measured 408 s serially and 249 s as three parallel streams on a quiet developer machine
+(`docs/GATES.md`, 2026-09-17), and between 4m09s and 4m34s in parallel on every recorded
+chain since. Adding up the per-gate times of a parallel run gives ten minutes and more, but
+those times are inflated by the other streams; alone, every gate ran faster. So on a
+developer's machine the promise does not depend on parallelism: serial is under seven
+minutes.
 
-That makes the budget a **memory** budget before it is a time budget, and phase 1 measures
-both. If the full set will not fit a pull-request check, the order of retreat is: raise
+Two things can still break it. The CI runners are smaller: the macOS one has 3 vCPU and
+7 GB (`pct/pom.xml`), where one PCT suite's 2–3 GB live set is already a third of the
+machine and `-T1C` multiplies the heavy JVMs by the number of cores — so on the runners the
+budget is a **memory** budget before it is a time budget, and phase 1 measures both. And
+the set is growing: the H2 stress lane, which no gate runs today, is about two minutes, and
+the differential gate (§4.4) adds database-mode runs of the corpus and stress lanes, of
+which the homework prices the DuckDB corpus run alone at about 100 s.
+
+The project also already has a time budget: four minutes for the parallel chain, set on
+2026-09-16 (`docs/STRESS_CORPUS_THROUGH_LITE_2026_09_16.md`, F-R). It already decides what
+runs — the H2 stress lane stays out of the chain because the budget cannot carry it
+(F-AA) — and the differential gate is to be priced against it. It and "everything in
+`verify`" cannot both hold as lanes join; §9 asks which gives.
+
+If the full set will not fit a pull-request check, the order of retreat is: raise
 parallelism within a measured memory ceiling; then run the full set on merge with a
 sampled corpus on pull requests; then split the matrix (everything on Linux/21, a smoke
 subset elsewhere). Weakening the suite is not on the list. A merge queue keeps two
@@ -609,9 +676,10 @@ that runs identically on a laptop.
 
 1. **Will `main` be protected?** Phase 0 is a decision, not a task, and every later phase
    depends on it. This is the largest risk in the plan.
-2. **Does the whole suite fit in a pull-request check?** The honest answer is "probably,
-   with parallelism, and nobody has measured the memory." §6 says what to measure and in
-   what order to retreat; phase 1 does the measuring.
+2. **Does the whole suite fit in a pull-request check?** On a developer's machine, very
+   likely, even serially: the gate chain runs in under seven minutes there. On the CI
+   runners nobody has measured it, memory binds before time, and the set is growing (§6).
+   §6 says what to measure and in what order to retreat; phase 1 does the measuring.
 3. **Does the NullAway and Error Prone configuration hold on JDK 21 and 25?** It carries a
    JDK-21-specific workaround already; phase 1 must run both.
 4. **Renormalizing line endings.** The index is already clean (§2.2), so `.gitattributes`
@@ -635,7 +703,13 @@ asking *whether* they should. A test that reads another module's Java source to 
 convention is usually a linter rule wearing a test's clothes, and Checkstyle, Spotless, or
 ArchUnit would give a better message for less code. The triage — real behavioral ledger,
 linter rule, or delete — belongs in phase 3, and it may be the difference between a module
-worth having and a module that preserves a cost nobody examined.
+worth having and a module that preserves a cost nobody examined. The first candidate is
+`JavaEvalLedgerTest`: it pins a line count for each file that evaluates in Java, it was
+edited by seven of the ten commits from `adbc284ec` to `c062b9bc9`, and two people changing
+the same file always conflict on its pin. Not every guard is a candidate, though:
+`VerdictChannelRegisterTest` now enforces a design rule — one Java class decides every
+equality (`docs/JUDGING_TWO_MODES_2026_09_17.md` §5) — so for it the question is form, not
+existence.
 
 **Is the module shape right?** The plan adds `corpus`, `projects`, `guards`, and
 `upstream-runner` to the existing five without questioning the five. After phase 4, `spec`
@@ -652,23 +726,33 @@ versioned artifact the build resolves would cost nothing per developer and versi
 cleanly; porting its generators to Java would move it out of §4.8's committed rows
 entirely. Either beats the status quo, and neither is free.
 
+**Does the four-minute budget survive?** The project's parallel chain has a four-minute
+budget (2026-09-16), and it already decides what runs: the H2 stress lane stays out because
+the budget cannot carry it, and the differential gate will be priced against it. This plan
+puts everything in `verify`. They cannot both hold as lanes join. Raise the budget, set it
+per machine class, or let it decide what runs on pull requests with the rest on merge
+(§6's retreat) — the project's call, to make before phase 3 turns the lanes into
+executions.
+
 **Four smaller ones, each a genuine trade:** renaming the long suites to `*IT` buys the
 standard surefire/failsafe convention at the price of rewriting every command habit and
 doc reference that names them — tags plus failsafe includes get the same behavior with no
 churn. The shade plugin builds a 97 MB server jar on every `verify`; it probably belongs
 in `package` or a release profile rather than the inner gate. Running both database lanes
-on every pull request is inherited, not reasoned: one gating and the other on merge is a
-legitimate option nobody has priced. And upstream bumps are manual by design, but a
-Renovate or Dependabot pull request — red on the ledgers, as it should be — costs nothing
-and turns "someone remembers to look" into a notification.
+on every pull request — and, once database mode exists, both judge modes on each — is
+inherited, not reasoned: one gating and the other on merge is a legitimate option nobody
+has priced. And upstream bumps are manual by design, but a Renovate or Dependabot pull
+request — red on the ledgers, as it should be — costs nothing and turns "someone remembers
+to look" into a notification.
 
 ---
 
 ## Appendix A — measurements behind section 2
 
-Taken on `main`, Windows 11, JDK 25 (Temurin 25.0.4.1), Maven 3.9.14, offline against a
-warm local repository, with no `legend-engine` / `legend-pure` checkouts present — the
-state a newcomer's machine is in.
+Taken on `main` at `f659d747a`, ten commits before the state section 2 describes, on
+Windows 11, JDK 25 (Temurin 25.0.4.1), Maven 3.9.14, offline against a warm local
+repository, with no `legend-engine` / `legend-pure` checkouts present — the state a
+newcomer's machine is in. Every number below is at that commit unless it says otherwise.
 
 Command: `mvn -o clean verify -Dmaven.test.failure.ignore=true`. The flag keeps every
 module running past its failures so each one reports. Total wall clock **8 min 37 s**.
@@ -686,10 +770,10 @@ checkouts, or the `nlq` enum.
 
 One detail worth pulling out, because it is the whole problem in miniature. `mvn verify`
 runs the full stress corpus: inside `core` it reports `pass=4689 fail=31 skipped=16 of
-4736` and takes 158 s of that module's 4:52. `StressServiceSuitesTest` is tagged
-`stress`, but `core/pom.xml` excludes only the `heavy` group, so the tag is honoured by
-`tools/allgates.sh` and by nothing else. The build and the gate disagree about what the
-default suite is, and the script is the one that is right.
+4736` (4,700 and 20 by `c062b9bc9`) and takes 158 s of that module's 4:52.
+`StressServiceSuitesTest` is tagged `stress`, but `core/pom.xml` excludes only the `heavy`
+group, so the tag is honoured by `tools/allgates.sh` and by nothing else. The build and the
+gate disagree about what the default suite is, and the script is the one that is right.
 
 | | |
 | --- | --- |
