@@ -1853,8 +1853,8 @@ final class Typer {
                     + " or a misspelling)");
         }
         InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected);
-        return new Application(r.chosen(), args,
-                refineParseDate(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output())));
+        return new Application(r.chosen(), args, NumberKinds.refine(r.chosen(), args,
+                refineParseDate(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output()))));
     }
 
     /** parseDate over a LITERAL refines its abstract Date output to the
@@ -2068,8 +2068,8 @@ final class Typer {
                 java.util.Arrays.stream(typed).map(TypedSpec::info).toList());
         List<TypedSpec> typedArgs = new ArrayList<>(List.of(typed));
         markOperatorRun(infix, typedArgs);
-        return new Application(chosen, typedArgs,
-                refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out)));
+        return new Application(chosen, typedArgs, NumberKinds.refine(chosen, typedArgs,
+                refineImportDataFlow(chosen, raw, typed, env, refineDecimalCarrier(chosen, out))));
     }
 
     /** The execute exeCtx overload under {@code importDataFlow}: the

@@ -35,6 +35,7 @@ public class H2 extends AnsiSqlRenderer {
         java.util.List<com.legend.sql.SqlRewriter> ps =
                 new java.util.ArrayList<>(super.passes());
         ps.add(new LateralExplodeToUnion());
+        ps.add(new H2AvgDelivers());
         // LAST: every source the passes above introduced is in scope when
         // references take their source's spelling (Phase 1, batch 135)
         ps.add(new SourceSpelling());

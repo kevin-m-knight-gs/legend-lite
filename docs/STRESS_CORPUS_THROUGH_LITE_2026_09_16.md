@@ -217,3 +217,12 @@ Ledger order follows the rows: the 1,798 first.
 | F-L | The H2-only stress gap was ONE bucket (936 rows): Pure `divide(Number, Number)` IS a Float, but the renderer only promoted with `1.0 *`, so H2 divided two DECIMAL(18,4) columns into an exact 36-digit NUMERIC (DuckDB divides decimals into a DOUBLE natively); the engine's expected values are doubles | divide renders as a DOUBLE division — both operands cast BEFORE the division (a cast after keeps the operands' arithmetic: integers truncate, decimals round from an exact quotient); the `1.0 *` trick is retired | corpus lanes DuckDB 108 EXACT / H2 440 (four wavg/round rows retired from the roster); stress H2 1,693 → 2,642 pass (DuckDB 2,702) | fixed |
 
 **Measured today (engine's shape, fresh session per test, all 4,736):** DuckDB 23.2 min at 290 ms/test; H2 95 s at 17 ms/test. Same fixture replay: DuckDB 247 ms, H2 32 ms. Loading levers measured (200k rows): Arrow 8 ms ingest + 52 ms vector build, Appender 102 ms, read_csv 82 ms + file, text 2,654 ms, prepared batch 20 s; 393 tiny tables: Appender 90, text 137, Arrow 256, DDL floor 23 ms; ADBC from Java: the JNI driver (0.21.0) has no executeUpdate — ingest impossible today. Seeding policy decisions (clone vs share) deferred until the load path is right.
+
+### F-AG — numeric step 1 landed (2026-09-17)
+
+The kind decided once, in SQL, at the root (docs/JUDGING_TWO_MODES_2026_09_17.md, step 1;
+docs/NUMERIC_CHARTER_2026_09_17.md). DuckDB shared lane 4,689 → 4,700 (20 fail); H2 lane
+4,612 → 4,622 (98 fail); zero new rows. The 20 DuckDB residue unchanged from F-AE/F-AF:
+headroomToLimit ×2 (DuckDB decimal division), graph DateTime +0000 ×6 (F-W), dateDiff hours
+×5 (ruling owed), the five engine-quarantined services (F-V wrong, correction owed), Binding
+PM ×2. Corpus rosters: DuckDB 108 EXACT; H2 440 → 430 (12 gained, 2 lost to H2 rendering).

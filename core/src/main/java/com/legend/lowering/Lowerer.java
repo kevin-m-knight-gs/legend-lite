@@ -328,8 +328,10 @@ public final class Lowerer {
             boolean collectionMapper = ValueCollections.isCollectionMapper(ml);
             Multiplicity colMult = ml.functionType().result().multiplicity();
             SqlSelect proj = Fold.conformValueEgress(
-                    relation(ValueCollections.valueColumnProject(
-                            m.source(), ml, spec.info().type(), colMult)),
+                    Fold.declaredKindEnvelope(
+                            relation(ValueCollections.valueColumnProject(
+                                    m.source(), ml, spec.info().type(), colMult)),
+                            spec.info().type()),
                     LiteralSpelling.ValueLane.MAP_CHANNEL);
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
@@ -350,7 +352,8 @@ public final class Lowerer {
             return Fold.unnestColumn(new SqlSource.Subselect(proj, sub, null),
                     sub, "value", "value", sqlTypeOf(spec.info().type()));
         }
-        return Fold.conformValueEgress(scalarRoot(spec),
+        return Fold.conformValueEgress(
+                Fold.declaredKindEnvelope(scalarRoot(spec), spec.info().type()),
                 LiteralSpelling.ValueLane.SCALAR_ROOT);
     }
 
@@ -1326,7 +1329,15 @@ public final class Lowerer {
             aggOrder = List.of(new SqlSelect.SortKey(value, false, null, null));
         }
         List<SqlExpr> args = new ArrayList<>();
-        args.add(value);
+        // NUMERIC CHARTER Rule 1: pure's average is the engine's
+        // `avg(1.0 * x)` on EVERY dialect (extensionDefaults.pure:198,
+        // dynaFnToSql 'average') — the promotion makes an integer column's
+        // average a fraction on backends whose avg keeps the input kind (H2:
+        // avg(INT) is an INT; DuckDB already returns DOUBLE); the literal
+        // renders bare (Rule 1) so the promotion is the database's own.
+        args.add(fn == SqlAgg.Fn.AVG
+                ? SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.FloatLit(1.0), value)
+                : value);
         args.addAll(extra);
         SqlExpr red = new SqlAgg.Reducer(fn, args, distinctValues, aggOrder);
         // pure percentile RENDERS AS FLOAT (engine golden 12.0, not 12) —

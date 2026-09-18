@@ -193,11 +193,14 @@ final class DeclaredCoercions {
             // rows belong to the carry-through tolerance (§4bZ plan).
             // Abstract Number (identity carrier — castErasure referee)
             // and Integer-declared likewise stay type-only assertions.
-            if ("Float".equals(declared) && "Decimal".equals(colKind)) {
-                return new AppliedFunction(Pure.Lite.CAST_AS_DECLARED,
-                        List.of(read, new TypeAnnotation.Named(
-                                new TypeExpression.NameRef(declared))));
-            }
+            // NUMERIC CHARTER Rule 1 + 2 (docs/NUMERIC_CHARTER_2026_09_17.md):
+            // a Float property over a DECIMAL column is a TYPE assertion, never
+            // a read-time cast — the engine reads the cell by its JDBC kind
+            // and its numeric transformers are the identity; the value stays
+            // DECIMAL in SQL, the declared kind converts ONCE at the root
+            // select (Rule 2). (Retired: castAsDeclared → DOUBLE at the read,
+            // fc2fe6bd3 — double arithmetic over the column:
+            // 0.8499999999999943 for 0.85.)
             return new AppliedFunction(Pure.Lite.TYPE_AS_DECLARED, List.of(read,
                     new TypeAnnotation.Named(
                             new TypeExpression.NameRef(declared))));

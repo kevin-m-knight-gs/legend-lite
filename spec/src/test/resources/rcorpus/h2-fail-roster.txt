@@ -155,6 +155,7 @@ meta::relational::graphFetch::domain::tests::testGraphFetch
 meta::relational::graphFetch::tests::chain::testRelationalChainExecutionNested
 meta::relational::graphFetch::tests::milestoning::testDatePropagationFromMilestonedRootToMilestonedProperty_Checked
 meta::relational::graphFetch::tests::milestoning::testMilestonedProperty
+meta::relational::graphFetch::tests::qualifier::testSubAggregationInQualifier
 meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQuery
 meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQueryWithFiltersInMapping
 meta::relational::graphFetch::tests::resultSourcing::testSourcingJsonResultToQueryWithParametersInUrl
@@ -251,7 +252,6 @@ meta::relational::tests::functions::sqlstring::testSqlGenerationDivide_AllDBs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation
 meta::relational::tests::groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath
-meta::relational::tests::groupBy::testAggToManyWithAverage
 meta::relational::tests::groupBy::testAggToManyWithFilter
 meta::relational::tests::groupBy::testFilterWithQualifiedProperty
 meta::relational::tests::groupBy::testGroupByAndFilterIsolatedJoinMerge
@@ -290,16 +290,6 @@ meta::relational::tests::mapping::boolean::testProject
 meta::relational::tests::mapping::dataType::testSimpleTypeMappingProject
 meta::relational::tests::mapping::dataType::testSimpleTypeMappingProjectNulls
 meta::relational::tests::mapping::dates::datetime::testProject
-meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy
-meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupByComplexAgg
-meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupBy
-meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupByComplexAgg
-meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupBy
-meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComplexAgg
-meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComplexExpressionEmbeddedAndJoin
-meta::relational::tests::mapping::embedded::advanced::testGroupBy
-meta::relational::tests::mapping::embedded::advanced::testGroupByComplexAgg
-meta::relational::tests::mapping::embedded::testGroupByEmbeddedProperty
 meta::relational::tests::mapping::filter::testFilterMappingWithProjectionOverlapp
 meta::relational::tests::mapping::join::testChainedInnerJoinsMerge
 meta::relational::tests::mapping::join::testChainedInnerJoinsWithFilterMerge
@@ -308,6 +298,7 @@ meta::relational::tests::mapping::join::testChainedOuterJoinsWithFilterInproject
 meta::relational::tests::mapping::join::testChainedOuterJoinsWithQualifierInproject
 meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDatesInClass
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
+meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping
@@ -357,7 +348,6 @@ meta::relational::tests::postProcessor::filterPushDown::testPushFiltersDownToJoi
 meta::relational::tests::postProcessor::testDb2ColumnRename
 meta::relational::tests::postProcessor::testPostProcessTransformJoinOp
 meta::relational::tests::postProcessor::testSqlRealiasViews
-meta::relational::tests::projection::aggregation::testSubAggregationWithIf
 meta::relational::tests::projection::filter::dates::testDateWithSeconds
 meta::relational::tests::projection::filter::in::H2Test
 meta::relational::tests::projection::filter::in::testInWithDynaFunction

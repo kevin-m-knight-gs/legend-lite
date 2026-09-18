@@ -777,7 +777,15 @@ class JavaEvalLedgerTest {
             // arm accepts the MAPPING-LESS executionPlan(lambda, extensions)
             // — the rows read is the statement as written (its from() binds
             // the mappings) — two lines fewer; shrink re-pinned
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1143),
+            // 1143 -> 1177 (2026-09-17, the plan producer BEHIND A HELPER): a
+            // plan-text assert whose plan string comes from a user function
+            // (the datetime tests' executionPlanForQueryWith...(dt, zone))
+            // reaches the arm through the PLATFORM's own inliner (parameters
+            // replaced by the call's arguments, the helper's lets substituted
+            // forward) and the rows leg binds that reduced scope — routing to
+            // the platform, no value evaluated in Java; the helper is never
+            // hijacked or emptied. Five datetime plan rows judged by rows.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1177),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

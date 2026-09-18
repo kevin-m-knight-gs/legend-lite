@@ -69,7 +69,11 @@ class ErrorShapeGuardrailTest {
             // text-verdict decline (charter §3.7: counted, visible,
             // never silent) and TEXT stays the contract; the verdict
             // is never swallowed, it degrades to the §4 policy
-            Map.entry("SqlTextVerdicts.java", 1),
+            // 1 -> 2 (2026-09-17): lookThrough — the platform's inliner fails a
+            // helper it cannot splice (a call cycle, an un-typeable callee) with
+            // its own walls; for the plan arm that is "no producer", the answer
+            // it gave before the look-through existed, never a verdict
+            Map.entry("SqlTextVerdicts.java", 2),
             // D5 (reviewed): the generic checked-exception carrier —
             // getOrOpen tunnels the caller's E through compute's
             // unchecked boundary; catch(RuntimeException) rethrows

@@ -75,6 +75,29 @@ public interface TestObserver extends AssertListener {
     default void verdict(String assertName, boolean pass, @com.legend.Nullable String detail) {
     }
 
+    /** A fixture whose physical table names CLASH with tables the session
+     *  already holds (the target folds identifiers — the corpus's
+     *  {@code orderTable} and the milestoning {@code OrderTable} are one
+     *  table on DuckDB): the caller may give it a namespace of its own
+     *  for the statements that follow, appended LAST on the session's
+     *  search path once {@link #fixtureIsolated} is called — every name
+     *  stays as written; the session's own tables keep winning. Returns
+     *  the CONNECTION the fixture runs on (its default namespace is the
+     *  aside, its transaction its own — a body's open attempt may not
+     *  write to a second namespace); null = no such primitive, the runner
+     *  refuses the fixture instead (never a silent clobber). */
+    default @com.legend.Nullable Connection isolateFixture(Connection conn, String setupFqn)
+            throws SQLException {
+        return null;
+    }
+
+    /** Balances a true {@link #isolateFixture}: the fixture ran; the
+     *  session resolves names through its own tables first, the isolated
+     *  namespace last. Runs in the runner's cleanup: a failure here is the
+     *  caller's own (unchecked) wall. */
+    default void fixtureIsolated(Connection conn) {
+    }
+
     /** The runner seeded {@code storeFqn} on demand by running {@code
      *  setupFqn} mid-test ({@link com.legend.exec.AssertListener#provideStore}):
      *  the rows leg of an assert reads a mapping over a store another

@@ -652,10 +652,19 @@ public final class Render {
             // ISO+ms+0000 form)
             rendered = dateTimeText(c);
         } else if ((t == Type.Primitive.NUMBER
-                        || t == Type.Primitive.FLOAT)
-                && (slot == null
-                        || slot instanceof SqlType.Decimal
-                        || slot == SqlType.Scalar.DOUBLE)) {
+                        && (slot == null
+                                || slot instanceof SqlType.Decimal
+                                || slot == SqlType.Scalar.DOUBLE))
+                || (t == Type.Primitive.FLOAT
+                        && (slot == null
+                                || slot instanceof SqlType.Decimal
+                                || slot == SqlType.Scalar.DOUBLE
+                                || slot == SqlType.Scalar.BIGINT
+                                || slot == SqlType.Scalar.INTEGER
+                                || slot == SqlType.Scalar.HUGEINT))) {
+            // JUDGING_TWO_MODES §1 (numeric charter Rule 2, compiled
+            // reference): a Float-DECLARED TDS cell converts to DOUBLE once,
+            // here, whatever kind the database computed it in.
             // a Number/Float cell on a FRACTION-KIND wire (a DECIMAL an
             // aggregate collapsed to, or a DOUBLE): the pure print form
             // is the Float spelling — a DECIMAL cast's fixed scale

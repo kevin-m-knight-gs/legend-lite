@@ -102,8 +102,14 @@ class EqualityWorldsConformanceTest {
         // DECLARED numeric policy (outside the byte channel — R0);
         // World 2's IEEE compare is exact. R3's census decides
         // retire-vs-keep; a healed row tightens here.
-        diverge(true, false, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
-                "2-ULP declared policy vs exact IEEE compare");
+        // NUMERIC CHARTER Rule 1 (2026-09-17): Float literals render BARE
+        // (the engine's own literal processor) and the database adds them
+        // in DECIMAL — 0.1 + 0.2 IS 0.3 in SQL on both backends, the engine's
+        // relational verdict; the interpreter's double arithmetic
+        // (0.30000000000000004) is World 1's 2-ULP policy. Both worlds answer
+        // true, each for its own reason, and each is pinned.
+        diverge(true, true, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
+                "2-ULP declared policy vs the database's DECIMAL arithmetic over bare literals");
         // X2 (VERDICT_RULE_AUDIT): in-SQL '=' is SCALE-BLIND for
         // decimals (both engine lanes lower == to SQL) while the
         // interpreted ASSERT judgment is scale-sensitive

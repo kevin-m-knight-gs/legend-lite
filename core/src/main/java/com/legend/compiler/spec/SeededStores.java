@@ -42,19 +42,30 @@ public final class SeededStores {
     public static Set<String> of(TypedSpec node, SpecCompiler specs,
             Map<String, Set<String>> memo) {
         Set<String> out = new LinkedHashSet<>();
-        collect(node, specs, memo, out);
+        collect(node, specs, memo, out, new java.util.HashMap<>());
         return out;
     }
 
+    /** {@code lets}: the store references a body's earlier {@code let}s
+     * bound by name ({@code let db = meta::relational::tests::db; ...
+     * connectionByElement($db)} — the corpus's shared fixture names its
+     * store exactly so); a typed element reference behind a variable is
+     * still a typed element reference, not a computed value. */
     private static void collect(TypedSpec node, SpecCompiler specs,
-            Map<String, Set<String>> memo, Set<String> out) {
+            Map<String, Set<String>> memo, Set<String> out,
+            Map<String, TypedPackageableRef> lets) {
         if (node instanceof TypedNativeCall nc) {
             String fqn = nc.callee().qualifiedName();
             int storeArg = PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB.equals(fqn) ? 0
                     : PlatformTypes.CONNECTION_BY_ELEMENT.equals(fqn) ? 1 : -1;
-            if (storeArg >= 0 && nc.args().size() > storeArg
-                    && nc.args().get(storeArg) instanceof TypedPackageableRef store) {
-                out.add(store.fullPath());
+            if (storeArg >= 0 && nc.args().size() > storeArg) {
+                TypedSpec arg = nc.args().get(storeArg);
+                TypedPackageableRef store = arg instanceof TypedPackageableRef r ? r
+                        : arg instanceof com.legend.compiler.spec.typed.TypedVariable v
+                                ? lets.get(v.name()) : null;
+                if (store != null) {
+                    out.add(store.fullPath());
+                }
             }
         }
         if (node instanceof TypedUserCall uc
@@ -65,8 +76,13 @@ public final class SeededStores {
                 memo.put(key, Set.of());   // in-progress: cycles score empty
                 Set<String> seeded = new LinkedHashSet<>();
                 try {
+                    Map<String, TypedPackageableRef> bodyLets = new java.util.HashMap<>();
                     for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
-                        collect(stmt, specs, memo, seeded);
+                        if (stmt instanceof com.legend.compiler.spec.typed.TypedLet tl
+                                && tl.value() instanceof TypedPackageableRef ref) {
+                            bodyLets.put(tl.name(), ref);
+                        }
+                        collect(stmt, specs, memo, seeded, bodyLets);
                     }
                 } catch (TypeInferenceException e) {
                     // an un-typeable callee cannot execute: no fact
@@ -78,7 +94,7 @@ public final class SeededStores {
             out.addAll(known);
         }
         for (TypedSpec c : node.children()) {
-            collect(c, specs, memo, out);
+            collect(c, specs, memo, out, lets);
         }
     }
 }

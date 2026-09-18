@@ -477,6 +477,13 @@ final class SqlTextVerdicts {
                         letPrefix);
                 TypedNativeCall q1 = findPlanProducer(args.get(1),
                         letPrefix);
+                if (q0 == null && q1 == null && "assertEquals".equals(name)) {
+                    // the producer behind a helper call (tryArmPlanText) —
+                    // the plain assert's arm; an H2-compatible assert keeps
+                    // its own normalised text compare when the arm declines
+                    q0 = lookThroughPlanProducer(args.get(0), letPrefix, specs);
+                    q1 = lookThroughPlanProducer(args.get(1), letPrefix, specs);
+                }
                 if ((q0 == null) != (q1 == null)) {
                     return tryArmPlanText(name,
                             q0 != null ? args.get(1) : args.get(0),
@@ -758,13 +765,30 @@ final class SqlTextVerdicts {
             StatementExecutor.ExecEnv env,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
         TypedNativeCall producer = findPlanProducer(actualSide, letPrefix);
+        // THE PRODUCER BEHIND A HELPER (2026-09-17): a test that gets its
+        // plan string from a user function (executionPlanForQueryWith
+        // DateTimeConstant...(dt, zone) builds the query, the runtime and
+        // the plan inside its body) carries no producer in its own
+        // statements. The platform's own inliner splices the helper into
+        // the test's lets — parameters replaced by the call's arguments,
+        // the helper's lets substituted forward — and the producer is
+        // then in the test's scope like any other; the rows leg binds the
+        // same reduced scope. The helper is never hijacked or emptied.
+        List<TypedSpec> scope = letPrefix;
+        if (producer == null && "assertEquals".equals(name)) {
+            LookThrough lt = lookThrough(actualSide, letPrefix, specs);
+            if (lt != null) {
+                producer = lt.producer();
+                scope = lt.scope();
+            }
+        }
         if (producer == null || producer.args().isEmpty()) {
             return null;
         }
         TypedSpec lamArg = producer.args().get(0);
         if (lamArg instanceof com.legend.compiler.spec.typed
                 .TypedVariable lv) {
-            for (TypedSpec pfx : letPrefix) {
+            for (TypedSpec pfx : scope) {
                 if (pfx instanceof com.legend.compiler.spec.typed
                         .TypedLet tl && tl.name().equals(lv.name())) {
                     lamArg = tl.value();
@@ -810,11 +834,11 @@ final class SqlTextVerdicts {
         for (var e : bindings.spellings().entrySet()) {
             filled = filled.replace("${" + e.getKey() + "}", e.getValue());
         }
-        List<TypedSpec> bound = new java.util.ArrayList<>(letPrefix);
+        List<TypedSpec> bound = new java.util.ArrayList<>(scope);
         bound.addAll(bindings.lets());
         // the plan producer's bound context rides the verdict's from
         com.legend.compiler.spec.typed.ExecutionContext planCtx = producer.args().size() >= 3
-                ? StatementExecutor.boundContext(producer.args().get(2), letPrefix, specs)
+                ? StatementExecutor.boundContext(producer.args().get(2), scope, specs)
                 : com.legend.compiler.spec.typed.ExecutionContext.NONE;
         // a multi-statement plan lambda ({|let a = 10; Firm.all()->...})
         // scopes its leading lets over the last statement — the rows leg
@@ -869,6 +893,35 @@ final class SqlTextVerdicts {
 
     /** The executionPlan producer node in an argument tree — exact
      * platform FQN, LET-AWARE like the other finders. */
+    /** A plan producer found by INLINING the side's helper calls (the
+     *  platform's own inliner: parameters replaced by the call's
+     *  arguments, the helper's lets substituted forward), with the reduced
+     *  let scope the rows leg then binds. */
+    private record LookThrough(TypedNativeCall producer, List<TypedSpec> scope) {
+    }
+
+    private static @com.legend.Nullable LookThrough lookThrough(TypedSpec side,
+            List<TypedSpec> letPrefix, SpecCompiler specs) {
+        try {
+            List<TypedSpec> seq = new java.util.ArrayList<>(letPrefix);
+            seq.add(side);
+            List<TypedSpec> reduced = new com.legend.compiler.spec.UserCallInliner(specs)
+                    .inlineBody(seq);
+            List<TypedSpec> prefix = new java.util.ArrayList<>(
+                    reduced.subList(0, reduced.size() - 1));
+            TypedNativeCall producer = findPlanProducer(reduced.get(reduced.size() - 1), prefix);
+            return producer == null ? null : new LookThrough(producer, prefix);
+        } catch (RuntimeException e) {
+            return null;   // an un-inlinable helper: no producer, as before
+        }
+    }
+
+    private static @com.legend.Nullable TypedNativeCall lookThroughPlanProducer(TypedSpec side,
+            List<TypedSpec> letPrefix, SpecCompiler specs) {
+        LookThrough lt = lookThrough(side, letPrefix, specs);
+        return lt == null ? null : lt.producer();
+    }
+
     private static @com.legend.Nullable TypedNativeCall findPlanProducer(
             TypedSpec t, List<TypedSpec> letPrefix) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();

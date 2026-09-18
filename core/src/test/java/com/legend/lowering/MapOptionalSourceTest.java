@@ -73,7 +73,10 @@ class MapOptionalSourceTest {
     @Test
     @DisplayName("rigid Number parameter accepts a Float actual (m3 lattice)")
     void rigidNumberAcceptsFloat() throws Exception {
-        assertEquals(2.0, run("{|{a:Number[1]|$a + 1}->eval(1.0)}"));
+        // NUMERIC CHARTER Rule 2: a Number-DECLARED result keeps the
+        // database's kind (the engine's value rule: cast(@Number) as-is) —
+        // the lattice fact under test is the VALUE, judged numerically
+        assertEquals(2.0, ((Number) run("{|{a:Number[1]|$a + 1}->eval(1.0)}")).doubleValue());
     }
 
     @Test

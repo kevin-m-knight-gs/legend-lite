@@ -557,6 +557,7 @@ public final class MinimalCorpus {
 
         @Override
         public void sessionEnding() {
+            h2Asides.clear();
             com.legend.harness.ReplayOracle.mirrorEnd();
             if (mirrorConn != null) {
                 try {
@@ -637,6 +638,71 @@ public final class MinimalCorpus {
         public void declined(String name, String reason) {
             // a text-decided verdict, named by the arm (Phase 0.6)
             textDecided.merge(reason + " " + currentTest, 1, Integer::sum);
+        }
+
+        /** A clashing fixture gets an ASIDE catalog of the workspace
+         * (DuckWorkspaces): names stay as written, the session's own
+         * tables keep winning, the fixture's tables resolve last. */
+        private @com.legend.Nullable Connection asideConn;
+
+        @Override
+        public @com.legend.Nullable Connection isolateFixture(Connection conn, String setupFqn)
+                throws SQLException {
+            String aside = DuckWorkspaces.isolateBegin(conn);
+            if (aside == null) {
+                if (!H2_BACKEND) {
+                    return null;
+                }
+                // H2: a SCHEMA aside on the session itself (no ATTACH, no
+                // per-transaction write limit) — the fixture's unqualified
+                // DDL lands there; the session resolves PUBLIC first after
+                aside = "ASIDE_" + h2Asides.size();
+                h2Asides.add(aside);
+                try (java.sql.Statement st = conn.createStatement()) {
+                    st.execute("CREATE SCHEMA IF NOT EXISTS " + aside);
+                    st.execute("SET SCHEMA " + aside);
+                    st.execute("SET SCHEMA_SEARCH_PATH " + aside);
+                }
+                System.err.println("[fixture-aside] " + setupFqn + " -> " + aside + " (h2) during " + currentTest);
+                return conn;
+            }
+            System.err.println("[fixture-aside] " + setupFqn + " -> " + aside + " during " + currentTest);
+            asideConn = DuckWorkspaces.asideConnection(aside);
+            // the H2 MIRROR replays the seed ledger: it isolates the same
+            // way, as a schema — the fixture's DDL lands there, the golden
+            // SQL resolves PUBLIC first (fixtureIsolated)
+            if (recorder != null) {
+                recorder.recordExecuted("CREATE SCHEMA IF NOT EXISTS " + aside, false);
+                recorder.recordExecuted("SET SCHEMA " + aside, false);
+            }
+            return asideConn;
+        }
+
+        private final List<String> h2Asides = new ArrayList<>();
+
+        @Override
+        public void fixtureIsolated(Connection conn) {
+            try {
+                if (H2_BACKEND && !h2Asides.isEmpty()) {
+                    try (java.sql.Statement st = conn.createStatement()) {
+                        st.execute("SET SCHEMA PUBLIC");
+                        st.execute("SET SCHEMA_SEARCH_PATH PUBLIC, " + String.join(", ", h2Asides));
+                    }
+                    return;
+                }
+                if (asideConn != null) {
+                    asideConn.close();
+                    asideConn = null;
+                }
+                DuckWorkspaces.isolateEnd(conn);
+                if (recorder != null) {
+                    recorder.recordExecuted("SET SCHEMA PUBLIC", false);
+                    recorder.recordExecuted("SET SCHEMA_SEARCH_PATH PUBLIC, "
+                            + String.join(", ", DuckWorkspaces.asidesOf(conn)), false);
+                }
+            } catch (SQLException e) {
+                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+            }
         }
 
         @Override

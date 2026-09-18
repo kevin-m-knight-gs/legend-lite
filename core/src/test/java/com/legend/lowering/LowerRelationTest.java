@@ -315,7 +315,7 @@ class LowerRelationTest {
         String sql = sqlOf("#>{test::DB.T_PERSON}#"
                 + "->aggregate(~avgAge : x|$x.AGE : y|$y->average())");
         assertEquals("""
-                SELECT AVG(t0.AGE) AS avgAge
+                SELECT AVG(1.0 * t0.AGE) AS avgAge
                 FROM T_PERSON AS t0""", sql);
         assertEquals(List.of("40.0"), exec(sql));
     }

@@ -1,3 +1,7 @@
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedDerivedProperty
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedProperty
 unordered-chain meta::pure::executionPlan::tests::relationalTDSTypeForColumnsAndQuoting
 unordered-chain meta::pure::executionPlan::tests::tdsJoinOneDBOneExpression
 unordered-chain meta::pure::executionPlan::tests::tdsJoinTwoDBExtend

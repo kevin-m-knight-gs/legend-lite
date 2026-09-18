@@ -146,7 +146,14 @@ public final class PctCensusGate {
     // — compile-COVERAGE growth, not a typed-column degradation
     // (cumulative per-JVM counter: 223 Essential / 226 by
     // Unclassified).
-    private static final long MAX_INT_NULL_EMPTY = 226;
+    // 226→231 (2026-09-17, NUMERIC CHARTER Rule 2a): a Number-declared
+    // native over Float operands is now Float-typed by the typer
+    // (NumberKinds.refine — max([1, 2.5, …]) et al.), so its EMPTY-fixture
+    // columns (all-NULL, value-proven) carry the DOUBLE label and join this
+    // bucket instead of the unrefined Number's — a label move on empty
+    // results, not a typed-column degradation (cumulative per JVM:
+    // 230 Unclassified / 231 Grammar).
+    private static final long MAX_INT_NULL_EMPTY = 231;
     // E2E-audit converse census (TYPE_E2E_AUDIT §3): wire NULL under
     // an always-present label — 49 on this lane (46 HUGEINT
     // empty-group sums + 3 DOUBLE float aggregates). Ceiling;

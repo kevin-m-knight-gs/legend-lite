@@ -1,3 +1,7 @@
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedDerivedProperty
+unordered-chain meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedProperty
 unordered-chain meta::pure::executionPlan::tests::relationalTDSTypeForColumnsAndQuoting
 unordered-chain meta::pure::executionPlan::tests::tdsJoinOneDBOneExpression
 unordered-chain meta::pure::executionPlan::tests::tdsReturn
@@ -162,6 +166,7 @@ unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerati
 unordered-chain meta::relational::tests::functions::sqlstring::testToSqlGenerationMonth
 unordered-chain meta::relational::tests::functions::sqlstring::testTrim
 unordered-chain meta::relational::tests::groupBy::datePeriods::testDayOfWeek
+unordered-chain meta::relational::tests::groupBy::testAggToManyWithAverage
 unordered-chain meta::relational::tests::groupBy::testAggToManyWithMaxDate
 unordered-chain meta::relational::tests::groupBy::testAggToManyWithMaxInteger
 unordered-chain meta::relational::tests::groupBy::testAggToManyWithMinDate
@@ -255,11 +260,15 @@ unordered-chain meta::relational::tests::mapping::dynajoin::testFilterOnMultiLev
 unordered-chain meta::relational::tests::mapping::dynajoin::testJoinWithAggregateFunction
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testDenormWithComplexFilter
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testFilter
+unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy
+unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupByComplexAgg
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testInlineInEmbedded
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testProjection
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::nested::testQualifierProperty
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testDenormWithComplexFilter
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testFilter
+unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupBy
+unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupByComplexAgg
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testProjection
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testQualifierProperty
 unordered-chain meta::relational::tests::mapping::embedded::advanced::inline::targetid::testSubType
@@ -270,6 +279,9 @@ unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseT
 unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestFilter
 unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestFilterExistsOnEmbeddedProperty
 unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestFilterExistsOnOtherwiseProperty
+unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupBy
+unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComplexAgg
+unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComplexExpressionEmbeddedAndJoin
 unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestProjectExistsOnEmbeddedProperty
 unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestProjectExistsOnOtherwiseProperty
 unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestProjection
@@ -279,6 +291,8 @@ unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseT
 unordered-chain meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyExpressionWithPropertyInJoinOnly
 unordered-chain meta::relational::tests::mapping::embedded::advanced::testDenormWithComplexFilter
 unordered-chain meta::relational::tests::mapping::embedded::advanced::testFilter
+unordered-chain meta::relational::tests::mapping::embedded::advanced::testGroupBy
+unordered-chain meta::relational::tests::mapping::embedded::advanced::testGroupByComplexAgg
 unordered-chain meta::relational::tests::mapping::embedded::advanced::testInlineEmbeddedMappingWithAssociationFromRootMapping
 unordered-chain meta::relational::tests::mapping::embedded::advanced::testProjection
 unordered-chain meta::relational::tests::mapping::embedded::advanced::testProjectionOtherwise
@@ -822,6 +836,7 @@ unordered-chain meta::relational::tests::projection::aggregation::testSubAggrega
 unordered-chain meta::relational::tests::projection::aggregation::testSubAggregationWithDeep
 unordered-chain meta::relational::tests::projection::aggregation::testSubAggregationWithDeepAndOverlap
 unordered-chain meta::relational::tests::projection::aggregation::testSubAggregationWithDeepAndOverlap_WithColVar
+unordered-chain meta::relational::tests::projection::aggregation::testSubAggregationWithIf
 unordered-chain meta::relational::tests::projection::aggregation::testSubAggregationWithJoinStrings
 unordered-chain meta::relational::tests::projection::aggregation::testSubAggregationWithJoinStringsOrderBy
 unordered-chain meta::relational::tests::projection::aggregation::testSubAggregationWithMax

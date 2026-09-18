@@ -437,9 +437,15 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.StringLit s -> stringLit(s.value());
             case SqlExpr.FormatLit fl -> stringLit(formatText(fl));
             case SqlExpr.IntLit i -> String.valueOf(i.value());
-            // pure Float IS float8 — a BARE decimal literal types as
-            // DECIMAL(p,s) in DuckDB and infects every aggregate over it
-            case SqlExpr.FloatLit f -> "CAST(" + f.value() + " AS DOUBLE)";
+            // NUMERIC CHARTER Rule 1 (docs/NUMERIC_CHARTER_2026_09_17.md): a
+            // Float literal renders BARE in the plain Float spelling — the
+            // engine's own literal processor (extensionDefaults.pure:134,
+            // format '%s'); the database types it DECIMAL and every
+            // expression over it stays in the database's own kind; the
+            // declared kind converts ONCE at the root select (Rule 2).
+            // (Retired: `CAST(x AS DOUBLE)`, 6975118a6 — double arithmetic
+            // everywhere: 55.00000000000001 for 55.0.)
+            case SqlExpr.FloatLit f -> floatLiteral(f.value());
             // a scale-0 DECIMAL-fact literal (a pure d-suffixed integer:
             // 17774d) CASTS so the wire reads DECIMAL — bare digits read
             // INTEGER by magnitude (probed 1.5.0; the (10,3)<>(15,3)
@@ -1282,4 +1288,16 @@ public class AnsiSqlRenderer implements SqlDialect {
         return out;
     }
 
+    /** NUMERIC CHARTER Rule 1: a Float literal's bare spelling — the pure
+     * Float's own text (a point always present, never E-notation), so the
+     * database types it DECIMAL, never INTEGER (1e18 spells
+     * {@code 1000000000000000000.0}) and never DOUBLE. */
+    protected String floatLiteral(double v) {
+        return plainFloat(v);
+    }
+
+    static String plainFloat(double v) {
+        String s = java.math.BigDecimal.valueOf(v).toPlainString();
+        return s.contains(".") ? s : s + ".0";
+    }
 }

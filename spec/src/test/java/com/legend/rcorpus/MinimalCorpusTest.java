@@ -356,7 +356,11 @@ class MinimalCorpusTest {
     // (the same passes, now counted where they belong: LITERAL 862 -> 853,
     // SPELLING 46 -> 53) and four are judged by ROWS (differential 1539 ->
     // 1543, two of them new passes: testTwoMappingsOneRuntime ×2); measured
-    private static final int[] DUCKDB_STRENGTH = {1543, 53, 26};
+    // SPELLING 53 -> 60 (2026-09-17, the plan producer behind a helper): the
+    // eleven helper-shaped plan asserts counted for the first time (see the
+    // oracle-declined ceiling note) — seven of them are passes whose every
+    // verdict is text-decided; the same passes, now counted where they belong
+    private static final int[] DUCKDB_STRENGTH = {1543, 60, 26};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -373,7 +377,10 @@ class MinimalCorpusTest {
     // spelling 50 -> 52 (the same two calendar plan rows on the H2 lane)
     // {1384, 52, 25} -> {1387, 60, 25}: the same bucket move on the H2 lane
     // (LITERAL 684 -> 675, SPELLING 52 -> 60, differential 1384 -> 1387)
-    private static final int[] H2_STRENGTH = {1387, 60, 26};
+    // H2 SPELLING 60 -> 67 (2026-09-17, the plan producer behind a helper): the
+    // same seven helper-shaped plan asserts as the DuckDB lane — passes whose
+    // every verdict is text-decided, counted where they belong
+    private static final int[] H2_STRENGTH = {1387, 67, 26};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -484,12 +491,26 @@ class MinimalCorpusTest {
     // demand finds no unique seeder) and decline as underivable, one hits the
     // in-list temp table the referee lacks; all six still pass by their equal
     // text, and two more (testTwoMappingsOneRuntime ×2) pass by ROWS
+    // oracle-declined 28 -> 39 (DuckDB), 2026-09-17 (the plan producer BEHIND
+    // A HELPER: the plan arm now looks through a user function that builds
+    // the query and the plan — the platform's inliner, parameters bound to
+    // the call's arguments): eleven helper-shaped plan asserts reach the arm
+    // for the first time. Ten are the relationalMapper family, whose goldens
+    // name database-mapper-rewritten schemas the referee's mirror does not
+    // hold (SNDB, SNDBDEFAULT, PRODUCTSCHEMANEWDBINC), one hits a template
+    // operation the plan text does not model (renderCollectionWithTz); all
+    // eleven were host TEXT compares before, uncounted, and keep the same
+    // outcome. The five datetime plan rows of the same shape are now judged
+    // by ROWS and pass (they lost their text match to the boundary cast).
     private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 28,
+            "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 39,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
+    // H2 oracle-declined 34 -> 45 (2026-09-17): the same eleven helper-shaped
+    // plan asserts as the DuckDB lane (the plan producer behind a helper),
+    // counted for the first time on this lane too
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 33, "plan-params-unbindable", 6, "oracle-declined", 34,
+            "rows-underivable", 33, "plan-params-unbindable", 6, "oracle-declined", 45,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on
@@ -498,7 +519,10 @@ class MinimalCorpusTest {
             "float-10-digits", 49, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
     private static final java.util.Map<String, Integer> H2_LENIENCY = java.util.Map.of(
-            "float-10-digits", 33, "micro-floor", 7,
+    // float-10-digits 33 -> 34 (2026-09-17): one of the twelve group-by/average
+    // rows the H2 lane gained (H2AvgDelivers: H2's DECFLOAT average cast to
+    // DOUBLE on its own wire) is judged with the H2 float leniency
+            "float-10-digits", 34, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
 
     private static final String ORD_UNMAPPABLE = "ordered-keys-unmappable";

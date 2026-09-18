@@ -282,6 +282,11 @@ public final class PureTestRunner implements AutoCloseable {
         if (ran.contains(fqn)) {
             return false;
         }
+        // a fixture whose DECLARED footprint clashes with a seeded store is
+        // refused (the engine judges such goldens by text too); the ones
+        // that pass this check still run in an aside, because the
+        // footprint a fixture reaches through a runtime's connection value
+        // is not a static fact (objectReferenceIn::setUp, 2026-09-17)
         Set<String> mine = tablesOf(storeFqn, new LinkedHashSet<>());
         for (String done : ran) {
             for (String store : setupStores.getOrDefault(done, Set.of())) {
@@ -290,11 +295,57 @@ public final class PureTestRunner implements AutoCloseable {
                 }
             }
         }
-        Compiler.executeResolved(deriveSetup(fqn), ctx, runtimeFqn, conn, null, null, options);
+        if (!runFixture(fqn, deriveSetup(fqn), conn, options, true)) {
+            return false;   // a clashing fixture the caller cannot isolate
+        }
         if (shared) {
             setupsDone.add(fqn);
         }
         observer.fixtureProvided(storeFqn, fqn);
+        return true;
+    }
+
+    /** Run one fixture on {@code conn}. THE MID-SESSION RULE: a fixture
+     *  provided ON DEMAND (a test's rows leg needs a store the session's
+     *  own setups did not seed) runs in an ASIDE the caller gives it
+     *  ({@link TestObserver#isolateFixture}) — every name stays as
+     *  written, the session's own tables keep winning, the fixture's
+     *  tables resolve last. The target folds identifiers, so a fixture
+     *  seeding a same-named table would otherwise overwrite one the
+     *  session's tests hold (witness 2026-09-17: objectReferenceIn::setUp
+     *  also seeds the milestoning store, whose {@code OrderTable}
+     *  replaced the session's {@code orderTable}); which tables a fixture
+     *  will create is not a static fact when it reaches its store through
+     *  a runtime's connection value, so EVERY on-demand fixture is
+     *  isolated. Without the primitive (an H2 session) the fixture runs in
+     *  the session as before. Package-start fixtures keep the engine's own
+     *  rule — the later one wins the name. */
+    private boolean runFixture(String fqn, ValueSpecification call, Connection conn,
+            ExecuteOptions options, boolean onDemand) {
+        Connection target = conn;
+        boolean isolated = false;
+        if (onDemand) {
+            Connection aside;
+            try {
+                aside = observer.isolateFixture(conn, fqn);
+            } catch (SQLException e) {
+                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+            }
+            if (aside != null) {
+                target = aside;
+                isolated = true;
+            }
+            // no primitive (an H2 session): the fixture runs in the session
+            // as it always did — the declared-footprint guard above still
+            // refuses the known clashes
+        }
+        try {
+            Compiler.executeResolved(call, ctx, runtimeFqn, target, null, null, options);
+        } finally {
+            if (isolated) {
+                observer.fixtureIsolated(conn);
+            }
+        }
         return true;
     }
 
@@ -311,7 +362,11 @@ public final class PureTestRunner implements AutoCloseable {
                 continue;
             }
             try {
-                Compiler.executeResolved(call, ctx, runtimeFqn, conn, null, null, options);
+                if (!runFixture(fqn, call, conn, options, false)) {
+                    failures.add("setup " + fqn + "() => clashes with tables the"
+                            + " session already holds and cannot be isolated");
+                    continue;
+                }
                 if (shared) {
                     setupsDone.add(fqn);
                 }

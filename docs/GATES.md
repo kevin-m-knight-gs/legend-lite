@@ -3780,3 +3780,22 @@ conversion — expressible as one arithmetic predicate if the verdict ever moves
 memory 2026-09-17). From here: CI red blocks every push.
 
 **Chain.** Green on the first run: G2 24s, G1 72s, G3 10s, G4 94s, G5 32s, G6 130s, G7 41s, G9 30s, G8 133s, G10 48s.
+
+**Numeric step 1 — the kind decided once, in SQL, at the root (2026-09-17):** chain GREEN
+(gates 1–10), parallel wall ≈ 7m24s (stream A: G1 111 · G3 21 · G4 207 · G5 77; stream B:
+G6 257 · G7 87 · G9 63; stream C: G8 251 · G10 96; G2 29 first). G4 207 s in the chain
+against 57 s standalone — contention, the same shape as the 2026-09-17 morning chain (188 s);
+the 4-minute parallel budget is NOT met and is owed a lane split (the stress classes moved
+out of G1 already; G4/G8 share the DuckDB instance). Rosters: DuckDB 108 EXACT; H2 440 → 430
+(12 gained by the DOUBLE average, 2 lost to H2's own DECFLOAT/JSON rendering under a Float
+declaration — `graphFetch::tests::qualifier::testSubAggregationInQualifier`,
+`mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping`; H2 lane quick
+wins only by ruling). Unordered-chain registers +4 (DuckDB: the m2m2r plan tests now judged
+by rows) / +15 (H2: the same four and the eleven gained group-by rows). Ceilings re-pinned
+with their reasons in MinimalCorpusTest: oracle-declined 28→39 / 34→45, SPELLING 53→60 /
+60→67, float-10-digits 33→34 (the eleven helper-shaped plan asserts counted for the first
+time; the plan producer behind a helper). Stress floors DuckDB 4,689→4,700, H2 4,612→4,622.
+PCT census MAX_INT_NULL_EMPTY 226→231 (empty-fixture columns of Float-refined Number natives
+carry the DOUBLE label). Ledgers: SqlTextVerdicts 1143→1177 lines (the look-through, routing
+to the platform's inliner), one documented broad catch. Design: docs/NUMERIC_CHARTER_2026_09_17.md,
+docs/JUDGING_TWO_MODES_2026_09_17.md (step 1 record inside), docs/JUDGE_INVENTORY_2026_09_17.md.

@@ -3237,8 +3237,15 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|meta::pure::functions::math::abs(-123456789123456789.99)",
                                 "test::TestRuntime", connection);
-                assertEquals(new java.math.BigDecimal("123456789123456789.99"),
-                                new java.math.BigDecimal(result.rows().get(0).get(0).toString()));
+                // NUMERIC CHARTER (compiled reference, read 2026-09-17): the
+                // literal's exact digits ride the query (bare DECIMAL, Rule 1)
+                // and the Float-DECLARED root converts to DOUBLE once at the
+                // root select (Rule 2) — a compiled Pure Float IS java.lang.Double
+                // (JavaPurePrimitiveTypeMapping :56-58); the engine's DuckDB and
+                // H2 PCT suites run compiled and pass abs::testBigFloatAbs with
+                // both sides rounded to this same double.
+                assertEquals(1.2345678912345678E17,
+                                ((Number) result.rows().get(0).get(0)).doubleValue());
         }
 
         // === PCT: testPercentile assertions ===

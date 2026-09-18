@@ -104,12 +104,82 @@ final class DuckWorkspaces {
         return closeDetaches(conn, ws);
     }
 
+    /** The ASIDE catalogs a workspace attached for clashing fixtures
+     * (TestObserver.isolateFixture), by the proxied connection: names
+     * stay as written; the workspace's own tables resolve first, the
+     * asides last, once the fixture has run. */
+    private static final java.util.Map<Connection, java.util.List<String>> ASIDES =
+            new java.util.IdentityHashMap<>();
+    private static final java.util.Map<Connection, String> WS_OF =
+            new java.util.IdentityHashMap<>();
+
+    /** Attach a fresh aside catalog and make it the CURRENT target: the
+     * fixture's unqualified DDL and inserts land there. */
+    static synchronized @com.legend.Nullable String isolateBegin(Connection proxied) throws SQLException {
+        String ws = WS_OF.get(proxied);
+        if (ws == null) {
+            return null;   // not a DuckDB workspace (the H2 lane): no primitive
+        }
+        String aside = ws + "_aside_" + ASIDES.getOrDefault(proxied, java.util.List.of()).size();
+        // ATTACH is instance-global and refuses to run inside an open
+        // transaction (a body's attempt may be one): it rides the ROOT,
+        // like the workspace attach
+        try (Statement st = root.createStatement()) {
+            st.execute("ATTACH ':memory:' AS " + aside);
+        }
+        ASIDES.computeIfAbsent(proxied, c -> new java.util.ArrayList<>()).add(aside);
+        return aside;
+    }
+
+    /** The connection an aside fixture runs on: its OWN (a DuckDB
+     * transaction writes to one attached database only, and a body's
+     * attempt may hold the session's), pointed at the aside — unqualified
+     * DDL, drops and inserts see the aside alone, never the session's
+     * same-named tables. Closed by {@link #isolateEnd}. */
+    static synchronized Connection asideConnection(String aside) throws SQLException {
+        Connection c = root.duplicate();
+        try (Statement st = c.createStatement()) {
+            st.execute("USE " + aside);
+            st.execute("SET TimeZone='UTC'");
+        }
+        return c;
+    }
+
+    /** The asides a workspace holds, in attach order. */
+    static synchronized java.util.List<String> asidesOf(Connection proxied) {
+        return java.util.List.copyOf(ASIDES.getOrDefault(proxied, java.util.List.of()));
+    }
+
+    /** The workspace first, every aside after it, in attach order. */
+    static synchronized void isolateEnd(Connection proxied) throws SQLException {
+        String ws = WS_OF.get(proxied);
+        java.util.List<String> path = new java.util.ArrayList<>();
+        path.add(ws + ".main");
+        for (String a : ASIDES.getOrDefault(proxied, java.util.List.of())) {
+            path.add(a + ".main");
+        }
+        try (Statement st = proxied.createStatement()) {
+            st.execute("SET search_path = '" + String.join(",", path) + "'");
+        }
+    }
+
     private static Connection closeDetaches(Connection inner, String ws) {
+        Connection[] self = new Connection[1];
         InvocationHandler h = (proxy, method, args) -> {
             if ("close".equals(method.getName())) {
                 try {
                     inner.close();
                 } finally {
+                    java.util.List<String> asides;
+                    synchronized (DuckWorkspaces.class) {
+                        asides = ASIDES.remove(self[0]);
+                        WS_OF.remove(self[0]);
+                    }
+                    if (asides != null) {
+                        for (String a : asides) {
+                            detach(a);
+                        }
+                    }
                     detach(ws);
                 }
                 return null;
@@ -120,9 +190,14 @@ final class DuckWorkspaces {
                 throw e.getCause();
             }
         };
-        return (Connection) Proxy.newProxyInstance(
+        Connection proxied = (Connection) Proxy.newProxyInstance(
                 DuckWorkspaces.class.getClassLoader(),
                 new Class<?>[] {Connection.class}, h);
+        self[0] = proxied;
+        synchronized (DuckWorkspaces.class) {
+            WS_OF.put(proxied, ws);
+        }
+        return proxied;
     }
 
     private static synchronized void detach(String ws) {

@@ -29,7 +29,10 @@ class SqlTypingTest {
                 t(new SqlExpr.StringLit("a")));
         assertEquals(SqlTyping.typed(SqlType.Scalar.BIGINT),
                 t(new SqlExpr.IntLit(1)));
-        assertEquals(SqlTyping.typed(SqlType.Scalar.DOUBLE),
+        // NUMERIC CHARTER Rule 1 (2026-09-17): a Float literal renders BARE and
+        // states the wire's fact — a DECIMAL of its own digits (DuckDB: 2.5 is
+        // DECIMAL(2,1)); the declared-kind envelope converts it at the root
+        assertEquals(SqlTyping.decimalLitType(new java.math.BigDecimal("2.5")),
                 t(new SqlExpr.FloatLit(2.5)));
         assertEquals(SqlTyping.typed(SqlType.Scalar.DATE),
                 t(new SqlExpr.Cast(new SqlExpr.StringLit("x"),
@@ -77,6 +80,12 @@ class SqlTypingTest {
     void arithmeticPromotesPerTheProbedMatrix() {
         // any DOUBLE operand wins; all-integer keeps the widest width
         assertEquals(SqlTyping.typed(SqlType.Scalar.DOUBLE),
+                t(SqlExpr.Call.of(SqlFn.PLUS,
+                        new SqlExpr.IntLit(1),
+                        new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE))));
+        // a BARE float literal is a DECIMAL (Rule 1): integer + DECIMAL(2,1)
+        // is the probed DECIMAL(21,1), not a double
+        assertEquals(SqlTyping.typed(new SqlType.Decimal(21, 1)),
                 t(SqlExpr.Call.of(SqlFn.PLUS,
                         new SqlExpr.IntLit(1), new SqlExpr.FloatLit(2.0))));
         assertEquals(SqlTyping.typed(SqlType.Scalar.BIGINT),

@@ -51,6 +51,24 @@ builder (`PureTestBuilderInterpreted`), whose Float is BigDecimal-backed, so the
 passes there only by keeping the digits. The two runtimes disagree on this row; the server
 runs compiled.
 
+**Rule 2a — a Number-DECLARED native result has ONE owner for its kind (2026-09-17).** A
+declaration of `Number` gives the boundary nothing to key on (`rem(5.5, 2)` computes as a
+DECIMAL under Rule 1). The reference decides the kind in one place: every Number-returning
+native ends in `NumericUtilities.toPureNumberValueExpression(result, anyOperandIsDecimal)`
+(legend-pure interpreted `Rem.java` :61-82, `Abs.java` :50-70, `Power.java` :54,
+`NumericAccumulator` for the Number overloads of plus/minus/times) — the kind is the JOIN of
+the operand kinds: any Decimal → Decimal, all Integer → Integer, otherwise Float. Lite
+owns that rule ONCE, in the typer's refinement of the registered signature's output
+(`Typer.refineNumberKind`, the same seam as the Decimal carrier and parseDate), and the root
+envelope is its one consumer. No per-function lowering rule, no adapter conversion.
+
+Rejected the same day: mimicking the engine's PCT adapter, whose result crosses a JSON
+channel (`pct_relational.pure` :136-139) that turns every fractional number into a Float —
+the engine's own DuckDB manifest therefore EXPECTS `rem::testRemWithDecimals` to fail
+(`0.14D` vs `0.14`). That is the engine's relational store's limitation, not the spec.
+Lite's DuckDB executes the Pure functions themselves, so the Pure test is the reference and
+lite passes that row.
+
 **Probed 2026-09-17 and rejected — under the INTERPRETED harness:** casting a Float-declared value to DOUBLE at the boundary.
 It reproduces the compiled runtime, not the reference: the PCT lane lost
 `abs::testBigFloatAbs` (`123456789123456780.0` for `…789.99`). Lite's existing design —
@@ -111,3 +129,16 @@ value equality. Lite's `TestAssertions` already matches.
 3. The emission adopts Rule 1: bare literals, no read-time Decimal→Float cast; division
    unchanged. Judge: the chain plus both stress lanes; the rows named first (census §4).
 4. One commit per step, its chain record in docs/GATES.md; CI watched.
+
+## Landed 2026-09-17 (step 1 of docs/JUDGING_TWO_MODES_2026_09_17.md)
+
+- Rule 1: Float literals render bare; `SqlExpr.FloatLit` states the wire fact (DECIMAL of
+  the digits' precision) so the boundary sees what it converts.
+- Rule 2: the root envelope (`Fold.declaredKindEnvelope`) — the one conversion, keyed by the
+  declared type, at the outermost select; a wire the platform types DOUBLE needs none.
+- Rule 2a: `NumberKinds.refine` in the typer — the ONE owner of a Number-declared native
+  result's kind (the reference's `NumericUtilities` join).
+- The dialect delivers the platform's facts: H2's average is a DECFLOAT whatever its input
+  (probed: `AVG(CAST(1.0 AS DOUBLE) * age)` → DECFLOAT; `1.0E0` is DECFLOAT too, so an
+  exponent spelling changes nothing); `H2AvgDelivers` casts it to DOUBLE on H2's own wire.
+- Rule 3 stays the judge's (step 2).

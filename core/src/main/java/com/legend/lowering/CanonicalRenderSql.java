@@ -235,7 +235,12 @@ public final class CanonicalRenderSql {
                             Type.Primitive.DECIMAL)
                     : List.of(t);
             for (Type k : bare) {
-                SqlExpr c = scalarCanon(valueRef, k);
+                // JUDGING_TWO_MODES §1: a Float-DECLARED side converts to
+                // DOUBLE once before its canon is spelled; an unrefined
+                // Number side keeps every candidate on the wire kind
+                SqlExpr cell = t == Type.Primitive.FLOAT
+                        ? LiteralSpelling.declaredDouble(valueRef) : valueRef;
+                SqlExpr c = scalarCanon(cell, k);
                 if (c == null) {
                     return CanonWrap.decline(plan, "unclaimed kind: " + k);
                 }
@@ -365,8 +370,13 @@ public final class CanonicalRenderSql {
             }
             SqlExpr ref = SqlExpr.Column.of(null, col);
             // (cells arrive DECODED — the fetch conformance above; the
-            // literal spelling reads the text carrier directly)
-            SqlExpr lit = LiteralSpelling.literal(ref, kind);
+            // literal spelling reads the text carrier directly.)
+            // JUDGING_TWO_MODES §1: a Float-DECLARED grid column converts to
+            // DOUBLE once before its canon is spelled.
+            SqlExpr lit = LiteralSpelling.literal(
+                    kind == Type.Primitive.FLOAT
+                            ? LiteralSpelling.declaredDouble(ref) : ref,
+                    kind);
             if (lit == null) {
                 return TdsWrap.decline(plan,
                         "tds-canon: unclaimed cell kind "

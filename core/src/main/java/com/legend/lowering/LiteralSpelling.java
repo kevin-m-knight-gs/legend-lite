@@ -354,18 +354,27 @@ public final class LiteralSpelling {
      * can never equal legitimate canonical text and the parallel host
      * referee names them residue.
      */
-    /** Rule 2's conversion for a Float-declared cell: CAST AS DOUBLE when
-     * the tree knows the wire is a decimal or an integer kind; a DOUBLE
-     * wire, a text carrier or an unknown fact passes through untouched. */
+    /** Rule 2's conversion for a Float-DECLARED cell (docs/JUDGING_TWO_MODES
+     * §1): CAST AS DOUBLE unless the tree KNOWS the value is already a
+     * DOUBLE or rides a text carrier (VARCHAR / temporal text / decimal
+     * text / literal / JSON — a cast there would error the query). An
+     * UNKNOWN fact converts: the declared kind is the authority, never
+     * the tree's knowledge of the wire (the census §9 lesson — on H2 no
+     * fact is known and nothing converted: `35.50000000000`, JSON `68`). */
     static SqlExpr declaredDouble(SqlExpr v) {
+        // a wire the platform's typing already knows is a DOUBLE needs no
+        // cast; the facts are the platform's and every dialect DELIVERS
+        // them (H2 makes its DECFLOAT avg a DOUBLE itself: H2AvgDelivers)
         if (v.type() instanceof com.legend.sql.TypeFact.Typed t
-                && (t.type() instanceof SqlType.Decimal
-                        || t.type() == SqlType.Scalar.BIGINT
-                        || t.type() == SqlType.Scalar.INTEGER
-                        || t.type() == SqlType.Scalar.HUGEINT)) {
-            return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE);
+                && (t.type() == SqlType.Scalar.DOUBLE
+                        || t.type() == SqlType.Scalar.VARCHAR
+                        || t.type() == SqlType.Scalar.TEMPORAL_TEXT
+                        || t.type() == SqlType.Scalar.DECIMAL_TEXT
+                        || t.type() == SqlType.Scalar.LITERAL
+                        || t.type() == SqlType.Scalar.JSON)) {
+            return v;
         }
-        return v;
+        return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE);
     }
 
     static SqlExpr floatCanon(SqlExpr v) {
@@ -675,8 +684,12 @@ public final class LiteralSpelling {
      * with its sub-second digits, is kept; batch 86). */
     public static String inZone(String utcIso, String zone) {
         java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(utcIso);
+        // the engine's connection zones include the legacy SHORT ids ('EST',
+        // the corpus's own test connection) — the same table the engine-text
+        // renderer resolves them through (EngineStyleH2)
         java.time.LocalDateTime shifted = ldt.atZone(java.time.ZoneOffset.UTC)
-                .withZoneSameInstant(java.time.ZoneId.of(zone)).toLocalDateTime();
+                .withZoneSameInstant(java.time.ZoneId.of(zone, java.time.ZoneId.SHORT_IDS))
+                .toLocalDateTime();
         String out = shifted.toString();
         return out.length() < utcIso.length()
                 ? out + utcIso.substring(out.length()) : out;   // keep :00 / .SSS shape

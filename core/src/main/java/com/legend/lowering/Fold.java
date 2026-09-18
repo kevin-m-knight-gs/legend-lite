@@ -757,6 +757,12 @@ final class Fold {
     static SqlSelect collectionRootEgress(SqlSelect rel,
             com.legend.compiler.element.type.Type.RelationType rt,
             boolean many, java.util.function.Supplier<String> alias) {
+        // JUDGING_TWO_MODES §1 at a RELATION ROOT (a TDS, `.values`,
+        // `.rows`, a one-row pick): every Float-DECLARED column converts to
+        // DOUBLE once, on the outermost select, keyed by the relation's
+        // declared column types — the same rule as the value roots. A
+        // star select gains explicit projections over its own outputs first.
+        rel = declaredKindEnvelope(rel, rt, alias);
         boolean mapChannel = rt.columns().size() == 1
                 && rt.columns().get(0).name()
                         .startsWith(SqlSelect.SYNTH_MAP_COL);
@@ -1110,6 +1116,108 @@ final class Fold {
      * and the conformance changes the VALUE both production verdict
      * channels observe, so the host lattice and the byte canon stay
      * in agreement. */
+    /** JUDGING_TWO_MODES §1 at a VALUE ROOT: a Float-DECLARED root converts
+     * to DOUBLE once, on the outermost select, keyed by the root's PURE
+     * type — the engine's conversion by declared kind (its PCT adapter's
+     * {@code toFloat} by the declared return type; a compiled Float is
+     * java.lang.Double). A Number- or Decimal-declared root keeps the wire
+     * kind (the engine's value rule). Applied BEFORE the egress conformance
+     * so the conformed label is DOUBLE. */
+    static SqlSelect declaredKindEnvelope(SqlSelect s,
+            com.legend.compiler.element.type.Type root) {
+        if (root != com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+            return s;
+        }
+        java.util.List<SqlSelect.Projection> out = null;
+        for (int i = 0; i < s.projections().size(); i++) {
+            SqlSelect.Projection p = s.projections().get(i);
+            com.legend.sql.OutputCol col = p.out();
+            SqlExpr converted = declaredDoubleCell(p.expr());
+            if (col == null || converted == p.expr()) {
+                continue;
+            }
+            if (out == null) {
+                out = new java.util.ArrayList<>(s.projections());
+            }
+            out.set(i, new SqlSelect.Projection(converted, p.outputName(),
+                    new com.legend.sql.OutputCol(col.name(),
+                            com.legend.sql.SqlType.Scalar.DOUBLE, col.nullable(),
+                            col.tolerated(), col.origin())));
+        }
+        return out == null ? s : s.withProjections(out);
+    }
+
+    /** A root cell converted to DOUBLE — a LITERAL COLLECTION element-wise
+     * (the compacted {@code UNNEST([a, b])} becomes {@code UNNEST([CAST(a AS
+     * DOUBLE), …])}): the H2 dialect explodes
+     * the unnest into a UNION of its elements and has no placement for a
+     * cast around it; DuckDB reads either. Any other cell converts whole. */
+    static SqlExpr declaredDoubleCell(SqlExpr e) {
+        // the exploded literal collection: a one-argument call over the
+        // compacted list (the semantic node; its carrier is the dialect's)
+        if (e instanceof SqlExpr.Call c && c.args().size() == 1
+                && c.args().get(0) instanceof SqlExpr.CompactList) {
+            SqlExpr inner = castElements(c.args().get(0));
+            if (inner != null) {
+                return new SqlExpr.Call(c.fn(), java.util.List.of(inner));
+            }
+        }
+        return LiteralSpelling.declaredDouble(e);
+    }
+
+    private static @com.legend.Nullable SqlExpr castElements(SqlExpr list) {
+        if (list instanceof SqlExpr.CompactList cl) {
+            SqlExpr inner = castElements(cl.list());
+            return inner == null ? null
+                    : cl.mapChildren(c -> c == cl.list() ? inner : c);
+        }
+        if (list instanceof SqlExpr.ArrayLit a) {
+            boolean changed = a.elements().stream()
+                    .anyMatch(el -> LiteralSpelling.declaredDouble(el) != el);
+            return changed ? a.mapChildren(LiteralSpelling::declaredDouble) : null;
+        }
+        return null;
+    }
+
+    /** JUDGING_TWO_MODES §1 at a RELATION ROOT: every column the relation
+     * DECLARES Float converts to DOUBLE once, keyed by the declared column
+     * type — on the select's OWN projections, never by rewriting its shape
+     * (a wrap changed the plan text and did nothing for a wire already
+     * DOUBLE, 2026-09-17). A star projection carries no cell to convert
+     * and rides through unchanged. */
+    static SqlSelect declaredKindEnvelope(SqlSelect rel,
+            com.legend.compiler.element.type.Type.RelationType rt,
+            java.util.function.Supplier<String> alias) {
+        java.util.Set<String> floatCols = new java.util.HashSet<>();
+        for (com.legend.compiler.element.type.Type.Column c : rt.columns()) {
+            if (c.type() == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+                floatCols.add(c.name());
+            }
+        }
+        if (floatCols.isEmpty()) {
+            return rel;
+        }
+        java.util.List<SqlSelect.Projection> out = null;
+        for (int i = 0; i < rel.projections().size(); i++) {
+            SqlSelect.Projection p = rel.projections().get(i);
+            OutputCol col = p.out();
+            if (col == null || !floatCols.contains(col.name())) {
+                continue;
+            }
+            SqlExpr converted = LiteralSpelling.declaredDouble(p.expr());
+            if (converted == p.expr()) {
+                continue;
+            }
+            if (out == null) {
+                out = new java.util.ArrayList<>(rel.projections());
+            }
+            out.set(i, new SqlSelect.Projection(converted, p.outputName(),
+                    new OutputCol(col.name(), com.legend.sql.SqlType.Scalar.DOUBLE,
+                            col.nullable(), col.tolerated(), col.origin())));
+        }
+        return out == null ? rel : rel.withProjections(out);
+    }
+
     /** Per-lane scope: {@link LiteralSpelling.ValueLane}. */
     static SqlSelect conformValueEgress(SqlSelect s,
             LiteralSpelling.ValueLane lane) {
@@ -1138,6 +1246,13 @@ final class Fold {
 
     static SqlExpr jsonDateWrap(SqlExpr e,
             com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+            // JUDGING_TWO_MODES §1: a Float-DECLARED JSON leaf converts to
+            // DOUBLE once here, keyed by the declared type — the same rule
+            // Render applies to a TDS cell. (The method keeps its name: it
+            // is the graph leaf's declared-kind wrapper.)
+            return LiteralSpelling.declaredDouble(e);
+        }
         if (t != com.legend.compiler.element.type.Type.Primitive.DATE_TIME
                 && t != com.legend.compiler.element.type.Type.Primitive.DATE) {
             return e;

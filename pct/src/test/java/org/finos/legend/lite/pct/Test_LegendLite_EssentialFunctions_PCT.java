@@ -45,6 +45,12 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // compile. The ^$var(...) copy-with-update feature itself works
             // (TypedCopyInstance; probed); these tests are unrunnable from the
             // serialized form.
+            // NUMERIC CHARTER Rule 2 (docs/NUMERIC_CHARTER_2026_09_17.md): the
+            // Float kind is a DOUBLE at the boundary — the COMPILED reference's
+            // own answer (a Pure Float IS java.lang.Double there; the engine's
+            // DuckDB/H2 PCT suites run compiled). This lane is the INTERPRETED
+            // builder, whose Float is BigDecimal-backed and keeps the digits.
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::collection::tests::fold::testFold_Function_1__Boolean_1_", "\"'lastName' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFoldFiltering_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
             one("meta::pure::functions::collection::tests::fold::testFoldToMany_Function_1__Boolean_1_", "\"'otherNames' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name\""),
