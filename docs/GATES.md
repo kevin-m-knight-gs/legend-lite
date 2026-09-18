@@ -3844,3 +3844,22 @@ outright on H2). DuckDB 108 EXACT, stress 4,700 / 20, PCT and Channel B unchange
 chain was red on G5 for exactly this register row (LOST 1 unordered-chain); the row was
 added with this reason and the chain re-run green. Step 3 homework:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md.
+
+**Judging step 3, leg 3.0 — measurement only (2026-09-18):** chain GREEN (gates 1–10),
+quiet machine, parallel wall ≈ 4m15s (G2 25; A: G1 71 · G3 11 · G4 93 · G5 37 = 212; B:
+G6 135 · G7 43 · G9 32 = 210; C: G8 139 · G10 51 = 190). No verdict changed, no roster
+moved. Added: the SQL canon's CLAIM / DECLINE census per assert family and decline reason,
+printed by both corpus lanes (`[corpus2] sql-census …`; `CanonicalDivergence.sqlFamily` at
+AssertVerdicts' one adjudication entry, attribution only); the Decimal scale-only pair count;
+the disagreement samples attributed to their tests (`CONTEXT_SOURCE` wired in the minimal
+harness). Findings (record in docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4a): DuckDB claims
+2,189 of 3,711 equals/sameElements/eq asserts, declines 224 by reason, never attempts 1,298;
+no other family has a SQL arm (assertSize 684, assert 362, JSON 177); Decimal scale-only
+pairs 0 on both lanes; H2 disagreements 6 = two grid-canon bugs named by row (H2 boolean
+spelled `FALSE`; a String-declared column over an INT wire spelled quoted) — leg 3.1's list;
+DuckDB disagreements 0. Spec: docs/CANONICAL_FORM_SPEC.md §2 Decimal row and §3 integral ×
+Decimal amended to the compiled reference's scale-sensitive rule. Probes: H2 rejects EXCEPT
+ALL, AS MATERIALIZED and data-modifying CTEs; the signed-counts multiset form gives identical
+answers on H2 and DuckDB over duplicates and NULLs (one spelling for both dialects). Ledger
+pins with reasons: AssertVerdicts 1822 → 1823, Equality 445 → 451; `SQL_CENSUS` admitted to
+the ArchitectureTest accumulator list (measurement only).

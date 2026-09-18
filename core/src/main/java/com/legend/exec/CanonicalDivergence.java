@@ -317,6 +317,7 @@ public final class CanonicalDivergence {
         if (MUTED.get()) {
             return;
         }
+        SQL_CENSUS.merge("claimed " + family, 1L, Long::sum);
         if (hostHeld == sqlHeld) {
             SQL_AGREE.incrementAndGet();
         } else {
@@ -352,6 +353,57 @@ public final class CanonicalDivergence {
         }
         SQL_DECLINED.incrementAndGet();
         sample(new Row("sqlDecline", false, reason));
+        // leg 3.0 census: the decline attributed to the assert family
+        // being adjudicated (the reason's head, before its first ':')
+        int c = reason.indexOf(':');
+        String head = c < 0 ? reason : reason.substring(0, c);
+        SQL_CENSUS.merge("declined " + CURRENT_FAMILY.get() + " " + head,
+                1L, Long::sum);
+    }
+
+    // ── leg 3.0 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4): the
+    // CLAIM / DECLINE census per assert family — what the SQL canon
+    // already judges and what it declines, by reason. Attribution
+    // only: no verdict reads any of this. CURRENT_FAMILY is the assert
+    // family AssertVerdicts is adjudicating (set at its one entry), so
+    // a decline recorded deeper (TdsCompare, the wrap) lands on it.
+    private static final java.util.concurrent.atomic.AtomicReference<String>
+            CURRENT_FAMILY = new java.util.concurrent.atomic.AtomicReference<>("?");
+    private static final java.util.concurrent.ConcurrentHashMap<String, Long>
+            SQL_CENSUS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** A Decimal pair equal in value but not in scale (3.0D vs 3.00D):
+     * unequal under the engine's assert seam (host mode), equal under a
+     * scale-normalized canon — the D5 amendment's witness count. */
+    private static final AtomicLong DECIMAL_SCALE_ONLY = new AtomicLong();
+
+    public static void decimalScaleOnly() {
+        if (MUTED.get()) {
+            return;
+        }
+        DECIMAL_SCALE_ONLY.incrementAndGet();
+        sample(new Row("decimalScaleOnly", false,
+                "[" + CONTEXT_SOURCE.get() + "]"));
+    }
+
+    public static long decimalScaleOnlyCount() {
+        return DECIMAL_SCALE_ONLY.get();
+    }
+
+    /** An assert of {@code family} enters adjudication. */
+    public static void sqlFamily(String family) {
+        if (MUTED.get()) {
+            return;
+        }
+        CURRENT_FAMILY.set(family);
+        SQL_CENSUS.merge("adjudicated " + family, 1L, Long::sum);
+    }
+
+    /** The census rows, sorted: {@code adjudicated <family>},
+     * {@code claimed <family>} (a byte verdict was produced),
+     * {@code declined <family> <reason-head>}. */
+    public static java.util.SortedMap<String, Long> sqlCensus() {
+        return new java.util.TreeMap<>(SQL_CENSUS);
     }
 
     public static long sqlDisagreeCount() {

@@ -878,6 +878,12 @@ final class ArchitectureTest {
                 // the exact-pinned disagree count (23); measurement only
                 "com.legend.exec.CanonicalDivergence.DISAGREE_SAMPLES",
                 "com.legend.exec.CanonicalDivergence.V7_FORMS",
+                // leg 3.0 (DATABASE_MODE_HOMEWORK §4a): the SQL canon's
+                // CLAIM / DECLINE census per assert family and reason —
+                // bounded by families × decline-reason heads (~40 keys);
+                // measurement only, printed by the corpus lanes, never
+                // read by a verdict
+                "com.legend.exec.CanonicalDivergence.SQL_CENSUS",
                 "com.legend.exec.CanonicalDivergence.V7_DECLINES",
                 "com.legend.exec.CanonicalDivergence.V7_SAMPLES",
                 // step-0 residue census (FULL_RESIDUE_CENSUS_2026_08_30):

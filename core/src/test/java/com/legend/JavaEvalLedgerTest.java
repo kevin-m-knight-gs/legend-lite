@@ -219,7 +219,7 @@ class JavaEvalLedgerTest {
             // 416 -> 441 (step 2b): grid cells by COLUMN kind and the mixed
             // verdict's leniency-only test moved here from TdsCompare (-59)
             // and AssertVerdicts; PureAsserts -24, JsonCompare gone (-25)
-            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 445),
+            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 451),   // 445 -> 451 (leg 3.0 census: Decimal scale-only pairs counted for the canon spec amendment; no rule changed)
             // 242 -> 218 -> 229 (step 2b): the equality API is gone; the typed
             // message facade (assertEqualsTyped) builds a grid's narrative
             // from the SAME typed cells the judge decided — no divergence
@@ -486,7 +486,7 @@ class JavaEvalLedgerTest {
             // 1831 -> 1840 (JUDGING_TWO_MODES step 2, 2026-09-17): the run-level
             // judge mode read once, and each side's values paired with their
             // DECLARED kind for the host judge — routing, no evaluation
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1822),   // 1840 -> 1822 (host-only verdict 2026-09-18: the mixed branch and the byte-verdict messages deleted); 1825 -> 1831 (numeric charter Rule 3, 2026-09-17: the floatDeclared helper + the two typed equality call sites); 1800 -> 1825 (store-substitution leg, 2026-09-13: assertIs over ELEMENT rows adjudicates the identity condition the resolver mints — key equality, the D2 ruling; nothing evaluates host-side) | 1775 -> 1800 (graph-root order rule, 2026-09-13: the JSON verdict reads the chain's ORDER VIEW; the view descends execute frames and graph-fetch/serialize nodes — referee policy, no evaluation) | 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1823),   // 1822 -> 1823 (leg 3.0 census: the assert family enters the byte-channel census at the one adjudication entry); 1840 -> 1822 (host-only verdict 2026-09-18: the mixed branch and the byte-verdict messages deleted); 1825 -> 1831 (numeric charter Rule 3, 2026-09-17: the floatDeclared helper + the two typed equality call sites); 1800 -> 1825 (store-substitution leg, 2026-09-13: assertIs over ELEMENT rows adjudicates the identity condition the resolver mints — key equality, the D2 ruling; nothing evaluates host-side) | 1775 -> 1800 (graph-root order rule, 2026-09-13: the JSON verdict reads the chain's ORDER VIEW; the view descends execute frames and graph-fetch/serialize nodes — referee policy, no evaluation) | 1774 -> 1776 (batch 3: the assert family dispatches through a closed type — the import and one line of typed resolution) -> 1775 (batch 4b: the tdsEquivalent pre-check folded into the exhaustive switch; measured)
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

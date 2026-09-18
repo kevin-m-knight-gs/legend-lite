@@ -315,6 +315,78 @@ database mode replaces; the `finish()` census probe; whatever `CanonicalDivergen
 the differential gate makes redundant. (The ten-digit replay canon stays: it is the SQL-text
 lane's.)
 
+## 4a. Leg 3.0 — the measurements (2026-09-18; no verdict changed)
+
+**The claim/decline census** (`[corpus2] sql-census …`, printed by both corpus lanes from
+`CanonicalDivergence`; `adjudicated` = asserts that reached `AssertVerdicts`, `claimed` = a
+byte verdict was produced, `declined` = the canon refused with a reason; the remainder never
+attempted a byte verdict — the family has no SQL arm, or the shape routed to an arm without
+one):
+
+| family | DuckDB adjudicated / claimed / declined / not attempted | H2 adjudicated / claimed / declined / not attempted |
+|---|---|---|
+| assertEquals | 2,950 / 1,497 / 174 / **1,279** | 2,761 / 1,164 / 319 / 1,278 |
+| assertSameElements | 755 / 686 / 50 / 19 | 730 / 627 / 65 / 38 |
+| assertEq | 6 / 6 / 0 / 0 | 6 / 2 / 3 / 1 |
+| assertSize | 684 / 0 / 0 / 684 | 675 / — / — / 675 |
+| assert (boolean) | 362 / 0 / 0 / 362 | 362 |
+| assertJsonStringsEqual | 177 / 0 / 0 / 177 | 172 |
+| assertEmpty / NotEmpty / Contains / False / Is / InstanceOf / EqWithinTolerance / TdsEquivalent | 20 / 13 / 17 / 20 / 4 / 1 / 11 / 2 — none attempted | similar |
+
+Decline reasons, DuckDB: assertEquals `tds-peer` 90 · `tds-side` 26 · `side-e` 24 ·
+`any-pair` 14 · `kind-gate` 11 · `side-a` 5 · `any-wire-tree` 4; assertSameElements
+`side-e` 39 · `tds-peer` 4 · `tds-side` 3 · `side-a` 2 · `any-wire-tree` 2. H2 adds
+`side-a` 111 and `tds-side` 63 on assertEquals (the H2 canon wrap declines more shapes) and
+`side-e` 51 on assertSameElements.
+
+**What the numbers say.** The SQL canon already produces a verdict for 2,189 of the 3,711
+assertEquals/SameElements/Eq asserts on DuckDB (59%), declines 224 with a named reason, and
+NEVER TRIES 1,298 — the biggest bucket, and it has no reason column yet because nothing
+recorded one. Every family other than those three has no SQL arm at all (assertSize 684,
+assert 362, JSON 177, the small tails). So leg 3.1's real work list, in order of size: the
+1,298 un-attempted equals/sameElements shapes (a reason census first — the next print), the
+1,223 family-level gaps (size/assert/JSON/…: each a one-line predicate, JSON the exception),
+then the 224 named declines by tier (§3 D3). Policies: the 2-ULP leniency fired 7 times on
+DuckDB, 0 on H2; the TDSNull policy 0; **Decimal scale-only pairs 0 on both lanes** (the
+D5 amendment has no corpus witness; it is now in the spec, docs/CANONICAL_FORM_SPEC.md §2/§3).
+
+**The disagreements = database mode's first bug list** (host is the verdict of record; a
+byte-vs-host disagreement is a wrong SQL canon). DuckDB: 0. H2: 6, all in the grid canon,
+two causes: (1) H2 spells a Boolean cell `FALSE` where the canon expects `false` — the H2
+dialect's boolean canon is unnormalized (2 rows: `mapping::boolean::testProject` and
+`filter::in::testInWithDynaFunction`, the two the H2 roster lost when host became the
+verdict); (2) a grid cell under a String-DECLARED column over an INT wire is spelled
+QUOTED (`'11'`) while the expected literal `11` spells bare — the SQL grid canon follows the
+Pure declaration where the engine (and `Equality.effectiveKind`) follows the wire kind for a
+non-numeric declaration (4 rows, the `mapping::tree` family, `Account.number : String[1]`
+over `accountTable.id INT`). Both are leg 3.1 items with their rows named here.
+
+**The multiset formulation — settled for BOTH dialects with ONE spelling.** H2 2.4.240
+rejects `EXCEPT ALL` (probe P-02: "Syntax error … except [*]all"), rejects `AS MATERIALIZED`,
+and rejects a data-modifying CTE (P-09). The signed-counts form needs none of them:
+
+```sql
+SELECT count(*) = 0 FROM (
+  SELECT v FROM (SELECT v, count(*) n FROM e GROUP BY v
+                 UNION ALL SELECT v, -count(*) FROM a GROUP BY v) u
+  GROUP BY v HAVING sum(n) <> 0) d
+```
+
+Probed on both engines over multisets with duplicates and NULLs (GROUP BY treats NULL as
+one value, so the form is NULL-safe without IS NOT DISTINCT FROM): equal → 0, one element
+moved → 2, one side empty → 3, identical answers on H2 and DuckDB; DuckDB's two-way
+`EXCEPT ALL` agrees. So the sameElements verdict is one SQL shape, not one per dialect —
+the risk TWO_DESIGN_LEGS §5 ranked fourth is retired. Ordering (P-22): on both engines an
+`ORDER BY` inside a CTE does survive into `list()`/`ARRAY_AGG` in the probe, but the
+verdict must not rely on it — `list(v ORDER BY key)` is explicit on both and costs nothing.
+P-12 (a CTE reading an earlier CTE) holds on both. P-11 stands as recorded in §2b.
+
+**Owed from this leg (small, before 3.1's first edit):** the reason census for the
+un-attempted 1,298 (a `not-attempted <family> <route>` row at each host-only route), the
+round-trip count per lane, and the H2 MATERIALIZED substitute (a probe: does H2 evaluate a
+plain CTE once when referenced twice? If not, the H2 fusion form uses a temporary view or
+runs the frame CTE as a subquery per reference and the differential gate catches drift).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

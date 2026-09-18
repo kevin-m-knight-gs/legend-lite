@@ -417,6 +417,20 @@ class MinimalCorpusTest {
             }
         }
         lenTests.forEach((t, n) -> System.out.println("[corpus2] leniency-tests " + t + "=" + n));
+        // leg 3.0 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4): the SQL
+        // canon's CLAIM / DECLINE census per assert family and reason, the
+        // host-vs-byte disagreements (database mode's bug list now that
+        // host is the verdict of record), the policy counts. Printed only.
+        com.legend.exec.CanonicalDivergence.sqlCensus().forEach(
+                (k, v) -> System.out.println("[corpus2] sql-census " + k + "=" + v));
+        System.out.println("[corpus2] sql-census policy ulp="
+                + com.legend.exec.CanonicalDivergence.sqlUlpPolicyCount()
+                + " tdsnull=" + com.legend.exec.CanonicalDivergence.sqlTdsNullPolicyCount()
+                + " decimal-scale-only=" + com.legend.exec.CanonicalDivergence.decimalScaleOnlyCount()
+                + " disagree=" + com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
+                + " declined=" + com.legend.exec.CanonicalDivergence.sqlDeclinedCount());
+        com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(
+                r -> System.out.println("[corpus2] sql-disagree " + r.family() + " " + r.detail()));
         if (!only.isEmpty()) {
             return;
         }

@@ -191,8 +191,16 @@ public final class Equality {
             // the engine's assert seam: getValue().equals — SCALE-SENSITIVE
             // (VERDICT_RULE_AUDIT X2; the equality-worlds fixture pins
             // 3.0D ≠ 3.00D in World 1, while SQL '=' is scale-blind)
-            return e instanceof Number en && a instanceof Number an
-                    && decimal(en).equals(decimal(an));
+            if (!(e instanceof Number en && a instanceof Number an)) {
+                return false;
+            }
+            boolean eq = decimal(en).equals(decimal(an));
+            if (!eq && decimal(en).compareTo(decimal(an)) == 0) {
+                // leg 3.0 census: the pair differs by SCALE only — the
+                // witness set for the canon spec's Decimal amendment
+                CanonicalDivergence.decimalScaleOnly();
+            }
+            return eq;
         }
         if (ek == Type.Primitive.FLOAT) {
             if (!(e instanceof Number en && a instanceof Number an)) {

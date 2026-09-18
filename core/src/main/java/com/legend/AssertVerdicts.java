@@ -219,6 +219,7 @@ final class AssertVerdicts {
             return null;
         }
         String name = fn.bareName();
+        com.legend.exec.CanonicalDivergence.sqlFamily(name);   // leg 3.0 census
         List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
                 (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
                 letPrefix, specs);

@@ -537,6 +537,9 @@ public final class MinimalCorpus {
             // belong to (display attribution only, no verdict flows through it)
             currentTest = t.fqn();
             com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
+            // the byte-channel census attributes its disagreement samples
+            // (leg 3.0: database mode's bug list) to the running test
+            com.legend.exec.CanonicalDivergence.CONTEXT_SOURCE = t::fqn;
             if (System.getenv("LEGEND_LITE_PROGRESS") != null) {
                 System.err.println("[corpus2] > " + t.fqn());
             }

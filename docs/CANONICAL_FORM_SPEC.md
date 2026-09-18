@@ -41,7 +41,7 @@ seconds, zoneless) / `yyyy-MM-dd` date-only.
 | Boolean | `true` / `false` | H1 |
 | String | verbatim bytes, unquoted | H1 (toRepresentation quoting is NOT the canonical channel) |
 | Float | fixed-point ALWAYS, never exponent; trailing zeros collapse to one (`17.000`→`17.0`); integral floats keep `.0`; leading zero enforced (`0.01`) | H1 testFloatToString×4; DuckDB bare CAST DIVERGES on small magnitudes (`1.3421e-08`) → R1 builds a no-exponent format expression |
-| Decimal | SCALE-NORMALIZED print (trailing zeros stripped, integral keeps `.0`) | FORCED by equality: pure Decimal equality is numeric/scale-blind (assertEq(8D, toDecimal(8)) pin, PureAsserts compareTo) — a scale-preserving print would over-refuse. H6: no contrary print witness exists. |
+| Decimal | **SCALE-PRESERVING print (amended 2026-09-18, leg 3.0)** — `3.0D` and `3.00D` spell differently and are DIFFERENT values | The compiled engine's assert seam is `getValue().equals` — scale-SENSITIVE (VERDICT_RULE_AUDIT X2; the equality-worlds fixture, World 1); the host judge of record (`Equality`, step 2a) applies exactly that rule, and a scale-normalized canon would make database mode disagree with it. The earlier row ("FORCED by equality: pure Decimal equality is numeric/scale-blind") described the INTERPRETED runtime's compareTo, not the compiled reference this platform follows (JUDGING_TWO_MODES §1). Witness count in the corpus: ZERO pairs differ by scale only (both lanes, `decimal-scale-only=0`, leg 3.0 census) — the amendment costs no row and removes a designed disagreement. |
 | Date (partial) | `2014`, `2014-01`, `2014-01-01` — precision preserved, zero-padded | H1 |
 | DateTime | `yyyy-MM-ddTHH:mm[:ss[.S+]]+0000`, GMT-normalized, subsecond precision preserved as written (`.000` ≠ `.0` ≠ none) | H1; +0000 STRFTIME sites already implement this (audit: "+0000 archaeology closed clean") |
 | List | `[a, b, c]` — elements by this table, `, ` separator, nested allowed | H1 testListToString |
@@ -58,12 +58,14 @@ From H4 (PureAsserts), the cross-kind rows the canonical form makes
 byte-decidable:
 
 - integral × integral: by value → identical canonical integers. OK.
-- integral × Decimal: NUMERIC equal (PCT testIntToDecimal) → both
-  render scale-normalized (`8` vs `8.0`: **R1 rule — Decimal canonical
-  of an integral value renders WITHOUT `.0`**, matching Integer, so
-  numeric equality stays byte-decidable. This is the one place the
-  render is chosen by the lattice, not by toString: toString has no
-  witness (H1 OPEN row) and equality is the binding requirement.)
+- integral × Decimal: **NOT equal under the compiled reference (amended
+  2026-09-18 with the §2 Decimal row)** — Rule 3 of the numeric charter:
+  same kind by declaration, same value; an Integer and a Decimal are
+  different kinds, and `Equality` (the host judge of record) answers
+  false. The canon spells the Decimal with its scale and its kind mark,
+  so the pair byte-differs — the same answer. (The former R1 rule that
+  rendered an integral Decimal without `.0` served the interpreted
+  runtime's numeric compare; superseded.)
 - integral × Float: NOT equal in pure → `8` vs `8.0` byte-differ. OK.
 - Float × Float: exact equal → byte-equal. The 2-ULP tolerance is a
   DECLARED NUMERIC POLICY outside the byte channel (§4), R3 census
