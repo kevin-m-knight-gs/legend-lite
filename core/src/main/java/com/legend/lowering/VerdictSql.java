@@ -50,22 +50,30 @@ public final class VerdictSql {
     public static final String EXPECTED = "__expected";
     public static final String ACTUAL = "__actual";
     public static final String UNJUDGED = "__unjudged";
+    /** True when the verdict held ONLY through the declared 2-ULP Float
+     * leniency (the harness counts it, as host mode counts its own). */
+    public static final String LENIENT = "__lenient";
 
     /** One canon-wrapped side: the wrapped plan, the name of the canon
      * column that decides (one of {@code __canon<i>}), whether the side
      * is a collection, and whether its elements order by canon text (the
      * multiset forms) or by arrival (an ordered assert). */
     public record Side(SqlQuery wrapped, String canonColumn, boolean many,
-            boolean byCanonText) {
+            boolean byCanonText, boolean isFloat) {
     }
 
     private static final String C = "__c";
     private static final String RN = "__rn";
+    private static final String V = "__v";
 
     /** The equality verdict statement over two framed sides. */
     public static SqlQuery equality(Side e, Side a) {
-        return statement(canonRows(e), canonRows(a), e.many(), a.many(),
-                e.byCanonText(), List.of());
+        SqlQuery er = canonRows(e);
+        SqlQuery ar = canonRows(a);
+        // the leniency walks the cells POSITIONALLY in arrival order in every
+        // form (host mode: Equality.ordered first, the multiset only after)
+        return statement(er, ar, e.many(), a.many(), e.byCanonText(), List.of(),
+                List.of(), er, ar);
     }
 
     // ── the GRID forms (leg 3.1b): a TABULAR side rides the grid wrap
@@ -75,14 +83,17 @@ public final class VerdictSql {
     // rules TdsCompare.peerRowCanons / tdsCellCanons apply in Java.
 
     /** A grid side: its wrapped plan and its width (columns). */
-    public record GridSide(SqlQuery wrapped, int width) {
+    /** {@code floatColumns}: per column, whether it is DECLARED Float —
+     * the 2-ULP leniency's operand columns. */
+    public record GridSide(SqlQuery wrapped, int width, List<Boolean> floatColumns) {
     }
 
     /** A value peer of a grid: its wrapped plan, the literal-channel canon
      * column, and whether it is the EXPECTED side (the golden's
      * {@code 'TDSNull'} string cells spell the bare sentinel there only —
      * a real 'TDSNull' string on OUR wire stays quoted). */
-    public record PeerSide(SqlQuery wrapped, String canonColumn, boolean expected) {
+    public record PeerSide(SqlQuery wrapped, String canonColumn, boolean expected,
+            boolean isFloat) {
     }
 
     /** {@code assertEquals} over rows: the grid's row canons against the
@@ -104,9 +115,11 @@ public final class VerdictSql {
         List<SqlExpr.Case.When> more = List.of(new SqlExpr.Case.When(divisible,
                 new SqlExpr.StringLit("tds-peer: cells not divisible by width "
                         + grid.width())));
+        SqlQuery gc = gridCellsRowMajor(grid);
+        SqlQuery pc = peerCells(peer);
         return gridIsExpected
-                ? statement(g, p, true, true, multiset, more, extra)
-                : statement(p, g, true, true, multiset, more, extra);
+                ? statement(g, p, true, true, multiset, more, extra, gc, pc)
+                : statement(p, g, true, true, multiset, more, extra, pc, gc);
     }
 
     /** {@code assertSameElements} over a grid: the loose CELL pool (every
@@ -131,16 +144,38 @@ public final class VerdictSql {
         return statement(eRows, aRows, eMany, aMany, byCanonText, moreUnjudged, List.of());
     }
 
-    /** The statement over two ROW SOURCES (each {@code (__c, __rn)}). */
     private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
             boolean eMany, boolean aMany, boolean byCanonText,
             List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes) {
+        return statement(eRows, aRows, eMany, aMany, byCanonText, moreUnjudged, extraCtes,
+                null, null);
+    }
+
+    /** The statement over two ROW SOURCES (each {@code (__c, __rn[, __v])});
+     * {@code eCells}/{@code aCells} (each {@code (__c, __rn, __v)}, null =
+     * no leniency for this form) are the POSITIONAL cell sequences the
+     * declared 2-ULP Float leniency compares. */
+    private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
+            boolean eMany, boolean aMany, boolean byCanonText,
+            List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes,
+            @com.legend.Nullable SqlQuery eCells, @com.legend.Nullable SqlQuery aCells) {
         List<SqlWith.Cte> ctes = new ArrayList<>(extraCtes);
         ctes.add(new SqlWith.Cte("__e", eRows));
         ctes.add(new SqlWith.Cte("__a", aRows));
         SqlExpr fe = frame("__e", eMany, byCanonText);
         SqlExpr fa = frame("__a", aMany, byCanonText);
-        SqlExpr verdict = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, fe, fa);
+        SqlExpr exact = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, fe, fa);
+        SqlExpr lenient;
+        if (eCells != null && aCells != null) {
+            ctes.add(new SqlWith.Cte("__ec", eCells));
+            ctes.add(new SqlWith.Cte("__ac", aCells));
+            lenient = lenient("__ec", "__ac");
+        } else {
+            lenient = new SqlExpr.BoolLit(false);
+        }
+        SqlExpr verdict = SqlExpr.Call.of(SqlFn.OR, exact, lenient);
+        SqlExpr lenientOnly = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.NOT, exact), lenient);
         List<SqlExpr.Case.When> whens = new ArrayList<>(moreUnjudged);
         whens.add(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.OR, nullCells("__e"), nullCells("__a")),
@@ -159,7 +194,9 @@ public final class VerdictSql {
                 new SqlSelect.Projection(fa, ACTUAL,
                         new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false)),
                 new SqlSelect.Projection(unjudged, UNJUDGED,
-                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)));
+                        new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
+                new SqlSelect.Projection(lenientOnly, LENIENT,
+                        new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
         SqlSelect body = new SqlSelect(ps, false, new SqlSource.Dual(), null,
                 List.of(), null, null, List.of(), null, null, List.of());
         return new SqlWith(ctes, body);
@@ -215,7 +252,9 @@ public final class VerdictSql {
                         com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one),
                 new com.legend.compiler.element.type.Type.RelationType.Column(EXPECTED, t, one),
                 new com.legend.compiler.element.type.Type.RelationType.Column(ACTUAL, t, one),
-                new com.legend.compiler.element.type.Type.RelationType.Column(UNJUDGED, t, opt)));
+                new com.legend.compiler.element.type.Type.RelationType.Column(UNJUDGED, t, opt),
+                new com.legend.compiler.element.type.Type.RelationType.Column(LENIENT,
+                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one)));
     }
 
     /** {@code SELECT canon AS __c, row_number() OVER () AS __rn FROM (wrapped) w}
@@ -245,17 +284,9 @@ public final class VerdictSql {
                     ws.groupBy(), ws.having(), ws.qualify(), List.of(), ws.limit(),
                     ws.offset(), ws.outputs());
         }
-        SqlExpr rn = new SqlExpr.WindowCall(
-                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                List.of(), List.of(), null);
-        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
-        return new SqlSelect(List.of(
-                        new SqlSelect.Projection(canon, C, cOut),
-                        new SqlSelect.Projection(rn, RN, rnOut)),
-                false, new SqlSource.Subselect(inner, "w", null), where,
-                List.of(), null, null, List.of(), null, null,
-                List.of(cOut, rnOut));
+        SqlExpr value = inner instanceof SqlSelect vs2 && !vs2.projections().isEmpty()
+                ? doubleValue(vs2.projections().get(0), "w", s.isFloat()) : new SqlExpr.NullLit();
+        return rowsOf(canon, value, inner, where);
     }
 
     /** A grid side's row canons in arrival order: {@code SELECT
@@ -298,7 +329,9 @@ public final class VerdictSql {
                     SqlExpr.Call.of(SqlFn.EQUAL, c, new SqlExpr.StringLit("'TDSNull'")),
                     new SqlExpr.StringLit("TDSNull"))), c);
         }
-        return rowsOf(c, peer.wrapped());
+        SqlExpr value = peer.wrapped() instanceof SqlSelect ps && !ps.projections().isEmpty()
+                ? doubleValue(ps.projections().get(0), "w", peer.isFloat()) : new SqlExpr.NullLit();
+        return rowsOf(c, value, peer.wrapped(), null);
     }
 
     /** The peer's cells chunked into rows of {@code width}: cells in
@@ -325,24 +358,133 @@ public final class VerdictSql {
                 List.of(), null, null, List.of(cOut, rnOut));
     }
 
-    /** {@code SELECT <canon> AS __c, row_number() OVER () AS __rn FROM (source) w}. */
+    /** {@code SELECT <canon> AS __c, row_number() OVER () AS __rn, <value> AS __v
+     * FROM (source) w} — {@code value} the cell's DOUBLE value when the cell
+     * IS a Float (the leniency's operand), NULL otherwise. */
     private static SqlQuery rowsOf(SqlExpr canon, SqlQuery source) {
+        return rowsOf(canon, new SqlExpr.NullLit(), source, null);
+    }
+
+    private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, SqlQuery source,
+            @com.legend.Nullable SqlExpr where) {
         SqlExpr rn = new SqlExpr.WindowCall(
                 new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                 List.of(), List.of(), null);
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
         return new SqlSelect(List.of(
                         new SqlSelect.Projection(canon, C, cOut),
-                        new SqlSelect.Projection(rn, RN, rnOut)),
-                false, new SqlSource.Subselect(source, "w", null), null,
+                        new SqlSelect.Projection(rn, RN, rnOut),
+                        new SqlSelect.Projection(value, V, vOut)),
+                false, new SqlSource.Subselect(source, "w", null), where,
                 List.of(), null, null, List.of(), null, null,
-                List.of(cOut, rnOut));
+                List.of(cOut, rnOut, vOut));
+    }
+
+    /** The DOUBLE value of a projection when its type fact says DOUBLE,
+     * else NULL (only Float pairs take the leniency). */
+    private static SqlExpr doubleValue(SqlSelect.Projection p, String table, boolean isFloat) {
+        return isFloat && p.alias() != null
+                ? new SqlExpr.Cast(SqlExpr.Column.of(table, p.alias(), SqlType.Scalar.DOUBLE,
+                        true, OutputCol.Origin.DERIVED), SqlType.Scalar.DOUBLE)
+                : new SqlExpr.NullLit();
+    }
+
+    /** A grid's cells ROW-MAJOR with their Float values: one row per cell,
+     * {@code __rn = (row - 1) * width + i + 1} — the positional sequence
+     * the leniency walks against the peer's cells. */
+    private static SqlQuery gridCellsRowMajor(GridSide grid) {
+        List<SqlQuery> branches = new ArrayList<>();
+        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
+        List<SqlSelect.Projection> values = grid.wrapped() instanceof SqlSelect ws
+                ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size()))
+                : List.of();
+        for (int i = 0; i < grid.width(); i++) {
+            SqlExpr cell = new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
+                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR);
+            SqlExpr rowNo = new SqlExpr.WindowCall(
+                    new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                    List.of(), List.of(), null);
+            SqlExpr ord = SqlExpr.Call.of(SqlFn.PLUS,
+                    SqlExpr.Call.of(SqlFn.TIMES,
+                            SqlExpr.Call.of(SqlFn.MINUS, rowNo, new SqlExpr.IntLit(1)),
+                            new SqlExpr.IntLit(grid.width())),
+                    new SqlExpr.IntLit(i + 1));
+            boolean isFloat = i < grid.floatColumns().size() && grid.floatColumns().get(i);
+            SqlExpr v = i < values.size() ? doubleValue(values.get(i), "w", isFloat)
+                    : new SqlExpr.NullLit();
+            branches.add(new SqlSelect(List.of(
+                            new SqlSelect.Projection(cell, C, cOut),
+                            new SqlSelect.Projection(ord, RN, rnOut),
+                            new SqlSelect.Projection(v, V, vOut)),
+                    false, new SqlSource.Subselect(grid.wrapped(), "w", null), null,
+                    List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, vOut)));
+        }
+        return branches.size() == 1 ? branches.get(0)
+                : new com.legend.sql.SqlUnion(branches, true, List.of(cOut, rnOut, vOut));
+    }
+
+    /** The declared 2-ULP Float leniency as ONE predicate over two cell
+     * sequences: same length, and every position either canon-equal or a
+     * finite Double pair within {@code 2 * ulp(max(|x|, |y|))}, ulp spelled
+     * {@code 2^(floor(log2(max)) - 52)} through {@code ln} (a boundary at
+     * an exact power of two may differ from Math.ulp by one binade — the
+     * differential gate measures it). */
+    private static SqlExpr lenient(String ec, String ac) {
+        SqlExpr ve = col(ec, V);
+        SqlExpr va = col(ac, V);
+        SqlExpr big = SqlExpr.Call.of(SqlFn.GREATEST,
+                SqlExpr.Call.of(SqlFn.ABS, ve), SqlExpr.Call.of(SqlFn.ABS, va));
+        SqlExpr finite = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, ve),
+                        new SqlExpr.FloatLit(Double.MAX_VALUE)),
+                SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, va),
+                        new SqlExpr.FloatLit(Double.MAX_VALUE)));
+        SqlExpr twoUlp = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, big, new SqlExpr.FloatLit(0.0)),
+                new SqlExpr.FloatLit(0.0))),
+                SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.FloatLit(2.0),
+                        SqlExpr.Call.of(SqlFn.POW, new SqlExpr.FloatLit(2.0),
+                                SqlExpr.Call.of(SqlFn.MINUS,
+                                        SqlExpr.Call.of(SqlFn.FLOOR,
+                                                SqlExpr.Call.of(SqlFn.DIVIDE,
+                                                        SqlExpr.Call.of(SqlFn.LN, big),
+                                                        SqlExpr.Call.of(SqlFn.LN, new SqlExpr.FloatLit(2.0)))),
+                                        new SqlExpr.IntLit(52)))));
+        SqlExpr pairOk = SqlExpr.Call.of(SqlFn.OR,
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col(ec, C), col(ac, C)),
+                SqlExpr.Call.of(SqlFn.AND,
+                        SqlExpr.Call.of(SqlFn.AND,
+                                SqlExpr.Call.of(SqlFn.IS_NOT_NULL, ve),
+                                SqlExpr.Call.of(SqlFn.IS_NOT_NULL, va)),
+                        SqlExpr.Call.of(SqlFn.AND, finite,
+                                SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                                        SqlExpr.Call.of(SqlFn.ABS,
+                                                SqlExpr.Call.of(SqlFn.MINUS, ve, va)),
+                                        twoUlp))));
+        // a bad position exists?
+        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        SqlSource joined = new SqlSource.Join(cte(ec), cte(ac), SqlSource.Join.Kind.INNER,
+                SqlExpr.Call.of(SqlFn.EQUAL, col(ec, RN), col(ac, RN)));
+        SqlExpr bad = new SqlExpr.Exists(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
+                false, joined, SqlExpr.Call.of(SqlFn.NOT, pairOk),
+                List.of(), null, null, List.of(), null, null, List.of(one)));
+        SqlExpr sameCount = SqlExpr.Call.of(SqlFn.EQUAL,
+                scalarOver(ec, new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(ec, RN)),
+                        false, List.of()), "__n", SqlType.Scalar.BIGINT, null),
+                scalarOver(ac, new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(ac, RN)),
+                        false, List.of()), "__n", SqlType.Scalar.BIGINT, null));
+        return SqlExpr.Call.of(SqlFn.AND, sameCount, SqlExpr.Call.of(SqlFn.NOT, bad));
     }
 
     private static List<OutputCol> cteOutputs() {
         return List.of(new OutputCol(C, SqlType.Scalar.VARCHAR, true),
-                new OutputCol(RN, SqlType.Scalar.BIGINT, false));
+                new OutputCol(RN, SqlType.Scalar.BIGINT, false),
+                new OutputCol(V, SqlType.Scalar.DOUBLE, true));
     }
 
     private static SqlSource cte(String name) {

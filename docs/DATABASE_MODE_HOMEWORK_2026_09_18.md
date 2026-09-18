@@ -672,6 +672,29 @@ decode and the canon harvest had to move with the appended cell columns.
 columns for finite doubles, positional, counted); then the null-canon-cell 14 read one by
 one; then 3.1c.
 
+## 4f. Leg 3.1b, part 3 — LANDED 2026-09-18 (the 2-ULP leniency as a SQL predicate)
+
+Every row source of the verdict statement carries a third column, `__v`: the cell's DOUBLE
+value when the cell is DECLARED Float (the side's canon kind, or the grid column's schema
+type — the projection's type fact is not DOUBLE for a Float grid column, so the declaration
+is the switch), NULL otherwise. Two CELL sequences ride beside the framed sides — for a grid
+the cells row-major (`(row − 1)·width + i + 1`), for a peer or a collection its elements —
+and ONE predicate over them is the leniency: same count, and every position either
+canon-equal or a finite Double pair within `2 · ulp(max(|x|, |y|))`, ulp spelled
+`2^(floor(ln(max)/ln(2)) − 52)` with `max = 0 → 0`. The verdict is `exact OR lenient`; a
+fifth column `__lenient` (`NOT exact AND lenient`) is counted through the same
+`sqlUlpPolicy` census host mode's firings use. The leniency is positional on arrival order
+in EVERY form, as host mode's is (`Equality.ordered` runs first even for incidental sides) —
+the first cut attached it to ordered forms only and never fired.
+
+**Judged (DuckDB, database mode):** ulp firings 7 = host mode's 7; the seven sqlFunction
+rows (acos / asin / atan2 / log / tan testProject / testFilter) pass; lost 63 → 56 = 53
+named unjudged + the 3 String-over-INT rows of the open ruling. No other change.
+
+**Named caveat:** the ulp through `ln` can differ from `Math.ulp` by one binade at an
+exact power of two; the differential gate (3.3) is where that would show, and it has a
+witness set of seven.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

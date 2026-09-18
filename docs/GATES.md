@@ -3930,3 +3930,15 @@ in database mode (the "grid pair" gate meant any side tabular). DuckDB database 
 host: 53 named unjudged, 7 two-ULP float pairs (the leniency predicate, part 3), 3
 String-over-INT rows (the open ruling). Ledger with reasons: AssertVerdicts 1996 → 2044.
 Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4e.
+
+**Judging step 3, leg 3.1b part 3 — the 2-ULP leniency in SQL (2026-09-18):** chain GREEN
+(gates 1–10), quiet machine, parallel wall ≈ 4m19s (G2 25; A: G1 74 · G3 11 · G4 109 ·
+G5 40 = 234; B: G6 143 · G7 48 · G9 35 = 226; C: G8 152 · G10 55 = 207). No roster moved in
+host mode. The verdict statement's row sources carry `__v` (the DOUBLE value of a
+DECLARED-Float cell); two cell sequences (grid row-major / peer elements) and one predicate
+(same count; every position canon-equal or a finite Double pair within
+`2·2^(floor(ln(max)/ln 2) − 52)`); verdict = exact OR lenient; `__lenient` counted through
+`sqlUlpPolicy`. Positional on arrival order in every form, as host mode. DuckDB database
+mode: ulp firings 7 = host's 7, the seven sqlFunction rows pass, lost 63 → 56 (53 named
+unjudged + the 3 open-ruling rows). Ledger with reason: AssertVerdicts 2044 → 2057. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4f.

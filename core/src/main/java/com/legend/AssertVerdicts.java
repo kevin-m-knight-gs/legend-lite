@@ -1163,10 +1163,18 @@ final class AssertVerdicts {
                 } else if (!pr.wrapped() || pr.literalIndex() < 0) {
                     why = "tds-peer: no literal channel";
                 } else {
-                    var grid = new com.legend.lowering.VerdictSql.GridSide(gw.plan(), width);
+                    List<Boolean> floatCols = new ArrayList<>();
+                    for (var colT : java.util.Objects.requireNonNull(schema).columns()) {
+                        floatCols.add(colT.type() == com.legend.compiler.element.type.Type.Primitive.FLOAT);
+                    }
+                    var grid = new com.legend.lowering.VerdictSql.GridSide(gw.plan(), width, floatCols);
+                    boolean peerFloat = pr.kinds().size() == 1
+                            ? pr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                            : pr.literalIndex() >= 0 && pr.kinds().get(pr.literalIndex())
+                                    == com.legend.compiler.element.type.Type.Primitive.FLOAT;
                     var peer = new com.legend.lowering.VerdictSql.PeerSide(
                             java.util.Objects.requireNonNull(pw).plan(),
-                            "__canon" + pr.literalIndex(), !gridE);
+                            "__canon" + pr.literalIndex(), !gridE, peerFloat);
                     com.legend.sql.SqlQuery gq = cellPool
                             ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE)
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
@@ -1205,10 +1213,12 @@ final class AssertVerdicts {
         com.legend.sql.SqlQuery vq = com.legend.lowering.VerdictSql.equality(
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,
-                        re.many(), canonicalOrder),
+                        re.many(), canonicalOrder,
+                        re.kinds().get(ie) == com.legend.compiler.element.type.Type.Primitive.FLOAT),
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(wa).plan(), "__canon" + ia,
-                        ra.many(), canonicalOrder));
+                        ra.many(), canonicalOrder,
+                        ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT));
         return runVerdict(name, wantEqual, vq, runOn, env);
     }
 
@@ -1261,6 +1271,11 @@ final class AssertVerdicts {
             throw new IllegalStateException(name + ": the verdict column is not a boolean: " + row.get(0));
         }
         com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+        if (row.size() > 4 && Boolean.TRUE.equals(row.get(4))) {
+            // the declared 2-ULP Float leniency decided it — counted as
+            // host mode counts its own firings
+            com.legend.exec.CanonicalDivergence.sqlUlpPolicy("database " + name);
+        }
         if (held == wantEqual) {
             return ok();
         }
