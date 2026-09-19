@@ -4053,3 +4053,20 @@ spells doubles `1E2` inside JSON — the §4h B quick win). Ledger with reason: 
 2317 → 2427, StatementExecutor 2209 → 2212. Guardrails on the way: the rider flag made final;
 the golden parse catches the parser's own refusal only. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4n.
+
+**Judging step 3, bucket 4 — type values, element references, untyped row cells (2026-09-19):**
+chain GREEN (gates 1–10), quiet machine, parallel wall ≈ 4m18s (G2 26; A: G1 78 · G3 11 ·
+G4 107 · G5 38 = 234; B: G6 143 · G7 47 · G9 34 = 224; C: G8 154 · G10 54 = 208). No host
+roster moved (DuckDB 108, H2 427, exact). The eighth spelling on both grammar halves — a type
+or element value IS its bare simple name (`MixedEncoding.elementLiteral`, `LiteralText.parse`,
+`LiteralTextTest`); the pair's kind read off the node (`kindKey`: a type written as a value,
+a metamodel type classifier — `PlatformTypes.isTypeClassifier` — a tracked element class);
+the canon wrap claims a name-valued side (`nameValued`, callers pass the model's
+`tracksClassifier`); a type-valued grid column spells bare. Typer-side honesty: `columns.type`
+folds to TYPE VALUES (TDSColumn.type : Type — a TypedTypeRef gained its scalar lowering), and
+`genericType().rawType` declares its projection column as `Type`. A JSON null row cell spells
+the quoted TDSNull sentinel. Registers: DuckDB database lost 96 → 79 / 0; H2 383 → 371 /
+gained 38 → 39 (`tds::groupBy::simpleGroupCount`, named: the host H2 lane fails it for its own
+`'null'` decode). Guardrails on the way: Lowerer's method / file size limits (the two
+type-value arms compacted), a dead helper deleted. Ledger with reason: AssertVerdicts 2427 →
+2457, StatementExecutor 2212 → 2217. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4o.

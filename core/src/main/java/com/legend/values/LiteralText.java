@@ -13,10 +13,10 @@ package com.legend.values;
  * Invariant 6a — so the host half lives beside its value carriers); a spelling
  * form added on either side MUST land on both.
  *
- * <p>The seven forms are mutually disjoint by construction, so parsing is
+ * <p>The eight forms are mutually disjoint by construction, so parsing is
  * first-character/last-character dispatch, never guessing:
  * quoted → String, {@code true/false} → Boolean, {@code a::b.NAME} → an
- * enum's name, {@code %…} → temporal,
+ * enum's name, a bare identifier → a type / element name, {@code %…} → temporal,
  * {@code …D} → Decimal, contains a point/exponent → Float, else
  * Integer. Slice 2 carries the NUMERIC family (the mixed-Number
  * carrier); the temporal arm lands with slice 3 (Any migration) — until
@@ -47,6 +47,14 @@ public final class LiteralText {
             // mapped cell decodes to it) — the enumeration is the
             // declaration's, not the value's, host-side.
             return s.substring(enumDot + 1);
+        }
+        if (!s.isEmpty() && (Character.isLetter(s.charAt(0)) || s.charAt(0) == '_')
+                && s.chars().allMatch(c -> Character.isLetterOrDigit(c) || c == '_')
+                && !s.equals("true") && !s.equals("false")) {
+            // the eighth form — a TYPE or ELEMENT value's bare simple name
+            // (String, Car, a Mapping's name — the wire convention for type
+            // and element values): the host holds it as the name
+            return s;
         }
         if (s.startsWith("%")) {
             // slice 3: the temporal arm — the body after % parses on

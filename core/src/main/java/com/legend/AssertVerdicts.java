@@ -1138,8 +1138,8 @@ final class AssertVerdicts {
             SpecCompiler specs, StatementExecutor.ExecEnv env,
             @com.legend.Nullable SpliceHook hook, boolean canonicalOrder,
             boolean cellPool) {
-        String ke = kindClassOf(eSpec.info().type());
-        String ka = kindClassOf(aSpec.info().type());
+        String ke = kindKey(eSpec, letPrefix, env);
+        String ka = kindKey(aSpec, letPrefix, env);
         boolean anyNil = com.legend.compiler.element.type.PlatformTypes.isNil(eSpec.info().type())
                 || com.legend.compiler.element.type.PlatformTypes.isNil(aSpec.info().type());
         boolean anyAny = isAnyStamped(eSpec) || isAnyStamped(aSpec);
@@ -1578,7 +1578,9 @@ final class AssertVerdicts {
         }
         var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(plan, spec.info(),
                 canonicalOrder, com.legend.compiler.element.EqualityKeys
-                        .resolve(env.ctx(), spec.info().type()));
+                        .resolve(env.ctx(), spec.info().type()),
+                true, com.legend.lowering.CanonicalRenderSql.nameValued(
+                        spec.info().type(), env.ctx()::tracksClassifier));
         if (w.declineReason() != null) {
             rider.decline(w.declineReason());
             return new StatementExecutor.WrappedSide(plan, spec.info(),
@@ -1594,7 +1596,8 @@ final class AssertVerdicts {
      * over values whose equality the instance canon decides. */
     private static boolean primitiveKindClass(String k) {
         return k.equals("numeric") || k.equals("string") || k.equals("boolean")
-                || k.equals("temporal") || k.startsWith("enum:");
+                || k.equals("temporal") || k.startsWith("enum:")
+                || k.equals("type") || k.startsWith("element:");
     }
 
     private static String describe(@com.legend.Nullable ExecutionResult r) {
@@ -2916,6 +2919,43 @@ final class AssertVerdicts {
 
     /** Pure's equality kind classes over STAMPS (spec §3: the numeric
      * tower is ONE class; everything else compares within its kind). */
+    /** The kind class of a SIDE, node-aware: a type reference written as a
+     * value ({@code String}, {@code [Car, Bicycle]}) is stamped as its
+     * prototype by the typer (Typer.typeRef) but IS a type value; a
+     * metamodel type classifier or a tracked element class is the
+     * name-valued kind. Everything else by its type. */
+    private static @com.legend.Nullable String kindKey(TypedSpec spec,
+            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
+        TypedSpec s = chaseLets(spec, letPrefix);
+        if (isTypeValueNode(s)) {
+            return "type";
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedCollection c
+                && !c.elements().isEmpty()
+                && c.elements().stream().allMatch(AssertVerdicts::isTypeValueNode)) {
+            return "type";
+        }
+        String fqn = com.legend.compiler.element.EqualityKeys.fqnOf(spec.info().type());
+        if (fqn != null && com.legend.compiler.element.type.PlatformTypes.isTypeClassifier(fqn)) {
+            return "type";
+        }
+        if (fqn != null && env.ctx().tracksClassifier(fqn)) {
+            return "element:" + fqn;
+        }
+        return kindClassOf(spec.info().type());
+    }
+
+    /** A type written as a VALUE: a primitive type reference ({@code
+     * String} — TypedTypeRef, stamped as its prototype) or a class
+     * reference ({@code Car} — a packageable ref typed {@code Class<Car>}). */
+    private static boolean isTypeValueNode(TypedSpec s) {
+        return s instanceof com.legend.compiler.spec.typed.TypedTypeRef
+                || (s instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
+                        && pr.info().type() instanceof com.legend.compiler.element.type.Type.GenericType g
+                        && g.rawFqn().equals(
+                                com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS));
+    }
+
     private static @com.legend.Nullable String kindClassOf(
             com.legend.compiler.element.type.Type t) {
         if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER

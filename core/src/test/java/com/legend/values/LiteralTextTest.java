@@ -22,5 +22,9 @@ class LiteralTextTest {
         // before the Decimal arm (a name may end in D)
         assertEquals("CITY", LiteralText.parse("meta::pure::GeographicEntityType.CITY"));
         assertEquals("SOLD", LiteralText.parse("my::pkg::Status.SOLD"));
+        // a type / element value's bare simple name — the eighth form
+        assertEquals("String", LiteralText.parse("String"));
+        assertEquals("Car", LiteralText.parse("Car"));
+        assertEquals(Boolean.FALSE, LiteralText.parse("false"));
     }
 }

@@ -99,12 +99,6 @@ meta::relational::tests::mapping::enumeration::testEnumTheSame ||| AssertFailed:
 meta::relational::tests::mapping::enumeration::testMapping ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::mapping::enumeration::testNestedCaseFlattensToSingleCase ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::mapping::enumeration::testNestedIfFlattensToSingleCase ||| DataError: Function "JSON_TYPE" not found
-meta::relational::tests::mapping::extend::mainTable::testMainTableForB1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::extend::mainTable::testMainTableForB2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::extend::mainTable::testMainTableForC1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::extend::mainTable::testMainTableForC2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::inheritance::relational::testGetAll ||| AssertFailed: assertSameElements: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel
-meta::relational::tests::mapping::inheritance::relational::union::testGetAll ||| AssertFailed: assertSameElements: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel
 meta::relational::tests::mapping::innerjoin::isolation::testIsolationOfInnerJoins ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::join::testJoinInPropertyMapping ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::mapping::join::testJoinInPropertyMappingAndJoinInQuery ||| DataError: Function "JSON_TYPE" not found
@@ -361,21 +355,15 @@ meta::relational::tests::query::sort::testSortByLambdaWithIfElseValue ||| DataEr
 meta::relational::tests::query::sort::testSortSimple ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::query::take::testSimpleTake ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::runtime::extractDBs::testExtractDBsWithSubstituition ||| DataError: Function "JSON_TYPE" not found
-meta::relational::tests::semistructured::explode::testExplodeReturnTypeAcceptedNames ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals
 meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals
-meta::relational::tests::tds::tabletds::simpleGroupCount ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::tdsContains::testTDSContainsType1 ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::tds::tdsContains::testTDSContainsType1Negation ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::tds::tdsContains::testTDSContainsType1NegationWithExtendedPrimitives ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::tds::tdsContains::testTDSContainsType2 ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::tds::tdsContains::testTDSContainsType2Negation ||| DataError: Function "JSON_TYPE" not found
-meta::relational::tests::tds::tdsExtend::testFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::tdsFilter::testFilterOnDynaFunctionColumn ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::tds::tdsFilter::testInOnColumnInSubselect ||| DialectCapability: variant navigation reached a dialect without JSON support
-meta::relational::tests::tds::tdsJoin::testRightOuterJoinSimple ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tdsProject::testProjectFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tdsRestrict::testRestrictOnGroupByColumn_SubSetOfGroupByColumns ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::validation::showcase::standalone::validateAllConstraints ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::validation::showcase::standalone::validateAllConstraintsWithInnerJoinInFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::validation::showcase::standalone::validateMultipleConstraints ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order

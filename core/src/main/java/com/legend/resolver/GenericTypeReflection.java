@@ -111,13 +111,16 @@ final class GenericTypeReflection {
         if (body == null) {
             body = new TypedCString(simpleName(baseClassFqn), str1);
         }
+        // the column IS a type value (M3: GenericType.rawType : Type) — its
+        // cell holds the class's simple name (the type-value wire convention)
+        // and judges as a type, never as a string
+        Type typeValue = new Type.ClassType("meta::pure::metamodel::type::Type");
         TypedLambda lam = new TypedLambda(List.of(v), List.of(body),
                 new ExprType(new Type.FunctionType(
                         List.of(new Type.Param(row, one)),
-                        new Type.Param(Type.Primitive.STRING, one)), one));
+                        new Type.Param(typeValue, one)), one));
         Type.RelationType out = new Type.RelationType(
-                List.of(new Type.Column("rawType", Type.Primitive.STRING,
-                        one)), List.of());
+                List.of(new Type.Column("rawType", typeValue, one)), List.of());
         return new TypedProject(rel, List.of(new TypedFuncCol("rawType", lam)),
                 new ExprType(Type.relation(out), one));
     }

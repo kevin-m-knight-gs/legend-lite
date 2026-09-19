@@ -2692,7 +2692,10 @@ final class StatementExecutor {
                     // substitution-aware (Pair-of-Pairs): the stamp's
                     // instantiation decides key nesting
                     com.legend.compiler.element.EqualityKeys
-                            .resolve(env.ctx(), shapeInfo.type()));
+                            .resolve(env.ctx(), shapeInfo.type()),
+                    true,
+                    com.legend.lowering.CanonicalRenderSql.nameValued(
+                            shapeInfo.type(), env.ctx()::tracksClassifier));
             if (w.declineReason() != null) {
                 rider.decline(w.declineReason());
             } else {
@@ -2754,7 +2757,9 @@ final class StatementExecutor {
                                     com.legend.compiler.element.EqualityKeys
                                             .resolve(env.ctx(),
                                                     shapeInfo.type()),
-                                    false);
+                                    false,
+                                    com.legend.lowering.CanonicalRenderSql.nameValued(
+                                            shapeInfo.type(), env.ctx()::tracksClassifier));
                     if (w2.declineReason() == null) {
                         rider.wrap(w2.kinds(), w2.many(), w2.literalIndex());
                         return Executor.execute(

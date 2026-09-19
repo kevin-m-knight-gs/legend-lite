@@ -176,6 +176,15 @@ final class MixedEncoding {
      * collection. A previously-boxed element unwraps first. */
     static @com.legend.Nullable SqlExpr elementLiteral(TypedSpec e,
             SqlExpr x) {
+        if (e instanceof com.legend.compiler.spec.typed.TypedTypeRef
+                || e instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
+            // a TYPE or ELEMENT value (String, Car, a Mapping): its bare
+            // simple NAME is its spelling — the wire convention already
+            // (the Lowerer lowers both to the name), unquoted, so it never
+            // equals a string; the host half (LiteralText) reads a bare
+            // identifier back as the name
+            return x;
+        }
         if (e.info().type() == Type.Primitive.DATE_TIME) {
             SqlExpr lit = staticSubsecondSpelling(e);
             if (lit != null) {

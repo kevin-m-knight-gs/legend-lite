@@ -24,20 +24,23 @@ final class ColumnsMetaFold {
         ExprType one = ExprType.one(Type.Primitive.STRING);
         List<TypedSpec> items = new java.util.ArrayList<>(rt.columns().size());
         for (Type.RelationType.Column c : rt.columns()) {
-            String v = typeNames ? simpleTypeName(c.type()) : c.name();
-            items.add(new com.legend.compiler.spec.typed.TypedCString(v, one));
+            if (typeNames) {
+                // TDSColumn.type : Type[0..1] (tds.pure) — a TYPE VALUE, the
+                // same node a type written as a value is (Typer.typeRef);
+                // it lowers to its simple name and judges as a type
+                items.add(new com.legend.compiler.spec.typed.TypedTypeRef(c.type(),
+                        ExprType.one(c.type())));
+            } else {
+                items.add(new com.legend.compiler.spec.typed.TypedCString(c.name(), one));
+            }
         }
+        Type elem = typeNames
+                ? new Type.ClassType("meta::pure::metamodel::type::Type")
+                : Type.Primitive.STRING;
         return new com.legend.compiler.spec.typed.TypedCollection(items,
-                new ExprType(Type.Primitive.STRING,
+                new ExprType(elem,
                         new com.legend.compiler.element.type.Multiplicity.Bounded(
                                 items.size(), items.size())));
-    }
-
-    /** Pure's simple type name for a column type (String, Integer, Date...). */
-    private static String simpleTypeName(Type t) {
-        String qn = t.typeName();
-        int cut = qn.lastIndexOf("::");
-        return cut < 0 ? qn : qn.substring(cut + 2);
     }
 
     /** TDS COLUMN-METADATA folds ({@code .columns.name/.type/

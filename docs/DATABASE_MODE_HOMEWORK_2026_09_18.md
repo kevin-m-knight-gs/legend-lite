@@ -1097,6 +1097,41 @@ JsonKeyOrder hook). Two guardrails moved the shape on the way: the rider's flag 
 (constructor, not a setter — CodeShapeGuardrail) and the golden parse catches the parser's
 own refusal only (ErrorShapeGuardrail).
 
+## 4o. Bucket 4 — type values, element references, untyped row cells (2026-09-19)
+
+**The 17 rows were three shapes, none an "instance" in the sense the kind gate meant:**
+- **Type values (10):** `assertEquals([String, Integer], $result.values.columns.type)`,
+  `assertSameElements([Car, …, Bicycle], $r->genericType().rawType)`,
+  `assertEquals(String, 'VARCHAR'->explodeReturnType())`. A type written as a value is stamped
+  by the typer as its PROTOTYPE (`String` : String[1] — Typer.typeRef, the convention cast/to
+  bind through) and a class reference as `Class<Car>`; on the wire both travel as their bare
+  simple names (the Lowerer's long-standing convention). The rule, on both grammar halves: **a
+  type / element value spells as its bare simple name** — the eighth form, unquoted, disjoint
+  from a string (`LiteralSpelling` through `MixedEncoding.elementLiteral`, `LiteralText.parse`
+  reads a bare identifier back as the name). The pair's kind is read off the NODE
+  (`kindKey`: TypedTypeRef / a `Class<X>` packageable ref → "type"; a metamodel type
+  classifier — `PlatformTypes.isTypeClassifier` — → "type"; a tracked element class →
+  "element:<fqn>"); the canon wrap claims a name-valued side (`nameValued`, the callers pass
+  the model's `tracksClassifier`) and a type-valued GRID column spells bare. Two typer-side
+  facts had to become honest: `ColumnsMetaFold` folds `columns.type` to TYPE VALUES (TDSColumn.
+  type : Type), not name strings (a `TypedTypeRef` gained its scalar lowering — the name); and
+  `GenericTypeReflection.rawTypeProjection` declares its column as the classifier `Type`, not
+  String — the cell was always the class's name.
+- **Element references (4):** `assertEquals($superMappingMainTable, $mainTable)` — Mapping
+  refs; the same bare-name rule (the model's own `tracksClassifier` names the element
+  classes).
+- **Untyped row cells (3):** `rows.get('col')` reads through the variant carrier; a NULL cell
+  arrived as JSON `null`, which the Any-cell canon marked as a tree. A JSON null cell IS the
+  TDSNull slot: it spells the quoted sentinel `'TDSNull'`, the same equivalence the host applies.
+
+**Guardrails on the way:** Lowerer's size limits (the type-value arms compacted to one), a
+dead helper deleted, the ledger re-pinned with its reason.
+
+**Measured (four lanes, registers exact):** DuckDB host 108 / H2 host 427; DuckDB database lost
+96 → 79 / gained 0; H2 database lost 383 → 371 / gained 38 → 39 (`tds::groupBy::simpleGroupCount`:
+the host H2 lane fails it for its own reason; the database judges the column types by name).
+All 17 named rows decided in the database.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

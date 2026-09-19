@@ -75,6 +75,21 @@ public final class CanonicalRenderSql {
                 true);
     }
 
+    /** Is a side of this type a NAME-VALUED one — a TYPE value (String,
+     * Car, {@code $col.type}: a metamodel type classifier) or a tracked
+     * ELEMENT value (a Mapping, a Database)? Such values travel as their
+     * bare simple names (the Lowerer's convention for both) and compare
+     * by that name — the canon is the name itself, unquoted, disjoint
+     * from a string. {@code tracksClassifier} = the model's own answer
+     * for element classes. */
+    public static boolean nameValued(Type t,
+            java.util.function.Predicate<String> tracksClassifier) {
+        String fqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
+        return fqn != null
+                && (com.legend.compiler.element.type.PlatformTypes.isTypeClassifier(fqn)
+                        || tracksClassifier.test(fqn));
+    }
+
     /** {@code literalChannel} false = the canon-exec tunnel's MIDDLE
      * rung: a typed side re-wraps WITHOUT its literal candidate (a
      * stamp-derived column type can lie about the wire — witness the
@@ -88,6 +103,16 @@ public final class CanonicalRenderSql {
             com.legend.compiler.element.@com.legend.Nullable EqualityKeys
                     instanceKeys,
             boolean literalChannel) {
+        return wrapWithCanon(plan, rootInfo, canonicalOrder, instanceKeys, literalChannel, false);
+    }
+
+    /** {@code nameValued} = the side is a type / element value ({@link #nameValued}). */
+    public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
+            com.legend.compiler.element.type.ExprType rootInfo,
+            boolean canonicalOrder,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+                    instanceKeys,
+            boolean literalChannel, boolean nameValued) {
         if (plan.outputs().size() != 1) {
             return CanonWrap.decline(plan, "non-scalar plan shape: "
                     + plan.outputs().size() + " columns");
@@ -178,6 +203,12 @@ public final class CanonicalRenderSql {
             }
             candidates = List.of(t);
             canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else if (instFqn != null && nameValued) {
+            // a TYPE / ELEMENT value: the wire holds its bare simple name —
+            // the canon IS the name (unquoted: never equal to a string)
+            candidates = List.of(t);
+            canons.add(new SqlExpr.Cast(valueRef, SqlType.Scalar.VARCHAR));
+            literalIndex = 0;
         } else if (instFqn != null
                 && com.legend.compiler.element.type.PlatformTypes.isNil(t)) {
             // the []-born BOTTOM type: a Nil side is the EMPTY value —
@@ -412,10 +443,19 @@ public final class CanonicalRenderSql {
             // literal spelling reads the text carrier directly.)
             // JUDGING_TWO_MODES §1: a Float-DECLARED grid column converts to
             // DOUBLE once before its canon is spelled.
-            SqlExpr lit = LiteralSpelling.literal(
-                    kind == Type.Primitive.FLOAT
-                            ? LiteralSpelling.declaredDouble(ref) : ref,
-                    kind);
+            // a TYPE-valued column (TDSColumn.type : Type; a rawType read):
+            // the cell holds the type's simple name — the canon IS the name,
+            // unquoted (never a string's)
+            String declFqn = com.legend.compiler.element.EqualityKeys.fqnOf(
+                    schema.columns().get(i).type());
+            boolean typeValued = declFqn != null
+                    && com.legend.compiler.element.type.PlatformTypes.isTypeClassifier(declFqn);
+            SqlExpr lit = typeValued
+                    ? new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR)
+                    : LiteralSpelling.literal(
+                            kind == Type.Primitive.FLOAT
+                                    ? LiteralSpelling.declaredDouble(ref) : ref,
+                            kind);
             if (lit == null) {
                 return TdsWrap.decline(plan,
                         "tds-canon: unclaimed cell kind "
@@ -840,6 +880,12 @@ public final class CanonicalRenderSql {
                 new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.IS_NULL, v),
                         new SqlExpr.NullLit()),
+                // a JSON null cell IS the TDSNull slot of a row read through
+                // the variant carrier (rows.get(col)); the expected side's
+                // ^TDSNull() rewrites to the STRING sentinel, spelled quoted —
+                // the same equivalence the host judge applies
+                new SqlExpr.Case.When(eqText(jt, "NULL"),
+                        new SqlExpr.StringLit("'TDSNull'")),
                 new SqlExpr.Case.When(eqText(jt, "VARCHAR"), strLit),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR,
                         eqText(jt, "BIGINT"), eqText(jt, "UBIGINT")), txt),

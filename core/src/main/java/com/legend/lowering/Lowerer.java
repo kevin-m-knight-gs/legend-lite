@@ -2873,10 +2873,10 @@ public final class Lowerer {
                     && pa.source().info().type() instanceof Type.EnumType ->
                     scalarStructural(pa.source(), columns);
 
-            // A bare TYPE REFERENCE in value position ([String, Integer]
-            // vs columns.type asserts): type VALUES travel as canonical
-            // simple names — the same wire convention as the type() fold
-            // and the columnsMeta strings they compare against.
+            // a TYPE written as a value ([String, Integer] vs columns.type;
+            // Car): type VALUES travel as canonical simple names
+            case com.legend.compiler.spec.typed.TypedTypeRef tr ->
+                    new SqlExpr.StringLit(MixedEncoding.simpleName(tr.target().typeName()));
             case com.legend.compiler.spec.typed.TypedPackageableRef pr
                     when pr.info().type() instanceof
                             com.legend.compiler.element.type.Type.GenericType g

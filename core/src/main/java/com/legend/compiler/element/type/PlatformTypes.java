@@ -26,6 +26,17 @@ public final class PlatformTypes {
     public static final String CLASS_METACLASS =
             "meta::pure::metamodel::type::Class";
 
+    /** The metamodel TYPE classifiers — a value of one of these is a TYPE
+     * value ({@code String}, {@code Car}, {@code $col.type}); it travels
+     * as its bare simple name and compares by that name. */
+    public static boolean isTypeClassifier(String fqn) {
+        return fqn.equals(CLASS_METACLASS)
+                || fqn.equals("meta::pure::metamodel::type::Type")
+                || fqn.equals("meta::pure::metamodel::type::PrimitiveType")
+                || fqn.equals("meta::pure::metamodel::type::DataType")
+                || fqn.equals("meta::pure::metamodel::type::Enumeration");
+    }
+
 
     /**
      * The TDS null-cell SENTINEL spelling — real pure's {@code ^TDSNull()}

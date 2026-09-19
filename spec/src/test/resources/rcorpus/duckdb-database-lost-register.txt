@@ -59,36 +59,19 @@ meta::relational::tests::mapping::embedded::advanced::testGroupByComplexAgg ||| 
 meta::relational::tests::mapping::enumeration::testEnumMappings ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
 meta::relational::tests::mapping::enumeration::testEnumMappingsWithInclude ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
 meta::relational::tests::mapping::enumeration::testEnumTheSame ||| AssertFailed: assertEquals: UNJUDGED in database mode — no literal channel
-meta::relational::tests::mapping::extend::mainTable::testMainTableForB1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::extend::mainTable::testMainTableForB2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::extend::mainTable::testMainTableForC1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::extend::mainTable::testMainTableForC2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
-meta::relational::tests::mapping::inheritance::relational::testGetAll ||| AssertFailed: assertSameElements: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel
-meta::relational::tests::mapping::inheritance::relational::union::testGetAll ||| AssertFailed: assertSameElements: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| DataError: Conversion Error: Malformed JSON at byte 0 of input: unexpected character.  Input: "'ROOT'"
 meta::relational::tests::mapping::union::specialUnion::testFilteredProjectWithPostTdsOperations ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::mapping::union::specialUnion::testProjectWithPostTdsOperations ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins ||| AssertFailed: assertEquals: UNJUDGED in database mode — unclaimable tree cell
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — unclaimable tree cell
 meta::relational::tests::mapping::union::testUnionViewJoins ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
-meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionWithNonMilestonedTable ||| AssertFailed: assertSameElements: UNJUDGED in database mode — unclaimable tree cell
 meta::relational::tests::postProcessor::cteExtraction::testComplexSubQueries ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::postProcessor::cteExtraction::testMultipleSubQueries ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::postProcessor::testSqlRealiasFreeMarker ||| AssertFailed: assertSameElements: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::projection::aggregation::testSubAggregationWithTopLevelIf ||| AssertFailed: assertSameElements: UNJUDGED in database mode — unrefined-number: multi-candidate side
 meta::relational::tests::projection::filter::in::testInWithDynaFunction ||| AssertFailed: assertSameElements
 meta::relational::tests::projection::view::testViewOnView ||| AssertFailed: assertSameElements: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::semistructured::explode::testExplodeReturnTypeAcceptedNames ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals
 meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals
-meta::relational::tests::tds::groupBy::simpleGroupCount ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tabletds::simpleGroupCount ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tdsExtend::testFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tdsJoin::testFullOuterJoinSimple ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tdsJoin::testRightOuterJoinSimple ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tdsProject::testProjectFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::tdsRestrict::testRestrictOnGroupByColumn_SubSetOfGroupByColumns ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::validation::showcase::standalone::validateAllConstraints ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::validation::showcase::standalone::validateAllConstraintsWithInnerJoinInFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::validation::showcase::standalone::validateMultipleConstraints ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
