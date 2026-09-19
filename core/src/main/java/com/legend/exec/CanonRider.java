@@ -47,6 +47,11 @@ public final class CanonRider {
      * (the JSON verdict's plan only — key order carries no meaning in
      * pure's JSON equality; the product's own output keeps its order). */
     private final boolean canonicalJsonKeys;
+    /** The pair's declared ENUMERATION framing an untyped (Any) or
+     * abstract-Enum side: the wire holds the NAME, the declaration on the
+     * other side names the enumeration (Rule 2: at the boundary the
+     * declared kind is assigned). Null = no framing. */
+    private final @com.legend.Nullable String enumFrame;
     private final List<String[]> rows = new ArrayList<>();
     private @com.legend.Nullable Wrap wrap;
     private @com.legend.Nullable String declined = "non-sql-arm";
@@ -56,8 +61,18 @@ public final class CanonRider {
     }
 
     public CanonRider(boolean canonicalOrder, boolean canonicalJsonKeys) {
+        this(canonicalOrder, canonicalJsonKeys, null);
+    }
+
+    public CanonRider(boolean canonicalOrder, boolean canonicalJsonKeys,
+            @com.legend.Nullable String enumFrame) {
         this.canonicalOrder = canonicalOrder;
         this.canonicalJsonKeys = canonicalJsonKeys;
+        this.enumFrame = enumFrame;
+    }
+
+    public @com.legend.Nullable String enumFrame() {
+        return enumFrame;
     }
 
     public boolean canonicalOrder() {

@@ -459,6 +459,7 @@ public final class VerdictQueries {
      * (the value is not a constant). A constant fold over literals — no
      * data touched. */
     public static @com.legend.Nullable String foldedStringLiteral(TypedSpec s) {
+        s = throughJsonPrettyPrint(s);
         if (s instanceof com.legend.compiler.spec.typed.TypedCString c) {
             return c.value();
         }
@@ -486,6 +487,19 @@ public final class VerdictQueries {
             return b.toString();
         }
         return null;
+    }
+
+    /** {@code x->parseJSON()->toPrettyJSONString()} and {@code x->toPrettyJSONString()}
+     * are the identity up to whitespace on a JSON text — the canonical form
+     * erases exactly that, so the verdict reads through them to {@code x}. */
+    public static TypedSpec throughJsonPrettyPrint(TypedSpec s) {
+        TypedSpec cur = s;
+        while (cur instanceof TypedNativeCall n && n.args().size() == 1
+                && (n.callee().qualifiedName().equals("meta::json::toPrettyJSONString")
+                        || n.callee().qualifiedName().equals("meta::json::parseJSON"))) {
+            cur = n.args().get(0);
+        }
+        return cur;
     }
 
     /** A JSON golden in its CANONICAL text (compact, keys sorted —

@@ -113,6 +113,20 @@ public final class CanonicalRenderSql {
             com.legend.compiler.element.@com.legend.Nullable EqualityKeys
                     instanceKeys,
             boolean literalChannel, boolean nameValued) {
+        return wrapWithCanon(plan, rootInfo, canonicalOrder, instanceKeys, literalChannel,
+                nameValued, null);
+    }
+
+    /** {@code enumFrame} = the pair's declared enumeration framing this
+     * side when it is untyped (Any) or an abstract Enum: the wire's NAME
+     * spells as {@code Enumeration.NAME}. */
+    public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
+            com.legend.compiler.element.type.ExprType rootInfo,
+            boolean canonicalOrder,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+                    instanceKeys,
+            boolean literalChannel, boolean nameValued,
+            @com.legend.Nullable String enumFrame) {
         if (plan.outputs().size() != 1) {
             return CanonWrap.decline(plan, "non-scalar plan shape: "
                     + plan.outputs().size() + " columns");
@@ -174,7 +188,11 @@ public final class CanonicalRenderSql {
             // candidate IS the literal channel. Trees mark and the
             // verdict layer declines on sight.
             SqlExpr lit;
-            if (jsonCol) {
+            if (enumFrame != null) {
+                lit = framedEnumCanon(jsonCol
+                        ? SqlExpr.Call.of(SqlFn.VARIANT_GET, valueRef, new SqlExpr.StringLit("$"))
+                        : valueRef, enumFrame);
+            } else if (jsonCol) {
                 lit = anyJsonCanon(valueRef);
             } else {
                 Type colKind = kindOfSqlType(valueCol.type());
@@ -203,6 +221,11 @@ public final class CanonicalRenderSql {
             }
             candidates = List.of(t);
             canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else if (t instanceof Type.EnumType aet
+                && "meta::pure::metamodel::type::Enum".equals(aet.fqn())) {
+            candidates = List.of(t);
+            canons.add(framedEnumCanon(valueRef, enumFrame != null ? enumFrame : aet.fqn()));
+            literalIndex = 0;
         } else if (instFqn != null && nameValued) {
             // a TYPE / ELEMENT value: the wire holds its bare simple name —
             // the canon IS the name (unquoted: never equal to a string)
@@ -264,9 +287,17 @@ public final class CanonicalRenderSql {
                 canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
             }
         } else {
+            // an unrefined NUMBER side whose wire is a concrete numeric SQL
+            // type takes that kind (the engine reads a cell by its result-set
+            // type — Equality.effectiveKind's rule); only an unknown wire
+            // keeps the three candidates
+            Type wireNumeric = t == Type.Primitive.NUMBER ? kindOfSqlType(valueCol.type()) : null;
             List<Type> bare = t == Type.Primitive.NUMBER
-                    ? List.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
-                            Type.Primitive.DECIMAL)
+                    ? (wireNumeric == Type.Primitive.INTEGER || wireNumeric == Type.Primitive.FLOAT
+                            || wireNumeric == Type.Primitive.DECIMAL
+                            ? List.of(wireNumeric)
+                            : List.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
+                                    Type.Primitive.DECIMAL))
                     : List.of(t);
             for (Type k : bare) {
                 // JUDGING_TWO_MODES §1: a Float-DECLARED side converts to
@@ -331,6 +362,18 @@ public final class CanonicalRenderSql {
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, sort, null, null, List.of()),
                 candidates, many, literalIndex, null);
+    }
+
+    /** The ABSTRACT-Enum / untyped side's canon under a FRAMING enumeration:
+     * the wire holds the NAME (an EnumValueMapping's .enum, toDomainValue, a
+     * row cell read through the Any carrier); the pair's declared enumeration
+     * — or the abstract classifier itself when both sides are abstract (two
+     * such sides compare by name, the host's rule) — spells it
+     * {@code Enumeration.NAME}. */
+    private static SqlExpr framedEnumCanon(SqlExpr nameText, String enumeration) {
+        return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT,
+                new SqlExpr.StringLit(enumeration + "."),
+                new SqlExpr.Cast(nameText, SqlType.Scalar.VARCHAR)), SqlType.Scalar.VARCHAR);
     }
 
     /** V7 §8 leg 1 — the GRID canon wrap outcome: the plan with a

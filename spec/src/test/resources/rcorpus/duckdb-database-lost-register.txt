@@ -1,5 +1,3 @@
-meta::relational::graphFetch::tests::subType::testInheritanceMappingWithoutSubType ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json golden is not a literal
-meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json golden is not a literal
 meta::relational::graphFetch::tests::union::propertyLevel::test6 ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact)
 meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInline ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::advanced::structure::testQualifierWithLineAndOrWithInLine ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
@@ -44,7 +42,6 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testSu
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testWtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
-meta::relational::tests::groupBy::testAggToManyWithFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
 meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMergeForClassMappingInnerJoinFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMergeForClassMappingInnerJoinFilter1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
@@ -56,9 +53,6 @@ meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComple
 meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComplexExpressionEmbeddedAndJoin ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::mapping::embedded::advanced::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::mapping::embedded::advanced::testGroupByComplexAgg ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
-meta::relational::tests::mapping::enumeration::testEnumMappings ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
-meta::relational::tests::mapping::enumeration::testEnumMappingsWithInclude ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
-meta::relational::tests::mapping::enumeration::testEnumTheSame ||| AssertFailed: assertEquals: UNJUDGED in database mode — no literal channel
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| DataError: Conversion Error: Malformed JSON at byte 0 of input: unexpected character.  Input: "'ROOT'"
 meta::relational::tests::mapping::union::specialUnion::testFilteredProjectWithPostTdsOperations ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
@@ -67,7 +61,6 @@ meta::relational::tests::mapping::union::testUnionViewJoins ||| AssertFailed: as
 meta::relational::tests::postProcessor::cteExtraction::testComplexSubQueries ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::postProcessor::cteExtraction::testMultipleSubQueries ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::postProcessor::testSqlRealiasFreeMarker ||| AssertFailed: assertSameElements: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::projection::aggregation::testSubAggregationWithTopLevelIf ||| AssertFailed: assertSameElements: UNJUDGED in database mode — unrefined-number: multi-candidate side
 meta::relational::tests::projection::filter::in::testInWithDynaFunction ||| AssertFailed: assertSameElements
 meta::relational::tests::projection::view::testViewOnView ||| AssertFailed: assertSameElements: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals

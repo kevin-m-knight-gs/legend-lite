@@ -537,19 +537,25 @@ final class AssertVerdicts {
                     // decide. Measured first (2026-09-19): 81 byte-equal as
                     // built, 69 key order, 15 root envelope, 9 whitespace, 1
                     // root order (unsorted chain — the collections leg).
+                    // the golden, through its let and the pretty-print natives
+                    // (identity up to whitespace), to the literal chain
                     String goldenText = com.legend.compiler.spec.VerdictQueries
-                            .foldedStringLiteral(chaseLets(args.get(0), letPrefix));
+                            .foldedStringLiteral(chaseLets(
+                                    com.legend.compiler.spec.VerdictQueries.throughJsonPrettyPrint(
+                                            chaseLets(args.get(0), letPrefix)), letPrefix));
                     if (goldenText == null) {
                         yield unjudged(name, "json golden is not a literal");
                     }
-                    SideRows ja = planSide(args.get(1), false, false, true, letPrefix, specs, env, hook);
+                    TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
+                            .throughJsonPrettyPrint(chaseLets(args.get(1), letPrefix));
+                    SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
                     // the engine's bare-object print applies to a serialize DOCUMENT
                     // whose root is many-valued — never to a RESULT ENVELOPE
                     // ({"builder":…,"values":…}, executeLegendQuery's contract:
                     // always one object; the many-ness lives inside "values") —
                     // read off the planned side's root object
                     boolean rootMany = ja.side() != null && !planIsEnvelope(ja.side().plan())
-                            && serializedRootMany(args.get(1), letPrefix, hook);
+                            && serializedRootMany(actualJson, letPrefix, hook);
                     var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
                             goldenText, rootMany);
                     if (golden == null) {
@@ -1197,8 +1203,22 @@ final class AssertVerdicts {
         // (string_agg ORDER BY __c for a multiset form) and a grid's value
         // peer is chunked into rows in its ARRIVAL order — a wrap-time sort
         // would scramble the cells across rows (3.1b lane witness)
-        var re = new com.legend.exec.CanonRider(false);
-        var ra = new com.legend.exec.CanonRider(false);
+        // an enum against an UNTYPED wire ($row.values->at(0), toDomainValue):
+        // the carrier holds the NAME and no enumeration — the pair's ONE
+        // declared enumeration frames the untyped side (Rule 2: at the
+        // boundary the declared kind is assigned; the host compares the names)
+        String frameE = null;
+        String frameA = null;
+        if (ke != null && ka != null && !anyNil && anyAny
+                && (ke.startsWith("enum:") ^ ka.startsWith("enum:"))) {
+            if (ke.startsWith("enum:")) {
+                frameA = ke.substring("enum:".length());
+            } else {
+                frameE = ka.substring("enum:".length());
+            }
+        }
+        var re = new com.legend.exec.CanonRider(false, false, frameE);
+        var ra = new com.legend.exec.CanonRider(false, false, frameA);
         // the golden's ^TDSNull() cells spell the bare sentinel (direction-
         // aware: the EXPECTED side only, as TdsCompare.peerElementCanons) —
         // rewritten at plan time so the cell rides the literal channel as
@@ -1279,14 +1299,6 @@ final class AssertVerdicts {
         // a store-free side rides the store-reading side's database
         java.sql.Connection runOn = we != null && wa != null
                 ? (we.storeFree() ? wa.connection() : we.connection()) : env.connection();
-        if (why == null && ke != null && ka != null && !anyNil && anyAny
-                && (ke.startsWith("enum:") || ka.startsWith("enum:"))) {
-            // an enum against an UNTYPED wire ($row.values->at(0)): the Any
-            // carrier holds the NAME as a JSON string and no enumeration —
-            // the literal spells Enumeration.NAME, so a byte compare would
-            // fabricate inequality where pure's enum equality holds
-            why = "enum against an untyped (Any) wire: no enumeration on the wire";
-        }
         int ie = -1;
         int ia = -1;
         if (why == null) {
@@ -1475,7 +1487,15 @@ final class AssertVerdicts {
     private static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
             boolean canonicalJson, List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook) {
-        var rider = new com.legend.exec.CanonRider(false, canonicalJson);
+        return planSide(spec, expected, needCanon, canonicalJson, null, letPrefix, specs, env, hook);
+    }
+
+    /** {@code enumFrame} = the pair's declared enumeration framing an untyped
+     * or abstract-Enum side (CanonRider.enumFrame). */
+    private static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
+            boolean canonicalJson, @com.legend.Nullable String enumFrame, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook) {
+        var rider = new com.legend.exec.CanonRider(false, canonicalJson, enumFrame);
         TypedSpec s = expected ? com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(spec) : spec;
         StatementExecutor.PlannedValue pv = StatementExecutor.planValue(s, letPrefix, specs, env, rider, hook);
         StatementExecutor.WrappedSide w = pv.side() != null ? pv.side()
@@ -1661,7 +1681,8 @@ final class AssertVerdicts {
                 canonicalOrder, com.legend.compiler.element.EqualityKeys
                         .resolve(env.ctx(), spec.info().type()),
                 true, com.legend.lowering.CanonicalRenderSql.nameValued(
-                        spec.info().type(), env.ctx()::tracksClassifier));
+                        spec.info().type(), env.ctx()::tracksClassifier),
+                rider.enumFrame());
         if (w.declineReason() != null) {
             rider.decline(w.declineReason());
             return new StatementExecutor.WrappedSide(plan, spec.info(),

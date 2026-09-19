@@ -2695,7 +2695,8 @@ final class StatementExecutor {
                             .resolve(env.ctx(), shapeInfo.type()),
                     true,
                     com.legend.lowering.CanonicalRenderSql.nameValued(
-                            shapeInfo.type(), env.ctx()::tracksClassifier));
+                            shapeInfo.type(), env.ctx()::tracksClassifier),
+                    rider.enumFrame());
             if (w.declineReason() != null) {
                 rider.decline(w.declineReason());
             } else {

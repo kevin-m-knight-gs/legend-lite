@@ -4088,3 +4088,22 @@ Java judge; the DuckDB lost register is unchanged at 79 (they were never lost);
 lost 371 → 373 (the two tolerance tests: the missing `EPOCH` spelling — H2 spells
 `EXTRACT(EPOCH FROM …)` — and the temporal-text regex; §4h B) / gained 39. Ledger with reason:
 AssertVerdicts 2457 → 2527. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4p.
+
+**Judging step 3, bucket 6 — the non-order residue (2026-09-19):** chain GREEN (gates 1–10),
+parallel wall ≈ 4m46s (G2 25; A: G1 80 · G3 12 · G4 126 · G5 43 = 261; B: G6 151 · G7 55 ·
+G9 39 = 245; C: G8 163 · G10 62 = 225). A FIRST chain was red on gate 3: the claims ledger
+(`native-claims.tsv`, one row per Pure.java overload with its referrers) recorded the verdict
+layer as a new referrer of `parseJSON` and `toPrettyJSONString` — the JSON arm's read-through
+— regenerated deliberately (`-Dclaims.generate=1`), explained, re-run green. No host roster
+moved (DuckDB 108, H2 427, exact). The pair's declared enumeration FRAMES an untyped (Any) or
+abstract-Enum side (`CanonRider.enumFrame` → `framedEnumCanon`: the wire's name spells
+`Enumeration.NAME` like its peer — Rule 2, the declared kind at the boundary; two abstract
+sides compare by name); an unrefined Number side takes its concrete numeric wire kind; the JSON
+golden and actual read through `parseJSON()->toPrettyJSONString()` (identity up to whitespace).
+Registers: DuckDB database lost 79 → 72 / 0; H2 373 → 370 / 39. Named: the self-join
+`Pair<String, Any>` literal (a LITERAL-lane spelling inside a JSON-typed struct field — a
+carrier fact, F10) and the three String-over-INT rows (read: the engine's transformer is the
+identity for a String declaration and its Java executor types by ResultSetMetaData, yet its
+own interaction goldens expect strings — held up for the differential gate, never split by a
+leniency). Ledger with reason: AssertVerdicts 2527 → 2543, StatementExecutor 2217 → 2218;
+`wrapWithCanon` split at the framed-enum seam. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4q.

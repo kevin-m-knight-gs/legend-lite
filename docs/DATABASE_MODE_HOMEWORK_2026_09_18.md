@@ -1157,6 +1157,47 @@ tolerance tests on H2 hit the missing `EPOCH` spelling (H2 spells it `EXTRACT(EP
 and the temporal-text regex spelling: the §4h B quick-win bucket. All 7 identity / type asserts
 decided in the database on DuckDB. Ledger with reason: AssertVerdicts 2457 → 2527.
 
+## 4q. Bucket 6 — the non-order residue (2026-09-19)
+
+- **An enum against an untyped wire (3) and two abstract-Enum sides (1):** the carrier holds
+  the NAME and no enumeration (`$row.values->at(0)` through the Any carrier; `toDomainValue`
+  and an EnumValueMapping's `.enum` declared as the abstract `Enum`). The rule is Rule 2 of the
+  charter: at the boundary the DECLARED kind is assigned — the pair's ONE declared enumeration
+  FRAMES the untyped side, which then spells `Enumeration.NAME` like its peer
+  (`CanonRider.enumFrame`, handed to the canon wrap; `framedEnumCanon`). Two abstract sides frame
+  with the abstract classifier itself and compare by name — the host's rule. The earlier
+  "untyped wire" decline is gone.
+- **An unrefined Number side with a concrete numeric wire (1):** the wire's SQL type refines
+  the kind (the engine reads a cell by its result-set type — `Equality.effectiveKind`'s rule);
+  only an unknown wire keeps the three candidates.
+- **Goldens re-serialized through `parseJSON()->toPrettyJSONString()` (2):** the identity up to
+  whitespace, which the canonical form erases — the JSON arm reads through the two natives
+  (`VerdictQueries.throughJsonPrettyPrint`) on both sides, then through the let to the literal.
+- **Named, not fixed (1):** `selfJoin::testSelfJoinPropertyMapping` — a `Pair<String, Any>`
+  literal whose second slot is spelled on the LITERAL lane inside a JSON-typed struct field, so
+  the Any-cell canon parses `'ROOT'` as JSON. A carrier fact (F10: the kind-tagged carrier
+  inside struct fields), not a judge rule.
+- **The String-over-INT ruling (3): read, not yet ruled.** The engine's Java executor types a
+  cell by `ResultSetMetaData.getColumnType` (RelationalResult.java:551) and applies the plan's
+  per-column `dataTypeTransformer` (execution_relational_execute.pure:299): Float/Number/Decimal
+  convert, Boolean and temporals parse, an enumeration extracts, a STRING declaration is the
+  identity `{a | $a}`. So `Account.number : String[1]` over `accountTable.id INT` delivers the
+  Integer 11 (mapping::tree, our wire-kind rule). `Interaction.id : String[1]` over
+  `interactionTable.ID INT` with goldens `'7'`, `'6'`, `'1'`, `'4'` (tds::distinct ×2,
+  filter::in::testInWithDynaFunction) passes in the engine's own suite too — which the Pure
+  text alone cannot explain (the engine's Pure-interpreted test path builds its rows from the
+  interpreter's JDBC bridge, `relationalExtension.pure:78`, whose cell typing is not in Pure
+  text). Host mode passes them because our executor DECODES a String-declared cell as text;
+  database mode spells the wire's INT bare. A genuine host-vs-database disagreement, held up for
+  the differential gate (3.3) — never split by a leniency.
+
+**Measured (four lanes, registers exact):** DuckDB host 108 / H2 host 427; DuckDB database lost
+79 → 72 / gained 0; H2 database lost 373 → 370 / gained 39. Ledger with reason: AssertVerdicts
+2527 → 2543, StatementExecutor 2217 → 2218; `wrapWithCanon` split at the framed-enum seam
+(CodeShapeGuardrail's 250-line limit). A first chain was red on gate 3: the claims ledger
+(`native-claims.tsv`) records the verdict layer as a new referrer of `parseJSON` and
+`toPrettyJSONString` (the read-through) — regenerated deliberately (`-Dclaims.generate=1`).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could
