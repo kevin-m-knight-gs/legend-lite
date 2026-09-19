@@ -145,6 +145,14 @@ class MinimalCorpusTest {
         List<String> accepted = new ArrayList<>();
         java.util.Map<String, String[]> acceptedRegister = readAccepted(
                 MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED);
+        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+            // a divergence the DATABASE verdict names and the host's kept
+            // tolerance hides (homework §4j: the calendar goldens computed
+            // in H2's decimal arithmetic) is accepted in database mode only
+            acceptedRegister.putAll(readAccepted("/rcorpus/"
+                    + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
+                    + "-database-accepted-register.txt"));
+        }
         /** the strength census of the passes (Phase 0.7) */
         java.util.Map<String, Integer> strength = new java.util.LinkedHashMap<>();
         /** every test that RAN, in discovery order, pass or fail */

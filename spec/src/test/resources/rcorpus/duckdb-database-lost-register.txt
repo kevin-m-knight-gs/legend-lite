@@ -1,29 +1,7 @@
-meta::pure::tds::tests::extensions::columnValueDifferenceWithoutPrevalTest ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInline ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::advanced::structure::testQualifierWithLineAndOrWithInLine ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::fromMapping::testEnumProjection ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12MtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP4WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP4WtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPrioryearValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPymtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPyqtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPytdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaDateRange ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testQtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::groupBy::testAggToManyWithFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
 meta::relational::tests::groupBy::testAggToManyWithMaxInteger ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
 meta::relational::tests::groupBy::testAggToManyWithMinInteger ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
@@ -49,7 +27,6 @@ meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| AssertFai
 meta::relational::tests::mapping::union::specialUnion::testProjectWithPostTdsOperations ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins ||| AssertFailed: assertEquals: UNJUDGED in database mode — unclaimable tree cell
 meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — unclaimable tree cell
-meta::relational::tests::mapping::union::testUnionViewJoins ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionWithNonMilestonedTable ||| AssertFailed: assertSameElements: UNJUDGED in database mode — unclaimable tree cell
 meta::relational::tests::postProcessor::testSqlRealiasFreeMarker ||| AssertFailed: assertSameElements: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::projection::aggregation::testSubAggregationWithTopLevelIf ||| AssertFailed: assertSameElements: UNJUDGED in database mode — unrefined-number: multi-candidate side
@@ -65,8 +42,6 @@ meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: ass
 meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals
 meta::relational::tests::tds::groupBy::simpleGroupByWithJoinStrings ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::tds::groupBy::simpleGroupCount ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::tests::tds::sort::testDoubleSortAsc1Chain ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::tds::sort::testDoubleSortDesc1Chain ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::tds::tabletds::simpleGroupCount ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::tdsExtend::testFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::tdsJoin::testFullOuterJoinSimple ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type

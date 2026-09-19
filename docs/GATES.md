@@ -3979,3 +3979,28 @@ DuckDB host, H2 host, DuckDB database, H2 database; the registers may only shrin
 it then we keep burning down"; "keep landing, ledger comes down at 3.5". Ledger with reason:
 AssertVerdicts 2212 → 2222 (dispatch lines; the judging is SQL). Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4h (the reset), §4i (this leg).
+
+**Judging step 3, leg E part 1 — the general fixes; the pieces road built, measured and
+removed (2026-09-19):** chain GREEN (gates 1–10), parallel wall ≈ 4m47s (G2 25; A: G1 83 ·
+G3 13 · G4 123 · G5 43 = 262; B: G6 165 · G7 52 · G9 38 = 255; C: G8 176 · G10 62 = 238 —
+G4/G6/G8 each ~20 s slower than the 4m06s run of the same morning; machine, not tree: no
+host-mode gate's work changed). No host roster moved (DuckDB 108, H2 427, exact). PRODUCT:
+chained sorts compose (`Sorts.carried`: `sort(name)->sort(address)` = `ORDER BY address,
+name`, the engine's own golden SQL for testDoubleSortAsc1Chain — ours sorted by the last key
+only; the host's line multiset had hidden it). JUDGE: the order view reads a chain through the
+envelope splice (a frame-bound sorted chain is no longer INCIDENTAL by default); grouping /
+joins / unions / pivots read as INCIDENTAL, extends descend; the unjudged message carries the
+verdict row's expected / actual (600-char excerpts). REGISTERS: NEW
+`rcorpus/<lane>-database-accepted-register.txt`, read in database mode only — DuckDB 21
+calendarAggregations rows, class `engine-store-arithmetic:h2-decimal-average` (the engine's
+golden was computed in H2's DECIMAL arithmetic, ours in DOUBLE as the charter says; they
+differ from the 12th digit; host mode passes them only through TdsCompare.cellEquals' kept
+1e-11 tolerance, deletable at 3.5), H2 empty. `duckdb-database-lost-register.txt` 76 → 51
+(out: the 21 accepted, the date-witness row, testUnionViewJoins and the two double-sort
+tests, byte-equal on the composed ORDER BY). H2 database registers unchanged (342 / 38). The
+"pieces road" (a joined collection judged as its elements against the golden's pieces) was
+built, measured (88 tests raised when the faithful `map(toString)` form was minted — the
+resolver refuses a map over rows-values / enum collections), fenced, and REMOVED at the
+user's call: no special casing; the design owed is §4k (a Pure collection IS an array;
+relation space by rewrite law). Ledger with reason: AssertVerdicts 2222 → 2260. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4j (this leg), §4k (the homework owed).

@@ -36,14 +36,53 @@ final class Sorts {
             SqlExpr e = Fold.resolveInto(base, k.column());
             if (e == null || !Fold.referencesColumn(e)) {
                 base = lw.isolate(base);
-                return sortOnto(base, s);
+                return sortOnto(base, s, src);
             }
             // engine TEXT spells the OUTPUT column (order by "name" asc);
             // execution renders e — sortBy stays physical in both
             keys.add(new SqlSelect.SortKey(e, k.ascending(), nullsOf(k, s.pureNullOrder()),
                     k.column()));
         }
+        keys.addAll(carried(src, base, keys));
         return base.withOrderBy(keys);
+    }
+
+    /** A sort over a SORTED source COMPOSES: the new keys first, the
+     * source's keys after them as tie-breakers — Pure's sort is stable, so
+     * {@code sort(name)->sort(address)} is the engine's
+     * {@code ORDER BY address, name} (testDoubleSortAsc1Chain's golden SQL).
+     * The source was isolated (an ordered subselect orders nothing outside
+     * it), so a carried key is re-addressed by its OUTPUT name; a key with
+     * no output name (a sortBy expression) cannot be carried. Nothing to
+     * carry when the sort folded (the source had no ORDER BY). A carried
+     * key already among the new keys is dropped (the new key decides). */
+    private static List<SqlSelect.SortKey> carried(SqlSelect src, SqlSelect base,
+            List<SqlSelect.SortKey> fresh) {
+        List<SqlSelect.SortKey> out = new ArrayList<>();
+        if (base == src) {
+            return out;
+        }
+        for (SqlSelect.SortKey k : src.orderBy()) {
+            String name = k.outputName();
+            if (name == null) {
+                continue;
+            }
+            boolean shadowed = false;
+            for (SqlSelect.SortKey f : fresh) {
+                if (name.equals(f.outputName())) {
+                    shadowed = true;
+                    break;
+                }
+            }
+            if (shadowed) {
+                continue;
+            }
+            SqlExpr.Column c = Fold.sourceColumn(base.from(), name);
+            if (c != null) {
+                out.add(new SqlSelect.SortKey(c, k.ascending(), k.nullOrder(), name));
+            }
+        }
+        return out;
     }
 
     /** The key's null placement: EXPLICIT (emptyFirst/emptyLast, the NullOrder
@@ -85,7 +124,7 @@ final class Sorts {
                 new SqlSelect.SortKey(key, sb.ascending(), null, null)));
     }
 
-    private static SqlSelect sortOnto(SqlSelect base, TypedSort s) {
+    private static SqlSelect sortOnto(SqlSelect base, TypedSort s, SqlSelect src) {
         List<SqlSelect.SortKey> keys = new ArrayList<>(s.keys().size());
         for (TypedSort.TypedSortKey k : s.keys()) {
             SqlExpr.Column e = Fold.sourceColumn(base.from(), k.column());
@@ -95,6 +134,7 @@ final class Sorts {
             }
             keys.add(new SqlSelect.SortKey(e, k.ascending(), nullsOf(k, s.pureNullOrder()), null));
         }
+        keys.addAll(carried(src, base, keys));
         return base.withOrderBy(keys);
     }
 

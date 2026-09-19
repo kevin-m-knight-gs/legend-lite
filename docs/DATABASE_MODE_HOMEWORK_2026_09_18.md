@@ -861,6 +861,77 @@ here; the differential gate (3.3) refines them to per-assert rows.
 427 (roster exact) · DuckDB database lost 76 / gained 0 (register exact) · H2 database lost
 342 / gained 38 (register exact); core registers green. This is the leg protocol from now on.
 
+## 4j. Leg E, part 1 — LANDED 2026-09-19 (the general fixes; the pieces road built, measured and REMOVED)
+
+**The 35 rendered-text rows read (every verdict row dumped, `tmp/rendered-35.txt`):** 22
+calendarAggregations rows where a float cell differs from the 12th digit on (the engine's
+golden was computed in H2's DECIMAL arithmetic, ours in DOUBLE as Pure specifies; the host
+passes them only through `TdsCompare.cellEquals`' kept 1e-11 relative tolerance); 9 rows
+where a joined collection's pieces arrive in another order; 1 accepted-divergence date row
+whose witness the unjudged message did not carry.
+
+**USER rulings (2026-09-19):** the bag compare is honest ONLY when the query has no top-level
+ORDER BY; computing in decimal to match the calendar goldens would emulate one store's
+arithmetic against the charter (Float IS a double) — the 22 (21 + testPywaDateRange, which
+is a tds-peer row) are ACCEPTED with the cause written; "keep landing, ledger comes down at
+3.5"; and — after the pieces road was built — "a lot of special casing … is this faithful to
+the typed signature of map?": a carrier LABEL beside the Pure type is a side-car type system;
+the type-faithful form is **a collection IS an array; relation space is an optimization by
+algebraic law** (§4k homework, before any edit on that path).
+
+**Landed (general, no shape-specific arm):**
+- **Chained sorts COMPOSE** (`Sorts.carried`): `sort(name)->sort(address)` is the engine's
+  `ORDER BY address, name` (testDoubleSortAsc1Chain's own golden SQL) — Pure's sort is stable,
+  so the earlier keys are tie-breakers; the source is isolated, the carried keys re-addressed
+  by OUTPUT name (a sortBy expression key cannot be carried). A product bug the host's line
+  multiset had been hiding: ours sorted by the last key only.
+- **The order view reads THROUGH the envelope splice** (`orderView(spec, lets, hook)`): a
+  read of an execute frame (`$result.values.rows…`) resolved to INCIDENTAL before — every
+  frame-bound sorted chain got the bag compare. Now `VerdictQueries.valuesRead` through the
+  hook yields the frame's chain and its sort is seen.
+- **Grouping / joins / unions / pivots leave no order** (`TypedGroupBy`, `TypedAggregate`,
+  `TypedJoin`, `TypedAsOfJoin`, `TypedConcatenate`, `TypedPivot`, and the `ORDER_DESTROYING`
+  natives) → INCIDENTAL; an extend descends to its source.
+- **The unjudged message carries the evidence columns** (`excerpt`, 600 chars): the accepted
+  witness matches again; a row is diagnosable without a re-run.
+- **`rcorpus/<lane>-database-accepted-register.txt`** (read in database mode only, merged into
+  the accepted register): the 21 calendar rows, class `engine-store-arithmetic:h2-decimal-
+  average`, witness = the golden text. Host mode does not read it (there the host's tolerance
+  passes them, and an accepted row that passes is red).
+
+**Built, measured, REMOVED (recorded so it is not rebuilt):** the "pieces road" —
+`makeString(c, sep)` judged as `c` against the golden cut at `sep`. First cut compared raw
+elements to String pieces (enum / Float / null-cell collections mis-kinded: 5 new lost rows);
+second cut minted `c->map(x|$x->toString())` — the faithful definition — and the lowering
+refused it over rows-values and enum collections (`class query under TypedMap is not
+resolvable`, **88 tests raised**); third cut fenced it to String collections + a text sniff for
+`TDSNull` — the special casing the user called. Removed entirely. The 9 order rows stay in the
+lost register, named `rendered-text`, until §4k.
+
+**Measured before the commit (four lanes, registers exact):** DuckDB host 108 / H2 host 427;
+DuckDB database lost **76 → 51** (25 out: 21 accepted, the date witness, testUnionViewJoins
+and the two double-sort tests now byte-equal on the composed ORDER BY) / gained 0; H2
+database 342 / 38 unchanged. Ledger with reason: AssertVerdicts 2222 → 2260 (order-view
+navigation + the evidence message; nothing evaluated).
+
+## 4k. Homework owed before the next judge edit — collections as arrays, relation space by law
+
+The type-faithful lowering of a Pure `T[m]`: an ARRAY (ordered, duplicates kept). A collection
+from a query is `array_agg(x ORDER BY <the query's sort keys, else its row number>)`; every
+collection operator is an array operator. Relation space is then a set of local rewrite LAWS,
+true for any input, applied by the SQL layer: transform∘array_agg = array_agg∘projection;
+filter∘array_agg = array_agg∘where; distinct∘array_agg = array_agg(DISTINCT); sort∘array_agg
+= array_agg(ORDER BY); array_to_string∘array_agg = string_agg(ORDER BY); size∘array_agg =
+COUNT. Map over map is the same law twice. The current "projection when relation-valued BY
+TYPE" is one of these laws applied early in one shape — which is why a second map falls off.
+Costs, named: the laws are the design (without them a query collection is gathered and
+re-split); the ORDER must be real (the array_agg's ORDER BY is the one owner — pays the
+arrival-order debt the audit named); H2 has arrays and unnest but no per-element lambdas, so
+an array operator with no rewrite is a named wall there. To read BEFORE the design doc:
+`StoreResolver`'s class-query wall (the resolver, not the lowering, refuses), `ListEncodings.
+lowerMap`, `ValueCollections.valueColumnProject` + `isCollectionMapper`, the stamp-discipline
+notes. Rows it turns: the 9 order rows, the 88 raised tests, the enum / Float joins.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

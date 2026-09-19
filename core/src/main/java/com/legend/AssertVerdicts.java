@@ -1282,7 +1282,12 @@ final class AssertVerdicts {
         Object unjudged = row.get(3);
         if (unjudged != null) {
             com.legend.exec.CanonicalDivergence.sqlUnjudged(name, String.valueOf(unjudged));
-            return fail(name + ": UNJUDGED in database mode — " + unjudged);
+            // the evidence columns ride the message (bounded): an accepted
+            // divergence matches its witness here, and a row is diagnosable
+            // without a re-run
+            return fail(name + ": UNJUDGED in database mode — " + unjudged
+                    + "\nexpected: " + excerpt(row.get(1))
+                    + "\nactual:   " + excerpt(row.get(2)));
         }
         if (!(row.get(0) instanceof Boolean held)) {
             throw new IllegalStateException(name + ": the verdict column is not a boolean: " + row.get(0));
@@ -1299,6 +1304,13 @@ final class AssertVerdicts {
         return fail(wantEqual
                 ? name + "\nexpected: " + row.get(1) + "\nactual:   " + row.get(2)
                 : "assertNotEquals: both sides are equal");
+    }
+
+    /** A verdict row's evidence column for a message: at most 600
+     * characters (a grid text drowns the diagnosis past that). */
+    private static String excerpt(@com.legend.Nullable Object evidence) {
+        String s = String.valueOf(evidence);
+        return s.length() <= 600 ? s : s.substring(0, 600) + "…(" + s.length() + " chars)";
     }
 
     private static ExecutionResult finish(String family, boolean wantEqual,
@@ -1749,6 +1761,12 @@ final class AssertVerdicts {
 
     /** Order-preserving native tails, BY SIMPLE NAME — the harness's
      * audited list (audit 23 D1), moved verbatim. */
+    /** Natives after which SQL leaves no order (GROUP BY, joins, UNION,
+     * pivots): the chain's order is incidental past them. */
+    private static final java.util.Set<String> ORDER_DESTROYING =
+            java.util.Set.of("groupBy", "join", "concatenate", "union",
+                    "pivot", "aggregate", "olapGroupBy");
+
     private static final java.util.Set<String> ORDER_PRESERVING =
             java.util.Set.of("map", "limit", "take", "drop", "slice",
                     "rows", "toOne", "at", "makeString", "toCSV",
@@ -1758,7 +1776,17 @@ final class AssertVerdicts {
                     "graphFetch", "graphFetchChecked", "serialize");
 
     static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix) {
-        return orderView(s0, letPrefix, new java.util.HashSet<>());
+        return orderView(s0, letPrefix, new java.util.HashSet<>(), null);
+    }
+
+    /** The order view WITH the envelope splice: a read of an execute
+     * frame ({@code $result.values…}) resolves to the frame's own chain,
+     * whose sort the view sees. Without the hook such a read is
+     * INCIDENTAL — a bag compare that would hide an ORDER BY (USER
+     * 2026-09-18: the bag only without a top-level sort). */
+    static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix,
+            @com.legend.Nullable SpliceHook hook) {
+        return orderView(s0, letPrefix, new java.util.HashSet<>(), hook);
     }
 
     /** The referee's gates for a verified chain, derived ONCE from the
@@ -1887,7 +1915,7 @@ final class AssertVerdicts {
     }
 
     private static OrderView orderView(TypedSpec s, List<TypedSpec> lets,
-            java.util.Set<String> seen) {
+            java.util.Set<String> seen, @com.legend.Nullable SpliceHook hook) {
         if (s instanceof com.legend.compiler.spec.typed.TypedSort
                 || s instanceof com.legend.compiler.spec.typed.TypedSortBy) {
             return OrderView.SORTED;
@@ -1899,14 +1927,17 @@ final class AssertVerdicts {
             }
             String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
             if (ORDER_PRESERVING.contains(simple) && !c.args().isEmpty()) {
-                return orderView(c.args().get(0), lets, seen);
+                return orderView(c.args().get(0), lets, seen, hook);
             }
             // an execute() FRAME returns its query's rows in the query's
             // order: descend into the lambda's tail expression
             if (simple.equals("execute") && !c.args().isEmpty()
                     && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
                     && !lam.body().isEmpty()) {
-                return orderView(lam.body().get(lam.body().size() - 1), lets, seen);
+                return orderView(lam.body().get(lam.body().size() - 1), lets, seen, hook);
+            }
+            if (ORDER_DESTROYING.contains(simple)) {
+                return OrderView.INCIDENTAL;
             }
             return OrderView.DEFINED;
         }
@@ -1925,24 +1956,52 @@ final class AssertVerdicts {
                 if (lets.get(i) instanceof
                         com.legend.compiler.spec.typed.TypedLet l
                         && l.name().equals(v.name())) {
-                    return orderView(l.value(), lets, seen);
+                    return orderView(l.value(), lets, seen, hook);
                 }
             }
-            // unresolvable binding = an execution frame ($result) —
-            // its chain is a store query by construction
+            // unresolvable binding = an execution frame ($result): with the
+            // splice in hand its values read IS the frame's chain (a
+            // compiler-minted read, VerdictQueries.valuesRead); without it,
+            // a store query by construction
+            if (hook != null) {
+                TypedSpec read = com.legend.compiler.spec.VerdictQueries.valuesRead(v);
+                TypedSpec chain = hook.apply(read, java.util.Set.of());
+                if (chain != read) {
+                    return orderView(chain, lets, seen, hook);
+                }
+            }
             return OrderView.INCIDENTAL;
         }
         // a graph fetch / serialize keeps its ROOT query's order (the
         // engine's graph result is the root SQL's arrival order; a nested
         // property's order is the mapping's, not the chain's)
         if (s instanceof com.legend.compiler.spec.typed.TypedGraphFetch gf) {
-            return orderView(gf.source(), lets, seen);
+            return orderView(gf.source(), lets, seen, hook);
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedSerializeGraph sg) {
-            return orderView(sg.source(), lets, seen);
+            return orderView(sg.source(), lets, seen, hook);
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedSerialize sz) {
-            return orderView(sz.source(), lets, seen);
+            return orderView(sz.source(), lets, seen, hook);
+        }
+        // a grouping / join / concatenation / pivot leaves NO order behind
+        // in SQL (a GROUP BY, a join, a UNION have none): the chain's
+        // order is incidental past them unless a later sort names it
+        if (s instanceof com.legend.compiler.spec.typed.TypedGroupBy
+                || s instanceof com.legend.compiler.spec.typed.TypedAggregate
+                || s instanceof com.legend.compiler.spec.typed.TypedJoin
+                || s instanceof com.legend.compiler.spec.typed.TypedAsOfJoin
+                || s instanceof com.legend.compiler.spec.typed.TypedConcatenate
+                || s instanceof com.legend.compiler.spec.typed.TypedPivot) {
+            return OrderView.INCIDENTAL;
+        }
+        // an extend keeps its source's rows in order
+        if (s instanceof com.legend.compiler.spec.typed.TypedExtend
+                || s instanceof com.legend.compiler.spec.typed.TypedExtendAgg
+                || s instanceof com.legend.compiler.spec.typed.TypedExtendWindow) {
+            List<TypedSpec> ch = s.children();
+            return ch.isEmpty() ? OrderView.DEFINED
+                    : orderView(ch.get(0), lets, seen, hook);
         }
         // order-preserving wrappers descend to their SOURCE (first
         // child); anything else keeps the language's defined order
@@ -1964,7 +2023,7 @@ final class AssertVerdicts {
                         .TypedMilestonedAccess) {
             List<TypedSpec> ch = s.children();
             return ch.isEmpty() ? OrderView.DEFINED
-                    : orderView(ch.get(0), lets, seen);
+                    : orderView(ch.get(0), lets, seen, hook);
         }
         return OrderView.DEFINED;
     }
