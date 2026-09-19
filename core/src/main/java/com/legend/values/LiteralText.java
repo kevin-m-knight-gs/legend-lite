@@ -13,9 +13,10 @@ package com.legend.values;
  * Invariant 6a — so the host half lives beside its value carriers); a spelling
  * form added on either side MUST land on both.
  *
- * <p>The six forms are mutually disjoint by construction, so parsing is
+ * <p>The seven forms are mutually disjoint by construction, so parsing is
  * first-character/last-character dispatch, never guessing:
- * quoted → String, {@code true/false} → Boolean, {@code %…} → temporal,
+ * quoted → String, {@code true/false} → Boolean, {@code a::b.NAME} → an
+ * enum's name, {@code %…} → temporal,
  * {@code …D} → Decimal, contains a point/exponent → Float, else
  * Integer. Slice 2 carries the NUMERIC family (the mixed-Number
  * carrier); the temporal arm lands with slice 3 (Any migration) — until
@@ -36,6 +37,16 @@ public final class LiteralText {
         }
         if (s.equals("true") || s.equals("false")) {
             return Boolean.valueOf(s);
+        }
+        int enumDot = s.contains("::") ? s.lastIndexOf('.') : -1;
+        if (enumDot > 0) {
+            // the seventh form — pure's enum literal Enumeration.NAME (an
+            // enumeration always lives in a package, so '::' marks it;
+            // before the Decimal arm: a NAME may end in D). The host holds
+            // an enum value as its NAME (an enum literal lowers to it, a
+            // mapped cell decodes to it) — the enumeration is the
+            // declaration's, not the value's, host-side.
+            return s.substring(enumDot + 1);
         }
         if (s.startsWith("%")) {
             // slice 3: the temporal arm — the body after % parses on

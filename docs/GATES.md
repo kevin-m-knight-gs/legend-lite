@@ -4004,3 +4004,20 @@ resolver refuses a map over rows-values / enum collections), fenced, and REMOVED
 user's call: no special casing; the design owed is §4k (a Pure collection IS an array;
 relation space by rewrite law). Ledger with reason: AssertVerdicts 2222 → 2260. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4j (this leg), §4k (the homework owed).
+
+**Judging step 3, bucket 1 — enums; the unordered-aggregate determinism rule (2026-09-19):**
+chain GREEN (gates 1–10), quiet machine, parallel wall ≈ 4m38s (G2 28; A: G1 83 · G3 12 ·
+G4 118 · G5 38 = 251; B: G6 158 · G7 49 · G9 35 = 242; C: G8 170 · G10 57 = 227). No host
+roster moved (DuckDB 108, H2 427, exact). The literal grammar gains pure's own enum literal
+`Enumeration.NAME` on BOTH halves (`LiteralSpelling.literal`, `LiteralText.parse` + the new
+`LiteralTextTest`); the three enum declines removed (grid canon, mixed-literal encoder, the
+verdict gates); an enum against an UNTYPED (Any) wire and the abstract `Enum` declaration stay
+named unjudged (the metamodel row carrying the enumeration is the one fix, named). A first cut
+broke host mode on both lanes (the encoder learned the form before the decoder: 8 rows,
+`NumberFormatException`) — caught by the four-lane protocol before any commit. DETERMINISM:
+a rendered text over a hash-ordered chain (grouping / join / union / pivot, no later sort) is
+unjudged deterministically (`hashOrdered`) — `testFilteredProjectWithPostTdsOperations` flipped
+between runs; the assert-boundary `ScanOrder` is scan-roots only by design. Registers: DuckDB
+database lost 51 → 101 (−8 enum, +58 order rows that had passed by arrival luck), H2 382 / 38
+(−8, +48). Ledger with reason: AssertVerdicts 2260 → 2314. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4l (and §4k, the collections analysis).

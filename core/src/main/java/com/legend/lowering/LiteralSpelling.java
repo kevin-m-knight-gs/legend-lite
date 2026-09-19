@@ -94,6 +94,26 @@ public final class LiteralSpelling {
      * that makes the six forms mutually disjoint (quotes + escapes for
      * strings, D suffix for decimals, % prefix for temporals). */
     public static @com.legend.Nullable SqlExpr literal(SqlExpr v, Type kind) {
+        if (kind instanceof Type.EnumType et) {
+            if ("meta::pure::metamodel::type::Enum".equals(et.fqn())) {
+                // the ABSTRACT Enum declaration (a mapping's toDomainValue,
+                // an EnumValueMapping's .enum): the wire holds the NAME and
+                // the enumeration is a row fact the metamodel does not
+                // carry yet — no spelling (a spelled 'Enum.NAME' would
+                // fabricate inequality against a concrete enumeration)
+                return null;
+            }
+            // pure's own enum literal: Enumeration.NAME — the wire carries
+            // the NAME (a TypedEnumValue lowers to it; a mapped cell
+            // decodes to it); the enumeration is the declaration's,
+            // static on every side that is enum-DECLARED. Disjoint from
+            // the six primitive spellings (unquoted, carries '::'), so an
+            // enum never byte-equals its name string, and two
+            // enumerations' same-named values never equal (pure's rule —
+            // stricter than the host judge, which compares the names).
+            return SqlExpr.Call.of(SqlFn.CONCAT,
+                    new SqlExpr.StringLit(et.fqn() + "."), v);
+        }
         SqlExpr leaf = leaf(v, kind);
         if (leaf == null) {
             return null;

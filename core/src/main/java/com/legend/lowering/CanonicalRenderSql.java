@@ -394,16 +394,10 @@ public final class CanonicalRenderSql {
                     kind = wire;
                 }
             }
-            // the §4M scalar precedent, grid form: an ENUM cell has no
-            // literal channel — the wire spells the VALUE as a string
-            // while pure's enum never equals its name string; a byte
-            // compare against a string golden would fabricate
-            // inequality (or worse, equality). Decline; the host
-            // lattice judges the pair.
-            if (kind instanceof Type.EnumType) {
-                return TdsWrap.decline(plan,
-                        "tds-canon: enum cell has no literal channel");
-            }
+            // an ENUM cell spells as pure's enum literal (Enumeration.NAME
+            // — LiteralSpelling.literal's enum arm; the column's declared
+            // enumeration is static): disjoint from a string golden, so
+            // no byte compare fabricates equality or inequality.
             SqlExpr ref = SqlExpr.Column.of(null, col);
             // (cells arrive DECODED — the fetch conformance above; the
             // literal spelling reads the text carrier directly.)

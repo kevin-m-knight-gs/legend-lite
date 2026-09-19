@@ -914,23 +914,111 @@ and the two double-sort tests now byte-equal on the composed ORDER BY) / gained 
 database 342 / 38 unchanged. Ledger with reason: AssertVerdicts 2222 → 2260 (order-view
 navigation + the evidence message; nothing evaluated).
 
-## 4k. Homework owed before the next judge edit — collections as arrays, relation space by law
+## 4k. Collections: the fact-based analysis (2026-09-19; USER: "step back … as a legend and database expert … real homework")
 
-The type-faithful lowering of a Pure `T[m]`: an ARRAY (ordered, duplicates kept). A collection
-from a query is `array_agg(x ORDER BY <the query's sort keys, else its row number>)`; every
-collection operator is an array operator. Relation space is then a set of local rewrite LAWS,
-true for any input, applied by the SQL layer: transform∘array_agg = array_agg∘projection;
-filter∘array_agg = array_agg∘where; distinct∘array_agg = array_agg(DISTINCT); sort∘array_agg
-= array_agg(ORDER BY); array_to_string∘array_agg = string_agg(ORDER BY); size∘array_agg =
-COUNT. Map over map is the same law twice. The current "projection when relation-valued BY
-TYPE" is one of these laws applied early in one shape — which is why a second map falls off.
-Costs, named: the laws are the design (without them a query collection is gathered and
-re-split); the ORDER must be real (the array_agg's ORDER BY is the one owner — pays the
-arrival-order debt the audit named); H2 has arrays and unnest but no per-element lambdas, so
-an array operator with no rewrite is a named wall there. To read BEFORE the design doc:
-`StoreResolver`'s class-query wall (the resolver, not the lowering, refuses), `ListEncodings.
-lowerMap`, `ValueCollections.valueColumnProject` + `isCollectionMapper`, the stamp-discipline
-notes. Rows it turns: the 9 order rows, the 88 raised tests, the enum / Float joins.
+**Facts (each read or probed):**
+1. The ENGINE never lowers post-result collection operators: only the lambda inside `execute()`
+   becomes SQL; `$result.values.rows->map(...)->makeString(',')` runs in the Pure runtime on
+   materialized rows. We lower them by tenet #1 (the database executes value evaluation) — our
+   problem by choice; no engine precedent.
+2. Size (all 589 engine test files, 3,490 test functions, full grep — not a sample):
+   `makeString` over a query result 391 · `.rows->map` 528 · `toCSV` 108 · `toString` 252 ·
+   `.rows->size()` 67 · `removeDuplicates` 11 · `contains` 15; makeString/joinStrings over a
+   row map (the shape that failed) 162.
+3. The lowering ALREADY collects a query collection in value position into a list —
+   `ValueCollections.collectAsList`: `SELECT LIST(value) FROM (projection)` — with NO ORDER BY
+   (arrival order: the audit's named debt). The typed node keeps Pure's `T[*]`; the resolver's
+   guard `case TypedMap m when anchored(m.source()) && Type.relationValued(m.source().info())`
+   is what refuses a second map ("class query under TypedMap is not resolvable yet") — a guard,
+   not a missing capability.
+4. The ratified designs: CARRIER_REDESIGN (exit met 2026-08-01) made the array vocabulary
+   (ArrayLit, LIST_*, UNNEST, Reducer(LIST)) the semantic IR — each entry an ANSI spelling, a
+   CarrierStrategies rule per dialect, or a typed DialectCapability wall
+   (SpellingsTest.everySqlFnClassified); F10 (ratified 2026-08-23) made the kind-faithful carrier
+   a JSON array of literal spellings. "Collections are arrays; dialects rewrite" is the landed
+   architecture, not a new idea.
+5. Databases: DuckDB has the full list algebra with lambdas but its binder refuses a subquery
+   inside a lambda (the documented reason distinct/sort moved to relation space —
+   ValueCollectionOps). H2 2.1.214, probed (`tmp/h2arr.sql`): `ARRAY_AGG(x ORDER BY x)`,
+   `ARRAY_AGG(DISTINCT … ORDER BY)`, `CARDINALITY`, `ARRAY_CONTAINS`, ordered array `=`,
+   `UNNEST … WITH ORDINALITY`, `LISTAGG` all work; no per-element lambdas.
+6. Semantics: a Pure `T[m]` is an ordered sequence with duplicates — an array matches exactly;
+   a relation matches only with an explicit ordinal.
+
+**Options:**
+- **A. Relation space as the meaning** (the habit we drifted into): planner-friendly, ANSI;
+  contradicts the type, order carried by hand everywhere, every operator needs a row twin — the
+  source of the special cases.
+- **B. Arrays only:** type-faithful, order free; but a query collection is gathered then
+  re-split per operation, the planner sees nothing, large collections are one cell, every
+  per-element operation walls on H2.
+- **C. Arrays as the meaning, relation space by rewrite LAW:** the value of a `T[m]` is
+  `ARRAY_AGG(x ORDER BY <the query's sort keys, else its row number>)`; each operator an array
+  operator; local laws rewrite "array operator over array_agg" to the row form (transform →
+  projection, filter → where, distinct → ARRAY_AGG(DISTINCT), sort → ORDER BY, makeString →
+  STRING_AGG, size → COUNT). Faithful; order in ONE place; the planner gets rows wherever a law
+  fires; H2 works where a law fires and walls by name where none does; it is where the landed
+  architecture points. Cost: the laws must be written and pinned; the early "projection when
+  relation-valued by type" becomes one of them instead of a guard.
+- **D. Evaluate post-result operators in Java (the engine's truth):** breaks tenet #1 and the
+  verdict-in-database program. Listed for honesty, not recommended.
+
+**Recommendation: C, as three measured steps** (ruling awaited before any edit):
+1. ORDER in the array construction — `collectAsList` gains `ORDER BY` the chain's sort keys,
+   else the row number; retires the arrival-order reliance for every consumer at once.
+2. The resolver guard becomes a law — "structural when the source is relation-valued BY TYPE"
+   → "structural when the source RESOLVES structurally"; map over map is not a case. Rows: the
+   88 raised tests, the 162 makeString-over-row-map asserts, the 9 named order rows.
+3. The rewrite laws pinned as laws — the row forms that exist for distinct / sort / string_agg /
+   count written over array_agg, each with a both-dialect equivalence test.
+Then the judge has no branch: a golden's pieces are an array literal; ordered equality = array
+equality; bag equality = sorted-array equality (both dialects have both).
+
+## 4l. Bucket 1 — enums (2026-09-19; USER: "fix all the buckets we can first … come back later")
+
+**The bucket order ratified (easiest and biggest first, one commit each, four lanes and the
+registers exact before every commit):** enums 12 → date literals 8 → JSON 177 asserts → instances
+/ keyless / tree cells 17 → identity + type checks 7 → the String-over-INT ruling 3 → two
+singletons → H2 quick wins (graph size 193, float spelling 49, epoch 1) → the glued-text order
+rows (the collections design, §4k) LAST.
+
+**The enum rule (one owner, the literal grammar).** The host judge has no enum arm: an enum
+literal lowers to its NAME string and a mapped cell decodes to its name, so host mode compares
+NAMES (enumeration ignored). The grammar gains pure's own enum literal, `Enumeration.NAME` —
+the seventh spelling, disjoint from the six (unquoted, carries `::`) — on both halves:
+`LiteralSpelling.literal` (SQL) and `LiteralText.parse` (host; decodes to the NAME the host
+holds an enum as; before the Decimal arm — a name may end in D; `LiteralTextTest` pins every
+form). The three enum declines went: the grid canon, the mixed-literal encoder
+(`MixedEncoding.spellByKind`), the two verdict gates. The database verdict is now
+ENUMERATION-SCOPED (pure's rule, stricter than the host: a false pass is impossible, only a
+named lost row). Two shapes stay named: an enum against an UNTYPED wire (`$row.values->at(0)`,
+`toDomainValue` — both typed Any: the Any carrier holds the name as a JSON string, no
+enumeration) → `enum against an untyped (Any) wire`; the ABSTRACT Enum declaration
+(`meta::pure::metamodel::type::Enum`, an EnumValueMapping's `.enum`) has no spelling (a spelled
+`Enum.NAME` would fabricate inequality) → `no literal channel`. Both are one fix: the metamodel
+row carrying the enumeration (named, not this leg).
+
+**A first cut broke host mode (8 rows, both lanes): the encoder learned the spelling before the
+decoder did** — the mixed literal `['Firm A', …, GeographicEntityType.CITY]` moved to the
+LITERAL lane and the host parse threw NumberFormatException on `…GeographicEntityType.CITY`. The
+grammar's own rule ("a form added on either side MUST land on both") caught by the four-lane
+protocol before any commit.
+
+**A determinism finding (the order bucket grows, honestly).** `testFilteredProjectWithPost
+TdsOperations` flipped between runs (`5,2|6,2` vs `6,2|5,2`): a rendered text over a GROUPING
+with no sort after it has no defined line order — the assert-boundary determinism
+(`ScanOrder.stabilize`) is BY DESIGN scan-roots only, never aggregates, and DuckDB's hash
+operators arrive differently run to run. A register row must not flip, so the rendered-text arm
+is UNJUDGED deterministically over a hash-ordered chain (`hashOrdered`: grouping / join / union
+/ pivot with no later sort — typed-tree navigation). That names 58 DuckDB tests (calendarAggregations 41,
+embedded groupBy 9, validation 4, cteExtraction 2, union 2) that had been passing database mode
+by a stable-in-practice arrival order, and 48 on H2. They join the order bucket (§4k's grid
+road turns them). Ledger with reason: AssertVerdicts 2260 → 2314.
+
+**Measured (four lanes, registers exact):** DuckDB host 108 / H2 host 427; DuckDB database
+lost 51 → 101 (−8 enum, +58 order named) / gained 0; H2 database lost 342 → 382 (−8, +48) /
+gained 38. Judged in the database: the 8 enum grid tests (enum cells spelled
+`Enumeration.NAME` on both sides).
 
 ## 5. Traps recorded now (so they are not rediscovered)
 

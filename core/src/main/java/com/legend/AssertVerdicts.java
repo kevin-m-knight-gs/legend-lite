@@ -1204,10 +1204,13 @@ final class AssertVerdicts {
         // a store-free side rides the store-reading side's database
         java.sql.Connection runOn = we != null && wa != null
                 ? (we.storeFree() ? wa.connection() : we.connection()) : env.connection();
-        if (why == null && ke != null && ka != null && !anyNil
-                && (anyAny || re.literalOnly() || ra.literalOnly())
+        if (why == null && ke != null && ka != null && !anyNil && anyAny
                 && (ke.startsWith("enum:") || ka.startsWith("enum:"))) {
-            why = "enum kind has no literal channel";
+            // an enum against an UNTYPED wire ($row.values->at(0)): the Any
+            // carrier holds the NAME as a JSON string and no enumeration —
+            // the literal spells Enumeration.NAME, so a byte compare would
+            // fabricate inequality where pure's enum equality holds
+            why = "enum against an untyped (Any) wire: no enumeration on the wire";
         }
         int ie = -1;
         int ia = -1;
@@ -1775,6 +1778,62 @@ final class AssertVerdicts {
                     // a graph fetch / serialize keeps its root's order
                     "graphFetch", "graphFetchChecked", "serialize");
 
+    /** True when the chain's order is decided by a HASH operator (a
+     * grouping / join / union / pivot) with no sort after it — the arrival
+     * order is not reproducible between runs. Typed-tree navigation only. */
+    private static boolean hashOrdered(TypedSpec s, List<TypedSpec> lets,
+            @com.legend.Nullable SpliceHook hook, java.util.Set<String> seen) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedSort
+                || s instanceof com.legend.compiler.spec.typed.TypedSortBy) {
+            return false;
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedGroupBy
+                || s instanceof com.legend.compiler.spec.typed.TypedAggregate
+                || s instanceof com.legend.compiler.spec.typed.TypedJoin
+                || s instanceof com.legend.compiler.spec.typed.TypedAsOfJoin
+                || s instanceof com.legend.compiler.spec.typed.TypedConcatenate
+                || s instanceof com.legend.compiler.spec.typed.TypedPivot) {
+            return true;
+        }
+        if (s instanceof TypedNativeCall c) {
+            String fqn = c.callee().qualifiedName();
+            if (SORT_FQNS.contains(fqn)) {
+                return false;
+            }
+            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
+            if (ORDER_DESTROYING.contains(simple)) {
+                return true;
+            }
+            if (simple.equals("execute") && !c.args().isEmpty()
+                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
+                    && !lam.body().isEmpty()) {
+                return hashOrdered(lam.body().get(lam.body().size() - 1), lets, hook, seen);
+            }
+            return !c.args().isEmpty() && hashOrdered(c.args().get(0), lets, hook, seen);
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            if (!seen.add(v.name())) {
+                return false;
+            }
+            for (int i = lets.size() - 1; i >= 0; i--) {
+                if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet l
+                        && l.name().equals(v.name())) {
+                    return hashOrdered(l.value(), lets, hook, seen);
+                }
+            }
+            if (hook != null) {
+                TypedSpec read = com.legend.compiler.spec.VerdictQueries.valuesRead(v);
+                TypedSpec chain = hook.apply(read, java.util.Set.of());
+                if (chain != read) {
+                    return hashOrdered(chain, lets, hook, seen);
+                }
+            }
+            return false;
+        }
+        List<TypedSpec> ch = s.children();
+        return !ch.isEmpty() && hashOrdered(ch.get(0), lets, hook, seen);
+    }
+
     static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix) {
         return orderView(s0, letPrefix, new java.util.HashSet<>(), null);
     }
@@ -2084,6 +2143,15 @@ final class AssertVerdicts {
                 : java.util.Objects.requireNonNull(eForm);
         TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
         if (JUDGE_MODE == JudgeMode.DATABASE) {
+            // a rendered text over an UNORDERED AGGREGATE (a grouping /
+            // join / union with no sort after it) has no defined line
+            // order — DuckDB's hash operators arrive differently run to
+            // run, so byte equality would be a coin flip (a register row
+            // must not flip): unjudged, deterministically, by name
+            if (hashOrdered(rendered, letPrefix, hook, new java.util.HashSet<>())) {
+                return unjudged(name,
+                        "rendered-text over an unordered aggregate: no defined line order");
+            }
             // leg 3.1d: byte equality in the database; a differing pair is
             // unjudged by name (the host's multiset / tolerance policy)
             SideRows e = planSide(args.get(0), false, letPrefix, specs, env, hook);
@@ -2374,17 +2442,10 @@ final class AssertVerdicts {
         // kind; the RUNTIME value kinds (pure's own Number dispatch)
         // SELECT the column — selection, never evaluation. Cross-kind
         // pairs decline to the host lattice's engine-FALSE.
-        // V7 batch 2 (corpus alarm witness GeographicEntityType): an
-        // ENUM kind cannot ride the literal channel — the Any/literal
-        // wire spells the enum VALUE as a string ('CITY') while the
-        // enum canon spells the bare name (CITY), so a byte compare
-        // fabricates inequality where pure's own enum equality holds.
-        // Decline, counted; the host lattice judges.
-        if (!anyNil && (anyAny || ef.rider().literalOnly()
-                || af.rider().literalOnly())
+        if (!anyNil && anyAny
                 && (ke.startsWith("enum:") || ka.startsWith("enum:"))) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
-                    "any-pair: enum kind has no literal channel: "
+                    "any-pair: enum against an untyped (Any) wire: "
                             + (ke.startsWith("enum:") ? ke : ka));
             return null;
         }

@@ -1,18 +1,64 @@
 meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInline ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::advanced::structure::testQualifierWithLineAndOrWithInLine ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::fromMapping::testEnumProjection ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCwValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCw_FmValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCyminus2Value ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCyminus3Value ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testGroupbyAfterCalendar ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testJoinAfterCalendar ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testMtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testNestedAttributeCalendar ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12MtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP4WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP4WtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPqtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPriordayValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPrioryearValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPw_FmValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPymtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPyqtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPytdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaDateRange ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
-meta::relational::tests::groupBy::testAggToManyWithFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
-meta::relational::tests::groupBy::testAggToManyWithMaxInteger ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
-meta::relational::tests::groupBy::testAggToManyWithMinInteger ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
-meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testQtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testReportenddayValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testSubclassDate ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testSubclassValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testWtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::groupBy::testAggToManyWithFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
 meta::relational::tests::groupBy::testSimpleJoinStrings ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMergeForClassMappingInnerJoinFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::mapping::classMappingFilterWithInnerJoin::testMergeForClassMappingInnerJoinFilter1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::mapping::dates::datetime::testProject ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
-meta::relational::tests::mapping::enumeration::testEnumMappings ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
-meta::relational::tests::mapping::enumeration::testEnumMappingsWithInclude ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
-meta::relational::tests::mapping::enumeration::testEnumTheSame ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
+meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::inline::nested::testGroupByComplexAgg ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::inline::targetid::testGroupByComplexAgg ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComplexAgg ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::otherwiseTestGroupByComplexExpressionEmbeddedAndJoin ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::embedded::advanced::testGroupByComplexAgg ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::enumeration::testEnumMappings ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
+meta::relational::tests::mapping::enumeration::testEnumMappingsWithInclude ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum against an untyped (Any) wire: no enumeration on the wire
+meta::relational::tests::mapping::enumeration::testEnumTheSame ||| AssertFailed: assertEquals: UNJUDGED in database mode — no literal channel
 meta::relational::tests::mapping::extend::mainTable::testMainTableForB1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
 meta::relational::tests::mapping::extend::mainTable::testMainTableForB2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
 meta::relational::tests::mapping::extend::mainTable::testMainTableForC1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
@@ -23,20 +69,20 @@ meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| Data
 meta::relational::tests::mapping::sqlFunction::parseDate::testToSQLStringParseDateForH2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::mapping::sqlFunction::parseDate::testToSQLStringWithParseDateInQueryForH2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::mapping::sqlFunction::testAdjustDateTranslationInMappingAndQuery ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
-meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::mapping::union::specialUnion::testProjectWithPostTdsOperations ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::mapping::union::specialUnion::testFilteredProjectWithPostTdsOperations ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::union::specialUnion::testGroupBy ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::mapping::union::specialUnion::testProjectWithPostTdsOperations ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins ||| AssertFailed: assertEquals: UNJUDGED in database mode — unclaimable tree cell
 meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — unclaimable tree cell
+meta::relational::tests::mapping::union::testUnionViewJoins ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionWithNonMilestonedTable ||| AssertFailed: assertSameElements: UNJUDGED in database mode — unclaimable tree cell
+meta::relational::tests::postProcessor::cteExtraction::testComplexSubQueries ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::tests::postProcessor::cteExtraction::testMultipleSubQueries ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::postProcessor::testSqlRealiasFreeMarker ||| AssertFailed: assertSameElements: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::projection::aggregation::testSubAggregationWithTopLevelIf ||| AssertFailed: assertSameElements: UNJUDGED in database mode — unrefined-number: multi-candidate side
-meta::relational::tests::projection::enumeration::testProjectWithIfWhereBothSidesUseTheSameEnumMapping ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
-meta::relational::tests::projection::enumeration::testProjectWithIfWhereOneSideIsEnumLiteral ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
-meta::relational::tests::projection::enumeration::testProjectionWithEnumThroughAssociation ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
 meta::relational::tests::projection::filter::dates::testDateWithSeconds ||| AssertFailed: assertSameElements: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::projection::filter::in::testInWithDynaFunction ||| AssertFailed: assertSameElements
 meta::relational::tests::projection::view::testViewOnView ||| AssertFailed: assertSameElements: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
-meta::relational::tests::query::enumeration::testAggregationFunctionWithEnum ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
 meta::relational::tests::semistructured::explode::testExplodeReturnTypeAcceptedNames ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals
 meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals
@@ -48,4 +94,8 @@ meta::relational::tests::tds::tdsJoin::testFullOuterJoinSimple ||| AssertFailed:
 meta::relational::tests::tds::tdsJoin::testRightOuterJoinSimple ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::tdsProject::testProjectFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::tdsRestrict::testRestrictOnGroupByColumn_SubSetOfGroupByColumns ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
-meta::relational::validation::showcase::standalone::validateAllConstraints ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::validation::showcase::standalone::validateAllConstraints ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::validation::showcase::standalone::validateAllConstraintsWithInnerJoinInFilter ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::validation::showcase::standalone::validateMultipleConstraints ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::validation::showcase::standalone::validateMultiplesConstraintWithAdditionalProjections ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
+meta::relational::validation::showcase::standalone::validateMultiplesConstraintWithConstraintInformation ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order

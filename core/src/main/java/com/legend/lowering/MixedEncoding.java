@@ -172,8 +172,7 @@ final class MixedEncoding {
 
     /** F10 slice 3b — ONE element's pure-literal spelling for the
      * Any-position carrier, by its STATIC kind. Null = unspellable
-     * (enums — bare names collide with strings; instances; variants;
-     * carriers) — the caller keeps the JSON lane for the whole
+     * (instances; variants; carriers — an enum spells Enumeration.NAME) — the caller keeps the JSON lane for the whole
      * collection. A previously-boxed element unwraps first. */
     static @com.legend.Nullable SqlExpr elementLiteral(TypedSpec e,
             SqlExpr x) {
@@ -225,6 +224,9 @@ final class MixedEncoding {
         }
         if (t == Type.Primitive.DATE) {
             return LiteralSpelling.partialDateLiteral(x);
+        }
+        if (t instanceof Type.EnumType) {
+            return LiteralSpelling.literal(x, t);   // Enumeration.NAME
         }
         return null;
     }
