@@ -2907,9 +2907,12 @@ final class Scalars {
             // adjudication: DecimalLit here made DuckDB type the whole
             // Values column DECIMAL(p,s) under the DOUBLE label — the
             // star-covered head-column diverge family; the declared
-            // contract owns the seed)
-            return new SqlExpr.FloatLit(
-                    Double.parseDouble(stripDecimalSuffix(cell)));
+            // contract owns the seed). The CAST is load-bearing: a bare
+            // fractional literal in VALUES reads DECIMAL on DuckDB and the
+            // column unifies to the widest scale ('2.2' beside '1.65'
+            // prints 2.20 — bucket 8's four scale-only rows).
+            return new SqlExpr.Cast(new SqlExpr.FloatLit(
+                    Double.parseDouble(stripDecimalSuffix(cell))), SqlType.Scalar.DOUBLE);
         }
         if (type == Type.Primitive.DECIMAL || type instanceof Type.PrecisionDecimal) {
             return new SqlExpr.DecimalLit(

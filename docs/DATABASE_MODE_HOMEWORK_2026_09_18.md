@@ -1323,6 +1323,20 @@ could not be named by the tolerance counter; the count is measured). The claims 
 because the string-function FQNs (`makeString`, `joinStrings`, `replace`) have one owner now
 (`PlatformTypes`); regenerated deliberately. Ledger: AssertVerdicts 2543 → 2554.
 
+**Bucket 8 follow-up — the four scale-only rows were ours (2026-09-19).** The USER asked
+whether host mode carries the same accepts (it does not: its bounded cell tolerance hides
+both the arithmetic drift and `2.20` vs `2.2`) and whether four numerically-equal rows belong on
+the register (they do not). Read from the dumped statement: the TDS literal's Float cell rendered
+as the bare literal `2.2`, which DuckDB types DECIMAL inside VALUES; the column then unifies to the
+widest scale in the list (`2.2` beside `1.65` reads back `2.20`). `Scalars.tdsCell` now seeds a
+Float-declared cell as `CAST(… AS DOUBLE)` — the declared contract the arm's own comment
+already claimed. The four rows pass; the accepted register is 24: the 21 calendar rows whose
+drift is real (`0.8575` vs `0.8574999999999999`, `0.236666666667` vs `0.23666666666666666` —
+H2's decimal average against our double sum, beyond the 2-ULP leniency) re-witnessed, and the
+three engine-golden defects. A pruning mistake on the way is recorded: accepted rows print
+nothing in the lane log, so "no FAIL line" is not "passes now" — the register is rebuilt from the
+LOST list of a run without those rows, never from silence.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

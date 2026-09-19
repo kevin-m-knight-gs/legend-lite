@@ -4154,3 +4154,13 @@ database lost 125 → 79 / gained 41 → 71 (reasons per row in the register), u
 float-10-digits ceiling 34 → 36 (two of the twelve, not named — the tolerance counter printed
 nothing; measured). Ledger: AssertVerdicts 2543 → 2554. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4s.
+
+**Judging step 3, bucket 8 follow-up — Float TDS-literal cells are DOUBLE (2026-09-19):** chain
+GREEN (gates 1–10), parallel wall ≈ 4m36s (G2 28; A: G1 83 · G3 12 · G4 113 · G5 40 = 248; B:
+G6 157 · G7 49 · G9 36 = 242; C: G8 166 · G10 55 = 221). A Float-declared cell of a TDS literal
+seeds `CAST(v AS DOUBLE)`: the bare literal read DECIMAL in DuckDB's VALUES and the column
+unified to the widest scale (`2.20` from `2.2`). The four scale-only accepted rows pass — they
+were never a divergence; the DuckDB database accepted register 28 → 24 (21 calendar rows with
+real decimal-average drift, re-witnessed; three engine-golden defects). DuckDB database lost 8 /
+gained 0, exact; H2 lanes and the DuckDB host lane exact; PCT relation battery 469/0. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4s follow-up.
