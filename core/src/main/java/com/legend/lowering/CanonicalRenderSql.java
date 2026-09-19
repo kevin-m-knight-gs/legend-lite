@@ -195,7 +195,7 @@ public final class CanonicalRenderSql {
             } else if (jsonCol) {
                 lit = anyJsonCanon(valueRef);
             } else {
-                Type colKind = kindOfSqlType(valueCol.type());
+                Type colKind = Type.kindOfSqlType(valueCol.type());
                 SqlExpr lc = colKind == null ? null
                         : literalCanon(valueRef, colKind);
                 if (lc == null) {
@@ -291,7 +291,7 @@ public final class CanonicalRenderSql {
             // type takes that kind (the engine reads a cell by its result-set
             // type — Equality.effectiveKind's rule); only an unknown wire
             // keeps the three candidates
-            Type wireNumeric = t == Type.Primitive.NUMBER ? kindOfSqlType(valueCol.type()) : null;
+            Type wireNumeric = t == Type.Primitive.NUMBER ? Type.kindOfSqlType(valueCol.type()) : null;
             List<Type> bare = t == Type.Primitive.NUMBER
                     ? (wireNumeric == Type.Primitive.INTEGER || wireNumeric == Type.Primitive.FLOAT
                             || wireNumeric == Type.Primitive.DECIMAL
@@ -326,7 +326,7 @@ public final class CanonicalRenderSql {
             // testRepeatStringNoString: replace(BLOB,..) rode the
             // canon-exec tunnel and DEMOTED a bare-decided pair)
             if (literalChannel && bare.size() == 1
-                    && kindOfSqlType(valueCol.type()) != null) {
+                    && Type.kindOfSqlType(valueCol.type()) != null) {
                 SqlExpr lit = literalCanon(valueRef, t);
                 if (lit != null) {
                     canons.add(new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR));
@@ -472,7 +472,7 @@ public final class CanonicalRenderSql {
                         && ps.projections().get(i).expr().type()
                                 instanceof com.legend.sql.TypeFact.Typed tf
                         ? tf.type() : col.type();
-                Type wire = kindOfSqlType(wireType);
+                Type wire = Type.kindOfSqlType(wireType);
                 if (wire != null) {
                     kind = wire;
                 }
@@ -757,11 +757,18 @@ public final class CanonicalRenderSql {
         if (nested != null) {
             return instanceCanon(field, nested, ft);
         }
-        Type kind = kindOfSqlType(ft);
+        Type kind = Type.kindOfSqlType(ft);
         if (kind == null) {
             return null;
         }
-        return literalCanon(field, kind);
+        SqlExpr lit = literalCanon(field, kind);
+        // a NULL field canons NULL like a JSON-carried one (the caller's
+        // coalesce spells both '[]'): DuckDB's concat swallows a NULL
+        // operand, so an unguarded String spelling read '' — the NULL
+        // parentName of pair($r.values->at(0), $r.values->at(1)) beside
+        // the expected ^TDSNull() (bucket 9)
+        return lit == null ? null : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, field), new SqlExpr.NullLit())), lit);
     }
 
     /** The EMPTY key collection (NULL and empty both normalize to it). */
@@ -851,9 +858,17 @@ public final class CanonicalRenderSql {
         if (t == SqlType.Scalar.JSON) {
             return jsonSlotCanon(v);
         }
-        Type kind = t == null ? null : kindOfSqlType(t);
+        Type kind = t == null ? null : Type.kindOfSqlType(t);
         SqlExpr lit = kind == null ? null : literalCanon(v, kind);
-        return lit == null ? new SqlExpr.StringLit(TREE_MARKER) : lit;
+        if (lit == null) {
+            return new SqlExpr.StringLit(TREE_MARKER);
+        }
+        // a NULL slot canons NULL like the JSON-carried slot does (the
+        // caller's coalesce spells both '[]'): DuckDB's concat swallows a
+        // NULL operand, so an unguarded String spelling read '' — a
+        // NULL parentName beside the expected ^TDSNull() (bucket 9)
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit())), lit);
     }
 
     /** A JSON-carried slot's canon: NULL stays NULL; an OBJECT is the
@@ -875,8 +890,13 @@ public final class CanonicalRenderSql {
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
                         new SqlExpr.NullLit()),
+                // the object arm is TEXT like every other arm: DuckDB types a
+                // CASE by its JSON arm and PARSES the text arms as JSON
+                // (a quoted 'ROOT' string canon raised Malformed JSON —
+                // selfJoin::testSelfJoinPropertyMapping, bucket 9)
                 new SqlExpr.Case.When(eqText(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), "OBJECT"),
-                        SqlExpr.Call.of(SqlFn.COALESCE, canon, identity))),
+                        new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.COALESCE, canon, identity),
+                                SqlType.Scalar.VARCHAR))),
                 anyJsonCanon(v));
     }
 
@@ -939,41 +959,5 @@ public final class CanonicalRenderSql {
 
     private static SqlExpr eqText(SqlExpr e, String s) {
         return SqlExpr.Call.of(SqlFn.EQUAL, e, new SqlExpr.StringLit(s));
-    }
-
-    /** The pure canon kind a struct field's SQL type spells — the
-     * layout is value-built, so this is a WIRE fact, not a stamp echo. */
-    private static @com.legend.Nullable Type kindOfSqlType(SqlType t) {
-        if (t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER
-                || t == SqlType.Scalar.HUGEINT) {
-            return Type.Primitive.INTEGER;
-        }
-        if (t == SqlType.Scalar.DOUBLE) {
-            return Type.Primitive.FLOAT;
-        }
-        if (t == SqlType.Scalar.BOOLEAN) {
-            return Type.Primitive.BOOLEAN;
-        }
-        if (t == SqlType.Scalar.VARCHAR) {
-            return Type.Primitive.STRING;
-        }
-        if (t instanceof SqlType.Decimal) {
-            return Type.Primitive.DECIMAL;
-        }
-        if (t == SqlType.Scalar.DATE) {
-            return Type.Primitive.STRICT_DATE;
-        }
-        if (t == SqlType.Scalar.TEMPORAL_TEXT) {
-            // the precision-faithful temporal-text carrier (partials,
-            // written subsecond digits): a temporal value, kind by its
-            // declaration (the literal spells every temporal %-prefixed)
-            return Type.Primitive.DATE;
-        }
-        if (t == SqlType.Scalar.TIMESTAMP || t == SqlType.Scalar.TIMESTAMPTZ) {
-            // a DateTime literal with its +0000 lowers time-zoned — the
-            // same DateTime kind (the 4 `[%2016-…+0000, …]` peers)
-            return Type.Primitive.DATE_TIME;
-        }
-        return null;
     }
 }

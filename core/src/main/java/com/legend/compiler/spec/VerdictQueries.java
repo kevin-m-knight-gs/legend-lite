@@ -529,6 +529,28 @@ public final class VerdictQueries {
                 new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE));
     }
 
+    /** A JSON golden's ROOT ARRAY as its elements' canonical texts (a
+     * literal String collection) — the peer of a document whose root order
+     * the chain does not define (an unsorted graph fetch: the root objects
+     * are a multiset). Null when the golden is not an array. */
+    public static @com.legend.Nullable TypedSpec jsonRootElements(String text) {
+        Object parsed;
+        try {
+            parsed = com.legend.sql.Json.parseOne(text);
+        } catch (IllegalStateException malformed) {
+            return null;
+        }
+        if (!(parsed instanceof List<?> elements)) {
+            return null;
+        }
+        List<TypedSpec> out = new ArrayList<>(elements.size());
+        for (Object e : elements) {
+            out.add(new TypedCString(com.legend.sql.Json.canonical(e), scalar(Type.Primitive.STRING)));
+        }
+        return new TypedCollection(out, new ExprType(Type.Primitive.STRING,
+                new Multiplicity.Bounded(out.size(), out.size())));
+    }
+
     /** {@code instanceOf(value, Type)} as a typed call — the meaning of
      * {@code assertInstanceOf} (the model's own subtype relation, lowered by
      * Scalars.instanceOfFold), judged as a condition. Null when the catalog
@@ -613,7 +635,11 @@ public final class VerdictQueries {
 
     /** A rendered side: the VALUE that was rendered and the grammar that
      * rendered it. {@code grid} = the value is a relation. */
-    public record RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid) {
+    public record RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid,
+            @com.legend.Nullable String restrictTo) {
+        public RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid) {
+            this(value, grammar, grid, null);
+        }
     }
 
     /** The rendered value of a side, or null when the side is not a render
@@ -651,9 +677,22 @@ public final class VerdictQueries {
                     && map.mapper() instanceof TypedLambda lam && lam.body().size() == 1
                     && rowsOf(chase.apply(map.source())) instanceof TypedSpec relation) {
                 TypedSpec body = lam.body().get(0);
+                if (body instanceof TypedNativeCall one && one.args().size() == 1
+                        && one.callee().qualifiedName().equals(com.legend.builtin.Pure.Lite.TRUST_ONE)) {
+                    body = one.args().get(0);   // the Typer's one-value read wrap
+                }
                 if (rowCellsRead(body)) {
                     return new RenderedSide(relation,
                             new RenderGrammar.Rows(sep.value(), sep.value()), true);
+                }
+                // rows->map(r | $r.<col>) (columnValues): the relation
+                // restricted to that one column — a null cell is a NULL cell
+                // there, the sentinel on both sides
+                if (body instanceof TypedPropertyAccess pa
+                        && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable pv
+                        && lam.parameters().size() == 1 && lam.parameters().get(0).equals(pv.name())) {
+                    return new RenderedSide(relation,
+                            new RenderGrammar.Rows(sep.value(), sep.value()), true, pa.property());
                 }
                 if (body instanceof TypedNativeCall inner && isJoin(inner) && inner.args().size() == 2
                         && inner.args().get(1) instanceof TypedCString cs
@@ -679,6 +718,26 @@ public final class VerdictQueries {
             return rows.source();
         }
         return Type.isRelation(source.info().type()) ? source : null;
+    }
+
+    /** The relation restricted to one declared column (the Typer's own
+     * {@code select} node) — {@code schema} the PLANNED side's schema; null
+     * when the column is not declared. */
+    public static @com.legend.Nullable TypedSpec restrictedTo(TypedSpec relation,
+            @com.legend.Nullable Type.RelationType schema, String column) {
+        if (schema == null) {
+            return null;
+        }
+        Type.Column col = schema.columns().stream().filter(c -> c.name().equals(column))
+                .findFirst().orElse(null);
+        if (col == null) {
+            return null;
+        }
+        Type one = new Type.RelationType(List.of(col));
+        Type t = relation.info().type() instanceof Type.GenericType g
+                ? new Type.GenericType(g.rawFqn(), List.of(one), g.multArguments()) : one;
+        return new com.legend.compiler.spec.typed.TypedSelect(relation, List.of(column),
+                new ExprType(t, relation.info().multiplicity()));
     }
 
     private static boolean isJoin(TypedNativeCall c) {
@@ -845,6 +904,12 @@ public final class VerdictQueries {
             return new ParsedGolden(null, "rendered-text: header " + header
                     + " differs from the columns " + names, true);
         }
+        List<Type> kinds = new ArrayList<>(names.size());
+        for (int c = 0; c < names.size(); c++) {
+            Type k = schema.columns().get(c).type();
+            kinds.add(k instanceof Type.ClassType ct && PlatformTypes.isAny(ct) && !rows.isEmpty()
+                    ? TdsChecker.inferredType(rows, c) : k);
+        }
         List<List<String>> cells = new ArrayList<>();
         List<Boolean> nullable = new ArrayList<>(java.util.Collections.nCopies(names.size(), false));
         for (List<String> row : rows) {
@@ -854,10 +919,10 @@ public final class VerdictQueries {
             }
             List<String> out = new ArrayList<>(row.size());
             for (int c = 0; c < row.size(); c++) {
-                String cell = tdsCellText(row.get(c), schema.columns().get(c).type());
+                String cell = tdsCellText(row.get(c), kinds.get(c));
                 if (cell == null) {
                     return ParsedGolden.declined("rendered-text: cell '" + row.get(c) + "' is not a "
-                            + schema.columns().get(c).type() + " (column " + names.get(c) + ")");
+                            + kinds.get(c) + " (column " + names.get(c) + ")");
                 }
                 if (cell.isEmpty()) {
                     nullable.set(c, true);
@@ -869,12 +934,30 @@ public final class VerdictQueries {
         List<Type.Column> columns = new ArrayList<>(names.size());
         for (int c = 0; c < names.size(); c++) {
             Type.Column col = schema.columns().get(c);
-            columns.add(new Type.Column(col.name(), col.type(),
+            columns.add(new Type.Column(col.name(), kinds.get(c),
                     nullable.get(c) ? Multiplicity.Bounded.ZERO_ONE : col.multiplicity()));
         }
         return ParsedGolden.of(new com.legend.compiler.spec.typed.TypedTds(cells,
                 new ExprType(new Type.GenericType(PlatformTypes.TDS_RELATION_CLASS,
                         List.of(new Type.RelationType(columns))), Multiplicity.Bounded.ONE)));
+    }
+
+    /** A late-bound grid's schema read off its PLAN's outputs (a raw
+     * executeInDb relation has no static columns; the plan's output kinds
+     * are wire facts). Null when an output's kind has no pure kind. */
+    public static @com.legend.Nullable Type.RelationType wireSchema(
+            List<com.legend.sql.OutputCol> outputs) {
+        List<Type.Column> cols = new ArrayList<>(outputs.size());
+        for (com.legend.sql.OutputCol o : outputs) {
+            Type kind = Type.kindOfSqlType(o.type());
+            // an output the wire does not kind (a raw SQL grid's column) is
+            // typed by the golden's own cells, as an unannotated TDS literal
+            // column is (TdsChecker.inferredType) — marked Any here
+            cols.add(new Type.Column(o.name(),
+                    kind == null ? new Type.ClassType(PlatformTypes.ANY) : kind,
+                    o.nullable() ? Multiplicity.Bounded.ZERO_ONE : Multiplicity.Bounded.ONE));
+        }
+        return cols.isEmpty() ? null : new Type.RelationType(cols);
     }
 
     /** A grid cell's text for the TDS literal: an empty / {@code TDSNull} /

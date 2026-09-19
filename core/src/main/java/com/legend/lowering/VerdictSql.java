@@ -445,6 +445,19 @@ public final class VerdictSql {
                 equal, e, a, unjudged);
     }
 
+    /** {@code assertJsonStringsEqual} over a document whose root array has
+     * no defined order: the golden's element texts against the document's
+     * root elements, as a multiset. */
+    public static SqlQuery jsonRootMultiset(SqlQuery eElementRows, SqlQuery aDocRows) {
+        OutputCol vOut = new OutputCol("value", SqlType.Scalar.JSON, true);
+        SqlExpr doc = new SqlExpr.Cast(SqlExpr.Column.of("d", aDocRows.outputs(), C), SqlType.Scalar.JSON);
+        SqlSelect elements = CollectionRelations.rows(SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, doc),
+                "value", vOut, List.of(vOut), new SqlSource.Subselect(aDocRows, "d", null));
+        SqlQuery aRows = rowsOf(new SqlExpr.Cast(SqlExpr.Column.of("w", List.of(vOut), "value"),
+                SqlType.Scalar.VARCHAR), elements);
+        return statement(eElementRows, aRows, true, true, true, List.of());
+    }
+
     /** One verdict row from a predicate: {@code __verdict} never NULL, the
      * two evidence texts, no unjudged, no leniency. */
     private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,

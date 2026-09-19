@@ -78,11 +78,17 @@ final class CollectionRelations {
     /** THE one explode site: a list value as rows of one column — UNNEST
      * in the select list (placement is dialect assembly).
      * Both consumers above and below go through it. */
-    private static SqlSelect rows(SqlExpr list, String column,
+    static SqlSelect rows(SqlExpr list, String column,
             @com.legend.Nullable OutputCol out, List<OutputCol> outputs) {
+        return rows(list, column, out, outputs, new SqlSource.Dual());
+    }
+
+    /** The explode over a named source (a verdict's document rows). */
+    static SqlSelect rows(SqlExpr list, String column,
+            @com.legend.Nullable OutputCol out, List<OutputCol> outputs, SqlSource from) {
         return new SqlSelect(List.of(new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.UNNEST, list), column, out)),
-                false, new SqlSource.Dual(), null, List.of(), null, null,
+                false, from, null, List.of(), null, null,
                 List.of(), null, null, outputs);
     }
 

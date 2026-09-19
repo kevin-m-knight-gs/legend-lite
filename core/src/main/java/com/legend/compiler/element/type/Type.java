@@ -1,6 +1,7 @@
 package com.legend.compiler.element.type;
 
 import com.legend.builtin.Pure;
+import com.legend.sql.SqlType;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -652,5 +653,41 @@ public sealed interface Type permits
         public String text() {
             return name + ":" + type.typeName() + multiplicity.text();
         }
+    }
+
+    /** The pure kind a wire (SQL) type spells — a WIRE fact read off a
+     * planned output or a value-built layout, never a stamp echo. */
+    public static @com.legend.Nullable Type kindOfSqlType(SqlType t) {
+        if (t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER
+                || t == SqlType.Scalar.HUGEINT) {
+            return Type.Primitive.INTEGER;
+        }
+        if (t == SqlType.Scalar.DOUBLE) {
+            return Type.Primitive.FLOAT;
+        }
+        if (t == SqlType.Scalar.BOOLEAN) {
+            return Type.Primitive.BOOLEAN;
+        }
+        if (t == SqlType.Scalar.VARCHAR) {
+            return Type.Primitive.STRING;
+        }
+        if (t instanceof SqlType.Decimal) {
+            return Type.Primitive.DECIMAL;
+        }
+        if (t == SqlType.Scalar.DATE) {
+            return Type.Primitive.STRICT_DATE;
+        }
+        if (t == SqlType.Scalar.TEMPORAL_TEXT) {
+            // the precision-faithful temporal-text carrier (partials,
+            // written subsecond digits): a temporal value, kind by its
+            // declaration (the literal spells every temporal %-prefixed)
+            return Type.Primitive.DATE;
+        }
+        if (t == SqlType.Scalar.TIMESTAMP || t == SqlType.Scalar.TIMESTAMPTZ) {
+            // a DateTime literal with its +0000 lowers time-zoned — the
+            // same DateTime kind (the 4 `[%2016-…+0000, …]` peers)
+            return Type.Primitive.DATE_TIME;
+        }
+        return null;
     }
 }

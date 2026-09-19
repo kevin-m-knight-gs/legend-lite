@@ -18,27 +18,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * THE ASSERT-FAMILY VERDICT ARM (Charter Clause 2c, the Phase-4
- * redesign): a STATEMENT-ROOT call to the assert family is a VERDICT —
- * its result terminates in the runner, never in a data flow. Each
- * ARGUMENT executes through the full pipeline IN THE DATABASE (tenet #1
- * — the expressions are the data computation under test); the JUDGMENT
- * over the two produced sides is World 1's:
- * {@link PureAsserts} — the spec-exact Phase-2 adjudication layer. The
- * assert library's pure bodies are never β-inlined into SQL to produce
- * a verdict (the named Clause-2c violation; the Phase-4 seam arms were
- * its witnessed cost).
- *
- * <p>ASSERTS ARE VERDICTS, ALWAYS (homework 2026-08-19): legend-engine
- * has NO SQL translation for any assert — its relational adapters
- * execute only the inner expression in the store. The corpus's
- * map-wrapped asserts ({@code values->map(f|assert(...))}) are
- * QUANTIFIED verdicts over already-executed results — served by the
- * quantified arm here (predicates vectorize IN THE DATABASE, the
- * boolean vector is judged host-side, first failure raises with the
- * spec message) — the interpreter's per-element behavior, minus the
- * interpreter. Family members WITHOUT a verdict arm decline LOUDLY
- * with their shape — never a silent skip, never SQL-lowered verdicts.
+ * THE ASSERT-FAMILY VERDICT ARM (Charter Clause 2c): a statement-root
+ * call to the assert family is a VERDICT — its result terminates in the
+ * runner. Each ARGUMENT executes through the full pipeline in the
+ * database; the judgment over the two sides is {@link PureAsserts}
+ * (host mode) or one VerdictSql statement (database mode). Assert
+ * bodies are never inlined into SQL to produce a verdict. Map-wrapped
+ * asserts ({@code values->map(f|assert(...))}) are QUANTIFIED verdicts
+ * served by the quantified arm; family members without a verdict arm
+ * decline loudly with their shape — never a silent skip.
  */
 final class AssertVerdicts {
 
@@ -556,6 +544,33 @@ final class AssertVerdicts {
                     // read off the planned side's root object
                     boolean rootMany = ja.side() != null && !planIsEnvelope(ja.side().plan())
                             && serializedRootMany(actualJson, letPrefix, hook);
+                    // bucket 9: a many-valued root whose chain has no sort is a
+                    // MULTISET of root objects (the grid rule in JSON form)
+                    if (rootMany && ja.why() == null
+                            && orderView(actualJson, letPrefix) != OrderView.SORTED) {
+                        TypedSpec elements = com.legend.compiler.spec.VerdictQueries
+                                .jsonRootElements(goldenText);
+                        if (elements != null) {
+                            SideRows jr = planSide(elements, true, false, false, letPrefix, specs, env, hook);
+                            if (jr.why() == null) {
+                                com.legend.sql.SqlQuery mq = com.legend.lowering.VerdictSql.jsonRootMultiset(
+                                        jr.textRowsMany(), ja.textRows());
+                                // a dialect without the element explode (H2) keeps the
+                                // byte road below — the ordered form, stricter, as before
+                                boolean placeable;
+                                try {
+                                    env.dialect().render(mq);
+                                    placeable = true;
+                                } catch (com.legend.sql.dialect.DialectCapability wall) {
+                                    placeable = false;
+                                }
+                                if (placeable) {
+                                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
+                                    yield runVerdict(name, true, mq, ja.connection(env), env);
+                                }
+                            }
+                        }
+                    }
                     var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
                             goldenText, rootMany);
                     if (golden == null) {
@@ -1489,6 +1504,12 @@ final class AssertVerdicts {
             var w = java.util.Objects.requireNonNull(side);
             return com.legend.lowering.VerdictSql.sideRows(w.plan(), false,
                     w.plan().outputs().get(0).name(), false);
+        }
+        /** A literal collection's TEXTS as rows (one per element), raw. */
+        com.legend.sql.SqlQuery textRowsMany() {
+            var w = java.util.Objects.requireNonNull(side);
+            return com.legend.lowering.VerdictSql.sideRows(w.plan(), false,
+                    w.plan().outputs().get(0).name(), true);
         }
         /** The side's rows for counting: the canon may have declined. */
         com.legend.sql.SqlQuery countRows() {
@@ -2458,6 +2479,22 @@ final class AssertVerdicts {
             return unjudged(name, "rendered-text: the golden is not a string constant");
         }
         com.legend.compiler.element.type.Type.RelationType schema = null;
+        if (r.grid() && r.restrictTo() != null) {
+            // columnValues: the relation restricted to the one column, minted
+            // from the PLANNED schema (the static type may not carry it)
+            SideRows whole = planSide(r.value(), false, false, letPrefix, specs, env, hook);
+            if (whole.why() != null) {
+                return unjudged(name, "rendered-text side: " + whole.why());
+            }
+            TypedSpec one = com.legend.compiler.spec.VerdictQueries.restrictedTo(r.value(),
+                    com.legend.compiler.element.type.Type.schemaView(
+                            java.util.Objects.requireNonNull(whole.side()).shapeInfo().type()),
+                    r.restrictTo());
+            if (one == null) {
+                return unjudged(name, "rendered-text: column '" + r.restrictTo() + "' is not declared");
+            }
+            r = new com.legend.compiler.spec.VerdictQueries.RenderedSide(one, r.grammar(), true);
+        }
         if (r.grid()) {
             // the PLANNED side's schema (its shape info) is the grid verdict's
             // own width and kinds — the static type can lag it (validate's
@@ -2468,6 +2505,12 @@ final class AssertVerdicts {
             }
             schema = com.legend.compiler.element.type.Type.schemaView(
                     java.util.Objects.requireNonNull(planned.side()).shapeInfo().type());
+            if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
+                // late-bound columns (a raw executeInDb grid): the plan's
+                // output kinds are the wire facts the golden is typed by
+                schema = com.legend.compiler.spec.VerdictQueries.wireSchema(
+                        planned.side().plan().outputs());
+            }
         }
         var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),
                 schema, r.grid() ? null : r.value().info().type());

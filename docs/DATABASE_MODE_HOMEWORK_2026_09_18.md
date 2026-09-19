@@ -1337,6 +1337,98 @@ three engine-golden defects. A pruning mistake on the way is recorded: accepted 
 nothing in the lane log, so "no FAIL line" is not "passes now" — the register is rebuilt from the
 LOST list of a run without those rows, never from silence.
 
+## 4t. Bucket 9 — the named DuckDB rows, and the String-over-INT question read upstream (2026-09-19)
+
+**Built (four lanes exact).** Three of the eight named DuckDB rows fixed, one re-shaped, the
+remaining four answered by a read of the engine, not by a rule:
+
+- `selfJoin::testSelfJoinPropertyMapping` — a `Pair<String, Any>` slot: the JSON-carried
+  slot takes its value by the value's OWN carrier (`MixedEncoding.pairStruct` → `variantSlot`:
+  a JSON value passes, a typed primitive wraps `TO_VARIANT`, a LITERAL-lane cell converts by its
+  spelling — quoted → text, `%`-dated → text, `NULL`/`TDSNull` → NULL, else `CAST AS JSON`);
+  one carrier shared by the `^Pair(...)` arm (Lowerer) and the `pair(a, b)` rule (Scalars).
+  Two canon facts surfaced on the way: DuckDB types a CASE by its JSON arm, so the instance
+  canon's object arm is cast to VARCHAR; DuckDB's `concat` swallows a NULL operand to `''`, so a
+  struct FIELD canon is NULL-guarded at the field site (`literalCanon(field, kind)`), not the
+  scalar slot.
+- `union::propertyLevel::test6` — `assertJsonStringsEqual` over a many-valued root whose chain
+  has no sort: the golden's root elements (`VerdictQueries.jsonRootElements`, one canonical text
+  per element) against the document's root elements exploded in the database
+  (`VerdictSql.jsonRootMultiset`: `UNNEST(VARIANT_ELEMENTS(CAST(doc AS JSON)))` through the ONE
+  explode site, `CollectionRelations.rows`), judged as a multiset — the grid rule in JSON form. A
+  dialect without the placement (H2) keeps the byte road: the dispatcher renders the statement
+  first and falls back on `DialectCapability`, so the 114 H2 rows that would have walled stay
+  judged as before.
+- `columnValues` over a late-bound relation (`validate`'s `ID`) — the restriction is minted from
+  the PLANNED schema (`VerdictQueries.restrictedTo(relation, plannedSchema, column)`), the
+  static type may not carry it; `testExecuteInDbToTDS` (no schema at all: a raw `executeInDb`
+  grid) stays named — its kinds would be the plan's output kinds (`wireSchema`), and the plan
+  has none.
+- `testProjectionWithEnumQualifierParameter` — a null element of a flat join is the sentinel
+  cell, not a dropped element; passes.
+
+**Compaction (the ratchets that caught it).** The bucket pushed three files over the
+3500-line CodeShape limit (Scalars 3504, Lowerer 3512, AssertVerdicts 3506): the pair carrier
+became one shared `MixedEncoding.pairStruct` (Lowerer 3495, Scalars 3488) and the class
+javadoc of AssertVerdicts was trimmed to what it says (3494). The chain then caught two
+architecture faults the unit tests do not: the compiler layer had called INTO lowering for the
+wire-kind mapping (`VerdictQueries.wireSchema` → `CanonicalRenderSql.kindOfSqlType`: Invariant 4
+cycle + Invariant 6e forward reach) — the mapping is a type fact and now lives in
+`Type.kindOfSqlType`, lowering calls up; and the JSON multiset had minted a 14th direct
+`SqlFn.UNNEST` site against the carrier-purity pin of 13 — it goes through
+`CollectionRelations.rows` (given a source) now, 13 again. A third red line in the log, the PCT
+relation battery `469 / 1 / 26`, was gate 7's H2Modern floor (exit 0), not gate 1: the parallel
+chain interleaves gate outputs in one log — read the `G<n>_EXIT` lines, never a `Tests run`
+line's neighbourhood.
+
+**The String-over-INT read (the USER's question: "a type coercion rule that anything can be
+coerced as String at the model level?").** No such rule exists anywhere on either upstream
+path; the goldens are exact because the FIXTURE's physical column is a string:
+
+- `Interaction.id : String[1]` is mapped to `interactionTable.ID`, which the STORE declares
+  `ID INT PRIMARY KEY` — but `createTablesAndFillDb()` creates the H2 table by raw DDL:
+  `Create Table InteractionTable(id VARCHAR(200), sourceId INT, ...)` (relationalSetUp.pure
+  :1397). The JDBC cell IS the string `'7'`; `"root".ID = 4` holds because H2 compares a VARCHAR
+  to an integer literal by value.
+- The compiled Pure path (`Test_Pure_Relational`, real H2, no server): `executeInDb` types every
+  cell by JDBC metadata (`ResultSetValueHandlers`: INTEGER → LONG, VARCHAR → STRING);
+  `buildExecutionResultInTDS` applies `RelationalPropertyMapping.transform`, which is the
+  identity unless an enumeration mapping is declared; `CompiledSupport.equal` is strict (a
+  Number never equals a non-Number). The interpreted path (`ExecuteInDb`, `EqualityUtilities`)
+  is the same: JDBC-typed cells, equality by primitive type name then value.
+- The server path (`Test_Relational_UsingPureClientTestSuite`): `RelationalResult.getValue` is
+  `resultSet.getObject`; the TDS column transformer (`SetImplTransformers.buildTransformer`)
+  converts only Boolean and the date kinds; the JSON writer spells a Java Integer bare and a
+  String quoted; the client deserializes `Row.values : Any[*]` by the JSON value's own class
+  (`JsonAnyTypeDeserialization`) and `dataTypeTransformer('String')` is the identity. The one
+  engine acknowledgement of the gap is an exclusion: `testContainsWithOneValue` carries
+  `test.ExcludeAlloy` with the comment "Alloy exclusion reason: 7. Primitive type casting".
+
+So the four rows split in two: (i) `testSimpleDistinct`, `testSimpleDistinctWithFilter`,
+`testInWithDynaFunction` compare VALUES; our DuckDB table is created by the same raw DDL
+(the `executeInDb` road runs the fixture's text: VARCHAR), the product SQL reads `t0.ID AS id`
+with no cast (probe, `LEGEND_LITE_DUMP_SQL=1`), and the actual side's canon spells the cell
+bare because the COMPILER stamped the column's wire kind from the store's `INT` — the store and
+its fixture disagree, and the engine's own tests never notice because nothing upstream reads the
+store's type for a cell. (ii) `validateComplexValidation3` is a `toCSV` golden (`...,12,Peter`):
+`Address.addressId : String` over `addressTable.ID INT` created FROM the store; the CSV cell
+`12` is the wire's text, and the grid parse typed it by the DECLARED kind (a String `'12'`)
+against the wire INTEGER. Both are decisions for 3.3, recorded here, not taken: (i) is fixture
+skew (store `INT`, physical `VARCHAR`) — the honest register reason is
+`fixture-skew:store-int-physical-varchar`, or the wire kind of a store column is read from the
+session's catalogue at plan time (the charter's Rule 1: inside a query the database's own
+types) — a design question, not a judge rule; (ii) is a judge rule: a RENDERED golden's cell is
+what the renderer printed, so its kind is the planned OUTPUT's wire kind, the declared kind only
+when the wire kind is unknown.
+
+**Measured:** DuckDB host 108 exact; H2 host 412 exact; DuckDB database lost 8 → 5
+(`testExecuteInDbToTDS`, the three String-over-INT rows, `validateComplexValidation3`) / gained
+0, accepted 24 (`testCheckedWithCircularConstraints` re-witnessed in the multiset form); H2
+database lost 79 → 78 (`testProjectionWithEnumQualifierParameter`) / gained 71, accepted 0 / 2;
+PCT relation battery 469/0 on DuckDB, 469/1/26 on H2Modern (the floor). Ledger: AssertVerdicts
+2554 → 2600 (dispatch and plan wiring: the JSON multiset route with its placeability check, the
+planned-schema restriction, the late-bound grid's kinds — nothing compared in Java).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

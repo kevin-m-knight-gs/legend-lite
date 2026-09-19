@@ -483,6 +483,61 @@ final class MixedEncoding {
      * (gate-caught 2026-08-24 — struct extraction and variant-column
      * detection missed the COALESCE form). Returns {@code x} unchanged
      * when not wrapped. */
+    /** A value entering an Any-declared (JSON-carried) slot: a JSON value
+     * passes; a typed primitive wraps as the literal carrier does; a value
+     * on the LITERAL LANE (an Any cell read: a quoted string, a
+     * {@code %}-prefixed date, a bare number / boolean) converts by its own
+     * spelling — the one boundary where the literal lane meets a JSON slot. */
+    /** The Pair STRUCT carrier {@code (first, second)}: a slot the Pair
+     * declares Any rides the JSON carrier ({@link #variantSlot}). */
+    static SqlExpr pairStruct(Type pairType, SqlExpr first, Type firstType,
+            SqlExpr second, Type secondType) {
+        List<Type> pairArgs = pairType instanceof Type.GenericType pg ? pg.arguments() : List.of();
+        SqlExpr[] slots = {first, second};
+        Type[] types = {firstType, secondType};
+        for (int i = 0; i < 2; i++) {
+            if (i < pairArgs.size() && pairArgs.get(i) instanceof Type.ClassType ct
+                    && PlatformTypes.isAny(ct)) {
+                slots[i] = variantSlot(slots[i], types[i]);
+            }
+        }
+        return new SqlExpr.StructLit(List.of(
+                new SqlExpr.StructLit.Field("first", slots[0]),
+                new SqlExpr.StructLit.Field("second", slots[1])));
+    }
+
+    static SqlExpr variantSlot(SqlExpr x, Type staticType) {
+        com.legend.sql.SqlType wire = x.type() instanceof com.legend.sql.TypeFact.Typed tf ? tf.type() : null;
+        if (wire == com.legend.sql.SqlType.Scalar.JSON) {
+            return x;
+        }
+        // a typed primitive, or a plain wire value (a VARCHAR cell read) —
+        // the JSON value of what it holds; only the LITERAL lane's spelled
+        // text needs its spelling read back
+        if (staticType instanceof Type.Primitive
+                || (wire != null && wire != com.legend.sql.SqlType.Scalar.LITERAL)) {
+            return SqlExpr.Call.of(SqlFn.TO_VARIANT, x);
+        }
+        SqlExpr text = new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        SqlExpr quoted = SqlExpr.Call.of(SqlFn.STARTS_WITH, text, new SqlExpr.StringLit("'"));
+        SqlExpr unquoted = SqlExpr.Call.of(SqlFn.REPLACE,
+                SqlExpr.Call.of(SqlFn.REPLACE,
+                        SqlExpr.Call.of(SqlFn.SUBSTRING, text, new SqlExpr.IntLit(2),
+                                SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, text),
+                                        new SqlExpr.IntLit(2))),
+                        new SqlExpr.StringLit("\\'"), new SqlExpr.StringLit("'")),
+                new SqlExpr.StringLit("\\\\"), new SqlExpr.StringLit("\\"));
+        SqlExpr dated = SqlExpr.Call.of(SqlFn.STARTS_WITH, text, new SqlExpr.StringLit("%"));
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, text), new SqlExpr.NullLit()),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, text,
+                        new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL)), new SqlExpr.NullLit()),
+                new SqlExpr.Case.When(quoted, SqlExpr.Call.of(SqlFn.TO_VARIANT, unquoted)),
+                new SqlExpr.Case.When(dated, SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                        SqlExpr.Call.of(SqlFn.SUBSTRING, text, new SqlExpr.IntLit(2))))),
+                new SqlExpr.Cast(text, com.legend.sql.SqlType.Scalar.JSON));
+    }
+
     static SqlExpr unwrapVariant(SqlExpr x) {
         if (x instanceof SqlExpr.Call c && c.fn() == SqlFn.COALESCE
                 && c.args().size() == 2

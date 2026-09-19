@@ -2738,15 +2738,10 @@ public final class Lowerer {
                 // its layout IS first/second (the platform declaration)
                 if (n.classFqn().equals(
                         PlatformTypes.PAIR)) {
-                    yield new SqlExpr.StructLit(List.of(
-                            new SqlExpr.StructLit.Field("first",
-                                    scalar(Objects.requireNonNull(
-                                            n.properties().get("first"),
-                                            "Pair carries first"), columns)),
-                            new SqlExpr.StructLit.Field("second",
-                                    scalar(Objects.requireNonNull(
-                                            n.properties().get("second"),
-                                            "Pair carries second"), columns))));
+                    TypedSpec first = Objects.requireNonNull(n.properties().get("first"), "Pair carries first");
+                    TypedSpec second = Objects.requireNonNull(n.properties().get("second"), "Pair carries second");
+                    yield MixedEncoding.pairStruct(n.info().type(), scalar(first, columns),
+                            first.info().type(), scalar(second, columns), second.info().type());
                 }
                 // a property-less class's constructor: the synthetic fields alone
                 var layout = classLayout.apply(n.info().type()).or(() -> n.properties().isEmpty()

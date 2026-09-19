@@ -1,7 +1,4 @@
-meta::relational::graphFetch::tests::union::propertyLevel::test6 ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact) | expected: [{"employees":[{"a
-meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: the rendered relation's columns are late-bound (0 static, 1 dynamic)
-meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| DataError: Conversion Error: Malformed JSON at byte 0 of input: unexpected character.  Input: "'ROOT'" | LINE 4: ...ct_extract(value, 'secon
-meta::relational::tests::projection::enumeration::testProjectionWithEnumQualifierParameter ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: a null element in a flat join
+meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: the rendered relation's columns are late-bound (no schema)
 meta::relational::tests::projection::filter::in::testInWithDynaFunction ||| AssertFailed: assertSameElements | expected: ['4', false] | actual:   [4, false]
 meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals | expected: 'Anthony Allen''7' | actual:   'Anthony Allen'7
 meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals | expected: 'Peter Smith''1' | actual:   'Peter Smith'1

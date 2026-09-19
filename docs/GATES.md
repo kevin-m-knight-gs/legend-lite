@@ -4164,3 +4164,24 @@ were never a divergence; the DuckDB database accepted register 28 → 24 (21 cal
 real decimal-average drift, re-witnessed; three engine-golden defects). DuckDB database lost 8 /
 gained 0, exact; H2 lanes and the DuckDB host lane exact; PCT relation battery 469/0. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4s follow-up.
+
+**Judging step 3, bucket 9 — the named DuckDB rows; String-over-INT read upstream (2026-09-19):**
+chain GREEN (gates 1–10), parallel wall ≈ 4m30s (G2 24; A: G1 77 · G3 11 · G4 112 · G5 46 = 246;
+B: G6 149 · G7 54 · G9 38 = 241; C: G8 157 · G10 59 = 216). A `Pair<String, Any>` slot takes the
+value's own carrier (`MixedEncoding.pairStruct`, shared by the `^Pair` arm and the `pair` rule);
+an unordered many-valued JSON root is judged as a multiset of root elements
+(`VerdictSql.jsonRootMultiset`) where the dialect places the explode, the byte road otherwise
+(H2); `columnValues` restricts by the PLANNED schema; a flat join's null element is the
+sentinel. Two canon facts: DuckDB types a CASE by its JSON arm (object arm cast VARCHAR); DuckDB
+`concat` swallows NULL (struct field canon NULL-guarded). Two chain reds read before the fix,
+both ratchets doing their job: the 3500-line CodeShape limit (three files; the pair carrier
+shared, a javadoc trimmed) and then Invariant 4/6e (the compiler layer had called into lowering
+for the wire-kind mapping — `Type.kindOfSqlType` now) with the carrier-purity pin (`UNNEST` 14
+→ 13 through the one explode site). The PCT `469/1/26` line in the same log was gate 7's floor.
+Four lanes: DuckDB host 108 exact; H2 host 412 exact; DuckDB database lost 8 → 5 / gained 0,
+accepted 24; H2 database lost 79 → 78 / gained 71. The String-over-INT read: no coercion rule
+upstream — the fixture creates `InteractionTable(id VARCHAR(200))` by raw DDL while the store
+declares `ID INT`; every layer read (JDBC handlers, `transform`, both runtimes' `equal`, the
+server's serializer, the client's `Any[*]` deserializer and `dataTypeTransformer`) is identity or
+strict; our compiler stamps the wire kind from the store. Decisions for 3.3, recorded. Ledger:
+AssertVerdicts 2554 → 2600. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4t.

@@ -1732,10 +1732,8 @@ final class Scalars {
         // ---- Map<U,V>: the DuckDB MAP carrier ----
         // pair(a,b) travels as STRUCT(first, second) — map_from_entries
         // takes exactly that shape.
-        RULES.put(Pure.PAIR_KEY, (n, args) ->
-                new SqlExpr.StructLit(List.of(
-                        new SqlExpr.StructLit.Field("first", args.get(0)),
-                        new SqlExpr.StructLit.Field("second", args.get(1)))));
+        RULES.put(Pure.PAIR_KEY, (n, args) -> MixedEncoding.pairStruct(n.info().type(),
+                args.get(0), n.args().get(0).info().type(), args.get(1), n.args().get(1).info().type()));
         for (String f : Pure.nativeKeysAt("newMap")) {
             RULES.put(f, (n, args) -> mapFromPairs(n, args.get(0)));
         }
