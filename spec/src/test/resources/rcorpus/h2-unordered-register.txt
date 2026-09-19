@@ -826,6 +826,7 @@ unordered-chain meta::relational::tests::postProcessor::testReplaceTablesPostPro
 unordered-chain meta::relational::tests::postProcessor::testSQLRealiasCaseSensitiveTableNames
 unordered-chain meta::relational::tests::postProcessor::testSqlRealiasFreeMarker
 unordered-chain meta::relational::tests::postProcessor::testSqlRealiasJoin
+unordered-chain meta::relational::tests::postProcessor::testSqlRealiasViews
 unordered-chain meta::relational::tests::postProcessor::testToSqlStringReplaceTablesPostProcessor
 unordered-chain meta::relational::tests::projection::aggregation::testDateAggregationWithMax
 unordered-chain meta::relational::tests::projection::aggregation::testDeepSubAggregation
@@ -1170,7 +1171,9 @@ unordered-chain meta::relational::tests::query::simple::testDistinctSize
 unordered-chain meta::relational::tests::query::simple::testSize
 unordered-chain meta::relational::tests::query::view::testAllWithJoinToView
 unordered-chain meta::relational::tests::query::view::testDistinctOnlyIncludesTopLevelColumns
+unordered-chain meta::relational::tests::query::view::testViewAll
 unordered-chain meta::relational::tests::query::view::testViewPropertyFilterWithPrimaryKey
+unordered-chain meta::relational::tests::query::view::testViewSimpleFilter
 unordered-chain meta::relational::tests::query::view::testViewWithJoinsAndDistinct
 unordered-chain meta::relational::tests::tds::groupBy::groupByAfterASortOnColumnInGroupBy
 unordered-chain meta::relational::tests::tds::groupBy::groupByAfterASortOnColumnNotInGroupBy

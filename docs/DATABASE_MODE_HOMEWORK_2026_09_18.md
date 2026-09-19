@@ -1198,6 +1198,50 @@ decided in the database on DuckDB. Ledger with reason: AssertVerdicts 2457 → 2
 (`native-claims.tsv`) records the verdict layer as a new referrer of `parseJSON` and
 `toPrettyJSONString` (the read-through) — regenerated deliberately (`-Dclaims.generate=1`).
 
+## 4r. Bucket 7 — the H2 quick wins (2026-09-19)
+
+Three dialect facts, each measured on H2 2.1.214 before the edit (`SqlCanonConformanceTest`
+now runs the float battery on H2 over a column; the H2 shell probe: `EXTRACT(EPOCH FROM ts)`
+→ `1417706543.123`, `REGEXP_SUBSTR(s, p, 1, 1, NULL, g)` → the capture and NULL on a miss,
+`CAST(1e7 AS DOUBLE)` prints `1.0E7`).
+
+- **A — the graph size as a root-row count (193 H2 rows; DuckDB the same asserts, no document
+  built).** `VerdictSql.graphCount` reads the PLAN, not the document: an array-wrapped root
+  (`JsonArrayAgg` under the fold's VARCHAR cast / empty-array COALESCE) counts the rows under
+  the aggregate (`COUNT(*)` in the fold's own select); a bare-object root is one document when
+  a row exists and NULL = 0 (`COUNT(*)` over the first row). The canon wrap over a graph side
+  (a pass-through select with the document beside its canon) is descended first — the first
+  measurement missed it and two DuckDB rows failed loud (`IllegalStateException`, never a
+  wrong count), then passed. `JSON_TYPE` / `JSON_ARRAY_LENGTH` leave the verdict path.
+- **B — the float canon on H2 (45 + 6 whose message head hid behind the cell separator).**
+  The unfold reads BOTH exponent spellings (`[eE]`; DuckDB `1.3421e-08`, H2 `1.3421E-8` and
+  `1.0E7` from 1e7 up — the uppercase-E gap named at §4h closes with it) and the H2 dialect
+  spells `regexp_extract(s, p, g)` as `COALESCE(REGEXP_SUBSTR(s, p, 1, 1, NULL, g), '')` (the
+  '' on a miss is the contract the callers read). H2 folds constant expressions at prepare time
+  branch-blind, so the unit battery runs over a table column, as the canon does.
+- **D — `epoch(ts)` / `epoch_ms(ts)` on H2:** `EXTRACT(EPOCH FROM ts)` and its millisecond
+  scaling. Reaches the tolerance verdict (`assertTdsEquivalent` with a time delta) — the
+  accepted-divergence row `testDateTimeInclusiveRangeQuery` now carries its database-mode
+  witness on H2 too (`expected: 2 | actual: 1`, the same engine-golden defect as DuckDB).
+
+**Measured (four lanes, registers exact):** DuckDB host 108 / H2 host 427 → 424 (the three
+view rows `testSqlRealiasViews`, `testViewAll`, `testViewSimpleFilter` — `makeString` over
+`[name, pnl]` whose Float H2 spelled `1E2` — pass by rows now; they join the unordered-chain
+register like their family); DuckDB database lost 72 / gained 0 (unchanged); H2 database lost
+370 → 125 / gained 39 → 41 (`testUniqueValueOnly3`, `testDateDiffZeroToOne`: the same host
+`'null'`-decode family as the 39). H2 text-decided ceilings re-pinned with the reason:
+rows-underivable 33 → 26 (statements that execute now), oracle-declined 45 → 48 (the three
+sqlstring dateDiff-to-now rows reach the referee's two-instants arm — a different text-decided
+reason, the same outcome). No ledger move (the dispatcher and executor are untouched).
+
+**The H2 database residue (125):** 60 JSON navigation (3.2, the dialect leg), 58 order rows
+(§4k), 4 JSON documents (`decimal: 1.234000` — H2 spells a DECIMAL column's scale into the
+document where the engine golden has `1.234`; and one union root order), the three
+String-over-INT rows and the DuckDB-shared named rows. Named, not fixed: on H2 the peer-chunked
+multiset form (`STRING_AGG … GROUP BY rn − MOD(…)`) errors on 34 host-roster rows
+(`testUniqueValueOnly1/2/4` among them) — a host-roster item, the message head hidden behind
+the cell separator; read at the 3.3 leg.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

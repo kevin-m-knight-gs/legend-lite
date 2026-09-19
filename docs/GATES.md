@@ -4107,3 +4107,20 @@ identity for a String declaration and its Java executor types by ResultSetMetaDa
 own interaction goldens expect strings — held up for the differential gate, never split by a
 leniency). Ledger with reason: AssertVerdicts 2527 → 2543, StatementExecutor 2217 → 2218;
 `wrapWithCanon` split at the framed-enum seam. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4q.
+
+**Judging step 3, bucket 7 — the H2 quick wins (2026-09-19):** chain GREEN (gates 1–10),
+parallel wall ≈ 4m42s (G2 25; A: G1 81 · G3 13 · G4 124 · G5 39 = 257; B: G6 151 · G7 53 ·
+G9 37 = 241; C: G8 168 · G10 58 = 226). Three dialect facts, probed on H2 2.1.214 first: the
+graph size is a ROOT-ROW COUNT read off the fold's plan (`VerdictSql.graphCount`; no JSON
+function on any dialect, `JSON_TYPE`/`JSON_ARRAY_LENGTH` leave the verdict path); the float
+canon's exponent unfold reads both spellings (`[eE]`) and H2 spells `regexp_extract` as
+`COALESCE(REGEXP_SUBSTR(s, p, 1, 1, NULL, g), '')`; `epoch`/`epoch_ms` spell
+`EXTRACT(EPOCH FROM …)`. `SqlCanonConformanceTest` runs the float battery on H2 over a column.
+Four lanes: DuckDB host 108 exact; H2 host 427 → 424 (the three view rows pass by rows; they
+join the unordered-chain register); DuckDB database lost 72 / gained 0 (a first measurement
+found two rows failing LOUD on the canon-wrapped graph plan — descended, re-measured exact);
+H2 database lost 370 → 125 / gained 39 → 41 (two more of the host `'null'`-decode family);
+H2 database accepted register gains the inclusive-range witness. H2 text-decided ceilings
+re-pinned: rows-underivable 33 → 26, oracle-declined 45 → 48 (three sqlstring dateDiff-to-now
+rows moved channel once their statements execute). No ledger move. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4r.

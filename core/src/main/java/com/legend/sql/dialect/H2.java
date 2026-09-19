@@ -299,6 +299,25 @@ public class H2 extends AnsiSqlRenderer {
                     + " THEN '' ELSE REGEXP_REPLACE(" + str + ", " + pat
                     + ", '$1') END";
         }
+        // regexp_extract(s, p[, g]): H2 spells REGEXP_SUBSTR(s, p, 1, 1,
+        // NULL, g) — probed 2.1.214: group g returns the capture ('-1.3421E-8'
+        // -> '1.3421'); a MISS is NULL where DuckDB yields '' — COALESCE
+        // keeps the contract the callers read ('' = the group did not match).
+        if (c.fn() == SqlFn.REGEXP_EXTRACT && (a.size() == 2 || a.size() == 3)) {
+            return "COALESCE(REGEXP_SUBSTR(" + expr(a.get(0), 0) + ", "
+                    + expr(a.get(1), 0) + ", 1, 1, NULL, "
+                    + (a.size() == 3 ? expr(a.get(2), 0) : "0") + "), '')";
+        }
+        // epoch(ts) / epoch_ms(ts): H2 has neither — the standard
+        // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
+        // probed 2.1.214: 1417706543.123) and its millisecond scaling.
+        if (c.fn() == SqlFn.EPOCH_SECONDS) {
+            return "EXTRACT(EPOCH FROM " + expr(a.get(0), 0) + ")";
+        }
+        if (c.fn() == SqlFn.EPOCH_MS) {
+            return "CAST(EXTRACT(EPOCH FROM " + expr(a.get(0), 0)
+                    + ") * 1000 AS BIGINT)";
+        }
         return super.call(c, parentPrec);
     }
 

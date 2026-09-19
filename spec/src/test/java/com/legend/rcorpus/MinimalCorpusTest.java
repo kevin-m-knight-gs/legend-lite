@@ -541,8 +541,15 @@ class MinimalCorpusTest {
     // H2 oracle-declined 34 -> 45 (2026-09-17): the same eleven helper-shaped
     // plan asserts as the DuckDB lane (the plan producer behind a helper),
     // counted for the first time on this lane too
+    // H2 rows-underivable 33 -> 26 and oracle-declined 45 -> 48 (2026-09-19, judging
+    // H2 quick wins): H2 now spells epoch(ts) as EXTRACT(EPOCH FROM ts) and
+    // regexp_extract as REGEXP_SUBSTR, so seven rows-underivable statements EXECUTE
+    // — four are judged by ROWS now (host roster -3, view rows; one distinct row),
+    // three (sqlstring dateDiff-to-now, Hours/Minutes/Seconds) reach the referee's
+    // datediff-to-now arm and decline the replay as two instants (text-decided by
+    // a different reason, the same outcome). rows-underivable shrinks (shrink-only).
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 33, "plan-params-unbindable", 6, "oracle-declined", 45,
+            "rows-underivable", 26, "plan-params-unbindable", 6, "oracle-declined", 48,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on

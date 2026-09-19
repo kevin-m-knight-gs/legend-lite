@@ -414,7 +414,10 @@ public final class LiteralSpelling {
                         SqlExpr.Call.of(SqlFn.REGEXP_FULL_MATCH, base,
                                 new SqlExpr.StringLit("-?0+(\\.0+)?")),
                         new SqlExpr.StringLit("0.0")),
-                new SqlExpr.Case.When(has(base, "e"), unfolded),
+                // both wire spellings of the exponent: DuckDB's 1.3421e-08,
+                // H2's 1.3421E-8 / 1.0E7 (a DOUBLE prints as Java does)
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR, has(base, "e"), has(base, "E")),
+                        unfolded),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT,
                         has(base, ".")),
                         SqlExpr.Call.of(SqlFn.CONCAT, base,
@@ -471,7 +474,7 @@ public final class LiteralSpelling {
         // mantissa without sign, e.g. '1.3421'; its digits '13421';
         // intLen = digits before the dot; exp as an integer
         SqlExpr mant = SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, base,
-                new SqlExpr.StringLit("-?([0-9]+(?:\\.[0-9]+)?)e"),
+                new SqlExpr.StringLit("-?([0-9]+(?:\\.[0-9]+)?)[eE]"),
                 new SqlExpr.IntLit(1));
         SqlExpr digits = SqlExpr.Call.of(SqlFn.REPLACE, mant,
                 new SqlExpr.StringLit("."), new SqlExpr.StringLit(""));
@@ -482,7 +485,7 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.LENGTH, mant))),
                 SqlExpr.Call.of(SqlFn.MINUS, dotPos, new SqlExpr.IntLit(1)));
         SqlExpr exp = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT,
-                base, new SqlExpr.StringLit("e([+-]?[0-9]+)$"),
+                base, new SqlExpr.StringLit("[eE]([+-]?[0-9]+)$"),
                 new SqlExpr.IntLit(1)), SqlType.Scalar.INTEGER);
         SqlExpr pointPos = SqlExpr.Call.of(SqlFn.PLUS, intLen, exp);
         SqlExpr dLen = SqlExpr.Call.of(SqlFn.LENGTH, digits);

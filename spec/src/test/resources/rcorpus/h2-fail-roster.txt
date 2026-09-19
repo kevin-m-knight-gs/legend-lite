@@ -346,7 +346,6 @@ meta::relational::tests::milestoning::temporalDate::testTemporalDateForAllVersio
 meta::relational::tests::postProcessor::filterPushDown::testPushFiltersDownToJoinsPostProcessorToSQL
 meta::relational::tests::postProcessor::testDb2ColumnRename
 meta::relational::tests::postProcessor::testPostProcessTransformJoinOp
-meta::relational::tests::postProcessor::testSqlRealiasViews
 meta::relational::tests::projection::filter::dates::testDateWithSeconds
 meta::relational::tests::projection::filter::in::H2Test
 meta::relational::tests::projection::filter::in::testQualifierWithInThroughJoin
@@ -401,8 +400,6 @@ meta::relational::tests::query::sort::testSortByLambdaDeepOptional
 meta::relational::tests::query::take::testFilterLimitInSequenceForTableAccessor
 meta::relational::tests::query::take::testLimitFilterInSequenceForTableAccessor
 meta::relational::tests::query::take::testTakeWithVariables
-meta::relational::tests::query::view::testViewAll
-meta::relational::tests::query::view::testViewSimpleFilter
 meta::relational::tests::tds::groupBy::GroupByWithIfInMap
 meta::relational::tests::tds::groupBy::GroupByWithMapFnColumns
 meta::relational::tests::tds::groupBy::GroupByWithMapFnConstant

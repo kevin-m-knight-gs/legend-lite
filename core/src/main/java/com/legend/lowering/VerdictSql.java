@@ -152,27 +152,58 @@ public final class VerdictSql {
     }
 
     /** A GRAPH-shaped side (a class collection serialized as ONE JSON
-     * document): its size is the array's length, or 1 for a bare object —
-     * the host rule ({@code p instanceof List ? size : 1}); a NULL document
-     * counts 0. */
+     * document): its size is the number of ROOT ROWS the fold aggregates —
+     * the host rule ({@code p instanceof List ? size : 1}) read off the
+     * PLAN, not the document. An array-wrapped root ({@code JsonArrayAgg}
+     * under the fold's VARCHAR cast / empty-array COALESCE) counts the rows
+     * under the aggregate; a bare-object root is one document when a row
+     * exists and NULL (0) otherwise. No JSON function on any dialect, no
+     * document built to be measured. A plan that is not the fold's
+     * one-projection select is a construction fault, loud. */
     public static SqlExpr graphCount(SqlQuery graphPlan) {
-        String alias = graphPlan instanceof SqlSelect ps && !ps.projections().isEmpty()
-                && ps.projections().get(0).alias() != null ? ps.projections().get(0).alias() : "result";
-        OutputCol out = new OutputCol("__doc", SqlType.Scalar.VARCHAR, true);
-        SqlExpr doc = new SqlExpr.ScalarSubquery(new SqlSelect(
-                List.of(new SqlSelect.Projection(
-                        SqlExpr.Column.of("w", alias, SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED),
-                        "__doc", out)),
-                false, new SqlSource.Subselect(graphPlan, "w", null), null,
-                List.of(), null, null, List.of(), 1L, null, List.of(out)));
-        SqlExpr json = new SqlExpr.Cast(doc, SqlType.Scalar.JSON);
-        return new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, doc), new SqlExpr.IntLit(0)),
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.JSON_TYPE, json),
-                                new SqlExpr.StringLit("ARRAY")),
-                        SqlExpr.Call.of(SqlFn.JSON_ARRAY_LENGTH, json))),
-                new SqlExpr.IntLit(1));
+        // the canon wrap over a graph side is a pass-through select (the
+        // document column beside its canon) around the fold: descend to it
+        SqlQuery fold = graphPlan;
+        for (int depth = 0; depth < 4 && fold instanceof SqlSelect w
+                && !w.projections().isEmpty()
+                && w.projections().get(0).expr() instanceof SqlExpr.Column
+                && w.from() instanceof SqlSource.Subselect inner; depth++) {
+            fold = inner.inner();
+        }
+        if (!(fold instanceof SqlSelect ps) || ps.projections().size() != 1
+                || !ps.groupBy().isEmpty()) {
+            throw new IllegalStateException("graph side: not the fold's one-projection select: "
+                    + fold.getClass().getSimpleName()
+                    + (fold instanceof SqlSelect gs ? " projections=" + gs.projections().stream()
+                            .map(pr -> pr.alias() + ":" + pr.expr().getClass().getSimpleName()).toList()
+                            + " groupBy=" + gs.groupBy().size() + " from=" + gs.from().getClass().getSimpleName()
+                            : ""));
+        }
+        SqlExpr top = ps.projections().get(0).expr();
+        while (true) {
+            if (top instanceof SqlExpr.Cast c) {
+                top = c.value();
+            } else if (top instanceof SqlExpr.Call k && k.fn() == SqlFn.COALESCE
+                    && !k.args().isEmpty()) {
+                top = k.args().get(0);
+            } else {
+                break;
+            }
+        }
+        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
+        SqlSelect.Projection countStar = new SqlSelect.Projection(
+                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__n", n);
+        if (top instanceof SqlExpr.JsonArrayAgg) {
+            return new SqlExpr.ScalarSubquery(ps.withProjections(List.of(countStar)));
+        }
+        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        SqlSelect first = new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
+                ps.distinct(), ps.from(), ps.where(), ps.groupBy(), ps.having(), ps.qualify(),
+                ps.orderBy(), 1L, ps.offset(), List.of(one));
+        return new SqlExpr.ScalarSubquery(new SqlSelect(List.of(countStar), false,
+                new SqlSource.Subselect(first, "w", null), null, List.of(), null, null,
+                List.of(), null, null, List.of(n)));
     }
 
     /** {@code assertSize} over a graph side. */
