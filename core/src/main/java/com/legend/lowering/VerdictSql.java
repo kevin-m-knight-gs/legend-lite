@@ -263,10 +263,33 @@ public final class VerdictSql {
                 frame("__n", true, true));
     }
 
+    /** The RENDERED-TEXT arm (leg 3.1d): a database-rendered grid text
+     * (toCSV / toString / a join) against a string — byte-equal is the
+     * verdict; a differing pair is UNJUDGED here with the reason (host
+     * mode's policy for that case — data lines as a multiset, a bounded
+     * print-precision float tolerance per cell — is not a SQL rule yet;
+     * the differential gate holds those rows up). */
+    public static SqlQuery renderedText(SqlQuery eRows, SqlQuery aRows) {
+        SqlExpr e = scalarOver("__e", col("__e", C), "__one", SqlType.Scalar.VARCHAR, 1L);
+        SqlExpr a = scalarOver("__a", col("__a", C), "__one", SqlType.Scalar.VARCHAR, 1L);
+        SqlExpr equal = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e, a);
+        SqlExpr unjudged = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.NOT, equal),
+                new SqlExpr.StringLit("rendered-text: not byte-equal (host policy: line multiset, cell tolerance)"))),
+                null);
+        return predicate(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
+                equal, e, a, unjudged);
+    }
+
     /** One verdict row from a predicate: {@code __verdict} never NULL, the
      * two evidence texts, no unjudged, no leniency. */
     private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
             SqlExpr expected, SqlExpr actual) {
+        return predicate(ctes, verdict, expected, actual, new SqlExpr.NullLit());
+    }
+
+    private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,
+            SqlExpr expected, SqlExpr actual, SqlExpr unjudged) {
         List<SqlSelect.Projection> ps = List.of(
                 new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.COALESCE, verdict, new SqlExpr.BoolLit(false)), VERDICT,
@@ -275,7 +298,7 @@ public final class VerdictSql {
                         new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, true)),
                 new SqlSelect.Projection(actual, ACTUAL,
                         new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, true)),
-                new SqlSelect.Projection(new SqlExpr.NullLit(), UNJUDGED,
+                new SqlSelect.Projection(unjudged, UNJUDGED,
                         new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
                 new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
                         new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));

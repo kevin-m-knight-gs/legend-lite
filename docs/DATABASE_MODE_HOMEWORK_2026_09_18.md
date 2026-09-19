@@ -736,6 +736,131 @@ the 3 open-ruling rows; ulp 7. Still host-judged in database mode: assertJsonStr
 (177, D6 / 3.2), assertIs 4 and assertInstanceOf 1 (identity / type — 3.2 or walled),
 assertTdsEquivalent 2, the rendered-text arm (272, 3.1d), the SQL-text lane (D8).
 
+## 4h. The reset (2026-09-18, after 3.1c) — what was not measured, the baselines, the plan
+
+**What happened.** Legs 3.1b part 3, its follow-up and 3.1c were committed with only the
+DuckDB database lane measured. The H2 database lane was last measured before 3.1b part 3
+(lost 104) and not again. The host gate (both lanes) was green on every commit, and the
+DuckDB differential improved on every commit, and that was read as enough. It was not: the
+H2 database differential went from 104 lost to 332 lost across those three commits. The 3.1d
+edit (the rendered-text arm as byte equality) was built on top, measured, found to take the
+DuckDB differential from 42 to 76, and is **stashed, not committed** (`git stash`:
+"3.1d rendered-text arm (unlanded, DuckDB lost 42->76)"). The tree is exactly 214f32056.
+
+**The baselines at HEAD (214f32056), both lanes, measured 16:21–16:23:**
+
+| lane | database-mode lost vs the host roster | gained | judged in the database |
+|---|---|---|---|
+| DuckDB | 42 (39 named unjudged + 3 open-ruling) | 0 | 3,434 asserts |
+| H2 | 332 | 38 | assertEquals 1,379 · assertSameElements 565 · one-line families (see the census) |
+
+**The H2 332, by the failure text (every row read from the lane output):**
+
+| rows | cause | introduced by | fix (named below) |
+|---|---|---|---|
+| 193 | `Function "JSON_TYPE" not found` — the graph-shaped size rule (`VerdictSql.graphCount`) reads the JSON document's type and length | 3.1c | A |
+| 60 | `variant navigation reached a dialect without JSON support` — the literal channel's JSON navigation | pre-existing, named at 3.1a | C (3.2, dialect leg) |
+| 49 | `Function "REGEXP_EXTRACT" not found` — the float canon's exponent unfold (`LiteralSpelling.exponentUnfold`); 3 of them print with the message head hidden behind the cell separator byte and were first counted as a "peer form" bucket — reproduced outside the harness (`tmp/H2Run.java` over the dumped statement): the same error | 3.1b part 3 | B |
+| 26 | the named unjudged rows (kind-gate 8, side-a/side-e 9, tds-peer 3, enum 3, tree cells 3) — the same rows as DuckDB's 39 where they exist on H2 | 3.1a–3.1c, by design | 3.2 |
+| 1 | `Function "EPOCH_MS" not found` | — | D |
+| 3 | rows not attributed above (the histogram's tail) | — | read at the leg |
+
+**The 38 gained on H2 are correct verdicts, not wrong ones.** Probed (`routing::testSimpleEval`):
+in host mode on H2 an expected `^TDSNull()` cell decodes as the STRING `'null'` and the actual
+as an empty list, so the host fails the test for its own decode bug (the item named in §4d);
+the database statement spells both as `TDSNull` and judges it true. The host reasons for all
+38 (read from the last host H2 lane output) are that family: `expected: [..., 'null', ...]`.
+That is an **H2 host-lane fix** (38 roster rows), named here, not part of this leg.
+
+**Probes done for the plan (no guessing):**
+- H2 2.1.214 accepts the peer-chunking form as written (`STRING_AGG(… ORDER BY …)` + `MIN`
+  over a `GROUP BY` expression), with the `` cell separator in `LOCATE`, `STRING_AGG`
+  and `||` — under the product's connection settings too (`tmp/H2Forms.java`, `tmp/H2Sep.java`).
+- H2 has `REGEXP_SUBSTR(s, pattern, position, occurrence, flags, group)`; group 1 returns the
+  capture (`'-1.3421e-08'` → `1.3421`; `'e([+-]?[0-9]+)$'` → `-08`).
+- **H2 spells a DOUBLE as Java does:** `1.3421E-8`, `1.23456789E7`, `1.0E7`, `0.001` —
+  UPPERCASE `E`, exponent form from 1e7 up. The unfold looks for a lowercase `e`, so on H2 it
+  never fires and any double ≥ 1e7 spells as `1.23456789E7` in the canon. A correctness gap
+  on H2 the spelling fix alone would not close.
+- The graph fold is one projection at the top of the graph plan (`Lowerer.java:992`,
+  `JsonArrayAgg(obj ORDER BY keys)` over the root rows' source; a to-one root is a bare
+  `JsonObject`).
+
+**The plan, ordered by rows per design, each with its named rows and its measurement:**
+
+- **P0 — the ceilings register FIRST (was 3.1e, moved to the front).** The database-mode lane
+  pins `lost` per lane (DuckDB 42, H2 332) shrink-only, and `gained` per lane as a NAMED list
+  (H2: the 38, each a host decode row). A leg that raises either number is red before it is
+  committed. The leg script measures FOUR lanes before any commit: DuckDB host, H2 host, DuckDB
+  database, H2 database. Turns green: nothing; prevents: this section.
+- **A — the graph size as a root-row count (H2 193; DuckDB the same asserts, cheaper).**
+  `graphCount` stops reading the JSON document. The size of a graph-shaped side is
+  `COUNT(*)` over the fold's own source (the top select with the `JsonArrayAgg` projection
+  replaced by a count; a bare-object root counts its non-NULL rows) — no JSON function on
+  any dialect, no document built to be measured. `SqlFn.JSON_TYPE` / `JSON_ARRAY_LENGTH`
+  leave the verdict path (3.1c's addition, reverted by this). Turns green on H2: the 193;
+  DuckDB: unchanged count, fewer bytes.
+- **B — the float canon on H2 (49 statement errors + the ≥ 1e7 correctness gap).** The
+  H2 dialect spells `REGEXP_EXTRACT(s, p, g)` as `REGEXP_SUBSTR(s, p, 1, 1, NULL, g)`; the
+  unfold matches `[eE]` and the H2 dialect's double-text shape (`1.0E7` from 1e7 up) is a
+  dialect fact the canon reads through the dialect, not a Java branch. Turns green on H2: the
+  49; the correctness rows appear in the differential when the unfold fires (unknown count —
+  measured, not guessed).
+- **E — the rendered-text arm judged as a GRID (DuckDB 35 of 272; H2 15).** Replaces the
+  stashed byte-equality form. `renderForm` already identifies the rendered relation (the
+  `toCSV` / `toString` / join argument); that relation is planned as a `GridSide` and judged
+  by the EXISTING grid forms (`gridRows` ordered or multiset by the chain's order view, the
+  2-ULP predicate by declared Float column). The golden string is a compile-time constant: the
+  compiler layer (`VerdictQueries`, beside `tdsNullSentinel`) splits it by the form's grammar
+  (CSV: header + data lines + trailing ''; TDS: `#TDS`, header, rows, `#`; `CSVJOIN:sep`) and
+  spells every cell by the grid's DECLARED column kind — String quoted, numbers bare, Float as
+  the canon spelling plus its DOUBLE for the leniency, Boolean `true`/`false`, the empty cell
+  `TDSNull` — bound as the peer's VALUES plan. The header is judged in the compiler (both
+  sides static). Turns green: the 35 DuckDB rows (line order 11, one float digit 23, the date
+  witness 1 stays an accepted divergence and needs the unjudged message to carry expected /
+  actual so its witness matches) and the 15 H2 rows; all 272 judged in the database, none
+  host-judged. Named risk: embedded commas / quotes in golden cells — the compiler splits
+  CSV properly (the host splits on ',' symmetrically); a probe counts goldens with `"` before
+  the leg.
+- **D — `EPOCH_MS` on H2 (1).** A dialect spelling. With B.
+- **C — JSON navigation on H2 (60).** Stays 3.2's dialect leg. Named, not this leg.
+- **F — the H2 host 'null' decode (38 roster rows).** An H2 host-lane item, separate.
+
+**Not changed by this section:** no verdict, no commit. The stash is reapplied only as the
+starting point of E, then rewritten.
+
+## 4i. Leg 3.1d + P0 — LANDED 2026-09-18 (the rendered-text arm as byte equality; the per-lane differential registers)
+
+**USER rulings (2026-09-18):** "land it then we keep burning down" — the byte form lands with
+its 35 rows named, the grid form (E) clears them next; "keep landing, ledger comes down at
+3.5" — every arm carries a host branch beside its database branch until the differential gate
+(3.3) makes the host branch deletable; the pinned evaluator grows by dispatch lines only
+(3.1d: AssertVerdicts 2212 → 2222; the judging is `VerdictSql.renderedText`, SQL); and a
+byte-equal string short circuit is an honest verdict — the 35 rows that pass only through the
+host's line-multiset / cell-tolerance policy are the ones that must move to the grid road.
+
+**3.1d.** `renderedArm` in database mode plans both sides (`planSide`, no canon) and runs
+`VerdictSql.renderedText`: `text IS NOT DISTINCT FROM 'literal'`; a differing pair returns
+`__unjudged = "rendered-text: not byte-equal (host policy: line multiset, cell tolerance)"`.
+DuckDB: 237 of the 272 rendered-text asserts decided in the database (assertEquals 1,817 and
+assertSameElements 740 judged in total); 35 unjudged, named (11 line-order over unsorted
+chains, 23 calendarAggregations one-float-digit cells, 1 accepted-divergence date witness).
+Lost 42 → 76 = the 35 + 39 named unjudged + 3 open-ruling rows (minus overlap: two tests
+carry two of the rows). H2: 15 rendered-text rows unjudged; lost 332 → 342 (the extra rows =
+rendered sides whose float canon hits the missing `REGEXP_EXTRACT` spelling — step B).
+
+**P0.** `MinimalCorpusTest.pinDifferential`: in database mode the FAIL differential per lane
+and direction is a NAMED register — `rcorpus/<lane>-database-lost-register.txt` (DuckDB 76,
+H2 342; each row `name ||| the failure text`) and `rcorpus/<lane>-database-gained-register.txt`
+(DuckDB 0, H2 38: the host H2 'null' decode rows). A lost or gained test not in the register
+is red (NEW); a register row that no longer differs is red (STALE — delete it, reason in
+GATES.md). Scoped runs compare against the rows that ran. The registers can only shrink from
+here; the differential gate (3.3) refines them to per-assert rows.
+
+**Measured before the commit, all four lanes:** DuckDB host 108 fail (roster exact) · H2 host
+427 (roster exact) · DuckDB database lost 76 / gained 0 (register exact) · H2 database lost
+342 / gained 38 (register exact); core registers green. This is the leg protocol from now on.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

@@ -3961,3 +3961,21 @@ per pair for contains. A first chain was red on gate 1: `Math.max` in a verdict 
 "judge, never compute" guard) — replaced by a conditional. DuckDB database mode: 3,434
 asserts judged in the database; lost 42 (39 named unjudged + 3 open-ruling rows). Ledger with
 reason: AssertVerdicts 2057 → 2212. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4g.
+
+**Judging step 3, leg 3.1d + P0 — the rendered-text arm as byte equality; the per-lane
+database-mode differential registers (2026-09-18):** chain GREEN (gates 1–10), quiet machine,
+parallel wall ≈ 4m06s (G2 24; A: G1 76 · G3 10 · G4 100 · G5 36 = 222; B: G6 135 · G7 45 ·
+G9 33 = 213; C: G8 145 · G10 53 = 198). No host roster moved (DuckDB 108, H2 427, exact).
+The rendered-text arm in database mode runs `VerdictSql.renderedText` (`text IS NOT DISTINCT
+FROM 'literal'`); a differing pair is unjudged by name. NEW REGISTERS (P0, homework §4h/§4i):
+`rcorpus/<lane>-database-lost-register.txt` and `…-gained-register.txt`, pinned by
+`MinimalCorpusTest.pinDifferential` whenever a lane runs with `-Dlegend.judge.mode=database`
+— DuckDB lost 76 (42 before this leg + the 35 rendered-text rows the host passes only through
+its line-multiset / cell-tolerance policy, named row by row) / gained 0; H2 lost 342 / gained
+38 (the host H2 `'null'` decode rows — correct database verdicts). Why the registers exist:
+legs 3.1b part 3, its follow-up and 3.1c were committed with the H2 database lane unmeasured
+(104 → 332 lost, unseen; §4h names every row by cause). From this leg every commit measures
+DuckDB host, H2 host, DuckDB database, H2 database; the registers may only shrink. USER: "land
+it then we keep burning down"; "keep landing, ledger comes down at 3.5". Ledger with reason:
+AssertVerdicts 2212 → 2222 (dispatch lines; the judging is SQL). Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4h (the reset), §4i (this leg).

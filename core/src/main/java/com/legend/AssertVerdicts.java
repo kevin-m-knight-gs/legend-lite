@@ -2024,6 +2024,18 @@ final class AssertVerdicts {
         String form = aForm != null ? aForm
                 : java.util.Objects.requireNonNull(eForm);
         TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
+        if (JUDGE_MODE == JudgeMode.DATABASE) {
+            // leg 3.1d: byte equality in the database; a differing pair is
+            // unjudged by name (the host's multiset / tolerance policy)
+            SideRows e = planSide(args.get(0), false, letPrefix, specs, env, hook);
+            SideRows a = planSide(args.get(1), false, letPrefix, specs, env, hook);
+            if (e.why() != null || a.why() != null) {
+                return unjudged(name, "rendered-text side: " + (e.why() != null ? e.why() : a.why()));
+            }
+            return runVerdict(name, wantEqual,
+                    com.legend.lowering.VerdictSql.renderedText(e.rows(false), a.rows(false)),
+                    a.connection(env), env);
+        }
         List<Object> ev = side(args.get(0), letPrefix, specs, env, hook);
         List<Object> av = side(args.get(1), letPrefix, specs, env, hook);
         if (ev.size() == 1 && ev.get(0) instanceof String et

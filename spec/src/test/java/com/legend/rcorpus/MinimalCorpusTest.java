@@ -635,8 +635,12 @@ class MinimalCorpusTest {
         if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
             // leg 3.1: DATABASE mode is judged AGAINST host mode's roster —
             // the differential is printed (LOST = fails in database mode
-            // only; GAINED = passes in database mode only), never pinned
-            // here; the differential gate (leg 3.3) pins it
+            // only; GAINED = passes in database mode only). The FAIL
+            // differential is PINNED per lane (P0, homework §4h): every
+            // lost and every gained test is a NAMED register row with its
+            // reason; a new lost row is red, a register row no longer lost
+            // is red (shrink the register, with the reason in GATES.md).
+            // The differential gate (leg 3.3) refines this to per-assert.
             System.out.println("[corpus2] database-mode " + kind + " diff vs host roster:"
                     + " lost=" + lost.size() + " gained=" + gained.size());
             for (String l : lost) {
@@ -644,6 +648,12 @@ class MinimalCorpusTest {
             }
             for (String g : gained) {
                 System.out.println("[corpus2] database-mode GAINED " + g);
+            }
+            if (kind.equals("fail")) {
+                pinDifferential(lane, "lost", lost, ranNames,
+                        "/rcorpus/" + lane + "-database-lost-register.txt");
+                pinDifferential(lane, "gained", gained, ranNames,
+                        "/rcorpus/" + lane + "-database-gained-register.txt");
             }
             return;
         }
@@ -692,6 +702,43 @@ class MinimalCorpusTest {
             }
         }
         return out;
+    }
+
+    /** P0 (homework §4h): the database-mode FAIL differential is a NAMED
+     * register per lane and direction. {@code rows} = the tests lost (or
+     * gained) now; the register must hold exactly those that RAN — a new
+     * row is a regression named here, a register row that no longer
+     * differs is a moved pin (delete it, reason in GATES.md). */
+    private static void pinDifferential(String lane, String direction, List<String> rows,
+            Set<String> ranNames, String resource) throws IOException {
+        Set<String> register = new HashSet<>(readRoster(resource));
+        List<String> unregistered = new ArrayList<>();
+        for (String r : rows) {
+            if (!register.contains(r)) {
+                unregistered.add(r);
+            }
+        }
+        Set<String> now = new HashSet<>(rows);
+        List<String> stale = new ArrayList<>();
+        for (String r : readRoster(resource)) {
+            if (ranNames.contains(r) && !now.contains(r)) {
+                stale.add(r);
+            }
+        }
+        if (!unregistered.isEmpty() || !stale.isEmpty()) {
+            StringBuilder sb = new StringBuilder("[" + lane + "] database-mode " + direction
+                    + " differential != " + resource + ": " + unregistered.size()
+                    + " new (not in the register), " + stale.size()
+                    + " stale (in the register, not " + direction + " now)."
+                    + " Every register change carries a written reason in docs/GATES.md.");
+            for (String u : unregistered) {
+                sb.append("\n  NEW    ").append(u);
+            }
+            for (String s : stale) {
+                sb.append("\n  STALE  ").append(s);
+            }
+            org.junit.jupiter.api.Assertions.fail(sb.toString());
+        }
     }
 
     private static List<String> readRoster(String resource) throws IOException {

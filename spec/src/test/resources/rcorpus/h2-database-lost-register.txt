@@ -1,0 +1,342 @@
+meta::pure::tds::tests::extensions::testFirstNotNull ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::advanced::forced::structure::testQualifierQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::advanced::forced::structure::testQualifierQueryWithOr ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::advanced::structure::testQualifierQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::advanced::structure::testQualifierQueryWithOr ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteEmployeeToSales ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteEmployeeToSalesBackToEmployee ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteEmployeeToSalesToProduct ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteEmployeeToSalesToProductToProdLine ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteFilter ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteGetAllQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectCol ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectColMulti ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteProjectFunctionMulti ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteTDSGroupBy ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteTDSOperation ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::ddl::dropAndCreateTable ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::ddl::findTableByName ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::fromMapping::testEnumProjection ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaDateRange ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
+meta::relational::tests::getter::testGetterTwice ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::groupBy::testAggToManyWithAverage ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::groupBy::testAggToManyWithMaxInteger ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::groupBy::testAggToManyWithMinInteger ||| AssertFailed: assertSameElements: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::groupBy::testGroupByWithUnion ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::groupBy::testSimpleJoinStrings ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
+meta::relational::tests::map::testFilter ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::map::testFilterPostMapWithObject ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::map::testFilterThenMapAndReturnObject ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::map::testSubAggregation ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::map::testSubAggregationAverageInQualifier ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::map::testSubAggregationAverageWithOperation ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::map::testSubAggregationMultiLevel ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::map::testSubAggregationUsingIf ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::boolean::testGet ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::boolean::testQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dataType::testSimpleTypeMapping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dataType::testSimpleTypeMappingBooleanFalse ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dataType::testSimpleTypeMappingNulls ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dates::datetime::testGet ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dates::datetime::testQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dates::strictdate::testGet ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dates::strictdate::testQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dynajoin::testFilterOnJoinWithAggregateFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dynajoin::testJoinWithAggregateFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::dynajoin::testSelfJoinWithAggregateFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::enumeration::testEnumMappings ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
+meta::relational::tests::mapping::enumeration::testEnumMappingsWithInclude ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
+meta::relational::tests::mapping::enumeration::testEnumTheSame ||| AssertFailed: assertEquals: UNJUDGED in database mode — enum kind has no literal channel
+meta::relational::tests::mapping::enumeration::testMapping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::enumeration::testNestedCaseFlattensToSingleCase ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::enumeration::testNestedIfFlattensToSingleCase ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::extend::mainTable::testMainTableForB1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
+meta::relational::tests::mapping::extend::mainTable::testMainTableForB2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
+meta::relational::tests::mapping::extend::mainTable::testMainTableForC1 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
+meta::relational::tests::mapping::extend::mainTable::testMainTableForC2 ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-e: keyless-instance: meta::pure::mapping::Mapping
+meta::relational::tests::mapping::inheritance::relational::testGetAll ||| AssertFailed: assertSameElements: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel
+meta::relational::tests::mapping::inheritance::relational::union::testGetAll ||| AssertFailed: assertSameElements: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel
+meta::relational::tests::mapping::innerjoin::isolation::testIsolationOfInnerJoins ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::join::testJoinInPropertyMapping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testJoinInPropertyMappingAndJoinInQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testJoinInPropertyMappingAndJoinInQueryWithGrouping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testJoinInPropertyMappingDeep ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testJoinInPropertyMappingQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testJoinInPropertyMappingUsingIncludes ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testJoinInPropertyMappingUsingNestedIncludes ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMapping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDateInJoin ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testTwoJoinsInPropertyMappingAndJoinInQueryWithGrouping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::join::testTwoJoinsInPropertyMultipleParenthesisMappingAndJoinInQueryWithGrouping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::sqlFunction::acos::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::acos::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::asin::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::asin::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::atan2::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::atan2::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::atan::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::atan::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::cos::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::cos::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::exp::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::exp::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::log::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::log::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::pow::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::pow::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::sin::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::sin::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::sqrt::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::sqrt::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::stddev::population::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::stddev::sample::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::stringToFloat::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::stringToFloat::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::tan::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::sqlFunction::tan::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::mapping::subType::testSubTypeMappingValidWhenMappedExplicitly ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV1 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV2 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV3 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV4 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV5 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV1 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV2 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV3 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV4 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV5 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV1 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV2 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV3 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV4 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV5 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFilters ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFiltersAndProjections ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFiltersAndProjectionsDeep ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFiltersDeep ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins2 ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForProjections ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForProjectionsDeep ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::businessdate::testMilestoningContextPropagatedFromParentViewToViewsReferencedInItsColumns ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::milestoning::businessdate::testMilestoningContextPropagatedWithViewAsMainRelationOfView ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::milestoning::businessdate::testMilestoningCriteriaAppliedToViewRoot ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::milestoning::processingSnapshot::testAllVersionInRangeForProcessingSnapshotMilestoning ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testDateTimeMilestoningParam ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testDateTimeMilestoningParamPropagation ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testDateTimeMilestoningParamUnion ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testDateTimeVariableMilestoningParam ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testDateTimeVariableMilestoningParamPropagation ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testDateTimeVariableMilestoningParamUnion ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testQueryOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testQueryOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testQueryWithPropagationOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionWithNonMilestonedTable ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testAllVersionInRangeForBuisnessSnapshotMilestoning ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParam ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParamPropagation ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParamUnion ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testDateTimeVariableMilestoningParam ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testDateTimeVariableMilestoningParamPropagation ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testDateTimeVariableMilestoningParamUnion ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testQueryOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testQueryOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testQueryWithPropagationOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testUnionQueryOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testUnionQueryOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::milestoning::snapshot::testUnionQueryWithPropagationOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::projection::aggregation::testDeepSubAggregation ||| DataError: ', "c") > 0 THEN NULL ELSE coalesce(CAST(concat('''', replace(replace("c", '\', '\'), '''', '\'''), '''') AS VARCHAR), 'TDSNull'
+meta::relational::tests::projection::aggregation::testSubAggregation ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::aggregation::testSubAggregationWithAnotherSimpleProperty ||| DataError: ', "b") > 0 THEN NULL ELSE coalesce(CAST(concat('''', replace(replace("b", '\', '\'), '''', '\'''), '''') AS VARCHAR), 'TDSNull'
+meta::relational::tests::projection::aggregation::testSubAggregationWithIf ||| DataError: ', "a") > 0 THEN NULL ELSE coalesce(CAST(concat('''', replace(replace("a", '\', '\'), '''', '\'''), '''') AS VARCHAR), 'TDSNull'
+meta::relational::tests::projection::aggregation::testSubAggregationWithTopLevelIf ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::aggregation::testTwoSubAggregationSameProperty ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::enumeration::testProjectWithIfWhereBothSidesUseTheSameEnumMapping ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::projection::enumeration::testProjectWithIfWhereOneSideIsEnumLiteral ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::projection::enumeration::testProjectionWithEnumThroughAssociation ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::projection::filter::greaterThan::testGreaterThan ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::filter::greaterThanEqual::testGreaterThanEqual ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::filter::in::testInWithDynaFunction ||| AssertFailed: assertSameElements
+meta::relational::tests::projection::filter::lessThan::testLessThan ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::filter::lessThan::testLessThanFilterAsVariable ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::filter::lessThanEqual::testLessThanEqual ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::filter::testChainedFiltersQuery ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::projection::function::abs::testAbs ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::projection::view::testJoinToView ||| DataError: ', "accountName") > 0 THEN NULL ELSE coalesce(CAST(concat('''', replace(replace("accountName", '\', '\'), '''', '\'''), '''') AS
+meta::relational::tests::projection::view::testViewAllOneSimpleProperty ||| DataError: Function "REGEXP_EXTRACT" not found
+meta::relational::tests::query::association::toMany::testAssociationToMany ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toMany::testAssociationToManyNotExists ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toMany::testAssociationToManyWithBoolean ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toMany::testAssociationToManyWithConstantPredicate ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toMany::testAssociationToManyWithTwoSeparateExists ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toMany::testTwoAssociationsToManyDeep ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toMany::testTwoAssociationsToManyDeepWithOr ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toOne::testAssociationToOne ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toOne::testAssociationToOneWithBoolean ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toOne::testSimpleAndAssociationToOne ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toOne::testTwoAssociationsToOneBranch ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toOne::testTwoAssociationsToOneBranchWithOr ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::association::toOne::testTwoAssociationsToOneDeep ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::drop::testSimpleDrop ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::enumeration::testAggregationFunctionWithEnum ||| AssertFailed: assertEquals: UNJUDGED in database mode — side-a: tds-canon: enum cell has no literal channel
+meta::relational::tests::query::enumeration::testQueryWithEnum ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::eval::testAssociationToOneThroughEval ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::eval::testPredicateThroughEval ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::combinations::testGrouping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::combinations::testSelectChainOfAndOrOperators ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::combinations::testSelectEqualAnd ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::combinations::testSelectNotEqualNotAnd ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNull ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullWithIn ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::equal::testOtherType ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::equal::testSelectConstantPredicate ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::equal::testSelectEqual ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testAssociationHandlingDups ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testAssociationThreeLevelDeep ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testComplexExistsToManyProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testComplexOrExistsToManyProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testContains ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testContainsNegated ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsInAbstractProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsToManyProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsToManyPropertySwapped ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsToManyPropertyWithAndFilter ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsToManyPropertyWithAndFilterAndLiteralConditions ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsToManyPropertyWithAndFilterAndLiteralConditionsDeep ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsWithAttributesFromLeftInAndCondition ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsWithAttributesFromLeftInOrCondition ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testExistsWithOrCondition ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testFilterAfterFilterWithExistsExpression ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testFilterFunctionExpressionWithAndConditionOnRightTableIsEmptyExpression ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testFilterFunctionExpressionWithConditionOnRightTableIsEmptyExpression ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testIn ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testInExistsCombined ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testInNegated ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testIsEmpty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testIsEmptyNested ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testNestedExistsOne ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testNestedExistsWithExistsInAbstractProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testNestedNotExists ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::exists::testNotExists ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::greaterThan::testGreaterThan ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::greaterThan::testGreaterThanDate ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::greaterThanEqual::testGreaterThanEqual ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::greaterThanEqual::testGreaterThanEqualString ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testContains ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testContainsOnToManyProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testContainsOnToOneProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testContainsWithListVariable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testContainsWithVariables ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testDeepContains ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testDeepIn ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testIn ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testInWithFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testInWithJoinStrings ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testInWithListVariable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testInWithMultiplicityZeroToOne ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testInWithNegativeNumbers ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testInWithOneValue ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testInWithVariables ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testNotContains ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::in::testNotIn ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::isempty::testIsolationOfInputToIsEmpty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::lessThan::testLessThan ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::lessThan::testLessThanWithArithmetic ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::lessThanEqual::testLessThanEqual ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::lessThanEqual::testLessThanEqualString ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::notEqual::testSelectNotEqual ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::notEqual::testSelectNotEqualWithEnumMappedToConstant ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::filter::or::testOrFilterWithTypeFilter ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::concatenate::testAll ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::concatenate::testConcatenateClass ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::concatenate::testConcatenateDataType ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::concatenate::testConcatenateDataTypeDiffProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::concatenate::testConcatenateDataTypeMerge ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::isempty::testDerivedWithIsEmpty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterEnumOnClassProp ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterThroughAssociationUsingPlusFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingContainsFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingEndsWithFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingFunctionWithVariable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingIfFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingIsEmptyFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingLengthFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingMatchesFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingPlusFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingStartsWithFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingSubstringFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingToLowerFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::function::testFilterUsingToUpperFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::limit::testSimpleLimit ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::openvariables::testExistsAndBooleanOpenVariables ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::openvariables::testExistsOpenVariable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::openvariables::testGroupOpenVariable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterAbstractPropertyWithConditionOnLeftAndRightTable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterAbstractPropertyWithConditionOnRightTableExistsExpression ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterAsbtractPropertyWithConditionRightTable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithAndConditionOnRightTable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithAndConditionOnRootAndRightTable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithConditionOnLeftAndRightTable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithConditionOnLeftAndRightTableNested ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithConditionOnLeftAndRightTableNestedDynaFunction ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithConditionOnRightTableAndExpression ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithConditionOnRightTableIsEmptyExpression ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithConditionOnRightTableOrExpression ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithConditionRightTable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::advanced::filterFunctionExpressionWithOrConditionOnRightTable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::testAssociationSpecifiedQualifiedProperty ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::testExistsWithQualifierOnleftSide ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::testNoParameters ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::testNoParametersThroughAssociation ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::testWithParameter ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::qualifier::testWithParameterUsedWithinExists ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::routing::testRoutingTwoExpressionsWithVariable ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::routing::testRoutingWithClassAsVariableForGetAll ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::simple::testAll ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::slice::testSlice ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::sort::testSortByLambdaColumnAddition ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::sort::testSortByLambdaMultiple ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::sort::testSortByLambdaSimple ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::sort::testSortByLambdaWIthIfElseColumn ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::sort::testSortByLambdaWithComplexExpr ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::sort::testSortByLambdaWithIfElseValue ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::sort::testSortSimple ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::query::take::testSimpleTake ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::runtime::extractDBs::testExtractDBsWithSubstituition ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::semistructured::explode::testExplodeReturnTypeAcceptedNames ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
+meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals
+meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals
+meta::relational::tests::tds::groupBy::simpleGroupByWithJoinStrings ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
+meta::relational::tests::tds::tabletds::simpleGroupCount ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
+meta::relational::tests::tds::tdsContains::testTDSContainsType1 ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::tds::tdsContains::testTDSContainsType1Negation ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::tds::tdsContains::testTDSContainsType1NegationWithExtendedPrimitives ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::tds::tdsContains::testTDSContainsType2 ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::tds::tdsContains::testTDSContainsType2Negation ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::tds::tdsExtend::testFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
+meta::relational::tests::tds::tdsFilter::testFilterOnDynaFunctionColumn ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::tds::tdsFilter::testInOnColumnInSubselect ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::tds::tdsJoin::testRightOuterJoinSimple ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
+meta::relational::tests::tds::tdsProject::testProjectFunctionOnStringColumn ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
+meta::relational::tests::tds::tdsRestrict::testRestrictOnGroupByColumn_SubSetOfGroupByColumns ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
