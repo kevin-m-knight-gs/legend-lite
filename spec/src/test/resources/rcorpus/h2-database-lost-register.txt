@@ -111,6 +111,8 @@ meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMapping ||| D
 meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDateInJoin ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::mapping::join::testTwoJoinsInPropertyMappingAndJoinInQueryWithGrouping ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::mapping::join::testTwoJoinsInPropertyMultipleParenthesisMappingAndJoinInQueryWithGrouping ||| DataError: Function "JSON_TYPE" not found
+meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| accepted-divergence WITNESS MISSING ('(2 rows)
+meta::relational::tests::mapping::relation::testDateTimeRetrieveWithTimeZone ||| DataError: ', coalesce(CAST(concat('%', CASE WHEN LOCATE('T', replace(regexp_replace(CAST("settlementDateTime" AS VARCHAR), '(\+0000|Z)$', '
 meta::relational::tests::mapping::sqlFunction::acos::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found
 meta::relational::tests::mapping::sqlFunction::acos::testProject ||| DataError: Function "REGEXP_EXTRACT" not found
 meta::relational::tests::mapping::sqlFunction::asin::testFilter ||| DataError: Function "REGEXP_EXTRACT" not found

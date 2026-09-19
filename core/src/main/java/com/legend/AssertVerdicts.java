@@ -241,6 +241,9 @@ final class AssertVerdicts {
             if (targs.size() < 3 || targs.size() > 4) {
                 yield null;
             }
+            if (JUDGE_MODE == JudgeMode.DATABASE) {
+                yield databaseTdsEquivalent(name, targs, letPrefix, specs, env, hook);
+            }
             ExecutionResult.Tabular one =
                     tabular(targs.get(0), letPrefix, specs, env, hook);
             ExecutionResult.Tabular two =
@@ -716,6 +719,16 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    // bucket 5: the model's subtype relation IS instanceOf —
+                    // minted as the native call, judged as a condition
+                    TypedSpec cond = com.legend.compiler.spec.VerdictQueries
+                            .instanceOfCondition(args.get(0), args.get(1), specs);
+                    if (cond == null) {
+                        yield unjudged(name, "instanceOf: no two-argument native in the catalog");
+                    }
+                    yield databaseCondition(name, cond, true, letPrefix, specs, env, hook);
+                }
                 Object v = one(side(args.get(0), letPrefix, specs, env, hook),
                         "assertInstanceOf instance");
                 String type = typeRefName(args.get(1));
@@ -746,7 +759,28 @@ final class AssertVerdicts {
                 }
                 ExecutionResult isv = isVerdict(args.get(0), args.get(1));
                 if (isv != null) {
+                    if (JUDGE_MODE == JudgeMode.DATABASE) {
+                        // a statically identified pair: decided by the compiler
+                        // (the same count as the static kind gate)
+                        com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+                    }
                     yield isv;
+                }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    String ki = kindKey(args.get(0), letPrefix, env);
+                    String kj = kindKey(args.get(1), letPrefix, env);
+                    if (ki != null && kj != null && ki.startsWith("enum:") && kj.startsWith("enum:")) {
+                        // an enum's identity IS its value: the equality statement
+                        // (Enumeration.NAME on both sides — bucket 1)
+                        yield databaseVerdict(name, true, args.get(0), args.get(1),
+                                letPrefix, specs, env, hook, false, false);
+                    }
+                    if (elementTyped(args.get(0), specs) && elementTyped(args.get(1), specs)) {
+                        TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
+                                specs.ctx(), args.get(0), args.get(1));
+                        yield databaseCondition(name, cond, true, letPrefix, specs, env, hook);
+                    }
+                    yield unjudged(name, "is: neither an enum pair nor a tracked element pair");
                 }
                 // ELEMENT IDENTITY (metamodel-as-relations D2/D3): a tracked
                 // element's identity is its row's primary key — `is` over an
@@ -1516,6 +1550,53 @@ final class AssertVerdicts {
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.rows(literal)),
                 c.connection(env), env);
+    }
+
+    /** {@code assertTdsEquivalent} in database mode (bucket 5): both grids
+     * planned, the column names checked statically (the schemas), the cells
+     * aligned by position in one statement with the numeric / temporal
+     * tolerances (VerdictSql.gridTolerance). */
+    private static ExecutionResult databaseTdsEquivalent(String name, List<TypedSpec> targs,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook) {
+        SideRows one = planSide(targs.get(0), true, letPrefix, specs, env, hook);
+        SideRows two = planSide(targs.get(1), false, letPrefix, specs, env, hook);
+        if (one.why() != null || two.why() != null) {
+            return unjudged(name, "tdsEquivalent side: " + (one.why() != null ? one.why() : two.why()));
+        }
+        var r1 = java.util.Objects.requireNonNull(one.rider());
+        var r2 = java.util.Objects.requireNonNull(two.rider());
+        var w1 = java.util.Objects.requireNonNull(one.side());
+        var w2 = java.util.Objects.requireNonNull(two.side());
+        var s1 = com.legend.compiler.element.type.Type.schemaView(w1.shapeInfo().type());
+        var s2 = com.legend.compiler.element.type.Type.schemaView(w2.shapeInfo().type());
+        if (!r1.tdsWrapped() || !r2.tdsWrapped() || s1 == null || s2 == null) {
+            return unjudged(name, "tdsEquivalent: a side is not a grid");
+        }
+        List<String> n1 = s1.columns().stream().map(c -> c.name()).toList();
+        List<String> n2 = s2.columns().stream().map(c -> c.name()).toList();
+        if (!n1.equals(n2)) {
+            com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+            return fail(name + ": columns differ " + n1 + " vs " + n2);   // a static verdict
+        }
+        List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
+        List<Boolean> floats = new ArrayList<>();
+        for (var c : s1.columns()) {
+            kinds.add(c.type());
+            floats.add(c.type() == com.legend.compiler.element.type.Type.Primitive.FLOAT);
+        }
+        var g1 = new com.legend.lowering.VerdictSql.GridSide(w1.plan(), n1.size(), floats);
+        var g2 = new com.legend.lowering.VerdictSql.GridSide(w2.plan(), n2.size(), floats);
+        SideRows delta = planSide(targs.get(2), false, letPrefix, specs, env, hook);
+        SideRows timeDelta = planSide(targs.size() == 4 ? targs.get(3)
+                : com.legend.compiler.spec.VerdictQueries.zeroLiteral(), false, letPrefix, specs, env, hook);
+        if (delta.why() != null || timeDelta.why() != null) {
+            return unjudged(name, "tdsEquivalent delta: "
+                    + (delta.why() != null ? delta.why() : timeDelta.why()));
+        }
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
+                        delta.rows(false), timeDelta.rows(false)),
+                w1.storeFree() ? w2.connection() : w1.connection(), env);
     }
 
     private static ExecutionResult databaseCondition(String name, TypedSpec cond, boolean wantTrue,

@@ -20,3 +20,4 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPy
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testQtdValue ||| engine-store-arithmetic:h2-decimal-average ||| hireType,qtd,Campus,4.23,Lateral,4.32,
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa ||| engine-store-arithmetic:h2-decimal-average ||| hireType,wtd,pwa,Campus,2.16,0.206880733946,Lateral,3.24,0.188073394497,
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYtdValue ||| engine-store-arithmetic:h2-decimal-average ||| hireType,ytd,Campus,5.59,Lateral,5.72,
+meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| engine-golden-defect:h2-literal-coercion ||| expected: 2 | actual:   1

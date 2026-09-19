@@ -4070,3 +4070,21 @@ gained 38 → 39 (`tds::groupBy::simpleGroupCount`, named: the host H2 lane fail
 `'null'` decode). Guardrails on the way: Lowerer's method / file size limits (the two
 type-value arms compacted), a dead helper deleted. Ledger with reason: AssertVerdicts 2427 →
 2457, StatementExecutor 2212 → 2217. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4o.
+
+**Judging step 3, bucket 5 — identity and type asserts (2026-09-19):** chain GREEN (gates 1–10),
+parallel wall ≈ 4m46s (G2 26; A: G1 88 · G3 13 · G4 118 · G5 41 = 260; B: G6 164 · G7 49 ·
+G9 38 = 251; C: G8 179 · G10 60 = 239 — the afternoon's runs ~20 s slower per heavy gate;
+machine). No host roster moved (DuckDB 108, H2 427, exact). `assertIs` over tracked elements
+runs the resolver's `identityCondition` as the condition statement (an enum pair takes the
+equality statement; a statically identified pair stays a compile-time verdict, counted);
+`assertInstanceOf` is the minted `instanceOf(value, Type)` native judged as a condition
+(`VerdictQueries.instanceOfCondition`); `assertTdsEquivalent` is `VerdictSql.gridTolerance` —
+cells aligned by position, a numeric pair within delta, a temporal pair within timeDelta
+seconds (the decoded text cell cast back to a timestamp for its epoch), any other pair
+canon-equal, cell counts equal, column names checked statically. The seven asserts leave the
+Java judge; the DuckDB lost register is unchanged at 79 (they were never lost);
+`testDateTimeInclusiveRangeQuery`, an accepted divergence in host mode
+(`engine-golden-defect:h2-literal-coercion`), gained its database-mode witness. H2 database
+lost 371 → 373 (the two tolerance tests: the missing `EPOCH` spelling — H2 spells
+`EXTRACT(EPOCH FROM …)` — and the temporal-text regex; §4h B) / gained 39. Ledger with reason:
+AssertVerdicts 2457 → 2527. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4p.

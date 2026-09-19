@@ -1132,6 +1132,31 @@ dead helper deleted, the ledger re-pinned with its reason.
 the host H2 lane fails it for its own reason; the database judges the column types by name).
 All 17 named rows decided in the database.
 
+## 4p. Bucket 5 — identity and type asserts (2026-09-19)
+
+- **assertIs (4, all `assertIs(db, mapping->resolveStore(db))`):** a tracked element's
+  identity is its row's key — the resolver's own `identityCondition` (the same equality the
+  chain normalizer rewrites `is` to), judged as the condition statement. An enum pair goes
+  through the equality statement (bucket 1's spelling); a statically identified pair stays a
+  compile-time verdict (counted like the static kind gate). Anything else is named.
+- **assertInstanceOf (1):** the model's subtype relation IS `instanceOf` — minted as the native
+  call in the compiler layer (`VerdictQueries.instanceOfCondition`, lowered by the existing
+  `Scalars.instanceOfFold`) and judged as a condition.
+- **assertTdsEquivalent (2):** `VerdictSql.gridTolerance` — both grids' cells row-major, aligned
+  by position; a numeric pair within `delta`, a temporal pair within `timeDelta` seconds (the
+  cells arrive decoded as text after the fetch conformance, so a temporal cell casts back to a
+  timestamp for its epoch), any other pair canon-equal; the cell counts must match; the column
+  names are checked statically from the two schemas. One of the two tests is an ACCEPTED
+  divergence in host mode (`engine-golden-defect:h2-literal-coercion`: the engine's H2 coerces
+  a nine-digit literal to millis and returns a second row); its database-mode witness is the
+  statement's own evidence (`expected: 2 | actual: 1`).
+
+**Measured (four lanes, registers exact):** DuckDB host 108 / H2 host 427; DuckDB database
+lost 79 → 79 / gained 0 (the accepted row); H2 database lost 371 → 373 / gained 39 — the two
+tolerance tests on H2 hit the missing `EPOCH` spelling (H2 spells it `EXTRACT(EPOCH FROM …)`)
+and the temporal-text regex spelling: the §4h B quick-win bucket. All 7 identity / type asserts
+decided in the database on DuckDB. Ledger with reason: AssertVerdicts 2457 → 2527.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

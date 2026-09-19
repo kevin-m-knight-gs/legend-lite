@@ -511,6 +511,26 @@ public final class VerdictQueries {
                 new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE));
     }
 
+    /** {@code instanceOf(value, Type)} as a typed call — the meaning of
+     * {@code assertInstanceOf} (the model's own subtype relation, lowered by
+     * Scalars.instanceOfFold), judged as a condition. Null when the catalog
+     * has no two-argument instanceOf. */
+    public static @com.legend.Nullable TypedSpec instanceOfCondition(TypedSpec value,
+            TypedSpec typeArg, SpecCompiler specs) {
+        return specs.ctx().findFunction(
+                        com.legend.compiler.element.type.PlatformTypes.INSTANCE_OF)
+                .stream().filter(f -> f.parameters().size() == 2).findFirst()
+                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(value, typeArg),
+                        new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)))
+                .orElse(null);
+    }
+
+    /** The literal {@code 0} — assertTdsEquivalent's absent time delta. */
+    public static TypedSpec zeroLiteral() {
+        return new com.legend.compiler.spec.typed.TypedCInteger(0L,
+                new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE));
+    }
+
     public static com.legend.compiler.spec.typed.TypedSpec tdsNullSentinel(
             com.legend.compiler.spec.typed.TypedSpec spec) {
         if (!(spec instanceof com.legend.compiler.spec.typed.TypedCollection c)) {

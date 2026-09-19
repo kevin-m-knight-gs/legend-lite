@@ -3,6 +3,7 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.element.type.Type;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -279,6 +280,110 @@ public final class VerdictSql {
                 null);
         return predicate(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
                 equal, e, a, unjudged);
+    }
+
+    /** {@code assertTdsEquivalent(one, two, delta[, timeDelta])} (bucket 5): the
+     * two grids' cells ROW-MAJOR, aligned by position; a numeric pair within
+     * {@code delta}, a temporal pair within {@code timeDelta} seconds, any
+     * other pair canon-equal (the host rule, TdsCompare.tdsEquivalent); the
+     * cell counts must match. {@code kinds} = the columns' declared kinds
+     * (both grids share the schema — the names were checked statically). */
+    public static SqlQuery gridTolerance(GridSide one, GridSide two, List<Type> kinds,
+            SqlQuery deltaRows, SqlQuery timeDeltaRows) {
+        SqlQuery e = toleranceCells(one, kinds);
+        SqlQuery a = toleranceCells(two, kinds);
+        SqlExpr delta = new SqlExpr.Cast(scalarOver("__d", col("__d", C), "__one",
+                SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.DOUBLE);
+        SqlExpr timeDelta = new SqlExpr.Cast(scalarOver("__t", col("__t", C), "__one",
+                SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.DOUBLE);
+        SqlExpr en = SqlExpr.Column.of("__e", "__n", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.DERIVED);
+        SqlExpr an = SqlExpr.Column.of("__a", "__n", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.DERIVED);
+        SqlExpr es = SqlExpr.Column.of("__e", "__s", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.DERIVED);
+        SqlExpr as = SqlExpr.Column.of("__a", "__s", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.DERIVED);
+        SqlExpr within = SqlExpr.Call.of(SqlFn.OR,
+                SqlExpr.Call.of(SqlFn.OR,
+                        SqlExpr.Call.of(SqlFn.AND,
+                                SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, en),
+                                        SqlExpr.Call.of(SqlFn.IS_NOT_NULL, an)),
+                                SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                                        SqlExpr.Call.of(SqlFn.ABS, SqlExpr.Call.of(SqlFn.MINUS, en, an)),
+                                        SqlExpr.Call.of(SqlFn.ABS, delta))),
+                        SqlExpr.Call.of(SqlFn.AND,
+                                SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, es),
+                                        SqlExpr.Call.of(SqlFn.IS_NOT_NULL, as)),
+                                SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                                        SqlExpr.Call.of(SqlFn.ABS, SqlExpr.Call.of(SqlFn.MINUS, es, as)),
+                                        SqlExpr.Call.of(SqlFn.ABS, timeDelta)))),
+                SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__e", C), col("__a", C)));
+        // the BAD pairs: cells joined by position that are not within
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        SqlSelect bad = new SqlSelect(List.of(new SqlSelect.Projection(col("__e", RN), RN, rnOut)),
+                false, new SqlSource.Join(cte("__e"), cte("__a"), SqlSource.Join.Kind.INNER,
+                        SqlExpr.Call.of(SqlFn.EQUAL, col("__e", RN), col("__a", RN))),
+                SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.COALESCE, within, new SqlExpr.BoolLit(false))),
+                List.of(), null, null, List.of(), null, null, List.of(rnOut));
+        SqlExpr sameCount = SqlExpr.Call.of(SqlFn.EQUAL, count("__e"), count("__a"));
+        SqlExpr noBad = SqlExpr.Call.of(SqlFn.EQUAL, count("__p"), new SqlExpr.IntLit(0));
+        return predicate(List.of(new SqlWith.Cte("__e", e), new SqlWith.Cte("__a", a),
+                        new SqlWith.Cte("__d", deltaRows), new SqlWith.Cte("__t", timeDeltaRows),
+                        new SqlWith.Cte("__p", bad)),
+                SqlExpr.Call.of(SqlFn.AND, sameCount, noBad),
+                new SqlExpr.Cast(count("__e"), SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(count("__a"), SqlType.Scalar.VARCHAR));
+    }
+
+    /** A grid's cells row-major with a NUMERIC value ({@code __n}, any
+     * numeric kind) and a TEMPORAL value in epoch seconds ({@code __s}). */
+    private static SqlQuery toleranceCells(GridSide grid, List<Type> kinds) {
+        List<SqlQuery> branches = new ArrayList<>();
+        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        OutputCol nOut = new OutputCol("__n", SqlType.Scalar.DOUBLE, true);
+        OutputCol sOut = new OutputCol("__s", SqlType.Scalar.DOUBLE, true);
+        List<SqlSelect.Projection> values = grid.wrapped() instanceof SqlSelect ws
+                ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size()))
+                : List.of();
+        for (int i = 0; i < grid.width(); i++) {
+            SqlExpr cell = new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
+                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR);
+            SqlExpr rowNo = new SqlExpr.WindowCall(
+                    new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                    List.of(), List.of(), null);
+            SqlExpr ord = SqlExpr.Call.of(SqlFn.PLUS,
+                    SqlExpr.Call.of(SqlFn.TIMES,
+                            SqlExpr.Call.of(SqlFn.MINUS, rowNo, new SqlExpr.IntLit(1)),
+                            new SqlExpr.IntLit(grid.width())),
+                    new SqlExpr.IntLit(i + 1));
+            Type k = i < kinds.size() ? kinds.get(i) : null;
+            String alias = i < values.size() ? values.get(i).alias() : null;
+            SqlExpr raw = alias != null
+                    ? SqlExpr.Column.of("w", alias, SqlType.Scalar.VARCHAR, true,
+                            OutputCol.Origin.DERIVED)
+                    : null;
+            boolean numeric = k == Type.Primitive.INTEGER || k == Type.Primitive.FLOAT
+                    || k == Type.Primitive.DECIMAL || k == Type.Primitive.NUMBER
+                    || k instanceof Type.PrecisionDecimal;
+            boolean temporal = k == Type.Primitive.DATE_TIME || k == Type.Primitive.STRICT_DATE
+                    || k == Type.Primitive.DATE;
+            SqlExpr n = raw != null && numeric ? new SqlExpr.Cast(raw, SqlType.Scalar.DOUBLE)
+                    : new SqlExpr.NullLit();
+            // the grid's cells arrive DECODED as text (the fetch conformance:
+            // nine-digit temporals) — a temporal cell casts back to a
+            // timestamp for its epoch
+            SqlExpr sec = raw != null && temporal
+                    ? new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.EPOCH_SECONDS,
+                            new SqlExpr.Cast(raw, SqlType.Scalar.TIMESTAMP)), SqlType.Scalar.DOUBLE)
+                    : new SqlExpr.NullLit();
+            branches.add(new SqlSelect(List.of(
+                            new SqlSelect.Projection(cell, C, cOut),
+                            new SqlSelect.Projection(ord, RN, rnOut),
+                            new SqlSelect.Projection(n, "__n", nOut),
+                            new SqlSelect.Projection(sec, "__s", sOut)),
+                    false, new SqlSource.Subselect(grid.wrapped(), "w", null), null,
+                    List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, nOut, sOut)));
+        }
+        return branches.size() == 1 ? branches.get(0)
+                : new com.legend.sql.SqlUnion(branches, true, List.of(cOut, rnOut, nOut, sOut));
     }
 
     /** The JSON verdict (bucket 3): the document the database built (its
