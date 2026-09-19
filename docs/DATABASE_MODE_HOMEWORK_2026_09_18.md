@@ -1020,6 +1020,25 @@ lost 51 → 101 (−8 enum, +58 order named) / gained 0; H2 database lost 342 �
 gained 38. Judged in the database: the 8 enum grid tests (enum cells spelled
 `Enumeration.NAME` on both sides).
 
+## 4m. Bucket 2 — the "tds-peer" rows (2026-09-19)
+
+**Not date literals after all.** The 8 rows named `tds-peer: no literal channel` were two
+causes, found by making the decline carry the peer's own state (kinds / decline reason):
+- **4 DateTime literal collections** (`[%2016-06-23T13:00:00.000000000+0000, …]` vs
+  `rows.values`): the literal lowers on the precision-faithful `TEMPORAL_TEXT` carrier, which
+  the wire-kind map (`kindOfSqlType`) did not list — so the literal channel was never built.
+  `TEMPORAL_TEXT` → the temporal kind (and `TIMESTAMPTZ` → DateTime, the +0000 form).
+- **4 empty-literal peers** (`assertEquals([], $result.values.rows)` and the
+  `rows->filter(…'Unknown')` shape): the Nil branch of the canon wrap claimed the side with a
+  NULL canon but never set it as the literal channel; and the peer-cells CTE did not drop the
+  NULL-value row every other side drops (the empty `[]` is one NULL row). Both fixed: an
+  empty peer is ZERO cells, and a grid against it judges "no rows" in the database.
+
+**Measured (four lanes, registers exact after removing the 8 / 3 rows):** DuckDB host 108 /
+H2 host 427; DuckDB database lost 101 → 93 / gained 0; H2 database lost 382 → 379 / gained
+38. Ledger with reason: AssertVerdicts 2314 → 2317 (the decline message carries the peer's
+state).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

@@ -1178,7 +1178,12 @@ final class AssertVerdicts {
                 if (width <= 0) {
                     why = "grid side without a schema view";
                 } else if (!pr.wrapped() || pr.literalIndex() < 0) {
-                    why = "tds-peer: no literal channel";
+                    // the peer's own state rides the reason: WHY it has no
+                    // literal channel is the bucket's diagnosis
+                    why = "tds-peer: no literal channel (peer "
+                            + (!pr.wrapped() ? "unwrapped: " + pr.declined()
+                                    : "kinds " + pr.kinds() + ", no literal candidate")
+                            + ")";
                 } else {
                     List<Boolean> floatCols = new ArrayList<>();
                     for (var colT : java.util.Objects.requireNonNull(schema).columns()) {

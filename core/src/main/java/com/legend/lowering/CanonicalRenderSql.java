@@ -185,6 +185,9 @@ public final class CanonicalRenderSql {
             // empty rule renders '[]'); claim with a placeholder
             candidates = List.of(t);
             canons.add(new SqlExpr.NullLit());
+            // …and it IS the literal channel: the one NULL row is dropped
+            // at the frame, so a grid peer judges "no rows" in the database
+            literalIndex = 0;
         } else if (instFqn != null && valueCol.type() instanceof SqlType.Struct cst
                 && hasCanonField(cst)) {
             // F10 proper — a constructed instance carries its canon on the
@@ -268,6 +271,12 @@ public final class CanonicalRenderSql {
                     candidates.add(t);
                     literalIndex = canons.size() - 1;
                 }
+            }
+            if (literalIndex < 0 && System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+                // the SQL dump's companion: WHY a typed side has no literal candidate
+                System.err.println("[canon] no literal candidate: kind=" + t
+                        + " column=" + valueCol.type() + " literalChannel=" + literalChannel
+                        + " bare=" + bare.size());
             }
         }
         var mult = rootInfo.multiplicity().requireBounded("canon side");
@@ -865,7 +874,15 @@ public final class CanonicalRenderSql {
         if (t == SqlType.Scalar.DATE) {
             return Type.Primitive.STRICT_DATE;
         }
-        if (t == SqlType.Scalar.TIMESTAMP) {
+        if (t == SqlType.Scalar.TEMPORAL_TEXT) {
+            // the precision-faithful temporal-text carrier (partials,
+            // written subsecond digits): a temporal value, kind by its
+            // declaration (the literal spells every temporal %-prefixed)
+            return Type.Primitive.DATE;
+        }
+        if (t == SqlType.Scalar.TIMESTAMP || t == SqlType.Scalar.TIMESTAMPTZ) {
+            // a DateTime literal with its +0000 lowers time-zoned — the
+            // same DateTime kind (the 4 `[%2016-…+0000, …]` peers)
             return Type.Primitive.DATE_TIME;
         }
         return null;

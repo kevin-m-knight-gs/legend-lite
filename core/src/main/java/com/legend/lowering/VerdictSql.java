@@ -528,7 +528,15 @@ public final class VerdictSql {
         }
         SqlExpr value = peer.wrapped() instanceof SqlSelect ps && !ps.projections().isEmpty()
                 ? doubleValue(ps.projections().get(0), "w", peer.isFloat()) : new SqlExpr.NullLit();
-        return rowsOf(c, value, peer.wrapped(), null);
+        // pure has no null VALUE: the peer drops a NULL-value row like every
+        // other side (an empty [] peer is one NULL row → zero cells)
+        SqlExpr where = peer.wrapped() instanceof SqlSelect vs && !vs.projections().isEmpty()
+                && vs.projections().get(0).alias() != null
+                ? SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                        SqlExpr.Column.of("w", vs.projections().get(0).alias(),
+                                SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED))
+                : null;
+        return rowsOf(c, value, peer.wrapped(), where);
     }
 
     /** The peer's cells chunked into rows of {@code width}: cells in

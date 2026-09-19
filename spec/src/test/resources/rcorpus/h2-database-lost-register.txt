@@ -48,7 +48,6 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPw
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPymtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPyqtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPytdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
-meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaDateRange ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValueOnStartYear ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywtdValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order
@@ -61,7 +60,6 @@ meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testYt
 meta::relational::tests::getter::testGetterTwice ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::groupBy::testAggToManyWithAverage ||| DataError: ', coalesce(CAST(CAST("Count of Firms" AS VARCHAR) AS VARCHAR), 'TDSNull'), '', coalesce(CAST(CASE WHEN REGEXP_LIKE(CAST("Average
 meta::relational::tests::groupBy::testGroupByWithUnion ||| DataError: Function "REGEXP_EXTRACT" not found
-meta::relational::tests::groupBy::testSimpleJoinStrings ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::map::testFilter ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::map::testFilterPostMapWithObject ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::map::testFilterThenMapAndReturnObject ||| DataError: Function "JSON_TYPE" not found
@@ -362,7 +360,6 @@ meta::relational::tests::runtime::extractDBs::testExtractDBsWithSubstituition ||
 meta::relational::tests::semistructured::explode::testExplodeReturnTypeAcceptedNames ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals
 meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals
-meta::relational::tests::tds::groupBy::simpleGroupByWithJoinStrings ||| AssertFailed: assertEquals: UNJUDGED in database mode — tds-peer: no literal channel
 meta::relational::tests::tds::tabletds::simpleGroupCount ||| AssertFailed: assertEquals: UNJUDGED in database mode — kind-gate: non-primitive (GenericType:GenericType[rawFqn=meta::pure::metamodel::type
 meta::relational::tests::tds::tdsContains::testTDSContainsType1 ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::tds::tdsContains::testTDSContainsType1Negation ||| DataError: Function "JSON_TYPE" not found

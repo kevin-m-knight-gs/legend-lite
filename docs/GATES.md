@@ -4021,3 +4021,16 @@ between runs; the assert-boundary `ScanOrder` is scan-roots only by design. Regi
 database lost 51 → 101 (−8 enum, +58 order rows that had passed by arrival luck), H2 382 / 38
 (−8, +48). Ledger with reason: AssertVerdicts 2260 → 2314. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4l (and §4k, the collections analysis).
+
+**Judging step 3, bucket 2 — the "tds-peer" rows: the temporal-text carrier's kind, the empty
+peer's channel (2026-09-19):** chain GREEN (gates 1–10), quiet machine, parallel wall ≈ 4m10s
+(G2 24; A: G1 77 · G3 11 · G4 97 · G5 36 = 221; B: G6 140 · G7 44 · G9 32 = 216; C: G8 146 ·
+G10 52 = 198). No host roster moved (DuckDB 108, H2 427, exact). `kindOfSqlType` learns the
+`TEMPORAL_TEXT` carrier (a temporal, kind by declaration) and `TIMESTAMPTZ` (DateTime) — the
+four `[%2016-…+0000, …]` literal peers gain their literal channel; the canon wrap's Nil branch
+IS the literal channel (zero cells) and `VerdictSql.peerCells` drops the NULL-value row like
+every other side — the four `[]` peers judge "no rows" in the database. The decline message
+carries the peer's own state (kinds / reason), which is how the bucket was diagnosed: the 8
+rows were never date literals. Registers: DuckDB database lost 101 → 93 / gained 0; H2 382 →
+379 / 38. Ledger with reason: AssertVerdicts 2314 → 2317. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4m.
