@@ -518,6 +518,9 @@ public final class PlatformTypes {
     public static final String ROW_NUMBER = "meta::pure::functions::relation::rowNumber";
     public static final String INSTANCE_OF = "meta::pure::functions::meta::instanceOf";
     public static final String TO_STRING = "meta::pure::functions::string::toString";
+    public static final String STRING_REPLACE = "meta::pure::functions::string::replace";
+    public static final String STRING_MAKE_STRING = "meta::pure::functions::string::makeString";
+    public static final String STRING_JOIN_STRINGS = "meta::pure::functions::string::joinStrings";
     /** The engine's relational execution OPTIONS class (executionContext.pure) — the one
      *  context reader spells its fields. */
     public static final String RELATIONAL_EXECUTION_CONTEXT =

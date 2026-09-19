@@ -3,6 +3,7 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
@@ -86,7 +87,18 @@ public final class VerdictSql {
     /** A grid side: its wrapped plan and its width (columns). */
     /** {@code floatColumns}: per column, whether it is DECLARED Float —
      * the 2-ULP leniency's operand columns. */
-    public record GridSide(SqlQuery wrapped, int width, List<Boolean> floatColumns) {
+    /** {@code emptyIsNull}: per column, whether the assert's own grammar
+     * conflates the empty string with NULL ({@code toCSV} prints both as
+     * an empty cell) — the verdict then judges under that equivalence: a
+     * String cell's empty canon reads as the TDSNull sentinel. */
+    public record GridSide(SqlQuery wrapped, int width, List<Boolean> floatColumns,
+            List<Boolean> emptyIsNull) {
+        public GridSide(SqlQuery wrapped, int width, List<Boolean> floatColumns) {
+            this(wrapped, width, floatColumns, List.of());
+        }
+        boolean emptyIsNullAt(int i) {
+            return i < emptyIsNull.size() && emptyIsNull.get(i);
+        }
     }
 
     /** A value peer of a grid: its wrapped plan, the literal-channel canon
@@ -103,7 +115,7 @@ public final class VerdictSql {
      * which side the grid is. */
     public static SqlQuery gridRows(GridSide grid, PeerSide peer,
             boolean gridIsExpected, boolean multiset) {
-        SqlQuery g = gridRowCanons(grid.wrapped());
+        SqlQuery g = gridRowCanons(grid);
         SqlQuery p = peerRowCanons(peer, grid.width());
         SqlExpr divisible = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                 SqlExpr.Call.of(SqlFn.MOD,
@@ -375,8 +387,7 @@ public final class VerdictSql {
                 ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size()))
                 : List.of();
         for (int i = 0; i < grid.width(); i++) {
-            SqlExpr cell = new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
-                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR);
+            SqlExpr cell = gridCell(grid, i);
             SqlExpr rowNo = new SqlExpr.WindowCall(
                     new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                     List.of(), List.of(), null);
@@ -484,6 +495,15 @@ public final class VerdictSql {
     /** Two grids: row canons against row canons. */
     public static SqlQuery gridPair(SqlQuery e, SqlQuery a, boolean multiset) {
         return statement(gridRowCanons(e), gridRowCanons(a), true, true, multiset, List.of());
+    }
+
+    /** Two grids of ONE schema (a golden brought to rows against the
+     * rendered relation): row canons against row canons, the cells walked
+     * positionally for the declared-Float leniency, each side's empty-is-NULL
+     * columns read as the sentinel. */
+    public static SqlQuery gridPair(GridSide e, GridSide a, boolean multiset) {
+        return statement(gridRowCanons(e), gridRowCanons(a), true, true, multiset, List.of(),
+                List.of(), gridCellsRowMajor(e), gridCellsRowMajor(a));
     }
 
     private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
@@ -647,6 +667,36 @@ public final class VerdictSql {
                 SqlType.Scalar.VARCHAR), wrapped);
     }
 
+    /** A grid's row canons; under a column's empty-is-NULL equivalence the
+     * row canon is rebuilt from the cell canons ({@code __cell<i>} joined by
+     * the cell separator, as the wrap builds {@code __rowcanon}). */
+    private static SqlQuery gridRowCanons(GridSide grid) {
+        if (grid.emptyIsNull().stream().noneMatch(b -> b)) {
+            return gridRowCanons(grid.wrapped());
+        }
+        SqlExpr row = null;
+        for (int i = 0; i < grid.width(); i++) {
+            SqlExpr cell = gridCell(grid, i);
+            row = row == null ? cell : SqlExpr.Call.of(SqlFn.CONCAT,
+                    SqlExpr.Call.of(SqlFn.CONCAT, row,
+                            new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP)), cell);
+        }
+        return rowsOf(java.util.Objects.requireNonNull(row), grid.wrapped());
+    }
+
+    /** One cell canon of a grid, the empty String canon ({@code ''}) read as
+     * the sentinel where the column's grammar conflates it with NULL. */
+    private static SqlExpr gridCell(GridSide grid, int i) {
+        SqlExpr cell = new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
+                CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR);
+        if (!grid.emptyIsNullAt(i)) {
+            return cell;
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("''")),
+                new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))), cell);
+    }
+
     /** A grid side's loose CELL pool: one row per cell of every row, the
      * per-cell canons the wrap projected ({@code __cell<i>}), stacked. */
     private static SqlQuery gridCellCanons(GridSide grid) {
@@ -761,8 +811,7 @@ public final class VerdictSql {
                 ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size()))
                 : List.of();
         for (int i = 0; i < grid.width(); i++) {
-            SqlExpr cell = new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
-                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR);
+            SqlExpr cell = gridCell(grid, i);
             SqlExpr rowNo = new SqlExpr.WindowCall(
                     new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                     List.of(), List.of(), null);

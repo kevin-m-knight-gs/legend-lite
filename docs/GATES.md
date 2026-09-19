@@ -4124,3 +4124,33 @@ H2 database accepted register gains the inclusive-range witness. H2 text-decided
 re-pinned: rows-underivable 33 → 26, oracle-declined 45 → 48 (three sqlstring dateDiff-to-now
 rows moved channel once their statements execute). No ledger move. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4r.
+
+**Judging step 3, bucket 8 — rendered text judged as a grid (2026-09-19):** chain GREEN (gates
+1–10), parallel wall ≈ 4m33s (G2 25; A: G1 77 · G3 11 · G4 118 · G5 42 = 248; B: G6 149 · G7 53 ·
+G9 38 = 240; C: G8 163 · G10 62 = 225). The law: a render function's text equals a golden iff the
+rendered VALUE equals the golden parsed by that function's own grammar. `VerdictQueries` names the
+render (toCSV, toCSV→replace, toString over a relation, `rows->map(r | $r.values …)` as the
+Typer's `TypedMap`, a flat join) and brings the golden to rows as the language's own TDS literal
+(a typed `VALUES` relation of the planned relation's schema) or a literal collection typed as the
+Typer types one; the grid statements judge (`gridPair` over `GridSide`s with the declared-Float
+leniency; toCSV's NULL / empty-String equivalence on String columns). Ordered only when the chain
+ends in a sort and the assert is ordered; a multiset otherwise; `hashOrdered` (the order decline)
+DELETED. Three red measurements were read before any edit and are recorded in the homework: the
+kind gate over a String[n] golden, validate's late-bound `ID` column (the planned schema is the
+authority), enum cells, the empty relation's blank line, a null element in a flat join; then the
+value-lane list golden (`UNNEST(list_filter)`) with no H2 placement and no `list_filter` on the
+PCT battery — the TDS literal replaced it; a first chain red on gate 1 (AssertVerdicts 3530 lines:
+the identification moved to the compiler layer, 3451) and on the PCT battery (green after the TDS
+literal); a second chain red on gate 3 (the claims ledger: `makeString` / `joinStrings` /
+`replace` have one owner in `PlatformTypes` now — regenerated deliberately). Lowering facts:
+the float canon's exponent cast reads NULL for an absent exponent (H2 folds constants
+branch-blind — `CAST('' AS INTEGER)` raised under an untaken CASE arm; a total expression on every
+engine); DuckDB's postfix `ISNULL` / `NOTNULL` are reserved words (`Lexicon.DUCKDB`); an
+enumeration cell of a TDS literal is its name. Four lanes: DuckDB host 108 exact; H2 host 427 →
+412 (the fold guard: twelve rows execute; the 3 view rows from bucket 7 stay); DuckDB database
+lost 72 → 8 / gained 0, accepted register 23 → 28 (21 calendar rows re-witnessed; four scale-only
+rows `2.20` vs `2.2` named `h2-decimal-scale`; the adjust-strictdate row in its grid witness); H2
+database lost 125 → 79 / gained 41 → 71 (reasons per row in the register), unordered-chain +6,
+float-10-digits ceiling 34 → 36 (two of the twelve, not named — the tolerance counter printed
+nothing; measured). Ledger: AssertVerdicts 2543 → 2554. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4s.

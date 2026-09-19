@@ -484,9 +484,15 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.EQUAL, dotPos, new SqlExpr.IntLit(0)),
                 SqlExpr.Call.of(SqlFn.LENGTH, mant))),
                 SqlExpr.Call.of(SqlFn.MINUS, dotPos, new SqlExpr.IntLit(1)));
-        SqlExpr exp = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT,
+        // the exponent digits, NULL when there are none: H2 folds a constant
+        // operand at prepare time BRANCH-BLIND (a literal golden cell), so
+        // CAST('' AS INTEGER) would raise under the untaken CASE arm
+        SqlExpr expText = SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT,
                 base, new SqlExpr.StringLit("[eE]([+-]?[0-9]+)$"),
-                new SqlExpr.IntLit(1)), SqlType.Scalar.INTEGER);
+                new SqlExpr.IntLit(1));
+        SqlExpr exp = new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, expText, new SqlExpr.StringLit("")),
+                new SqlExpr.NullLit())), expText), SqlType.Scalar.INTEGER);
         SqlExpr pointPos = SqlExpr.Call.of(SqlFn.PLUS, intLen, exp);
         SqlExpr dLen = SqlExpr.Call.of(SqlFn.LENGTH, digits);
         // three shapes by where the point lands

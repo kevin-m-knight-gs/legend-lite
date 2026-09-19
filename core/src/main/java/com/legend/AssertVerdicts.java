@@ -1173,17 +1173,46 @@ final class AssertVerdicts {
      * non-SQL side, a grid side (3.1b), a multi-candidate Number side or
      * an enum on the literal channel is UNJUDGED — the assert FAILS with
      * the reason and the census counts it; no host judgment is consulted. */
+    /** A grid side's statement facts from its schema: the declared-Float
+     * columns (the 2-ULP leniency) and, under toCSV's grammar, the String
+     * columns whose empty cell and NULL print alike. */
+    private static com.legend.lowering.VerdictSql.GridSide gridSide(com.legend.sql.SqlQuery plan,
+            com.legend.compiler.element.type.Type.RelationType schema, boolean csvStrings) {
+        List<Boolean> floatCols = new ArrayList<>();
+        List<Boolean> emptyIsNull = new ArrayList<>();
+        for (var colT : schema.columns()) {
+            floatCols.add(colT.type() == com.legend.compiler.element.type.Type.Primitive.FLOAT);
+            emptyIsNull.add(csvStrings
+                    && colT.type() == com.legend.compiler.element.type.Type.Primitive.STRING);
+        }
+        return new com.legend.lowering.VerdictSql.GridSide(plan, schema.columns().size(), floatCols,
+                emptyIsNull);
+    }
+
     private static ExecutionResult databaseVerdict(String name, boolean wantEqual,
             TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
             @com.legend.Nullable SpliceHook hook, boolean canonicalOrder,
             boolean cellPool) {
+        return databaseVerdict(name, wantEqual, eSpec, aSpec, letPrefix, specs, env, hook,
+                canonicalOrder, cellPool, false);
+    }
+
+    /** {@code csvStrings}: the pair is judged under toCSV's own equivalence
+     * (a String column's empty string and NULL print alike — bucket 8). */
+    private static ExecutionResult databaseVerdict(String name, boolean wantEqual,
+            TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook, boolean canonicalOrder,
+            boolean cellPool, boolean csvStrings) {
         String ke = kindKey(eSpec, letPrefix, env);
         String ka = kindKey(aSpec, letPrefix, env);
         boolean anyNil = com.legend.compiler.element.type.PlatformTypes.isNil(eSpec.info().type())
                 || com.legend.compiler.element.type.PlatformTypes.isNil(aSpec.info().type());
         boolean anyAny = isAnyStamped(eSpec) || isAnyStamped(aSpec);
-        if (ke != null && ka != null && !anyNil && !anyAny && !ke.equals(ka)) {
+        boolean bothGrids = com.legend.compiler.element.type.Type.isRelation(eSpec.info().type())
+                && com.legend.compiler.element.type.Type.isRelation(aSpec.info().type());
+        if (ke != null && ka != null && !anyNil && !anyAny && !bothGrids && !ke.equals(ka)) {
             if (primitiveKindClass(ke) && primitiveKindClass(ka)) {
                 // X4: the engine has no cross-kind PRIMITIVE equality — a
                 // VERDICT (false), decided statically, the one comparison SQL
@@ -1251,13 +1280,21 @@ final class AssertVerdicts {
         boolean gridA = why == null && ra.tdsWrapped();
         if (gridE || gridA) {
             if (gridE && gridA) {
-                // two grids: their row canons against each other
-                return runVerdict(name, wantEqual,
-                        com.legend.lowering.VerdictSql.gridPair(
-                                java.util.Objects.requireNonNull(we).plan(),
-                                java.util.Objects.requireNonNull(wa).plan(), canonicalOrder),
-                        we.storeFree() ? java.util.Objects.requireNonNull(wa).connection()
-                                : we.connection(), env);
+                // two grids: their row canons against each other, the cells
+                // walked for the declared-Float leniency when the schemas agree
+                var se = com.legend.compiler.element.type.Type.schemaView(
+                        java.util.Objects.requireNonNull(we).shapeInfo().type());
+                var sa = com.legend.compiler.element.type.Type.schemaView(
+                        java.util.Objects.requireNonNull(wa).shapeInfo().type());
+                com.legend.sql.SqlQuery pq;
+                if (se != null && sa != null && se.columns().size() == sa.columns().size()) {
+                    pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
+                            gridSide(wa.plan(), sa, csvStrings), canonicalOrder);
+                } else {
+                    pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
+                }
+                return runVerdict(name, wantEqual, pq,
+                        we.storeFree() ? wa.connection() : we.connection(), env);
             } else {
                 StatementExecutor.WrappedSide gw = gridE ? we : wa;
                 com.legend.exec.CanonRider pr = gridE ? ra : re;
@@ -1275,11 +1312,7 @@ final class AssertVerdicts {
                                     : "kinds " + pr.kinds() + ", no literal candidate")
                             + ")";
                 } else {
-                    List<Boolean> floatCols = new ArrayList<>();
-                    for (var colT : java.util.Objects.requireNonNull(schema).columns()) {
-                        floatCols.add(colT.type() == com.legend.compiler.element.type.Type.Primitive.FLOAT);
-                    }
-                    var grid = new com.legend.lowering.VerdictSql.GridSide(gw.plan(), width, floatCols);
+                    var grid = gridSide(gw.plan(), java.util.Objects.requireNonNull(schema), csvStrings);
                     boolean peerFloat = pr.kinds().size() == 1
                             ? pr.kinds().get(0) == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             : pr.literalIndex() >= 0 && pr.kinds().get(pr.literalIndex())
@@ -1941,61 +1974,6 @@ final class AssertVerdicts {
                     // a graph fetch / serialize keeps its root's order
                     "graphFetch", "graphFetchChecked", "serialize");
 
-    /** True when the chain's order is decided by a HASH operator (a
-     * grouping / join / union / pivot) with no sort after it — the arrival
-     * order is not reproducible between runs. Typed-tree navigation only. */
-    private static boolean hashOrdered(TypedSpec s, List<TypedSpec> lets,
-            @com.legend.Nullable SpliceHook hook, java.util.Set<String> seen) {
-        if (s instanceof com.legend.compiler.spec.typed.TypedSort
-                || s instanceof com.legend.compiler.spec.typed.TypedSortBy) {
-            return false;
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedGroupBy
-                || s instanceof com.legend.compiler.spec.typed.TypedAggregate
-                || s instanceof com.legend.compiler.spec.typed.TypedJoin
-                || s instanceof com.legend.compiler.spec.typed.TypedAsOfJoin
-                || s instanceof com.legend.compiler.spec.typed.TypedConcatenate
-                || s instanceof com.legend.compiler.spec.typed.TypedPivot) {
-            return true;
-        }
-        if (s instanceof TypedNativeCall c) {
-            String fqn = c.callee().qualifiedName();
-            if (SORT_FQNS.contains(fqn)) {
-                return false;
-            }
-            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
-            if (ORDER_DESTROYING.contains(simple)) {
-                return true;
-            }
-            if (simple.equals("execute") && !c.args().isEmpty()
-                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                    && !lam.body().isEmpty()) {
-                return hashOrdered(lam.body().get(lam.body().size() - 1), lets, hook, seen);
-            }
-            return !c.args().isEmpty() && hashOrdered(c.args().get(0), lets, hook, seen);
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
-            if (!seen.add(v.name())) {
-                return false;
-            }
-            for (int i = lets.size() - 1; i >= 0; i--) {
-                if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet l
-                        && l.name().equals(v.name())) {
-                    return hashOrdered(l.value(), lets, hook, seen);
-                }
-            }
-            if (hook != null) {
-                TypedSpec read = com.legend.compiler.spec.VerdictQueries.valuesRead(v);
-                TypedSpec chain = hook.apply(read, java.util.Set.of());
-                if (chain != read) {
-                    return hashOrdered(chain, lets, hook, seen);
-                }
-            }
-            return false;
-        }
-        List<TypedSpec> ch = s.children();
-        return !ch.isEmpty() && hashOrdered(ch.get(0), lets, hook, seen);
-    }
 
     /** Is the serialized query's ROOT many-valued? Read from the typed
      * chain (through lets and the envelope splice) at its serialize node —
@@ -2349,13 +2327,13 @@ final class AssertVerdicts {
     }
 
     private static final String FQ_TO_STRING =
-            "meta::pure::functions::string::toString";
+            com.legend.compiler.element.type.PlatformTypes.TO_STRING;
     private static final String FQ_REPLACE =
-            "meta::pure::functions::string::replace";
+            com.legend.compiler.element.type.PlatformTypes.STRING_REPLACE;
     private static final String FQ_MAKE_STRING =
-            "meta::pure::functions::string::makeString";
+            com.legend.compiler.element.type.PlatformTypes.STRING_MAKE_STRING;
     private static final String FQ_JOIN_STRINGS =
-            "meta::pure::functions::string::joinStrings";
+            com.legend.compiler.element.type.PlatformTypes.STRING_JOIN_STRINGS;
 
     private static TypedSpec chaseLets(TypedSpec s0, List<TypedSpec> lets) {
         TypedSpec s = s0;
@@ -2404,25 +2382,12 @@ final class AssertVerdicts {
                 : java.util.Objects.requireNonNull(eForm);
         TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
         if (JUDGE_MODE == JudgeMode.DATABASE) {
-            // a rendered text over an UNORDERED AGGREGATE (a grouping /
-            // join / union with no sort after it) has no defined line
-            // order — DuckDB's hash operators arrive differently run to
-            // run, so byte equality would be a coin flip (a register row
-            // must not flip): unjudged, deterministically, by name
-            if (hashOrdered(rendered, letPrefix, hook, new java.util.HashSet<>())) {
-                return unjudged(name,
-                        "rendered-text over an unordered aggregate: no defined line order");
-            }
-            // leg 3.1d: byte equality in the database; a differing pair is
-            // unjudged by name (the host's multiset / tolerance policy)
-            SideRows e = planSide(args.get(0), false, letPrefix, specs, env, hook);
-            SideRows a = planSide(args.get(1), false, letPrefix, specs, env, hook);
-            if (e.why() != null || a.why() != null) {
-                return unjudged(name, "rendered-text side: " + (e.why() != null ? e.why() : a.why()));
-            }
-            return runVerdict(name, wantEqual,
-                    com.legend.lowering.VerdictSql.renderedText(e.rows(false), a.rows(false)),
-                    a.connection(env), env);
+            // bucket 8 (homework §4s): the rendered VALUE against the golden
+            // brought to rows by the render function's own grammar — the
+            // grid / collection statements judge; ordered only when the
+            // chain ends in a sort and the assert is ordered
+            return renderedValueVerdict(name, wantEqual, args, letPrefix, specs, env, hook,
+                    orderedForm);
         }
         List<Object> ev = side(args.get(0), letPrefix, specs, env, hook);
         List<Object> av = side(args.get(1), letPrefix, specs, env, hook);
@@ -2465,6 +2430,62 @@ final class AssertVerdicts {
             }
         }
         return "texts differ only in leniency-adjudicated cells";
+    }
+
+    /** Database mode's rendered-text road (bucket 8): both sides rendered →
+     * the two values as a multiset (two executions of one query); one side
+     * rendered → its value against the golden brought to rows, ordered only
+     * when the chain ends in a sort and the assert is ordered. */
+    private static ExecutionResult renderedValueVerdict(String name, boolean wantEqual,
+            List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook,
+            boolean orderedForm) {
+        java.util.function.UnaryOperator<TypedSpec> chase = s -> chaseLets(s, letPrefix);
+        var re = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(0), chase);
+        var ra = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(1), chase);
+        if (re != null && ra != null) {
+            return databaseVerdict(name, wantEqual, re.value(), ra.value(), letPrefix, specs, env,
+                    hook, true, false);
+        }
+        boolean goldenIsExpected = ra != null;
+        var r = goldenIsExpected ? ra : re;
+        if (r == null) {
+            return unjudged(name, "rendered-text: no side is a render the grammar names");
+        }
+        String text = com.legend.compiler.spec.VerdictQueries.goldenText(
+                goldenIsExpected ? args.get(0) : args.get(1), chase);
+        if (text == null) {
+            return unjudged(name, "rendered-text: the golden is not a string constant");
+        }
+        com.legend.compiler.element.type.Type.RelationType schema = null;
+        if (r.grid()) {
+            // the PLANNED side's schema (its shape info) is the grid verdict's
+            // own width and kinds — the static type can lag it (validate's
+            // late-bound ID column)
+            SideRows planned = planSide(r.value(), false, false, letPrefix, specs, env, hook);
+            if (planned.why() != null) {
+                return unjudged(name, "rendered-text side: " + planned.why());
+            }
+            schema = com.legend.compiler.element.type.Type.schemaView(
+                    java.util.Objects.requireNonNull(planned.side()).shapeInfo().type());
+        }
+        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),
+                schema, r.grid() ? null : r.value().info().type());
+        if (parsed.headerMismatch()) {
+            com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+            return fail(name + ": " + parsed.reason());   // a static verdict
+        }
+        if (parsed.literal() == null) {
+            return unjudged(name, java.util.Objects.requireNonNull(parsed.reason()));
+        }
+        boolean multiset = !orderedForm
+                || orderView(r.value(), letPrefix) != OrderView.SORTED;
+        boolean csv = r.grammar() instanceof com.legend.compiler.spec.VerdictQueries.RenderGrammar.Csv;
+        return goldenIsExpected
+                ? databaseVerdict(name, wantEqual, parsed.literal(), r.value(), letPrefix, specs,
+                        env, hook, multiset, false, csv)
+                : databaseVerdict(name, wantEqual, r.value(), parsed.literal(), letPrefix, specs,
+                        env, hook, multiset, false, csv);
     }
 
     /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,

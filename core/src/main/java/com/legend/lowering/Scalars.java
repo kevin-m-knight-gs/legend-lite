@@ -2945,6 +2945,11 @@ final class Scalars {
         if (type == Type.Primitive.STRING) {
             return new SqlExpr.StringLit(cell);
         }
+        // an enumeration cell is the NAME (the wire's form; the declared
+        // enumeration frames it at the boundary)
+        if (type instanceof Type.EnumType) {
+            return new SqlExpr.StringLit(cell);
+        }
         // A Variant cell is JSON TEXT (the TDS literal wraps it in quotes).
         if (PlatformTypes.isVariant(type)) {
             String json = cell.length() >= 2 && cell.startsWith("\"") && cell.endsWith("\"")

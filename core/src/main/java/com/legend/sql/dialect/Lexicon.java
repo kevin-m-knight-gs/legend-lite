@@ -24,8 +24,8 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
             "all", "and", "as", "asc", "between", "by", "case", "cast", "create", "cross",
             "default", "delete", "desc", "distinct", "drop", "else", "end", "except", "exists",
             "false", "from", "full", "group", "having", "in", "inner", "insert", "intersect",
-            "into", "is", "join", "left", "like", "limit", "not", "null", "offset", "on", "or",
-            "order", "outer", "pivot", "qualify", "right", "select", "table", "then", "true",
+            "into", "is", "isnull", "join", "left", "like", "limit", "not", "null", "offset", "on", "or",
+            "notnull", "order", "outer", "pivot", "qualify", "right", "select", "table", "then", "true",
             "union", "update", "using", "values", "when", "where", "window", "with"));
 
     /**

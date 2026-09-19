@@ -1242,6 +1242,87 @@ multiset form (`STRING_AGG … GROUP BY rn − MOD(…)`) errors on 34 host-rost
 (`testUniqueValueOnly1/2/4` among them) — a host-roster item, the message head hidden behind
 the cell separator; read at the 3.3 leg.
 
+## 4s. Bucket 8 — rendered text judged as a grid (§4h item E; ratified 2026-09-19)
+
+**The facts that decide it (read, not guessed).** Five of the 68 DuckDB order rows read end to
+end (`testWtdValue`, `specialUnion::testProjectWithPostTdsOperations`, `testViewOnView`,
+`validateAllConstraints`, `cteExtraction::testMultipleSubQueries`); H2 2.1.214 probed: a GROUP
+BY / DISTINCT / UNION with no ORDER BY returns its rows in SORTED KEY ORDER (binary collation,
+multi-key lexicographic); every one of the 53 group-by goldens in the register is sorted by its
+first key — they are an H2 artifact the engine's own suite froze into strings; the other rows
+(`1,100.0, 2,200.0, 4,150.0, 3,0.0`; the `validate` union) are H2's physical order. Pure defines
+no order for an unsorted grouping, distinct or union. The host judge already compares these as a
+line multiset (`TdsCompare.renderedText`: frame and header pinned, data lines multiset when the
+chain has no sort, cells exact or bounded-float-tolerant). A sort added "at the end" was
+considered and rejected: it reproduces only the sorted-key goldens, breaks the physical-order
+rows, and puts a store's accident into product SQL or into the judge where a multiset compare
+needs no order at all.
+
+**The law (one rewrite, compiler layer, no runtime type change):** a render function's text
+equals a golden iff the rendered VALUE equals the golden PARSED by that function's own grammar.
+`VerdictQueries.parseRendered` brings the golden constant to rows: `toCSV` (header line, data
+lines, trailing newline, RFC4180 cells), `toString` over a relation (the `#TDS` frame, `   `-
+prefixed header and rows), `rows->map(r | $r.values->makeString(cs))->makeString(rs)` (rows by
+`rs`, cells by `cs`), and the flat `collection->makeString(sep)` over a primitive collection. Grid
+cells are minted TYPED by the relation's declared column kinds (String / Integer / Float /
+Decimal / Boolean / dates; an empty or `TDSNull` cell is the sentinel) in row-major order — the
+PEER of the existing grid verdict (`VerdictSql.gridRows`: rows chunked by width, the declared-Float
+2-ULP leniency, `TDSNull` spelled bare on the expected side). A flat join's elements are minted by
+the collection's element kind and judged by the ordinary collection statement. The header of a
+CSV / TDS golden is judged STATICALLY against the relation's schema (both compile-time facts).
+Ordered when the rendered chain ends in a sort (`orderView == SORTED`) and the assert is
+`assertEquals`; a multiset otherwise; a both-rendered pair (two executions of one query) is a
+multiset always — the host's rules, unchanged. `hashOrdered` (the deterministic decline) is
+deleted: nothing is declined for order any more. What stays unjudged, by name: a golden that is
+not a string constant; a rendered form the grammar does not name (a row lambda that picks
+cells other than `$r.values`, a 3-argument `makeString`); a cell that does not parse as its
+column's kind; a row whose width is not the schema's (a separator inside a cell).
+
+**Built and measured (four lanes, registers exact; three red measurements read first, each
+recorded here).** The grid golden is minted as the language's own TDS literal (`TypedTds`, a typed
+`VALUES` relation of the rendered relation's schema — the schema read off the PLANNED side, whose
+shape info carries validate's late-bound `ID` column), judged grid against grid
+(`VerdictSql.gridPair(GridSide, GridSide, multiset)`: row canons, the cells walked for the
+declared-Float 2-ULP leniency); a flat join's golden is a literal collection typed as the Typer
+types `[a, b, c]`. The first build minted the grid golden as a value-lane list and it lowered as
+`UNNEST(list_filter([...]))` — no placement on H2, no `list_filter` on the PCT battery's H2Modern
+(gate 1 red) — so "golden to rows" is a relation, not a list. The render identification
+(`VerdictQueries.renderedSide`: toCSV, toCSV→replace, toString over a relation,
+`rows->map(r | $r.values …)` as `TypedMap` — the Typer's own node, not a `map` native call — and
+the flat join) lives in the compiler layer with the parse; the dispatcher holds the route only.
+Two grammar facts became verdict rules: `toCSV` prints NULL and the empty String alike, so a
+toCSV pair is judged under that equivalence (`GridSide.emptyIsNull`, String columns only);
+`toCSV` of an empty relation prints one blank line, undecidable from the text for one column
+(declined). The kind gate does not argue declared kinds when both sides are relations (the grid
+pair judges). Two lowering facts surfaced: H2 folds constants branch-blind, so the float canon's
+exponent cast reads NULL for an absent exponent (a total expression, every engine); DuckDB's
+postfix `ISNULL` / `NOTNULL` are reserved words (a column named `isNull` quotes — `tdsExtend::
+testNull`); an enumeration cell of a TDS literal is its name. Named, not fixed: a golden that is
+not a string constant; a null element in a flat join (the collection statement drops nulls);
+late-bound columns (`testExecuteInDbToTDS`); the `String`-declared `INT` rows (now also
+`validateComplexValidation3`'s ID column, held for 3.3); a CSV cell spelled `null` reads as
+NULL (as the TDS literal parser does).
+
+**Measured:** DuckDB host 108 exact; H2 host 424 → 412 (twelve rows whose float canon over a
+constant golden cell now executes on H2 — the fold guard); DuckDB database lost 72 → 8 (test6's
+union JSON, the selfJoin carrier, three String-over-INT rows, validateComplexValidation3,
+testExecuteInDbToTDS, testProjectionWithEnumQualifierParameter) / gained 0; the DuckDB accepted
+register 23 → 28 (the 21 calendar rows re-witnessed in the grid form; four more —
+`testCwValue`, `testCw_FmValue`, `testPmtdValue`, `testPywtdValue` — whose golden `2.20` / `0.40`
+/ `0.50` is H2's DECIMAL scale over our DOUBLE `2.2`: numerically equal, spelled by the store's
+kind, cause `engine-store-arithmetic:h2-decimal-scale`; and `columnValueDifferenceWithoutPrevalTest`,
+the host roster's adjust-strictdate defect in its grid witness); H2 database lost 125 → 79 (62
+JSON navigation, 4 JSON documents, 3 String-over-INT, and TEN calendar rows judged different ON
+H2 — our arithmetic against H2's own; the other eleven calendar rows pass there — a read owed to
+the H2 lane) / gained 41 → 71 (twenty-two more of the host `'null'`-decode family; eight
+rendered-text rows the host fails on H2's print forms `1E+2` / `1E+5` / `3` for `3.0` or its
+CSVJOIN policy, judged by cells now; specialUnion::testGroupBy, whose makeString reduction the
+host cannot render on H2); H2 unordered-chain register +6; H2 float-10-digits ceiling 34 → 36
+(two of the twelve newly executing rows pass through the referee's float tolerance — the two
+could not be named by the tolerance counter; the count is measured). The claims ledger moved
+because the string-function FQNs (`makeString`, `joinStrings`, `replace`) have one owner now
+(`PlatformTypes`); regenerated deliberately. Ledger: AssertVerdicts 2543 → 2554.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

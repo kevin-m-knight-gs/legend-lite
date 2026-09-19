@@ -561,7 +561,11 @@ class MinimalCorpusTest {
     // float-10-digits 33 -> 34 (2026-09-17): one of the twelve group-by/average
     // rows the H2 lane gained (H2AvgDelivers: H2's DECFLOAT average cast to
     // DOUBLE on its own wire) is judged with the H2 float leniency
-            "float-10-digits", 34, "micro-floor", 7,
+            // float-10-digits 34 -> 36 (2026-09-19, bucket 8): twelve H2 host-roster
+            // rows execute now that the float canon's exponent cast no longer folds
+            // to CAST('' AS INTEGER) over a constant golden cell; two of them pass
+            // through the referee's bounded float tolerance (H2's DOUBLE print)
+            "float-10-digits", 36, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
 
     private static final String ORD_UNMAPPABLE = "ordered-keys-unmappable";

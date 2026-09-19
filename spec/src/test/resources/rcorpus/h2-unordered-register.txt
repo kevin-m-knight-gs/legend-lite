@@ -171,13 +171,18 @@ unordered-chain meta::relational::tests::groupBy::testAggToManyWithMaxDate
 unordered-chain meta::relational::tests::groupBy::testAggToManyWithMaxInteger
 unordered-chain meta::relational::tests::groupBy::testAggToManyWithMinDate
 unordered-chain meta::relational::tests::groupBy::testAggToManyWithMinInteger
+unordered-chain meta::relational::tests::groupBy::testGroupByAndFilterIsolatedJoinMerge
 unordered-chain meta::relational::tests::groupBy::testGroupByEmptyColsNonTerminalOperation
 unordered-chain meta::relational::tests::groupBy::testGroupByEmptyColsTerminalOperation
+unordered-chain meta::relational::tests::groupBy::testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter
 unordered-chain meta::relational::tests::groupBy::testGroupByWithUnion
 unordered-chain meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation
 unordered-chain meta::relational::tests::groupBy::testObjectLevelGroupByWTDSLevelGroupByWTDSExtend
 unordered-chain meta::relational::tests::groupBy::testReprocessGroupByAlias
 unordered-chain meta::relational::tests::groupBy::testSimpleJoinStrings
+unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly1
+unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly2
+unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly4
 unordered-chain meta::relational::tests::map::testAdvancedDerivedProperty
 unordered-chain meta::relational::tests::map::testAdvancedDerivedPropertyThroughAssociation
 unordered-chain meta::relational::tests::map::testAssociationDeep
@@ -1178,6 +1183,7 @@ unordered-chain meta::relational::tests::query::view::testViewWithJoinsAndDistin
 unordered-chain meta::relational::tests::tds::groupBy::groupByAfterASortOnColumnInGroupBy
 unordered-chain meta::relational::tests::tds::groupBy::groupByAfterASortOnColumnNotInGroupBy
 unordered-chain meta::relational::tests::tds::groupBy::groupByAfterConcatenate
+unordered-chain meta::relational::tests::tds::groupBy::simpleFilterWithGroupByWithDistinct
 unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithAssociationWithJoinStrings
 unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithJoinStrings
 unordered-chain meta::relational::tests::tds::groupBy::testTDSGroupByEmptyColsNonTerminalOperation

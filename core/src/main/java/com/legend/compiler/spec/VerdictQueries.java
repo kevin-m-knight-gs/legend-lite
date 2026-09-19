@@ -3,6 +3,10 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.element.type.PlatformTypes;
+import java.util.ArrayList;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
@@ -580,4 +584,417 @@ public final class VerdictQueries {
                 c.rowCells(), c.operatorRun());
     }
 
+
+    // ── bucket 8 (homework §4s): the rendered-text LAW — a render function's
+    // text equals a golden iff the rendered VALUE equals the golden parsed by
+    // that function's own grammar. The golden is a compile-time constant and
+    // is brought to ROWS here, typed by the rendered relation's declared
+    // column kinds (the peer of the grid verdict) or a flat join's element
+    // kind. Nothing about the text is judged at run time.
+
+    /** The grammar a rendered side was produced by. */
+    public sealed interface RenderGrammar {
+        /** {@code toCSV}: a header line, data lines, a trailing newline
+         * ({@code rowSep} is the newline, or the replacement of a
+         * {@code ->replace('\n', sep)}); RFC4180 cells. */
+        record Csv(String rowSep) implements RenderGrammar {
+        }
+        /** {@code toString} over a relation: the {@code #TDS} frame, a
+         * three-space-prefixed header line and rows, {@code #}. */
+        record Tds() implements RenderGrammar {
+        }
+        /** {@code rows->map(r | $r.values->makeString(cellSep))->makeString(rowSep)}. */
+        record Rows(String rowSep, String cellSep) implements RenderGrammar {
+        }
+        /** {@code collection->makeString(sep)} over a primitive collection. */
+        record Flat(String sep) implements RenderGrammar {
+        }
+    }
+
+    /** A rendered side: the VALUE that was rendered and the grammar that
+     * rendered it. {@code grid} = the value is a relation. */
+    public record RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid) {
+    }
+
+    /** The rendered value of a side, or null when the side is not a render
+     * the grammar names; {@code chase} reads a let-bound variable through
+     * to its value. Typed-tree navigation only. */
+    public static @com.legend.Nullable RenderedSide renderedSide(TypedSpec s0,
+            java.util.function.UnaryOperator<TypedSpec> chase) {
+        TypedSpec s = chase.apply(s0);
+        if (s instanceof TypedNativeCall rep
+                && PlatformTypes.STRING_REPLACE.equals(rep.callee().qualifiedName())
+                && rep.args().size() == 3
+                && chase.apply(rep.args().get(0)) instanceof TypedNativeCall csv
+                && PlatformTypes.TO_CSV.equals(csv.callee().qualifiedName())
+                && csv.args().size() == 1
+                && rep.args().get(1) instanceof TypedCString from && "\n".equals(from.value())
+                && rep.args().get(2) instanceof TypedCString to) {
+            return new RenderedSide(csv.args().get(0), new RenderGrammar.Csv(to.value()), true);
+        }
+        if (s instanceof TypedNativeCall csv2
+                && PlatformTypes.TO_CSV.equals(csv2.callee().qualifiedName())
+                && csv2.args().size() == 1) {
+            return new RenderedSide(csv2.args().get(0), new RenderGrammar.Csv("\n"), true);
+        }
+        if (s instanceof TypedNativeCall ts
+                && PlatformTypes.TO_STRING.equals(ts.callee().qualifiedName())
+                && ts.args().size() == 1 && Type.isRelation(ts.args().get(0).info().type())) {
+            return new RenderedSide(ts.args().get(0), new RenderGrammar.Tds(), true);
+        }
+        if (s instanceof TypedNativeCall j && isJoin(j) && j.args().size() == 2
+                && j.args().get(1) instanceof TypedCString sep) {
+            TypedSpec coll = chase.apply(j.args().get(0));
+            // rows->map(r | $r.values->makeString(cs)) — the grid itself; or
+            // rows->map(r | $r.values) — the cells flattened row-major
+            if (coll instanceof com.legend.compiler.spec.typed.TypedMap map
+                    && map.mapper() instanceof TypedLambda lam && lam.body().size() == 1
+                    && rowsOf(chase.apply(map.source())) instanceof TypedSpec relation) {
+                TypedSpec body = lam.body().get(0);
+                if (rowCellsRead(body)) {
+                    return new RenderedSide(relation,
+                            new RenderGrammar.Rows(sep.value(), sep.value()), true);
+                }
+                if (body instanceof TypedNativeCall inner && isJoin(inner) && inner.args().size() == 2
+                        && inner.args().get(1) instanceof TypedCString cs
+                        && rowCellsRead(inner.args().get(0))) {
+                    return new RenderedSide(relation,
+                            new RenderGrammar.Rows(sep.value(), cs.value()), true);
+                }
+            }
+            if (coll.info().type() instanceof Type.Primitive
+                    || coll.info().type() instanceof Type.EnumType) {
+                return new RenderedSide(coll, new RenderGrammar.Flat(sep.value()), false);
+            }
+        }
+        return null;
+    }
+
+    /** The relation whose rows a {@code map} walks: {@code rel.rows} (the
+     * Typer's marker), or the relation itself once the executor's splice
+     * has erased the marker. Null when the source is not a relation. */
+    private static @com.legend.Nullable TypedSpec rowsOf(TypedSpec source) {
+        if (source instanceof TypedPropertyAccess rows && rows.property().equals("rows")
+                && Type.isRelation(rows.source().info().type())) {
+            return rows.source();
+        }
+        return Type.isRelation(source.info().type()) ? source : null;
+    }
+
+    private static boolean isJoin(TypedNativeCall c) {
+        String fqn = c.callee().qualifiedName();
+        return PlatformTypes.STRING_MAKE_STRING.equals(fqn) || PlatformTypes.STRING_JOIN_STRINGS.equals(fqn);
+    }
+
+    /** {@code $r.values} (the Typer's row-cells collection), or the same
+     * through {@code ->map(x | $x->toString())}. */
+    private static boolean rowCellsRead(TypedSpec s) {
+        if (s instanceof TypedCollection c && c.rowCells()) {
+            return true;
+        }
+        // the Typer's IDENTITY form of a row's values: the row itself (a
+        // relation-typed variable), or the values read off it
+        if (s instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && Type.isRelation(v.info().type())) {
+            return true;
+        }
+        if (s instanceof TypedPropertyAccess pa && pa.property().equals("values")
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable) {
+            return true;
+        }
+        return s instanceof com.legend.compiler.spec.typed.TypedMap m
+                && m.mapper() instanceof TypedLambda lam && lam.body().size() == 1
+                && lam.body().get(0) instanceof TypedNativeCall ts
+                && PlatformTypes.TO_STRING.equals(ts.callee().qualifiedName())
+                && rowCellsRead(m.source());
+    }
+
+    /** The golden text of a side: a string constant, a one-element list of
+     * one, or a folded {@code +} chain of constants. */
+    public static @com.legend.Nullable String goldenText(TypedSpec s0,
+            java.util.function.UnaryOperator<TypedSpec> chase) {
+        TypedSpec s = chase.apply(s0);
+        if (s instanceof TypedCollection c && c.elements().size() == 1) {
+            s = chase.apply(c.elements().get(0));
+        }
+        return foldedStringLiteral(s);
+    }
+
+    /** The parsed golden: the language's own TDS literal (a typed VALUES
+     * relation of the rendered relation's schema) for a grid grammar, a
+     * typed literal collection for a flat join; or the reason it could not
+     * be brought to rows. {@code headerMismatch} is a STATIC verdict (both
+     * sides compile-time facts), never an unjudged. */
+    public record ParsedGolden(@com.legend.Nullable TypedSpec literal,
+            @com.legend.Nullable String reason, boolean headerMismatch) {
+        public static ParsedGolden of(TypedSpec literal) {
+            return new ParsedGolden(literal, null, false);
+        }
+        public static ParsedGolden declined(String reason) {
+            return new ParsedGolden(null, reason, false);
+        }
+    }
+
+    /** Brings a rendered golden to rows. {@code schema} is the rendered
+     * relation's schema for the grid grammars ({@code elementKind} unused);
+     * {@code elementKind} the collection's element kind for a flat join. */
+    public static ParsedGolden parseRendered(String text, RenderGrammar grammar,
+            @com.legend.Nullable Type.RelationType schema, @com.legend.Nullable Type elementKind) {
+        if (grammar instanceof RenderGrammar.Flat f) {
+            Type kind = elementKind;
+            if (!(kind instanceof Type.Primitive) && !(kind instanceof Type.EnumType)) {
+                return ParsedGolden.declined("rendered-text: flat join over a non-primitive element kind "
+                        + elementKind);
+            }
+            List<String> parts = text.isEmpty() ? List.of()
+                    : List.of(text.split(java.util.regex.Pattern.quote(f.sep()), -1));
+            List<TypedSpec> out = new ArrayList<>(parts.size());
+            for (String part : parts) {
+                if (part.equals("TDSNull")) {
+                    // a null element: the collection statement reads the
+                    // non-null elements, so the null's count is not judged
+                    return ParsedGolden.declined("rendered-text: a null element in a flat join");
+                }
+                TypedSpec e = cellLiteral(part, kind, false);
+                if (e == null) {
+                    return ParsedGolden.declined("rendered-text: element '" + part + "' is not a " + kind);
+                }
+                out.add(e);
+            }
+            return ParsedGolden.of(collectionOf(out));
+        }
+        if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
+            return ParsedGolden.declined("rendered-text: the rendered relation's columns are late-bound ("
+                    + (schema == null ? "no schema" : schema.columns().size() + " static, "
+                    + schema.dynamicColumns().size() + " dynamic") + ")");
+        }
+        List<String> names = schema.columns().stream().map(Type.Column::name).toList();
+        List<List<String>> rows = new ArrayList<>();
+        List<String> header;
+        if (grammar instanceof RenderGrammar.Csv csv && csv.rowSep().equals(",")) {
+            // toCSV->replace('\n', ','): the row boundaries are gone — the
+            // text is one cell sequence (RFC4180), header first, '' last
+            List<String> tokens = csvCells(text);
+            int width = names.size();
+            if (tokens.size() < width + 1 || !tokens.get(tokens.size() - 1).isEmpty()
+                    || (tokens.size() - 1) % width != 0) {
+                return ParsedGolden.declined("rendered-text: toCSV cells joined by ',' do not chunk"
+                        + " by the width " + width + " (" + tokens.size() + " cells)");
+            }
+            header = tokens.subList(0, width);
+            for (int i = width; i + width <= tokens.size() - 1; i += width) {
+                rows.add(tokens.subList(i, i + width));
+            }
+        } else if (grammar instanceof RenderGrammar.Csv csv) {
+            List<String> lines = List.of(text.split(java.util.regex.Pattern.quote(csv.rowSep()), -1));
+            if (lines.size() < 2 || !lines.get(lines.size() - 1).isEmpty()) {
+                return ParsedGolden.declined(
+                        "rendered-text: toCSV text without its header line and trailing newline");
+            }
+            header = csvCells(lines.get(0));
+            List<String> data = lines.subList(1, lines.size() - 1);
+            if (data.size() == 1 && data.get(0).isEmpty()) {
+                // the EMPTY relation prints one blank data line (the rows
+                // join's '\n' prefix); for one column the same text is one
+                // NULL cell — undecidable from the text
+                if (names.size() == 1) {
+                    return ParsedGolden.declined("rendered-text: one-column toCSV text with a blank line —"
+                            + " an empty relation or one NULL cell");
+                }
+            } else {
+                for (String line : data) {
+                    rows.add(csvCells(line));
+                }
+            }
+        } else if (grammar instanceof RenderGrammar.Tds) {
+            List<String> lines = List.of(text.split("\n", -1));
+            if (lines.size() < 3 || !lines.get(0).equals("#TDS")
+                    || !lines.get(lines.size() - 1).equals("#")) {
+                return ParsedGolden.declined("rendered-text: TDS text without its #TDS frame");
+            }
+            header = tdsHeader(lines.get(1));
+            for (String line : lines.subList(2, lines.size() - 1)) {
+                if (line.isEmpty()) {
+                    continue;   // an empty relation prints one blank rows segment
+                }
+                rows.add(List.of(stripIndent(line).split(",", -1)));
+            }
+        } else {
+            RenderGrammar.Rows r = (RenderGrammar.Rows) grammar;
+            header = names;
+            if (!text.isEmpty()) {
+                if (r.rowSep().equals(r.cellSep())) {
+                    // the cells flattened row-major: chunk by the width
+                    List<String> tokens = List.of(text.split(java.util.regex.Pattern.quote(r.cellSep()), -1));
+                    int width = names.size();
+                    if (tokens.size() % width != 0) {
+                        return ParsedGolden.declined("rendered-text: " + tokens.size()
+                                + " flattened cells do not chunk by the width " + width);
+                    }
+                    for (int i = 0; i < tokens.size(); i += width) {
+                        rows.add(tokens.subList(i, i + width));
+                    }
+                } else {
+                    for (String line : text.split(java.util.regex.Pattern.quote(r.rowSep()), -1)) {
+                        rows.add(List.of(line.split(java.util.regex.Pattern.quote(r.cellSep()), -1)));
+                    }
+                }
+            }
+        }
+        if (!header.equals(names)) {
+            return new ParsedGolden(null, "rendered-text: header " + header
+                    + " differs from the columns " + names, true);
+        }
+        List<List<String>> cells = new ArrayList<>();
+        List<Boolean> nullable = new ArrayList<>(java.util.Collections.nCopies(names.size(), false));
+        for (List<String> row : rows) {
+            if (row.size() != names.size()) {
+                return ParsedGolden.declined("rendered-text: a golden row has " + row.size()
+                        + " cells for " + names.size() + " columns (" + row + ")");
+            }
+            List<String> out = new ArrayList<>(row.size());
+            for (int c = 0; c < row.size(); c++) {
+                String cell = tdsCellText(row.get(c), schema.columns().get(c).type());
+                if (cell == null) {
+                    return ParsedGolden.declined("rendered-text: cell '" + row.get(c) + "' is not a "
+                            + schema.columns().get(c).type() + " (column " + names.get(c) + ")");
+                }
+                if (cell.isEmpty()) {
+                    nullable.set(c, true);
+                }
+                out.add(cell);
+            }
+            cells.add(out);
+        }
+        List<Type.Column> columns = new ArrayList<>(names.size());
+        for (int c = 0; c < names.size(); c++) {
+            Type.Column col = schema.columns().get(c);
+            columns.add(new Type.Column(col.name(), col.type(),
+                    nullable.get(c) ? Multiplicity.Bounded.ZERO_ONE : col.multiplicity()));
+        }
+        return ParsedGolden.of(new com.legend.compiler.spec.typed.TypedTds(cells,
+                new ExprType(new Type.GenericType(PlatformTypes.TDS_RELATION_CLASS,
+                        List.of(new Type.RelationType(columns))), Multiplicity.Bounded.ONE)));
+    }
+
+    /** A grid cell's text for the TDS literal: an empty / {@code TDSNull} /
+     * {@code null} cell is the null cell (empty text); a cell that is not of
+     * its column's kind is {@code null}. The literal's lowering types the
+     * text by the column ({@code Scalars.tdsCell}). */
+    private static @com.legend.Nullable String tdsCellText(String cell, Type kind) {
+        if (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null")) {
+            return "";
+        }
+        return cellLiteral(cell, kind, false) == null ? null : cell;
+    }
+
+    /** One cell as the typed literal of its declared kind; {@code null} when
+     * the text is not of that kind. A grid's empty / {@code TDSNull} /
+     * {@code null} cell is the TDSNull sentinel string (the peer rule spells
+     * it bare on the expected side). */
+    private static @com.legend.Nullable TypedSpec cellLiteral(String cell, Type kind, boolean gridCell) {
+        if (gridCell && (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null"))) {
+            return new com.legend.compiler.spec.typed.TypedCString("TDSNull", scalar(Type.Primitive.STRING));
+        }
+        if (kind instanceof Type.EnumType et) {
+            return new com.legend.compiler.spec.typed.TypedEnumValue(et.fqn(), cell, scalar(kind));
+        }
+        try {
+            if (kind == Type.Primitive.STRING) {
+                return new com.legend.compiler.spec.typed.TypedCString(cell, scalar(kind));
+            }
+            if (kind == Type.Primitive.INTEGER) {
+                return new com.legend.compiler.spec.typed.TypedCInteger(Long.parseLong(cell), scalar(kind));
+            }
+            if (kind == Type.Primitive.FLOAT || kind == Type.Primitive.NUMBER) {
+                return new com.legend.compiler.spec.typed.TypedCFloat(Double.parseDouble(cell),
+                        new java.math.BigDecimal(cell), scalar(Type.Primitive.FLOAT));
+            }
+            if (kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal) {
+                String d = cell.endsWith("D") || cell.endsWith("d")
+                        ? cell.substring(0, cell.length() - 1) : cell;
+                return new com.legend.compiler.spec.typed.TypedCDecimal(new java.math.BigDecimal(d),
+                        scalar(Type.Primitive.DECIMAL));
+            }
+            if (kind == Type.Primitive.BOOLEAN) {
+                if (!cell.equals("true") && !cell.equals("false")) {
+                    return null;
+                }
+                return new com.legend.compiler.spec.typed.TypedCBoolean(Boolean.parseBoolean(cell), scalar(kind));
+            }
+            if (kind == Type.Primitive.DATE || kind == Type.Primitive.STRICT_DATE
+                    || kind == Type.Primitive.DATE_TIME) {
+                String d = cell.startsWith("%") ? cell.substring(1) : cell;
+                return new com.legend.compiler.spec.typed.TypedCDate(
+                        com.legend.values.PureDateLiteral.parse(d.replace(' ', 'T')), scalar(kind));
+            }
+        } catch (NumberFormatException | java.time.DateTimeException e) {
+            return null;
+        }
+        return null;
+    }
+
+    /** A flat join's elements as a literal collection, typed as the Typer
+     * types {@code [a, b, c]}: one element kind, or Any for a mix. */
+    private static TypedSpec collectionOf(List<TypedSpec> elements) {
+        Type kind = null;
+        boolean mixed = false;
+        for (TypedSpec e : elements) {
+            Type t = e.info().type();
+            if (kind == null) {
+                kind = t;
+            } else if (!kind.equals(t)) {
+                mixed = true;
+            }
+        }
+        Type element = kind == null || mixed ? new Type.ClassType(PlatformTypes.ANY) : kind;
+        return new com.legend.compiler.spec.typed.TypedCollection(elements,
+                new ExprType(element, new Multiplicity.Bounded(elements.size(), elements.size())));
+    }
+
+    /** RFC4180 cells: a quoted cell may hold the separator and doubled quotes. */
+    static List<String> csvCells(String line) {
+        List<String> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (quoted) {
+                if (ch == '"') {
+                    if (i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                        cur.append('"');
+                        i++;
+                    } else {
+                        quoted = false;
+                    }
+                } else {
+                    cur.append(ch);
+                }
+            } else if (ch == '"' && cur.length() == 0) {
+                quoted = true;
+            } else if (ch == ',') {
+                out.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(ch);
+            }
+        }
+        out.add(cur.toString());
+        return out;
+    }
+
+    /** The {@code #TDS} header: three-space indent, names quoted unless simple. */
+    private static List<String> tdsHeader(String line) {
+        List<String> out = new ArrayList<>();
+        for (String n : stripIndent(line).split(",", -1)) {
+            String t = n.strip();
+            out.add(t.length() >= 2 && t.startsWith("'") && t.endsWith("'")
+                    ? t.substring(1, t.length() - 1) : t);
+        }
+        return out;
+    }
+
+    private static String stripIndent(String line) {
+        return line.startsWith("   ") ? line.substring(3) : line;
+    }
 }
