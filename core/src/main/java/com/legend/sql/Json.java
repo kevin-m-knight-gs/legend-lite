@@ -136,6 +136,84 @@ public final class Json {
      *  decoder was a keep-the-backslash twin of this table and is
      *  deleted — it delegates here. A lone trailing backslash (invalid
      *  JSON, unreachable from a well-formed reader) stays verbatim. */
+    /** The CANONICAL text of a parsed JSON value: compact (no whitespace),
+     * object keys SORTED, arrays in order, numbers as parsed
+     * ({@code BigDecimal.toPlainString}: {@code 1.0} stays {@code 1.0}),
+     * strings escaped as a JSON writer does ({@code " \\} and control
+     * characters; everything else raw UTF-8). Key order carries no meaning
+     * in pure's JSON equality — the engine's own asserts compare
+     * structurally — so one fixed order lets bytes decide. */
+    public static String canonical(@com.legend.Nullable Object v) {
+        StringBuilder b = new StringBuilder();
+        writeCanonical(v, b);
+        return b.toString();
+    }
+
+    private static void writeCanonical(@com.legend.Nullable Object v, StringBuilder b) {
+        if (v == null) {
+            b.append("null");
+        } else if (v instanceof Map<?, ?> m) {
+            java.util.List<String> keys = new ArrayList<>();
+            for (Object k : m.keySet()) {
+                keys.add(String.valueOf(k));
+            }
+            java.util.Collections.sort(keys);
+            b.append('{');
+            boolean first = true;
+            for (String k : keys) {
+                if (!first) {
+                    b.append(',');
+                }
+                first = false;
+                writeString(k, b);
+                b.append(':');
+                writeCanonical(m.get(k), b);
+            }
+            b.append('}');
+        } else if (v instanceof List<?> l) {
+            b.append('[');
+            boolean first = true;
+            for (Object e : l) {
+                if (!first) {
+                    b.append(',');
+                }
+                first = false;
+                writeCanonical(e, b);
+            }
+            b.append(']');
+        } else if (v instanceof String str) {
+            writeString(str, b);
+        } else if (v instanceof java.math.BigDecimal d) {
+            b.append(d.toPlainString());
+        } else {
+            b.append(v);   // Long, Boolean
+        }
+    }
+
+    private static void writeString(String s, StringBuilder b) {
+        b.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"' -> b.append("\\\"");
+                case '\\' -> b.append("\\\\");
+                case '\n' -> b.append("\\n");
+                case '\t' -> b.append("\\t");
+                case '\r' -> b.append("\\r");
+                case '\b' -> b.append("\\b");
+                case '\f' -> b.append("\\f");
+                default -> {
+                    if (c < 0x20) {
+                        b.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        b.append(c);
+                    }
+                }
+            }
+        }
+        b.append('"');
+    }
+
     public static String unescapeString(String s) {
         if (s.indexOf('\\') < 0) {
             return s;

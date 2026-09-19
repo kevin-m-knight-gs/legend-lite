@@ -2643,6 +2643,11 @@ final class StatementExecutor {
         TypedSpec root = p.plannedRoot();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), penv, penv.ctx(),
                 penv.dialect(), penv.connection(), true);
+        if (rider.canonicalJsonKeys()) {
+            // the verdict plan's JSON objects with keys SORTED — one IR
+            // pass over the plan, the builders untouched
+            plan = com.legend.sql.JsonKeyOrder.sort(plan);
+        }
         boolean collectionDeclared = p.declaredInfo() != null
                 && p.declaredInfo().type()
                         instanceof com.legend.compiler.element.type.Type.Primitive

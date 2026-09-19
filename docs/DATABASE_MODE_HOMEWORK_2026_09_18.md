@@ -1039,6 +1039,64 @@ H2 host 427; DuckDB database lost 101 → 93 / gained 0; H2 database lost 382 �
 38. Ledger with reason: AssertVerdicts 2314 → 2317 (the decline message carries the peer's
 state).
 
+## 4n. Bucket 3 — JSON (2026-09-19; D6 WITHDRAWN and replaced by measurement)
+
+**USER: "we literally create the json objects in the database for graph fetch — let's look at a
+real example end to end."** The flat chain test: the database builds the whole document
+(`to_json(list(json_object('firmName', …, 'employeeCount', …) ORDER BY t0.ID))`) and the golden
+is the same text; the parse-both-sides Java judge bought nothing there. So the bucket was
+MEASURED before any design: every JSON assert in database mode compared BYTES (each side read
+as its own text column), the differing pairs classified with the host's parse (a dump-only
+classifier, removed afterwards):
+
+| result (177 asserts, DuckDB) | tests |
+|---|---|
+| byte-equal as built | 81 |
+| key order only | 69 |
+| golden a bare object, our document a one-element array (the engine's single-result print) | 15 |
+| pretty-printed golden, whitespace only | 9 |
+| root array order, unsorted chain | 1 |
+| number spelling / escaping / real value | 0 |
+
+**Key order is not a contract.** The engine's serializer does not keep the tree's order (the
+cross-store test's tree lists `tradeId` then `product`; the golden has `product` first), nor
+the class's declared order (the subtype test), nor alphabetical; it is an artifact of its
+execution (a cross-store or subtype pass emits its properties first) — which is why the
+engine's own asserts compare structurally. One fixed order on both sides lets bytes decide.
+
+**What was built (no second serializer, no number canon, no JSON functions in SQL):**
+- `Json.canonical` — the golden's canonical text: compact, keys sorted, numbers as parsed;
+  `VerdictQueries.foldedStringLiteral` folds the corpus's `'[' + '{…},' + ']'` literal chains
+  (a constant fold, no data); `canonicalJsonGolden` parses, canonicalizes, and wraps `[…]`
+  when the query root is many-valued and the golden is a bare object — the engine's
+  `[x] ≡ x` rule decided at compile time (`serializedRootMany` reads the typed chain through
+  the frame splice to its serialize node).
+- `JsonKeyOrder` — one IR pass (`SqlRewriter`, post-children) over the VERDICT plan only:
+  every `json_object` with literal keys written with the keys sorted; the merge-patch
+  composition (single-key pieces, the removeNull serializer form) sorts its pieces. The
+  product's own output keeps the tree's order. Switched by `CanonRider.withCanonicalJsonKeys`
+  (the JSON arm's actual side), applied in `StatementExecutor.planValue`.
+- The envelope exemption: executeLegendQuery's result (`{"builder":…,"values":…}`) is always
+  ONE object and already applies the single-result print inside `values` in SQL
+  (`CASE WHEN COUNT(*) = 1 THEN MIN(json_object(…))`); read off the planned side
+  (`planIsEnvelope`: the root is a builder-keyed object or a concat whose first piece is the
+  `{"builder":` literal) — three misses on the way (a chain-level check the frame splice
+  cannot see; a plain-concat check where the spelling is CONCAT_JOIN), each found by a dump.
+- `VerdictSql.jsonText` — `document IS NOT DISTINCT FROM 'golden'`, evidence in the row.
+
+**Result:** 174 of 177 JSON asserts decided in the database. Named residue (3): two goldens
+that pass through `parseJSON()->toPrettyJSONString()` on both sides (`json golden is not a
+literal`) and `union::propertyLevel::test6`, whose nested `employees` list has no order key
+over a union (arrival luck in both modes — the collections leg, §4k). One accepted-divergence
+row (`testCheckedWithCircularConstraints`) gained its database-mode witness. DuckDB database
+lost 93 → 96 (the 3 named). H2 database: 379 → 383 — `test6` as on DuckDB, and three graph
+tests whose documents H2 builds with its own number spelling (`{"pnl":1E2}` for `100.0`;
+`3.5E2`) — the uppercase-E gap already named at §4h B (the H2 float spelling quick win).
+Ledger with reason: AssertVerdicts 2317 → 2427; StatementExecutor 2209 → 2212 (the
+JsonKeyOrder hook). Two guardrails moved the shape on the way: the rider's flag is FINAL
+(constructor, not a setter — CodeShapeGuardrail) and the golden parse catches the parser's
+own refusal only (ErrorShapeGuardrail).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

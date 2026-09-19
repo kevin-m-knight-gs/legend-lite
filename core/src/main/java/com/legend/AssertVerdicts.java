@@ -525,6 +525,42 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
+                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    // bucket 3: the document the database built against the
+                    // golden's CANONICAL text — compact, keys sorted on both
+                    // sides (the verdict plan's objects through JsonKeyOrder),
+                    // the engine's root [x] ≡ x applied to the golden at
+                    // compile time when the query root is many-valued; bytes
+                    // decide. Measured first (2026-09-19): 81 byte-equal as
+                    // built, 69 key order, 15 root envelope, 9 whitespace, 1
+                    // root order (unsorted chain — the collections leg).
+                    String goldenText = com.legend.compiler.spec.VerdictQueries
+                            .foldedStringLiteral(chaseLets(args.get(0), letPrefix));
+                    if (goldenText == null) {
+                        yield unjudged(name, "json golden is not a literal");
+                    }
+                    SideRows ja = planSide(args.get(1), false, false, true, letPrefix, specs, env, hook);
+                    // the engine's bare-object print applies to a serialize DOCUMENT
+                    // whose root is many-valued — never to a RESULT ENVELOPE
+                    // ({"builder":…,"values":…}, executeLegendQuery's contract:
+                    // always one object; the many-ness lives inside "values") —
+                    // read off the planned side's root object
+                    boolean rootMany = ja.side() != null && !planIsEnvelope(ja.side().plan())
+                            && serializedRootMany(args.get(1), letPrefix, hook);
+                    var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
+                            goldenText, rootMany);
+                    if (golden == null) {
+                        yield unjudged(name, "json golden does not parse");
+                    }
+                    SideRows je = planSide(golden, true, false, false, letPrefix, specs, env, hook);
+                    if (je.why() != null || ja.why() != null) {
+                        yield unjudged(name, "json side: " + (je.why() != null ? je.why() : ja.why()));
+                    }
+                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
+                    yield runVerdict(name, true,
+                            com.legend.lowering.VerdictSql.jsonText(je.textRows(), ja.textRows()),
+                            ja.connection(env), env);
+                }
                 String ejson = jsonSideText(args.get(0), letPrefix,
                         specs, env, hook);
                 String ajson = jsonSideText(args.get(1), letPrefix,
@@ -1366,6 +1402,15 @@ final class AssertVerdicts {
             return com.legend.lowering.VerdictSql.sideRows(w.plan(), r.tdsWrapped(),
                     "__canon" + idx, r.many() || r.tdsWrapped());
         }
+        /** The side's own TEXT column as its rows (a database-built JSON
+         * document, a golden bound as VALUES): the plan's first output,
+         * read raw — no canon needed, none may exist (a graph plan's
+         * canon declines by kind while its document is one VARCHAR). */
+        com.legend.sql.SqlQuery textRows() {
+            var w = java.util.Objects.requireNonNull(side);
+            return com.legend.lowering.VerdictSql.sideRows(w.plan(), false,
+                    w.plan().outputs().get(0).name(), false);
+        }
         /** The side's rows for counting: the canon may have declined. */
         com.legend.sql.SqlQuery countRows() {
             var r = java.util.Objects.requireNonNull(rider);
@@ -1388,7 +1433,15 @@ final class AssertVerdicts {
     private static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
             @com.legend.Nullable SpliceHook hook) {
-        var rider = new com.legend.exec.CanonRider(false);
+        return planSide(spec, expected, needCanon, false, letPrefix, specs, env, hook);
+    }
+
+    /** {@code canonicalJson} = the side's JSON objects are written with
+     * their keys sorted (the JSON verdict's plan). */
+    private static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
+            boolean canonicalJson, List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook) {
+        var rider = new com.legend.exec.CanonRider(false, canonicalJson);
         TypedSpec s = expected ? com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(spec) : spec;
         StatementExecutor.PlannedValue pv = StatementExecutor.planValue(s, letPrefix, specs, env, rider, hook);
         StatementExecutor.WrappedSide w = pv.side() != null ? pv.side()
@@ -1837,6 +1890,104 @@ final class AssertVerdicts {
         }
         List<TypedSpec> ch = s.children();
         return !ch.isEmpty() && hashOrdered(ch.get(0), lets, hook, seen);
+    }
+
+    /** Is the serialized query's ROOT many-valued? Read from the typed
+     * chain (through lets and the envelope splice) at its serialize node —
+     * the engine prints a one-element result of a many-valued root as a
+     * bare object, so a golden written bare stands for one element. */
+    private static boolean serializedRootMany(TypedSpec s, List<TypedSpec> lets,
+            @com.legend.Nullable SpliceHook hook) {
+        TypedSpec chain = chaseLets(s, lets);
+        if (chain instanceof TypedNativeCall lq
+                && com.legend.builtin.NativeFn.Handle.of(lq.callee().qualifiedName()).orElse(null)
+                        == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY) {
+            // executeLegendQuery's result IS the envelope ({"builder":…,
+            // "values":…}) — always one object; the root's many-ness lives
+            // inside "values", the bare-object rule never applies
+            return false;
+        }
+        if (chain instanceof com.legend.compiler.spec.typed.TypedVariable v && hook != null) {
+            TypedSpec read = com.legend.compiler.spec.VerdictQueries.valuesRead(v);
+            TypedSpec spliced = hook.apply(read, java.util.Set.of());
+            if (spliced != read) {
+                chain = spliced;
+            }
+        } else if (hook != null) {
+            chain = hook.apply(chain, java.util.Set.of());
+        }
+        com.legend.compiler.spec.typed.TypedSerialize ser = findSerialize(chain);
+        return ser != null && ser.source().info().multiplicity().isMany();
+    }
+
+    /** Is the planned side a RESULT ENVELOPE — its root projection a JSON
+     * object carrying the engine's {@code builder} key? A plan fact (the
+     * envelope is built by JsonEmission.result), read off the IR. */
+    private static boolean planIsEnvelope(com.legend.sql.SqlQuery plan) {
+        // the planned side is the canon WRAP over the value select over the
+        // document's own select: descend while the root projection is a
+        // plain column read over a subselect
+        com.legend.sql.SqlQuery q = plan;
+        for (int depth = 0; depth < 4 && q instanceof com.legend.sql.SqlSelect s
+                && !s.projections().isEmpty(); depth++) {
+            com.legend.sql.SqlExpr root = s.projections().get(0).expr();
+            while (root instanceof com.legend.sql.SqlExpr.Cast c) {
+                root = c.value();
+            }
+            if (root instanceof com.legend.sql.SqlExpr.JsonObject j) {
+                for (int i = 0; i + 1 < j.kv().size(); i += 2) {
+                    if (j.kv().get(i) instanceof com.legend.sql.SqlExpr.StringLit k
+                            && k.value().equals("builder")) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            // executeLegendQuery's envelope is spelled as a CONCAT whose first
+            // piece is the literal '{"builder":…' (JsonEmission.result)
+            if (root instanceof com.legend.sql.SqlExpr.Call call
+                    && (call.fn() == com.legend.sql.SqlFn.CONCAT
+                            || call.fn() == com.legend.sql.SqlFn.CONCAT_JOIN)
+                    && !call.args().isEmpty()
+                    && call.args().get(0) instanceof com.legend.sql.SqlExpr.StringLit first) {
+                return first.value().startsWith("{\"builder\":");
+            }
+            if (root instanceof com.legend.sql.SqlExpr.Column
+                    && s.from() instanceof com.legend.sql.SqlSource.Subselect sub) {
+                q = sub.inner();
+                continue;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSerialize findSerialize(
+            TypedSpec s) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedSerialize ts) {
+            return ts;
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedJsonResult) {
+            // a RESULT ENVELOPE ({"builder":…,"values":…}) is always one
+            // object — the root's many-ness lives inside "values"; the
+            // bare-object rule is the serialize document's alone
+            return null;
+        }
+        if (s instanceof TypedNativeCall c && !c.args().isEmpty()
+                && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
+                && !lam.body().isEmpty()) {
+            var found = findSerialize(lam.body().get(lam.body().size() - 1));
+            if (found != null) {
+                return found;
+            }
+        }
+        for (TypedSpec ch : s.children()) {
+            var found = findSerialize(ch);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix) {

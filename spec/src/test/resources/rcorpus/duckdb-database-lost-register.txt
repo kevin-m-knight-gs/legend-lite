@@ -1,3 +1,6 @@
+meta::relational::graphFetch::tests::subType::testInheritanceMappingWithoutSubType ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json golden is not a literal
+meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json golden is not a literal
+meta::relational::graphFetch::tests::union::propertyLevel::test6 ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact)
 meta::relational::tests::advanced::structure::testQualifierWithForkAndOrWithInline ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::advanced::structure::testQualifierWithLineAndOrWithInLine ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: not byte-equal (host policy: line multiset, cell tolerance)
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedValue ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text over an unordered aggregate: no defined line order

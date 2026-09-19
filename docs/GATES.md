@@ -4034,3 +4034,22 @@ carries the peer's own state (kinds / reason), which is how the bucket was diagn
 rows were never date literals. Registers: DuckDB database lost 101 → 93 / gained 0; H2 382 →
 379 / 38. Ledger with reason: AssertVerdicts 2314 → 2317. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4m.
+
+**Judging step 3, bucket 3 — JSON asserts decided in the database (2026-09-19):** chain GREEN
+(gates 1–10), parallel wall ≈ 4m58s (G2 27; A: G1 84 · G3 13 · G4 124 · G5 45 = 266; B: G6 160
+· G7 54 · G9 40 = 254; C: G8 196 · G10 62 = 258 — G4/G6/G8 slower than the morning; machine).
+No host roster moved (DuckDB 108, H2 427, exact). Decision D6 WITHDRAWN and replaced by a
+measurement (USER: "we literally create the json objects in the database"): of 177 JSON
+asserts, 81 goldens were byte-equal to the document the database builds, 69 differed in key
+order only, 15 by the engine's single-result print, 9 by whitespace, 1 by an unsorted root; 0
+by number spelling. Built: `Json.canonical` (compact, keys sorted), the golden's literal-chain
+fold + canonicalization at compile time with the `[x] ≡ x` wrap when the query root is
+many-valued, `JsonKeyOrder` (one IR pass over the VERDICT plan: json objects and merge-patch
+pieces with keys sorted; the product's output untouched), the result-envelope exemption read
+off the planned side, `VerdictSql.jsonText`. 174 of 177 decided in the database; named: two
+goldens re-serialized through `parseJSON()->toPrettyJSONString()` and one nested list with no
+order key over a union. Registers: DuckDB database lost 93 → 96 / 0; H2 379 → 383 / 38 (H2
+spells doubles `1E2` inside JSON — the §4h B quick win). Ledger with reason: AssertVerdicts
+2317 → 2427, StatementExecutor 2209 → 2212. Guardrails on the way: the rider flag made final;
+the golden parse catches the parser's own refusal only. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4n.

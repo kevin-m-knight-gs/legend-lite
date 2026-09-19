@@ -1,4 +1,8 @@
 meta::pure::tds::tests::extensions::testFirstNotNull ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::graphFetch::tests::simple::testGraphFetchDataTypes ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact)
+meta::relational::graphFetch::tests::simple::testGraphFetchWithGroupByViewAtChild ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact)
+meta::relational::graphFetch::tests::simple::testGraphFetchWithViewRootNestedDeep ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact)
+meta::relational::graphFetch::tests::union::propertyLevel::test6 ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact)
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::advanced::forced::structure::testQualifierQuery ||| DataError: Function "JSON_TYPE" not found
 meta::relational::tests::advanced::forced::structure::testQualifierQueryWithOr ||| DataError: Function "JSON_TYPE" not found

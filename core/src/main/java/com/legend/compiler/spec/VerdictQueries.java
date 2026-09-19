@@ -453,6 +453,64 @@ public final class VerdictQueries {
      * afterwards → a String collection; otherwise the collection keeps
      * its mixed stamp (the literal channel). Minted HERE (Invariant 7: the
      * compiler layers own typed nodes), for the database-mode verdict. */
+    /** A String constant written as a chain of literals joined by {@code +}
+     * ({@code '[' + '{...},' + ']'} — the corpus's golden spelling), folded
+     * to ONE literal at compile time; null when any piece is not a literal
+     * (the value is not a constant). A constant fold over literals — no
+     * data touched. */
+    public static @com.legend.Nullable String foldedStringLiteral(TypedSpec s) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedCString c) {
+            return c.value();
+        }
+        if (s instanceof TypedNativeCall n
+                && com.legend.compiler.element.type.PlatformTypes.STRING_PLUS
+                        .equals(n.callee().qualifiedName())) {
+            StringBuilder b = new StringBuilder();
+            for (TypedSpec a : n.args()) {
+                if (a instanceof TypedCollection col) {
+                    for (TypedSpec e : col.elements()) {
+                        String piece = foldedStringLiteral(e);
+                        if (piece == null) {
+                            return null;
+                        }
+                        b.append(piece);
+                    }
+                } else {
+                    String piece = foldedStringLiteral(a);
+                    if (piece == null) {
+                        return null;
+                    }
+                    b.append(piece);
+                }
+            }
+            return b.toString();
+        }
+        return null;
+    }
+
+    /** A JSON golden in its CANONICAL text (compact, keys sorted —
+     * {@code Json.canonical}); {@code rootMany} = the query's root is
+     * many-valued, so a golden written as a bare object stands for the
+     * engine's single-result print of a one-element array and is wrapped
+     * {@code [...]} — the same verdict as the engine's {@code [x] ≡ x}
+     * root rule, decided at compile time. Null when the text does not
+     * parse (the golden itself is defective — named, never guessed). */
+    public static com.legend.compiler.spec.typed.@com.legend.Nullable TypedCString
+            canonicalJsonGolden(String text, boolean rootMany) {
+        Object parsed;
+        try {
+            parsed = com.legend.sql.Json.parseOne(text);
+        } catch (IllegalStateException malformed) {
+            return null;   // the parser's own refusal; anything else stays loud
+        }
+        String canon = com.legend.sql.Json.canonical(parsed);
+        if (rootMany && parsed instanceof java.util.Map) {
+            canon = "[" + canon + "]";
+        }
+        return new com.legend.compiler.spec.typed.TypedCString(canon,
+                new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE));
+    }
+
     public static com.legend.compiler.spec.typed.TypedSpec tdsNullSentinel(
             com.legend.compiler.spec.typed.TypedSpec spec) {
         if (!(spec instanceof com.legend.compiler.spec.typed.TypedCollection c)) {

@@ -1,3 +1,4 @@
+meta::relational::graphFetch::tests::simple::testCheckedWithCircularConstraints ||| engine-golden-defect:isDistinct-in-checked-constraint(upstream-toFix) ||| "defects":[{
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testAnnualizedValue ||| engine-store-arithmetic:h2-decimal-average ||| hireType,annualized,Campus,9.812850678733032,Lateral,9.267692307692307,
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testCmeValue ||| engine-store-arithmetic:h2-decimal-average ||| hireType,cme,Campus,0.5131221719457013,Lateral,0.5644343891402714,
 meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12MtdValue ||| engine-store-arithmetic:h2-decimal-average ||| hireType,p12mtd,Campus,6.84,Lateral,7.24,

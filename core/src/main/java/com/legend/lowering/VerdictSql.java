@@ -281,6 +281,23 @@ public final class VerdictSql {
                 equal, e, a, unjudged);
     }
 
+    /** The JSON verdict (bucket 3): the document the database built (its
+     * objects' keys sorted by {@link com.legend.sql.JsonKeyOrder}) against
+     * the golden's canonical text (compact, keys sorted, the engine's
+     * root {@code [x] ≡ x} applied at compile time) — byte-equal is the
+     * verdict; a differing pair is unjudged with its evidence. */
+    public static SqlQuery jsonText(SqlQuery eRows, SqlQuery aRows) {
+        SqlExpr e = scalarOver("__e", col("__e", C), "__one", SqlType.Scalar.VARCHAR, 1L);
+        SqlExpr a = scalarOver("__a", col("__a", C), "__one", SqlType.Scalar.VARCHAR, 1L);
+        SqlExpr equal = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, e, a);
+        SqlExpr unjudged = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.NOT, equal),
+                new SqlExpr.StringLit("json: not byte-equal (keys sorted, compact)"))),
+                null);
+        return predicate(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
+                equal, e, a, unjudged);
+    }
+
     /** One verdict row from a predicate: {@code __verdict} never NULL, the
      * two evidence texts, no unjudged, no leniency. */
     private static SqlQuery predicate(List<SqlWith.Cte> ctes, SqlExpr verdict,

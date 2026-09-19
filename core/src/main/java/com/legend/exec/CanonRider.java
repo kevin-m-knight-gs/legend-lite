@@ -43,16 +43,29 @@ public final class CanonRider {
     }
 
     private final boolean canonicalOrder;
+    /** JSON objects in this side's plan written with their keys SORTED
+     * (the JSON verdict's plan only — key order carries no meaning in
+     * pure's JSON equality; the product's own output keeps its order). */
+    private final boolean canonicalJsonKeys;
     private final List<String[]> rows = new ArrayList<>();
     private @com.legend.Nullable Wrap wrap;
     private @com.legend.Nullable String declined = "non-sql-arm";
 
     public CanonRider(boolean canonicalOrder) {
+        this(canonicalOrder, false);
+    }
+
+    public CanonRider(boolean canonicalOrder, boolean canonicalJsonKeys) {
         this.canonicalOrder = canonicalOrder;
+        this.canonicalJsonKeys = canonicalJsonKeys;
     }
 
     public boolean canonicalOrder() {
         return canonicalOrder;
+    }
+
+    public boolean canonicalJsonKeys() {
+        return canonicalJsonKeys;
     }
 
     /** Candidate canon kinds, in projected-column order (one per
