@@ -723,6 +723,7 @@ public final class MinimalCorpus {
      *  (the strength ladder is read off the runner's verdict log). */
     public Result run(PureTests.TestCase t) throws SQLException {
         PureTestRunner.Result r = runner.run(t);
+        JudgeLedger.record(t.fqn(), r);   // leg 3.3: the per-assert ledger, when configured
         return switch (r.status()) {
             case FAIL -> new Result(t.fqn(), Status.FAIL, r.verdictCount(), r.reason());
             case SKIPPED -> new Result(t.fqn(), Status.SKIPPED, 0, r.reason());

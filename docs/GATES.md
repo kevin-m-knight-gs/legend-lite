@@ -4224,3 +4224,17 @@ door 2 → 3), rendered cells of wire-decided declarations typed by the slot. Fo
 75 → 74 / gained 71. Witness `testReprocessGroupByAlias` green on both engines; label census
 mismatch 0. Ledger: AssertVerdicts 2600 → 2604, StatementExecutor 2228 → 2234. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4w.
+
+**Leg 3.3 — gate 11, the judge differential (2026-09-20):** default chain GREEN (gates 1–10),
+parallel wall 271 s (G2 25; A: G1 80 · G3 12 · G4 115 · G5 39; B: G6 147 · G7 51 · G9 36; C: G8
+160 · G10 58). GATE 11 (opt-in locally, `GATES=1,…,10,11`; its own CI lane `2,11`): the DuckDB
+corpus lane under the HOST judge writing a per-assert ledger, then under the DATABASE judge, which
+joins the two per assert as its last pin (`MinimalCorpusTest.pinJudgeDifferential`): unregistered
+disagreements and one-sided adjudications pinned at 0 (registers: the lane's database-mode
+lost/gained/accepted + the host accepted roster), the database judge's declines pinned by
+`rcorpus/duckdb-judge-unjudged-ceiling.txt` (0). Measured: asserts agree 5,834; disagree 21, all
+registered (the DECFLOAT calendar rows — the host passes them through the REFEREE's ten-digit
+float rule, not the 2-ULP judge; a leniency mismatch, decision owed); unjudged 0; database-only 2
+(host body raises before the assert; on the host accepted roster). Placed in stream C it measured
+121 s and took the wall to 364 s — over the 4-minute budget — hence opt-in. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4x.

@@ -1557,6 +1557,48 @@ lowering on H2, variant navigation) / gained 71, accepted 0 / 2, 49 s; `testRepr
 stress ratchet held; label census mismatch 0 with `subsumed` 0 by construction; chain green.
 Ledger: AssertVerdicts 2600 → 2604, StatementExecutor 2228 → 2234 (plan wiring).
 
+## 4x. Leg 3.3 — the per-assert differential gate (2026-09-20)
+
+**Built.** A corpus lane run with `-Dlegend.judge.ledger=<path>` writes one row per adjudicated
+assert (`test, ordinal, family, verdict` — PASS / FAIL / UNJUDGED; a test's asserts after its
+first failure have no row: first-failure sequencing) from the runner's own verdict log
+(`JudgeLedger.record`, called in `MinimalCorpus.run`). A DATABASE-mode lane handed the HOST
+lane's ledger (`-Dlegend.judge.ledger.host`) joins the two per `(test, ordinal)` at the end of
+its run (`MinimalCorpusTest.pinJudgeDifferential`): the same verdict everywhere the registers do
+not name. Registered = the lane's database-mode lost / gained / accepted registers AND the host
+lane's accepted roster (a host-side accept is a registered divergence too). Pinned at ZERO:
+unregistered verdict disagreements and unregistered one-sided adjudications (`host-only` /
+`database-only` — one judge adjudicated an assert the other never reached because its body
+raised first: the same asymmetry as an unjudged shape). The database judge's declines
+(`UNJUDGED`) are pinned by `rcorpus/<lane>-judge-unjudged-ceiling.txt` (DuckDB: 0). One
+implementation (`JudgeLedger.diff`); no third JVM — the differential is the database lane's own
+last pin. The mode stays a run-level switch: two runs, two ledgers, never a per-assert choice.
+
+**Measured (DuckDB lane, 2026-09-19 23:51).** Host 5,855 assert rows, database 5,857; agree
+5,834; disagree 21 — all registered, the 21 DECFLOAT calendar rows (host PASS, database FAIL
+with witness); unregistered 0; unjudged-in-database 0; host-only 0; database-only 2 — the two
+`testMilestonedRootAndMilestonedProperty` rows: host mode's body raises before the assert (on the
+host accepted roster), the database judge adjudicates it and it passes. The 12 other host-accepted
+tests fail the SAME assert in both modes (agree on FAIL; the roster's witness is the reason).
+
+**What the 21 taught (USER: "how can the 21 pass in host if we only allow 2 ULP?").** They do not
+pass through the host judge's Float rule. The host lane's verdict on a TDS row assert is the
+REFEREE's rows road (`H2Verify`), whose float rule is 10 significant digits (`float-10-digits`,
+counted, ceiling 49 DuckDB / 36 H2), while both judges' own Float rule is 2 ULP (`Equality`,
+`VerdictSql`). The 21 disagreements are a leniency mismatch between two roads, not an engine
+fact. Decision OWED to the USER: align the referee to 2 ULP (one float leniency everywhere —
+the host lane then fails the same 21, accepted with the same reasons, and the `float-10-digits`
+counter names what else leaned on ten digits), or keep two definitions of "equal float" and
+carry the 21 as registered disagreements.
+
+**Cost and placement.** Gate 11 (`tools/allgates.sh`): self-sufficient — the DuckDB lane under the
+host judge writing its ledger, then under the database judge joining it. Inside the parallel
+chain (stream C) it measured 121 s and took the wall to 364 s against the 4-minute budget
+(every gate slowed under the fourth heavy JVM), so it is OPT-IN locally (`GATES=…,11`; the
+default chain measured 271 s after) and runs in CI as its own lane (`gates-run.yml`:
+`{"gate":"11","gates":"2,11"}`). The pre-commit four-lane discipline gets the same differential
+by handing the database lane the host ledger.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

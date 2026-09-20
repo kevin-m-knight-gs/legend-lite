@@ -292,6 +292,56 @@ class MinimalCorpusTest {
                 MinimalCorpus.H2_BACKEND ? H2_UNORDERED : DUCKDB_UNORDERED, false);
         pinChannels(only, corpus);
         pinStrength(only, strength);
+        pinJudgeDifferential(only);
+    }
+
+    /** LEG 3.3 — THE DIFFERENTIAL GATE (docs/JUDGING_TWO_MODES_2026_09_17.md §4): a
+     * DATABASE-mode lane that wrote its per-assert ledger ({@code legend.judge.ledger})
+     * and was handed the HOST lane's ({@code legend.judge.ledger.host}) joins the two
+     * per assert: the same verdict everywhere the registers do not name — unregistered
+     * disagreements and one-sided adjudications pinned at ZERO; the database judge's
+     * declines pinned by {@code rcorpus/<lane>-judge-unjudged-ceiling.txt}. */
+    private static void pinJudgeDifferential(String only) throws java.io.IOException {
+        String h = System.getProperty("legend.judge.ledger.host", "").trim();
+        String d = System.getProperty(JudgeLedger.PROPERTY, "").trim();
+        if (h.isEmpty() || d.isEmpty() || !only.isEmpty()
+                || !"database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+            return;
+        }
+        String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
+        JudgeLedger.Differential x = JudgeLedger.diff(
+                JudgeLedger.read(java.nio.file.Path.of(h)), JudgeLedger.read(java.nio.file.Path.of(d)));
+        java.util.Set<String> registered = new java.util.HashSet<>();
+        for (String r : List.of("lost", "gained", "accepted")) {
+            registered.addAll(registerTests("/rcorpus/" + lane + "-database-" + r + "-register.txt"));
+        }
+        registered.addAll(registerTests(MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED));
+        List<String> unregistered = x.unregistered(registered);
+        System.out.println("[judge-differential] " + lane + ": asserts agree=" + x.agree()
+                + " disagree=" + x.disagree().size() + " unjudged-in-database=" + x.unjudged().size()
+                + " host-only=" + x.hostOnly().size() + " database-only=" + x.databaseOnly().size()
+                + " | unregistered=" + unregistered.size() + " | unjudged by family "
+                + x.unjudgedByFamily());
+        for (String u : unregistered) {
+            System.out.println("[judge-differential] UNREGISTERED " + u);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(List.of(), unregistered,
+                "the host and database judges DISAGREE on an assert of a test no register names"
+                + " (a verdict pair, or one judge adjudicating what the other never reached) — a bug"
+                + " in one mode (host is the reference): fix it, or name the test on the lane's"
+                + " register with its reason");
+        java.nio.file.Path ceilingFile = java.nio.file.Path.of(
+                "src/test/resources/rcorpus/" + lane + "-judge-unjudged-ceiling.txt");
+        int ceiling = java.nio.file.Files.exists(ceilingFile)
+                ? Integer.parseInt(java.nio.file.Files.readString(ceilingFile).trim()) : Integer.MAX_VALUE;
+        org.junit.jupiter.api.Assertions.assertTrue(x.unjudged().size() <= ceiling,
+                "asserts the database judge declines grew: " + x.unjudged().size() + " > " + ceiling
+                + " — a shape the host judges and the database does not is a work item, never a"
+                + " fallback (" + x.unjudgedByFamily() + ")");
+        if (x.unjudged().size() < ceiling && java.nio.file.Files.exists(ceilingFile)) {
+            System.out.println("[judge-differential] unjudged ceiling " + ceiling + " -> "
+                    + x.unjudged().size() + " (re-pin: headroom is not a pin)");
+        }
     }
 
     /** Phase 0.7 — the STRENGTH census of the passes (audit §3's ladder),
@@ -701,6 +751,23 @@ class MinimalCorpusTest {
     }
 
     /** The accepted-divergence register: {@code fqn -> {bucket, witness}}. */
+    /** The test names a register file names (its first {@code |||} column). */
+    static java.util.Set<String> registerTests(String resource) throws java.io.IOException {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        try (var in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                return out;
+            }
+            for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                    .split("\n")) {
+                if (!line.isBlank()) {
+                    out.add(line.split("\\|\\|\\|")[0].trim());
+                }
+            }
+        }
+        return out;
+    }
+
     private static java.util.Map<String, String[]> readAccepted(String resource) throws IOException {
         java.util.Map<String, String[]> out = new java.util.LinkedHashMap<>();
         try (InputStream in = MinimalCorpusTest.class.getResourceAsStream(resource)) {

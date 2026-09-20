@@ -33,6 +33,10 @@ SFLAG=()
 OFF=()
 [ "${MVN_OFFLINE:-1}" = "1" ] && OFF=(-o)
 # Gate subset: GATES=1,2,3 runs only those. Default is all nine.
+# Gate 11 (the judge differential) is OPT-IN locally: measured 2026-09-19 at
+# 121 s inside stream C it took the parallel wall to 364 s against the 4-minute
+# budget. CI runs it as its own lane (GATES=2,11); the pre-commit four-lane
+# discipline runs the same differential by hand (docs/GATES.md).
 WANT=${GATES:-1,2,3,4,5,6,7,8,9,10}
 want() { case ",$WANT," in *",$1,"*) return 0;; *) return 1;; esac; }
 # Default the log to a PER-USER path. A fixed /tmp/gates.log is shared across
@@ -385,6 +389,33 @@ gate10() {
   rec 10 $?; grep -E "^\[suites\] pass=" "$OUT/g10.out" | tail -1 >> "$L"
 }
 
+# GATE 11 — THE DIFFERENTIAL GATE (leg 3.3, docs/JUDGING_TWO_MODES_2026_09_17.md
+# §4): the DuckDB corpus lane under the HOST judge writing its per-assert
+# ledger, then under the DATABASE judge — which joins the two per assert in
+# the lane itself (MinimalCorpusTest.pinJudgeDifferential): the same verdict
+# everywhere the registers do not name, unregistered disagreements pinned at
+# 0, the database judge's declines pinned by the lane's unjudged ceiling.
+# SELF-SUFFICIENT (both runs are its own — a CI lane has no gate 4 beside it).
+gate11() {
+  if ! want 11; then return 0; fi
+  if ! roots_present; then
+    echo "G11 NOT RUN — legend-engine checkout absent. NOT a pass." >> "$L"
+    rec 11 1
+    return 0
+  fi
+  g "GATE11 judge differential (DuckDB corpus: host judge, then database judge joined per assert)"
+  rm -f "$OUT/judge-host.tsv" "$OUT/judge-database.tsv"
+  mvn ${OFF[@]+"${OFF[@]}"} -pl spec test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= "$R1" "$R2" -Dlegend.judge.mode=host -Dlegend.judge.ledger="$OUT/judge-host.tsv" > "$OUT/g11.out" 2>&1
+  G11=$?
+  if [ $G11 -eq 0 ] && [ -s "$OUT/judge-host.tsv" ]; then
+    mvn ${OFF[@]+"${OFF[@]}"} -pl spec test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= "$R1" "$R2" -Dlegend.judge.mode=database -Dlegend.judge.ledger="$OUT/judge-database.tsv" -Dlegend.judge.ledger.host="$OUT/judge-host.tsv" >> "$OUT/g11.out" 2>&1
+    G11=$?
+  else
+    echo "G11: the host ledger was not written. NOT a pass." >> "$L"; G11=1
+  fi
+  rec 11 $G11; grep -E "database-mode fail diff|\[judge-differential\]|Tests run: [0-9]+, Fail" "$OUT/g11.out" | tail -4 >> "$L"
+}
+
 stream() {
   local name=$1; shift
   for fn in "$@"; do "$fn"; done
@@ -398,7 +429,7 @@ if [ "${GATES_PARALLEL:-0}" = "1" ]; then
   # G6 130, G8 139 — every gate inside its pre-today range). Gate 10 rides
   # stream C after gate 8, the shortest stream (build + 139 s), so the wall
   # stays bound by stream A. Two gates of one module never run at once.
-  echo "streams: A(1,3,4,5) B(6,7,9) C(8,10) in PARALLEL" >> "$L"
+  echo "streams: A(1,3,4,5) B(6,7,9) C(8,10,11) in PARALLEL" >> "$L"
   # Each stream is a subshell with its OWN log. Three writers appending to one
   # file can tear a line, and the verdict below is derived from those lines —
   # so they are kept apart and concatenated in a fixed order afterwards, which
@@ -408,7 +439,7 @@ if [ "${GATES_PARALLEL:-0}" = "1" ]; then
   PA=$!
   ( L="$OUT/stream-B.log"; : > "$L"; stream B gate6 gate7 gate9 ) &
   PB=$!
-  ( L="$OUT/stream-C.log"; : > "$L"; stream C gate8 gate10 ) &
+  ( L="$OUT/stream-C.log"; : > "$L"; stream C gate8 gate10 gate11 ) &
   PC=$!
   wait $PA; wait $PB; wait $PC
   cat "$OUT/stream-A.log" "$OUT/stream-B.log" "$OUT/stream-C.log" >> "$L" 2>/dev/null
@@ -420,7 +451,7 @@ if [ "${GATES_PARALLEL:-0}" = "1" ]; then
 else
   stream A gate1 gate3 gate4 gate5
   stream B gate6 gate7 gate9
-  stream C gate8 gate10
+  stream C gate8 gate10 gate11
 fi
 
 # NO VERDICT IS A FAILURE. Rebuilding the verdict from log lines means a gate
@@ -431,7 +462,7 @@ fi
 # and the chain reported GREEN. So every SELECTED gate must have written a
 # verdict; a missing one is a failure with its own name, never silence.
 # ("A gate script that cannot fail is not a gate" — the rule this restores.)
-for n in 1 4 5 6 7 8 9 10; do
+for n in 1 4 5 6 7 8 9 10 11; do
   want "$n" || continue
   grep -qE "^G${n}_EXIT=" "$L" || {
     echo "G${n} NO VERDICT — its stream did not report (killed? crashed?). NOT a pass." >> "$L"

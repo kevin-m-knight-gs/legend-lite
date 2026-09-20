@@ -91,6 +91,7 @@ jobs:
             {"name":"gate 7 PCT H2 relation",        "gate":"7","gates":"2,7"},
             {"name":"gate 9 Channel B dual-verdict", "gate":"9","gates":"2,9"},
             {"name":"gate 10 stress corpus",         "gate":"10","gates":"2,10"},
+            {"name":"gate 11 judge differential",    "gate":"11","gates":"2,11"},
             {"name":"gate 8 parser equivalence",     "gate":"8","gates":"8"}
           ]'
           if [ -n "${WANT:-}" ]; then
