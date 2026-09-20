@@ -4300,3 +4300,25 @@ the next mark). Four lanes: DuckDB host 108 / H2 host 412 exact; DuckDB database
 0. Registers: `duckdb-database-accepted-register` witness re-spelled with the new separator;
 `h2-database-gained-register` +1. Ledgers: AssertVerdicts 2598 → 2599, StatementExecutor 2259 →
 2332; RawSql construction +AliasPrefix; PARK-2 anchor +SqlWith.java. Record: §4ab.
+
+**The lean SQL ladder, rungs 1–3 (2026-09-20):** default chain GREEN (gates 1–10), G2 25; A: G1 77 ·
+G3 11 · G4 110 · G5 37; B: G6 146 · G7 48 · G9 34; C: G8 151 · G10 56 (wall ≈ 250 s). USER north
+star: one statement per test body, every let's product SQL in it exactly once, the thinnest assert
+wrapper — climbed on a Java ladder we own (`core/.../ladder/LeanSqlLadderTest`: eleven rungs over
+one three-row table, each statement the runner sends captured by a recording JDBC proxy and pinned
+byte-for-byte beside a hand-written lean target; docs/LEAN_VERDICT_LADDER_2026_09_20.md). The GENERAL
+verdict shape (no special cases): each side a rows relation folded to ONE facts row, the verdict row
+over two one-row CTEs, zero scalar subqueries; a side's shape follows its declared multiplicity
+(declared-one → facts inline over the plan); the side is spliced at one level only over a plain
+projection (an aggregate value stays a trimmed layer); the leniency block only under a declared
+Float, its value column owned by the PAIR; the equality form's cell copies deleted. Rungs 1–3 CLOSED
+(`assertEquals(1, 1)`: 4,876 chars / 20 subqueries → 1,034 / 0). The judge mode is now a RUN option
+(`ExecuteOptions.JudgeMode`, the runner's constructor) — the once-per-JVM static is deleted; the
+corpus lane hands its `-D` to the runner, nothing in the product reads it. Diagnostics landed:
+`sql-chars` beside the round-trip census, `PrepTrace` (env-switched prepare/execute timing), the
+DETACH census, the per-test timing dump. Perf homework (DATABASE_MODE_HOMEWORK §4ac): the database
+lane's extra time is DuckDB PLANNING, linear in plan operators, not bytes. Four lanes: DuckDB host
+108 / H2 host 412 exact; DuckDB database lost 0 / gained 0 (66–72 s, from 82; SQL text 96.3 MB →
+74.1 MB); H2 database lost 64 / gained 72; differential agree 5,848 · disagree 0 · unjudged 0.
+Ledgers: AssertVerdicts 2599 → 2593; funnel +PrepTrace; JDBC census +ladder test; parity floor
+2503 → 2518; env flag LEGEND_LITE_PREP_TRACE registered.

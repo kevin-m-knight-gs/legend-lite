@@ -211,6 +211,9 @@ public final class VerdictBatch {
         for (var g : groups.entrySet()) {
             List<Pending> ps = g.getValue();
             try {
+                for (Pending p : ps) {
+                    PrepTrace.branch(p.name(), dialect.render(p.query()).length());
+                }
                 for (Row row : executeFused(ps.stream().map(Pending::query).toList(),
                         g.getKey(), dialect, trace)) {
                     int local = ((Number) row.values().get(0)).intValue();

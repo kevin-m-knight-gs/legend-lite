@@ -234,6 +234,13 @@ class MinimalCorpusTest {
         Files.write(Path.of("target/corpus2-fail.txt"), fail);
         Files.write(Path.of("target/corpus2-skipped.txt"), skipped);
         Files.write(Path.of("target/corpus2-engine-order.txt"), engineOrder);
+        // the per-test timing ledger, every test (ms, discovery order) — the
+        // input a mode-vs-mode or run-vs-run time diff reads
+        List<String> timing = new ArrayList<>();
+        for (var e : elapsed.entrySet()) {
+            timing.add(e.getValue() + "\t" + e.getKey());
+        }
+        Files.write(Path.of("target/corpus2-elapsed.txt"), timing);
         System.out.println("[corpus2] engine-order tests=" + engineOrder.size()
                 + " (statements the test-lane scan-order emulation changed; product never opts in)");
         System.out.println("[corpus2] pass=" + pass.size() + " fail=" + fail.size()
@@ -537,7 +544,11 @@ class MinimalCorpusTest {
                 + " frames[" + com.legend.exec.VerdictBatch.frameCensus() + "]");
         System.out.println("[corpus2] sql-census round-trips="
                 + com.legend.exec.Executor.roundTrips() + " (every statement the executor"
-                + " sent this JVM: setups, sides, frames, referee replays)");
+                + " sent this JVM: setups, sides, frames, referee replays)"
+                + " sql-chars=" + com.legend.exec.Executor.sqlChars()
+                + " detaches=" + DuckWorkspaces.DETACHES.get()
+                + " detach-ms=" + DuckWorkspaces.DETACH_NANOS.get() / 1_000_000L
+                + " detach-max-ms=" + DuckWorkspaces.DETACH_MAX_NANOS.get() / 1_000_000L);
         com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(
                 r -> System.out.println("[corpus2] sql-disagree " + r.family() + " " + r.detail()));
         if (!only.isEmpty()) {

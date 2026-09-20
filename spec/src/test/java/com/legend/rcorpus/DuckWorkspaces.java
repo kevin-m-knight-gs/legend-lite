@@ -200,9 +200,22 @@ final class DuckWorkspaces {
         return proxied;
     }
 
+    /** DETACH timing census (perf homework 2026-09-20): count, total ms, max ms. */
+    static final java.util.concurrent.atomic.AtomicLong DETACHES = new java.util.concurrent.atomic.AtomicLong();
+    static final java.util.concurrent.atomic.AtomicLong DETACH_NANOS = new java.util.concurrent.atomic.AtomicLong();
+    static final java.util.concurrent.atomic.AtomicLong DETACH_MAX_NANOS = new java.util.concurrent.atomic.AtomicLong();
+
     private static synchronized void detach(String ws) {
+        long t0 = System.nanoTime();
         try (Statement st = root.createStatement()) {
             st.execute("DETACH " + ws);
+            long dt = System.nanoTime() - t0;
+            DETACHES.incrementAndGet();
+            DETACH_NANOS.addAndGet(dt);
+            DETACH_MAX_NANOS.accumulateAndGet(dt, Math::max);
+            if (System.getProperty("rcorpus.detachTrace") != null && dt > 20_000_000L) {
+                System.out.println("[ws-detach] " + dt / 1_000_000L + "ms " + ws);
+            }
         } catch (SQLException e) {
             // a failed DETACH must not mask the test's own outcome, but
             // it may not vanish either: the ceiling above turns a leak

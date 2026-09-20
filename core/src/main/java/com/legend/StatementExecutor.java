@@ -254,7 +254,7 @@ final class StatementExecutor {
         // the body's batch, sent as ONE statement before any statement that
         // is not an assert runs (a let, a frame, a write, a value) and at the
         // body's end — the verdicts' order and first-failure raise unchanged
-        com.legend.exec.VerdictBatch batch = AssertVerdicts.JUDGE_MODE == AssertVerdicts.JudgeMode.DATABASE
+        com.legend.exec.VerdictBatch batch = env0.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE
                 ? new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch,
                         new com.legend.compiler.element.type.ExprType(
                                 com.legend.lowering.VerdictSql.batchSchema(),

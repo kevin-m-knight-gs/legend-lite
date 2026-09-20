@@ -286,7 +286,7 @@ final class AssertVerdicts {
             if (targs.size() < 3 || targs.size() > 4) {
                 yield null;
             }
-            if (JUDGE_MODE == JudgeMode.DATABASE) {
+            if (databaseMode(env)) {
                 yield databaseTdsEquivalent(name, targs, letPrefix, specs, env, hook);
             }
             ExecutionResult.Tabular one =
@@ -355,7 +355,7 @@ final class AssertVerdicts {
                 // sorting a mixed-type cell pool is never a SQL column
                 TypedSpec cellsE = bareSortOverCells(args.get(0));
                 TypedSpec cellsA = bareSortOverCells(args.get(1));
-                if (JUDGE_MODE == JudgeMode.DATABASE && wantEqual
+                if (databaseMode(env) && wantEqual
                         && (cellsE != null || cellsA != null)) {
                     // the sorted flat-cells idiom IS the cell-pool multiset
                     yield databaseVerdict(name, true,
@@ -417,7 +417,7 @@ final class AssertVerdicts {
                 // host-side instead — semantics-free string sorting.
                 boolean gridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     // 3.1b: grid sides route too (the statement frames the
                     // peer by the grid's width; a grid PAIR is unjudged there)
                     yield databaseVerdict(name, wantEqual, args.get(0), args.get(1),
@@ -487,7 +487,7 @@ final class AssertVerdicts {
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     yield databaseVerdict(name, true, args.get(0), args.get(1),
                             letPrefix, specs, env, hook, true, true);
                 }
@@ -533,7 +533,7 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     yield null;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     yield databaseSize(name, args, letPrefix, specs, env, hook);
                 }
                 Object n = one(side(args.get(1), letPrefix, specs, env, hook),
@@ -573,7 +573,7 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     // bucket 3: the document the database built against the
                     // golden's CANONICAL text — compact, keys sorted on both
                     // sides (the verdict plan's objects through JsonKeyOrder),
@@ -689,7 +689,7 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     yield null;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     yield databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook);
                 }
                 List<Object> coll = side(args.get(0), letPrefix, specs,
@@ -734,7 +734,7 @@ final class AssertVerdicts {
                 if (args.size() < 3) {
                     yield null;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     yield databaseTolerance(name, args, letPrefix, specs, env, hook);
                 }
                 String d = PureAsserts.assertEqWithinTolerance(
@@ -750,7 +750,7 @@ final class AssertVerdicts {
                 if (args.isEmpty()) {
                     yield null;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     yield databaseCondition(name, args.get(0), fn == NativeFn.Verdict.ASSERT,
                             letPrefix, specs, env, hook);
                 }
@@ -794,7 +794,7 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     // bucket 5: the model's subtype relation IS instanceOf —
                     // minted as the native call, judged as a condition
                     TypedSpec cond = com.legend.compiler.spec.VerdictQueries
@@ -834,14 +834,14 @@ final class AssertVerdicts {
                 }
                 ExecutionResult isv = isVerdict(args.get(0), args.get(1));
                 if (isv != null) {
-                    if (JUDGE_MODE == JudgeMode.DATABASE) {
+                    if (databaseMode(env)) {
                         // a statically identified pair: decided by the compiler
                         // (the same count as the static kind gate)
                         com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
                     }
                     yield isv;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     KindClass ki = kindKey(args.get(0), letPrefix, env);
                     KindClass kj = kindKey(args.get(1), letPrefix, env);
                     if (ki instanceof KindClass.Enum && kj instanceof KindClass.Enum) {
@@ -877,7 +877,7 @@ final class AssertVerdicts {
                 if (args.isEmpty()) {
                     yield null;
                 }
-                if (JUDGE_MODE == JudgeMode.DATABASE) {
+                if (databaseMode(env)) {
                     yield databaseEmpty(name, args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY,
                             letPrefix, specs, env, hook);
                 }
@@ -1215,24 +1215,13 @@ final class AssertVerdicts {
      * impossible: no arm can print the byte-divergence text for a
      * judgment the byte channel never made, because the probe and the
      * message read the same two booleans). */
-    /** The run-level judge mode, read ONCE ({@code -Dlegend.judge.mode});
-     * a per-assertion choice is impossible by construction. HOST is the
-     * verdict of record (JUDGING_TWO_MODES step 2, host-only since
-     * 2026-09-18: the mixed verdict — byte channel of record, host
-     * fallback — is deleted; the byte channel reports as a CENSUS only).
-     * DATABASE mode is step 3's and is not selectable yet. */
-    enum JudgeMode { HOST, DATABASE }
-
-    static final JudgeMode JUDGE_MODE = switch (
-            System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
-        case "host" -> JudgeMode.HOST;
-        // leg 3.1: the DATABASE decides (VerdictSql); a shape the statement
-        // cannot decide FAILS as unjudged, never falls back to the host
-        case "database" -> JudgeMode.DATABASE;
-        default -> throw new com.legend.error.NotImplementedException(
-                "legend.judge.mode='" + System.getProperty("legend.judge.mode")
-                        + "': 'host' or 'database'");
-    };
+    /** The run's judge mode rides its options (ExecuteOptions.JudgeMode):
+     * one mode per run, read from the execution environment — never a JVM
+     * global. HOST is the verdict of record; DATABASE plans both sides and
+     * lets the database return the verdict row. */
+    static boolean databaseMode(StatementExecutor.ExecEnv env) {
+        return env.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE;
+    }
 
     /** DATABASE mode (leg 3.1, docs/DATABASE_MODE_HOMEWORK §4b): both
      * sides are PLANNED (never executed on their own), composed by
@@ -1505,7 +1494,7 @@ final class AssertVerdicts {
         }
         // JUDGING_TWO_MODES: the host judge's verdict is the verdict of
         // record; the byte channel reported as a census above and never
-        // decides (JUDGE_MODE has one value until step 3 adds DATABASE)
+        // decides (one judge mode per run, on its options)
         if (hostHeld == wantEqual) {
             return ok();
         }
@@ -2481,7 +2470,7 @@ final class AssertVerdicts {
         String form = aForm != null ? aForm
                 : java.util.Objects.requireNonNull(eForm);
         TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
-        if (JUDGE_MODE == JudgeMode.DATABASE) {
+        if (databaseMode(env)) {
             // bucket 8 (homework §4s): the rendered VALUE against the golden
             // brought to rows by the render function's own grammar — the
             // grid / collection statements judge; ordered only when the

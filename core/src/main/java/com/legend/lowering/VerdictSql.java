@@ -71,12 +71,29 @@ public final class VerdictSql {
 
     /** The equality verdict statement over two framed sides. */
     public static SqlQuery equality(Side e, Side a) {
-        SqlQuery er = canonRows(e);
-        SqlQuery ar = canonRows(a);
-        // the leniency walks the cells POSITIONALLY in arrival order in every
-        // form (host mode: Equality.ordered first, the multiset only after)
-        return statement(er, ar, e.many(), a.many(), e.byCanonText(), List.of(),
-                List.of(), er, ar);
+        // THE SIDE'S SHAPE FOLLOWS ITS DECLARED MULTIPLICITY (lean ladder rung
+        // 3): a side declared exactly one spells its facts straight over its
+        // plan — no rows CTE, no aggregate (count is one, first is the value);
+        // an optional or many side is a rows CTE folded once. The 2-ULP
+        // leniency (a declared-Float side) walks cells positionally, so a
+        // Float side keeps the rows form — the general shape, one rule.
+        boolean lenientPossible = e.isFloat() || a.isFloat();
+        Folded ef = fold("__e", e, lenientPossible);
+        Folded af = fold("__a", a, lenientPossible);
+        return statementOf(ef, af, List.of(), List.of(),
+                lenientPossible ? ef.rows() : null, lenientPossible ? af.rows() : null);
+    }
+
+    /** A side folded to its facts row: {@code rows} is the rows CTE's query
+     * (null when the facts are spelled inline over the plan). */
+    private record Folded(String name, @com.legend.Nullable SqlQuery rows, SqlQuery facts) {
+    }
+
+    private static Folded fold(String name, Side s, boolean keepRows) {
+        if (!s.many() && !keepRows && s.wrapped() instanceof SqlSelect ws && plainProjection(ws)) {
+            return new Folded(name, null, inlineFacts(s));
+        }
+        return new Folded(name, canonRows(s, keepRows), sideFacts(name, s.many(), s.byCanonText()));
     }
 
     // ── the GRID forms (leg 3.1b): a TABULAR side rides the grid wrap
@@ -541,47 +558,204 @@ public final class VerdictSql {
             boolean eMany, boolean aMany, boolean byCanonText,
             List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes,
             @com.legend.Nullable SqlQuery eCells, @com.legend.Nullable SqlQuery aCells) {
+        return statementOf(new Folded("__e", eRows, sideFacts("__e", eMany, byCanonText)),
+                new Folded("__a", aRows, sideFacts("__a", aMany, byCanonText)),
+                moreUnjudged, extraCtes, eCells, aCells);
+    }
+
+    private static SqlQuery statementOf(Folded e, Folded a,
+            List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes,
+            @com.legend.Nullable SqlQuery eCells, @com.legend.Nullable SqlQuery aCells) {
+        SqlQuery eRows = e.rows();
+        SqlQuery aRows = a.rows();
+        // THE GENERAL SHAPE (lean ladder, 2026-09-20): each side is a rows
+        // relation (__c, __rn[, __v]) folded to ONE aggregate row (count, first,
+        // joined, null count, tree count); the verdict row reads the two one-row
+        // CTEs. No scalar subqueries, every side spelled once. The 2-ULP
+        // leniency block exists only when a cell side carries a Float value —
+        // a compile-time fact of the sides, not a special case — and folds to
+        // one aggregate over the positional join.
         List<SqlWith.Cte> ctes = new ArrayList<>(extraCtes);
-        ctes.add(new SqlWith.Cte("__e", eRows));
-        ctes.add(new SqlWith.Cte("__a", aRows));
-        SqlExpr fe = frame("__e", eMany, byCanonText);
-        SqlExpr fa = frame("__a", aMany, byCanonText);
-        SqlExpr exact = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, fe, fa);
-        SqlExpr lenient;
-        if (eCells != null && aCells != null) {
-            ctes.add(new SqlWith.Cte("__ec", eCells));
-            ctes.add(new SqlWith.Cte("__ac", aCells));
-            lenient = lenient("__ec", "__ac");
-        } else {
-            lenient = new SqlExpr.BoolLit(false);
+        if (eRows != null) {
+            ctes.add(new SqlWith.Cte("__e", eRows));
         }
-        SqlExpr verdict = SqlExpr.Call.of(SqlFn.OR, exact, lenient);
-        SqlExpr lenientOnly = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.NOT, exact), lenient);
+        if (aRows != null) {
+            ctes.add(new SqlWith.Cte("__a", aRows));
+        }
+        ctes.add(new SqlWith.Cte("__se", e.facts()));
+        ctes.add(new SqlWith.Cte("__sa", a.facts()));
+        boolean cellsAreRows = eCells != null && eCells == eRows && aCells == aRows;
+        boolean lenientPossible = eCells != null && aCells != null
+                && (carriesValues(eCells) || carriesValues(aCells));
+        SqlExpr lenient = null;
+        SqlSource from = new SqlSource.Join(facts("__se", "e"), facts("__sa", "a"),
+                SqlSource.Join.Kind.CROSS, null);
+        if (lenientPossible) {
+            String ec = cellsAreRows ? "__e" : "__ec";
+            String ac = cellsAreRows ? "__a" : "__ac";
+            if (!cellsAreRows) {
+                ctes.add(new SqlWith.Cte("__ec", java.util.Objects.requireNonNull(eCells)));
+                ctes.add(new SqlWith.Cte("__ac", java.util.Objects.requireNonNull(aCells)));
+            }
+            ctes.add(new SqlWith.Cte("__sl", pairFacts(ec, ac)));
+            from = new SqlSource.Join(from, pairFactsSource("__sl", "l"), SqlSource.Join.Kind.CROSS, null);
+            lenient = SqlExpr.Call.of(SqlFn.AND,
+                    SqlExpr.Call.of(SqlFn.EQUAL, pairCol("l", "__ne"), pairCol("l", "__na")),
+                    SqlExpr.Call.of(SqlFn.EQUAL, pairCol("l", "__bad"), new SqlExpr.IntLit(0)));
+        }
+        SqlExpr ex = factCol("e", F_TEXT);
+        SqlExpr ax = factCol("a", F_TEXT);
+        SqlExpr exact = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, ex, ax);
+        SqlExpr verdict = lenient == null ? exact : SqlExpr.Call.of(SqlFn.OR, exact, lenient);
+        SqlExpr lenientOnly = lenient == null ? new SqlExpr.BoolLit(false)
+                : SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, exact), lenient);
         List<SqlExpr.Case.When> whens = new ArrayList<>(moreUnjudged);
         whens.add(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.OR, nullCells("__e"), nullCells("__a")),
+                SqlExpr.Call.of(SqlFn.OR,
+                        SqlExpr.Call.of(SqlFn.GREATER, factCol("e", F_NULLS), new SqlExpr.IntLit(0)),
+                        SqlExpr.Call.of(SqlFn.GREATER, factCol("a", F_NULLS), new SqlExpr.IntLit(0))),
                 new SqlExpr.StringLit("null-canon-cell")));
-        // a canon carrying the JSON-tree marker is never comparable (the
-        // Java rule: decline on sight, F10's contract) — unjudged by name
         whens.add(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.OR, treeCells("__e"), treeCells("__a")),
+                SqlExpr.Call.of(SqlFn.OR,
+                        SqlExpr.Call.of(SqlFn.GREATER, factCol("e", F_TREES), new SqlExpr.IntLit(0)),
+                        SqlExpr.Call.of(SqlFn.GREATER, factCol("a", F_TREES), new SqlExpr.IntLit(0))),
                 new SqlExpr.StringLit("unclaimable tree cell")));
         SqlExpr unjudged = new SqlExpr.Case(whens, null);
         List<SqlSelect.Projection> ps = List.of(
                 new SqlSelect.Projection(verdict, VERDICT,
                         new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false)),
-                new SqlSelect.Projection(fe, EXPECTED,
+                new SqlSelect.Projection(ex, EXPECTED,
                         new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false)),
-                new SqlSelect.Projection(fa, ACTUAL,
+                new SqlSelect.Projection(ax, ACTUAL,
                         new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false)),
                 new SqlSelect.Projection(unjudged, UNJUDGED,
                         new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
                 new SqlSelect.Projection(lenientOnly, LENIENT,
                         new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
-        SqlSelect body = new SqlSelect(ps, false, new SqlSource.Dual(), null,
+        SqlSelect body = new SqlSelect(ps, false, from, null,
                 List.of(), null, null, List.of(), null, null, List.of());
         return new SqlWith(ctes, body);
+    }
+
+    // ── the side FACTS row: one aggregate over a rows CTE ──────────────────
+    private static final String F_TEXT = "__text";
+    private static final String F_NULLS = "__nulls";
+    private static final String F_TREES = "__trees";
+
+    private static List<OutputCol> factOutputs() {
+        return List.of(new OutputCol(F_TEXT, SqlType.Scalar.VARCHAR, true),
+                new OutputCol(F_NULLS, SqlType.Scalar.BIGINT, false),
+                new OutputCol(F_TREES, SqlType.Scalar.BIGINT, false));
+    }
+
+    private static SqlSource facts(String cteName, String alias) {
+        return new SqlSource.Table(cteName, alias, factOutputs());
+    }
+
+    private static SqlExpr factCol(String alias, String col) {
+        return SqlExpr.Column.of(alias, factOutputs(), col);
+    }
+
+    /** {@code SELECT <framed text>, nulls, trees FROM (SELECT COUNT, first,
+     * STRING_AGG, null count, tree count FROM <rows>) AS s} — the side's
+     * verdict facts, one row, the rows scanned once. */
+    private static SqlQuery sideFacts(String rowsCte, boolean many, boolean byCanonText) {
+        OutputCol nOut = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
+        OutputCol oneOut = new OutputCol("__one", SqlType.Scalar.VARCHAR, true);
+        OutputCol joinedOut = new OutputCol("__joined", SqlType.Scalar.VARCHAR, true);
+        OutputCol nullsOut = new OutputCol(F_NULLS, SqlType.Scalar.BIGINT, false);
+        OutputCol treesOut = new OutputCol(F_TREES, SqlType.Scalar.BIGINT, false);
+        List<OutputCol> aggOuts = List.of(nOut, oneOut, joinedOut, nullsOut, treesOut);
+        SqlExpr c = col(rowsCte, C);
+        SqlExpr rn = col(rowsCte, RN);
+        SqlExpr key = byCanonText ? c : rn;
+        SqlExpr one = new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.EQUAL, rn, new SqlExpr.IntLit(1)), c)), null)),
+                false, List.of());
+        SqlSelect agg = new SqlSelect(List.of(
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(rn), false, List.of()), "__n", nOut),
+                new SqlSelect.Projection(one, "__one", oneOut),
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(c, new SqlExpr.StringLit(", ")), false,
+                        List.of(new SqlSelect.SortKey(key, true, null, null))), "__joined", joinedOut),
+                new SqlSelect.Projection(countWhere(SqlExpr.Call.of(SqlFn.IS_NULL, c)), F_NULLS, nullsOut),
+                new SqlSelect.Projection(countWhere(SqlExpr.Call.of(SqlFn.GREATER,
+                        SqlExpr.Call.of(SqlFn.STRPOS, c, new SqlExpr.StringLit(CanonicalRenderSql.TREE_MARKER)),
+                        new SqlExpr.IntLit(0))), F_TREES, treesOut)),
+                false, cte(rowsCte), null, List.of(), null, null, List.of(), null, null, aggOuts);
+        SqlExpr n = SqlExpr.Column.of("s", aggOuts, "__n");
+        SqlExpr first = SqlExpr.Column.of("s", aggOuts, "__one");
+        SqlExpr joined = SqlExpr.Column.of("s", aggOuts, "__joined");
+        SqlExpr empty = new SqlExpr.StringLit("[]");
+        SqlExpr text = many
+                ? new SqlExpr.Case(List.of(
+                        new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(0)), empty),
+                        new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(1)), first)),
+                        SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("["), joined, new SqlExpr.StringLit("]")))
+                : SqlExpr.Call.of(SqlFn.COALESCE, first, empty);
+        List<OutputCol> outs = factOutputs();
+        return new SqlSelect(List.of(
+                new SqlSelect.Projection(text, F_TEXT, outs.get(0)),
+                new SqlSelect.Projection(SqlExpr.Column.of("s", aggOuts, F_NULLS), F_NULLS, outs.get(1)),
+                new SqlSelect.Projection(SqlExpr.Column.of("s", aggOuts, F_TREES), F_TREES, outs.get(2))),
+                false, new SqlSource.Subselect(agg, "s", null), null, List.of(), null, null,
+                List.of(), null, null, outs);
+    }
+
+    /** {@code COUNT(CASE WHEN <cond> THEN 1 END)} — portable filtered count. */
+    private static SqlExpr countWhere(SqlExpr cond) {
+        return new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(cond, new SqlExpr.IntLit(1))), null)), false, List.of());
+    }
+
+    /** Whether a cells relation can carry a non-null {@code __v} (a Float
+     * value) — statically, from its projections: every branch projects V as
+     * a bare NULL when no column is declared Float. */
+    private static boolean carriesValues(SqlQuery cells) {
+        if (cells instanceof com.legend.sql.SqlUnion u) {
+            return u.branches().stream().anyMatch(VerdictSql::carriesValues);
+        }
+        if (cells instanceof SqlSelect s) {
+            for (SqlSelect.Projection p : s.projections()) {
+                if (V.equals(p.alias())) {
+                    return !(p.expr() instanceof SqlExpr.NullLit);
+                }
+            }
+            return false;   // no value column at all
+        }
+        return true;   // an unknown shape keeps the leniency (never silently drops it)
+    }
+
+    // ── the positional PAIR facts: the leniency's one aggregate ─────────────
+    private static List<OutputCol> pairOutputs() {
+        return List.of(new OutputCol("__ne", SqlType.Scalar.BIGINT, false),
+                new OutputCol("__na", SqlType.Scalar.BIGINT, false),
+                new OutputCol("__bad", SqlType.Scalar.BIGINT, false));
+    }
+
+    private static SqlSource pairFactsSource(String cteName, String alias) {
+        return new SqlSource.Table(cteName, alias, pairOutputs());
+    }
+
+    private static SqlExpr pairCol(String alias, String col) {
+        return SqlExpr.Column.of(alias, pairOutputs(), col);
+    }
+
+    /** {@code SELECT (SELECT COUNT FROM ec), (SELECT COUNT FROM ac), COUNT(bad
+     * pairs) FROM ec JOIN ac ON rn} folded to ONE scan of each side: the two
+     * counts as aggregates over a FULL join would need the dialect's emulation
+     * on H2, so the counts ride as two subqueries of ONE row each — the only
+     * subqueries the shape keeps, and only under a Float. */
+    private static SqlQuery pairFacts(String ec, String ac) {
+        List<OutputCol> outs = pairOutputs();
+        SqlSource joined = new SqlSource.Join(cte(ec), cte(ac), SqlSource.Join.Kind.INNER,
+                SqlExpr.Call.of(SqlFn.EQUAL, col(ec, RN), col(ac, RN)));
+        return new SqlSelect(List.of(
+                new SqlSelect.Projection(count(ec), "__ne", outs.get(0)),
+                new SqlSelect.Projection(count(ac), "__na", outs.get(1)),
+                new SqlSelect.Projection(countWhere(SqlExpr.Call.of(SqlFn.NOT, pairOk(ec, ac))), "__bad", outs.get(2))),
+                false, joined, null, List.of(), null, null, List.of(), null, null, outs);
     }
 
     /** A HOST-CONSTANT side (a compile-time fact the pipeline answered
@@ -770,36 +944,167 @@ public final class VerdictSql {
 
     /** {@code SELECT canon AS __c, row_number() OVER () AS __rn FROM (wrapped) w}
      * — the side reduced to its deciding canon texts in arrival order. */
+    /** The wrap's projection named {@code alias}, or null. */
+    private static SqlSelect.@com.legend.Nullable Projection projectionOf(SqlSelect ws, String alias) {
+        for (SqlSelect.Projection p : ws.projections()) {
+            if (alias.equals(p.alias())) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /** TEXT by contract: a cast to VARCHAR unless the expression is one already. */
+    private static SqlExpr asText(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.VARCHAR ? e
+                : new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);
+    }
+
+    /** A side declared exactly one: its facts row spelled straight over the
+     * plan (ONE row by construction — a one-row seed LEFT JOINed to the plan,
+     * so an empty plan still frames {@code []} exactly as the rows form does). */
+    private static SqlQuery inlineFacts(Side s) {
+        SqlSelect ws = (SqlSelect) s.wrapped();
+        SqlExpr valueRef = ws.projections().get(0).expr();
+        SqlExpr canon = asText(java.util.Objects.requireNonNull(
+                projectionOf(ws, s.canonColumn()), "canon column").expr());
+        List<OutputCol> outs = factOutputs();
+        OutputCol seedOut = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
+        SqlSource seed = new SqlSource.Subselect(new SqlSelect(
+                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", seedOut)),
+                false, new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
+                List.of(seedOut)), "__one", null);
+        SqlSource from = new SqlSource.Join(seed, ws.from(), SqlSource.Join.Kind.LEFT,
+                new SqlExpr.BoolLit(true));
+        SqlExpr flag = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), SqlExpr.Call.of(SqlFn.IS_NULL, canon));
+        return new SqlSelect(List.of(
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, canon,
+                        new SqlExpr.StringLit("[]")), F_TEXT, outs.get(0)),
+                new SqlSelect.Projection(flagCount(flag), F_NULLS, outs.get(1)),
+                new SqlSelect.Projection(flagCount(SqlExpr.Call.of(SqlFn.GREATER,
+                        SqlExpr.Call.of(SqlFn.STRPOS, canon, new SqlExpr.StringLit(CanonicalRenderSql.TREE_MARKER)),
+                        new SqlExpr.IntLit(0))), F_TREES, outs.get(2))),
+                false, from, null, List.of(), null, null, List.of(), null, null, outs);
+    }
+
+    /** {@code CASE WHEN <cond> THEN 1 ELSE 0 END}. */
+    private static SqlExpr flagCount(SqlExpr cond) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond, new SqlExpr.IntLit(1))),
+                new SqlExpr.IntLit(0));
+    }
+
+    /** A many or optional side as rows {@code (__c, __rn[, __v])} at ONE
+     * level: the chosen canon expression spliced over the plan; the wrap's
+     * canonical order rides the row number's own window. */
+    /** A wrap that only projects row expressions over its source: no
+     * aggregate or window in a projection, no where / group / having /
+     * qualify / distinct / limit / offset — its projections can be spliced
+     * into a reader without changing what they compute. A JSON-document
+     * side ({@code to_json(list(…))}) is NOT one: its value is an aggregate
+     * over the plan's rows and must stay a layer. */
+    private static boolean plainProjection(SqlSelect ws) {
+        if (ws.where() != null || !ws.groupBy().isEmpty() || ws.having() != null
+                || ws.qualify() != null || ws.distinct() || ws.limit() != null || ws.offset() != null) {
+            return false;
+        }
+        boolean[] aggregate = {false};
+        SqlSelect projectionsOnly = new SqlSelect(ws.projections(), false, new SqlSource.Dual(),
+                null, List.of(), null, null, List.of(), null, null, List.of());
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (e instanceof SqlAgg || e instanceof SqlExpr.WindowCall
+                        || e instanceof SqlExpr.JsonArrayAgg || e instanceof SqlExpr.ScalarSubquery
+                        || e instanceof SqlExpr.Exists) {
+                    aggregate[0] = true;
+                }
+                return e;
+            }
+        }.rewriteRoot(projectionsOnly);
+        return !aggregate[0];
+    }
+
     private static SqlQuery canonRows(Side s) {
-        // the canon column is TEXT by contract (an Integer canon is the
-        // bare number expression until cast); the framing concatenates
-        SqlExpr canon = new SqlExpr.Cast(
-                SqlExpr.Column.of("w", s.wrapped().outputs(), s.canonColumn()),
-                SqlType.Scalar.VARCHAR);
-        SqlQuery inner = s.wrapped();
-        SqlExpr where = null;
-        if (inner instanceof SqlSelect vs && !vs.projections().isEmpty()
-                && vs.projections().get(0).alias() != null) {
-            // pure has no null VALUE: the executor's decode drops a NULL row
-            // of a value collection and reads a NULL scalar as the EMPTY
-            // collection — the canon side drops the row on every side, so an
-            // empty [] (one NULL row) frames '[]' and never counts as a null
-            // canon cell (a NULL canon over a non-null value stays unjudged)
-            where = SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
-                    SqlExpr.Column.of("w", vs.projections().get(0).alias(),
-                            SqlType.Scalar.VARCHAR, true, OutputCol.Origin.DERIVED));
+        return canonRows(s, false);
+    }
+
+    /** {@code withValues}: the PAIR may be judged with the 2-ULP leniency,
+     * so this side carries the value column — its Float value, or a typed
+     * NULL when it has none (the column belongs to the pair, not the side). */
+    private static SqlQuery canonRows(Side s, boolean withValues) {
+        SqlSelect ws = (SqlSelect) s.wrapped();
+        if (!plainProjection(ws)) {
+            return canonRowsLayered(s, ws, withValues);
         }
-        if (s.byCanonText() && inner instanceof SqlSelect ws && !ws.orderBy().isEmpty()) {
-            // a canon-ordered side re-orders by __c in the aggregate; the
-            // wrap's own ORDER BY is redundant here and, inlined into a
-            // CTE over a literal side, DuckDB rejects "ORDER BY a literal"
-            inner = new SqlSelect(ws.projections(), ws.distinct(), ws.from(), ws.where(),
-                    ws.groupBy(), ws.having(), ws.qualify(), List.of(), ws.limit(),
-                    ws.offset(), ws.outputs());
+        SqlExpr valueRef = ws.projections().get(0).expr();
+        SqlExpr canon = asText(java.util.Objects.requireNonNull(
+                projectionOf(ws, s.canonColumn()), "canon column").expr());
+        // pure has no null VALUE: a NULL row of a value collection is dropped
+        // and a NULL scalar reads as the EMPTY collection — the side drops the
+        // row, so an empty [] frames '[]' and never counts as a null canon
+        // cell (a NULL canon over a non-null value stays unjudged)
+        SqlExpr where = SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef);
+        // a canon-ordered side re-orders by __c in the aggregate; the wrap's
+        // own ORDER BY is the row number's window otherwise
+        List<SqlSelect.SortKey> order = s.byCanonText() ? List.of() : ws.orderBy();
+        SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                List.of(), order, null);
+        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        ps.add(new SqlSelect.Projection(canon, C, cOut));
+        ps.add(new SqlSelect.Projection(rn, RN, rnOut));
+        List<OutputCol> outs = new ArrayList<>(List.of(cOut, rnOut));
+        if (withValues) {
+            OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
+            ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
+            outs.add(vOut);
         }
-        SqlExpr value = inner instanceof SqlSelect vs2 && !vs2.projections().isEmpty()
-                ? doubleValue(vs2.projections().get(0), "w", s.isFloat()) : new SqlExpr.NullLit();
-        return rowsOf(canon, value, inner, where);
+        return new SqlSelect(ps, false, ws.from(), where, List.of(), null, null, List.of(),
+                null, null, List.copyOf(outs));
+    }
+
+    /** A wrap that must stay a layer (an aggregate value, a filtered or
+     * capped wrap): trimmed to its value and the ONE canon the side reads,
+     * the rows read over it under {@code w}. */
+    /** The pair's value column for one side: the Float value as DOUBLE, or a
+     * typed NULL for a side that has none. */
+    private static SqlExpr valueColumn(SqlExpr valueRef, boolean isFloat) {
+        return isFloat ? new SqlExpr.Cast(valueRef, SqlType.Scalar.DOUBLE)
+                : new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE);
+    }
+
+    private static SqlQuery canonRowsLayered(Side s, SqlSelect ws, boolean withValues) {
+        SqlSelect.Projection value = ws.projections().get(0);
+        SqlSelect.Projection chosen = java.util.Objects.requireNonNull(
+                projectionOf(ws, s.canonColumn()), "canon column");
+        List<SqlSelect.Projection> kept = chosen == value ? List.of(value) : List.of(value, chosen);
+        List<OutputCol> keptOuts = kept.stream().map(SqlSelect.Projection::out)
+                .filter(java.util.Objects::nonNull).toList();
+        // a canon-ordered side re-orders by __c in the aggregate; the wrap's
+        // own ORDER BY stays for an ordered compare (the row number follows it)
+        List<SqlSelect.SortKey> order = s.byCanonText() ? List.of() : ws.orderBy();
+        SqlSelect trimmed = new SqlSelect(kept, ws.distinct(), ws.from(), ws.where(), ws.groupBy(),
+                ws.having(), ws.qualify(), order, ws.limit(), ws.offset(), keptOuts);
+        SqlExpr canon = asText(SqlExpr.Column.of("w", keptOuts, s.canonColumn()));
+        SqlExpr valueRef = SqlExpr.Column.of("w", keptOuts, java.util.Objects.requireNonNull(value.alias()));
+        SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                List.of(), List.of(), null);
+        OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        ps.add(new SqlSelect.Projection(canon, C, cOut));
+        ps.add(new SqlSelect.Projection(rn, RN, rnOut));
+        List<OutputCol> outs = new ArrayList<>(List.of(cOut, rnOut));
+        if (withValues) {
+            OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
+            ps.add(new SqlSelect.Projection(valueColumn(valueRef, s.isFloat()), V, vOut));
+            outs.add(vOut);
+        }
+        return new SqlSelect(ps, false, new SqlSource.Subselect(trimmed, "w", null),
+                SqlExpr.Call.of(SqlFn.IS_NOT_NULL, valueRef), List.of(), null, null, List.of(),
+                null, null, List.copyOf(outs));
     }
 
     /** A grid side's row canons in arrival order: {@code SELECT
@@ -983,7 +1288,7 @@ public final class VerdictSql {
      * {@code 2^(floor(log2(max)) - 52)} through {@code ln} (a boundary at
      * an exact power of two may differ from Math.ulp by one binade — the
      * differential gate measures it). */
-    private static SqlExpr lenient(String ec, String ac) {
+    private static SqlExpr pairOk(String ec, String ac) {
         SqlExpr ve = col(ec, V);
         SqlExpr va = col(ac, V);
         SqlExpr big = SqlExpr.Call.of(SqlFn.GREATEST,
@@ -1016,19 +1321,7 @@ public final class VerdictSql {
                                                 SqlExpr.Call.of(SqlFn.MINUS, ve, va)),
                                         twoUlp))));
         // a bad position exists?
-        OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
-        SqlSource joined = new SqlSource.Join(cte(ec), cte(ac), SqlSource.Join.Kind.INNER,
-                SqlExpr.Call.of(SqlFn.EQUAL, col(ec, RN), col(ac, RN)));
-        SqlExpr bad = new SqlExpr.Exists(new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
-                false, joined, SqlExpr.Call.of(SqlFn.NOT, pairOk),
-                List.of(), null, null, List.of(), null, null, List.of(one)));
-        SqlExpr sameCount = SqlExpr.Call.of(SqlFn.EQUAL,
-                scalarOver(ec, new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(ec, RN)),
-                        false, List.of()), "__n", SqlType.Scalar.BIGINT, null),
-                scalarOver(ac, new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(ac, RN)),
-                        false, List.of()), "__n", SqlType.Scalar.BIGINT, null));
-        return SqlExpr.Call.of(SqlFn.AND, sameCount, SqlExpr.Call.of(SqlFn.NOT, bad));
+        return pairOk;
     }
 
     private static List<OutputCol> cteOutputs() {
@@ -1065,34 +1358,7 @@ public final class VerdictSql {
     }
 
     /** {@code (SELECT count(*) FROM cte WHERE strpos(__c, marker) > 0) > 0}. */
-    private static SqlExpr treeCells(String cteName) {
-        OutputCol out = new OutputCol("__trees", SqlType.Scalar.BIGINT, false);
-        SqlExpr n = new SqlExpr.ScalarSubquery(new SqlSelect(
-                List.of(new SqlSelect.Projection(
-                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(cteName, RN)),
-                                false, List.of()), "__trees", out)),
-                false, cte(cteName),
-                SqlExpr.Call.of(SqlFn.GREATER,
-                        SqlExpr.Call.of(SqlFn.STRPOS, col(cteName, C),
-                                new SqlExpr.StringLit(CanonicalRenderSql.TREE_MARKER)),
-                        new SqlExpr.IntLit(0)),
-                List.of(), null, null, List.of(), null, null, List.of(out)));
-        return SqlExpr.Call.of(SqlFn.GREATER, n, new SqlExpr.IntLit(0));
-    }
-
     /** {@code (SELECT count(*) FROM cte WHERE __c IS NULL) > 0}. */
-    private static SqlExpr nullCells(String cteName) {
-        OutputCol out = new OutputCol("__nulls", SqlType.Scalar.BIGINT, false);
-        SqlExpr n = new SqlExpr.ScalarSubquery(new SqlSelect(
-                List.of(new SqlSelect.Projection(
-                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col(cteName, RN)),
-                                false, List.of()), "__nulls", out)),
-                false, cte(cteName),
-                SqlExpr.Call.of(SqlFn.IS_NULL, col(cteName, C)),
-                List.of(), null, null, List.of(), null, null, List.of(out)));
-        return SqlExpr.Call.of(SqlFn.GREATER, n, new SqlExpr.IntLit(0));
-    }
-
     /** The spec's side framing in SQL. */
     private static SqlExpr frame(String cteName, boolean many, boolean byCanonText) {
         SqlExpr empty = new SqlExpr.StringLit("[]");

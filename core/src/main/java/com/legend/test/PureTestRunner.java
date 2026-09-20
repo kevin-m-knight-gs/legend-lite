@@ -129,13 +129,25 @@ public final class PureTestRunner implements AutoCloseable {
      */
     public PureTestRunner(ModelContext ctx, @com.legend.Nullable String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer) {
+        this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer,
+                ExecuteOptions.JudgeMode.HOST);
+    }
+
+    /** @param judgeMode the run's assert judge (one mode per run, on every
+     *                   test's options — {@link ExecuteOptions.JudgeMode}) */
+    public PureTestRunner(ModelContext ctx, @com.legend.Nullable String runtimeFqn, Sessions sessions,
+            List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer,
+            ExecuteOptions.JudgeMode judgeMode) {
         this.ctx = ctx;
         this.runtimeFqn = runtimeFqn;
         this.sessions = sessions;
         this.sharedSetups = List.copyOf(sharedSetups);
         this.setupsByPackage = Map.copyOf(setupsByPackage);
         this.observer = observer;
+        this.judgeMode = judgeMode;
     }
+
+    private final ExecuteOptions.JudgeMode judgeMode;
 
     /** The setups the platform derived as INERT (no statement effects) and
      *  so never ran — a caller pins the count: an effect analysis that wrongly
@@ -407,7 +419,7 @@ public final class PureTestRunner implements AutoCloseable {
         boolean shared = !facts.seedsInlineCsv();
         observer.privateWorkspace(!shared);
         Connection conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
-        ExecuteOptions options = observer.options(t, shared);
+        ExecuteOptions options = observer.options(t, shared).withJudgeMode(judgeMode);
         SqlReplayOracle oracle = observer.oracle(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's

@@ -332,8 +332,17 @@ public final class MinimalCorpus {
                 }
             }
         }
+        // the lane's argument (-Dlegend.judge.mode, judge-lanes.sh) is the RUN's
+        // mode — handed to the runner once; nothing in the product reads it
+        com.legend.ExecuteOptions.JudgeMode judgeMode = switch (
+                System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
+            case "host" -> com.legend.ExecuteOptions.JudgeMode.HOST;
+            case "database" -> com.legend.ExecuteOptions.JudgeMode.DATABASE;
+            default -> throw new IllegalArgumentException("legend.judge.mode='"
+                    + System.getProperty("legend.judge.mode") + "': 'host' or 'database'");
+        };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openSession, sharedSetups,
-                discovery.setupsByPackage(), new CorpusObserver());
+                discovery.setupsByPackage(), new CorpusObserver(), judgeMode);
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 

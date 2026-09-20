@@ -42,6 +42,7 @@ public final class Executor {
     public static boolean executeRaw(Connection connection, String statement) {
         try (Statement st = connection.createStatement()) {
             ROUND_TRIPS.incrementAndGet();   // the raw-SQL boundary counts too
+            SQL_CHARS.addAndGet(statement.length());
             return st.execute(statement);
         } catch (SQLException e) {
             // THE SEAM (user directive 2026-09-01): java.sql stops at
@@ -233,9 +234,19 @@ public final class Executor {
      * only, printed by the corpus lanes, read by no verdict. */
     private static void dumpSql(String sql) {
         ROUND_TRIPS.incrementAndGet();
+        SQL_CHARS.addAndGet(sql.length());
         if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
             System.err.println("[sql] " + sql);
         }
+    }
+
+    /** The characters of SQL text sent (the parse/bind work the database is
+     * handed — measurement only, beside the round-trip count). */
+    private static final java.util.concurrent.atomic.AtomicLong SQL_CHARS =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static long sqlChars() {
+        return SQL_CHARS.get();
     }
 
     private static final java.util.concurrent.atomic.AtomicLong ROUND_TRIPS =
@@ -255,9 +266,9 @@ public final class Executor {
         // the engine's execution-trace comment rides the statement the
         // database receives (ExecutionTrace, batch 83); the stamp lands on
         // the caller's trace (batch 137)
-        try (java.sql.PreparedStatement st = connection.prepareStatement(
-                trace != null ? trace.stamp(sql) : ExecutionTrace.stampOnly(sql));
-             ResultSet rs = st.executeQuery()) {
+        try (java.sql.PreparedStatement st = PrepTrace.prepared(connection,
+                trace != null ? trace.stamp(sql) : ExecutionTrace.stampOnly(sql), sql);
+             ResultSet rs = PrepTrace.executed(st, sql)) {
             // CONTRACT PROGRAM: the wire census — label vs the result's
             // own metadata (rides with the data; no extra round trip).
             // Int-or-null columns are WATCHED, not counted: the row

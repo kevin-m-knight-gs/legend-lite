@@ -85,6 +85,7 @@ class JdbcSurfaceCensusTest {
             // leg 3.4: the deferred verdict statements are keyed by the
             // session they run on (a store side's routed connection, or the
             // body's); sent through the one Executor choke point
+            "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
             "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
@@ -416,6 +417,11 @@ class JdbcSurfaceCensusTest {
             // in-memory DuckDB session and HANDS it to the runner, which hands
             // it to the platform; it executes no SQL of its own (tenet #1)
             "core/src/test/java/com/legend/test/PureTestRunnerTest.java",
+            // the lean SQL ladder (2026-09-20): opens an in-memory DuckDB, seeds
+            // its three-row table, and hands the runner a RECORDING proxy of the
+            // connection so every statement the platform sends is pinned; it
+            // executes no SQL of its own beyond that seed (tenet #1)
+            "core/src/test/java/com/legend/ladder/LeanSqlLadderTest.java",
             // the stress corpus's service suites (2026-09-16): opens the
             // in-memory DuckDB sessions the ServiceTestRunner hands to the
             // platform; executes no SQL of its own

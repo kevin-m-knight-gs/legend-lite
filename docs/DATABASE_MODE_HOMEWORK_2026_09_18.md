@@ -1865,6 +1865,69 @@ statement head, renderFor); StoreResolver held at 3,500 lines.
 **Owed next.** 3.5 (the deletions the batch makes safe; host judge OPTIONAL) → the AssertVerdicts
 split → the seeding boundary (130k raw seed statements per lane).
 
+## 4ac. Why database mode is 30% slower — measured (2026-09-20)
+
+**The question.** DuckDB host lane 62 s, database lane 90 s (profiled runs; 57 / 82 s bare) for
+about 2,600 verdict statements — 10 ms per statement, over a lane that sends fewer statements
+in database mode (142,557 → 137,951 round trips).
+
+**Method.** Both lanes under Java Flight Recorder (`settings=profile`, 1024-frame stacks),
+`jdk.ExecutionSample` (Java CPU) and `jdk.NativeMethodSample` (time inside JNI / I/O)
+aggregated by nearest judge stage; per-test elapsed dumped to `target/corpus2-elapsed.txt`
+and diffed mode against mode; a `sql-chars` counter beside the round-trip census; a DETACH
+timing census in `DuckWorkspaces`.
+
+**Trap 1 — the CPU-only read was wrong.** Execution samples put DuckDB at 0.5% in both
+modes. They only sample threads running Java code. Wall minus Java CPU is 49 s / 75 s.
+
+**Trap 2 — JFR's native sampler takes ONE native thread per period.** Surefire's pipe-reader
+thread sits in a blocking native read for the whole run, so the main thread's native time
+is undercounted by about half. Corrected (main-native fraction = 2 × samples / total native
+samples): host ≈ 47 s in DuckDB, database ≈ 72 s. With Java CPU 13.2 s / 14.9 s that closes
+the wall-time accounting in both modes. GC pauses 0.3 s / 0.5 s; no parking on the main
+thread.
+
+**Trap 3 — the DETACH lead was the proxy.** The largest native bucket was
+`DuckWorkspaces.lambda$closeDetaches$0`: that lambda is the workspace connection's
+`InvocationHandler`, so every JDBC call on a workspace connection carries its frame. The
+detach census says 324 detaches per lane, 105–109 ms total. Not a lead.
+
+**What the delta is.** DuckDB's `duckdb_jdbc_prepare` samples 439 → 934 (2.1×), `execute`
+622 → 666. The SQL text sent: 59.9 M chars → 96.3 M chars (+36.4 M, +61%) — for fewer
+statements. The 2,577 fused verdict statements average ≈ 14 KB each. One seven-assert body
+(`testFilterMappingWithProjectionOverlapp`) is 83.6 KB: 40 embedded side selects, 26 reads of
+the frame CTE, 136 `SELECT COUNT(…)` scalar subqueries, 42 `STRING_AGG`. DuckDB's parse and
+bind is linear in that text and in the subquery count; that is the 25 s. Java CPU grew 1.7 s
+(side planning; `LayoutTypes.sqlTypeOf` is ~13% of Java CPU in BOTH modes — a recursive
+class-layout walk with no memo, one instance per lowering — a separate, smaller item).
+
+**Homework round 2 (same day): the causal link, measured.** Every prepared statement timed
+(`PrepTrace`, `LEGEND_LITE_PREP_TRACE`): the 2,577 fused verdict statements carry 50.4 MB of the
+lane's text and cost prepare 23.3 s + execute 18.5 s = 42 s of the 82 s lane; every other
+prepared statement together (3,382 sides/probes + 1,111 frame runs) costs 1.9 s. Prepare is
+LINEAR in text: `prepare_ms ≈ 0.56 × KB` (r = 0.82), monotonic by size bucket (0–10 KB 2.5 ms,
+20–30 KB 9.8 ms, 50–60 KB 25.6 ms, 100+ KB 145 ms; 62 statements over 100 KB — up to 1.1 MB
+and 1.1 s to prepare — are 9 s on their own). Execute at 7.2 ms average is the SAME
+repetition run: a plain CTE referenced N times is inlined and re-evaluated N times. By assert
+family (text per verdict branch): `assertEquals` 1,919 branches / 38.1 MB (76%, avg 19.9 KB),
+`assertSameElements` 756 / 7.4 MB, `assertSize` 683 / 1.4 MB, `assertJsonStringsEqual` 176 /
+0.9 MB — the `statement()` shape (equality + grid forms) is the target. Repetition, read from
+the builder: the verdict row spells the expected frame THREE times (verdict, expected column,
+lenient column) and the actual frame three times, each frame three scalar subqueries — 18 per
+row before the null/tree checks; a grid side is re-embedded once PER COLUMN for the cell pool
+(`gridCellCanons`), and once more for the row canon.
+
+**The shape to fix (not started — a decision).** `VerdictSql` re-embeds each side's plan per
+cell and per column (`__a`, then `__ac` as one UNION ALL branch per column, each branch
+carrying the whole side select again) and recomputes the canon and COUNT expressions in every
+verdict column (`__verdict`, `__expected`, `__actual`, `__unjudged`, `__lenient`). Sides should
+be defined ONCE per assert as CTEs of raw rows, cells derived from those CTEs, and each
+assert's verdict computed ONCE in a per-assert CTE with named columns that the verdict row
+reads. Expected: 4–6× less text and proportionally less bind work; measure with `sql-chars`
+and the lane clock. The per-test delta is spread (951 tests +1–5 ms, 638 +6–10, 341 +11–20,
+203 +21–50, 81 over 50 ms; top 50 tests carry 9.7 s of the 31 s), so the fix must be the
+shape, not a few tests.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

@@ -32,6 +32,10 @@ class ObservabilityGuardrailTest {
     private static final Set<String> ENV_FLAGS = Set.of(
             "LEGEND_LITE_CARRY_TRACE", "LEGEND_LITE_CMP_DEBUG",
             "LEGEND_LITE_DUMP_SQL", "LEGEND_LITE_NAVDATE_TRACE",
+            // the lean ladder's prepare/execute timing trace (2026-09-20): one
+            // line per prepared statement to the named file — the input to
+            // "is prepare time linear in text / operators"; off by default
+            "LEGEND_LITE_PREP_TRACE",
             "LEGEND_LITE_RAW_EXPAND_TRACE", "LEGEND_LITE_SPLIT_TRACE",
             "LEGEND_LITE_STACKS", "LEGEND_LITE_STAMP_TRACE",
             "LL_DUMP_RESOLVED", "LL_FNLR_DEBUG", "LL_LINEAGE_DEBUG",
