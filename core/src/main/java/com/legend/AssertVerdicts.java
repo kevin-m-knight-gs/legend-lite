@@ -76,6 +76,9 @@ final class AssertVerdicts {
             // fails the same test either way — the detail says which
             settled = true;
             com.legend.exec.CanonicalDivergence.sqlRaised();
+            if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                l.unjudged(listenerName(bare), af.unjudgedReason());
+            }
             l.verdict(listenerName(bare), false, e.getMessage());
             throw e;
         } finally {
@@ -785,9 +788,9 @@ final class AssertVerdicts {
                     yield isv;
                 }
                 if (JUDGE_MODE == JudgeMode.DATABASE) {
-                    String ki = kindKey(args.get(0), letPrefix, env);
-                    String kj = kindKey(args.get(1), letPrefix, env);
-                    if (ki != null && kj != null && ki.startsWith("enum:") && kj.startsWith("enum:")) {
+                    KindClass ki = kindKey(args.get(0), letPrefix, env);
+                    KindClass kj = kindKey(args.get(1), letPrefix, env);
+                    if (ki instanceof KindClass.Enum && kj instanceof KindClass.Enum) {
                         // an enum's identity IS its value: the equality statement
                         // (Enumeration.NAME on both sides — bucket 1)
                         yield databaseVerdict(name, true, args.get(0), args.get(1),
@@ -1054,7 +1057,8 @@ final class AssertVerdicts {
             literalMessage = rn.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCString;
         }
         boolean simplePredicate = !nestedQuantified && fqn != null && lam.body().size() == 1
-                && (fqn.endsWith("::assert") || fqn.endsWith("::assertFalse"))
+                && (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT)
+                        || fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT_FALSE))
                 && literalMessage;
         if (simplePredicate) {
             return null;
@@ -1225,15 +1229,15 @@ final class AssertVerdicts {
             SpecCompiler specs, StatementExecutor.ExecEnv env,
             @com.legend.Nullable SpliceHook hook, boolean canonicalOrder,
             boolean cellPool, boolean csvStrings) {
-        String ke = kindKey(eSpec, letPrefix, env);
-        String ka = kindKey(aSpec, letPrefix, env);
+        KindClass ke = kindKey(eSpec, letPrefix, env);
+        KindClass ka = kindKey(aSpec, letPrefix, env);
         boolean anyNil = com.legend.compiler.element.type.PlatformTypes.isNil(eSpec.info().type())
                 || com.legend.compiler.element.type.PlatformTypes.isNil(aSpec.info().type());
         boolean anyAny = isAnyStamped(eSpec) || isAnyStamped(aSpec);
         boolean bothGrids = com.legend.compiler.element.type.Type.isRelation(eSpec.info().type())
                 && com.legend.compiler.element.type.Type.isRelation(aSpec.info().type());
         if (ke != null && ka != null && !anyNil && !anyAny && !bothGrids && !ke.equals(ka)) {
-            if (primitiveKindClass(ke) && primitiveKindClass(ka)) {
+            if (ke.primitive() && ka.primitive()) {
                 // X4: the engine has no cross-kind PRIMITIVE equality — a
                 // VERDICT (false), decided statically, the one comparison SQL
                 // never sees
@@ -1244,8 +1248,7 @@ final class AssertVerdicts {
             // a class / generic side's static class is a declaration, not
             // the value's kind (a supertype stamp over equal instances):
             // leg 3.2's instance canon decides; unjudged until then
-            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, "kind-gate: non-primitive");
-            return fail(name + ": UNJUDGED in database mode — kind-gate: non-primitive ("
+            return unjudged(name, "kind-gate: non-primitive", " ("
                     + typeName(eSpec) + " vs " + typeName(aSpec) + ")");
         }
         // the riders plan WITHOUT the canon-text sort: the statement orders
@@ -1258,12 +1261,11 @@ final class AssertVerdicts {
         // boundary the declared kind is assigned; the host compares the names)
         String frameE = null;
         String frameA = null;
-        if (ke != null && ka != null && !anyNil && anyAny
-                && (ke.startsWith("enum:") ^ ka.startsWith("enum:"))) {
-            if (ke.startsWith("enum:")) {
-                frameA = ke.substring("enum:".length());
-            } else {
-                frameE = ka.substring("enum:".length());
+        if (!anyNil && anyAny && ke instanceof KindClass.Enum ^ ka instanceof KindClass.Enum) {
+            if (ke instanceof KindClass.Enum en) {
+                frameA = en.fqn();
+            } else if (ka instanceof KindClass.Enum en) {
+                frameE = en.fqn();
             }
         }
         var re = new com.legend.exec.CanonRider(false, false, frameE);
@@ -1364,8 +1366,7 @@ final class AssertVerdicts {
             }
         }
         if (why != null) {
-            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, why);
-            return fail(name + ": UNJUDGED in database mode — " + why);
+            return unjudged(name, why);
         }
         com.legend.sql.SqlQuery vq = com.legend.lowering.VerdictSql.equality(
                 new com.legend.lowering.VerdictSql.Side(
@@ -1421,12 +1422,11 @@ final class AssertVerdicts {
         }
         Object unjudged = row.get(3);
         if (unjudged != null) {
-            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, String.valueOf(unjudged));
             // the evidence columns ride the message (bounded): an accepted
             // divergence matches its witness here, and a row is diagnosable
             // without a re-run
-            return fail(name + ": UNJUDGED in database mode — " + unjudged
-                    + "\nexpected: " + excerpt(row.get(1))
+            return unjudged(name, String.valueOf(unjudged),
+                    "\nexpected: " + excerpt(row.get(1))
                     + "\nactual:   " + excerpt(row.get(2)));
         }
         if (!(row.get(0) instanceof Boolean held)) {
@@ -1568,9 +1568,18 @@ final class AssertVerdicts {
         return new SideRows(w, rider, null);
     }
 
+    /** THE ONE UNJUDGED OUTCOME (leg 3.3, audit §4y): the database judge
+     * declined the shape — counted, then raised as a verdict failure that
+     * CARRIES its reason (the runner's ledger reads the type, never the
+     * text). {@code detail} rides the message only. */
     private static ExecutionResult unjudged(String name, String why) {
+        return unjudged(name, why, "");
+    }
+
+    private static ExecutionResult unjudged(String name, String why, String detail) {
         com.legend.exec.CanonicalDivergence.sqlUnjudged(name, why);
-        return fail(name + ": UNJUDGED in database mode — " + why);
+        throw com.legend.error.AssertFailed.unjudged(why,
+                name + ": UNJUDGED in database mode — " + why + detail);
     }
 
     private static ExecutionResult databaseSize(String name, List<TypedSpec> args,
@@ -1747,15 +1756,6 @@ final class AssertVerdicts {
         rider.wrap(w.kinds(), w.many(), w.literalIndex());
         return new StatementExecutor.WrappedSide(w.plan(), spec.info(),
                 com.legend.exec.ResultShape.COLLECTION, on, true);
-    }
-
-    /** The kind classes whose static inequality IS the engine's answer
-     * (primitives and enums); an instance / generic class is a declaration
-     * over values whose equality the instance canon decides. */
-    private static boolean primitiveKindClass(String k) {
-        return k.equals("numeric") || k.equals("string") || k.equals("boolean")
-                || k.equals("temporal") || k.startsWith("enum:")
-                || k.equals("type") || k.startsWith("element:");
     }
 
     private static String describe(@com.legend.Nullable ExecutionResult r) {
@@ -1981,21 +1981,61 @@ final class AssertVerdicts {
             "meta::pure::functions::collection::sortByReversed",
             "meta::pure::functions::relation::sort");
 
-    /** Order-preserving native tails, BY SIMPLE NAME — the harness's
-     * audited list (audit 23 D1), moved verbatim. */
     /** Natives after which SQL leaves no order (GROUP BY, joins, UNION,
-     * pivots): the chain's order is incidental past them. */
-    private static final java.util.Set<String> ORDER_DESTROYING =
-            java.util.Set.of("groupBy", "join", "concatenate", "union",
-                    "pivot", "aggregate", "olapGroupBy");
+     * pivots): the chain's order is incidental past them. EXACT identities
+     * read from the signature catalog ({@link com.legend.builtin.Pure}: one
+     * overload names each FQN; audit §4y deleted the simple-name suffix
+     * match of the harness's audited list, audit 23 D1). */
+    private static final java.util.Set<String> ORDER_DESTROYING = java.util.Set.of(
+            com.legend.builtin.Pure.GROUP_BY__X_MANY__FUNCTION_1.qualifiedName(),
+            com.legend.builtin.Pure.GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
+            com.legend.builtin.Pure.GROUP_BY__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY
+                    .qualifiedName(),
+            com.legend.builtin.Pure.JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1.qualifiedName(),
+            com.legend.builtin.Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName(),
+            com.legend.builtin.Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(),
+            com.legend.builtin.Pure.UNION__T_MANY__T_MANY.qualifiedName(),
+            com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
+            com.legend.builtin.Pure.AGGREGATE__RELATION_1__AGG_COL_SPEC_1.qualifiedName());
 
-    private static final java.util.Set<String> ORDER_PRESERVING =
-            java.util.Set.of("map", "limit", "take", "drop", "slice",
-                    "rows", "toOne", "at", "makeString", "toCSV",
-                    "toString", "from", "filter", "select", "rename",
-                    "renameColumns", "restrict", "project", "distinct",
-                    // a graph fetch / serialize keeps its root's order
-                    "graphFetch", "graphFetchChecked", "serialize");
+    /** Order-preserving native tails, EXACT identities from the catalog. */
+    private static final java.util.Set<String> ORDER_PRESERVING = java.util.Set.of(
+            com.legend.builtin.Pure.MAP__T_MANY__FUNCTION_1.qualifiedName(),
+            com.legend.builtin.Pure.MAP__RELATION_1__FUNCTION_1.qualifiedName(),
+            com.legend.builtin.Pure.LIMIT__T_MANY__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.LIMIT__RELATION_1__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.LIMIT__TDS_1__INTEGER_0_1.qualifiedName(),
+            com.legend.builtin.Pure.TAKE__T_MANY__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.DROP__T_MANY__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.DROP__RELATION_1__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.SLICE__T_MANY__INTEGER_1__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.SLICE__RELATION_1__INTEGER_1__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.ROWS__INTEGER_1__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.TO_ONE__T_MANY.qualifiedName(),
+            com.legend.builtin.Pure.AT__T_MANY__INTEGER_1.qualifiedName(),
+            com.legend.builtin.Pure.MAKE_STRING__ANY_MANY.qualifiedName(),
+            com.legend.builtin.Pure.TO_CSV__TDS.qualifiedName(),
+            com.legend.builtin.Pure.TO_STRING__RELATION.qualifiedName(),
+            com.legend.builtin.Pure.TO_STRING__ANY_1.qualifiedName(),
+            com.legend.builtin.Pure.FROM__T_m__MAPPING_1__RUNTIME_1.qualifiedName(),
+            com.legend.builtin.Pure.FILTER__T_MANY__FUNCTION_1.qualifiedName(),
+            com.legend.builtin.Pure.FILTER__RELATION_1__FUNCTION_1.qualifiedName(),
+            com.legend.builtin.Pure.TDS_FILTER__TDS_1__FUNCTION_1.qualifiedName(),
+            com.legend.builtin.Pure.SELECT__RELATION_1.qualifiedName(),
+            com.legend.builtin.Pure.RENAME__RELATION_1__COL_SPEC_1__COL_SPEC_1.qualifiedName(),
+            com.legend.builtin.Pure.PROJECT__RELATION_1__FUNC_COL_SPEC_ARRAY_1.qualifiedName(),
+            com.legend.builtin.Pure.PROJECT__K_MANY__FUNCTION_MANY__STRING_MANY.qualifiedName(),
+            com.legend.builtin.Pure.DISTINCT__T_MANY.qualifiedName(),
+            com.legend.builtin.Pure.DISTINCT__RELATION_1.qualifiedName(),
+            // a graph fetch / serialize keeps its root's order
+            com.legend.builtin.Pure.GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1.qualifiedName(),
+            com.legend.builtin.Pure.GRAPH_FETCH_CHECKED__T_MANY__ROOT_GRAPH_FETCH_TREE_1.qualifiedName(),
+            com.legend.builtin.Pure.SERIALIZE__T_MANY__ROOT_GRAPH_FETCH_TREE_1.qualifiedName());
+
+    /** An execute() FRAME returns its query's rows in the query's order. */
+    private static final java.util.Set<String> EXECUTE_FRAMES = java.util.Set.of(
+            com.legend.compiler.element.type.PlatformTypes.EXECUTE,
+            com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN_EXECUTE);
 
 
     /** Is the serialized query's ROOT many-valued? Read from the typed
@@ -2155,8 +2195,7 @@ final class AssertVerdicts {
                 || read instanceof com.legend.compiler.spec.typed.TypedNavigate;
         if (read instanceof TypedNativeCall c) {
             String fqn = c.callee().qualifiedName();
-            wrapper = ORDER_PRESERVING.contains(fqn.substring(fqn.lastIndexOf(':') + 1))
-                    && !c.args().isEmpty();
+            wrapper = ORDER_PRESERVING.contains(fqn) && !c.args().isEmpty();
         }
         if (!wrapper || read.children().isEmpty()) {
             return null;
@@ -2194,13 +2233,12 @@ final class AssertVerdicts {
         }
         if (s instanceof TypedNativeCall c) {
             String fqn = c.callee().qualifiedName();
-            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
-            if (simple.equals("execute") && !c.args().isEmpty()
+            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
                     && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
                     && !lam.body().isEmpty()) {
                 return sortKeys(lam.body().get(lam.body().size() - 1), lets, seen);
             }
-            return !SORT_FQNS.contains(fqn) && ORDER_PRESERVING.contains(simple)
+            return ORDER_PRESERVING.contains(fqn)
                     && !c.args().isEmpty() ? sortKeys(c.args().get(0), lets, seen) : null;
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
@@ -2246,18 +2284,17 @@ final class AssertVerdicts {
             if (SORT_FQNS.contains(fqn)) {
                 return OrderView.SORTED;
             }
-            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
-            if (ORDER_PRESERVING.contains(simple) && !c.args().isEmpty()) {
+            if (ORDER_PRESERVING.contains(fqn) && !c.args().isEmpty()) {
                 return orderView(c.args().get(0), lets, seen, hook);
             }
             // an execute() FRAME returns its query's rows in the query's
             // order: descend into the lambda's tail expression
-            if (simple.equals("execute") && !c.args().isEmpty()
+            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
                     && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
                     && !lam.body().isEmpty()) {
                 return orderView(lam.body().get(lam.body().size() - 1), lets, seen, hook);
             }
-            if (ORDER_DESTROYING.contains(simple)) {
+            if (ORDER_DESTROYING.contains(fqn)) {
                 return OrderView.INCIDENTAL;
             }
             return OrderView.DEFINED;
@@ -2507,8 +2544,7 @@ final class AssertVerdicts {
             }
             var side = java.util.Objects.requireNonNull(planned.side());
             var pr = java.util.Objects.requireNonNull(planned.rider());   // width recorded at wrap
-            List<com.legend.sql.OutputCol> data = pr.tdsWrapped()
-                    ? side.plan().outputs().subList(0, pr.tdsWidth()) : side.plan().outputs();
+            List<com.legend.sql.OutputCol> data = pr.dataPrefix(side.plan().outputs());
             schema = com.legend.compiler.element.type.Type.schemaView(side.shapeInfo().type());
             if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
                 // late-bound (a raw grid framed by the database's columns): the slots type it
@@ -2594,9 +2630,10 @@ final class AssertVerdicts {
         TypedSpec s = arg;
         while (s instanceof TypedNativeCall c && !c.args().isEmpty()) {
             String fqn = c.callee().qualifiedName();
-            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
-            if (simple.equals("toOne") || simple.equals("first")
-                    || (simple.equals("at") && c.args().size() == 2
+            if (fqn.equals(com.legend.builtin.Pure.TO_ONE__T_MANY.qualifiedName())
+                    || fqn.equals(com.legend.compiler.element.type.PlatformTypes.FIRST)
+                    || (fqn.equals(com.legend.builtin.Pure.AT__T_MANY__INTEGER_1.qualifiedName())
+                            && c.args().size() == 2
                             && c.args().get(1) instanceof
                                     com.legend.compiler.spec.typed
                                             .TypedCInteger ci
@@ -2677,8 +2714,8 @@ final class AssertVerdicts {
             boolean hostHeld) {
         List<Object> eVals = ef.values();
         List<Object> aVals = af.values();
-        String ke = kindClassOf(eSpec.info().type());
-        String ka = kindClassOf(aSpec.info().type());
+        KindClass ke = KindClass.of(eSpec.info().type());
+        KindClass ka = KindClass.of(aSpec.info().type());
         boolean eAny = isAnyStamped(eSpec);
         boolean aAny = isAnyStamped(aSpec);
         // MIXED-KIND numeric collections are unsound under SQL column
@@ -2696,9 +2733,9 @@ final class AssertVerdicts {
         // carrier claim yet) can reach this decline; zero witnesses
         // today and the ceiling is pinned 0, so a firing is a NAMED
         // work item, never a silent count.
-        if ((!eAny && !ef.rider().literalOnly() && mixedNumericKinds(eVals))
+        if ((!eAny && !ef.rider().literalOnly() && KindClass.Fine.mixed(eVals))
                 || (!aAny && !af.rider().literalOnly()
-                        && mixedNumericKinds(aVals))) {
+                        && KindClass.Fine.mixed(aVals))) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "mixed-kind-collection");
             return null;
@@ -2738,7 +2775,7 @@ final class AssertVerdicts {
         // F13 — IDENTITY-pair guards (keyless class: the canon claimed
         // via the synthetic __id identity field). Map carriers are NOT
         // identity pairs — mapEquals (F12) is their own claimed rule.
-        if (!anyNil && !anyAny && ke.startsWith("instance:")
+        if (!anyNil && !anyAny && ke instanceof KindClass.Instance
                 && !com.legend.compiler.element.type.PlatformTypes
                         .isMapCarrier(eSpec.info().type())
                 && instanceKeys(eSpec, aSpec, env) == null) {
@@ -2774,10 +2811,10 @@ final class AssertVerdicts {
         // SELECT the column — selection, never evaluation. Cross-kind
         // pairs decline to the host lattice's engine-FALSE.
         if (!anyNil && anyAny
-                && (ke.startsWith("enum:") || ka.startsWith("enum:"))) {
+                && (ke instanceof KindClass.Enum || ka instanceof KindClass.Enum)) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "any-pair: enum against an untyped (Any) wire: "
-                            + (ke.startsWith("enum:") ? ke : ka));
+                            + (ke instanceof KindClass.Enum ? ke : ka));
             return null;
         }
         int ei = 0;
@@ -2794,16 +2831,16 @@ final class AssertVerdicts {
                                 + " / " + typeName(aSpec));
                 return null;
             }
-        } else if (!anyNil && ke.equals("numeric")) {
-            String fe = selectedFineKind(ef, eVals);
-            String fa = selectedFineKind(af, aVals);
+        } else if (!anyNil && ke == KindClass.Primitive.NUMERIC) {
+            KindClass.Fine fe = selectedFineKind(ef, eVals);
+            KindClass.Fine fa = selectedFineKind(af, aVals);
             if (fe == null || fa == null) {
                 com.legend.exec.CanonicalDivergence.sqlDeclined(
                         "unrefined-number: " + typeName(eSpec) + " / "
                                 + typeName(aSpec));
                 return null;
             }
-            if (!fe.equals(fa)) {
+            if (fe != fa) {
                 com.legend.exec.CanonicalDivergence.sqlDeclined(
                         "cross-kind-numeric: " + fe + "/" + fa);
                 return null;
@@ -2944,13 +2981,13 @@ final class AssertVerdicts {
     /** The fine numeric kind whose candidate column judges this side:
      * a refined stamp names it directly; an unrefined Number resolves
      * from the RUNTIME value kinds; null = undeterminable (decline). */
-    private static @com.legend.Nullable String selectedFineKind(
+    private static KindClass.@com.legend.Nullable Fine selectedFineKind(
             SideFetch f, List<Object> vals) {
         List<com.legend.compiler.element.type.Type> kinds = f.rider().kinds();
         if (kinds.size() == 1) {
-            return fineNumericKind(kinds.get(0));
+            return KindClass.Fine.ofType(kinds.get(0));
         }
-        String k = runtimeNumericKind(vals);
+        KindClass.Fine k = KindClass.Fine.ofValues(vals);
         // B8: a runtime BigDecimal is evidence of the CARRIER, not the
         // kind — precision-exact Float literals are decimal-carried BY
         // DESIGN (the reference's own interpreted Float is
@@ -2959,19 +2996,19 @@ final class AssertVerdicts {
         // and a float candidate exists, the value IS a decimal-carried
         // Float and judges through the float canon. Static truth gates
         // the resolution; the value alone never decides a kind.
-        if ("decimal".equals(k) && candidateIndex(f, "decimal") < 0
-                && candidateIndex(f, "float") >= 0) {
-            return "float";
+        if (k == KindClass.Fine.DECIMAL && candidateIndex(f, KindClass.Fine.DECIMAL) < 0
+                && candidateIndex(f, KindClass.Fine.FLOAT) >= 0) {
+            return KindClass.Fine.FLOAT;
         }
         return k;
     }
 
     /** Index of the fine kind's candidate column in the rider's
      * projection order, or -1. */
-    private static int candidateIndex(SideFetch f, String fine) {
+    private static int candidateIndex(SideFetch f, KindClass.Fine fine) {
         List<com.legend.compiler.element.type.Type> kinds = f.rider().kinds();
         for (int i = 0; i < kinds.size(); i++) {
-            if (fine.equals(fineNumericKind(kinds.get(i)))) {
+            if (fine == KindClass.Fine.ofType(kinds.get(i))) {
                 return i;
             }
         }
@@ -3034,87 +3071,35 @@ final class AssertVerdicts {
                 com.legend.exec.Equality.Typed.all(aVals, null));
     }
 
-    /** The RUNTIME numeric kind of a side's fetched values (uniform, or
-     * null when empty/unknowable — the mixed case gated earlier). */
-    private static @com.legend.Nullable String runtimeNumericKind(
-            List<Object> vals) {
-        String kind = null;
-        for (Object v : vals) {
-            String k = v instanceof java.math.BigDecimal ? "decimal"
-                    : (v instanceof Double || v instanceof Float) ? "float"
-                    : (v instanceof Long || v instanceof Integer
-                            || v instanceof Short || v instanceof Byte
-                            || v instanceof java.math.BigInteger) ? "integer"
-                    : null;
-            if (k == null) {
-                return null;
-            }
-            kind = k;
-        }
-        return kind;
-    }
-
-    private static boolean mixedNumericKinds(List<Object> vals) {
-        boolean integral = false;
-        boolean floating = false;
-        for (Object v : vals) {
-            if (v instanceof Long || v instanceof Integer
-                    || v instanceof Short || v instanceof Byte
-                    || v instanceof java.math.BigInteger) {
-                integral = true;
-            } else if (v instanceof Double || v instanceof Float) {
-                floating = true;
-            }
-        }
-        return integral && floating;
-    }
-
-    private static @com.legend.Nullable String fineNumericKind(
-            com.legend.compiler.element.type.Type t) {
-        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
-            return "integer";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-            return "float";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
-                || t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal) {
-            return "decimal";
-        }
-        return null;   // an unrefined Number — decline, never guess
-    }
-
     private static String typeName(TypedSpec spec) {
         var t = spec.info().type();
         return t.getClass().getSimpleName() + ":" + t;
     }
 
-    /** Pure's equality kind classes over STAMPS (spec §3: the numeric
-     * tower is ONE class; everything else compares within its kind). */
     /** The kind class of a SIDE, node-aware: a type reference written as a
      * value ({@code String}, {@code [Car, Bicycle]}) is stamped as its
      * prototype by the typer (Typer.typeRef) but IS a type value; a
      * metamodel type classifier or a tracked element class is the
      * name-valued kind. Everything else by its type. */
-    private static @com.legend.Nullable String kindKey(TypedSpec spec,
+    private static @com.legend.Nullable KindClass kindKey(TypedSpec spec,
             List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
         TypedSpec s = chaseLets(spec, letPrefix);
         if (isTypeValueNode(s)) {
-            return "type";
+            return KindClass.Primitive.TYPE;
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedCollection c
                 && !c.elements().isEmpty()
                 && c.elements().stream().allMatch(AssertVerdicts::isTypeValueNode)) {
-            return "type";
+            return KindClass.Primitive.TYPE;
         }
         String fqn = com.legend.compiler.element.EqualityKeys.fqnOf(spec.info().type());
         if (fqn != null && com.legend.compiler.element.type.PlatformTypes.isTypeClassifier(fqn)) {
-            return "type";
+            return KindClass.Primitive.TYPE;
         }
         if (fqn != null && env.ctx().tracksClassifier(fqn)) {
-            return "element:" + fqn;
+            return new KindClass.Element(fqn);
         }
-        return kindClassOf(spec.info().type());
+        return KindClass.of(spec.info().type());
     }
 
     /** A type written as a VALUE: a primitive type reference ({@code
@@ -3126,46 +3111,6 @@ final class AssertVerdicts {
                         && pr.info().type() instanceof com.legend.compiler.element.type.Type.GenericType g
                         && g.rawFqn().equals(
                                 com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS));
-    }
-
-    private static @com.legend.Nullable String kindClassOf(
-            com.legend.compiler.element.type.Type t) {
-        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER
-                || t == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
-                // NUMBER is the numeric tower's supertype — the concrete
-                // render refines from the PLAN's SQL type (V6 burn)
-                || t == com.legend.compiler.element.type.Type.Primitive.NUMBER
-                || t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal) {
-            return "numeric";
-        }
-        if (t instanceof com.legend.compiler.element.type.Type.EnumType et) {
-            // per-ENUMERATION kind class: values of different enums are
-            // never equal in pure, and an enum never equals its name
-            // string — the fqn IS the kind
-            return "enum:" + et.fqn();
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
-            return "string";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
-            return "boolean";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
-                || t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
-                || t == com.legend.compiler.element.type.Type.Primitive.DATE) {
-            return "temporal";
-        }
-        String fqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
-        if (fqn != null) {
-            // X5: instance equality is per-CLASS (EqualityUtilities —
-            // the classifiers must match exactly, so the fqn IS the
-            // kind; a parameterized GenericType names the same
-            // classifier); keyed-ness adjudicates at the wrap (a
-            // keyless class declines with its own reason).
-            return "instance:" + fqn;
-        }
-        return null;
     }
 
     /** X5 — the pair's shared key tree: non-null iff BOTH stamps are

@@ -26,6 +26,13 @@ public interface AssertListener {
     default void declined(String assertName, String reason) {
     }
 
+    /** The DATABASE judge declined this assert's shape (leg 3.3): the
+     * verdict that follows is a failure carrying {@code reason}. Reported
+     * BEFORE the verdict, like a decline; the differential ledger keys its
+     * UNJUDGED rows on this event, never on message text. */
+    default void unjudged(String assertName, String reason) {
+    }
+
     /** The REFEREE judged this assert's rows leg (Phase 0.7): {@code outcome}
      * is the row verdict's name (MATCH / DIVERGED / DECLINED / FAULT). A
      * MATCH is the differential witness — the strength census reads it. */

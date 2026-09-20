@@ -39,12 +39,12 @@ final class JudgeLedger {
         if (path.isEmpty()) {
             return;
         }
-        boolean unjudged = r.status() == PureTestRunner.Status.FAIL
-                && String.valueOf(r.reason()).contains("UNJUDGED in database mode");
         StringBuilder sb = new StringBuilder();
         int i = 0;
         for (PureTestRunner.Verdict v : r.verdicts()) {
-            String verdict = v.pass() ? "PASS" : unjudged ? "UNJUDGED" : "FAIL";
+            // the UNJUDGED state is the verdict's own fact (the database judge's
+            // typed decline), never read from the failure text
+            String verdict = v.pass() ? "PASS" : v.unjudgedReason() != null ? "UNJUDGED" : "FAIL";
             sb.append(test).append('\t').append(i++).append('\t').append(v.assertName())
                     .append('\t').append(verdict).append('\n');
         }

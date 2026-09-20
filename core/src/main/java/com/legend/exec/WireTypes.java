@@ -43,6 +43,25 @@ public final class WireTypes {
     private WireTypes() {
     }
 
+    /** CENSUS (audit §4y, printed by the corpus lanes — the Executor's
+     * round-trip counter's pattern): a wire-decided BARE store column whose
+     * stamped kind differed from the kind the database reported and was
+     * RE-TYPED to the wire; and a column the reconciliation LEAVES (a
+     * computed expression, a label carrier) whose reported kind differs
+     * from its slot's — the slot stands, the disagreement counted. */
+    private static final java.util.concurrent.atomic.AtomicLong RETYPED =
+            new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong SLOT_SKEW =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static long retypedCount() {
+        return RETYPED.get();
+    }
+
+    public static long slotSkewCount() {
+        return SLOT_SKEW.get();
+    }
+
     /** A column as the database reports it for a prepared statement: its
      * label, its type in the SQL vocabulary (null outside it), nullability. */
     public record ReportedColumn(String name, @com.legend.Nullable SqlType type, boolean nullable) {
@@ -98,16 +117,20 @@ public final class WireTypes {
             }
             SqlSelect.Projection p = projections.get(i);
             OutputCol col = outputs.get(i);
+            Type wireKind = Type.kindOfSqlType(wire);
+            if (wireKind == null || wireKind == Type.kindOfSqlType(col.type())) {
+                continue;
+            }
             // a BARE store-column reference only: its stamp is the store's
             // declaration, the one fact the fixture can contradict. A
             // computed expression keeps the compiler's own type — and is
             // never cast: H2 reports a computed DECIMAL at scale 0 while
             // the cell carries the value's real scale (the calendar rows)
-            if (!(p.expr() instanceof SqlExpr.Column ref)
-                    || labelCarrier(col.type()) || Type.kindOfSqlType(wire) == null
-                    || Type.kindOfSqlType(wire) == Type.kindOfSqlType(col.type())) {
+            if (!(p.expr() instanceof SqlExpr.Column ref) || labelCarrier(col.type())) {
+                SLOT_SKEW.incrementAndGet();   // the slot stands; counted
                 continue;
             }
+            RETYPED.incrementAndGet();
             if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
                 System.err.println("[wire] " + col.name() + ": stamped " + col.type()
                         + ", the database reports " + wire);

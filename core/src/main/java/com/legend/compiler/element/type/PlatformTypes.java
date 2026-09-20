@@ -505,6 +505,8 @@ public final class PlatformTypes {
     // -- exact identities the front-end reads through ResolvedNames.names
     // (the 2026-09-11 simple-name census: no bare or suffix compares)
     public static final String FIRST = "meta::pure::functions::collection::first";
+    public static final String ASSERT = "meta::pure::functions::asserts::assert";
+    public static final String ASSERT_FALSE = "meta::pure::functions::asserts::assertFalse";
     public static final String PAIR_FN = "meta::pure::functions::collection::pair";
     public static final String COUNT = "meta::pure::functions::collection::count";
     public static final String ADD = "meta::pure::functions::collection::add";
@@ -630,8 +632,8 @@ public final class PlatformTypes {
      * any corpus/library source — suppress loudly. */
     private static final java.util.Set<String> ASSERT_FAMILY_OWNED =
             java.util.Set.of(
-                    "meta::pure::functions::asserts::assert",
-                    "meta::pure::functions::asserts::assertFalse",
+                    ASSERT,
+                    ASSERT_FALSE,
                     "meta::pure::functions::asserts::assertEquals",
                     "meta::pure::functions::asserts::assertNotEquals",
                     "meta::pure::functions::asserts::assertSameElements",

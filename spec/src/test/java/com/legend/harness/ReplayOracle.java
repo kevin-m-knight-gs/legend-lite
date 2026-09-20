@@ -464,7 +464,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             throw new H2Verify.Unverifiable("chained fetch — generator"
                     + " temp tables not replayable", null);
         }
-        List<String> ourRows;
+        List<H2Verify.Cells> ourRows;
         // a DUPLICATE connection (the DuckWorkspaces idiom): the ambient
         // connection may hold an open streaming result mid-walk. The
         // duplicate starts OUTSIDE the test's workspace catalog — point
@@ -495,7 +495,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             throw new H2Verify.Unverifiable("our-side replay: "
                     + e.getMessage(), e);
         }
-        List<String> golden = onOracle(seeds, TDG_SESSION,
+        List<H2Verify.Cells> golden = onOracle(seeds, TDG_SESSION,
                 st -> H2Verify.rawRows(st, goldenSql));
         return H2Verify.multisetCompare(golden, ourRows);
     }
@@ -514,12 +514,12 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     public static @com.legend.Nullable String tdgChainedReplay(
             java.util.@com.legend.Nullable List<String> seeds,
             List<String[]> ancestors, String goldenSql,
-            List<String> oursRows) {
+            List<H2Verify.Cells> oursRows) {
         if (!H2Verify.ready()) {
             throw new H2Verify.Unverifiable("h2 driver not on classpath",
                     null);
         }
-        List<String> golden = onOracle(seeds, TDG_SESSION,
+        List<H2Verify.Cells> golden = onOracle(seeds, TDG_SESSION,
                 st -> goldenWithTemps(st, ancestors, goldenSql));
         return H2Verify.multisetCompare(golden, oursRows);
     }
@@ -530,7 +530,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * drops, exactly the engine's sequential create/insert/drop
      * discipline), execute the hop's golden, and ALWAYS drop what was
      * created — the family mirror is shared state. */
-    private static List<String> goldenWithTemps(Statement st,
+    private static List<H2Verify.Cells> goldenWithTemps(Statement st,
             List<String[]> ancestors, String goldenSql)
             throws SQLException {
         java.util.LinkedHashSet<String> created =

@@ -112,6 +112,22 @@ public class ClaimRegistryTest {
     private static final java.util.Set<String> NOT_ALSO = java.util.Set.of(
             "Pure", "Claims", "NativeFn");
 
+    /** {@code Pure.<constant>} as a WHOLE identifier — {@code Pure.PI} is
+     *  not a reference inside {@code Pure.PIVOT__…} (the readers column
+     *  once listed a pivot reader under pi). */
+    static boolean namesConstant(String text, String constant) {
+        String needle = "Pure." + constant;
+        int at = text.indexOf(needle);
+        while (at >= 0) {
+            int end = at + needle.length();
+            if (end >= text.length() || !Character.isJavaIdentifierPart(text.charAt(end))) {
+                return true;
+            }
+            at = text.indexOf(needle, end);
+        }
+        return false;
+    }
+
     /** The files (simple names) that name the overload — one of its
      *  constants or its FQN — beyond the registry and the family enums. */
     static List<String> also(Map<String, String> sources, NativeFunctionDefinition d, List<String> consts) {
@@ -123,7 +139,7 @@ public class ClaimRegistryTest {
             String text = e.getValue();
             boolean hit = text.contains("\"" + d.qualifiedName() + "\"");
             for (int i = 0; !hit && i < consts.size(); i++) {
-                hit = text.contains("Pure." + consts.get(i));
+                hit = namesConstant(text, consts.get(i));
             }
             if (hit) {
                 out.add(e.getKey());

@@ -64,10 +64,13 @@ public final class PureTestRunner implements AutoCloseable {
     /** One adjudicated assert, with what the platform reported BEFORE it
      *  decided: {@code declinedReason} when the rows leg was declined to the
      *  text channel (the arm's own vocabulary), {@code refereeOutcome} when a
-     *  referee judged the rows leg (MATCH / DIVERGED / …) — both may be set;
-     *  null means the event did not happen for this assert. */
+     *  referee judged the rows leg (MATCH / DIVERGED / …), {@code
+     *  unjudgedReason} when the database judge declined the shape (the
+     *  verdict is then a failure) — each may be set; null means the event
+     *  did not happen for this assert. */
     public record Verdict(String assertName, boolean pass,
-            @com.legend.Nullable String declinedReason, @com.legend.Nullable String refereeOutcome) {
+            @com.legend.Nullable String declinedReason, @com.legend.Nullable String refereeOutcome,
+            @com.legend.Nullable String unjudgedReason) {
     }
 
     /** One test's outcome with its reason and its verdict log.
@@ -440,6 +443,7 @@ public final class PureTestRunner implements AutoCloseable {
         // to the upcoming verdict (index verdicts.size())
         Map<Integer, String> declinedAhead = new HashMap<>();
         Map<Integer, String> refereedAhead = new HashMap<>();
+        Map<Integer, String> unjudgedAhead = new HashMap<>();
         boolean[] refereeMatched = {false};
         observer.bodyStarting(conn, effectful);
         boolean passed = false;
@@ -452,7 +456,8 @@ public final class PureTestRunner implements AutoCloseable {
                             public void verdict(String name, boolean pass, @com.legend.Nullable String detail) {
                                 int i = verdicts.size();
                                 verdicts.add(new Verdict(name, pass,
-                                        declinedAhead.get(i), refereedAhead.get(i)));
+                                        declinedAhead.get(i), refereedAhead.get(i),
+                                        unjudgedAhead.get(i)));
                                 if (!pass) {
                                     failedAsserts.add("#" + verdicts.size() + " " + name
                                             + (detail == null ? "" : ": " + whole(detail)));
@@ -464,6 +469,11 @@ public final class PureTestRunner implements AutoCloseable {
                             public void declined(String name, String reason) {
                                 declinedAhead.put(verdicts.size(), reason);
                                 observer.declined(name, reason);
+                            }
+
+                            @Override
+                            public void unjudged(String name, String reason) {
+                                unjudgedAhead.put(verdicts.size(), reason);
                             }
 
                             @Override

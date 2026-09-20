@@ -493,7 +493,9 @@ class MinimalCorpusTest {
                 + " tdsnull=" + com.legend.exec.CanonicalDivergence.sqlTdsNullPolicyCount()
                 + " decimal-scale-only=" + com.legend.exec.CanonicalDivergence.decimalScaleOnlyCount()
                 + " disagree=" + com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
-                + " declined=" + com.legend.exec.CanonicalDivergence.sqlDeclinedCount());
+                + " declined=" + com.legend.exec.CanonicalDivergence.sqlDeclinedCount()
+                + " wire-retyped=" + com.legend.exec.WireTypes.retypedCount()
+                + " wire-slot-skew=" + com.legend.exec.WireTypes.slotSkewCount());
         System.out.println("[corpus2] sql-census round-trips="
                 + com.legend.exec.Executor.roundTrips() + " (every statement the executor"
                 + " sent this JVM: setups, sides, frames, referee replays)");

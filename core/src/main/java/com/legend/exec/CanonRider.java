@@ -162,4 +162,25 @@ public final class CanonRider {
     public int tdsWidth() {
         return wrap == null ? -1 : wrap.tdsWidth();
     }
+
+    // ── THE GRID WRAP FRAME (one home, audit §4y): the wrapped plan's
+    // columns are the grid's `width` DATA columns, then one canon per
+    // cell (leg 3.1b), then the ONE row canon — built by
+    // CanonicalRenderSql.wrapTdsCanon, read here and nowhere else.
+
+    /** The grid's DATA columns of a wrapped plan's outputs / columns: the
+     * first {@code width}; the list itself when the canon rode no grid. */
+    public <T> List<T> dataPrefix(List<T> columns) {
+        return tdsWrapped() ? columns.subList(0, tdsWidth()) : columns;
+    }
+
+    /** The columns the grid wrap APPENDED after the data (0 = no grid wrap). */
+    public int canonColumns() {
+        return tdsWrapped() ? 1 + tdsWidth() : 0;
+    }
+
+    /** The row canon's 1-based JDBC position in the wrapped result. */
+    public int rowCanonPosition() {
+        return 2 * tdsWidth() + 1;
+    }
 }

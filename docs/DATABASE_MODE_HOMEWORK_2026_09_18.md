@@ -1680,6 +1680,46 @@ held (`hostHeld && containsTdsNullSentinel`, counted — direction-aware by audi
 decimal-candidate rule ("decimal" kind, no decimal candidate, a float candidate →
 `"float"`) is static truth from the compiler's candidate set, not a value-driven rescue.
 
+## 4z. Audit legs A landed; the Linux CI catch (2026-09-20)
+
+**The red CI first.** b92d1418f (§4y) went red on Linux only: gate 4 and gate 11 lost
+`testCbrt`. x86_64 libm's `cbrt` answers one ULP off the H2 golden on five cells, and the
+golden's exact `3.0` prints integral (`3`) through the referee's cell spelling while ours prints
+`3.0000000000000004`. The one-float rule's referee guard demanded a decimal point on BOTH cells,
+so the pairing never ran. The guard now demands ONE floating spelling; two integral spellings
+still compare as text (the epoch-millis lesson). arm64 never showed it: its libm gives 3.0.
+
+**§4y's owed legs, landed (items 1, 2, 4, 5, 8).**
+
+- *Simple names → exact identities.* `ORDER_PRESERVING` / `ORDER_DESTROYING` / the execute
+  frames / the `toOne`/`first`/`at(0)` peel / `assert`/`assertFalse` read their FQNs from the
+  signature catalog (`Pure.<overload>.qualifiedName()`, `PlatformTypes`). Two guardrails caught
+  the literal form on the way (PlatformNamesGuardrail: FQN literals live in catalogs only; the
+  claims ledger's readers column) — the claims scanner's substring match (`Pure.PI` inside
+  `Pure.PIVOT__…`) fixed while there. The legacy `renameColumns` / `restrict` / `olapGroupBy`
+  names dropped out: they are Typer-desugared (`TdsLegacy`), never a native callee.
+- *Sealed kind keys.* `KindClass` (`Primitive` NUMERIC/STRING/BOOLEAN/TEMPORAL/TYPE, `Enum(fqn)`,
+  `Instance(fqn)`, `Element(fqn)`; `primitive()` replaces the string test) and `KindClass.Fine`
+  (INTEGER/FLOAT/DECIMAL from a stamp or the runtime values). `toString` keeps the census
+  spellings.
+- *The grid wrap frame, one home.* `CanonRider.dataPrefix(columns)` / `canonColumns()` /
+  `rowCanonPosition()`; the Executor and the rendered-text road read them.
+- *UNJUDGED typed.* `AssertFailed.unjudged(reason, message)` carries the reason;
+  `tryAdjudicate` reports `AssertListener.unjudged` before the verdict; `Verdict.unjudgedReason`;
+  `JudgeLedger` writes UNJUDGED from the fact, never from the text.
+- *The wire census printed.* `WireTypes.retypedCount()` / `slotSkewCount()` on the
+  `sql-census policy` line: DuckDB database 16 re-typed / 4 skew; H2 database 16 / 76 (H2
+  reports computed DECIMALs at scale 0 — the slot stands).
+- *Referee rows as cells.* `H2Verify.Cells` (a record of normalized cells, lexicographic
+  order, `toString` the old diagnostic form) end to end: graph, tabular, page membership,
+  ordered tie groups, the tdg replay (`rawRows` / `transcriptRows` / `multisetCompare`).
+
+Measured: four lanes unchanged (DuckDB host 108, H2 host 412, DuckDB database lost 0, H2
+database lost 64 / gained 71, differential agree 5,848 / disagree 0 / unjudged 0); chain
+green, wall ? s. Ledger AssertVerdicts 2607 → 2565. Still owed from §4y: item 3 (the
+AssertVerdicts split — after 3.4, which reshapes the arms), items 6–7 (the bare-column limit,
+the H2 residue) stay named.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

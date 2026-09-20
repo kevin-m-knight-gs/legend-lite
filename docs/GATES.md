@@ -4251,3 +4251,21 @@ disagree 0 · unjudged 0 · database-only 2. Both judges accept the same 23 (14 
 DECFLOAT rows). Ledger: AssertVerdicts 2607, TdsCompare 366 → 343. `tools/judge-lanes.sh` runs
 the four lanes + the differential (`JUDGE_LANES=duck` for the fast pair). Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4y (audit findings + the `if`-by-`if` read inside).
+
+**Audit legs A + the Linux CI fix (2026-09-20):** default chain GREEN (gates 1–10), parallel wall
+? s (). CI on b92d1418f was RED on Linux only (gate 4, gate 11: `testCbrt` lost):
+x86_64 libm's cube root answers one ULP off the H2 golden and the golden's 3.0 printed integral
+(`3`), so the referee's "both cells decimal-point" guard refused the 2-ULP pairing; the guard now
+asks for ONE floating spelling (two integral spellings still compare as text — the epoch-millis
+lesson). Audit §4y's owed legs: the three simple-name native matches → exact identities from the
+signature catalog (`Pure.<overload>.qualifiedName()`; PlatformNamesGuardrail and the claims
+ledger both caught the literal form first — the claims scanner's `Pure.PI` ⊂ `Pure.PIVOT` substring
+match fixed, 39 rows gain AssertVerdicts as a reader); the stringly kind keys → sealed
+`KindClass` (+ `Fine`); the grid wrap frame's arithmetic in ONE home (`CanonRider.dataPrefix` /
+`canonColumns` / `rowCanonPosition`); UNJUDGED a typed fact (`AssertFailed.unjudged`,
+`AssertListener.unjudged`, `Verdict.unjudgedReason`; JudgeLedger reads the type); the wire census
+printed (`wire-retyped` / `wire-slot-skew`: DuckDB database 16 / 4, H2 database 16 / 76); the
+referee's rows are cell arrays (`H2Verify.Cells`, the tdg replay included). Four lanes: DuckDB
+host 108 / H2 host 412 exact; DuckDB database lost 0; H2 database lost 64 / gained 71; differential
+agree 5,848 · disagree 0 · unjudged 0. Ledger: AssertVerdicts 2607 → 2565. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4z.

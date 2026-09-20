@@ -416,11 +416,9 @@ public final class Executor {
         if (rider == null) {
             return;
         } else if (rider.tdsWrapped()) {
-            // position derives from the WRAP FRAME (the grid's data
-            // width was recorded at wrap time): width value columns, then
-            // width per-cell canons (leg 3.1b), then the ONE row canon —
-            // never re-asked of the result set
-            base = 2 * rider.tdsWidth() + 1;
+            // position derives from the WRAP FRAME (CanonRider, the one
+            // home) — never re-asked of the result set
+            base = rider.rowCanonPosition();
             count = 1;
         } else if (rider.wrapped()) {
             base = 2;
@@ -772,10 +770,9 @@ public final class Executor {
         // column (__rowcanon): strip it from the value decode and
         // harvest it row-aligned (shapeRow is 1:1 by construction)
         boolean grid = rider != null && rider.tdsWrapped();
-        // the grid wrap appends one canon per CELL (leg 3.1b) and then the
-        // row canon: the value decode reads the first width columns only
-        int n = rs.getMetaData().getColumnCount()
-                - (rider != null && rider.tdsWrapped() ? 1 + rider.tdsWidth() : 0);
+        // the value decode reads the data columns only (the wrap frame's
+        // appended canon columns: CanonRider, the one home)
+        int n = rs.getMetaData().getColumnCount() - (rider == null ? 0 : rider.canonColumns());
         List<Column> columns = resolveColumns(rs, plan, schema, n);
         List<Row> rows = new ArrayList<>();
         while (rs.next()) {

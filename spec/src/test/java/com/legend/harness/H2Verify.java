@@ -497,13 +497,13 @@ public final class H2Verify {
                 keyDecode.put(k, dec);
             }
         }
-        List<String> theirs = new ArrayList<>();
+        List<Cells> theirs = new ArrayList<>();
         // full golden rows (EVERY column, pk identity included),
         // parallel to {@code theirs} — the row-13 collapse's key: two
         // rows identical INCLUDING their pk are the same instance
         // assembled twice by join fan-out; same pk with ANY differing
         // cell keeps both rows and stays a loud divergence
-        List<String> fullRows = new ArrayList<>();
+        List<Cells> fullRows = new ArrayList<>();
         boolean hasPk = false;
         List<String> dataLabels = new ArrayList<>();
         java.util.Set<String> temporal = new java.util.HashSet<>();
@@ -589,43 +589,35 @@ public final class H2Verify {
             // (ordered queries only; underivable/absent keys decline)
             int[] keyIdx = facts.ordered()
                     ? sortKeyIndexes(sorted, facts.sortKeys()) : null;
-            List<String> theirKeys = new ArrayList<>();
-            List<String> mineKeys = new ArrayList<>();
+            List<Cells> theirKeys = new ArrayList<>();
+            List<Cells> mineKeys = new ArrayList<>();
             java.util.Map<String, Integer> byLabel = new java.util.HashMap<>();
             for (int j = 0; j < dataLabels.size(); j++) {
                 byLabel.put(dataLabels.get(j), dataIdx[j]);
             }
             while (rs.next()) {
-                StringBuilder row = new StringBuilder();
                 String[] cells = new String[sorted.size()];
                 int ci = 0;
                 for (String k : sorted) {
-                    if (row.length() > 0) {
-                        row.append('|');
-                    }
                     String cell = norm(rs.getObject(byLabel.get(k)));
                     var dec = keyDecode.get(k);
-                    cells[ci] = dec == null ? cell
+                    cells[ci++] = dec == null ? cell
                             : dec.getOrDefault(cell, cell);
-                    row.append(cells[ci++]);
                 }
-                theirs.add(row.toString());
+                theirs.add(new Cells(cells));
                 if (keyIdx != null) {
                     theirKeys.add(keyTuple(cells, keyIdx));
                 }
-                StringBuilder full = new StringBuilder();
+                String[] full = new String[n];
                 for (int i = 1; i <= n; i++) {
-                    if (i > 1) {
-                        full.append('|');
-                    }
-                    full.append(norm(rs.getObject(i)));
+                    full[i - 1] = norm(rs.getObject(i));
                 }
-                fullRows.add(full.toString());
+                fullRows.add(new Cells(full));
             }
-            List<String> mine = new ArrayList<>();
+            List<Cells> mine = new ArrayList<>();
             for (java.util.Map<String, Object> obj : objs) {
                 String[] cells = graphCells(obj, sorted, temporal);
-                mine.add(String.join("|", cells));
+                mine.add(new Cells(cells));
                 if (keyIdx != null) {
                     mineKeys.add(keyTuple(cells, keyIdx));
                 }
@@ -644,10 +636,10 @@ public final class H2Verify {
             // side still diverges loudly. The collapse preserves
             // first-occurrence order, so it composes with the §7
             // ordered path below.
-            List<String> collapsed = null;
-            List<String> collapsedKeys = null;
+            List<Cells> collapsed = null;
+            List<Cells> collapsedKeys = null;
             if (facts.extentSubset() && hasPk) {
-                java.util.Set<String> seenFull = new java.util.HashSet<>();
+                java.util.Set<Cells> seenFull = new java.util.HashSet<>();
                 collapsed = new ArrayList<>();
                 collapsedKeys = keyIdx == null ? null : new ArrayList<>();
                 for (int i = 0; i < theirs.size(); i++) {
@@ -664,9 +656,9 @@ public final class H2Verify {
                 // golden page (fan-out collapsed when the extent-subset fact
                 // allows) vs our page's size, every golden row a member of
                 // our unpaged population
-                List<String> population = new ArrayList<>();
+                List<Cells> population = new ArrayList<>();
                 for (java.util.Map<String, Object> obj : populationObjs) {
-                    population.add(String.join("|", graphCells(obj, sorted, temporal)));
+                    population.add(new Cells(graphCells(obj, sorted, temporal)));
                 }
                 return pageMembership(collapsed != null ? collapsed : theirs, mine,
                         population);
@@ -693,7 +685,7 @@ public final class H2Verify {
             } else {
                 ord("unordered-chain");
             }
-            List<String> sortedTheirs = new ArrayList<>(theirs);
+            List<Cells> sortedTheirs = new ArrayList<>(theirs);
             Collections.sort(sortedTheirs);
             Collections.sort(mine);
             if (sortedTheirs.equals(mine)) {
@@ -720,7 +712,7 @@ public final class H2Verify {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts)
             throws SQLException {
-                List<String> theirs = new ArrayList<>();
+                List<Cells> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
                 // VALUE frames (Collection/Scalar) compare at the
                 // OBSERVABLE boundary: a [*]-valued query flattens
@@ -745,18 +737,14 @@ public final class H2Verify {
                         ? sortKeyIndexes(tab.columns().stream()
                                 .map(c -> c.name()).toList(), facts.sortKeys())
                         : null;
-                List<String> theirKeys = new ArrayList<>();
+                List<Cells> theirKeys = new ArrayList<>();
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
                     int n = rs.getMetaData().getColumnCount();
                     theirsCols[0] = n;
                     while (rs.next()) {
-                        StringBuilder row = new StringBuilder();
                         boolean allNull = true;
                         String[] cells = new String[n];
                         for (int i = 1; i <= n; i++) {
-                            if (i > 1) {
-                                row.append('|');
-                            }
                             Object raw = rs.getObject(i);
                             allNull &= raw == null;
                             String cell = norm(raw);
@@ -766,12 +754,11 @@ public final class H2Verify {
                             var dec = enumDecode.get(i - 1);
                             cells[i - 1] = dec == null ? cell
                                     : dec.getOrDefault(cell, cell);
-                            row.append(cells[i - 1]);
                         }
                         if (valueFrame && n == 1 && allNull) {
                             continue;
                         }
-                        theirs.add(row.toString());
+                        theirs.add(new Cells(cells));
                         if (keyIdx != null) {
                             theirKeys.add(keyTuple(cells, keyIdx));
                         }
@@ -798,19 +785,14 @@ public final class H2Verify {
                             + theirsCols[0] + " vs frame "
                             + tab.columns().size(), null);
                 }
-                List<String> mine = new ArrayList<>();
-                List<String> mineKeys = new ArrayList<>();
+                List<Cells> mine = new ArrayList<>();
+                List<Cells> mineKeys = new ArrayList<>();
                 for (Row r : tab.rows()) {
-                    StringBuilder row = new StringBuilder();
                     String[] cells = new String[r.values().size()];
                     for (int i = 0; i < r.values().size(); i++) {
-                        if (i > 0) {
-                            row.append('|');
-                        }
                         cells[i] = norm(r.values().get(i));
-                        row.append(cells[i]);
                     }
-                    mine.add(row.toString());
+                    mine.add(new Cells(cells));
                     if (keyIdx != null) {
                         mineKeys.add(keyTuple(cells, keyIdx));
                     }
@@ -826,16 +808,13 @@ public final class H2Verify {
                 // compare (the 103 measured unordered leniency passes
                 // are incidental backend order, legitimate forever).
                 if (facts.population() != null) {
-                    List<String> population = new ArrayList<>();
+                    List<Cells> population = new ArrayList<>();
                     for (Row r : facts.population().rows()) {
-                        StringBuilder row = new StringBuilder();
+                        String[] cells = new String[r.values().size()];
                         for (int i = 0; i < r.values().size(); i++) {
-                            if (i > 0) {
-                                row.append('|');
-                            }
-                            row.append(norm(r.values().get(i)));
+                            cells[i] = norm(r.values().get(i));
                         }
-                        population.add(row.toString());
+                        population.add(new Cells(cells));
                     }
                     return pageMembership(theirs, mine, population);
                 }
@@ -859,10 +838,41 @@ public final class H2Verify {
                 return divergence(theirs, mine);
     }
 
+    /** A referee ROW: its normalized cells, compared cell by cell — never a
+     * joined text (audit §4y: a '|' inside a cell no longer garbles a
+     * compare; the ordering is lexicographic by cell for the multiset
+     * verdicts). {@link #toString()} spells the diagnostic form. */
+    record Cells(List<String> cells) implements Comparable<Cells> {
+        Cells(String... cells) {
+            this(List.of(cells));
+        }
+
+        Cells {
+            cells = List.copyOf(cells);
+        }
+
+        @Override
+        public int compareTo(Cells o) {
+            int n = Math.min(cells.size(), o.cells.size());
+            for (int i = 0; i < n; i++) {
+                int c = cells.get(i).compareTo(o.cells.get(i));
+                if (c != 0) {
+                    return c;
+                }
+            }
+            return Integer.compare(cells.size(), o.cells.size());
+        }
+
+        @Override
+        public String toString() {
+            return String.join("|", cells);
+        }
+    }
+
     /** THE ONE FLOAT LENIENCY, pairwise (2026-09-20): two equal-sized row
      * lists match when every row left over after exact matching pairs with a
      * leftover of the other side cell for cell ({@link #unpaired}). */
-    static boolean residuePaired(List<String> golden, List<String> ours) {
+    static boolean residuePaired(List<Cells> golden, List<Cells> ours) {
         return golden.size() == ours.size() && unpaired(golden, ours).isEmpty();
     }
 
@@ -871,13 +881,13 @@ public final class H2Verify {
      * rows of {@code ours} cell for cell — a cell equal as text, or two
      * decimal-point numbers within the judges' 2-ULP rule. Counted as
      * {@code float-2ulp} when the pairing decided. */
-    private static List<String> unpaired(List<String> golden, List<String> ours) {
-        java.util.Map<String, Integer> pool = new java.util.HashMap<>();
-        for (String row : ours) {
+    private static List<Cells> unpaired(List<Cells> golden, List<Cells> ours) {
+        java.util.Map<Cells, Integer> pool = new java.util.HashMap<>();
+        for (Cells row : ours) {
             pool.merge(row, 1, Integer::sum);
         }
-        List<String> leftGolden = new ArrayList<>();
-        for (String g : golden) {
+        List<Cells> leftGolden = new ArrayList<>();
+        for (Cells g : golden) {
             Integer n = pool.get(g);
             if (n == null || n == 0) {
                 leftGolden.add(g);
@@ -888,15 +898,15 @@ public final class H2Verify {
         if (leftGolden.isEmpty()) {
             return leftGolden;
         }
-        List<String> leftOurs = new ArrayList<>();
+        List<Cells> leftOurs = new ArrayList<>();
         for (var e : pool.entrySet()) {
             for (int i = 0; i < e.getValue(); i++) {
                 leftOurs.add(e.getKey());
             }
         }
-        List<String> missing = new ArrayList<>();
+        List<Cells> missing = new ArrayList<>();
         boolean paired = false;
-        for (String g : leftGolden) {
+        for (Cells g : leftGolden) {
             int hit = -1;
             for (int i = 0; i < leftOurs.size() && hit < 0; i++) {
                 if (rowEquals2Ulp(g, leftOurs.get(i))) {
@@ -916,28 +926,32 @@ public final class H2Verify {
         return missing;
     }
 
-    private static boolean rowEquals2Ulp(String a, String b) {
-        String[] x = a.split("\\|", -1);
-        String[] y = b.split("\\|", -1);
-        if (x.length != y.length) {
+    private static boolean rowEquals2Ulp(Cells a, Cells b) {
+        List<String> x = a.cells();
+        List<String> y = b.cells();
+        if (x.size() != y.size()) {
             return false;
         }
-        for (int i = 0; i < x.length; i++) {
-            if (!cellEquals2Ulp(x[i], y[i])) {
+        for (int i = 0; i < x.size(); i++) {
+            if (!cellEquals2Ulp(x.get(i), y.get(i))) {
                 return false;
             }
         }
         return true;
     }
 
-    /** Two cells: equal as text, or both decimal-point number spellings
-     * within 2 ULP of each other (integral spellings compare as text — the
-     * epoch-millis lesson). */
+    /** Two cells: equal as text, or two number spellings within 2 ULP of
+     * each other when at least one is a decimal-point (floating) spelling.
+     * Two INTEGRAL spellings compare as text only — the epoch-millis
+     * lesson. One integral spelling beside a floating one is a double
+     * whose {@link #norm} stripped its zero scale (H2's cbrt(27) = 3.0
+     * prints {@code 3}; x86_64 libm answers {@code 3.0000000000000004}, one
+     * ULP away — the Linux CI catch of 2026-09-20). */
     static boolean cellEquals2Ulp(String a, String b) {
         if (a.equals(b)) {
             return true;
         }
-        if (a.indexOf('.') < 0 || b.indexOf('.') < 0) {
+        if (a.indexOf('.') < 0 && b.indexOf('.') < 0) {
             return false;
         }
         try {
@@ -988,15 +1002,12 @@ public final class H2Verify {
         ord("ordered-keys-unmappable");
     }
 
-    private static String keyTuple(String[] cells, int[] keyIdx) {
-        StringBuilder k = new StringBuilder();
-        for (int i : keyIdx) {
-            if (k.length() > 0) {
-                k.append('|');
-            }
-            k.append(cells[i]);
+    private static Cells keyTuple(String[] cells, int[] keyIdx) {
+        String[] k = new String[keyIdx.length];
+        for (int j = 0; j < keyIdx.length; j++) {
+            k[j] = cells[keyIdx[j]];
         }
-        return k.toString();
+        return new Cells(k);
     }
 
     /** The §7 IN-ORDER verdict with TIE GROUPS: both sides' sort-key
@@ -1006,8 +1017,8 @@ public final class H2Verify {
      * relative order on either backend —
      * testSortByLambdaMultiple's two Johns). */
     private static @com.legend.Nullable String orderedVerdict(
-            List<String> theirs, List<String> mine,
-            List<String> theirKeys, List<String> mineKeys) {
+            List<Cells> theirs, List<Cells> mine,
+            List<Cells> theirKeys, List<Cells> mineKeys) {
         if (theirs.size() != mine.size()
                 || !theirKeys.equals(mineKeys)) {
             return divergence(theirs, mine);
@@ -1019,8 +1030,8 @@ public final class H2Verify {
                     && theirKeys.get(j).equals(theirKeys.get(i))) {
                 j++;
             }
-            List<String> a = new ArrayList<>(theirs.subList(i, j));
-            List<String> b = new ArrayList<>(mine.subList(i, j));
+            List<Cells> a = new ArrayList<>(theirs.subList(i, j));
+            List<Cells> b = new ArrayList<>(mine.subList(i, j));
             Collections.sort(a);
             Collections.sort(b);
             if (!a.equals(b) && !residuePaired(a, b)) {
@@ -1088,8 +1099,8 @@ public final class H2Verify {
      * unpaged population (as a multiset — a duplicated row needs a
      * duplicate). All three sides render through the same {@link #norm}
      * spelling. Counted on the verdict roster as its own kind. */
-    private static @com.legend.Nullable String pageMembership(List<String> theirs,
-            List<String> mine, List<String> population) {
+    private static @com.legend.Nullable String pageMembership(List<Cells> theirs,
+            List<Cells> mine, List<Cells> population) {
         if (theirs.size() != mine.size()) {
             return "page-membership divergence: golden page has " + theirs.size()
                     + " row(s), ours " + mine.size();
@@ -1097,7 +1108,7 @@ public final class H2Verify {
         // every golden page row a member of our unpaged population (a
         // multiset — a duplicated row needs a duplicate), the 2-ULP pairing
         // over the leftovers
-        List<String> missing = unpaired(theirs, population);
+        List<Cells> missing = unpaired(theirs, population);
         if (!missing.isEmpty()) {
             return "page-membership divergence: golden page row(s) not in our"
                     + " unpaged population (" + population.size() + " rows): "
@@ -1118,27 +1129,27 @@ public final class H2Verify {
      * verdict); everywhere else — value/tabular frames, where pure
      * semantics PRESERVES duplicates — a duplication difference is a
      * REAL divergence and fails loudly. */
-    private static String divergence(List<String> theirs,
-            List<String> mine) {
+    private static String divergence(List<Cells> theirs,
+            List<Cells> mine) {
         return "h2-advisory divergence: golden SQL on H2 gave "
                 + theirs.size() + " row(s), our pipeline gave "
                 + mine.size() + " row(s); " + diffRows(theirs, mine);
     }
 
-    private static String head(List<String> rows) {
+    private static String head(List<Cells> rows) {
         return rows.subList(0, Math.min(rows.size(), 5)).toString();
     }
 
     /** The DIFFERING rows (multiset difference, both directions, 5 max
      * each) — a divergence whose first rows agree used to truncate to
      * two identical-looking heads. */
-    private static String diffRows(List<String> theirs, List<String> mine) {
-        List<String> onlyTheirs = new ArrayList<>(theirs);
-        for (String m : mine) {
+    private static String diffRows(List<Cells> theirs, List<Cells> mine) {
+        List<Cells> onlyTheirs = new ArrayList<>(theirs);
+        for (Cells m : mine) {
             onlyTheirs.remove(m);
         }
-        List<String> onlyMine = new ArrayList<>(mine);
-        for (String t : theirs) {
+        List<Cells> onlyMine = new ArrayList<>(mine);
+        for (Cells t : theirs) {
             onlyMine.remove(t);
         }
         return "golden-only " + head(onlyTheirs)
@@ -1198,17 +1209,17 @@ public final class H2Verify {
     /** The shared TDG row referee tail: header (projection) equality,
      * then ORDER-INSENSITIVE row equality under the cell canon. */
     static @com.legend.Nullable String multisetCompare(
-            List<String> golden, List<String> ourRows) {
-        String gCols = golden.get(0);
-        String oCols = ourRows.get(0);
+            List<Cells> golden, List<Cells> ourRows) {
+        Cells gCols = golden.get(0);
+        Cells oCols = ourRows.get(0);
         if (!gCols.equals(oCols)) {
             // DIFFERENT projections for the same step — a DEMAND
             // divergence, not a row divergence: named residue
             throw new Unverifiable("projection differs: golden "
                     + gCols + " vs ours " + oCols, null);
         }
-        List<String> g = new java.util.ArrayList<>(golden);
-        List<String> o = new java.util.ArrayList<>(ourRows);
+        List<Cells> g = new java.util.ArrayList<>(golden);
+        List<Cells> o = new java.util.ArrayList<>(ourRows);
         java.util.Collections.sort(g);
         java.util.Collections.sort(o);
         return g.equals(o) || residuePaired(g, o) ? null
@@ -1221,7 +1232,7 @@ public final class H2Verify {
      * per-fetch capture) rendered in the {@link #rawRows} shape — same
      * header row, same name-sorted columns, same cell canon — so both
      * referee sides speak one spelling. */
-    public static List<String> transcriptRows(List<String> cols,
+    public static List<Cells> transcriptRows(List<String> cols,
             List<List<Object>> rows) {
         int n = cols.size();
         String[] names = new String[n];
@@ -1229,24 +1240,27 @@ public final class H2Verify {
             names[i] = cols.get(i).toLowerCase();
         }
         Integer[] order = nameOrder(names);
-        List<String> out = new java.util.ArrayList<>(rows.size() + 1);
-        StringBuilder hdr = new StringBuilder("<cols>");
-        for (int k = 0; k < n; k++) {
-            hdr.append('|').append(names[order[k]]);
-        }
-        out.add(hdr.toString());
+        List<Cells> out = new java.util.ArrayList<>(rows.size() + 1);
+        out.add(header(names, order));
         for (List<Object> row : rows) {
-            StringBuilder sb = new StringBuilder();
+            String[] cells = new String[n];
             for (int k = 0; k < n; k++) {
                 int i = order[k];
-                if (k > 0) {
-                    sb.append('|');
-                }
-                sb.append(names[i]).append('=').append(norm(row.get(i)));
+                cells[k] = names[i] + '=' + norm(row.get(i));
             }
-            out.add(sb.toString());
+            out.add(new Cells(cells));
         }
         return out;
+    }
+
+    /** The {@code <cols>} header row: the name-sorted column names. */
+    private static Cells header(String[] names, Integer[] order) {
+        String[] hdr = new String[names.length + 1];
+        hdr[0] = "<cols>";
+        for (int k = 0; k < names.length; k++) {
+            hdr[k + 1] = names[order[k]];
+        }
+        return new Cells(hdr);
     }
 
 
@@ -1267,9 +1281,9 @@ public final class H2Verify {
      * {@code <cols>} header row — column ORDER is not a fetch contract,
      * column IDENTITY is (a projection mismatch compares as unequal
      * header rows, never a garbled cell compare). */
-    static List<String> rawRows(Statement st, String sql)
+    static List<Cells> rawRows(Statement st, String sql)
             throws SQLException {
-        List<String> out = new java.util.ArrayList<>();
+        List<Cells> out = new java.util.ArrayList<>();
         try (ResultSet rs = st.executeQuery(sql)) {
             var md = rs.getMetaData();
             int n = md.getColumnCount();
@@ -1278,28 +1292,20 @@ public final class H2Verify {
                 names[i] = md.getColumnLabel(i + 1).toLowerCase();
             }
             Integer[] order = nameOrder(names);
-            StringBuilder hdr = new StringBuilder("<cols>");
-            for (int k = 0; k < n; k++) {
-                hdr.append('|').append(names[order[k]]);
-            }
-            out.add(hdr.toString());
+            out.add(header(names, order));
             while (rs.next()) {
-                StringBuilder row = new StringBuilder();
+                String[] cells = new String[n];
                 for (int k = 0; k < n; k++) {
                     int i = order[k];
-                    if (k > 0) {
-                        row.append('|');
-                    }
-                    row.append(names[i]).append('=')
-                            .append(norm(rs.getObject(i + 1)));
+                    cells[k] = names[i] + '=' + norm(rs.getObject(i + 1));
                 }
-                out.add(row.toString());
+                out.add(new Cells(cells));
             }
         }
         return out;
     }
 
-    private static String firstDiff(List<String> g, List<String> o) {
+    private static String firstDiff(List<Cells> g, List<Cells> o) {
         int n = Math.min(g.size(), o.size());
         for (int i = 0; i < n; i++) {
             if (!g.get(i).equals(o.get(i))) {
