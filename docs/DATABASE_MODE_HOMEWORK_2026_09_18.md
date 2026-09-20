@@ -1482,6 +1482,42 @@ exact; chain green.
   now), the declared kind only when the wire kind is unknown. No value is converted — a kind-less
   text takes the wire's kind. Not a coercion rule.
 
+## 4v. The calendar rows traced step by step; the IEEE ruling (2026-09-19)
+
+**Asked by the USER** ("the calendar one does not make sense of H2 also failing on them … trace one
+step by step on duck and h2"). Fixture: `EmployeeTable(fteFactor DOUBLE)` created FROM the store on
+both engines; `p12wa` = `agg(p | p12wa(hireDate, 'NY', %2022-11-16, fteFactor), y | $y->sum())`;
+the engine's SQL: `SUM(CASE WHEN <calendar window> THEN <divide>(fteFactor, 12) ELSE NULL END)` with
+`divide` rendered `((1.0 * %s) / %s)` (sqlQueryToString extension:218). Probed on H2 2.1.214
+(the engine's `h2.version`; 2.2.224 and 2.4.240 behave the same) and DuckDB 1.4.4:
+
+| statement | H2 | DuckDB |
+|---|---|---|
+| `sum(f)` over DOUBLE | DECFLOAT `4.6` (decimal accumulation, getObject = BigDecimal) | DOUBLE `4.6` |
+| `(1.0 * f) / 12`, f = 0.13 | DECFLOAT `0.010833333333` | DOUBLE `0.010833333333333334` |
+| `sum((1.0 * f) / 12)` | DECFLOAT `0.38333333333` | DOUBLE `0.38333333333333336` |
+| `cast(f as double) / cast(12 as double)` | DOUBLE `0.010833333333333334` | DOUBLE, same |
+| `sum(cast(f as double) / cast(12 as double))` | DECFLOAT `0.38333333333333333` | DOUBLE `0.38333333333333336` |
+
+Two facts, not one. (1) THE SUM FAMILY (`6.84` vs DuckDB `6.840000000000002`): H2 2.x computes
+`SUM` over a DOUBLE column in DECFLOAT — decimal floating point, base-10 arithmetic over the
+doubles' exact expansions; DuckDB sums binary doubles. Our SQL equals the engine's; the goldens
+encode H2's decimal summation; no double-summing engine can match them. (2) THE WEIGHTED-AVERAGE
+FAMILY (golden `0.383333333333`, twelve digits): the engine's `1.0 *` promotes the multiplication to
+DECFLOAT and the division runs at H2's decimal scale — the golden's arithmetic digit for digit; we
+render `CAST(x AS DOUBLE) / CAST(y AS DOUBLE)`, binary double, so on H2 only the SUM goes decimal
+(`0.383333333333333334`). Those ten H2 rows are OUR product SQL differing from the engine's, and on
+DuckDB both spellings give the same double. Not an H2 1.x/2.x difference, not engine rounding.
+
+**Ruling (USER: "keep it ieee").** Pure's `/` on Float is double division (the runtimes divide Java
+doubles; the PCT `divide` goldens are doubles); DECFLOAT exists on H2 and DB2 only; mirroring the
+engine's `1.0 *` as an H2 dialect rule would make every Float division on H2 decimal arithmetic for
+ten rows whose goldens encode an accident. Division stays IEEE on every engine. Registers relabelled
+by family: the 21 DuckDB accepted rows → `engine-store-arithmetic:h2-decfloat-sum` (11) and
+`engine-store-arithmetic:h2-decfloat-divide` (10, the same ten names as the H2 lost rows — the H2
+lost register carries messages, not reasons; this record is their reason). Probe sources under the
+job's tmp (`calprobe/Q.java`, `R.java`, `S.java`).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

@@ -4198,3 +4198,16 @@ DECIMAL metadata at scale 0 truncated the calendar family: 27 rows). Four lanes:
 H2 host 412 exact; DuckDB database lost 5 → 2 / gained 0 (84 s vs 82); H2 database lost 78 → 75 /
 gained 71 (47 s vs 47); accepted registers unchanged. Ledger: StatementExecutor 2218 → 2228 (plan
 wiring). Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4u.
+
+**Judging: the calendar rows traced, the IEEE ruling (2026-09-19):** chain GREEN (gates 1–10),
+parallel wall ≈ 4m15s (G2 24; A: G1 76 · G3 11 · G4 98 · G5 36 = 221; B: G6 140 · G7 43 · G9 32 =
+215; C: G8 146 · G10 50 = 196). Registers only, relabelled by a step-by-step trace on H2 2.1.214 and
+DuckDB 1.4.4 (docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4v): H2 2.x sums a DOUBLE column in
+DECFLOAT (decimal floating point) — the sum family's goldens (`6.84`) encode that, DuckDB's binary
+sum cannot match; the engine renders `divide` as `((1.0 * x) / y)`, which on H2 promotes to DECFLOAT
+and divides at H2's decimal scale — the weighted-average goldens (`0.383333333333`) are that
+arithmetic, and our `CAST(x AS DOUBLE) / CAST(y AS DOUBLE)` is why the same ten rows are lost on the
+H2 lane (our product SQL, not the store). USER ruling: division stays IEEE on every engine. DuckDB
+database accepted register: 21 rows `h2-decimal-average` → 11 `h2-decfloat-sum` + 10
+`h2-decfloat-divide` (the ten H2 lost names); DuckDB database lost 2 / gained 0, accepted 21 / 2,
+exact (81 s); no code change, the H2 lane untouched.
