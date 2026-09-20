@@ -98,7 +98,12 @@ class HarnessDisciplineTest {
             // dangling in DanglingStateGuardTest; Phase 0.5 rewires them
             // from AssertVerdicts.orderView. The count stays 10 because
             // the sites exist; their gate is the fact this comment names.
-            Map.entry("H2Verify.java", 10),
+            // 10 -> 11 (2026-09-20, one float rule): residuePaired — the
+            // referee's 2-ULP pairing of leftover rows after exact matching,
+            // a two-sided comparison policy gated on the judges' own rule
+            // (Equality.withinTwoUlp); the ten-digit normalization it
+            // replaces was not a site (it rounded one side at a time).
+            Map.entry("H2Verify.java", 11),
             // 15 -> 17 (SQLTEXT slice-3 step 0, 2026-09-01): the shape
             // census dump's two sorts — count-descending histogram +
             // name-sorted roster for a DIFFABLE census file (the

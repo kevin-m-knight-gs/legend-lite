@@ -1,6 +1,14 @@
 meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
 meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty ||| engine-golden-defect:json-stray-quote ||| golden JSON does not parse
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP12WaValue ||| engine-store-arithmetic:h2-decfloat-divide ||| golden-only [Campus|0.383333333333
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testP52WaValue ||| engine-store-arithmetic:h2-decfloat-divide ||| golden-only [Campus|0.131538461538
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPmaValueOnStartYear ||| engine-store-arithmetic:h2-decfloat-divide ||| 0.236666666667
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValue ||| engine-store-arithmetic:h2-decfloat-divide ||| golden-only [Campus|0.103440366973
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPwaValueOnStartYear ||| engine-store-arithmetic:h2-decfloat-divide ||| 0.05657370518
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testPywaValueOnStartYear ||| engine-store-arithmetic:h2-decfloat-divide ||| 0.05657370518
+meta::relational::tests::functions::pureToSqlQuery::calendarAggregations::testUnionWithWtdAndPwa ||| engine-store-arithmetic:h2-decfloat-divide ||| golden-only [Campus|2.16|0.206880733946
 meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin ||| engine-golden-defect:joinStrings-literal-collection ||| Anthony Allen[,]
+meta::relational::tests::map::testSubAggregationMultiLevel ||| engine-store-arithmetic:h2-decfloat-avg ||| golden-only [25.71428571429
 meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| engine-golden-defect:h2-literal-coercion ||| (2 rows) | is not equivalent to: | [settlementDateTime] (1 rows)
 meta::relational::tests::mapping::relation::testSimpleMappingQueryWithFilterInProject ||| engine-golden-defect:filter-lambda-binds-outer-row ||| Oliver,Fabrice
 meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_ManyColumnProject ||| engine-golden-defect:empty-string-as-null ||| Anand,null

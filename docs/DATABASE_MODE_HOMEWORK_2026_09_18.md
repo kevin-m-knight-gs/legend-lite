@@ -1599,6 +1599,87 @@ default chain measured 271 s after) and runs in CI as its own lane (`gates-run.y
 `{"gate":"11","gates":"2,11"}`). The pre-commit four-lane discipline gets the same differential
 by handing the database lane the host ledger.
 
+## 4y. One float rule — the referee and the host rendered-text check at 2 ULP (2026-09-20)
+
+**What gate 11 found.** The 21 registered disagreements were all the calendar family on
+H2-derived goldens: the DATABASE judge failed them (its float leniency is the one counted
+2-ULP predicate) and the HOST judge passed them — not through `Equality.withinTwoUlp`
+but through two OTHER leniencies further down the road: the referee's ten-digit float
+normalisation (`H2Verify.norm` rounded every float to ten significant digits before
+comparing rows) and `TdsCompare`'s printed-precision tolerance for rendered text (a cell
+held if the shorter print was a prefix of the longer). Three leniencies for one fact.
+
+**Ruling (user, "Yes do it").** ONE float rule, ONE home: `Equality.withinTwoUlp` is public
+and the only `Math.ulp` site (VerdictChannelRegister pins it). The referee normalises floats
+EXACTLY and, after exact multiset matching, pairs the leftover rows cell-by-cell at 2 ULP
+(`H2Verify.residuePaired`/`unpaired`/`rowEquals2Ulp`/`cellEquals2Ulp`, counted as
+`leniency("float-2ulp")`); `TdsCompare.cellEquals` is string-equal or two decimal prints
+within 2 ULP. The ten-digit and printed-precision leniencies are DELETED. The database grid
+verdict's leniency follows the EFFECTIVE schema (`AssertVerdicts.effectiveSchema`: the
+wire-decided kinds over the first N outputs of a wrapped side), so both judges lean on the
+same kind for the same cell.
+
+**Trace, step by step (the user asked for it without jargon).** A calendar test sums or
+divides DOUBLE columns on H2. H2 computes SUM over DOUBLE as DECFLOAT and the engine's
+`divide` as `((1.0 * x) / y)`, a DECFLOAT division printed to about 12 digits; we compute
+`CAST(x AS DOUBLE)/CAST(y AS DOUBLE)`, an IEEE division. The SUM family lands within 2 ULP
+of the golden (passes under the one rule); the DIVIDE family lands about 6,000 ULPs away
+(fails under the one rule — the golden is a different arithmetic, kept by the IEEE ruling
+in §4v); the two AVG tests are the divide family. That is why only 9 rows fell: 14
+DECFLOAT-division rows and 9 last-ULP libm rows were already on the accepted roster, and
+the 9 last-ULP rows stay green under a TRUE 2-ULP check.
+
+**Measured (four lanes, this tree).**
+
+| lane | result |
+|---|---|
+| DuckDB host | 108 exact; accepted 23 (14 golden defects + 9 DECFLOAT rows), `float-2ulp` ceiling 23 |
+| H2 host | 412 exact; accepted 16, `float-2ulp` ceiling 5 |
+| DuckDB database | lost 0 / gained 0; accepted diff lost 0 / gained 2 (the register's 3 rows, witnesses pruned) |
+| H2 database | lost 64 / gained 71 |
+| differential (DuckDB) | agree 5,848 · disagree 0 · unjudged 0 · database-only 2 (host body raises first; on the host roster) |
+
+Both judges now accept the SAME 23 tests for the SAME reasons. The accepted rosters are
+`name ||| reason ||| witness` (sorted-unique enforced; the witness is a substring of the
+failure message — three toCSV-only rows needed VALUE witnesses common to both modes).
+Ledger: AssertVerdicts 2604 → 2607, TdsCompare 366 → 343, StatementExecutor 2234.
+
+**Audit of the whole host/database journey (asked: deferrals, hacks, shortcuts,
+duplication, smells) — findings, each an owed leg, none a hidden rescue:**
+
+1. `JudgeLedger` recognises UNJUDGED by message text ("UNJUDGED in database mode") — a
+   typed state through the `declined` seam is owed.
+2. Census condition 4 (declared-vs-wire, slot-vs-metadata) is counted but not printed.
+3. `AssertVerdicts` is at the 3,500-line ceiling: split into a router + host arm +
+   database arm.
+4. Two sites slice by "canon columns are appended after the data columns"
+   (`tdsWidth` prefix) — a `dataWidth` fact on `WrappedSide` is owed.
+5. Referee rows are `'|'`-joined normalised cells and are re-split for the 2-ULP pairing —
+   a false-FAIL-only shape (a `|` inside a cell can only make rows differ), cell arrays owed.
+6. `WireTypes.reconcile` re-types BARE column references only (a computed projection keeps
+   the compiler's type — H2 reported DECIMAL scale 0 for computed sums and broke 27 rows
+   when cast).
+7. The H2 residue `testExecuteInDbToTDS` (variant navigation) stays on the wall.
+8. Fourteen kind keys are strings (`"numeric"`, `"enum:…"`, `"instance:…"`) — a sealed
+   kind type is owed. Three natives are matched by SIMPLE NAME against the exact-FQN rule:
+   the `ORDER_PRESERVING`/`ORDER_DESTROYING` tails (audit 23 D1, moved verbatim),
+   `toOne/first/at(0)`, and `endsWith("::assert")` — `PlatformTypes` FQNs owed.
+
+**The `if`-by-`if` overfit read (asked: "every `if` can encode subtle logic for a test to
+pass").** All 298 conditions and 128 ternaries in AssertVerdicts were listed. No condition
+names a test; families are FQN constants; the only literal strings compared are grammar
+facts (`rows`/`values` property names, the `TDSNull`/`null`/`true`/`false` cell spellings,
+the `#TDS` frame, CSV chunking) and the stringly kind keys above. The three comments that
+cite tests (line 130 `forAll` idiom, line 294 bare `sort()` over cells, line 2397
+both-sides-rendered multiset) describe where an IDIOM was first seen; the conditions test
+the idiom's structure, not the test. Two conditions deserve naming because they are
+policies riding on another judge's answer, both in the CENSUS channel (never the verdict
+of record): the byte channel holds a byte-differing pair within the declared 2 ULP
+(`sqlUlpPolicy`, counted), and holds an expected-side `TDSNull` sentinel only when the host
+held (`hostHeld && containsTdsNullSentinel`, counted — direction-aware by audit 16 F5). The
+decimal-candidate rule ("decimal" kind, no decimal candidate, a float candidate →
+`"float"`) is static truth from the compiler's candidate set, not a value-driven rescue.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

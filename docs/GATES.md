@@ -4238,3 +4238,16 @@ float rule, not the 2-ULP judge; a leniency mismatch, decision owed); unjudged 0
 (host body raises before the assert; on the host accepted roster). Placed in stream C it measured
 121 s and took the wall to 364 s — over the 4-minute budget — hence opt-in. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4x.
+
+**One float rule (2026-09-20):** default chain GREEN (gates 1–10), parallel wall 301 s — above
+the 4-minute budget (G2 30; A: G1 90 · G3 14 · G4 126 · G5 41; B: G6 168 · G7 51 · G9 39; C: G8
+182 · G10 61; run directly after the four judge lanes on the same machine — re-measure quiet).
+The referee normalises floats EXACTLY and pairs leftover rows at 2 ULP (`H2Verify.residuePaired`,
+counted `float-2ulp`, ceilings DuckDB 23 / H2 5); `TdsCompare.cellEquals` is string-equal or 2
+ULP; the ten-digit and printed-precision leniencies DELETED; `Equality.withinTwoUlp` the ONE
+`Math.ulp` site. Four lanes: DuckDB host 108 / H2 host 412 exact; DuckDB database lost 0 / gained
+0, accepted 3 (witnesses pruned); H2 database lost 64 / gained 71; differential agree 5,848 ·
+disagree 0 · unjudged 0 · database-only 2. Both judges accept the same 23 (14 golden defects + 9
+DECFLOAT rows). Ledger: AssertVerdicts 2607, TdsCompare 366 → 343. `tools/judge-lanes.sh` runs
+the four lanes + the differential (`JUDGE_LANES=duck` for the fast pair). Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4y (audit findings + the `if`-by-`if` read inside).

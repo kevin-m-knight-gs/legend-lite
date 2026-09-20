@@ -28,10 +28,17 @@ class VerdictChannelRegisterTest {
             "core/src/main/java/com/legend/AssertVerdicts.java",
             // message facades: the assert family's spellings, decided by the judge
             "core/src/main/java/com/legend/exec/PureAsserts.java",
-            // the grid compare policy (row order / multiset), cells by the judge
+            // the grid compare policy (row order / multiset), cells by the judge —
+            // and since 2026-09-20 its float cell rule is the judge's own
+            // (Equality.withinTwoUlp; the printed-precision tolerance deleted)
             "core/src/main/java/com/legend/exec/TdsCompare.java",
             // the service-test runner's EqualToJson routes to serviceJson
             "core/src/main/java/com/legend/test/TestAssertions.java",
+            // 2026-09-20 (one float rule): the corpus REFEREE's float cell
+            // rule is the judge's own — its 2-ULP pairing of leftover rows
+            // calls the one home (the ten-digit normalization it replaced
+            // was a second definition of "equal float"; deleted)
+            "spec/src/test/java/com/legend/harness/H2Verify.java",
             "core/src/test/java/com/legend/exec/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/exec/EqualityWorldsConformanceTest.java",
             "core/src/test/java/com/legend/exec/PureAssertsTest.java");

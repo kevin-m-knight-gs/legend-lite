@@ -74,7 +74,11 @@ public final class Equality {
         return ULP_FIRINGS.get();
     }
 
-    private static boolean withinTwoUlp(double x, double y) {
+    /** THE ONE FLOAT LENIENCY (§5a, one home): two finite doubles within
+     * {@code 2 * ulp(max(|x|, |y|))}. The host cell rule (TdsCompare) and
+     * the referee (H2Verify) call HERE; the database judge spells the same
+     * predicate in SQL (VerdictSql.lenient). */
+    public static boolean withinTwoUlp(double x, double y) {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             return false;
         }

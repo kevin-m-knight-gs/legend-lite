@@ -544,8 +544,7 @@ final class AssertVerdicts {
                     // read off the planned side's root object
                     boolean rootMany = ja.side() != null && !planIsEnvelope(ja.side().plan())
                             && serializedRootMany(actualJson, letPrefix, hook);
-                    // bucket 9: a many-valued root whose chain has no sort is a
-                    // MULTISET of root objects (the grid rule in JSON form)
+                    // bucket 9: an unsorted many-valued root is a MULTISET of root objects
                     if (rootMany && ja.why() == null
                             && orderView(actualJson, letPrefix) != OrderView.SORTED) {
                         TypedSpec elements = com.legend.compiler.spec.VerdictQueries
@@ -555,8 +554,6 @@ final class AssertVerdicts {
                             if (jr.why() == null) {
                                 com.legend.sql.SqlQuery mq = com.legend.lowering.VerdictSql.jsonRootMultiset(
                                         jr.textRowsMany(), ja.textRows());
-                                // a dialect without the element explode (H2) keeps the
-                                // byte road below — the ordered form, stricter, as before
                                 boolean placeable;
                                 try {
                                     env.dialect().render(mq);
@@ -1191,6 +1188,14 @@ final class AssertVerdicts {
     /** A grid side's statement facts from its schema: the declared-Float
      * columns (the 2-ULP leniency) and, under toCSV's grammar, the String
      * columns whose empty cell and NULL print alike. */
+    /** A grid side's schema by EFFECTIVE kind (a Number over a DOUBLE wire is a Float). */
+    private static com.legend.compiler.element.type.Type.@com.legend.Nullable RelationType effectiveSchema(
+            StatementExecutor.WrappedSide side) {
+        var d = com.legend.compiler.element.type.Type.schemaView(side.shapeInfo().type());
+        return d == null || d.columns().size() > side.plan().outputs().size() ? d : com.legend.compiler
+                .spec.VerdictQueries.wireDecidedKinds(d, side.plan().outputs().subList(0, d.columns().size()));
+    }
+
     private static com.legend.lowering.VerdictSql.GridSide gridSide(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType schema, boolean csvStrings) {
         List<Boolean> floatCols = new ArrayList<>();
@@ -1297,10 +1302,8 @@ final class AssertVerdicts {
             if (gridE && gridA) {
                 // two grids: their row canons against each other, the cells
                 // walked for the declared-Float leniency when the schemas agree
-                var se = com.legend.compiler.element.type.Type.schemaView(
-                        java.util.Objects.requireNonNull(we).shapeInfo().type());
-                var sa = com.legend.compiler.element.type.Type.schemaView(
-                        java.util.Objects.requireNonNull(wa).shapeInfo().type());
+                var se = effectiveSchema(java.util.Objects.requireNonNull(we));
+                var sa = effectiveSchema(java.util.Objects.requireNonNull(wa));
                 com.legend.sql.SqlQuery pq;
                 if (se != null && sa != null && se.columns().size() == sa.columns().size()) {
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
@@ -1314,8 +1317,7 @@ final class AssertVerdicts {
                 StatementExecutor.WrappedSide gw = gridE ? we : wa;
                 com.legend.exec.CanonRider pr = gridE ? ra : re;
                 StatementExecutor.WrappedSide pw = gridE ? wa : we;
-                var schema = com.legend.compiler.element.type.Type.schemaView(
-                        java.util.Objects.requireNonNull(gw).shapeInfo().type());
+                var schema = effectiveSchema(java.util.Objects.requireNonNull(gw));
                 int width = schema == null ? 0 : schema.columns().size();
                 if (width <= 0) {
                     why = "grid side without a schema view";
@@ -2504,14 +2506,12 @@ final class AssertVerdicts {
                 return unjudged(name, "rendered-text side: " + planned.why());
             }
             var side = java.util.Objects.requireNonNull(planned.side());
-            var pr = java.util.Objects.requireNonNull(planned.rider());
-            // the grid's DATA columns (the wrap appends its canon columns after them)
+            var pr = java.util.Objects.requireNonNull(planned.rider());   // width recorded at wrap
             List<com.legend.sql.OutputCol> data = pr.tdsWrapped()
                     ? side.plan().outputs().subList(0, pr.tdsWidth()) : side.plan().outputs();
             schema = com.legend.compiler.element.type.Type.schemaView(side.shapeInfo().type());
             if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
-                // late-bound columns (a raw executeInDb grid framed by the
-                // database's reported columns): the slots type the golden
+                // late-bound (a raw grid framed by the database's columns): the slots type it
                 schema = com.legend.compiler.spec.VerdictQueries.wireSchema(data);
             } else {
                 // a wire-decided declaration's cell is what the wire printed

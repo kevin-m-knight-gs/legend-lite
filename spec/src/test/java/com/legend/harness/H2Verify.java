@@ -853,10 +853,99 @@ public final class H2Verify {
                 }
                 Collections.sort(theirs);
                 Collections.sort(mine);
-                if (theirs.equals(mine)) {
+                if (theirs.equals(mine) || residuePaired(theirs, mine)) {
                     return null;
                 }
                 return divergence(theirs, mine);
+    }
+
+    /** THE ONE FLOAT LENIENCY, pairwise (2026-09-20): two equal-sized row
+     * lists match when every row left over after exact matching pairs with a
+     * leftover of the other side cell for cell ({@link #unpaired}). */
+    static boolean residuePaired(List<String> golden, List<String> ours) {
+        return golden.size() == ours.size() && unpaired(golden, ours).isEmpty();
+    }
+
+    /** The golden rows with NO partner in {@code ours} (a multiset): exact
+     * matching first, then each leftover golden row against the leftover
+     * rows of {@code ours} cell for cell — a cell equal as text, or two
+     * decimal-point numbers within the judges' 2-ULP rule. Counted as
+     * {@code float-2ulp} when the pairing decided. */
+    private static List<String> unpaired(List<String> golden, List<String> ours) {
+        java.util.Map<String, Integer> pool = new java.util.HashMap<>();
+        for (String row : ours) {
+            pool.merge(row, 1, Integer::sum);
+        }
+        List<String> leftGolden = new ArrayList<>();
+        for (String g : golden) {
+            Integer n = pool.get(g);
+            if (n == null || n == 0) {
+                leftGolden.add(g);
+            } else {
+                pool.put(g, n - 1);
+            }
+        }
+        if (leftGolden.isEmpty()) {
+            return leftGolden;
+        }
+        List<String> leftOurs = new ArrayList<>();
+        for (var e : pool.entrySet()) {
+            for (int i = 0; i < e.getValue(); i++) {
+                leftOurs.add(e.getKey());
+            }
+        }
+        List<String> missing = new ArrayList<>();
+        boolean paired = false;
+        for (String g : leftGolden) {
+            int hit = -1;
+            for (int i = 0; i < leftOurs.size() && hit < 0; i++) {
+                if (rowEquals2Ulp(g, leftOurs.get(i))) {
+                    hit = i;
+                }
+            }
+            if (hit < 0) {
+                missing.add(g);
+            } else {
+                leftOurs.remove(hit);
+                paired = true;
+            }
+        }
+        if (paired && missing.isEmpty()) {
+            leniency("float-2ulp");
+        }
+        return missing;
+    }
+
+    private static boolean rowEquals2Ulp(String a, String b) {
+        String[] x = a.split("\\|", -1);
+        String[] y = b.split("\\|", -1);
+        if (x.length != y.length) {
+            return false;
+        }
+        for (int i = 0; i < x.length; i++) {
+            if (!cellEquals2Ulp(x[i], y[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Two cells: equal as text, or both decimal-point number spellings
+     * within 2 ULP of each other (integral spellings compare as text — the
+     * epoch-millis lesson). */
+    static boolean cellEquals2Ulp(String a, String b) {
+        if (a.equals(b)) {
+            return true;
+        }
+        if (a.indexOf('.') < 0 || b.indexOf('.') < 0) {
+            return false;
+        }
+        try {
+            // the ONE home of the rule (Equality, §5a)
+            return com.legend.exec.Equality.withinTwoUlp(Double.parseDouble(a), Double.parseDouble(b));
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     /** Resolve the {@link #SORT_KEYS} names to indexes in
@@ -934,7 +1023,7 @@ public final class H2Verify {
             List<String> b = new ArrayList<>(mine.subList(i, j));
             Collections.sort(a);
             Collections.sort(b);
-            if (!a.equals(b)) {
+            if (!a.equals(b) && !residuePaired(a, b)) {
                 return divergence(theirs, mine);
             }
             i = j;
@@ -1005,19 +1094,10 @@ public final class H2Verify {
             return "page-membership divergence: golden page has " + theirs.size()
                     + " row(s), ours " + mine.size();
         }
-        java.util.Map<String, Integer> pool = new java.util.HashMap<>();
-        for (String row : population) {
-            pool.merge(row, 1, Integer::sum);
-        }
-        List<String> missing = new ArrayList<>();
-        for (String t : theirs) {
-            Integer n = pool.get(t);
-            if (n == null || n == 0) {
-                missing.add(t);
-            } else {
-                pool.put(t, n - 1);
-            }
-        }
+        // every golden page row a member of our unpaged population (a
+        // multiset — a duplicated row needs a duplicate), the 2-ULP pairing
+        // over the leftovers
+        List<String> missing = unpaired(theirs, population);
         if (!missing.isEmpty()) {
             return "page-membership divergence: golden page row(s) not in our"
                     + " unpaged population (" + population.size() + " rows): "
@@ -1131,7 +1211,7 @@ public final class H2Verify {
         List<String> o = new java.util.ArrayList<>(ourRows);
         java.util.Collections.sort(g);
         java.util.Collections.sort(o);
-        return g.equals(o) ? null
+        return g.equals(o) || residuePaired(g, o) ? null
                 : "tdg-replay: golden rows " + (golden.size() - 1)
                         + " vs ours " + (ourRows.size() - 1)
                         + " — first diff at " + firstDiff(g, o);
@@ -1247,22 +1327,12 @@ public final class H2Verify {
                 if (d.stripTrailingZeros().scale() <= 0) {
                     return d.stripTrailingZeros().toPlainString();
                 }
-                // FLOATING values keep a CROSS-ENGINE tolerance of 10
-                // significant digits: H2 divides in exact DECIMAL,
-                // DuckDB in binary double, and the tails genuinely
-                // diverge around digit 11-12 WITH rounding-boundary
-                // straddles (witness: testUnionWithWtdAndPwa raw
-                // ...394497 vs ...39455 rounds apart at BOTH 11 and 12).
-                // Fixed-digit normalization cannot separate 1-ulp tails
-                // from real sub-1e-10 differences; 10 digits is the
-                // empirically-clean cross-engine floor. The REAL defect
-                // (integral collapse — epoch-millis comparing equal) is
-                // fixed above by the exact integral arm.
-                BigDecimal rounded = d.round(new java.math.MathContext(10));
-                if (rounded.compareTo(d) != 0) {
-                    leniency("float-10-digits");
-                }
-                return rounded.stripTrailingZeros().toPlainString();
+                // FLOATING values spell EXACTLY; the ONE float leniency is
+                // the judges' own 2-ULP rule, applied pairwise to residual
+                // rows (residuePaired) — never a digit count (the ten-digit
+                // normalization deleted 2026-09-20, docs/DATABASE_MODE_HOMEWORK
+                // §4y: it hid H2's DECFLOAT arithmetic from the referee)
+                return d.stripTrailingZeros().toPlainString();
             } catch (NumberFormatException e) {
                 return v.toString();
             }

@@ -109,7 +109,7 @@ jobs:
           # an empty matrix fails the lanes job with a cryptic runner error —
           # say what actually went wrong instead
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid lanes are 3,4,5,6,7,8,9,10 (gate 1 always runs, gate 2 is folded into each lane)"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid lanes are 3,4,5,6,7,8,9,10,11 (gate 1 always runs, gate 2 is folded into each lane)"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"

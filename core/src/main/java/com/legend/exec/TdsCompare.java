@@ -456,11 +456,12 @@ public final class TdsCompare {
         return true;
     }
 
-    /** One cell — the KEPT float tolerance, bounded and counted
-     * ({@code LL_TOL_COUNT}), applied ONLY when BOTH tokens are
-     * decimal-point float prints. The cross-kind collapse
-     * ('007'=='7', '1e3'=='1000') stays DELETED: integers and
-     * scientific forms compare as strings. */
+    /** One cell — THE ONE float leniency (2026-09-20): two decimal-point
+     * float prints within {@code 2 * ulp(max(|x|, |y|))} (the judges' own
+     * rule — Equality, VerdictSql); the "golden's printed precision"
+     * tolerance is DELETED (it hid H2's DECFLOAT arithmetic from the
+     * host judge: the 21 calendar rows). Integers and scientific forms
+     * compare as strings. Counted under {@code LL_TOL_COUNT}. */
     private static boolean cellEquals(String e, String a) {
         if (e.equals(a)) {
             return true;
@@ -469,30 +470,7 @@ public final class TdsCompare {
             return false;
         }
         try {
-            double ev = Double.parseDouble(e);
-            double av = Double.parseDouble(a);
-            int dp = e.length() - e.indexOf('.') - 1;
-            int sig = 0;
-            boolean seenNonZero = false;
-            for (int ci = 0; ci < e.length(); ci++) {
-                char ch = e.charAt(ci);
-                if (ch >= '1' && ch <= '9') {
-                    seenNonZero = true;
-                }
-                if (Character.isDigit(ch) && (seenNonZero || ch != '0')) {
-                    sig++;
-                }
-            }
-            double tol = sig >= 10
-                    ? Math.max(0.5 * Math.pow(10, -dp), Math.abs(ev) * 1e-11)
-                    : Math.abs(ev) * 1e-11;
-            if (Math.abs(av - ev) > tol) {
-                return false;
-            }
-            if (av != ev && System.getenv("LL_TOL_COUNT") != null) {
-                System.err.println("[tol] csv " + e + " vs " + a);
-            }
-            return true;
+            return Equality.withinTwoUlp(Double.parseDouble(e), Double.parseDouble(a));
         } catch (NumberFormatException nfe) {
             return false;
         }

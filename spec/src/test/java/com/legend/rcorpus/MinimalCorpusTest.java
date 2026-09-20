@@ -605,7 +605,7 @@ class MinimalCorpusTest {
     // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on
     // demand): one of the newly row-judged tests compares a float column
     private static final java.util.Map<String, Integer> DUCKDB_LENIENCY = java.util.Map.of(
-            "float-10-digits", 49, "micro-floor", 7,
+            "float-2ulp", 23, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
     private static final java.util.Map<String, Integer> H2_LENIENCY = java.util.Map.of(
     // float-10-digits 33 -> 34 (2026-09-17): one of the twelve group-by/average
@@ -615,7 +615,7 @@ class MinimalCorpusTest {
             // rows execute now that the float canon's exponent cast no longer folds
             // to CAST('' AS INTEGER) over a constant golden cell; two of them pass
             // through the referee's bounded float tolerance (H2's DOUBLE print)
-            "float-10-digits", 36, "micro-floor", 7,
+            "float-2ulp", 5, "micro-floor", 7,
             "golden-fanout-collapsed", 1, "golden-stitch-keys-dropped", 8);
 
     private static final String ORD_UNMAPPABLE = "ordered-keys-unmappable";
