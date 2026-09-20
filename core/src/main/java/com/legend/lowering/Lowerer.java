@@ -542,6 +542,9 @@ public final class Lowerer {
                     SqlSelect.starOf(new SqlSource.RawSql(   // Phase 1c
                             raw.sql(), nextAlias(), outputsOf(raw.info(), OutputCol.Origin.DERIVED)));
 
+            // leg 3.4 step 2: a planned frame, referenced by name (FrameRefs)
+            case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this, fr);
+
             case TypedFilter f -> filter(f);
 
             case TypedSelect sel -> Fold.restrictOverWholeRowDistinct(sel) != null
@@ -1297,20 +1300,11 @@ public final class Lowerer {
         if (fn == SqlAgg.Fn.STRING_AGG && extra.isEmpty()) {
             extra.add(new SqlExpr.StringLit(""));
         }
-        // ORDER DETERMINISM: an un-ordered group concat follows SCAN
-        // order on the engine's H2 (insertion order — Johnson*Hill,
-        // S1*S2 goldens); DuckDB's hash joins scramble it. The faithful
-        // key is the VALUE table's physical row order — rowid, valid
-        // only when the value reads a BASE TABLE alias.
-        if (fn == SqlAgg.Fn.STRING_AGG && aggOrder.isEmpty()
-                && value instanceof SqlExpr.Column vc
-                && aliasIsBaseTable(base.from(), vc.table())) {
-            aggOrder = List.of(new SqlSelect.SortKey(
-                    new SqlExpr.RowOrder(vc.table()), true, null, null));
-        }
-        // (Sorted-input aggregation order is ENGINE-COMPAT ONLY —
-        // StableScanOrder owns replay determinism; user ruling
-        // 2026-08-31: the platform stays order-honest.)
+        // ORDER: an un-ordered group concat has NO order in pure; the
+        // product emits none (user ruling 2026-09-20: product SQL carries no
+        // ordering it did not ask for). The engine's H2 insertion order the
+        // corpus goldens captured is the TEST LANE's to reproduce
+        // (StableScanOrder, switched on by the corpus runner only).
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate.
         if (fn == SqlAgg.Fn.STRING_AGG && extra.size() == 3) {
@@ -1639,17 +1633,6 @@ public final class Lowerer {
             }
         }
         throw new UnfoldableRef(column);
-    }
-
-    /** Whether {@code alias} names a BASE TABLE scan in the from tree —
-     * the rowid pseudo-column is only valid there. */
-    private static boolean aliasIsBaseTable(SqlSource src, @com.legend.Nullable String alias) {
-        return switch (src) {
-            case SqlSource.Table t -> t.alias().equals(alias);
-            case SqlSource.Join j -> aliasIsBaseTable(j.left(), alias)
-                    || aliasIsBaseTable(j.right(), alias);
-            default -> false;
-        };
     }
 
     SqlExpr resolveOrThrow(SqlSelect select, @com.legend.Nullable String column) {
@@ -2997,7 +2980,7 @@ public final class Lowerer {
             // trailing newline (enumeration golden testEnumInRelation)
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
-                    && Type.relationSchema(csvRead.source().info().type()) != null ->
+                    && Render.csvOverRelation(csvRead) ->
                 Render.lowerTdsCsvProperty(csvRead, this::relation, nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when

@@ -1446,7 +1446,8 @@ final class AssertVerdicts {
             return ok();
         }
         return verdictOf(name, wantEqual, com.legend.exec.VerdictBatch.executeOne(
-                name, vq, ONE_ROW, runOn, env.dialect(), env.trace()));
+                name, batch == null ? vq : com.legend.sql.FrameCtes.attach(vq, batch.frames()),
+                ONE_ROW, runOn, env.dialect(), env.trace()));
     }
 
     /** The verdict of one row ({@code verdict, expected, actual, unjudged,

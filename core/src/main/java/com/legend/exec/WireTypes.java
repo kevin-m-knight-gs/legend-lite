@@ -94,6 +94,21 @@ public final class WireTypes {
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
             com.legend.sql.dialect.SqlDialect dialect, Connection conn,
             Map<String, List<ReportedColumn>> memo) {
+        return reconcile(plan, plan, shapeInfo, dialect, conn, memo);
+    }
+
+    /** With the frame definitions the plan may reference (leg 3.4 step 2):
+     * the plan stays bare; the prepare sees them at the statement's head. */
+    public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
+            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            Map<String, List<ReportedColumn>> memo, Map<String, SqlQuery> frames) {
+        return reconcile(plan, com.legend.sql.FrameCtes.attach(plan, frames), shapeInfo,
+                dialect, conn, memo);
+    }
+
+    private static SqlQuery reconcile(SqlQuery plan, SqlQuery whole, ExprType shapeInfo,
+            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            Map<String, List<ReportedColumn>> memo) {
         if (!(plan instanceof SqlSelect ps) || ps.projections().isEmpty()
                 || ps.projections().size() != plan.outputs().size()) {
             return plan;
@@ -102,7 +117,7 @@ public final class WireTypes {
         if (declared == null || declared.stream().noneMatch(Type::wireDecided)) {
             return plan;
         }
-        String sql = dialect.render(plan);
+        String sql = dialect.render(whole);
         List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, conn));
         if (reported.size() != plan.outputs().size()) {
             return plan;

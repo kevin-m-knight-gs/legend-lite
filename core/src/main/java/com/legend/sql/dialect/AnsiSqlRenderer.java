@@ -117,7 +117,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     if (i > 0) {
                         sb.append(", ");
                     }
-                    sb.append(w.ctes().get(i).name()).append(" AS (");
+                    sb.append(w.ctes().get(i).name()).append(cteAs(w.ctes().get(i)));
                     query(sb, w.ctes().get(i).query(), depth + 1);
                     sb.append(')');
                 }
@@ -220,8 +220,25 @@ public class AnsiSqlRenderer implements SqlDialect {
         // the synthetic scalar-map marker (PlatformTypes.SYNTH_MAP_COL)
         // stays IN the execution alias — downstream references are built
         // from the (prefixed) row type; engine-TEXT renderers drop it
-        String e = expr(p.expr(), 0);
+        String e = p.expr() instanceof SqlExpr.NullLit && p.out() != null
+                && typedNullSlot(p.out().type())
+                // THE SLOT IS THE WIRE: a NULL projected under a typed slot
+                // spells its type — a bare NULL is typed by its use when the
+                // select is inlined and INTEGER by default when it is
+                // materialized (leg 3.4 step 2: a frame CTE's NULL column)
+                ? "CAST(NULL AS " + castTypeName(p.out().type()) + ")"
+                : expr(p.expr(), 0);
         return p.alias() == null ? e : e + " AS " + aliasIdent(p.alias());
+    }
+
+    /** The scalar slot types a typed NULL spells; the label carriers
+     * (LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT, JSON) keep a bare NULL. */
+    private static boolean typedNullSlot(com.legend.sql.SqlType t) {
+        return t == com.legend.sql.SqlType.Scalar.BOOLEAN || t == com.legend.sql.SqlType.Scalar.INTEGER
+                || t == com.legend.sql.SqlType.Scalar.BIGINT || t == com.legend.sql.SqlType.Scalar.HUGEINT
+                || t == com.legend.sql.SqlType.Scalar.DOUBLE || t == com.legend.sql.SqlType.Scalar.VARCHAR
+                || t == com.legend.sql.SqlType.Scalar.DATE || t == com.legend.sql.SqlType.Scalar.TIMESTAMP
+                || t == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ;
     }
 
     protected String sortKey(SqlSelect.SortKey k) {
@@ -265,6 +282,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     sb.append(" AS ").append(aliasIdent(t.alias()));
                 }
             }
+            case SqlSource.Cte c -> sb.append(c.name()).append(" AS ").append(aliasIdent(c.alias()));
             case SqlSource.Subselect sub -> subselectSource(sb, sub, depth);
             // cross-store plan variable: freemarker splice at execution
             // (engine VarSetPlaceHolder — plan text only; a DuckDB
@@ -301,6 +319,13 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** ANSI row-constructor VALUES with column aliases; SQLite overrides (UNION ALL). */
+    /** The {@code AS (} of a CTE head; a dialect with an evaluate-once
+     * keyword spells it for a materialized CTE (DuckDB); the default has
+     * none (H2 re-evaluates a CTE per reference). */
+    protected String cteAs(com.legend.sql.SqlWith.Cte c) {
+        return " AS (";
+    }
+
     protected void subselectSource(StringBuilder sb,
             SqlSource.Subselect sub, int depth) {
         sb.append("(");

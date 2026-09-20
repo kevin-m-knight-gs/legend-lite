@@ -79,7 +79,7 @@ public abstract class SqlRewriter {
             case SqlWith w -> {
                 List<SqlWith.Cte> cs = mapList(w.ctes(), c -> {
                     SqlQuery q2 = rewrite(c.query());
-                    return q2 == c.query() ? c : new SqlWith.Cte(c.name(), q2);
+                    return q2 == c.query() ? c : new SqlWith.Cte(c.name(), q2, c.materialized());
                 });
                 SqlQuery b2 = rewrite(w.body());
                 yield cs == w.ctes() && b2 == w.body() ? w : new SqlWith(cs, b2);
@@ -91,6 +91,7 @@ public abstract class SqlRewriter {
         SqlSource out = switch (s) {
             case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
+            case SqlSource.Cte c -> c;
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql r -> r;   // carried text: a leaf

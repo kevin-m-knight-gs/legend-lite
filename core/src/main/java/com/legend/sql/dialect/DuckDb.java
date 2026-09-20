@@ -33,6 +33,12 @@ public final class DuckDb extends AnsiSqlRenderer {
         return java.util.List.of("SET TimeZone='UTC'");
     }
 
+    /** DuckDB's documented evaluate-once: {@code AS MATERIALIZED}. */
+    @Override
+    protected String cteAs(com.legend.sql.SqlWith.Cte c) {
+        return c.materialized() ? " AS MATERIALIZED (" : " AS (";
+    }
+
     /** DuckDB's bare {@code TIMESTAMP} is MICROSECOND precision — a
      *  literal with NONZERO sub-microsecond digits silently truncates
      *  (proven with a standalone repro: comparisons against a

@@ -392,7 +392,11 @@ public final class CanonicalRenderSql {
      * character, reserved — a STRING cell containing it poisons its
      * row canon to NULL (a counted decline downstream), never a
      * silent mis-split. */
-    public static final String TDS_CELL_SEP = "\u001F";
+    // U+001D (group separator). NOT U+001F: that is RaisedErrors.SENTINEL, the
+    // raise envelope's mark — H2 embeds the executed statement in its error
+    // messages, so a separator literal in the canon text would be read as an
+    // envelope and the real message lost (leg 3.4 step 2 catch, 2026-09-20)
+    public static final String TDS_CELL_SEP = "\u001D";
 
     /** The grid wrap's appended columns: the per-ROW canon (last), and
      * one per-CELL canon per column before it (leg 3.1b). */

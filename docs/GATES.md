@@ -4281,3 +4281,22 @@ is the fix. Four lanes exact and unchanged; DuckDB differential agree 5,848 / di
 0. Round trips: DuckDB database 139,342 → 137,951 (verdicts 3,968 → 2,577 fused, fallbacks 0); H2
 database 135,608 → 134,459 (2,310 fused, 166 fallbacks = the H2 walls). Ledger: AssertVerdicts 2565
 → 2598, StatementExecutor 2234 → 2259. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4aa.
+
+**Leg 3.4 step 2 — frames as CTEs; the order ruling (2026-09-20):** default chain GREEN
+(gates 1–10), G2 25; A: G1 73 · G3 11 · G4 106 · G5 38; B: G6 139 · G7 44 · G9 35; C: G8 147 ·
+G10 55 (wall ≈ 250 s). A planned relation-rooted frame is ONE `MATERIALIZED` CTE of the fused
+statement (`TypedFrameRef` → `FrameRefs.reference` over `SqlSource.Cte`; definitions attached at
+render by `FrameCtes.attach`, side plans stay bare). THE ORDER RULING (user): product SQL carries
+no ordering it did not ask for — the Lowerer's `STRING_AGG … ORDER BY rowid` rule DELETED; the
+H2 insertion-order emulation is the TEST LANE's (`StableScanOrder`, only behind
+`legend.exec.engineScanOrder`, set only by the corpus runner) and applies only when the test's
+query has no ORDER BY; pinned by `TestLaneOrderGuardrailTest` and the per-lane/per-mode
+`engine-order` registers (DuckDB host 1,007 · database 936; H2 0). Fixed on the way (eleven real
+bugs, DATABASE_MODE_HOMEWORK §4ab): the last two being the statement-wide alias invariant the H2
+renderers rely on (`AliasPrefix` on every frame body; readers `<frame>_t<n>`) and the verdict
+canon's cell separator colliding with `RaisedErrors.SENTINEL` (now U+001D; the envelope closes at
+the next mark). Four lanes: DuckDB host 108 / H2 host 412 exact; DuckDB database lost 0 / gained
+0; H2 database lost 64 / gained 72 (+1 named); differential agree 5,848 · disagree 0 · unjudged
+0. Registers: `duckdb-database-accepted-register` witness re-spelled with the new separator;
+`h2-database-gained-register` +1. Ledgers: AssertVerdicts 2598 → 2599, StatementExecutor 2259 →
+2332; RawSql construction +AliasPrefix; PARK-2 anchor +SqlWith.java. Record: §4ab.

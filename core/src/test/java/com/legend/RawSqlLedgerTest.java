@@ -110,7 +110,10 @@ class RawSqlLedgerTest {
             "Lowerer.java", 1,
             // Phase 1c: RawSqlAdapt REWRAPS an existing RawSql with the
             // adapted authored text — same contract, dialect layer
-            "RawSqlAdapt.java", 1);
+            "RawSqlAdapt.java", 1,
+            // leg 3.4 step 2 (2026-09-20): AliasPrefix REWRAPS an existing RawSql
+            // under the frame body's alias prefix — the authored text verbatim
+            "AliasPrefix.java", 1);
 
     @Test
     void rawSqlSourceConstructionIsQuarantined() throws IOException {

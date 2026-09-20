@@ -1447,12 +1447,22 @@ final class StatementExecutor {
             @com.legend.Nullable ExecutionResult result,
             java.util.Map<String, String> tableReplace,
             @com.legend.Nullable com.legend.compiler.spec.typed
-                    .TypedNativeCall sourceExec) {
+                    .TypedNativeCall sourceExec,
+            com.legend.sql.@com.legend.Nullable SqlQuery plan,
+            com.legend.compiler.element.type.@com.legend.Nullable ExprType plannedInfo) {
         /** Pre-activity-model constructor (alias frames keep it). */
         ExecFrame(TypedSpec chain, boolean relationRooted,
                 @com.legend.Nullable ExecutionResult result,
                 java.util.Map<String, String> tableReplace) {
-            this(chain, relationRooted, result, tableReplace, null);
+            this(chain, relationRooted, result, tableReplace, null, null, null);
+        }
+
+        ExecFrame(TypedSpec chain, boolean relationRooted,
+                @com.legend.Nullable ExecutionResult result,
+                java.util.Map<String, String> tableReplace,
+                @com.legend.Nullable com.legend.compiler.spec.typed
+                        .TypedNativeCall sourceExec) {
+            this(chain, relationRooted, result, tableReplace, sourceExec, null, null);
         }
     }
 
@@ -1616,8 +1626,49 @@ final class StatementExecutor {
                 PlanAllocations.activitySql(ec, assembled.chain(), letPrefix, specs, env),
                 AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs),
                 run == null ? null : env.trace().lastComment(), env);
+        // leg 3.4 step 2: a relation-rooted frame of STATIC schema that ran
+        // (eager) is also PLANNED once — every assert side that reads it
+        // references the plan as a CTE instead of pasting the chain
+        com.legend.sql.SqlQuery plan = null;
+        com.legend.compiler.element.type.ExprType plannedInfo = null;
+        if (eager && assembled.relationRooted() && env.verdictBatch() != null) {
+            var schema = com.legend.compiler.element.type.Type.schemaView(
+                    assembled.chain().info().type());
+            if (schema != null && !schema.isLateBound() && schema.dynamicColumns().isEmpty()
+                    && !schema.columns().isEmpty()) {
+                BarePlan b = planBare(assembled.chain(), letPrefix, specs, env, null, null);
+                // the PLANNED root's type is the frame's schema as a side sees
+                // it (the resolver's view: a validation's key columns are
+                // typed here, not in the raw chain); a plan whose width is
+                // not that schema's stays pasted
+                var planned = b.answered() != null ? null
+                        : com.legend.compiler.element.type.Type.schemaView(b.root().info().type());
+                if (planned != null && !planned.isLateBound()
+                        && planned.columns().size() == b.plan().outputs().size()) {
+                    plan = b.plan();
+                    // the reference keeps the CHAIN's relation carrier (a
+                    // Relation<…> / TDS wrapper — the cast-to-TDS erasure and
+                    // the render recognizers read the wrapper), over the
+                    // PLANNED columns
+                    var chainType = assembled.chain().info().type();
+                    plannedInfo = chainType instanceof com.legend.compiler.element.type.Type.GenericType g
+                            && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS
+                                    .contains(g.rawFqn())
+                            ? new com.legend.compiler.element.type.ExprType(
+                                    new com.legend.compiler.element.type.Type.GenericType(g.rawFqn(),
+                                            java.util.List.of(planned), g.multArguments()),
+                                    assembled.chain().info().multiplicity())
+                            : b.root().info();
+                }
+            }
+        }
+        if (env.verdictBatch() != null) {
+            com.legend.exec.VerdictBatch.frame(plan != null ? com.legend.exec.VerdictBatch.FrameRead.CTE
+                    : assembled.relationRooted() ? com.legend.exec.VerdictBatch.FrameRead.PASTED
+                    : com.legend.exec.VerdictBatch.FrameRead.CLASS);
+        }
         return new ExecFrame(assembled.chain(),
-                assembled.relationRooted(), run, env.tableReplace(), ec);
+                assembled.relationRooted(), run, env.tableReplace(), ec, plan, plannedInfo);
     }
 
     /** A callee body with a NON-LET statement before its last (a
@@ -1720,9 +1771,21 @@ final class StatementExecutor {
             public com.legend.compiler.spec.ResultEnvelopeSplice
                     .@com.legend.Nullable View frame(String name) {
                 ExecFrame f = allFrames.get(name);
-                return f == null ? null
-                        : new com.legend.compiler.spec.ResultEnvelopeSplice
-                                .View(f.chain(), f.relationRooted(), f.sourceExec());
+                if (f == null) {
+                    return null;
+                }
+                // leg 3.4 step 2: a planned frame is read by REFERENCE
+                // (its CTE, named after the let, DEFINED on the body's batch
+                // — attached wherever its SQL is made); an unplanned one pastes
+                var batch = env.verdictBatch();
+                if (f.plan() == null || batch == null) {
+                    return new com.legend.compiler.spec.ResultEnvelopeSplice
+                            .View(f.chain(), f.relationRooted(), f.sourceExec());
+                }
+                batch.defineFrame("frame_" + name, f.plan());
+                return new com.legend.compiler.spec.ResultEnvelopeSplice
+                        .View(f.chain(), f.relationRooted(), f.sourceExec(),
+                                "frame_" + name, f.plan(), f.plannedInfo());
             }
 
             @Override
@@ -2283,6 +2346,14 @@ final class StatementExecutor {
         return plan;
     }
 
+    /** Leg 3.4 step 2: the SQL text of a plan for execution or prepare —
+     * with the frame definitions it references at its head (the batch's,
+     * database mode); the plan itself stays a bare select. */
+    static String renderFor(ExecEnv env, com.legend.sql.SqlQuery plan) {
+        var b = env.verdictBatch();
+        return env.dialect().render(b == null ? plan : com.legend.sql.FrameCtes.attach(plan, b.frames()));
+    }
+
     static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
@@ -2573,14 +2644,14 @@ final class StatementExecutor {
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type());
         if (System.getenv("LL_TMP_SQL") != null) {
-            System.err.println("[exec-sql] " + dialect.render(plan));
+            System.err.println("[exec-sql] " + renderFor(env, plan));
         }
         // E1 (JAVA_EVICTION_PLAN): post-staticize wrap — the plan
         // emits the PCT wire text as one Scalar String
         if (env.options().pctRender()
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type())) {
-            return executePctTds(plan, root, dialect, connection);
+            return executePctTds(plan, root, env);
         }
         ExecutionResult res = executePlan(plan, root,
                 collectionDeclared ? declaredInfo : null, rider, folded, env);
@@ -2671,6 +2742,30 @@ final class StatementExecutor {
             com.legend.exec.CanonRider rider,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
+        BarePlan b = planBare(value, letPrefix, specs, env, rider, hook);
+        if (b.answered() != null) {
+            return new PlannedValue(null, b.answered());
+        }
+        WrappedSide ws = wrapSide(b.plan(), b.root(), b.declaredInfo(), rider, b.env());
+        return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),
+                ws.connection(), b.storeFree()), null);
+    }
+
+    /** A value's plan before the canon wrap: the plan, its root, the
+     * collection declaration (when a primitive collection is declared over a
+     * relation root), the planned env, and whether it reads no store. */
+    record BarePlan(@com.legend.Nullable ExecutionResult answered,
+            com.legend.sql.SqlQuery plan, TypedSpec root,
+            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
+            ExecEnv env, boolean storeFree) {
+    }
+
+    private static BarePlan planBare(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
         java.util.List<TypedSpec> body = sideBody(value, letPrefix, specs, env, hook);
         java.util.Set<String> stores = new java.util.TreeSet<>();
         for (TypedSpec n : body) {
@@ -2678,13 +2773,14 @@ final class StatementExecutor {
         }
         Prelude p = prelude(body, env, rider, false);
         if (p.answered() != null) {
-            return new PlannedValue(null, p.answered());
+            return new BarePlan(p.answered(), com.legend.sql.SqlSelect.starOf(
+                    new com.legend.sql.SqlSource.Dual()), value, null, env, true);
         }
         ExecEnv penv = p.plannedEnv();
         TypedSpec root = p.plannedRoot();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), penv, penv.ctx(),
                 penv.dialect(), penv.connection(), true);
-        if (rider.canonicalJsonKeys()) {
+        if (rider != null && rider.canonicalJsonKeys()) {
             // the verdict plan's JSON objects with keys SORTED — one IR
             // pass over the plan, the builders untouched
             plan = com.legend.sql.JsonKeyOrder.sort(plan);
@@ -2700,16 +2796,18 @@ final class StatementExecutor {
             // leg 3.3: a store-reading side's wire-decided kinds are the
             // database's (a store declaration is not a cast); a store-free
             // side's stamp is the compiler's own fact
+            var batch = penv.verdictBatch();
             plan = com.legend.exec.WireTypes.reconcile(plan,
                     collectionDeclared ? java.util.Objects.requireNonNull(p.declaredInfo())
                             : com.legend.exec.ResultShape.valueInfo(root.info()),
-                    penv.dialect(), penv.connection(), wireMemo(penv.connection()));
+                    penv.dialect(), penv.connection(), wireMemo(penv.connection()),
+                    batch == null ? java.util.Map.of() : batch.frames());
         }
-        WrappedSide ws = wrapSide(plan, root,
-                collectionDeclared ? p.declaredInfo() : null, rider, penv);
-        return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),
-                ws.connection(), stores.isEmpty()), null);
+        return new BarePlan(null, plan, root,
+                collectionDeclared ? p.declaredInfo() : null, penv, stores.isEmpty());
     }
+
+
 
     /** The canon wrap of {@link #executePlan}, alone. */
     private static WrappedSide wrapSide(com.legend.sql.SqlQuery plan,
@@ -2775,11 +2873,11 @@ final class StatementExecutor {
         com.legend.exec.ResultShape shape = ws.shape();
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         if (rider == null) {
-            return Executor.execute(dialect.render(plan), plan, shapeInfo,
+            return Executor.execute(renderFor(env, plan), plan, shapeInfo,
                     shape, env.connection(), dialect, null, env.trace());
         }
         try {
-            return Executor.execute(dialect.render(plan), plan, shapeInfo,
+            return Executor.execute(renderFor(env, plan), plan, shapeInfo,
                     shape, env.connection(), dialect, rider, env.trace());
         } catch (RuntimeException e) {
             // THE DECLINE TUNNEL, V11 form (DataError included — the
@@ -2820,7 +2918,7 @@ final class StatementExecutor {
                     if (w2.declineReason() == null) {
                         rider.wrap(w2.kinds(), w2.many(), w2.literalIndex());
                         return Executor.execute(
-                                dialect.render(w2.plan()), w2.plan(),
+                                renderFor(env, w2.plan()), w2.plan(),
                                 shapeInfo, shape, env.connection(), dialect,
                                 rider, env.trace());
                     }
@@ -2837,7 +2935,7 @@ final class StatementExecutor {
                     // the failure is the side's own
                     throw e;
                 }
-                return Executor.execute(dialect.render(bare), bare,
+                return Executor.execute(renderFor(env, bare), bare,
                         shapeInfo, shape, env.connection(), dialect, null, env.trace());
             } catch (RuntimeException e2) {
                 // the BARE side itself cannot execute: an unSQLable
@@ -2856,8 +2954,9 @@ final class StatementExecutor {
     /** E1: probe (pivot plans only) → lowering-side wrap → SCALAR
      * String execution — the wire text is the plan's projection. */
     private static ExecutionResult executePctTds(com.legend.sql.SqlQuery plan,
-            TypedSpec root, com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection) {
+            TypedSpec root, ExecEnv env) {
+        com.legend.sql.dialect.SqlDialect dialect = env.dialect();
+        java.sql.Connection connection = env.connection();
         com.legend.sql.PlanProbe probe =
                 com.legend.lowering.PctTdsWrap.pivots(plan).isEmpty() ? null
                         : com.legend.exec.PctProbe.probe(plan, dialect,
@@ -2867,7 +2966,7 @@ final class StatementExecutor {
                         com.legend.compiler.element.type.Type
                                 .requireRelationSchema(root.info().type()),
                         probe, com.legend.exec.Executor::pureOfSqlType);
-        ExecutionResult text = Executor.execute(dialect.render(rendered), rendered,
+        ExecutionResult text = Executor.execute(renderFor(env, rendered), rendered,
                 com.legend.compiler.element.type.ExprType.one(
                         com.legend.compiler.element.type.Type.Primitive
                                 .STRING),

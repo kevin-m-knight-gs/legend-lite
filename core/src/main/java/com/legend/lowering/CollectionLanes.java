@@ -173,6 +173,7 @@ final class CollectionLanes {
             case TypedNavigate ignored -> false;
             case TypedTableReference ignored -> false;
             case TypedRawSqlRelation ignored -> false;
+            case com.legend.compiler.spec.typed.TypedFrameRef ignored -> false;
             case TypedCollectionRelation ignored -> false;
             case TypedTds ignored -> false;
             case TypedProject ignored -> false;

@@ -105,7 +105,7 @@ public final class SqlPostProcessors {
                     .map(b -> apply(b, map)).toList(), u.all(), u.outputs());
             case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(
                     w.ctes().stream().map(c -> new com.legend.sql.SqlWith.Cte(
-                            c.name(), apply(c.query(), map))).toList(),
+                            c.name(), apply(c.query(), map), c.materialized())).toList(),
                     apply(w.body(), map));
         };
     }
@@ -136,7 +136,7 @@ public final class SqlPostProcessors {
                     u.all(), u.outputs());
             case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(
                     w.ctes().stream().map(c -> new com.legend.sql.SqlWith.Cte(
-                            c.name(), nonExecutable(c.query()))).toList(),
+                            c.name(), nonExecutable(c.query()), c.materialized())).toList(),
                     nonExecutable(w.body()));
             default -> q;
         };
@@ -236,6 +236,7 @@ public final class SqlPostProcessors {
     private static SqlSource source(SqlSource src,
             java.util.function.UnaryOperator<String> m) {
         return switch (src) {
+            case SqlSource.Cte c -> c;   // a statement's own CTE: no store to replace
             case SqlSource.Table t -> {
                 String nn = m.apply(t.name());
                 yield nn.equals(t.name()) ? t

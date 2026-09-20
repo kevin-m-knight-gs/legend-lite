@@ -636,9 +636,21 @@ public final class VerdictSql {
      * metamodel read with JSON aggregation — the Linux-independent catch of
      * 2026-09-20.) The caller reads each assert's row by its index (a
      * union's row order is not a contract). */
-    public static SqlQuery batch(List<SqlQuery> statements) {
+    public static SqlQuery batch(List<SqlQuery> statements,
+            java.util.Map<String, SqlQuery> frames) {
         List<OutputCol> outs = batchOutputs();
+        // leg 3.4 step 2: the frames the sides reference, DEFINED once at the
+        // head (MATERIALIZED: every side sees the same rows), ahead of all
         List<SqlWith.Cte> ctes = new ArrayList<>();
+        java.util.Set<String> used = new java.util.LinkedHashSet<>();
+        for (SqlQuery st : statements) {
+            used.addAll(com.legend.sql.FrameCtes.referenced(st));
+        }
+        for (var f : frames.entrySet()) {
+            if (used.contains(f.getKey())) {
+                ctes.add(new SqlWith.Cte(f.getKey(), f.getValue(), true));
+            }
+        }
         List<SqlQuery> branches = new ArrayList<>(statements.size());
         for (int i = 0; i < statements.size(); i++) {
             SqlQuery st = statements.get(i);

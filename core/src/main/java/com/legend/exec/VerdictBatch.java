@@ -33,10 +33,11 @@ import java.util.Map;
  * the verdict arm's ({@link Judge}). */
 public final class VerdictBatch {
 
-    /** The lowering's fused statement over the deferred statements. */
+    /** The lowering's fused statement over the deferred statements, with
+     * the frame definitions the sides reference at its head. */
     @FunctionalInterface
     public interface Fusion {
-        SqlQuery fuse(List<SqlQuery> statements);
+        SqlQuery fuse(List<SqlQuery> statements, Map<String, SqlQuery> frames);
     }
 
     /** The verdict arm's reading of one row ({@code verdict, expected,
@@ -84,12 +85,41 @@ public final class VerdictBatch {
         return FALLBACKS.get();
     }
 
+    /** CENSUS: frames built under a batch, by how the asserts read them —
+     * {@code cte} (a relation-rooted frame of static schema, planned once),
+     * {@code pasted} (relation-rooted but late-bound or not eager), {@code
+     * class} (a class- or scalar-rooted frame: the chain pastes). */
+    public enum FrameRead { CTE, PASTED, CLASS }
+
+    private static final java.util.concurrent.atomic.AtomicLong FRAMES_CTE =
+            new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong FRAMES_PASTED =
+            new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong FRAMES_CLASS =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static void frame(FrameRead how) {
+        switch (how) {
+            case CTE -> FRAMES_CTE.incrementAndGet();
+            case PASTED -> FRAMES_PASTED.incrementAndGet();
+            case CLASS -> FRAMES_CLASS.incrementAndGet();
+        }
+    }
+
+    public static String frameCensus() {
+        return "cte=" + FRAMES_CTE.get() + " pasted=" + FRAMES_PASTED.get()
+                + " class=" + FRAMES_CLASS.get();
+    }
+
     private final Fusion fusion;
     private final ExprType fusedShape;
     private final ExprType oneRow;
     private final Judge judge;
     private final List<Root> roots = new ArrayList<>();
     private @com.legend.Nullable Root current;
+    /** The frames the body's asserts read by reference: name → the frame's
+     * plan (leg 3.4 step 2), defined once per body. */
+    private final Map<String, SqlQuery> frames = new LinkedHashMap<>();
 
     public VerdictBatch(Fusion fusion, ExprType fusedShape, ExprType oneRow, Judge judge) {
         this.fusion = fusion;
@@ -109,6 +139,20 @@ public final class VerdictBatch {
 
     public boolean active() {
         return current != null;
+    }
+
+    public void defineFrame(String name, SqlQuery plan) {
+        // the body's aliases under the frame's own prefix: the fused statement
+        // keeps the renderers' invariant that an alias is unique statement-wide
+        plan = com.legend.sql.AliasPrefix.apply(com.legend.sql.AliasPrefix.frameBody(name), plan);
+        SqlQuery prev = frames.putIfAbsent(name, plan);
+        if (prev != null && !prev.equals(plan)) {
+            throw new IllegalStateException("verdict batch: two plans under the frame '" + name + "'");
+        }
+    }
+
+    public Map<String, SqlQuery> frames() {
+        return java.util.Collections.unmodifiableMap(frames);
     }
 
     public void defer(String name, boolean wantEqual, SqlQuery query, Connection on) {
@@ -186,7 +230,8 @@ public final class VerdictBatch {
                     if (s instanceof Pending p) {
                         List<Object> row = rows.get(p.ix());
                         if (row == null) {
-                            row = executeOne(p.name(), p.query(), oneRow, p.on(), dialect, trace);
+                            row = executeOne(p.name(), com.legend.sql.FrameCtes.attach(p.query(), frames),
+                                    oneRow, p.on(), dialect, trace);
                         }
                         judge.judge(p.name(), p.wantEqual(), row);
                     } else if (s instanceof Resolved rv) {
@@ -216,7 +261,7 @@ public final class VerdictBatch {
 
     private List<Row> executeFused(List<SqlQuery> statements, Connection on,
             SqlDialect dialect, ExecutionTrace trace) {
-        SqlQuery b = fusion.fuse(statements);
+        SqlQuery b = fusion.fuse(statements, frames);
         ExecutionResult r = Executor.execute(dialect.render(b), b, fusedShape,
                 ResultShape.TABULAR, on, dialect, trace);
         if (!(r instanceof ExecutionResult.Tabular t) || t.rows().size() != statements.size()) {

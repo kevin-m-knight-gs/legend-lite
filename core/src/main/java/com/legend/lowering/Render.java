@@ -143,6 +143,12 @@ public final class Render {
      *  '\n' and NO trailing newline (enumeration golden
      *  testEnumInRelation: {@code 'name, dateOfHire, type, active, firm,
      *  role\nAlice,1983-03-15,CONTRACT,YES,FIRM_A,JUNIOR\n...'}). */
+    /** The csv property's receiver is a relation with a schema (the csv
+     * text arm's guard). */
+    static boolean csvOverRelation(com.legend.compiler.spec.typed.TypedPropertyAccess read) {
+        return Type.relationSchema(read.source().info().type()) != null;
+    }
+
     static SqlExpr lowerTdsCsvProperty(
             com.legend.compiler.spec.typed.TypedPropertyAccess read,
             java.util.function.Function<

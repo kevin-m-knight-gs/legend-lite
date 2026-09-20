@@ -462,6 +462,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     private void planSource(SqlSource src, boolean leftmost,
             Map<String, Integer> groups) {
         switch (src) {
+            case SqlSource.Cte c -> {
+            }
             case SqlSource.Table t -> {
                 if (t.alias() != null) {
                     // alias groups take the BARE table name — the engine's
@@ -559,6 +561,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             src = j.left();
         }
         return switch (src) {
+            case SqlSource.Cte c -> c.name().toLowerCase(Locale.ROOT);
             case SqlSource.Table t -> t.name()
                     .substring(t.name().lastIndexOf('.') + 1)
                     .toLowerCase(Locale.ROOT);
@@ -957,6 +960,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected void source(StringBuilder sb, SqlSource src, int depth) {
         switch (src) {
+            case SqlSource.Cte c -> sb.append(c.name()).append(" as ").append(aliasIdent(c.alias()));
             case SqlSource.Table t -> {
                 sb.append(quoteIdentifiers
                         ? java.util.Arrays.stream(t.name().split("\\.", -1))

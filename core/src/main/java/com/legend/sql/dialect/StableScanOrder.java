@@ -15,13 +15,166 @@ import com.legend.sql.ScanOrder;
  * always-on ASSERT-boundary application) lives in {@link ScanOrder} —
  * one owner.
  */
-final class StableScanOrder extends SqlRewriter {
+public final class StableScanOrder extends SqlRewriter {
+
+    /** TEST-ONLY FEATURE, PINNED (user ruling 2026-09-20: product SQL
+     * carries no order it did not ask for; the engine's insertion-order
+     * emulation is a feature of the TEST lane, never dropped): the number
+     * of statements this pass CHANGED — an order the statement lacked was
+     * added. The corpus runner attributes firings to the test that ran and
+     * pins that set per lane ({@code rcorpus/<lane>-engine-order-register.txt}). */
+    private static final java.util.concurrent.atomic.AtomicLong FIRINGS =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static long firings() {
+        return FIRINGS.get();
+    }
+
+    /** Leg 3.4 step 2: the ordinals each frame CTE of the statement
+     * exports (threaded through its own definition), so a reference to the
+     * frame re-exports the frame's scan order exactly as a subselect frame
+     * would — the CTE boundary keeps the engine's insertion order. Per
+     * statement: filled at {@link #rewriteRoot}, read by the walk. */
+    private final java.util.Map<String, java.util.List<String>> cteOrds =
+            new java.util.HashMap<>();
 
     @Override
     public SqlQuery rewriteRoot(SqlQuery q) {
+        SqlQuery in = q;
+        cteOrds.clear();
+        if (q instanceof com.legend.sql.SqlWith w) {
+            // ONLY WHEN A READER NEEDS ORDER (user ruling 2026-09-20): a
+            // frame CTE threads its scan ordinals only if some select of the
+            // statement reads it by position (a LIMIT/OFFSET cap over it) or
+            // joins its values through an order-sensitive aggregate; a
+            // frame read by multiset compares stays the product plan, bare
+            java.util.Set<String> needs = framesNeedingOrder(q);
+            java.util.List<com.legend.sql.SqlWith.Cte> cs = new java.util.ArrayList<>();
+            boolean changed = false;
+            for (com.legend.sql.SqlWith.Cte c : w.ctes()) {
+                Threaded t = needs.contains(c.name())
+                        && c.query() instanceof com.legend.sql.SqlSelect body
+                        ? threadScan(body) : null;
+                if (t == null || t.ordNames().isEmpty()) {
+                    cs.add(c);
+                    continue;
+                }
+                cteOrds.put(c.name(), t.ordNames());
+                cs.add(new com.legend.sql.SqlWith.Cte(c.name(), t.select(), c.materialized()));
+                changed = true;
+            }
+            if (changed) {
+                q = new com.legend.sql.SqlWith(cs, w.body());
+            }
+        }
         // deep walk FIRST (fires the select hook on every nested
         // select), then the root-shape special cases (cap wrappers)
-        return ScanOrder.stabilize(rewrite(q));
+        SqlQuery out = ScanOrder.stabilize(rewrite(q));
+        if (!out.equals(in)) {
+            FIRINGS.incrementAndGet();
+        }
+        return out;
+    }
+
+    /** The frame CTEs some select reads by POSITION (a LIMIT/OFFSET select
+     * whose from tree scans the frame) or through an order-sensitive
+     * aggregate (whose from tree, subselects included, scans the frame). */
+    private static java.util.Set<String> framesNeedingOrder(SqlQuery q) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        new SqlRewriter() {
+            @Override
+            protected SqlQuery select(com.legend.sql.SqlSelect s) {
+                if (s.limit() != null || s.offset() != null) {
+                    frameNames(s.from(), false, out);
+                }
+                if (s.projections().stream().anyMatch(p -> p.expr()
+                        instanceof com.legend.sql.SqlAgg.Reducer r && orderSensitive(r)
+                        && r.orderBy().isEmpty())) {
+                    frameNames(s.from(), true, out);
+                }
+                return s;
+            }
+        }.rewriteRoot(q);
+        return out;
+    }
+
+    private static void frameNames(com.legend.sql.SqlSource src, boolean throughSubselects,
+            java.util.Set<String> out) {
+        if (src instanceof com.legend.sql.SqlSource.Cte c) {
+            out.add(c.name());
+        } else if (src instanceof com.legend.sql.SqlSource.Join j) {
+            frameNames(j.left(), throughSubselects, out);
+            frameNames(j.right(), throughSubselects, out);
+        } else if (throughSubselects && src instanceof com.legend.sql.SqlSource.Subselect sub
+                && sub.inner() instanceof com.legend.sql.SqlSelect inner) {
+            frameNames(inner.from(), true, out);
+        }
+    }
+
+    /** A frame reference with its threaded ordinals in scope: the
+     * reference re-exports them (its outputs widened) so a reader can
+     * order by them; null when the frame threads none. */
+    private com.legend.sql.SqlSource.@com.legend.Nullable Cte widened(
+            com.legend.sql.SqlSource.Cte c) {
+        java.util.List<String> ords = cteOrds.get(c.name());
+        if (ords == null) {
+            return null;
+        }
+        java.util.List<com.legend.sql.OutputCol> outs = new java.util.ArrayList<>(c.outputs());
+        for (String name : ords) {
+            if (outs.stream().noneMatch(o -> o.name().equals(name))) {
+                outs.add(new com.legend.sql.OutputCol(name,
+                        com.legend.sql.SqlType.Scalar.BIGINT, true));
+            }
+        }
+        return new com.legend.sql.SqlSource.Cte(c.name(), c.alias(), java.util.List.copyOf(outs));
+    }
+
+    /** A positional read over a frame reference — a LIMIT/OFFSET select
+     * with no sort of its own whose leftmost scan is a threaded frame —
+     * ORDERED BY the frame's ordinals: the engine's insertion order, the
+     * order the pasted form reached through the base table's rowid. */
+    private SqlQuery stabilizeOverFrame(com.legend.sql.SqlSelect s) {
+        if (!s.orderBy().isEmpty() || s.distinct() || !s.groupBy().isEmpty()
+                || (s.limit() == null && s.offset() == null)
+                || s.projections().stream().anyMatch(p -> aggregates(p.expr()))) {
+            return s;
+        }
+        com.legend.sql.SqlSource leftmost = s.from();
+        while (leftmost instanceof com.legend.sql.SqlSource.Join j) {
+            leftmost = j.left();
+        }
+        if (!(leftmost instanceof com.legend.sql.SqlSource.Cte c)) {
+            return s;
+        }
+        com.legend.sql.SqlSource.Cte wide = widened(c);
+        if (wide == null) {
+            return s;
+        }
+        // SCAN-MAJOR (the driving table first — ScanOrder.stabilize's key
+        // order for a positional cap over a join of scans): the threaded
+        // ordinals are recorded PROBE-major (right before left, the hash
+        // join's emission order the aggregates follow), so the cap reads
+        // them reversed
+        java.util.List<String> ords = new java.util.ArrayList<>(
+                java.util.Objects.requireNonNull(cteOrds.get(c.name())));
+        java.util.Collections.reverse(ords);
+        java.util.List<com.legend.sql.SqlSelect.SortKey> keys = new java.util.ArrayList<>();
+        for (String name : ords) {
+            keys.add(new com.legend.sql.SqlSelect.SortKey(
+                    com.legend.sql.SqlExpr.Column.of(wide.alias(), wide.outputs(), name),
+                    true, null, null));
+        }
+        return s.withFrom(replaceLeftmost(s.from(), wide)).withOrderBy(keys);
+    }
+
+    private static com.legend.sql.SqlSource replaceLeftmost(com.legend.sql.SqlSource src,
+            com.legend.sql.SqlSource.Cte wide) {
+        if (src instanceof com.legend.sql.SqlSource.Join j) {
+            return new com.legend.sql.SqlSource.Join(replaceLeftmost(j.left(), wide), j.right(),
+                    j.kind(), j.on());
+        }
+        return wide;
     }
     // (A root-level union ORDER BY was BUILT AND REVERTED: ordering a
     // root fetch by union-leg ordinals broke aggregate/graph roots —
@@ -45,7 +198,7 @@ final class StableScanOrder extends SqlRewriter {
     protected SqlQuery select(com.legend.sql.SqlSelect s) {
         if (!(s.from() instanceof com.legend.sql.SqlSource.Subselect sub)
                 || !(sub.inner() instanceof com.legend.sql.SqlSelect inner)) {
-            return s;
+            return baseTableReducers(s);
         }
         // the reducer's VALUE must read the from-subselect's own alias
         // (the witnesses' shape) — anything else (double-sort chains
@@ -132,6 +285,60 @@ final class StableScanOrder extends SqlRewriter {
 
     /** The value expression's EVERY column reference resolves in
      * {@code alias} (or is column-free). */
+    /** An order-sensitive reducer whose value reads a BASE TABLE alias of
+     * this select's own from tree (a group concat over a scan or a join of
+     * scans) orders by that table's row number — the engine's H2 insertion
+     * order the goldens captured. Test lane only (this pass is the corpus
+     * runner's); the product emits no such order. */
+    private static SqlQuery baseTableReducers(com.legend.sql.SqlSelect s) {
+        java.util.List<com.legend.sql.SqlSelect.Projection> out = null;
+        for (int i = 0; i < s.projections().size(); i++) {
+            var p = s.projections().get(i);
+            if (p.expr() instanceof com.legend.sql.SqlAgg.Reducer r
+                    && orderSensitive(r) && r.orderBy().isEmpty()
+                    && !r.args().isEmpty()
+                    && r.args().get(0) instanceof com.legend.sql.SqlExpr.Column vc
+                    && aliasIsBaseTable(s.from(), vc.table())) {
+                if (out == null) {
+                    out = new java.util.ArrayList<>(s.projections());
+                }
+                out.set(i, new com.legend.sql.SqlSelect.Projection(
+                        new com.legend.sql.SqlAgg.Reducer(r.fn(), r.args(), r.distinct(),
+                                java.util.List.of(new com.legend.sql.SqlSelect.SortKey(
+                                        new com.legend.sql.SqlExpr.RowOrder(vc.table()),
+                                        true, null, null))),
+                        p.outputName(), p.out()));
+            }
+        }
+        return out == null ? s : new com.legend.sql.SqlSelect(out, s.distinct(), s.from(),
+                s.where(), s.groupBy(), s.having(), s.qualify(), s.orderBy(), s.limit(),
+                s.offset(), s.outputs());
+    }
+
+    /** Whether {@code alias} names a BASE TABLE scan in the from tree —
+     * the rowid pseudo-column is only valid there. */
+    private static boolean aliasIsBaseTable(com.legend.sql.SqlSource src,
+            @com.legend.Nullable String alias) {
+        return switch (src) {
+            case com.legend.sql.SqlSource.Table t -> t.alias().equals(alias);
+            case com.legend.sql.SqlSource.Join j -> aliasIsBaseTable(j.left(), alias)
+                    || aliasIsBaseTable(j.right(), alias);
+            default -> false;
+        };
+    }
+
+    private static boolean aggregates(com.legend.sql.SqlExpr e) {
+        if (e instanceof com.legend.sql.SqlAgg.Reducer) {
+            return true;
+        }
+        for (com.legend.sql.SqlExpr k : e.children()) {
+            if (aggregates(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean readsAlias(com.legend.sql.SqlExpr e,
             String alias) {
         if (e instanceof com.legend.sql.SqlExpr.Column c) {
@@ -163,10 +370,15 @@ final class StableScanOrder extends SqlRewriter {
      * for every base-table rowid reachable probe-major through its
      * from tree (recursing through plain subselect frames); null when
      * the shape refuses (set semantics or star frames). */
-    private static @com.legend.Nullable Threaded threadScan(
+    private @com.legend.Nullable Threaded threadScan(
             com.legend.sql.SqlSelect sel) {
         if (sel.distinct() || !sel.groupBy().isEmpty()
                 || sel.limit() != null || sel.offset() != null
+                // an AGGREGATED frame (a bare aggregate, no GROUP BY) has
+                // one row and no scan order to thread — a rowid beside a
+                // sum is a binder error (leg 3.4 step 2: the frame CTE
+                // bodies are threaded too, and some frames aggregate)
+                || sel.projections().stream().anyMatch(p -> aggregates(p.expr()))
                 // EMPTY projections = an implicit star frame — appending
                 // would REPLACE the whole row (binder receipt: a filtered
                 // join frame reduced to its ordinal alone)
@@ -207,12 +419,24 @@ final class StableScanOrder extends SqlRewriter {
      * plain base table contributes its rowid; a subselect frame
      * recurses and re-exports its ordinals; unions and other sources
      * contribute nothing. Returns the (possibly rewritten) source. */
-    private static com.legend.sql.SqlSource walkFrom(
+    private com.legend.sql.SqlSource walkFrom(
             com.legend.sql.SqlSource src,
             java.util.List<com.legend.sql.SqlExpr> ordExprs) {
         if (src instanceof com.legend.sql.SqlSource.Table t) {
             ordExprs.add(new com.legend.sql.SqlExpr.RowOrder(t.alias()));
             return src;
+        }
+        if (src instanceof com.legend.sql.SqlSource.Cte c) {
+            // a frame reference re-exports the ordinals its definition
+            // threads (none when the frame's shape refused)
+            com.legend.sql.SqlSource.Cte wide = widened(c);
+            if (wide == null) {
+                return src;
+            }
+            for (String name : java.util.Objects.requireNonNull(cteOrds.get(c.name()))) {
+                ordExprs.add(com.legend.sql.SqlExpr.Column.of(wide.alias(), wide.outputs(), name));
+            }
+            return wide;
         }
         if (src instanceof com.legend.sql.SqlSource.Join j) {
             java.util.List<com.legend.sql.SqlExpr> rightOrds =
@@ -286,7 +510,7 @@ final class StableScanOrder extends SqlRewriter {
     /** A union leg with {@code __agg_leg} (its index) and
      * {@code __agg_legord} (its first probe-major scan ordinal, NULL
      * when none) appended; null when the leg's shape refuses. */
-    private static com.legend.sql.@com.legend.Nullable SqlSelect
+    private com.legend.sql.@com.legend.Nullable SqlSelect
             unionLegOrdinals(com.legend.sql.SqlSelect leg, int index) {
         if (leg.distinct() || !leg.groupBy().isEmpty()
                 || leg.limit() != null || leg.offset() != null
@@ -347,6 +571,9 @@ final class StableScanOrder extends SqlRewriter {
         if (s instanceof com.legend.sql.SqlSource.Subselect sub
                 && sub.inner() instanceof com.legend.sql.SqlSelect inner) {
             SqlQuery st = ScanOrder.stabilize(inner);
+            if (st == inner) {
+                st = stabilizeOverFrame(inner);
+            }
             if (st != inner) {
                 return new com.legend.sql.SqlSource.Subselect(st,
                         sub.alias(), sub.frameName());

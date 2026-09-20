@@ -608,6 +608,7 @@ final class Fold {
             case SqlSource.Values v -> v.alias().equals(c.table())
                     && v.columns().contains(c.name());
             case SqlSource.Table t -> t.alias().equals(c.table());
+            case SqlSource.Cte ct -> ct.alias().equals(c.table());
             case SqlSource.Subselect sub -> sub.alias().equals(c.table());
             case SqlSource.SourceUrl u -> u.alias().equals(c.table());
             case SqlSource.Pivot p -> p.alias().equals(c.table());
@@ -915,6 +916,7 @@ final class Fold {
         return switch (src) {
             case SqlSource.Dual d -> null;
             case SqlSource.Table t -> stamped(t.alias(), t.outputs(), column);
+            case SqlSource.Cte ct -> stamped(ct.alias(), ct.outputs(), column);
             case SqlSource.VarSetPlaceholder vp -> null;
             // LATE-BOUND grid (P3-2 single-query): an undemanded raw
             // grid skipped the schema probe, so its outputs are empty

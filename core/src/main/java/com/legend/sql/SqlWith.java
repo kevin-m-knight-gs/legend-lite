@@ -22,8 +22,29 @@ public record SqlWith(List<Cte> ctes, SqlQuery body) implements SqlQuery {
         }
     }
 
-    /** One {@code name AS (query)}. */
-    public record Cte(String name, SqlQuery query) {
+    /** One {@code name AS (query)}; {@code materialized} asks the database
+     * to evaluate it ONCE however many times it is referenced (leg 3.4: a
+     * frame every assert of a body reads — every side sees the same rows
+     * of a nondeterministically ordered result). Dialects without the
+     * keyword (H2) spell a plain CTE. */
+    public record Cte(String name, SqlQuery query, boolean materialized) {
+        public Cte(String name, SqlQuery query) {
+            this(name, query, false);
+        }
+    }
+
+    /** {@code ctes} defined ahead of {@code q}'s own (a WITH merges; any
+     * other query becomes the body). */
+    public static SqlQuery prepend(List<Cte> ctes, SqlQuery q) {
+        if (ctes.isEmpty()) {
+            return q;
+        }
+        if (q instanceof SqlWith w) {
+            List<Cte> all = new java.util.ArrayList<>(ctes);
+            all.addAll(w.ctes());
+            return new SqlWith(all, w.body());
+        }
+        return new SqlWith(ctes, q);
     }
 
     @Override

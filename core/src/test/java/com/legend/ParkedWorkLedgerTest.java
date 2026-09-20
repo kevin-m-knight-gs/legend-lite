@@ -53,7 +53,9 @@ class ParkedWorkLedgerTest {
             // leg 3.1 (2026-09-18): VerdictSql builds a WITH too — the
             // database-mode verdict statement (two side CTEs + one verdict
             // row), NOT a common-subexpression pass; PARK-2 stays parked
-            new Anchor("new SqlWith\\(", List.of("SqlRewriter.java", "VerdictSql.java")),
+            // leg 3.4 step 2 (2026-09-20): SqlWith.prepend hoists a statement's
+            // frame CTEs to its head — a construction helper, not a pass
+            new Anchor("new SqlWith\\(", List.of("SqlRewriter.java", "SqlWith.java", "VerdictSql.java")),
             // PARK-3: the relational toString renders as the DATABASE's cast
             // in the engine; ours passes through to pure's ISO form. The
             // obvious arm collapses multiplicity (it LOST a corpus row), so

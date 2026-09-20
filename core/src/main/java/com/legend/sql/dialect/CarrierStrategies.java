@@ -357,6 +357,8 @@ public final class CarrierStrategies extends SqlRewriter {
             case com.legend.sql.SqlSource.Table t ->
                     new com.legend.sql.SqlSource.Table(t.name(), alias,
                             t.outputs());
+            case com.legend.sql.SqlSource.Cte c ->
+                    new com.legend.sql.SqlSource.Cte(c.name(), alias, c.outputs());
             case com.legend.sql.SqlSource.Subselect sub ->
                     new com.legend.sql.SqlSource.Subselect(sub.inner(),
                             alias, null);

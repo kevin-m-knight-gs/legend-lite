@@ -139,7 +139,9 @@ again, moves it.
 (judging leg 3.1): `VerdictSql` now also constructs a `SqlWith` — the database-mode verdict
 statement (each assert side as a CTE, one verdict row) — which is not a common-subexpression
 pass and does not touch the union lowering; the construction anchor names both files, and
-this item stays parked.*
+this item stays parked. Anchor note 2026-09-20 (leg 3.4 step 2): `SqlWith.prepend` hoists a
+statement's frame CTEs to its head — a construction helper the anchor now also names; still
+not a common-subexpression pass.*
 
 **What happens today.** A union-mapped class is one whose rows come from several tables
 stacked together. When one query both filters on a related collection and aggregates over

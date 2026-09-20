@@ -1770,6 +1770,101 @@ frame CTE once. The eager run at the `let` stays (engine parity: a broken pipeli
 the let; the ledger's rows stay exact). Class-rooted and late-bound frames keep the paste,
 counted.
 
+## 4ab. Leg 3.4, step 2 — frames as CTEs; the order ruling (2026-09-20)
+
+**What changed.** A relation-rooted `execute()` frame that is planned (eager, static schema,
+planned width equal to the plan's width, under a body batch) is no longer PASTED into every
+side that reads `$r.values`: the frame's plan is defined ONCE as a named CTE of the fused
+statement (`WITH frame_r AS MATERIALIZED (…)` on DuckDB; plain on H2) and every reader is a
+typed reference to it (`TypedFrameRef`, minted by `ResultEnvelopeSplice.spliced()` inside the
+chain's own `TypedFrom` so the reference keeps the chain's zone; lowered by `FrameRefs.reference`
+over `SqlSource.Cte`, projecting the frame plan's own outputs and slot types). The definitions
+ride the batch (`VerdictBatch.frames()`), are attached at render (`FrameCtes.attach`) and the
+side plans stay bare selects — the verdict builders pattern-match bare selects, and a `WITH`
+on a side was silently skipping them. The eager run at the `let` stays (engine parity). Census:
+`frames[cte=1401 pasted=511 class=1743]` on DuckDB database.
+
+**The order ruling (user, 2026-09-20).** The frames-as-CTEs measurement exposed which tests lean
+on H2's insertion order without asking for one (positional reads over an unsorted relation;
+`joinStrings` over an unsorted column): with the emulation switched off, host lane loses 2
+(`mapping::join::testSameTableNameDifferentSchema1`, `tds::tdsConcatenate::testConcatenateWithJoin`),
+plus 1 (`milestoning::businessdate`) with the product's `STRING_AGG … ORDER BY rowid` rule off.
+Ruling: **product SQL carries NO ordering it did not ask for** (general queries are never slowed
+down for tests that were lazy about ORDER BY); the **test lane** applies the emulation — and ONLY
+when the test's query has no ORDER BY — and those tests PASS in the test lane, string ordering
+included; never ledgered as known issues. Landed accordingly:
+
+- product: the `Lowerer`'s `STRING_AGG … ORDER BY rowid` rule DELETED (it ordered every
+  unsorted string join in product SQL);
+- test lane (`StableScanOrder`, DuckDB pass behind `legend.exec.engineScanOrder`, set only by
+  `MinimalCorpusTest`): frame CTE bodies thread their scan ordinals ONLY when some select of the
+  statement reads the frame by position (LIMIT/OFFSET) or joins it through an order-sensitive
+  reducer (`framesNeedingOrder`); a reference re-exports the frame's ordinals (`widened`);
+  positional reads over a frame order scan-major (`stabilizeOverFrame`); the base-table string
+  join takes the rowid order here (`baseTableReducers`); aggregated selects are refused (GROUP BY
+  cannot carry rowid).
+
+**Pinned so the test-only feature is never dropped (user: "make it a pin").**
+
+- `TestLaneOrderGuardrailTest` (core): `SqlExpr.RowOrder` minted only by its four owners;
+  `StableScanOrder` installed exactly once, inside the switch's if-block, the switch named
+  nowhere else in product and set nowhere in product; `ScanOrder.stabilize` applied only from
+  the assert canon wrap and the test-lane pass.
+- The ENGINE-ORDER registers (`rcorpus/<lane>-engine-order-register.txt`, exact, per lane and
+  judge mode): every test at least one of whose statements the emulation CHANGED
+  (`StableScanOrder.firings()`, attributed per test by the runner). DuckDB host 1,007 · DuckDB
+  database 936; H2 never installs the pass (0).
+
+**What the frames-as-CTEs run flushed out and fixed (real bugs, no hacks).**
+
+1. `rowid` on a CTE reference: a CTE has no rowid — the scan ordinal is threaded through the
+   frame's definition and re-exported (121 tests).
+2. Width and order mismatches between a reference and the pasted frame: the reference projects
+   the frame PLAN's own outputs and the planned root's schema, never the declared type's.
+3. Kind mismatches (`strpos(INTEGER)`): slot types come from the plan.
+4. A `WITH` on a side plan silently skipped the verdict builders: definitions attached at render,
+   sides stay bare.
+5. `NULL AS castNull` untyped inside a MATERIALIZED CTE (DuckDB types the column at
+   materialization): typed NULL projection `CAST(NULL AS <type>)` for scalar non-carrier slots.
+6. Eager ordinal threading exposed a union-leg VALUES bug and GROUP BY over rowid: threading is
+   lazy (only frames a reader needs), aggregated selects refused.
+7. Positional reads over a frame came back probe-major: scan-major ordering.
+8. A temp-table `IN` test lost its zone: the reference is minted inside the chain's `TypedFrom`.
+9. `testEnumInRelation` (database mode): `.csv` over `cast(@TDS<Any>)` over a frame reference
+   fell to the auto-map row read (`struct_extract` over a VARCHAR[]) because the resolver's
+   `Anchors.anchored` did not know a `TypedFrameRef` is a resolved relation root; it does now
+   (and `StoreResolver` passes the reference through as the anchored root it is).
+10. H2 database lane, 136 tests newly lost as `Column "t0.id" not found`: a frame's body and
+    the sides that read it are lowered separately, each minting `t0, t1, …`; fused into ONE
+    statement they collide, and the H2 renderers keep a STATEMENT-WIDE alias scope
+    (`SourceSpelling`: "aliases are unique per statement") — a reader's `t0.id` over the frame
+    CTE re-spelled the body's own `t0.id` over its base table as a quoted derived name. DuckDB
+    resolves by SQL scope and never noticed. Fix at the invariant: `AliasPrefix` (sql) prefixes
+    every alias of a frame body with the frame's name at `defineFrame`, and a reader's alias is
+    `<frame>_t<n>` — unique statement-wide by construction.
+11. The H2 message for item 10 arrived as garbage (`' ORDER BY "__peer"…`): the verdict canon's
+    cell separator (`CanonicalRenderSql.TDS_CELL_SEP`) was U+001F — the SAME character
+    `RaisedErrors.SENTINEL` uses to mark a platform-raised message, and H2 embeds the executed
+    statement in its error text, so the unwrap sliced between two separator literals. Two
+    fixes: the separator is U+001D now, and the envelope closes at the NEXT mark, never the last
+    one in the message.
+
+**Measured.** DuckDB host 108 exact; DuckDB database lost 0 / gained 0; differential agree
+5,848 · disagree 0 · unjudged 0 (database-only 2: the two milestoned graphFetch goldens whose
+stray `]"` tail the host names as an engine-golden defect and the database judge parses the
+engine's way — both on the accepted roster since bucket 9, not a step-2 change). H2 host 412
+exact; H2 database lost 64 exact / gained 72 (71 + `tdsJoin::testFullOuterJoinSimple`: host
+walls it in the FULL OUTER JOIN emulation because the pasted frame dropped the sort key; the CTE
+body keeps every output). Round trips: DuckDB database 137,951 (unchanged — the frame is still
+RUN at the let; the saving is per-side re-execution inside the fused statement), H2 database
+134,459 → 134,392; H2 fallbacks 166 → 202 (a frame CTE inside a walled statement splits with
+it). Frames: DuckDB `cte=1401 pasted=511 class=1743`, H2 `cte=1389 pasted=511 class=1862`. Ledger: AssertVerdicts 2598 → 2599 (the frame definitions attached to an immediate
+verdict), StatementExecutor 2259 → 2332 (planBare / planFrame, the frame CTEs defined at the
+statement head, renderFor); StoreResolver held at 3,500 lines.
+
+**Owed next.** 3.5 (the deletions the batch makes safe; host judge OPTIONAL) → the AssertVerdicts
+split → the seeding boundary (130k raw seed statements per lane).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

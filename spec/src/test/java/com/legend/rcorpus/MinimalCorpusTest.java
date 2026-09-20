@@ -62,6 +62,22 @@ class MinimalCorpusTest {
      * output — 0 firings or every one registered (the arrival-order class,
      * unordered-leniency, is run-dependent and has a ceiling instead). */
     private static final String DUCKDB_ORD = "/rcorpus/duckdb-ord-register.txt";
+    /** The ENGINE-ORDER registers (leg 3.4 step 2, user ruling 2026-09-20):
+     * "engine-order <test>" per test at least one of whose statements the
+     * TEST-LANE scan-order emulation ({@code StableScanOrder}, behind
+     * {@code legend.exec.engineScanOrder} — set here and nowhere in
+     * product) CHANGED. Product SQL never carries an order it did not ask
+     * for; the tests that lean on H2's insertion order are named here so
+     * the test-only feature is never dropped by accident. Pinned EXACT per
+     * lane and per judge mode (database mode sends one statement per body,
+     * so the set of changed statements differs from host mode's). */
+    private static final String DUCKDB_ENGINE_ORDER = "/rcorpus/duckdb-engine-order-register.txt";
+    private static final String H2_ENGINE_ORDER = "/rcorpus/h2-engine-order-register.txt";
+    private static final String DUCKDB_DATABASE_ENGINE_ORDER =
+            "/rcorpus/duckdb-database-engine-order-register.txt";
+    private static final String H2_DATABASE_ENGINE_ORDER =
+            "/rcorpus/h2-database-engine-order-register.txt";
+    private static final String ENGINE_ORDER = "engine-order";
     private static final String H2_ORD = "/rcorpus/h2-ord-register.txt";
     /** The UNORDERED-CHAIN registers (2026-09-10): "unordered-chain <test>"
      * per test whose row verdicts compare as multisets because its chain
@@ -158,6 +174,8 @@ class MinimalCorpusTest {
         /** every test that RAN, in discovery order, pass or fail */
         List<String> ran = new ArrayList<>();
         java.util.Map<String, Long> elapsed = new java.util.LinkedHashMap<>();
+        /** the tests whose statements the test-lane scan-order emulation changed */
+        List<String> engineOrder = new ArrayList<>();
         long t0 = System.nanoTime();
         try {
             for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
@@ -166,6 +184,7 @@ class MinimalCorpusTest {
                 }
                 MinimalCorpus.Result r;
                 long tStart = System.nanoTime();
+                long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -202,6 +221,10 @@ class MinimalCorpusTest {
                     case ACCEPTED -> accepted.add(r.fqn() + " :: " + r.reason());
                 }
                 elapsed.put(r.fqn(), (System.nanoTime() - tStart) / 1_000_000L);
+                long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
+                if (fired > 0) {
+                    engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
+                }
             }
         } finally {
             corpus.endSession();
@@ -210,6 +233,9 @@ class MinimalCorpusTest {
         Files.write(Path.of("target/corpus2-pass.txt"), pass);
         Files.write(Path.of("target/corpus2-fail.txt"), fail);
         Files.write(Path.of("target/corpus2-skipped.txt"), skipped);
+        Files.write(Path.of("target/corpus2-engine-order.txt"), engineOrder);
+        System.out.println("[corpus2] engine-order tests=" + engineOrder.size()
+                + " (statements the test-lane scan-order emulation changed; product never opts in)");
         System.out.println("[corpus2] pass=" + pass.size() + " fail=" + fail.size()
                 + " skipped=" + skipped.size() + " of " + ran.size() + " in "
                 + (System.nanoTime() - t0) / 1_000_000_000L + "s");
@@ -290,6 +316,16 @@ class MinimalCorpusTest {
                 MinimalCorpus.H2_BACKEND ? H2_ORD : DUCKDB_ORD, false);
         pinRoster(only, ranTaggedUnordered, unorderedChains, "unordered",
                 MinimalCorpus.H2_BACKEND ? H2_UNORDERED : DUCKDB_UNORDERED, false);
+        List<String> ranTaggedEngineOrder = new ArrayList<>();
+        for (String t : ran) {
+            ranTaggedEngineOrder.add(ENGINE_ORDER + " " + t);
+        }
+        boolean databaseMode = "database".equalsIgnoreCase(
+                System.getProperty("legend.judge.mode", "host"));
+        pinRoster(only, ranTaggedEngineOrder, engineOrder, ENGINE_ORDER,
+                MinimalCorpus.H2_BACKEND
+                        ? (databaseMode ? H2_DATABASE_ENGINE_ORDER : H2_ENGINE_ORDER)
+                        : (databaseMode ? DUCKDB_DATABASE_ENGINE_ORDER : DUCKDB_ENGINE_ORDER), false);
         pinChannels(only, corpus);
         pinStrength(only, strength);
         pinJudgeDifferential(only);
@@ -497,7 +533,8 @@ class MinimalCorpusTest {
                 + " wire-retyped=" + com.legend.exec.WireTypes.retypedCount()
                 + " wire-slot-skew=" + com.legend.exec.WireTypes.slotSkewCount()
                 + " batch-statements=" + com.legend.exec.VerdictBatch.fusedCount()
-                + " batch-fallbacks=" + com.legend.exec.VerdictBatch.fallbackCount());
+                + " batch-fallbacks=" + com.legend.exec.VerdictBatch.fallbackCount()
+                + " frames[" + com.legend.exec.VerdictBatch.frameCensus() + "]");
         System.out.println("[corpus2] sql-census round-trips="
                 + com.legend.exec.Executor.roundTrips() + " (every statement the executor"
                 + " sent this JVM: setups, sides, frames, referee replays)");

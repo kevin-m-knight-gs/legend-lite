@@ -73,7 +73,12 @@ final class Anchors {
             return hit;
         }
         boolean v = false;
-        if (n instanceof TypedGetAll) {
+        if (n instanceof TypedGetAll
+                // leg 3.4 step 2: a PLANNED frame referenced by name is a
+                // resolved relation root — the chain it stands for was
+                // anchored, so every reader of an anchored chain (the csv
+                // render, the relation ops) reads the reference the same
+                || n instanceof com.legend.compiler.spec.typed.TypedFrameRef) {
             v = true;
         } else {
             for (TypedSpec c : n.children()) {

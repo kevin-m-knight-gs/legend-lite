@@ -54,6 +54,13 @@ public sealed interface SqlSource {
     record Table(String name, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 
+    /** A reference to a CTE the statement defines (leg 3.4 step 2: a planned
+     * execute() frame every assert side reads) — NOT a base table: it has no
+     * physical row order of its own (no rowid; the scan-order pass re-exports
+     * the ordinals its definition threads), and no store to replace. */
+    record Cte(String name, String alias, List<OutputCol> outputs) implements SqlSource {
+    }
+
     /** The engine's cross-store VarSetPlaceHolder: a PLAN VARIABLE
      * standing in for another execution node's result set — spelled
      * {@code (${varName}) as "alias"} in plan SQL (freemarker splice at

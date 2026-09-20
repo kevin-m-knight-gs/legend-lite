@@ -121,6 +121,7 @@ final class SubselectPrune {
             case SqlSource.Dual d -> {
             }
             case SqlSource.Table t -> r.starred().add(t.alias());
+            case SqlSource.Cte c -> r.starred().add(c.alias());
             case SqlSource.VarSetPlaceholder vp -> r.starred().add(vp.alias());
             case SqlSource.SourceUrl u -> r.starred().add(u.alias());
             case SqlSource.Subselect sub -> r.starred().add(sub.alias());
@@ -139,6 +140,8 @@ final class SubselectPrune {
             case SqlSource.Dual d -> {
             }
             case SqlSource.Table t -> {
+            }
+            case SqlSource.Cte c -> {
             }
             case SqlSource.SourceUrl u -> {
             }
@@ -293,7 +296,7 @@ final class SubselectPrune {
                     u.all(), u.outputs());
             case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(
                     w.ctes().stream().map(c -> new com.legend.sql.SqlWith.Cte(
-                            c.name(), rewriteQuery(c.query(), r))).toList(),
+                            c.name(), rewriteQuery(c.query(), r), c.materialized())).toList(),
                     rewriteQuery(w.body(), r));
         };
     }
@@ -310,6 +313,7 @@ final class SubselectPrune {
         return switch (src) {
             case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
+            case SqlSource.Cte c -> c;
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: a leaf

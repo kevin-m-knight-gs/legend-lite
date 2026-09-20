@@ -611,6 +611,7 @@ public final class StoreResolver {
                     l.mapChildren(b -> SubQueryLift.resolveClosed(b,
                             new java.util.LinkedHashSet<>(l.parameters()),
                             r -> resolveNode(r, context)));
+            case com.legend.compiler.spec.typed.TypedFrameRef fr -> fr;   // leg 3.4 step 2: a planned frame's reference is resolved already
             // The NAMED wall: an ANCHORED variant with no arm — loud, never
             // a silent pass-through; a USER CALL wrapper names its CALLEE
             // (§8 leg 4: the census buckets by function).

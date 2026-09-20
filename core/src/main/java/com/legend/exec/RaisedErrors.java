@@ -52,7 +52,10 @@ public final class RaisedErrors {
             return null;
         }
         int first = message.indexOf(SENTINEL);
-        int last = message.lastIndexOf(SENTINEL);
+        // the envelope CLOSES at the next mark, never the last one in the
+        // message: a driver that embeds the statement text (H2) carries the
+        // raise's own literal a second time further on
+        int last = first < 0 ? -1 : message.indexOf(SENTINEL, first + 1);
         if (first < 0 || last <= first) {
             return message;
         }
@@ -94,7 +97,7 @@ public final class RaisedErrors {
             return e;
         }
         int first = msg.indexOf(SENTINEL);
-        int last = msg.lastIndexOf(SENTINEL);
+        int last = first < 0 ? -1 : msg.indexOf(SENTINEL, first + 1);   // see unwrap
         if (first < 0 || last <= first) {
             return e;
         }

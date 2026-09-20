@@ -65,7 +65,40 @@ public final class ResultEnvelopeSplice {
      * TDS query holds ONE TDS; for a class or scalar root, values IS
      * the collection). */
     public record View(TypedSpec chain, boolean relationRooted,
-            @com.legend.Nullable TypedNativeCall sourceExec) {
+            @com.legend.Nullable TypedNativeCall sourceExec,
+            @com.legend.Nullable String cteName,
+            com.legend.sql.@com.legend.Nullable SqlQuery plan,
+            @com.legend.Nullable ExprType plannedInfo) {
+        public View(TypedSpec chain, boolean relationRooted,
+                @com.legend.Nullable TypedNativeCall sourceExec) {
+            this(chain, relationRooted, sourceExec, null, null, null);
+        }
+
+        /** Whether the executor PLANNED this frame (leg 3.4 step 2): a
+         * value read then splices to a reference to its CTE. */
+        public boolean planned() {
+            return cteName != null && plan != null && plannedInfo != null;
+        }
+
+        /** What a VALUE read of the frame splices to: a reference to the
+         * planned frame's CTE (minted here — Invariant 7: typed nodes are
+         * the compiler's to mint), typed as the PLANNED root (the resolver's
+         * view of the frame's schema), else the chain. The structural
+         * readers (activities, the rendered SQL, the documentation walk)
+         * keep {@link #chain()}. */
+        public TypedSpec spliced() {
+            if (cteName == null || plan == null || plannedInfo == null) {
+                return chain;
+            }
+            TypedSpec ref = new com.legend.compiler.spec.typed.TypedFrameRef(cteName, plannedInfo, plan);
+            // the reference stands where the frame's QUERY stood: inside the
+            // frame's own from-envelope (its mapping / runtime context — the
+            // connection zone the side's literals spell in, the table
+            // renames, the facts every reader of a from carries)
+            return chain instanceof TypedFrom fr
+                    ? new TypedFrom(ref, fr.context(), fr.executedExtent(), fr.info())
+                    : ref;
+        }
     }
 
     /**
@@ -244,8 +277,9 @@ public final class ResultEnvelopeSplice {
                     walked = true;
                 } else if (un instanceof TypedPropertyAccess pv2) {
                     // an UNSPLICED envelope read ($result.values):
-                    // resolve through the exec frame ourselves
-                    TypedSpec spl = valuesRead(pv2, frames);
+                    // resolve through the exec frame ourselves — the CHAIN
+                    // (this walk reaches for the project, never a reference)
+                    TypedSpec spl = valuesRead(pv2, chainsOnly(frames));
                     if (spl != null) {
                         un = spl;
                         walked = true;
@@ -363,7 +397,7 @@ public final class ResultEnvelopeSplice {
         // a BARE frame variable reads as the chain (harness parity)
         if (n instanceof TypedVariable bv
                 && frames.frame(bv.name()) instanceof View bf) {
-            return bf.chain();
+            return bf.spliced();
         }
         return n;
     }
@@ -568,6 +602,34 @@ public final class ResultEnvelopeSplice {
     /** Splice a {@code .values} read (over a frame variable or an INLINE
      * execute call) into the underlying typed query chain; null when the
      * node is not a values read the frames can answer. */
+    /** The frames with every reference dropped: the chain view only. */
+    private static Frames chainsOnly(Frames frames) {
+        return new Frames() {
+            @Override
+            public @com.legend.Nullable View frame(String name) {
+                View v = frames.frame(name);
+                return v == null || !v.planned() ? v
+                        : new View(v.chain(), v.relationRooted(), v.sourceExec());
+            }
+
+            @Override
+            public View inlineExecute(TypedNativeCall ec, boolean eager) {
+                return frames.inlineExecute(ec, eager);
+            }
+
+            @Override
+            public @com.legend.Nullable String relationalActivitySql(String frameName,
+                    long activityNumber) {
+                return frames.relationalActivitySql(frameName, activityNumber);
+            }
+
+            @Override
+            public @com.legend.Nullable String relationalActivitySql(TypedNativeCall ec) {
+                return frames.relationalActivitySql(ec);
+            }
+        };
+    }
+
     private static @com.legend.Nullable TypedSpec valuesRead(TypedSpec n,
             Frames frames) {
         if (n instanceof TypedPropertyAccess pa
@@ -598,6 +660,6 @@ public final class ResultEnvelopeSplice {
      * envelope. */
     private static TypedSpec executedExtent(View f) {
         return !f.relationRooted() && f.chain() instanceof TypedFrom fr
-                ? fr.withExecutedExtent() : f.chain();
+                ? fr.withExecutedExtent() : f.spliced();
     }
 }

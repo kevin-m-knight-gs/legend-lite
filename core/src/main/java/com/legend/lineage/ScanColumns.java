@@ -149,6 +149,7 @@ public final class ScanColumns {
         switch (src) {
             case SqlSource.Join j -> rootSpine(j.left(), out);
             case SqlSource.Table t -> out.add(t.alias());
+            case SqlSource.Cte c -> out.add(c.alias());
             case SqlSource.VarSetPlaceholder vp -> out.add(vp.alias());
             case SqlSource.RawSql raw -> out.add(raw.alias());
             case SqlSource.Subselect s -> out.add(s.alias());
@@ -196,6 +197,10 @@ public final class ScanColumns {
         switch (src) {
             case SqlSource.Dual d -> {
                 // FROM-less: no bindings
+            }
+            case SqlSource.Cte c -> {
+                env.put(c.alias(), (col, ctx, o) ->
+                        o.add(new Entry(c.name(), col, ctx)));
             }
             case SqlSource.Table t -> {
                 env.put(t.alias(), (col, ctx, o) ->
