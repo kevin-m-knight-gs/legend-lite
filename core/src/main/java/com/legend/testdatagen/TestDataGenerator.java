@@ -455,6 +455,7 @@ public final class TestDataGenerator {
     private static List<List<Object>> captureRows(Statement st, String sql,
             @com.legend.Nullable List<String> colsOut) throws SQLException {
         List<List<Object>> rows = new ArrayList<>();
+        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
         try (java.sql.ResultSet rs = st.executeQuery(sql)) {
             int n = rs.getMetaData().getColumnCount();
             if (colsOut != null) {
@@ -729,6 +730,7 @@ public final class TestDataGenerator {
             String table, List<String> temps) throws SQLException {
         String temp = "tdg_" + temps.size() + "_"
                 + table.replaceAll("[^A-Za-z0-9_]", "_");
+        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
         st.execute("CREATE TEMPORARY TABLE " + temp + " AS " + sql);
         temps.add(temp);
         return temp;
@@ -1132,6 +1134,7 @@ public final class TestDataGenerator {
             // displays. Text columns learn from the union's SCHEMA (a
             // LIMIT-0 metadata read, not value sniffing).
             java.util.Set<String> textCols = new java.util.HashSet<>();
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
             try (ResultSet meta = st.executeQuery(
                     "select * from (" + union + ") limit 0")) {
                 var mmd = meta.getMetaData();
@@ -1177,6 +1180,8 @@ public final class TestDataGenerator {
                             + " as varchar), '---null---')")
                     .collect(java.util.stream.Collectors
                             .joining(" || ',' || "));
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
             try (ResultSet rs = st.executeQuery("select " + line
                     + " as _csv_line from (select "
                     + String.join(", ", projs)
@@ -1237,6 +1242,7 @@ public final class TestDataGenerator {
                 Located loc = locate(ctx, dbFqn, table);
                 String te = loadSide(st, loc, e, temps);
                 String ta = loadSide(st, loc, a, temps);
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
                 try (ResultSet rs = st.executeQuery(
                         "select count(*) from ((select * from " + te
                         + " except select * from " + ta
@@ -1282,6 +1288,7 @@ public final class TestDataGenerator {
                     .append(duckType(column(loc.def(), block[0][c])
                             .dataType()));
         }
+        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
         st.execute(ddl.append(")").toString());
         temps.add(temp);
         // F7.5: one multi-row INSERT — statement count is the cost
@@ -1301,6 +1308,7 @@ public final class TestDataGenerator {
                 }
                 ins.append(')');
             }
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
             st.execute(ins.toString());
         }
         return temp;
@@ -1831,6 +1839,7 @@ public final class TestDataGenerator {
     private static void dropTemps(Connection conn, List<String> temps) {
         try (Statement st = conn.createStatement()) {
             for (String t : temps) {
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
                 st.execute("DROP TABLE IF EXISTS " + t);
             }
         } catch (SQLException ignored) {

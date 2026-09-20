@@ -62,7 +62,9 @@ final class CsvLoad {
         // the seed spelling (CsvSeed) — one producer, the database executes
         String sql = com.legend.exec.CsvSeed.insertStatement(qualified, cols, rows);
         if (sql != null) {
-            Executor.executeRaw(env.connection(), sql);
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+                Executor.executeRaw(env.connection(), sql);
+            }
         }
         return new ExecutionResult.Scalar(null, call.info().type());
     }

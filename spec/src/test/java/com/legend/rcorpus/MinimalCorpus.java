@@ -491,6 +491,7 @@ public final class MinimalCorpus {
             // calling legend_h2_extension_lpad was a referee FAULT here)
             try (java.sql.Statement st = h2.createStatement()) {
                 for (String alias : com.legend.harness.H2ExtensionFunctions.aliases()) {
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                     st.execute(alias);
                 }
             }
@@ -671,8 +672,11 @@ public final class MinimalCorpus {
                 aside = "ASIDE_" + h2Asides.size();
                 h2Asides.add(aside);
                 try (java.sql.Statement st = conn.createStatement()) {
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                     st.execute("CREATE SCHEMA IF NOT EXISTS " + aside);
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                     st.execute("SET SCHEMA " + aside);
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                     st.execute("SET SCHEMA_SEARCH_PATH " + aside);
                 }
                 System.err.println("[fixture-aside] " + setupFqn + " -> " + aside + " (h2) during " + currentTest);
@@ -697,7 +701,9 @@ public final class MinimalCorpus {
             try {
                 if (H2_BACKEND && !h2Asides.isEmpty()) {
                     try (java.sql.Statement st = conn.createStatement()) {
+                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                         st.execute("SET SCHEMA PUBLIC");
+                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                         st.execute("SET SCHEMA_SEARCH_PATH PUBLIC, " + String.join(", ", h2Asides));
                     }
                     return;

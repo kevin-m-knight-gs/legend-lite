@@ -130,10 +130,14 @@ final class SqlTextVerdicts {
             }
         }
         // OUR TEXT + GOLDEN TEXT: ordinary evaluation, the one router
-        String golden = scalarString(StatementExecutor.evalValue(
-                goldenSide, letPrefix, specs, env, null, false, hook));
-        String ours = scalarString(StatementExecutor.evalValue(
-                producerSide, letPrefix, specs, env, null, false, hook));
+        String golden;
+        String ours;
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+            golden = scalarString(StatementExecutor.evalValue(
+                    goldenSide, letPrefix, specs, env, null, false, hook));
+            ours = scalarString(StatementExecutor.evalValue(
+                    producerSide, letPrefix, specs, env, null, false, hook));
+        }
         if (golden == null || ours == null) {
             return null;
         }
@@ -805,10 +809,14 @@ final class SqlTextVerdicts {
         // as written, and the referee decodes no enum by mapping
         TypedPackageableRef mapping = producer.args().size() >= 2
                 && producer.args().get(1) instanceof TypedPackageableRef m ? m : null;
-        String golden = scalarString(StatementExecutor.evalValue(
-                goldenSide, letPrefix, specs, env, null, false, hook));
-        String ours = scalarString(StatementExecutor.evalValue(
-                actualSide, letPrefix, specs, env, null, false, hook));
+        String golden;
+        String ours;
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+            golden = scalarString(StatementExecutor.evalValue(
+                    goldenSide, letPrefix, specs, env, null, false, hook));
+            ours = scalarString(StatementExecutor.evalValue(
+                    actualSide, letPrefix, specs, env, null, false, hook));
+        }
         if (golden == null || ours == null) {
             return null;
         }
@@ -1008,13 +1016,16 @@ final class SqlTextVerdicts {
         // chained arm replays ancestor temps from the earlier hops'
         // goldens and compares the hop's transcript rows
         TdgHop hop = tdgHop(actualSide, letPrefix);
-        SqlReplayOracle.RowVerdict rv = hop == null
+        SqlReplayOracle.RowVerdict rv;
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
+            rv = hop == null
                 ? oracle.verifyFetchTexts(env.connection(), golden, ours)
                 : oracle.verifyFetchChain(env.connection(), hop.index(),
                         golden, ours, () -> fetchTranscript(
                                 com.legend.testdatagen.TestDataGenerationNatives
                                         .transcript(hop.source(), env.ctx(),
                                                 env.connection())));
+        }
         refereed(env, name, rv);
         return switch (rv.outcome()) {
             case MATCH -> {
@@ -1337,8 +1348,10 @@ final class SqlTextVerdicts {
         provideStores(env, mappingFqn);
         try {
             com.legend.exec.SqlTypeCensus.probeSuspend(true);
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
             rows = StatementExecutor.evalValue(rowsRead,
                     letPrefix, specs, env, null, false, hook);
+            }
         } catch (RuntimeException e) {
             // the rows leg is underivable — counted, text stays the
             // contract (§3.7: a counted decline, visible, never silent;
@@ -1372,7 +1385,9 @@ final class SqlTextVerdicts {
                     : fail(name + " (sql-text, rows underivable):"
                             + " expected " + golden + ", got " + ours);
         }
-        SqlReplayOracle.RowVerdict rv = goldenPlan != null
+        SqlReplayOracle.RowVerdict rv;
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
+            rv = goldenPlan != null
                 ? oracle.verifyPlan(env.connection(), goldenPlan, planBindings,
                         rows, mappingFqn, classFqn, facts, env.ctx())
                 : oracle.verify(env.connection(),
@@ -1383,6 +1398,7 @@ final class SqlTextVerdicts {
                                         letPrefix, frameZone(hook == null ? rowsRead
                                                 : hook.apply(rowsRead, java.util.Set.of())))
                                 : temps);
+        }
         refereed(env, name, rv);
         return switch (rv.outcome()) {
             case MATCH -> {

@@ -451,8 +451,11 @@ final class StatementExecutor {
             // C2.2: stores bound to DIFFERENT connections cannot share
             // the one session connection — wall, never wrong-database rows
             CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
-            result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
-                    env, letPrefix, specs));
+            try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
+                    com.legend.exec.StatementOrigin.STATEMENT)) {
+                result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
+                        env, letPrefix, specs));
+            }
         }
         if (batch != null) {
             AssertVerdicts.flush(batch, env);
@@ -1591,9 +1594,12 @@ final class StatementExecutor {
             if (eager && (env.verdictBatch() == null || resultNeeded)) {
                 com.legend.resolver.StoreResolver lqResolver =
                         resolver(specs, env);
+                try (var __o = com.legend.exec.StatementOrigin.enter(resultNeeded
+                        ? com.legend.exec.StatementOrigin.VALUE : com.legend.exec.StatementOrigin.LET)) {
                 lqRun = executeTyped(lqResolver.resolve(
                         java.util.List.of(lqChain.chain()), env.runtimeFqn()),
                         env);
+                }
             }
             PlanAllocations.registerActivityRows(ec,
                     PlanAllocations.activitySql(ec, envelope, letPrefix, specs, env),
@@ -1647,7 +1653,10 @@ final class StatementExecutor {
                     resolver(specs, env);
             java.util.List<TypedSpec> body = chainResolver.resolve(
                     java.util.List.of(assembled.chain()), env.runtimeFqn());
+            try (var __o = com.legend.exec.StatementOrigin.enter(resultNeeded
+                    ? com.legend.exec.StatementOrigin.VALUE : com.legend.exec.StatementOrigin.LET)) {
             run = executeTyped(body, env);
+            }
         }
         PlanAllocations.registerActivityRows(ec,
                 PlanAllocations.activitySql(ec, assembled.chain(), letPrefix, specs, env),
@@ -2188,7 +2197,10 @@ final class StatementExecutor {
         }
         for (String blob : setups) {
             for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
-                boolean query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                boolean query;
+                try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+                    query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                }
                 record(env, stmt, query);
             }
         }
@@ -2449,8 +2461,10 @@ final class StatementExecutor {
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         // the addDriverTablePkForProject option is part of the EXECUTION
-        return executeTyped(sideBody(value, letPrefix, specs, env, hook), env,
-                rider, identity);
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+            return executeTyped(sideBody(value, letPrefix, specs, env, hook), env,
+                    rider, identity);
+        }
     }
 
     /** A VALUE as the executor's body: the let prefix spliced, user calls
@@ -3084,7 +3098,11 @@ final class StatementExecutor {
             try {
                 // recorded AFTER it executes, with its kind: the ledger
                 // mirrors executed reality by construction
-                boolean query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                boolean query;
+                try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
+                        com.legend.exec.StatementOrigin.RAW)) {
+                    query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                }
                 record(env, stmt, query);
             } catch (com.legend.error.DataError e) {
                 throw e;
@@ -3114,7 +3132,9 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
-        Executor.executeRaw(env.connection(), schemaDdl);
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.RAW)) {
+            Executor.executeRaw(env.connection(), schemaDdl);
+        }
         record(env, schemaDdl, false);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
@@ -3153,11 +3173,13 @@ final class StatementExecutor {
         // advisory mirror still needs its H2-flavored stream: the SAME
         // model spells it a second time (recorded only after the session
         // executed — the recording mirrors executed reality).
-        Executor.executeRaw(connection, env.dialect().render(Ddl.dropTable(schema, table)));
-        // engine parity (batch 71 experiment): the native's DDL carries the
-        // declared key and nullability, exactly like the engine's
-        // dropAndCreateTableInDb (applyConstraints defaults true)
-        Executor.executeRaw(connection, env.dialect().render(Ddl.createTable(def, schema)));
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.RAW)) {
+            Executor.executeRaw(connection, env.dialect().render(Ddl.dropTable(schema, table)));
+            // engine parity (batch 71 experiment): the native's DDL carries the
+            // declared key and nullability, exactly like the engine's
+            // dropAndCreateTableInDb (applyConstraints defaults true)
+            Executor.executeRaw(connection, env.dialect().render(Ddl.createTable(def, schema)));
+        }
         // the replay ledger carries the H2 spelling of the DDL on EVERY
         // session (Phase 0.6): the H2 lane's fresh replays inserted into
         // tables nobody created because this recording was gated on the
@@ -3245,7 +3267,10 @@ final class StatementExecutor {
             }
         }
         kept.add(arg);
-        ExecutionResult evaluated = executeTyped(kept, env);
+        ExecutionResult evaluated;
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+            evaluated = executeTyped(kept, env);
+        }
         if (!(evaluated instanceof ExecutionResult.Scalar sc)
                 || !(sc.value() instanceof String str)) {
             throw new IllegalStateException("K-native dispatch: the argument"

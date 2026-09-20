@@ -354,7 +354,7 @@ public final class PureTestRunner implements AutoCloseable {
             // as it always did — the declared-footprint guard above still
             // refuses the known clashes
         }
-        try {
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
             Compiler.executeResolved(call, ctx, runtimeFqn, target, null, null, options);
         } finally {
             if (isolated) {

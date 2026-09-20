@@ -176,6 +176,8 @@ class MinimalCorpusTest {
         java.util.Map<String, Long> elapsed = new java.util.LinkedHashMap<>();
         /** the tests whose statements the test-lane scan-order emulation changed */
         List<String> engineOrder = new ArrayList<>();
+        List<String> originRows = new ArrayList<>();
+        java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
         try {
             for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
@@ -185,6 +187,7 @@ class MinimalCorpusTest {
                 MinimalCorpus.Result r;
                 long tStart = System.nanoTime();
                 long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
+                long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -221,6 +224,16 @@ class MinimalCorpusTest {
                     case ACCEPTED -> accepted.add(r.fqn() + " :: " + r.reason());
                 }
                 elapsed.put(r.fqn(), (System.nanoTime() - tStart) / 1_000_000L);
+                long[] originsAfter = com.legend.exec.StatementOrigin.snapshot();
+                StringBuilder originRow = new StringBuilder(r.fqn());
+                for (var o : com.legend.exec.StatementOrigin.values()) {
+                    long d = originsAfter[o.ordinal()] - originsBefore[o.ordinal()];
+                    originRow.append('\t').append(d);
+                    if (d > 0) {
+                        originTop.computeIfAbsent(o, k -> new java.util.HashMap<>()).merge(r.fqn(), d, Long::sum);
+                    }
+                }
+                originRows.add(originRow.toString());
                 long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
                     engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
@@ -241,6 +254,27 @@ class MinimalCorpusTest {
             timing.add(e.getValue() + "\t" + e.getKey());
         }
         Files.write(Path.of("target/corpus2-elapsed.txt"), timing);
+        // THE STATEMENT-ORIGIN CENSUS (2026-09-20): every statement sent this
+        // JVM by where it came from, and per test — the north star is ONE
+        // statement per body, so every origin but BODY is what is left outside it
+        originRows.add(0, "test\t" + String.join("\t", java.util.Arrays.stream(
+                com.legend.exec.StatementOrigin.values()).map(Enum::name).toList()));
+        Files.write(Path.of("target/corpus2-statement-origins.tsv"), originRows);
+        System.out.println("[corpus2] statement-origins " + com.legend.exec.StatementOrigin.census(
+                com.legend.exec.StatementOrigin.snapshot()));
+        for (var o : com.legend.exec.StatementOrigin.values()) {
+            var per = originTop.getOrDefault(o, java.util.Map.of());
+            if (per.isEmpty() || o == com.legend.exec.StatementOrigin.BODY) {
+                continue;
+            }
+            long sum = per.values().stream().mapToLong(Long::longValue).sum();
+            String top = per.entrySet().stream()
+                    .sorted((x, y) -> Long.compare(y.getValue(), x.getValue())).limit(5)
+                    .map(e -> e.getKey().replaceFirst("^meta::", "") + "=" + e.getValue())
+                    .collect(java.util.stream.Collectors.joining(", "));
+            System.out.println("[corpus2] statement-origin " + o.name().toLowerCase(java.util.Locale.ROOT)
+                    + " tests=" + per.size() + " statements=" + sum + " top: " + top);
+        }
         System.out.println("[corpus2] engine-order tests=" + engineOrder.size()
                 + " (statements the test-lane scan-order emulation changed; product never opts in)");
         System.out.println("[corpus2] pass=" + pass.size() + " fail=" + fail.size()

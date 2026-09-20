@@ -150,7 +150,8 @@ class JavaEvalLedgerTest {
             // toOne spellings inline (invariant 6d keeps exec off the
             // frontend) — recognition lines, not evaluation.
             Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 187),
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 106),
+            // 106 -> 107 (2026-09-20, statement-origin census): the pivot-key probe counts itself
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 107),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -174,7 +175,8 @@ class JavaEvalLedgerTest {
             // probe's own metadata, one lookup per column), zero value
             // evaluation; it EXISTS to delete the Any-wildcard stamp so
             // late-bound cells type and the wire ledger burns.
-            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 52),
+            // 52 -> 53 (2026-09-20, statement-origin census): the column probe counts itself
+            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 53),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -653,7 +655,9 @@ class JavaEvalLedgerTest {
             // is planned once and its root rows defined as the body's CTE (extentRows
             // on the frame, the census arm, the hook defining the class frame's CTE)
             // — planning and sequencing, no value evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2366),   // 2228 -> 2234 (the wire-slot leg, 2026-09-19: the reported-column memo accessor and a raw executeInDb grid framed by the database's reported columns before its canon wrap — plan wiring, nothing evaluated); // 2218 -> 2228 (leg 3.3: a store-reading verdict side's plan passes through WireTypes.reconcile before the canon wrap, the reported types memoized per connection — plan wiring, nothing evaluated); // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
+            // 2366 -> 2391 (2026-09-20, statement-origin census): every statement-sending site
+            // marks WHY it runs (let / value, seed, raw, side, statement) — scopes, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2391),   // 2228 -> 2234 (the wire-slot leg, 2026-09-19: the reported-column memo accessor and a raw executeInDb grid framed by the database's reported columns before its canon wrap — plan wiring, nothing evaluated); // 2218 -> 2228 (leg 3.3: a store-reading verdict side's plan passes through WireTypes.reconcile before the canon wrap, the reported types memoized per connection — plan wiring, nothing evaluated); // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -827,7 +831,9 @@ class JavaEvalLedgerTest {
             // forward) and the rows leg binds that reduced scope — routing to
             // the platform, no value evaluated in Java; the helper is never
             // hijacked or emptied. Five datetime plan rows judged by rows.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1177),
+            // 1177 -> 1193 (2026-09-20, statement-origin census): the referee marks its rows legs
+            // (ours / golden / the TDG and text arms) with their origin — scopes, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1193),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the
@@ -1044,6 +1050,9 @@ class JavaEvalLedgerTest {
                     // resolver.RawGridSchema (Invariant 7, staged
                     // compilation); only the probe stays in exec.
                     "GridProbe.java",
+                    // StatementOrigin (2026-09-20): the statement-origin CENSUS — a thread-scoped
+                    // mark + counters; sends nothing, reads no value; printed by the corpus lanes
+                    "StatementOrigin.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
                     // R1 (CANONICAL_FORM_SPEC §0): the byte-channel
                     // REFERENCE render + its divergence census. Pure

@@ -103,7 +103,7 @@ final class LineageTreeVerdicts {
     private static String treeRows(String print, StatementExecutor.ExecEnv env) {
         String lit = "'" + print.replace("'", "''") + "'";
         java.io.StringWriter out = new java.io.StringWriter();
-        try {
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
             Executor.streamWireRows(TREE_ROWS.formatted(lit), env.connection(), out);
         } catch (java.io.IOException e) {
             throw new IllegalStateException(e);

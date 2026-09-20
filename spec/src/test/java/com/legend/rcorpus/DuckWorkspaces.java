@@ -79,6 +79,7 @@ final class DuckWorkspaces {
             root = (DuckDBConnection) DriverManager
                     .getConnection("jdbc:duckdb:");
             try (Statement st = root.createStatement()) {
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                 st.execute("SET threads=1");
             }
         }
@@ -90,14 +91,17 @@ final class DuckWorkspaces {
         }
         String ws = "__ws_" + IDS.getAndIncrement();
         try (Statement st = root.createStatement()) {
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("ATTACH ':memory:' AS " + ws);
         }
         Connection conn = root.duplicate();
         try (Statement st = conn.createStatement()) {
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("USE " + ws);
             // (harness WARMUP of the dialect's own session contract —
             // the DECISION lives in DuckDb.initSession (B6); this
             // pre-applies it to pooled workspaces before any execute)
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("SET TimeZone='UTC'");
         }
         LIVE.add(ws);
@@ -125,6 +129,7 @@ final class DuckWorkspaces {
         // transaction (a body's attempt may be one): it rides the ROOT,
         // like the workspace attach
         try (Statement st = root.createStatement()) {
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("ATTACH ':memory:' AS " + aside);
         }
         ASIDES.computeIfAbsent(proxied, c -> new java.util.ArrayList<>()).add(aside);
@@ -139,7 +144,9 @@ final class DuckWorkspaces {
     static synchronized Connection asideConnection(String aside) throws SQLException {
         Connection c = root.duplicate();
         try (Statement st = c.createStatement()) {
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("USE " + aside);
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("SET TimeZone='UTC'");
         }
         return c;
@@ -159,6 +166,7 @@ final class DuckWorkspaces {
             path.add(a + ".main");
         }
         try (Statement st = proxied.createStatement()) {
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("SET search_path = '" + String.join(",", path) + "'");
         }
     }
@@ -208,6 +216,7 @@ final class DuckWorkspaces {
     private static synchronized void detach(String ws) {
         long t0 = System.nanoTime();
         try (Statement st = root.createStatement()) {
+            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("DETACH " + ws);
             long dt = System.nanoTime() - t0;
             DETACHES.incrementAndGet();

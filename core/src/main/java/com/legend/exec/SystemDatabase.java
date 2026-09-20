@@ -121,13 +121,17 @@ public final class SystemDatabase {
         }
         closer.open.add(c);
         for (String setup : dialect.sessionSetup()) {
-            Executor.executeRaw(c, setup);
+            try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
+                Executor.executeRaw(c, setup);
+            }
         }
         for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
             for (DatabaseDefinition.TableDefinition def : schema.tables()) {
                 List<List<String>> r = rows.computeIfAbsent(def.name(), rowsOf);
                 for (String stmt : Ddl.metamodelSeed(def, schema.name(), r, dialect)) {
-                    Executor.executeRaw(c, stmt);
+                    try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
+                        Executor.executeRaw(c, stmt);
+                    }
                 }
             }
         }

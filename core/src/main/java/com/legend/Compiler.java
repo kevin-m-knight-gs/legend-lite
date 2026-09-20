@@ -624,7 +624,9 @@ public final class Compiler {
             // the dialect states the FACTS, the exec funnel executes
             var d = dialectOf(ctx, runtimeFqn);
             for (String s : d.sessionSetup()) {
-                com.legend.exec.Executor.executeRaw(connection, s);
+                try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
+                    com.legend.exec.Executor.executeRaw(connection, s);
+                }
             }
             return d;
         }
@@ -656,7 +658,9 @@ public final class Compiler {
                 ? new com.legend.sql.dialect.H2()
                 : new com.legend.sql.dialect.H2Modern();
         for (String s : h2d.sessionSetup()) {
-            com.legend.exec.Executor.executeRaw(connection, s);
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
+                com.legend.exec.Executor.executeRaw(connection, s);
+            }
         }
         return h2d;
     }

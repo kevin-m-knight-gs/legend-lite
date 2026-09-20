@@ -507,6 +507,7 @@ public final class H2Verify {
         boolean hasPk = false;
         List<String> dataLabels = new ArrayList<>();
         java.util.Set<String> temporal = new java.util.HashSet<>();
+        com.legend.exec.StatementOrigin.count();
         try (ResultSet rs = st.executeQuery(goldenSql)) {
             var md = rs.getMetaData();
             int n = md.getColumnCount();
@@ -738,6 +739,7 @@ public final class H2Verify {
                                 .map(c -> c.name()).toList(), facts.sortKeys())
                         : null;
                 List<Cells> theirKeys = new ArrayList<>();
+                com.legend.exec.StatementOrigin.count();
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
                     int n = rs.getMetaData().getColumnCount();
                     theirsCols[0] = n;
@@ -1284,6 +1286,7 @@ public final class H2Verify {
     static List<Cells> rawRows(Statement st, String sql)
             throws SQLException {
         List<Cells> out = new java.util.ArrayList<>();
+        com.legend.exec.StatementOrigin.count();
         try (ResultSet rs = st.executeQuery(sql)) {
             var md = rs.getMetaData();
             int n = md.getColumnCount();

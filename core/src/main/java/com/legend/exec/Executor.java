@@ -42,6 +42,7 @@ public final class Executor {
     public static boolean executeRaw(Connection connection, String statement) {
         try (Statement st = connection.createStatement()) {
             ROUND_TRIPS.incrementAndGet();   // the raw-SQL boundary counts too
+            StatementOrigin.count();
             SQL_CHARS.addAndGet(statement.length());
             return st.execute(statement);
         } catch (SQLException e) {
@@ -234,6 +235,7 @@ public final class Executor {
      * only, printed by the corpus lanes, read by no verdict. */
     private static void dumpSql(String sql) {
         ROUND_TRIPS.incrementAndGet();
+        StatementOrigin.count();
         SQL_CHARS.addAndGet(sql.length());
         if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
             System.err.println("[sql] " + sql);

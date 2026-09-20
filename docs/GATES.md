@@ -4390,3 +4390,23 @@ MIN_MATCHED 2518 → 2519 (the rung-12 test's model).
 
 **Chain.** GREEN: G2 24 · G1 77 · G3 11 · G4 98 · G5 37 · G6 138 · G7 44 · G9 34 · G8 145 ·
 G10 52 (stress 4,700 / 20 / 16 of 4,736).
+
+## 2026-09-20 — the statement-origin census: everything outside the single body, named
+
+**What landed.** `StatementOrigin` (core exec): every statement the platform or the harness sends
+carries an origin mark (body, fallback, let, value, side, statement, raw, referee-ours,
+referee-golden, seed, mirror-seed, session, system, probe, tdg, other); the corpus lanes print the
+totals, the top tests per origin, and a per-test table (`target/corpus2-statement-origins.tsv`).
+`other` is zero on all four lanes. Full table and reading: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md
+§4ad. Headline (DuckDB database, 2,613 tests): body 2,578 · seed 114,258 · mirror seed 95,481 ·
+raw natives 13,484 (139 tests) · session 7,310 · referee 1,894 + 1,883 (1,647 tests) · sides 438
+(183 tests) · tdg 1,220 · system 121 · statements 35 · probes 7 · fallback 1. 839 tests already
+send nothing but their body plus seeding/session. Order implied: seeding boundary → referee rows
+leg into the body → the 183 declined sides → raw natives as one batch per body.
+
+**Guardrails.** JavaEvalLedger: StatementOrigin registered in the exec-package register (a mark
+and counters — sends nothing, reads no value); StatementExecutor 2366 → 2391, SqlTextVerdicts
+1177 → 1193, GridProbe 52 → 53, DynamicPivot 106 → 107 (scopes and self-counts, nothing evaluated).
+
+**Lanes.** DuckDB database lost 0 / gained 0 · host 108 exact; H2 host 412 exact · database
+registers exact. Chain: GREEN — G2 24 · G1 76 · G3 12 · G4 106 · G5 39 · G6 141 · G7 46 · G9 36 · G8 152 · G10 55 (G1 re-run after the harness-discipline re-pin: the census top-five sort is a display ordering).

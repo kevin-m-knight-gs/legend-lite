@@ -70,6 +70,7 @@ public final class DynamicPivot {
                 .withOrderBy(List.of(SqlSelect.SortKey.asc(
                         SqlExpr.Column.derived(null, "v"))));
         List<SqlExpr> in = new ArrayList<>();
+        StatementOrigin.count(StatementOrigin.PROBE);
         try (Statement st = connection.createStatement();
                 ResultSet rs = st.executeQuery(dialect.render(q))) {
             while (rs.next()) {

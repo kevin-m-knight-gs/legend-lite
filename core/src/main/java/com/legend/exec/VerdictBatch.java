@@ -268,8 +268,11 @@ public final class VerdictBatch {
     private List<Row> executeFused(List<SqlQuery> statements, Connection on,
             SqlDialect dialect, ExecutionTrace trace) {
         SqlQuery b = fusion.fuse(statements, frames);
-        ExecutionResult r = Executor.execute(dialect.render(b), b, fusedShape,
+        ExecutionResult r;
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
+            r = Executor.execute(dialect.render(b), b, fusedShape,
                 ResultShape.TABULAR, on, dialect, trace);
+        }
         if (!(r instanceof ExecutionResult.Tabular t) || t.rows().size() != statements.size()) {
             throw new IllegalStateException("the batch verdict statement returned "
                     + (r instanceof ExecutionResult.Tabular t2 ? t2.rows().size() + " rows" : "no grid")
@@ -286,8 +289,10 @@ public final class VerdictBatch {
             Connection on, SqlDialect dialect, ExecutionTrace trace) {
         ExecutionResult r;
         try {
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
             r = Executor.execute(dialect.render(vq), vq, oneRow, ResultShape.TABULAR, on,
                     dialect, trace);
+            }
         } catch (com.legend.error.DataError e) {
             CanonicalDivergence.sqlUnjudged(name, "statement-error: "
                     + String.valueOf(e.getMessage()).split("\n")[0]);

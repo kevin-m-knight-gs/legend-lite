@@ -78,6 +78,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         // fix H2Verify exists for was not in effect).
         try (Statement st = h2.createStatement()) {
             for (String alias : H2ExtensionFunctions.aliases()) {
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                 st.execute(alias);
             }
         } catch (SQLException e) {
@@ -294,6 +295,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                         + H2Verify.SETTINGS, "sa", "");
                 Statement st = h2.createStatement()) {
             for (String alias : H2ExtensionFunctions.aliases()) {
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                 st.execute(alias);
             }
             for (String seed : seeds == null ? List.<String>of() : seeds) {
@@ -302,9 +304,11 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                         continue;
                     }
                     if (session.seedFailPrefix() == null) {
+                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
                         st.execute(one);
                     } else {
                         try {
+                            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
                             st.execute(one);
                         } catch (SQLException e) {
                             throw new H2Verify.Unverifiable(
@@ -333,6 +337,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                     continue;
                 }
                 try {
+                    com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
                     st.execute(one);
                 } catch (SQLException e) {
                     mirror.poison = "seed replay: " + e.getMessage();
@@ -369,6 +374,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                 for (String x : extraSeeds == null ? List.<String>of()
                         : extraSeeds) {
                     try {
+                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.MIRROR_SEED);
                         st.execute(x);
                     } catch (SQLException e) {
                         throw new H2Verify.Unverifiable("seed replay: "
@@ -478,7 +484,9 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         try {
             if (!duck.getAutoCommit()) {
                 try (Statement st = duck.createStatement()) {
-                    ourRows = H2Verify.rawRows(st, ourSql);
+                    try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+                        ourRows = H2Verify.rawRows(st, ourSql);
+                    }
                 }
             } else {
                 try (Connection dup = duck.unwrap(
@@ -486,9 +494,12 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                         Statement st = dup.createStatement()) {
                     String ws = duck.getCatalog();
                     if (ws != null && !ws.isBlank()) {
+                        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                         st.execute("USE " + ws);
                     }
-                    ourRows = H2Verify.rawRows(st, ourSql);
+                    try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
+                        ourRows = H2Verify.rawRows(st, ourSql);
+                    }
                 }
             }
         } catch (SQLException e) {
@@ -540,12 +551,17 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
                 String name = a[0];
                 String sql = a[1];
                 if (created.contains(name)) {
+                    com.legend.exec.StatementOrigin.count();
                     st.execute("create table TDG_TEMP_STAGE as " + sql);
+                    com.legend.exec.StatementOrigin.count();
                     st.execute("drop table " + name);
+                    com.legend.exec.StatementOrigin.count();
                     st.execute("alter table TDG_TEMP_STAGE rename to "
                             + name);
                 } else {
+                    com.legend.exec.StatementOrigin.count();
                     st.execute("drop table if exists " + name);
+                    com.legend.exec.StatementOrigin.count();
                     st.execute("create table " + name + " as " + sql);
                     created.add(name);
                 }
@@ -554,12 +570,14 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         } finally {
             for (String name : created) {
                 try {
+                    com.legend.exec.StatementOrigin.count();
                     st.execute("drop table if exists " + name);
                 } catch (SQLException ignored) {
                     // cleanup best-effort; the next use drops-if-exists
                 }
             }
             try {
+                com.legend.exec.StatementOrigin.count();
                 st.execute("drop table if exists TDG_TEMP_STAGE");
             } catch (SQLException ignored) {
                 // same
@@ -897,6 +915,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     private void execute(String sql) throws SQLException {
         onOracle(recorder.seeds(),
                 VERIFY_SESSION, st -> {
+                    com.legend.exec.StatementOrigin.count();
                     st.execute(sql);
                     return Boolean.TRUE;
                 });

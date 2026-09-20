@@ -68,6 +68,7 @@ public final class GridProbe {
         SqlSelect probe = SqlSelect.starOf(
                 new SqlSource.RawSql(sql, "_p", List.of()))
                 .withLimit(0L);
+        StatementOrigin.count(StatementOrigin.PROBE);
         try (var st = conn.createStatement();
                 var rs = st.executeQuery(dialect.render(probe))) {
             var md = rs.getMetaData();

@@ -1928,6 +1928,71 @@ and the lane clock. The per-test delta is spread (951 tests +1–5 ms, 638 +6–
 203 +21–50, 81 over 50 ms; top 50 tests carry 9.7 s of the 31 s), so the fix must be the
 shape, not a few tests.
 
+## 4ad. The statement-origin census — everything that runs outside the single body (2026-09-20)
+
+**The question (user):** "do we have a census of everything running outside of the single body?"
+We had totals (round trips, fused statements) and no breakdown. Now every statement the platform
+or the harness sends carries an ORIGIN mark set by the site that decides why it runs
+(`StatementOrigin`: a thread-scoped mark, counters per origin, per-test attribution in
+`MinimalCorpusTest`, the per-test table `target/corpus2-statement-origins.tsv`, the lane line
+`[corpus2] statement-origins …` and the top-five tests per origin). Senders that bypass the
+executor (the harness's session setup, the referee's mirror, the probes, test-data generation)
+count themselves. Residual `other` is ZERO on every lane: every statement is named.
+
+**The four lanes (2,613 tests each).**
+
+| origin | DuckDB database | DuckDB host | H2 database | H2 host | tests (DuckDB db) |
+|---|---|---|---|---|---|
+| body (the fused statement) | 2,578 | 0 | 2,333 | 0 | 2,108 |
+| fallback (per-assert statements) | 1 | 0 | 61 | 0 | 1 |
+| let (frame run at the let) | 0 | 1,975 | 0 | 1,948 | — |
+| side (a verdict side evaluated outside the body) | 438 | 7,483 | 278 | 6,882 | 183 |
+| statement (a plain body statement) | 35 | 35 | 34 | 34 | 33 |
+| raw (executeInDb / dropAndCreate natives in bodies) | 13,484 | 13,484 | 13,464 | 13,466 | 139 |
+| referee, our plan | 1,894 | 1,894 | 1,875 | 1,793 | 1,647 |
+| referee, golden replay | 1,883 | 1,883 | 1,857 | 1,776 | 1,591 |
+| seed (the product's fixtures / declared setups) | 114,258 | 114,258 | 114,258 | 114,258 | 318 |
+| mirror seed (the referee's H2 mirror replaying the ledger) | 95,481 | 95,481 | 194,892 | 194,892 | 301 / 27 |
+| session (attach / use / settings / aliases) | 7,310 | 7,310 | 3,611 | 3,611 | 2,585 |
+| system (the metamodel database) | 121 | 121 | 120 | 120 | 1 |
+| probe (reported columns, pivot keys) | 7 | 7 | 5 | 6 | 5 |
+| tdg (test-data generation) | 1,220 | 1,220 | 1,220 | 1,220 | 34 |
+| other | 0 | 0 | 0 | 0 | 0 |
+
+839 of 2,613 tests (32%) already send NOTHING but their body statement plus seeding and session
+setup. The medians: a seeding test seeds 434 statements; a raw test sends 26; the referee pair is
+1 + 1 per text assert.
+
+**Reading it — by owner, largest first.**
+
+1. **The product's seeding: 114,258 (48% of everything; 318 tests, median 434 per test).** The
+   seeding boundary leg (user: "single statement first, then setup inserts") is the largest thing
+   outside the body by a factor of eight over everything else combined that the product owns.
+2. **The referee's mirror seeding: 95,481 on DuckDB (the h2-mirror oracle replays the seed ledger
+   per fixture) and 194,892 on H2 (the same-session oracle rebuilds a fresh mirror 27 times at
+   ~4,500 statements each).** A test-lane cost, not the product's; it has its own boundary.
+3. **Raw natives in bodies: 13,484 in 139 tests** (`executeInDb`, `dropAndCreateTableInDb`,
+   `dropAndCreateSchemaInDb` — the milestoning and test-data-generation families, up to 448 in
+   one test). These ARE the test's own statements; the only fold is "one multi-statement batch per
+   body", a different thing from the verdict batch.
+4. **Session setup: 7,310 (2.8 per test)** — the DuckDB per-test workspace (attach, use, two
+   settings). Harness cost; the H2 lane's schema asides cost 3,611.
+5. **The SQL-text referee's rows leg: 1,894 + 1,883 across 1,647 tests** — the largest thing that
+   BELONGS to a body and runs outside it: our plan and the golden replay executed separately per
+   text assert. The next body leg: both sides ride the fused statement (the golden as a raw-text
+   side, rows judged in SQL).
+6. **Sides outside the body: 438 in 183 tests (database mode)** — shapes the batch declined (the
+   test-data-generation and lineage arms evaluate their sides on the host). Task #14's "the canon
+   claims every shape" list, now with names.
+7. **Test-data generation 1,220 (34 tests), system 121 (1), statements 35, probes 7, fallback 1.**
+
+**Order it implies:** seeding boundary → referee rows leg into the body → the 183 declined sides →
+raw natives as one batch per body. The class-frame rungs (rung 13+) do not change this table —
+they cut statement TEXT, not statements.
+
+**Lanes with the census in:** DuckDB database lost 0 / gained 0; DuckDB host 108 exact; H2 host
+412 exact; H2 database registers exact.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

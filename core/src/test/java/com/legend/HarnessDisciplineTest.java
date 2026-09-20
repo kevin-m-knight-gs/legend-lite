@@ -121,7 +121,9 @@ class HarnessDisciplineTest {
             // source-file order.
             Map.entry("MinimalCorpus.java", 2),
             // the timing ledger: the slowest tests DISPLAYED, no comparison
-            Map.entry("MinimalCorpusTest.java", 1),
+            // 1 -> 2 (2026-09-20, statement-origin census): the per-origin top-five is a
+            // DISPLAY ordering of statement counts (largest first) — no verdict, no comparison policy
+            Map.entry("MinimalCorpusTest.java", 2),
             // the eager corpus compile PROBE (COMPILE_EVERYTHING_HOMEWORK §10, run
             // by name, not a gate): sorted REPORT lines — failures by reason,
             // package, source file, name — a display, never a verdict
