@@ -1429,6 +1429,59 @@ PCT relation battery 469/0 on DuckDB, 469/1/26 on H2Modern (the floor). Ledger: 
 2554 → 2600 (dispatch and plan wiring: the JSON multiset route with its placeability check, the
 planned-schema restriction, the late-bound grid's kinds — nothing compared in Java).
 
+## 4u. Leg 3.3, first item — a wire-decided column's kind is the database's (2026-09-19)
+
+**The decision (§4t (i), taken with the USER: "let's finish and see").** The three
+String-over-INT value rows are not fixture skew to register; they are the judge trusting a
+store declaration the engine never reads. The engine types a result cell by the result set's
+metadata (`ResultSetValueHandlers`, `RelationalResult.getValue`) and a String / unrefined-Number /
+Any declaration is `dataTypeTransformer`'s identity arm — the cell keeps the wire's kind. Host
+mode already reads the wire (JDBC hands it the String `"7"`); database mode spelled the canon by
+the compiler's stamp (`ID INT`). The USER asked whether this was overcomplicating; the answer
+recorded: about 100 lines, one prepare per store-reading assert side, and the alternative was a
+permanent register row that the differential gate would carry as a permanent disagreement.
+
+**The mechanism (`exec.WireTypes.reconcile`, called from `StatementExecutor.planValue` for a
+store-reading side, database mode's planner only).** The side's plan is rendered and PREPARED —
+parse and bind, no row fetched: `PreparedStatement.getMetaData()` returns the projected types on
+both drivers without executing (probe: `n / 0` in the select list raised nothing; DuckDB 0.4 ms,
+H2 5 ms first, 0.05 ms after). The reported types are memoized per connection and statement text
+(`Established.wireTypes`). A BARE store-column projection whose declared kind is wire-decided and
+whose stamped kind differs from the reported one is RE-TYPED to the reported type: the column
+reference relabelled (`Column.of` with the wire type), its output likewise, through
+`SqlSelect.withProjections(projections, outputs)`. Nothing is cast and nothing computed is touched.
+
+**Two things the first measurement taught (read before the fix).** The first build CAST the
+projection to the reported type "a cast to a column's own type": on H2 the calendar-aggregation
+family (27 rows lost, 4 gains lost) came back at scale 0 (`2D`, `7D`) — H2 reports a computed
+DECIMAL's metadata scale as 0 while the cell carries the value's real scale; a cast is not an
+identity for a computed column. Hence: bare column references only, relabelled, never cast; a
+computed expression keeps the compiler's derived type (which it gets right). The prepare's own
+failure is the data error the verdict would have raised (`DataError`, PctProbe's seam), not a
+swallowed fallback. Ratchets on the way: the JDBC surface census (WireTypes registered as a
+schema read at the execution seam — PctProbe's pattern; the test battery registered), the
+funnel-package register, the StatementExecutor evaluator pin (2218 → 2228, plan wiring), the raw
+`Column` construction pin (the stamped door instead), the harness-discipline site count (the
+record accessor `distinct()` spelled in exec matched the textual site pattern — the frame rebuild
+moved into the IR door).
+
+**Measured.** DuckDB database lost 5 → 2 / gained 0 (accepted 21 / 2 unchanged), 84 s against
+82 s before; H2 database lost 78 → 75 / gained 71 (accepted 0 / 2 unchanged), 47 s against 47 s;
+the three rows (`testSimpleDistinct`, `testSimpleDistinctWithFilter`, `testInWithDynaFunction`)
+pass on both engines for the engine's reason and nothing else moved. DuckDB host 108, H2 host 412
+exact; chain green.
+
+**Queued (task #23), the two rows left, both this mechanism's neighbours:**
+- `testExecuteInDbToTDS` — a raw `executeInDb` grid is LATE-BOUND: no schema, no typed outputs,
+  the rendered road declines. The schema (names and kinds) comes from the prepared statement's
+  metadata through the same seam (`WireTypes.reported` / PctProbe's LIMIT-0 pattern), then the
+  golden parses by it.
+- `validateComplexValidation3` — a `toCSV` golden's cell text is what the WIRE printed; the grid
+  parse typed `12` by the declared kind (String) against the wire INTEGER. Type a rendered
+  golden's cell by the PLANNED OUTPUT's wire kind (the physical kind for a bare store column
+  now), the declared kind only when the wire kind is unknown. No value is converted — a kind-less
+  text takes the wire's kind. Not a coercion rule.
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

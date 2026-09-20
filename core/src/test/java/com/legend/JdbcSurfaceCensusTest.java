@@ -113,6 +113,8 @@ class JdbcSurfaceCensusTest {
             // the CanonicalDivergence pattern with a java.sql import
             "core/src/main/java/com/legend/exec/SqlTypeCensus.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
+            // leg 3.3: the wire-decided kinds read from the prepared statement's metadata
+            "core/src/main/java/com/legend/exec/WireTypes.java",
             // SQLTEXT charter §2: the replay-oracle SPI — a pure
             // interface (AssertListener precedent) whose SIGNATURE
             // names java.sql types (SQLException, the OracleRows cell
@@ -245,6 +247,9 @@ class JdbcSurfaceCensusTest {
             // computes the SQL canon text; agreement with the host
             // reference render IS the assertion
             "core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java",
+            // leg 3.3: the wire-kind probe battery — the DATABASE reports the
+            // physical type of a store-declared column on both drivers
+            "core/src/test/java/com/legend/exec/WireTypesTest.java",
             // D6b: the leniency pins run Compiler.execute e2e — the
             // valid-neighbor control must EXECUTE, and the bad-date pin
             // proves rejection moved from the DB to the parser

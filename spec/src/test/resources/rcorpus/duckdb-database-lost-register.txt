@@ -1,5 +1,2 @@
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| AssertFailed: assertEquals: UNJUDGED in database mode — rendered-text: the rendered relation's columns are late-bound (no schema)
-meta::relational::tests::projection::filter::in::testInWithDynaFunction ||| AssertFailed: assertSameElements | expected: ['4', false] | actual:   [4, false]
-meta::relational::tests::tds::distinct::testSimpleDistinct ||| AssertFailed: assertEquals | expected: 'Anthony Allen''7' | actual:   'Anthony Allen'7
-meta::relational::tests::tds::distinct::testSimpleDistinctWithFilter ||| AssertFailed: assertEquals | expected: 'Peter Smith''1' | actual:   'Peter Smith'1
 meta::relational::validation::complex::validateComplexValidation3 ||| AssertFailed: assertEquals | expected: ['constraint1''Error'TDSNull'12''Anthony', 'constraint1''Error'TDSNull'12''John', 'constraint

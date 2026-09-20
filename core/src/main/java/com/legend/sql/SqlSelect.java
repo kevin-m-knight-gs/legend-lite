@@ -203,6 +203,18 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                 qualify, orderBy, limit, offset, outputs);
     }
 
+    /** A projection frame RE-TYPED: the projections and their outputs
+     * together (a wire-kind reconciliation relabels a column reference
+     * and its output as one fact — {@code exec.WireTypes}). */
+    public SqlSelect withProjections(List<Projection> p, List<OutputCol> out) {
+        if (p.isEmpty() || p.size() != out.size()) {
+            throw new IllegalArgumentException("withProjections(p, out): "
+                    + p.size() + " projections for " + out.size() + " outputs");
+        }
+        return new SqlSelect(p, distinct, from, where, groupBy, having,
+                qualify, orderBy, limit, offset, out);
+    }
+
     /** STAR-FRAME outputs door ({@code SELECT *} — empty projections):
      * the one shape whose outputs are the caller's own fact (source
      * passthrough / schema-born at the physical doors). */

@@ -624,7 +624,7 @@ class JavaEvalLedgerTest {
             // session at establishment — the engine's own step, missing here
             // before — once per session, re-seeded after a writing statement;
             // orchestration of declared facts, no value evaluated in Java
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2218),   // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2228),   // 2218 -> 2228 (leg 3.3: a store-reading verdict side's plan passes through WireTypes.reconcile before the canon wrap, the reported types memoized per connection — plan wiring, nothing evaluated); // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -979,6 +979,15 @@ class JavaEvalLedgerTest {
                     "Equality.java",
                     "H2Settings.java",
                     "PctProbe.java",
+                    // leg 3.3 (2026-09-19): the wire-decided kinds of a
+                    // store-reading verdict side are the DATABASE's — one
+                    // prepare (no row fetched), the reported type cast
+                    // onto the projection so the canon spells the wire's
+                    // kind (the engine types a cell by result-set metadata,
+                    // never by the store's declaration; §4t). A schema read
+                    // at the execution seam, PctProbe's own pattern; no
+                    // value a verdict reads is computed here.
+                    "WireTypes.java",
                     // batch 83 (2026-09-06): the engine's execution-trace
                     // comment — the statement the database receives carries
                     // `-- "executionTraceID" : "<uuid>"` (the engine's

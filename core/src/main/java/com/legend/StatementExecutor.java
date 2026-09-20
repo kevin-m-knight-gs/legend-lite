@@ -2088,6 +2088,10 @@ final class StatementExecutor {
     private static final class Established {
         /** the seed SOURCES established on the session (value keys) */
         final java.util.Set<SeedSources> done = new java.util.HashSet<>();
+        /** the database's reported column types per prepared statement
+         *  text (leg 3.3, {@link com.legend.exec.WireTypes}) */
+        final java.util.Map<String, java.util.List<com.legend.sql.SqlType>> wireTypes =
+                new java.util.HashMap<>();
         boolean dirty;
     }
 
@@ -2655,6 +2659,17 @@ final class StatementExecutor {
                         .requireBounded("result shape").isMany()
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type());
+        if (!stores.isEmpty()) {
+            // leg 3.3: a store-reading side's wire-decided kinds are the
+            // database's (a store declaration is not a cast); a store-free
+            // side's stamp is the compiler's own fact
+            plan = com.legend.exec.WireTypes.reconcile(plan,
+                    collectionDeclared ? java.util.Objects.requireNonNull(p.declaredInfo())
+                            : com.legend.exec.ResultShape.valueInfo(root.info()),
+                    penv.dialect(), penv.connection(),
+                    ESTABLISHED.computeIfAbsent(penv.connection(), c -> new Established())
+                            .wireTypes);
+        }
         WrappedSide ws = wrapSide(plan, root,
                 collectionDeclared ? p.declaredInfo() : null, rider, penv);
         return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),

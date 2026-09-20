@@ -4185,3 +4185,16 @@ declares `ID INT`; every layer read (JDBC handlers, `transform`, both runtimes' 
 server's serializer, the client's `Any[*]` deserializer and `dataTypeTransformer`) is identity or
 strict; our compiler stamps the wire kind from the store. Decisions for 3.3, recorded. Ledger:
 AssertVerdicts 2554 → 2600. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4t.
+
+**Judging leg 3.3, first item — wire-decided kinds are the database's (2026-09-19):** chain GREEN
+(gates 1–10) after one red (the harness-discipline site count matched the record accessor
+`distinct()` spelled in exec; the frame rebuild moved into `SqlSelect.withProjections(p, out)`);
+parallel wall ≈ 4m20s (G2 25; A: G1 75 · G3 10 · G4 100 · G5 37 = 222; B: G6 140 · G7 44 · G9 32 =
+216; C: G8 144 · G10 52 = 196). `exec.WireTypes.reconcile`: a store-reading verdict side's plan is
+PREPARED (no row fetched; memoized per connection and statement text) and a bare store-column
+projection whose String / Number / Any-declared kind the database reports differently is
+re-typed to the reported type — relabelled, never cast (the first build cast, and H2's computed
+DECIMAL metadata at scale 0 truncated the calendar family: 27 rows). Four lanes: DuckDB host 108,
+H2 host 412 exact; DuckDB database lost 5 → 2 / gained 0 (84 s vs 82); H2 database lost 78 → 75 /
+gained 71 (47 s vs 47); accepted registers unchanged. Ledger: StatementExecutor 2218 → 2228 (plan
+wiring). Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4u.
