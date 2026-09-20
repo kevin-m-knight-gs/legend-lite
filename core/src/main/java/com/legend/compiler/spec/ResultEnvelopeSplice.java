@@ -87,7 +87,9 @@ public final class ResultEnvelopeSplice {
          * readers (activities, the rendered SQL, the documentation walk)
          * keep {@link #chain()}. */
         public TypedSpec spliced() {
-            if (cteName == null || plan == null || plannedInfo == null) {
+            // a CLASS frame's plan is its extent's rows (executedExtent below),
+            // never a relation reference
+            if (cteName == null || plan == null || plannedInfo == null || !relationRooted) {
                 return chain;
             }
             TypedSpec ref = new com.legend.compiler.spec.typed.TypedFrameRef(cteName, plannedInfo, plan);
@@ -96,7 +98,7 @@ public final class ResultEnvelopeSplice {
             // connection zone the side's literals spell in, the table
             // renames, the facts every reader of a from carries)
             return chain instanceof TypedFrom fr
-                    ? new TypedFrom(ref, fr.context(), fr.executedExtent(), fr.info())
+                    ? fr.withSource(ref, fr.info())
                     : ref;
         }
     }
@@ -659,7 +661,32 @@ public final class ResultEnvelopeSplice {
      * notion applies, its chain stands; so does a chain without a from()
      * envelope. */
     private static TypedSpec executedExtent(View f) {
-        return !f.relationRooted() && f.chain() instanceof TypedFrom fr
-                ? fr.withExecutedExtent() : f.spliced();
+        if (!f.relationRooted() && f.chain() instanceof TypedFrom fr) {
+            // rung 12: a PLANNED class frame — its rows are one CTE; the read
+            // ranges over the class's BARE extent whose root table is that CTE
+            // (the chain's own filters and caps already shaped the rows)
+            if (f.planned()) {
+                TypedSpec root = plainExtentRoot(fr.source());
+                if (root != null) {
+                    return new TypedFrom(root, fr.context(), true, f.cteName(), fr.info());
+                }
+            }
+            return fr.withExecutedExtent();
+        }
+        return f.spliced();
+    }
+
+    /** The class extent a PLAIN chain ranges over (rung 12): {@code Class.all()}
+     * under filters only — no map, project, graphFetch, sort, cap or milestoning
+     * argument — so the chain's values ARE the root class's instances and a frame
+     * of its root rows, planned once, stands for every reader. Null otherwise. */
+    public static com.legend.compiler.spec.typed.@com.legend.Nullable TypedGetAll
+            plainExtentRoot(TypedSpec n) {
+        while (n instanceof TypedFilter f) {
+            n = f.source();
+        }
+        return n instanceof com.legend.compiler.spec.typed.TypedGetAll g
+                && g.milestoning().isEmpty() && !g.versionSweep() && !g.forEachDate()
+                ? g : null;
     }
 }

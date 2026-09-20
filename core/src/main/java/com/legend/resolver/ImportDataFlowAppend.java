@@ -64,7 +64,7 @@ public final class ImportDataFlowAppend {
             TypedFunction coalesce) {
         if (n instanceof TypedFrom f) {
             TypedSpec src = appendTo(f.source(), threads, coalesce);
-            return new TypedFrom(src, f.context(), f.executedExtent(), src.info());
+            return f.withSource(src, src.info());
         }
         if (n instanceof TypedLet l) {
             TypedSpec v = appendTo(l.value(), threads, coalesce);

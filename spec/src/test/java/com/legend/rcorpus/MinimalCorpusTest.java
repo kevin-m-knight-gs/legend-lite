@@ -655,8 +655,15 @@ class MinimalCorpusTest {
     // three (sqlstring dateDiff-to-now, Hours/Minutes/Seconds) reach the referee's
     // datediff-to-now arm and decline the replay as two instants (text-decided by
     // a different reason, the same outcome). rows-underivable shrinks (shrink-only).
+    // H2 rows-underivable 26 -> 27 (2026-09-20, one statement per body — measured
+    // identical on 65b71fc83 and on the rung-12 tree): stringToDate::
+    // testToSQLStringconvertToDateinH2UserDefinedFormat fails on BOTH judges (our H2
+    // parsedatetime spells 'MMMyyyy' over "Nov1995" without the engine's concat('01', …)
+    // day prefix — a product row on the H2 roster). Host mode fails at the let's eager
+    // run; database mode no longer runs the let, so the same DataError surfaces in the
+    // SQL-text referee's rows leg and is counted here. Same failure, later stage.
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 26, "plan-params-unbindable", 6, "oracle-declined", 48,
+            "rows-underivable", 27, "plan-params-unbindable", 6, "oracle-declined", 48,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on

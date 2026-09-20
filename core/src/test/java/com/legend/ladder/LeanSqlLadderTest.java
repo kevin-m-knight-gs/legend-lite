@@ -114,6 +114,13 @@ class LeanSqlLadderTest {
               let r = execute(|l::Thing.all(), l::M, l::RT.runtimeValue, []);
               assertSameElements([0.5, 1.5, 2.5], $r.values.amount);
             }
+            function <<test.Test>> l::r12_classLetManyReaders(): Boolean[1]
+            {
+              let r = execute(|l::Thing.all(), l::M, l::RT.runtimeValue, []);
+              assertSize($r.values, 3);
+              assertSameElements(['a', 'b', 'c'], $r.values.name);
+              assertEquals(3, $r.values->filter(t | $t.amount > 0.0)->size());
+            }
             ###Relational
             Database l::DB (
               Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(50), AMOUNT DOUBLE)
@@ -229,7 +236,7 @@ class LeanSqlLadderTest {
             "l::r01_constant", "l::r02_literalListSize", "l::r03_stringConstant",
             "l::r04_countNoLet", "l::r05_countOneLet", "l::r06_columnVsList",
             "l::r07_projectRows", "l::r08_positionalCell", "l::r09_twoAssertsOneLet",
-            "l::r10_twoLets", "l::r11_floatLeniency");
+            "l::r10_twoLets", "l::r11_floatLeniency", "l::r12_classLetManyReaders");
 
     @Test
     @DisplayName("every rung: passes in database mode, sends exactly its pinned statements; distance to the lean target reported")

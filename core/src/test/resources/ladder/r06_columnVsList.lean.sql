@@ -1,12 +1,13 @@
-WITH __e_0 AS (SELECT CAST(value AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn
+WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
+  FROM T AS frame_r__t0), __e_0 AS (SELECT CAST(value AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn
   FROM (
     SELECT UNNEST(list_filter(['a', 'b', 'c'], x -> x IS NOT NULL)) AS value
   ) AS side
   WHERE value IS NOT NULL), __a_0 AS (SELECT CAST(u_map__name AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn
   FROM (
-    SELECT t0.NAME AS u_map__name
-    FROM T AS t0
-    WHERE t0.NAME IS NOT NULL
+    SELECT frame_r_t0.NAME AS u_map__name
+    FROM frame_r AS frame_r_t0
+    WHERE frame_r_t0.NAME IS NOT NULL
   ) AS side
   WHERE u_map__name IS NOT NULL), __se_0 AS (SELECT CASE WHEN s.__n = 0 THEN '[]' WHEN s.__n = 1 THEN s.__one ELSE concat('[', s.__joined, ']') END AS __text, s.__nulls AS __nulls, s.__trees AS __trees, s.__n AS __n
   FROM (

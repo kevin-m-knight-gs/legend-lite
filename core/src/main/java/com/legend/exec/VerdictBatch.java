@@ -89,7 +89,7 @@ public final class VerdictBatch {
      * {@code cte} (a relation-rooted frame of static schema, planned once),
      * {@code pasted} (relation-rooted but late-bound or not eager), {@code
      * class} (a class- or scalar-rooted frame: the chain pastes). */
-    public enum FrameRead { CTE, PASTED, CLASS }
+    public enum FrameRead { CTE, PASTED, CLASS, CLASS_CTE }
 
     private static final java.util.concurrent.atomic.AtomicLong FRAMES_CTE =
             new java.util.concurrent.atomic.AtomicLong();
@@ -97,18 +97,21 @@ public final class VerdictBatch {
             new java.util.concurrent.atomic.AtomicLong();
     private static final java.util.concurrent.atomic.AtomicLong FRAMES_CLASS =
             new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong FRAMES_CLASS_CTE =
+            new java.util.concurrent.atomic.AtomicLong();
 
     public static void frame(FrameRead how) {
         switch (how) {
             case CTE -> FRAMES_CTE.incrementAndGet();
             case PASTED -> FRAMES_PASTED.incrementAndGet();
             case CLASS -> FRAMES_CLASS.incrementAndGet();
+            case CLASS_CTE -> FRAMES_CLASS_CTE.incrementAndGet();
         }
     }
 
     public static String frameCensus() {
         return "cte=" + FRAMES_CTE.get() + " pasted=" + FRAMES_PASTED.get()
-                + " class=" + FRAMES_CLASS.get();
+                + " class=" + FRAMES_CLASS.get() + " class-cte=" + FRAMES_CLASS_CTE.get();
     }
 
     private final Fusion fusion;

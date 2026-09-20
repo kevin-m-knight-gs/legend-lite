@@ -258,3 +258,85 @@ recorded, each a separate small leg, none a shape problem:
    (r05, r06) already ride once.
 4. `gridTolerance` (assertEqWithinTolerance, 11 asserts) still spells its operands through the
    old `predicate`.
+
+5. **Rung 11 is not a hand floor** (user question, 2026-09-20): of its 11,061 chars the float canon
+   expression is 4,107 × 2 sides and the 2-ULP predicate 403; the shape itself is 2,444. A human
+   writes the shape and CALLS a canon the session already knows: DuckDB `CREATE MACRO` at session
+   start (where `DuckDb.initSession` applies the session contract) — H2 has no SQL macro and keeps
+   the inline form. "Define the canon once per session" is the residual; ≈ 3k is the floor.
+
+## Rung 12 — a class-rooted let with several readers (2026-09-20)
+
+`let r = execute(|Thing.all(), M, RT, [])` read three ways: `assertSize($r.values, 3)`,
+`assertSameElements([...], $r.values.name)`, `assertEquals(3, $r.values->filter(t | $t.amount >
+0.0)->size())`. Before: the class chain was PASTED per reader — three scans of `T`, the let's
+product SQL three times (residual 3 above). Now the let is planned ONCE as a CTE of its root
+rows and every reader ranges over that extent:
+
+```
+WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
+  FROM T AS frame_r__t0), ...
+    SELECT COUNT(*) AS __n FROM frame_r AS frame_r_t0                       -- assertSize
+    SELECT frame_r_t0.NAME AS u_map__name FROM frame_r AS frame_r_t0 ...    -- .name
+    (SELECT COUNT(1) FROM frame_r AS frame_r_t0 WHERE frame_r_t0.AMOUNT > 0.0)  -- filter + size
+```
+
+**The rule (narrow on purpose — each rung builds on the last).** A let is planned as a class
+frame only when BOTH hold:
+
+1. the chain is a PLAIN extent — `Class.all()` under filters only (no map, project,
+   graphFetch, sort, cap, or milestoning argument), so the chain's values ARE the root class's
+   instances (`ResultEnvelopeSplice.plainExtentRoot`);
+2. the class is bound by a PLAIN pipeline — mapping filters over ONE table, no join step, no
+   union, no view root (`ClassSources.plainPipeline`, asked by the executor through
+   `StoreResolver.plainClassPipeline` in the chain's own context).
+
+Everything else keeps the pasted chain it had. The census on the DuckDB database lane:
+`frames[cte=1401 pasted=511 class=1690 class-cte=53]` — 53 of 1,743 class frames take the CTE
+under this rule; the remaining 1,690 are the next rungs (join-stepped pipelines as a pre-joined
+frame; sorted / capped extents; milestoned extents), each to be climbed the same way.
+
+**The mechanism.** The executor plans the let's graph fold and takes its ROOT ROWS
+(`VerdictSql.classExtentRows`: the fold's own from / where / caps projecting `root.*` — the
+root table's PHYSICAL columns, never the store's declared list, which a seeded table can
+exceed) as the frame's CTE; the fold itself stays the frame's plan of record (the activity
+SQL, the SQL-text referee's rows leg). The splice rewrites a `.values` read of such a frame into
+the class's bare `getAll` inside a from-envelope that names the frame (`TypedFrom.extentFrame`);
+the resolver carries the name (`Context.extentFrame`) to the one site where the chain acquires
+its class source and makes the pipeline the frame reference alone (`ClassSources.withRootFrame`:
+the frame's rows already passed the mapping filters, so nothing is re-applied and nothing joins
+twice); the lowerer emits a table reference carrying a frame as a CTE read (`SqlSource.Cte`,
+reader alias `<frame>_t<n>`). One rule for a count, a property read, a filter.
+
+**What the first cut broke, and why (2026-09-20, the DuckDB database lane: lost 59; H2:
+lost 221).** The first cut fired on EVERY class-rooted let and swapped only the root table.
+Four mechanisms, all scoping bugs, none in the verdict shape: (1) `map` / `graphFetch` /
+`serialize` chains were planned as root rows, so readers ranged over the wrong values (51 of
+59); (2) the reader's pipeline re-applied the mapping's filter joins over already-fanned rows
+(4 → 8, 6 → 12); (3) the extent rows replaced the fold as the frame's plan of record, so the
+SQL-text referee executed a projection of every declared column, some absent from the seeded
+table; (4) five from-envelope rebuilds copied the envelope through a constructor that dropped
+the frame — the property and filter readers silently lost the query's filter (six orgs instead
+of three). The constructor is deleted (`TypedFrom.withSource` keeps both facts); the rule above
+is the fix for 1–3. Process lesson, recorded: the judge was six hand-picked witnesses, all
+plain `Class.all()` lets — exactly the case the mechanism handles. The DuckDB database lane
+runs BEFORE a rung is reported closed, never after.
+
+| rung | statements | chars | subqueries | status |
+|---|---|---|---|---|
+| r05 one let + assertSize | 1 | 693 (was 607: the CTE definition) | 2 | CLOSED |
+| r06 assertSameElements over a class let | 1 | 1,850 (was 1,748) | 5 | CLOSED |
+| r10 two lets | 1 | 1,425 (was 1,246) | 4 | CLOSED |
+| r11 float multiset | 1 | 11,163 (was 11,061) | 6 | CLOSED (residual 5 stands) |
+| r12 class let, three readers | 1 (was 3 scans of T) | 3,698 | 9 | CLOSED |
+
+Single-reader class lets (r05, r06, r10, r11) ride the same CTE — one rule, no reader-count
+special case, as the relation lets of r07–r09 already did. Lean targets re-pinned.
+
+Residuals added:
+
+6. The SQL-text referee derives ROWS for a text assert by executing our plan and the golden
+   SQL outside the body's statement — one more statement per text assert (272 in the corpus).
+   Under the north star both sides ride the fused statement; a separate leg.
+7. The 1,690 class frames outside the rule (join-stepped pipelines, sorted / capped /
+   milestoned extents) still paste their chain per reader — the next rungs.

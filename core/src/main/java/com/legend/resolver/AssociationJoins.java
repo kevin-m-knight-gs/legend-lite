@@ -290,6 +290,26 @@ final class AssociationJoins {
      * (count(rows) is row-correct regardless of the declared bound; the
      * modelJoin corpus declares [1] ends whose join conditions fan out,
      * and the engine counts ROWS). */
+    /** {@code head} is a to-many navigation: an unbound association end, or
+     * a navigate-slot binding (class-typed Join PM), with to-many
+     * multiplicity on the class property. Synthetic identities (#fN/#cN/#dN)
+     * route by their REAL property — an aggregate over a lifted head must take
+     * the grouped-subselect route, never bare-explode. findProperty misses
+     * ASSOCIATION-DECLARED ends (modelJoin/XStore declare them on the
+     * Association only): fall through to the end's own multiplicity. */
+    boolean isToManyAssocHead(ClassSource cs, String head) {
+        String real = SyntheticHeads.realHead(head);
+        boolean toMany = ctx.findProperty(cs.classFqn(), real)
+                .map(pr -> !(pr.multiplicity()
+                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                        && Integer.valueOf(1).equals(b.upper())))
+                .orElseGet(() -> ctx.findAssociationOf(cs.classFqn(), real)
+                        .map(a -> !(a.property1().propertyName().equals(real)
+                                ? a.property1() : a.property2()).isToOne())
+                        .orElse(false));
+        return toMany && isAssocOrNavHead(cs, real);
+    }
+
     boolean isAssocOrNavHead(ClassSource cs, String head) {
         String real = SyntheticHeads.realHead(head);
         TypedSpec binding = cs.bindings().get(real);

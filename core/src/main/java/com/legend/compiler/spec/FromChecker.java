@@ -138,8 +138,7 @@ final class FromChecker {
         if (wmRef[0] != null && mapping.isEmpty()) {
             mapping = Optional.of(wmRef[0]);
         }
-        return new TypedFrom(src, bound.withMapping(mapping).withRuntime(runtime),
-                false, a.out());
+        return new TypedFrom(src, bound.withMapping(mapping).withRuntime(runtime), a.out());
     }
 
     /** Strip a {@code withMapping(M)} marker off the from-source spine,

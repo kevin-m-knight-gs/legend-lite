@@ -192,6 +192,36 @@ public final class VerdictSql {
      * exists and NULL (0) otherwise. No JSON function on any dialect, no
      * document built to be measured. A plan that is not the fold's
      * one-projection select is a construction fault, loud. */
+    /** A graph plan's ROOT ROWS (rung 12): the fold's own from / where / caps
+     * projecting the root table's PHYSICAL columns ({@code root.*} — the
+     * store's declared list can exceed what a seeded table carries; a reader
+     * that names an absent column fails exactly as it would over the table).
+     * Null when the plan is not a fold over a single root TABLE. */
+    public static @com.legend.Nullable SqlSelect classExtentRows(SqlQuery graphPlan) {
+        SqlQuery fold = graphPlan;
+        for (int depth = 0; depth < 4 && fold instanceof SqlSelect w
+                && !w.projections().isEmpty()
+                && w.projections().get(0).expr() instanceof SqlExpr.Column
+                && w.from() instanceof SqlSource.Subselect inner; depth++) {
+            fold = inner.inner();
+        }
+        if (!(fold instanceof SqlSelect ps) || ps.projections().size() != 1
+                || !ps.groupBy().isEmpty()) {
+            return null;
+        }
+        SqlSource leftmost = ps.from();
+        while (leftmost instanceof SqlSource.Join j) {
+            leftmost = j.left();
+        }
+        if (!(leftmost instanceof SqlSource.Table root) || root.outputs().isEmpty()) {
+            return null;
+        }
+        List<SqlSelect.Projection> ps2 = List.of(
+                new SqlSelect.Projection(new SqlExpr.Star(root.alias()), null, null));
+        return new SqlSelect(ps2, ps.distinct(), ps.from(), ps.where(), ps.groupBy(), ps.having(),
+                ps.qualify(), ps.orderBy(), ps.limit(), ps.offset(), root.outputs());
+    }
+
     public static SqlExpr graphCount(SqlQuery graphPlan) {
         // the canon wrap over a graph side is a pass-through select (the
         // document column beside its canon) around the fold: descend to it

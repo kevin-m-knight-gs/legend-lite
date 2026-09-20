@@ -1325,6 +1325,41 @@ public final class ClassSources {
                 && ra.table().equals(rb.table());
     }
 
+    /** The class source with its ROOT table identity standing for a planned
+     * frame's CTE (rung 12): the first table reference of the pipeline, the
+     * rest of the pipeline untouched. */
+    /** A PLAIN pipeline (rung 12): mapping filters over ONE table — no join
+     * step, no union, no view root, no groupBy — the shape a planned frame's
+     * root rows can stand in for whole. */
+    static boolean plainPipeline(TypedSpec pipeline) {
+        return plainRoot(pipeline) != null;
+    }
+
+    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
+            plainRoot(TypedSpec pipeline) {
+        TypedSpec p = pipeline;
+        while (p instanceof TypedFilter f) {
+            p = f.source();
+        }
+        return p instanceof com.legend.compiler.spec.typed.TypedTableReference tr ? tr : null;
+    }
+
+    /** The same class source whose pipeline IS a planned frame's CTE (rung 12):
+     * the frame's rows already passed the mapping filters, so the pipeline is
+     * the table reference alone, redirected to the frame — the bindings read
+     * the same columns. Loud when the pipeline is not plain: the executor
+     * plans a class frame only for {@link #plainPipeline} sources. */
+    static ClassSource withRootFrame(ClassSource cs, String frame) {
+        var tr = plainRoot(cs.pipeline());
+        if (tr == null) {
+            throw new IllegalStateException("rung 12: planned class frame '" + frame
+                    + "' over a non-plain pipeline of " + cs.classFqn() + " in " + cs.mappingFqn());
+        }
+        return new ClassSource(cs.mappingFqn(), cs.classFqn(), cs.setId(), tr.withFrame(frame),
+                cs.rowVar(), cs.bindings(), cs.rowType(), cs.sourceClass(), cs.deferredWalls(),
+                cs.composedPrefix(), cs.castGate(), cs.scope());
+    }
+
     static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
             rootTableOf(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {

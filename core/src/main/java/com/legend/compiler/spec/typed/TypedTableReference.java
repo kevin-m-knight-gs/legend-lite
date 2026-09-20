@@ -19,7 +19,20 @@ import java.util.List;
  * @param info  the relation type ({@link com.legend.compiler.element.type.Type.RelationType}) at {@code [1]}
  */
 public record TypedTableReference(String store, String table, ExprType info,
-                                  boolean accessor) implements TypedSpec {
+                                  boolean accessor, @com.legend.Nullable String frame)
+        implements TypedSpec {
+    /** {@code frame}: the rows of this table identity are a PLANNED
+     * frame's (a class-rooted let executed once as a CTE — lean ladder rung
+     * 12): the lowering reads the CTE by name where the store table stood;
+     * every mapping fact of the class (columns, filters, joins) applies to
+     * those rows exactly as to the table's. */
+    public TypedTableReference(String store, String table, ExprType info, boolean accessor) {
+        this(store, table, info, accessor, null);
+    }
+
+    public TypedTableReference withFrame(String frame) {
+        return new TypedTableReference(store, table, info, accessor, frame);
+    }
     /** {@code accessor}: the {@code #>{db.TABLE}#} relation-accessor
      * spelling (engine: columns typed as precisePrimitives from the
      * DDL) versus {@code tableReference(db, schema, table)} (the Table

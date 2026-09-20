@@ -1,7 +1,10 @@
-WITH __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
+WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
+  FROM T AS frame_r__t0), frame_s AS MATERIALIZED (SELECT frame_s__t0.*
+  FROM T AS frame_s__t0
+  WHERE frame_s__t0.AMOUNT > 1.0), __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
   FROM (
     SELECT COUNT(*) AS __n
-    FROM T AS t0
+    FROM frame_r AS frame_r_t0
   ) AS c
   CROSS JOIN (
     SELECT CAST(value AS VARCHAR) AS __c, value AS value
@@ -14,8 +17,7 @@ WITH __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
   ) AS n), __p_1 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
   FROM (
     SELECT COUNT(*) AS __n
-    FROM T AS t0
-    WHERE t0.AMOUNT > 1.0
+    FROM frame_s AS frame_s_t0
   ) AS c
   CROSS JOIN (
     SELECT CAST(value AS VARCHAR) AS __c, value AS value

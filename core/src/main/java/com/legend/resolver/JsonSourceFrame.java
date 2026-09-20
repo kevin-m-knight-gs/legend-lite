@@ -246,7 +246,8 @@ final class JsonSourceFrame {
             sources.setJsonSources(substituteUrlParams(
                     fr.jsonSources(), letBindings));
         }
-        return scoped(fr, outer).withExecutedExtent(fr.executedExtent());
+        return scoped(fr, outer).withExecutedExtent(fr.executedExtent())
+                .withExtentFrame(fr.extentFrame());
     }
 
     private static StoreResolver.Context scoped(

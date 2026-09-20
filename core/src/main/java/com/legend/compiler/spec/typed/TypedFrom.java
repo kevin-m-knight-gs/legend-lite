@@ -23,26 +23,39 @@ import java.util.Optional;
  * @param info    the source type unchanged
  */
 public record TypedFrom(TypedSpec source, ExecutionContext context,
-                        boolean executedExtent, ExprType info) implements TypedSpec {
+                        boolean executedExtent, @com.legend.Nullable String extentFrame,
+                        ExprType info) implements TypedSpec {
 
     public TypedFrom(TypedSpec source, ExecutionContext context, ExprType info) {
-        this(source, context, false, info);
+        this(source, context, false, null, info);
+    }
+
+    /** The same envelope (context, executed-extent fact, extent frame) over
+     * another source; a rebuild never drops the frame a reader ranges over. */
+    public TypedFrom withSource(TypedSpec src, ExprType info) {
+        return new TypedFrom(src, context, executedExtent, extentFrame, info);
+    }
+
+    /** The same envelope as the EXECUTED EXTENT of a planned class frame
+     * (lean ladder rung 12): the class's root table is the frame's CTE. */
+    public TypedFrom withExtentFrame(String frame) {
+        return new TypedFrom(source, context, true, frame, info);
     }
 
     /** References only (a wrapper envelope). */
     public TypedFrom(TypedSpec source, Optional<TypedPackageableRef> mapping,
                      Optional<TypedPackageableRef> runtime, ExprType info) {
-        this(source, ExecutionContext.of(mapping, runtime), false, info);
+        this(source, ExecutionContext.of(mapping, runtime), false, null, info);
     }
 
     /** The same envelope flagged as an executed frame's extent. */
     public TypedFrom withExecutedExtent() {
-        return new TypedFrom(source, context, true, info);
+        return new TypedFrom(source, context, true, extentFrame, info);
     }
 
     /** The same envelope under another context. */
     public TypedFrom withContext(ExecutionContext c) {
-        return new TypedFrom(source, c, executedExtent, info);
+        return new TypedFrom(source, c, executedExtent, extentFrame, info);
     }
 
     public Optional<TypedPackageableRef> mapping() {
@@ -95,10 +108,10 @@ public record TypedFrom(TypedSpec source, ExecutionContext context,
                 ? Optional.of((TypedPackageableRef) kids.get(i))
                 : Optional.empty();
         return new TypedFrom(kids.get(0), context.withMapping(m).withRuntime(r),
-                executedExtent, info);
+                executedExtent, extentFrame, info);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedFrom(source, context, executedExtent, info);
+        return new TypedFrom(source, context, executedExtent, extentFrame, info);
     }
 }

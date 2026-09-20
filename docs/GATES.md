@@ -4350,3 +4350,43 @@ frame  before: n= 1111   0.9MB prepare=  0.2s execute=  0.2s | after: n= 1111   
 other  before: n= 3382   2.1MB prepare=  0.9s execute=  0.6s | after: n= 1408   1.2MB prepare=  0.4s execute=  0.2s
 ```
 
+
+## 2026-09-20 — lean ladder rung 12: a PLAIN class-rooted let planned once (its root rows as the body's CTE)
+
+**What landed.** A let over `Class.all()` under filters only, bound by filters over ONE table
+(no join step), is planned ONCE: the fold's root rows (`root.*`, the physical columns) become
+a CTE of the body's statement and every reader (a count, a property read, a filter) ranges over
+it — the pipeline IS the frame reference, the mapping filter is not re-applied, nothing joins
+twice. The fold stays the frame's plan of record (activity SQL, the SQL-text referee). Ladder:
+r12 3 scans of T → 1 statement, 3,698 chars; r05/r06/r10/r11 ride the same CTE (one rule).
+Census (DuckDB database lane): `frames[cte=1401 pasted=511 class=1690 class-cte=53]` — 53 of
+1,743 class frames under the rule; the rest are the next rungs (join-stepped pipelines,
+sorted / capped / milestoned extents). Details: docs/LEAN_VERDICT_LADDER_2026_09_20.md, Rung 12.
+
+**The red run, explained (the discipline lesson of the day).** The first cut was judged on six
+hand-picked witnesses and lost 59 DuckDB / 221 H2 tests in database mode: it fired on every
+class-rooted let (map / graphFetch / serialize chains planned as root rows — 51 of 59), the
+reader re-applied the mapping's filter joins over already-fanned rows (4 → 8, 6 → 12), the extent
+rows replaced the fold as the plan of record (the referee executed a projection of declared
+columns a seeded table lacks), and five from-envelope rebuilds dropped the frame through a
+4-arg constructor (readers silently lost the query's filter). Fixes: the two-part plain rule,
+the frame standing for the whole mapped extent, `root.*`, the fold kept, the constructor
+deleted (`TypedFrom.withSource`). Rule from here: the DuckDB database lane runs BEFORE a rung
+is reported closed.
+
+**Lanes.** DuckDB host 108 exact · database lost 0 / gained 0 · differential agree 5,848 ·
+disagree 0 · unregistered 0. H2 host 412 exact · database lost 64 / gained 72 (both registers
+exact). H2 text-decided rows-underivable re-pinned 26 → 27: measured IDENTICAL on 65b71fc83 —
+stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat fails on both judges (our H2
+`parsedatetime('MMMyyyy')` lacks the engine's `concat('01', …)` day prefix — a product row on
+the H2 roster); one statement per body moved its DataError from the let's eager run to the
+referee's rows leg. Same failure, later stage.
+
+**Guardrails.** CodeShape: StoreResolver 3535 → 3466 (thirty lines of orphaned doc comments
+from earlier relocations deleted; `isToManyAssocHead` relocated beside `isAssocOrNavHead` in
+AssociationJoins). JavaEvalLedger StatementExecutor 2345 → 2366 (the frame's extentRows, the
+census arm, the hook defining a class frame's CTE — planning, nothing evaluated). OwnCorpus
+MIN_MATCHED 2518 → 2519 (the rung-12 test's model).
+
+**Chain.** GREEN: G2 24 · G1 77 · G3 11 · G4 98 · G5 37 · G6 138 · G7 44 · G9 34 · G8 145 ·
+G10 52 (stress 4,700 / 20 / 16 of 4,736).

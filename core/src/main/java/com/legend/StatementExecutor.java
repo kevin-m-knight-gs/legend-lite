@@ -1449,12 +1449,13 @@ final class StatementExecutor {
             @com.legend.Nullable com.legend.compiler.spec.typed
                     .TypedNativeCall sourceExec,
             com.legend.sql.@com.legend.Nullable SqlQuery plan,
-            com.legend.compiler.element.type.@com.legend.Nullable ExprType plannedInfo) {
+            com.legend.compiler.element.type.@com.legend.Nullable ExprType plannedInfo,
+            com.legend.sql.@com.legend.Nullable SqlSelect extentRows) {
         /** Pre-activity-model constructor (alias frames keep it). */
         ExecFrame(TypedSpec chain, boolean relationRooted,
                 @com.legend.Nullable ExecutionResult result,
                 java.util.Map<String, String> tableReplace) {
-            this(chain, relationRooted, result, tableReplace, null, null, null);
+            this(chain, relationRooted, result, tableReplace, null, null, null, null);
         }
 
         ExecFrame(TypedSpec chain, boolean relationRooted,
@@ -1462,7 +1463,7 @@ final class StatementExecutor {
                 java.util.Map<String, String> tableReplace,
                 @com.legend.Nullable com.legend.compiler.spec.typed
                         .TypedNativeCall sourceExec) {
-            this(chain, relationRooted, result, tableReplace, sourceExec, null, null);
+            this(chain, relationRooted, result, tableReplace, sourceExec, null, null, null);
         }
     }
 
@@ -1688,13 +1689,38 @@ final class StatementExecutor {
                 }
             }
         }
+        com.legend.sql.SqlSelect extentRows = null;
+        if (eager && !assembled.relationRooted() && env.verdictBatch() != null
+                && assembled.chain() instanceof com.legend.compiler.spec.typed.TypedFrom fr
+                && com.legend.compiler.spec.ResultEnvelopeSplice.plainExtentRoot(fr.source())
+                        instanceof com.legend.compiler.spec.typed.TypedGetAll root
+                && resolver(specs, env).plainClassPipeline(fr, root)) {
+            // rung 12: a PLAIN class-rooted let (Class.all() under filters, the
+            // class bound by filters over ONE table) planned ONCE — the fold's
+            // root rows (its from / where over the root table's physical
+            // columns) as a CTE standing for the class's mapped extent; every
+            // reader ranges over that extent. The fold stays the frame's plan
+            // of record (activity, the SQL-text referee). Any other chain or
+            // pipeline shape stays pasted.
+            BarePlan b = planBare(assembled.chain(), letPrefix, specs, env, null, null);
+            if (b.answered() == null) {
+                com.legend.sql.SqlSelect rows = com.legend.lowering.VerdictSql.classExtentRows(b.plan());
+                if (rows != null) {
+                    plan = b.plan();
+                    plannedInfo = fr.info();
+                    extentRows = rows;
+                }
+            }
+        }
         if (env.verdictBatch() != null) {
-            com.legend.exec.VerdictBatch.frame(plan != null ? com.legend.exec.VerdictBatch.FrameRead.CTE
+            com.legend.exec.VerdictBatch.frame(extentRows != null ? com.legend.exec.VerdictBatch.FrameRead.CLASS_CTE
+                    : plan != null ? com.legend.exec.VerdictBatch.FrameRead.CTE
                     : assembled.relationRooted() ? com.legend.exec.VerdictBatch.FrameRead.PASTED
                     : com.legend.exec.VerdictBatch.FrameRead.CLASS);
         }
         return new ExecFrame(assembled.chain(),
-                assembled.relationRooted(), run, env.tableReplace(), ec, plan, plannedInfo);
+                assembled.relationRooted(), run, env.tableReplace(), ec, plan, plannedInfo,
+                extentRows);
     }
 
     /** A callee body with a NON-LET statement before its last (a
@@ -1804,11 +1830,14 @@ final class StatementExecutor {
                 // (its CTE, named after the let, DEFINED on the body's batch
                 // — attached wherever its SQL is made); an unplanned one pastes
                 var batch = env.verdictBatch();
-                if (f.plan() == null || batch == null) {
+                if (f.plan() == null || batch == null
+                        || (!f.relationRooted() && f.extentRows() == null)) {
                     return new com.legend.compiler.spec.ResultEnvelopeSplice
                             .View(f.chain(), f.relationRooted(), f.sourceExec());
                 }
-                batch.defineFrame("frame_" + name, f.plan());
+                // a class frame's CTE is its EXTENT ROWS; a relation frame's, its plan
+                batch.defineFrame("frame_" + name,
+                        f.extentRows() != null ? f.extentRows() : f.plan());
                 return new com.legend.compiler.spec.ResultEnvelopeSplice
                         .View(f.chain(), f.relationRooted(), f.sourceExec(),
                                 "frame_" + name, f.plan(), f.plannedInfo());

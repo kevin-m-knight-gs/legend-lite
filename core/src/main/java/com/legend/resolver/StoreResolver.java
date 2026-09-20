@@ -261,24 +261,31 @@ public final class StoreResolver {
     record Context(@com.legend.Nullable String explicitMapping,
             @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
             Map<String, String> jsonSources, @com.legend.Nullable String constructedScope,
-            boolean executedExtent) {
+            boolean executedExtent, @com.legend.Nullable String extentFrame) {
         Context(@com.legend.Nullable String explicitMapping,
                 @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
                 Map<String, String> jsonSources, @com.legend.Nullable String constructedScope) {
-            this(explicitMapping, runtimeFqn, chainMappings, jsonSources, constructedScope, false);
+            this(explicitMapping, runtimeFqn, chainMappings, jsonSources, constructedScope, false, null);
+        }
+        /** The planned class frame whose CTE is the extent's root table
+         * (TypedFrom.extentFrame — lean ladder rung 12). */
+        Context withExtentFrame(@com.legend.Nullable String frame) {
+            return java.util.Objects.equals(frame, extentFrame) ? this
+                    : new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources,
+                            constructedScope, executedExtent, frame);
         }
         Context(@com.legend.Nullable String explicitMapping,
                 @com.legend.Nullable String runtimeFqn) { this(explicitMapping, runtimeFqn, List.of(), Map.of(), null); }
         Context(@com.legend.Nullable String explicitMapping, @com.legend.Nullable String runtimeFqn,
                 List<String> chainMappings) { this(explicitMapping, runtimeFqn, chainMappings, Map.of(), null); }
         Context withConstructedScope(String scope) {
-            return new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, scope, executedExtent);
+            return new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, scope, executedExtent, extentFrame);
         }
         /** The executed-extent fact of the from() envelope in scope
          * (TypedFrom.executedExtent — batch 78). */
         Context withExecutedExtent(boolean extent) {
             return extent == executedExtent ? this
-                    : new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, constructedScope, extent);
+                    : new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, constructedScope, extent, extentFrame);
         }
         static final Context NONE = new Context(null, null);
         static Context ofMapping(String fqn) { return new Context(fqn, null); }
@@ -330,7 +337,7 @@ public final class StoreResolver {
             TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
                     inner, ctx, specs, letBindings);
             return new TypedFrom(resolveNode(liftedSrc, inner),
-                    from.context(), from.executedExtent(), from.info());
+                    from.context(), from.executedExtent(), from.extentFrame(), from.info());
         }
         // zip over two projections of ONE source -> two-column project
         if (n instanceof TypedMap zm
@@ -2769,6 +2776,11 @@ public final class StoreResolver {
                 (t9, ex9) -> sources.dispatch(fctx.explicitMapping(),
                         fctx.runtimeFqn(), fctx.chainMappings(), t9, ex9),
                 RoutingContext.contextKey(fctx), fctx.constructedScope());
+        if (fctx.extentFrame() != null) {
+            // rung 12: the chain ranges over a PLANNED class frame — the pipeline
+            // IS the frame's CTE for every reader (a count, a property read, a filter)
+            cs = ClassSources.withRootFrame(cs, fctx.extentFrame());
+        }
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         cs = applyFlattenHops(cs, flattenHops, flattenHopMany, flatSegs, ops, top,
@@ -3192,70 +3204,12 @@ public final class StoreResolver {
         }
     }
 
-    /**
-     * The agg-aware projection-position scan: aggregates over TO-MANY
-     * association paths register {@link AggDemand}s; every OTHER path is
-     * bare demand exactly as {@link #consumedPaths} records it (one
-     * traversal — the two demand kinds cannot double-count a path).
-     */
-
-
-    /** {@code head} is a to-many navigation: an unbound association end, or
-     * a navigate-slot binding (class-typed Join PM), with to-many
-     * multiplicity on the class property. */
-    private boolean isToManyAssocHead(ClassSource cs, String head) {
-        // synthetic identities (#fN/#cN/#dN) route by their REAL property —
-        // an aggregate over a lifted head must take the grouped-subselect
-        // route, never bare-explode (wrong row counts, silent)
-        String real = SyntheticHeads.realHead(head);
-        // findProperty misses ASSOCIATION-DECLARED ends (the modelJoin/
-        // XStore domains declare them on the Association element only —
-        // same gap as chainNavTails' hopTargetClass): fall through to the
-        // association end's own multiplicity.
-        boolean toMany = ctx.findProperty(cs.classFqn(), real)
-                .map(pr -> !(pr.multiplicity()
-                        instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                        && Integer.valueOf(1).equals(b.upper())))
-                .orElseGet(() -> ctx.findAssociationOf(cs.classFqn(), real)
-                        .map(a -> !(a.property1().propertyName().equals(real)
-                                ? a.property1() : a.property2()).isToOne())
-                        .orElse(false));
-        return toMany && isAssocOrNavHead(cs, real);
-    }
+    /** See {@link AssociationJoins#isToManyAssocHead} (relocated). */
+    private boolean isToManyAssocHead(ClassSource cs, String head) { return assocMaterial.isToManyAssocHead(cs, head); }
 
     /** See {@link AssociationJoins#isAssocOrNavHead} (relocated). */
     boolean isAssocOrNavHead(ClassSource cs, String head) { return assocMaterial.isAssocOrNavHead(cs, head); }
 
-    /**
-     * The TARGET-side key columns of a conjunctive equi-join condition —
-     * the columns that pin each source row to AT MOST ONE group of the
-     * aggregated subselect. Any other condition shape is loud: joining a
-     * grouped subselect on it could match multiple groups (fan-out).
-     */
-    /** PARENT-side equi columns of the association condition (roles
-     * swapped vs {@link #targetEquiKeys}) — the group/join-back keys of
-     * the correlated aggregated subselect (#69 parent-copy emission). */
-
-    /** #69 aggregated-navigation materials: per head, the target join
-     * material + demanded nav paths. Correlated preds re-join the PARENT
-     * extent (parent-copy: pipeline materialized with the outer reads'
-     * slots + depth-1 SubNavs; deeper hops loud), filter by the pred,
-     * group by parent-side equi keys; uncorrelated heads group the plain
-     * target. Temporal context (M3): root dates/strategy flow to
-     * SAME-STRATEGY targets through temporal parents only. */
-    /**
-     * Association-join materials for {@code $parent.head}: the mapping's
-     * AssociationBinding predicate fn carries the condition (H1's
-     * legacyAssocPredicate emission); the target = the class's own
-     * pipeline (~filter rides; slots strip under empty demand — leaf
-     * reads of them are loud). Orientation: cond params are (classA-row,
-     * classB-row), classA = property1's target — navigating property1
-     * REVERSES params (TypedJoin binds (parent, target)). R1 RECURSIVE
-     * SCOPE DEMAND: exists/filter predicates nested under head get their
-     * own materials against the TARGET class (Registries.NONE was a
-     * blanket stop); terminates on expression depth (R1a: exists
-     * materials only).
-     */
     /** The nested scope's registries PLUS the target pipeline widened with
      * the nested association joins (their prefixed columns must ride the
      * exists relation for assocLeaf reads — R2 arm 2). */
@@ -3478,6 +3432,18 @@ public final class StoreResolver {
      * (XStore §1) seeded into ClassSources' unmapped-class route. */
     private Context fromContext(TypedFrom fr, Context outer) {
         return JsonSourceFrame.fromContext(fr, outer, sources, letBindings);
+    }
+
+    /** Rung 12: whether {@code root} (the plain extent at the root of the
+     * chain {@code frame}) is bound, in the chain's own context, by a PLAIN
+     * pipeline ({@link ClassSources#plainPipeline}) — the shape whose planned
+     * root rows can stand for the whole mapped extent. */
+    public boolean plainClassPipeline(TypedFrom frame,
+            com.legend.compiler.spec.typed.TypedGetAll root) {
+        Context c = fromContext(frame, Context.NONE);
+        ClassSource cs = sources.get(dispatch(c, root.classFqn()), root.classFqn(),
+                c.constructedScope());
+        return ClassSources.plainPipeline(cs.pipeline());
     }
 
     private String dispatch(Context context, String classFqn) {

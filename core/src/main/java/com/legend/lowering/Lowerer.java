@@ -533,7 +533,12 @@ public final class Lowerer {
         return switch (spec) {
             case TypedSourceUrl su -> SqlSelect.starOf(
                     new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL)));
-            case TypedTableReference t -> SqlSelect.starOf(
+            case TypedTableReference t -> t.frame() != null
+                    // rung 12: the class extent's rows are a planned frame's CTE
+                    ? SqlSelect.starOf(new SqlSource.Cte(t.frame(),
+                            com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
+                            outputsOf(t.info(), OutputCol.Origin.PHYSICAL)))
+                    : SqlSelect.starOf(
                     new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info(), OutputCol.Origin.PHYSICAL)));
 
             case TypedTds tds -> tdsLiteral(tds);
