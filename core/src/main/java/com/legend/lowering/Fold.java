@@ -634,7 +634,7 @@ final class Fold {
                     + c.name() + "' has no single output slot");
         }
         return new com.legend.sql.OutputCol(c.name(), t,
-                PureSql.nullable(c.multiplicity()), false);
+                PureSql.nullable(c.multiplicity()));
     }
 
     /** The DECLARED slot for {@code name} out of a contract output
@@ -1142,7 +1142,7 @@ final class Fold {
             out.set(i, new SqlSelect.Projection(converted, p.outputName(),
                     new com.legend.sql.OutputCol(col.name(),
                             com.legend.sql.SqlType.Scalar.DOUBLE, col.nullable(),
-                            col.tolerated(), col.origin())));
+                            col.origin())));
         }
         return out == null ? s : s.withProjections(out);
     }
@@ -1213,7 +1213,7 @@ final class Fold {
             }
             out.set(i, new SqlSelect.Projection(converted, p.outputName(),
                     new OutputCol(col.name(), com.legend.sql.SqlType.Scalar.DOUBLE,
-                            col.nullable(), col.tolerated(), col.origin())));
+                            col.nullable(), col.origin())));
         }
         return out == null ? rel : rel.withProjections(out);
     }
@@ -1238,8 +1238,7 @@ final class Fold {
             }
             out.set(i, new SqlSelect.Projection(conformed, p.outputName(),
                     new com.legend.sql.OutputCol(col.name(),
-                            conformed.target(), col.nullable(),
-                            col.tolerated(), col.origin())));
+                            conformed.target(), col.nullable(), col.origin())));
         }
         return out == null ? s : s.withProjections(out);
     }

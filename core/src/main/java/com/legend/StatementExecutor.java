@@ -2090,7 +2090,7 @@ final class StatementExecutor {
         final java.util.Set<SeedSources> done = new java.util.HashSet<>();
         /** the database's reported column types per prepared statement
          *  text (leg 3.3, {@link com.legend.exec.WireTypes}) */
-        final java.util.Map<String, java.util.List<com.legend.sql.SqlType>> wireTypes =
+        final java.util.Map<String, java.util.List<com.legend.exec.WireTypes.ReportedColumn>> wireTypes =
                 new java.util.HashMap<>();
         boolean dirty;
     }
@@ -2133,6 +2133,13 @@ final class StatementExecutor {
 
     private static final java.util.Map<java.sql.Connection, Established> ESTABLISHED =
             java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    /** The session's memo of the database's reported column types per
+     *  prepared statement text (leg 3.3, {@link com.legend.exec.WireTypes}). */
+    static java.util.Map<String, java.util.List<com.legend.exec.WireTypes.ReportedColumn>> wireMemo(
+            java.sql.Connection connection) {
+        return ESTABLISHED.computeIfAbsent(connection, c -> new Established()).wireTypes;
+    }
 
     /** A statement that WRITES is about to run on {@code connection}: the
      *  next establishment on it re-seeds. */
@@ -2666,9 +2673,7 @@ final class StatementExecutor {
             plan = com.legend.exec.WireTypes.reconcile(plan,
                     collectionDeclared ? java.util.Objects.requireNonNull(p.declaredInfo())
                             : com.legend.exec.ResultShape.valueInfo(root.info()),
-                    penv.dialect(), penv.connection(),
-                    ESTABLISHED.computeIfAbsent(penv.connection(), c -> new Established())
-                            .wireTypes);
+                    penv.dialect(), penv.connection(), wireMemo(penv.connection()));
         }
         WrappedSide ws = wrapSide(plan, root,
                 collectionDeclared ? p.declaredInfo() : null, rider, penv);
@@ -2692,9 +2697,15 @@ final class StatementExecutor {
             // per-ROW canonical text as the appended last column (the
             // fusion-spike F2 shape); the tabular decode strips it into
             // the rider, row-aligned.
-            var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(
-                    plan, com.legend.compiler.element.type.Type.schemaView(
-                            shapeInfo.type()));
+            var schema = com.legend.compiler.element.type.Type.schemaView(shapeInfo.type());
+            if (plan.outputs().isEmpty() && (schema == null || schema.isLateBound())) {
+                // leg 3.3: a raw grid (executeInDbToTDS) has no typed outputs —
+                // the database's reported columns frame it (WireTypes)
+                plan = com.legend.exec.WireTypes.staticized(plan, env.dialect(),
+                        env.connection(), wireMemo(env.connection()));
+                schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
+            }
+            var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(plan, schema);
             if (gw.declineReason() != null) {
                 rider.decline(gw.declineReason());
             } else {

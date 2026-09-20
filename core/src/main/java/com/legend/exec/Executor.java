@@ -710,10 +710,14 @@ public final class Executor {
         // BigDecimal (DuckDB types beyond-int64 literals DECIMAL)
         // decodes to its EXACT integral carrier — the pure Integer kind
         // never blurs into Decimal on the wire (X-audit decode guard)
+        // (the VALUE decides: a fractional cell under an integral slot is a
+        // declared/physical mismatch — decoded as what it is, counted by the
+        // census, never asserted — the wire-slot leg)
         if (v instanceof java.math.BigDecimal bd
                 && (type == com.legend.sql.SqlType.Scalar.BIGINT
                         || type == com.legend.sql.SqlType.Scalar.INTEGER
-                        || type == com.legend.sql.SqlType.Scalar.HUGEINT)) {
+                        || type == com.legend.sql.SqlType.Scalar.HUGEINT)
+                && bd.stripTrailingZeros().scale() <= 0) {
             java.math.BigInteger bi = bd.toBigIntegerExact();
             return bi.bitLength() < 63 ? (Object) bi.longValue() : bi;
         }

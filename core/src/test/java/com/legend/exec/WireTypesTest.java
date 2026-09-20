@@ -47,7 +47,7 @@ class WireTypesTest {
     private static void battery(Connection c, SqlDialect dialect) throws Exception {
         c.createStatement().execute("create table t(\"id\" varchar(200))");
         c.createStatement().execute("insert into t values ('7')");
-        Map<String, List<SqlType>> memo = new HashMap<>();
+        Map<String, List<WireTypes.ReportedColumn>> memo = new HashMap<>();
         // a String-declared column stamped INTEGER (the store's declaration)
         // over a physical VARCHAR: reconciled to the wire
         SqlQuery r = WireTypes.reconcile(plan(SqlType.Scalar.INTEGER), grid(Type.Primitive.STRING),
@@ -75,6 +75,10 @@ class WireTypesTest {
                 false, new SqlSource.Table("t", "t", List.of(n)), null, List.of(), null, null,
                 List.of(), null, null, List.of(n));
         assertSame(computed, WireTypes.reconcile(computed, grid(Type.Primitive.NUMBER), dialect, c, memo));
+        // a plan the compiler could not type, framed by the database's columns
+        SqlQuery framed = WireTypes.staticized(plan(SqlType.Scalar.INTEGER), dialect, c, memo);
+        assertEquals("id", framed.outputs().get(0).name());
+        assertEquals(SqlType.Scalar.VARCHAR, framed.outputs().get(0).type());
         // the one-column value shape (no relation view) reconciles by the root kind
         SqlQuery v = WireTypes.reconcile(plan(SqlType.Scalar.INTEGER),
                 new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE), dialect, c, memo);

@@ -7,7 +7,7 @@ package com.legend.sql;
  * typed root, never from the plan.
  */
 public record OutputCol(String name, SqlType type, boolean nullable,
-        boolean tolerated, Origin origin) {
+        Origin origin) {
 
     /** WHERE the column NAME was born — the fact a case-sensitive
      * renderer needs (convergence batch C blocker; SQL-IR
@@ -22,20 +22,12 @@ public record OutputCol(String name, SqlType type, boolean nullable,
     /** Derived-frame convenience — PHYSICAL outputs are born ONLY at
      * the store boundary ({@code Lowerer.outputsOf}), which uses the
      * canonical constructor explicitly. */
-    public OutputCol(String name, SqlType type, boolean nullable,
-            boolean tolerated) {
-        this(name, type, nullable, tolerated, Origin.DERIVED);
-    }
-
     public OutputCol(String name, SqlType type, boolean nullable) {
-        this(name, type, nullable, false, Origin.DERIVED);
+        this(name, type, nullable, Origin.DERIVED);
     }
 
-    /** {@code tolerated} — the slot carries an ENGINE-COMPAT
-     * carry-through value (charter §4bZ): its declared label and its
-     * wire deliberately disagree because the read crossed a declared
-     * property/column kind mismatch at the mapping seam. Stamped by
-     * label reconciliation from the value's provenance tag
-     * ({@link TypeFact.Typed#tolerated()}); read by the wire census
-     * (the label/meta divergence is registered, not red). */
+    /** The TYPE is the WIRE — what the slot's expression computes (the
+     * compiler's belief of what the database returns); the declared Pure
+     * kind lives in the plan's schema, never here (the wire-slot leg,
+     * docs/WIRE_SLOT_HOMEWORK_2026_09_19.md). */
 }

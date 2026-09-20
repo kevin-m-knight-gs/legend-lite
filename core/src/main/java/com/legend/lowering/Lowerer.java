@@ -1432,9 +1432,7 @@ public final class Lowerer {
             switch (attempt(() -> {
                 SqlExpr lowered = scalar(body,
                         (v, name) -> resolveOrThrow(resolveBase, name));
-                return unwrapped
-                        ? com.legend.sql.SqlTyping.tolerateRead(lowered)
-                        : lowered;
+                return lowered;
             })) {
                 case Resolution.Resolved r -> {
                     if (manyCols.contains(c)) {
@@ -3482,13 +3480,12 @@ public final class Lowerer {
                     // join-prefixed slot columns are INVENTED spellings
                     // even over a physical scan
                     out.add(new OutputCol(c.name() + "_" + sc.name(),
-                            PureSql.type(sc.type()), true, false,
-                            OutputCol.Origin.DERIVED));
+                            PureSql.type(sc.type()), true, OutputCol.Origin.DERIVED));
                 }
                 continue;
             }
             out.add(new OutputCol(c.name(), sqlTypeOf(c.type()),
-                    PureSql.nullable(c.multiplicity()), false, origin));
+                    PureSql.nullable(c.multiplicity()), origin));
         }
         return out;
     }

@@ -153,7 +153,7 @@ final class LambdaBinding {
     private static TypeFact elementOf(TypeFact collectionFact) {
         return collectionFact instanceof TypeFact.Typed t
                 && t.type() instanceof SqlType.Array at
-                ? new TypeFact.Typed(at.element(), true, false)
+                ? new TypeFact.Typed(at.element(), true)
                 : collectionFact;
     }
 
@@ -282,7 +282,7 @@ final class LambdaBinding {
                 // property read over the stamped element (same door as
                 // foldResolver's — §4bZ-U fold-tree receipts)
                 SqlExpr.Column c = structFieldRead(param, prop,
-                        new TypeFact.Typed(elem, true, false));
+                        new TypeFact.Typed(elem, true));
                 if (c != null) {
                     return c;
                 }

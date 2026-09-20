@@ -32,20 +32,13 @@ public sealed interface TypeFact {
      * echo-derived {@link OutputCol#nullable()}; DDL/join-pad
      * authority is M-N2).
      *
-     * <p>{@code tolerated} — the ENGINE-COMPAT carry-through provenance
-     * (charter §4bZ): this value was read across a DECLARED
-     * property/column kind mismatch at the mapping seam (the one site
-     * that knows the pairing), where the engine's contract is raw
-     * carry-through (no conversion, no check — engine source
-     * receipts). Set ONLY by the mapping seam's doors; transported by
-     * identity-preserving rules; consumed by label reconciliation —
-     * a label/wire mismatch is tolerated ONLY when the value carries
-     * this tag, so an untagged mismatch (a compiler accident) goes
-     * loud instead of being blanket-forgiven. */
-    record Typed(SqlType type, boolean nullable,
-            boolean tolerated) implements TypeFact {
+     * <p>(The engine-compat {@code tolerated} tag lived here until the
+     * wire-slot leg, docs/WIRE_SLOT_HOMEWORK_2026_09_19.md: an output slot
+     * IS the wire now, so a declared/physical mismatch is a census fact —
+     * declared kind from the schema against the slot — not a tag.) */
+    record Typed(SqlType type, boolean nullable) implements TypeFact {
         public Typed(SqlType type) {
-            this(type, false, false);
+            this(type, false);
         }
     }
 

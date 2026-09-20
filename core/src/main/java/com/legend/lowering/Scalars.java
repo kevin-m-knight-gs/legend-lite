@@ -617,8 +617,7 @@ final class Scalars {
         // seam's tag door — reconciliation tolerates the label/wire
         // disagreement for tagged reads only.
         for (String f : Pure.nativeKeysAt("meta::legend::lite::typeAsDeclared")) {
-            RULES.put(f, (n, args) ->
-                    com.legend.sql.SqlTyping.tolerateRead(args.get(0)));
+            RULES.put(f, (n, args) -> args.get(0));
         }
         // castAsDeclared never reaches here — the Typer types it as a
         // WIRE-flagged TypedCast (the Lowerer's cast() reads the flag)

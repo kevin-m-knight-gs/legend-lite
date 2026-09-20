@@ -115,14 +115,10 @@ final class ExistsJoinForm {
                 }
                 aliasFor.put(key2, outName);
                 OutputCol oc = outputColOf(sub.from(), in);
-                // E2E audit: a RENAME rebuild transports ALL FOUR
-                // dimensions — the old 3-arg OutputCol ctor silently
-                // dropped the tolerated tag (the SqlUnion-bug species)
                 projs.add(new SqlSelect.Projection(in,
                         outName.equals(in.name()) ? null : outName,
                         outName.equals(oc.name()) ? oc
-                                : new OutputCol(outName, oc.type(),
-                                        oc.nullable(), oc.tolerated())));
+                                : new OutputCol(outName, oc.type(), oc.nullable())));
             }
             SqlSelect keys = new SqlSelect(projs, true, sub.from(),
                     keysWhere(local, sub.where() == null ? null

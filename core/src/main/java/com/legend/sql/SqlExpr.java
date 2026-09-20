@@ -358,7 +358,7 @@ public sealed interface SqlExpr
             // authority replaces the echo at M-N2 and this door
             // transports it unchanged
             return new Column(table, col.name(), new TypeFact.Typed(
-                    col.type(), col.nullable(), col.tolerated()),
+                    col.type(), col.nullable()),
                     col.origin());
         }
 
@@ -370,7 +370,7 @@ public sealed interface SqlExpr
                 String name, SqlType t, boolean nullable,
                 OutputCol.Origin origin) {
             return new Column(table, name,
-                    new TypeFact.Typed(t, nullable, false), origin);
+                    new TypeFact.Typed(t, nullable), origin);
         }
 
         /** Stamped when {@code outs} claims the name, plain (UNKNOWN)
@@ -390,7 +390,7 @@ public sealed interface SqlExpr
         public Column asNullable() {
             if (type instanceof TypeFact.Typed t && !t.nullable()) {
                 return new Column(table, name, new TypeFact.Typed(
-                        t.type(), true, t.tolerated()), origin);
+                        t.type(), true), origin);
             }
             return this;
         }
@@ -411,7 +411,7 @@ public sealed interface SqlExpr
             return collection.type() instanceof TypeFact.Typed t
                     && t.type() instanceof SqlType.Array at
                     ? new Column(null, name,
-                            new TypeFact.Typed(at.element(), true, false),
+                            new TypeFact.Typed(at.element(), true),
                             OutputCol.Origin.DERIVED)
                     : derived(null, name);
         }

@@ -59,9 +59,6 @@ public final class SqlTypeCensus {
      * contract label (the wire-7 SUM-transport family, 111 -> 153's
      * +33); TRANSPORTED = the pair is EQUAL — an upper read merely
      * carrying the tag (plumbing, grows with query shape only). */
-    private static final LongAdder TOLERATED_ORIGIN = new LongAdder();
-    private static final LongAdder TOLERATED_DERIVED = new LongAdder();
-    private static final LongAdder TOLERATED_TRANSPORTED = new LongAdder();
     private static final LongAdder BOTTOM_OK = new LongAdder();
     /** RAISING roots (§4bZ-U leg 3): a projection whose expression
      * {@code error()}s yields no value and conforms to its declared
@@ -194,7 +191,6 @@ public final class SqlTypeCensus {
     }
 
     private static final LongAdder WIRE_AGREE = new LongAdder();
-    private static final LongAdder WIRE_TOLERATED = new LongAdder();
     private static final LongAdder WIRE_DELIVERED = new LongAdder();
     private static final LongAdder WIRE_ADOPT_PENDING = new LongAdder();
     private static final LongAdder WIRE_NULL_AMBIG = new LongAdder();
@@ -287,13 +283,6 @@ public final class SqlTypeCensus {
                 }
                 if (label.equals(meta)) {
                     WIRE_AGREE.increment();
-                } else if (outs.get(i).tolerated()) {
-                    // engine-compat carry-through slot (§4bZ): the
-                    // label/wire disagreement is REGISTERED provenance
-                    // (the mapping seam's tag), never a divergence
-                    WIRE_TOLERATED.increment();
-                    classify("wire-tolerated[" + dialect + "] " + label
-                            + " <- " + meta);
                 } else if (delivers(outs.get(i).type(), meta)) {
                     // THE DELIVERY RELATION (adjudicated 2026-08-23):
                     // value-subset narrowing (every INTEGER fits the
@@ -751,27 +740,7 @@ public final class SqlTypeCensus {
                 }
                 case TypeFact.Typed t -> {
                     nulDifferential(declared, e, !s.groupBy().isEmpty());
-                    if (declared.tolerated()) {
-                        // the reconciliation-stamped guest list (§4bZ),
-                        // split by provenance: EQUAL pair = a
-                        // propagation slot carrying the tag; differing
-                        // pair on a bare COLUMN READ = the seam's own
-                        // mismatch (origin); differing pair on any
-                        // other shape = an operation over a tagged
-                        // read (derived — the SUM-transport family)
-                        boolean carried = t.type().equals(declared.type());
-                        boolean read = e instanceof SqlExpr.Column;
-                        String kind = carried ? "tolerated-carried "
-                                : read ? "tolerated "
-                                        : "tolerated-derived ";
-                        String cls = kind + declared.type()
-                                + " <- " + t.type();
-                        (carried ? TOLERATED_TRANSPORTED
-                                : read ? TOLERATED_ORIGIN
-                                        : TOLERATED_DERIVED).increment();
-                        classify(cls);
-                        sample(cls, declared.name() + " := " + sketch(e));
-                    } else if (t.type().equals(declared.type())) {
+                    if (t.type().equals(declared.type())) {
                         AGREE.increment();
                     } else if (SqlTyping.subsumes(declared.type(),
                             t.type())) {
@@ -988,38 +957,14 @@ public final class SqlTypeCensus {
         return WIRE_ADOPT_PENDING.sum();
     }
 
-    /** ORIGIN rows: the pair genuinely differs — one per mapping-seam
-     * kind mismatch. Growth = a NEW mismatched mapping (a model fact
-     * to justify), never plumbing. */
-    public static long toleratedOriginCount() {
-        return TOLERATED_ORIGIN.sum();
-    }
-
-    /** DERIVED rows: operations (SUM/MAX...) over tagged reads whose
-     * result keeps the pure contract label — the wire-7 SUM-transport
-     * family. Moves with aggregate shapes, never with the model. */
-    public static long toleratedDerivedCount() {
-        return TOLERATED_DERIVED.sum();
-    }
-
-    /** TRANSPORTED rows: equal-pair propagation slots carrying the
-     * tag. Grows with query shape only. */
-    public static long toleratedTransportedCount() {
-        return TOLERATED_TRANSPORTED.sum();
-    }
-
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
                 + " subsumed=" + SUBSUMED.sum()
-                + " tolerated-origin=" + TOLERATED_ORIGIN.sum()
-                + " tolerated-derived=" + TOLERATED_DERIVED.sum()
-                + " tolerated-carried=" + TOLERATED_TRANSPORTED.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " raises=" + RAISES_OK.sum()
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum()
                 + " | wire: agree=" + WIRE_AGREE.sum()
-                + " tolerated=" + WIRE_TOLERATED.sum()
                 + " delivered=" + WIRE_DELIVERED.sum()
                 + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()
                 + " int-null-empty=" + WIRE_NULL_AMBIG.sum()

@@ -942,6 +942,33 @@ public final class VerdictQueries {
                         List.of(new Type.RelationType(columns))), Multiplicity.Bounded.ONE)));
     }
 
+    /** The declared schema with its WIRE-DECIDED columns (String / unrefined
+     * Number / Any — {@code dataTypeTransformer}'s identity arm) typed by the
+     * plan's output SLOTS (the slot is the wire): a rendered golden's cell is
+     * what the wire printed, so its kind is the wire's — {@code addressId :
+     * String} over {@code addressTable.ID INT} prints {@code 12}, an Integer
+     * cell (leg 3.3). Every other declaration keeps its kind (a Float
+     * declaration converts the wire cell and carries the grid leniency). */
+    public static Type.RelationType wireDecidedKinds(Type.RelationType declared,
+            List<com.legend.sql.OutputCol> outputs) {
+        if (outputs.size() != declared.columns().size()) {
+            return declared;
+        }
+        List<Type.Column> cols = new ArrayList<>(declared.columns().size());
+        boolean changed = false;
+        for (int i = 0; i < outputs.size(); i++) {
+            Type.Column c = declared.columns().get(i);
+            Type wire = Type.kindOfSqlType(outputs.get(i).type());
+            if (Type.wireDecided(c.type()) && wire != null && wire != c.type()) {
+                cols.add(new Type.Column(c.name(), wire, c.multiplicity()));
+                changed = true;
+            } else {
+                cols.add(c);
+            }
+        }
+        return changed ? new Type.RelationType(cols, declared.dynamicColumns()) : declared;
+    }
+
     /** A late-bound grid's schema read off its PLAN's outputs (a raw
      * executeInDb relation has no static columns; the plan's output kinds
      * are wire facts). Null when an output's kind has no pure kind. */

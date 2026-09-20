@@ -2503,13 +2503,19 @@ final class AssertVerdicts {
             if (planned.why() != null) {
                 return unjudged(name, "rendered-text side: " + planned.why());
             }
-            schema = com.legend.compiler.element.type.Type.schemaView(
-                    java.util.Objects.requireNonNull(planned.side()).shapeInfo().type());
+            var side = java.util.Objects.requireNonNull(planned.side());
+            var pr = java.util.Objects.requireNonNull(planned.rider());
+            // the grid's DATA columns (the wrap appends its canon columns after them)
+            List<com.legend.sql.OutputCol> data = pr.tdsWrapped()
+                    ? side.plan().outputs().subList(0, pr.tdsWidth()) : side.plan().outputs();
+            schema = com.legend.compiler.element.type.Type.schemaView(side.shapeInfo().type());
             if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
-                // late-bound columns (a raw executeInDb grid): the plan's
-                // output kinds are the wire facts the golden is typed by
-                schema = com.legend.compiler.spec.VerdictQueries.wireSchema(
-                        planned.side().plan().outputs());
+                // late-bound columns (a raw executeInDb grid framed by the
+                // database's reported columns): the slots type the golden
+                schema = com.legend.compiler.spec.VerdictQueries.wireSchema(data);
+            } else {
+                // a wire-decided declaration's cell is what the wire printed
+                schema = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(schema, data);
             }
         }
         var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),

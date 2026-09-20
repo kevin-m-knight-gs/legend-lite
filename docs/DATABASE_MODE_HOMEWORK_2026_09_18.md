@@ -1518,6 +1518,45 @@ by family: the 21 DuckDB accepted rows → `engine-store-arithmetic:h2-decfloat-
 lost register carries messages, not reasons; this record is their reason). Probe sources under the
 job's tmp (`calprobe/Q.java`, `R.java`, `S.java`).
 
+## 4w. The wire-slot leg — the output slot IS the wire; the two rows land; DuckDB database lost 0 (2026-09-19)
+
+**Homework first (USER: "should we do some homework first or just do it" → homework):**
+docs/WIRE_SLOT_HOMEWORK_2026_09_19.md. The census found the IR's own ruling (the 2026-08-24 label
+flip: an output's label is the declared contract's erasure; the §4bZ carry-through keeps that label
+with a `tolerated` tag for String/Double-over-integer reads) and the USER's judgment on it: the SQL
+layer carrying a Pure fact is the compromise the standalone-SQL vision forbids, and "stamp both"
+would perpetuate it. Ruling: model reasoning goes by the STORE (typing, lowering, the emitted SQL —
+a fixture that contradicts the store is never adopted into the model or the product plan); touching
+real values goes by the WIRE (the slot holds what the expression computes; the executor decodes what
+the driver returns; the judge, which writes SQL about values, reads the database's reported type for
+the verdict side only); disagreement is COUNTED (declared-vs-wire, slot-vs-metadata).
+
+**Built.** `SqlTyping.reconcileSlot` and the union reconcile adopt the computed type
+unconditionally; `TypeFact.Typed.tolerated`, `OutputCol.tolerated`, `tolerateRead`, `carryThrough`
+and the two tag doors (`Scalars` typeAsDeclared rule, `Lowerer` unwrap site) DELETED with ~20 copy
+sites; the `SUM` typing rule types the integer family `HUGEINT` plainly (its tagged arm existed only
+so a declared DOUBLE label could stand over an `orderTable INT` fixture made FLOAT); the executor's
+integral-exactness guard tests the value's scale instead of asserting the stamp (the tag had been
+standing in for this on H2 DECFLOAT sums); the census's `tolerated-*` buckets go (nothing pinned
+them). The wire consumers read the slot: `wrapTdsCanon`'s projection walk DELETED (`col.type()`),
+`WireTypes.reconcile` compares the slot to the reported type. On top, task #23: a raw
+`executeInDb` grid is framed `SELECT * FROM (raw)` with the database's reported columns as outputs
+(`WireTypes.staticized`, before its canon wrap — the pivot probe's own class of externally
+discovered outputs; the `withOutputs` door 2 → 3); the rendered road takes the grid's data columns
+as the first `tdsWidth` outputs (the rider recorded the width at wrap time) and types a String /
+Number / Any-declared cell by its slot (`VerdictQueries.wireDecidedKinds`) — the `toCSV` cell
+`12` under `addressId : String` over `addressTable.ID INT` is an Integer cell. No rider lists, no
+inner plan, no projection walk: the two earlier attempts at these rows were compensations for the
+label, and they were not built.
+
+**Measured.** DuckDB host 108 exact; H2 host 412 exact; DuckDB database lost 2 → **0** / gained 0
+(the database judge matches the host roster row for row), accepted 21 / 2 unchanged, 83 s; H2
+database lost 75 → 74 (`validateComplexValidation3`; `testExecuteInDbToTDS` stays — it walls at
+lowering on H2, variant navigation) / gained 71, accepted 0 / 2, 49 s; `testReprocessGroupByAlias`
+(the SUM witness) green on both engines; PCT relation 469/0 (DuckDB) and the H2Modern floor;
+stress ratchet held; label census mismatch 0 with `subsumed` 0 by construction; chain green.
+Ledger: AssertVerdicts 2600 → 2604, StatementExecutor 2228 → 2234 (plan wiring).
+
 ## 5. Traps recorded now (so they are not rediscovered)
 
 - MATERIALIZED is load-bearing; a plain CTE can inline per reference and two asserts could

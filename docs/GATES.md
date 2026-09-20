@@ -4211,3 +4211,16 @@ H2 lane (our product SQL, not the store). USER ruling: division stays IEEE on ev
 database accepted register: 21 rows `h2-decimal-average` → 11 `h2-decfloat-sum` + 10
 `h2-decfloat-divide` (the ten H2 lost names); DuckDB database lost 2 / gained 0, accepted 21 / 2,
 exact (81 s); no code change, the H2 lane untouched.
+
+**The wire-slot leg — the output slot IS the wire; DuckDB database lost 0 (2026-09-19):** chain GREEN
+(gates 1–10), parallel wall ≈ 4m15s (G2 26; A: G1 75 · G3 11 · G4 101 · G5 38 = 225; B: G6 143 · G7
+43 · G9 33 = 219; C: G8 148 · G10 52 = 200). Homework first (docs/WIRE_SLOT_HOMEWORK_2026_09_19.md):
+the 2026-08-24 label flip's contract label and its `tolerated` tag are DELETED — the slot adopts the
+computed type unconditionally (model by the store, values by the wire, disagreement counted); the
+SUM rule's tagged arm and the executor's asserted integral guard corrected; the wire consumers read
+the slot. On top: a raw `executeInDb` grid framed by the database's reported columns (`withOutputs`
+door 2 → 3), rendered cells of wire-decided declarations typed by the slot. Four lanes: DuckDB host
+108, H2 host 412 exact; DuckDB database lost 2 → 0 / gained 0 (accepted 21 / 2); H2 database lost
+75 → 74 / gained 71. Witness `testReprocessGroupByAlias` green on both engines; label census
+mismatch 0. Ledger: AssertVerdicts 2600 → 2604, StatementExecutor 2228 → 2234. Record:
+docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4w.

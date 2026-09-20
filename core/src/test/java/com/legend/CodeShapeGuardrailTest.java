@@ -573,8 +573,11 @@ class CodeShapeGuardrailTest {
                 + " attach the contract slot per projection"
                 + " (SqlSelect.paired / Fold.named), never assert a"
                 + " frame's outputs from the schema");
-        assertTrue(withOutputs <= 2, "withOutputs call sites grew: "
-                + withOutputs + " > 2 — star frames read their source;"
+        // 2 -> 3 (leg 3.3, 2026-09-19): WireTypes.staticized frames a raw
+        // executeInDb grid by the DATABASE's reported columns — the pivot
+        // probe's own class of externally-discovered outputs
+        assertTrue(withOutputs <= 3, "withOutputs call sites grew: "
+                + withOutputs + " > 3 — star frames read their source;"
                 + " only externally-discovered outputs (pivot probe) may"
                 + " use this door");
     }

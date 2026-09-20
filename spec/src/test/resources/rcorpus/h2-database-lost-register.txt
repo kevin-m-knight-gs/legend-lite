@@ -72,4 +72,3 @@ meta::relational::tests::milestoning::snapshot::testUnionQueryWithPropagationOnN
 meta::relational::tests::milestoning::snapshot::testUnionQueryWithPropagationOnTemporalRoot ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::tds::tdsFilter::testFilterOnDynaFunctionColumn ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::tds::tdsFilter::testInOnColumnInSubselect ||| DialectCapability: variant navigation reached a dialect without JSON support
-meta::relational::validation::complex::validateComplexValidation3 ||| AssertFailed: assertEquals | expected: ['constraint1''Error'TDSNull'12''Anthony', 'constraint1''Error'TDSNull'12''John', 'constraint

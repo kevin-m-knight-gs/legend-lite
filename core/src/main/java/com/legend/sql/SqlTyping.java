@@ -42,7 +42,7 @@ public final class SqlTyping {
      * through. */
     static TypeFact nullable(TypeFact f) {
         return f instanceof TypeFact.Typed t && !t.nullable()
-                ? new TypeFact.Typed(t.type(), true, t.tolerated()) : f;
+                ? new TypeFact.Typed(t.type(), true) : f;
     }
 
     /** Can this OPERAND deliver SQL NULL at runtime? Typed answers its
@@ -147,40 +147,19 @@ public final class SqlTyping {
      * (their inherited outputs are the DDL/join-pad authorities, M-N2). */
     static OutputCol reconcileSlot(SqlExpr pe, OutputCol oc,
             boolean grouped) {
-        SqlType type = oc.type();
-        boolean tolSlot = oc.tolerated();
-        if (pe.type() instanceof TypeFact.Typed t) {
-            SqlType computed = t.type();
-            // ENGINE-COMPAT carry-through (charter §4bZ, replaces
-            // the two blanket coercion arms): a TAGGED read keeps
-            // its declared label across the registered kind pairs,
-            // and the slot records the tolerance (the wire census
-            // reads it; an UNTAGGED mismatch falls through to
-            // adoption — loud). The tag also PROPAGATES through
-            // stamped re-reads (an upper select's column claims the
-            // lower's label — equal types, tolerated fact): the
-            // slot stays marked at every level, so the FINAL plan's
-            // outputs carry the tolerance the wire census needs.
-            if (t.tolerated() && (computed.equals(oc.type())
-                    || carryThrough(oc.type(), computed))) {
-                tolSlot = true;
-            } else if (!computed.equals(oc.type())
-                    && !subsumes(oc.type(), computed)) {
-                // untagged label lie: adopt the wire, tag dropped
-                type = computed;
-                tolSlot = false;
-            }
-        }
+        // THE SLOT IS THE WIRE (docs/WIRE_SLOT_HOMEWORK_2026_09_19.md): the
+        // declared label is a Pure fact the schema holds; the slot adopts
+        // what the expression computes, unconditionally
+        SqlType type = pe.type() instanceof TypeFact.Typed t ? t.type() : oc.type();
         // §E3 M-N3 THE FLIP: nullability adopts the slot truth in
         // both directions (the projected-NullLit N1 arm is
         // subsumed — a Bottom slot IS nullable by definition;
         // union pads restore presence above by member merging).
         boolean nul = SqlTyping.slotNullable(pe, grouped);
-        if (type.equals(oc.type()) && nul == oc.nullable()
-                && tolSlot == oc.tolerated()) {
+        if (type.equals(oc.type()) && nul == oc.nullable()) {
             return oc;
         }
-        return new OutputCol(oc.name(), type, nul, tolSlot);
+        return new OutputCol(oc.name(), type, nul, oc.origin());
     }
 
     /** Union-label reconciliation — called by {@link SqlUnion}'s
@@ -210,7 +189,6 @@ public final class SqlTyping {
         for (int i = 0; i < outputs.size(); i++) {
             OutputCol oc = outputs.get(i);
             SqlType t = null;
-            boolean tol = false;
             boolean nul = false;
             boolean uniform = true;
             OutputCol.Origin first = null;
@@ -224,7 +202,6 @@ public final class SqlTyping {
                 if (first == null) {
                     first = bc.origin();
                 }
-                tol |= bc.tolerated();
                 nul |= bc.nullable();
                 if (t == null) {
                     t = bc.type();
@@ -236,58 +213,23 @@ public final class SqlTyping {
             if (!uniform || t == null || first == null) {
                 continue;
             }
-            SqlType type = !t.equals(oc.type()) && !subsumes(oc.type(), t)
-                    && !tol ? t : oc.type();
+            // the slot is the wire: the branches' uniform computed type
+            SqlType type = t;
             // §E3 M-N3: the union cell's nullability ADOPTS the
             // branches' OR (a cell is nullable exactly when some
             // branch's is — the contract echo is no longer a floor)
             boolean nullable = nul;
-            boolean tolerated = oc.tolerated() || tol;
-            if (type.equals(oc.type()) && nullable == oc.nullable()
-                    && tolerated == oc.tolerated() && first == oc.origin()) {
+            if (type.equals(oc.type()) && nullable == oc.nullable() && first == oc.origin()) {
                 continue;
             }
             if (os == null) {
                 os = new java.util.ArrayList<>(outputs);
             }
-            os.set(i, new OutputCol(oc.name(), type, nullable, tolerated,
-                    first));
+            os.set(i, new OutputCol(oc.name(), type, nullable, first));
         }
         return os == null ? outputs : List.copyOf(os);
     }
 
-    /** THE ENGINE-COMPAT CARRY-THROUGH RELATION (charter §4bZ — the
-     * named, tag-gated home of the two DELETED blanket coercion arms):
-     * the kind pairs the engine's raw carry-through produces at a
-     * DECLARED property/column mismatch. Engine receipts: transform()
-     * is identity unless enum (legend-pure functions.pure:218), the
-     * fetch is ResultSet-metadata-keyed (ResultSetValueHandlers), no
-     * validation exists on either side — the mismatches are model
-     * facts the engine tolerates, receipted row-by-row by the
-     * fixture-skew census (Runner.FIXTURE_SKEW). Consulted ONLY for
-     * reads tagged at the mapping seam. */
-    public static boolean carryThrough(SqlType declared, SqlType computed) {
-        return (declared == SqlType.Scalar.VARCHAR
-                        || declared == SqlType.Scalar.DOUBLE)
-                && (computed == SqlType.Scalar.BIGINT
-                        || computed == SqlType.Scalar.INTEGER
-                        || computed == SqlType.Scalar.HUGEINT);
-    }
-
-    /** The mapping seam's TAG DOOR: rebuild a supplied-leaf column
-     * read with the engine-compat tolerance on its fact (charter
-     * §4bZ). Column is the one supplied-leaf node (its ctor keeps the
-     * passed fact); computed-node facts are constructor-owned and
-     * never overridden — a non-column read passes through untagged
-     * and a downstream mismatch stays loud (counted, never hidden). */
-    public static SqlExpr tolerateRead(SqlExpr e) {
-        return e instanceof SqlExpr.Column c
-                && c.type() instanceof TypeFact.Typed t && !t.tolerated()
-                ? new SqlExpr.Column(c.table(), c.name(),
-                        new TypeFact.Typed(t.type(), t.nullable(), true),
-                        c.origin())
-                : e;
-    }
 
     // THE ADMISSIBILITY RELATION IS DELETED (§4bZ-V B4, 2026-08-26 —
     // "admissible() EMPTY, nothing forgiven"). Every arm it ever held
@@ -396,7 +338,7 @@ public final class SqlTyping {
             default -> t.nullable() || anyNullable(a);
         };
         return nul == t.nullable() ? base
-                : new TypeFact.Typed(t.type(), nul, t.tolerated());
+                : new TypeFact.Typed(t.type(), nul);
     }
 
     /** The per-function KIND rules (the Slice-1 switch, verbatim,
@@ -677,8 +619,7 @@ public final class SqlTyping {
             if (os == null) {
                 os = new java.util.ArrayList<>(outputs);
             }
-            os.set(i, new OutputCol(oc.name(), oc.type(), nul,
-                    oc.tolerated()));
+            os.set(i, new OutputCol(oc.name(), oc.type(), nul, oc.origin()));
         }
         return os == null ? outputs : List.copyOf(os);
     }
@@ -1292,18 +1233,7 @@ public final class SqlTyping {
         return switch (fn) {
             case SUM -> {
                 if (integerFamily(t) || t == SqlType.Scalar.BOOLEAN) {
-                    // a SUM over an engine-compat TOLERATED read stays
-                    // tolerated (§4bZ): the promotion computed from the
-                    // STAMP kind may not match the wire's own promotion
-                    // (Order.quantity Float[1] over orderTable INT,
-                    // fixture FLOAT — sum wires DOUBLE while the stamp
-                    // says HUGEINT; the tag lets the declared DOUBLE
-                    // label stand, which matches the actual wire —
-                    // testReprocessGroupByAlias, the wire-7 review)
-                    yield t0.tolerated()
-                            ? new TypeFact.Typed(SqlType.Scalar.HUGEINT,
-                                    false, true)
-                            : T_HUGEINT;
+                    yield T_HUGEINT;
                 }
                 if (t == SqlType.Scalar.DOUBLE) {
                     yield T_DOUBLE;

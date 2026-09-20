@@ -655,6 +655,14 @@ public sealed interface Type permits
         }
     }
 
+    /** {@code dataTypeTransformer}'s identity arm: a declaration that leaves
+     * the cell's kind to the WIRE — String, unrefined Number, Any (a numeric,
+     * Boolean or temporal declaration converts the wire cell instead). */
+    static boolean wireDecided(Type declared) {
+        return declared == Primitive.STRING || declared == Primitive.NUMBER
+                || (declared instanceof ClassType ct && PlatformTypes.isAny(ct));
+    }
+
     /** The pure kind a wire (SQL) type spells — a WIRE fact read off a
      * planned output or a value-built layout, never a stamp echo. */
     public static @com.legend.Nullable Type kindOfSqlType(SqlType t) {

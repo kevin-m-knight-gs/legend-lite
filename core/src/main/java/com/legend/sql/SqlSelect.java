@@ -97,8 +97,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                 continue;
             }
             into.add(padded && !c.nullable()
-                    ? new OutputCol(c.name(), c.type(), true, c.tolerated(),
-                            c.origin())
+                    ? new OutputCol(c.name(), c.type(), true, c.origin())
                     : c);
         }
     }
@@ -143,8 +142,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                 }
             } else if (out != null
                     && out.origin() != OutputCol.Origin.DERIVED) {
-                out = new OutputCol(out.name(), out.type(), out.nullable(),
-                        out.tolerated());
+                out = new OutputCol(out.name(), out.type(), out.nullable());
             }
         }
 

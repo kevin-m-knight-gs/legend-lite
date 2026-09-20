@@ -485,8 +485,7 @@ public final class Render {
             String presented = Type.RelationType.presentPivotName(oc.name());
             projs.add(new SqlSelect.Projection(
                     SqlExpr.Column.of(wrapAlias, oc), presented,
-                    new OutputCol(presented, oc.type(),
-                            oc.nullable(), oc.tolerated())));
+                    new OutputCol(presented, oc.type(), oc.nullable())));
             Type t = colType.apply(presented);
             relCols.add(new Type.Column(presented, t,
                     com.legend.compiler.element.type.Multiplicity
@@ -725,8 +724,7 @@ public final class Render {
                 // dimensions — pair-native, the slot rides its projection
                 carry.add(new SqlSelect.Projection(
                         SqlExpr.Column.of(rowAlias, src), oname,
-                        new OutputCol(oname, src.type(), src.nullable(),
-                                src.tolerated())));
+                        new OutputCol(oname, src.type(), src.nullable())));
             }
             aggOrder.add(new SqlSelect.SortKey(
                     SqlExpr.Column.of(aggAlias, oname, src.type(),

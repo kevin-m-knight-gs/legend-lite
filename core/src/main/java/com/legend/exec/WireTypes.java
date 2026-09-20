@@ -11,7 +11,6 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlType;
-import com.legend.sql.TypeFact;
 
 import java.sql.Connection;
 import java.sql.ResultSetMetaData;
@@ -44,22 +43,48 @@ public final class WireTypes {
     private WireTypes() {
     }
 
+    /** A column as the database reports it for a prepared statement: its
+     * label, its type in the SQL vocabulary (null outside it), nullability. */
+    public record ReportedColumn(String name, @com.legend.Nullable SqlType type, boolean nullable) {
+    }
+
+    /** A plan the compiler could not type (a raw {@code executeInDb} grid: no
+     * outputs) framed as {@code SELECT * FROM (plan)} with the database's
+     * reported columns as its outputs — the LIMIT-0 probe's own pattern
+     * (PctProbe) for a staticized pivot; a column outside the vocabulary
+     * carries VARCHAR (its kind is the golden's to infer). {@code plan}
+     * itself when the database reports nothing. */
+    public static SqlQuery staticized(SqlQuery plan, com.legend.sql.dialect.SqlDialect dialect,
+            Connection conn, Map<String, List<ReportedColumn>> memo) {
+        List<ReportedColumn> reported = memo.computeIfAbsent(dialect.render(plan), s -> reported(s, conn));
+        if (reported.isEmpty()) {
+            return plan;
+        }
+        List<OutputCol> outs = new ArrayList<>(reported.size());
+        for (ReportedColumn r : reported) {
+            outs.add(new OutputCol(r.name(), r.type() == null ? SqlType.Scalar.VARCHAR : r.type(),
+                    r.nullable()));
+        }
+        return SqlSelect.starOf(new com.legend.sql.SqlSource.Subselect(plan, "side", null))
+                .withOutputs(outs);
+    }
+
     /** {@code plan} with its wire-decided outputs reconciled to the
      * database's reported types, or {@code plan} itself when nothing is
      * wire-decided or the plan is not a projection frame. */
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
             com.legend.sql.dialect.SqlDialect dialect, Connection conn,
-            Map<String, List<SqlType>> memo) {
+            Map<String, List<ReportedColumn>> memo) {
         if (!(plan instanceof SqlSelect ps) || ps.projections().isEmpty()
                 || ps.projections().size() != plan.outputs().size()) {
             return plan;
         }
         List<Type> declared = declaredKinds(shapeInfo, plan.outputs().size());
-        if (declared == null || declared.stream().noneMatch(WireTypes::wireDecided)) {
+        if (declared == null || declared.stream().noneMatch(Type::wireDecided)) {
             return plan;
         }
         String sql = dialect.render(plan);
-        List<SqlType> reported = memo.computeIfAbsent(sql, s -> reported(s, conn));
+        List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, conn));
         if (reported.size() != plan.outputs().size()) {
             return plan;
         }
@@ -67,8 +92,8 @@ public final class WireTypes {
         List<OutputCol> outputs = new ArrayList<>(plan.outputs());
         boolean changed = false;
         for (int i = 0; i < outputs.size(); i++) {
-            SqlType wire = reported.get(i);
-            if (wire == null || !wireDecided(declared.get(i))) {
+            SqlType wire = reported.get(i).type();
+            if (wire == null || !Type.wireDecided(declared.get(i))) {
                 continue;
             }
             SqlSelect.Projection p = projections.get(i);
@@ -78,19 +103,18 @@ public final class WireTypes {
             // computed expression keeps the compiler's own type — and is
             // never cast: H2 reports a computed DECIMAL at scale 0 while
             // the cell carries the value's real scale (the calendar rows)
-            if (!(p.expr() instanceof SqlExpr.Column ref
-                    && ref.type() instanceof TypeFact.Typed tf)
-                    || labelCarrier(tf.type()) || Type.kindOfSqlType(wire) == null
-                    || Type.kindOfSqlType(wire) == Type.kindOfSqlType(tf.type())) {
+            if (!(p.expr() instanceof SqlExpr.Column ref)
+                    || labelCarrier(col.type()) || Type.kindOfSqlType(wire) == null
+                    || Type.kindOfSqlType(wire) == Type.kindOfSqlType(col.type())) {
                 continue;
             }
             if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
-                System.err.println("[wire] " + col.name() + ": stamped " + tf.type()
+                System.err.println("[wire] " + col.name() + ": stamped " + col.type()
                         + ", the database reports " + wire);
             }
             // the reference re-typed, the value untouched (no cast)
             SqlExpr.Column retyped = SqlExpr.Column.of(ref.table(), ref.name(), wire,
-                    tf.nullable(), java.util.Objects.requireNonNullElse(ref.origin(),
+                    col.nullable(), java.util.Objects.requireNonNullElse(ref.origin(),
                             OutputCol.Origin.DERIVED));
             projections.set(i, new SqlSelect.Projection(retyped, p.alias(),
                     p.out() == null ? null : withType(p.out(), wire)));
@@ -101,7 +125,7 @@ public final class WireTypes {
     }
 
     private static OutputCol withType(OutputCol c, SqlType t) {
-        return new OutputCol(c.name(), t, c.nullable(), c.tolerated(), c.origin());
+        return new OutputCol(c.name(), t, c.nullable(), c.origin());
     }
 
     /** The declared kind per output: the relation's columns for a grid,
@@ -122,13 +146,6 @@ public final class WireTypes {
         return width == 1 ? List.of(shapeInfo.type()) : null;
     }
 
-    /** {@code dataTypeTransformer}'s identity arm: the declaration leaves
-     * the cell's kind to the wire. */
-    static boolean wireDecided(Type declared) {
-        return declared == Type.Primitive.STRING || declared == Type.Primitive.NUMBER
-                || (declared instanceof Type.ClassType ct && PlatformTypes.isAny(ct));
-    }
-
     private static boolean labelCarrier(SqlType t) {
         return t == SqlType.Scalar.LITERAL || t == SqlType.Scalar.TEMPORAL_TEXT
                 || t == SqlType.Scalar.DECIMAL_TEXT || t == SqlType.Scalar.JSON;
@@ -137,15 +154,17 @@ public final class WireTypes {
     /** The database's reported type per column — a prepare, no execution;
      * a column outside the vocabulary reports null; a statement the
      * database cannot prepare raises the data error the verdict would have. */
-    private static List<SqlType> reported(String sql, Connection conn) {
+    private static List<ReportedColumn> reported(String sql, Connection conn) {
         try (var st = conn.prepareStatement(sql)) {
             ResultSetMetaData md = st.getMetaData();
             if (md == null) {
                 return Collections.emptyList();
             }
-            List<SqlType> out = new ArrayList<>(md.getColumnCount());
+            List<ReportedColumn> out = new ArrayList<>(md.getColumnCount());
             for (int i = 1; i <= md.getColumnCount(); i++) {
-                out.add(sqlTypeOf(md.getColumnType(i), md.getPrecision(i), md.getScale(i)));
+                out.add(new ReportedColumn(md.getColumnLabel(i),
+                        sqlTypeOf(md.getColumnType(i), md.getPrecision(i), md.getScale(i)),
+                        md.isNullable(i) != ResultSetMetaData.columnNoNulls));
             }
             return out;
         } catch (SQLException e) {

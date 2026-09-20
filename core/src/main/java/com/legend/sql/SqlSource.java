@@ -201,8 +201,7 @@ public sealed interface SqlSource {
                 List<OutputCol> into) {
             for (OutputCol c : outs) {
                 into.add(padded && !c.nullable()
-                        ? new OutputCol(c.name(), c.type(), true,
-                                c.tolerated(), c.origin())
+                        ? new OutputCol(c.name(), c.type(), true, c.origin())
                         : c);
             }
         }

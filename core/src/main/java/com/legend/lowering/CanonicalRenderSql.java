@@ -462,17 +462,8 @@ public final class CanonicalRenderSql {
             if (kind == Type.Primitive.STRING || kind == Type.Primitive.NUMBER) {
                 // (an unrefined NUMBER declaration likewise: the wire's fine
                 // kind is the cell's — the engine reads by result-set type)
-                // the plan's OUTPUT label is stamp-derived (the declaration's
-                // VARCHAR); the WIRE fact is the projection expression's own
-                // type fact (a table column ref carries its DDL type)
-                // (a star projection expands to more outputs than
-                // projections — the positions align only when the counts do)
-                SqlType wireType = plan instanceof com.legend.sql.SqlSelect ps
-                        && ps.projections().size() == plan.outputs().size()
-                        && ps.projections().get(i).expr().type()
-                                instanceof com.legend.sql.TypeFact.Typed tf
-                        ? tf.type() : col.type();
-                Type wire = Type.kindOfSqlType(wireType);
+                // the slot IS the wire (docs/WIRE_SLOT_HOMEWORK_2026_09_19.md)
+                Type wire = Type.kindOfSqlType(col.type());
                 if (wire != null) {
                     kind = wire;
                 }

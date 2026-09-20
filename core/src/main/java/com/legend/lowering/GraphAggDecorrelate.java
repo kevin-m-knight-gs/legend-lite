@@ -161,8 +161,7 @@ final class GraphAggDecorrelate {
     private static @com.legend.Nullable OutputCol declaredSlot(String name,
             SqlExpr e) {
         return e.type() instanceof com.legend.sql.TypeFact.Typed t
-                ? new OutputCol(name, t.type(), t.nullable(),
-                        t.tolerated(), OutputCol.Origin.DERIVED)
+                ? new OutputCol(name, t.type(), t.nullable(), OutputCol.Origin.DERIVED)
                 : null;
     }
 
