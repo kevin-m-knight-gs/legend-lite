@@ -118,7 +118,14 @@ final class StatementExecutor {
             java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
             com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext frame,
             ExecuteOptions options,
-            com.legend.exec.ExecutionTrace trace) {
+            com.legend.exec.ExecutionTrace trace,
+            com.legend.exec.@com.legend.Nullable VerdictBatch verdictBatch) {
+        /** Leg 3.4: the body's deferred verdicts (database mode). */
+        ExecEnv withVerdictBatch(com.legend.exec.VerdictBatch b) {
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
+                    instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
+                    options, trace, b);
+        }
         /** Without the protocol body (a handle's rows built off the typed
          * tree alone). */
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -134,27 +141,27 @@ final class StatementExecutor {
             this(ctx, runtimeFqn, dialect, connection, queryLets,
                     tableReplace, instanceIds, assertListener, replayOracle, planRows,
                     java.util.List.of(), null, ExecuteOptions.NONE,
-                    new com.legend.exec.ExecutionTrace());
+                    new com.legend.exec.ExecutionTrace(), null);
         }
         /** The caller's execute options (the PCT wire render). */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, frame, o, trace);
+                    planRows, protocolBody, frame, o, trace, verdictBatch);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
         ExecEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, f, options, trace);
+                    planRows, protocolBody, f, options, trace, verdictBatch);
         }
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, frame, options, trace);
+                    planRows, protocolBody, frame, options, trace, verdictBatch);
         }
         ExecEnv withListeners(com.legend.exec.@com.legend.Nullable AssertListener l,
                 com.legend.exec.@com.legend.Nullable SqlReplayOracle o) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace);
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace, verdictBatch);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
             return frame == null ? com.legend.compiler.spec.typed.ExecutionContext.PostProcessors.NONE
@@ -170,7 +177,7 @@ final class StatementExecutor {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, queryLets, tableReplace,
                     instanceIds, assertListener, replayOracle, planRows,
-                    protocolBody, frame, options, trace);
+                    protocolBody, frame, options, trace, verdictBatch);
         }
 
         /** The query's PROTOCOL statements (the source-shaped lets a
@@ -180,7 +187,7 @@ final class StatementExecutor {
                 java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds,
-                    assertListener, replayOracle, planRows, body, frame, options, trace);
+                    assertListener, replayOracle, planRows, body, frame, options, trace, verdictBatch);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -239,11 +246,28 @@ final class StatementExecutor {
      */
     static @com.legend.Nullable ExecutionResult executeStatements(
             java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
-            SpecCompiler specs, ExecEnv env, java.util.Deque<String> frames) {
+            SpecCompiler specs, ExecEnv env0, java.util.Deque<String> frames) {
         ExecutionResult result = null;
         java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
         java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
+        // leg 3.4: database mode defers each assert's verdict statement into
+        // the body's batch, sent as ONE statement before any statement that
+        // is not an assert runs (a let, a frame, a write, a value) and at the
+        // body's end — the verdicts' order and first-failure raise unchanged
+        com.legend.exec.VerdictBatch batch = AssertVerdicts.JUDGE_MODE == AssertVerdicts.JudgeMode.DATABASE
+                ? new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch,
+                        new com.legend.compiler.element.type.ExprType(
+                                com.legend.lowering.VerdictSql.batchSchema(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
+                        AssertVerdicts.ONE_ROW, AssertVerdicts::verdictOf)
+                : null;
+        final ExecEnv env = batch == null ? env0 : env0.withVerdictBatch(batch);
         for (int i = 0; i < stmts.size(); i++) {
+            if (batch != null && !batch.isEmpty()
+                    && stmts.get(i) instanceof com.legend.compiler.spec.typed.TypedLet
+                    && i < stmts.size() - 1) {
+                AssertVerdicts.flush(batch, env);
+            }
             // TDG lane S1: the checker's census CARRIER folds to instance
             // literals HERE (orchestration owns testdatagen; the compiler
             // cannot — layering), before resolve sees the statement
@@ -342,6 +366,9 @@ final class StatementExecutor {
                 result = verdict;
                 continue;
             }
+            if (batch != null) {
+                AssertVerdicts.flush(batch, env);   // not an assert: what came before is judged first
+            }
             ExecutionResult hosted = hostChannel(bare, letPrefix, specs, env);
             if (hosted != null) {
                 result = hosted;
@@ -426,6 +453,9 @@ final class StatementExecutor {
             CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
             result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
                     env, letPrefix, specs));
+        }
+        if (batch != null) {
+            AssertVerdicts.flush(batch, env);
         }
         return result;
     }

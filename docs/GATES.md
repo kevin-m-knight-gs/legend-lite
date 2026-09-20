@@ -4253,7 +4253,7 @@ the four lanes + the differential (`JUDGE_LANES=duck` for the fast pair). Record
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4y (audit findings + the `if`-by-`if` read inside).
 
 **Audit legs A + the Linux CI fix (2026-09-20):** default chain GREEN (gates 1–10), parallel wall
-? s (). CI on b92d1418f was RED on Linux only (gate 4, gate 11: `testCbrt` lost):
+≈299 s, derived from the gate times, no wall line this run (G2 29; A: G1 97 · G3 13 · G4 120 · G5 40; B: G6 166 · G7 51 · G9 37; C: G8 182 · G10 60). CI on b92d1418f was RED on Linux only (gate 4, gate 11: `testCbrt` lost):
 x86_64 libm's cube root answers one ULP off the H2 golden and the golden's 3.0 printed integral
 (`3`), so the referee's "both cells decimal-point" guard refused the 2-ULP pairing; the guard now
 asks for ONE floating spelling (two integral spellings still compare as text — the epoch-millis
@@ -4269,3 +4269,15 @@ referee's rows are cell arrays (`H2Verify.Cells`, the tdg replay included). Four
 host 108 / H2 host 412 exact; DuckDB database lost 0; H2 database lost 64 / gained 71; differential
 agree 5,848 · disagree 0 · unjudged 0. Ledger: AssertVerdicts 2607 → 2565. Record:
 docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4z.
+
+**Leg 3.4 step 1 — one verdict statement per test body (2026-09-20):** default chain GREEN
+(gates 1–10), G2 26; A: G1 72 · G3 11 · G4 102 · G5 35; B: G6 131 · G7 44 · G9 34; C: G8 141 ·
+G10 51 (wall ≈ 250 s). `VerdictBatch` (exec) defers each assert's verdict statement into the body's
+batch, sent as ONE statement (`VerdictSql.batch`: one top-level WITH, per-branch CTE names, rows as
+UNION ALL branches) before any non-assert statement and at the body's end; verdicts reported in body
+order, first failure raises as before; the split rung on statement error (counted). H2 catch: a WITH
+inside a derived table blew H2's heap on a metamodel JSON-aggregation branch — the flattened shape
+is the fix. Four lanes exact and unchanged; DuckDB differential agree 5,848 / disagree 0 / unjudged
+0. Round trips: DuckDB database 139,342 → 137,951 (verdicts 3,968 → 2,577 fused, fallbacks 0); H2
+database 135,608 → 134,459 (2,310 fused, 166 fallbacks = the H2 walls). Ledger: AssertVerdicts 2565
+→ 2598, StatementExecutor 2234 → 2259. Record: docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4aa.

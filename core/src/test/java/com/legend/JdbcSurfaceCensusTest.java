@@ -82,6 +82,10 @@ class JdbcSurfaceCensusTest {
             // the verdict to the runner
             "core/src/main/java/com/legend/AssertVerdicts.java",
             "core/src/main/java/com/legend/Compiler.java",
+            // leg 3.4: the deferred verdict statements are keyed by the
+            // session they run on (a store side's routed connection, or the
+            // body's); sent through the one Executor choke point
+            "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
             // Phase 1c: the LIMIT-0 schema probe (schema, never values;

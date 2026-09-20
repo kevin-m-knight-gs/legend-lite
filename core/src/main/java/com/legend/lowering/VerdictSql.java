@@ -13,6 +13,7 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
+import com.legend.sql.SqlUnion;
 import com.legend.sql.SqlWith;
 
 import java.util.ArrayList;
@@ -620,6 +621,123 @@ public final class VerdictSql {
         return new SqlSelect(
                 List.of(new SqlSelect.Projection(SqlExpr.Column.of("k", out), "value", out)),
                 false, src, null, List.of(), null, null, List.of(), null, null, List.of(out));
+    }
+
+    /** The assert's position column of a fused batch statement. */
+    public static final String INDEX = "__ix";
+
+    /** LEG 3.4: several verdict statements as ONE. Every statement's CTEs
+     * are hoisted to ONE top-level {@code WITH} under per-statement names
+     * ({@code __e} of statement 3 is {@code __e_3}; the CTE's own alias is
+     * unchanged, so its column references stand), and each verdict row is
+     * a branch of a {@code UNION ALL} carrying its index — the per-assert
+     * statement's exact shape, flattened. (A {@code WITH} inside a derived
+     * table is NOT that shape: H2 blew its heap on one such branch, a
+     * metamodel read with JSON aggregation — the Linux-independent catch of
+     * 2026-09-20.) The caller reads each assert's row by its index (a
+     * union's row order is not a contract). */
+    public static SqlQuery batch(List<SqlQuery> statements) {
+        List<OutputCol> outs = batchOutputs();
+        List<SqlWith.Cte> ctes = new ArrayList<>();
+        List<SqlQuery> branches = new ArrayList<>(statements.size());
+        for (int i = 0; i < statements.size(); i++) {
+            SqlQuery st = statements.get(i);
+            SqlQuery body = st;
+            if (st instanceof SqlWith w) {
+                java.util.Map<String, String> names = new java.util.LinkedHashMap<>();
+                for (SqlWith.Cte c : w.ctes()) {
+                    names.put(c.name(), c.name() + "_" + i);
+                }
+                RenameCtes rename = new RenameCtes(names);
+                for (SqlWith.Cte c : w.ctes()) {
+                    ctes.add(new SqlWith.Cte(c.name() + "_" + i, rename.rewriteRoot(c.query())));
+                }
+                body = rename.rewriteRoot(w.body());
+            }
+            branches.add(indexed(i, body, outs));
+        }
+        SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
+        return ctes.isEmpty() ? union : new SqlWith(ctes, union);
+    }
+
+    /** {@code SELECT i AS __ix, <the row's columns>}: the verdict row's own
+     * select with the index prepended (its projections matched to the batch
+     * columns by label); any other body shape rides a derived table. */
+    private static SqlQuery indexed(int i, SqlQuery body, List<OutputCol> outs) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
+        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, outs.get(0)));
+        if (body instanceof SqlSelect sel && !sel.distinct() && sel.orderBy().isEmpty()
+                && sel.limit() == null && sel.projections().size() == outs.size() - 1) {
+            java.util.Map<String, SqlSelect.Projection> byLabel = new java.util.HashMap<>();
+            for (SqlSelect.Projection pr : sel.projections()) {
+                byLabel.put(pr.alias(), pr);
+            }
+            if (byLabel.size() == outs.size() - 1) {
+                for (int c = 1; c < outs.size(); c++) {
+                    SqlSelect.Projection pr = byLabel.get(outs.get(c).name());
+                    if (pr == null) {
+                        return derived(i, body, outs);
+                    }
+                    ps.add(new SqlSelect.Projection(pr.expr(), pr.alias(), outs.get(c)));
+                }
+                return new SqlSelect(ps, false, sel.from(), sel.where(), sel.groupBy(),
+                        sel.having(), sel.qualify(), List.of(), null, null, outs);
+            }
+        }
+        return derived(i, body, outs);
+    }
+
+    private static SqlQuery derived(int i, SqlQuery body, List<OutputCol> outs) {
+        List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
+        ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, outs.get(0)));
+        for (int c = 1; c < outs.size(); c++) {
+            String name = outs.get(c).name();
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("v", body.outputs(), name),
+                    name, outs.get(c)));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Subselect(body, "v", null), null,
+                List.of(), null, null, List.of(), null, null, outs);
+    }
+
+    /** CTE references renamed (a table source named after a CTE; the
+     * alias — what column references spell — is kept). */
+    private static final class RenameCtes extends com.legend.sql.SqlRewriter {
+        private final java.util.Map<String, String> names;
+
+        RenameCtes(java.util.Map<String, String> names) {
+            this.names = names;
+        }
+
+        @Override
+        protected SqlSource source(SqlSource s) {
+            if (s instanceof SqlSource.Table t) {
+                String renamed = names.get(t.name());
+                if (renamed != null) {
+                    return new SqlSource.Table(renamed, t.alias(), t.outputs());
+                }
+            }
+            return s;
+        }
+    }
+
+    private static List<OutputCol> batchOutputs() {
+        return List.of(new OutputCol(INDEX, SqlType.Scalar.BIGINT, false),
+                new OutputCol(VERDICT, SqlType.Scalar.BOOLEAN, false),
+                new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false),
+                new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false),
+                new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true),
+                new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false));
+    }
+
+    /** The relation a fused batch statement returns: the index, then
+     * {@link #schema}'s columns. */
+    public static com.legend.compiler.element.type.Type.RelationType batchSchema() {
+        List<com.legend.compiler.element.type.Type.RelationType.Column> cols = new ArrayList<>();
+        cols.add(new com.legend.compiler.element.type.Type.RelationType.Column(INDEX,
+                com.legend.compiler.element.type.Type.Primitive.INTEGER,
+                new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1)));
+        cols.addAll(schema().columns());
+        return new com.legend.compiler.element.type.Type.RelationType(cols);
     }
 
     /** The relation the verdict statement returns (the executor's

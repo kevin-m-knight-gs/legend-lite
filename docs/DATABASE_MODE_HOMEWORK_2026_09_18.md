@@ -1716,9 +1716,59 @@ still compare as text (the epoch-millis lesson). arm64 never showed it: its libm
 
 Measured: four lanes unchanged (DuckDB host 108, H2 host 412, DuckDB database lost 0, H2
 database lost 64 / gained 71, differential agree 5,848 / disagree 0 / unjudged 0); chain
-green, wall ? s. Ledger AssertVerdicts 2607 → 2565. Still owed from §4y: item 3 (the
+green, wall ≈299 s (derived: G2 29 + stream A 270; no wall line this run). Ledger AssertVerdicts 2607 → 2565. Still owed from §4y: item 3 (the
 AssertVerdicts split — after 3.4, which reshapes the arms), items 6–7 (the bare-column limit,
 the H2 residue) stay named.
+
+## 4aa. Leg 3.4, step 1 — one verdict statement per test body (2026-09-20)
+
+**What changed.** In database mode a statement-root assert no longer sends its verdict
+statement at the assert. `VerdictBatch` (exec) collects each assert's statement as a step of
+the assert's ROOT, in body order; the body's batch is sent as ONE statement before any
+statement that is not an assert runs (a `let`, a frame, a write, a value) and at the body's
+end (`StatementExecutor.executeStatements`: three flush points). The fused statement
+(`VerdictSql.batch`) is one top-level `WITH` holding every branch's CTEs under per-branch
+names (`__e_3`, alias unchanged so the column references stand) and one `UNION ALL` branch
+per verdict row carrying its index — the per-assert statement's exact shape, flattened. The
+verdicts are reported in body order; the FIRST failure raises exactly as before, so the
+runner's first-failure sequencing and gate 11's per-assert ledger keys are unchanged. A root's
+own steps (an unrolled quantified assert is several statements; a static kind gate or an
+UNJUDGED decline is a decided outcome) decide in their order. Any other exit from an assert (a
+wall) flushes what came before, then surfaces. THE SPLIT RUNG: when the fused statement itself
+errors (a side the database rejects, a canon the dialect cannot spell), the batch is judged
+statement by statement — today's path — so the error lands on the assert that owns it; counted
+(`batch-fallbacks`), never a verdict change.
+
+**The H2 catch on the way.** The first shape wrapped each statement as a derived table
+(`SELECT i, v.* FROM (WITH … SELECT …) AS v`). H2's forked JVM died of heap exhaustion on a
+ONE-branch batch — a class-mapping visibility read with `JSON_ARRAYAGG` over the metamodel
+joins and `LIMIT 1`, a statement that runs fine bare. H2 mishandles a `WITH` inside a derived
+table for that shape; DuckDB was unaffected. The flattened form (CTEs hoisted, rows as bare
+branches) is the shape that ran before and is the spike's own; it also carries the frame
+CTEs of step 2 naturally.
+
+**Measured.**
+
+| lane | before | after |
+|---|---|---|
+| DuckDB database round trips | 139,342 | 137,951 (verdict statements 3,968 → 2,577 fused; fallbacks 0) |
+| H2 database round trips | 135,608 | 134,459 (2,310 fused; fallbacks 166 — the H2 walls, judged one by one as before) |
+| DuckDB differential | agree 5,848 · disagree 0 · unjudged 0 | unchanged |
+| rosters | DuckDB host 108 · H2 host 412 · DuckDB database lost 0 · H2 database lost 64 / gained 71 | unchanged |
+
+H2's `wire-slot-skew` census read 76 → 86: a body's later asserts are now PLANNED before an
+earlier one raises (planning counts the skew), a census-only effect. The round-trip total is
+dominated by fixture replay (DuckDB database: 130,722 raw seed/DDL statements of 139,342; 8,620
+prepared, of which 3,968 verdicts and 4,640 frames/reads/probes) — the seeding boundary is its
+own leg (D9), after 3.4.
+
+**Step 2 (next): frames as CTEs.** A relation-rooted `execute()` frame's plan becomes a named
+CTE (`WITH frame_r AS MATERIALIZED (…)` on DuckDB; plain on H2, which has no MATERIALIZED and
+re-evaluates per reference — no worse than today's paste) referenced by every side that reads
+`$r.values`, instead of the frame's query pasted into each side; the fused statement hoists the
+frame CTE once. The eager run at the `let` stays (engine parity: a broken pipeline surfaces at
+the let; the ledger's rows stay exact). Class-rooted and late-bound frames keep the paste,
+counted.
 
 ## 5. Traps recorded now (so they are not rediscovered)
 

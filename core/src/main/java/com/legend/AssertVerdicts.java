@@ -53,6 +53,10 @@ final class AssertVerdicts {
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         com.legend.exec.AssertListener l = env.assertListener();
+        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        if (batch != null) {
+            return batched(batch, bare, letPrefix, specs, env, rawHook);
+        }
         if (l == null) {
             return adjudicate(bare, letPrefix, specs, env, rawHook);
         }
@@ -89,6 +93,56 @@ final class AssertVerdicts {
             }
         }
     }
+
+    /** Leg 3.4: the assert's verdict statements DEFER into the body's batch
+     * (VerdictBatch); a decided outcome or a raise is a step in order,
+     * reported at the flush. Any other exit (a wall) flushes what came
+     * before — those verdicts were already the body's — then surfaces. */
+    private static @com.legend.Nullable ExecutionResult batched(com.legend.exec.VerdictBatch batch,
+            TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> rawHook) {
+        com.legend.exec.CanonicalDivergence.sqlEnter();
+        batch.open(listenerName(bare));
+        ExecutionResult v = null;
+        RuntimeException deferred = null;
+        boolean settled = false;
+        try {
+            v = adjudicate(bare, letPrefix, specs, env, rawHook);
+            settled = true;
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+            settled = true;
+            deferred = e;
+        } finally {
+            if (!settled) {
+                com.legend.exec.CanonicalDivergence.sqlRaised();
+                batch.discard();
+                flush(batch, env);
+            }
+        }
+        if (deferred != null) {
+            batch.resolve(deferred);
+            batch.close();
+            return ok();
+        }
+        if (v == null) {
+            batch.discard();
+            return null;
+        }
+        batch.close();
+        return v;
+    }
+
+    static void flush(com.legend.exec.VerdictBatch batch, StatementExecutor.ExecEnv env) {
+        batch.flush(env.dialect(), env.trace(), env.assertListener());
+    }
+
+    /** The one-row shape a verdict statement returns. */
+    static final com.legend.compiler.element.type.ExprType ONE_ROW =
+            new com.legend.compiler.element.type.ExprType(
+                    com.legend.lowering.VerdictSql.schema(),
+                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
 
     private static String listenerName(TypedSpec bare) {
         String fqn = calleeFqn(bare);
@@ -1386,34 +1440,19 @@ final class AssertVerdicts {
     private static ExecutionResult runVerdict(String name, boolean wantEqual,
             com.legend.sql.SqlQuery vq, java.sql.Connection runOn,
             StatementExecutor.ExecEnv env) {
-        ExecutionResult r;
-        try {
-            r = com.legend.exec.Executor.execute(env.dialect().render(vq), vq,
-                    new com.legend.compiler.element.type.ExprType(
-                            com.legend.lowering.VerdictSql.schema(),
-                            new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1)),
-                    com.legend.exec.ResultShape.TABULAR, runOn, env.dialect(),
-                    env.trace());
-        } catch (com.legend.error.DataError e) {
-            // the statement itself could not run (a canon expression the
-            // database rejects, a side that errors): counted UNJUDGED with
-            // the database's own words, then the failure surfaces as itself
-            // — never a bare re-run, never a host rescue
-            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, "statement-error: "
-                    + String.valueOf(e.getMessage()).split("\n")[0]);
-            throw e;
-        } catch (com.legend.sql.dialect.DialectCapability e) {
-            // the dialect cannot spell a canon expression (H2: the JSON-
-            // carried literal channel, REGEXP): counted, then surfaces
-            com.legend.exec.CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
-                    + String.valueOf(e.getMessage()).split("\n")[0]);
-            throw e;
+        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        if (batch != null && batch.active()) {
+            batch.defer(name, wantEqual, vq, runOn);   // leg 3.4: judged at the flush
+            return ok();
         }
-        if (!(r instanceof ExecutionResult.Tabular t) || t.rows().size() != 1) {
-            throw new IllegalStateException(name + ": the verdict statement returned "
-                    + (r instanceof ExecutionResult.Tabular t2 ? t2.rows().size() + " rows" : "no grid"));
-        }
-        List<Object> row = t.rows().get(0).values();
+        return verdictOf(name, wantEqual, com.legend.exec.VerdictBatch.executeOne(
+                name, vq, ONE_ROW, runOn, env.dialect(), env.trace()));
+    }
+
+    /** The verdict of one row ({@code verdict, expected, actual, unjudged,
+     * lenient}): unjudged (counted, the assert fails with the reason), or
+     * the verdict with the two framed canons as the message. */
+    static ExecutionResult verdictOf(String name, boolean wantEqual, List<Object> row) {
         if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
             // the SQL dump's companion: the verdict row the statement returned
             System.err.println("[verdict] " + name + " verdict=" + row.get(0)

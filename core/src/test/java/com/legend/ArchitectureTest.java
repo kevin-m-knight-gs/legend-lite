@@ -818,6 +818,12 @@ final class ArchitectureTest {
             // routes EqualToJson to it)
             .and().doNotHaveFullyQualifiedName("com.legend.exec.Equality")
             .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
+            // leg 3.4 (2026-09-20): the verdict seam's SENDING arm — the
+            // body's deferred verdict statements as one statement; it
+            // counts the census rows the arm counted at the assert
+            // (raised, unjudged) and decides nothing (the row's judgment
+            // is injected from AssertVerdicts)
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.VerdictBatch")
             .should().dependOnClassesThat().haveNameMatching(
                 "com\\.legend\\.exec\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)")
             .as("V3: host-verdict classes are reachable only from the"
