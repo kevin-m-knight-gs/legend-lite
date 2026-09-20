@@ -36,7 +36,33 @@ final class FrameRefs {
             ps.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, cols, o.name()),
                     o.name(), o));
         }
-        return new SqlSelect(ps, false, src, null, List.of(), null, null, List.of(),
+        // THE FRAME'S ORDER RIDES ITS REFERENCE (lean ladder rung 8): a CTE
+        // boundary carries no order in SQL — a positional read over a
+        // sorted frame (->sort(...)->at(n)) must re-state the sort over the
+        // reference's own columns; a key the plan does not project cannot be
+        // re-stated and the reference stays unordered (the plan's own sort
+        // still shapes the CTE's rows)
+        List<SqlSelect.SortKey> order = new ArrayList<>();
+        if (fr.plan() instanceof SqlSelect ps2) {
+            for (SqlSelect.SortKey k : ps2.orderBy()) {
+                OutputCol projected = null;
+                for (int i = 0; i < ps2.projections().size() && i < cols.size(); i++) {
+                    SqlSelect.Projection p = ps2.projections().get(i);
+                    if (p.expr().equals(k.expr())
+                            || (k.outputName() != null && k.outputName().equals(p.alias()))) {
+                        projected = cols.get(i);
+                        break;
+                    }
+                }
+                if (projected == null) {
+                    order = List.of();
+                    break;
+                }
+                order.add(new SqlSelect.SortKey(SqlExpr.Column.of(alias, cols, projected.name()),
+                        k.ascending(), k.nullOrder(), projected.name()));
+            }
+        }
+        return new SqlSelect(ps, false, src, null, List.of(), null, null, List.copyOf(order),
                 null, null, cols);
     }
 }

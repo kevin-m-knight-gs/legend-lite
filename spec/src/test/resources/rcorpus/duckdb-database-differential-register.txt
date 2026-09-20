@@ -1,0 +1,1 @@
+meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView ||| fails in BOTH modes for one reason (the fixture has no personView table); host mode fails at the let's eager run before any assert, database mode fails at assert #0 because the frame rides the body's one statement (lean ladder, 2026-09-20) — the same outcome, a different stage

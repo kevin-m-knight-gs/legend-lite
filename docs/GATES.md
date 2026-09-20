@@ -4322,3 +4322,31 @@ lane's extra time is DuckDB PLANNING, linear in plan operators, not bytes. Four 
 74.1 MB); H2 database lost 64 / gained 72; differential agree 5,848 · disagree 0 · unjudged 0.
 Ledgers: AssertVerdicts 2599 → 2593; funnel +PrepTrace; JDBC census +ladder test; parity floor
 2503 → 2518; env flag LEGEND_LITE_PREP_TRACE registered.
+
+**The lean SQL ladder, rungs 4–11 — one statement per body (2026-09-20):** default chain GREEN
+(gates 1–10), G2 26; A: G1 77 · G3 12 · G4 107 · G5 39; B: G6 141 · G7 47 · G9 34; C: G8 149 ·
+G10 54 (wall ≈ 250 s). Every ladder rung is now ONE statement with every let's product SQL in it
+once: a let's frame is not RUN at the let under a verdict batch (its readers derive from it inside
+the body's statement; a broken pipeline surfaces at the flush; a value-position execute still
+runs); its activity carries the trace id RESERVED for the fused statement (`ExecutionTrace.
+reserve`). Rung 4: the one-line families (`size`, `sizeOfGraph`, `empty`, `emptyOfGraph`,
+`contains`, `condition`, `tolerance`, `subset`, `renderedText`, `jsonText`) compute each operand
+ONCE as a one-row relation cross-joined into the `__p` facts row; a declared-one operand is a
+scalar row straight over its plan (`VerdictSql.scalarRow`). Rung 8 (correctness): a frame
+reference re-states the frame's ORDER BY over its own columns — a positional read over a sorted
+frame no longer relies on scan order. Rung 11: the leniency counts ride the facts row, the pair
+facts count only bad pairs, `Double.MAX_VALUE` spells `1.7976931348623157E308`. The ladder counts
+EXECUTED statements (a prepare-only wire-type probe is not one). New register:
+`<lane>-database-differential-register.txt` — a test failing in both modes for one reason whose
+per-assert ledgers differ in WHERE it fails (host at the let, database at the assert): 1 named.
+Four lanes: DuckDB host 108 / H2 host 412 exact; DuckDB database lost 0 / gained 0 — 67 s (82 s
+before the ladder), SQL text 96.3 MB → 73.1 MB, round trips 137,951 → 135,978; H2 database lost 64
+/ gained 72; differential agree 5,848 · disagree 0 · unjudged 0. Ledgers: AssertVerdicts 2593 →
+2599, StatementExecutor 2332 → 2345. Record: docs/LEAN_VERDICT_LADDER_2026_09_20.md.
+Fused verdict statements, traced (`PrepTrace`, before the ladder → after):
+```
+fused  before: n= 2577  50.4MB prepare= 23.3s execute= 18.5s | after: n= 2577  28.0MB prepare= 13.9s execute= 15.7s
+frame  before: n= 1111   0.9MB prepare=  0.2s execute=  0.2s | after: n= 1111   0.9MB prepare=  0.3s execute=  0.2s
+other  before: n= 3382   2.1MB prepare=  0.9s execute=  0.6s | after: n= 1408   1.2MB prepare=  0.4s execute=  0.2s
+```
+

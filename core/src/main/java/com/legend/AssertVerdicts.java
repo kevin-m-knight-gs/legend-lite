@@ -1543,6 +1543,15 @@ final class AssertVerdicts {
                     w.plan().outputs().get(0).name(), true);
         }
         /** The side's rows for counting: the canon may have declined. */
+        /** A side DECLARED exactly one as a one-row relation {@code (__c,
+         * value)} straight over its plan — no rows CTE, no limited read
+         * (lean ladder rung 4). */
+        com.legend.sql.SqlQuery scalarRow(boolean literal) {
+            var r = java.util.Objects.requireNonNull(rider);
+            var w = java.util.Objects.requireNonNull(side);
+            int idx = literal && r.literalIndex() >= 0 ? r.literalIndex() : 0;
+            return com.legend.lowering.VerdictSql.scalarRow(w.plan(), "__canon" + idx);
+        }
         com.legend.sql.SqlQuery countRows() {
             var r = java.util.Objects.requireNonNull(rider);
             var w = java.util.Objects.requireNonNull(side);
@@ -1626,8 +1635,8 @@ final class AssertVerdicts {
                 && envelopeValuesRead(args.get(0), letPrefix);
         var cw = java.util.Objects.requireNonNull(coll.side());
         com.legend.sql.SqlQuery vq = cw.shape() == com.legend.exec.ResultShape.GRAPH
-                ? com.legend.lowering.VerdictSql.sizeOfGraph(cw.plan(), n.rows(false))
-                : com.legend.lowering.VerdictSql.size(coll.countRows(), n.rows(false), envelope);
+                ? com.legend.lowering.VerdictSql.sizeOfGraph(cw.plan(), n.scalarRow(false))
+                : com.legend.lowering.VerdictSql.size(coll.countRows(), n.scalarRow(false), envelope);
         return runVerdict(name, true, vq, coll.connection(env), env);
     }
 
@@ -1662,7 +1671,7 @@ final class AssertVerdicts {
         if (literal && (cr.literalIndex() < 0 || vr.literalIndex() < 0)) {
             return unjudged(name, "no literal channel");
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.rows(literal)),
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal)),
                 c.connection(env), env);
     }
 
@@ -1736,7 +1745,7 @@ final class AssertVerdicts {
         if (side.why() != null) {
             return unjudged(name, side.why());
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.rows(false), wantTrue),
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.condition(side.scalarRow(false), wantTrue),
                 side.connection(env), env);
     }
 
@@ -1750,7 +1759,7 @@ final class AssertVerdicts {
         if (why != null) {
             return unjudged(name, why);
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.rows(false), a.rows(false), t.rows(false)),
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false), t.scalarRow(false)),
                 a.connection(env), env);
     }
 

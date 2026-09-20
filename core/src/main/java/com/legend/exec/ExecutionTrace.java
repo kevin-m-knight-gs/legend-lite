@@ -24,9 +24,23 @@ public final class ExecutionTrace {
     /** The statement text as the database receives it: the trace comment
      * line, then the SQL. Publishes the comment as this trace's last stamp. */
     public String stamp(String sql) {
-        String comment = comment();
+        String comment = reserved != null ? reserved : comment();
+        reserved = null;
         last = comment;
         return comment + "\n" + sql;
+    }
+
+    private @com.legend.Nullable String reserved;
+
+    /** The comment the NEXT stamped statement will carry, minted now: a
+     * frame that is not run at its let (one statement per body) registers
+     * its activity under the id of the statement that WILL run it — the
+     * body's fused verdict statement; every frame of the body shares it. */
+    public String reserve() {
+        if (reserved == null) {
+            reserved = comment();
+        }
+        return reserved;
     }
 
     public @com.legend.Nullable String lastComment() {

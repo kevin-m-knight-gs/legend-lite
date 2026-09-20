@@ -355,7 +355,12 @@ class MinimalCorpusTest {
         JudgeLedger.Differential x = JudgeLedger.diff(
                 JudgeLedger.read(java.nio.file.Path.of(h)), JudgeLedger.read(java.nio.file.Path.of(d)));
         java.util.Set<String> registered = new java.util.HashSet<>();
-        for (String r : List.of("lost", "gained", "accepted")) {
+        // "differential": a test that FAILS in both modes for the same reason but
+        // whose per-assert ledgers differ in WHERE the failure lands — since one
+        // statement per body (2026-09-20) a let's frame rides the fused statement,
+        // so a broken frame fails at the assert in database mode and at the let in
+        // host mode; named with its reason, never absorbed
+        for (String r : List.of("lost", "gained", "accepted", "differential")) {
             registered.addAll(registerTests("/rcorpus/" + lane + "-database-" + r + "-register.txt"));
         }
         registered.addAll(registerTests(MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED));

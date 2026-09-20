@@ -202,3 +202,59 @@ runner's constructor and merged into every test's options; the executor and the 
 `env.options().judgeMode()`; the static is deleted. The corpus lane still passes `-Dlegend.judge.mode`
 to `MinimalCorpusTest`, which hands it to its runner once — the product never reads a property. No
 pom execution, no skip.
+
+## Rungs 4–11 CLOSED on the general shape (2026-09-20)
+
+Every rung is now ONE statement (statements=1 across the ladder), every let's product SQL rides
+it once, and the wrapper is the general shape with no scalar subqueries except the derived
+tables that hold a side. Landed on top of rungs 1–3:
+
+- **One statement per body (rungs 5–11).** A let's frame is no longer RUN at the let under a
+  verdict batch: its readers derive from it inside the body's statement (a MATERIALIZED CTE for
+  a planned relation frame; the chain pasted for a class-rooted one) and a broken pipeline
+  surfaces at the flush. A value-position execute (its result IS the value asked for) still
+  runs. Corpus: the frame runs were 1,111 of the DuckDB lane's prepared statements.
+- **The ladder counts executed statements** (the recording proxy records on execute, not on
+  prepare): the wire-type probe prepares a plan to read its reported columns and never runs it.
+- **Rung 4, the one-line families** (`size`, `sizeOfGraph`, `empty`, `emptyOfGraph`, `contains`,
+  `condition`, `tolerance`, `subset`, `renderedText`, `jsonText`): operands as ONE-ROW relations
+  cross-joined once into the `__p` facts row, the verdict row reads its columns — every operand
+  computed once. The multiplicity rule again: a declared-one operand (the size literal, a
+  condition, a contained value, the tolerance's three) is a scalar row straight over its plan
+  (`VerdictSql.scalarRow`), never a rows CTE plus a limited read. `assertSize(…, 3)`: 787 chars
+  and 5 subqueries → 607 and 1 (the count's own derived table).
+- **Rung 8, a correctness fix, not only leanness.** A frame reference now re-states the frame's
+  ORDER BY over its own columns (`FrameRefs.reference`): a positional read over
+  `->sort('id')->at(0)` reads `… FROM frame_r … ORDER BY frame_r_t0.id NULLS LAST LIMIT 1`;
+  before, it read the CTE unordered and relied on scan order.
+- **Rung 11, the leniency block:** the pair facts count only the bad pairs; the two side counts
+  come from the facts rows (`__n`); `Double.MAX_VALUE` spells `1.7976931348623157E308`
+  (`plainFloat`: exponent form for magnitudes ≥ 1e15 or < 1e-6). 40,800 chars / 38 subqueries
+  → 11,061 / 5 (the per-element float canon is the canon).
+
+| rung | statements | chars | subqueries | status |
+|---|---|---|---|---|
+| r01–r03 | 1 | 1,142 | 0 (+2 derived tables) | CLOSED |
+| r04 `assertSize(execute(…).values, 3)` | 1 | 607 | 1 | CLOSED |
+| r05 one let + assertSize | 1 (was 2) | 607 | 1 | CLOSED |
+| r06 assertSameElements over a class let | 1 (was 3) | 1,748 | 0 | CLOSED |
+| r07 project + sort, count rows | 1 (was 3) | 1,631 | 3 | CLOSED |
+| r08 positional cell | 1 (was 3) | 1,437 | 4 | CLOSED |
+| r09 two asserts, one let | 1 (was 3) | 2,932 | 6 | CLOSED |
+| r10 two lets | 1 (was 3) | 1,246 | 2 | CLOSED |
+| r11 float multiset | 1 (was 2) | 11,061 | 5 | CLOSED |
+
+"CLOSED" = the pinned emission IS the reviewed lean target for the general shape. Residuals
+recorded, each a separate small leg, none a shape problem:
+
+1. A count over a TDS-wrapped side reads the canon wrap (`__rowcanon`, cells) it does not need
+   (r07, r09): `countRows` over the wrap's own source.
+2. A positional cell read (`->at(0).getString('name')`) lowers as a scalar subquery over the
+   limited reference, then the declared-one seed join wraps it once more (r08): two layers where
+   one does — the `at` lowering.
+3. A class-rooted let with SEVERAL readers pastes its chain per reader (the corpus: 1,743 class
+   frames; `testGet`-shaped bodies) — the class frame as a CTE (its row relation, readers
+   derived) is the remaining "exactly once" leg for class lets; single-reader class lets
+   (r05, r06) already ride once.
+4. `gridTolerance` (assertEqWithinTolerance, 11 asserts) still spells its operands through the
+   old `predicate`.

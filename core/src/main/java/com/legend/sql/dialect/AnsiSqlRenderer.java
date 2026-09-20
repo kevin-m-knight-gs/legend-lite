@@ -1322,6 +1322,12 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     static String plainFloat(double v) {
+        double a = Math.abs(v);
+        if (a >= 1e15 || (a > 0 && a < 1e-6)) {
+            // an extreme magnitude in exponent form — Double.MAX_VALUE spelled
+            // plain is 309 digits (the 2-ULP leniency's finite check)
+            return Double.toString(v);
+        }
         String s = java.math.BigDecimal.valueOf(v).toPlainString();
         return s.contains(".") ? s : s + ".0";
     }

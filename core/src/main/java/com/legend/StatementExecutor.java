@@ -440,7 +440,7 @@ final class StatementExecutor {
                     continue;
                 }
                 if (com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(catFqn)) {
-                    result = buildFrame(cat, letPrefix, true, specs, env)
+                    result = buildFrame(cat, letPrefix, true, true, specs, env)
                             .result();
                     continue;
                 }
@@ -1491,6 +1491,26 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, boolean eager,
             SpecCompiler specs, ExecEnv env) {
+        return buildFrame(ec, letPrefix, eager, false, specs, env);
+    }
+
+    /** The activity's execution-trace comment: the run's when the frame ran
+     * at its let; under a verdict batch, the comment RESERVED for the body's
+     * fused statement — the statement that will run the frame. */
+    private static @com.legend.Nullable String activityComment(
+            @com.legend.Nullable ExecutionResult run, ExecEnv env) {
+        if (run != null) {
+            return env.trace().lastComment();
+        }
+        return env.verdictBatch() != null ? env.trace().reserve() : null;
+    }
+
+    /** {@code resultNeeded}: the frame's own result is the value asked for
+     * (a value-position execute) — it runs even under a verdict batch. */
+    private static ExecFrame buildFrame(
+            com.legend.compiler.spec.typed.TypedNativeCall ec,
+            java.util.List<TypedSpec> letPrefix, boolean eager, boolean resultNeeded,
+            SpecCompiler specs, ExecEnv env) {
         // PLAN-EXECUTE normalization (burn map: unlocks the TDG wall
         // cohort + the §5 program-replayer class): executionPlan::
         // execute(plan, values, ext) peels the plan argument to its
@@ -1567,7 +1587,7 @@ final class StatementExecutor {
             TypedSpec envelope = com.legend.compiler.spec.ExecuteChainAssembly
                     .legendQueryEnvelope(lqChain.chain(), env.ctx(), activitySql);
             ExecutionResult lqRun = null;
-            if (eager) {
+            if (eager && (env.verdictBatch() == null || resultNeeded)) {
                 com.legend.resolver.StoreResolver lqResolver =
                         resolver(specs, env);
                 lqRun = executeTyped(lqResolver.resolve(
@@ -1577,7 +1597,7 @@ final class StatementExecutor {
             PlanAllocations.registerActivityRows(ec,
                     PlanAllocations.activitySql(ec, envelope, letPrefix, specs, env),
                     AggAwareActivities.rewrittenQuery(envelope, env.ctx(), specs),
-                    lqRun == null ? null : env.trace().lastComment(), env);
+                    activityComment(lqRun, env), env);
             return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
@@ -1612,7 +1632,13 @@ final class StatementExecutor {
                 .chain(prepared, ec, letPrefix, specs, env.runtimeFqn(),
                         env.queryLets());
         ExecutionResult run = null;
-        if (eager) {
+        // ONE STATEMENT PER BODY (lean ladder, 2026-09-20): under a verdict
+        // batch a let's frame is never RUN at the let — its readers derive
+        // from it inside the body's one statement (a CTE for a planned
+        // relation frame; the chain pasted otherwise) and a broken pipeline
+        // surfaces at the flush. A frame whose RESULT is the value asked for
+        // (a value-position execute) still runs.
+        if (eager && (env.verdictBatch() == null || resultNeeded)) {
             // the inliner consumed the query's lets; graph-tree date args
             // still spell the variables (serialize-key source form) — the
             // resolver's let env resolves them (engine inScopeVars)
@@ -1625,7 +1651,7 @@ final class StatementExecutor {
         PlanAllocations.registerActivityRows(ec,
                 PlanAllocations.activitySql(ec, assembled.chain(), letPrefix, specs, env),
                 AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs),
-                run == null ? null : env.trace().lastComment(), env);
+                activityComment(run, env), env);
         // leg 3.4 step 2: a relation-rooted frame of STATIC schema that ran
         // (eager) is also PLANNED once — every assert side that reads it
         // references the plan as a CTE instead of pasting the chain

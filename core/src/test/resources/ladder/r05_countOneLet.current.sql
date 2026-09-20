@@ -1,9 +1,16 @@
-SELECT CAST(coalesce(to_json(list(json_object('id', t0.ID, 'name', t0.NAME, 'amount', t0.AMOUNT) ORDER BY t0.ID ASC NULLS LAST)), '[]') AS VARCHAR) AS result
-FROM T AS t0
-;;
-WITH __n_0 AS (SELECT CAST(value AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn
+WITH __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
   FROM (
-    SELECT 3 AS value
-  ) AS side
-  WHERE value IS NOT NULL)
-SELECT 0 AS __ix, coalesce(((SELECT COUNT(*) AS __n FROM T AS t0) IS NOT DISTINCT FROM CAST((SELECT __n.__c AS __one FROM __n_0 AS __n ORDER BY __n.__rn NULLS LAST LIMIT 1) AS BIGINT)), FALSE) AS __verdict, CAST(CAST((SELECT __n.__c AS __one FROM __n_0 AS __n ORDER BY __n.__rn NULLS LAST LIMIT 1) AS BIGINT) AS VARCHAR) AS __expected, CAST((SELECT COUNT(*) AS __n FROM T AS t0) AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient
+    SELECT COUNT(*) AS __n
+    FROM T AS t0
+  ) AS c
+  CROSS JOIN (
+    SELECT CAST(value AS VARCHAR) AS __c, value AS value
+    FROM (
+      SELECT 1 AS __one
+    ) AS __one
+    LEFT OUTER JOIN (
+      SELECT 3 AS value
+    ) AS side ON TRUE
+  ) AS n)
+SELECT 0 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient
+FROM __p_0 AS p

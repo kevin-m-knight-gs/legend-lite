@@ -189,8 +189,22 @@ class LeanSqlLadderTest {
             } catch (java.lang.reflect.InvocationTargetException e) {
                 throw e.getCause();
             }
-            if ("prepareStatement".equals(method.getName()) && args != null && args[0] instanceof String sql) {
-                sent.add(sql);
+            if ("prepareStatement".equals(method.getName()) && args != null && args[0] instanceof String sql
+                    && r instanceof PreparedStatement ps) {
+                // a prepare is a metadata probe until the statement EXECUTES —
+                // only an execution is a statement sent (the wire-type probe
+                // prepares a plan to read its reported columns and never runs it)
+                return Proxy.newProxyInstance(LeanSqlLadderTest.class.getClassLoader(),
+                        new Class<?>[] {PreparedStatement.class}, (p2, m2, a2) -> {
+                            if (m2.getName().startsWith("execute")) {
+                                sent.add(sql);
+                            }
+                            try {
+                                return m2.invoke(ps, a2);
+                            } catch (java.lang.reflect.InvocationTargetException e) {
+                                throw e.getCause();
+                            }
+                        });
             } else if ("createStatement".equals(method.getName()) && r instanceof Statement st) {
                 return Proxy.newProxyInstance(LeanSqlLadderTest.class.getClassLoader(),
                         new Class<?>[] {Statement.class}, (p2, m2, a2) -> {
