@@ -179,6 +179,7 @@ class MinimalCorpusTest {
         List<String> originRows = new ArrayList<>();
         List<String> shapeRows = new ArrayList<>();
         List<String> artifactRows = new ArrayList<>();
+        List<String> hostComparedRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
@@ -193,6 +194,7 @@ class MinimalCorpusTest {
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 int fallbacksBefore = com.legend.exec.VerdictBatch.FALLBACK_REASONS.size();
                 long flushesBefore = com.legend.exec.VerdictBatch.flushCount();
+                long hostDecidedBefore = com.legend.exec.VerdictBatch.hostDecidedCount();
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -244,6 +246,10 @@ class MinimalCorpusTest {
                         com.legend.exec.VerdictBatch.flushCount() - flushesBefore);
                 if (outside != null) {
                     artifactRows.add(r.fqn() + " ||| " + outside);
+                }
+                long hostDecided = com.legend.exec.VerdictBatch.hostDecidedCount() - hostDecidedBefore;
+                if (hostDecided > 0) {
+                    hostComparedRows.add(r.fqn() + " ||| host-decided=" + hostDecided);
                 }
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
                 for (int fi = fallbacksBefore; fi < com.legend.exec.VerdictBatch.FALLBACK_REASONS.size(); fi++) {
@@ -424,6 +430,15 @@ class MinimalCorpusTest {
             pinArtifactRegister(only, ran, artifactRows,
                     "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
                             + "-database-outside-body-register.txt");
+            // THE HOST-COMPARED REGISTER (2026-09-21): under the database judge, every test
+            // with an assert decided WITHOUT a verdict row (a comparison in Java over two
+            // database-computed sides — the lineage, TDG, identity and metadata arms) is a
+            // named row; exact, shrink-only — the number that must reach zero
+            Files.write(Path.of("target/corpus2-host-compared.txt"), hostComparedRows);
+            pinArtifactRegister(only, ran, hostComparedRows,
+                    "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
+                            + "-database-host-compared-register.txt", "host-compared",
+                    "an assert was decided outside a verdict row and its test is not registered");
         }
         pinChannels(only, corpus);
         pinStrength(only, strength);
@@ -963,6 +978,12 @@ class MinimalCorpusTest {
      * register with the reason in docs/GATES.md). The register can only shrink. */
     private static void pinArtifactRegister(String only, List<String> ran, List<String> rows,
             String resource) throws IOException {
+        pinArtifactRegister(only, ran, rows, resource, "outside-body",
+                "a body sends a product-owned statement outside its artifact and is not registered");
+    }
+
+    private static void pinArtifactRegister(String only, List<String> ran, List<String> rows,
+            String resource, String kind, String newMeans) throws IOException {
         String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
         Set<String> registered = registerTests(resource);
         Set<String> ranNames = new HashSet<>(ran);
@@ -982,14 +1003,13 @@ class MinimalCorpusTest {
                 stale.add(n);
             }
         }
-        System.out.println("[corpus2] outside-body " + lane + ": " + now.size()
-                + " tests not yet one artifact (register " + registered.size() + ")");
+        System.out.println("[corpus2] " + kind + " " + lane + ": " + now.size()
+                + " tests (register " + registered.size() + ")");
         if (!fresh.isEmpty() || !stale.isEmpty()) {
-            StringBuilder sb = new StringBuilder("[" + lane + "] outside-body register != committed"
+            StringBuilder sb = new StringBuilder("[" + lane + "] " + kind + " register != committed"
                     + " (" + (only.isEmpty() ? "full run" : "scoped to '" + only + "'") + "): NEW "
-                    + fresh.size() + " (a body sends a product-owned statement outside its artifact"
-                    + " and is not registered), STALE " + stale.size() + " (registered, now one"
-                    + " artifact — shrink the register). Reasons in docs/GATES.md.");
+                    + fresh.size() + " (" + newMeans + "), STALE " + stale.size()
+                    + " (registered, no longer so — shrink the register). Reasons in docs/GATES.md.");
             for (String f : fresh) {
                 sb.append("\n  NEW    ").append(f);
             }

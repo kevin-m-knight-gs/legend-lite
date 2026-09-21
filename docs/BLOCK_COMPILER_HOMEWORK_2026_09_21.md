@@ -231,3 +231,27 @@ inlining will make it one.
 identity and metadata-fetch arms: task #14's canon list), the 141 effect bodies (scripts), and
 the assert-level pin "asserts decided outside a row, in database mode" (next, so the host-
 compared remainder is one number that must reach zero).
+
+## 11. The HOST-COMPARED register (2026-09-21): the assert-level number that must reach zero
+
+**The user's question:** "are there still things that fall back to the host? how do we know?"
+Two different things had been answered under one word. The verdict path has no host RESCUE
+(a shape the canon cannot claim is unjudged and fails). But an assert whose arm compares two
+database-computed sides in Java — the lineage tree, the test-data-generation fetch text,
+identity, the metadata fetches — is a host judgment of the COMPARISON, and it was only visible
+as a `side` row of the outside-body register (test-level, 183 tests).
+
+**What landed.** `VerdictBatch.hostDecidedCount()`: an assert root the batch flushes WITHOUT a
+verdict row was decided outside the database. The corpus lanes attribute it per test and pin
+`rcorpus/<lane>-database-host-compared-register.txt` exact, shrink-only (`pinArtifactRegister`,
+kind `host-compared`).
+
+| lane | tests with a host-decided assert | asserts decided outside a row |
+|---|---|---|
+| DuckDB | 102 | 162 |
+| H2 | 100 | 140 |
+
+By family (DuckDB): lineage `scanRelations` 49 · test-data generation 19 · functions (metadata
+fetch, sqlstring arms) 14 · mapping 8 · execution plans 6 · query 4 · tds 1 · groupBy 1. This is
+task #14's canon list with names and a count; every canon written removes rows, and a new arm
+that compares in Java fails the lane.

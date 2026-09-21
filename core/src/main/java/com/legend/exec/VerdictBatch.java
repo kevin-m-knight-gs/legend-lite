@@ -102,6 +102,17 @@ public final class VerdictBatch {
         return FLUSHES.get();
     }
 
+    /** CENSUS: assert roots the batch flushed WITHOUT a verdict row — decided by an
+     * arm outside the database (a comparison in Java over two database-computed
+     * sides, or an arm that raised at the assert). Under the database judge this
+     * is the host-compared remainder; the corpus lanes pin it per test. */
+    private static final java.util.concurrent.atomic.AtomicLong HOST_DECIDED =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static long hostDecidedCount() {
+        return HOST_DECIDED.get();
+    }
+
     /** CENSUS: why each fused statement fell back (the exception's head), in
      * order — the corpus lanes attribute them per test. */
     public static final java.util.List<String> FALLBACK_REASONS =
@@ -264,6 +275,9 @@ public final class VerdictBatch {
         }
         for (Root r : batch) {
             RuntimeException failure = null;
+            if (r.steps.stream().noneMatch(s -> s instanceof Pending)) {
+                HOST_DECIDED.incrementAndGet();
+            }
             for (Step s : r.steps) {
                 try {
                     if (s instanceof Pending p) {

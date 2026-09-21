@@ -4477,3 +4477,14 @@ outside-body 329 exact. Fused statements 2,167 → 2,515; referee runs 1,894 →
 inherited from another test's referee); accepted −3 / −1; ord, unordered, engine-order
 registers shrunk by the referee-emitted tags; strength floors DuckDB 1,020 / H2 953, spelling
 ceilings 22; DuckDB lost register −1. Chain: GREEN — G2 25 · G1 78 (re-run green after the evaluator ledger bump SqlTextVerdicts 1193 → 1222) · G3 11 · G4 102 · G5 40 · G6 142 · G7 45 · G9 35 · G8 172 · G10 55.
+
+## 2026-09-21 — the host-compared register: asserts decided outside a verdict row, named per test
+
+**What landed.** `VerdictBatch.hostDecidedCount()` (an assert root flushed without a verdict
+row) attributed per test by the corpus lanes; `rcorpus/<lane>-database-host-compared-register.txt`
+exact, shrink-only (DuckDB 102 tests / 162 asserts, H2 100 / 140 — lineage 49, TDG 19,
+functions 14, mapping 8, plans 6 …). Homework §11. The outside-body pin gained a kind label
+(`outside-body` / `host-compared`) so each register's message names itself.
+
+**Lanes.** DuckDB database lost 0 / gained 0, outside-body 232 exact, host-compared 102 exact;
+H2 database registers exact, outside-body 329, host-compared 100. Chain: GREEN — G2 28 · G1 95 · G3 14 · G4 115 · G5 37 · G6 159 · G7 50 · G9 36 · G8 172 · G10 green.
