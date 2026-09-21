@@ -143,3 +143,30 @@ template database; each package starts as a one-statement clone and runs only it
 5. **H2 verdict vocabulary** (§4) or the documented segmented form, then delete the fallback path.
 6. Owed censuses before step 2 lands: the `X` shape letter, host-only natives, the DuckDB
    multi-statement probe, and the error-attribution design.
+
+## 9. Rung 1 LANDED (2026-09-21): the batch flushes only before an EFFECT
+
+**The rule.** `StatementExecutor.executeStatements`: the body's pending verdicts are sent before
+a statement if and only if that statement has effects (`containsEffect` or a test-data
+generator — a compile-time fact); a pure let or a pure statement rides to the next effect or the
+body's end. Step 1 had flushed before EVERY let and before every non-assert statement.
+
+**Measured.** Fused statements sent (DuckDB database lane) 2,578 → 2,167. Outside-body register:
+DuckDB 394 → 248 (146 STALE, 0 NEW), H2 418 → 291 (128 STALE, 1 NEW — `groupBy::
+testAggToManyWithFilter`, already failing on the JSON vocabulary gap; merged into one statement
+its failure now passes through the fallback path once). Fail rosters exact on both lanes; the
+DuckDB per-assert differential agree 5,848 · disagree 0 · unregistered 0; the ladder pins
+byte-identical.
+
+**The predicted loss, with a name.** A body whose first assert fails and which then has a let
+used to raise at the flush before the let; now its later asserts evaluate before the body's end
+raises the same first failure. `sqlstring::testSqlGenerationDivide_AllDBs`: one more foreign-
+dialect (Composite) text-decided verdict on both lanes (ceilings 7 → 8, reasons at the pins);
+`tds::sort::testSortQuotes`: one more referee pair. Same verdicts, same reasons, extra work on
+failing bodies only.
+
+**Two of the 160 stay registered, for the compiler.** `toPostgresModel::tests::testConvertAlias`
+(`LLALLLALLA`): its asserts are wrapped in a helper (`assertConversion`), and each helper call is
+inlined and judged through its own nested batch — one statement per call. Inlining at COMPILE
+time (the block compiler's job) makes it one. `alloy::testAlloyTestDatGenWithQuotedColumnsForViews`
+fails before its verdicts (a view-slice wall) and keeps two.

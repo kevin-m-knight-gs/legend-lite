@@ -263,9 +263,16 @@ final class StatementExecutor {
                 : null;
         final ExecEnv env = batch == null ? env0 : env0.withVerdictBatch(batch);
         for (int i = 0; i < stmts.size(); i++) {
-            if (batch != null && !batch.isEmpty()
-                    && stmts.get(i) instanceof com.legend.compiler.spec.typed.TypedLet
-                    && i < stmts.size() - 1) {
+            // THE FLUSH RULE (block-compiler rung 1, 2026-09-21): the body's pending
+            // verdicts are sent before a statement if and only if that statement has
+            // EFFECTS (a write, DDL, a test-data generator) — an effect must see the
+            // verdicts before it, in order, so the first failure raises first. A pure
+            // let or a pure statement rides to the next effect or the body's end: a
+            // compile-time fact decides, never the statement's position. (Step 1
+            // flushed before EVERY let — 160 pure bodies sent several statements.)
+            boolean effect = containsEffect(stmts.get(i), specs, effectMemo)
+                    || Compiler.containsTdgGenerator(stmts.get(i));
+            if (batch != null && !batch.isEmpty() && effect) {
                 AssertVerdicts.flush(batch, env);
             }
             // TDG lane S1: the checker's census CARRIER folds to instance
@@ -273,7 +280,7 @@ final class StatementExecutor {
             // cannot — layering), before resolve sees the statement
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix, ENGINE_TEXT);
             establishContexts(stmt, env);
-            if (containsEffect(stmt, specs, effectMemo)) {
+            if (effect || containsEffect(stmt, specs, effectMemo)) {
                 // a writing statement: whatever it changes, the session's
                 // next establishment must re-seed
                 markWriting(env.connection());
@@ -365,9 +372,6 @@ final class StatementExecutor {
             if (verdict != null) {
                 result = verdict;
                 continue;
-            }
-            if (batch != null) {
-                AssertVerdicts.flush(batch, env);   // not an assert: what came before is judged first
             }
             ExecutionResult hosted = hostChannel(bare, letPrefix, specs, env);
             if (hosted != null) {

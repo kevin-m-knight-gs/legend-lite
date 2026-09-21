@@ -731,9 +731,14 @@ class MinimalCorpusTest {
     // eleven were host TEXT compares before, uncounted, and keep the same
     // outcome. The five datetime plan rows of the same shape are now judged
     // by ROWS and pass (they lost their text match to the boundary cast).
+    // foreign-dialect:Composite 7 -> 8 (2026-09-21, block-compiler rung 1 — the batch
+    // flushes only before an EFFECT): sqlstring::testSqlGenerationDivide_AllDBs fails on
+    // its first assert as before; the old rule raised at the flush before its next let,
+    // now its later Composite text assert is evaluated before the body's end raises
+    // the same first failure — one more text-decided verdict, the same verdict.
     private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 24, "plan-params-unbindable", 6, "oracle-declined", 39,
-            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
+            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 8);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     // H2 oracle-declined 34 -> 45 (2026-09-17): the same eleven helper-shaped
     // plan asserts as the DuckDB lane (the plan producer behind a helper),
@@ -752,9 +757,12 @@ class MinimalCorpusTest {
     // day prefix — a product row on the H2 roster). Host mode fails at the let's eager
     // run; database mode no longer runs the let, so the same DataError surfaces in the
     // SQL-text referee's rows leg and is counted here. Same failure, later stage.
+    // H2 foreign-dialect:Composite 7 -> 8 (2026-09-21, rung 1): the same
+    // testSqlGenerationDivide_AllDBs row as the DuckDB lane — its later Composite text
+    // assert now evaluates before the body's end raises the same first failure.
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
             "rows-underivable", 27, "plan-params-unbindable", 6, "oracle-declined", 48,
-            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
+            "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 8);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     // float-10-digits 48 -> 49 (DuckDB) / 32 -> 33 (H2), 2026-09-12 (fixture on
     // demand): one of the newly row-judged tests compares a float column

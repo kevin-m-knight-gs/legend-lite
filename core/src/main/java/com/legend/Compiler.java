@@ -968,7 +968,7 @@ public final class Compiler {
         return false;
     }
 
-    private static boolean containsTdgGenerator(TypedSpec n) {
+    static boolean containsTdgGenerator(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                 && (com.legend.compiler.element.type.PlatformTypes
                         .GENERATE_TEST_DATA.equals(

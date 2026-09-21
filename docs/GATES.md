@@ -4442,3 +4442,19 @@ carry the measured detail after `|||` for reading; the pin compares names.
 
 **Lanes.** DuckDB database lost 0 / gained 0, register EXACT 394; H2 database registers exact,
 outside-body EXACT 418. Chain: GREEN — G2 29 · G1 88 · G3 13 · G4 159 · G5 53 · G6 199 · G7 57 · G9 45 · G8 205 · G10 67 (a loaded box: the corpus gates ran beside the register lanes finishing; the same gates measured 103 / 145 / 150 an hour earlier).
+
+## 2026-09-21 — block-compiler rung 1: the batch flushes only before an EFFECT
+
+**What landed.** One compile-time rule replaces two positional ones: pending verdicts are sent
+before a statement iff it has effects; pure lets and pure statements ride to the next effect or
+the body's end. Fused statements 2,578 → 2,167 (DuckDB database). Outside-body register DuckDB
+394 → 248 (146 stale), H2 418 → 291 (128 stale, 1 new: an already-failing JSON-vocabulary body
+now passing through the fallback once). Homework §9 has the names.
+
+**Re-pins, with reasons at the pins.** foreign-dialect:Composite 7 → 8 on both lanes
+(`testSqlGenerationDivide_AllDBs`: its later text assert now evaluates before the body's end
+raises the same first failure — the stop-at-first-failure difference the homework predicted).
+
+**Lanes.** DuckDB host 108 exact; database lost 0 / gained 0; differential agree 5,848 ·
+disagree 0 · unregistered 0; register exact 248. H2 database registers exact, outside-body
+exact 291. Chain: GREEN — G2 26 · G1 79 (re-run after the evaluator ledger's shrink re-pin 2391 → 2388) · G3 15 · G4 123 · G5 39 · G6 149 · G7 53 · G9 39 · G8 162 · G10 63.
