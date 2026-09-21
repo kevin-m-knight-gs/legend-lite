@@ -1,17 +1,8 @@
-engine-order meta::external::store::relational::modelJoins::test::testJoinWithConstantDate
-engine-order meta::external::store::relational::modelJoins::test::testJoinWithConstantDouble
-engine-order meta::external::store::relational::modelJoins::test::testJoinWithConstantString
-engine-order meta::external::store::relational::modelJoins::test::testJoinWithInequalities
-engine-order meta::external::store::relational::modelJoins::test::testModelJoinForNonRelationalConcepts
 engine-order meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperTwoDBs
 engine-order meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperWithJoin
-engine-order meta::pure::executionPlan::tests::tdsJoinTwoDBWithColumnMappedViaJoins
-engine-order meta::pure::executionPlan::tests::tdsWithEnumReturn
 engine-order meta::pure::executionPlan::tests::testMapWithOpenVariable
 engine-order meta::pure::executionPlan::tests::testMapWithOpenVariableOutsideBlock
-engine-order meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpression
 engine-order meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
-engine-order meta::pure::executionPlan::tests::testTemporalDateVariableInPropertySequence
 engine-order meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
 engine-order meta::pure::executionPlan::tests::testTwoMappingsOneRuntimeWithoutExternalMapping
 engine-order meta::pure::lineage::scanColumns::test::testAssociationMapping
@@ -167,9 +158,6 @@ engine-order meta::relational::tests::groupBy::testSimpleJoinStrings
 engine-order meta::relational::tests::injection::testProject
 engine-order meta::relational::tests::injection::testProjectThroughAssociation
 engine-order meta::relational::tests::injection::testProjectThroughAssociationAutoMap
-engine-order meta::relational::tests::m2m2r::testProp1
-engine-order meta::relational::tests::m2m2r::testProp2
-engine-order meta::relational::tests::m2m2r::testProp4
 engine-order meta::relational::tests::map::testAdvancedDerivedPropertyThroughAssociation
 engine-order meta::relational::tests::map::testAssociationDeep
 engine-order meta::relational::tests::map::testAssociationToManyAutoMap
@@ -472,7 +460,6 @@ engine-order meta::relational::tests::milestoning::businessdate::testBusinessDat
 engine-order meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReferenceWithUnion
 engine-order meta::relational::tests::milestoning::businessdate::testBusinessDatePropagationInColFunction
 engine-order meta::relational::tests::milestoning::businessdate::testBusinessDatePropagationInColFunctionWithDoc
-engine-order meta::relational::tests::milestoning::businessdate::testBusinessDatePropagationInColFunction_asQueryParam
 engine-order meta::relational::tests::milestoning::businessdate::testBusinessTemporalPredicateOnInnerFilterJoinNavigation
 engine-order meta::relational::tests::milestoning::businessdate::testBusinessTemporalPredicateOnLeftOuterFilterJoinNavigation
 engine-order meta::relational::tests::milestoning::businessdate::testBusinessTemporalPredicateOnLeftOuterFilterJoinTopLevel
@@ -493,7 +480,6 @@ engine-order meta::relational::tests::milestoning::businessdate::testDerivedDate
 engine-order meta::relational::tests::milestoning::businessdate::testDerivedDateArgFromOuterVarInFilterLambda
 engine-order meta::relational::tests::milestoning::businessdate::testDerivedDateArgFromOuterVarInMapLambda
 engine-order meta::relational::tests::milestoning::businessdate::testDerivedDateArgFromOuterVarInProjectLambda
-engine-order meta::relational::tests::milestoning::businessdate::testDerivedDateArgFromPlanParamInProjectLambda
 engine-order meta::relational::tests::milestoning::businessdate::testDerivedDateArgLiteralRootWithPlanParamOffset
 engine-order meta::relational::tests::milestoning::businessdate::testDerivedDateArgMixedConcreteRootWithPlanParamOffset
 engine-order meta::relational::tests::milestoning::businessdate::testDerivedPropertyOnNonTemporalClassWithMilestonedChain
@@ -671,7 +657,6 @@ engine-order meta::relational::tests::projection::filter::testChainedFiltersProj
 engine-order meta::relational::tests::projection::filter::testChainedFiltersQuery
 engine-order meta::relational::tests::projection::filter::testCompressSQLforINFilter
 engine-order meta::relational::tests::projection::filter::testCompressSQLforINFilter2
-engine-order meta::relational::tests::projection::filter::testFilterAfterJoinInRelation
 engine-order meta::relational::tests::projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives
 engine-order meta::relational::tests::projection::filter::testSavedRootPropogatedCorrectlyThroughFilter
 engine-order meta::relational::tests::projection::function::concatenate::testConcatenateClass

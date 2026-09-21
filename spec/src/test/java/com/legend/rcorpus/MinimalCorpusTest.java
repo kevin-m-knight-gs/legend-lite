@@ -192,6 +192,7 @@ class MinimalCorpusTest {
                 long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 int fallbacksBefore = com.legend.exec.VerdictBatch.FALLBACK_REASONS.size();
+                long flushesBefore = com.legend.exec.VerdictBatch.flushCount();
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -239,7 +240,8 @@ class MinimalCorpusTest {
                 }
                 originRows.add(originRow.toString());
                 String shape = corpus.bodyShape(r.fqn());
-                String outside = outsideBody(originsBefore, originsAfter, shape);
+                String outside = outsideBody(originsBefore, originsAfter, shape,
+                        com.legend.exec.VerdictBatch.flushCount() - flushesBefore);
                 if (outside != null) {
                     artifactRows.add(r.fqn() + " ||| " + outside);
                 }
@@ -563,7 +565,10 @@ class MinimalCorpusTest {
     // eleven helper-shaped plan asserts counted for the first time (see the
     // oracle-declined ceiling note) — seven of them are passes whose every
     // verdict is text-decided; the same passes, now counted where they belong
-    private static final int[] DUCKDB_STRENGTH = {1543, 60, 26};
+    // DuckDB differential 1543 -> 1020, spelling 60 -> 22 (2026-09-21, rung 2a + option 1):
+    // see H2_STRENGTH — 523 passes witnessed by a referee row match are now decided by
+    // the held text row (LITERAL); text-decided (SPELLING) passes fall the same way.
+    private static final int[] DUCKDB_STRENGTH = {1020, 22, 26};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -583,7 +588,13 @@ class MinimalCorpusTest {
     // H2 SPELLING 60 -> 67 (2026-09-17, the plan producer behind a helper): the
     // same seven helper-shaped plan asserts as the DuckDB lane — passes whose
     // every verdict is text-decided, counted where they belong
-    private static final int[] H2_STRENGTH = {1387, 67, 26};
+    // H2 differential 1387 -> 953 (2026-09-21, block-compiler rung 2a + the user's
+    // option 1): a text assert whose text is byte-equal to the golden IS the verdict
+    // (the engine's own) and the referee is the APPEAL on a failed text only — 434
+    // passes that were witnessed by a referee row match are now decided by the text
+    // row itself (LITERAL strength). A rows leg did not stop being judged: it is no
+    // longer needed for a held text. The DuckDB floor moves the same way.
+    private static final int[] H2_STRENGTH = {953, 22, 26};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -917,10 +928,10 @@ class MinimalCorpusTest {
      * body. This names what is not there yet: a body that sends a PRODUCT-OWNED
      * statement outside its artifact (raw, side, statement, tdg, probe, fallback,
      * let, value, other — never the referee's, the seeding's or the session's), or
-     * a PURE body split into several fused statements. Null when the body is one
+     * a PURE body cut into several sends (flushes). Null when the body is one
      * artifact. */
     private static @com.legend.Nullable String outsideBody(long[] before, long[] after,
-            @com.legend.Nullable String shape) {
+            @com.legend.Nullable String shape, long flushes) {
         StringBuilder sb = new StringBuilder();
         for (var o : com.legend.exec.StatementOrigin.values()) {
             long d = after[o.ordinal()] - before[o.ordinal()];
@@ -929,11 +940,12 @@ class MinimalCorpusTest {
                         .append('=').append(d);
             }
         }
-        long body = after[com.legend.exec.StatementOrigin.BODY.ordinal()]
-                - before[com.legend.exec.StatementOrigin.BODY.ordinal()];
+        // a PURE body cut into several sends (a send over several connections is
+        // one send: a body that asserts over the metamodel AND the session
+        // cannot be one statement, and is not split)
         boolean pure = shape != null && shape.indexOf('E') < 0 && shape.indexOf('X') < 0;
-        if (pure && body > 1) {
-            sb.append(sb.length() == 0 ? "" : " ").append("body=").append(body);
+        if (pure && flushes > 1) {
+            sb.append(sb.length() == 0 ? "" : " ").append("flushes=").append(flushes);
         }
         return sb.length() == 0 ? null : sb.toString();
     }

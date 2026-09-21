@@ -55,7 +55,14 @@ public final class VerdictBatch {
     }
 
     private record Pending(int ix, String name, boolean wantEqual, SqlQuery query,
-            Connection on) implements Step {
+            Connection on, @com.legend.Nullable Appeal appeal) implements Step {
+    }
+
+    /** A verdict row's APPEAL (block-compiler rung 2a): run at the flush when the
+     * row FAILED — returns on a pass by another judgment (the SQL-text referee's
+     * rows), raises its own failure otherwise. Never consulted on a held row. */
+    public interface Appeal {
+        ExecutionResult appeal();
     }
 
     private record Resolved(RuntimeException failure) implements Step {
@@ -83,6 +90,16 @@ public final class VerdictBatch {
 
     public static long fallbackCount() {
         return FALLBACKS.get();
+    }
+
+    /** CENSUS: flushes that sent something — a body's verdicts cut into several
+     * sends (one send may be several statements when its asserts read several
+     * connections; that is not a cut). The outside-body register's split rule. */
+    private static final java.util.concurrent.atomic.AtomicLong FLUSHES =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static long flushCount() {
+        return FLUSHES.get();
     }
 
     /** CENSUS: why each fused statement fell back (the exception's head), in
@@ -164,6 +181,11 @@ public final class VerdictBatch {
     }
 
     public void defer(String name, boolean wantEqual, SqlQuery query, Connection on) {
+        defer(name, wantEqual, query, on, null);
+    }
+
+    public void defer(String name, boolean wantEqual, SqlQuery query, Connection on,
+            @com.legend.Nullable Appeal appeal) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         int ix = 0;
         for (Root x : roots) {
@@ -173,7 +195,7 @@ public final class VerdictBatch {
                 }
             }
         }
-        r.steps.add(new Pending(ix, name, wantEqual, query, on));
+        r.steps.add(new Pending(ix, name, wantEqual, query, on, appeal));
     }
 
     public void resolve(RuntimeException failure) {
@@ -201,6 +223,9 @@ public final class VerdictBatch {
      * report every root in body order; the first failure raises. */
     public void flush(SqlDialect dialect, ExecutionTrace trace,
             @com.legend.Nullable AssertListener l) {
+        if (!roots.isEmpty()) {
+            FLUSHES.incrementAndGet();
+        }
         if (roots.isEmpty()) {
             return;
         }
@@ -247,7 +272,16 @@ public final class VerdictBatch {
                             row = executeOne(p.name(), com.legend.sql.FrameCtes.attach(p.query(), frames),
                                     oneRow, p.on(), dialect, trace);
                         }
-                        judge.judge(p.name(), p.wantEqual(), row);
+                        try {
+                            judge.judge(p.name(), p.wantEqual(), row);
+                        } catch (com.legend.error.AssertFailed e) {
+                            if (p.appeal() == null) {
+                                throw e;
+                            }
+                            // rung 2a: the row failed — the appeal decides (returns
+                            // on a pass by rows, raises its own failure otherwise)
+                            p.appeal().appeal();
+                        }
                     } else if (s instanceof Resolved rv) {
                         throw rv.failure();
                     }

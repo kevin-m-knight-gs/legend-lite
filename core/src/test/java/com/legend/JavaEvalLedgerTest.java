@@ -835,7 +835,11 @@ class JavaEvalLedgerTest {
             // hijacked or emptied. Five datetime plan rows judged by rows.
             // 1177 -> 1193 (2026-09-20, statement-origin census): the referee marks its rows legs
             // (ours / golden / the TDG and text arms) with their origin — scopes, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1193),
+            // 1193 -> 1222 (2026-09-21, block-compiler rung 2a): the one seam every text arm
+            // converges on defers the text row into the batch with the rows leg as its APPEAL,
+            // and applies the byte-equal ruling outside a batch — routing and deferral, nothing
+            // evaluated on the host that was not before
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1222),
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

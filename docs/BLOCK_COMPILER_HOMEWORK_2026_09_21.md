@@ -170,3 +170,64 @@ failing bodies only.
 inlined and judged through its own nested batch — one statement per call. Inlining at COMPILE
 time (the block compiler's job) makes it one. `alloy::testAlloyTestDatGenWithQuotedColumnsForViews`
 fails before its verdicts (a view-slice wall) and keeps two.
+
+## 10. Rung 2a LANDED (2026-09-21): text asserts are verdict rows; the referee is their APPEAL
+
+**The user's question that opened it:** "shouldn't these asserts go to the database fully with
+the equal being string equality of the SQL text printed, and then the referee?" Yes — the 357
+text-assert bodies were routed around the batch by an assert-shape recognizer (exact FQNs, but
+still a second judge chosen by shape), and our plan's execution was filed under the referee.
+
+**What landed.** `VerdictSql.textEquals(golden, ours)`: the text assert's own verdict row — the
+golden text against our rendered text, string equality, both constants of the compiled body.
+`VerdictBatch.Pending` carries an optional `Appeal`; at the flush a FAILED row with an appeal
+asks it (returns on a pass by rows, raises its own failure), a held row needs none. Every text
+arm converges on one function (`SqlTextVerdicts.rowsLegAndVerdict`): under a batch it defers
+the row with the referee's rows leg attached as the appeal; outside a batch (the host judge)
+it applies THE SAME RULE (below) and runs the rows leg only on a differing text.
+
+**The ruling (user, 2026-09-21, option 1).** A text byte-equal to the golden IS the assert's
+verdict — the engine's own — in BOTH judges; rows are the appeal on a failed text only. The
+DuckDB-vs-H2 function divergences a held text used to expose (hash, week start — engine
+golden defects on the accepted roster) belong to tests that assert VALUES.
+
+**Measured (DuckDB database lane).** Bodies sending their fused statement 2,167 → 2,515 (+348:
+the text bodies); referee runs of our plan 1,894 → 1,263 and golden replays 1,883 → 1,269 (a
+held text needs no appeal); mirror seeds 95,481 → 75,023. Fail rosters: one NEW row on both
+lanes (below); DuckDB 109 / H2 413 exact. Per-assert differential: agree 5,848 · disagree 0 ·
+unregistered 0 — the two judges agree completely. Outside-body registers: DuckDB 248 → 232
+(16 stale, 0 new after the flush rule), H2 291 → 329 (15 stale, 53 new — below).
+
+**Rows and pins that moved, each with its reason at the pin.**
+
+1. `executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation` → the
+   FAIL rosters (both lanes). Its plan-text rows leg reads the milestoning store, which its
+   package never seeds and no single fixture is indexed for; text is the contract and ours
+   differs. It PASSED before only because an earlier test's referee provided
+   `objectReferenceIn::setUp` on demand, which also seeds the milestoning tables — a fixture
+   inherited as another test's side effect. With the referee an appeal on a failed text, a
+   passing earlier test provides nothing. Alone, it failed on every tree.
+2. Accepted rosters −3 (DuckDB: `sqlstring::testHashFunctions`, `testToSQLStringForTDSStringJoin`,
+   `testToSqlGenerationFirstDayOfWeek`; H2: the string-join one): text held → PASS.
+3. Ord registers (8 → 4 / 7 → 4), unordered registers (1,381 → 920 / 1,314 → 875), DuckDB
+   engine-order register (1,007 → 992): tags the referee's rows leg used to emit for tests
+   whose text now holds. Strength floors: DuckDB differential 1,543 → 1,020, H2 1,387 → 953
+   (passes now decided by the text row: LITERAL); spelling ceilings 60 / 67 → 22.
+4. Outside-body: 14 take/limit/slice bodies stale on each lane (their text holds — no referee,
+   no statement outside); the register's split rule is now FLUSHES, not statements (a body that
+   asserts over the metamodel AND the session sends two statements in one flush and is not a
+   cut); H2 +53 `fallback=1` rows: bodies already failing on the JSON/list vocabulary gap whose
+   fused statement fails at render — the text row now runs alone through the fallback path
+   (rung 2c owns the gap).
+
+**Findings for the compiler.** A fixture provided on demand is a side effect of the REFEREE, not
+a fact of the test (item 1): the runner should provide stores from the body's compile-time
+facts, never from a judge. `toPostgresModel::testConvertAlias` sends two statements in ONE flush:
+its helper-wrapped asserts carry two connection objects for the same session — the compiler's
+inlining will make it one.
+
+**Still outside the artifact after 2a:** the referee's golden replay (by decision), the 183
+`side` bodies (a comparison decided in Java over two database-computed sides — the lineage, TDG,
+identity and metadata-fetch arms: task #14's canon list), the 141 effect bodies (scripts), and
+the assert-level pin "asserts decided outside a row, in database mode" (next, so the host-
+compared remainder is one number that must reach zero).

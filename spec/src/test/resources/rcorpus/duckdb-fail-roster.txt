@@ -18,6 +18,7 @@ meta::pure::executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch
 meta::pure::executionPlan::tests::testRelationalProjectionWithExternalFormat
 meta::pure::executionPlan::tests::testRoutingContextBuilderFunctions
 meta::pure::executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom
+meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
 meta::pure::executionPlan::tests::testViewToTDS
 meta::pure::executionPlan::tests::withPlatform
 meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithExplosion

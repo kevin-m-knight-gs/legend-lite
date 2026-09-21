@@ -1342,6 +1342,48 @@ final class SqlTextVerdicts {
             @com.legend.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayOracle.TempTable> temps) {
+        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        if (batch != null && batch.active()) {
+            // BLOCK-COMPILER RUNG 2a (2026-09-21): the text assert IS a verdict row of
+            // the body's statement — the golden text against our rendered text, the
+            // same string equality every assertEquals compiles to — and the referee is
+            // its APPEAL, run at the flush only when the row failed (a byte-equal text
+            // needs none). No assert shape is routed around the batch any more.
+            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
+                    env.connection(), () -> rowsLegNow(name, golden, ours, textEqual, oracle,
+                            rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
+                            letPrefix, specs, env, hook, query, goldenPlan, planBindings, temps));
+            return ok();
+        }
+        if (textEqual) {
+            // THE HOST JUDGE, THE SAME RULE (user ruling 2026-09-21, option 1): a text
+            // byte-equal to the golden IS the assert's verdict — the engine's own —
+            // and rows are the APPEAL on a failed text only. Both judges agree; the
+            // DuckDB-vs-H2 function divergences a held text used to expose belong
+            // to the tests that assert VALUES.
+            return ok();
+        }
+        return rowsLegNow(name, golden, ours, textEqual, oracle, rowsRead, replaySqlOrNull,
+                mappingFqn, classFqn, facts, populationRead, letPrefix, specs, env, hook, query,
+                goldenPlan, planBindings, temps);
+    }
+
+    /** The rows leg itself: OUR rows through the one router, the golden replayed
+     * via the oracle, judged — now, on this thread. */
+    private static ExecutionResult rowsLegNow(String name,
+            String golden, String ours, boolean textEqual,
+            SqlReplayOracle oracle, TypedSpec rowsRead,
+            @com.legend.Nullable String replaySqlOrNull,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.Nullable TypedSpec populationRead,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
+            @com.legend.Nullable TypedSpec query,
+            @com.legend.Nullable String goldenPlan,
+            java.util.Map<String, List<String>> planBindings,
+            List<SqlReplayOracle.TempTable> temps) {
         ExecutionResult rows;
         boolean priorSuspend = com.legend.exec.SqlTypeCensus
                 .probeSuspended();

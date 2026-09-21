@@ -4458,3 +4458,22 @@ raises the same first failure — the stop-at-first-failure difference the homew
 **Lanes.** DuckDB host 108 exact; database lost 0 / gained 0; differential agree 5,848 ·
 disagree 0 · unregistered 0; register exact 248. H2 database registers exact, outside-body
 exact 291. Chain: GREEN — G2 26 · G1 79 (re-run after the evaluator ledger's shrink re-pin 2391 → 2388) · G3 15 · G4 123 · G5 39 · G6 149 · G7 53 · G9 39 · G8 162 · G10 63.
+
+## 2026-09-21 — block-compiler rung 2a: text asserts are verdict rows, the referee is their appeal (option 1)
+
+**What landed.** A text assert compiles as a string-equality verdict row of the body's
+statement (`VerdictSql.textEquals`); a pending row carries an APPEAL (`VerdictBatch.Appeal`) run
+at the flush only when the row failed; every text arm converges on one seam that defers under a
+batch and, outside one, applies the user's ruling: a text byte-equal to the golden IS the verdict
+in both judges, rows are the appeal on a failed text only. No assert shape is routed around the
+batch. Homework §10 has the numbers and every moved row.
+
+**Lanes.** DuckDB host 109 fail / 20 accepted / 4 ord / 920 unordered / 992 engine-order exact;
+DuckDB database lost 0 / gained 0, differential agree 5,848 · disagree 0 · unregistered 0,
+outside-body 232 exact; H2 host 413 / 15 / 4 / 875 exact; H2 database registers exact,
+outside-body 329 exact. Fused statements 2,167 → 2,515; referee runs 1,894 → 1,263.
+
+**Rosters and pins (reasons at the pins and in §10):** +1 fail row both lanes (a fixture
+inherited from another test's referee); accepted −3 / −1; ord, unordered, engine-order
+registers shrunk by the referee-emitted tags; strength floors DuckDB 1,020 / H2 953, spelling
+ceilings 22; DuckDB lost register −1. Chain: GREEN — G2 25 · G1 78 (re-run green after the evaluator ledger bump SqlTextVerdicts 1193 → 1222) · G3 11 · G4 102 · G5 40 · G6 142 · G7 45 · G9 35 · G8 172 · G10 55.
