@@ -346,3 +346,31 @@ registers.**
 **What the REPL gets for free:** a block of one or more statements compiled against a session
 environment whose earlier lets are frames; a cell whose last expression is a value compiles to a
 `Value` segment.
+
+## 14. Stage 1 LANDED (2026-09-21): the pure body compiles to its artifact before it runs
+
+**Measured first.** Assert-family statement roots the arms did NOT claim (opened, every arm
+null, fallen through to host evaluation): **0 on both lanes** — every assert root yields a
+verdict, defers a row, or raises. The compiler has no host arm to inherit.
+
+**What landed.** `BodyCompiler` (core, `com.legend`, registered in the root-class register):
+`accepts` names a PURE body (every statement a let without effects or an assert-family root
+without effects, the last an assert; no test-data generator; no assertError); `compile` walks
+it ONCE and only plans — the census fold, the contexts established (provisioning precedes
+planning: a frame's reported wire types are read from the seeded tables), frames planned,
+handles registered, asserts adjudicated into deferred rows with their appeals — using the
+executor's own arms in the executor's own order; `run` sends the artifact (one fused statement
+per connection, appeals on failed rows, first failure raises) and returns the body's value.
+`StatementExecutor.executeStatements` dispatches pure bodies to it under the database judge;
+every other body (effects, helper-wrapped asserts, value-position lets) walks the loop until
+stages 2–3.
+
+**Judged.** The twelve ladder pins byte-identical; DuckDB database lost 0 / gained 0,
+outside-body 232 exact, host-compared 102 exact; H2 database registers exact (329 / 100);
+chain green. One lesson during the rung: three test-data-generation bodies lost until the
+census fold joined the compiler's walk — the loop's per-statement steps are the walk, all of
+them, in order.
+
+**What stage 1 does not yet do:** order by dependency (stage 2, with compile-time inlining of
+helper-wrapped asserts and the fragment map), scripts for effect bodies (stage 3), delete the
+loop and the fallback re-execution (stage 4, after H2's vocabulary — rung 2c).

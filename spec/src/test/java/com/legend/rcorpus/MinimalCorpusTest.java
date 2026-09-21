@@ -435,6 +435,7 @@ class MinimalCorpusTest {
             // database-computed sides — the lineage, TDG, identity and metadata arms) is a
             // named row; exact, shrink-only — the number that must reach zero
             Files.write(Path.of("target/corpus2-host-compared.txt"), hostComparedRows);
+
             pinArtifactRegister(only, ran, hostComparedRows,
                     "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
                             + "-database-host-compared-register.txt", "host-compared",

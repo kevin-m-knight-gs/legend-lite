@@ -659,7 +659,9 @@ class JavaEvalLedgerTest {
             // marks WHY it runs (let / value, seed, raw, side, statement) — scopes, nothing evaluated
             // 2391 -> 2388 (2026-09-21, block-compiler rung 1): two positional flushes deleted,
             // one effect-only rule — the evaluator shrank
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2388),   // 2228 -> 2234 (the wire-slot leg, 2026-09-19: the reported-column memo accessor and a raw executeInDb grid framed by the database's reported columns before its canon wrap — plan wiring, nothing evaluated); // 2218 -> 2228 (leg 3.3: a store-reading verdict side's plan passes through WireTypes.reconcile before the canon wrap, the reported types memoized per connection — plan wiring, nothing evaluated); // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
+            // 2388 -> 2394 (2026-09-21, block compiler stage 1): the dispatch of a PURE body to
+            // BodyCompiler and the batch construction factored out for it — sequencing only
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2394),   // 2228 -> 2234 (the wire-slot leg, 2026-09-19: the reported-column memo accessor and a raw executeInDb grid framed by the database's reported columns before its canon wrap — plan wiring, nothing evaluated); // 2218 -> 2228 (leg 3.3: a store-reading verdict side's plan passes through WireTypes.reconcile before the canon wrap, the reported types memoized per connection — plan wiring, nothing evaluated); // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1138,7 +1140,12 @@ class JavaEvalLedgerTest {
     private static final java.util.Set<String> ROOT_CLASSES =
             java.util.Set.of(
                     "AggAwareActivities.java", "AssertErrorNative.java",
-                    "AssertVerdicts.java", "Compiler.java",
+                    "AssertVerdicts.java",
+                    // BodyCompiler (2026-09-21, block compiler stage 1): compiles a PURE
+                    // body to its artifact (frames + verdict rows on the batch) before
+                    // anything runs; the executor's own planning arms, in order — no
+                    // evaluation of its own
+                    "BodyCompiler.java", "Compiler.java",
                     "ConnectionLets.java",
                     // audit §4y (2026-09-20): pure's equality KIND CLASSES
                     // over stamps as a CLOSED type (the stringly "numeric" /

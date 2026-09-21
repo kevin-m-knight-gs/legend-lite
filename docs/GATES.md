@@ -4500,3 +4500,15 @@ segments (Verdicts / Effect / Value) + fragment map; `BodyCompiler` plans, `Body
 four stages, each judged on byte-identical ladder pins and the four lanes. First measurement of
 stage 1: how many asserts the arms do not claim (the loop falls through to host evaluation
 today; the compiler claims or walls, never falls back). Gate 1 green; no product change.
+
+## 2026-09-21 — block-compiler stage 1: a pure body compiles to its artifact before it runs
+
+**What landed.** `BodyCompiler` (accepts / compile / run): under the database judge a PURE body
+is compiled to its artifact — frames and verdict rows on the batch, appeals attached — with the
+executor's own arms in the executor's own order, then sent; nothing planned after the first
+send. Measured first: assert roots the arms do not claim = 0 on both lanes. Homework §14.
+
+**Judged.** Ladder pins byte-identical. DuckDB database lost 0 / gained 0, outside-body 232,
+host-compared 102; H2 database registers exact, outside-body 329, host-compared 100. Evaluator
+ledger StatementExecutor 2388 → 2394 (the dispatch and the batch construction factored out).
+Chain: GREEN — G2 25 · G1 82 · G3 13 · G4 112 · G5 37 · G6 147 · G7 47 · G9 36 · G8 160 · G10 55.

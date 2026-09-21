@@ -249,18 +249,20 @@ final class StatementExecutor {
             SpecCompiler specs, ExecEnv env0, java.util.Deque<String> frames) {
         ExecutionResult result = null;
         java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
+        // THE BLOCK COMPILER, stage 1 (2026-09-21): under the database judge a PURE
+        // body is compiled to its artifact and then run — nothing planned after the
+        // first send (BodyCompiler). Every other body walks the loop below.
+        if (env0.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE
+                && BodyCompiler.accepts(stmts, specs, effectMemo)) {
+            return BodyCompiler.run(BodyCompiler.compile(stmts, letPrefix, specs, env0), env0);
+        }
         java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         // leg 3.4: database mode defers each assert's verdict statement into
         // the body's batch, sent as ONE statement before any statement that
         // is not an assert runs (a let, a frame, a write, a value) and at the
         // body's end — the verdicts' order and first-failure raise unchanged
         com.legend.exec.VerdictBatch batch = env0.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE
-                ? new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch,
-                        new com.legend.compiler.element.type.ExprType(
-                                com.legend.lowering.VerdictSql.batchSchema(),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
-                        AssertVerdicts.ONE_ROW, AssertVerdicts::verdictOf)
-                : null;
+                ? newVerdictBatch() : null;
         final ExecEnv env = batch == null ? env0 : env0.withVerdictBatch(batch);
         for (int i = 0; i < stmts.size(); i++) {
             // THE FLUSH RULE (block-compiler rung 1, 2026-09-21): the body's pending
@@ -467,12 +469,22 @@ final class StatementExecutor {
         return result;
     }
 
+    /** The body's verdict batch: the fusion (flat WITH + UNION ALL), its shape, the
+     * one-row verdict shape, the judge. */
+    static com.legend.exec.VerdictBatch newVerdictBatch() {
+        return new com.legend.exec.VerdictBatch(com.legend.lowering.VerdictSql::batch,
+                new com.legend.compiler.element.type.ExprType(
+                        com.legend.lowering.VerdictSql.batchSchema(),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
+                AssertVerdicts.ONE_ROW, AssertVerdicts::verdictOf);
+    }
+
     /** The statement's env widened with the tableReplace maps of every
      * exec frame the statement REFERENCES (union; conflicting renames
      * throw — never a silent pick). The re-plan of a spliced chain is
      * the architecture; the renames must ride with it (ledger cluster
      * 59). */
-    private static ExecEnv frameReplaceEnv(TypedSpec stmt,
+    static ExecEnv frameReplaceEnv(TypedSpec stmt,
             java.util.Map<String, ExecFrame> execFrames, ExecEnv env,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs) {
@@ -1495,7 +1507,7 @@ final class StatementExecutor {
         };
     }
 
-    private static ExecFrame buildFrame(
+    static ExecFrame buildFrame(
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, boolean eager,
             SpecCompiler specs, ExecEnv env) {
@@ -1780,7 +1792,7 @@ final class StatementExecutor {
      * is loud — the envelope holds one TDS. Class/scalar roots return null:
      * their at/toOne are REAL selections and the binding is an ordinary let.
      */
-    private static @com.legend.Nullable ExecFrame aliasFrame(TypedSpec rhs,
+    static @com.legend.Nullable ExecFrame aliasFrame(TypedSpec rhs,
             java.util.Map<String, ExecFrame> execFrames) {
         TypedSpec cur = rhs;
         boolean badIndex = false;
@@ -1827,7 +1839,7 @@ final class StatementExecutor {
      * frame builds (JDBC), and the aggregationAware rewrittenQuery
      * print.
      */
-    private static java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> spliceHook(
+    static java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> spliceHook(
             java.util.Map<String, ExecFrame> allFrames,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
         return com.legend.compiler.spec.ResultEnvelopeSplice.hook(
@@ -2146,7 +2158,7 @@ final class StatementExecutor {
      * engine runs a LocalH2 connection's testDataSetupSqls when it opens
      * the connection, before the query) — once, here, for every route the
      * statement then takes (frames, plan text, verdict sides). */
-    private static void establishContexts(TypedSpec statement, ExecEnv env) {
+    static void establishContexts(TypedSpec statement, ExecEnv env) {
         // ONCE PER SESSION: the engine runs a LocalH2 connection's
         // testDataSetupSqls / testDataSetupCsv when it ESTABLISHES the
         // connection, not before every query. A session that already
