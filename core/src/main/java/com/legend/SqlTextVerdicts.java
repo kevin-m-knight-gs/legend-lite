@@ -158,10 +158,10 @@ final class SqlTextVerdicts {
             // §4 FOREIGN-DIALECT residue: no oracle database for this
             // dialect — text stays the contract, counted forever
             declined(env, name, "foreign-dialect:" + dbType);
-            return textEqual ? ok()
-                    : fail(name + " (sql-text, " + dbType
-                            + " — text is the contract): expected "
-                            + golden + ", got " + ours);
+            final String g = golden;
+            return textVerdict(env, name, golden, ours, textEqual,
+                    () -> name + " (sql-text, " + dbType
+                            + " — text is the contract): expected " + g + ", got " + ours);
         }
         // a MULTI-STATEMENT lambda (leading lets, then the query — the
         // datePeriods `$fn`): the engine's plan is one statement per
@@ -833,10 +833,10 @@ final class SqlTextVerdicts {
                         .refereeBindings(lam);
         if (bindings == null) {
             declined(env, name, "plan-params-unbindable");
-            return textEqual ? ok()
-                    : fail(name + " (plan-text, params unbindable —"
-                            + " text is the contract): expected " + golden
-                            + ", got " + ours);
+            final String g = golden;
+            return textVerdict(env, name, golden, ours, textEqual,
+                    () -> name + " (plan-text, params unbindable —"
+                            + " text is the contract): expected " + g + ", got " + ours);
         }
         String filled = golden;
         for (var e : bindings.spellings().entrySet()) {
@@ -1011,6 +1011,28 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
+        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        if (batch != null && batch.active()) {
+            // TASK #14 LEG 2 (2026-09-21): the TDG fetch-text assert IS a verdict row of
+            // the body's statement — the golden fetch text against ours, string
+            // equality — and the referee (the fetch replayed on the oracle, rows
+            // compared) is its APPEAL, run at the flush only when the row failed.
+            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
+                    env.connection(), () -> tdgRowsNow(name, golden, ours, textEqual, oracle,
+                            actualSide, letPrefix, env));
+            return ok();
+        }
+        if (textEqual) {
+            // the host judge, the same rule (option 1): a byte-equal text IS the verdict
+            return ok();
+        }
+        return tdgRowsNow(name, golden, ours, textEqual, oracle, actualSide, letPrefix, env);
+    }
+
+    /** The TDG rows leg itself — the referee's fetch replay, judged now. */
+    private static ExecutionResult tdgRowsNow(String name, String golden, String ours,
+            boolean textEqual, SqlReplayOracle oracle, TypedSpec actualSide,
+            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
         // batch 64: a hop addressed as $testData.sqls->at(i) carries its
         // hop index and the carrier's generator node — the oracle's
         // chained arm replays ancestor temps from the earlier hops'
@@ -1662,6 +1684,22 @@ final class SqlTextVerdicts {
     private static ExecutionResult ok() {
         return new ExecutionResult.Scalar(Boolean.TRUE,
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
+    }
+
+    /** A TEXT-DECIDED verdict (a counted decline — no referee can appeal it): under
+     * a batch the text equality IS a verdict row of the body's statement and the
+     * arm's own message is raised when the row fails (task #14 leg 2, 2026-09-21);
+     * the host judge decides on the text now. */
+    private static ExecutionResult textVerdict(StatementExecutor.ExecEnv env, String name,
+            String golden, String ours, boolean textEqual,
+            java.util.function.Supplier<String> message) {
+        com.legend.exec.VerdictBatch batch = env.verdictBatch();
+        if (batch != null && batch.active()) {
+            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
+                    env.connection(), () -> fail(message.get()));
+            return ok();
+        }
+        return textEqual ? ok() : fail(message.get());
     }
 
     private static ExecutionResult fail(String message) {

@@ -4528,3 +4528,26 @@ both lanes, PINNED in database mode. Homework §16 (with the inventory of Java o
 **Registers.** H2 fail roster 413 → 364; host-compared DuckDB 102 → 53, H2 100 → 51;
 outside-body DuckDB 232 → 183, H2 → 280 (the lineage `side` rows). DuckDB fail roster 109 exact;
 differential agree 5,848 · disagree 0. Chain: GREEN — G2 26 · G1 78 · G3 11 · G4 98 · G5 37 · G6 135 · G7 46 · G9 34 · G8 145 · G10 53 (G1 re-run alone after one report-text pin: the divergence report no longer names the deleted lineage-rows counter).
+
+## 2026-09-21 — task #14 leg 2: the host-compared register reaches ZERO on both lanes
+
+**What landed.** Every assert the database judge still decided in Java is a verdict row of
+its body's statement: the TDG fetch text (the referee's replay as the row's APPEAL), the
+foreign-dialect and plan-params-unbindable text declines (`SqlTextVerdicts.textVerdict`, the
+arm's message on a failed row, the decline still counted), `assertEq` over primitives (the
+database verdict; class instances keep the identity wall), the quantified assert
+(`VerdictSql.allOf` over the PLANNED predicate vector). Homework §17 (the per-assert
+attribution and what "zero" means).
+
+**Registers.** host-compared DuckDB 53 → 0, H2 51 → 0 (empty, exact); outside-body DuckDB
+183 → 179, H2 280 → 277; text-decided ceiling foreign-dialect:Composite 8 → 9 both lanes
+(testSortQuotes reaches its later Composite assert now that its DB2 text is a row judged at
+the flush; fail rosters unchanged). Ledger: SqlTextVerdicts 1222 → 1248, AssertVerdicts
+2599 → 2614 (dispatch and plan wiring) → 2459: the leg pushed the file past the 3,500-line shape
+limit, so the ORDER VIEW reader (enum, catalogs, the recursive typed-tree walk) moved to
+`compiler/spec/OrderView` — the compiler layer, where typed-tree navigation belongs (the
+file's own D3 seam); the native-claims ledger regenerated (45 reader rows AssertVerdicts → OrderView).
+Chain: GREEN, SEQUENTIAL — G2 28 · G1 45 · G3 6→re-run green after the ledger regeneration · G4 63 ·
+G5 40 · G6 99 · G7 32 · G9 23 · G8 102 · G10 30 (the parallel chain was killed twice by the
+machine's low-memory watchdog beside IntelliJ, several sessions and an engine server; not a code
+failure). Four lanes GREEN on the final tree.

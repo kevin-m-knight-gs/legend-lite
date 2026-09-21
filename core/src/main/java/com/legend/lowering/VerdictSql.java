@@ -336,6 +336,25 @@ public final class VerdictSql {
                 SqlExpr.Call.of(SqlFn.COALESCE, c, new SqlExpr.StringLit("[]")), new SqlExpr.NullLit());
     }
 
+    /** {@code coll->map(x | assert(pred))} — the quantified assert (task #14 leg 2,
+     * 2026-09-21): every element's condition canon is {@code true} / {@code false};
+     * the verdict is that NO row says otherwise (a NULL condition is otherwise). */
+    public static SqlQuery allOf(SqlQuery condRows, boolean wantTrue) {
+        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
+        SqlExpr wanted = SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__a", C),
+                new SqlExpr.StringLit(wantTrue ? "true" : "false"));
+        OneRow otherwise = new OneRow("b", new SqlSelect(List.of(new SqlSelect.Projection(
+                new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(col("__a", RN)), false, List.of()), "__n", n)),
+                false, cte("__a"), SqlExpr.Call.of(SqlFn.NOT, wanted), List.of(), null, null, List.of(),
+                null, null, List.of(n)), List.of(n));
+        return predicateOver(List.of(new SqlWith.Cte("__a", condRows)), List.of(otherwise),
+                SqlExpr.Call.of(SqlFn.EQUAL, otherwise.col("__n"), new SqlExpr.IntLit(0)),
+                new SqlExpr.StringLit("every element " + (wantTrue ? "true" : "false")),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(otherwise.col("__n"), SqlType.Scalar.VARCHAR),
+                        new SqlExpr.StringLit(" element(s) otherwise")),
+                new SqlExpr.NullLit());
+    }
+
     /** {@code assertEqWithinTolerance(e, a, tol)}: {@code |e − a| ≤ tol} over
      * the three sides' canon texts as DOUBLEs. */
     public static SqlQuery tolerance(SqlQuery eScalar, SqlQuery aScalar, SqlQuery tolScalar) {

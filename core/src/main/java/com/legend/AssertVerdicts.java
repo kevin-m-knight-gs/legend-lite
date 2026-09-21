@@ -151,6 +151,10 @@ final class AssertVerdicts {
                         ? "quantified-assert" : bare.getClass().getSimpleName();
     }
 
+    private static boolean classKind(TypedSpec s) {
+        return s.info().type() instanceof com.legend.compiler.element.type.Type.ClassType;
+    }
+
     /** An if branch's statement: the lambda's last statement, or the
      * expression itself. */
     private static TypedSpec branchStatement(TypedSpec branch) {
@@ -393,8 +397,8 @@ final class AssertVerdicts {
                                         + " to a non-tabular result");
                     }
                     boolean held = com.legend.exec.TdsCompare.grids(te,
-                            ta, orderView(args.get(1), letPrefix)
-                                    == OrderView.SORTED);
+                            ta, com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                                    == com.legend.compiler.spec.OrderView.SORTED);
                     com.legend.exec.CanonicalDivergence.sqlRoute(name, "grid-pair");
                     if (held != wantEqual) {
                         yield fail(name + ":\n" + summarize(te)
@@ -409,8 +413,8 @@ final class AssertVerdicts {
                 // and the judgment is order-insensitive (exactly the
                 // assertSameElements shape). SORTED/DEFINED sides stay
                 // strictly ordered.
-                boolean incidental = orderView(args.get(1), letPrefix)
-                        == OrderView.INCIDENTAL;
+                boolean incidental = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
                 // §8 leg 1 — grid-ness is STATIC (the declared result
                 // shape, decided before execution — the ratified
                 // no-runtime-sniffing rule): a grid pair fetches in
@@ -606,7 +610,7 @@ final class AssertVerdicts {
                             && serializedRootMany(actualJson, letPrefix, hook);
                     // bucket 9: an unsorted many-valued root is a MULTISET of root objects
                     if (rootMany && ja.why() == null
-                            && orderView(actualJson, letPrefix) != OrderView.SORTED) {
+                            && com.legend.compiler.spec.OrderView.of(actualJson, letPrefix) != com.legend.compiler.spec.OrderView.SORTED) {
                         TypedSpec elements = com.legend.compiler.spec.VerdictQueries
                                 .jsonRootElements(goldenText);
                         if (elements != null) {
@@ -676,8 +680,8 @@ final class AssertVerdicts {
                 // compares as a multiset, exactly the row verdict's policy
                 // under the same compile-time fact; nested arrays stay
                 // ordered (a property's order is the mapping's)
-                boolean incidentalRoot = orderView(args.get(1), letPrefix)
-                        == OrderView.INCIDENTAL;
+                boolean incidentalRoot = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
                                 String diff = incidentalRoot
                         ? com.legend.exec.Equality.pureJsonUnorderedRoot(expected, actual)
                         : com.legend.exec.Equality.pureJson(expected, actual);
@@ -711,6 +715,13 @@ final class AssertVerdicts {
             case ASSERT_EQ -> {
                 if (args.size() < 2) {
                     yield null;
+                }
+                // task #14 leg 2 (2026-09-21): eq over PRIMITIVES is equals — the
+                // database verdict decides (a class-instance pair keeps the host's
+                // LOUD identity wall below)
+                if (databaseMode(env) && !classKind(args.get(0)) && !classKind(args.get(1))) {
+                    yield databaseVerdict(name, true, args.get(0), args.get(1),
+                            letPrefix, specs, env, hook, false, false);
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                         env, false, hook);
@@ -1197,6 +1208,17 @@ final class AssertVerdicts {
         // below stays host-side (Clause 2c)
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
+        if (databaseMode(env)) {
+            // task #14 leg 2 (2026-09-21): the predicate vector is planned and the
+            // database returns the one verdict row — no element true/false is read
+            // in Java
+            SideRows vector = planSide(predMap, false, letPrefix, specs, env, hook);
+            if (vector.why() != null) {
+                return unjudged(fqn, vector.why());
+            }
+            return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
+                    qfn == NativeFn.Verdict.ASSERT), vector.connection(env), env);
+        }
         List<Object> verdicts = identitySide(predMap, letPrefix, specs, env, hook);
         boolean wantTrue = qfn == NativeFn.Verdict.ASSERT;
         for (Object v : verdicts) {
@@ -2009,74 +2031,6 @@ final class AssertVerdicts {
     // rendered-text forms, and the grid-pair route. The comparison
     // POLICIES stay with their one production owner (TdsCompare).
 
-    /** A side's order semantics: SORTED (ends in a sort through
-     * order-preserving tails — the engine contract pins the order),
-     * INCIDENTAL (bottoms at a store source or an execution-frame
-     * read with no sort — SQL arrival order, engine goldens encode
-     * H2's), DEFINED (pure values — the language's own order). */
-    enum OrderView { SORTED, INCIDENTAL, DEFINED }
-
-    private static final java.util.Set<String> SORT_FQNS = java.util.Set.of(
-            "meta::pure::functions::collection::sort",
-            "meta::pure::functions::collection::sortBy",
-            "meta::pure::functions::collection::sortByReversed",
-            "meta::pure::functions::relation::sort");
-
-    /** Natives after which SQL leaves no order (GROUP BY, joins, UNION,
-     * pivots): the chain's order is incidental past them. EXACT identities
-     * read from the signature catalog ({@link com.legend.builtin.Pure}: one
-     * overload names each FQN; audit §4y deleted the simple-name suffix
-     * match of the harness's audited list, audit 23 D1). */
-    private static final java.util.Set<String> ORDER_DESTROYING = java.util.Set.of(
-            com.legend.builtin.Pure.GROUP_BY__X_MANY__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
-            com.legend.builtin.Pure.GROUP_BY__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY
-                    .qualifiedName(),
-            com.legend.builtin.Pure.JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName(),
-            com.legend.builtin.Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(),
-            com.legend.builtin.Pure.UNION__T_MANY__T_MANY.qualifiedName(),
-            com.legend.builtin.Pure.PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1.qualifiedName(),
-            com.legend.builtin.Pure.AGGREGATE__RELATION_1__AGG_COL_SPEC_1.qualifiedName());
-
-    /** Order-preserving native tails, EXACT identities from the catalog. */
-    private static final java.util.Set<String> ORDER_PRESERVING = java.util.Set.of(
-            com.legend.builtin.Pure.MAP__T_MANY__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.MAP__RELATION_1__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.LIMIT__T_MANY__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.LIMIT__RELATION_1__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.LIMIT__TDS_1__INTEGER_0_1.qualifiedName(),
-            com.legend.builtin.Pure.TAKE__T_MANY__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.DROP__T_MANY__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.DROP__RELATION_1__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.SLICE__T_MANY__INTEGER_1__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.SLICE__RELATION_1__INTEGER_1__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.ROWS__INTEGER_1__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.TO_ONE__T_MANY.qualifiedName(),
-            com.legend.builtin.Pure.AT__T_MANY__INTEGER_1.qualifiedName(),
-            com.legend.builtin.Pure.MAKE_STRING__ANY_MANY.qualifiedName(),
-            com.legend.builtin.Pure.TO_CSV__TDS.qualifiedName(),
-            com.legend.builtin.Pure.TO_STRING__RELATION.qualifiedName(),
-            com.legend.builtin.Pure.TO_STRING__ANY_1.qualifiedName(),
-            com.legend.builtin.Pure.FROM__T_m__MAPPING_1__RUNTIME_1.qualifiedName(),
-            com.legend.builtin.Pure.FILTER__T_MANY__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.FILTER__RELATION_1__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.TDS_FILTER__TDS_1__FUNCTION_1.qualifiedName(),
-            com.legend.builtin.Pure.SELECT__RELATION_1.qualifiedName(),
-            com.legend.builtin.Pure.RENAME__RELATION_1__COL_SPEC_1__COL_SPEC_1.qualifiedName(),
-            com.legend.builtin.Pure.PROJECT__RELATION_1__FUNC_COL_SPEC_ARRAY_1.qualifiedName(),
-            com.legend.builtin.Pure.PROJECT__K_MANY__FUNCTION_MANY__STRING_MANY.qualifiedName(),
-            com.legend.builtin.Pure.DISTINCT__T_MANY.qualifiedName(),
-            com.legend.builtin.Pure.DISTINCT__RELATION_1.qualifiedName(),
-            // a graph fetch / serialize keeps its root's order
-            com.legend.builtin.Pure.GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1.qualifiedName(),
-            com.legend.builtin.Pure.GRAPH_FETCH_CHECKED__T_MANY__ROOT_GRAPH_FETCH_TREE_1.qualifiedName(),
-            com.legend.builtin.Pure.SERIALIZE__T_MANY__ROOT_GRAPH_FETCH_TREE_1.qualifiedName());
-
-    /** An execute() FRAME returns its query's rows in the query's order. */
-    private static final java.util.Set<String> EXECUTE_FRAMES = java.util.Set.of(
-            com.legend.compiler.element.type.PlatformTypes.EXECUTE,
-            com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN_EXECUTE);
 
 
     /** Is the serialized query's ROOT many-valued? Read from the typed
@@ -2177,20 +2131,6 @@ final class AssertVerdicts {
         return null;
     }
 
-    static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix) {
-        return orderView(s0, letPrefix, new java.util.HashSet<>(), null);
-    }
-
-    /** The order view WITH the envelope splice: a read of an execute
-     * frame ({@code $result.values…}) resolves to the frame's own chain,
-     * whose sort the view sees. Without the hook such a read is
-     * INCIDENTAL — a bag compare that would hide an ORDER BY (USER
-     * 2026-09-18: the bag only without a top-level sort). */
-    static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix,
-            @com.legend.Nullable SpliceHook hook) {
-        return orderView(s0, letPrefix, new java.util.HashSet<>(), hook);
-    }
-
     /** The referee's gates for a verified chain, derived ONCE from the
      * typed chain by the arm that owns the verdict (Phase 0.5): the
      * extent-subset fact, the ORDER VIEW (ends in a sort = order is
@@ -2198,7 +2138,7 @@ final class AssertVerdicts {
      * only — nothing evaluated. */
     static com.legend.exec.SqlReplayOracle.ReplayFacts replayFacts(
             TypedSpec chain, List<TypedSpec> letPrefix) {
-        boolean ordered = orderView(chain, letPrefix) == OrderView.SORTED;
+        boolean ordered = com.legend.compiler.spec.OrderView.of(chain, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
         return new com.legend.exec.SqlReplayOracle.ReplayFacts(
                 com.legend.compiler.spec.VerdictQueries.extentSubset(chain),
                 ordered,
@@ -2236,7 +2176,7 @@ final class AssertVerdicts {
                 || read instanceof com.legend.compiler.spec.typed.TypedNavigate;
         if (read instanceof TypedNativeCall c) {
             String fqn = c.callee().qualifiedName();
-            wrapper = ORDER_PRESERVING.contains(fqn) && !c.args().isEmpty();
+            wrapper = com.legend.compiler.spec.OrderView.ORDER_PRESERVING.contains(fqn) && !c.args().isEmpty();
         }
         if (!wrapper || read.children().isEmpty()) {
             return null;
@@ -2274,12 +2214,12 @@ final class AssertVerdicts {
         }
         if (s instanceof TypedNativeCall c) {
             String fqn = c.callee().qualifiedName();
-            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
+            if (com.legend.compiler.spec.OrderView.EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
                     && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
                     && !lam.body().isEmpty()) {
                 return sortKeys(lam.body().get(lam.body().size() - 1), lets, seen);
             }
-            return ORDER_PRESERVING.contains(fqn)
+            return com.legend.compiler.spec.OrderView.ORDER_PRESERVING.contains(fqn)
                     && !c.args().isEmpty() ? sortKeys(c.args().get(0), lets, seen) : null;
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
@@ -2312,119 +2252,6 @@ final class AssertVerdicts {
             return ch.isEmpty() ? null : sortKeys(ch.get(0), lets, seen);
         }
         return null;
-    }
-
-    private static OrderView orderView(TypedSpec s, List<TypedSpec> lets,
-            java.util.Set<String> seen, @com.legend.Nullable SpliceHook hook) {
-        if (s instanceof com.legend.compiler.spec.typed.TypedSort
-                || s instanceof com.legend.compiler.spec.typed.TypedSortBy) {
-            return OrderView.SORTED;
-        }
-        if (s instanceof TypedNativeCall c) {
-            String fqn = c.callee().qualifiedName();
-            if (SORT_FQNS.contains(fqn)) {
-                return OrderView.SORTED;
-            }
-            if (ORDER_PRESERVING.contains(fqn) && !c.args().isEmpty()) {
-                return orderView(c.args().get(0), lets, seen, hook);
-            }
-            // an execute() FRAME returns its query's rows in the query's
-            // order: descend into the lambda's tail expression
-            if (EXECUTE_FRAMES.contains(fqn) && !c.args().isEmpty()
-                    && c.args().get(0) instanceof com.legend.compiler.spec.typed.TypedLambda lam
-                    && !lam.body().isEmpty()) {
-                return orderView(lam.body().get(lam.body().size() - 1), lets, seen, hook);
-            }
-            if (ORDER_DESTROYING.contains(fqn)) {
-                return OrderView.INCIDENTAL;
-            }
-            return OrderView.DEFINED;
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedGetAll
-                || s instanceof com.legend.compiler.spec.typed
-                        .TypedTableReference
-                || s instanceof com.legend.compiler.spec.typed
-                        .TypedRawSqlRelation) {
-            return OrderView.INCIDENTAL;
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
-            if (!seen.add(v.name())) {
-                return OrderView.DEFINED;
-            }
-            for (int i = lets.size() - 1; i >= 0; i--) {
-                if (lets.get(i) instanceof
-                        com.legend.compiler.spec.typed.TypedLet l
-                        && l.name().equals(v.name())) {
-                    return orderView(l.value(), lets, seen, hook);
-                }
-            }
-            // unresolvable binding = an execution frame ($result): with the
-            // splice in hand its values read IS the frame's chain (a
-            // compiler-minted read, VerdictQueries.valuesRead); without it,
-            // a store query by construction
-            if (hook != null) {
-                TypedSpec read = com.legend.compiler.spec.VerdictQueries.valuesRead(v);
-                TypedSpec chain = hook.apply(read, java.util.Set.of());
-                if (chain != read) {
-                    return orderView(chain, lets, seen, hook);
-                }
-            }
-            return OrderView.INCIDENTAL;
-        }
-        // a graph fetch / serialize keeps its ROOT query's order (the
-        // engine's graph result is the root SQL's arrival order; a nested
-        // property's order is the mapping's, not the chain's)
-        if (s instanceof com.legend.compiler.spec.typed.TypedGraphFetch gf) {
-            return orderView(gf.source(), lets, seen, hook);
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedSerializeGraph sg) {
-            return orderView(sg.source(), lets, seen, hook);
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedSerialize sz) {
-            return orderView(sz.source(), lets, seen, hook);
-        }
-        // a grouping / join / concatenation / pivot leaves NO order behind
-        // in SQL (a GROUP BY, a join, a UNION have none): the chain's
-        // order is incidental past them unless a later sort names it
-        if (s instanceof com.legend.compiler.spec.typed.TypedGroupBy
-                || s instanceof com.legend.compiler.spec.typed.TypedAggregate
-                || s instanceof com.legend.compiler.spec.typed.TypedJoin
-                || s instanceof com.legend.compiler.spec.typed.TypedAsOfJoin
-                || s instanceof com.legend.compiler.spec.typed.TypedConcatenate
-                || s instanceof com.legend.compiler.spec.typed.TypedPivot) {
-            return OrderView.INCIDENTAL;
-        }
-        // an extend keeps its source's rows in order
-        if (s instanceof com.legend.compiler.spec.typed.TypedExtend
-                || s instanceof com.legend.compiler.spec.typed.TypedExtendAgg
-                || s instanceof com.legend.compiler.spec.typed.TypedExtendWindow) {
-            List<TypedSpec> ch = s.children();
-            return ch.isEmpty() ? OrderView.DEFINED
-                    : orderView(ch.get(0), lets, seen, hook);
-        }
-        // order-preserving wrappers descend to their SOURCE (first
-        // child); anything else keeps the language's defined order
-        if (s instanceof com.legend.compiler.spec.typed.TypedFilter
-                || s instanceof com.legend.compiler.spec.typed.TypedProject
-                || s instanceof com.legend.compiler.spec.typed.TypedSelect
-                || s instanceof com.legend.compiler.spec.typed.TypedRename
-                || s instanceof com.legend.compiler.spec.typed.TypedDistinct
-                || s instanceof com.legend.compiler.spec.typed.TypedLimit
-                || s instanceof com.legend.compiler.spec.typed.TypedDrop
-                || s instanceof com.legend.compiler.spec.typed.TypedSlice
-                || s instanceof com.legend.compiler.spec.typed.TypedMap
-                || s instanceof com.legend.compiler.spec.typed
-                        .TypedPropertyAccess
-                || s instanceof com.legend.compiler.spec.typed.TypedCast
-                || s instanceof com.legend.compiler.spec.typed.TypedFrom
-                || s instanceof com.legend.compiler.spec.typed.TypedNavigate
-                || s instanceof com.legend.compiler.spec.typed
-                        .TypedMilestonedAccess) {
-            List<TypedSpec> ch = s.children();
-            return ch.isEmpty() ? OrderView.DEFINED
-                    : orderView(ch.get(0), lets, seen, hook);
-        }
-        return OrderView.DEFINED;
     }
 
     private static final String FQ_TO_STRING =
@@ -2498,7 +2325,7 @@ final class AssertVerdicts {
             // sorted queries legally tie-flip between two executions)
             boolean sorted = orderedForm
                     && (eForm == null ^ aForm == null)
-                    && orderView(rendered, letPrefix) == OrderView.SORTED;
+                    && com.legend.compiler.spec.OrderView.of(rendered, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
             boolean held = com.legend.exec.TdsCompare.renderedText(
                     aForm != null ? et : at, aForm != null ? at : et,
                     form, sorted);
@@ -2605,7 +2432,7 @@ final class AssertVerdicts {
             return unjudged(name, java.util.Objects.requireNonNull(parsed.reason()));
         }
         boolean multiset = !orderedForm
-                || orderView(r.value(), letPrefix) != OrderView.SORTED;
+                || com.legend.compiler.spec.OrderView.of(r.value(), letPrefix) != com.legend.compiler.spec.OrderView.SORTED;
         boolean csv = r.grammar() instanceof com.legend.compiler.spec.VerdictQueries.RenderGrammar.Csv;
         return goldenIsExpected
                 ? databaseVerdict(name, wantEqual, parsed.literal(), r.value(), letPrefix, specs,
@@ -2657,7 +2484,7 @@ final class AssertVerdicts {
                 && j.args().size() == 2
                 && j.args().get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCString sep
-                && orderView(j.args().get(0), lets) == OrderView.INCIDENTAL) {
+                && com.legend.compiler.spec.OrderView.of(j.args().get(0), lets) == com.legend.compiler.spec.OrderView.INCIDENTAL) {
             return "CSVJOIN:" + sep.value();
         }
         return null;

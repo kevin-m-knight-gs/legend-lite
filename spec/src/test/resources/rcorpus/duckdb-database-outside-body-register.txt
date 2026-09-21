@@ -138,7 +138,6 @@ meta::relational::tests::mapping::modelJoin::union::testRelationalUnionSubAggreg
 meta::relational::tests::mapping::modelJoin::union::testUnionWithExistsFilter ||| raw=9 side=2
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView ||| fallback=1
 meta::relational::tests::mapping::sqlFunction::stringToFloat::testProject ||| side=1
-meta::relational::tests::mapping::sqlFunction::testAdjustDateTranslationInMappingAndQuery ||| side=1
 meta::relational::tests::milestoning::businessdate::testMilestoningFiltersPreservedInTdsJoinWithConcatenate ||| raw=317
 meta::relational::tests::platform::operations::testIsEmptyForRelational_returnsFalse ||| raw=5
 meta::relational::tests::platform::operations::testIsEmptyForRelational_returnsTrue ||| raw=5
@@ -160,11 +159,8 @@ meta::relational::tests::projection::filter::in::H2Test ||| probe=2
 meta::relational::tests::projection::testGroupByWithWindowSubset ||| raw=14
 meta::relational::tests::query::drop::testSimpleDrop ||| side=2
 meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullPlanSql ||| side=1
-meta::relational::tests::query::filter::exists::testComplexOrExistsToManyProperty ||| side=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation ||| statement=1
-meta::relational::tests::query::function::distinct::testCollectionDistinctFunction ||| side=2
-meta::relational::tests::query::function::divide::testDivideFunctionPrecision ||| side=6
 meta::relational::tests::query::take::testFilterLimitInSequenceForTableAccessor ||| side=1
 meta::relational::tests::query::take::testLimitFilterInSequence ||| side=1
 meta::relational::tests::query::take::testLimitFilterInSequenceForTableAccessor ||| side=1

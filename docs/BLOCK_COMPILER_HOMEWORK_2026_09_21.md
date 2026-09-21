@@ -453,3 +453,42 @@ are measured gone (compiler stage 4).
 | reads a verdict row's boolean, maps an error | the runner | not a judgment |
 
 The host judge mode is Java throughout, by definition — the verdict of record.
+
+
+## 17. Task #14, leg 2 (2026-09-21): the host-compared register reaches ZERO — every assert is a verdict row
+
+**What was left after leg 1 (53 tests DuckDB / 51 H2), attributed per assert** by a one-run
+trace at the batch's flush (a root flushed without a verdict row, named):
+
+| shape | tests | how it was decided |
+|---|---|---|
+| TDG fetch text (`assertSqlEquals(golden, $testData.sqls->at(n))`, the H2Compatible spelling) | 19 | both texts folded, the REFEREE replayed the fetch on the oracle and compared rows in Java — before any text verdict |
+| foreign-dialect `toSQLString` text (DB2, Postgres, Sybase, SybaseIQ, "unresolved" driver pairs) | 22 | `textEqual ? ok() : fail(…)` in Java (a counted decline: no oracle for the dialect) |
+| plan text with unbindable parameters (enum-parameter plans, `planToString`) | 6 | `textEqual ? ok() : fail(…)` in Java (decline `plan-params-unbindable`) |
+| `assertEq` (a metadata cell, a Float precision value, a count) | 4 | the router had NO database-mode branch for `eq`: `PureAsserts.assertEq` in Java |
+| quantified `coll->map(x \| assert(pred))` over a database-computed collection | 2 | the predicate VECTOR computed in the database, the all-true fold in Java |
+
+**What landed — one rule, no new walker.** Each shape defers what it already had in hand:
+
+- **TDG fetch text** (`SqlTextVerdicts.tryArmTdgSql`): under a batch the text equality is a
+  verdict row of the body's statement; the referee's replay (`tdgRowsNow`) is the row's APPEAL,
+  run at the flush only when the row failed. Host mode: option 1 (byte-equal text is the
+  verdict; the referee on a failed text only).
+- **Text-decided declines** (`textVerdict`): the foreign-dialect and plan-params-unbindable
+  declines defer the same text row; the arm's own message is raised when the row fails. The
+  decline stays counted (`declined(...)`) — the referee still cannot appeal these.
+- **`assertEq`**: routed to the database verdict for primitive pairs (eq on primitives IS
+  equals); a class-instance pair keeps the host's LOUD identity wall.
+- **Quantified assert**: the predicate vector is PLANNED (`planSide`) and
+  `VerdictSql.allOf(vector, wantTrue)` returns the one verdict row — no row said otherwise.
+
+**Measured.** Four lanes GREEN; fail rosters unchanged on both lanes (DuckDB 109 exact, H2 364 host / 356 database); differential agree 5,848 · disagree 0. HOST-COMPARED REGISTER: DuckDB 53 → 0, H2 51 → 0 — EMPTY and exact on both lanes. Outside-body DuckDB 183 → 179, H2 280 → 277 (the `assertEq` and quantified sides no longer sent apart). Statement origins (DuckDB): body 2,563 → 2,578, side 207 → 193. Host-seam 0/0. Text-decided ceiling foreign-dialect:Composite 8 → 9 on both lanes: tds::sort::testSortQuotes loops over drivers — its DB2 text assert used to raise in Java at the assert; as a row it is judged at the flush, so the later Composite assert is reached and counted (the DB2 row fails at the flush as before).
+
+**What "zero" means (user question, 2026-09-21).** Under the database judge no assert of the
+corpus is decided by a comparison in Java over database-computed sides: every assert root
+flushes with a verdict row; the register is empty on both lanes and exact (any new row fails
+the lane). What remains in Java on the database path is exactly the inventory of §16: the
+referee as an APPEAL on a failed text row (test lane), the golden canons at compile time, the
+compiler's own renderers staged as constants, the seam at zero (pinned), and the runner
+reading the row. Compiler stage 2 (dependency order, compile-time inlining, the fragment map)
+starts on that footing.
