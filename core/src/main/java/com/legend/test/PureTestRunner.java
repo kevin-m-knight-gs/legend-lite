@@ -394,6 +394,14 @@ public final class PureTestRunner implements AutoCloseable {
 
     // ---- RUN + JUDGE --------------------------------------------------------
 
+    /** CENSUS (block-compiler homework 2026-09-21): every run body's shape
+     * ({@link ProgramFacts#shape()}) by test — read by the corpus lanes. */
+    private final java.util.Map<String, String> bodyShapes = new java.util.HashMap<>();
+
+    public @com.legend.Nullable String bodyShape(String fqn) {
+        return bodyShapes.get(fqn);
+    }
+
     /** Run one test: its package session (opened on demand), its setups once,
      *  its body through the platform, one result. */
     public Result run(PureTests.TestCase t) throws SQLException {
@@ -416,6 +424,7 @@ public final class PureTestRunner implements AutoCloseable {
         } catch (RuntimeException e) {
             return new Result(t.fqn(), Status.FAIL, List.of(), "type: " + whole(e.getMessage()));
         }
+        bodyShapes.put(t.fqn(), facts.shape());
         boolean shared = !facts.seedsInlineCsv();
         observer.privateWorkspace(!shared);
         Connection conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();

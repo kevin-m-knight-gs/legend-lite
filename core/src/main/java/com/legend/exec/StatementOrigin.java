@@ -22,8 +22,10 @@ public enum StatementOrigin {
     LET,
     /** A value-position execute: its result IS the value asked for. */
     VALUE,
-    /** A runtime's declared setup statements and CSV loads (the seeding boundary). */
+    /** Seeding as RAW text: a fixture's executeInDb blobs, a runtime's declared setups. */
     SEED,
+    /** Seeding GENERATED from data or the model: CSV loads, dropAndCreate DDL under a fixture. */
+    SEED_GENERATED,
     /** Session setup: attach / use / settings / extension aliases. */
     SESSION,
     /** The read-only system metamodel database. */
@@ -71,6 +73,13 @@ public enum StatementOrigin {
     public static Scope enterIfUnmarked(StatementOrigin origin) {
         StatementOrigin now = CURRENT.get();
         return enter(now == OTHER || now == STATEMENT && origin != STATEMENT ? origin : now);
+    }
+
+    /** A GENERATED seeding site: under a fixture it refines {@link #SEED} to
+     * {@link #SEED_GENERATED}; elsewhere it is {@code otherwise}. */
+    public static Scope enterGenerated(StatementOrigin otherwise) {
+        StatementOrigin now = CURRENT.get();
+        return enter(now == SEED ? SEED_GENERATED : now == OTHER || now == STATEMENT ? otherwise : now);
     }
 
     /** Sets the mark until the scope closes (restoring the previous one). */

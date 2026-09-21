@@ -837,6 +837,10 @@ final class ArchitectureTest {
     @Test
     void staticCollectionStateIsImmutableOrRegistered() throws Exception {
         java.util.Set<String> register = java.util.Set.of(
+                // CENSUS (block-compiler homework 2026-09-21): the fused
+                // statement's fallback reasons, appended by the batch's split
+                // rung, read by the corpus lanes only — no verdict reads it
+                "com.legend.exec.VerdictBatch.FALLBACK_REASONS",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",

@@ -85,6 +85,11 @@ public final class VerdictBatch {
         return FALLBACKS.get();
     }
 
+    /** CENSUS: why each fused statement fell back (the exception's head), in
+     * order — the corpus lanes attribute them per test. */
+    public static final java.util.List<String> FALLBACK_REASONS =
+            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
     /** CENSUS: frames built under a batch, by how the asserts read them —
      * {@code cte} (a relation-rooted frame of static schema, planned once),
      * {@code pasted} (relation-rooted but late-bound or not eager), {@code
@@ -227,6 +232,9 @@ public final class VerdictBatch {
                 // the split rung: this batch judges statement by statement
                 // below, so the error lands on the assert that owns it
                 FALLBACKS.incrementAndGet();
+                String m = String.valueOf(e.getMessage());
+                FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
+                        + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' '));
             }
         }
         for (Root r : batch) {

@@ -4410,3 +4410,21 @@ and counters — sends nothing, reads no value); StatementExecutor 2366 → 2391
 
 **Lanes.** DuckDB database lost 0 / gained 0 · host 108 exact; H2 host 412 exact · database
 registers exact. Chain: GREEN — G2 24 · G1 76 · G3 12 · G4 106 · G5 39 · G6 141 · G7 46 · G9 36 · G8 152 · G10 55 (G1 re-run after the harness-discipline re-pin: the census top-five sort is a display ordering).
+
+## 2026-09-21 — block-compiler homework: the body census, fallback reasons, the seed split, sizes
+
+**What landed.** The instruments of docs/BLOCK_COMPILER_HOMEWORK_2026_09_21.md: the body SHAPE
+(`ProgramFacts.shape`, one letter per statement; `target/corpus2-body-shapes.tsv`), the fused
+statement's fallback reasons (`VerdictBatch.FALLBACK_REASONS`, registered static census state;
+`target/corpus2-fallbacks.tsv`), the raw-vs-generated seed split (`StatementOrigin.SEED_GENERATED`).
+Measured: 2,472 pure / 141 effectful / 33 interleaved bodies; 160 pure bodies split only by the
+flush-at-any-non-assert rule; fused chars median 3.4k / p99 113k / max 1.1 MB; H2's 61 fallbacks
+are the verdict vocabulary (JSON 68, lists 59, struct 33, unnest 26) + 13 product rows; seeding
+97% raw text; `COPY FROM DATABASE` probed on DuckDB 1.4.4.0 (one statement, < 1 ms, views too).
+Decisions recorded in the homework (referee out of scope; one ARTIFACT per body; statement-by-
+statement removed; REPL = blocks).
+
+**Chain.** G2 25 · G1 76 (re-run green after two ArchitectureTest rows: the shape map became an
+instance field behind the corpus; the fallback list registered as census state) · G3 11 · G4 103 ·
+G5 40 · G6 145 · G7 45 · G9 36 · G8 150 · G10 green. Lanes: DuckDB database lost 0 / gained 0;
+H2 database registers exact.

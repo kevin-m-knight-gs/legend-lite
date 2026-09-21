@@ -177,6 +177,8 @@ class MinimalCorpusTest {
         /** the tests whose statements the test-lane scan-order emulation changed */
         List<String> engineOrder = new ArrayList<>();
         List<String> originRows = new ArrayList<>();
+        List<String> shapeRows = new ArrayList<>();
+        List<String> fallbackRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
         try {
@@ -188,6 +190,7 @@ class MinimalCorpusTest {
                 long tStart = System.nanoTime();
                 long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
+                int fallbacksBefore = com.legend.exec.VerdictBatch.FALLBACK_REASONS.size();
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -234,6 +237,11 @@ class MinimalCorpusTest {
                     }
                 }
                 originRows.add(originRow.toString());
+                String shape = corpus.bodyShape(r.fqn());
+                shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
+                for (int fi = fallbacksBefore; fi < com.legend.exec.VerdictBatch.FALLBACK_REASONS.size(); fi++) {
+                    fallbackRows.add(r.fqn() + "\t" + com.legend.exec.VerdictBatch.FALLBACK_REASONS.get(fi));
+                }
                 long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
                     engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
@@ -260,6 +268,43 @@ class MinimalCorpusTest {
         originRows.add(0, "test\t" + String.join("\t", java.util.Arrays.stream(
                 com.legend.exec.StatementOrigin.values()).map(Enum::name).toList()));
         Files.write(Path.of("target/corpus2-statement-origins.tsv"), originRows);
+        // THE BODY-SHAPE CENSUS (block-compiler homework 2026-09-21): one letter per
+        // statement (F frame let, L let, A assert, X assertError, E effect, O other)
+        Files.write(Path.of("target/corpus2-body-shapes.tsv"), shapeRows);
+        Files.write(Path.of("target/corpus2-fallbacks.tsv"), fallbackRows);
+        int pure = 0;
+        int effectful = 0;
+        int interleaved = 0;
+        int raising = 0;
+        int maxAsserts = 0;
+        int maxFrames = 0;
+        for (String row : shapeRows) {
+            String sh = row.substring(row.indexOf('\t') + 1);
+            boolean eff = sh.indexOf('E') >= 0 || sh.indexOf('X') >= 0;
+            if (eff) {
+                effectful++;
+            } else {
+                pure++;
+            }
+            int firstA = sh.indexOf('A');
+            if (firstA >= 0 && (sh.indexOf('E', firstA) >= 0 || sh.indexOf('X', firstA) >= 0)) {
+                interleaved++;
+            }
+            if (sh.indexOf('X') >= 0) {
+                raising++;
+            }
+            maxAsserts = Math.max(maxAsserts, (int) sh.chars().filter(c -> c == 'A').count());
+            maxFrames = Math.max(maxFrames, (int) sh.chars().filter(c -> c == 'F').count());
+        }
+        System.out.println("[corpus2] body-shapes pure=" + pure + " effectful=" + effectful
+                + " interleaved(effect-after-assert)=" + interleaved + " assertError=" + raising
+                + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
+        java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
+        for (String row : fallbackRows) {
+            String reason = row.substring(row.indexOf('\t') + 1);
+            fallbackByReason.merge(reason.length() > 90 ? reason.substring(0, 90) : reason, 1, Integer::sum);
+        }
+        fallbackByReason.forEach((k, v) -> System.out.println("[corpus2] fallback-reason " + v + " " + k));
         System.out.println("[corpus2] statement-origins " + com.legend.exec.StatementOrigin.census(
                 com.legend.exec.StatementOrigin.snapshot()));
         for (var o : com.legend.exec.StatementOrigin.values()) {

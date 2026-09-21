@@ -876,11 +876,15 @@ public final class Compiler {
         boolean seeds = false;
         boolean verdicts = false;
         java.util.Set<String> stores = new java.util.LinkedHashSet<>();
+        StringBuilder shape = new StringBuilder(body.size());
         for (int i = 0; i < body.size(); i++) {
             TypedSpec s = body.get(i);
             java.util.List<TypedSpec> preceding = body.subList(0, i);
-            effects |= StatementExecutor.containsEffect(s, specs, memo)
+            boolean effect = StatementExecutor.containsEffect(s, specs, memo)
                     || containsTdgGenerator(s);
+            boolean verdict = callsVerdict(s, specs, verdictMemo);
+            shape.append(statementKind(s, effect, verdict));
+            effects |= effect;
             stores.addAll(com.legend.compiler.spec.SeededStores.of(s, specs, storeMemo));
             // the ONE reader of runtime shapes: inline CSV test data anywhere
             // in the statement (a from(), an execute's runtime argument, a
@@ -890,9 +894,29 @@ public final class Compiler {
                     .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
                             .letBound(v, preceding))
                     .read(java.util.Optional.empty(), s).csvSetups().isEmpty();
-            verdicts |= callsVerdict(s, specs, verdictMemo);
+            verdicts |= verdict;
         }
-        return new ProgramFacts(effects, seeds, verdicts, stores);
+        return new ProgramFacts(effects, seeds, verdicts, stores, shape.toString());
+    }
+
+    /** One statement's letter in {@link ProgramFacts#shape()}. */
+    private static char statementKind(TypedSpec s, boolean effect, boolean verdict) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && com.legend.builtin.NativeFn.ContextOwner.of(c.callee().qualifiedName()).isPresent()) {
+            return 'X';
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedLet l) {
+            TypedSpec v = l.value();
+            while (v instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+                v = f.source();
+            }
+            if (v instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())) {
+                return 'F';
+            }
+            return effect ? 'E' : 'L';
+        }
+        return verdict ? 'A' : effect ? 'E' : 'O';
     }
 
     /** Does the program REACH a verdict function — directly, or through

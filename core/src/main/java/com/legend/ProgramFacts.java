@@ -14,7 +14,21 @@ package com.legend;
  * pass.
  */
 public record ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verdicts,
-        java.util.Set<String> seedsStores) {
+        java.util.Set<String> seedsStores, String shape) {
+
+    public ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verdicts,
+            java.util.Set<String> seedsStores) {
+        this(effects, seedsInlineCsv, verdicts, seedsStores, "");
+    }
+
+    /** The body's SHAPE, one letter per statement in order (block-compiler
+     * homework 2026-09-21): {@code F} a let bound to an execute (a frame),
+     * {@code L} another let, {@code A} a verdict call, {@code X} an assertError
+     * (a verdict over a raise), {@code E} an effect (a raw statement, DDL, a
+     * test-data generator), {@code O} anything else. */
+    public String shape() {
+        return shape;
+    }
 
     /** The stores (Database FQNs) the program seeds through a typed
      * element reference ({@link com.legend.compiler.spec.SeededStores}):

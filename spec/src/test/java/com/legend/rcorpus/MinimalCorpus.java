@@ -736,6 +736,12 @@ public final class MinimalCorpus {
 
     /** Run one test through the product's runner and score it for the rosters
      *  (the strength ladder is read off the runner's verdict log). */
+    /** The body's shape letters ({@link com.legend.ProgramFacts#shape()}) of a test this
+     * corpus ran — the block-compiler homework's census. */
+    public @com.legend.Nullable String bodyShape(String fqn) {
+        return runner.bodyShape(fqn);
+    }
+
     public Result run(PureTests.TestCase t) throws SQLException {
         PureTestRunner.Result r = runner.run(t);
         JudgeLedger.record(t.fqn(), r);   // leg 3.3: the per-assert ledger, when configured

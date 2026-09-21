@@ -3132,7 +3132,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
-        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.RAW)) {
+        try (var __o = com.legend.exec.StatementOrigin.enterGenerated(com.legend.exec.StatementOrigin.RAW)) {
             Executor.executeRaw(env.connection(), schemaDdl);
         }
         record(env, schemaDdl, false);
@@ -3173,7 +3173,7 @@ final class StatementExecutor {
         // advisory mirror still needs its H2-flavored stream: the SAME
         // model spells it a second time (recorded only after the session
         // executed — the recording mirrors executed reality).
-        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.RAW)) {
+        try (var __o = com.legend.exec.StatementOrigin.enterGenerated(com.legend.exec.StatementOrigin.RAW)) {
             Executor.executeRaw(connection, env.dialect().render(Ddl.dropTable(schema, table)));
             // engine parity (batch 71 experiment): the native's DDL carries the
             // declared key and nullability, exactly like the engine's
