@@ -661,7 +661,7 @@ class JavaEvalLedgerTest {
             // one effect-only rule — the evaluator shrank
             // 2388 -> 2394 (2026-09-21, block compiler stage 1): the dispatch of a PURE body to
             // BodyCompiler and the batch construction factored out for it — sequencing only
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2394),   // 2228 -> 2234 (the wire-slot leg, 2026-09-19: the reported-column memo accessor and a raw executeInDb grid framed by the database's reported columns before its canon wrap — plan wiring, nothing evaluated); // 2218 -> 2228 (leg 3.3: a store-reading verdict side's plan passes through WireTypes.reconcile before the canon wrap, the reported types memoized per connection — plan wiring, nothing evaluated); // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2395),   // 2394 -> 2395 (task #14 leg 1, 2026-09-21: the host-seam CENSUS counter at hostEvalAtSeam — one counting line, pinned at zero in database mode; nothing evaluated); // 2228 -> 2234 (the wire-slot leg, 2026-09-19: the reported-column memo accessor and a raw executeInDb grid framed by the database's reported columns before its canon wrap — plan wiring, nothing evaluated); // 2218 -> 2228 (leg 3.3: a store-reading verdict side's plan passes through WireTypes.reconcile before the canon wrap, the reported types memoized per connection — plan wiring, nothing evaluated); // 2217 -> 2218 (bucket 6: the rider's enumeration frame handed to the canon wrap — one argument line); 2212 -> 2217 (bucket 4: the two canon-wrap sites pass the name-valued fact — the model's tracksClassifier — three argument lines each); 2209 -> 2212 (bucket 3 JSON: planValue applies the JsonKeyOrder IR pass to a verdict side whose rider asks for sorted keys — three dispatch lines)   // (was 2209,   // 2216 -> 2209 (leg 3.1b: evalValue and planValue share sideBody — the duplicated prelude folded); 2125 -> 2216 (leg 3.1a: executeTyped split into prelude + wrapSide + run so planValue plans a side EXACTLY as it would execute — no new evaluation, the same arms)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -846,7 +846,6 @@ class JavaEvalLedgerTest {
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the
             // row lists compare; no value computation in Java.
-            Map.entry("core/src/main/java/com/legend/LineageTreeVerdicts.java", 115),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -1198,10 +1197,6 @@ class JavaEvalLedgerTest {
                     // INSERT statements the database executes. No verdict
                     // value is computed.
                     "CsvLoad.java",
-                    // batch 59: the lineage-tree sibling of SqlTextVerdicts —
-                    // golden and ours become rows through ONE database query
-                    // and compare; typed-tree navigation + judgment only
-                    "LineageTreeVerdicts.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,
@@ -1243,7 +1238,6 @@ class JavaEvalLedgerTest {
             java.util.List.of(
                     "core/src/main/java/com/legend/AssertVerdicts.java",
                     "core/src/main/java/com/legend/SqlTextVerdicts.java",
-                    "core/src/main/java/com/legend/LineageTreeVerdicts.java",
                     "core/src/main/java/com/legend/AssertErrorNative.java");
 
     private static final java.util.List<java.util.regex.Pattern>

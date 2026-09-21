@@ -1151,7 +1151,11 @@ public final class SystemMetamodel {
             }
             function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[1]
             {
-                $t.nodes->sortBy(n|$n.preorder)->map(n|if($n.kind == 'root', |$n.indent + 'root', |$n.indent + '------> (' + $n.kind + ') ' + $n.name->toOne() + if($withJoin && $n.joinLabel->isNotEmpty(), |'(' + $n.joinLabel->toOne() + ')', |'') + ' [' + $n.columns->sortBy(c|$c.ordinal).name->joinStrings(', ') + ']'))->joinStrings('', '\n', '\n')
+                $t->meta::lite::lineage::relationTreeLines($withJoin)->joinStrings('', '\n', '\n')
+            }
+            function meta::lite::lineage::relationTreeLines(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[*]
+            {
+                $t.nodes->sortBy(n|$n.preorder)->map(n|if($n.kind == 'root', |$n.indent + 'root', |$n.indent + '------> (' + $n.kind + ') ' + $n.name->toOne() + if($withJoin && $n.joinLabel->isNotEmpty(), |'(' + $n.joinLabel->toOne() + ')', |'') + ' [' + $n.columns->sortBy(c|$c.ordinal).name->joinStrings(', ') + ']'))
             }
             function meta::pure::mapping::resolveStore(_this:meta::pure::mapping::Mapping[1], store:meta::pure::store::Store[1]):meta::pure::store::Store[1]
             {

@@ -165,9 +165,12 @@ final class AssertVerdicts {
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
-        LineageTreeVerdicts.Verdict lineage = LineageTreeVerdicts.tryArm(bare, letPrefix, specs, env);
-        if (lineage != null) {
-            return lineage.held() ? ok() : fail(lineage.message());
+        // task #14 leg 1 (2026-09-21): a lineage tree print is judged as LINES —
+        // the golden brought to its canon rows here, ours the prelude's own
+        // rows; the ordinary collection verdict decides
+        TypedSpec lines = com.legend.compiler.spec.LineageTreeLines.asLines(bare, letPrefix, env.ctx());
+        if (lines != null) {
+            bare = lines;
         }
         TypedSpec unwrapped = com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare);
         if (unwrapped instanceof com.legend.compiler.spec.typed.TypedMap qm2) {

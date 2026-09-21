@@ -67,15 +67,11 @@ class SqlTextRatchetTest {
     static {
         // (StatementExecutor.java: its two sites were the record-only PRIMARY KEY
         // ALTER strings of a write-only meta ledger — deleted in batch 137)
-        // batch 59: the LINEAGE REFEREE — one query that turns a
-        // scanRelations tree PRINT (the golden literal, and the
-        // database's own print of our LineageRows) into rows
-        // (preorder, indent, kind, name, join label with the engine's
-        // decorated aliases resolved to the tree's node names, columns)
-        // so the two row lists compare. The sibling of the SQL-text
-        // arm's golden execution through SqlReplayOracle: a referee's
-        // parse of a spec cell, never an emission of a user query.
-        REGISTER.put("LineageTreeVerdicts.java", 1);
+        // (LineageTreeVerdicts.java: its one site — the tree-print → rows
+        // query, DuckDB-only — DELETED in task #14 leg 1, 2026-09-21: the
+        // golden print is brought to its lines at compile time and the
+        // ordinary collection verdict judges them against the prelude's
+        // own rows)
         // batch 67 (2026-09-05): the exec-read arm RECOGNIZES the engine's
         // population statement (`select distinct <col> from <table>`) in
         // a GOLDEN — a referee's read of the spec text's shape (the let

@@ -716,6 +716,7 @@ final class StatementExecutor {
      * DELETED. */
     private static @com.legend.Nullable ExecutionResult hostEvalAtSeam(TypedSpec root,
             java.util.Map<String, TypedSpec> lets, ExecEnv env) {
+        com.legend.exec.StatementOrigin.hostSeam();
         // (Phase 1c grid endgame: ResultNav is DELETED — grid chains are
         // typed relations the ordinary pipeline serves; the seam is
         // StoreNav's model-fact channel alone)

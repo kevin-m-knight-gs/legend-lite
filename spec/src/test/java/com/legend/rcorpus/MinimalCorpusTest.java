@@ -180,6 +180,7 @@ class MinimalCorpusTest {
         List<String> shapeRows = new ArrayList<>();
         List<String> artifactRows = new ArrayList<>();
         List<String> hostComparedRows = new ArrayList<>();
+        List<String> hostSeamRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
@@ -195,6 +196,7 @@ class MinimalCorpusTest {
                 int fallbacksBefore = com.legend.exec.VerdictBatch.FALLBACK_REASONS.size();
                 long flushesBefore = com.legend.exec.VerdictBatch.flushCount();
                 long hostDecidedBefore = com.legend.exec.VerdictBatch.hostDecidedCount();
+                long hostSeamBefore = com.legend.exec.StatementOrigin.hostSeamCount();
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -246,6 +248,10 @@ class MinimalCorpusTest {
                         com.legend.exec.VerdictBatch.flushCount() - flushesBefore);
                 if (outside != null) {
                     artifactRows.add(r.fqn() + " ||| " + outside);
+                }
+                long hostSeam = com.legend.exec.StatementOrigin.hostSeamCount() - hostSeamBefore;
+                if (hostSeam > 0) {
+                    hostSeamRows.add(r.fqn() + " ||| host-seam=" + hostSeam);
                 }
                 long hostDecided = com.legend.exec.VerdictBatch.hostDecidedCount() - hostDecidedBefore;
                 if (hostDecided > 0) {
@@ -435,6 +441,18 @@ class MinimalCorpusTest {
             // database-computed sides — the lineage, TDG, identity and metadata arms) is a
             // named row; exact, shrink-only — the number that must reach zero
             Files.write(Path.of("target/corpus2-host-compared.txt"), hostComparedRows);
+            // CENSUS (2026-09-21): values evaluated in Java at the seam, no statement sent
+            Files.write(Path.of("target/corpus2-host-seam.txt"), hostSeamRows);
+            long seamTotal = 0;
+            for (String row : hostSeamRows) {
+                seamTotal += Long.parseLong(row.substring(row.indexOf("host-seam=") + 10));
+            }
+            System.out.println("[corpus2] host-seam tests=" + hostSeamRows.size() + " values=" + seamTotal);
+            // PINNED AT ZERO (user, 2026-09-21): under the database judge no value is
+            // evaluated in Java at the seam — the seam is deleted when every user is gone
+            org.junit.jupiter.api.Assertions.assertTrue(hostSeamRows.isEmpty(), "host-seam: values evaluated in Java at the"
+                    + " seam under the database judge (pinned at zero):\n"
+                    + String.join("\n", hostSeamRows));
 
             pinArtifactRegister(only, ran, hostComparedRows,
                     "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")

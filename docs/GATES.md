@@ -4512,3 +4512,19 @@ send. Measured first: assert roots the arms do not claim = 0 on both lanes. Home
 host-compared 102; H2 database registers exact, outside-body 329, host-compared 100. Evaluator
 ledger StatementExecutor 2388 → 2394 (the dispatch and the batch construction factored out).
 Chain: GREEN — G2 25 · G1 82 · G3 13 · G4 112 · G5 37 · G6 147 · G7 47 · G9 36 · G8 160 · G10 55.
+
+## 2026-09-21 — task #14 leg 1: the lineage tree judged as lines; the golden canon at compile time; the seam pinned at zero
+
+**What landed.** The statement-root `assertEquals(<tree print>, $tree->relationTreeAsString(…))`
+is rewritten at compile time (`compiler/spec/LineageTreeLines`) into the ordinary collection
+assert over LINES — the golden's lines with the engine's decorated aliases resolved to node
+names, ours the prelude's `meta::lite::lineage::relationTreeLines` over the handle's lineage
+rows — and the ordinary verdict decides (a verdict row in database mode, the host judge in host
+mode). No SQL of the arm's own on either lane: the raw DuckDB tree query (`LineageTreeVerdicts`,
+`VerdictSql.rawTextPair`) is DELETED, so the 49 lineage tests leave the H2 fail roster.
+`StatementOrigin.hostSeam` counts values evaluated in Java at the store-navigation seam — 0 on
+both lanes, PINNED in database mode. Homework §16 (with the inventory of Java on the database path).
+
+**Registers.** H2 fail roster 413 → 364; host-compared DuckDB 102 → 53, H2 100 → 51;
+outside-body DuckDB 232 → 183, H2 → 280 (the lineage `side` rows). DuckDB fail roster 109 exact;
+differential agree 5,848 · disagree 0. Chain: GREEN — G2 26 · G1 78 · G3 11 · G4 98 · G5 37 · G6 135 · G7 46 · G9 34 · G8 145 · G10 53 (G1 re-run alone after one report-text pin: the divergence report no longer names the deleted lineage-rows counter).

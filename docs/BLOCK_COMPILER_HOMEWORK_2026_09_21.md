@@ -374,3 +374,82 @@ them, in order.
 **What stage 1 does not yet do:** order by dependency (stage 2, with compile-time inlining of
 helper-wrapped asserts and the fragment map), scripts for effect bodies (stage 3), delete the
 loop and the fallback re-execution (stage 4, after H2's vocabulary — rung 2c).
+
+## 15. Two standing rules (user questions, 2026-09-21)
+
+**Phases, not walkers.** A body is walked by resolve, by type, by the program-facts pass, and by
+the executor loop — the last two ask the same questions twice, and the loop decides while
+running. `BodyCompiler` (stage 1) is a SCAFFOLD: it duplicates the loop's arms so the pins could
+prove byte-identical output, and while it stands the database judge has two walkers for one
+body. The end state has ONE plan pass that also knows the shape and the effects, a render pass,
+and a runner that does not walk at all (it sends the artifact and maps errors through the
+fragment map). Therefore: **every stage from here removes a walk or merges two, never adds
+one.** Stage 2 merges helper inlining into the plan pass; stage 3 makes effect bodies the same
+pass with segments; stage 4 deletes the loop and the program-facts walk into the plan pass. A
+stage that proposes a new pass is wrong by construction.
+
+**"No fallback" is not "no host compare."** No fallback holds: under the database judge the
+host never rescues a verdict (unclaimed assert roots measured 0). Host compares remain in three
+places, each counted: (1) the host judge mode itself, the verdict of record, by definition;
+(2) under the database judge, the host-compared register — 162 asserts in 102 tests (DuckDB),
+140 in 100 (H2), two database-computed sides compared in Java (lineage, TDG, identity,
+metadata) — shrink-only, task #14's list; (3) the referee's row comparison on a failed text row,
+the test lane's judge, Java until rung 2b puts the canon in SQL on both sides (option A).
+
+## 16. Task #14, leg 1 (2026-09-21): the lineage tree is judged as lines — the golden canon at compile time, no SQL of the arm's own
+
+**The user's ruling:** a comparison in Java over two database-computed sides IS a fallback,
+whatever the sides are; "no fallback" holds only when the host-compared register is empty.
+Task #14 is therefore the next legs, before compiler stage 2, largest arm first.
+
+**The first cut, rejected.** The arm's tree-print → rows query (`TREE_ROWS`) was raw DuckDB
+SQL (`string_split`, `generate_series`, `struct_pack`, `regexp_extract`) run through a
+`RawSql` source — outside the two chartered raw-SQL seams, and DuckDB vocabulary on the H2
+lane (the 49 lineage tests sat on the H2 fail roster with `Function "STRING_SPLIT" not
+found`). User: "Why is something in h2 mode using duckdb anything?" Nothing on the H2 lane
+may use DuckDB-specific SQL; the arm was rebuilt before it was committed.
+
+**What landed instead — a golden canon, not a verdict arm.** The engine's tree print is
+`buildUniqueName(alias = true)`: its join labels spell the engine's decorated SQL aliases
+(`_d#N`, `_dy<i>`, `_m<N>`, `_l`, `_r`, `_md`, duplicate counters), an artifact of its SQL
+generation the row charter retired; the tree's content is the `alias = false` form, the
+relational element's name. So the statement-root `assertEquals(<print>,
+$tree->relationTreeAsString(…))` is REWRITTEN at compile time (`compiler/spec/LineageTreeLines`,
+the compiler layer — typed nodes are minted nowhere else) into the ordinary collection assert
+`assertEquals([<line>, …], $tree->relationTreeLines(…))`:
+
+- the golden's lines parsed by the print grammar in Java (indent, kind, name, join label,
+  columns), every decorated alias in a label resolved to the node name the tree itself declares
+  (longest name first), re-rendered as the line the prelude prints;
+- ours the prelude's own Pure body `meta::lite::lineage::relationTreeLines(t, withJoin)` — one
+  text per node in preorder over the handle's `LineageRows` (`relationTreeAsString` is now
+  `relationTreeLines(…)->joinStrings('', '\n', '\n')`, one rule);
+- the ordinary verdict decides: a verdict row of the body's statement (a literal grid against
+  the planned relation) under the database judge, the host judge in host mode. Same rows in
+  both modes, no Java compare anywhere, no SQL of the arm's own on either lane.
+
+Deleted: `LineageTreeVerdicts` (the root-package arm, its raw query, its side statement),
+`VerdictSql.rawTextPair`, `CanonicalDivergence.lineageRows`, the ArchUnit exemption that let
+the arm reach the host-verdict classes, the SQL-text ratchet's lineage site.
+
+**The seam pinned at zero.** `StatementOrigin.hostSeam` (moved out of `CanonicalDivergence`, a
+host-verdict class the verdict seam alone may reach) counts values the executor evaluates in
+Java at the store-navigation seam with no statement sent. Measured 0 on both lanes under the
+database judge; `MinimalCorpusTest` now FAILS on any seam value in database mode. The seam
+itself (`hostChannel` / `StoreNav.owns` / `hostEvalAtSeam`) is deleted when its other users
+are measured gone (compiler stage 4).
+
+**Measured.** Four lanes GREEN. The 49 lineage tests PASS on H2 under both judges (H2 fail roster 413 → 364 — the first lineage rows off that roster; DuckDB 109 exact). Host-compared register DuckDB 102 → 53, H2 100 → 51; outside-body DuckDB 232 → 183, H2 −49 → 280 (the arm's `side` statements gone: DuckDB side 414 → 207); host-seam 0 tests / 0 values on both lanes, pinned. Statement origins (database judge): DuckDB body 2,563 · side 207 · fallback 1; H2 body 2,349 · side 205 · fallback 146 (the H2 verdict vocabulary, rung 2c). Differential agree 5,848 · disagree 0. Strength LITERAL DuckDB 1,406 / H2 1,243 (+49 each: the lineage lines are literal verdict rows now).
+
+**Java on the database path — the full inventory (user question).**
+
+| what Java does | where counted | status |
+|---|---|---|
+| compares two database-computed sides | host-compared register: 53 tests DuckDB / 51 H2 | shrinking, TDG fetch text next (19), then instances (22), plans (10) |
+| compares our rows with the golden's on a failed text row | the referee (test lane) | out of scope by decision; SQL canon on both sides in rung 2b (option A) |
+| brings a golden literal to its canon rows at compile time (JSON, rendered text, lineage lines) | the compiler layer (`VerdictQueries`, `LineageTreeLines`) | the canon rule on the spec cell, by design — never on ours |
+| renders plan text and SQL text (five natives) | staged as constants at compile time | the compiler's own renderer, by design |
+| evaluates a value at the seam with no statement sent | `StatementOrigin.hostSeam` — **0 on both lanes, pinned** | none |
+| reads a verdict row's boolean, maps an error | the runner | not a judgment |
+
+The host judge mode is Java throughout, by definition — the verdict of record.

@@ -802,9 +802,6 @@ final class ArchitectureTest {
         noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.AssertVerdicts")
             .and().doNotHaveFullyQualifiedName("com.legend.AssertErrorNative")
-            // batch 59: the lineage-tree verdict arm (SqlTextVerdicts'
-            // sibling) counts its row verdicts at the seam
-            .and().doNotHaveFullyQualifiedName("com.legend.LineageTreeVerdicts")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.PureAsserts")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.CanonicalForm")
