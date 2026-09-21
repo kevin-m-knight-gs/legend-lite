@@ -178,6 +178,7 @@ class MinimalCorpusTest {
         List<String> engineOrder = new ArrayList<>();
         List<String> originRows = new ArrayList<>();
         List<String> shapeRows = new ArrayList<>();
+        List<String> artifactRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
@@ -238,6 +239,10 @@ class MinimalCorpusTest {
                 }
                 originRows.add(originRow.toString());
                 String shape = corpus.bodyShape(r.fqn());
+                String outside = outsideBody(originsBefore, originsAfter, shape);
+                if (outside != null) {
+                    artifactRows.add(r.fqn() + " ||| " + outside);
+                }
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
                 for (int fi = fallbacksBefore; fi < com.legend.exec.VerdictBatch.FALLBACK_REASONS.size(); fi++) {
                     fallbackRows.add(r.fqn() + "\t" + com.legend.exec.VerdictBatch.FALLBACK_REASONS.get(fi));
@@ -412,6 +417,12 @@ class MinimalCorpusTest {
                 MinimalCorpus.H2_BACKEND
                         ? (databaseMode ? H2_DATABASE_ENGINE_ORDER : H2_ENGINE_ORDER)
                         : (databaseMode ? DUCKDB_DATABASE_ENGINE_ORDER : DUCKDB_ENGINE_ORDER), false);
+        if (databaseMode) {
+            Files.write(Path.of("target/corpus2-outside-body.txt"), artifactRows);
+            pinArtifactRegister(only, ran, artifactRows,
+                    "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
+                            + "-database-outside-body-register.txt");
+        }
         pinChannels(only, corpus);
         pinStrength(only, strength);
         pinJudgeDifferential(only);
@@ -891,6 +902,82 @@ class MinimalCorpusTest {
                 // as our query, so it is not an independent oracle; the
                 // DuckDB lane with the H2 mirror is
                 + (MinimalCorpus.H2_BACKEND ? " oracle=same-session" : " oracle=h2-mirror"));
+    }
+
+    /** THE ARTIFACT RULE (block-compiler program, 2026-09-21): a test body is ONE
+     * artifact — one fused statement for a pure body, one script for an effect
+     * body. This names what is not there yet: a body that sends a PRODUCT-OWNED
+     * statement outside its artifact (raw, side, statement, tdg, probe, fallback,
+     * let, value, other — never the referee's, the seeding's or the session's), or
+     * a PURE body split into several fused statements. Null when the body is one
+     * artifact. */
+    private static @com.legend.Nullable String outsideBody(long[] before, long[] after,
+            @com.legend.Nullable String shape) {
+        StringBuilder sb = new StringBuilder();
+        for (var o : com.legend.exec.StatementOrigin.values()) {
+            long d = after[o.ordinal()] - before[o.ordinal()];
+            if (d > 0 && PRODUCT_OWNED.contains(o)) {
+                sb.append(sb.length() == 0 ? "" : " ").append(o.name().toLowerCase(java.util.Locale.ROOT))
+                        .append('=').append(d);
+            }
+        }
+        long body = after[com.legend.exec.StatementOrigin.BODY.ordinal()]
+                - before[com.legend.exec.StatementOrigin.BODY.ordinal()];
+        boolean pure = shape != null && shape.indexOf('E') < 0 && shape.indexOf('X') < 0;
+        if (pure && body > 1) {
+            sb.append(sb.length() == 0 ? "" : " ").append("body=").append(body);
+        }
+        return sb.length() == 0 ? null : sb.toString();
+    }
+
+    private static final java.util.Set<com.legend.exec.StatementOrigin> PRODUCT_OWNED = java.util.EnumSet.of(
+            com.legend.exec.StatementOrigin.RAW, com.legend.exec.StatementOrigin.SIDE,
+            com.legend.exec.StatementOrigin.STATEMENT, com.legend.exec.StatementOrigin.TDG,
+            com.legend.exec.StatementOrigin.PROBE, com.legend.exec.StatementOrigin.FALLBACK,
+            com.legend.exec.StatementOrigin.LET, com.legend.exec.StatementOrigin.VALUE,
+            com.legend.exec.StatementOrigin.OTHER);
+
+    /** The OUTSIDE-BODY register, exact per lane in database judge mode: every
+     * test not yet one artifact is a named row; a NEW name is red (a body
+     * regressed), a STALE name is red (a leg made it one artifact — shrink the
+     * register with the reason in docs/GATES.md). The register can only shrink. */
+    private static void pinArtifactRegister(String only, List<String> ran, List<String> rows,
+            String resource) throws IOException {
+        String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
+        Set<String> registered = registerTests(resource);
+        Set<String> ranNames = new HashSet<>(ran);
+        Set<String> now = new LinkedHashSet<>();
+        for (String row : rows) {
+            now.add(row.substring(0, row.indexOf(" |||")));
+        }
+        List<String> fresh = new ArrayList<>();
+        for (String n : now) {
+            if (!registered.contains(n)) {
+                fresh.add(n);
+            }
+        }
+        List<String> stale = new ArrayList<>();
+        for (String n : registered) {
+            if (ranNames.contains(n) && !now.contains(n)) {
+                stale.add(n);
+            }
+        }
+        System.out.println("[corpus2] outside-body " + lane + ": " + now.size()
+                + " tests not yet one artifact (register " + registered.size() + ")");
+        if (!fresh.isEmpty() || !stale.isEmpty()) {
+            StringBuilder sb = new StringBuilder("[" + lane + "] outside-body register != committed"
+                    + " (" + (only.isEmpty() ? "full run" : "scoped to '" + only + "'") + "): NEW "
+                    + fresh.size() + " (a body sends a product-owned statement outside its artifact"
+                    + " and is not registered), STALE " + stale.size() + " (registered, now one"
+                    + " artifact — shrink the register). Reasons in docs/GATES.md.");
+            for (String f : fresh) {
+                sb.append("\n  NEW    ").append(f);
+            }
+            for (String s : stale) {
+                sb.append("\n  STALE  ").append(s);
+            }
+            org.junit.jupiter.api.Assertions.fail(sb.toString());
+        }
     }
 
     /** The accepted-divergence register: {@code fqn -> {bucket, witness}}. */

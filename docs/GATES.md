@@ -4428,3 +4428,17 @@ statement removed; REPL = blocks).
 instance field behind the corpus; the fallback list registered as census state) · G3 11 · G4 103 ·
 G5 40 · G6 145 · G7 45 · G9 36 · G8 150 · G10 green. Lanes: DuckDB database lost 0 / gained 0;
 H2 database registers exact.
+
+## 2026-09-21 — the OUTSIDE-BODY register: the artifact rule made measurable
+
+**What landed.** `rcorpus/<lane>-database-outside-body-register.txt` (DuckDB 394 rows, H2 418),
+exact per lane in database judge mode (`MinimalCorpusTest.pinArtifactRegister`): every test whose
+body is not yet ONE ARTIFACT is a named row — a product-owned statement outside the body (raw,
+side, statement, tdg, probe, fallback, let, value, other; never the referee's, the seeding's or
+the session's — user decision 2026-09-21) or a PURE body split into several fused statements
+(`body=N`). A NEW name is red (a body regressed); a STALE name is red (a leg made it one
+artifact — shrink the register with the reason here). The register can only shrink. The rows
+carry the measured detail after `|||` for reading; the pin compares names.
+
+**Lanes.** DuckDB database lost 0 / gained 0, register EXACT 394; H2 database registers exact,
+outside-body EXACT 418. Chain: GREEN — G2 29 · G1 88 · G3 13 · G4 159 · G5 53 · G6 199 · G7 57 · G9 45 · G8 205 · G10 67 (a loaded box: the corpus gates ran beside the register lanes finishing; the same gates measured 103 / 145 / 150 an hour earlier).
