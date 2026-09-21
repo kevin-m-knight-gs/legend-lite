@@ -209,6 +209,40 @@ public final class VerdictBatch {
         r.steps.add(new Pending(ix, name, wantEqual, query, on, appeal));
     }
 
+    /** The verdict rows deferred so far (the next row's index). */
+    public int pendingCount() {
+        int ix = 0;
+        for (Root x : roots) {
+            for (Step s : x.steps) {
+                if (s instanceof Pending) {
+                    ix++;
+                }
+            }
+        }
+        return ix;
+    }
+
+    /** THE FRAGMENT MAP (block-compiler stage 2, 2026-09-21): every frame name and
+     * verdict branch index → the let / assert it came from, so a database error
+     * on the fused statement names the statement that owns it. */
+    private final Map<String, String> fragments = new java.util.LinkedHashMap<>();
+
+    public void fragments(Map<String, String> map) {
+        fragments.putAll(map);
+    }
+
+    /** The fragments a database message names (a frame alias appears in DuckDB's
+     * binder errors and H2's column errors), or an empty string. */
+    public String attribute(String message) {
+        StringBuilder sb = new StringBuilder();
+        for (var e : fragments.entrySet()) {
+            if (e.getKey().startsWith("frame_") && message.contains(e.getKey())) {
+                sb.append(sb.length() == 0 ? " — near " : ", ").append(e.getValue());
+            }
+        }
+        return sb.toString();
+    }
+
     public void resolve(RuntimeException failure) {
         java.util.Objects.requireNonNull(current, "verdict batch: no open root")
                 .steps.add(new Resolved(failure));
@@ -270,7 +304,8 @@ public final class VerdictBatch {
                 FALLBACKS.incrementAndGet();
                 String m = String.valueOf(e.getMessage());
                 FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
-                        + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' '));
+                        + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' ')
+                        + attribute(m));
             }
         }
         for (Root r : batch) {

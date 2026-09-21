@@ -254,7 +254,7 @@ final class StatementExecutor {
         // first send (BodyCompiler). Every other body walks the loop below.
         if (env0.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE
                 && BodyCompiler.accepts(stmts, specs, effectMemo)) {
-            return BodyCompiler.run(BodyCompiler.compile(stmts, letPrefix, specs, env0), env0);
+            return BodyCompiler.run(BodyCompiler.compile(stmts, letPrefix, specs, env0), specs, env0);
         }
         java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         // leg 3.4: database mode defers each assert's verdict statement into
@@ -380,88 +380,8 @@ final class StatementExecutor {
                 result = hosted;
                 continue;
             }
-            java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
-            single.add(stmt);
-            var stmtInliner = new com.legend.compiler.spec.UserCallInliner(specs,
-                    spliceHook(execFrames, letPrefix, specs, env));
-            java.util.List<TypedSpec> body = new java.util.ArrayList<>(
-                    stmtInliner.inlineBody(single));                      // Phase G½
-            env.queryLets().putAll(stmtInliner.queryLets());
-            final java.util.List<TypedSpec> stageEnv = body;
-            body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                    .stage(b, stageEnv, nativeRoutines(specs, env)));
-
-            TypedSpec preRoot = body.get(body.size() - 1);
-            if (preRoot instanceof com.legend.compiler.spec.typed.TypedLet pl) {
-                preRoot = pl.value();
-            }
-            while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
-                preRoot = pf.source();
-            }
-            preRoot = foldPairProjection(preRoot);
-            // a helper call that β-reduced to an ASSERT-family root (the
-            // corpus's runLegendTest(f, vars, expected) wrappers: lets +
-            // one assert): the verdict is World 1's exactly as for a
-            // statement-root assert — adjudicate the inlined root
-            // — scoped to the STRING ENTRY's reads (a TypedJsonResult /
-            // TypedJsonAccess in the inlined statement): every other
-            // helper-wrapped assert keeps its existing route (the SQL-text
-            // arms adjudicate those downstream; adjudicating them here as
-            // plain equality regressed ~200 text-golden flips, 2026-09-03)
-            // — and to an assert over CLASS VALUES (toPostgresModel's
-            // assertConversion(expected:Node, input): assertEquals of two
-            // constructed instances — the struct verdict of batch 53; no
-            // SQL-text arm can judge a struct, so nothing downstream is
-            // displaced)
-            if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall
-                    && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
-                    && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
-                            || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot))) {
-                ExecutionResult inlinedVerdict = AssertVerdicts.tryAdjudicate(
-                        preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
-                        spliceHook(execFrames, letPrefix, specs, env));
-                if (inlinedVerdict != null) {
-                    result = inlinedVerdict;
-                    continue;
-                }
-            }
-            // $plan.processingTemplateFunctions — the ExecutionPlan class
-            // property (executionPlan.pure:67): every relational node
-            // carries relationalPlanSupportFunctions(connection), deduped
-            // plan-wide (executionPlan_generation.pure:215)
-            // CATALOG DISPATCH at the statement's value position (§4AG
-            // — ladder migration #22, zero function-name if-checks):
-            // CONTEXT_OWNER rows run their registered ARM (assertError:
-            // f's body runs in the database under the arm's catch);
-            // HANDLE rows run their registered FORCE (execute: the eager
-            // frame run IS the value); everything the plan reader can
-            // answer ($plan navigation — the engine's own plan API,
-            // evaluated over the PLAN NODE MODEL) returns its value.
-            if (preRoot instanceof com.legend.compiler.spec.typed
-                            .TypedNativeCall cat) {
-                String catFqn = cat.callee().qualifiedName();
-                if (com.legend.builtin.NativeFn.ContextOwner.of(catFqn).isPresent()) {
-                    result = AssertErrorNative.run(cat, letPrefix, specs,
-                            env, frames);
-                    continue;
-                }
-                if (com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(catFqn)) {
-                    result = buildFrame(cat, letPrefix, true, true, specs, env)
-                            .result();
-                    continue;
-                }
-            }
-            com.legend.resolver.StoreResolver resolver =
-                    resolver(specs, env);
-            body = resolver.resolve(body, env.runtimeFqn());              // Phase H
-            // C2.2: stores bound to DIFFERENT connections cannot share
-            // the one session connection — wall, never wrong-database rows
-            CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
-            try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
-                    com.legend.exec.StatementOrigin.STATEMENT)) {
-                result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
-                        env, letPrefix, specs));
-            }
+            PreparedValue prepared = prepareValue(stmt, bare, letPrefix, execFrames, specs, env);
+            result = runValue(prepared, specs, frames);
         }
         if (batch != null) {
             AssertVerdicts.flush(batch, env);
@@ -477,6 +397,124 @@ final class StatementExecutor {
                         com.legend.lowering.VerdictSql.batchSchema(),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
                 AssertVerdicts.ONE_ROW, AssertVerdicts::verdictOf);
+    }
+
+    /** A statement at VALUE position, PREPARED — the compile phases only (helper
+     * inlining, native staging, the inlined root's re-classification, store
+     * resolution, the cross-store wall) with nothing run (block-compiler stage 2,
+     * 2026-09-21: the loop and the compiler share this ONE preparation; the loop
+     * runs it at once, the compiler at the artifact's run). Exactly one of
+     * {@code verdict} (an inlined assert root, already adjudicated into the
+     * batch), {@code contextOwner} (assertError's arm), {@code forcedFrame}
+     * (execute at value position: the eager frame run IS the value) or the
+     * resolved {@code body} decides the run. */
+    record PreparedValue(java.util.List<TypedSpec> body, ExecEnv env,
+            java.util.List<TypedSpec> lets,
+            @com.legend.Nullable ExecutionResult verdict,
+            com.legend.compiler.spec.typed.@com.legend.Nullable TypedNativeCall contextOwner,
+            com.legend.compiler.spec.typed.@com.legend.Nullable TypedNativeCall forcedFrame) {
+    }
+
+    static PreparedValue prepareValue(TypedSpec stmt, TypedSpec bare,
+            java.util.List<TypedSpec> letPrefix, java.util.Map<String, ExecFrame> execFrames,
+            SpecCompiler specs, ExecEnv env) {
+        java.util.List<TypedSpec> lets = new java.util.ArrayList<>(letPrefix);
+        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+        single.add(stmt);
+        var stmtInliner = new com.legend.compiler.spec.UserCallInliner(specs,
+                spliceHook(execFrames, letPrefix, specs, env));
+        java.util.List<TypedSpec> body = new java.util.ArrayList<>(
+                stmtInliner.inlineBody(single));                      // Phase G½
+        env.queryLets().putAll(stmtInliner.queryLets());
+        final java.util.List<TypedSpec> stageEnv = body;
+        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                .stage(b, stageEnv, nativeRoutines(specs, env)));
+
+        TypedSpec preRoot = body.get(body.size() - 1);
+        if (preRoot instanceof com.legend.compiler.spec.typed.TypedLet pl) {
+            preRoot = pl.value();
+        }
+        while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
+            preRoot = pf.source();
+        }
+        preRoot = foldPairProjection(preRoot);
+        // a helper call that β-reduced to an ASSERT-family root (the
+        // corpus's runLegendTest(f, vars, expected) wrappers: lets +
+        // one assert): the verdict is World 1's exactly as for a
+        // statement-root assert — adjudicate the inlined root
+        // — scoped to the STRING ENTRY's reads (a TypedJsonResult /
+        // TypedJsonAccess in the inlined statement): every other
+        // helper-wrapped assert keeps its existing route (the SQL-text
+        // arms adjudicate those downstream; adjudicating them here as
+        // plain equality regressed ~200 text-golden flips, 2026-09-03)
+        // — and to an assert over CLASS VALUES (toPostgresModel's
+        // assertConversion(expected:Node, input): assertEquals of two
+        // constructed instances — the struct verdict of batch 53; no
+        // SQL-text arm can judge a struct, so nothing downstream is
+        // displaced)
+        if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall
+                && preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall
+                && (com.legend.compiler.spec.VerdictRoutes.readsStringEntry(preRoot)
+                        || com.legend.compiler.spec.VerdictRoutes.assertsClassValue(preRoot))) {
+            ExecutionResult inlinedVerdict = AssertVerdicts.tryAdjudicate(
+                    preRoot, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
+                    spliceHook(execFrames, letPrefix, specs, env));
+            if (inlinedVerdict != null) {
+                return new PreparedValue(body, env, lets, inlinedVerdict, null, null);
+            }
+        }
+        // $plan.processingTemplateFunctions — the ExecutionPlan class
+        // property (executionPlan.pure:67): every relational node
+        // carries relationalPlanSupportFunctions(connection), deduped
+        // plan-wide (executionPlan_generation.pure:215)
+        // CATALOG DISPATCH at the statement's value position (§4AG
+        // — ladder migration #22, zero function-name if-checks):
+        // CONTEXT_OWNER rows run their registered ARM (assertError:
+        // f's body runs in the database under the arm's catch);
+        // HANDLE rows run their registered FORCE (execute: the eager
+        // frame run IS the value); everything the plan reader can
+        // answer ($plan navigation — the engine's own plan API,
+        // evaluated over the PLAN NODE MODEL) returns its value.
+        if (preRoot instanceof com.legend.compiler.spec.typed
+                        .TypedNativeCall cat) {
+            String catFqn = cat.callee().qualifiedName();
+            if (com.legend.builtin.NativeFn.ContextOwner.of(catFqn).isPresent()) {
+                return new PreparedValue(body, env, lets, null, cat, null);
+            }
+            if (com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(catFqn)) {
+                return new PreparedValue(body, env, lets, null, null, cat);
+            }
+        }
+        com.legend.resolver.StoreResolver resolver =
+                resolver(specs, env);
+        body = resolver.resolve(body, env.runtimeFqn());              // Phase H
+        // C2.2: stores bound to DIFFERENT connections cannot share
+        // the one session connection — wall, never wrong-database rows
+        CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
+        // the statement's env is widened LAST, after resolution — the loop's own order
+        // (computing it before resolution changed a lowering: an order dependence
+        // in the shared state the inliner touches, measured 2026-09-21, owed)
+        return new PreparedValue(body, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
+                lets, null, null, null);
+    }
+
+    /** Run a prepared value statement: the run phase only. */
+    static @com.legend.Nullable ExecutionResult runValue(PreparedValue pv, SpecCompiler specs,
+            java.util.Deque<String> frames) {
+        ExecutionResult verdict = pv.verdict();
+        if (verdict != null) {
+            return verdict;
+        }
+        if (pv.contextOwner() != null) {
+            return AssertErrorNative.run(pv.contextOwner(), pv.lets(), specs, pv.env(), frames);
+        }
+        if (pv.forcedFrame() != null) {
+            return buildFrame(pv.forcedFrame(), pv.lets(), true, true, specs, pv.env()).result();
+        }
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
+                com.legend.exec.StatementOrigin.STATEMENT)) {
+            return executeTyped(pv.body(), pv.env());
+        }
     }
 
     /** The statement's env widened with the tableReplace maps of every

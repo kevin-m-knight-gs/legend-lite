@@ -492,3 +492,57 @@ referee as an APPEAL on a failed text row (test lane), the golden canons at comp
 compiler's own renderers staged as constants, the seam at zero (pinned), and the runner
 reading the row. Compiler stage 2 (dependency order, compile-time inlining, the fragment map)
 starts on that footing.
+
+## 18. Compiler stage 2 (2026-09-21): compile-time inlining, the value segment, the fragment map — every effect-free body is one artifact
+
+**Measured first (the ratchet named before the leg).** A refusal census on the stage-1 tree:
+`BodyCompiler.accepts` now records WHY a body is not compiled as one artifact
+(`[corpus2] body-compiler accepted=… refused={…}`, attributed per test in
+`target/corpus2-body-compiler.txt`). Beside the effect bodies (stage 3), **91 tests** were refused:
+helper-call roots 27 (`test(…)`, `runLegendTest(…)` wrappers), `println` / `print` statements 23,
+a trailing `true;` 17, a trailing `$a == $b` value 12, quantified `->map(x | assert(…))` roots 7,
+`->forAll(…)` 2, an `if` over asserts 2, one `createTempTable` root.
+
+**What landed — the loop's own phases, shared, not a new walker.**
+
+- **`StatementExecutor.prepareValue` / `runValue`.** The loop's value-statement tail (helper
+  inlining, native staging, the inlined root's re-classification, store resolution, the
+  cross-store wall — then execution) is split into its compile phases and its run phase, ONE
+  implementation: the loop calls the pair at once; the compiler prepares at compile and runs at
+  the artifact's run. The phases keep the loop's exact order (computing the statement's widened
+  environment BEFORE store resolution changed one lowering — an order dependence in the state
+  the inliner touches, measured and owed, not fixed here).
+- **The compiler accepts every effect-free statement**: lets (a trailing let is the body's
+  value), assert-family roots (a verdict call, a quantified map / forAll, an if over asserts —
+  whatever `AssertVerdicts.tryAdjudicate` claims, the same call), helper calls (inlined at
+  compile time by the shared preparation; an inlined assert root is adjudicated there), value
+  statements (prepared at compile, run in body order before the fused send). Refused: a
+  test-data generator, an effect (stage 3), a context owner (assertError runs its body under an
+  arm's catch), a frame forced at value position, and an UNPORTED native at a statement root.
+- **The unported-native rule (found by the register, not guessed).** `ddl::dropAndCreateTempTable`
+  (on the fail roster on both lanes) compiled and failed one statement LATER: `createTempTable` is
+  a prelude-typed native in no family (no body here, loud at evaluation), and the raw-grid read
+  after it (`executeInDb('select * from tt', …)`, a late-bound relation) PROBES the table's schema
+  at plan time — a state the unported statement would have created. The compiler must not plan
+  past a statement it cannot run: a root outside the implemented surface (the claim registry's
+  own question — a family member, a scalar rule / reducer / window function by signature key, a
+  core function by bare name; a walled native is refused by decision) is refused, and the loop
+  keeps it. One body in the corpus.
+- **The fragment map.** `Artifact.fragments`: every frame (`frame_<let>`) and every verdict branch
+  (`__ix=<n>`) → the let / assert and its statement ordinal; carried by the batch, and a database
+  error on the fused statement names the frame it mentions (`VerdictBatch.attribute`) in the
+  fallback census row. Data now; load-bearing when stage 4 deletes the split rung.
+- **A census correction.** The referee's PAGE-POPULATION read (the unpaged rows for a paged
+  chain's page-membership verdict) is the referee's, marked `REFEREE_OURS` like its rows read —
+  22 tests left the DuckDB outside-body register on that alone (their only `side` statement).
+
+**Measured (DuckDB database).** Refused non-effect tests 91 → 1 (`unported-native:
+createTempTable`); accepted bodies 2,434 per run (top-level test bodies plus the fixture bodies
+that pass through the same entry); outside-body register 179 → 157 (exact); side statements
+193 → 168; fail roster 109 exact, lost 0 / gained 0; host-compared 0; differential agree 5,848 ·
+disagree 0; the twelve ladder pins byte-identical. H2 database: outside-body 277 → 255 (the same 22 referee population reads), fail roster 356 exact, host-compared 0, refused non-effect tests 1; body statements 2,364, fallback 146 (the H2 verdict vocabulary, rung 2c, unchanged).
+
+**What stage 2 does not do.** Effect bodies (754 refusals per run, fixtures included) stay on the
+loop until stage 3 (scripts). The value statements are lowered inside `executeTyped` at the
+artifact's run — the run phase still lowers; stage 3 makes them planned statements of the
+script. The fragment map is inert until the split rung goes (stage 4).

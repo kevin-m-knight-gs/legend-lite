@@ -1433,7 +1433,7 @@ final class SqlTextVerdicts {
             // read just executed, so a failure here is a FAULT of ours and
             // fails the test loudly — never a decline that rescues the text
             com.legend.exec.SqlTypeCensus.probeSuspend(true);
-            try {
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
                 ExecutionResult population = StatementExecutor.evalValue(populationRead,
                         letPrefix, specs, env, null, false, hook);
                 if (population != null) {

@@ -67,6 +67,20 @@ public final class NativeFn {
     /** Every family, by name — THE registration the claim registry reads. A
      *  new enum in this file that is not listed here is unclaimed, and the
      *  ledger says so. */
+    /** Is the FQN a member of ANY family — a native this platform CLAIMS (the
+     * claim registry's own question, asked at compile time: a typed native in no
+     * family has no body here and is loud at evaluation). */
+    public static boolean claims(String fqn) {
+        for (List<? extends Member> family : families().values()) {
+            for (Member m : family) {
+                if (m.fqn().equals(fqn)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static Map<String, List<? extends Member>> families() {
         Map<String, List<? extends Member>> out = new LinkedHashMap<>();
         out.put("Calendar", List.of(Calendar.values()));

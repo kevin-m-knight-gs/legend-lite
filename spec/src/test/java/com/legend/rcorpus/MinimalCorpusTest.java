@@ -181,6 +181,7 @@ class MinimalCorpusTest {
         List<String> artifactRows = new ArrayList<>();
         List<String> hostComparedRows = new ArrayList<>();
         List<String> hostSeamRows = new ArrayList<>();
+        List<String> compilerRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
@@ -196,6 +197,7 @@ class MinimalCorpusTest {
                 int fallbacksBefore = com.legend.exec.VerdictBatch.FALLBACK_REASONS.size();
                 long flushesBefore = com.legend.exec.VerdictBatch.flushCount();
                 long hostDecidedBefore = com.legend.exec.VerdictBatch.hostDecidedCount();
+                java.util.Map<String, Long> refusedBefore = com.legend.BodyCompiler.refusals();
                 long hostSeamBefore = com.legend.exec.StatementOrigin.hostSeamCount();
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
@@ -252,6 +254,18 @@ class MinimalCorpusTest {
                 long hostSeam = com.legend.exec.StatementOrigin.hostSeamCount() - hostSeamBefore;
                 if (hostSeam > 0) {
                     hostSeamRows.add(r.fqn() + " ||| host-seam=" + hostSeam);
+                }
+                // STAGE 2 MEASUREMENT (2026-09-21): why the compiler refused this test's body
+                // (effects are stage 3 and fixtures run as effect bodies — not listed)
+                StringBuilder refused = new StringBuilder();
+                for (var e : com.legend.BodyCompiler.refusals().entrySet()) {
+                    long d = e.getValue() - refusedBefore.getOrDefault(e.getKey(), 0L);
+                    if (d > 0 && !e.getKey().startsWith("effect")) {
+                        refused.append(refused.length() == 0 ? "" : " ").append(e.getKey()).append('=').append(d);
+                    }
+                }
+                if (refused.length() > 0) {
+                    compilerRows.add(r.fqn() + " ||| " + refused);
                 }
                 long hostDecided = com.legend.exec.VerdictBatch.hostDecidedCount() - hostDecidedBefore;
                 if (hostDecided > 0) {
@@ -318,6 +332,8 @@ class MinimalCorpusTest {
         System.out.println("[corpus2] body-shapes pure=" + pure + " effectful=" + effectful
                 + " interleaved(effect-after-assert)=" + interleaved + " assertError=" + raising
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
+        System.out.println("[corpus2] body-compiler accepted=" + com.legend.BodyCompiler.acceptedCount()
+                + " refused=" + com.legend.BodyCompiler.refusals());
         java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
         for (String row : fallbackRows) {
             String reason = row.substring(row.indexOf('\t') + 1);
@@ -443,6 +459,8 @@ class MinimalCorpusTest {
             Files.write(Path.of("target/corpus2-host-compared.txt"), hostComparedRows);
             // CENSUS (2026-09-21): values evaluated in Java at the seam, no statement sent
             Files.write(Path.of("target/corpus2-host-seam.txt"), hostSeamRows);
+            Files.write(Path.of("target/corpus2-body-compiler.txt"), compilerRows);
+            System.out.println("[corpus2] body-compiler refused tests=" + compilerRows.size());
             long seamTotal = 0;
             for (String row : hostSeamRows) {
                 seamTotal += Long.parseLong(row.substring(row.indexOf("host-seam=") + 10));

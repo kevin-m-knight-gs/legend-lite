@@ -838,6 +838,10 @@ final class ArchitectureTest {
                 // statement's fallback reasons, appended by the batch's split
                 // rung, read by the corpus lanes only — no verdict reads it
                 "com.legend.exec.VerdictBatch.FALLBACK_REASONS",
+                // CENSUS (stage 2 measurement, 2026-09-21): bodies the compiler
+                // accepted / refused by reason — read by the corpus lanes only
+                "com.legend.BodyCompiler.ACCEPTED",
+                "com.legend.BodyCompiler.REFUSALS",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",

@@ -4551,3 +4551,17 @@ Chain: GREEN, SEQUENTIAL — G2 28 · G1 45 · G3 6→re-run green after the led
 G5 40 · G6 99 · G7 32 · G9 23 · G8 102 · G10 30 (the parallel chain was killed twice by the
 machine's low-memory watchdog beside IntelliJ, several sessions and an engine server; not a code
 failure). Four lanes GREEN on the final tree.
+
+## 2026-09-21 — block-compiler stage 2: every effect-free body is one artifact
+
+**What landed.** The loop's value-statement tail split into `prepareValue` (compile phases) and
+`runValue` (execution), shared by the loop and `BodyCompiler`; the compiler accepts every
+effect-free statement (lets, assert-family roots incl. quantified / if forms, helper calls
+inlined at compile, value statements prepared at compile and run before the fused send);
+unported natives at a statement root refused (the implemented surface, the claim registry's
+question); the fragment map on the artifact and the batch; the referee's page-population read
+marked as the referee's. Homework §18 (the refusal census, the unported-native finding).
+
+**Registers.** outside-body DuckDB 179 → 157 (the referee population reads), H2 277 → 255; refused
+non-effect bodies 91 → 1; fail rosters exact; differential 0. Ledger: StatementExecutor 2395 → 2417
+(the split, nothing new evaluated). Four lanes GREEN. Chain: GREEN, SEQUENTIAL — G2 27 · G1 43 · G3 7 · G4 60 · G5 27 · G6 90 · G7 28 · G9 20 · G8 88 · G10 27.
