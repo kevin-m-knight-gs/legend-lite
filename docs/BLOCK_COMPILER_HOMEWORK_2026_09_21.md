@@ -255,3 +255,94 @@ By family (DuckDB): lineage `scanRelations` 49 · test-data generation 19 · fun
 fetch, sqlstring arms) 14 · mapping 8 · execution plans 6 · query 4 · tds 1 · groupBy 1. This is
 task #14's canon list with names and a count; every canon written removes rows, and a new arm
 that compares in Java fails the lane.
+
+## 12. The owed items, measured (2026-09-21)
+
+1. **The `X` shape letter (assertError).** Measured over the engine's relational sources: exactly
+   ONE test calls `assertError` at statement level (`sqlstring::databricks::testCreateViewForDatabricks`)
+   and it is not in this corpus. The letter stays for the shape's completeness; no body in the
+   2,613 needs the raise-in-a-branch treatment today.
+2. **Host-only natives.** The catalog's JAVA_ROUTINE rows are five: `planToString`,
+   `planToStringWithoutFormatting`, `toSQLString`, `toSQLStringPretty`, `toNonExecutableSQLString`.
+   They are STAGED at compile time into string constants of the body (`NativeDispatch.stage` —
+   the compiler's own renderer producing the text) — constants, never a runtime host call. The
+   other host seam is the metamodel navigation the executor evaluates at the seam
+   (`StoreNav.owns`: store-navigation natives and `^Class(...)` constructions as values) — the
+   35 `statement` rows of the census. Both fit the compiler model: constants and values of the
+   compiled body, computed before the artifact runs.
+3. **DuckDB multi-statement scripts.** Probed on 1.4.4.0 (this box): `Statement.execute("CREATE …;
+   INSERT …; SELECT …")` runs the whole script in one round trip and returns the last statement's
+   result; a PREPARED script works too. H2 accepts scripts. The 141 effect bodies can be one
+   script each, sent once.
+4. **Error attribution (design).** The artifact carries a FRAGMENT MAP: every CTE definition and
+   every verdict branch records the let / assert it came from (name, statement ordinal, alias
+   prefix or `__ix`). A database error names an alias or a branch; the map turns that into the
+   statement, and the failure message names the let or assert — what the interpreter gave for
+   free by position. DuckDB's binder errors name the alias (`frame_result__t0`, `t3.bookId`) and
+   H2's name the column with its alias; both resolve through the map. Precondition for deleting
+   the fallback path (rung 2c).
+
+**Conclusion.** Nothing measured blocks the compiler rung. Its first step: the pure-body compiler
+returns the artifact (frames as CTEs by dependency, verdict rows, the fragment map) BEFORE the
+executor runs anything; judged on byte-identical ladder pins and the four lanes exact.
+
+## 13. The compiler rung — design (2026-09-21)
+
+**What exists.** The executor (`StatementExecutor.executeStatements`, 3,321 lines in the file)
+walks the body statement by statement: at a let it plans a frame (`buildFrame` → `planBare`,
+the frame's CTE is `defineFrame`d on the batch); at an assert `AssertVerdicts.tryAdjudicate`
+plans the sides (`planValue`) and `defer`s a verdict row (`VerdictBatch.Pending`, an APPEAL for
+a text row); at an effect the batch flushes (`VerdictBatch.flush` → `VerdictSql.batch` fuses
+the pending rows over the frames — one statement per connection); at the body's end it
+flushes. Every planning function is already pure of execution under a batch; what interleaves
+them with execution is the LOOP, plus three things that read execution state: the value-
+position run (`resultNeeded`), the metamodel navigation evaluated at the seam (`hostChannel`),
+and the raw natives (`executeInDb` and the DDL natives).
+
+**The artifact.**
+
+```
+BodyArtifact
+  frames:    ordered (name → SqlQuery)            — CTE definitions, by dependency
+  segments:  list of Segment                      — one per effect boundary, in body order
+    Segment.Verdicts(rows: list of VerdictRow)    — fused into ONE statement per connection
+      VerdictRow(ix, assertName, wantEqual, query, connection, appeal?)
+    Segment.Effect(statement)                     — a raw / DDL native, sent as written
+    Segment.Value(plan)                           — the value-position result (the body's value)
+  fragments: (alias prefix | branch __ix) → (statement ordinal, let name | assert name)
+```
+
+A PURE body is one `Verdicts` segment; an effect body alternates `Effect` and `Verdicts`
+segments and is sent as ONE SCRIPT (DuckDB and H2 both take a script in one round trip, §12.3);
+the value-position result, when the body has one, is the script's last statement.
+
+**The compiler.** `BodyCompiler.compile(resolvedBody, specs, env)` → `BodyArtifact`. It walks the
+body ONCE, in order, and only PLANS: lets become frames (the existing `planBare`; a class frame's
+extent rows per rung 12; helper calls inlined FIRST by the existing `UserCallInliner`, so a
+helper-wrapped assert is an ordinary row of the same segment — the `testConvertAlias` residual);
+asserts become verdict rows (the existing arms in `AssertVerdicts`, which today call
+`batch.defer` — they will return the row instead); an effect statement closes the current
+`Verdicts` segment and opens an `Effect` one; the seam-evaluated metamodel navigations become
+constants (they are today, at the seam — computed before the artifact, like the JAVA_ROUTINE
+texts). The fragment map is filled as each piece is planned.
+
+**The executor.** `BodyRunner.run(artifact, env)`: for each segment in order — `Verdicts`: fuse
+(`VerdictSql.batch`) per connection, execute, judge rows in order, appeals on failed rows, first
+failure raises; `Effect`: send; `Value`: send and return. Nothing planned, nothing decided
+here. A database error is mapped through the fragment map before it is reported.
+
+**Staging, each judged by the ladder pins (byte-identical), the four lanes exact, and the
+registers.**
+
+1. `BodyCompiler` + `BodyRunner` for PURE bodies, behind the existing loop's outputs: same
+   frames, same rows, same fused statement text — the extraction moves the seam, not the
+   answer. The 2,472 pure bodies.
+2. Dependency order and compile-time inlining: `testConvertAlias` leaves the register; the
+   fragment map lands (errors name their let / assert).
+3. Effect bodies as scripts: the 141; the register's `raw` rows leave.
+4. Delete the statement-by-statement loop and the fallback re-execution (H2 vocabulary first,
+   rung 2c) — the interpreter is gone.
+
+**What the REPL gets for free:** a block of one or more statements compiled against a session
+environment whose earlier lets are frames; a cell whose last expression is a value compiles to a
+`Value` segment.

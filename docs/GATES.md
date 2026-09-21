@@ -4488,3 +4488,15 @@ functions 14, mapping 8, plans 6 …). Homework §11. The outside-body pin gaine
 
 **Lanes.** DuckDB database lost 0 / gained 0, outside-body 232 exact, host-compared 102 exact;
 H2 database registers exact, outside-body 329, host-compared 100. Chain: GREEN — G2 28 · G1 95 · G3 14 · G4 115 · G5 37 · G6 159 · G7 50 · G9 36 · G8 172 · G10 green.
+
+## 2026-09-21 — block-compiler homework §12–13: the owed items measured, the compiler rung designed (docs only)
+
+**§12.** assertError at statement level: 1 test in the engine's relational sources, not in this
+corpus. Host-only natives: the five JAVA_ROUTINE rows (plan text ×2, SQL text ×3) are staged as
+constants of the body at compile time; the remaining host seam is the metamodel navigation
+(35 `statement` rows). DuckDB 1.4.4.0 runs a multi-statement script in one round trip, prepared
+too. Error attribution: a fragment map on the artifact. **§13.** `BodyArtifact` = frames +
+segments (Verdicts / Effect / Value) + fragment map; `BodyCompiler` plans, `BodyRunner` runs;
+four stages, each judged on byte-identical ladder pins and the four lanes. First measurement of
+stage 1: how many asserts the arms do not claim (the loop falls through to host evaluation
+today; the compiler claims or walls, never falls back). Gate 1 green; no product change.
