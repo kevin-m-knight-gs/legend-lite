@@ -66,13 +66,6 @@ public final class Equality {
 
     // ---- THE LENIENCY (one, counted) --------------------------------------
 
-    private static final AtomicLong ULP_FIRINGS = new AtomicLong();
-
-    /** Times the 2-ULP leniency decided a Float pair equal that exact
-     * compare did not. */
-    public static long ulpFirings() {
-        return ULP_FIRINGS.get();
-    }
 
     /** THE ONE FLOAT LENIENCY (§5a, one home): two finite doubles within
      * {@code 2 * ulp(max(|x|, |y|))}. The host cell rule (TdsCompare) and
@@ -85,7 +78,7 @@ public final class Equality {
         double ulp = Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
         boolean ok = Math.abs(x - y) <= 2 * ulp;
         if (ok && x != y) {
-            ULP_FIRINGS.incrementAndGet();
+            Census.inc(Census.Key.ULP_FIRINGS);
             if (System.getenv("LL_TOL_COUNT") != null) {
                 System.err.println("[tol] ulp " + x + " vs " + y);
             }

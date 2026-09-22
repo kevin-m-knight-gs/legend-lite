@@ -52,15 +52,6 @@ public enum StatementOrigin {
 
     private static final ThreadLocal<StatementOrigin> CURRENT =
             ThreadLocal.withInitial(() -> OTHER);
-    private static final java.util.concurrent.atomic.AtomicLong[] COUNTS =
-            new java.util.concurrent.atomic.AtomicLong[values().length];
-
-    static {
-        for (int i = 0; i < COUNTS.length; i++) {
-            COUNTS[i] = new java.util.concurrent.atomic.AtomicLong();
-        }
-    }
-
     /** The mark in force on this thread. */
     public static StatementOrigin current() {
         return CURRENT.get();
@@ -97,13 +88,14 @@ public enum StatementOrigin {
         }
     }
 
-    /** One statement sent under the mark in force. */
+    /** One statement sent under the mark in force — counted in the Census's
+     * {@code statements} family by origin name. */
     public static void count() {
         count(CURRENT.get());
     }
 
     public static void count(StatementOrigin origin) {
-        COUNTS[origin.ordinal()].incrementAndGet();
+        Census.incKeyed("statements", origin.name());
     }
 
     /** CENSUS (2026-09-21): values the executor evaluates in JAVA at the seam — a
@@ -111,22 +103,16 @@ public enum StatementOrigin {
      * (StoreNav.owns → hostEvalAtSeam). No statement is sent, so the statement census
      * cannot see it; this counter can. Measured 0 on both lanes under the database
      * judge; pinned there. */
-    private static final java.util.concurrent.atomic.AtomicLong HOST_SEAM =
-            new java.util.concurrent.atomic.AtomicLong();
-
     public static void hostSeam() {
-        HOST_SEAM.incrementAndGet();
-    }
-
-    public static long hostSeamCount() {
-        return HOST_SEAM.get();
+        Census.inc(Census.Key.HOST_SEAM);
     }
 
     /** The counts so far, by ordinal. */
     public static long[] snapshot() {
-        long[] out = new long[COUNTS.length];
+        StatementOrigin[] all = values();
+        long[] out = new long[all.length];
         for (int i = 0; i < out.length; i++) {
-            out[i] = COUNTS[i].get();
+            out[i] = Census.keyed("statements", all[i].name());
         }
         return out;
     }

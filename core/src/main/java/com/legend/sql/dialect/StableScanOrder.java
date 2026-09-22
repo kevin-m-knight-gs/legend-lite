@@ -22,7 +22,11 @@ public final class StableScanOrder extends SqlRewriter {
      * emulation is a feature of the TEST lane, never dropped): the number
      * of statements this pass CHANGED — an order the statement lacked was
      * added. The corpus runner attributes firings to the test that ran and
-     * pins that set per lane ({@code rcorpus/<lane>-engine-order-register.txt}). */
+     * pins that set per lane ({@code rcorpus/<lane>-engine-order-register.txt}).
+     * The count lives HERE because the SQL layer is standalone (Invariant 6a:
+     * it may not reach {@code com.legend.exec}); the one census owner
+     * ({@code Census.Key.SCAN_ORDER_FIRINGS}) reads through to it, so the
+     * lanes still read every count from one place. */
     private static final java.util.concurrent.atomic.AtomicLong FIRINGS =
             new java.util.concurrent.atomic.AtomicLong();
 

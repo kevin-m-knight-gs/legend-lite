@@ -79,44 +79,9 @@ public final class VerdictBatch {
 
     /** CENSUS (printed by the corpus lanes): fused statements sent, and the
      * batches that fell to the split rung. */
-    private static final java.util.concurrent.atomic.AtomicLong FUSED =
-            new java.util.concurrent.atomic.AtomicLong();
-    private static final java.util.concurrent.atomic.AtomicLong FALLBACKS =
-            new java.util.concurrent.atomic.AtomicLong();
 
-    public static long fusedCount() {
-        return FUSED.get();
-    }
 
-    public static long fallbackCount() {
-        return FALLBACKS.get();
-    }
 
-    /** CENSUS: flushes that sent something — a body's verdicts cut into several
-     * sends (one send may be several statements when its asserts read several
-     * connections; that is not a cut). The outside-body register's split rule. */
-    private static final java.util.concurrent.atomic.AtomicLong FLUSHES =
-            new java.util.concurrent.atomic.AtomicLong();
-
-    public static long flushCount() {
-        return FLUSHES.get();
-    }
-
-    /** CENSUS: assert roots the batch flushed WITHOUT a verdict row — decided by an
-     * arm outside the database (a comparison in Java over two database-computed
-     * sides, or an arm that raised at the assert). Under the database judge this
-     * is the host-compared remainder; the corpus lanes pin it per test. */
-    private static final java.util.concurrent.atomic.AtomicLong HOST_DECIDED =
-            new java.util.concurrent.atomic.AtomicLong();
-
-    public static long hostDecidedCount() {
-        return HOST_DECIDED.get();
-    }
-
-    /** CENSUS: why each fused statement fell back (the exception's head), in
-     * order — the corpus lanes attribute them per test. */
-    public static final java.util.List<String> FALLBACK_REASONS =
-            java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
     /** CENSUS: frames built under a batch, by how the asserts read them —
      * {@code cte} (a relation-rooted frame of static schema, planned once),
@@ -124,27 +89,19 @@ public final class VerdictBatch {
      * class} (a class- or scalar-rooted frame: the chain pastes). */
     public enum FrameRead { CTE, PASTED, CLASS, CLASS_CTE }
 
-    private static final java.util.concurrent.atomic.AtomicLong FRAMES_CTE =
-            new java.util.concurrent.atomic.AtomicLong();
-    private static final java.util.concurrent.atomic.AtomicLong FRAMES_PASTED =
-            new java.util.concurrent.atomic.AtomicLong();
-    private static final java.util.concurrent.atomic.AtomicLong FRAMES_CLASS =
-            new java.util.concurrent.atomic.AtomicLong();
-    private static final java.util.concurrent.atomic.AtomicLong FRAMES_CLASS_CTE =
-            new java.util.concurrent.atomic.AtomicLong();
 
     public static void frame(FrameRead how) {
         switch (how) {
-            case CTE -> FRAMES_CTE.incrementAndGet();
-            case PASTED -> FRAMES_PASTED.incrementAndGet();
-            case CLASS -> FRAMES_CLASS.incrementAndGet();
-            case CLASS_CTE -> FRAMES_CLASS_CTE.incrementAndGet();
+            case CTE -> Census.inc(Census.Key.FRAME_CTE);
+            case PASTED -> Census.inc(Census.Key.FRAME_PASTED);
+            case CLASS -> Census.inc(Census.Key.FRAME_CLASS);
+            case CLASS_CTE -> Census.inc(Census.Key.FRAME_CLASS_CTE);
         }
     }
 
     public static String frameCensus() {
-        return "cte=" + FRAMES_CTE.get() + " pasted=" + FRAMES_PASTED.get()
-                + " class=" + FRAMES_CLASS.get() + " class-cte=" + FRAMES_CLASS_CTE.get();
+        return "cte=" + Census.count(Census.Key.FRAME_CTE) + " pasted=" + Census.count(Census.Key.FRAME_PASTED)
+                + " class=" + Census.count(Census.Key.FRAME_CLASS) + " class-cte=" + Census.count(Census.Key.FRAME_CLASS_CTE);
     }
 
     private final Fusion fusion;
@@ -269,7 +226,7 @@ public final class VerdictBatch {
     public void flush(SqlDialect dialect, ExecutionTrace trace,
             @com.legend.Nullable AssertListener l) {
         if (!roots.isEmpty()) {
-            FLUSHES.incrementAndGet();
+            Census.inc(Census.Key.VERDICT_FLUSHES);
         }
         if (roots.isEmpty()) {
             return;
@@ -297,13 +254,13 @@ public final class VerdictBatch {
                     int local = ((Number) row.values().get(0)).intValue();
                     rows.put(ps.get(local).ix(), row.values().subList(1, row.values().size()));
                 }
-                FUSED.incrementAndGet();
+                Census.inc(Census.Key.VERDICT_FUSED);
             } catch (com.legend.error.DataError | com.legend.sql.dialect.DialectCapability e) {
                 // the split rung: this batch judges statement by statement
                 // below, so the error lands on the assert that owns it
-                FALLBACKS.incrementAndGet();
+                Census.inc(Census.Key.VERDICT_FALLBACKS);
                 String m = String.valueOf(e.getMessage());
-                FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
+                Census.FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
                         + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' ')
                         + attribute(m));
             }
@@ -311,7 +268,7 @@ public final class VerdictBatch {
         for (Root r : batch) {
             RuntimeException failure = null;
             if (r.steps.stream().noneMatch(s -> s instanceof Pending)) {
-                HOST_DECIDED.incrementAndGet();
+                Census.inc(Census.Key.VERDICT_HOST_DECIDED);
             }
             for (Step s : r.steps) {
                 try {

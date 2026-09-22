@@ -221,7 +221,7 @@ class JavaEvalLedgerTest {
             // 416 -> 441 (step 2b): grid cells by COLUMN kind and the mixed
             // verdict's leniency-only test moved here from TdsCompare (-59)
             // and AssertVerdicts; PureAsserts -24, JsonCompare gone (-25)
-            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 451),   // 445 -> 451 (leg 3.0 census: Decimal scale-only pairs counted for the canon spec amendment; no rule changed)
+            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 447),   // 451 -> 447 (cleanup move 3: the ULP-firing counter moved to the one census owner; no rule changed)
             // 242 -> 218 -> 229 (step 2b): the equality API is gone; the typed
             // message facade (assertEqualsTyped) builds a grid's narrative
             // from the SAME typed cells the judge decided — no divergence
@@ -997,6 +997,9 @@ class JavaEvalLedgerTest {
                     // order; the SQL shape is the lowering's, the row's
                     // judgment the verdict arm's — no value compared here
                     "VerdictBatch.java",
+                    // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): counters only —
+                    // one storage, one snapshot; no value is produced or compared
+                    "Census.java",
                     // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
                     // construction — the statements the effect natives would have
                     // sent, collected (text + the ledger's text + a statically

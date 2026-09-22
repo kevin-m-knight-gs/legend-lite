@@ -4656,3 +4656,29 @@ dispatch). Chain: GREEN, SEQUENTIAL — G2 26 · G1 44 · G3 7 · G4 58 · G5 29
 **What this makes possible.** Stage 4 deletes the statement loop in both modes once the three
 refusals are handled (assertError's arm and the forced frame as compiler segments; the temp-table
 natives ported), the seam with it, and — after rung 2c — the split rung and the fallback.
+
+
+## 2026-09-22 — cleanup move 3: one census owner
+
+**What landed.** `com.legend.exec.Census`: every count the lanes print or pin lives under one
+name (a `Key` enum with a label; keyed families for the statement origins and the compiler's
+refusal reasons), with one `snapshot()`. The product increments a key where the fact happens and
+stores no count of its own: 28 counter storages across eight classes are gone — `VerdictBatch`
+(fused / fallbacks / flushes / host-decided, the four frame kinds, the fallback-reason list),
+`CanonicalDivergence` (ten), `BodyCompiler` (accepted + refusals), `StatementOrigin` (the
+per-origin array + the seam), `WireTypes` (two), `Executor` (two), `Equality` (ULP firings),
+`EffectSink` (in-script). The divergence report's summary reads the census; the runner reads the
+census. One count stays where it was by rule: the test-lane scan-order pass runs inside the
+standalone SQL layer (Invariant 6a — `com.legend.sql` may not reach `exec`), so its counter stays in
+`StableScanOrder` and `Census.count(SCAN_ORDER_FIRINGS)` reads through — the lanes still read
+every count from one place. No verdict reads a count.
+
+**Registers.** Static-collection register: five census entries → three (`Census.COUNTS`,
+`Census.KEYED`, `Census.FALLBACK_REASONS`); `Census.java` in the exec-class ledger; Equality
+451 → 447 (the counter left). Product −220 / +97 lines, `Census` 134.
+
+**Measured.** Every census line identical to move 2c's run (host 109 fail · 20 accepted; database lost 0 · gained 0; H2 host 364; only trace IDs and timings differ). Four
+lanes GREEN, exact; ladder pins byte-identical; differential agree 5,848 · disagree 0.
+Chain: GREEN, SEQUENTIAL — G2 26 · G1 44 · G3 7 · G4 65 · G5 32 · G6 95 · G7 31 · G9 22 · G8 93 · G10 27 (442 s).
+
+**Next.** One let-binding lookup and one callee-name helper in the compiler layer; then stage 4.

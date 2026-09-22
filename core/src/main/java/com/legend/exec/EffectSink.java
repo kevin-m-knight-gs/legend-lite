@@ -25,7 +25,7 @@ public final class EffectSink {
 
     public void add(String executed, @com.legend.Nullable String recorded) {
         entries.add(new Entry(executed, recorded, com.legend.sql.RawSql.isSingleQuery(executed)));
-        IN_SCRIPT.increment();
+        Census.inc(Census.Key.EFFECTS_IN_SCRIPT);
     }
 
     public List<Entry> entries() {
@@ -36,12 +36,4 @@ public final class EffectSink {
         return entries.isEmpty();
     }
 
-    /** CENSUS (printed by the corpus lanes): raw statements that rode inside a
-     * script rather than as their own sends. */
-    static final java.util.concurrent.atomic.LongAdder IN_SCRIPT =
-            new java.util.concurrent.atomic.LongAdder();
-
-    public static long inScriptCount() {
-        return IN_SCRIPT.sum();
-    }
 }

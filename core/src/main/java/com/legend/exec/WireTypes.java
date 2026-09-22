@@ -49,18 +49,6 @@ public final class WireTypes {
      * RE-TYPED to the wire; and a column the reconciliation LEAVES (a
      * computed expression, a label carrier) whose reported kind differs
      * from its slot's — the slot stands, the disagreement counted. */
-    private static final java.util.concurrent.atomic.AtomicLong RETYPED =
-            new java.util.concurrent.atomic.AtomicLong();
-    private static final java.util.concurrent.atomic.AtomicLong SLOT_SKEW =
-            new java.util.concurrent.atomic.AtomicLong();
-
-    public static long retypedCount() {
-        return RETYPED.get();
-    }
-
-    public static long slotSkewCount() {
-        return SLOT_SKEW.get();
-    }
 
     /** A column as the database reports it for a prepared statement: its
      * label, its type in the SQL vocabulary (null outside it), nullability. */
@@ -142,10 +130,10 @@ public final class WireTypes {
             // never cast: H2 reports a computed DECIMAL at scale 0 while
             // the cell carries the value's real scale (the calendar rows)
             if (!(p.expr() instanceof SqlExpr.Column ref) || labelCarrier(col.type())) {
-                SLOT_SKEW.incrementAndGet();   // the slot stands; counted
+                Census.inc(Census.Key.WIRE_SLOT_SKEW);   // the slot stands; counted
                 continue;
             }
-            RETYPED.incrementAndGet();
+            Census.inc(Census.Key.WIRE_RETYPED);
             if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
                 System.err.println("[wire] " + col.name() + ": stamped " + col.type()
                         + ", the database reports " + wire);

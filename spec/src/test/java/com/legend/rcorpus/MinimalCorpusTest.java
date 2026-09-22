@@ -192,13 +192,13 @@ class MinimalCorpusTest {
                 }
                 MinimalCorpus.Result r;
                 long tStart = System.nanoTime();
-                long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
+                long firingsBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.SCAN_ORDER_FIRINGS);
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
-                int fallbacksBefore = com.legend.exec.VerdictBatch.FALLBACK_REASONS.size();
-                long flushesBefore = com.legend.exec.VerdictBatch.flushCount();
-                long hostDecidedBefore = com.legend.exec.VerdictBatch.hostDecidedCount();
-                java.util.Map<String, Long> refusedBefore = com.legend.BodyCompiler.refusals();
-                long hostSeamBefore = com.legend.exec.StatementOrigin.hostSeamCount();
+                int fallbacksBefore = com.legend.exec.Census.FALLBACK_REASONS.size();
+                long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
+                long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
+                java.util.Map<String, Long> refusedBefore = com.legend.exec.Census.family("compiler.refused");
+                long hostSeamBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.HOST_SEAM);
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -247,18 +247,18 @@ class MinimalCorpusTest {
                 originRows.add(originRow.toString());
                 String shape = corpus.bodyShape(r.fqn());
                 String outside = outsideBody(originsBefore, originsAfter, shape,
-                        com.legend.exec.VerdictBatch.flushCount() - flushesBefore);
+                        com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES) - flushesBefore);
                 if (outside != null) {
                     artifactRows.add(r.fqn() + " ||| " + outside);
                 }
-                long hostSeam = com.legend.exec.StatementOrigin.hostSeamCount() - hostSeamBefore;
+                long hostSeam = com.legend.exec.Census.count(com.legend.exec.Census.Key.HOST_SEAM) - hostSeamBefore;
                 if (hostSeam > 0) {
                     hostSeamRows.add(r.fqn() + " ||| host-seam=" + hostSeam);
                 }
                 // STAGE 2 MEASUREMENT (2026-09-21): why the compiler refused this test's body
                 // (effects are stage 3 and fixtures run as effect bodies — not listed)
                 StringBuilder refused = new StringBuilder();
-                for (var e : com.legend.BodyCompiler.refusals().entrySet()) {
+                for (var e : com.legend.exec.Census.family("compiler.refused").entrySet()) {
                     long d = e.getValue() - refusedBefore.getOrDefault(e.getKey(), 0L);
                     if (d > 0 && !e.getKey().startsWith("effect")) {
                         refused.append(refused.length() == 0 ? "" : " ").append(e.getKey()).append('=').append(d);
@@ -267,15 +267,15 @@ class MinimalCorpusTest {
                 if (refused.length() > 0) {
                     compilerRows.add(r.fqn() + " ||| " + refused);
                 }
-                long hostDecided = com.legend.exec.VerdictBatch.hostDecidedCount() - hostDecidedBefore;
+                long hostDecided = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED) - hostDecidedBefore;
                 if (hostDecided > 0) {
                     hostComparedRows.add(r.fqn() + " ||| host-decided=" + hostDecided);
                 }
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
-                for (int fi = fallbacksBefore; fi < com.legend.exec.VerdictBatch.FALLBACK_REASONS.size(); fi++) {
-                    fallbackRows.add(r.fqn() + "\t" + com.legend.exec.VerdictBatch.FALLBACK_REASONS.get(fi));
+                for (int fi = fallbacksBefore; fi < com.legend.exec.Census.FALLBACK_REASONS.size(); fi++) {
+                    fallbackRows.add(r.fqn() + "\t" + com.legend.exec.Census.FALLBACK_REASONS.get(fi));
                 }
-                long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
+                long fired = com.legend.exec.Census.count(com.legend.exec.Census.Key.SCAN_ORDER_FIRINGS) - firingsBefore;
                 if (fired > 0) {
                     engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
                 }
@@ -332,9 +332,9 @@ class MinimalCorpusTest {
         System.out.println("[corpus2] body-shapes pure=" + pure + " effectful=" + effectful
                 + " interleaved(effect-after-assert)=" + interleaved + " assertError=" + raising
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
-        System.out.println("[corpus2] body-compiler accepted=" + com.legend.BodyCompiler.acceptedCount()
-                + " refused=" + com.legend.BodyCompiler.refusals()
-                + " effect-statements-in-scripts=" + com.legend.exec.EffectSink.inScriptCount());
+        System.out.println("[corpus2] body-compiler accepted=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.COMPILER_ACCEPTED)
+                + " refused=" + com.legend.exec.Census.family("compiler.refused")
+                + " effect-statements-in-scripts=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.EFFECTS_IN_SCRIPT));
         java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
         for (String row : fallbackRows) {
             String reason = row.substring(row.indexOf('\t') + 1);
@@ -696,15 +696,15 @@ class MinimalCorpusTest {
                 + " decimal-scale-only=" + com.legend.exec.CanonicalDivergence.decimalScaleOnlyCount()
                 + " disagree=" + com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
                 + " declined=" + com.legend.exec.CanonicalDivergence.sqlDeclinedCount()
-                + " wire-retyped=" + com.legend.exec.WireTypes.retypedCount()
-                + " wire-slot-skew=" + com.legend.exec.WireTypes.slotSkewCount()
-                + " batch-statements=" + com.legend.exec.VerdictBatch.fusedCount()
-                + " batch-fallbacks=" + com.legend.exec.VerdictBatch.fallbackCount()
+                + " wire-retyped=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_RETYPED)
+                + " wire-slot-skew=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_SLOT_SKEW)
+                + " batch-statements=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED)
+                + " batch-fallbacks=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS)
                 + " frames[" + com.legend.exec.VerdictBatch.frameCensus() + "]");
         System.out.println("[corpus2] sql-census round-trips="
-                + com.legend.exec.Executor.roundTrips() + " (every statement the executor"
+                + com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_ROUND_TRIPS) + " (every statement the executor"
                 + " sent this JVM: setups, sides, frames, referee replays)"
-                + " sql-chars=" + com.legend.exec.Executor.sqlChars()
+                + " sql-chars=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_CHARS)
                 + " detaches=" + DuckWorkspaces.DETACHES.get()
                 + " detach-ms=" + DuckWorkspaces.DETACH_NANOS.get() / 1_000_000L
                 + " detach-max-ms=" + DuckWorkspaces.DETACH_MAX_NANOS.get() / 1_000_000L);

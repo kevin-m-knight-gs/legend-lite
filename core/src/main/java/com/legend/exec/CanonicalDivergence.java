@@ -32,15 +32,8 @@ public final class CanonicalDivergence {
     public record Row(String family, boolean held, String detail) {
     }
 
-    private static final AtomicLong AGREE = new AtomicLong();
-    private static final AtomicLong DISAGREE = new AtomicLong();
-    private static final AtomicLong RESIDUE = new AtomicLong();
     // R2a — the DUAL-VERDICT census (the ratified permanent referee):
     // SQL byte verdict vs host lattice, plus counted declines
-    private static final AtomicLong SQL_AGREE = new AtomicLong();
-    private static final AtomicLong SQL_DISAGREE = new AtomicLong();
-    private static final AtomicLong SQL_DECLINED = new AtomicLong();
-    private static final AtomicLong SQL_ULP_POLICY = new AtomicLong();
     private static final int SAMPLE_CAP = 200;
     private static final ConcurrentLinkedQueue<Row> SAMPLES =
             new ConcurrentLinkedQueue<>();
@@ -144,7 +137,7 @@ public final class CanonicalDivergence {
         // count, never a pinnable one — pin disagree instead, which
         // this policy makes exact).
         if (!sorted && why.startsWith("row-order-only")) {
-            ROW_ORDER_CANON.incrementAndGet();
+            Census.inc(Census.Key.ROW_ORDER_CANON);
             record("gridText", held, "EQUAL");
             return;
         }
@@ -153,7 +146,6 @@ public final class CanonicalDivergence {
 
     /** Unordered-chain grid compares whose content matched only under
      * the declared row-multiset policy (see probeGridText). */
-    private static final AtomicLong ROW_ORDER_CANON = new AtomicLong();
     private static String trunc(String s) {
         return s.length() > 60 ? s.substring(0, 60) + "…" : s;
     }
@@ -250,12 +242,12 @@ public final class CanonicalDivergence {
             return;
         }
         if (byteAns.startsWith("residue:")) {
-            RESIDUE.incrementAndGet();
+            Census.inc(Census.Key.DIVERGENCE_RESIDUE);
             sample(new Row(family, held, byteAns));
         } else if (byteAns.equals("EQUAL") == held) {
-            AGREE.incrementAndGet();
+            Census.inc(Census.Key.DIVERGENCE_AGREE);
         } else {
-            DISAGREE.incrementAndGet();
+            Census.inc(Census.Key.DIVERGENCE_DISAGREE);
             DISAGREE_SAMPLES.add(new Row(family, held, "lattice=" + held
                     + " byte=" + byteAns.replaceFirst("^DIFFER", "false")
                     + " [" + CONTEXT_SOURCE.get() + "]"));
@@ -311,9 +303,9 @@ public final class CanonicalDivergence {
         SQL_CENSUS.merge("claimed " + family, 1L, Long::sum);
         CHANNEL_SEEN.set(true);
         if (hostHeld == sqlHeld) {
-            SQL_AGREE.incrementAndGet();
+            Census.inc(Census.Key.SQL_AGREE);
         } else {
-            SQL_DISAGREE.incrementAndGet();
+            Census.inc(Census.Key.SQL_DISAGREE);
             // ATTRIBUTION (charter §8.3b adjudication need): an alarm
             // witness without its test name was unactionable — the
             // running test rides CONTEXT_SOURCE
@@ -343,7 +335,7 @@ public final class CanonicalDivergence {
         if (MUTED.get()) {
             return;
         }
-        SQL_DECLINED.incrementAndGet();
+        Census.inc(Census.Key.SQL_DECLINED);
         sample(new Row("sqlDecline", false, reason));
         // leg 3.0 census: the decline attributed to the assert family
         // being adjudicated (the reason's head, before its first ':') —
@@ -373,19 +365,18 @@ public final class CanonicalDivergence {
     /** A Decimal pair equal in value but not in scale (3.0D vs 3.00D):
      * unequal under the engine's assert seam (host mode), equal under a
      * scale-normalized canon — the D5 amendment's witness count. */
-    private static final AtomicLong DECIMAL_SCALE_ONLY = new AtomicLong();
 
     public static void decimalScaleOnly() {
         if (MUTED.get()) {
             return;
         }
-        DECIMAL_SCALE_ONLY.incrementAndGet();
+        Census.inc(Census.Key.DECIMAL_SCALE_ONLY);
         sample(new Row("decimalScaleOnly", false,
                 "[" + CONTEXT_SOURCE.get() + "]"));
     }
 
     public static long decimalScaleOnlyCount() {
-        return DECIMAL_SCALE_ONLY.get();
+        return Census.count(Census.Key.DECIMAL_SCALE_ONLY);
     }
 
     /** An assert of {@code family} was judged by a route that has NO
@@ -489,11 +480,11 @@ public final class CanonicalDivergence {
     }
 
     public static long sqlDisagreeCount() {
-        return SQL_DISAGREE.get();
+        return Census.count(Census.Key.SQL_DISAGREE);
     }
 
     public static long sqlDeclinedCount() {
-        return SQL_DECLINED.get();
+        return Census.count(Census.Key.SQL_DECLINED);
     }
 
     /** OPEN_REGISTER §5 / X6: a byte-differing Double pair the DECLARED
@@ -505,12 +496,12 @@ public final class CanonicalDivergence {
         if (MUTED.get()) {
             return;
         }
-        SQL_ULP_POLICY.incrementAndGet();
+        Census.inc(Census.Key.SQL_ULP_POLICY);
         sample(new Row("sqlUlpPolicy", true, detail));
     }
 
     public static long sqlUlpPolicyCount() {
-        return SQL_ULP_POLICY.get();
+        return Census.count(Census.Key.SQL_ULP_POLICY);
     }
 
     /** V7 batch 2: a byte-differing pair the DECLARED TDSNull-sentinel
@@ -518,18 +509,17 @@ public final class CanonicalDivergence {
      * 'TDSNull' equals an actual NULL cell — the engine golden's null
      * spelling). Counted like the 2-ULP policy: rides ON TOP of the
      * byte channel, never a disagreement rescue. */
-    private static final AtomicLong SQL_TDSNULL_POLICY = new AtomicLong();
 
     public static void sqlTdsNullPolicy(String detail) {
         if (MUTED.get()) {
             return;
         }
-        SQL_TDSNULL_POLICY.incrementAndGet();
+        Census.inc(Census.Key.SQL_TDSNULL_POLICY);
         sample(new Row("sqlTdsNullPolicy", true, detail));
     }
 
     public static long sqlTdsNullPolicyCount() {
-        return SQL_TDSNULL_POLICY.get();
+        return Census.count(Census.Key.SQL_TDSNULL_POLICY);
     }
 
     // ── V7 (docs/V7_ASSERT_VERDICT_CHARTER.md §4.1): the corpus DUAL
@@ -814,22 +804,22 @@ public final class CanonicalDivergence {
     }
 
     public static String summary() {
-        return "agree=" + AGREE.get() + " disagree=" + DISAGREE.get()
-                + " residue=" + RESIDUE.get()
-                + " | sql-verdict agree=" + SQL_AGREE.get()
-                + " disagree=" + SQL_DISAGREE.get()
-                + " declined=" + SQL_DECLINED.get()
-                + " ulp-policy=" + SQL_ULP_POLICY.get()
-                + " row-order-canon=" + ROW_ORDER_CANON.get()
+        return "agree=" + Census.count(Census.Key.DIVERGENCE_AGREE) + " disagree=" + Census.count(Census.Key.DIVERGENCE_DISAGREE)
+                + " residue=" + Census.count(Census.Key.DIVERGENCE_RESIDUE)
+                + " | sql-verdict agree=" + Census.count(Census.Key.SQL_AGREE)
+                + " disagree=" + Census.count(Census.Key.SQL_DISAGREE)
+                + " declined=" + Census.count(Census.Key.SQL_DECLINED)
+                + " ulp-policy=" + Census.count(Census.Key.SQL_ULP_POLICY)
+                + " row-order-canon=" + Census.count(Census.Key.ROW_ORDER_CANON)
 ;
     }
 
     public static long disagreeCount() {
-        return DISAGREE.get();
+        return Census.count(Census.Key.DIVERGENCE_DISAGREE);
     }
 
     public static long residueCount() {
-        return RESIDUE.get();
+        return Census.count(Census.Key.DIVERGENCE_RESIDUE);
     }
 
     public static List<Row> samples() {
@@ -837,15 +827,9 @@ public final class CanonicalDivergence {
     }
 
     public static void reset() {
-        AGREE.set(0);
-        DISAGREE.set(0);
-        RESIDUE.set(0);
-        SQL_AGREE.set(0);
-        SQL_DISAGREE.set(0);
-        SQL_DECLINED.set(0);
-        SQL_ULP_POLICY.set(0);
-        SQL_TDSNULL_POLICY.set(0);
-        ROW_ORDER_CANON.set(0);
+        Census.reset(Census.Key.DIVERGENCE_AGREE, Census.Key.DIVERGENCE_DISAGREE, Census.Key.DIVERGENCE_RESIDUE,
+                Census.Key.SQL_AGREE, Census.Key.SQL_DISAGREE, Census.Key.SQL_DECLINED, Census.Key.SQL_ULP_POLICY,
+                Census.Key.SQL_TDSNULL_POLICY, Census.Key.ROW_ORDER_CANON);
         SAMPLES.clear();
         SQL_DISAGREE_SAMPLES.clear();
         DISAGREE_SAMPLES.clear();

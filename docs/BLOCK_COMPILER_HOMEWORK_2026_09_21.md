@@ -731,3 +731,11 @@ promise of the program's first day ("could the host judge integrate?") held: Duc
 trips 141,422 → 18,477, raw sends 13,484 → 0, host rosters exact. The loop now serves only the three
 refused shapes; stage 4 deletes it.
 
+
+**Move 3 LANDED (2026-09-22): one census owner.** `Census` (exec): one `Key` per count, keyed
+families for runtime names (statement origins, refusal reasons), one snapshot. The 28 counter
+storages the audit found across eight classes are deleted; each site increments a key where the
+fact happens. One exception by rule, not by convenience: the scan-order pass counts inside the
+standalone SQL layer (it may not reach `exec`) and the census reads through to it. Every census
+line the lanes print is identical to move 2c's run; four lanes exact; no verdict reads a count.
+Next: one let-binding lookup and one callee-name helper in the compiler layer, then stage 4.

@@ -47,27 +47,14 @@ public final class BodyCompiler {
     static boolean accepts(List<TypedSpec> stmts, SpecCompiler specs,
             Map<String, Boolean> effectMemo) {
         String why = refusal(stmts, specs, effectMemo);
-        (why == null ? ACCEPTED : REFUSALS.computeIfAbsent(why,
-                k -> new java.util.concurrent.atomic.LongAdder())).increment();
+        if (why == null) {
+            com.legend.exec.Census.inc(com.legend.exec.Census.Key.COMPILER_ACCEPTED);
+        } else {
+            com.legend.exec.Census.incKeyed("compiler.refused", why);
+        }
         return why == null;
     }
 
-    /** CENSUS (stage 2 measurement, 2026-09-21): bodies compiled as one artifact, and
-     * the bodies the compiler REFUSED by reason — read by the corpus lanes only. */
-    static final java.util.concurrent.atomic.LongAdder ACCEPTED =
-            new java.util.concurrent.atomic.LongAdder();
-    static final java.util.concurrent.ConcurrentMap<String, java.util.concurrent.atomic.LongAdder> REFUSALS =
-            new java.util.concurrent.ConcurrentHashMap<>();
-
-    public static long acceptedCount() {
-        return ACCEPTED.sum();
-    }
-
-    public static Map<String, Long> refusals() {
-        Map<String, Long> out = new java.util.TreeMap<>();
-        REFUSALS.forEach((k, v) -> out.put(k, v.sum()));
-        return out;
-    }
 
     /** Why the body is not compiled as one artifact yet, or null. Stage 2 accepts
      * every statement without effects: lets (a trailing let is the body's value),

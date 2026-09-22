@@ -842,13 +842,12 @@ final class ArchitectureTest {
                 // CENSUS (block-compiler homework 2026-09-21): the fused
                 // statement's fallback reasons, appended by the batch's split
                 // rung, read by the corpus lanes only — no verdict reads it
-                "com.legend.exec.VerdictBatch.FALLBACK_REASONS",
-                // CENSUS (stage 2 measurement, 2026-09-21): bodies the compiler
-                // accepted / refused by reason — read by the corpus lanes only
-                "com.legend.BodyCompiler.ACCEPTED",
-                "com.legend.BodyCompiler.REFUSALS",
-                // CENSUS (stage 3): effect statements that rode inside a script
-                "com.legend.exec.EffectSink.IN_SCRIPT",
+                // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): every count the lanes
+                // print or pin, one storage, one snapshot — read by the lanes and the
+                // divergence report only, never by a verdict
+                "com.legend.exec.Census.COUNTS",
+                "com.legend.exec.Census.KEYED",
+                "com.legend.exec.Census.FALLBACK_REASONS",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",
