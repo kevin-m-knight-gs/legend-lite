@@ -747,3 +747,13 @@ binds the name; the chase is lexical. Eleven hand-rolled prefix walks, six trail
 arguments of either call kind, once; the copies in `StoreElementIdentity`, `ContextReading`,
 `BodyCompiler` and the router deleted. Every census line identical; four lanes exact. The cleanup
 list from §21 is now: stage 4 (loop, seam, split rung), then the temp-table natives.
+
+**Stage 4 LANDED (2026-09-22): the loop and the seam are deleted.** `executeStatements` =
+`BodyCompiler.execute`; the loop (130 lines), `hostChannel` / `hostEvalAtSeam` / `StoreNav` (seam
+measured 0 / 0 in all four lanes) and the compiler's `accepts` / `refusal` gate are gone. One wall
+stays by the agreed order: an unported native at a statement root refuses the body BEFORE planning
+(the first cut without it let the walk plan past `createTempTable`, and the raw read's schema probe
+became a statement outside the artifact — one register row, rosters exact; the wall put the
+loop's order back by construction). Rosters exact, census identical. The split rung stays until
+rung 2c (H2: 146 firings, all vocabulary; DuckDB: 1, a product FAIL row). Next: port the temp-table
+natives (1 row × 4 lanes) and delete the wall; the router's java.sql value arms; rung 2c.

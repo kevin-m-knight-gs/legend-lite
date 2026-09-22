@@ -62,8 +62,7 @@ final class AssertErrorNative {
         Throwable caughtCause = null;
         try {
             StatementExecutor.executeStatements(f.body(),
-                    new ArrayList<>(letPrefix), specs, env,
-                    new java.util.ArrayDeque<>(frames));
+                    new ArrayList<>(letPrefix), specs, env);
         } catch (com.legend.error.DataError e) {
             caughtMessage = String.valueOf(e.getMessage());
             caughtCause = e.getCause();

@@ -180,8 +180,6 @@ class MinimalCorpusTest {
         List<String> shapeRows = new ArrayList<>();
         List<String> artifactRows = new ArrayList<>();
         List<String> hostComparedRows = new ArrayList<>();
-        List<String> hostSeamRows = new ArrayList<>();
-        List<String> compilerRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
@@ -197,8 +195,6 @@ class MinimalCorpusTest {
                 int fallbacksBefore = com.legend.exec.Census.FALLBACK_REASONS.size();
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
-                java.util.Map<String, Long> refusedBefore = com.legend.exec.Census.family("compiler.refused");
-                long hostSeamBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.HOST_SEAM);
                 if (TRACE) {
                     // -Drcorpus.trace=1: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -250,22 +246,6 @@ class MinimalCorpusTest {
                         com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES) - flushesBefore);
                 if (outside != null) {
                     artifactRows.add(r.fqn() + " ||| " + outside);
-                }
-                long hostSeam = com.legend.exec.Census.count(com.legend.exec.Census.Key.HOST_SEAM) - hostSeamBefore;
-                if (hostSeam > 0) {
-                    hostSeamRows.add(r.fqn() + " ||| host-seam=" + hostSeam);
-                }
-                // STAGE 2 MEASUREMENT (2026-09-21): why the compiler refused this test's body
-                // (effects are stage 3 and fixtures run as effect bodies — not listed)
-                StringBuilder refused = new StringBuilder();
-                for (var e : com.legend.exec.Census.family("compiler.refused").entrySet()) {
-                    long d = e.getValue() - refusedBefore.getOrDefault(e.getKey(), 0L);
-                    if (d > 0 && !e.getKey().startsWith("effect")) {
-                        refused.append(refused.length() == 0 ? "" : " ").append(e.getKey()).append('=').append(d);
-                    }
-                }
-                if (refused.length() > 0) {
-                    compilerRows.add(r.fqn() + " ||| " + refused);
                 }
                 long hostDecided = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED) - hostDecidedBefore;
                 if (hostDecided > 0) {
@@ -332,9 +312,7 @@ class MinimalCorpusTest {
         System.out.println("[corpus2] body-shapes pure=" + pure + " effectful=" + effectful
                 + " interleaved(effect-after-assert)=" + interleaved + " assertError=" + raising
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
-        System.out.println("[corpus2] body-compiler accepted=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.COMPILER_ACCEPTED)
-                + " refused=" + com.legend.exec.Census.family("compiler.refused")
-                + " effect-statements-in-scripts=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.EFFECTS_IN_SCRIPT));
+        System.out.println("[corpus2] body-compiler effect-statements-in-scripts=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.EFFECTS_IN_SCRIPT));
         java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
         for (String row : fallbackRows) {
             String reason = row.substring(row.indexOf('\t') + 1);
@@ -458,20 +436,6 @@ class MinimalCorpusTest {
             // database-computed sides — the lineage, TDG, identity and metadata arms) is a
             // named row; exact, shrink-only — the number that must reach zero
             Files.write(Path.of("target/corpus2-host-compared.txt"), hostComparedRows);
-            // CENSUS (2026-09-21): values evaluated in Java at the seam, no statement sent
-            Files.write(Path.of("target/corpus2-host-seam.txt"), hostSeamRows);
-            Files.write(Path.of("target/corpus2-body-compiler.txt"), compilerRows);
-            System.out.println("[corpus2] body-compiler refused tests=" + compilerRows.size());
-            long seamTotal = 0;
-            for (String row : hostSeamRows) {
-                seamTotal += Long.parseLong(row.substring(row.indexOf("host-seam=") + 10));
-            }
-            System.out.println("[corpus2] host-seam tests=" + hostSeamRows.size() + " values=" + seamTotal);
-            // PINNED AT ZERO (user, 2026-09-21): under the database judge no value is
-            // evaluated in Java at the seam — the seam is deleted when every user is gone
-            org.junit.jupiter.api.Assertions.assertTrue(hostSeamRows.isEmpty(), "host-seam: values evaluated in Java at the"
-                    + " seam under the database judge (pinned at zero):\n"
-                    + String.join("\n", hostSeamRows));
 
             pinArtifactRegister(only, ran, hostComparedRows,
                     "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")

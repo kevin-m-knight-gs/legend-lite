@@ -149,7 +149,6 @@ class JavaEvalLedgerTest {
             // 196→199 (audit slice 3): the nav walker recognizes BOTH
             // toOne spellings inline (invariant 6d keeps exec off the
             // frontend) — recognition lines, not evaluation.
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 187),
             // 106 -> 107 (2026-09-20, statement-origin census): the pivot-key probe counts itself
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 107),
             // Phase 1c endgame: the boundary resolver (stamp + marker
@@ -663,7 +662,7 @@ class JavaEvalLedgerTest {
             // one effect-only rule — the evaluator shrank
             // 2388 -> 2394 (2026-09-21, block compiler stage 1): the dispatch of a PURE body to
             // BodyCompiler and the batch construction factored out for it — sequencing only
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2438),   // 2458 -> 2438 (cleanup move 4, 2026-09-22: the let-binding lookups and callee-name readers moved to Lets / Calls in the typed package; no rule changed)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2322),   // 2438 -> 2322 (block-compiler stage 4, 2026-09-22: the statement-by-statement loop and the host seam (hostChannel / hostEvalAtSeam / StoreNav) DELETED — the compiler walk takes every body)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1071,7 +1070,7 @@ class JavaEvalLedgerTest {
                     // StatementOrigin (2026-09-20): the statement-origin CENSUS — a thread-scoped
                     // mark + counters; sends nothing, reads no value; printed by the corpus lanes
                     "StatementOrigin.java",
-                    "ResultShape.java", "Row.java", "StoreNav.java",
+                    "ResultShape.java", "Row.java",
                     // R1 (CANONICAL_FORM_SPEC §0): the byte-channel
                     // REFERENCE render + its divergence census. Pure
                     // MEASUREMENT beside the comparison layer — probes

@@ -76,9 +76,7 @@ final class StatementExecutor {
                 && rlf.parameters().isEmpty()) {
             env = env.withProtocolBody(rlf.body());
         }
-        return executeStatements(typedBody,
-                new java.util.ArrayList<>(), specs, env,
-                new java.util.ArrayDeque<>());
+        return executeStatements(typedBody, new java.util.ArrayList<>(), specs, env);
     }
 
     /** The K-phase execution environment: ONE ambient connection, ONE
@@ -240,161 +238,23 @@ final class StatementExecutor {
     }
 
     /**
-     * STATEMENT SEQUENCING — the K-phase orchestration layer. Pure bodies
-     * (lets + one result expression) take exactly the classic path:
-     * inline (G&frac12;) &rarr; resolve (H) &rarr; lower/execute, one
-     * statement. EFFECTFUL bodies — corpus setup functions: a sequence of
-     * {@code executeInDb} statements — cannot &beta;-reduce to one
-     * expression; each statement executes in order through the full
-     * pipeline, and a statement-position call to an effectful function
-     * expands as a statement sequence in a FRESH call frame (parameters
-     * bound as lets; closed bodies make frames capture-proof — no
-     * &alpha;-renaming needed). Value evaluation still ALWAYS lowers to
-     * SQL; only the sequencing lives host-side.
+     * A BODY — lets and one result expression, or a sequence with effects (corpus
+     * setup functions: {@code executeInDb} statements) — compiles to ONE artifact
+     * ({@link BodyCompiler}): frames, verdict rows, scripts, prepared values, the
+     * fragment map. A statement-position call to an effectful function expands as a
+     * statement sequence in a FRESH call frame (parameters bound as lets; closed
+     * bodies make frames capture-proof — no &alpha;-renaming needed). Value
+     * evaluation still ALWAYS lowers to SQL; only the sequencing lives host-side.
      */
     static @com.legend.Nullable ExecutionResult executeStatements(
             java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
-            SpecCompiler specs, ExecEnv env0, java.util.Deque<String> frames) {
-        ExecutionResult result = null;
-        java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
-        // THE BLOCK COMPILER (stages 1–3; cleanup move 2c, 2026-09-21: BOTH judge modes):
-        // every body the compiler accepts is walked ONCE by the segment walk — verdict
-        // segments (deferred rows under the database judge; the host arm judges at once,
-        // it has no batch), effect segments as scripts. Only a refused body (a context
-        // owner, a frame forced at value position, an unported native) walks the loop below.
-        if (BodyCompiler.accepts(stmts, specs, effectMemo)) {
-            return BodyCompiler.execute(stmts, letPrefix, specs, env0);
-        }
-        java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
-        // leg 3.4: database mode defers each assert's verdict statement into
-        // the body's batch, sent as ONE statement before any statement that
-        // is not an assert runs (a let, a frame, a write, a value) and at the
-        // body's end — the verdicts' order and first-failure raise unchanged
-        com.legend.exec.VerdictBatch batch = env0.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE
-                ? newVerdictBatch() : null;
-        final ExecEnv env = batch == null ? env0 : env0.withVerdictBatch(batch);
-        for (int i = 0; i < stmts.size(); i++) {
-            // THE FLUSH RULE (block-compiler rung 1, 2026-09-21): the body's pending
-            // verdicts are sent before a statement if and only if that statement has
-            // EFFECTS (a write, DDL, a test-data generator) — an effect must see the
-            // verdicts before it, in order, so the first failure raises first. A pure
-            // let or a pure statement rides to the next effect or the body's end: a
-            // compile-time fact decides, never the statement's position. (Step 1
-            // flushed before EVERY let — 160 pure bodies sent several statements.)
-            boolean effect = containsEffect(stmts.get(i), specs, effectMemo)
-                    || Compiler.containsTdgGenerator(stmts.get(i));
-            if (batch != null && !batch.isEmpty() && effect) {
-                AssertVerdicts.flush(batch, env);
-            }
-            // TDG lane S1: the checker's census CARRIER folds to instance
-            // literals HERE (orchestration owns testdatagen; the compiler
-            // cannot — layering), before resolve sees the statement
-            TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix, ENGINE_TEXT);
-            establishContexts(stmt, env);
-            if (effect || containsEffect(stmt, specs, effectMemo)) {
-                // a writing statement: whatever it changes, the session's
-                // next establishment must re-seed
-                markWriting(env.connection());
-            }
-            boolean last = i == stmts.size() - 1;
-            if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
-                // let tds = $r.values(->at(0)/->toOne()): over a RELATION-
-                // rooted frame these wrappers are the Result ENVELOPE — the
-                // alias IS the same frame (audit 19d B2: the splice rules
-                // move verbatim from the harness). Class/scalar roots fall
-                // through: their at/toOne are REAL selections.
-                ExecFrame alias = aliasFrame(let.value(), execFrames);
-                if (alias != null) {
-                    execFrames.put(let.name(), alias);
-                    continue;
-                }
-                TypedSpec rhs = let.value();
-                while (rhs instanceof com.legend.compiler.spec.typed.TypedFrom rf) {
-                    rhs = rf.source();
-                }
-                if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                        && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())
-                            || (com.legend.builtin.NativeFn.Handle.of(ec.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY))) {
-                    // EAGER run (engine parity, audit 16 F1): a broken
-                    // pipeline surfaces AT the let even when nothing reads
-                    // the frame.
-                    execFrames.put(let.name(),
-                            buildFrame(ec, letPrefix, true, specs, env));
-                    continue;
-                }
-                if (containsEffect(let.value(), specs, effectMemo)) {
-                    // let x = executeInDb(...): the effect runs exactly ONCE,
-                    // here at the let (engine parity — the corpus binds an
-                    // opaque ResultSet handle as a smoke check and never
-                    // reads it; β-substitution would drop or double it). A
-                    // helper PROGRAM never reaches here (StatementInline
-                    // spliced its statements at the front door); any other
-                    // read of the binding has no value — wall it up front,
-                    // never an unbound-variable surprise.
-                    if (!ConnectionLets.onlyConnectionReads(stmts, i + 1, let.name())) {
-                        throw new IllegalStateException("reading an"
-                                + " executeInDb result binding ('"
-                                + let.name() + "') is not supported");
-                    }
-                    java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
-                    single.add(let.value());
-                    java.util.List<TypedSpec> inlined =
-                            new com.legend.compiler.spec.UserCallInliner(
-                            specs, spliceHook(execFrames, letPrefix, specs, env))
-                            .inlineBody(single);
-                    // Phase H runs HERE too (remediation T1.9): an effect arg
-                    // derived from a class query must not reach the Lowerer
-                    // with TypedGetAll intact
-                    inlined = resolver(specs, env).resolve(inlined, env.runtimeFqn());
-                    executeTyped(inlined, env);
-                    continue;
-                }
-                // a HANDLE binding (let plan = executionPlan(...), let t =
-                // scanRelations(...)->toOne()): the handle's facts become
-                // ROWS under its content-id scope (PlanRows / LineageRows)
-                // — every read downstream is navigation over those rows in
-                // the database. Every handle call anywhere in the binding
-                // registers (no shape sniffing); shapes the row builders
-                // cannot build keep the handle symbolic.
-                PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, env);
-                letPrefix.add(let);
-                continue;
-            }
-            // a trailing let IS its value (real pure)
-            TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
-            // (Phase 1c: a grid VALUE READ never reaches here as a user
-            // call — the Typer types it as a relation property read; the
-            // TYPE decides, no recognizer needed)
-            // Clause 2c: a STATEMENT-ROOT assert-family call is a
-            // VERDICT — arguments execute in the database, the judgment
-            // is World 1's (AssertVerdicts; pre-inline so the assert
-            // library's pure bodies never β-inline into SQL). V7 batch
-            // 2: the verdict side evaluation carries the SAME envelope
-            // splice hook as ordinary statements — an assert reading an
-            // execute() handle adjudicates over the spliced chain
-            // (audit 19d B2; the splice pin: AssertVerdictSpliceTest).
-            // a verdict over a frame runs under THAT frame's post-processing
-            // (its table renames): the rows leg re-executes the frame's
-            // values exactly as the frame ran
-            ExecutionResult verdict = AssertVerdicts.tryAdjudicate(
-                    bare, letPrefix, specs, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
-                    spliceHook(execFrames, letPrefix, specs, env));
-            if (verdict != null) {
-                result = verdict;
-                continue;
-            }
-            ExecutionResult hosted = hostChannel(bare, letPrefix, specs, env);
-            if (hosted != null) {
-                result = hosted;
-                continue;
-            }
-            PreparedValue prepared = prepareValue(stmt, bare, letPrefix, execFrames, specs, env);
-            result = runValue(prepared, specs, frames);
-        }
-        if (batch != null) {
-            AssertVerdicts.flush(batch, env);
-        }
-        return result;
+            SpecCompiler specs, ExecEnv env0) {
+        // THE BLOCK COMPILER (stages 1–4, 2026-09-22): every body is walked ONCE by the
+        // segment walk — verdict segments (deferred rows under the database judge; the
+        // host arm judges at once, it has no batch), effect segments as scripts, values
+        // prepared at compile and run at the segment's close. The statement-by-statement
+        // loop that preceded it is deleted (stage 4); a body no arm claims walls loudly.
+        return BodyCompiler.execute(stmts, letPrefix, specs, env0);
     }
 
     /** The body's verdict batch: the fusion (flat WITH + UNION ALL), its shape, the
@@ -744,58 +604,6 @@ final class StatementExecutor {
         // engine-style renderer IS the text channel)
         String text = renderer.render(plan);
         return new EngineSql(plan, text, body);
-    }
-
-    /** The host-channel dispatch (oracle-not-runtime principle,
-     * user-ratified): recognized grid-read chains lower to MIR and
-     * execute through the standard Executor (typed relations since
-     * Phase 1c), store navigation resolves against the COMPILED
-     * MODEL (StoreNav), and anything else walls with the principle's
-     * name — the interpreter that executed engine compiler source is
-     * DELETED. */
-    private static @com.legend.Nullable ExecutionResult hostEvalAtSeam(TypedSpec root,
-            java.util.Map<String, TypedSpec> lets, ExecEnv env) {
-        com.legend.exec.StatementOrigin.hostSeam();
-        // (Phase 1c grid endgame: ResultNav is DELETED — grid chains are
-        // typed relations the ordinary pipeline serves; the seam is
-        // StoreNav's model-fact channel alone)
-        ExecutionResult nav = com.legend.exec.StoreNav.tryEval(
-                root, lets, env.ctx());
-        if (nav != null) {
-            return nav;
-        }
-        throw new com.legend.error.NotImplementedException(
-                "host channel: this chain would need interpreted engine"
-                + " code — engine/legend-pure source is ORACLE material,"
-                + " never our runtime (user-ratified 2026-08-18); build"
-                + " the feature natively (typed relations/StoreNav/walk family)"
-                + " or decline the test with a verdict"
-                + (System.getenv("LL_TMP_DEBUG") != null
-                        ? " [root=" + root + "]" : ""));
-    }
-
-    /** HOST channel BEFORE the inliner: recursive corpus functions over
-     * metamodel instances cannot β-inline (the inliner is loud on
-     * cycles) — the host evaluator runs them with real call frames.
-     * ROOT-position executeInDb stays a SETUP statement (the ambient-
-     * connection arm in executeTyped owns it — the same ordering that
-     * protects the post-inline hook); only VALUE-position reads route.
-     * Null = not host-routed. */
-    private static @com.legend.Nullable ExecutionResult hostChannel(TypedSpec bare,
-            java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        boolean rootSetup = bare
-                instanceof com.legend.compiler.spec.typed.TypedNativeCall rnc
-                && (com.legend.builtin.NativeFn.Effect.of(rnc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB);
-        if (rootSetup) {
-            return null;
-        }
-        java.util.Map<String, TypedSpec> hostLets =
-                com.legend.compiler.spec.typed.Lets.byName(letPrefix);
-        if (!com.legend.exec.StoreNav.owns(bare, hostLets)) {
-            return null;
-        }
-        return hostEvalAtSeam(bare, hostLets, env);
     }
 
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
@@ -1794,7 +1602,6 @@ final class StatementExecutor {
         return null;
     }
 
-
     /** pair(a, b).first/.second folds STRUCTURALLY (the datetime
      * helpers thread plan + plan-text through a pair) — pure data
      * selection, no evaluation order. */
@@ -1929,7 +1736,6 @@ final class StatementExecutor {
 
         });
     }
-
 
     /** The EFFECT rows' registered arms — a REAL registry (LINQ's
      * dictionary, user push 2026-08-31: "or just moving the ifs into a
@@ -2081,7 +1887,6 @@ final class StatementExecutor {
         }
         return String.valueOf(v);
     }
-
 
     /**
      * Does this expression (transitively, through user calls) reach the
@@ -2635,13 +2440,6 @@ final class StatementExecutor {
             }
             return Prelude.answered(arm.run(body, nc, env));
         }
-        // ORCHESTRATION-VALUE channel: store navigation resolves against
-        // the compiled model (grid reads are typed relations now —
-        // Phase 1c endgame; ResultNav deleted)
-        if (com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
-            ExecutionResult hosted = hostEvalAtSeam(root, java.util.Map.of(), env);
-            if (hosted != null) { return Prelude.answered(hosted); }
-        }
         // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
         // the engine walks its Database metamodel, we render from the
         // compiled store model (the lowerer has no model access)
@@ -2919,8 +2717,6 @@ final class StatementExecutor {
         return new BarePlan(null, plan, root,
                 collectionDeclared ? p.declaredInfo() : null, penv, stores.isEmpty());
     }
-
-
 
     /** The canon wrap of {@link #executePlan}, alone. */
     private static WrappedSide wrapSide(com.legend.sql.SqlQuery plan,

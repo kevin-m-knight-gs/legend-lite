@@ -31,7 +31,6 @@ public final class Census {
         FRAME_PASTED("frame.pasted"),
         FRAME_CLASS("frame.class"),
         FRAME_CLASS_CTE("frame.class-cte"),
-        HOST_SEAM("seam.host-evaluated"),
         WIRE_RETYPED("wire.retyped"),
         WIRE_SLOT_SKEW("wire.slot-skew"),
         SQL_ROUND_TRIPS("sql.round-trips"),
@@ -39,7 +38,6 @@ public final class Census {
         /** Read through to the SQL layer's own counter (see {@link #count}). */
         SCAN_ORDER_FIRINGS("test-lane.scan-order-firings"),
         ULP_FIRINGS("host.ulp-firings"),
-        COMPILER_ACCEPTED("compiler.accepted"),
         EFFECTS_IN_SCRIPT("effects.in-script"),
         DIVERGENCE_AGREE("divergence.agree"),
         DIVERGENCE_DISAGREE("divergence.disagree"),

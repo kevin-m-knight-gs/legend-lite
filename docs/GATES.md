@@ -4709,3 +4709,48 @@ differential agree 5,848 · disagree 0. Chain: GREEN, SEQUENTIAL — G2 27 · G1
 **Next.** Stage 4: delete the statement loop, the seam (`hostChannel` / `hostEvalAtSeam` /
 `StoreNav.owns`) and the split rung — not the host judge — after the three refused shapes
 (context owner, forced frame, unported native) have compiler segments.
+
+
+## 2026-09-22 — block-compiler stage 4: the statement loop and the host seam are deleted
+
+**What landed.** `StatementExecutor.executeStatements` is one line: `BodyCompiler.execute`. The
+statement-by-statement loop (the walk's twin: alias frames, eager execute frames, effect lets,
+handle registration, the verdict dispatch, the seam, the value run — 130 lines) is gone; every
+body walks the segment walk in both judge modes. The host seam is gone with it: `hostChannel`,
+`hostEvalAtSeam`, the value channel's store-navigation arm, `StoreNav` (187 lines), its predicate
+test, the `HOST_SEAM` census key and the runner's seam pin (measured 0 tests / 0 values in all
+four lanes before the cut; the runner had pinned it at zero in every lane). The compiler's
+`accepts` / `refusal` gate is gone, and with it the walk's own "a context owner reached the
+walk" throw: a context owner (`assertError`: 0 witnesses in the corpus lanes, 20 in the PCT
+channel-B suites and the unit test — the first chain was red on exactly those) and a frame
+forced at value position are values like any other, prepared in the walk and run at the
+segment's close through the arms the loop ran them through (`runValue` → `AssertErrorNative`). ONE wall stays, by the agreed order (port the temp-table natives,
+THEN delete the gate): an unported native at a statement root refuses the body before anything
+is planned (`BodyCompiler.wallUnported`).
+
+**The red run that placed the wall (explain-before-more-work).** The first cut had no wall.
+The one refused body (`dropAndCreateTempTable`, a FAIL row in all four lanes before and after)
+then walked: the walk planned past `createTempTable` and the raw read after it sent its schema
+probe before anything created the table — a product-owned statement outside the artifact, a NEW
+row on the DuckDB outside-body register (rosters exact: the test failed as before, one statement
+later). The loop had failed AT the native's own evaluation, so no probe was ever sent. The wall
+restores that order by construction: decided before planning, no statement sent, the body fails
+with "unported native at a statement root". The register is clean again.
+
+**Measured.** Rosters exact on all four lanes (DuckDB host 109 / H2 host 364; database lost 0,
+gained 0); every census line identical to move 4's run; differential agree 5,848 · disagree 0;
+ladder pins byte-identical. Ledger: StatementExecutor 2,438 → 2,322; `StoreNav` off the ledger and
+the exec-class register; the claims ledger regenerated (its READERS column only: `StoreNav`
+no longer reads `at` / `first` / `concatenate` / `trustOne` … — 13 rows); the own-corpus parity
+floor 2,519 → 2,518 (the deleted predicate test carried one snippet). Product: −728 / +25 lines
+before the wall. Chain: GREEN, SEQUENTIAL — G2 27 · G1 41 · G3 7 · G4 63 · G5 33 · G6 93 · G7 30 · G9 21 · G8 94 · G10 27 (436 s) (the first chain was red on G1 / G9 — the context-owner
+throw — and G3 / G8 — the two registers above; explained before the fix).
+
+**What stays, and why.** The split rung (`VerdictBatch`'s per-row fallback on a failed fused
+statement): DuckDB fires it once (`testRelationStoreAccessorOnView`, a FAIL row whose view is
+never created — a product row, not a rung), H2 146 times (list / struct / JSON vocabulary the H2
+dialect lacks — rung 2c). It is deleted when the H2 vocabulary rung lands, not before.
+
+**Next.** Port `createTempTable` / `dropTempTable` (the DDL-string lambda over Column instances
+must lower: `$colsAsString` is the failing scalar) and delete the wall — 1 row × 4 lanes named
+before the leg; then the router's four `java.sql` value arms to the exec funnel; then rung 2c.

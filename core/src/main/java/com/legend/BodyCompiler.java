@@ -13,18 +13,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE BLOCK COMPILER, stages 1–2 (2026-09-21; docs/BLOCK_COMPILER_HOMEWORK_2026_09_21.md
- * §13, §18). A test body WITHOUT EFFECTS — lets, assert-family roots (a verdict call,
- * a quantified map / forAll, an if over asserts), helper calls and value statements
- * — is compiled to its ARTIFACT before anything of it runs: the frames (CTE
+ * THE BLOCK COMPILER, stages 1–4 (2026-09-21/22; docs/BLOCK_COMPILER_HOMEWORK_2026_09_21.md
+ * §13, §18–§19). EVERY test body — lets, assert-family roots (a verdict call, a
+ * quantified map / forAll, an if over asserts), helper calls, value statements, and
+ * effect statements as scripts — is compiled to its ARTIFACT before anything of it runs: the frames (CTE
  * definitions) and the verdict rows on the batch, one fused statement per
  * connection, the appeals attached; the value statements PREPARED (helper inlining,
  * native staging, store resolution — the executor's own compile phases, shared:
  * {@link StatementExecutor#prepareValue}); the FRAGMENT MAP naming the let / assert
  * every frame and verdict branch came from. {@link #run} only sends it. The walk is
  * the executor's own arms in the executor's own order, so the artifact is
- * byte-identical to what the statement-by-statement loop produced (the ladder pins
- * it); what moves is the seam — nothing is planned once running has begun.
+ * byte-identical to what the statement-by-statement loop produced before stage 4
+ * deleted it (the ladder pins it); nothing is planned once running has begun.
  *
  * <p>Provisioning precedes planning: a statement's execution contexts are
  * established (the seeding boundary: a runtime's declared setups, a from()'s inline
@@ -40,55 +40,21 @@ public final class BodyCompiler {
     private BodyCompiler() {
     }
 
-    /** A PURE body: every statement but the last is a let without effects (a frame,
-     * an alias, a handle, a value binding), the last and every other statement is an
-     * assert-family root without effects; no test-data generator anywhere; no
-     * assertError (a context owner: it runs its body under a catch). */
-    static boolean accepts(List<TypedSpec> stmts, SpecCompiler specs,
-            Map<String, Boolean> effectMemo) {
-        String why = refusal(stmts, specs, effectMemo);
-        if (why == null) {
-            com.legend.exec.Census.inc(com.legend.exec.Census.Key.COMPILER_ACCEPTED);
-        } else {
-            com.legend.exec.Census.incKeyed("compiler.refused", why);
-        }
-        return why == null;
-    }
-
-
-    /** Why the body is not compiled as one artifact yet, or null. Stage 2 accepts
-     * every statement without effects: lets (a trailing let is the body's value),
-     * assert-family roots, helper calls (inlined at compile time), value statements
-     * (prepared at compile time, run at the artifact's run). Refused: a test-data
-     * generator, an effect (stage 3: scripts), a context owner (assertError runs its
-     * body under an arm's catch — a run inside the walk), a frame forced at value
-     * position (execute as a statement: its eager run IS the value). */
-    static @com.legend.Nullable String refusal(List<TypedSpec> stmts, SpecCompiler specs,
-            Map<String, Boolean> effectMemo) {
-        if (stmts.isEmpty()) {
-            return "empty";
-        }
+    /** THE ONE WALL (stage 4, 2026-09-22): an UNPORTED native at a statement root (typed
+     * from the prelude, in no family, no core function — createTempTable) has no body
+     * here, so the walk must not plan past it: a later raw read would probe the state it
+     * would have changed (measured: the probe is a product-owned statement outside the
+     * artifact). Decided BEFORE anything is planned or sent; the wall goes when the
+     * native is ported. The loop that preceded the walk failed at the native's own
+     * evaluation instead. */
+    private static void wallUnported(List<TypedSpec> stmts) {
         for (TypedSpec s : stmts) {
-            // stage 3: an EFFECT is a segment boundary, never a refusal (the statement
-            // is collected into a script by the arms' own send); a test-data generator
-            // folds at compile as it does in the loop
             TypedSpec v = com.legend.compiler.spec.typed.Lets.bare(s);
-            String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(v);
-            if (fqn != null && com.legend.builtin.NativeFn.ContextOwner.of(fqn).isPresent()) {
-                return "context-owner";
-            }
-            if (!(s instanceof TypedLet) && com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(fqn)) {
-                return "value-frame";
-            }
-            // an UNPORTED native at a statement root (typed from the prelude, in no
-            // family, no core function — createTempTable): it has no body here and
-            // the loop is loud at its evaluation; the compiler must not plan past it
-            // (a later raw-grid read probes the state it would have changed)
-            if (fqn != null && v instanceof TypedNativeCall n && !implemented(n)) {
-                return "unported-native:" + fqn;
+            if (v instanceof TypedNativeCall n && !implemented(n)) {
+                throw new com.legend.error.NotImplementedException(
+                        "unported native at a statement root: " + n.callee().qualifiedName());
             }
         }
-        return null;
     }
 
     /** THE IMPLEMENTED SURFACE, the claim registry's own question (Claims: a family
@@ -110,7 +76,7 @@ public final class BodyCompiler {
                 || com.legend.compiler.spec.CoreFn.parseNames().containsKey(bare);
     }
 
-    /** THE SEGMENT WALK (stages 1–3): one pass over the body. Lets, asserts and value
+    /** THE SEGMENT WALK (stages 1–4): one pass over the body. Lets, asserts and value
      * statements accumulate into the open VERDICTS segment (frames and rows on its
      * batch, values prepared); an effect statement closes it — its values run in order,
      * its batch flushes as one fused statement — and is COLLECTED into the open EFFECT
@@ -122,6 +88,7 @@ public final class BodyCompiler {
      * pending script is sent before it folds. The body's value is its last statement's. */
     static @com.legend.Nullable ExecutionResult execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env0) {
+        wallUnported(stmts);
         Segments seg = new Segments(env0, specs);
         Map<String, StatementExecutor.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<String, Boolean> effectMemo = new java.util.HashMap<>();
@@ -189,10 +156,10 @@ public final class BodyCompiler {
             // inlines here; an inlined assert root is adjudicated by the preparation)
             StatementExecutor.PreparedValue pv = StatementExecutor.prepareValue(
                     stmt, bare, letPrefix, execFrames, specs, seg.env());
-            if (pv.contextOwner() != null) {
-                throw new IllegalStateException("block compiler: a context owner reached the"
-                        + " compile walk (refused by construction): " + com.legend.compiler.spec.typed.Calls.calleeOf(bare));
-            }
+            // a CONTEXT OWNER (assertError: f's body runs under the arm's catch) and a
+            // frame FORCED at value position (execute as a statement: its eager run IS
+            // the value) are values like any other — prepared here, run at the segment's
+            // close in walk order, through the arms the loop ran them through (stage 4)
             if (pv.verdict() != null && seg.batch != null) {
                 nameRows(seg.fragments, seg.batch, rowsBefore, com.legend.compiler.spec.typed.Calls.calleeOf(bare), i + 1);
             }

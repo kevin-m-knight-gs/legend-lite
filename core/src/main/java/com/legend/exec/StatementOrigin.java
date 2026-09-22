@@ -98,15 +98,6 @@ public enum StatementOrigin {
         Census.incKeyed("statements", origin.name());
     }
 
-    /** CENSUS (2026-09-21): values the executor evaluates in JAVA at the seam — a
-     * statement bottoming at a store-navigation native or a class construction
-     * (StoreNav.owns → hostEvalAtSeam). No statement is sent, so the statement census
-     * cannot see it; this counter can. Measured 0 on both lanes under the database
-     * judge; pinned there. */
-    public static void hostSeam() {
-        Census.inc(Census.Key.HOST_SEAM);
-    }
-
     /** The counts so far, by ordinal. */
     public static long[] snapshot() {
         StatementOrigin[] all = values();
