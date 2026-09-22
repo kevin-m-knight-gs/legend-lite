@@ -626,7 +626,7 @@ final class AssertVerdicts {
                                 }
                                 if (placeable) {
                                     com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
-                                    yield DatabaseJudge.runVerdict(name, true, mq, ja.connection(env), env);
+                                    yield DatabaseJudge.runVerdict(name, true, mq, ja.on(env));
                                 }
                             }
                         }
@@ -643,7 +643,7 @@ final class AssertVerdicts {
                     com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
                     yield DatabaseJudge.runVerdict(name, true,
                             com.legend.lowering.VerdictSql.jsonText(je.textRows(), ja.textRows()),
-                            ja.connection(env), env);
+                            ja.on(env));
                 }
                 String ejson = jsonSideText(args.get(0), letPrefix,
                         specs, env, hook);
@@ -1205,7 +1205,7 @@ final class AssertVerdicts {
                 return DatabaseJudge.unjudged(fqn, vector.why());
             }
             return DatabaseJudge.runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
-                    qfn == NativeFn.Verdict.ASSERT), vector.connection(env), env);
+                    qfn == NativeFn.Verdict.ASSERT), vector.on(env));
         }
         List<Object> verdicts = HostJudge.identitySide(predMap, letPrefix, specs, env, hook);
         boolean wantTrue = qfn == NativeFn.Verdict.ASSERT;

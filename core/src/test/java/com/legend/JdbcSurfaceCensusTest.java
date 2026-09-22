@@ -81,12 +81,6 @@ class JdbcSurfaceCensusTest {
             // compute in the database; the SQLException surface carries
             // the verdict to the runner
             "core/src/main/java/com/legend/AssertVerdicts.java",
-            // task #27 (2026-09-21, TEMPORARY — cleanup move 2 removes it): the database
-            // arm took the router's Connection-typed members verbatim (the side's
-            // connection, the verdict run's target); it makes no JDBC call — the
-            // connection is a routing key the batch groups rows by. Move 2 routes by
-            // the side's environment and this row goes
-            "core/src/main/java/com/legend/DatabaseJudge.java",
             "core/src/main/java/com/legend/Compiler.java",
             // leg 3.4: the deferred verdict statements are keyed by the
             // session they run on (a store side's routed connection, or the

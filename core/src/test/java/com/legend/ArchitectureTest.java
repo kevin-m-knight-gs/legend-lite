@@ -706,10 +706,7 @@ final class ArchitectureTest {
                     // java.sql.Array/Timestamp/Date on fetched values
                     // — the flatten's move behind the exec seam is the
                     // named next shrink).
-                    // task #27 (2026-09-21): the database arm took AssertVerdicts'
-                    // Connection-typed members with it verbatim (the side's
-                    // connection, the verdict run) — the same surface, one owner
-                    + "|AssertVerdicts|DatabaseJudge)(\\$.*)?")
+                    + "|AssertVerdicts)(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"

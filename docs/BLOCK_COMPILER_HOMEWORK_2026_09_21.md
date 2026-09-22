@@ -708,3 +708,10 @@ lanes; the seven empty registers collapsed into one must-be-zero list); one let-
 and one callee-name helper in the compiler layer; stage 4 (delete the loop, the seam, the split
 rung — not the host judge); port `createTempTable` / `dropTempTable` and delete the
 unported-native gate.
+
+**Move 2a LANDED (2026-09-21): the database judge off `java.sql`.** `SideRows.on(env)`,
+`runVerdict(…, runOn env)`, `constantSide(…, partner env)`: the judge routes by the side's
+environment and the batch reads the connection from it. No `java.sql` in the class; the two
+temporary register rows of move 1 are gone. Owed from the same audit: the router's four `java.sql`
+value arms (JDBC Array / Timestamp / Date decoding in `decodeSideValues`) belong in the exec funnel.
+

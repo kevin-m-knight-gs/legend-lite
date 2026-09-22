@@ -4595,3 +4595,17 @@ root-class register); V3 names both arms; the host arm is a registered judge cal
 call — move 2 removes it). Four lanes GREEN, exact; ladder pins byte-identical; differential
 agree 5,848 · disagree 0. Chain: GREEN, SEQUENTIAL — G2 32 · G1 48 (re-run green after the two
 register rows) · G3 8 · G4 67 · G5 28 · G6 85 · G7 27 · G9 20 · G8 89 · G10 27.
+
+## 2026-09-21 — cleanup move 2a: the database judge off java.sql
+
+**What landed.** `DatabaseJudge` routes by the side's ENVIRONMENT: `SideRows.on(env)` (the
+side's own connection when it reads a store, the body's otherwise), `runVerdict(…, runOn env)`,
+`constantSide(…, partner env)`; the batch and the executor read the connection from it. No
+`java.sql` in the class's text or signatures — the routing key is the executor's. User
+question that ordered it: "why does it need java.sql" — it never did. The root `java.sql` pin
+and the JDBC census drop the temporary rows move 1 added (both registers SHRINK back).
+
+**Registers.** Ledger DatabaseJudge 439 → 438; the router still carries four `java.sql` value
+arms (JDBC Array / Timestamp / Date decoding in `decodeSideValues`) — an exec-funnel move owed.
+Four lanes GREEN, exact; ladder pins byte-identical; differential agree 5,848 · disagree 0.
+Chain: GREEN, SEQUENTIAL — G2 27 · G1 45 · G3 7 · G4 60 · G5 28 · G6 87 · G7 28 · G9 21 · G8 97 · G10 26.
