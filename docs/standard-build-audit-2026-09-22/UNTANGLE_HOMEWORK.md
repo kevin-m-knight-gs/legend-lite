@@ -4,8 +4,20 @@ The audit's §1 established that `core` is one 25-package / 667-file cycle and
 that two files carry 68% of the fix. This is the rest of it: **exactly which
 classes move, where, in what order, what each step buys, and how to check it.**
 
-Endpoint, simulated and verified: **40 packages, 0 cycles, 82 classes moved,
-~1,193 files touched** (the moved class plus every referrer's import line).
+Endpoint, simulated and verified: **39 packages, 0 cycles, 42 classes moved,
+~1,036 files touched** (the moved class plus every referrer's import line).
+
+The algorithm is three phases, and the third is the one that halves the work:
+
+1. split every package by dependency depth — acyclic by construction, 166 packages;
+2. merge bands back while acyclicity holds — 40 packages, 82 moves;
+3. **for every relocated class, try putting it back**; keep it home if the graph
+   is still acyclic — **40 of the 82 moves were unnecessary**, leaving 42.
+
+Phase 3 is the refined rule made executable. It is what keeps `TypedConstraint`
+with the `Typed*` family, and it also keeps `WindowFrame`, `RawSqlBoundary` and
+`ExecuteOptions` exactly where they are — all depth-0 or depth-1, none of them
+reached from below, none of them needing to move. Run `final.py` to reproduce.
 
 Tools, all re-runnable against any tree:
 
