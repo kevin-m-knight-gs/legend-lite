@@ -44,6 +44,28 @@ public interface SqlDialect {
         return false;
     }
 
+    /** An effect segment's statements as ONE script (block-compiler stage 3): the
+     *  target decides its transaction bracket INSIDE its dialect — DuckDB brackets
+     *  the segment so a failure applies nothing (transactional DDL); H2 cannot roll
+     *  DDL back and sends the statements bare. */
+    default String script(java.util.List<String> statements) {
+        return String.join(";\n", statements) + ";";
+    }
+
+    /** The statement that ABORTS a failed script's bracket, or null when the dialect
+     *  brackets nothing — a DuckDB transaction a failing statement left open must be
+     *  rolled back, or every later transaction on the connection is refused. */
+    default @com.legend.Nullable String scriptAbort() {
+        return null;
+    }
+
+    /** Which statement of a failed script the engine's message names (0-based), or
+     *  empty when the engine does not say — H2 quotes the failing statement
+     *  ({@code SQL statement: …}); DuckDB names values and columns only. */
+    default java.util.OptionalInt failingStatement(String message, java.util.List<String> statements) {
+        return java.util.OptionalInt.empty();
+    }
+
     /** DDL rendered like a query (2026-09-16): the dialect spells the
      *  store's declared shape — its identifier rule, its type names.
      *  Retires the {@code Ddl.Flavor} enum and the {@code rawH2IsNative()}

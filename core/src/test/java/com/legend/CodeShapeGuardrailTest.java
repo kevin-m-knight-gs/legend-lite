@@ -63,6 +63,15 @@ class CodeShapeGuardrailTest {
             // same lifecycle as the inliner (the compile artifact); it
             // exists so a program-sized tree walk walls instead of hanging
             "UserCallInliner.spent",
+            // the SEGMENT WALK's state object (block-compiler stage 3, 2026-09-21):
+            // the open effect segment — its sink and the ordinals of the body's
+            // statements it spans — and whether the last statement was a value;
+            // each is replaced whole when the compiler closes the segment. Same
+            // lifecycle as one body's compile; nothing outlives it
+            "BodyCompiler.sink",
+            "BodyCompiler.effectFrom",
+            "BodyCompiler.effectTo",
+            "BodyCompiler.lastIsValue",
             "EngineStyleH2.frameDepth",
             // anonymous-subselect nesting cursor (bare DISTINCT-key
             // spelling scope) — same lifecycle as frameDepth

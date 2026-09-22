@@ -842,6 +842,8 @@ final class ArchitectureTest {
                 // accepted / refused by reason — read by the corpus lanes only
                 "com.legend.BodyCompiler.ACCEPTED",
                 "com.legend.BodyCompiler.REFUSALS",
+                // CENSUS (stage 3): effect statements that rode inside a script
+                "com.legend.exec.EffectSink.IN_SCRIPT",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",

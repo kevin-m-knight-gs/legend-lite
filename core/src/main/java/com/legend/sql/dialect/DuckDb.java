@@ -33,6 +33,19 @@ public final class DuckDb extends AnsiSqlRenderer {
         return java.util.List.of("SET TimeZone='UTC'");
     }
 
+    /** An effect segment runs as one transaction: DuckDB's DDL is transactional, so a
+     *  failing statement applies nothing and the referee's ledger records nothing
+     *  (homework §19). */
+    @Override
+    public String script(java.util.List<String> statements) {
+        return "BEGIN TRANSACTION;\n" + String.join(";\n", statements) + ";\nCOMMIT;";
+    }
+
+    @Override
+    public String scriptAbort() {
+        return "ROLLBACK";
+    }
+
     /** DuckDB's documented evaluate-once: {@code AS MATERIALIZED}. */
     @Override
     protected String cteAs(com.legend.sql.SqlWith.Cte c) {

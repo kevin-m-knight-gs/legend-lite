@@ -55,6 +55,38 @@ public final class Executor {
         }
     }
 
+    /** ONE round trip for a multi-statement SCRIPT (block-compiler stage 3): the
+     * engine runs it sequentially and stops at the first failing statement, the
+     * earlier ones applied (probed on both engines, homework §19); result sets are
+     * not read (a verdict statement is its own send). */
+    public static void executeScript(Connection connection, String script) {
+        try (Statement st = connection.createStatement()) {
+            ROUND_TRIPS.incrementAndGet();
+            StatementOrigin.count();
+            SQL_CHARS.addAndGet(script.length());
+            if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+                System.err.println("[script] " + script);
+            }
+            st.execute(script);
+        } catch (SQLException e) {
+            java.sql.SQLException un = RaisedErrors.unwrapped(e);
+            throw new DataError(String.valueOf(un.getMessage()), un);
+        }
+    }
+
+    /** Does this executor OWN the transaction a script would run in? A caller that
+     * turned autocommit off (the corpus harness brackets an effect body as one
+     * attempt, committed on a pass and rolled back on a failure) holds it; the
+     * dialect's bracket must not nest inside, and a failure is the caller's to
+     * unwind. */
+    public static boolean ownsTransaction(Connection connection) {
+        try {
+            return connection.getAutoCommit();
+        } catch (SQLException e) {
+            throw new DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
+
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,

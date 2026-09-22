@@ -119,12 +119,20 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext frame,
             ExecuteOptions options,
             com.legend.exec.ExecutionTrace trace,
-            com.legend.exec.@com.legend.Nullable VerdictBatch verdictBatch) {
+            com.legend.exec.@com.legend.Nullable VerdictBatch verdictBatch,
+            com.legend.exec.@com.legend.Nullable EffectSink effectSink) {
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.exec.VerdictBatch b) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
                     instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
-                    options, trace, b);
+                    options, trace, b, effectSink);
+        }
+        /** Block-compiler stage 3: the effect natives' sends land in this sink (an
+         * effect segment under construction) instead of the connection. */
+        ExecEnv withEffectSink(com.legend.exec.@com.legend.Nullable EffectSink sink) {
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
+                    instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
+                    options, trace, verdictBatch, sink);
         }
         /** Without the protocol body (a handle's rows built off the typed
          * tree alone). */
@@ -141,27 +149,27 @@ final class StatementExecutor {
             this(ctx, runtimeFqn, dialect, connection, queryLets,
                     tableReplace, instanceIds, assertListener, replayOracle, planRows,
                     java.util.List.of(), null, ExecuteOptions.NONE,
-                    new com.legend.exec.ExecutionTrace(), null);
+                    new com.legend.exec.ExecutionTrace(), null, null);
         }
         /** The caller's execute options (the PCT wire render). */
         ExecEnv withOptions(ExecuteOptions o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, frame, o, trace, verdictBatch);
+                    planRows, protocolBody, frame, o, trace, verdictBatch, effectSink);
         }
         /** The executing frame's bound context (post-processors, time zone,
          * options) — set where an execute frame is entered. */
         ExecEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, f, options, trace, verdictBatch);
+                    planRows, protocolBody, f, options, trace, verdictBatch, effectSink);
         }
         ExecEnv withTableReplace(java.util.Map<String, String> tr) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
-                    planRows, protocolBody, frame, options, trace, verdictBatch);
+                    planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         ExecEnv withListeners(com.legend.exec.@com.legend.Nullable AssertListener l,
                 com.legend.exec.@com.legend.Nullable SqlReplayOracle o) {
-            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace, verdictBatch);
+            return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
             return frame == null ? com.legend.compiler.spec.typed.ExecutionContext.PostProcessors.NONE
@@ -177,7 +185,7 @@ final class StatementExecutor {
             return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
                     dialect, other, queryLets, tableReplace,
                     instanceIds, assertListener, replayOracle, planRows,
-                    protocolBody, frame, options, trace, verdictBatch);
+                    protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
 
         /** The query's PROTOCOL statements (the source-shaped lets a
@@ -187,7 +195,7 @@ final class StatementExecutor {
                 java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection,
                     queryLets, tableReplace, instanceIds,
-                    assertListener, replayOracle, planRows, body, frame, options, trace, verdictBatch);
+                    assertListener, replayOracle, planRows, body, frame, options, trace, verdictBatch, effectSink);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -254,7 +262,7 @@ final class StatementExecutor {
         // first send (BodyCompiler). Every other body walks the loop below.
         if (env0.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE
                 && BodyCompiler.accepts(stmts, specs, effectMemo)) {
-            return BodyCompiler.run(BodyCompiler.compile(stmts, letPrefix, specs, env0), specs, env0);
+            return BodyCompiler.execute(stmts, letPrefix, specs, env0);
         }
         java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         // leg 3.4: database mode defers each assert's verdict statement into
@@ -2358,7 +2366,7 @@ final class StatementExecutor {
 
     /** A statement that WRITES is about to run on {@code connection}: the
      *  next establishment on it re-seeds. */
-    private static void markWriting(java.sql.Connection connection) {
+    static void markWriting(java.sql.Connection connection) {
         Established state = ESTABLISHED.get(connection);
         if (state != null) {
             state.dirty = true;
@@ -3142,6 +3150,73 @@ final class StatementExecutor {
                 : com.legend.sql.dialect.RawSqlBoundary.h2ToDuckDb(sql);
     }
 
+    /** THE ONE SEND of an effect native (block-compiler stage 3, 2026-09-21): with a
+     * sink on the environment the statement is COLLECTED into the effect segment
+     * under construction (recorded for the referee's ledger when the script has run);
+     * without one it executes now under its origin and is recorded at once — the
+     * loop's own behavior. {@code recorded}: the ledger's text (the H2 spelling of a
+     * DDL; the corpus-authored text of a raw statement), null when the statement was
+     * never recorded. Returns whether the statement produced rows (known only when
+     * executed now; the sink decides it statically). */
+    static boolean sendEffect(ExecEnv env, String executed, @com.legend.Nullable String recorded,
+            com.legend.exec.StatementOrigin origin, boolean generated) {
+        com.legend.exec.EffectSink sink = env.effectSink();
+        if (sink != null) {
+            sink.add(executed, recorded);
+            return false;
+        }
+        boolean query;
+        try (var __o = generated ? com.legend.exec.StatementOrigin.enterGenerated(origin)
+                : com.legend.exec.StatementOrigin.enterIfUnmarked(origin)) {
+            query = Executor.executeRaw(env.connection(), executed);
+        }
+        if (recorded != null) {
+            record(env, recorded, query);
+        }
+        return query;
+    }
+
+    /** Send an effect segment as ONE script (the dialect brackets it), then record its
+     * statements for the referee's ledger: all of them on success; on a failure the
+     * ones before the statement the engine names (H2), or none when the segment rolled
+     * back as a unit (DuckDB). The failure is re-raised naming the segment. */
+    static void sendScript(ExecEnv env, com.legend.exec.EffectSink sink, String where) {
+        java.util.List<com.legend.exec.EffectSink.Entry> entries = sink.entries();
+        java.util.List<String> texts = entries.stream().map(com.legend.exec.EffectSink.Entry::executed).toList();
+        // the dialect's bracket only when this send OWNS the transaction; inside a
+        // caller's (the harness's attempt) the statements run bare and the caller unwinds
+        boolean bracketed = Executor.ownsTransaction(env.connection());
+        try {
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
+                Executor.executeScript(env.connection(),
+                        bracketed ? env.dialect().script(texts) : String.join(";\n", texts) + ";");
+            }
+        } catch (com.legend.error.DataError e) {
+            String abort = env.dialect().scriptAbort();
+            if (bracketed && abort != null) {
+                // the bracket the failure left open: closed before anything else runs
+                Executor.executeRaw(env.connection(), abort);
+            }
+            java.util.OptionalInt failing = env.dialect().failingStatement(String.valueOf(e.getMessage()), texts);
+            int applied = failing.isPresent() ? failing.getAsInt() : 0;
+            for (int i = 0; i < applied; i++) {
+                String rec = entries.get(i).recorded();
+                if (rec != null) {
+                    record(env, rec, entries.get(i).query());
+                }
+            }
+            throw new com.legend.error.DataError(e.getMessage() + " — in the effect segment " + where
+                    + (failing.isPresent() ? " (statement " + (failing.getAsInt() + 1) + " of " + texts.size() + ")"
+                            : " (" + texts.size() + " statement(s), applied as a unit)"), e);
+        }
+        for (com.legend.exec.EffectSink.Entry en : entries) {
+            String rec = en.recorded();
+            if (rec != null) {
+                record(env, rec, en.query());
+            }
+        }
+    }
+
     static ExecutionResult executeInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
@@ -3150,18 +3225,9 @@ final class StatementExecutor {
         // at statement start). Corpus-authored raw H2 goes through THE
         // boundary translator — never a dialect renderer (R0 rule).
         for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
-            try {
-                // recorded AFTER it executes, with its kind: the ledger
-                // mirrors executed reality by construction
-                boolean query;
-                try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
-                        com.legend.exec.StatementOrigin.RAW)) {
-                    query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
-                }
-                record(env, stmt, query);
-            } catch (com.legend.error.DataError e) {
-                throw e;
-            }
+            // recorded AFTER it executes, with its kind: the ledger
+            // mirrors executed reality by construction
+            sendEffect(env, adaptRaw(stmt, env), stmt, com.legend.exec.StatementOrigin.RAW, false);
         }
         // an opaque ResultSet handle: setup statements ignore it; a test
         // that READS it will surface loudly here when that day comes
@@ -3187,10 +3253,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
-        try (var __o = com.legend.exec.StatementOrigin.enterGenerated(com.legend.exec.StatementOrigin.RAW)) {
-            Executor.executeRaw(env.connection(), schemaDdl);
-        }
-        record(env, schemaDdl, false);
+        sendEffect(env, schemaDdl, schemaDdl, com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
 
@@ -3228,19 +3291,17 @@ final class StatementExecutor {
         // advisory mirror still needs its H2-flavored stream: the SAME
         // model spells it a second time (recorded only after the session
         // executed — the recording mirrors executed reality).
-        try (var __o = com.legend.exec.StatementOrigin.enterGenerated(com.legend.exec.StatementOrigin.RAW)) {
-            Executor.executeRaw(connection, env.dialect().render(Ddl.dropTable(schema, table)));
-            // engine parity (batch 71 experiment): the native's DDL carries the
-            // declared key and nullability, exactly like the engine's
-            // dropAndCreateTableInDb (applyConstraints defaults true)
-            Executor.executeRaw(connection, env.dialect().render(Ddl.createTable(def, schema)));
-        }
         // the replay ledger carries the H2 spelling of the DDL on EVERY
         // session (Phase 0.6): the H2 lane's fresh replays inserted into
         // tables nobody created because this recording was gated on the
         // DuckDB session (17 `ADDRESSTABLE not found` declines)
-        record(env, H2_DDL.render(Ddl.dropTable(schema, table)), false);
-        record(env, H2_DDL.render(Ddl.createTable(def, schema)), false);
+        sendEffect(env, env.dialect().render(Ddl.dropTable(schema, table)),
+                H2_DDL.render(Ddl.dropTable(schema, table)), com.legend.exec.StatementOrigin.RAW, true);
+        // engine parity (batch 71 experiment): the native's DDL carries the
+        // declared key and nullability, exactly like the engine's
+        // dropAndCreateTableInDb (applyConstraints defaults true)
+        sendEffect(env, env.dialect().render(Ddl.createTable(def, schema)),
+                H2_DDL.render(Ddl.createTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
         // (the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY constraints;
         // a record-only ALTER ledger carried them for a metadata replay that
         // no longer exists — deleted with the meta ledger, batch 137)

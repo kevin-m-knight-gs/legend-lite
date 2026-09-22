@@ -4565,3 +4565,18 @@ marked as the referee's. Homework §18 (the refusal census, the unported-native 
 **Registers.** outside-body DuckDB 179 → 157 (the referee population reads), H2 277 → 255; refused
 non-effect bodies 91 → 1; fail rosters exact; differential 0. Ledger: StatementExecutor 2395 → 2417
 (the split, nothing new evaluated). Four lanes GREEN. Chain: GREEN, SEQUENTIAL — G2 27 · G1 43 · G3 7 · G4 60 · G5 27 · G6 90 · G7 28 · G9 20 · G8 88 · G10 27.
+
+## 2026-09-21 — block-compiler stage 3: effect bodies are scripts, one send per segment
+
+**What landed.** The segment walk (`BodyCompiler.execute`): verdict segments flushed before an
+effect, effect segments collected through the effect natives' ONE send (`sendEffect` into an
+`EffectSink` on the environment) and sent as one script (`sendScript`, `Executor.executeScript`);
+the dialect brackets a script only when the send owns the transaction (the harness's attempt owns
+it in the corpus) and closes a failed bracket (`scriptAbort`); the referee's ledger recorded from
+the segment (H2 names the failing statement). Homework §19 (probes, baseline) and §20.
+
+**Registers.** outside-body DuckDB 157 → 103, H2 255 → 202 (every `raw` row gone: raw statements
+13,484 → 0 on both lanes, 126,9k inside scripts); fail rosters exact, lost 0 / gained 0; mirror
+seeds unchanged (the ledger intact); refused non-effect bodies 1. Ledger: StatementExecutor
+2417 → 2459 (the two sends), EffectSink registered (exec), the segment-walk state allowlisted.
+Four lanes GREEN. Chain: GREEN, SEQUENTIAL — G2 27 · G1 44 · G3 7 · G4 63 · G5 27 · G6 90 · G7 26 · G9 21 · G8 88 · G10 26.

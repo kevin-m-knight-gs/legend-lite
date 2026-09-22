@@ -42,6 +42,24 @@ public class H2 extends AnsiSqlRenderer {
         return java.util.List.copyOf(ps);
     }
 
+    /** H2 names the failing statement of a script ({@code SQL statement: <text>};
+     *  a later failure quotes the script from that statement on): the index of the
+     *  statement the quote starts with. */
+    @Override
+    public java.util.OptionalInt failingStatement(String message, java.util.List<String> statements) {
+        int at = message.indexOf("SQL statement: ");
+        if (at < 0) {
+            return java.util.OptionalInt.empty();
+        }
+        String quoted = message.substring(at + "SQL statement: ".length()).strip();
+        for (int i = 0; i < statements.size(); i++) {
+            if (quoted.startsWith(statements.get(i).strip())) {
+                return java.util.OptionalInt.of(i);
+            }
+        }
+        return java.util.OptionalInt.empty();
+    }
+
     public H2() {
         super(Lexicon.H2, TypeNames.H2, Spellings.H2);
     }

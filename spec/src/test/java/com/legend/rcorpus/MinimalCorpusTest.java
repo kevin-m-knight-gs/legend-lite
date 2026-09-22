@@ -333,7 +333,8 @@ class MinimalCorpusTest {
                 + " interleaved(effect-after-assert)=" + interleaved + " assertError=" + raising
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
         System.out.println("[corpus2] body-compiler accepted=" + com.legend.BodyCompiler.acceptedCount()
-                + " refused=" + com.legend.BodyCompiler.refusals());
+                + " refused=" + com.legend.BodyCompiler.refusals()
+                + " effect-statements-in-scripts=" + com.legend.exec.EffectSink.inScriptCount());
         java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
         for (String row : fallbackRows) {
             String reason = row.substring(row.indexOf('\t') + 1);

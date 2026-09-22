@@ -546,3 +546,122 @@ disagree 0; the twelve ladder pins byte-identical. H2 database: outside-body 277
 loop until stage 3 (scripts). The value statements are lowered inside `executeTyped` at the
 artifact's run — the run phase still lowers; stage 3 makes them planned statements of the
 script. The fragment map is inert until the split rung goes (stage 4).
+
+
+## 19. Stage 3 homework (2026-09-21): effect bodies as scripts — probes, the baseline, the decisions
+
+**Decision (user, 2026-09-21): one send per segment.** An effect body compiles to an ordered list
+of segments; the runner sends each EFFECT segment as one script (its raw / DDL statements, as
+written, adapted per dialect) and each VERDICTS segment as one fused statement, reading its rows
+at once. A verdict segment is planned after the effects before it have run, because two facts are
+still read from the live session at plan time — a frame's wire types after seeding and a raw
+read's schema. So the 108 non-interleaved effect bodies become TWO sends (effects, then verdicts),
+the 33 interleaved ones two per alternation. Parking the verdict rows in a scratch table for one
+send per body waits for static wire types (a later leg); the raw read's schema stays inherent.
+
+**Probed (DuckDB 1.4.4.0, H2 2.4.240; `$CLAUDE_JOB_DIR/tmp/probe/ScriptFail.java`, `ScriptTx.java`).**
+
+| question | DuckDB | H2 |
+|---|---|---|
+| a script stops at the first failing statement, earlier ones stay applied | yes (rows before the failure = sequential) | yes |
+| the last statement's result set comes back from `execute(script)` | yes (ONLY the last; earlier result sets are dropped) | NO — a script returns no result set through `execute` |
+| the error names the failing statement | no (the message names values / columns, not a position) | yes (`SQL statement: INSERT INTO t VALUES ('x')`; a later failure quotes the script from the failing statement on) |
+| a failed segment rolls back as a unit under `BEGIN … COMMIT` | yes, DDL included (the table is gone after `ROLLBACK`) | DML only (DDL commits: the table stays, the rows roll back) |
+
+**What the probes decide.**
+
+- Verdict statements are their own sends on both lanes (H2 cannot return a script's result;
+  DuckDB returns only the last) — the option-1 shape, no per-engine branch.
+- **The raw-statement ledger** (`Recorder.recordExecuted(sql, query)`: the referee's mirror replays
+  its non-query entries; "a failed statement is never recorded") keeps its invariant per engine,
+  decided INSIDE the dialect: on DuckDB an effect segment runs as one transaction — all applied
+  and all recorded, or rolled back and none recorded; on H2 the failing statement is read from the
+  error and the statements before it are recorded (DDL cannot roll back there). The query kind is
+  decided statically by the boundary's own first-keyword rule (`RawSql.QUERY_KEYWORDS`, the rule
+  the Typer already uses to type an `executeInDb` literal as a relation).
+- **Error attribution for an effect segment**: the fragment map names the SEGMENT (its statement
+  ordinals) on DuckDB, the statement on H2. A test failing inside an effect segment fails as it
+  does today; only the message's precision differs per engine.
+- **All-or-nothing on DuckDB changes the session state a FAILING test leaves behind** (today its
+  statements before the failure stay applied). Measured before the leg: the tests whose failure is
+  inside an effect statement, and whether any later test in the same package session depends on
+  the partial state. Measured (DuckDB database lane, 109 failures): NO failure is a write statement's own — the three `Catalog Error` rows are a raw READ of a missing view (`testRelationStoreAccessorOnView`, the lane's one fallback), a referee rows leg, and the unported `createTempTable` lowering. All-or-nothing on a failed segment changes no session state in the corpus today.
+
+**The baseline (the ratchet named before the leg).** Both lanes, database judge, per-test statement origins over the 141 effect bodies (33 interleaved):
+
+| | DuckDB | H2 |
+|---|---|---|
+| product-owned sends inside the 141 today (raw + verdict + side + statement + probe) | 13,863 (98.3 per body) | 13,838 (98.1 per body) |
+| of which raw statements sent one by one | 13,484 | 13,464 |
+| sends after stage 3 (one per segment: an effect run = one script, a verdict run = one statement) | 311 (2.2 per body) | 311 |
+| outside-body register rows whose reason includes `raw` | 139 | 139 |
+
+The four heaviest bodies seed 318–455 raw statements each (the milestoning and test-data-generation
+tests); they become 2–3 sends. The test-data generators' own statements (`tdg` 1,220) run at the
+census fold and are not segments. Fixture bodies (the 754 effect refusals per run include them) go
+through the same entry and become scripts too, but the seeding census (`seed` 110k) is the harness
+template copy's number, not this leg's.
+
+**What stage 3 changes and what it does not.** The cut rule is unchanged (`containsEffect`, the
+catalog, transitively). The artifact gains `Effect` segments (statement lists) beside the verdict
+batch and the prepared value statements; `BodyCompiler.refusal` stops refusing effects (a
+test-data generator, a context owner, a frame forced at value position and an unported native
+still refuse). The value statements still lower at the artifact's run. The split rung stays for a
+failed fused verdict statement (stage 4). Fixture bodies pass through the same entry and become
+scripts too — the seeding template copy (COPY FROM DATABASE) is a separate harness leg.
+
+## 20. Compiler stage 3 LANDED (2026-09-21): effect bodies are scripts — one send per segment
+
+**What landed.** `BodyCompiler.execute` is the SEGMENT WALK, one pass over the body: lets, asserts
+and value statements accumulate into the open VERDICTS segment (frames and rows on its batch, values
+prepared); an effect statement closes it (its values run in order, its batch flushes as one fused
+statement) and is COLLECTED into the open EFFECT segment; the next non-effect statement sends that
+segment as ONE script first; a test-data generator's fold sends the pending script before it folds
+(it reads the state). The effect natives keep their compile work (raw text split and adapted, DDL
+rendered from the model, CSV spelled as inserts) and lose their send: `StatementExecutor.sendEffect`
+is THE ONE send — collected into an `EffectSink` when one rides the environment (`ExecEnv.effectSink`),
+executed at once otherwise (the loop's behavior, unchanged). `sendScript` sends a segment as one
+script (`Executor.executeScript`, one round trip) and records its statements for the referee's
+ledger: all on success; on a failure the ones the engine names as applied (H2 quotes the failing
+statement; `SqlDialect.failingStatement`), none when the segment rolled back as a unit.
+
+**Two things the lanes taught, both recorded here because they cost a red run each.**
+
+1. **The harness owns a transaction.** The referee's ATTEMPT protocol turns autocommit off on the
+   session connection for an effect body (committed on a pass, rolled back on a failure). The
+   dialect's script bracket (`BEGIN TRANSACTION … COMMIT` on DuckDB, transactional DDL) nested inside
+   it: "cannot start a transaction within a transaction", 137 tests. The bracket applies only when the
+   send OWNS the transaction (`Executor.ownsTransaction`: autocommit on); inside a caller's the
+   statements run bare and the caller unwinds — the harness's rollback IS the all-or-nothing.
+2. **A failed bracket must be closed.** The probe rolled back by hand; the executor did not, and every
+   later script on the connection was refused. `SqlDialect.scriptAbort()` (DuckDB: `ROLLBACK`) runs
+   when a bracketed script fails.
+
+**Refusals.** Effects and generators are no longer refusals. Remaining: a context owner
+(assertError), a frame forced at value position, an unported native at a statement root (1 body).
+
+**Measured (database judge, both lanes).**
+
+| | DuckDB | H2 |
+|---|---|---|
+| raw statements sent one by one (`raw` origin) | 13,484 → 0 | 13,464 → 0 |
+| effect statements that rode inside scripts (fixture bodies included) | 126,922 | 126,902 |
+| the body's own sends (`body`: fused verdicts + scripts) | 2,578 → 6,555 | 2,364 → 6,339 |
+| outside-body register | 157 → 103 (side 93 · tdg 34 · statement 33 · probe 5 · fallback 1) | 255 → 202 |
+| referee mirror seeds replayed (the ledger intact) | 75,023 (unchanged) | 185,812 (unchanged) |
+| fail roster / lost / gained | 109 exact / 0 / 0 | 356 exact / 0 / 0 |
+| H2 verdict-vocabulary fallbacks | — | 146 (unchanged, rung 2c) |
+
+The `seed` census fell 110k → 412: the fixture bodies' seeding did not disappear, it rides in scripts
+(the same statements, counted in-script); the 412 are the runtime-declared setups the session
+provisions on its own. Round trips for the whole DuckDB database lane (every statement the executor sent: setups, sides, frames, referee replays): 134,691 → 11,746 — the lane's wall time is now the seeding's parse work and the referee, not the sends.
+
+**What remains on the register (103 / 202).** `side` (the value sides the referee's appeal and the
+zip / identity arms still evaluate apart), `tdg` (the generators' own statements at the census fold),
+`statement` (value statements: prepared at compile, still their own sends — stage 3's value segment
+as a planned script statement is owed), `probe` (raw-grid schema reads), and the one fallback.
+
+**Owed next.** Static wire types for modeled tables (one send per non-raw effect body); rung 2c (H2
+vocabulary); stage 4 (delete the loop, the seam, the split rung; the fragment map load-bearing);
+the value statements as planned statements; rung 2b (referee canon in SQL); the seeding template
+copy; the order dependence of §18.
