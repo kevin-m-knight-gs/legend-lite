@@ -341,6 +341,13 @@ public final class Executor {
                                 + " returned more than one row — the to-one"
                                 + " contract was not enforced upstream");
                     }
+                    if (v instanceof java.sql.Array arr) {
+                        // the LIST WIRE arriving as ONE JDBC array cell under a
+                        // scalar-shaped root: the collection IS the value — decoded
+                        // HERE, at the one JDBC seam (F1.3b's named shrink, 2026-09-22:
+                        // the router's flatten moved behind the exec seam)
+                        yield new ExecutionResult.Collection(arrayCell(arr), rootType.type());
+                    }
                     yield new ExecutionResult.Scalar(v, rootType.type());
                 }
                 case COLLECTION -> {
@@ -549,6 +556,26 @@ public final class Executor {
             }
         }
         return v;
+    }
+
+    /** A JDBC array cell's elements as wire values: the ONE-CARRIER rule at this
+     * raw read — driver temporals convert to {@link PureDateLiteral} in one hop
+     * (the same conversion the declared-array arm of {@code unwrap} performs). */
+    private static List<Object> arrayCell(java.sql.Array arr) {
+        try {
+            Object[] elements = (Object[]) arr.getArray();
+            List<Object> out = new ArrayList<>(elements.length);
+            for (Object el : elements) {
+                out.add(switch (el) {
+                    case java.sql.Timestamp ts -> PureDateLiteral.fromLocalDateTime(ts.toLocalDateTime());
+                    case java.sql.Date sd -> PureDateLiteral.fromLocalDate(sd.toLocalDate());
+                    case null, default -> el;
+                });
+            }
+            return out;
+        } catch (SQLException ex) {
+            throw new DataError("array cell unwrap failed: " + ex.getMessage(), ex);
+        }
     }
 
     private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {

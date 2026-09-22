@@ -766,3 +766,5 @@ Exposed and fixed by construction: a let binding a raw read is schema-stamped AT
 runs `executeInDb` there), before later effects. H2 lanes PASS the row (364 → 363); DuckDB: `col`
 vs the golden's H2-folded `'COL'` — a ruling owed to the user (accept as an engine-golden H2-ism,
 precedent h2-literal-coercion). Next: that ruling; the router's java.sql value arms; rung 2c.
+
+**JDBC carrier arm LANDED (2026-09-22).** The list wire arriving as one JDBC array cell is decoded to a `Collection` at the executor's scalar read; the router reads values and holds no `java.sql` (F1.3b pin {Compiler, StatementExecutor}). Next: rung 2c (H2 vocabulary) and the split rung; the DuckDB temp-table ruling.

@@ -1603,31 +1603,10 @@ final class AssertVerdicts {
         return switch (r) {
             case null -> new ArrayList<>();
             case ExecutionResult.Scalar s -> {
+                // (a list wire arriving as one JDBC array cell is decoded to a
+                // Collection at the exec seam — no JDBC carrier reaches the router)
                 List<Object> out = new ArrayList<>(1);
-                if (s.value() instanceof java.sql.Array arr) {
-                    // the LIST WIRE arriving as one JDBC array cell —
-                    // the collection IS the side, flattened
-                    try {
-                        for (Object el : (Object[]) arr.getArray()) {
-                            // ONE-CARRIER normalization at this raw JDBC
-                            // read: the wire temporal is PureDateLiteral
-                            // (D-arc) — driver temporals convert in one
-                            // hop, same as the Executor seam
-                            out.add(switch (el) {
-                                case java.sql.Timestamp ts ->
-                                        com.legend.values.PureDateLiteral
-                                                .fromLocalDateTime(ts.toLocalDateTime());
-                                case java.sql.Date sd ->
-                                        com.legend.values.PureDateLiteral
-                                                .fromLocalDate(sd.toLocalDate());
-                                case null, default -> el;
-                            });
-                        }
-                    } catch (java.sql.SQLException ex) {
-                        throw new IllegalStateException(
-                                "array side unwrap failed", ex);
-                    }
-                } else if (s.value() != null) {
+                if (s.value() != null) {
                     out.add(s.value());
                 }
                 yield out;

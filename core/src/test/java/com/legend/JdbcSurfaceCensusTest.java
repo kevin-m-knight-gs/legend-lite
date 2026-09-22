@@ -77,10 +77,6 @@ class JdbcSurfaceCensusTest {
     private static final int FILE_FLOOR = 778;
 
     private static final Set<String> MAIN_REGISTER = new TreeSet<>(List.of(
-            // Clause 2c: the assert-family verdict arm — argument values
-            // compute in the database; the SQLException surface carries
-            // the verdict to the runner
-            "core/src/main/java/com/legend/AssertVerdicts.java",
             "core/src/main/java/com/legend/Compiler.java",
             // leg 3.4: the deferred verdict statements are keyed by the
             // session they run on (a store side's routed connection, or the

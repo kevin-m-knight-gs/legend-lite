@@ -4794,3 +4794,17 @@ every other line identical; rosters exact. Chain: GREEN, SEQUENTIAL — G2 24 ·
 
 **Next.** The DuckDB ruling above; the router's four `java.sql` value arms (`decodeSideValues`)
 to the exec funnel; rung 2c (H2 vocabulary) and with it the split rung.
+
+
+## 2026-09-22 — the router's JDBC carrier arm moved behind the exec seam
+
+**What landed.** A list wire arriving as ONE JDBC array cell under a scalar-shaped root is
+decoded at the executor's scalar read — the one JDBC seam — into a `Collection` result (its
+elements through the one-carrier rule: driver temporals to `PureDateLiteral` in one hop, the
+declared-array arm's own conversion). The router's `decodeSideValues` no longer flattens a
+`java.sql.Array` nor classifies `Timestamp` / `Date`: it reads values. `AssertVerdicts` holds no
+`java.sql`; it leaves the F1.3b root pin (now {Compiler, StatementExecutor}) and the JDBC
+surface register. Ledger: AssertVerdicts 1,254 → 1,237. Four lanes GREEN, exact; every census line identical; differential agree 5,849 · disagree 0. Chain: GREEN, SEQUENTIAL — G2 29 · G1 42 · G3 7 · G4 66 · G5 34 · G6 94 · G7 32 · G9 23 · G8 94 · G10 27 (448 s).
+
+**Next.** Rung 2c (the H2 vocabulary: list / struct / JSON encodings — the split rung's 146 H2
+firings) and with it the split rung; the DuckDB temp-table ruling.

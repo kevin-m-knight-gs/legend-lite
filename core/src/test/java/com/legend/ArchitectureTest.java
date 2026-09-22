@@ -701,18 +701,16 @@ final class ArchitectureTest {
                     // verdicts throw AssertFailed, data errors arrive
                     // as DataError. SHRUNK here: SqlTextVerdicts,
                     // AssertErrorNative and SeedSqlForms left the pin
-                    // (zero java.sql). AssertVerdicts remains for
-                    // CARRIER-TYPE classification only (instanceof
-                    // java.sql.Array/Timestamp/Date on fetched values
-                    // — the flatten's move behind the exec seam is the
-                    // named next shrink).
-                    + "|AssertVerdicts)(\\$.*)?")
+                    // (zero java.sql); AssertVerdicts left it 2026-09-22
+                    // (the JDBC array cell's flatten moved behind the
+                    // exec seam — the Executor yields a Collection).
+                    + ")(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Compiler, StatementExecutor, AssertVerdicts} —"
+                    + " {Compiler, StatementExecutor} —"
                     + " shrink-only (the exception seam landed"
-                    + " 2026-09-01; carrier types are the residue)")
+                    + " 2026-09-01; the carrier-type residue left 2026-09-22)")
             .check(CORE_PROD_CLASSES);
     }
 
