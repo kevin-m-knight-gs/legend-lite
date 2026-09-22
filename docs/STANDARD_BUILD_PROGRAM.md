@@ -368,6 +368,72 @@ classes spanning more than one dependency depth** — `.server` spans 29 levels,
 the root package 26, `.resolver` 24, `.compiler.spec` 23. Packages here are
 organised by topic, not by layer. A full repair relocates ~284 of 679 classes.
 
+**What "organised by topic, not by layer" means, concretely.** Two packages
+carry the whole argument (`layers.py` prints any package this way):
+
+```
+com.legend  (the root package)          com.legend.server
+  depth  0  Nullable          24 ln       depth  0  OutputFormat      39 ln
+  depth  0  NonNull           18 ln       depth  1  Json             964 ln
+  depth  1  ExecuteOptions    61 ln       depth 27  DiagramService   243 ln
+  ...                                     depth 27  PureLspServer    278 ln
+  depth 26  Compiler       1,145 ln       depth 28  QueryService     206 ln
+  depth 26  StatementExecutor 3,299 ln    depth 29  LegendHttpServer 454 ln
+```
+
+Depth 0 is "depends on nothing else in `core`". The root package holds both
+ends of the entire dependency range. And `Json` is a 964-line general-purpose
+serialiser sitting in `server` because that is where it was first needed — so
+**anything that wants to serialise JSON must depend on the HTTP server
+package**. One filing decision, one permanent bottom-to-top edge.
+
+Only **7 of 31 packages** keep all their classes in one layer; **24 straddle**,
+and each straddle is a place a cycle can close (`exec` is smeared across five
+layers). The concentrated damage is 16 classes / 2,034 lines — low-level types
+filed in high-level packages:
+
+| class | depth | its package's median | users |
+| --- | ---: | ---: | ---: |
+| `Nullable` | 0 | 26 | **354** |
+| `compiler.element.type.Multiplicity` | 2 | 13 | 104 |
+| `compiler.spec.TypeInferenceException` | 2 | 20 | 49 |
+| `normalizer.MissProbe` | 1 | 21 | 14 |
+| `resolver.AsorRef` | 1 | 24 | 4 |
+| `server.Json` | 1 | 27 | 3 |
+
+Read row one as: a 24-line annotation depending on nothing, filed in a package
+whose typical member depends on everything, referenced by 354 classes. That is
+the 667-file cycle in a single line.
+
+**The target shape.** A package is a layer, not a topic; name it for where it
+sits and a class that does not fit is telling you something.
+
+```
+L0  com.legend.base      Nullable, NonNull, Json, OutputFormat, Row, ProgramFacts
+L0  com.legend.protocol  the wire metamodel — protocol + protocol.spec MERGED
+L1  com.legend.model     the Pure type system
+L1  com.legend.sql       SQL IR + dialects
+L2  com.legend.parser    lexer + parser + sections MERGED
+L3  com.legend.compiler  element / spec / typed — one target regardless
+L3  com.legend.resolver
+L4  com.legend.lowering  normalizer, plan
+L5  com.legend.exec      execution, judging
+L5  com.legend.server    HTTP, LSP, diagrams
+```
+
+The two merges are not choices: `protocol`/`protocol.spec` (38 classes) and
+`parser`/`parser.section` (25) are genuine mutual recursion. Everything else is
+filing. The test for having got it right is that you can state a package's
+layer without reading its contents.
+
+**Why this belongs after Bazel, not before.** These 24 packages drifted because
+nothing ever said no: Maven compiles `core` as one unit, so filing `Json` under
+`server` costs nothing at build time and stays invisible until someone draws the
+graph. Under Bazel a package is a target with declared `deps`, so that filing
+would make `com.legend.base` depend on `com.legend.server` — a cycle, and the
+build refuses to load. You cannot file a class in the wrong layer, because the
+layer *is* the dependency declaration.
+
 So: not "leave it", but "do it in this order, and let the build enforce it".
 The two-file move is 68% of the available win. `AsorRef` and the eight compiler
 targets are contained follow-ons. **The full re-layering belongs after Bazel
