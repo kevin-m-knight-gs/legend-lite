@@ -12,7 +12,9 @@ import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -134,5 +136,123 @@ final class CollectionRelations {
         }
         return new SqlSelect(ps, false, src, null, List.of(), null, null,
                 List.of(), null, null, outs);
+    }
+
+    // ------------------------------------------------------------------
+    // zip AT ROW POSITION (2026-09-22): a collection stays RELATIONAL as long as it
+    // is at row position. zip(a, b) over two row sets is a JOIN ON THE ROW NUMBER —
+    // the inner join stops at the shorter side, which is zip's own truncation
+    // (zip.pure) — producing the Pair layout every Pair read expects (first, second),
+    // exactly the columns explode() would spell. Plain standard SQL, every target.
+    // The scalar rule (ListEncodings.zip: DuckDB's list_zip) stays for a zip that
+    // must be ONE VALUE inside a row — the list vocabulary, rung 2c's problem.
+    // ------------------------------------------------------------------
+
+    /** {@code zip(a, b)}. */
+    static boolean zipCall(TypedSpec v) {
+        return v instanceof TypedNativeCall n
+                && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(n.callee().qualifiedName())
+                && n.args().size() == 2;
+    }
+
+    /** A source the relation lane plans as rows: a relation, or a zip whose arms are rows. */
+    static boolean rowSource(TypedSpec v) {
+        return Type.relationValued(v.info()) || (zipCall(v) && rowArms((TypedNativeCall) v));
+    }
+
+    /** Both zip arms are numberable rows: a single-column relation, a literal collection,
+     * or such a zip. A list-valued arm (a computed list) keeps the LIST form (explode). */
+    static boolean rowArms(TypedNativeCall z) {
+        return rowArm(z.args().get(0)) && rowArm(z.args().get(1));
+    }
+
+    private static boolean rowArm(TypedSpec arm) {
+        if (arm instanceof com.legend.compiler.spec.typed.TypedCollection) {
+            return true;
+        }
+        if (zipCall(arm)) {
+            return rowArms((TypedNativeCall) arm);
+        }
+        return Type.relationValued(arm.info())
+                && Type.schemaView(arm.info().type()) instanceof Type.RelationType rt
+                && rt.columns().size() == 1;
+    }
+
+    /** {@code zip(a, b)} at relation position: the ROW form when both arms lower to one
+     * column each; otherwise the list form as before (a platform-synthesized zip whose arm
+     * carries a sort key beside its value is typed one column but lowers to two). */
+    static SqlSelect zipRelation(Lowerer lo, TypedNativeCall z) {
+        SqlSelect rows = zipRows(lo, z);
+        return rows != null ? rows : explode(lo, z);
+    }
+
+    /** The relation of {@code zip(a, b)}: rows (first, second) joined on the row number;
+     * null when an arm does not lower to exactly one column. */
+    static @com.legend.Nullable SqlSelect zipRows(Lowerer lo, TypedNativeCall z) {
+        List<Type.Column> layout = lo.classLayout(z.info().type()).orElseThrow(() ->
+                new com.legend.error.NotImplementedException("zip at row position: no Pair layout for "
+                        + z.info().type()));
+        String l = lo.nextAlias();
+        String r = lo.nextAlias();
+        SqlSelect left = armRows(lo, z.args().get(0), layout.get(0), l);
+        SqlSelect right = armRows(lo, z.args().get(1), layout.get(1), r);
+        if (left == null || right == null) {
+            return null;
+        }
+        SqlSource join = new SqlSource.Join(
+                new SqlSource.Subselect(left, l, null), new SqlSource.Subselect(right, r, null),
+                SqlSource.Join.Kind.INNER,
+                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of(l, left.outputs(), RN),
+                        SqlExpr.Column.of(r, right.outputs(), RN)));
+        List<SqlSelect.Projection> ps = new ArrayList<>(2);
+        List<OutputCol> outs = new ArrayList<>(2);
+        OutputCol fo = left.outputs().get(0);
+        OutputCol so = right.outputs().get(0);
+        outs.add(fo);
+        outs.add(so);
+        ps.add(new SqlSelect.Projection(SqlExpr.Column.of(l, left.outputs(), fo.name()), fo.name(), fo));
+        ps.add(new SqlSelect.Projection(SqlExpr.Column.of(r, right.outputs(), so.name()), so.name(), so));
+        return new SqlSelect(ps, false, join, null, List.of(), null, null, List.of(), null, null, outs);
+    }
+
+    private static final String RN = "__rn";
+
+    /** One zip arm as numbered rows {@code (<field>, __rn)}: a relation's first
+     * column in its order, or a literal collection as VALUES in list order. */
+    private static @com.legend.Nullable SqlSelect armRows(Lowerer lo, TypedSpec arm, Type.Column field, String alias) {
+        String inner = lo.nextAlias();
+        SqlSource src;
+        SqlExpr value;
+        SqlType type;
+        if (arm instanceof com.legend.compiler.spec.typed.TypedCollection c) {
+            List<List<SqlExpr>> rows = new ArrayList<>(c.elements().size());
+            for (TypedSpec e : c.elements()) {
+                rows.add(List.of(lo.scalar(e, lo.noScope())));
+            }
+            type = lo.sqlTypeOf(field.type());
+            OutputCol vo = new OutputCol("value", type, rows.isEmpty());
+            src = new SqlSource.Values(rows, List.of("value"), inner, List.of(vo));
+            value = SqlExpr.Column.of(inner, List.of(vo), "value");
+        } else if (Type.relationValued(arm.info()) || classValued(lo, arm) || zipCall(arm)) {
+            SqlSelect rel = lo.relation(arm);
+            if (rel.outputs().size() != 1) {
+                return null;   // not one value per row: the list form stays the road
+            }
+            OutputCol vo = rel.outputs().get(0);
+            type = vo.type();
+            src = new SqlSource.Subselect(rel, inner, null);
+            value = SqlExpr.Column.of(inner, rel.outputs(), vo.name());
+        } else {
+            throw new com.legend.error.NotImplementedException("zip at row position: arm "
+                    + arm.getClass().getSimpleName() + " is neither rows nor a literal collection");
+        }
+        OutputCol fieldOut = new OutputCol(field.name(), type, true);
+        OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
+        SqlExpr rn = new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                List.of(), List.of(), null);
+        return new SqlSelect(List.of(
+                new SqlSelect.Projection(value, field.name(), fieldOut),
+                new SqlSelect.Projection(rn, RN, rnOut)),
+                false, src, null, List.of(), null, null, List.of(), null, null, List.of(fieldOut, rnOut));
     }
 }

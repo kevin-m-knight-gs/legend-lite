@@ -60,6 +60,13 @@ interface VerdictArm {
     ExecutionResult quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
 
+    /** A quantified assert that meets THE VECTOR CONTRACT (VerdictQueries.vectorContract): the
+     * per-element assert is the predicate it means over a row source. The database arm plans the
+     * vector and judges it in the fused statement; the host arm returns null (it fetches and
+     * unrolls by design). 2026-09-22. */
+    @com.legend.Nullable ExecutionResult quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+
     /** The sorted flat-cells idiom of {@code assertEquals} ({@code $r.values.rows.values->sort()}
      * against a pool): the CELL-POOL multiset. Null (the host arm) = neither side is a grid,
      * the ordinary equality continues. */

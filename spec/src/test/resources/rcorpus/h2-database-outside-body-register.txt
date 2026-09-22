@@ -57,7 +57,6 @@ meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDa
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView ||| fallback=1
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| fallback=2
 meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat ||| fallback=2
-meta::relational::tests::mapping::sqlFunction::stringToFloat::testProject ||| side=1
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV1 ||| fallback=1
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV2 ||| fallback=1
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV3 ||| fallback=1

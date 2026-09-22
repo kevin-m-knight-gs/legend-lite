@@ -814,6 +814,10 @@ final class HostJudge {
                 @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.quantified(fqn, predMap, wantTrue, message, letPrefix, specs, env, hook);
         }
+        @Override public @com.legend.Nullable ExecutionResult quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+                SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return null;   // the host judge fetches and unrolls, by design
+        }
         @Override public ExecutionResult sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
                 @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.sameElements(name, args, gridPair, letPrefix, specs, env, hook);

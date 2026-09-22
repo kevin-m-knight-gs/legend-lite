@@ -697,6 +697,23 @@ final class AssertVerdicts {
         } else if (root instanceof TypedNativeCall rn && rn.args().size() >= 2) {
             literalMessage = rn.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCString;
         }
+        // THE VECTOR CONTRACT (VerdictQueries.vectorContract, 2026-09-22): a per-element assert
+        // is the predicate it means; over a row source, row-local, with a literal message, the
+        // vector is planned and judged in the fused statement (zip = a join on the row number,
+        // forAll = no failing row). The unroll below — which FETCHES a zip arm's cells into
+        // Java to spell them as literals — stays the road for everything else.
+        if (!nestedQuantified && lam.body().size() == 1 && fqn != null) {
+            TypedSpec pred = com.legend.compiler.spec.VerdictQueries.assertAsPredicate(root, specs);
+            if (pred != null && com.legend.compiler.spec.VerdictQueries.vectorContract(source, lam, root, pred)) {
+                TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVectorOver(source, qm, lam, pred);
+                ExecutionResult planned = arm(env).quantifiedVector(
+                        NativeFn.Verdict.of(fqn).map(NativeFn.Verdict::bareName).orElse(fqn), predMap, letPrefix, specs, env,
+                        rawHook == null ? null : rawHook::apply);
+                if (planned != null) {
+                    return planned;
+                }
+            }
+        }
         boolean simplePredicate = !nestedQuantified && fqn != null && lam.body().size() == 1
                 && (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT)
                         || fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT_FALSE))

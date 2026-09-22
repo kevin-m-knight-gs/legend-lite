@@ -237,6 +237,93 @@ public final class VerdictQueries {
                         Multiplicity.Bounded.ZERO_MANY));
     }
 
+    /** THE VECTOR CONTRACT (2026-09-22, read off every body that failed the first cut — all 47
+     * through {@code createTableRowIdentifiers}): a {@code forAll} over a collection is a
+     * ROW-WISE SQL CONDITION only when the whole per-element check is a function of that row.
+     * (1) the source is rows the relation lane plans — a relation read, or a zip whose arms are
+     * single-column relations or literal collections (a computed list is the list lane's, a
+     * class query nobody's yet); (2) the predicate is ROW-LOCAL — the binder's fields, literals,
+     * natives over those; any other variable, class query, helper call or instance means it
+     * reaches outside the row; (3) the message is literal or absent (the vector raises it once,
+     * host-side — the caller's own rule for {@code assert(pred)}). Anything else keeps the
+     * unroll: each element a literal substituted into the check, judged by the ordinary arms. */
+    public static boolean vectorContract(TypedSpec source, TypedLambda lam, TypedSpec root, TypedSpec predicate) {
+        return literalMessage(root) && rowSource(source)
+                && lam.parameters().size() == 1
+                && rowLocal(predicate, lam.parameters().get(0));
+    }
+
+    /** (3): the verdict call's message — the argument AFTER its value arguments (one for
+     * assert / assertFalse, two for assertEquals, three for assertEqWithinTolerance) — is a
+     * literal or absent. */
+    static boolean literalMessage(TypedSpec root) {
+        String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(root);
+        List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
+        int values;
+        if (com.legend.compiler.element.type.PlatformTypes.ASSERT.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes.ASSERT_FALSE.equals(fqn)) {
+            values = 1;
+        } else if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS.equals(fqn)) {
+            values = 2;
+        } else if ("meta::pure::functions::asserts::assertEqWithinTolerance".equals(fqn)) {
+            values = 3;
+        } else {
+            return false;
+        }
+        return a.size() <= values || a.get(values) instanceof com.legend.compiler.spec.typed.TypedCString;
+    }
+
+    /** (1): rows the relation lane plans. */
+    static boolean rowSource(TypedSpec source) {
+        if (Type.relationValued(source.info())) {
+            return true;
+        }
+        if (source instanceof TypedNativeCall z
+                && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(z.callee().qualifiedName())
+                && z.args().size() == 2) {
+            return rowArm(z.args().get(0)) && rowArm(z.args().get(1));
+        }
+        return false;
+    }
+
+    private static boolean rowArm(TypedSpec arm) {
+        if (arm instanceof com.legend.compiler.spec.typed.TypedCollection) {
+            return true;
+        }
+        if (arm instanceof TypedNativeCall z
+                && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(z.callee().qualifiedName())) {
+            return rowSource(arm);
+        }
+        return Type.relationValued(arm.info())
+                && Type.schemaView(arm.info().type()) instanceof Type.RelationType rt
+                && rt.columns().size() == 1;
+    }
+
+    /** (2): a function of the row — the binder, its fields, literals, natives over those. */
+    static boolean rowLocal(TypedSpec e, String binder) {
+        return switch (e) {
+            case com.legend.compiler.spec.typed.TypedCString s -> true;
+            case com.legend.compiler.spec.typed.TypedCInteger i -> true;
+            case com.legend.compiler.spec.typed.TypedCFloat f -> true;
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> true;
+            case com.legend.compiler.spec.typed.TypedCBoolean b -> true;
+            case com.legend.compiler.spec.typed.TypedVariable v -> v.name().equals(binder);
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa -> rowLocal(pa.source(), binder);
+            case com.legend.compiler.spec.typed.TypedCast c -> rowLocal(c.source(), binder);
+            case com.legend.compiler.spec.typed.TypedCollection c -> c.elements().stream().allMatch(x -> rowLocal(x, binder));
+            case TypedNativeCall n -> n.args().stream().allMatch(x -> rowLocal(x, binder));
+            default -> false;
+        };
+    }
+
+    /** The predicate vector over a REBOUND source ({@code source->map(binder | pred)}):
+     * the quantified map's own info, the caller's resolved source (through its lets),
+     * the same binder — minted here, the compiler layer (Invariant 7). */
+    public static TypedSpec predicateVectorOver(TypedSpec source, TypedMap quantified,
+            TypedLambda lam, TypedSpec condition) {
+        return predicateVector(new TypedMap(source, lam, quantified.info()), lam, condition);
+    }
+
     /** {@code equal(distinct(<map>), [true])} → the map; else the node
      * (the toSQLString dialect-table idiom's outer wrapper). */
     public static TypedSpec distinctTrueWrapper(TypedSpec bare) {
@@ -351,7 +438,7 @@ public final class VerdictQueries {
         }
         if (source instanceof TypedNativeCall z
                 && z.callee().qualifiedName().equals(
-                        "meta::pure::functions::collection::zip")
+                        com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP)
                 && z.args().size() == 2) {
             List<TypedSpec> left = armElements(z.args().get(0), letPrefix, fetch);
             List<TypedSpec> right = armElements(z.args().get(1), letPrefix, fetch);
@@ -562,6 +649,66 @@ public final class VerdictQueries {
                 .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(value, typeArg),
                         new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)))
                 .orElse(null);
+    }
+
+    /** A VERDICT FUNCTION CALL AS THE PREDICATE IT MEANS (2026-09-22): inside a
+     * quantified lambda ({@code coll->forAll(x | assertEqWithinTolerance(...))}) an
+     * assert is not a verdict of its own, it is the per-element condition —
+     * {@code assert(p)} is {@code p}, {@code assertFalse(p)} is {@code not p},
+     * {@code assertEquals(a, b)} is {@code a == b}, {@code assertEqWithinTolerance(a,
+     * b, t)} is {@code abs(a - b) <= t}: the same conditions the verdict SQL spells for
+     * the statement-root forms, minted here as typed natives so the quantified vector
+     * plans them like any predicate. Null = not a verdict call with a predicate
+     * spelling (the unroll stays the road). */
+    public static @com.legend.Nullable TypedSpec assertAsPredicate(TypedSpec root, SpecCompiler specs) {
+        String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(root);
+        List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
+        if (fqn == null) {
+            return null;
+        }
+        var ctx = specs.ctx();
+        if (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT) && !a.isEmpty()) {
+            return a.get(0);
+        }
+        if (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT_FALSE) && !a.isEmpty()) {
+            return native1(ctx, "meta::pure::functions::boolean::not", a.get(0), Type.Primitive.BOOLEAN);
+        }
+        if (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS) && a.size() >= 2) {
+            return native2(ctx, "meta::pure::functions::boolean::equal", a.get(0), a.get(1), Type.Primitive.BOOLEAN);
+        }
+        if (fqn.equals("meta::pure::functions::asserts::assertEqWithinTolerance") && a.size() >= 3) {
+            // abs(a - b) <= t — the operator run is the parser's one-collection carrier
+            TypedSpec diff = minus(ctx, a.get(0), a.get(1));
+            TypedSpec abs = diff == null ? null : native1(ctx, "meta::pure::functions::math::abs", diff, Type.Primitive.NUMBER);
+            return abs == null ? null
+                    : native2(ctx, "meta::pure::functions::boolean::lessThanEqual", abs, a.get(2), Type.Primitive.BOOLEAN);
+        }
+        return null;
+    }
+
+    private static @com.legend.Nullable TypedSpec minus(com.legend.compiler.element.ModelContext ctx,
+            TypedSpec l, TypedSpec r) {
+        var fn = ctx.findFunction(com.legend.compiler.element.type.PlatformTypes.MINUS).stream()
+                .filter(f -> f.parameters().size() == 1
+                        && f.parameters().get(0).type() == Type.Primitive.NUMBER).findFirst().orElse(null);
+        if (fn == null) {
+            return null;
+        }
+        TypedSpec run = new com.legend.compiler.spec.typed.TypedCollection(List.of(l, r),
+                new ExprType(Type.Primitive.NUMBER, Multiplicity.Bounded.ZERO_MANY), false, true);
+        return new TypedNativeCall(fn, List.of(run), scalar(Type.Primitive.NUMBER));
+    }
+
+    private static @com.legend.Nullable TypedSpec native1(com.legend.compiler.element.ModelContext ctx,
+            String fqn, TypedSpec x, Type out) {
+        return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 1).findFirst()
+                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x), scalar(out))).orElse(null);
+    }
+
+    private static @com.legend.Nullable TypedSpec native2(com.legend.compiler.element.ModelContext ctx,
+            String fqn, TypedSpec x, TypedSpec y, Type out) {
+        return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 2).findFirst()
+                .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x, y), scalar(out))).orElse(null);
     }
 
     /** The literal {@code 0} — assertTdsEquivalent's absent time delta. */

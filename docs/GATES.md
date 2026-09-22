@@ -4876,3 +4876,69 @@ StatementExecutor 2,385 → 2,414 (the lines ask the folder and box its answer).
 **Next.** The zip-over-frame arm: the frame's rows numbered in order, the expected list as a
 VALUES table with ordinals, joined on the ordinal, judged per row in the fused statement — no
 cell fetched into Java; witness `testProject`; side count 0.
+
+
+## 2026-09-22 — forAll and zip compose relationally: the last side is gone
+
+**What the witness was.** `stringToFloat::testProject`: `[123.456, 100.001]->zip($result...rows.values)
+->forAll(pair | assertEqWithinTolerance($pair.first, $pair.second, 0.001))`. The router unrolled the
+forAll by FETCHING the query's cells into Java (a side), spelling them as literals and writing one
+verdict row per pair whose two sides were both constants — the database comparing a number to
+itself. The last SIDE on both database lanes after the literal folding.
+
+**The meaning, not the shape (user, 2026-09-22: "think architecturally about what zip and forAll
+mean in SQL").** An ordered collection at row position is a relation with a row number. `zip(a, b)`
+is a JOIN ON THE ROW NUMBER — the inner join stops at the shorter side, which is zip's own
+truncation. `forAll(coll, x | pred)` is "no row where the predicate is false". And an assert
+function INSIDE a quantified lambda is not a verdict of its own, it is the per-element predicate.
+
+**What landed.**
+
+- `VerdictQueries.assertAsPredicate`: `assert(p)` = `p`, `assertFalse(p)` = `not p`,
+  `assertEquals(a, b)` = `a = b`, `assertEqWithinTolerance(a, b, t)` = `abs(a − b) <= t` — minted
+  as typed natives by exact FQN, the same conditions the verdict SQL spells for the statement-root
+  forms. `predicateVectorOver` mints the vector in the compiler layer (Invariant 7).
+- `VerdictArm.quantifiedIfPlanned`: the database arm plans the vector and judges it in the fused
+  statement (`VerdictSql.allOf`), or returns null when the lowerer cannot plan the source; the host
+  arm returns null (it fetches and unrolls by design). The router asks the arm before the unroll
+  fetches; the unroll stays the road only where nothing can be planned.
+- `CollectionRelations.zipRows`: the ROW form of `zip` in the lowerer's relation lane — each arm as
+  numbered rows (a literal collection as `VALUES` in list order, a relation's first column in its
+  order), an inner join on the row number, the Pair layout's `first` / `second` columns (exactly
+  what `explode` would spell, so every Pair reader is unchanged). The three `map` guards accept a
+  row source (a relation or a zip) so `zip->map` is a projection over rows. The scalar `zip` rule
+  (DuckDB's `list_zip`, the list vocabulary H2 lacks) stays for a zip that must be one value inside a
+  row — rung 2c's problem, deliberately not this leg's.
+
+The fused statement now reads: `VALUES (123.456), (100.001)` numbered, the frame's cells numbered,
+joined on `__rn`, `abs(first − second) <= 0.001` per row, a count of failing rows, verdict "every
+element true". Plain SQL on every target.
+
+**The red runs, and the clean sheet (user, 2026-09-22: "are we hacking around real fixes?").**
+The first cut was right about the meaning and wrong about its scope, and I tightened guards from
+failure counts for two cycles without reading the failing bodies. The user called it, and the
+clean-sheet rule applied: the route was REVERTED to the two architectural pieces (the predicate
+table, the row-form zip — measured verdict-neutral, every census line identical), then EVERY
+failing body was read. All 47 go through ONE helper, `createTableRowIdentifiers`:
+`$i.columnValuePairs->map(cv | assert($table.columns...name->contains($cv.first), 'Table : ' +
+$table->getQualifiedTableName() + ...))` — the source is a zip of two literal lists (rows, by
+type), but the predicate reads `$table`, a metamodel instance from a class query, and the
+message is computed. The predicate is not a function of the row. That reading gives THE VECTOR
+CONTRACT, written once in the compiler layer (`VerdictQueries.vectorContract`): (1) the source
+is rows the relation lane plans — a relation, or a zip whose arms are single-column relations or
+literal collections; (2) the predicate is ROW-LOCAL — the binder, its fields, literals, natives
+over those; (3) the message is literal or absent, at the position the verdict function puts it
+(after one, two or three value arguments) — the same rule the existing `assert(pred)` vector
+path already used. Everything else keeps the unroll, and nothing is decided by exception or by
+count. The route asks the arm (`VerdictArm.quantifiedVector`); the host arm returns null.
+A second lowering lesson from the same reading: a platform-synthesized zip (a sort key beside
+its value) is typed one column but lowers to two — the row form yields to the list form when a
+lowered arm is not one column (`CollectionRelations.zipRelation`).
+
+**Measured.** Side statements 1 → 0 on both database lanes; rosters exact on all four lanes (DuckDB 108 / 108, H2 355 / 363); differential agree 5,849 · disagree 0; the only census change: two per-pair tolerance verdicts became one vector verdict (judged-in-database assertEqWithinTolerance 11 → 10). Both outside-body registers regenerated: DuckDB 45 → 44, H2 144 → 143 — no `side` row left on either. Ladder pins
+byte-identical. Ledger: AssertVerdicts 1,237 → 1,249, DatabaseJudge 586 → 595, HostJudge 802 → 806
+(routing and planning, no evaluation). Chain: GREEN, SEQUENTIAL — G2 25 · G1 43 · G3 7 · G4 61 · G5 29 · G6 95 · G7 30 · G9 20 · G8 89 · G10 27 (426 s); one earlier chain red on G3 alone (the claims ledger's readers column: VerdictQueries and CollectionRelations now read zip / abs / minus / lessThanEqual / equal / not — regenerated).
+
+**Next.** Rung 2c homework (the H2 vocabulary: 146 split-rung firings, all list / struct / JSON in a
+cell); the DuckDB product bug behind its one firing (`testRelationStoreAccessorOnView`); the three
+bare value statements if the register is to read zero for the compiler's own rows.

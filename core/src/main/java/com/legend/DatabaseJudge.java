@@ -596,6 +596,15 @@ final class DatabaseJudge {
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
                     wantTrue), vector.on(env));
         }
+        @Override public @com.legend.Nullable ExecutionResult quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+                SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            SideRows vector = planSide(predMap, false, letPrefix, specs, env, hook);
+            if (vector.why() != null) {
+                return unjudged(fqn, vector.why());   // the contract held and the plan declined: loud, as the vector form is
+            }
+            return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true),
+                    vector.on(env));
+        }
         @Override public ExecutionResult sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
                 @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseVerdict(name, true, args.get(0), args.get(1),

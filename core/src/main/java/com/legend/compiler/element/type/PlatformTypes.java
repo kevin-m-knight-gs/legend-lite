@@ -546,6 +546,8 @@ public final class PlatformTypes {
     public static final String STRING_REPLACE = "meta::pure::functions::string::replace";
     public static final String STRING_MAKE_STRING = "meta::pure::functions::string::makeString";
     public static final String STRING_JOIN_STRINGS = "meta::pure::functions::string::joinStrings";
+    /** {@code zip(a, b)}: pairs by position up to the shorter side (zip.pure). */
+    public static final String COLLECTION_ZIP = "meta::pure::functions::collection::zip";
     /** The engine's relational execution OPTIONS class (executionContext.pure) — the one
      *  context reader spells its fields. */
     public static final String RELATIONAL_EXECUTION_CONTEXT =

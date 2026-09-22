@@ -322,7 +322,7 @@ public final class Lowerer {
         // COLLECTION-VALUED mapper ($r.values — the row's cells) FLATTENS
         // per pure map semantics: project the cell array, then UNNEST.
         if (spec instanceof TypedMap m
-                && Type.relationValued(m.source().info())
+                && CollectionRelations.rowSource(m.source())
                 && m.mapper() instanceof TypedLambda ml
                 && !Type.isRelation(ml.functionType().result().type())) {
             boolean collectionMapper = ValueCollections.isCollectionMapper(ml);
@@ -606,6 +606,10 @@ public final class Lowerer {
             // a CLASS-typed collection VALUE in relation position (batch 76:
             // range->map->zip feeding project): the relation of its
             // elements' layout fields, in list order
+            // zip AT ROW POSITION: a join on the row number (CollectionRelations.zipRows —
+            // plain SQL on every target), never the list vocabulary
+            case TypedNativeCall z when CollectionRelations.zipCall(z) && CollectionRelations.rowArms(z) ->
+                    CollectionRelations.zipRelation(this, z);
             case TypedSpec cv when CollectionRelations.classValued(this, cv) ->
                     CollectionRelations.explode(this, cv);
 
@@ -2808,7 +2812,7 @@ public final class Lowerer {
                     when !Type.relationValued(sb.source().info()) ->
                     ListEncodings.lowerSortBy(this, sb, columns);
             case TypedMap m
-                    when !Type.relationValued(m.source().info()) ->
+                    when !CollectionRelations.rowSource(m.source()) ->
                     // the wire-shape policy AND the [0..0]-empty arm live
                     // with their owner (ListEncodings.lowerMap — the
                     // shape-limit seam split)
@@ -3040,7 +3044,7 @@ public final class Lowerer {
             // (makeString/joinStrings tails): aggregate the projected
             // column to a LIST value via a scalar subquery
             case TypedMap m2
-                    when Type.relationValued(m2.source().info())
+                    when CollectionRelations.rowSource(m2.source())
                     && m2.mapper() instanceof TypedLambda ml2
                     && !Type.isRelation(ml2.functionType().result().type()) -> {
                 Multiplicity colMult2 = ml2.functionType().result().multiplicity();

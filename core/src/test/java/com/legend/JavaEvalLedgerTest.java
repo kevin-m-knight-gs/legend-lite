@@ -498,9 +498,9 @@ class JavaEvalLedgerTest {
             // 2593 -> 2599 (2026-09-20, lean ladder rung 4): SideRows.scalarRow — a
             // declared-one operand handed to VerdictSql as a one-row relation; plan
             // wiring, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/HostJudge.java", 802),   // 423 -> 802 (cleanup move 2b, 2026-09-21: the thirteen host case bodies of the router's switch — tdsEquivalent, size, contains, tolerance, condition, empty, eq, instanceOf, is, sameElements, cellPool, equals, jsonStringsEqual — plus the quantified vector loop and the rendered-text compare, moved VERBATIM behind the VerdictArm interface; the arm's delegating methods; nothing new evaluated); task #27: the host arm, moved verbatim out of AssertVerdicts
-            Map.entry("core/src/main/java/com/legend/DatabaseJudge.java", 586),   // 438 -> 586 (cleanup move 2b: the switch's database blocks — the JSON verdict, instanceOf / is / eq routing, the cell pool, the quantified vector, the rendered value — moved behind the VerdictArm interface with the arm's delegating methods; nothing new evaluated); // 439 -> 438 (cleanup move 2a, 2026-09-21: routes by the side's ENVIRONMENT — SideRows.on(env), runVerdict(…, runOn env), constantSide(…, partner env) — no java.sql in its text or signatures; the routing key is the executor's); task #27: the database arm, moved verbatim out of AssertVerdicts
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1237),   // 1254 -> 1237 (2026-09-22: the JDBC array cell's flatten moved behind the exec seam — the Executor yields a Collection; the router holds no java.sql)
+            Map.entry("core/src/main/java/com/legend/HostJudge.java", 806),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
+            Map.entry("core/src/main/java/com/legend/DatabaseJudge.java", 595),   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1249),   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
