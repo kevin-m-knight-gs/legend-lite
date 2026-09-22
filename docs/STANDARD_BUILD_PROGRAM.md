@@ -19,13 +19,15 @@ The scope is legend-lite itself, built so that Legend projects can later use the
 system without anything here being undone.
 
 This document is the plan to get there from `main`. No part of it is implemented as of
-`a16a1ae16` (2026-09-21). Its counts were first taken at `c062b9bc9` (2026-09-18) and
-re-measured twenty-four commits later at `a16a1ae16`, because the judging work of that
-window **does** touch the build: it added a gate, a script, a CI lane, thirteen register
-files, and two more tests that read files by relative path. The numbers below are the later
-reading; Appendix A's are older on purpose and say so. It is
-written in phases, each with an exit condition you can observe. Section 7 lists every
-bespoke script and build file the plan deletes and what replaces it.
+`97a32a987` (2026-09-22). Its counts were first taken at `c062b9bc9` (2026-09-18) and
+re-measured thirty-one commits later at `a16a1ae16` (2026-09-20), because the judging work
+of that window **does** touch the build: it added a gate, a script, a CI lane, thirteen
+register files, and two more tests that read files by relative path. They were checked
+again twenty-one commits after that, at `97a32a987`: the build itself was untouched, but
+the chain's timing, four more registers, and the record-keeping had moved. The numbers
+below are the latest reading; Appendix A's are older on purpose and say so. It is written
+in phases, each with an exit condition you can observe. Section 7 lists every bespoke
+script and build file the plan deletes and what replaces it.
 
 ---
 
@@ -82,7 +84,7 @@ project's verdict.
 | --- | --- |
 | **The toolchain is not enforced** | Nothing in the build checks the JDK or Maven version, so the wrong one fails obscurely instead of clearly. The only statement of the supported versions is `.sdkmanrc` (`java=25.0.1-tem`, `maven=3.9.12`), which Windows cannot read. |
 | **The README describes a deleted module** | Its Quick Start runs `mvn -pl engine test`; the `engine` module no longer exists. Its test counts (1,713 for `core`) are years of work out of date. |
-| **The instructions are agent documents** | `README.md` sends you to `AGENTS.md` ("read by AI coding assistants"), `core/README.md` and `docs/GATES.md`, which is 4,412 lines of dated work records and grows with most commits — all twenty-four commits of the window above wrote to it. There are 247 Markdown files at the top level of `docs/` and no index. |
+| **The instructions are agent documents** | `README.md` sends you to `AGENTS.md` ("read by AI coding assistants"), `core/README.md` and `docs/GATES.md`, which is 4,841 lines of dated work records and grows with almost every commit — 51 of the 52 since `c062b9bc9` wrote to it. There are 247 Markdown files at the top level of `docs/` and no index. |
 | **Two checkouts, pinned by SHA** | `spec`, `pct`, and `parser-equivalence` read full source trees of `finos/legend-engine` and `finos/legend-pure` through `-Dlegend.engine.root` / `-Dlegend.pure.root`, which must sit on the exact commits in `tools/oracle-pins.env`. Maven cannot fetch them. Without them some tests fail and others skip silently — which is why `allgates.sh` has a skip detector. |
 | **Line endings are unguarded** | There is no `.gitattributes`, so every checkout is at the mercy of the developer's `core.autocrlf`, and CI has to set `core.autocrlf false` and `core.longpaths true` before every checkout. The index itself is in good shape — 2,920 files LF, 10 binary, 4 exceptions — but one exception is `prelude.pure`, whose stored bytes are *mixed* because upstream's own sources carry CRLF and the generator copies their text. Whether a CRLF working tree actually breaks a byte-exact test today is unmeasured; what is certain is that nothing declares the intent. |
 | **One LTS is untested** | The POMs set `maven.compiler.source`/`target` to 21 rather than `release`, so builds on a newer JDK can link against newer APIs and still claim 21. CI builds only on JDK 25 (`.github/actions/gate-env` defaults `java-version: "25"`). Nothing runs on 21. |
@@ -413,19 +415,25 @@ expectations are scalars in code, of three kinds:
 
 Whoever moves a number edits it, and the numbers move constantly. Between 2026-09-11 and
 2026-09-18 the stress floors changed in nine commits (they still read 4,700 and 4,622), and
-fifteen edited `JavaEvalLedgerTest`. The next twenty-four commits, `c062b9bc9` to
-`a16a1ae16`, made that worse rather than better: **twenty of the twenty-four** edited
-`JavaEvalLedgerTest`, and its `AssertVerdicts` pin moved seventeen times — 2212 → 2222 →
-2260 → 2314 → 2317 → 2427 → 2457 → 2527 → 2543 → 2554 → 2600 → 2604 → 2607 → 2565 → 2598 →
-2599 → 2593 → 2599 — all on one line, whose provenance comment has grown to roughly four
-kilobytes of prose on that same line. Two
-developers improving different things both edit the same line, and the merge is silent
-about which improvements survived. A count cannot say which rows it counts:
-`oracle-declined` went 28 → 39 for "eleven helper-shaped plan asserts", described by family
-in a comment, and a different eleven would satisfy the same number. Even the provenance
-drifts, and faster than it is repaired: `MIN_PASS`'s history comment still ends at 4,689
-while the constant reads 4,700, and `AssertVerdicts`'s comment now ends at `2607 -> 2565`
-while the pin beside it reads 2599.
+fifteen edited `JavaEvalLedgerTest`. The next thirty-one commits, `c062b9bc9` to
+`a16a1ae16`, made that worse rather than better: **twenty-six of the thirty-one** edited
+`JavaEvalLedgerTest`, and its `AssertVerdicts` pin moved twenty-two times — 1842 → 1991 →
+1996 → 2044 → 2057 → 2212 → 2222 → 2260 → 2314 → 2317 → 2427 → 2457 → 2527 → 2543 → 2554 →
+2600 → 2604 → 2607 → 2565 → 2598 → 2599 → 2593 → 2599 — all on one line, whose provenance
+comment had grown to 5,696 characters of prose. The twenty-one commits after that, to
+`97a32a987`, kept the pace: seventeen of them edited `JavaEvalLedgerTest`, the verdict work
+took the `AssertVerdicts` pin from 2599 to 1237 in five steps, and splitting that class
+added two new pins, `HostJudge` (now 802) and `DatabaseJudge` (now 586). Two developers
+improving different things both edit the same line, and the merge is silent about which
+improvements survived. A count cannot say which rows it counts: `oracle-declined` went
+28 → 39 for "eleven helper-shaped plan asserts", described by family in a comment, and a
+different eleven would satisfy the same number. And provenance kept beside a number does
+not last. It drifts: `MIN_PASS`'s history comment still ends at 4,689 while the constant
+reads 4,700, and at `a16a1ae16` the newest step the `AssertVerdicts` comment recorded was
+`2607 -> 2565` while its pin read 2599. Then it disappears: that comment grew to 6,708
+characters during the cleanup, and one cleanup commit (`d138ff005`) cut the line to a
+single step, taking the rest of the history with it. Rows with their reasons would have
+moved with the code.
 
 The corpus lanes already have the answer. `h2-fail-roster.txt` and the unordered-chain
 registers are one row per test, compared as exact sets. When host-only judging changed how
@@ -444,8 +452,11 @@ fix different tests touch different lines and git merges them correctly. New exp
 should be born in this shape — and in the window since, they were: the judging program
 added thirteen row-shaped registers under `spec/src/test/resources/rcorpus/`, the per-mode
 `lost`, `gained`, `accepted`, `differential` and `engine-order` registers for each backend.
-That is this prescription followed without being asked, and it is the evidence the shape
-works under pressure. One half-step is worth naming, because it is the shape to avoid:
+The next twenty-one commits added four more: an outside-body register per backend, of 104
+and 203 rows, and a host-compared register per backend — exact and shrink-only — which the
+work then drove to zero rows, so any assert decided outside a verdict row now fails by
+name. That is this prescription followed without being asked, and it is the evidence the
+shape works under pressure. One half-step is worth naming, because it is the shape to avoid:
 `rcorpus/duckdb-judge-unjudged-ceiling.txt` holds `0` — a scalar that got a file but not
 rows, and it will conflict exactly as a constant did. Whether the source-size pins should
 exist at all is a separate question (§9).
@@ -665,19 +676,19 @@ workflow change.
   included.
 - **Every test finds its files as a declared input.** 57 test sources read files by
   relative path at `c062b9bc9` (26 in `core`, 19 in `parser-equivalence`, 6 each in `spec`
-  and `pct`), and the count only grows: the following twenty-four commits added two more in
-  `core` and one more writer into `target/`. Treat it as a number measured at conversion
-  time, not a fixed list. Each declares them and finds them through one small helper —
-  Bazel's runfiles under Bazel, the repository root under Maven — whose Maven half goes
-  with Maven in phase 3. The 16 that read or write `target/` and the 24 that write files go
-  through the same helper: under Bazel they write to its test output directories, under
-  Maven where they write today.
+  and `pct`), and the count only grows: by `a16a1ae16` it was 59, the two new ones in
+  `core`, and it still is at `97a32a987`. Treat it as a number measured at conversion time,
+  not a fixed list. Each declares them and finds them through one small helper — Bazel's
+  runfiles under Bazel, the repository root under Maven — whose Maven half goes with Maven
+  in phase 3. The 17 that read or write `target/` and the 26 that write files (16 and 24 at
+  `c062b9bc9`) go through the same helper: under Bazel they write to its test output
+  directories, under Maven where they write today.
 - **Generation modes get `bazel run` targets.** The five `-D*.generate` flags rewrite
   files in the working tree, which a Bazel test cannot do; each gets a `bazel run` target
-  that writes into the workspace instead. Find them by behaviour, not by name: `-Dladder.record`,
-  added on 2026-09-20, rewrites the twenty-four committed `ladder/*.sql` pins, and a sweep
-  for `*.generate` would miss it. The flags themselves stay for Maven until
-  phase 3 (below), and phase 4 moves generation into the build.
+  that writes into the workspace instead. Find them by behaviour, not by name:
+  `-Dladder.record`, added on 2026-09-20, rewrites the twenty-four committed
+  `ladder/*.sql` pins, and a sweep for `*.generate` would miss it. The flags themselves
+  stay for Maven until phase 3 (below), and phase 4 moves generation into the build.
 - Add `.gitattributes` — `* text=auto eol=lf` with `*.pure -text` (§4.6: the exception is
   what keeps `prelude.pure`'s mixed endings intact) — and `.editorconfig`. Confirm with
   `git ls-files --eol` before and after that exactly the four known exceptions remain, and
@@ -773,12 +784,12 @@ and nothing in the Bazel build reads a checkout.
   nothing downstream of it (§4.1; §8, risk 8).
 - **Delete Maven, in one change**, once `bazel test //...` reproduces every gate: every
   `pom.xml`, `.sdkmanrc`, the Maven half of the input helper, the five `-D*.generate`
-  flags, `tools/allgates.sh`, `tools/bump.sh`, `tools/diagnostics.sh`,
-  `tools/corpus-both.sh`, `tools/ci-watch.sh`, `tools/classpath-convergence.sh`,
-  `tools/version-report.sh`, `tools/oracle-pins.env`, `tools/oracle-roots.sh`, the
-  composite action, and all three workflows: `gate.yml` and `gates-run.yml` once
-  `build.yml` carries the `actionlint` job, and `diagnostics.yml` with
-  `tools/diagnostics.sh`.
+  flags and `-Dladder.record`, `tools/allgates.sh`, `tools/judge-lanes.sh`,
+  `tools/bump.sh`, `tools/diagnostics.sh`, `tools/corpus-both.sh`, `tools/ci-watch.sh`,
+  `tools/classpath-convergence.sh`, `tools/version-report.sh`, `tools/oracle-pins.env`,
+  `tools/oracle-roots.sh`, the composite action, and all three workflows: `gate.yml` and
+  `gates-run.yml` once `build.yml` carries the `actionlint` job, and `diagnostics.yml`
+  with `tools/diagnostics.sh`.
 
 **Gated by:** *decisions* — three from §9: the four-minute budget and which lanes gate
 pull requests, both needed before the lanes become targets, and the triage of the ledger
@@ -794,9 +805,9 @@ window agreed with whoever runs the judging program; a long-lived branch will no
 the rebases.
 
 **Exit:** `bazel test //...` reproduces every gate the chain runs at the time — eleven
-today, the differential gate included since 2026-09-20 (§4.4) — locally and in CI, with no shell
-involved; a deliberately broken test fails it for the same reason the gate chain would
-have; no `pom.xml` and no `mvn` remains in the repository; and `build.yml` is the one
+today, the differential gate included since 2026-09-20 (§4.4) — locally and in CI, with no
+shell involved; a deliberately broken test fails it for the same reason the gate chain
+would have; no `pom.xml` and no `mvn` remains in the repository; and `build.yml` is the one
 required check.
 
 ### Phase 4 — Generation moves into the build
@@ -912,12 +923,13 @@ can work at once.
 conflict, and to conflict silently in the direction of a false green. §4.5 is the fix, and
 it should land early in phase 3.
 
-**Shared append-only records.** `docs/GATES.md` takes a paragraph from most commits — 100
-of the 139 (merges aside) between 2026-09-11 and 2026-09-18, and **all twenty-four** from
-`c062b9bc9` to `a16a1ae16`, which added 530 lines to it. Every paragraph lands at the end of
-the same file, so any two pull requests in flight conflict there. The conflict is loud rather than silent, but it is
-certain, and it grows with the number of people. Phase 0 moves the record into the pull
-request; phase 6 retires the file.
+**Shared append-only records.** `docs/GATES.md` takes a paragraph from almost every
+commit — 100 of the 139 (merges aside) between 2026-09-11 and 2026-09-18, 30 of the 31 from
+`c062b9bc9` to `a16a1ae16`, which added 530 lines to it, and all 21 after that, to
+`97a32a987`, which added 429 more. Every paragraph lands at the end of the same file, so
+any two pull requests in flight conflict there. The conflict is loud rather than silent,
+but it is certain, and it grows with the number of people. Phase 0 moves the record into
+the pull request; phase 6 retires the file.
 
 **Cross-module coupling.** Today an edit in `pct` or `parser-equivalence` can fail `core`,
 so two people working in different modules are not actually independent. In Bazel a
@@ -945,25 +957,28 @@ What is measured today is Maven: a `verify` that omits the corpus lanes, the Cha
 suites, the H2 relation lane, the H2 stress lane, and the parser sweep against a full
 corpus takes 8 min 37 s serially (Appendix A). The gate chain — core's clean compile and
 all ten gates — measured 408 s serially and 249 s as three parallel streams on a quiet
-developer machine (`docs/GATES.md`, 2026-09-17). It has been getting slower since: the
-three chains recorded between 2026-09-19 and 2026-09-21 read 271 s, 301 s and ≈299 s, every
-one of them over the four-minute budget, and none of them running gate 11. Adding up the per-gate times of a parallel run gives ten
-minutes and more, but those times are inflated by the other streams; alone, every gate ran
-faster. So on a developer's machine the promise does not depend on parallelism: serial is
-under seven minutes. Bazel's own numbers do not exist yet; phase 1 takes them.
+developer machine (`docs/GATES.md`, 2026-09-17). It got slower: the three parallel chains
+recorded on the way to `a16a1ae16` read 271 s, 301 s and ≈299 s, every one of them over the
+four-minute budget, and none of them running gate 11. Then, on 2026-09-21, the machine's
+low-memory watchdog killed the parallel chain twice — IntelliJ, several sessions and an
+engine server were running beside it — and the chain has run serially since: 442, 468,
+436, 439, 448 and 408 s, still without gate 11. So a developer's machine can no longer
+count on parallelism, and serial is between 6m48s and 7m48s. Bazel's own numbers do not
+exist yet; phase 1 takes them.
 
 Caching changes the arithmetic, though less than it seems. A pull request that touches
 only `pct` re-runs `pct`'s tests and what depends on them; one that touches `core` — most
 do — re-runs nearly everything, because nearly everything depends on `core`. Caching cuts
 the cost of the many small changes outside `core`, not of the typical one.
 
-Two things can still break it. The CI runners are smaller: the macOS one has 3 vCPU and
-7 GB (`pct/pom.xml`), where one PCT suite's 2–3 GB live set is already a third of the
-machine, and Bazel left alone runs as many tests at once as there are cores — so on the
-runners the budget is a **memory** budget before it is a time budget, and phase 1 measures
-both. And the set is growing: the H2 stress lane, which no gate runs today, is about two
-minutes, and the differential gate (§4.4) adds database-mode runs of the corpus and stress
-lanes, of which the homework prices the DuckDB corpus run alone at about 100 s.
+Two things can still break it. Memory binds before time, and not only on CI's smaller
+runners: the kills above happened on a developer's machine, and the macOS runner has
+3 vCPU and 7 GB (`pct/pom.xml`), where one PCT suite's 2–3 GB live set is already a third
+of the machine. Bazel left alone runs as many tests at once as there are cores, so the
+budget is a **memory** budget before it is a time budget, and phase 1 measures both. And
+the set is growing: the H2 stress lane, which no gate runs today, is about two minutes, and
+the differential gate (§4.4) adds database-mode runs of the corpus and stress lanes, of
+which the homework prices the DuckDB corpus run alone at about 100 s.
 
 The project also already has a time budget: four minutes for the parallel chain, set on
 2026-09-16 (`docs/STRESS_CORPUS_THROUGH_LITE_2026_09_16.md`, F-R). It already decides what
@@ -1013,13 +1028,14 @@ gate the chain gains: it was 2,900 one week and one gate ago.
 
 1. **Will `main` be protected?** Phase 0 is a decision, not a task, and every later phase
    depends on it. This is the largest risk in the plan, and nothing has moved on it: the
-   twenty-four commits from `c062b9bc9` to `a16a1ae16` all landed as direct pushes — no
+   fifty-two commits from `c062b9bc9` to `97a32a987` all landed as direct pushes — no
    merge commits, no pull requests.
-2. **Does the whole suite fit in a pull-request check?** On a developer's machine, very
-   likely, even serially: the gate chain runs in under seven minutes there under Maven,
-   and Bazel must be measured to match it. On the CI runners nobody has measured it,
-   memory binds before time, and the set is growing (§6). §6 says what to measure and in
-   what order to retreat; phase 1 does the measuring.
+2. **Does the whole suite fit in a pull-request check?** Less clearly than it did. On a
+   developer's machine the gate chain now runs serially, because the parallel chain was
+   killed for memory, and serially it takes between 6m48s and 7m48s under Maven without
+   gate 11; Bazel must be measured to match it. On the CI runners nobody has measured it,
+   and the set is growing (§6). §6 says what to measure and in what order to retreat;
+   phase 1 does the measuring.
 3. **Windows.** Bazel supports Windows, and Windows is where Bazel users most often hit
    trouble: path length, symlinks, and runfiles. The plan's answers are the documented
    ones — a short output root, the runfiles library instead of symlink trees, no shell
@@ -1061,8 +1077,8 @@ test-jar could not offer. The triage — real behavioral ledger, linter rule, or
 belongs in phase 3, and it may be the difference between a package worth having and a
 package that preserves a cost nobody examined. The first candidate is
 `JavaEvalLedgerTest`: it pins a line count for each file that evaluates in Java, it was
-edited by twenty of the twenty-four commits from `c062b9bc9` to `a16a1ae16` — seventeen
-moves of one pin in that window alone (§4.5) — and two people changing the same file always
+edited by twenty-six of the thirty-one commits from `c062b9bc9` to `a16a1ae16` and
+seventeen of the twenty-one after them (§4.5), and two people changing the same file always
 conflict on it. Not every guard is a candidate, though:
 `VerdictChannelRegisterTest` now enforces a design rule — one Java class decides every
 equality (`docs/JUDGING_TWO_MODES_2026_09_17.md` §5) — so for it the question is form, not
@@ -1087,12 +1103,13 @@ entirely. Either beats the status quo, and neither is free.
 **Does the four-minute budget survive? It already has not.** The project's parallel chain
 has a four-minute budget (2026-09-16), and it already decides what runs: the H2 stress lane
 stays out because the budget cannot carry it, and gate 11 was made opt-in locally on
-2026-09-20 for the same reason, at 121 s. Meanwhile the chain *without* gate 11 has measured
-271 s, 301 s and ≈299 s — over budget on its own. This plan
-puts everything in `bazel test //...`. They cannot both hold, so the question is no longer
-whether the budget gives but which way, and the drift has started without an answer. Raise the
-budget, set it per machine class, or let it decide what runs on pull requests with the rest
-on merge (§6's retreat) — the project's call, and phase 3 cannot turn the lanes into
+2026-09-20 for the same reason, at 121 s. Meanwhile the chain *without* gate 11 measured
+271 s, 301 s and ≈299 s in parallel — over budget on its own — until the parallel chain was
+killed for memory on 2026-09-21; it has run serially since, at 408 to 468 s. This plan puts
+everything in `bazel test //...`. They cannot both hold, so the question is no longer
+whether the budget gives but which way, and the drift has started without an answer. Raise
+the budget, set it per machine class, or let it decide what runs on pull requests with the
+rest on merge (§6's retreat) — the project's call, and phase 3 cannot turn the lanes into
 targets without it.
 
 **Is there a shared remote cache?** CI's own caches are enough to start. A remote cache
@@ -1153,7 +1170,8 @@ gate disagree about what the default suite is, and the script is the one that is
 | Test classes | 311 (`core` 249, `parser-equivalence` 29, `spec` 14, `nlq` 13, `pct` 6) |
 
 These structural counts drift fast, which is itself worth seeing. Measured the same way at
-`a16a1ae16` (2026-09-21), three weeks later: 1,349 lines of shell across 9 scripts, 378
-lines of workflow YAML, **11** gates, 247 Markdown files at the top of `docs/`, and
-`docs/GATES.md` at 4,412 lines. Section 2 carries the later reading; the table above goes
-with the timings above it.
+`a16a1ae16` (2026-09-20), three days later: 1,349 lines of shell across 9 scripts, 378
+lines of workflow YAML, **11** gates, 246 Markdown files at the top of `docs/`, and
+`docs/GATES.md` at 4,412 lines. At `97a32a987` (2026-09-22), twenty-one commits on, only
+the last two had moved: 247 files and 4,841 lines. Section 2 carries the latest reading;
+the table above goes with the timings above it.
