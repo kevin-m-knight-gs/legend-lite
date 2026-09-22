@@ -739,3 +739,11 @@ fact happens. One exception by rule, not by convenience: the scan-order pass cou
 standalone SQL layer (it may not reach `exec`) and the census reads through to it. Every census
 line the lanes print is identical to move 2c's run; four lanes exact; no verdict reads a count.
 Next: one let-binding lookup and one callee-name helper in the compiler layer, then stage 4.
+
+**Move 4 LANDED (2026-09-22): one let-binding lookup, one callee-name helper.** `Lets` (typed
+package): `binding` / `binds` / `bound` / `bare` / `byName` — the let in scope is the last one that
+binds the name; the chase is lexical. Eleven hand-rolled prefix walks, six trailing-let idioms and
+`ExecuteChainAssembly.letBound` are gone (its callers name `Lets.bound`). `Calls`: callee FQN and
+arguments of either call kind, once; the copies in `StoreElementIdentity`, `ContextReading`,
+`BodyCompiler` and the router deleted. Every census line identical; four lanes exact. The cleanup
+list from §21 is now: stage 4 (loop, seam, split rung), then the temp-table natives.

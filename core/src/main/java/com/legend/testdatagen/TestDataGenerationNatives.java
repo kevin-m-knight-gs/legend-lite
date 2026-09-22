@@ -162,11 +162,10 @@ public final class TestDataGenerationNatives {
      * lets) — one level, literals only; anything else stays put. */
     private static TypedSpec deref(TypedSpec v, List<TypedSpec> letPrefix) {
         if (v instanceof com.legend.compiler.spec.typed.TypedVariable tv) {
-            for (TypedSpec l : letPrefix) {
-                if (l instanceof com.legend.compiler.spec.typed.TypedLet tl
-                        && tl.name().equals(tv.name())) {
-                    return tl.value();
-                }
+            com.legend.compiler.spec.typed.TypedLet tl =
+                    com.legend.compiler.spec.typed.Lets.binding(letPrefix, tv.name());
+            if (tl != null) {
+                return tl.value();
             }
         }
         return v;

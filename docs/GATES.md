@@ -4682,3 +4682,30 @@ lanes GREEN, exact; ladder pins byte-identical; differential agree 5,848 · disa
 Chain: GREEN, SEQUENTIAL — G2 26 · G1 44 · G3 7 · G4 65 · G5 32 · G6 95 · G7 31 · G9 22 · G8 93 · G10 27 (442 s).
 
 **Next.** One let-binding lookup and one callee-name helper in the compiler layer; then stage 4.
+
+
+## 2026-09-22 — cleanup move 4: one let-binding lookup, one callee-name helper
+
+**What landed.** `com.legend.compiler.spec.typed.Lets`: the let in scope for a name is the LAST
+one in the prefix that binds it (a call frame's parameter let shadows the caller's) —
+`binding` / `binds`, `bound` (the lexical chase: below the binding met, never through it; the
+one algorithm `ExecuteChainAssembly.letBound` had, now the only one), `bare` (a trailing let IS
+its value), `byName`. Eleven hand-rolled walks over the prefix are gone (`SqlTextVerdicts` five,
+`AssertVerdicts` two, `LineageTreeLines` two, `TestDataGenerationNatives` one, the host seam's
+name map), six copies of the trailing-let idiom, and `letBound`'s definition — its sixty-odd
+callers across nine files now name `Lets.bound`. `Calls`: the callee FQN and arguments of either
+call kind, once — the pair moved out of `StoreElementIdentity`, the private copies in
+`ContextReading` and `BodyCompiler` deleted, the router's `calleeFqn` reduced to its one real
+job (the `assertError` exclusion) over `Calls`. Both classes sit in the typed package, below
+every reader. Semantics: one former site took the FIRST binding (`TestDataGenerationNatives`),
+one took ALL (`SqlTextVerdicts`' reachability walks); Pure forbids re-binding a name in one
+scope and inlined frames get fresh names, so first, last and all coincide — measured: every
+census line identical.
+
+**Registers.** Ledger: StatementExecutor 2,458 → 2,438; AssertVerdicts 1,272 → 1,254;
+SqlTextVerdicts 1,248 → 1,239. Four lanes GREEN, exact; ladder pins byte-identical;
+differential agree 5,848 · disagree 0. Chain: GREEN, SEQUENTIAL — G2 27 · G1 45 · G3 7 · G4 65 · G5 34 · G6 102 · G7 34 · G9 23 · G8 102 · G10 29 (468 s).
+
+**Next.** Stage 4: delete the statement loop, the seam (`hostChannel` / `hostEvalAtSeam` /
+`StoreNav.owns`) and the split rung — not the host judge — after the three refused shapes
+(context owner, forced frame, unported native) have compiler segments.

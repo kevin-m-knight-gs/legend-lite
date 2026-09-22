@@ -30,24 +30,6 @@ public final class StoreElementIdentity {
     public record TableRef(String dbFqn, String schema, String table) {
     }
 
-    /** The callee FQN of either call kind; null for a non-call. */
-    public static @com.legend.Nullable String calleeOf(TypedSpec n) {
-        return switch (n) {
-            case TypedNativeCall c -> c.callee().qualifiedName();
-            case TypedUserCall u -> u.callee().qualifiedName();
-            default -> null;
-        };
-    }
-
-    /** The arguments of either call kind; empty for a non-call. */
-    public static List<TypedSpec> argsOf(TypedSpec n) {
-        return switch (n) {
-            case TypedNativeCall c -> c.args();
-            case TypedUserCall u -> u.args();
-            default -> List.of();
-        };
-    }
-
     /** {@code n} through {@code toOne}/{@code toOneMany} peels and the
      * caller's binder (lets, aliases). */
     public static TypedSpec peel(TypedSpec n, UnaryOperator<TypedSpec> bind) {
@@ -64,10 +46,10 @@ public final class StoreElementIdentity {
     public static @com.legend.Nullable TableRef tableRef(TypedSpec n,
             UnaryOperator<TypedSpec> bind) {
         TypedSpec t = peel(n, bind);
-        if (!PlatformTypes.STORE_TABLE_NAV.equals(calleeOf(t))) {
+        if (!PlatformTypes.STORE_TABLE_NAV.equals(Calls.calleeOf(t))) {
             return null;
         }
-        List<TypedSpec> ta = argsOf(t);
+        List<TypedSpec> ta = Calls.argsOf(t);
         if (ta.size() != 2 || !(bind.apply(ta.get(1)) instanceof TypedCString tn)) {
             return null;
         }
@@ -79,10 +61,10 @@ public final class StoreElementIdentity {
     public static String @com.legend.Nullable [] schemaRef(TypedSpec n,
             UnaryOperator<TypedSpec> bind) {
         TypedSpec s = peel(n, bind);
-        if (!PlatformTypes.STORE_SCHEMA_NAV.equals(calleeOf(s))) {
+        if (!PlatformTypes.STORE_SCHEMA_NAV.equals(Calls.calleeOf(s))) {
             return null;
         }
-        List<TypedSpec> sa = argsOf(s);
+        List<TypedSpec> sa = Calls.argsOf(s);
         if (sa.size() != 2
                 || !(bind.apply(sa.get(0)) instanceof TypedPackageableRef db)
                 || !(bind.apply(sa.get(1)) instanceof TypedCString sn)) {
@@ -106,8 +88,8 @@ public final class StoreElementIdentity {
 
     /** Whether {@code n} is a schema or table identity call (no lets). */
     public static boolean isIdentity(TypedSpec n) {
-        String fqn = calleeOf(n);
-        return fqn != null && isIdentityCall(fqn, argsOf(n));
+        String fqn = Calls.calleeOf(n);
+        return fqn != null && isIdentityCall(fqn, Calls.argsOf(n));
     }
 
     /** Whether {@code n} is a TABLE identity (the row-rooted kind). */

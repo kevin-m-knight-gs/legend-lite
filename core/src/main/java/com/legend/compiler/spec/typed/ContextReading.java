@@ -200,16 +200,8 @@ final class ContextReading {
                 + "' is not a string literal on " + mi.classFqn());
     }
 
-    /** One hook lambda: the ONLY recognized body is a terminal
-     * {@code replaceTables($query, <pairs>)} call. */
-    private static @com.legend.Nullable String calleeOf(TypedSpec n) {
-        return switch (n) {
-            case TypedNativeCall c -> c.callee().qualifiedName();
-            case com.legend.compiler.spec.typed.TypedUserCall u -> u.callee().qualifiedName();
-            default -> null;
-        };
-    }
-
+    // one hook lambda: the ONLY recognized body is a terminal
+    // replaceTables($query, <pairs>) call
 
     private static void readHook(TypedSpec hook, Map<String, String> out,
             boolean[] cte, java.util.function.UnaryOperator<TypedSpec> bind) {
@@ -218,7 +210,7 @@ final class ContextReading {
         if (hook instanceof TypedLambda cl && !cl.body().isEmpty()
                 && cl.body().get(cl.body().size() - 1) instanceof TypedNewInstance rni
                 && rni.properties().get("values") instanceof TypedSpec vals
-                && com.legend.builtin.NativeFn.ContextOption.of(calleeOf(vals)).orElse(null) == com.legend.builtin.NativeFn.ContextOption.EXTRACT_SUBQUERIES_AS_CTES) {
+                && com.legend.builtin.NativeFn.ContextOption.of(Calls.calleeOf(vals)).orElse(null) == com.legend.builtin.NativeFn.ContextOption.EXTRACT_SUBQUERIES_AS_CTES) {
             cte[0] = true;
             return;
         }
@@ -226,7 +218,7 @@ final class ContextReading {
         // nonExecutable processor (nonExecutablePostProcessor.pure:24): a
         // platform post-processor, applied as the IR pass nonExecutable()
         if (hook instanceof TypedLambda nl && !nl.body().isEmpty()
-                && com.legend.builtin.NativeFn.ContextOption.of(calleeOf(nl.body().get(nl.body().size() - 1))).orElse(null) == com.legend.builtin.NativeFn.ContextOption.NON_EXECUTABLE) {
+                && com.legend.builtin.NativeFn.ContextOption.of(Calls.calleeOf(nl.body().get(nl.body().size() - 1))).orElse(null) == com.legend.builtin.NativeFn.ContextOption.NON_EXECUTABLE) {
             cte[1] = true;
             return;
         }

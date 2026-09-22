@@ -31,8 +31,7 @@ final class CsvLoad {
     static ExecutionResult loadCsvToDbTable(List<TypedSpec> body,
             TypedNativeCall call, StatementExecutor.ExecEnv env) {
         String path = StatementExecutor.evalStringArg(body, call.args().get(0), env);
-        String[] ref = tableRef(com.legend.compiler.spec.ExecuteChainAssembly
-                .letBound(call.args().get(1), body), body);
+        String[] ref = tableRef(com.legend.compiler.spec.typed.Lets.bound(call.args().get(1), body), body);
         String qualified = "default".equals(ref[1]) ? ref[2] : ref[1] + "." + ref[2];
         var tableType = env.ctx().findTable(ref[0], ref[2]).orElseThrow(() ->
                 new com.legend.error.NotImplementedException("loadCsvToDbTable:"
@@ -82,10 +81,10 @@ final class CsvLoad {
     }
 
     private static TypedSpec peel(TypedSpec n, List<TypedSpec> body) {
-        TypedSpec cur = com.legend.compiler.spec.ExecuteChainAssembly.letBound(n, body);
+        TypedSpec cur = com.legend.compiler.spec.typed.Lets.bound(n, body);
         while (cur instanceof TypedNativeCall nc && nc.args().size() == 1
                 && com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())) {
-            cur = com.legend.compiler.spec.ExecuteChainAssembly.letBound(nc.args().get(0), body);
+            cur = com.legend.compiler.spec.typed.Lets.bound(nc.args().get(0), body);
         }
         return cur;
     }

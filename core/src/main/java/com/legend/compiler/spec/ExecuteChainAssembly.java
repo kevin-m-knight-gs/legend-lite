@@ -11,6 +11,7 @@ import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedEval;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedMap;
 import com.legend.compiler.spec.typed.TypedNativeCall;
@@ -55,33 +56,6 @@ public final class ExecuteChainAssembly {
     public record Chain(TypedSpec chain, boolean relationRooted) {
     }
 
-    /** A let-bound argument resolves through the caller's let prefix
-     * ({@code let q = |...|; execute($q, ...)}). */
-    public static TypedSpec letBound(TypedSpec arg,
-            List<TypedSpec> letPrefix) {
-        // a let bound to another VARIABLE (a call frame's parameter let
-        // `let func = $func` over the caller's own let) chases on DOWN the
-        // prefix — below the binding met, never through it (the frame's
-        // let shadows the caller's same-named one)
-        TypedSpec cur = arg;
-        int from = letPrefix.size() - 1;
-        while (cur instanceof TypedVariable v) {
-            TypedSpec next = null;
-            for (int i = from; i >= 0; i--) {
-                if (letPrefix.get(i) instanceof TypedLet let
-                        && let.name().equals(v.name())) {
-                    next = let.value();
-                    from = i - 1;
-                    break;
-                }
-            }
-            if (next == null) {
-                break;
-            }
-            cur = next;
-        }
-        return cur;
-    }
 
     /** Peel the query argument to its zero-arg lambda (β-inline a
      * lambda-building user call; read through preval/withFeatureFlags
@@ -89,7 +63,7 @@ public final class ExecuteChainAssembly {
      * EMISSION) and validate the mapping argument. */
     public static Prepared prepare(TypedNativeCall ec,
             List<TypedSpec> letPrefix, SpecCompiler specs) {
-        TypedSpec q = letBound(ec.args().get(0), letPrefix);
+        TypedSpec q = Lets.bound(ec.args().get(0), letPrefix);
         // a LAMBDA-BUILDING user call in query position (corpus
         // buildQuery(value) returning FunctionDefinition<{->Person[*]}>):
         // β-inline it — the body's single expression IS the lambda literal
@@ -107,7 +81,7 @@ public final class ExecuteChainAssembly {
         while (q instanceof TypedNativeCall pv
                 && (com.legend.builtin.NativeFn.Handle.of(pv.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.PREVAL
                     || com.legend.builtin.NativeFn.PlanWrapper.of(pv.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS)) {
-            q = letBound(pv.args().get(0), letPrefix);
+            q = Lets.bound(pv.args().get(0), letPrefix);
         }
         // if(<literal>, |{|q1}, |{|q2}): a query lambda SELECTED by a
         // compile-time constant (the corpus's checked/unchecked helper —
@@ -128,7 +102,7 @@ public final class ExecuteChainAssembly {
             throw new com.legend.error.NotImplementedException(
                     "execute() whose query argument is not a lambda");
         }
-        TypedSpec mArg = letBound(ec.args().get(1), letPrefix);
+        TypedSpec mArg = Lets.bound(ec.args().get(1), letPrefix);
         // the EMPTY-MAPPING SENTINEL ^Mapping(name='') (testFrom.pure:30):
         // every branch carries its own ->from() — no explicit mapping to
         // attach; the chain's from() walls stay the honest failure
@@ -165,7 +139,7 @@ public final class ExecuteChainAssembly {
      */
     public static Prepared prepareLegendQuery(TypedNativeCall ec,
             List<TypedSpec> letPrefix, SpecCompiler specs) {
-        TypedSpec q = letBound(ec.args().get(0), letPrefix);
+        TypedSpec q = Lets.bound(ec.args().get(0), letPrefix);
         if (q instanceof TypedUserCall) {
             q = new UserCallInliner(specs).inlineBody(List.of(q)).get(0);
         }
@@ -190,7 +164,7 @@ public final class ExecuteChainAssembly {
                             + " are not declared (" + lt.typeName() + ")");
         }
         Map<String, TypedSpec> vars = varPairs(
-                letBound(ec.args().get(1), letPrefix), letPrefix);
+                Lets.bound(ec.args().get(1), letPrefix), letPrefix);
         // an α-RENAMED lambda (the inliner's fresh binders inside an inlined
         // helper body — `_i<n>`, the source name gone) binds by POSITION:
         // the vars list is spelled in parameter order (the engine binds by
@@ -235,14 +209,14 @@ public final class ExecuteChainAssembly {
         TypedSpec q = q0;
         while (true) {
             if (q instanceof com.legend.compiler.spec.typed.TypedIf ti
-                    && letBound(ti.condition(), letPrefix)
+                    && Lets.bound(ti.condition(), letPrefix)
                             instanceof com.legend.compiler.spec.typed.TypedCBoolean flag) {
                 TypedSpec branch = flag.value() ? ti.thenBranch()
                         : ti.elseBranch().orElseThrow(() ->
                                 new com.legend.error.NotImplementedException(
                                         "execute() whose query is an if() without"
                                                 + " an else branch"));
-                q = letBound(branch, letPrefix);
+                q = Lets.bound(branch, letPrefix);
                 continue;
             }
             if (q instanceof com.legend.compiler.spec.typed.TypedCast c
@@ -250,19 +224,19 @@ public final class ExecuteChainAssembly {
                         || c.target() instanceof Type.GenericType g
                             && g.arguments().size() == 1
                             && g.arguments().get(0) instanceof Type.FunctionType)) {
-                q = letBound(c.source(), letPrefix);
+                q = Lets.bound(c.source(), letPrefix);
                 continue;
             }
             if (q instanceof TypedNativeCall at
                     && ResultEnvelopeSplice.AT_FQN.equals(at.callee().qualifiedName())
                     && at.args().size() == 2
-                    && letBound(at.args().get(0), letPrefix)
+                    && Lets.bound(at.args().get(0), letPrefix)
                             instanceof TypedCollection coll
                     && at.args().get(1)
                             instanceof com.legend.compiler.spec.typed.TypedCInteger k
                     && k.value().longValue() >= 0
                     && k.value().longValue() < coll.elements().size()) {
-                q = letBound(coll.elements().get(k.value().intValue()), letPrefix);
+                q = Lets.bound(coll.elements().get(k.value().intValue()), letPrefix);
                 continue;
             }
             return q;
@@ -277,14 +251,14 @@ public final class ExecuteChainAssembly {
                 ? c.elements() : List.of(varsArg);
         Map<String, TypedSpec> out = new java.util.LinkedHashMap<>();
         for (TypedSpec e0 : entries) {
-            TypedSpec e = letBound(e0, letPrefix);
+            TypedSpec e = Lets.bound(e0, letPrefix);
             if (e instanceof TypedNativeCall pc
                     && "meta::pure::functions::collection::pair"
                             .equals(pc.callee().qualifiedName())
                     && pc.args().size() == 2
-                    && letBound(pc.args().get(0), letPrefix)
+                    && Lets.bound(pc.args().get(0), letPrefix)
                             instanceof com.legend.compiler.spec.typed.TypedCString k) {
-                out.put(k.value(), letBound(pc.args().get(1), letPrefix));
+                out.put(k.value(), Lets.bound(pc.args().get(1), letPrefix));
                 continue;
             }
             if (e instanceof TypedNewInstance ni
@@ -387,23 +361,23 @@ public final class ExecuteChainAssembly {
 
     private static TypedSpec concatenateFold(TypedNativeCall cq,
             List<TypedSpec> letPrefix, SpecCompiler specs) {
-        TypedSpec lfsArg = letBound(cq.args().get(0), letPrefix);
+        TypedSpec lfsArg = Lets.bound(cq.args().get(0), letPrefix);
         // evaluateAndDeactivate may wrap the WHOLE collection
         // ([...]->evaluateAndDeactivate()) — identity, peel first
         while (lfsArg instanceof TypedNativeCall ow
                 && ow.args().size() == 1
                 && "meta::pure::functions::meta::evaluateAndDeactivate"
                         .equals(ow.callee().qualifiedName())) {
-            lfsArg = letBound(ow.args().get(0), letPrefix);
+            lfsArg = Lets.bound(ow.args().get(0), letPrefix);
         }
         // MAP-BUILT collections ($bds->map(bd|{|...}->eAD())): β-expand
         // the map over the literal elements — one TypedEval per element,
         // reduced by the inliner (the full β-substitution engine)
         if (lfsArg instanceof TypedMap mapC
-                && letBound(mapC.mapper(), letPrefix)
+                && Lets.bound(mapC.mapper(), letPrefix)
                         instanceof TypedLambda mapLam
                 && mapLam.parameters().size() == 1
-                && letBound(mapC.source(), letPrefix)
+                && Lets.bound(mapC.source(), letPrefix)
                         instanceof TypedCollection dc) {
             List<TypedSpec> expanded = new ArrayList<>(dc.elements().size());
             for (TypedSpec d : dc.elements()) {
@@ -420,12 +394,12 @@ public final class ExecuteChainAssembly {
                 ? tc.elements() : List.of(lfsArg);
         List<TypedSpec> queries = new ArrayList<>();
         for (TypedSpec e : els) {
-            TypedSpec le = letBound(e, letPrefix);
+            TypedSpec le = Lets.bound(e, letPrefix);
             while (le instanceof TypedNativeCall w
                     && w.args().size() == 1
                     && "meta::pure::functions::meta::evaluateAndDeactivate"
                             .equals(w.callee().qualifiedName())) {
-                le = letBound(w.args().get(0), letPrefix);
+                le = Lets.bound(w.args().get(0), letPrefix);
             }
             if (!(le instanceof TypedLambda ql) || !ql.parameters().isEmpty()) {
                 throw new com.legend.error.NotImplementedException(
@@ -486,10 +460,10 @@ public final class ExecuteChainAssembly {
             // calls inlined) and read ONCE
             TypedSpec rtValue = ec.args().size() >= 3
                     ? new UserCallInliner(specs).inlineBody(List.of(
-                            letBound(ec.args().get(2), letPrefix))).get(0)
+                            Lets.bound(ec.args().get(2), letPrefix))).get(0)
                     : null;
             TypedSpec ctxArg = executionContextArg(ec);
-            java.util.function.UnaryOperator<TypedSpec> bind = v -> letBound(v, letPrefix);
+            java.util.function.UnaryOperator<TypedSpec> bind = v -> Lets.bound(v, letPrefix);
             com.legend.compiler.spec.typed.ExecutionContext bound =
                     com.legend.compiler.spec.typed.ExecutionContext.reader()
                             .bind(bind)
@@ -565,7 +539,7 @@ public final class ExecuteChainAssembly {
                 || !(a.info().type() instanceof Type.ClassType declared)) {
             return a;
         }
-        TypedSpec bound = letBound(a, letPrefix);
+        TypedSpec bound = Lets.bound(a, letPrefix);
         if (!(bound instanceof com.legend.compiler.spec.typed.TypedUserCall)) {
             return a;
         }

@@ -340,7 +340,7 @@ public final class VerdictQueries {
             // — hoisted constructor programs) read through the caller's lets
             List<TypedSpec> out = new java.util.ArrayList<>(coll.elements().size());
             for (TypedSpec e : coll.elements()) {
-                out.add(ExecuteChainAssembly.letBound(e, letPrefix));
+                out.add(com.legend.compiler.spec.typed.Lets.bound(e, letPrefix));
             }
             return out;
         }
@@ -384,7 +384,7 @@ public final class VerdictQueries {
     private static @com.legend.Nullable List<TypedSpec> armElements(TypedSpec arm0,
             List<TypedSpec> letPrefix,
             java.util.function.Function<TypedSpec, List<Object>> fetch) {
-        TypedSpec arm = ExecuteChainAssembly.letBound(arm0, letPrefix);
+        TypedSpec arm = com.legend.compiler.spec.typed.Lets.bound(arm0, letPrefix);
         if (arm instanceof TypedCollection c) {
             return c.elements();
         }
@@ -434,8 +434,7 @@ public final class VerdictQueries {
         List<TypedSpec> reduced = new java.util.ArrayList<>(inliner.inlineBody(seq));
         int last = reduced.size() - 1;
         TypedSpec stmt = reduced.get(last);
-        TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet tl
-                ? tl.value() : stmt;
+        TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
         if (bare instanceof TypedNativeCall an
                 && an.callee().qualifiedName().startsWith(com.legend.compiler.element.type.PlatformTypes.ASSERTS_PACKAGE)) {
             // the MESSAGE arguments drop; the value arity is the assert's

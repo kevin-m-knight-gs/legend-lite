@@ -78,7 +78,7 @@ final class SqlTextVerdicts {
         // like the plan-text arm chases its lambda
         SqlTextInputs in = SqlTextInputs.of(producer, letPrefix);
         TypedSpec lamArg = in == null ? null
-                : com.legend.compiler.spec.ExecuteChainAssembly.letBound(
+                : com.legend.compiler.spec.typed.Lets.bound(
                         in.query(), letPrefix);
         if (in == null
                 || !(lamArg instanceof TypedLambda lam)
@@ -95,14 +95,12 @@ final class SqlTextVerdicts {
         if (in.dialect() instanceof TypedEnumValue db) {
             dbType = db.value();
         } else {
-            TypedSpec rt = com.legend.compiler.spec.ExecuteChainAssembly
-                    .letBound(in.runtime(), letPrefix);
+            TypedSpec rt = com.legend.compiler.spec.typed.Lets.bound(in.runtime(), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
             com.legend.compiler.spec.typed.ExecutionContext frameCtx =
                     com.legend.compiler.spec.typed.ExecutionContext.reader()
-                            .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
-                                    .letBound(v, letPrefix))
+                            .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                             .read(java.util.Optional.empty(), rt);
             String boundDb = frameCtx.databaseType();
             if (boundDb == null) {
@@ -736,11 +734,10 @@ final class SqlTextVerdicts {
             }
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedVariable tv && seenVars.add(tv.name())) {
-                for (TypedSpec p : letPrefix) {
-                    if (p instanceof com.legend.compiler.spec.typed
-                            .TypedLet tl && tl.name().equals(tv.name())) {
-                        work.add(tl.value());
-                    }
+                com.legend.compiler.spec.typed.TypedLet tl =
+                        com.legend.compiler.spec.typed.Lets.binding(letPrefix, tv.name());
+                if (tl != null) {
+                    work.add(tl.value());
                 }
             }
             work.addAll(cur.children());
@@ -792,11 +789,10 @@ final class SqlTextVerdicts {
         TypedSpec lamArg = producer.args().get(0);
         if (lamArg instanceof com.legend.compiler.spec.typed
                 .TypedVariable lv) {
-            for (TypedSpec pfx : scope) {
-                if (pfx instanceof com.legend.compiler.spec.typed
-                        .TypedLet tl && tl.name().equals(lv.name())) {
-                    lamArg = tl.value();
-                }
+            com.legend.compiler.spec.typed.TypedLet tl =
+                    com.legend.compiler.spec.typed.Lets.binding(scope, lv.name());
+            if (tl != null) {
+                lamArg = tl.value();
             }
         }
         if (!(lamArg instanceof TypedLambda lam) || lam.body().isEmpty()) {
@@ -945,11 +941,10 @@ final class SqlTextVerdicts {
             }
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedVariable tv && seenVars.add(tv.name())) {
-                for (TypedSpec p : letPrefix) {
-                    if (p instanceof com.legend.compiler.spec.typed
-                            .TypedLet tl && tl.name().equals(tv.name())) {
-                        work.add(tl.value());
-                    }
+                com.legend.compiler.spec.typed.TypedLet tl =
+                        com.legend.compiler.spec.typed.Lets.binding(letPrefix, tv.name());
+                if (tl != null) {
+                    work.add(tl.value());
                 }
             }
             work.addAll(cur.children());
@@ -1291,11 +1286,10 @@ final class SqlTextVerdicts {
             }
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedVariable tv && seenVars.add(tv.name())) {
-                for (TypedSpec p : letPrefix) {
-                    if (p instanceof com.legend.compiler.spec.typed
-                            .TypedLet tl && tl.name().equals(tv.name())) {
-                        work.add(tl.value());
-                    }
+                com.legend.compiler.spec.typed.TypedLet tl =
+                        com.legend.compiler.spec.typed.Lets.binding(letPrefix, tv.name());
+                if (tl != null) {
+                    work.add(tl.value());
                 }
             }
             work.addAll(cur.children());
@@ -1519,11 +1513,10 @@ final class SqlTextVerdicts {
             }
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedVariable tv && seenVars.add(tv.name())) {
-                for (TypedSpec p : letPrefix) {
-                    if (p instanceof com.legend.compiler.spec.typed
-                            .TypedLet tl && tl.name().equals(tv.name())) {
-                        work.add(tl.value());
-                    }
+                com.legend.compiler.spec.typed.TypedLet tl =
+                        com.legend.compiler.spec.typed.Lets.binding(letPrefix, tv.name());
+                if (tl != null) {
+                    work.add(tl.value());
                 }
             }
             work.addAll(cur.children());
@@ -1553,8 +1546,7 @@ final class SqlTextVerdicts {
     private static FrameFacts frameMappingAndClass(TypedSpec resultArg,
             List<TypedSpec> letPrefix,
             AssertVerdicts.@com.legend.Nullable SpliceHook hook, SpecCompiler specs) {
-        TypedSpec src = com.legend.compiler.spec.ExecuteChainAssembly
-                .letBound(resultArg, letPrefix);
+        TypedSpec src = com.legend.compiler.spec.typed.Lets.bound(resultArg, letPrefix);
         while (src instanceof com.legend.compiler.spec.typed.TypedFrom sf) {
             src = sf.source();
         }
@@ -1580,8 +1572,7 @@ final class SqlTextVerdicts {
                 && ec.args().size() >= 2) {
             String mapping = ec.args().get(1) instanceof TypedPackageableRef m
                     ? m.fullPath() : null;
-            TypedSpec lamArg = com.legend.compiler.spec.ExecuteChainAssembly
-                    .letBound(ec.args().get(0), letPrefix);
+            TypedSpec lamArg = com.legend.compiler.spec.typed.Lets.bound(ec.args().get(0), letPrefix);
             String cls = lamArg instanceof TypedLambda lam
                     && !lam.body().isEmpty() ? rootClassFqn(lam) : null;
             TypedPackageableRef mappingRef =

@@ -49,8 +49,7 @@ record SqlTextInputs(TypedSpec query, TypedSpec mapping, TypedSpec dialect,
         // toSQL handle
         if (com.legend.builtin.NativeFn.JavaRoutine.ofDerived(fqn).isPresent()
                 && call.args().size() == 5) {
-            TypedSpec r = com.legend.compiler.spec.ExecuteChainAssembly
-                    .letBound(call.args().get(0), letPrefix);
+            TypedSpec r = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0), letPrefix);
             if (r instanceof TypedNativeCall h
                     && com.legend.compiler.element.type.PlatformTypes.TO_SQL
                             .equals(h.callee().qualifiedName())

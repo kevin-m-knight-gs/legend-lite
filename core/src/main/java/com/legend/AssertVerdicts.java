@@ -650,13 +650,12 @@ final class AssertVerdicts {
                     java.util.Set<String>, TypedSpec> rawHook) {
         var lam = qm.mapper();
         // the collection through the caller's lets (let expected = [...])
-        TypedSpec source = com.legend.compiler.spec.ExecuteChainAssembly
-                .letBound(qm.source(), letPrefix);
+        TypedSpec source = com.legend.compiler.spec.typed.Lets.bound(qm.source(), letPrefix);
         // a property read over a LET-BOUND instance literal is that field
         // ($_s2_hoisted.columnValuePairs — the hoisted constructor's zip):
         // the one rule Pipelines.instanceLiteralProp spells, through the lets
         if (source instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && com.legend.compiler.spec.ExecuteChainAssembly.letBound(pa.source(), letPrefix)
+                && com.legend.compiler.spec.typed.Lets.bound(pa.source(), letPrefix)
                         instanceof com.legend.compiler.spec.typed.TypedNewInstance inst
                 && inst.properties().get(pa.property()) != null) {
             source = java.util.Objects.requireNonNull(inst.properties().get(pa.property()));
@@ -1086,13 +1085,9 @@ final class AssertVerdicts {
             if (!seen.add(v.name())) {
                 return null;
             }
-            for (int i = lets.size() - 1; i >= 0; i--) {
-                if (lets.get(i) instanceof com.legend.compiler.spec.typed.TypedLet l
-                        && l.name().equals(v.name())) {
-                    return sortKeys(l.value(), lets, seen);
-                }
-            }
-            return null;
+            com.legend.compiler.spec.typed.TypedLet l =
+                    com.legend.compiler.spec.typed.Lets.binding(lets, v.name());
+            return l == null ? null : sortKeys(l.value(), lets, seen);
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedFilter
                 || s instanceof com.legend.compiler.spec.typed.TypedProject
@@ -1352,13 +1347,8 @@ final class AssertVerdicts {
                         com.legend.compiler.spec.typed.TypedVariable v)) {
             return false;
         }
-        for (TypedSpec l : letPrefix) {
-            if (l instanceof com.legend.compiler.spec.typed.TypedLet tl
-                    && tl.name().equals(v.name())) {
-                return false;   // an ordinary let, not a frame
-            }
-        }
-        return true;
+        // an ordinary let, not a frame
+        return !com.legend.compiler.spec.typed.Lets.binds(letPrefix, v.name());
     }
 
     /** The {@code $exp->forAll(e|$act->contains($e))} SUBSET shape:
@@ -1386,16 +1376,11 @@ final class AssertVerdicts {
         return null;
     }
 
+    /** The root's callee — except {@code assertError}, whose arm is the host's own
+     * (a non-callee here keeps it off the verdict routes). */
     private static @com.legend.Nullable String calleeFqn(TypedSpec bare) {
-        if (bare instanceof TypedUserCall u) {
-            return u.callee().qualifiedName();
-        }
-        if (bare instanceof TypedNativeCall n
-                && !com.legend.compiler.element.type.PlatformTypes.ASSERT_ERROR
-                        .equals(n.callee().qualifiedName())) {
-            return n.callee().qualifiedName();
-        }
-        return null;
+        String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(bare);
+        return com.legend.compiler.element.type.PlatformTypes.ASSERT_ERROR.equals(fqn) ? null : fqn;
     }
 
     /** The engine golden's null spelling anywhere in the EXPECTED wire

@@ -361,8 +361,7 @@ final class StatementExecutor {
                 continue;
             }
             // a trailing let IS its value (real pure)
-            TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet l
-                    ? l.value() : stmt;
+            TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
             // (Phase 1c: a grid VALUE READ never reaches here as a user
             // call — the Typer types it as a relation property read; the
             // TYPE decides, no recognizer needed)
@@ -439,10 +438,7 @@ final class StatementExecutor {
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
 
-        TypedSpec preRoot = body.get(body.size() - 1);
-        if (preRoot instanceof com.legend.compiler.spec.typed.TypedLet pl) {
-            preRoot = pl.value();
-        }
+        TypedSpec preRoot = com.legend.compiler.spec.typed.Lets.bare(body.get(body.size() - 1));
         while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
             preRoot = pf.source();
         }
@@ -539,8 +535,7 @@ final class StatementExecutor {
         // execute() calls the statement REACHES inline or through ordinary
         // lets (batch 80: `let result = execute(...).values` is no frame)
         java.util.Map<String, String> reached = com.legend.lowering.SqlPostProcessors
-                .reachableRenames(stmt, v -> com.legend.compiler.spec
-                        .ExecuteChainAssembly.letBound(v, letPrefix), v -> v instanceof
+                .reachableRenames(stmt, v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix), v -> v instanceof
                         com.legend.compiler.spec.typed.TypedUserCall
                         ? new com.legend.compiler.spec.UserCallInliner(specs)
                                 .inlineBody(java.util.List.of(v)).get(0) : v);
@@ -599,12 +594,10 @@ final class StatementExecutor {
         } else if (in.receiverForm()) {
             TypedSpec rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(java.util.List.of(
-                            com.legend.compiler.spec.ExecuteChainAssembly
-                                    .letBound(in.runtime(), letPrefix)))
+                            com.legend.compiler.spec.typed.Lets.bound(in.runtime(), letPrefix)))
                     .get(0);
             String boundDb = com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
-                            .letBound(v, letPrefix))
+                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                     .read(java.util.Optional.empty(), rt).databaseType();
             if (boundDb == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -614,8 +607,7 @@ final class StatementExecutor {
             db = boundDb;
         } else {
             String dbBound = com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
-                            .letBound(v, letPrefix))
+                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                     .read(java.util.Optional.empty(), dbArg).databaseType();
             db = dbBound == null ? "H2" : dbBound;
         }
@@ -799,12 +791,7 @@ final class StatementExecutor {
             return null;
         }
         java.util.Map<String, TypedSpec> hostLets =
-                new java.util.LinkedHashMap<>();
-        for (TypedSpec lp : letPrefix) {
-            if (lp instanceof com.legend.compiler.spec.typed.TypedLet hl) {
-                hostLets.put(hl.name(), hl.value());
-            }
-        }
+                com.legend.compiler.spec.typed.Lets.byName(letPrefix);
         if (!com.legend.exec.StoreNav.owns(bare, hostLets)) {
             return null;
         }
@@ -859,8 +846,7 @@ final class StatementExecutor {
         // the plan value chases through the LET PREFIX (getAll-76 lane:
         // `let plan = executionPlan(...)` then `$plan->planToString(...)`
         // inside an assert — the handle is a symbolic binding)
-        TypedSpec a0 = com.legend.compiler.spec.ExecuteChainAssembly
-                .letBound(call.args().get(0), letPrefix);
+        TypedSpec a0 = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0), letPrefix);
         if (a0 instanceof com.legend.compiler.spec.typed.TypedTestDataGen tg) {
             return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, env.ctx());
         }
@@ -949,8 +935,7 @@ final class StatementExecutor {
         if (com.legend.builtin.Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
                 .signatureKey().equals(ep.callee().signatureKey()) && ep.args().size() == 5) {
             flags.addAll((pc == null ? com.legend.compiler.spec.typed.ExecutionContext.NONE : pc)
-                    .withOptions(ep.args().get(3), v -> com.legend.compiler.spec
-                            .ExecuteChainAssembly.letBound(v, letPrefix))
+                    .withOptions(ep.args().get(3), v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                     .features());
         }
         if (!flags.isEmpty()) {
@@ -1376,10 +1361,9 @@ final class StatementExecutor {
     static com.legend.compiler.spec.typed.ExecutionContext boundContext(
             TypedSpec runtimeArg, java.util.List<TypedSpec> letPrefix, SpecCompiler specs) {
         TypedSpec value = new com.legend.compiler.spec.UserCallInliner(specs)
-                .inlineBody(java.util.List.of(com.legend.compiler.spec.ExecuteChainAssembly
-                        .letBound(runtimeArg, letPrefix))).get(0);
+                .inlineBody(java.util.List.of(com.legend.compiler.spec.typed.Lets.bound(runtimeArg, letPrefix))).get(0);
         return com.legend.compiler.spec.typed.ExecutionContext.reader()
-                .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly.letBound(v, letPrefix))
+                .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                 .read(java.util.Optional.empty(), value);
     }
 
@@ -1591,8 +1575,7 @@ final class StatementExecutor {
         if (com.legend.compiler.element.type.PlatformTypes
                 .EXECUTION_PLAN_EXECUTE.equals(
                         ec.callee().qualifiedName())) {
-            TypedSpec plan = com.legend.compiler.spec.ExecuteChainAssembly
-                    .letBound(ec.args().get(0), letPrefix);
+            TypedSpec plan = com.legend.compiler.spec.typed.Lets.bound(ec.args().get(0), letPrefix);
             if (!(plan instanceof com.legend.compiler.spec.typed
                             .TypedNativeCall pb
                     && com.legend.compiler.element.type.PlatformTypes
@@ -1605,8 +1588,7 @@ final class StatementExecutor {
             // the values through the caller's lets (a helper's
             // parametersValues parameter bound to [] at the call)
             if (ec.args().size() > 1
-                    && !(com.legend.compiler.spec.ExecuteChainAssembly
-                            .letBound(ec.args().get(1), letPrefix)
+                    && !(com.legend.compiler.spec.typed.Lets.bound(ec.args().get(1), letPrefix)
                             instanceof com.legend.compiler.spec.typed.TypedCollection pv
                             && pv.elements().isEmpty())) {
                 throw new com.legend.error.NotImplementedException(
@@ -1678,8 +1660,7 @@ final class StatementExecutor {
         // helper, recognize the replaceTables shape, thread the rename
         // map to the lowering seam (applied over OUR SQL IR)
         if (ec.args().size() >= 3) {
-            TypedSpec rtArg = com.legend.compiler.spec
-                    .ExecuteChainAssembly.letBound(
+            TypedSpec rtArg = com.legend.compiler.spec.typed.Lets.bound(
                             ec.args().get(2), letPrefix);
             if (rtArg instanceof com.legend.compiler.spec.typed.TypedUserCall) {
                 rtArg = new com.legend.compiler.spec.UserCallInliner(specs)
@@ -1692,8 +1673,7 @@ final class StatementExecutor {
             // (executeTyped): the from is the one carrier, no static slot
             java.util.Map<String, String> tr = com.legend.compiler.spec.typed.ExecutionContext
                     .reader()
-                    .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
-                            .letBound(v, letPrefix))
+                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                     .read(java.util.Optional.empty(), rtArg).postProcessors().tableReplace();
             if (!tr.isEmpty()) {
                 env = env.withTableReplace(tr);

@@ -11,6 +11,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -82,7 +83,7 @@ public final class LineageTreeLines {
         if (golden == null || !isTreePrint(golden)) {
             return null;
         }
-        TypedSpec print = throughLets(args.get(1), letPrefix);
+        TypedSpec print = Lets.bound(args.get(1), letPrefix);
         if (!(print instanceof TypedUserCall p) || !TREE_AS_STRING.equals(p.callee().qualifiedName())
                 || p.args().isEmpty() || p.args().size() > 2) {
             return null;
@@ -162,22 +163,6 @@ public final class LineageTreeLines {
         return out;
     }
 
-    private static TypedSpec throughLets(TypedSpec e, List<TypedSpec> lets) {
-        while (e instanceof TypedVariable v) {
-            TypedSpec bound = null;
-            for (TypedSpec l : lets) {
-                if (l instanceof TypedLet let && let.name().equals(v.name())) {
-                    bound = let.value();
-                }
-            }
-            if (bound == null) {
-                return e;
-            }
-            e = bound;
-        }
-        return e;
-    }
-
     /** The golden as a STRING: spelled inline, through a let, or as a
      * concatenation of literals. */
     private static @com.legend.Nullable String spelled(TypedSpec e, List<TypedSpec> lets) {
@@ -185,12 +170,8 @@ public final class LineageTreeLines {
             return s.value();
         }
         if (e instanceof TypedVariable v) {
-            for (TypedSpec l : lets) {
-                if (l instanceof TypedLet let && let.name().equals(v.name())) {
-                    return spelled(let.value(), lets);
-                }
-            }
-            return null;
+            TypedLet let = Lets.binding(lets, v.name());
+            return let == null ? null : spelled(let.value(), lets);
         }
         List<TypedSpec> parts;
         if (e instanceof TypedNativeCall n

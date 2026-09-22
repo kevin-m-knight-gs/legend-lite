@@ -891,8 +891,7 @@ public final class Compiler {
             // let-bound connection copy) is a bound-context fact; values the
             // statement names chase its preceding lets
             seeds |= !com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .bind(v -> com.legend.compiler.spec.ExecuteChainAssembly
-                            .letBound(v, preceding))
+                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, preceding))
                     .read(java.util.Optional.empty(), s).csvSetups().isEmpty();
             verdicts |= verdict;
         }

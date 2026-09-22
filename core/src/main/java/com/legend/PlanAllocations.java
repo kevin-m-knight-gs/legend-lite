@@ -137,8 +137,7 @@ final class PlanAllocations {
                         .relationalPlanSupportFunctions(
                                 pep.args().size() > 2
                                         ? com.legend.compiler.spec.typed.ExecutionContext.reader()
-                                                .bind(v -> com.legend.compiler.spec
-                                                        .ExecuteChainAssembly.letBound(v, letPrefix))
+                                                .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                                                 .read(java.util.Optional.empty(), pep.args().get(2))
                                                 .timeZone()
                                         : null));
@@ -188,7 +187,7 @@ final class PlanAllocations {
         // and as the inliner's substitution rebuilds it
         java.util.List<com.legend.compiler.spec.typed.TypedSpec> bound = new java.util.ArrayList<>();
         for (com.legend.compiler.spec.typed.TypedSpec a : pn.args()) {
-            bound.add(com.legend.compiler.spec.ExecuteChainAssembly.letBound(a, letPrefix));
+            bound.add(com.legend.compiler.spec.typed.Lets.bound(a, letPrefix));
         }
         com.legend.compiler.spec.typed.TypedNativeCall pnBound =
                 (com.legend.compiler.spec.typed.TypedNativeCall) pn.withChildren(bound);
@@ -222,8 +221,7 @@ final class PlanAllocations {
         if (ec.args().size() < 2) {
             return null;
         }
-        com.legend.compiler.spec.typed.TypedSpec m = com.legend.compiler.spec.ExecuteChainAssembly
-                .letBound(ec.args().get(1), letPrefix);
+        com.legend.compiler.spec.typed.TypedSpec m = com.legend.compiler.spec.typed.Lets.bound(ec.args().get(1), letPrefix);
         String mappingFqn = m instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
                 ? pr.fullPath() : chainMapping(chain);
         if (mappingFqn == null) {
@@ -387,7 +385,7 @@ final class PlanAllocations {
             }
         }
         com.legend.compiler.spec.typed.TypedSpec m =
-                com.legend.compiler.spec.ExecuteChainAssembly.letBound(
+                com.legend.compiler.spec.typed.Lets.bound(
                         pn.args().get(1), letPrefix);
         String runtimeFqn = env.runtimeFqn();
         if (ql == null || runtimeFqn == null
@@ -456,7 +454,7 @@ final class PlanAllocations {
             return;
         }
         com.legend.compiler.spec.typed.TypedSpec m =
-                com.legend.compiler.spec.ExecuteChainAssembly.letBound(
+                com.legend.compiler.spec.typed.Lets.bound(
                         pn.args().get(1), letPrefix);
         if (!(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef mr)) {
             return;

@@ -153,8 +153,8 @@ public final class StoreNav {
                                 .equals(nc.callee().qualifiedName()))) {
             return nav(nc.args().get(0), lets, ctx);
         }
-        String navFqn = com.legend.compiler.spec.typed.StoreElementIdentity.calleeOf(n);
-        List<TypedSpec> navArgs = com.legend.compiler.spec.typed.StoreElementIdentity.argsOf(n);
+        String navFqn = com.legend.compiler.spec.typed.Calls.calleeOf(n);
+        List<TypedSpec> navArgs = com.legend.compiler.spec.typed.Calls.argsOf(n);
         if (navFqn == null || !PlatformTypes.isStoreNavFn(navFqn) || navArgs.size() != 2
                 || !(resolve(navArgs.get(1), lets)
                         instanceof TypedCString name)) {

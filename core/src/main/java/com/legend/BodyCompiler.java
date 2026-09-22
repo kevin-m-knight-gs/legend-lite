@@ -72,8 +72,8 @@ public final class BodyCompiler {
             // stage 3: an EFFECT is a segment boundary, never a refusal (the statement
             // is collected into a script by the arms' own send); a test-data generator
             // folds at compile as it does in the loop
-            TypedSpec v = s instanceof TypedLet l ? l.value() : s;
-            String fqn = rootCallee(v);
+            TypedSpec v = com.legend.compiler.spec.typed.Lets.bare(s);
+            String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(v);
             if (fqn != null && com.legend.builtin.NativeFn.ContextOwner.of(fqn).isPresent()) {
                 return "context-owner";
             }
@@ -108,16 +108,6 @@ public final class BodyCompiler {
                 || com.legend.lowering.RegistryKeys.windowFunctions().contains(key)
                 || com.legend.lowering.RegistryKeys.windowAggregates().contains(key)
                 || com.legend.compiler.spec.CoreFn.parseNames().containsKey(bare);
-    }
-
-    private static @com.legend.Nullable String rootCallee(TypedSpec s) {
-        if (s instanceof TypedUserCall u) {
-            return u.callee().qualifiedName();
-        }
-        if (s instanceof TypedNativeCall n) {
-            return n.callee().qualifiedName();
-        }
-        return null;
     }
 
     /** THE SEGMENT WALK (stages 1–3): one pass over the body. Lets, asserts and value
@@ -183,14 +173,14 @@ public final class BodyCompiler {
             // a statement root (a trailing let IS its value): the arms claim an
             // assert-family root — a verdict call, a quantified map / forAll, an if
             // over asserts — into deferred rows …
-            TypedSpec bare = stmt instanceof TypedLet l ? l.value() : stmt;
+            TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
             int rowsBefore = seg.rows();
             ExecutionResult v = AssertVerdicts.tryAdjudicate(bare, letPrefix, specs,
                     StatementExecutor.frameReplaceEnv(stmt, execFrames, seg.env(), letPrefix, specs),
                     StatementExecutor.spliceHook(execFrames, letPrefix, specs, seg.env()));
             if (v != null) {
                 if (seg.batch != null) {
-                    nameRows(seg.fragments, seg.batch, rowsBefore, rootCallee(bare), i + 1);
+                    nameRows(seg.fragments, seg.batch, rowsBefore, com.legend.compiler.spec.typed.Calls.calleeOf(bare), i + 1);
                 }
                 seg.verdict(v);
                 continue;
@@ -201,10 +191,10 @@ public final class BodyCompiler {
                     stmt, bare, letPrefix, execFrames, specs, seg.env());
             if (pv.contextOwner() != null) {
                 throw new IllegalStateException("block compiler: a context owner reached the"
-                        + " compile walk (refused by construction): " + rootCallee(bare));
+                        + " compile walk (refused by construction): " + com.legend.compiler.spec.typed.Calls.calleeOf(bare));
             }
             if (pv.verdict() != null && seg.batch != null) {
-                nameRows(seg.fragments, seg.batch, rowsBefore, rootCallee(bare), i + 1);
+                nameRows(seg.fragments, seg.batch, rowsBefore, com.legend.compiler.spec.typed.Calls.calleeOf(bare), i + 1);
             }
             seg.value(pv);
         }
@@ -288,7 +278,7 @@ public final class BodyCompiler {
                 lastIsValue = true;
                 return;
             }
-            TypedSpec bare = stmt instanceof TypedLet l ? l.value() : stmt;
+            TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
             StatementExecutor.PreparedValue pv = StatementExecutor.prepareValue(
                     stmt, bare, letPrefix, execFrames, specs, sinkEnv);
             last = StatementExecutor.runValue(pv, specs, new java.util.ArrayDeque<>());
