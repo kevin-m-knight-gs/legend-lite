@@ -1,104 +1,45 @@
 meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty ||| statement=1
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| probe=1
-meta::relational::testDataGeneration::tests::alloy::testSelfJoin_Alloy ||| side=1
-meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| side=2 statement=2 tdg=29
-meta::relational::testDataGeneration::tests::testConstant ||| side=1 statement=1 tdg=6
-meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| side=1 statement=1 tdg=12
-meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates ||| side=1 statement=1 tdg=12
-meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning ||| side=1 tdg=12
-meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates ||| side=2 statement=2 tdg=24
-meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning ||| side=1 tdg=12
-meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates ||| side=1 statement=1 tdg=12
+meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| statement=2 tdg=29
+meta::relational::testDataGeneration::tests::testConstant ||| statement=1 tdg=6
+meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| statement=1 tdg=12
+meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates ||| statement=1 tdg=12
+meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning ||| tdg=12
+meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates ||| statement=2 tdg=24
+meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning ||| tdg=12
+meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates ||| statement=1 tdg=12
 meta::relational::testDataGeneration::tests::testGenerateSeedDataWithQuotedColumns ||| tdg=1
-meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel ||| side=5 statement=1 tdg=84
-meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin ||| side=1 statement=1 tdg=54
-meta::relational::testDataGeneration::tests::testQualifier ||| side=5 statement=1 tdg=54
-meta::relational::testDataGeneration::tests::testSelfJoin ||| side=5 statement=1 tdg=36
-meta::relational::testDataGeneration::tests::testSimpleSingleTable ||| side=1 statement=1 tdg=6
-meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert ||| side=2 statement=1 tdg=6
-meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin ||| side=1 statement=1 tdg=28
-meta::relational::testDataGeneration::tests::testSimpleTwoTable ||| side=3 statement=1 tdg=24
-meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows ||| side=3 statement=1 tdg=24
-meta::relational::testDataGeneration::tests::testSimpleViewRoot ||| side=1 statement=1 tdg=25
-meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin ||| side=1 statement=1 tdg=28
-meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins ||| side=1 statement=1 tdg=96
-meta::relational::testDataGeneration::tests::testTableToTDSSimple ||| side=1 statement=1 tdg=6
-meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions ||| side=1 statement=1 tdg=6
-meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate ||| side=1 statement=1 tdg=12
-meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy ||| side=1 statement=1 tdg=6
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy ||| side=1 tdg=24
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion ||| side=1 statement=1 tdg=63
-meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable ||| side=1 statement=1 tdg=18
-meta::relational::testDataGeneration::tests::testUnion ||| side=7 statement=1 tdg=135
-meta::relational::testDataGeneration::tests::testUnionToUnion ||| side=7 statement=1 tdg=150
-meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| side=1 statement=1 tdg=72
-meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| side=1 statement=1 tdg=72
-meta::relational::testDataGeneration::tests::testUnionViewOnView ||| side=1 statement=1 tdg=46
-meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| side=1 statement=1 tdg=25
-meta::relational::tests::ddl::dropAndCreateTable ||| probe=2
+meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel ||| statement=1 tdg=84
+meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin ||| statement=1 tdg=54
+meta::relational::testDataGeneration::tests::testQualifier ||| statement=1 tdg=54
+meta::relational::testDataGeneration::tests::testSelfJoin ||| statement=1 tdg=36
+meta::relational::testDataGeneration::tests::testSimpleSingleTable ||| statement=1 tdg=6
+meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert ||| statement=1 tdg=6
+meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin ||| statement=1 tdg=28
+meta::relational::testDataGeneration::tests::testSimpleTwoTable ||| statement=1 tdg=24
+meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows ||| statement=1 tdg=24
+meta::relational::testDataGeneration::tests::testSimpleViewRoot ||| statement=1 tdg=25
+meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin ||| statement=1 tdg=28
+meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins ||| statement=1 tdg=96
+meta::relational::testDataGeneration::tests::testTableToTDSSimple ||| statement=1 tdg=6
+meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions ||| statement=1 tdg=6
+meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate ||| statement=1 tdg=12
+meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy ||| statement=1 tdg=6
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy ||| tdg=24
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion ||| statement=1 tdg=63
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable ||| statement=1 tdg=18
+meta::relational::testDataGeneration::tests::testUnion ||| statement=1 tdg=135
+meta::relational::testDataGeneration::tests::testUnionToUnion ||| statement=1 tdg=150
+meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| statement=1 tdg=72
+meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| statement=1 tdg=72
+meta::relational::testDataGeneration::tests::testUnionViewOnView ||| statement=1 tdg=46
+meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| statement=1 tdg=25
+meta::relational::tests::ddl::dropAndCreateTable ||| probe=3
 meta::relational::tests::ddl::dropAndCreateTempTable ||| probe=1
-meta::relational::tests::ddl::testSetupDataSqlGenerationWithColumnValueHasDelimiterAndQuotes ||| side=1
-meta::relational::tests::ddl::testSetupDataSqlGenerationWithDataAsString ||| side=1
 meta::relational::tests::mapping::dates::datetime::retrieveDateWithTimeZone ||| probe=1
 meta::relational::tests::mapping::dates::strictdate::testGet ||| probe=1
-meta::relational::tests::mapping::modelJoin::advanced::testChainedTwoHops ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testColumnCollisionInSubselect ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testComplexRelationFunction ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testDirectPropertyAccess ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testDistinctOnTarget ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testDoubleNestedBothSides ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testFilterOnTarget ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testFilterOnTargetNestedCondition ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testFilterOnTargetReverse ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testFilterWithInnerJoinOnTarget ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testInCondition ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testMixedMappingEmployeeToFirm ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testMixedMappingFirmToEmployee ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testNestedInFilter ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition ||| side=1
-meta::relational::tests::mapping::modelJoin::advanced::testNestedPropertyChain ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testQualifiedPropertyInQuery ||| side=1
-meta::relational::tests::mapping::modelJoin::advanced::testRelationalDoubleNestedBothSides ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testRelationalNestedInFilter ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testRelationalNestedPropertyChain ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testSubAggregation ||| side=1
-meta::relational::tests::mapping::modelJoin::advanced::testSubAggregationRelational ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testSubFilter ||| side=1
-meta::relational::tests::mapping::modelJoin::advanced::testUnionWithExistsFilter ||| side=2
-meta::relational::tests::mapping::modelJoin::advanced::testUnionWithSubtypeQuery ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testMilestonedContract ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningDiffScheme ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningSameScheme ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningSourceOnly ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningTargetOnly ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningDiffScheme ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningSameScheme ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningSourceOnly ||| side=2
-meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningTargetOnly ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testArithmeticCondition ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testConcatCondition ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testDerivedPropertyInCondition ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testFunctionInCondition ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testInCondition ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testMultipleAndConditions ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testNullableSalaryMapping ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testOrConditions ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testRelationalSimpleEquality ||| side=2
-meta::relational::tests::mapping::modelJoin::simple::testSimpleEquality ||| side=2
-meta::relational::tests::mapping::modelJoin::union::testRelationalUnionBothSides ||| side=2
-meta::relational::tests::mapping::modelJoin::union::testRelationalUnionSource ||| side=2
-meta::relational::tests::mapping::modelJoin::union::testRelationalUnionSubAggregation ||| side=2
-meta::relational::tests::mapping::modelJoin::union::testUnionWithExistsFilter ||| side=2
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView ||| fallback=1
 meta::relational::tests::mapping::sqlFunction::stringToFloat::testProject ||| side=1
-meta::relational::tests::postProcessor::cteExtraction::testComplexSubQueries ||| side=1
-meta::relational::tests::postProcessor::cteExtraction::testCorrelatedSubQueryIsolationStrategy ||| side=1
-meta::relational::tests::postProcessor::cteExtraction::testDeepSubQueries ||| side=1
-meta::relational::tests::postProcessor::cteExtraction::testMultipleSubQueries ||| side=1
-meta::relational::tests::postProcessor::cteExtraction::testSingleSubQueryFromOperations ||| side=1
-meta::relational::tests::postProcessor::cteExtraction::testSingleSubQueryFromView ||| side=1
-meta::relational::tests::projection::filter::in::H2Test ||| probe=2
-meta::relational::tests::query::filter::equal::testBuildFilterWithValueThatCanBeNullPlanSql ||| side=1
+meta::relational::tests::projection::filter::in::H2Test ||| probe=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation ||| statement=1
-meta::relational::validation::showcase::standalone::validateSingleConstraint ||| side=1

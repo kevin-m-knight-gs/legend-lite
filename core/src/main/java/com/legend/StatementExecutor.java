@@ -2305,10 +2305,33 @@ final class StatementExecutor {
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         // the addDriverTablePkForProject option is part of the EXECUTION
-        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
-            return executeTyped(sideBody(value, letPrefix, specs, env, hook), env,
-                    rider, identity);
+        // a LITERAL-ONLY side (a golden text, a seed CSV, a bare number — measured 167 of
+        // 168 sides, 2026-09-22) is a compile-time constant: the compiler folds it, nothing
+        // is sent; everything else executes as before (Literals never guesses). A side a
+        // CANON RIDER rides is NOT folded: its canonical text is the database's own render
+        // (V11 — the byte verdict of record), never a second spelling here; the executor's
+        // own literal arm keeps the same rule (`folded != null && rider == null`).
+        java.util.List<TypedSpec> inlined = inlinedSide(value, letPrefix, specs, env, hook);
+        ExecutionResult constant = rider == null
+                ? foldedSide(inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1))
+                : null;
+        if (constant != null) {
+            return constant;
         }
+        try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+            return executeTyped(stagedSide(inlined, specs, env), env, rider, identity);
+        }
+    }
+
+    /** The folded constant as the result the wire would have produced, or null. */
+    private static @com.legend.Nullable ExecutionResult foldedSide(TypedSpec value,
+            java.util.List<TypedSpec> lets) {
+        Object v = com.legend.compiler.spec.typed.Literals.fold(value, lets);
+        return switch (v) {
+            case null -> null;
+            case java.util.List<?> l -> new ExecutionResult.Collection(new java.util.ArrayList<>(l), value.info().type());
+            default -> new ExecutionResult.Scalar(v, value.info().type());
+        };
     }
 
     /** A VALUE as the executor's body: the let prefix spliced, user calls
@@ -2316,6 +2339,17 @@ final class StatementExecutor {
      * resolved — the ONE road both {@link #evalValue} and
      * {@link #planValue} take (leg 3.1b: the audit's one real duplication). */
     private static java.util.List<TypedSpec> sideBody(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook) {
+        return stagedSide(inlinedSide(value, letPrefix, specs, env, hook), specs, env);
+    }
+
+    /** The inlined side: the let prefix spliced and user calls inlined — the
+     * form a literal-only side can be FOLDED from (a helper-built golden text is
+     * literal only after its call is inlined). */
+    private static java.util.List<TypedSpec> inlinedSide(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
@@ -2328,6 +2362,12 @@ final class StatementExecutor {
         java.util.List<TypedSpec> body = new java.util.ArrayList<>(
                 inliner.inlineBody(single));
         env.queryLets().putAll(inliner.queryLets());
+        return body;
+    }
+
+    /** The inlined side staged and resolved for execution. */
+    private static java.util.List<TypedSpec> stagedSide(java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
@@ -3232,6 +3272,10 @@ final class StatementExecutor {
      */
     static String evalStringArg(java.util.List<TypedSpec> body, TypedSpec arg,
             ExecEnv env) {
+        // a literal-only argument (a table name, a seed CSV) is folded, never sent
+        if (com.legend.compiler.spec.typed.Literals.fold(arg, body.subList(0, body.size() - 1)) instanceof String folded) {
+            return folded;
+        }
         java.util.Set<String> needed = new java.util.HashSet<>();
         collectVariableRefs(arg, needed);
         java.util.List<TypedSpec> kept = new java.util.ArrayList<>();

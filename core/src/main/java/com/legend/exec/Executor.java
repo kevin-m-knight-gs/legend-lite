@@ -270,7 +270,9 @@ public final class Executor {
         StatementOrigin.count();
         Census.add(Census.Key.SQL_CHARS, sql.length());
         if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
-            System.err.println("[sql] " + sql);
+            // the dump names the statement's ORIGIN mark (census: which sends are sides,
+            // probes, seeds …) — the same fact the statement-origin census counts
+            System.err.println("[sql:" + StatementOrigin.current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
         }
     }
 

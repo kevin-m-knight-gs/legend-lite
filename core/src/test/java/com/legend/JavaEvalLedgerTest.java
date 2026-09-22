@@ -662,7 +662,7 @@ class JavaEvalLedgerTest {
             // one effect-only rule — the evaluator shrank
             // 2388 -> 2394 (2026-09-21, block compiler stage 1): the dispatch of a PURE body to
             // BodyCompiler and the batch construction factored out for it — sequencing only
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2385),   // 2367 -> 2385 (2026-09-22, self-audit correction: the temp-table datatype reader keyed by EXACT FQN (PlatformTypes.DATATYPE_*) replaces a simple-name switch — the exact-FQN tenet costs lines, computes nothing) — after 2322 -> 2367 (the temp-table port)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2414),   // 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

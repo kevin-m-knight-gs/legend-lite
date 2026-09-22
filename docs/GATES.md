@@ -4839,3 +4839,40 @@ firings) and with it the split rung; the DuckDB temp-table ruling.
 **Still with the user.** The outside-body register row for `dropAndCreateTempTable` (`probe=1`,
 a shrink-only register grown by one with a written reason): keep it as a truthful measurement,
 or treat the raw read's schema probe as an inherent send the register should not count.
+
+
+## 2026-09-22 — literal-only sides folded at compile time (side sends 168 → 1 per lane)
+
+**The census that ordered it.** Every SIDE statement of the DuckDB database lane, captured with
+its origin mark (the SQL dump now prints one) and classified against a strict grammar of
+constant forms: 167 of 168 were literal-only — 85 inline seed CSV texts, 80 SQL golden texts, 2
+bare integers — sent to the database so it would concatenate literals; 1 read a table (the
+`stringToFloat::testProject` frame, re-executed as a side to unroll a `forAll` over a `zip`).
+
+**What landed.** `Literals` (typed package): the constant value of a literal-only expression —
+a string or integer leaf, a collection of foldables, a variable through its let, `+` over
+strings, `joinStrings` over strings, `replace` over strings — and null for anything else (the
+folder never guesses). `StatementExecutor.evalValue` folds AFTER the inliner (a helper-built
+golden — `expectedSqlForValueThatCanBeNull('is null')` — is literal only then; the side body
+is split into its inline and staging steps for it) and `evalStringArg` folds its argument;
+nothing is sent for a folded side. The four extra shapes the first fold left (three `replace`
+normalizations, one helper call) were measured, not guessed, before the two arms were added.
+A side a CANON RIDER rides is NOT folded: its canonical text is the database's own render (V11,
+the byte verdict of record), never a second spelling in Java — the executor's own literal arm
+has kept that rule since V11, and the first chain was red on G9 (the channel-B canon census
+counted every folded rider side as a decline) until the fold learned it. So the host lanes,
+where every assert side carries a rider, keep their sides on the wire and their measurement
+line-for-line; the database lanes, whose sides carry none, fold.
+
+**Measured.** Side statements 168 → 1 on BOTH database lanes (the residue is the frame
+re-execution, the next leg); rosters exact on all four lanes (DuckDB 108 / H2 355 database,
+363 host); every judged-in-database, not-attempted, policy and differential line identical
+(agree 5,849 · disagree 0). Round trips DuckDB database 11,749 → 11,181, H2 database 8,469 → 7,901; DuckDB host 18,477 → 16,831 (the rider-less sides: seed CSV and effect arguments). The outside-body
+registers regenerated from the runs: DuckDB 104 → 45 rows, H2 203 → 144 (the rows that only
+sent sides are gone; the rest lose their `side` part). Seed and referee statement counts fell
+too (the CSV and golden evaluations had been counted under those marks). Ledger:
+StatementExecutor 2,385 → 2,414 (the lines ask the folder and box its answer). Chain: GREEN, SEQUENTIAL — G2 25 · G1 43 · G3 7 · G4 57 · G5 27 · G6 91 · G7 28 · G9 20 · G8 90 · G10 27 (415 s); two earlier chains red on one gate each (G9: the rider rule; G1: a ledger pin one line short).
+
+**Next.** The zip-over-frame arm: the frame's rows numbered in order, the expected list as a
+VALUES table with ordinals, joined on the ordinal, judged per row in the fused statement — no
+cell fetched into Java; witness `testProject`; side count 0.
