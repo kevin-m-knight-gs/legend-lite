@@ -29,6 +29,15 @@ below are the latest reading; Appendix A's are older on purpose and say so. It i
 in phases, each with an exit condition you can observe. Section 7 lists every bespoke
 script and build file the plan deletes and what replaces it.
 
+**Audited 2026-09-22 at `97a32a987`** — `docs/standard-build-audit-2026-09-22/`.
+Of 75 checkable claims: 61 confirmed, 6 imprecise, 5 unverifiable, 2 stale, 1
+refuted. §4.2's central design claim was re-measured at the current pin and
+holds. The audit adds four things this document did not have: a measurement of
+whether `core` can be cut into targets at all (§4.1a below), a reconciliation
+finding 76 unaddressed inventory items, six built prototypes that settle the
+open technical risks (§8), and a defect class the project's own skip detector
+cannot see. Corrections from it are folded in below and marked *(audit)*.
+
 ---
 
 ## 1. What "done" looks like
@@ -290,9 +299,156 @@ Five packages are new or newly built:
   fail `guards`, where a reviewer expects it, and never `core`. Bazel also removes the old
   obstacle to sharing test code: a test can depend on another package's test helpers as
   their own `testonly` library, without the service registration that leaked through a
-  Maven test-jar and flipped a `parser-equivalence` verdict (`b5ad0b82b`).
+  Maven test-jar and flipped a `parser-equivalence` verdict. *(audit: the commit
+  originally cited here, `b5ad0b82b`, does not exist in this repository; the
+  mechanism stands, the citation needs replacing.)*
 - **`upstream-runner`** is today's `tools/engine-runner`, built in place from phase 1 and
   moved in phase 3, so its upstream version comes from `MODULE.bazel` and cannot drift.
+
+### 4.1a How finely `core` can actually be cut *(audit)*
+
+Rule 6 says BUILD files beside the code they build. For `core` that is not
+currently possible, and nothing in this plan measured it. A `java_library`
+cannot hold half a dependency cycle, so compile incrementality is bounded by
+the largest strongly-connected component of the package graph. Measured
+(`docs/standard-build-audit-2026-09-22/package-graph.py`):
+
+```
+files=693  packages=31   build units after collapsing cycles: 7
+CYCLE: 25 packages / 667 files (96% of the tree)
+```
+
+`bazel build //core` today yields one `java_library` of 667 files — the same
+rebuild-everything behaviour Maven has. An import-only analysis does not show
+this: 161 package edges are carried **only** by fully-qualified inline
+references (4,691 sites, `@com.legend.Nullable` chief among them), invisible to
+import-based tooling.
+
+The cause is accidental. `Nullable.java` and `NonNull.java` are zero-dependency
+marker annotations sharing a package with `Compiler.java`, the orchestrator:
+everything depends on `com.legend` for the annotation, and `com.legend` depends
+on everything to orchestrate. Priced by simulation:
+
+| | build units | largest cycle | units under 100 files |
+| --- | ---: | --- | ---: |
+| today | 7 | 25 pkgs / 667 files | 3 of 7 |
+| move `Nullable`/`NonNull` to `com.legend.annot` | 25 | 5 pkgs / 209 files | 11 of 25 |
+| + move `AsorRef` (2 sites, 1 file) | 26 | 5 pkgs / 209 files | 12 of 26 |
+
+**Two files relocated and two lines edited** is the precondition for every
+incrementality claim this document makes about `core`. It belongs in phase 1,
+before the first BUILD file. The second move breaks the 130-file
+`lowering`/`resolver` cycle — two references to `AsorRef` in
+`lowering/SnapshotEnvelope.java:134,140` — separating the two packages the
+project's own diagnosis names as its densest defect concentration.
+
+Four cycles survive. They are **fixable, provably** — the question is cost, and
+the answer is front-loaded.
+
+Almost none of the cycling is real mutual recursion. At class level
+(`classgraph.py`) `core` has 18 SCCs but only **two span package boundaries**:
+38 classes across `protocol.spec`(32)/`protocol`(6), and 25 across
+`parser.section`(16)/`parser`(9). Those are the only irreducible co-location
+constraints in the module; **304 of 679 classes are in no cycle at all**. And
+the 209-file `compiler` cycle is carried by just **8 target classes** —
+`ResolvedNames` (6 referrers), `ModelBuilder` (4), `NameResolver` (2),
+`SynthFqn` (2) and four singletons — once the layering is derived from the data
+rather than assumed (`element.type < element < spec.typed < spec < compiler`;
+66 classes go `spec` → `spec.typed`, so `spec.typed` sits *below* `spec`).
+
+Splitting every package by dependency depth yields 166 packages and exactly two
+residual cycles — the two genuine SCCs. **An acyclic assignment exists.**
+
+The honest cost is larger than a handful of moves, and a simulation of the
+obvious 25-class fix is what proved it: the compiler cycle stayed at 202 files.
+Eliminating a class-level SCC does not eliminate a *package* cycle, because
+package cycles also form from perfectly acyclic class edges running both ways
+between two packages. The real diagnosis is that **29 of 31 packages hold
+classes spanning more than one dependency depth** — `.server` spans 29 levels,
+the root package 26, `.resolver` 24, `.compiler.spec` 23. Packages here are
+organised by topic, not by layer. A full repair relocates ~284 of 679 classes.
+
+**What "organised by topic, not by layer" means, concretely.** Two packages
+carry the whole argument (`layers.py` prints any package this way):
+
+```
+com.legend  (the root package)          com.legend.server
+  depth  0  Nullable          24 ln       depth  0  OutputFormat      39 ln
+  depth  0  NonNull           18 ln       depth  1  Json             964 ln
+  depth  1  ExecuteOptions    61 ln       depth 27  DiagramService   243 ln
+  ...                                     depth 27  PureLspServer    278 ln
+  depth 26  Compiler       1,145 ln       depth 28  QueryService     206 ln
+  depth 26  StatementExecutor 3,299 ln    depth 29  LegendHttpServer 454 ln
+```
+
+Depth 0 is "depends on nothing else in `core`". The root package holds both
+ends of the entire dependency range. And `Json` is a 964-line general-purpose
+serialiser sitting in `server` because that is where it was first needed — so
+**anything that wants to serialise JSON must depend on the HTTP server
+package**. One filing decision, one permanent bottom-to-top edge.
+
+Only **7 of 31 packages** keep all their classes in one layer; **24 straddle**,
+and each straddle is a place a cycle can close (`exec` is smeared across five
+layers). The concentrated damage is 16 classes / 2,034 lines — low-level types
+filed in high-level packages:
+
+| class | depth | its package's median | users |
+| --- | ---: | ---: | ---: |
+| `Nullable` | 0 | 26 | **354** |
+| `compiler.element.type.Multiplicity` | 2 | 13 | 104 |
+| `compiler.spec.TypeInferenceException` | 2 | 20 | 49 |
+| `normalizer.MissProbe` | 1 | 21 | 14 |
+| `resolver.AsorRef` | 1 | 24 | 4 |
+| `server.Json` | 1 | 27 | 3 |
+
+Read row one as: a 24-line annotation depending on nothing, filed in a package
+whose typical member depends on everything, referenced by 354 classes. That is
+the 667-file cycle in a single line.
+
+**The target shape.** A package is a layer, not a topic; name it for where it
+sits and a class that does not fit is telling you something.
+
+```
+L0  com.legend.base      Nullable, NonNull, Json, OutputFormat, Row, ProgramFacts
+L0  com.legend.protocol  the wire metamodel — protocol + protocol.spec MERGED
+L1  com.legend.model     the Pure type system
+L1  com.legend.sql       SQL IR + dialects
+L2  com.legend.parser    lexer + parser + sections MERGED
+L3  com.legend.compiler  element / spec / typed — one target regardless
+L3  com.legend.resolver
+L4  com.legend.lowering  normalizer, plan
+L5  com.legend.exec      execution, judging
+L5  com.legend.server    HTTP, LSP, diagrams
+```
+
+The two merges are not choices: `protocol`/`protocol.spec` (38 classes) and
+`parser`/`parser.section` (25) are genuine mutual recursion. Everything else is
+filing. The test for having got it right is that you can state a package's
+layer without reading its contents.
+
+**Why this belongs after Bazel, not before.** These 24 packages drifted because
+nothing ever said no: Maven compiles `core` as one unit, so filing `Json` under
+`server` costs nothing at build time and stays invisible until someone draws the
+graph. Under Bazel a package is a target with declared `deps`, so that filing
+would make `com.legend.base` depend on `com.legend.server` — a cycle, and the
+build refuses to load. You cannot file a class in the wrong layer, because the
+layer *is* the dependency declaration.
+
+**The full plan is worked out**, class by class, in
+`docs/standard-build-audit-2026-09-22/UNTANGLE_HOMEWORK.md`: eleven
+independently-landable move groups, **82 classes relocated**, ending at **39
+packages with zero cycles**, with the measured effect of each step and a
+four-point check per step. The editing is ~1,193 files, almost all of it
+one-line import changes — 354 of them from `Nullable` alone.
+
+So: not "leave it", but "do it in this order, and let the build enforce it".
+The two-file move is 68% of the available win. `AsorRef` and the eight compiler
+targets are contained follow-ons. **The full re-layering belongs after Bazel
+lands, not before** — today nothing prevents a new back-edge; once packages are
+targets with declared `deps`, every new cycle is a build error. Bazel does not
+require the re-layering, it is the enforcement that makes it safe and
+incremental. Foundational types still cascade (`model` → 593 files, `protocol`
+→ 642) and no build system changes that.
 
 ### 4.2 Inputs Bazel owns
 
@@ -352,7 +508,7 @@ pinned file — and asserted by a test.
 | Tree-mutation tripwire | Tests write only to Bazel's output directories; the sandbox stops any other write on Linux and macOS, and CI checks `git status --porcelain` on every platform |
 | `classpath-convergence.sh` | One version per artifact in the lock file, and a test over a `genquery` of `core`'s dependency closure proving no `org.finos.legend` artifact reaches it |
 | `version-report.sh --check` | One version in `MODULE.bazel`, plus a test that checks it against the release's own POM |
-| Three-stream scheduler | Bazel's own scheduler, with the heavy suites' needs declared on their targets and the number of tests at once set from phase 1's measurement — a bet on memory, not a translation |
+| Three-stream scheduler | Bazel's own scheduler, with the heavy suites' needs declared on their targets as `tags = ["resources:memory:N"]` and `jvm_flags = ["-Xmx3g"]`, sized from the measurement in `docs/standard-build-audit-2026-09-22/` Q6. *(audit: `size` alone cannot express this — `enormous` reserves only ~800 MB against a 2.0–2.8 GB PCT live set, a 3.5x over-schedule; and `exec_properties` is remote-execution only and does nothing locally.)* |
 | Heap set by CI env vars | `jvm_flags` on each test target, from one macro |
 | Gate 11's host ledger handed between two Maven runs as a `-D` path (`legend.judge.ledger`, `legend.judge.ledger.host`) | The host run is a build action with that ledger as its declared output; the database lane is a test that takes it as `data` (§4.4) |
 | `-Dh2.version=2.4.240` on gate 7's command line | That lane's target takes H2 2.4.240 from its own pinned repository (§4.4) |
@@ -683,7 +839,7 @@ workflow change.
   in phase 3. The 17 that read or write `target/` and the 26 that write files (16 and 24 at
   `c062b9bc9`) go through the same helper: under Bazel they write to its test output
   directories, under Maven where they write today.
-- **Generation modes get `bazel run` targets.** The five `-D*.generate` flags rewrite
+- **Generation modes get `bazel run` targets.** The seven `-D*.generate` flags rewrite
   files in the working tree, which a Bazel test cannot do; each gets a `bazel run` target
   that writes into the workspace instead. Find them by behaviour, not by name:
   `-Dladder.record`, added on 2026-09-20, rewrites the twenty-four committed
@@ -783,7 +939,7 @@ and nothing in the Bazel build reads a checkout.
   and the stress corpus and its runner into `corpus`, so `core`'s package depends on
   nothing downstream of it (§4.1; §8, risk 8).
 - **Delete Maven, in one change**, once `bazel test //...` reproduces every gate: every
-  `pom.xml`, `.sdkmanrc`, the Maven half of the input helper, the five `-D*.generate`
+  `pom.xml`, `.sdkmanrc`, the Maven half of the input helper, the seven `-D*.generate`
   flags and `-Dladder.record`, `tools/allgates.sh`, `tools/judge-lanes.sh`,
   `tools/bump.sh`, `tools/diagnostics.sh`, `tools/corpus-both.sh`, `tools/ci-watch.sh`,
   `tools/classpath-convergence.sh`, `tools/version-report.sh`, `tools/oracle-pins.env`,
@@ -1022,6 +1178,43 @@ About 3,000 lines of POMs, shell, pins, and YAML, replaced by `MODULE.bazel`, BU
 a few macros, and test code that runs identically on a laptop. The figure grows with every
 gate the chain gains: it was 2,900 one week and one gate ago.
 
+*(audit)* The arithmetic above is correct — the rows sum to 2,959. What the table omits
+is the finding. The reconciliation in
+`docs/standard-build-audit-2026-09-22/completeness.tsv` puts every one of 135
+inventory items into exactly one bucket and leaves **76 UNADDRESSED**.
+Three of those contradict §1's acceptance criteria and are therefore blocking:
+
+| missing from this table | why it matters |
+| --- | --- |
+| `experiments/backend-probes/harness/pom.xml` — an **8th** `pom.xml` | §1.8 says "no `pom.xml` remains". It sits inside `experiments/`, which phase 1's `.bazelignore` hides permanently, so it would never be seen to fail. |
+| `.gitignore` is never updated for `bazel-bin` / `bazel-out` / `bazel-testlogs` | §1.5 has CI assert `git status --porcelain` is empty after every run. That check fails on the first green build. |
+| `GEMINI_API_KEY`-gated tests | §1.1 promises no environment variables and §3.3 bans unregistered skips; `SkipCensusTest` never scans `nlq` (`core/src/test/java/com/legend/SkipCensusTest.java:164-167`). Resolved by deleting `nlq` (§9). |
+| the other five non-`tools/` shell scripts | counted nowhere; two of them are live under `docs/type-audit-2026-08/harness/`. |
+
+Corrected counts: **41** `System.getProperty` names, not 40 —
+`legend.judge.ledger` is read through a string constant and is invisible to a
+literal grep, the same blindness as §4.1a's fully-qualified edges. **56,094**
+lines of Python across 121 files. **58** entries under `projects/`. `docs/`
+holds **350** files; every count this document cites covers only the 247 at
+top level. And §4.5's "five `-D*.generate` flags" is **seven**, plus
+`corpus.manifest.regen` (`parser-equivalence/.../CorpusManifestTest.java:28-64`), which
+rewrites the working tree and does not match the pattern — the exact failure mode §4.5
+warns about for `ladder.record`, reproduced here.
+
+**A defect class the skip detector cannot see** *(audit)*. `allgates.sh`'s `skipped()`
+reads surefire's `Skipped:` count, so it sees `Assumptions`-skips and nothing else. Six
+sites bail out of a missing input with a bare `return` and report **PASSED**:
+`DiagramServiceTest.java:118`, `CensusWorlds.java:172`, `InlineSnippets.java:60`,
+`OwnCorpusParityTest.java:107`, `PctParseCensusTest.java:69`, and — the one
+that matters — `parser-equivalence/.../Corpus.java:61`, gate 8's corpus
+reader, whose `filesWith` returns
+`List.of()` on an absent root so the sweep passes over an empty corpus. That is the exact
+mechanism behind the 2026-08-11 incident `docs/GATES.md` records, and `roots_present()` is
+an external shell guard compensating for an internal defect that is still present. Phase 2
+must make these throw: declaring the corpus as a Bazel input stops the root
+being *absent*, but a `filegroup` matching nothing still hands these six
+helpers an empty list.
+
 ---
 
 ## 8. Risks
@@ -1041,10 +1234,41 @@ gate the chain gains: it was 2,900 one week and one gate ago.
    ones — a short output root, the runfiles library instead of symlink trees, no shell
    rules — and phase 1 proves them on a clean Windows machine before anything depends on
    them.
-4. **Error Prone and NullAway under Bazel's Java toolchain.** Bazel runs the Error Prone
-   its Java tools bundle, and NullAway's JSpecify mode needs a recent one, on both JDKs.
-   If the bundled version is too old, a custom Java toolchain carries a newer one — known
-   work, but work. Phase 1 settles it first.
+4. ~~**Error Prone and NullAway under Bazel's Java toolchain.**~~ **CLOSED by
+   measurement** *(audit, Q1)*. A prototype fails correctly on both a NullAway and a
+   JSpecify-only violation, on JDK 21 and 25. JavaBuilder's bundled Error Prone is a
+   strict superset of `error_prone_core-2.50.0` (0 of 1,666 classes missing), so **no
+   custom `java_toolchain` is needed**. Three edits to today's flags: delete
+   `-Xplugin:ErrorProne` (Bazel rejects it), do not port the `-J--add-exports` block
+   (rules_java's `BASE_JDK9_JVM_OPTS` already passes it), and note that
+   `-XDaddTypeAnnotationsToSymbol=true` is inert because Bazel pins javac to
+   `remotejdk_25`. Half a day.
+
+4a. **The PAR rule is the long pole, and this plan under-weights it** *(audit, Q2)*.
+   `legend-pure-maven-generation-par` has no Bazel equivalent: 1–2 weeks. It is
+   tractable — `PureJarMojo` delegates to a plain static
+   `PureJarGenerator.doGeneratePAR(...)` shipped inside `legend-pure-m3-core`, which
+   `pct` already depends on — so the rule is a small `java_binary` over an existing
+   dependency rather than a reimplementation. Phase 3 should name it as its critical path.
+
+4b. **A PCT suite that generates zero cases passes green** *(audit, Q2)*. Three safety
+   nets fail open at once: the runner reports `OK (0 tests)` exit 0,
+   ConsoleLauncher's `--fail-if-no-tests` does not fire (vintage counts the runner as one
+   passing test), and contrib_rules_jvm writes `tests="1"` into `test.xml`. The fix is a
+   case-count floor asserted inside `suite()` — built and proven in
+   `docs/standard-build-audit-2026-09-22/prototypes/q2/GuardedSuite.java`; port `wrap()`
+   into `PctCensusGate`.
+
+4c. **`parser-equivalence` cannot drop its checkout the way `spec` can** *(audit, Q4)*.
+   `spec`'s three roots are exact set equality against the jars (552/552, 574/574, 49/49,
+   85 of 85 sampled files byte-identical at the current pin). But of the 3,253 engine
+   `.pure` files `parser-equivalence` walks, **0 of 437 `src/test/resources` files are in
+   any jar**. §4.2's instinct was right and the gap is wider than "test sources"; this
+   needs the committed-snapshot pattern already used for tier C6, as its own phase-2
+   workstream (~1 week), not a paragraph.
+
+4d. **`core` is one 667-file cycle** *(audit)*. See §4.1a. Two files must move before a
+   BUILD file per package means anything.
 5. **Two builds at once.** From phase 1 until Maven is deleted in phase 3, Maven and Bazel
    both build the same tree, and a test one runs and the other does not is a silent loss.
    Test targets that take their classes by `glob`, and the module-by-module count check,
@@ -1088,7 +1312,12 @@ existence.
 and `upstream-runner` to the existing five without questioning the five. After phase 4,
 `spec` is a leftover: its generators have moved to `generator`, and what remains is a
 corpus harness and the claims ledger, which may belong with the other conformance
-packages. Separately, `nlq` calls an external LLM and key-gates ten of its tests; whether
+packages. **`nlq` is decided: it is deleted entirely (owner, 2026-09-22)** — the runbook
+is §4 of `docs/standard-build-audit-2026-09-22/`, and it is not a directory removal
+(production code in `core` hardcodes `nlq::NlqProfile`, and five module rosters shrink).
+That takes the package list from ten to nine and removes the only acceptance-criteria
+contradiction a clean clone would have hit first. The original question, kept because it
+records why: `nlq` calls an external LLM and key-gates ten of its tests; whether
 an LLM-backed package belongs in the same repository as a clean-room compiler is a product
 question, not a build one. Ten packages by accretion is the default outcome if nobody
 decides.

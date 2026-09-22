@@ -1,0 +1,43 @@
+root=core/src/main/java
+files=693  packages=31  package-edges=213
+edges carried ONLY by fully-qualified inline refs (invisible to import analysis): 161 across 4691 sites
+build units after collapsing cycles: 7
+
+CYCLE: 25 packages / 667 files (96% of the tree)
+      89  com.legend.compiler.spec.typed
+      83  com.legend.compiler.spec
+      72  com.legend.lowering
+      58  com.legend.model
+      58  com.legend.resolver
+      33  com.legend.protocol.spec
+      32  com.legend.exec
+      28  com.legend.normalizer
+      27  com.legend.sql.dialect
+      26  com.legend
+      24  com.legend.sql
+      23  com.legend.parser.section
+      22  com.legend.compiler.element
+      21  com.legend.parser
+      16  com.legend.protocol
+      10  com.legend.compiler
+      10  com.legend.plan
+       7  com.legend.builtin
+       7  com.legend.error
+       5  com.legend.compiler.element.type
+       5  com.legend.lexer
+       5  com.legend.lineage
+       3  com.legend.values
+       2  com.legend.testdatagen
+       1  com.legend.validation
+
+ REBUILD   OWN  unit   (REBUILD = files recompiled when this unit changes)
+       4     4  com.legend.ide
+       4     4  com.legend.server.serial
+       5     5  com.legend.test
+       7     7  com.legend.server
+     687   667  com.legend (+24)
+     690     3  com.legend.cache
+     690     3  com.legend.spi
+
+units=7  median rebuild=7  units under 100 files: 4/7
+today, with one Maven module, every change rebuilds all 693

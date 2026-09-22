@@ -1,0 +1,2 @@
+module(name = "ll_q6", version = "0.0.1")
+bazel_dep(name = "rules_java", version = "9.9.0")

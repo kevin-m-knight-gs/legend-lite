@@ -1,0 +1,161 @@
+load("@rules_java//java:defs.bzl", "java_library", "java_test")
+load("@contrib_rules_jvm//java:defs.bzl", "java_junit5_test")
+
+java_library(
+    name = "suite_lib",
+    srcs = ["src/test/java/com/legend/GeneratedSuite.java", "src/test/java/com/legend/GuardedSuite.java"],
+    deps = ["@m//:junit_junit"],
+)
+
+# LANE A — Bazel's OWN test runner (BazelTestRunner) on a JUnit3 suite().
+java_test(
+    name = "A_bazel_runner",
+    size = "small",
+    runtime_deps = [":suite_lib", "@m//:junit_junit", "@m//:org_hamcrest_hamcrest_core"],
+    test_class = "com.legend.GeneratedSuite",
+)
+
+# LANE A0 — same, but the suite generates ZERO cases. Does it PASS SILENTLY?
+java_test(
+    name = "A0_bazel_runner_zero",
+    size = "small",
+    runtime_deps = [":suite_lib", "@m//:junit_junit", "@m//:org_hamcrest_hamcrest_core"],
+    test_class = "com.legend.GeneratedSuite",
+    jvm_flags = ["-Dq2.count=0"],
+)
+
+# LANE A-FAIL — one generated case fails; the lane must go red.
+java_test(
+    name = "Afail_bazel_runner",
+    size = "small",
+    runtime_deps = [":suite_lib", "@m//:junit_junit", "@m//:org_hamcrest_hamcrest_core"],
+    test_class = "com.legend.GeneratedSuite",
+    jvm_flags = ["-Dq2.failone=true"],
+)
+
+# LANE A-TEARDOWN — the PctCensusGate assertion fires at teardown only.
+java_test(
+    name = "Ateardown_bazel_runner",
+    size = "small",
+    runtime_deps = [":suite_lib", "@m//:junit_junit", "@m//:org_hamcrest_hamcrest_core"],
+    test_class = "com.legend.GeneratedSuite",
+    jvm_flags = ["-Dq2.teardownfail=true"],
+)
+
+# LANE B — contrib_rules_jvm's JUnit5 runner + junit-vintage-engine.
+java_junit5_test(
+    name = "B_junit5_vintage",
+    size = "small",
+    runtime_deps = [
+        ":suite_lib",
+        "@m//:junit_junit",
+        "@m//:org_hamcrest_hamcrest_core",
+        "@m//:org_junit_vintage_junit_vintage_engine",
+        "@m//:org_junit_jupiter_junit_jupiter",
+        "@m//:org_junit_platform_junit_platform_launcher",
+        "@m//:org_junit_platform_junit_platform_reporting",
+    ],
+    test_class = "com.legend.GeneratedSuite",
+)
+
+java_junit5_test(
+    name = "B0_junit5_vintage_zero",
+    size = "small",
+    runtime_deps = [
+        ":suite_lib",
+        "@m//:junit_junit",
+        "@m//:org_hamcrest_hamcrest_core",
+        "@m//:org_junit_vintage_junit_vintage_engine",
+        "@m//:org_junit_jupiter_junit_jupiter",
+        "@m//:org_junit_platform_junit_platform_launcher",
+        "@m//:org_junit_platform_junit_platform_reporting",
+    ],
+    test_class = "com.legend.GeneratedSuite",
+    jvm_flags = ["-Dq2.count=0"],
+)
+
+java_junit5_test(
+    name = "Bfail_junit5_vintage",
+    size = "small",
+    runtime_deps = [
+        ":suite_lib",
+        "@m//:junit_junit",
+        "@m//:org_hamcrest_hamcrest_core",
+        "@m//:org_junit_vintage_junit_vintage_engine",
+        "@m//:org_junit_jupiter_junit_jupiter",
+        "@m//:org_junit_platform_junit_platform_launcher",
+        "@m//:org_junit_platform_junit_platform_reporting",
+    ],
+    test_class = "com.legend.GeneratedSuite",
+    jvm_flags = ["-Dq2.failone=true"],
+)
+
+# LANE C — plain java_test, JUnit 5 ConsoleLauncher as main, --fail-if-no-tests.
+java_test(
+    name = "C_console_launcher",
+    size = "small",
+    use_testrunner = False,
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    args = [
+        "execute",
+        "--select-class=com.legend.GeneratedSuite",
+        "--fail-if-no-tests",
+        "--details=verbose",
+        "--disable-ansi-colors",
+    ],
+    runtime_deps = [
+        ":suite_lib",
+        "@m//:junit_junit",
+        "@m//:org_hamcrest_hamcrest_core",
+        "@m//:org_junit_vintage_junit_vintage_engine",
+        "@m//:org_junit_platform_junit_platform_console_standalone",
+    ],
+)
+
+java_test(
+    name = "C0_console_launcher_zero",
+    size = "small",
+    use_testrunner = False,
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    args = [
+        "execute",
+        "--select-class=com.legend.GeneratedSuite",
+        "--fail-if-no-tests",
+        "--details=verbose",
+        "--disable-ansi-colors",
+    ],
+    jvm_flags = ["-Dq2.count=0"],
+    runtime_deps = [
+        ":suite_lib",
+        "@m//:junit_junit",
+        "@m//:org_hamcrest_hamcrest_core",
+        "@m//:org_junit_vintage_junit_vintage_engine",
+        "@m//:org_junit_platform_junit_platform_console_standalone",
+    ],
+)
+
+# REMEDY LANES: the floor asserted inside suite(). Zero cases must go RED on every runner.
+java_test(
+    name = "D_guard_bazel_zero",
+    size = "small",
+    runtime_deps = [":suite_lib", "@m//:junit_junit", "@m//:org_hamcrest_hamcrest_core"],
+    test_class = "com.legend.GuardedSuite",
+    jvm_flags = ["-Dq2.count=0"],
+)
+java_test(
+    name = "D_guard_bazel_ok",
+    size = "small",
+    runtime_deps = [":suite_lib", "@m//:junit_junit", "@m//:org_hamcrest_hamcrest_core"],
+    test_class = "com.legend.GuardedSuite",
+)
+java_junit5_test(
+    name = "E_guard_junit5_zero",
+    size = "small",
+    runtime_deps = [
+        ":suite_lib", "@m//:junit_junit", "@m//:org_hamcrest_hamcrest_core",
+        "@m//:org_junit_vintage_junit_vintage_engine", "@m//:org_junit_jupiter_junit_jupiter",
+        "@m//:org_junit_platform_junit_platform_launcher", "@m//:org_junit_platform_junit_platform_reporting",
+    ],
+    test_class = "com.legend.GuardedSuite",
+    jvm_flags = ["-Dq2.count=0"],
+)

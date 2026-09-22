@@ -1,0 +1,418 @@
+load("@rules_java//java:defs.bzl", "java_test")
+
+java_test(
+    name = "small_00",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_01",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_02",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_03",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_04",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_05",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_06",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_07",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_08",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_09",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_10",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_11",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_12",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_13",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_14",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "small_15",
+    size = "small",
+    timeout = "short",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_00",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_01",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_02",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_03",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_04",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_05",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_06",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_07",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_08",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_09",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_10",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_11",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_12",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_13",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_14",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "enormous_15",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+)
+java_test(
+    name = "pct_00",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "pct_01",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "pct_02",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "pct_03",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "pct_04",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "pct_05",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "pct_06",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "pct_07",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    # THE KNOB: declare the lane's REAL live set, not its test size.
+    tags = ["resources:memory:2800"],
+    jvm_flags = ["-Xmx3g"],
+)
+java_test(
+    name = "excl_00",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)
+java_test(
+    name = "excl_01",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)
+java_test(
+    name = "excl_02",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)
+java_test(
+    name = "excl_03",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)
+java_test(
+    name = "excl_04",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)
+java_test(
+    name = "excl_05",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)
+java_test(
+    name = "excl_06",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)
+java_test(
+    name = "excl_07",
+    size = "large",
+    timeout = "eternal",
+    srcs = ["src/Sleeper.java"],
+    use_testrunner = False,
+    main_class = "Sleeper",
+    tags = ["exclusive"],
+)

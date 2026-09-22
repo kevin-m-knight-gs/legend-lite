@@ -1,0 +1,14 @@
+load("@rules_java//java:defs.bzl", "java_test")
+
+java_test(
+    name = "NativeDriverTest",
+    srcs = ["src/test/java/com/legend/NativeDriverTest.java"],
+    test_class = "com.legend.NativeDriverTest",
+    use_testrunner = False,
+    main_class = "com.legend.NativeDriverTest",
+    deps = [
+        "@m//:org_duckdb_duckdb_jdbc",
+        "@m//:org_xerial_sqlite_jdbc",
+        "@m//:com_h2database_h2",
+    ],
+)

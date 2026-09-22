@@ -1,0 +1,302 @@
+phase 1  166 packages, 0 cycles
+phase 2  40 packages, 0 cycles
+         82 classes relocated
+phase 3  undid 40 unnecessary moves -> 42 classes relocated, 39 packages, 0 cycles
+         edit surface ~1036 files
+
+================================================================================
+
+### compiler.spec.typed   88 classes, depth 0-18
+    d17  refs 261  TypedSpec
+    d17  refs 111  TypedNativeCall
+    d17  refs 103  TypedLambda
+    d17  refs  72  TypedVariable
+    d17  refs  59  TypedCString
+    d17  refs  59  TypedPropertyAccess
+    d17  refs  57  TypedCollection
+    ... +81 more
+
+### compiler.spec   79 classes, depth 1-24
+    d20  refs  50  Typer
+    d18  refs  25  Application
+    d21  refs  25  SpecCompiler
+    d19  refs  11  Args
+    d14  refs  11  Bindings
+    d19  refs  10  InferenceKernel
+    d22  refs  10  UserCallInliner
+    ... +72 more
+
+### lowering   71 classes, depth 1-21
+    d20  refs  20  PureSql
+    d20  refs  19  Scalars
+    d20  refs  14  Fold
+    d20  refs  13  Lowerer
+    d3   refs   9  Resolvers
+    d20  refs   8  LiteralSpelling
+    d20  refs   7  CanonicalRenderSql
+    ... +64 more
+
+### model   57 classes, depth 0-8
+    d6   refs  62  PackageableElement
+    d6   refs  40  ClassMapping
+    d6   refs  34  DatabaseDefinition
+    d6   refs  32  ClassDefinition
+    d2   refs  27  RelationalOperation
+    d6   refs  26  LegacyMappingDefinition
+    d6   refs  26  MappingDefinition
+    ... +50 more
+
+### resolver   54 classes, depth 0-24
+    d24  refs  26  Pipelines
+    d24  refs  21  StoreResolver
+    d24  refs  20  Substitution
+    d24  refs  20  ClassSources
+    d24  refs  19  SyntheticHeads
+    d24  refs  16  InnerDemand
+    d24  refs  14  TemporalFrame
+    ... +47 more
+
+### protocol.spec   38 classes, depth 2-2   [6 moved in]
+    d2   refs 121  ValueSpecification
+    d2   refs  85  AppliedFunction
+    d2   refs  64  LambdaFunction
+    d2   refs  51  TypeExpression   <- protocol
+    d2   refs  48  Variable
+    d2   refs  43  Protocol   <- protocol
+    d2   refs  39  PureCollection
+    ... +31 more
+
+### parser.section   32 classes, depth 4-11   [9 moved in]
+    d10  refs  15  SectionParse
+    d8   refs  14  ElementwiseSectionGrammar
+    d10  refs   9  ElementParser   <- parser
+    d10  refs   7  SpecParser   <- parser
+    d7   refs   7  LexableSectionGrammar
+    d10  refs   6  MappingProtocolParser   <- parser
+    d4   refs   4  SectionImports
+    ... +25 more
+
+### exec   31 classes, depth 0-22
+    d15  refs  20  ExecutionResult
+    d6   refs  11  StatementOrigin
+    d19  refs   9  Executor
+    d14  refs   8  Column
+    d5   refs   7  Census
+    d18  refs   7  ResultShape
+    d21  refs   6  CanonicalDivergence
+    ... +24 more
+
+### normalizer   27 classes, depth 1-22
+    d21  refs  16  ResolvedMapping
+    d1   refs  14  MissProbe
+    d21  refs  11  MappingNormalizer
+    d21  refs   7  RelOpTranslator
+    d21  refs   7  MappingLedger
+    d21  refs   6  UnionSynthesis
+    d21  refs   5  Pipeline
+    ... +20 more
+
+### sql.dialect   26 classes, depth 0-16
+    d3   refs  13  SqlDialect
+    d5   refs   9  H2
+    d5   refs   7  Lexicon
+    d5   refs   5  Spellings
+    d5   refs   5  TypeNames
+    d0   refs   5  DialectCapability
+    d14  refs   4  EngineStyleH2
+    ... +19 more
+
+### (root)   24 classes, depth 0-26
+    d26  refs  12  StatementExecutor
+    d26  refs   8  Compiler
+    d26  refs   6  AssertVerdicts
+    d1   refs   6  ExecuteOptions
+    d19  refs   3  KindClass
+    d26  refs   3  VerdictArm
+    d26  refs   2  DatabaseJudge
+    ... +17 more
+
+### sql   23 classes, depth 0-4
+    d2   refs  99  SqlExpr
+    d0   refs  67  SqlFn
+    d2   refs  62  SqlSelect
+    d0   refs  55  SqlType
+    d2   refs  51  SqlSource
+    d2   refs  47  SqlQuery
+    d1   refs  43  OutputCol
+    ... +16 more
+
+### parser   11 classes, depth 0-7
+    d3   refs  32  TokenStreamCursor
+    d0   refs  21  Dialect
+    d2   refs  13  ParseException
+    d4   refs   3  DatabaseProtocolParser
+    d1   refs   2  ElementKind
+    d3   refs   1  OperatorParts
+    d4   refs   1  NumberLiterals
+    ... +4 more
+
+### compiler.element.l0   10 classes, depth 0-17   [10 moved in]
+    d17  refs  73  ModelContext   <- compiler.element
+    d16  refs  45  TypedFunction   <- compiler.element
+    d15  refs  15  Property   <- compiler.element
+    d14  refs  10  TypedParameter   <- compiler.element
+    d16  refs   8  TypedClass   <- compiler.element
+    d14  refs   8  MilestoningStrategy   <- compiler.element
+    d16  refs   4  TypedEnum   <- compiler.element
+    ... +3 more
+
+### plan   10 classes, depth 1-22
+    d20  refs   6  PlanText
+    d18  refs   4  PlanRows
+    d2   refs   3  PlanNode
+    d1   refs   3  PlanConn
+    d21  refs   2  PurePrint
+    d21  refs   1  InProtocol
+    d2   refs   1  PlanSupportFunctions
+    ... +3 more
+
+### compiler.element   9 classes, depth 14-23
+    d19  refs  11  ClassLayouts
+    d18  refs   9  EqualityKeys
+    d20  refs   4  TypeClassifier
+    d19  refs   4  RelationalOpRows
+    d21  refs   3  FunctionCompiler
+    d14  refs   2  StoreCompiler
+    d23  refs   2  PureModelContext
+    ... +2 more
+
+### builtin   7 classes, depth 1-12
+    d11  refs 101  Pure
+    d12  refs  39  NativeFn
+    d12  refs  10  SystemMetamodel
+    d12  refs   4  DynaFn
+    d1   refs   4  Subsumed
+    d3   refs   4  TdsLegacy
+    d11  refs   2  Prelude
+
+### compiler   7 classes, depth 0-19
+    d19  refs  24  ModelBuilder
+    d19  refs   4  KnowledgeLayer
+    d1   refs   2  RelationalKinds
+    d16  refs   1  LiteralMapUnroll
+    d0   refs   1  SymbolTable
+    d7   refs   1  DerivedProps
+    d18  refs   1  StatementInline
+
+### error   7 classes, depth 0-2
+    d0   refs  86  NotImplementedException
+    d1   refs  34  LegendCompileException
+    d2   refs  27  ModelException
+    d2   refs  13  MappingResolutionException
+    d0   refs  11  DataError
+    d1   refs   5  AssertFailed
+    d2   refs   2  ResolutionException
+
+### protocol   7 classes, depth 1-3
+    d3   refs  11  ProtocolEmitter
+    d1   refs   4  SpanOrigin
+    d3   refs   2  MappingEmitter
+    d3   refs   1  ConnectionEmitters
+    d3   refs   1  TailEmitter
+    d3   refs   1  AuthSpecEmitter
+    d3   refs   1  GqlEmitter
+
+### server   7 classes, depth 0-29
+    d1   refs   3  Json
+    d27  refs   1  DiagramService
+    d27  refs   1  ConnectionResolver
+    d0   refs   1  OutputFormat
+    d27  refs   1  PureLspServer
+    d28  refs   1  QueryService
+    d29  refs   0  LegendHttpServer
+
+### lineage   5 classes, depth 3-20
+    d19  refs   5  ScanRelations
+    d3   refs   2  ScanColumns
+    d20  refs   1  LineageRows
+    d18  refs   1  ColumnLineageRows
+    d18  refs   0  PkInference
+
+### test   5 classes, depth 8-28
+    d8   refs   2  PureTests
+    d22  refs   1  TestAssertions
+    d27  refs   1  PureTestRunner
+    d19  refs   1  TestObserver
+    d28  refs   0  ServiceTestRunner
+
+### compiler.element.type   4 classes, depth 2-13
+    d13  refs 183  Type
+    d13  refs 171  ExprType
+    d13  refs 108  PlatformTypes
+    d2   refs 104  Multiplicity
+
+### compiler.spec.l0   4 classes, depth 2-15   [4 moved in]
+    d2   refs  49  TypeInferenceException   <- compiler.spec
+    d14  refs  49  Env   <- compiler.spec
+    d15  refs  16  SourceSubst   <- compiler.spec
+    d12  refs  15  CoreFn   <- compiler.spec
+
+### lexer   4 classes, depth 0-3
+    d0   refs  33  TokenType
+    d2   refs  16  TokenStream
+    d3   refs  10  Lexer
+    d1   refs   1  Token
+
+### server.serial   4 classes, depth 0-2
+    d0   refs   3  ResultSerializer
+    d1   refs   1  JsonSerializer
+    d1   refs   1  CsvSerializer
+    d2   refs   0  SerializerRegistry
+
+### cache   3 classes, depth 0-1
+    d0   refs   4  Hash
+    d1   refs   1  ContentStore
+    d1   refs   1  HandleStore
+
+### compiler.l0   3 classes, depth 1-12   [3 moved in]
+    d12  refs  11  ResolvedNames   <- compiler
+    d1   refs   8  SynthFqn   <- compiler
+    d12  refs   3  NameResolver   <- compiler
+
+### ide   3 classes, depth 8-12
+    d8   refs   2  ModelIndex
+    d11  refs   1  ModelIndexer
+    d12  refs   0  ModelOrchestrator
+
+### protocol.l0   3 classes, depth 0-1   [3 moved in]
+    d0   refs  59  SourceInfo   <- protocol
+    d1   refs  33  Multiplicity   <- protocol
+    d0   refs   5  Escapes   <- protocol
+
+### resolver.l0   3 classes, depth 1-18   [3 moved in]
+    d18  refs  23  ClassSource   <- resolver
+    d18  refs   5  Callees   <- resolver
+    d1   refs   4  AsorRef   <- resolver
+
+### spi   3 classes, depth 0-1
+    d0   refs  10  SectionSource
+    d0   refs   8  ElementSink
+    d1   refs   3  SectionGrammar
+
+### values   3 classes, depth 0-2
+    d1   refs  28  PureDateLiteral
+    d0   refs   3  PureTimeLiteral
+    d2   refs   1  LiteralText
+
+### compiler.element.l1   2 classes, depth 18-18   [2 moved in]
+    d18  refs   9  Temporal   <- compiler.element
+    d18  refs   2  RelationalTypeInference   <- compiler.element
+
+### testdatagen   2 classes, depth 22-25
+    d25  refs   3  TestDataGenerationNatives
+    d22  refs   2  TestDataGenerator
+
+### compiler.spec.typed.l0   1 classes, depth 0-0   [1 moved in]
+    d0   refs   8  Feature   <- compiler.spec.typed
+
+### l0   1 classes, depth 0-0   [1 moved in]
+    d0   refs 354  Nullable   <- (root)
+
+### validation   1 classes, depth 18-18
+    d18  refs   1  ValidateDesugar
