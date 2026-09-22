@@ -250,7 +250,7 @@ final class JoinChainEmission {
                                      @com.legend.Nullable String propName,
                                      @com.legend.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
-                                     ModelBuilder model, ResolvedMapping md,
+                                     ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
                                      boolean classTypedTerminus) {
         emitJoinChain(p, hops, chainDb, propName, ownerClassFqn, mainDb, mainTable,
                 rowBind, model, md, classTypedTerminus, null);
@@ -269,9 +269,13 @@ final class JoinChainEmission {
                                      @com.legend.Nullable String propName,
                                      @com.legend.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
-                                     ModelBuilder model, ResolvedMapping md,
+                                     ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
                                      boolean classTypedTerminus,
                                      @com.legend.Nullable String routedSetId) {
+        // a CLASS-TYPED chain is a mapping's; the view lift (E.5) emits
+        // physical hops only and carries no mapping
+        ResolvedMapping owner = classTypedTerminus
+                ? Objects.requireNonNull(md, "class-typed join chain without its mapping") : md;
         String targetClassFqn = null;
         if (classTypedTerminus && propName != null) {
             // a class-typed property ALWAYS ends in a navigate (legacy routes
@@ -283,8 +287,8 @@ final class JoinChainEmission {
                     ? null : p.unionRoutes.get(propName);
             if (targetClassFqn != null && routedSetId != null
                     && (routeEntries == null || routeEntries.size() == 1)
-                    && !MappingNormalizer.hasMainTable(md, targetClassFqn, model)
-                    && md.set(routedSetId)
+                    && !MappingNormalizer.hasMainTable(Objects.requireNonNull(owner), targetClassFqn, model)
+                    && owner.set(routedSetId)
                             instanceof ClassMapping routed
                     && !routed.className().equals(targetClassFqn)
                     && model.knowledge().isSubtype(routed.className(), targetClassFqn)) {
@@ -350,8 +354,8 @@ final class JoinChainEmission {
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
                     .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                             "Join '" + hop.joinName() + "' not found in db '"
-                          + hopDb + "'; PM='" + propName + "', mapping="
-                          + md.qualifiedName()));
+                          + hopDb + "'; PM='" + propName + "', "
+                          + ViewRelation.owner(md, hopDb)));
             // a SOLE non-source view candidate in the condition is the
             // join's TARGET — expanded as a relation, never substituted
             RelationalOperation joinCond = jd.operation();
@@ -369,7 +373,7 @@ final class JoinChainEmission {
                     ? condTables.iterator().next() : null;
             if (viewTarget != null && emitNavigate) {
                 RelationalOperation sub = plainClassViewCond(joinCond,
-                        viewTarget, targetClassFqn, hopDb, model, md);
+                        viewTarget, targetClassFqn, hopDb, model, Objects.requireNonNull(owner));
                 if (sub != null) { joinCond = sub; viewTarget = null; }
             }
             HopTarget ht = hopTarget(joinCond, viewTarget, prevTable, hopDb,
@@ -424,7 +428,8 @@ final class JoinChainEmission {
                     // union publishes nothing; the navigator composed it.
                     p.expr = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
                             List.of(p.expr, slot, new PureCollection(routeList(p, routes,
-                                    propName, prevTable, prevAlias, mainTable, s, t, model, md))));
+                                    propName, prevTable, prevAlias, mainTable, s, t, model,
+                                    Objects.requireNonNull(owner)))));
                 } else {
                     p.expr = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
                             List.of(p.expr, slot, targetRows, navCond));
@@ -814,7 +819,7 @@ final class JoinChainEmission {
     private static HopTarget hopTarget(RelationalOperation joinCond,
             @com.legend.Nullable String viewTarget, @com.legend.Nullable String prevTable, String hopDb,
             String joinName, @com.legend.Nullable String propName, int i, Pipeline p,
-            ModelBuilder model, ResolvedMapping md) {
+            ModelBuilder model, @com.legend.Nullable ResolvedMapping md) {
         if (viewTarget != null) {
             return new HopTarget(joinCond, viewTarget, viewTarget);
         }
@@ -828,7 +833,7 @@ final class JoinChainEmission {
         String targetTable = MappingNormalizer.determineTargetTable(
                 joinCond, prevTable, joinName,
                 propName == null ? "<nested>" : propName,
-                i + 1, md.qualifiedName());
+                i + 1, ViewRelation.owner(md, hopDb));
         String view = model.findView(hopDb, targetTable).isPresent()
                 ? targetTable : null;
         return new HopTarget(joinCond, targetTable, view);

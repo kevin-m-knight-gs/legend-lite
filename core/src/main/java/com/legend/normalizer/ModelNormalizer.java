@@ -14,6 +14,7 @@ import com.legend.model.AssociationDefinition;
 import com.legend.protocol.ConstraintDefinition;
 import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.model.ClassDefinition;
+import com.legend.model.DatabaseDefinition;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.protocol.Realization;
@@ -124,6 +125,7 @@ public final class ModelNormalizer {
         liftDerivedProperties(parsed, lifted);  // E.2
         liftConstraints(parsed, lifted);        // E.3
         liftServiceQueries(parsed, lifted);     // E.4
+        liftViews(parsed, model, lifted, wallSink); // E.5
         if (lifted.isEmpty()) return normalized;
         List<PackageableElement> elements =
                 new ArrayList<>(normalized.elements().size() + lifted.size());
@@ -183,6 +185,57 @@ public final class ModelNormalizer {
      * user function. Phase F's {@code Property.Derived} references the lifted
      * FQN by the identical {@code <owner>$prop$<name>} convention.
      */
+    /**
+     * E.5 — every store VIEW is a zero-arg relation function
+     * {@code <db>$view$<name>(): Any[*]} whose single body expression is the
+     * view's relation ({@code tableReference(root) -> [~filter] -> (groupBy |
+     * project) -> [~distinct]}, join-navigating columns as join slots). The
+     * engine's View IS a relational mapping specification planned as an
+     * inline select; ours is the {@code ~func} relation-function shape the
+     * mapping route already consumes. Eager like E.2–E.4; a view whose
+     * translation walls is a WALLED element (the module's poison-don't-drop
+     * contract: the failure fires at use), never a dropped one.
+     * docs/VIEWS_COMPILED_ONCE_HOMEWORK_2026_09_22.md §7.
+     */
+    private static void liftViews(ParsedModel parsed, ModelBuilder model,
+            List<FunctionDefinition> lifted,
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        for (PackageableElement el : parsed.elements()) {
+            if (!(el instanceof DatabaseDefinition db)) {
+                continue;
+            }
+            for (DatabaseDefinition.ViewDefinition v : db.views()) {
+                liftView(db, v, v.name(), model, lifted, wallSink);
+            }
+            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+                for (DatabaseDefinition.ViewDefinition v : s.views()) {
+                    liftView(db, v, s.name() + "." + v.name(), model, lifted, wallSink);
+                }
+            }
+        }
+    }
+
+    private static void liftView(DatabaseDefinition db, DatabaseDefinition.ViewDefinition view,
+            String viewName, ModelBuilder model, List<FunctionDefinition> lifted,
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        String fqn = SynthFqn.view(db.qualifiedName(), viewName);
+        ValueSpecification body;
+        try {
+            body = ViewRelation.viewRelationExpr(view, viewName, db.qualifiedName(), model, null);
+        } catch (ModelException | com.legend.error.NotImplementedException e) {
+            if (wallSink == null) {
+                throw e;
+            }
+            wallSink.putIfAbsent(fqn, String.valueOf(e.getMessage()));
+            return;
+        }
+        lifted.add(new FunctionDefinition(fqn, List.of(), List.of(), List.of(),
+                new TypeExpression.NameRef(com.legend.compiler.element.type.PlatformTypes.ANY),
+                Multiplicity.Concrete.ZERO_MANY, List.of(body), List.of(), List.of())
+                .withSynthesizedFrom(new FunctionDefinition.Synthesized(
+                        SynthHat.VIEW, db.qualifiedName(), viewName)));
+    }
+
     private static void liftDerivedProperties(
             ParsedModel parsed, List<FunctionDefinition> lifted) {
         for (PackageableElement el : parsed.elements()) {

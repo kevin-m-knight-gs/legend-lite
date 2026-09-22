@@ -28,90 +28,9 @@ final class StoreCompiler {
 
     /** The schema of {@code name} within {@code db} — top-level tables first, then each schema's. */
     static Optional<Type.RelationType> resolveTable(DatabaseDefinition db, String name) {
-        Optional<Type.RelationType> table =
-                findTableDef(db, name).map(StoreCompiler::tableSchema);
-        if (table.isPresent()) {
-            return table;
-        }
-        // #>{db.View}# — views resolve like tables, schema derived from
-        // each projected column's underlying physical column; a view with
-        // a non-column-ref projection stays unresolved (same outcome as
-        // an unknown name, never a wrong schema)
-        return findViewDef(db, name).flatMap(v -> viewSchema(db, v));
-    }
-
-    static Optional<DatabaseDefinition.ViewDefinition> findViewDef(
-            DatabaseDefinition db, String name) {
-        int dot = name.indexOf('.');
-        if (dot > 0) {
-            String schemaName = name.substring(0, dot);
-            String viewName = name.substring(dot + 1);
-            if (schemaName.equals("default")) {
-                for (var v : db.views()) {
-                    if (v.name().equals(viewName)) {
-                        return Optional.of(v);
-                    }
-                }
-            }
-            for (var s : db.schemas()) {
-                if (!s.name().equals(schemaName)) {
-                    continue;
-                }
-                for (var v : s.views()) {
-                    if (v.name().equals(viewName)) {
-                        return Optional.of(v);
-                    }
-                }
-            }
-            return Optional.empty();
-        }
-        for (var v : db.views()) {
-            if (v.name().equals(name)) {
-                return Optional.of(v);
-            }
-        }
-        for (var s : db.schemas()) {
-            for (var v : s.views()) {
-                if (v.name().equals(name)) {
-                    return Optional.of(v);
-                }
-            }
-        }
-        return Optional.empty();
-    }
-
-    private static Optional<Type.RelationType> viewSchema(
-            DatabaseDefinition db, DatabaseDefinition.ViewDefinition view) {
-        List<Type.Column> columns =
-                new ArrayList<>(view.columnMappings().size());
-        for (var cm : view.columnMappings()) {
-            if (!(cm.expression()
-                    instanceof com.legend.model.RelationalOperation.ColumnRef cr)) {
-                return Optional.empty();
-            }
-            var td = findTableDef(db, cr.table());
-            if (td.isEmpty()) {
-                return Optional.empty();
-            }
-            // a ColumnRef keeps its wire QUOTES (RelOpFromProtocol passes
-            // the column verbatim) while the declaration stores the name
-            // BARE + quoted flag — match both spellings (the sibling
-            // tableSchema's quote-bearing identity; ledger cluster 7)
-            var col = td.get().columns().stream()
-                    .filter(c -> c.name().equals(cr.column())
-                            || (c.quoted() && ("\"" + c.name() + "\"")
-                                    .equals(cr.column())))
-                    .findFirst();
-            if (col.isEmpty()) {
-                return Optional.empty();
-            }
-            Multiplicity mult = (col.get().notNull()
-                    || col.get().primaryKey() || cm.primaryKey())
-                    ? Multiplicity.Bounded.ONE : Multiplicity.Bounded.ZERO_ONE;
-            columns.add(new Type.Column(cm.name(),
-                    columnType(col.get().dataType()), mult));
-        }
-        return Optional.of(new Type.RelationType(columns));
+        // a VIEW is not a table: it is a lifted relation function (E.5),
+        // typed through its body by TableReferenceChecker
+        return findTableDef(db, name).map(StoreCompiler::tableSchema);
     }
 
     static Optional<DatabaseDefinition.TableDefinition> findTableDef(

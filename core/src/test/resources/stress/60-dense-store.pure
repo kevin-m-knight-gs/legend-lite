@@ -57,6 +57,11 @@ Database stress::DenseDB
    Join dense_Self(ACCOUNT.ACCOUNT_NAME = {target}.ACCOUNT_ID)
 
    Filter dense_NotNull(ACCOUNT.ACCOUNT_ID is not null)
+   // A view's ~filter must read the view's own root (or a table its joins
+   // reach): the engine compiles a filter over an unrelated table and fails
+   // at SQL generation; this platform refuses it at build (views are lifted
+   // eagerly, strict entry — 2026-09-22). dense_Rollup roots at ACCRUAL_ENTRY.
+   Filter dense_AccrualNotNull(ACCRUAL_ENTRY.ACCRUAL_ID is not null)
    // A MultiGrainFilter is referenced from a mapping exactly like a Filter;
    // the distinction is consumed by the planner for join elision.
    MultiGrainFilter dense_Grain(ACCOUNT.ACCOUNT_ID is not null)
@@ -65,7 +70,7 @@ Database stress::DenseDB
    // orders the last two the other way round.
    View dense_Rollup
    (
-      ~filter dense_NotNull
+      ~filter dense_AccrualNotNull
       ~groupBy
       (
          ACCRUAL_ENTRY.ACCRUAL_ID

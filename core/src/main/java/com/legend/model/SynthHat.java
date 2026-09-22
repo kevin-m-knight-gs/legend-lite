@@ -30,7 +30,9 @@ public enum SynthHat {
     /** An association-mapping predicate: {@code <mapping>$assoc$<assocFqn>}. */
     ASSOC,
     /** A class constraint {@code ~message}: {@code <class>$constraintMsg$<name>}. */
-    CONSTRAINT_MSG;
+    CONSTRAINT_MSG,
+    /** A store VIEW lifted as a zero-arg relation function (E.5): {@code <db>$view$<name>}. */
+    VIEW;
 
     /** The lowercase {@code $}-sigil segment for this hat (e.g. {@code CLASS -> "class"}). */
     public String segment() {

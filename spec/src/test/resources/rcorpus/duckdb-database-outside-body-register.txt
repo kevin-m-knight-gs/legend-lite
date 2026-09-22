@@ -38,7 +38,6 @@ meta::relational::tests::ddl::dropAndCreateTable ||| probe=3
 meta::relational::tests::ddl::dropAndCreateTempTable ||| probe=1
 meta::relational::tests::mapping::dates::datetime::retrieveDateWithTimeZone ||| probe=1
 meta::relational::tests::mapping::dates::strictdate::testGet ||| probe=1
-meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView ||| fallback=1
 meta::relational::tests::projection::filter::in::H2Test ||| probe=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation ||| statement=1

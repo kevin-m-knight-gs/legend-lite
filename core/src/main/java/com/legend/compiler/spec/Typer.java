@@ -1432,7 +1432,7 @@ final class Typer {
             case COLUMNS -> ColumnsChecker.check(this, af, env);
             case TO_JSON -> TdsJsonChecker.check(this, af, env);
             case TDS_TO_JSON_KV -> TdsJsonChecker.checkKeyValue(this, af, env);
-            case TABLE_REFERENCE -> TableReferenceChecker.check(this, af);
+            case TABLE_REFERENCE -> TableReferenceChecker.check(this, af, env);
             case TABLE_TO_TDS -> TableReferenceChecker.checkTableToTds(this, af, env);
             case PROJECT -> ProjectChecker.check(this, af, env);
             case EXTEND -> ExtendChecker.check(this, af, env);

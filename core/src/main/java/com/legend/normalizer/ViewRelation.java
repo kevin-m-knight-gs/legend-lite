@@ -77,19 +77,25 @@ final class ViewRelation {
      */
     static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, ResolvedMapping md) {
+            ModelBuilder model, @com.legend.Nullable ResolvedMapping md) {
         return viewRelationExpr(view, viewName, db, model, md,
                 new java.util.HashSet<>());
     }
 
+    /** The owner a message names: the mapping expanding the view, or — for
+     *  the E.5 lift, which has no mapping — the store itself. */
+    static String owner(@com.legend.Nullable ResolvedMapping md, String db) {
+        return md == null ? "store=" + db : "mapping=" + md.qualifiedName();
+    }
+
     private static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, ResolvedMapping md,
+            ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
             java.util.Set<String> expanding) {
         if (!expanding.add(viewName)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "view '" + viewName + "' expands through itself (cyclic"
-                  + " view-on-view chain); mapping=" + md.qualifiedName());
+                  + " view-on-view chain); " + owner(md, db));
         }
         String phys = inferViewMainTable(view, viewName, md, model, db);
         Variable r = new Variable("vr");
@@ -131,7 +137,7 @@ final class ViewRelation {
                 throw new NotImplementedException(
                         "view '" + viewName + "' used as a join target has a"
                       + " join-mediated ~filter; only direct view filters"
-                      + " expand as relations. mapping=" + md.qualifiedName());
+                      + " expand as relations. " + owner(md, db));
             }
             String dbFqn = switch (direct.filter()) {
                 case FilterPointer.Cross c -> c.db();
@@ -143,7 +149,7 @@ final class ViewRelation {
                             LegendCompileException.Phase.NORMALIZE,
                             "~filter '" + direct.filter().name() + "' of view '"
                           + viewName + "' not found in db '" + dbFqn
-                          + "'; mapping=" + md.qualifiedName()));
+                          + "'; " + owner(md, db)));
             List<JoinChainEmission.JoinNavSpec> navs = new ArrayList<>();
             JoinChainEmission.collectJoinNavigations(
                     viewFilterDef.condition(), navs);
@@ -438,12 +444,12 @@ final class ViewRelation {
     }
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, ResolvedMapping md) {
+                                            String viewName, @com.legend.Nullable ResolvedMapping md) {
         return inferViewMainTable(view, viewName, md, null, null);
     }
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, ResolvedMapping md,
+                                            String viewName, @com.legend.Nullable ResolvedMapping md,
                                             @com.legend.Nullable ModelBuilder model, @com.legend.Nullable String dbFqn) {
         Set<String> tables = new LinkedHashSet<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
@@ -468,13 +474,13 @@ final class ViewRelation {
         if (tables.isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "View '" + viewName + "': cannot infer underlying main table — no "
-                  + "non-join column references found; mapping=" + md.qualifiedName());
+                  + "non-join column references found; " + owner(md, String.valueOf(dbFqn)));
         }
         if (tables.size() > 1) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "View '" + viewName + "' references multiple root tables " + tables
-                  + "; a view must resolve to a single root table. Mapping="
-                  + md.qualifiedName());
+                  + "; a view must resolve to a single root table. "
+                  + owner(md, String.valueOf(dbFqn)));
         }
         return tables.iterator().next();
     }

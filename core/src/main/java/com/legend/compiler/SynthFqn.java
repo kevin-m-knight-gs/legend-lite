@@ -66,6 +66,12 @@ public final class SynthFqn {
      * until set-ID dispatch lands; the full class FQN already makes distinct
      * classes distinct.
      */
+    /** A database VIEW lifted as a zero-arg relation function: {@code <db>$view$<name>}
+     *  (a schema-qualified view keeps its dotted {@code SCHEMA.NAME}). */
+    public static String view(String dbFqn, String viewName) {
+        return hatFqn(dbFqn, SynthHat.VIEW, viewName);
+    }
+
     public static String mappingClass(String mappingFqn, String classFqn) {
         return hatFqn(mappingFqn, SynthHat.CLASS, classFqn);
     }

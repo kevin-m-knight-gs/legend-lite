@@ -2518,7 +2518,7 @@ public final class MappingNormalizer {
      */
     static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
             String db, @com.legend.Nullable String sourceTable,
-            ModelBuilder model, ResolvedMapping md,
+            ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
             @com.legend.Nullable String backingView,
             @com.legend.Nullable String onlyView) {
         return resolveViewRefsInJoin(op, db, sourceTable, model, md,
@@ -2533,7 +2533,7 @@ public final class MappingNormalizer {
      * carry the declared view columns. */
     static RelationalOperation resolveViewRefsInJoin(RelationalOperation op,
             String db, @com.legend.Nullable String sourceTable,
-            ModelBuilder model, ResolvedMapping md,
+            ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
             @com.legend.Nullable String backingView,
             @com.legend.Nullable String onlyView,
             @com.legend.Nullable String keepTargetView,
@@ -2570,8 +2570,8 @@ public final class MappingNormalizer {
                           + (view.filter() != null ? "~filter" : view.distinct()
                                   ? "~distinct" : "~groupBy")
                           + " semantics as its source side; joins over"
-                          + " non-plain views are a roadmap feature. mapping="
-                          + md.qualifiedName());
+                          + " non-plain views are a roadmap feature. "
+                          + ViewRelation.owner(md, db));
                 }
                 for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
                         : view.columnMappings()) {
@@ -2620,7 +2620,7 @@ public final class MappingNormalizer {
      * (over ProductTableView over ProductTable) as the pipeline's own row. */
     private static boolean viewChainReaches(String start,
             @com.legend.Nullable String sourceTable, String db,
-            ResolvedMapping md, ModelBuilder model) {
+            @com.legend.Nullable ResolvedMapping md, ModelBuilder model) {
         String walk = start;
         java.util.Set<String> seen = new java.util.HashSet<>();
         while (seen.add(walk)) {

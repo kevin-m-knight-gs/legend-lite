@@ -170,6 +170,7 @@ public record FunctionDefinition(
                 case CLASS      -> "class mapping '" + memberName + "' of " + ownerFqn;
                 case ASSOC      -> "association mapping '" + memberName + "' of " + ownerFqn;
                 case QUERY      -> "service query of " + ownerFqn;
+                case VIEW       -> "view '" + memberName + "' of " + ownerFqn;
             };
         }
     }

@@ -4942,3 +4942,51 @@ byte-identical. Ledger: AssertVerdicts 1,237 → 1,249, DatabaseJudge 586 → 59
 **Next.** Rung 2c homework (the H2 vocabulary: 146 split-rung firings, all list / struct / JSON in a
 cell); the DuckDB product bug behind its one firing (`testRelationStoreAccessorOnView`); the three
 bare value statements if the register is to read zero for the compiler's own rows.
+
+
+## 2026-09-22 — views are lifted functions (stage 1): the accessor computes, the split rung is gone
+
+**The question (user).** "Are we shoehorning view expansion into the mapping normalizer? Where does
+the view definition come from — a sidecar? Everything Pure is a function — is that not the model?"
+Homework first (docs/VIEWS_COMPILED_ONCE_HOMEWORK_2026_09_22.md): 4,139 lines read, 21 translator
+walls tabled, two census runs through the platform, the engine's own rule read at the pin.
+
+**The design, corrected by the user.** A store View is a zero-arg relation FUNCTION. The engine's
+View IS a relational mapping specification (planned by the same function as a class mapping, as an
+inline derived table aliased `<view>_n`, milestoning applied inside); ours is the `~func`
+relation-function shape the mapping route already consumes (162 in the corpus). The normalizer
+lifts synthesized functions today (derived properties, constraints, service queries) — views are
+the fifth lift, E.5: `<db>$view$<name>(): Any[*]` whose one body expression is the view's relation
+(`tableReference(root) -> [~filter] -> (groupBy | project) -> [~distinct]`). A "carrier" wrapper
+native proposed earlier was retracted as a sidecar in spirit.
+
+**What landed.** `ModelNormalizer.liftViews` (eager, like E.2–E.4; walled under `buildModule`,
+THROWN under the strict entry — USER RULING: strict); `TableReferenceChecker` types a view name by
+inlining the lifted body (the `FromChecker` zero-arg user-call splice); `StoreCompiler.viewSchema`
+(plain-columns-only view type) and `findTable`'s view fall-through DELETED — the 17 computed /
+join-navigating corpus views get a type for the first time; the mapping handle is `@Nullable` on
+the view path (messages name the store). `SynthHat.VIEW`, `SynthFqn.view`.
+
+**Measured.** `testRelationStoreAccessorOnView` compiles, lowers and runs; its ROWS assert PASSES;
+its first assert expects the engine's SQL text inside the `executeLegendQuery` JSON and the platform
+renders that only for mapping-backed chains — a judging shape, one test in the corpus (AlloyOnly),
+now STAGE 4. The outside-body registers shrink by that test's `fallback=1` row on both lanes
+(DuckDB 44→43, H2 143→142): the last DuckDB split-rung firing is gone. Fail rosters unchanged
+(DuckDB 108, H2 363). Differential agree 5,850 · disagree 0. No lifted view walled on either lane.
+
+**The red chain and the denominator.** The first chain went RED at G10: the STRESS corpus carries
+4 views the census had not counted (the census covered the relational corpus only), and
+`dense_Rollup` filtered over a table the view never reads (translator wall #11). The engine would
+compile it and fail at use; under STRICT the build refuses it. The fixture was ours and wrong: it
+now filters over its own root (`dense_AccrualNotNull`). Real denominator 52 views, 52 lift.
+
+**Chain GREEN (gates 1,2,3,4,5,6,7,8,9,10), sequential:** G2 25, G1 42, G3 7, G4 55, G5 26, G6 95,
+G7 31, G9 21, G8 88, G10 27 — 417 s.
+
+**Next, in order (homework §8, read not asserted):** stage 4 — engine-style SQL for a mapping-free
+relation chain (drop the null-mapping guard; both consumers accept null), a `contains('"sql":…')`
+arm judged by rows, and the view as a NAMED root-position frame (the IR's `Subselect.frameName`
+and the engine-style alias plan already exist; the typed boundary is the missing piece and it
+changes stage 1's splice) → stage 2 — the lift runs before the mapping normalizer and hands its
+bodies in; view-on-view becomes a call → stage 3 — the test-data generator's hand-built view SQL
+and lineage's private expansion derive from the lifted body (the TDG program's leg).

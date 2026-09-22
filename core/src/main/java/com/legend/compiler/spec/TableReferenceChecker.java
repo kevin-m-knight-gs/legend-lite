@@ -30,7 +30,7 @@ final class TableReferenceChecker {
     private TableReferenceChecker() {
     }
 
-    static TypedSpec check(Typer t, AppliedFunction af) {
+    static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         int n = af.parameters().size();
         // Two spellings: the #>{db.TABLE}# desugar (db, 'TABLE') and the
         // REAL engine 3-arg form (db, 'SCHEMA', 'TABLE') —
@@ -74,9 +74,24 @@ final class TableReferenceChecker {
                         ExprType.one(Type.Primitive.STRING)));
 
         final String resolvedName = name;
-        Type.RelationType schema = t.model().findTable(dbRef.fullPath(), resolvedName)
-                .orElseThrow(() -> new TypeInferenceException(
-                        "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'"));
+        java.util.Optional<Type.RelationType> table = t.model().findTable(dbRef.fullPath(), resolvedName);
+        if (table.isEmpty()) {
+            // #>{db.View}# — a VIEW is a lifted zero-arg relation function
+            // (E.5, docs/VIEWS_COMPILED_ONCE_HOMEWORK_2026_09_22.md §7): its
+            // body IS the relation, typed here the way the ~func mapping
+            // route consumes a relation function (FromChecker's zero-arg
+            // user-call splice) — every user call inlines, a view's too
+            String viewName = strictDefault ? tableName.value() : resolvedName;
+            List<com.legend.compiler.element.TypedFunction> lifted = t.model().findFunction(
+                    com.legend.compiler.SynthFqn.view(dbRef.fullPath(), viewName));
+            if (lifted.size() == 1 && lifted.get(0).body().isPresent()
+                    && lifted.get(0).body().get().size() == 1) {
+                return t.synth(lifted.get(0).body().get().get(0), env);
+            }
+            throw new TypeInferenceException(
+                    "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'");
+        }
+        Type.RelationType schema = table.get();
         String carried = strictDefault ? tableName.value() : resolvedName;
         return new TypedTableReference(dbRef.fullPath(), carried,
                 // the literal IS the store accessor (upstream: RelationStoreAccessor<T>

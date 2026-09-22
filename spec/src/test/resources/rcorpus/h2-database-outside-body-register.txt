@@ -54,7 +54,6 @@ meta::relational::tests::mapping::dates::datetime::retrieveDateWithTimeZone ||| 
 meta::relational::tests::mapping::dates::datetime::testProject ||| fallback=1
 meta::relational::tests::mapping::dates::strictdate::testGet ||| probe=1
 meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDatesInClass ||| fallback=4
-meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView ||| fallback=1
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| fallback=2
 meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat ||| fallback=2
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV1 ||| fallback=1
