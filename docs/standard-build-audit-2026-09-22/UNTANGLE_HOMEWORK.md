@@ -145,18 +145,24 @@ compile unit, which is what bounds incremental build time.
 | H typed leaf types | 20 | 2 | **257** | 12/20 | 14 |
 | I resolver vocabulary | 22 | 1 | 257 | 15/22 | 93 |
 | J merge parser SCC | 22 | 1 | 257 | 15/22 | 38 |
-| K sql leaf types | 24 | 1 | **231** | 16/24 | 10 |
+| K sql leaf types | 39 | **0** | **none** | 16/39 | 10 |
 
-Two things this table says plainly. **The value is front-loaded and lumpy** —
-A alone is 35% of the reduction, and B/C/D/E move the *cycle count* without
-moving `biggest` at all, because they are prerequisites for F and H rather than
-wins in themselves. Do not judge B-E by this column; they are setup.
+**A–K reaches zero.** 39 packages, no cycles, nothing left to untangle.
 
-And **the semantic 24-package layout stops at one 231-file cycle.** Reaching
-zero needs the full 40 packages of `untangle-plan.txt`, which splits
-`compiler.element` three ways and the root package two ways. Whether the last
-231 → 0 is worth 16 more package names is a judgement call; 231 is already a
-2.8x improvement on today and every unit under it is independently cacheable.
+Two things the table says that the endpoint does not. **The value is
+front-loaded and lumpy** — A alone takes the biggest unit from 654 to 429, a
+third of the whole reduction, for four files. And **B, C, D and E move the
+cycle count without moving `biggest` at all.** They are prerequisites for F, H
+and K rather than wins in themselves; anyone judging them by the `biggest`
+column will conclude they failed and stop four steps before the payoff. The
+last group, K, is two classes and ten edits, and it is the one that closes the
+final cycle — 229 files to zero.
+
+*An earlier revision of this table reported A–K stopping at a 231-file cycle.
+That was a bug in the group definitions, not a property of the plan: two
+depth-0 classes (`TypedConstraint`, and `Feature`/`WindowFrame`) had been
+filed into depth-14+ destinations, which is precisely the straddle §1 warns
+about. The rule caught its author. Both now go to `com.legend.base`.*
 
 ---
 

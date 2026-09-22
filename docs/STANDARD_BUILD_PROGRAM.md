@@ -436,7 +436,7 @@ layer *is* the dependency declaration.
 
 **The full plan is worked out**, class by class, in
 `docs/standard-build-audit-2026-09-22/UNTANGLE_HOMEWORK.md`: eleven
-independently-landable move groups, **82 classes relocated**, ending at **40
+independently-landable move groups, **82 classes relocated**, ending at **39
 packages with zero cycles**, with the measured effect of each step and a
 four-point check per step. The editing is ~1,193 files, almost all of it
 one-line import changes — 354 of them from `Nullable` alone.

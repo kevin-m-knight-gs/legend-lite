@@ -57,14 +57,14 @@ def sccs(nodes,ed):
     return out
 B="com.legend."
 GROUPS=[
- ("A  base vocabulary",               B+"base",           [B+x for x in ["Nullable","NonNull","ProgramFacts","ExecuteOptions"]]),
+ ("A  base vocabulary",               B+"base",           [B+x for x in ["Nullable","NonNull","ProgramFacts","ExecuteOptions"]]+[B+"compiler.element.TypedConstraint"]),
  ("B  protocol primitives",           B+"protocol.base",  [B+"protocol."+x for x in ["SourceInfo","Multiplicity","Escapes","SpanOrigin"]]),
  ("C  merge protocol into its SCC",   B+"protocol.spec",  [B+"protocol."+x for x in ["TypeExpression","Protocol","Realization","DerivedPropertyDefinition","ParameterDefinition","ConstraintDefinition"]]),
  ("D  name resolution",               B+"compiler.names", [B+"compiler."+x for x in ["ResolvedNames","SynthFqn","NameResolver","RelationalKinds","LiteralMapUnroll","DerivedProps","SymbolTable"]]),
  ("E  compile environment",           B+"compiler.env",   [B+"compiler.spec."+x for x in ["TypeInferenceException","Env","SourceSubst","CoreFn","Bindings","SchemaInvariantException","Expected","SignatureMangle","WalledBodies","AlphaRename","TdsNullForms"]]),
- ("F  typed metamodel",               B+"compiler.model", [B+"compiler.element."+x for x in ["ModelContext","TypedFunction","Property","TypedParameter","TypedClass","MilestoningStrategy","TypedEnum","TypedNominal","StoreCompiler","TypedElement","TypedConstraint"]]),
+ ("F  typed metamodel",               B+"compiler.model", [B+"compiler.element."+x for x in ["ModelContext","TypedFunction","Property","TypedParameter","TypedClass","MilestoningStrategy","TypedEnum","TypedNominal","StoreCompiler","TypedElement"]]),
  ("G  relational layout facts",       B+"compiler.layout",[B+"compiler.element."+x for x in ["ClassLayouts","EqualityKeys","Temporal","RelationalOpRows","RelationalTypeInference"]]),
- ("H  typed leaf types",              B+"compiler.model", [B+"compiler.spec.typed."+x for x in ["Feature","WindowFrame"]]),
+ ("H  typed leaf types",              B+"base",            [B+"compiler.spec.typed."+x for x in ["Feature","WindowFrame"]]),
  ("I  resolver vocabulary",           B+"resolver.model", [B+"resolver."+x for x in ["ClassSource","TemporalContext","RelationalRootForm","Callees","AsorRef","PipelineWalks","ChainNormalizer","RawGridSchema","ObjectReferenceArms","AggregationAwareRouting","ViewFrames","Space","DriverPkAppend","FunctionBodyRows","ClassConcatenates","ScalarValueReads","PkInference","StoreEscapees","NavReducer","LiteralFolds","ImportDataFlowAppend"]]),
  ("J  merge parser into its SCC",     B+"parser.section", [B+"parser."+x for x in ["ElementParser","SpecParser","MappingProtocolParser","SectionGrammarRegistry","PmcdParser","RelationIslands","ServiceStubDataParser","QuotedSpecParser","ServiceLegacyMappingParser"]]),
  ("K  sql leaf types",                B+"sql.base",       [B+"sql.dialect."+x for x in ["DialectCapability","RawSqlBoundary"]]),
