@@ -456,10 +456,10 @@ The next twenty-one commits added four more: an outside-body register per backen
 and 203 rows, and a host-compared register per backend — exact and shrink-only — which the
 work then drove to zero rows, so any assert decided outside a verdict row now fails by
 name. That is this prescription followed without being asked, and it is the evidence the
-shape works under pressure. One half-step is worth naming, because it is the shape to avoid:
-`rcorpus/duckdb-judge-unjudged-ceiling.txt` holds `0` — a scalar that got a file but not
-rows, and it will conflict exactly as a constant did. Whether the source-size pins should
-exist at all is a separate question (§9).
+shape works under pressure. One half-step is worth naming, because it is the shape to
+avoid: `rcorpus/duckdb-judge-unjudged-ceiling.txt` holds `0` — a scalar that got a file
+but not rows, and it will conflict exactly as a constant did. Whether the source-size pins
+should exist at all is a separate question (§9).
 
 Baselines come in two kinds, and one command accepts both. A **test outcome** — an
 expected-failure set, a roster, a census — gets its candidate from running the tests: each
