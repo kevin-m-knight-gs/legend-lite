@@ -706,7 +706,10 @@ final class ArchitectureTest {
                     // java.sql.Array/Timestamp/Date on fetched values
                     // — the flatten's move behind the exec seam is the
                     // named next shrink).
-                    + "|AssertVerdicts)(\\$.*)?")
+                    // task #27 (2026-09-21): the database arm took AssertVerdicts'
+                    // Connection-typed members with it verbatim (the side's
+                    // connection, the verdict run) — the same surface, one owner
+                    + "|AssertVerdicts|DatabaseJudge)(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
@@ -801,6 +804,11 @@ final class ArchitectureTest {
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
         noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.AssertVerdicts")
+            // task #27 (2026-09-21): the verdict seam's two arms — the host judge
+            // (Java compare over database rows) and the database judge (the verdict
+            // statement) — split out of the router
+            .and().doNotHaveFullyQualifiedName("com.legend.HostJudge")
+            .and().doNotHaveFullyQualifiedName("com.legend.DatabaseJudge")
             .and().doNotHaveFullyQualifiedName("com.legend.AssertErrorNative")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.PureAsserts")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.TdsCompare")

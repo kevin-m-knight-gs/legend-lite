@@ -404,7 +404,7 @@ final class StatementExecutor {
                 new com.legend.compiler.element.type.ExprType(
                         com.legend.lowering.VerdictSql.batchSchema(),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
-                AssertVerdicts.ONE_ROW, AssertVerdicts::verdictOf);
+                AssertVerdicts.ONE_ROW, DatabaseJudge::verdictOf);
     }
 
     /** A statement at VALUE position, PREPARED — the compile phases only (helper

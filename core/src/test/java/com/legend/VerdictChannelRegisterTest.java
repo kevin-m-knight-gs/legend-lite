@@ -26,6 +26,10 @@ class VerdictChannelRegisterTest {
 
     private static final List<String> JUDGE_CALLERS = List.of(
             "core/src/main/java/com/legend/AssertVerdicts.java",
+            // task #27 (2026-09-21): the HOST ARM of the verdict seam — the Java compare
+            // over database rows moved out of the router verbatim; the router only
+            // classifies and dispatches
+            "core/src/main/java/com/legend/HostJudge.java",
             // message facades: the assert family's spellings, decided by the judge
             "core/src/main/java/com/legend/exec/PureAsserts.java",
             // the grid compare policy (row order / multiset), cells by the judge —

@@ -665,3 +665,46 @@ as a planned script statement is owed), `probe` (raw-grid schema reads), and the
 vocabulary); stage 4 (delete the loop, the seam, the split rung; the fragment map load-bearing);
 the value statements as planned statements; rung 2b (referee canon in SQL); the seeding template
 copy; the order dependence of §18.
+
+
+## 21. Cleanup leg 1 (2026-09-21): the verdict seam split — router, host judge, database judge
+
+**The audit that ordered it** (user, 2026-09-21: "a serious deep audit"; measured from 13b6a7ceb,
+the program's first judging commit, to a033ff6fa): product +8,037 / −1,218 lines with ONE file
+deleted; `AssertVerdicts` 2,543 → 3,313 lines holding both judges with 16 mode forks and 34 Java
+compare sites; two walkers both live (the loop for host mode and refused bodies, the compiler
+for the rest); 19 static census counters across seven classes; 27 register files (4,714 rows,
+7 empty); let-binding lookup reimplemented seven times; `ExecEnv` a 16-component bag; string
+decisions added (error-message parsing in two places, a package-prefix match in
+`isVerdictFunction`); pins moved rather than code (one ceiling, four ledger bumps in a day).
+Real outcomes (no Java compare under the database judge, one artifact per body, round trips
+134,691 → 11,746) — banked only when the old paths go. The user's standing decision: the host
+judge is NOT deleted; it becomes one arm of one system and gains the compiler's work.
+
+**Move 1 (this section): the split, verbatim.** `AssertVerdicts` (the router: classification,
+the shared readers, the dispatch) → 2,188 lines; `DatabaseJudge` (both sides planned, one
+verdict statement, the row read) 550 lines; `HostJudge` (both sides executed, Java compares the
+rows — the verdict of record in host mode) 635 lines. Every member moved with its comment
+block by exact brace-matched ranges; members both judges use stayed in the router
+(package-private); the `SideRows` record went with the database arm, the `SideFetch` /
+`Framed` / `SqlVerdict` records with the host arm. No behavior change: the ladder pins
+byte-identical, the four lanes exact, the differential unchanged (agree 5,848 · disagree 0).
+Guardrails: both classes in the root-class register with per-file ledger pins (host 423,
+database 439; the router 2,459 → 1,627), the V3 reachability rule names both arms, the host arm is a registered judge caller; the root
+`java.sql` pin and the JDBC census name the database arm TEMPORARILY — it makes no JDBC call, it
+carries the Connection as a routing key in three signatures it took verbatim (the side's
+connection, a constant bound on its partner's database, the verdict run's target). User
+question: "why does it need java.sql" — it does not; move 2 routes by the side's environment
+and both rows go.
+
+**Move 2 (next): one dispatch.** The 16 forks (`if (databaseMode(env)) yield DatabaseJudge.x(…)`
+then the host body inline) become one arm chosen once per adjudication: each host body a
+`HostJudge` method with the database method's signature, the switch yielding `arm.x(…)`.
+Then the host arm can consume the compiler's artifact (host mode through `BodyCompiler`), which
+is what makes the loop deletable in both modes.
+
+**Then, in order:** one census owner (the 19 counters behind one class, one snapshot for the
+lanes; the seven empty registers collapsed into one must-be-zero list); one let-binding lookup
+and one callee-name helper in the compiler layer; stage 4 (delete the loop, the seam, the split
+rung — not the host judge); port `createTempTable` / `dropTempTable` and delete the
+unported-native gate.

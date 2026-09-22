@@ -4580,3 +4580,18 @@ the segment (H2 names the failing statement). Homework §19 (probes, baseline) a
 seeds unchanged (the ledger intact); refused non-effect bodies 1. Ledger: StatementExecutor
 2417 → 2459 (the two sends), EffectSink registered (exec), the segment-walk state allowlisted.
 Four lanes GREEN. Chain: GREEN, SEQUENTIAL — G2 27 · G1 44 · G3 7 · G4 63 · G5 27 · G6 90 · G7 26 · G9 21 · G8 88 · G10 26.
+
+## 2026-09-21 — cleanup move 1: the verdict seam split into router, host judge, database judge
+
+**What landed.** `AssertVerdicts` (3,313 lines, both judges, 16 mode forks) split VERBATIM by
+exact brace-matched member ranges: the router keeps classification, the shared readers and the
+dispatch (2,188); `HostJudge` (the Java compare over database rows — the host verdict of record,
+635); `DatabaseJudge` (the planned sides and the verdict statement, 550). No behavior change.
+Homework §21 (the audit that ordered it, the plan for the remaining moves).
+
+**Registers.** Ledger: AssertVerdicts 2,459 → 1,627; HostJudge 423; DatabaseJudge 439 (both in the
+root-class register); V3 names both arms; the host arm is a registered judge caller; the root
+`java.sql` pin and the JDBC census name the database arm TEMPORARILY (a routing key, no JDBC
+call — move 2 removes it). Four lanes GREEN, exact; ladder pins byte-identical; differential
+agree 5,848 · disagree 0. Chain: GREEN, SEQUENTIAL — G2 32 · G1 48 (re-run green after the two
+register rows) · G3 8 · G4 67 · G5 28 · G6 85 · G7 27 · G9 20 · G8 89 · G10 27.
