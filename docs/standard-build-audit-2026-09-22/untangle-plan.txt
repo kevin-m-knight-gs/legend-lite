@@ -1,0 +1,308 @@
+FINAL: 40 packages, 0 cycles, 336 classes in split packages
+
+--- (root)  [depth band 1, one of 2 splits of (root)] — 4 classes
+      d0   refs 354  Nullable
+      d1   refs   6  ExecuteOptions
+      d0   refs   2  ProgramFacts
+      d0   refs   0  NonNull
+--- (root)  [depth band 26, one of 2 splits of (root)] — 21 classes
+      d26  refs  12  StatementExecutor
+      d26  refs   8  Compiler
+      d26  refs   6  AssertVerdicts
+      d26  refs   3  VerdictArm
+      d19  refs   3  KindClass
+      d19  refs   2  SqlTextInputs
+      d26  refs   2  HostJudge
+      d26  refs   2  DatabaseJudge
+      d26  refs   2  PlanAllocations
+      ... +12 more
+--- builtin — 7 classes
+      d11  refs 101  Pure
+      d12  refs  39  NativeFn
+      d12  refs  10  SystemMetamodel
+      d1   refs   4  Subsumed
+      d12  refs   4  DynaFn
+      d3   refs   4  TdsLegacy
+      d11  refs   2  Prelude
+--- cache — 3 classes
+      d0   refs   4  Hash
+      d1   refs   1  ContentStore
+      d1   refs   1  HandleStore
+--- compiler  [depth band 16, one of 2 splits of compiler] — 7 classes
+      d12  refs  11  ResolvedNames
+      d1   refs   8  SynthFqn
+      d12  refs   3  NameResolver
+      d1   refs   2  RelationalKinds
+      d16  refs   1  LiteralMapUnroll
+      d0   refs   1  SymbolTable
+      d7   refs   1  DerivedProps
+--- compiler  [depth band 19, one of 2 splits of compiler] — 3 classes
+      d19  refs  24  ModelBuilder
+      d19  refs   4  KnowledgeLayer
+      d18  refs   1  StatementInline
+--- compiler.element  [depth band 17, one of 3 splits of compiler.element] — 11 classes
+      d17  refs  73  ModelContext
+      d16  refs  45  TypedFunction
+      d15  refs  15  Property
+      d14  refs  10  TypedParameter
+      d14  refs   8  MilestoningStrategy
+      d16  refs   8  TypedClass
+      d16  refs   4  TypedEnum
+      d16  refs   3  TypedNominal
+      d0   refs   2  TypedConstraint
+      ... +2 more
+--- compiler.element  [depth band 19, one of 3 splits of compiler.element] — 5 classes
+      d19  refs  11  ClassLayouts
+      d18  refs   9  EqualityKeys
+      d18  refs   9  Temporal
+      d19  refs   4  RelationalOpRows
+      d18  refs   2  RelationalTypeInference
+--- compiler.element  [depth band 23, one of 3 splits of compiler.element] — 5 classes
+      d20  refs   4  TypeClassifier
+      d21  refs   3  FunctionCompiler
+      d23  refs   2  PureModelContext
+      d22  refs   1  ClassCompiler
+      d22  refs   1  ModelIntegrity
+--- compiler.element.type — 4 classes
+      d13  refs 183  Type
+      d13  refs 171  ExprType
+      d13  refs 108  PlatformTypes
+      d2   refs 104  Multiplicity
+--- compiler.spec  [depth band 16, one of 2 splits of compiler.spec] — 11 classes
+      d14  refs  49  Env
+      d2   refs  49  TypeInferenceException
+      d15  refs  16  SourceSubst
+      d12  refs  15  CoreFn
+      d14  refs  11  Bindings
+      d3   refs   3  SchemaInvariantException
+      d1   refs   2  WalledBodies
+      d14  refs   2  Expected
+      d7   refs   2  SignatureMangle
+      ... +2 more
+--- compiler.spec  [depth band 24, one of 2 splits of compiler.spec] — 72 classes
+      d20  refs  50  Typer
+      d21  refs  25  SpecCompiler
+      d18  refs  25  Application
+      d19  refs  11  Args
+      d19  refs  10  InferenceKernel
+      d22  refs  10  UserCallInliner
+      d19  refs   6  ResultEnvelopeSplice
+      d23  refs   5  VerdictQueries
+      d24  refs   3  OrderView
+      ... +63 more
+--- compiler.spec.typed  [depth band 0, one of 2 splits of compiler.spec.typed] — 2 classes
+      d0   refs   8  Feature
+      d0   refs   4  WindowFrame
+--- compiler.spec.typed  [depth band 18, one of 2 splits of compiler.spec.typed] — 87 classes
+      d17  refs 261  TypedSpec
+      d17  refs 111  TypedNativeCall
+      d17  refs 103  TypedLambda
+      d17  refs  72  TypedVariable
+      d17  refs  59  TypedPropertyAccess
+      d17  refs  59  TypedCString
+      d17  refs  57  TypedCollection
+      d17  refs  46  TypedNewInstance
+      d17  refs  40  TypedCInteger
+      ... +78 more
+--- error — 7 classes
+      d0   refs  86  NotImplementedException
+      d1   refs  34  LegendCompileException
+      d2   refs  27  ModelException
+      d2   refs  13  MappingResolutionException
+      d0   refs  11  DataError
+      d1   refs   5  AssertFailed
+      d2   refs   2  ResolutionException
+--- exec — 31 classes
+      d15  refs  20  ExecutionResult
+      d6   refs  11  StatementOrigin
+      d19  refs   9  Executor
+      d14  refs   8  Column
+      d18  refs   7  ResultShape
+      d5   refs   7  Census
+      d21  refs   6  CanonicalDivergence
+      d21  refs   5  PureAsserts
+      d22  refs   5  VerdictBatch
+      ... +22 more
+--- ide — 3 classes
+      d8   refs   2  ModelIndex
+      d11  refs   1  ModelIndexer
+      d12  refs   0  ModelOrchestrator
+--- lexer — 4 classes
+      d0   refs  33  TokenType
+      d2   refs  16  TokenStream
+      d3   refs  10  Lexer
+      d1   refs   1  Token
+--- lineage — 5 classes
+      d19  refs   5  ScanRelations
+      d3   refs   2  ScanColumns
+      d20  refs   1  LineageRows
+      d18  refs   1  ColumnLineageRows
+      d18  refs   0  PkInference
+--- lowering — 71 classes
+      d20  refs  20  PureSql
+      d20  refs  19  Scalars
+      d20  refs  14  Fold
+      d20  refs  13  Lowerer
+      d3   refs   9  Resolvers
+      d20  refs   8  LiteralSpelling
+      d20  refs   7  CanonicalRenderSql
+      d18  refs   6  Aggregates
+      d21  refs   5  VerdictSql
+      ... +62 more
+--- model — 57 classes
+      d6   refs  62  PackageableElement
+      d6   refs  40  ClassMapping
+      d6   refs  34  DatabaseDefinition
+      d6   refs  32  ClassDefinition
+      d2   refs  27  RelationalOperation
+      d6   refs  26  LegacyMappingDefinition
+      d6   refs  26  MappingDefinition
+      d6   refs  24  FunctionDefinition
+      d3   refs  23  PropertyMapping
+      ... +48 more
+--- normalizer — 27 classes
+      d21  refs  16  ResolvedMapping
+      d1   refs  14  MissProbe
+      d21  refs  11  MappingNormalizer
+      d21  refs   7  RelOpTranslator
+      d21  refs   7  MappingLedger
+      d21  refs   6  UnionSynthesis
+      d21  refs   5  Pipeline
+      d21  refs   4  MappingClosures
+      d21  refs   4  ViewRelation
+      ... +18 more
+--- parser — 11 classes
+      d3   refs  32  TokenStreamCursor
+      d0   refs  21  Dialect
+      d2   refs  13  ParseException
+      d4   refs   3  DatabaseProtocolParser
+      d1   refs   2  ElementKind
+      d3   refs   1  GqlParser
+      d3   refs   1  OperatorParts
+      d4   refs   1  NumberLiterals
+      d0   refs   1  EngineQuirks
+      ... +2 more
+--- parser.section — 32 classes
+      d10  refs  15  SectionParse
+      d8   refs  14  ElementwiseSectionGrammar
+      d10  refs   9  ElementParser
+      d7   refs   7  LexableSectionGrammar
+      d10  refs   7  SpecParser
+      d10  refs   6  MappingProtocolParser
+      d10  refs   4  ConnectionSectionGrammar
+      d4   refs   4  SectionImports
+      d4   refs   3  SliceCursor
+      ... +23 more
+--- plan — 10 classes
+      d20  refs   6  PlanText
+      d18  refs   4  PlanRows
+      d2   refs   3  PlanNode
+      d1   refs   3  PlanConn
+      d21  refs   2  PurePrint
+      d21  refs   1  InProtocol
+      d22  refs   1  RelationalMapperRenames
+      d2   refs   1  PlanSupportFunctions
+      d14  refs   1  PlanEnumForm
+      ... +1 more
+--- protocol  [depth band 1, one of 2 splits of protocol] — 4 classes
+      d0   refs  59  SourceInfo
+      d1   refs  33  Multiplicity
+      d0   refs   5  Escapes
+      d1   refs   4  SpanOrigin
+--- protocol  [depth band 3, one of 2 splits of protocol] — 6 classes
+      d3   refs  11  ProtocolEmitter
+      d3   refs   2  MappingEmitter
+      d3   refs   1  TailEmitter
+      d3   refs   1  GqlEmitter
+      d3   refs   1  AuthSpecEmitter
+      d3   refs   1  ConnectionEmitters
+--- protocol.spec — 38 classes
+      d2   refs 121  ValueSpecification
+      d2   refs  85  AppliedFunction
+      d2   refs  64  LambdaFunction
+      d2   refs  51  TypeExpression
+      d2   refs  48  Variable
+      d2   refs  43  Protocol
+      d2   refs  39  PureCollection
+      d2   refs  37  CString
+      d2   refs  32  ColSpec
+      ... +29 more
+--- resolver  [depth band 22, one of 2 splits of resolver] — 21 classes
+      d18  refs  23  ClassSource
+      d18  refs   8  TemporalContext
+      d19  refs   7  RelationalRootForm
+      d18  refs   5  Callees
+      d1   refs   4  AsorRef
+      d18  refs   3  ChainNormalizer
+      d18  refs   3  PipelineWalks
+      d0   refs   2  Space
+      d18  refs   2  RawGridSchema
+      ... +12 more
+--- resolver  [depth band 24, one of 2 splits of resolver] — 36 classes
+      d24  refs  26  Pipelines
+      d24  refs  21  StoreResolver
+      d24  refs  20  Substitution
+      d24  refs  20  ClassSources
+      d24  refs  19  SyntheticHeads
+      d24  refs  16  InnerDemand
+      d24  refs  14  TemporalFrame
+      d24  refs  14  AssociationJoins
+      d24  refs  13  CorrelatedSubselects
+      ... +27 more
+--- server — 7 classes
+      d1   refs   3  Json
+      d27  refs   1  PureLspServer
+      d0   refs   1  OutputFormat
+      d27  refs   1  ConnectionResolver
+      d28  refs   1  QueryService
+      d27  refs   1  DiagramService
+      d29  refs   0  LegendHttpServer
+--- server.serial — 4 classes
+      d0   refs   3  ResultSerializer
+      d1   refs   1  JsonSerializer
+      d1   refs   1  CsvSerializer
+      d2   refs   0  SerializerRegistry
+--- spi — 3 classes
+      d0   refs  10  SectionSource
+      d0   refs   8  ElementSink
+      d1   refs   3  SectionGrammar
+--- sql — 23 classes
+      d2   refs  99  SqlExpr
+      d0   refs  67  SqlFn
+      d2   refs  62  SqlSelect
+      d0   refs  55  SqlType
+      d2   refs  51  SqlSource
+      d2   refs  47  SqlQuery
+      d1   refs  43  OutputCol
+      d2   refs  32  SqlAgg
+      d3   refs  24  SqlRewriter
+      ... +14 more
+--- sql.dialect  [depth band 0, one of 2 splits of sql.dialect] — 2 classes
+      d0   refs   5  DialectCapability
+      d0   refs   3  RawSqlBoundary
+--- sql.dialect  [depth band 16, one of 2 splits of sql.dialect] — 24 classes
+      d3   refs  13  SqlDialect
+      d5   refs   9  H2
+      d5   refs   7  Lexicon
+      d5   refs   5  TypeNames
+      d5   refs   5  Spellings
+      d5   refs   4  AnsiSqlRenderer
+      d14  refs   4  EngineStyleH2
+      d5   refs   3  CarrierStrategies
+      d5   refs   3  DdlSpelling
+      ... +15 more
+--- test — 5 classes
+      d8   refs   2  PureTests
+      d22  refs   1  TestAssertions
+      d27  refs   1  PureTestRunner
+      d19  refs   1  TestObserver
+      d28  refs   0  ServiceTestRunner
+--- testdatagen — 2 classes
+      d25  refs   3  TestDataGenerationNatives
+      d22  refs   2  TestDataGenerator
+--- validation — 1 classes
+      d18  refs   1  ValidateDesugar
+--- values — 3 classes
+      d1   refs  28  PureDateLiteral
+      d0   refs   3  PureTimeLiteral
+      d2   refs   1  LiteralText

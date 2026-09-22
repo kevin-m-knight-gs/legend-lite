@@ -434,6 +434,13 @@ would make `com.legend.base` depend on `com.legend.server` — a cycle, and the
 build refuses to load. You cannot file a class in the wrong layer, because the
 layer *is* the dependency declaration.
 
+**The full plan is worked out**, class by class, in
+`docs/standard-build-audit-2026-09-22/UNTANGLE_HOMEWORK.md`: eleven
+independently-landable move groups, **82 classes relocated**, ending at **40
+packages with zero cycles**, with the measured effect of each step and a
+four-point check per step. The editing is ~1,193 files, almost all of it
+one-line import changes — 354 of them from `Nullable` alone.
+
 So: not "leave it", but "do it in this order, and let the build enforce it".
 The two-file move is 68% of the available win. `AsorRef` and the eight compiler
 targets are contained follow-ons. **The full re-layering belongs after Bazel
