@@ -197,12 +197,14 @@ public final class BodyCompiler {
             // assert-family root — a verdict call, a quantified map / forAll, an if
             // over asserts — into deferred rows …
             TypedSpec bare = stmt instanceof TypedLet l ? l.value() : stmt;
-            int rowsBefore = seg.batch.pendingCount();
+            int rowsBefore = seg.rows();
             ExecutionResult v = AssertVerdicts.tryAdjudicate(bare, letPrefix, specs,
                     StatementExecutor.frameReplaceEnv(stmt, execFrames, seg.env(), letPrefix, specs),
                     StatementExecutor.spliceHook(execFrames, letPrefix, specs, seg.env()));
             if (v != null) {
-                nameRows(seg.fragments, seg.batch, rowsBefore, rootCallee(bare), i + 1);
+                if (seg.batch != null) {
+                    nameRows(seg.fragments, seg.batch, rowsBefore, rootCallee(bare), i + 1);
+                }
                 seg.verdict(v);
                 continue;
             }
@@ -214,7 +216,7 @@ public final class BodyCompiler {
                 throw new IllegalStateException("block compiler: a context owner reached the"
                         + " compile walk (refused by construction): " + rootCallee(bare));
             }
-            if (pv.verdict() != null) {
+            if (pv.verdict() != null && seg.batch != null) {
                 nameRows(seg.fragments, seg.batch, rowsBefore, rootCallee(bare), i + 1);
             }
             seg.value(pv);
@@ -230,7 +232,10 @@ public final class BodyCompiler {
         private final StatementExecutor.ExecEnv env0;
         private final SpecCompiler specs;
         final Map<String, String> fragments = new java.util.LinkedHashMap<>();
-        VerdictBatch batch = StatementExecutor.newVerdictBatch();
+        /** The database judge's batch; null under the host judge, which has no deferral:
+         * its arm executes and compares at the assert, its value statements run in walk
+         * order — the loop's own order, kept exactly (cleanup move 2c). */
+        @com.legend.Nullable VerdictBatch batch;
         private final List<StatementExecutor.PreparedValue> values = new java.util.ArrayList<>();
         private com.legend.exec.EffectSink sink = new com.legend.exec.EffectSink();
         private int effectFrom = -1;
@@ -242,10 +247,16 @@ public final class BodyCompiler {
         Segments(StatementExecutor.ExecEnv env0, SpecCompiler specs) {
             this.env0 = env0;
             this.specs = specs;
+            this.batch = AssertVerdicts.databaseMode(env0) ? StatementExecutor.newVerdictBatch() : null;
         }
 
         StatementExecutor.ExecEnv env() {
-            return env0.withVerdictBatch(batch);
+            return batch == null ? env0 : env0.withVerdictBatch(batch);
+        }
+
+        /** The verdict rows deferred so far (none under the host judge). */
+        int rows() {
+            return batch == null ? 0 : batch.pendingCount();
         }
 
         void verdict(ExecutionResult v) {
@@ -254,7 +265,12 @@ public final class BodyCompiler {
         }
 
         void value(StatementExecutor.PreparedValue pv) {
-            values.add(pv);
+            if (batch == null) {
+                // the host judge: no deferral anywhere — the value runs now, in walk order
+                last = StatementExecutor.runValue(pv, specs, new java.util.ArrayDeque<>());
+            } else {
+                values.add(pv);
+            }
             lastIsValue = true;
         }
 
@@ -314,13 +330,17 @@ public final class BodyCompiler {
                 last = StatementExecutor.runValue(pv, specs, new java.util.ArrayDeque<>());
             }
             values.clear();
-            batch.fragments(fragments);
-            AssertVerdicts.flush(batch, env());
+            if (batch != null) {
+                batch.fragments(fragments);
+                AssertVerdicts.flush(batch, env());
+            }
             if (!lastIsValue && pendingVerdict != null) {
                 last = pendingVerdict;
             }
             pendingVerdict = null;
-            batch = StatementExecutor.newVerdictBatch();
+            if (batch != null) {
+                batch = StatementExecutor.newVerdictBatch();
+            }
         }
     }
 

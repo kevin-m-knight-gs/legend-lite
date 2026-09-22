@@ -723,3 +723,11 @@ into `HostJudge`, its database blocks into `DatabaseJudge`; mode forks 16 → 1.
 Next: move 2c, host mode through the compiler (the host arm consumes the artifact), then the
 census owner and stage 4.
 
+**Move 2c LANDED (2026-09-21): host mode through the compiler.** The compiler dispatch no longer
+tests the judge mode: every accepted body walks the segment walk in both modes; under the host judge
+the walk has no batch (the host arm judges at the assert, values run in walk order — the loop's
+order, kept exactly) and effects become scripts. The host judge is one arm of one system — the
+promise of the program's first day ("could the host judge integrate?") held: DuckDB host-lane round
+trips 141,422 → 18,477, raw sends 13,484 → 0, host rosters exact. The loop now serves only the three
+refused shapes; stage 4 deletes it.
+

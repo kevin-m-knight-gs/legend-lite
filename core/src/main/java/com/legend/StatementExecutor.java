@@ -257,11 +257,12 @@ final class StatementExecutor {
             SpecCompiler specs, ExecEnv env0, java.util.Deque<String> frames) {
         ExecutionResult result = null;
         java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
-        // THE BLOCK COMPILER, stage 1 (2026-09-21): under the database judge a PURE
-        // body is compiled to its artifact and then run — nothing planned after the
-        // first send (BodyCompiler). Every other body walks the loop below.
-        if (env0.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE
-                && BodyCompiler.accepts(stmts, specs, effectMemo)) {
+        // THE BLOCK COMPILER (stages 1–3; cleanup move 2c, 2026-09-21: BOTH judge modes):
+        // every body the compiler accepts is walked ONCE by the segment walk — verdict
+        // segments (deferred rows under the database judge; the host arm judges at once,
+        // it has no batch), effect segments as scripts. Only a refused body (a context
+        // owner, a frame forced at value position, an unported native) walks the loop below.
+        if (BodyCompiler.accepts(stmts, specs, effectMemo)) {
             return BodyCompiler.execute(stmts, letPrefix, specs, env0);
         }
         java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();

@@ -4637,3 +4637,22 @@ Chain: GREEN, SEQUENTIAL — G2 27 · G1 44 · G3 7 · G4 59 · G5 27 · G6 86 �
 runs in both judge modes and the host arm consumes the artifact — the sides executed at the
 segment's close, compared in Java — which makes the statement loop deletable in both modes
 (stage 4).
+
+## 2026-09-21 — cleanup move 2c: host mode through the compiler
+
+**What landed.** `BodyCompiler.execute` is dispatched in BOTH judge modes; the loop keeps only the
+refused bodies (a context owner, a frame forced at value position, the one unported native). Under
+the host judge the segment walk has no batch: the host arm executes and compares at the assert and
+value statements run in walk order — the loop's own order, kept exactly — while effect statements
+become scripts as they do under the database judge. The host judge is now one arm of one system:
+same walk, same segments, same scripts, same fragment map; only the judgment differs.
+
+**Measured (host lanes).** DuckDB host: round trips 141,422 → 18,477, raw one-by-one sends 13,484 → 0
+(126,922 effect statements in scripts), lane 65 s → 57 s; H2 host: round trips → 14,625, raw → 0.
+Host rosters exact (109 / 364); database lanes unchanged; differential agree 5,848 · disagree 0;
+ladder pins byte-identical. Ledger: StatementExecutor 2,459 → 2,458 (the mode test gone from the
+dispatch). Chain: GREEN, SEQUENTIAL — G2 26 · G1 44 · G3 7 · G4 58 · G5 29 · G6 101 · G7 29 · G9 21 · G8 90 · G10 26.
+
+**What this makes possible.** Stage 4 deletes the statement loop in both modes once the three
+refusals are handled (assertError's arm and the forced frame as compiler segments; the temp-table
+natives ported), the seam with it, and — after rung 2c — the split rung and the fallback.
