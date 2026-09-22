@@ -45,6 +45,29 @@ The lesson is the rule:
 > semantic, but it is not allowed to be *only* semantic. "These belong together
 > conceptually" is exactly the instinct that produced the 667-file cycle.
 
+**But the rule is sufficient, not necessary — and the difference matters.**
+The depth-split is a *construction* that guarantees acyclicity; it is not a
+statement that every depth-0 class must leave its package. A leaf only has to
+move when something **below its package's band** depends on it, because that is
+what forces an edge upward and closes a cycle.
+
+`TypedConstraint` is the worked example. It is a pure record — `String`,
+`Optional<String>`, an enum, no `com.legend` dependency at all — so it is
+depth 0 while its `Typed*` siblings are depth 14-17. The mechanical split
+therefore wants it in `com.legend.base`, next to `Nullable`, which is
+semantically absurd: it is compiled-class metadata, not base vocabulary. And it
+is unnecessary. Its only referrers are `ClassCompiler` (d22), `TypedClass`
+(d16) and `resolver.GraphEmission` — all *above* it. Nothing low needs it, so
+it creates no upward edge and it stays in group F with its family. Verified:
+the endpoint is the same 39 packages and zero cycles either way.
+
+The classes that genuinely must move are the ones with low-level referrers —
+`Nullable` (354 referrers spanning every layer), `SourceInfo` (59),
+`Multiplicity` (33), `Feature` and `RawSqlBoundary` (both reached by
+`ExecuteOptions` at depth 1). **Check the referrers, not just the depth.** Run
+the mechanical split to find the candidates, then keep every class whose
+referrers are all above it where its meaning says it belongs.
+
 ---
 
 ## 2. The move groups
@@ -53,6 +76,9 @@ Eleven groups, each independently landable. `refs` is how many files reference
 the class today — the import-edit cost.
 
 ### A — base vocabulary → `com.legend.base` *(4 classes, 366 edits)*
+
+Only classes that low-level code actually reaches. `TypedConstraint` is depth 0
+too and deliberately **not** here (§1).
 
 | class | depth | refs | lines |
 | --- | ---: | ---: | ---: |
@@ -94,8 +120,10 @@ to today.
 `TypedEnum` (4) · `TypedNominal` (3) · `StoreCompiler` (2) · `TypedElement` (2) ·
 `TypedConstraint` (2)
 
-**`TypedConstraint` is depth 0 and the rest are depth 14-17** — it goes to
-`com.legend.base`, not here. This is the exact trap of §1.
+`TypedConstraint` is depth 0 while the rest are depth 14-17, so the mechanical
+split wants it in `com.legend.base`. **It stays here.** All three of its
+referrers are above it, so it forces no upward edge — see §1. Compiled-class
+metadata belongs with the compiled model, not with `Nullable`.
 
 ### G — relational layout facts → `com.legend.compiler.layout` *(5, 40 edits)*
 `ClassLayouts` (11) · `EqualityKeys` (9) · `Temporal` (9) · `RelationalOpRows` (4) ·
@@ -162,7 +190,10 @@ final cycle — 229 files to zero.
 That was a bug in the group definitions, not a property of the plan: two
 depth-0 classes (`TypedConstraint`, and `Feature`/`WindowFrame`) had been
 filed into depth-14+ destinations, which is precisely the straddle §1 warns
-about. The rule caught its author. Both now go to `com.legend.base`.*
+about. The rule caught its author. Both now go to `com.legend.base`.
+`TypedConstraint` was swept into that same correction and should not have been
+— it is depth 0 but has no low-level referrer, so it stays with the `Typed*`
+family. Same endpoint, 39 packages and zero cycles, either way.*
 
 ---
 
