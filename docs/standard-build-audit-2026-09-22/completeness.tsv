@@ -1,0 +1,153 @@
+ITEM	COUNT/SIZE	VERDICT	PLAN_SECTION_OR_BLANK	NOTE
+== POM.XML (8, not 7) ==				
+pom.xml (root)	219 lines	DELETED	§7 row "Every pom.xml..."	counted in the 1,118-line sum
+core/pom.xml	211 lines	DELETED	§7 row "Every pom.xml..."	counted in the 1,118-line sum
+spec/pom.xml	109 lines	DELETED	§7 row "Every pom.xml..."	counted in the 1,118-line sum
+nlq/pom.xml	80 lines	DELETED	§7 row "Every pom.xml..."	counted in the 1,118-line sum
+pct/pom.xml	258 lines	DELETED	§7 row "Every pom.xml..."	counted in the 1,118-line sum
+parser-equivalence/pom.xml	186 lines	DELETED	§7 row "Every pom.xml..."	counted in the 1,118-line sum
+tools/engine-runner/pom.xml	55 lines	DELETED	§7 row "Every pom.xml..."	counted in the 1,118-line sum; sum of these 7 = 1,118, matches §7 exactly
+experiments/backend-probes/harness/pom.xml	74 lines	UNADDRESSED	(none)	8th pom.xml in the repo; not named anywhere; not in §7's 1,118-line sum; contradicts acceptance criterion §1.8 ("no pom.xml... remains") since experiments/ is kept (.bazelignore'd) through phase 6
+== SHELL SCRIPTS (15) ==				
+tools/allgates.sh	502 lines	DELETED	§7 row	replaced by bazel test //...
+tools/bump.sh	313 lines	DELETED	§7 row	replaced by MODULE.bazel repin + //tools:accept
+tools/version-report.sh	270 lines	DELETED	§7 row	replaced by derived-version test
+tools/classpath-convergence.sh	86 lines	DELETED	§7 row	replaced by genquery test
+tools/oracle-roots.sh	69 lines	DELETED	§7 row (bundled with oracle-pins.env, 119 total)	replaced by pinned MODULE.bazel entries
+tools/oracle-pins.env	50 lines	DELETED	§7 row	bundled with oracle-roots.sh
+tools/diagnostics.sh	47 lines	DELETED	§7 row	becomes manual targets
+tools/corpus-both.sh	11 lines	DELETED	§7 row	becomes two test targets
+tools/ci-watch.sh	18 lines	DELETED	§7 row	replaced by `gh run watch`
+tools/judge-lanes.sh	33 lines	DELETED	§7 row	folded into bazel test //...
+docs/type-audit-2026-08/harness/jrun.sh	small	UNADDRESSED	(none)	inside a docs/ audit subdirectory never itemized; "Archive docs/" (phase 6) never says what happens to executable scripts embedded in docs/
+docs/type-audit-2026-08/harness/probe.sh	small	UNADDRESSED	(none)	same directory as above
+docs/type-audit-2026-08/harness/setup.sh	small	UNADDRESSED	(none)	same directory as above
+experiments/backend-probes/harness/mariadb-fix.sh	small	UNADDRESSED	(none)	experiments/ is only discussed as "two prototypes" (legend_rules_test, tree_artifact_test); backend-probes is a third experiments/ subtree with its own pom+shell, never named
+experiments/legend_rules_test/test_full_pipeline.sh	small	SCOPED-OUT	§5 phase1 (.bazelignore lists experiments/)	the two named Bazel prototypes are generically excluded via .bazelignore; this script's own fate isn't itemized but the directory-level scoping-out is explicit
+experiments/tree_artifact_test/test_unused_inputs.sh	small	SCOPED-OUT	§5 phase1 (.bazelignore lists experiments/)	same directory-level scoping as above
+== PYTHON (121 files, ~56.1k lines total, not ~51k) ==				
+scripts/corpus/*.py	64 files, 46,812 lines	DATA/TARGET (generator)	§4.8 row "stress corpus's generated sources"; §4.7 corpus-generators.yml; phase 5	the largest slice is addressed: kept committed, re-verified by a scheduled workflow, no bazel test //... dependency
+scripts/projects/check.py	174 lines	TARGET (superseded)	phase 5 ("enforced by the build rather than by scripts/projects/check.py")	replaced by 56 legend_library targets
+scripts/projects/spec.py	256 lines	UNADDRESSED	(none)	sibling to check.py in the same directory; never named
+scripts/projects/loadtime.py	122 lines	UNADDRESSED	(none)	sibling to check.py; never named
+scripts/parser/*.py (parity,mutants,keywords,tiers,fixtures)	5 files, 1,439 lines	UNADDRESSED	(none)	feeds parser-equivalence's sibling-corpus / FixtureCorpusParityTest per docs/STRESS_CORPUS_THROUGH_LITE_2026_09_16.md:18, but the plan's Python inventory only ever discusses scripts/corpus and scripts/projects/check.py; this whole generator family for a committed corpus is never mentioned
+scripts/outstanding.py	163 lines	UNADDRESSED	(none)	not the "four Python scripts... in tools/" phase-5 names; lives in scripts/ top level; also hardcodes /Users/neema/... per docs/TENET_AUDIT_2026_08_16.md:515 (a portability bug the plan's Windows-focused §4.6 never touches because it never looks at this file)
+scripts/generate_pure_constants.py	337 lines	UNADDRESSED	(none)	scripts/ top level, never named
+scripts/walldepth.py	28 lines	UNADDRESSED	(none)	scripts/ top level; also hardcodes /Users/neema/... per docs/FOUNDATIONS_PLAN.md:1429
+scripts/census_gate.py	216 lines	UNADDRESSED	(none)	scripts/ top level, never named
+tools/scoreboard.py, golden_shape_survey.py, upstream-drift.py, native-axes.py	4 files	SCOPED-OUT	phase 5 ("four Python scripts... each is declared maintainer tooling or deleted")	explicitly named as the "four Python scripts" in tools/
+tools/metamodel-census/*.py	5 files	SCOPED-OUT	phase 5 (names "metamodel-census/")	explicitly named
+tools/spikes/*.py	3 files	SCOPED-OUT	phase 5 (names "spikes/")	explicitly named
+nlq/src/test/resources/nlq/*.py	8 files	UNADDRESSED	(none)	inside nlq's own test resources; never inventoried; nlq itself is treated only at the module/package level, not down to its Python fixtures
+docs/burndown-2026-08-14/tools/*.py	8 files	UNADDRESSED	(none)	orphaned inside a docs/ audit subdirectory; "Archive docs/" is markdown-only in its stated scope
+docs/invention-audit-2026-08-14/probes/*.py	7 files (also 8 stray .java probes in same dir)	UNADDRESSED	(none)	same as above
+docs/parked/*.py	2 files	UNADDRESSED	(none)	same as above
+Python dependency pinning	0 manifest files (no requirements.txt / pyproject.toml anywhere)	UNADDRESSED	(none)	acceptance criterion §1.3 says "every input... is pinned" but the plan never states how corpus-generators.yml's Python toolchain gets a declared, pinned interpreter/deps; MODULE.bazel pins only the JVM side
+== PROJECTS/ (58 entries: 56 dirs + CONTRACT.md + FINDINGS.md) ==				
+projects/<56 dirs>	56	TARGET	§4.1 "projects" package; phase 5	legend_library target per project
+projects/CONTRACT.md	117 lines	TARGET (referenced)	phase 5 ("the contract in projects/CONTRACT.md is enforced by the build")	kept, enforcement moves from check.py to the build
+projects/FINDINGS.md	111 lines	UNADDRESSED	(none)	sibling record file to CONTRACT.md; never named; no stated fate when projects/ becomes 56 Bazel targets
+== SYSTEM PROPERTIES (41 distinct names, not ~40 -- "legend.judge.ledger" is read via a String constant, JudgeLedger.PROPERTY, so a literal-string grep undercounts by one) ==				
+chb.only	pct/.../channelb/ChannelB.java	UNADDRESSED	(none)	Channel B suite-selection switch; never named; only generically implied by "targets take their classes by glob" (§4.3), not stated
+claims.generate	spec/.../ClaimRegistryTest.java	UNADDRESSED (miscounted)	phase1 says "five -D*.generate flags"	one of 7 actual *.generate flags; plan's count of 5 is short
+corpus.manifest.regen	parser-equivalence/.../CorpusManifestTest.java	UNADDRESSED	(none)	a generation-mode flag (regenerates committed corpus-manifest.tsv) structurally identical to the ones §4.6/phase1 discuss, but doesn't match "*.generate" and is never caught -- exactly the failure mode the plan warns about for ladder.record, applied to itself
+dynafn.generate	spec/.../DynaFnRegistryTest.java	TARGET (generic)	phase1 "five -D*.generate flags"; phase4 "DynaFn registry members... generated source"	one of the 5 the plan does count
+eager.world2	spec/.../EagerCorpusCompileProbe.java	UNADDRESSED	(none)	never named
+fixture.dump	parser-equivalence/.../ZTier2FixtureHarvest.java	UNADDRESSED	(none)	never named
+imports.generate	spec/.../CoreImportsParityTest.java	TARGET (generic)	phase1 "five -D*.generate flags"; phase4 "CORE_IMPORTS... generated constant"	counted among the 5
+ladder.record	core/.../LeanSqlLadderTest.java	TARGET	phase1 ("-Dladder.record... a bazel run target")	explicitly, and correctly, called out by name
+legend.corpus.containing	parser-equivalence/.../Corpus.java	UNADDRESSED	(none)	never named
+legend.engine.root	spec, pct, parser-equivalence Corpus.java (3 modules)	DELETED	§4.2 "Net effect" paragraph names it explicitly	replaced by release jars as data + MODULE.bazel pin
+legend.exec.engineScanOrder	core/.../DuckDb.java	UNADDRESSED	(none)	never named
+legend.judge.ledger	spec/.../JudgeLedger.java (constant PROPERTY)	TARGET	§4.3 table row; §4.4 discussion	becomes a declared build-action output
+legend.judge.ledger.host	spec/.../MinimalCorpusTest.java	TARGET	§4.3 table row; §4.4 discussion	database lane consumes it as `data`
+legend.judge.mode	spec (judging program)	TARGET (partial)	§4.4 "the judging program makes the judge a run-level switch"	described as existing behavior; plan doesn't spell out which Bazel target/config sets it (test target flag? env? left implicit)
+legend.lite.root	(search below)	UNADDRESSED	(none)	never named; see note
+legend.mapping.trace	core/.../MappingResolutionException.java	UNADDRESSED	(none)	a trace flag; not covered by phase 6's generic "ad-hoc debug environment variables" bullet, which only mentions env vars, not -D properties
+legend.pure.root	spec, pct, parser-equivalence	DELETED	§4.2 "Net effect" paragraph names it explicitly	same disposition as legend.engine.root
+legend.spec.trace	core/.../SpecCompiler.java	UNADDRESSED	(none)	trace flag, never named
+limit	docs/parser-audit-2026-08-14/probes/Dim.java	UNADDRESSED	(none)	orphaned docs/ probe code; plan's one "limit" text hit (§4.6) is an unrelated use of the English word, not this property
+maxlen	docs/parser-audit-2026-08-14/probes/Mut3.java	UNADDRESSED	(none)	same orphaned probe family as `limit`/`seeds`
+natives.bootstrap	spec/.../NativeSignatureGeneratorTest.java	UNADDRESSED	(none)	never named individually
+natives.debug	spec/.../NativeSignatureGeneratorTest.java	UNADDRESSED	(none)	never named individually
+natives.dump	spec/.../NativeSignatureGeneratorTest.java	UNADDRESSED	(none)	never named individually
+natives.generate	spec/.../NativeSignatureGeneratorTest.java	TARGET (generic)	phase1 "five -D*.generate flags"; §4.8 "DynaFn"/native rows	counted among the 5
+owncorpus.generate	parser-equivalence/.../OwnCorpusParityTest.java	TARGET (generic)	phase1 "five -D*.generate flags"	counted among the 5
+prelude.census	spec/.../PreludeGeneratorTest.java	UNADDRESSED	(none)	never named individually (distinct from prelude.generate)
+prelude.generate	spec/.../PreludeGeneratorTest.java	TARGET (generic)	phase1 "five -D*.generate flags"; §4.8 prelude.pure row	the 5th of the plan's counted 5
+prelude.m3	spec/.../PreludeGeneratorTest.java	UNADDRESSED	(none)	never named individually
+rcorpus.backend	spec (rcorpus lane)	TARGET	§4.4 "Lanes are test targets"	explicit lane-switch example
+rcorpus.detachTrace	spec/.../DuckWorkspaces.java	UNADDRESSED	(none)	trace flag, never named
+rcorpus.test	spec/.../MinimalCorpusTest.java	UNADDRESSED	(none)	never named
+rcorpus.trace	spec/.../MinimalCorpusTest.java	UNADDRESSED	(none)	never named
+roster.generate	parser-equivalence/.../ProtocolRosterCensusTest.java	TARGET (miscounted)	phase1 "five -D*.generate flags"	7th actual *.generate flag; plan's tally of 5 excludes at least this one and claims.generate simultaneously (5 named vs 7 actual)
+seeds	docs/parser-audit-2026-08-14/probes/Mut3.java	UNADDRESSED	(none)	orphaned probe code, see `limit`/`maxlen`
+stress.backend	core (StressServiceSuitesTest lane)	TARGET	§4.4 "Lanes are test targets"	explicit lane-switch example
+stress.only	core/.../StressServiceSuitesTest.java	UNADDRESSED	(none)	test-selection switch, never named (cf. chb.only)
+stress.sessions	core/.../StressServiceSuitesTest.java	UNADDRESSED	(none)	never named
+tier2.classes	parser-equivalence/.../ZTier2FixtureHarvest.java	UNADDRESSED	(none)	never named
+java.class.path	parser-equivalence census tests (ProtocolRosterCensusTest, PmcdReachabilityCensusTest, GrammarCoverageCensusTest, ZEngineFixtureHarvest) + tools/engine-runner/TokenDump.java	UNADDRESSED	(none)	these tests manually parse the flat Maven-reactor classpath to find jars by name; Bazel composes classpaths very differently (runfiles/deploy jars); the plan's genquery/closure test (§4.3) replaces classpath-convergence.sh's role but never addresses these tests' own classpath-walking logic
+user.dir	parser-equivalence (OwnCorpusConformanceTest, ProtocolRosterCensusTest)	UNADDRESSED	(none)	used as `Path.of(getProperty("user.dir")).getParent()` to find the repo root -- a Maven-reactor assumption; §4.1's runfiles-based file-finding helper is the stated replacement mechanism generally, but these two call sites are never named
+user.home	spec, pct, parser-equivalence (checkout-root fallback: "~/legend/legend-engine")	DELETED (folded in)	§4.2 checkout removal	same disposition as legend.engine.root/legend.pure.root, since it is only ever used as their default value
+== Note: legend.lite.root grep-location ==				
+legend.lite.root	(not found as literal getProperty arg in current tree; likely dead/legacy name)	UNADDRESSED	(none)	appears in the distinct-names census but plan doesn't discuss it either way
+== SYSTEM ENV VARS (21 distinct names) ==				
+GEMINI_API_KEY	nlq/.../GeminiClient.java + 3 @EnabledIfEnvironmentVariable test classes	UNADDRESSED	§9 mentions nlq's key-gating as an open *product* question, never as a build mechanism	acceptance criterion §1.1 promises "no environment variables... beyond Bazelisk," rule §3.3 bans skips outside SkipCensusTest's registry, yet these tests skip on a missing env var and are outside SkipCensusTest's scan (core/spec/parser-equivalence/pct only, confirmed by code) -- direct, uncited contradiction
+LLM_PROVIDER	nlq/.../LlmClientFactory.java	UNADDRESSED	(none)	never named
+LEGEND_LITE_CARRY_TRACE	core (ObservabilityGuardrailTest's pinned ENV_FLAGS set)	UNADDRESSED	phase6 only gestures generically ("ad-hoc debug environment variables... a logging API")	no per-flag disposition; the guard test that pins this whole set is itself never named (see ObservabilityGuardrailTest row below)
+LEGEND_LITE_DUMP_SQL	core (same ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LEGEND_LITE_NAVDATE_TRACE	core (same ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LEGEND_LITE_PREP_TRACE	core (same ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LEGEND_LITE_PROGRESS	spec/.../MinimalCorpus.java	UNADDRESSED	same generic phase6 gesture	not even in ObservabilityGuardrailTest's own pinned set (that test only scans core's mainSources) -- a second, wider blind spot
+LEGEND_LITE_RAW_EXPAND_TRACE	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LEGEND_LITE_SPLIT_TRACE	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LEGEND_LITE_STACKS	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LEGEND_LITE_STAMP_TRACE	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LEGENDLITE_PCT_BACKEND	pct/.../PctExecuteNative.java	TARGET	§4.4 ("LEGENDLITE_PCT_BACKEND=h2, which is an environment variable" -> becomes a lane target's own `env`)	the one env var the plan actually names
+LL_DUMP_RESOLVED	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LL_LINEAGE_DEBUG	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LL_ORD_COUNT	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LL_STAMP_COUNT	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LL_TDG_DEBUG	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LL_TMP_DEBUG	core/src/main/.../PlanAllocations.java (main code, not just the test)	UNADDRESSED	same generic phase6 gesture	same
+LL_TMP_SQL	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+LL_TOL_COUNT	core (ENV_FLAGS set)	UNADDRESSED	same generic phase6 gesture	same
+PORT	core/.../LegendHttpServer.java, nlq/.../NlqHttpServer.java	UNADDRESSED	(none)	deployment config for the two HTTP servers' java_binary targets; never mentioned even though §4.1 explicitly designs java_binary targets for "the two HTTP servers"
+== GUARD TEST ITSELF, NEVER NAMED ==				
+ObservabilityGuardrailTest (ENV_FLAGS/STDERR_PRINTS/STRING_DISPATCH_SITES ratchets)	core/src/test/java/com/legend/ObservabilityGuardrailTest.java, 3 scalar ratchets	UNADDRESSED	§4.5 claims to be exhaustive about "shared scalar ratchets" (MIN_PASS, G7_MIN_RUN, oracle-declined ceilings, MAX_INT_NULL_EMPTY, JavaEvalLedgerTest)	this test pins exactly the same class of scalar (a hand-edited Set<String> plus two shrink-only ints) that §4.5 says must become row-ledgers, yet §4.5 never names it -- an omission in a section whose entire claim is completeness
+== GITHUB WORKFLOWS + COMPOSITE ACTION (3 + 1) ==				
+.github/workflows/gate.yml	108 lines	DELETED	§7 row	folded into build.yml + actionlint job
+.github/workflows/gates-run.yml	214 lines	DELETED	§7 row	folded into build.yml
+.github/workflows/diagnostics.yml	56 lines	DELETED	§7 row	tools/diagnostics.sh's caller; manual targets replace it
+.github/actions/gate-env/action.yml	58 lines	DELETED	§7 row	replaced by bazel-contrib/setup-bazel
+== DOCS/ (350 md files total; plan only ever counts 247 "at the top level") ==				
+docs/*.md (top level)	247 files	SCOPED-OUT (partial)	phase6 "Archive docs/. Keep a handful..."	generic; none of the 247 is individually triaged, and no "handful" is named
+docs/**/*.md (subdirectories: type-audit-2026-08, invention-audit-2026-08-14, burndown-2026-08-14, parser-audit-2026-08-14, e2e-diagnosis-2026-08-15, parked, notes, reference, etc.)	103 files	UNADDRESSED	(none)	the plan's own docs counting methodology ("Markdown at the top of docs/") explicitly stops at the top level; these 103 files are structurally excluded from every count the plan cites and never discussed
+docs/GATES.md	4,841 lines	TARGET/SCOPED (partial)	phase0 (moves record into PR), phase6 ("Retire GATES.md")	the file itself is discussed at length, but its 4,841 lines of historical content have no stated disposition (archived verbatim? deleted? split?) -- "retire" names an outcome, not a destination
+docs/ non-markdown orphans (tsv/json/csv/patch/txt/.java/.py/.sh probes -- e.g. docs/type-audit-2026-08/harness/Probe.java, docs/parser-audit-2026-08-14/probes/*.java, docs/invention-audit-2026-08-14/probes/*.java, docs/notes/*.java.txt, docs/reference/*.java.txt)	~70 files	UNADDRESSED	(none)	not markdown, so outside even the vague "archive docs/" scope, which the plan frames purely in terms of documents to keep/retire; these are dead code and fixtures, never inventoried at all
+== RESOURCES DIRECTORIES (7, not a stated reference number) ==				
+core/src/main/resources, core/src/test/resources, nlq/src/test/resources, parser-equivalence/src/test/resources, pct/src/main/resources, pct/src/test/resources, spec/src/test/resources	7 dirs	TARGET (generic)	§4.1 "the layout inside each module stays as it is -- src/main/java, src/test/resources -- because Bazel does not care"	covered structurally, not file-by-file; individual generated resources (prelude.pure etc.) separately covered in §4.8
+== .agents/ and .windsurf/ ==				
+.agents/workflows/no-fallbacks.md	1 file	UNADDRESSED	(none)	phase6's "editor-specific directories" bullet doesn't fit -- .agents/ is an agent-workflow directory, not an editor's; never named by its literal path
+.windsurf/plans/mapping-resolver-as-rewrite.md	1 file	UNADDRESSED (weak match)	phase6 "editor-specific directories" (plausible but not cited by name)	Windsurf is an IDE, so this arguably falls under the generic phrase, but the plan never names ".windsurf" and the evidence rule here requires the literal citation, which doesn't exist
+== .sdkmanrc / .gitignore / .gitattributes ==				
+.sdkmanrc	6 lines	DELETED	§7 row	replaced by .bazelversion
+.gitignore	21 lines (existing)	UNADDRESSED	(none)	never mentioned; Bazel run creates bazel-bin/bazel-out/bazel-testlogs/bazel-<name> symlinks in the repo root, which acceptance criterion §1.5 ("CI asserts git status --porcelain is empty after a run") would need excluded -- the plan never updates .gitignore for this, a direct risk to its own stated exit criterion
+.gitattributes (new)	0 (doesn't exist yet)	DATA (new file)	phase1, §4.6 -- extensively specified	well covered
+== EXPERIMENTS/ (3 subtrees, plan says "two prototypes") ==				
+experiments/legend_rules_test/	MODULE.bazel + BUILD files + projects/ + test_full_pipeline.sh	SCOPED-OUT	§5 phase1 (.bazelignore), §8 risk/§9 (cited as proof for version-check extension)	one of the "two prototypes," well covered
+experiments/tree_artifact_test/	MODULE.bazel + src/ + test_unused_inputs.sh	SCOPED-OUT	§5 phase1 (.bazelignore)	the other named prototype
+experiments/backend-probes/	pom.xml, harness/ (Java+shell), fragments/ (md), duckdb-census/ (Java+Python+txt/tsv), corpora/ (tsv), results/ (~90 tsv files), README.md	UNADDRESSED	(none)	not one of the "two prototypes proved per-element caching... version checking"; it is a third, Maven-based subtree of experiments/ that .bazelignore would hide from Bazel forever while its pom.xml violates acceptance criterion §1.8; never named anywhere in the plan
+== NLQ MODULE, BEYOND ONE MENTION ==				
+nlq (module as a whole)	1 pom, 13 test classes (Appendix A), 8 Python fixtures	TARGET (package) + open question	§4.1 package map; §9 ("whether an LLM-backed package belongs... is a product question, not a build one")	the module itself gets a Bazel package and its one known bug gets fixed (phase1); but whether it ships at all is left as an unresolved §9 question, and its LLM-key-gated tests (next row) are never reconciled with the plan's own rules
+nlq's GEMINI_API_KEY-gated tests	3 classes x (4 @Test + 1 @TestFactory) = 12+ test methods, ~10 measured skips (Appendix A)	UNADDRESSED	(none)	see GEMINI_API_KEY row above; no manual tag, no SkipCensusTest registration, no stated CI behavior (does `bazel test //...` require a secret? does it silently exclude nlq's eval suite forever?)
+== REPO-ROOT ORPHANS NEVER MENTIONED ==				
+repro/ (19 bug-repro dirs, each with README.md, some with .pure fixtures)	19 dirs, ~19 README.md + a few .pure files	UNADDRESSED	(none)	not under docs/, so not even reachable by the vague "archive docs/" bullet; no Java references it; entirely outside the plan's universe
+FAQ.md	15,367 bytes, 1 file	UNADDRESSED	(none)	top-level doc like README.md/AGENTS.md, but never named once (unlike those two)
+core/README.md	1 file	UNADDRESSED (named, not resolved)	§2.2 names it as part of "the instructions are agent documents" complaint	cited as a symptom, never given a disposition (rewrite? delete? keep?) the way README.md and AGENTS.md get in phase1/phase6
+AGENTS.md	19,366 bytes	TARGET (referenced, not migrated)	§2.2, §2.4 (cited as authority for lazy-loading convention)	treated as living design doc, kept; not itemized for update when the Maven-era instructions it contains (mvn commands etc.) go stale
+README.md	21,202 bytes	TARGET	phase1 ("Rewrite README.md for what exists")	well covered
+progress/ (mr-rewrite-progress.md, baseline-failures.txt)	2 files	DELETED	phase6 ("Remove progress*.txt, progress/...")	covered
+progress.txt, progress-c0954a.txt	2 files, 6,766 + 10,813 bytes	DELETED	phase6	covered
+== SECTION 7 ARITHMETIC CHECK ==				
+Section 7 total line count	sum of the 13 listed rows = 1,118 + 6 + 502 + 33 + 313 + 270 + 86 + 119 + 47 + 11 + 18 + 378 + 58 = 2,959	VERIFIED-ACCURATE	§7 ("About 3,000 lines... it was 2,900 one week and one gate ago")	every individual line count in the table was independently re-measured against the actual files and matches exactly; 2,959 rounds fairly to "about 3,000" -- the arithmetic is NOT a finding, it holds up; the finding is instead everything section 7 leaves OUT (the 8th pom.xml, the 6 non-tools/ shell scripts, .gitignore, etc.)

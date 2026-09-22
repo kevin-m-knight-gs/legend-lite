@@ -1,0 +1,19 @@
+module(name = "ll_q5", version = "0.0.1")
+bazel_dep(name = "rules_java", version = "9.9.0")
+bazel_dep(name = "rules_jvm_external", version = "7.1")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = "m",
+    artifacts = [
+        "org.duckdb:duckdb_jdbc:1.4.4.0",
+        "org.xerial:sqlite-jdbc:3.47.1.0",
+        "com.h2database:h2:2.1.214",
+        "org.junit.jupiter:junit-jupiter:5.11.3",
+        "org.junit.platform:junit-platform-console:1.11.3",
+    ],
+    fail_if_repin_required = False,
+    lock_file = "//:m_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+use_repo(maven, "m", "unpinned_m")

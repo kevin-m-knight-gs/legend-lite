@@ -1,0 +1,66 @@
+load("@rules_java//java:defs.bzl", "java_library", "java_plugin")
+
+# Error Prone CUSTOM CHECK, Bazel-style: a java_plugin with NO processor_class
+# lands on javac's --processorpath, where Error Prone's ServiceLoader finds
+# NullAway's @AutoService(BugChecker.class) registration.
+java_plugin(
+    name = "nullaway_plugin",
+    deps = ["@ep//:com_uber_nullaway_nullaway"],
+)
+
+NULLAWAY_OPTS = [
+    "-XDcompilePolicy=simple",
+    "--should-stop=ifError=FLOW",
+    "-Xmaxerrs", "10000",
+    # NO -Xplugin:ErrorProne here: Bazel's JavaBuilder instantiates Error Prone
+    # itself (BlazeJavaCompiler), so the Maven -Xplugin form errors with
+    # "plug-in not found: ErrorProne". The -Xep* flags go straight through.
+    "-XepDisableAllChecks",
+    "-Xep:NullAway:ERROR",
+    "-XepOpt:NullAway:AnnotatedPackages=com.legend",
+    "-XepOpt:NullAway:CustomNullableAnnotations=com.legend.Nullable",
+    "-XepOpt:NullAway:CustomNonnullAnnotations=com.legend.NonNull",
+    "-XepOpt:NullAway:JSpecifyMode=true",
+    "-XepOpt:NullAway:CheckOptionalEmptiness=true",
+    "-XDaddTypeAnnotationsToSymbol=true",
+]
+
+java_library(
+    name = "annotations",
+    srcs = ["src/main/java/com/legend/NonNull.java", "src/main/java/com/legend/Nullable.java"],
+)
+
+# MUST FAIL: returns null from an unannotated (= @NonNull by default) return.
+java_library(
+    name = "violation",
+    srcs = ["src/main/java/com/legend/Violation.java"],
+    deps = [":annotations"],
+    plugins = [":nullaway_plugin"],
+    javacopts = NULLAWAY_OPTS,
+)
+
+# MUST PASS: the same code with the return declared @Nullable.
+java_library(
+    name = "clean",
+    srcs = ["src/main/java/com/legend/Clean.java"],
+    deps = [":annotations"],
+    plugins = [":nullaway_plugin"],
+    javacopts = NULLAWAY_OPTS,
+)
+
+java_library(
+    name = "generics",
+    srcs = ["src/main/java/com/legend/Generics.java"],
+    deps = [":annotations"],
+    plugins = [":nullaway_plugin"],
+    javacopts = NULLAWAY_OPTS,
+)
+
+# same as :generics but with the -XD flag REMOVED, to test whether it is load-bearing under Bazel
+java_library(
+    name = "generics_noflag",
+    srcs = ["src/main/java/com/legend/Generics.java"],
+    deps = [":annotations"],
+    plugins = [":nullaway_plugin"],
+    javacopts = [o for o in NULLAWAY_OPTS if o != "-XDaddTypeAnnotationsToSymbol=true"],
+)

@@ -1,0 +1,23 @@
+module(name = "ll_q1", version = "0.0.1")
+
+bazel_dep(name = "rules_java", version = "9.9.0")
+bazel_dep(name = "rules_jvm_external", version = "7.1")
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = "ep",
+    artifacts = [
+        "com.google.errorprone:error_prone_core:2.50.0",
+        "com.google.errorprone:error_prone_check_api:2.50.0",
+        "com.google.errorprone:error_prone_annotation:2.50.0",
+        "com.google.errorprone:error_prone_annotations:2.50.0",
+        "com.uber.nullaway:nullaway:0.13.8",
+        "org.jspecify:jspecify:1.0.0",
+    ],
+    fail_if_repin_required = False,
+    lock_file = "//:ep_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+use_repo(maven, "ep", "unpinned_ep")
+
+# remote JDK toolchains: 21 and 25

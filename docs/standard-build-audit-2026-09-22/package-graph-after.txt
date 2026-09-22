@@ -1,0 +1,54 @@
+root=core/src/main/java
+files=693  packages=32  package-edges=216
+edges carried ONLY by fully-qualified inline refs (invisible to import analysis): 163 across 5094 sites
+build units after collapsing cycles: 25
+simulated moves: com.legend.Nullable=com.legend.annot, com.legend.NonNull=com.legend.annot
+
+CYCLE: 5 packages / 209 files (30% of the tree)
+      89  com.legend.compiler.spec.typed
+      83  com.legend.compiler.spec
+      22  com.legend.compiler.element
+      10  com.legend.compiler
+       5  com.legend.compiler.element.type
+
+CYCLE: 2 packages / 130 files (19% of the tree)
+      72  com.legend.lowering
+      58  com.legend.resolver
+
+CYCLE: 2 packages / 49 files (7% of the tree)
+      33  com.legend.protocol.spec
+      16  com.legend.protocol
+
+CYCLE: 2 packages / 44 files (6% of the tree)
+      23  com.legend.parser.section
+      21  com.legend.parser
+
+ REBUILD   OWN  unit   (REBUILD = files recompiled when this unit changes)
+       4     4  com.legend.ide
+       4     4  com.legend.server.serial
+       5     5  com.legend.test
+       7     7  com.legend.server
+      36    24  com.legend
+      37     1  com.legend.validation
+      38     2  com.legend.testdatagen
+      39     3  com.legend.cache
+      64    28  com.legend.normalizer
+      70    32  com.legend.exec
+      97    27  com.legend.sql.dialect
+     200   130  com.legend.lowering (+1)
+     210    10  com.legend.plan
+     215     5  com.legend.lineage
+     480   209  com.legend.compiler (+4)
+     487     7  com.legend.builtin
+     504    24  com.legend.sql
+     535    44  com.legend.parser (+1)
+     538     3  com.legend.spi
+     540     5  com.legend.lexer
+     542     7  com.legend.error
+     593    58  com.legend.model
+     642    49  com.legend.protocol (+1)
+     645     3  com.legend.values
+     687     2  com.legend.annot
+
+units=25  median rebuild=210  units under 100 files: 11/25
+today, with one Maven module, every change rebuilds all 693

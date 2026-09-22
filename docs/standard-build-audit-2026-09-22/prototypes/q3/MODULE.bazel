@@ -1,0 +1,95 @@
+module(name = "ll_q3", version = "0.0.1")
+
+bazel_dep(name = "rules_java", version = "9.9.0")
+bazel_dep(name = "rules_jvm_external", version = "7.1")
+
+ENGINE = "4.145.0"
+PURE = "5.99.0"
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+
+# ---- parser-equivalence: the 402-artifact graph ----
+maven.install(
+    name = "pe",
+    artifacts = [
+        "org.finos.legend.engine:legend-engine-language-pure-grammar:" + ENGINE,
+        "org.finos.legend.pure:legend-pure-m3-core:" + PURE,
+        "junit:junit:4.13.1",
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-xt-diagram-grammar:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-extensions-collection-generation:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-grammar:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar:" + ENGINE,
+        "org.junit.jupiter:junit-jupiter:5.11.3",
+    ],
+    # INV-5 convergence, as the root pom's dependencyManagement does it
+    version_conflict_policy = "pinned",
+    excluded_artifacts = [],
+    fail_if_repin_required = False,
+    fetch_sources = False,
+    lock_file = "//:pe_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+maven.artifact(artifact = "HikariCP", group = "com.zaxxer", version = "7.0.2", name = "pe")
+maven.artifact(artifact = "commons-lang3", group = "org.apache.commons", version = "3.18.0", name = "pe")
+maven.artifact(artifact = "httpcore", group = "org.apache.httpcomponents", version = "4.4.13", name = "pe")
+
+# ---- pct: ~140 artifacts ----
+maven.install(
+    name = "pct",
+    artifacts = [
+        "com.h2database:h2:2.1.214",
+        "org.finos.legend.pure:legend-pure-m3-core:" + PURE,
+        "org.finos.legend.pure:legend-pure-m4:" + PURE,
+        "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled:" + PURE,
+        "org.finos.legend.engine:legend-engine-test-framework:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-pure-functions-relation-pure:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-pure-functions-standard-pure:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure:" + ENGINE,
+        "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted:" + PURE,
+        "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard:" + ENGINE,
+        "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified:" + ENGINE,
+        "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds:" + PURE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure:" + PURE,
+        "org.eclipse.collections:eclipse-collections:10.2.0",
+        "org.eclipse.collections:eclipse-collections-api:10.2.0",
+        "junit:junit:4.13.1",
+        "org.junit.jupiter:junit-jupiter:5.11.3",
+        "org.junit.vintage:junit-vintage-engine:5.11.3",
+    ],
+    version_conflict_policy = "pinned",
+    fail_if_repin_required = False,
+    fetch_sources = False,
+    lock_file = "//:pct_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+# the m3-core TEST-JAR (PureTestBuilderInterpreted) — Maven <type>test-jar</type>
+maven.artifact(
+    name = "pct",
+    group = "org.finos.legend.pure",
+    artifact = "legend-pure-m3-core",
+    version = PURE,
+    classifier = "tests",
+)
+
+# ---- the plan's claim: two H2 versions as two named repos ----
+maven.install(
+    name = "h2_modern",
+    artifacts = ["com.h2database:h2:2.4.240"],
+    fail_if_repin_required = False,
+    lock_file = "//:h2_modern_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+maven.install(
+    name = "h2_legacy",
+    artifacts = ["com.h2database:h2:2.1.214"],
+    fail_if_repin_required = False,
+    lock_file = "//:h2_legacy_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+
+use_repo(maven, "pe", "pct", "h2_modern", "h2_legacy", "unpinned_pe", "unpinned_pct", "unpinned_h2_modern", "unpinned_h2_legacy")
