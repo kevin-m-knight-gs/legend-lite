@@ -342,14 +342,40 @@ before the first BUILD file. The second move breaks the 130-file
 `lowering/SnapshotEnvelope.java:134,140` — separating the two packages the
 project's own diagnosis names as its densest defect concentration.
 
-Four cycles survive, and the audit computes the minimum cut for each
-(`cycle-homework.txt`). Three are left alone deliberately: `compiler.*` (5
-packages / 209 files — **no cut of three edges or fewer exists**), `protocol`
-(49 files, 56 crossing sites), `parser` (44 files, 34 sites, and the right fix
-is dependency inversion on the `*SectionGrammar` types, not a move). Together
-302 files — 44% of `core` — stay as three coherent single targets, which is a
-reasonable place to stop. Foundational types still cascade (`model` → 593 files,
-`protocol` → 642) and no build system changes that.
+Four cycles survive. They are **fixable, provably** — the question is cost, and
+the answer is front-loaded.
+
+Almost none of the cycling is real mutual recursion. At class level
+(`classgraph.py`) `core` has 18 SCCs but only **two span package boundaries**:
+38 classes across `protocol.spec`(32)/`protocol`(6), and 25 across
+`parser.section`(16)/`parser`(9). Those are the only irreducible co-location
+constraints in the module; **304 of 679 classes are in no cycle at all**. And
+the 209-file `compiler` cycle is carried by just **8 target classes** —
+`ResolvedNames` (6 referrers), `ModelBuilder` (4), `NameResolver` (2),
+`SynthFqn` (2) and four singletons — once the layering is derived from the data
+rather than assumed (`element.type < element < spec.typed < spec < compiler`;
+66 classes go `spec` → `spec.typed`, so `spec.typed` sits *below* `spec`).
+
+Splitting every package by dependency depth yields 166 packages and exactly two
+residual cycles — the two genuine SCCs. **An acyclic assignment exists.**
+
+The honest cost is larger than a handful of moves, and a simulation of the
+obvious 25-class fix is what proved it: the compiler cycle stayed at 202 files.
+Eliminating a class-level SCC does not eliminate a *package* cycle, because
+package cycles also form from perfectly acyclic class edges running both ways
+between two packages. The real diagnosis is that **29 of 31 packages hold
+classes spanning more than one dependency depth** — `.server` spans 29 levels,
+the root package 26, `.resolver` 24, `.compiler.spec` 23. Packages here are
+organised by topic, not by layer. A full repair relocates ~284 of 679 classes.
+
+So: not "leave it", but "do it in this order, and let the build enforce it".
+The two-file move is 68% of the available win. `AsorRef` and the eight compiler
+targets are contained follow-ons. **The full re-layering belongs after Bazel
+lands, not before** — today nothing prevents a new back-edge; once packages are
+targets with declared `deps`, every new cycle is a build error. Bazel does not
+require the re-layering, it is the enforcement that makes it safe and
+incremental. Foundational types still cascade (`model` → 593 files, `protocol`
+→ 642) and no build system changes that.
 
 ### 4.2 Inputs Bazel owns
 
