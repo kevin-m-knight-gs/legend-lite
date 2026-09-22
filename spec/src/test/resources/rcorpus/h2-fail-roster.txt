@@ -137,7 +137,6 @@ meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjecti
 meta::relational::tests::advanced::forced::structure::testQualifierWithOperation
 meta::relational::tests::advanced::forced::structure::testTwoQualifiersWithOperation
 meta::relational::tests::advanced::resultSourcing::relationalResultSourcingOfListExecutionPlan
-meta::relational::tests::ddl::dropAndCreateTempTable
 meta::relational::tests::ddl::testCreateTempTableStatement
 meta::relational::tests::functions::fetchDbMetaData::testFetchDbColumnsMetaData
 meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithObjReferenceOutput

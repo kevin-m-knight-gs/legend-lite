@@ -1216,7 +1216,9 @@ public class AnsiSqlRenderer implements SqlDialect {
     public String render(com.legend.sql.SqlDdl ddl) {
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
-                StringBuilder sb = new StringBuilder("Create Table ")
+                // a TEMPORARY table: the one ANSI spelling every target here accepts
+                // (H2: CREATE [LOCAL] TEMPORARY TABLE; DuckDB: CREATE TEMPORARY TABLE)
+                StringBuilder sb = new StringBuilder(ct.temporary() ? "Create Temporary Table " : "Create Table ")
                         .append(ddlQualified(ct.schema(), ct.table())).append("(");
                 boolean first = true;
                 for (com.legend.sql.SqlDdl.Column col : ct.columns()) {

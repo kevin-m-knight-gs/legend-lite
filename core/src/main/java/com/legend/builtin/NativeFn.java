@@ -881,6 +881,11 @@ public final class NativeFn {
                 Pure.DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1, Pure.DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1__BOOLEAN_1),
         LOAD_CSV_TO_DB_TABLE("meta::relational::metamodel::execute::loadCsvToDbTable",
                 Pure.LOAD_CSV_TO_DB_TABLE__STRING_1__TABLE_1__CONN_1),
+        CREATE_TEMP_TABLE("meta::relational::metamodel::execute::createTempTable",
+                Pure.CREATE_TEMP_TABLE__STRING_1__COLUMN_MANY__FUNCTION_1__CONN_1,
+                Pure.CREATE_TEMP_TABLE__STRING_1__COLUMN_MANY__FUNCTION_1__BOOLEAN_1__CONN_1),
+        DROP_TEMP_TABLE("meta::relational::metamodel::execute::dropTempTable",
+                Pure.DROP_TEMP_TABLE__STRING_1__CONN_1),
         SET_UP_DATA_SQLS("meta::alloy::service::execution::setUpDataSQLs",
                 Pure.SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1, Pure.SET_UP_DATA_SQLS__STRING_1__DATABASE_MANY, Pure.SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1),
         SET_UP_DATA_SQLS_V2("meta::alloy::service::execution::setUpDataSQLsV2",
@@ -922,7 +927,8 @@ public final class NativeFn {
         public static boolean isDbEffect(@com.legend.Nullable String fqn) {
             Effect e = fqn == null ? null : BY_FQN.get(fqn);
             return e == EXECUTE_IN_DB || e == DROP_AND_CREATE_TABLE_IN_DB
-                    || e == DROP_AND_CREATE_SCHEMA_IN_DB || e == LOAD_CSV_TO_DB_TABLE;
+                    || e == DROP_AND_CREATE_SCHEMA_IN_DB || e == LOAD_CSV_TO_DB_TABLE
+                    || e == CREATE_TEMP_TABLE || e == DROP_TEMP_TABLE;
         }
 
         /** The seed-SQL forms (setUpDataSQLs / V2). */

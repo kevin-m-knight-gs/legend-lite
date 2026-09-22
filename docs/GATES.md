@@ -4754,3 +4754,43 @@ dialect lacks — rung 2c). It is deleted when the H2 vocabulary rung lands, not
 **Next.** Port `createTempTable` / `dropTempTable` (the DDL-string lambda over Column instances
 must lower: `$colsAsString` is the failing scalar) and delete the wall — 1 row × 4 lanes named
 before the leg; then the router's four `java.sql` value arms to the exec funnel; then rung 2c.
+
+
+## 2026-09-22 — the temp-table natives ported; the compiler's last wall deleted
+
+**What landed.** `createTempTable` / `dropTempTable` are EFFECT natives (`NativeFn.Effect`,
+signatures owned by `Pure.java`, the prelude's declarations retired to its platform-owned list).
+The engine calls the native's string-builder argument to spell per-database DDL; here DDL is
+SQL the dialect renders (task #6): the arm spells the dialect's own `CreateTable` — now with a
+`temporary` flag, one ANSI spelling (`Create Temporary Table`) both targets accept — from the
+TYPE of each `^Column(name=…, type=^Integer())` literal (`Ddl.columnType` over the store model's
+data type; the sized / scaled kinds read their literal arguments), and `DropTable`; both ride
+the effect script like every other effect. The string-builder argument is never called. The
+walk's unported-native wall and its `implemented()` surface are deleted — the agreed order.
+The effect registry outgrew `Map.of` (twelve arms) and is built by a helper. The prelude
+is GENERATED (`PreludeGeneratorTest`, `-Dprelude.generate=1`): the first chain was red on G3
+for a hand edit of it; the generator produced the same retirement plus its own census comments.
+
+**The engine semantics this exposed.** `let res = executeInDb('select * from tt', $c)` runs AT
+the let in the engine; here a raw read was late-bound and its schema probe ran at the verdict
+flush — after the body's `dropTempTable`. Neither the loop nor the walk had ever reached that
+point (the native refused first). Now a let binding a raw read is stamped at its own position
+when a later statement demands its schema (`RawGridSchema.stamp` over the body's tail, the
+flush's own oracle; idempotent — a stamped grid is not re-probed), before any later effect
+changes what it read. The data read stays late-bound; a data read after a later effect has no
+corpus witness and is not modeled.
+
+**The named ratchet.** `dropAndCreateTempTable`: H2 host + H2 database PASS (fail roster 364 →
+363). DuckDB: the golden `'COL'` is H2's uppercase folding of the unquoted `col`; DuckDB answers
+`col`. That is an engine-golden H2-ism (precedent: `engine-golden-defect:h2-literal-coercion`
+on the accepted roster) — a RULING, left for the user: the row stays on the DuckDB fail roster
+with its new message. Ledger: StatementExecutor 2,322 → 2,367 (the two arms and the datatype
+reader; no value computed in Java); claims ledger +3 rows (EFFECT). The body joins BOTH
+database outside-body registers with `probe=1` — not a regression: a body that never reached
+its statements now walks, and its raw read's schema probe is the inherent send §19 names
+(its sibling `dropAndCreateTable` sits beside it with the same row). Census: body-shapes
+effectful 141 → 142, interleaved 33 → 34, effects-in-scripts +2, probe +1 — all this body;
+every other line identical; rosters exact. Chain: GREEN, SEQUENTIAL — G2 24 · G1 41 · G3 7 · G4 59 · G5 33 · G6 100 · G7 31 · G9 22 · G8 96 · G10 26 (439 s); two earlier chains red on G3 only (the generated prelude edited by hand; the two signature constants outside the membership catalog — both regenerated through their generators).
+
+**Next.** The DuckDB ruling above; the router's four `java.sql` value arms (`decodeSideValues`)
+to the exec funnel; rung 2c (H2 vocabulary) and with it the split rung.

@@ -1335,7 +1335,7 @@ final class StatementExecutor {
     /** The executor's SchemaOracle: the LIMIT-0 probe with its checked
      * failure wrapped — F1.3 keeps the JDBC surface (its exception type
      * included) out of the resolver. */
-    private static com.legend.resolver.RawGridSchema.SchemaOracle gridOracle(
+    static com.legend.resolver.RawGridSchema.SchemaOracle gridOracle(
             java.sql.Connection connection, ExecEnv env) {
         return sql -> {
             try {
@@ -1749,35 +1749,30 @@ final class StatementExecutor {
                 ExecEnv env);
     }
 
-    private static final java.util.Map<String, EffectRoutine> EFFECT_ARMS =
-            java.util.Map.of(
-                    com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn(),
-                    StatementExecutor::executeInDb,
-                    com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB.fqn(),
-                    StatementExecutor::dropAndCreateTableInDb,
-                    com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB.fqn(),
-                    StatementExecutor::dropAndCreateSchemaInDb,
-                    com.legend.builtin.NativeFn.Effect.LOAD_CSV_TO_DB_TABLE.fqn(),
-                    CsvLoad::loadCsvToDbTable,
-                    com.legend.builtin.NativeFn.Effect.SET_UP_DATA_SQLS.fqn(),
-                    SeedSqlForms::assertForm,
-                    com.legend.compiler.element.type.PlatformTypes
-                            .SET_UP_DATA_SQLS_V2,
-                    SeedSqlForms::assertForm,
-                    com.legend.builtin.NativeFn.Effect.PRINT.fqn(),
-                    (body, nc, env) -> new ExecutionResult.Scalar(null,
-                            com.legend.compiler.element.type.Type
-                                    .Primitive.STRING),
-                    com.legend.builtin.NativeFn.Effect.PRINTLN.fqn(),
-                    // debug output: a NO-OP — the argument is NEVER
-                    // evaluated (it may be an unlowerable diagnostic);
-                    // engine parity is the statement's inertness
-                    (body, nc, env) -> new ExecutionResult.Scalar(null,
-                            com.legend.compiler.element.type.Type
-                                    .Primitive.STRING),
-                    com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn(),
-                    (body, nc, env) -> new ExecutionResult.Scalar(null,
-                            nc.info().type()));
+    private static final java.util.Map<String, EffectRoutine> EFFECT_ARMS = effectArms();
+
+    private static java.util.Map<String, EffectRoutine> effectArms() {
+        java.util.Map<String, EffectRoutine> m = new java.util.LinkedHashMap<>();
+        m.put(com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn(), StatementExecutor::executeInDb);
+        m.put(com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB.fqn(), StatementExecutor::dropAndCreateTableInDb);
+        m.put(com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB.fqn(), StatementExecutor::dropAndCreateSchemaInDb);
+        m.put(com.legend.builtin.NativeFn.Effect.CREATE_TEMP_TABLE.fqn(), StatementExecutor::createTempTable);
+        m.put(com.legend.builtin.NativeFn.Effect.DROP_TEMP_TABLE.fqn(), StatementExecutor::dropTempTable);
+        m.put(com.legend.builtin.NativeFn.Effect.LOAD_CSV_TO_DB_TABLE.fqn(), CsvLoad::loadCsvToDbTable);
+        m.put(com.legend.builtin.NativeFn.Effect.SET_UP_DATA_SQLS.fqn(), SeedSqlForms::assertForm);
+        m.put(com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2, SeedSqlForms::assertForm);
+        m.put(com.legend.builtin.NativeFn.Effect.PRINT.fqn(),
+                (body, nc, env) -> new ExecutionResult.Scalar(null,
+                        com.legend.compiler.element.type.Type.Primitive.STRING));
+        // debug output: a NO-OP — the argument is NEVER evaluated (it may be an
+        // unlowerable diagnostic); engine parity is the statement's inertness
+        m.put(com.legend.builtin.NativeFn.Effect.PRINTLN.fqn(),
+                (body, nc, env) -> new ExecutionResult.Scalar(null,
+                        com.legend.compiler.element.type.Type.Primitive.STRING));
+        m.put(com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn(),
+                (body, nc, env) -> new ExecutionResult.Scalar(null, nc.info().type()));
+        return java.util.Map.copyOf(m);
+    }
 
     /** Governance surface: the registry's keys — pinned equal to the
      * catalog's EFFECT rows by NativeDispatchTest. */
@@ -3083,6 +3078,71 @@ final class StatementExecutor {
         // a record-only ALTER ledger carried them for a metadata replay that
         // no longer exists — deleted with the meta ledger, batch 137)
         return new ExecutionResult.Scalar(true, call.info().type());
+    }
+
+    /**
+     * The K-native {@code createTempTable(name, cols, sql, [relyOnFinally,] connection)}
+     * (block-compiler stage 4, 2026-09-22): the engine calls the {@code sql} argument —
+     * a per-database string builder — to spell the DDL; here the DDL is the dialect's
+     * own {@link com.legend.sql.SqlDdl.CreateTable} (temporary), spelled from the TYPE
+     * of each {@code ^Column(name=…, type=^Integer())} literal — DDL is SQL, the dialect
+     * renders (task #6). The string-builder argument is never called. Same connection
+     * convention and mirror recording as {@link #dropAndCreateTableInDb}.
+     */
+    static ExecutionResult createTempTable(
+            java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
+        String table = evalStringArg(body, call.args().get(0), env);
+        java.util.List<com.legend.sql.SqlDdl.Column> cols = new java.util.ArrayList<>();
+        TypedSpec colsArg = call.args().get(1);
+        java.util.List<TypedSpec> elements = colsArg instanceof com.legend.compiler.spec.typed.TypedCollection c
+                ? c.elements() : java.util.List.of(colsArg);
+        for (TypedSpec e : elements) {
+            if (!(e instanceof com.legend.compiler.spec.typed.TypedNewInstance col)
+                    || !(col.properties().get("name") instanceof com.legend.compiler.spec.typed.TypedCString name)
+                    || !(col.properties().get("type") instanceof com.legend.compiler.spec.typed.TypedNewInstance type)) {
+                throw new IllegalStateException("createTempTable: each column must be a literal"
+                        + " ^Column(name='…', type=^<datatype>()), got " + e.getClass().getSimpleName());
+            }
+            cols.add(new com.legend.sql.SqlDdl.Column(name.value(), false,
+                    Ddl.columnType(datatypeLiteral(type)), false, false));
+        }
+        com.legend.sql.SqlDdl.CreateTable ct = new com.legend.sql.SqlDdl.CreateTable(null, table, cols, true);
+        sendEffect(env, env.dialect().render(ct), H2_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
+        return new ExecutionResult.Scalar(null, call.info().type());
+    }
+
+    /** The K-native {@code dropTempTable(name, connection)}: the dialect's own DropTable. */
+    static ExecutionResult dropTempTable(
+            java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
+        String table = evalStringArg(body, call.args().get(0), env);
+        com.legend.sql.SqlDdl.DropTable dt = Ddl.dropTable(null, table);
+        sendEffect(env, env.dialect().render(dt), H2_DDL.render(dt), com.legend.exec.StatementOrigin.RAW, true);
+        return new ExecutionResult.Scalar(null, call.info().type());
+    }
+
+    /** A {@code ^meta::relational::metamodel::datatype::<T>(…)} literal as the store
+     * model's data type — the sized / scaled kinds read their literal arguments. */
+    private static com.legend.model.RelationalDataType datatypeLiteral(
+            com.legend.compiler.spec.typed.TypedNewInstance type) {
+        String fqn = type.classFqn();
+        String kind = fqn.substring(fqn.lastIndexOf(':') + 1);
+        java.util.function.ToIntFunction<String> arg = p -> {
+            if (!(type.properties().get(p) instanceof com.legend.compiler.spec.typed.TypedCInteger n)) {
+                throw new IllegalStateException("createTempTable: " + kind + " needs a literal " + p);
+            }
+            return n.value().intValue();
+        };
+        return switch (kind) {
+            case "Varchar" -> new com.legend.model.RelationalDataType.Varchar(arg.applyAsInt("size"));
+            case "Char" -> new com.legend.model.RelationalDataType.Char_(arg.applyAsInt("size"));
+            case "Binary" -> new com.legend.model.RelationalDataType.Binary(arg.applyAsInt("size"));
+            case "Varbinary" -> new com.legend.model.RelationalDataType.Varbinary(arg.applyAsInt("size"));
+            case "Decimal" -> new com.legend.model.RelationalDataType.Decimal(arg.applyAsInt("precision"), arg.applyAsInt("scale"));
+            case "Numeric" -> new com.legend.model.RelationalDataType.Numeric(arg.applyAsInt("precision"), arg.applyAsInt("scale"));
+            default -> com.legend.model.RelationalDataType.fromName(kind);
+        };
     }
 
     /** One toDDL string-generator call — engine golden spellings

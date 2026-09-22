@@ -36,6 +36,7 @@ meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithS
 meta::relational::testDataGeneration::tests::testUnionViewOnView ||| side=1 statement=1 tdg=46
 meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| side=1 statement=1 tdg=25
 meta::relational::tests::ddl::dropAndCreateTable ||| probe=2
+meta::relational::tests::ddl::dropAndCreateTempTable ||| probe=1
 meta::relational::tests::ddl::testSetupDataSqlGenerationWithColumnValueHasDelimiterAndQuotes ||| side=1
 meta::relational::tests::ddl::testSetupDataSqlGenerationWithDataAsString ||| side=1
 meta::relational::tests::mapping::dates::datetime::retrieveDateWithTimeZone ||| probe=1

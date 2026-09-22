@@ -662,7 +662,7 @@ class JavaEvalLedgerTest {
             // one effect-only rule — the evaluator shrank
             // 2388 -> 2394 (2026-09-21, block compiler stage 1): the dispatch of a PURE body to
             // BodyCompiler and the batch construction factored out for it — sequencing only
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2322),   // 2438 -> 2322 (block-compiler stage 4, 2026-09-22: the statement-by-statement loop and the host seam (hostChannel / hostEvalAtSeam / StoreNav) DELETED — the compiler walk takes every body)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2367),   // 2322 -> 2367 (2026-09-22, temp-table port: createTempTable / dropTempTable as EFFECT arms — the dialect's own CreateTable(temporary) / DropTable nodes spelled from ^Column literals, sent through the one effect send; no value computed in Java) — after 2438 -> 2322 (stage 4: the loop and the seam deleted)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

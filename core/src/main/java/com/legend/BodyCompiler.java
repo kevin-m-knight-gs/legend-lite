@@ -40,42 +40,6 @@ public final class BodyCompiler {
     private BodyCompiler() {
     }
 
-    /** THE ONE WALL (stage 4, 2026-09-22): an UNPORTED native at a statement root (typed
-     * from the prelude, in no family, no core function — createTempTable) has no body
-     * here, so the walk must not plan past it: a later raw read would probe the state it
-     * would have changed (measured: the probe is a product-owned statement outside the
-     * artifact). Decided BEFORE anything is planned or sent; the wall goes when the
-     * native is ported. The loop that preceded the walk failed at the native's own
-     * evaluation instead. */
-    private static void wallUnported(List<TypedSpec> stmts) {
-        for (TypedSpec s : stmts) {
-            TypedSpec v = com.legend.compiler.spec.typed.Lets.bare(s);
-            if (v instanceof TypedNativeCall n && !implemented(n)) {
-                throw new com.legend.error.NotImplementedException(
-                        "unported native at a statement root: " + n.callee().qualifiedName());
-            }
-        }
-    }
-
-    /** THE IMPLEMENTED SURFACE, the claim registry's own question (Claims: a family
-     * member, a scalar rule / reducer / window function by signature key, a core
-     * function by bare name); a walled native is refused by decision. */
-    private static boolean implemented(TypedNativeCall n) {
-        String fqn = n.callee().qualifiedName();
-        String key = n.callee().signatureKey();
-        String bare = fqn.substring(fqn.lastIndexOf(':') + 1);
-        if (com.legend.builtin.Pure.walledNativeFqns().contains(fqn)) {
-            return false;
-        }
-        return com.legend.compiler.element.type.PlatformTypes.isVerdictFunction(fqn)
-                || com.legend.builtin.NativeFn.claims(fqn)
-                || com.legend.lowering.RegistryKeys.scalarRules().contains(key)
-                || com.legend.lowering.RegistryKeys.reducers().contains(key)
-                || com.legend.lowering.RegistryKeys.windowFunctions().contains(key)
-                || com.legend.lowering.RegistryKeys.windowAggregates().contains(key)
-                || com.legend.compiler.spec.CoreFn.parseNames().containsKey(bare);
-    }
-
     /** THE SEGMENT WALK (stages 1–4): one pass over the body. Lets, asserts and value
      * statements accumulate into the open VERDICTS segment (frames and rows on its
      * batch, values prepared); an effect statement closes it — its values run in order,
@@ -88,7 +52,6 @@ public final class BodyCompiler {
      * pending script is sent before it folds. The body's value is its last statement's. */
     static @com.legend.Nullable ExecutionResult execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env0) {
-        wallUnported(stmts);
         Segments seg = new Segments(env0, specs);
         Map<String, StatementExecutor.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<String, Boolean> effectMemo = new java.util.HashMap<>();
@@ -132,6 +95,21 @@ public final class BodyCompiler {
                     seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
                     continue;
                 }
+                // a RAW READ bound by a let (let r = executeInDb('select …', $c)): the engine
+                // runs it AT the let; here its schema is pinned at the let when a later
+                // statement demands it (columnNames / values) — before any later effect
+                // changes the state it read (the temp-table port, 2026-09-22: the probe
+                // used to run at the verdict flush, after the drop). The data read stays
+                // late-bound; the single-query rule of RawGridSchema.stamp decides.
+                if (containsRawGrid(let.value())) {
+                    TypedSpec stampedLet = com.legend.resolver.RawGridSchema.stamp(
+                            stmts.subList(i, stmts.size()),
+                            StatementExecutor.gridOracle(seg.env().connection(), seg.env())).get(0);
+                    if (stampedLet instanceof TypedLet sl) {
+                        let = sl;
+                        rhs = let.value();
+                    }
+                }
                 // a HANDLE or a value binding: rows under its scope, the let rides the prefix
                 PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, seg.env());
                 letPrefix.add(let);
@@ -168,6 +146,19 @@ public final class BodyCompiler {
         seg.closeEffects();
         seg.closeVerdicts();
         return seg.last;
+    }
+
+    /** Whether the tree reads a late-bound raw grid anywhere. */
+    private static boolean containsRawGrid(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsRawGrid(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The segments of one body: the open verdicts segment (its batch, its prepared

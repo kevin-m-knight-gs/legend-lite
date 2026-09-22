@@ -42,11 +42,15 @@ public sealed interface SqlDdl
                   boolean notNull, boolean primaryKey) {
     }
 
-    /** {@code CREATE TABLE [schema.]table (columns..., PRIMARY KEY(...))}. */
+    /** {@code CREATE [TEMPORARY] TABLE [schema.]table (columns..., PRIMARY KEY(...))}. */
     record CreateTable(@com.legend.Nullable String schema, String table,
-                       List<Column> columns) implements SqlDdl {
+                       List<Column> columns, boolean temporary) implements SqlDdl {
         public CreateTable {
             columns = List.copyOf(columns);
+        }
+
+        public CreateTable(@com.legend.Nullable String schema, String table, List<Column> columns) {
+            this(schema, table, columns, false);
         }
     }
 

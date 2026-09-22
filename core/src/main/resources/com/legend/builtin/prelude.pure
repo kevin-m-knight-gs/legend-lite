@@ -2909,12 +2909,6 @@ native function meta::relational::metamodel::execute::loadValuesToDbTable(tableD
 
 native function meta::relational::metamodel::execute::fetchDbImportedKeysMetaData(databaseConnection:DatabaseConnection[1], schemaPattern:String[0..1], tableName:String[1]):ResultSet[1];
 
-native function meta::relational::metamodel::execute::createTempTable(tableName:String[1], cols:Column[*], sql:meta::pure::metamodel::function::Function<{String[1], Column[*], DatabaseType[1]->String[1]}>[1], databaseConnection:DatabaseConnection[1]):Nil[0];
-
-native function meta::relational::metamodel::execute::createTempTable(tableName:String[1], cols:Column[*], sql:meta::pure::metamodel::function::Function<{String[1], Column[*], DatabaseType[1]->String[1]}>[1], relyOnFinallyForCleanup:Boolean[1], databaseConnection:DatabaseConnection[1]):Nil[0];
-
-native function meta::relational::metamodel::execute::dropTempTable(tableName:String[1], databaseConnection:DatabaseConnection[1]):Nil[0];
-
 function meta::relational::metamodel::datatype::dataTypeToCompatiblePureType(type: meta::relational::metamodel::datatype::DataType[1]):Type[1]
 {
     $type->match([
@@ -6577,8 +6571,8 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 485 classes, 23 enums, 154 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
-// RESPELLED NATIVES — 68 upstream `native function` declarations the platform does not implement (carried so they
+// 485 classes, 23 enums, 151 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// RESPELLED NATIVES — 66 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry
 // (a decided exclusion or a platform-owned name); a call is 'unknown function':
@@ -6827,6 +6821,8 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::variant::convert::toMany
 //   meta::pure::functions::variant::convert::toVariant
 //   meta::pure::metamodel::relation::newTDSRelationAccessor
+//   meta::relational::metamodel::execute::createTempTable
+//   meta::relational::metamodel::execute::dropTempTable
 //   meta::relational::metamodel::execute::executeInDb
 //   meta::relational::metamodel::execute::fetchDbColumnsMetaData
 //   meta::relational::metamodel::execute::fetchDbPrimaryKeysMetaData

@@ -757,3 +757,12 @@ became a statement outside the artifact — one register row, rosters exact; the
 loop's order back by construction). Rosters exact, census identical. The split rung stays until
 rung 2c (H2: 146 firings, all vocabulary; DuckDB: 1, a product FAIL row). Next: port the temp-table
 natives (1 row × 4 lanes) and delete the wall; the router's java.sql value arms; rung 2c.
+
+**Temp-table port LANDED (2026-09-22): the last wall is gone.** `createTempTable` / `dropTempTable`
+= EFFECT natives spelling the dialect's own `CreateTable(temporary)` / `DropTable` from the
+`^Column` literals' types; the engine's string-builder argument is never called (DDL is SQL, the
+dialect renders). `BodyCompiler.wallUnported` + `implemented()` deleted: the walk has no gate left.
+Exposed and fixed by construction: a let binding a raw read is schema-stamped AT the let (engine
+runs `executeInDb` there), before later effects. H2 lanes PASS the row (364 → 363); DuckDB: `col`
+vs the golden's H2-folded `'COL'` — a ruling owed to the user (accept as an engine-golden H2-ism,
+precedent h2-literal-coercion). Next: that ruling; the router's java.sql value arms; rung 2c.
