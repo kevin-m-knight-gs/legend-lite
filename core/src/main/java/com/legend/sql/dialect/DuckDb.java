@@ -160,6 +160,20 @@ public final class DuckDb extends AnsiSqlRenderer {
         return java.util.List.copyOf(ps);
     }
 
+    /** DDL IDENTIFIER IDENTITY (2026-09-22). Standard SQL folds an unquoted
+     * identifier to uppercase — H2 does, and the engine corpus depends on it
+     * ({@code createTempTable('tt', ^Column(name='col', …))} reports {@code COL}).
+     * DuckDB deviates: it preserves an identifier's spelling as written and
+     * matches case-insensitively, quoted or not. So an unquoted identifier is
+     * spelled FOLDED here — the same identity on every target, which is the
+     * dialect's job — and a declared-quoted name keeps its case, as everywhere.
+     * Matching is unaffected (DuckDB compares case-insensitively); only what the
+     * database REPORTS as the name changes, to what the standard reports. */
+    @Override
+    protected String ddlIdentifier(String name, boolean declaredQuoted) {
+        return declaredQuoted ? '"' + name + '"' : ident(name.toUpperCase(java.util.Locale.ROOT));
+    }
+
     /** DuckDB's native list carrier: {@code list_aggregate(list,
      * 'name', extras...)} — byte-identical to the pre-R1 emission. */
     @Override

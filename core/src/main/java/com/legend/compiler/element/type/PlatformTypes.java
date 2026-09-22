@@ -279,6 +279,29 @@ public final class PlatformTypes {
     public static final String DROP_TABLE_STATEMENT =
             "meta::relational::functions::toDDL::dropTableStatement";
 
+    /** The store metamodel's DATA TYPE classes (relational/metamodel.pure) — the
+     * exact FQNs a {@code ^Column(type=^<T>(…))} literal names; the temp-table
+     * native spells DDL from them (2026-09-22). */
+    public static final String DATATYPE_BIGINT = "meta::relational::metamodel::datatype::BigInt";
+    public static final String DATATYPE_SMALLINT = "meta::relational::metamodel::datatype::SmallInt";
+    public static final String DATATYPE_TINYINT = "meta::relational::metamodel::datatype::TinyInt";
+    public static final String DATATYPE_INTEGER = "meta::relational::metamodel::datatype::Integer";
+    public static final String DATATYPE_FLOAT = "meta::relational::metamodel::datatype::Float";
+    public static final String DATATYPE_DOUBLE = "meta::relational::metamodel::datatype::Double";
+    public static final String DATATYPE_REAL = "meta::relational::metamodel::datatype::Real";
+    public static final String DATATYPE_BIT = "meta::relational::metamodel::datatype::Bit";
+    public static final String DATATYPE_TIMESTAMP = "meta::relational::metamodel::datatype::Timestamp";
+    public static final String DATATYPE_DATE = "meta::relational::metamodel::datatype::Date";
+    public static final String DATATYPE_DISTINCT = "meta::relational::metamodel::datatype::Distinct";
+    public static final String DATATYPE_OTHER = "meta::relational::metamodel::datatype::Other";
+    public static final String DATATYPE_SEMI_STRUCTURED = "meta::relational::metamodel::datatype::SemiStructured";
+    public static final String DATATYPE_VARCHAR = "meta::relational::metamodel::datatype::Varchar";
+    public static final String DATATYPE_CHAR = "meta::relational::metamodel::datatype::Char";
+    public static final String DATATYPE_BINARY = "meta::relational::metamodel::datatype::Binary";
+    public static final String DATATYPE_VARBINARY = "meta::relational::metamodel::datatype::Varbinary";
+    public static final String DATATYPE_DECIMAL = "meta::relational::metamodel::datatype::Decimal";
+    public static final String DATATYPE_NUMERIC = "meta::relational::metamodel::datatype::Numeric";
+
     /** Store-metamodel NAVIGATION natives (platform_store_relational/
      * functions.pure:227/:249) — HOST-evaluated over the compiled store
      * model (the reflection leg's store domain). */

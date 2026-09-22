@@ -4808,3 +4808,34 @@ surface register. Ledger: AssertVerdicts 1,254 → 1,237. Four lanes GREEN, exac
 
 **Next.** Rung 2c (the H2 vocabulary: list / struct / JSON encodings — the split rung's 146 H2
 firings) and with it the split rung; the DuckDB temp-table ruling.
+
+
+## 2026-09-22 — corrections from the self-audit (user: "Go")
+
+**What the audit found and what changed.**
+
+- **A simple-name switch on the datatype classes** (the exact-FQN tenet, 2026-09-08) → a table
+  keyed by the classes' exact FQNs (`PlatformTypes.DATATYPE_*`). Ledger: StatementExecutor
+  2,367 → 2,385 (the table is longer than the switch; it computes nothing).
+- **A silently ignored argument** (`createTempTable`'s DDL-builder lambda). It cannot be walled by
+  name: it reaches the arm already inlined (a lambda). MEASURED instead: every one of the five
+  `createTempTable` callers in the engine's Pure passes one of the spec's two
+  `createTempTableStatement()` builders (`toDDL`'s and `testDataGeneration`'s), both a
+  per-DatabaseType TEXT spelling of the same `CREATE [LOCAL] TEMPORARY TABLE name(cols)` —
+  which the arm spells from its IR for every target. The rule is stated at the arm from that
+  measurement, not assumed.
+- **A second copy of the one-carrier rule** (the array cell's temporal conversion) → the cell's
+  elements go through THE one `unwrap` (no declared element type; the driver object decides).
+- **The contested row was a FIX, not a ruling.** Standard SQL folds an unquoted identifier to
+  uppercase; H2 does, and the engine corpus depends on it. DuckDB preserves the spelling as
+  written and matches case-insensitively. That is a spelling the platform absorbs inside the
+  dialect: `DuckDb.ddlIdentifier` spells an unquoted identifier FOLDED (a declared-quoted name
+  keeps its case, as everywhere). `dropAndCreateTempTable` PASSES on all four lanes; the DuckDB
+  fail roster 109 → 108. The rule also folds store-declared unquoted columns in
+  `dropAndCreateTableInDb` DDL — measured: no other verdict moved on either DuckDB lane (matching is case-insensitive there; only reported names change, to the standard's).
+
+**Measured.** Four lanes GREEN, exact: DuckDB host 108 fail · database lost 0 / gained 0; H2 363; every census line identical but the roster count and the new pass's LITERAL strength (+1); differential agree 5,849 · disagree 0. Chain: GREEN, SEQUENTIAL — G2 25 · G1 41 · G3 7 · G4 57 · G5 27 · G6 88 · G7 27 · G9 19 · G8 91 · G10 26 (408 s).
+
+**Still with the user.** The outside-body register row for `dropAndCreateTempTable` (`probe=1`,
+a shrink-only register grown by one with a written reason): keep it as a truthful measurement,
+or treat the raw read's schema probe as an inherent send the register should not count.

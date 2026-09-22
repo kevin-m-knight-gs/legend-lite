@@ -3086,8 +3086,14 @@ final class StatementExecutor {
      * a per-database string builder — to spell the DDL; here the DDL is the dialect's
      * own {@link com.legend.sql.SqlDdl.CreateTable} (temporary), spelled from the TYPE
      * of each {@code ^Column(name=…, type=^Integer())} literal — DDL is SQL, the dialect
-     * renders (task #6). The string-builder argument is never called. Same connection
-     * convention and mirror recording as {@link #dropAndCreateTableInDb}.
+     * renders (task #6). The string-builder argument is NOT evaluated: it reaches this arm
+     * already inlined (a lambda, so it cannot be recognized by name here), and MEASURED
+     * over the engine corpus (2026-09-22) every one of its five callers passes one of the
+     * spec's two {@code createTempTableStatement()} builders — {@code toDDL}'s and
+     * {@code testDataGeneration}'s — both a per-DatabaseType TEXT spelling of the same
+     * {@code CREATE [LOCAL] TEMPORARY TABLE name(cols)}, which this arm spells from its IR
+     * for every target. Same connection convention and mirror recording as
+     * {@link #dropAndCreateTableInDb}.
      */
     static ExecutionResult createTempTable(
             java.util.List<TypedSpec> body,
@@ -3123,26 +3129,48 @@ final class StatementExecutor {
     }
 
     /** A {@code ^meta::relational::metamodel::datatype::<T>(…)} literal as the store
-     * model's data type — the sized / scaled kinds read their literal arguments. */
+     * model's data type, by the class's EXACT FQN ({@link com.legend.compiler.element.type.PlatformTypes});
+     * the sized / scaled kinds read their literal arguments. */
     private static com.legend.model.RelationalDataType datatypeLiteral(
             com.legend.compiler.spec.typed.TypedNewInstance type) {
-        String fqn = type.classFqn();
-        String kind = fqn.substring(fqn.lastIndexOf(':') + 1);
-        java.util.function.ToIntFunction<String> arg = p -> {
-            if (!(type.properties().get(p) instanceof com.legend.compiler.spec.typed.TypedCInteger n)) {
-                throw new IllegalStateException("createTempTable: " + kind + " needs a literal " + p);
-            }
-            return n.value().intValue();
-        };
-        return switch (kind) {
-            case "Varchar" -> new com.legend.model.RelationalDataType.Varchar(arg.applyAsInt("size"));
-            case "Char" -> new com.legend.model.RelationalDataType.Char_(arg.applyAsInt("size"));
-            case "Binary" -> new com.legend.model.RelationalDataType.Binary(arg.applyAsInt("size"));
-            case "Varbinary" -> new com.legend.model.RelationalDataType.Varbinary(arg.applyAsInt("size"));
-            case "Decimal" -> new com.legend.model.RelationalDataType.Decimal(arg.applyAsInt("precision"), arg.applyAsInt("scale"));
-            case "Numeric" -> new com.legend.model.RelationalDataType.Numeric(arg.applyAsInt("precision"), arg.applyAsInt("scale"));
-            default -> com.legend.model.RelationalDataType.fromName(kind);
-        };
+        java.util.function.Function<com.legend.compiler.spec.typed.TypedNewInstance,
+                com.legend.model.RelationalDataType> reader = DATATYPE_LITERALS.get(type.classFqn());
+        if (reader == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "createTempTable: not a store data type: " + type.classFqn());
+        }
+        return reader.apply(type);
+    }
+
+    /** The data-type classes by exact FQN. */
+    private static final java.util.Map<String, java.util.function.Function<
+            com.legend.compiler.spec.typed.TypedNewInstance, com.legend.model.RelationalDataType>> DATATYPE_LITERALS =
+            java.util.Map.ofEntries(
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_BIGINT, t -> new com.legend.model.RelationalDataType.BigInt()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_SMALLINT, t -> new com.legend.model.RelationalDataType.SmallInt()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TINYINT, t -> new com.legend.model.RelationalDataType.TinyInt()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_INTEGER, t -> new com.legend.model.RelationalDataType.Integer_()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_FLOAT, t -> new com.legend.model.RelationalDataType.Float_()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DOUBLE, t -> new com.legend.model.RelationalDataType.Double_()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_REAL, t -> new com.legend.model.RelationalDataType.Real()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_BIT, t -> new com.legend.model.RelationalDataType.Bit()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TIMESTAMP, t -> new com.legend.model.RelationalDataType.Timestamp()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DATE, t -> new com.legend.model.RelationalDataType.Date_()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DISTINCT, t -> new com.legend.model.RelationalDataType.Distinct()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_OTHER, t -> new com.legend.model.RelationalDataType.Other()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_SEMI_STRUCTURED, t -> new com.legend.model.RelationalDataType.SemiStructured()),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_VARCHAR, t -> new com.legend.model.RelationalDataType.Varchar(literalInt(t, "size"))),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_CHAR, t -> new com.legend.model.RelationalDataType.Char_(literalInt(t, "size"))),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_BINARY, t -> new com.legend.model.RelationalDataType.Binary(literalInt(t, "size"))),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_VARBINARY, t -> new com.legend.model.RelationalDataType.Varbinary(literalInt(t, "size"))),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DECIMAL, t -> new com.legend.model.RelationalDataType.Decimal(literalInt(t, "precision"), literalInt(t, "scale"))),
+                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_NUMERIC, t -> new com.legend.model.RelationalDataType.Numeric(literalInt(t, "precision"), literalInt(t, "scale"))));
+
+    private static int literalInt(com.legend.compiler.spec.typed.TypedNewInstance type, String property) {
+        if (!(type.properties().get(property) instanceof com.legend.compiler.spec.typed.TypedCInteger n)) {
+            throw new IllegalStateException("createTempTable: " + type.classFqn() + " needs a literal " + property);
+        }
+        return n.value().intValue();
     }
 
     /** One toDDL string-generator call — engine golden spellings

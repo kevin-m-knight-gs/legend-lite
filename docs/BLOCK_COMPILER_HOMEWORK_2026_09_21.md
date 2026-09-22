@@ -768,3 +768,5 @@ vs the golden's H2-folded `'COL'` — a ruling owed to the user (accept as an en
 precedent h2-literal-coercion). Next: that ruling; the router's java.sql value arms; rung 2c.
 
 **JDBC carrier arm LANDED (2026-09-22).** The list wire arriving as one JDBC array cell is decoded to a `Collection` at the executor's scalar read; the router reads values and holds no `java.sql` (F1.3b pin {Compiler, StatementExecutor}). Next: rung 2c (H2 vocabulary) and the split rung; the DuckDB temp-table ruling.
+
+**Self-audit corrections LANDED (2026-09-22, user "Go").** Datatype classes by exact FQN (`PlatformTypes.DATATYPE_*`); the DDL-builder argument rule MEASURED over the engine's five callers (all the spec's builders; stated at the arm, not assumed); the array cell through the one `unwrap`; and the contested row was a FIX: `DuckDb.ddlIdentifier` folds an unquoted identifier to the SQL-standard uppercase identity (a declared-quoted name keeps its case) — `dropAndCreateTempTable` passes on all four lanes (DuckDB 109 → 108). Open with the user: the outside-body register row (`probe=1`) for that body.
