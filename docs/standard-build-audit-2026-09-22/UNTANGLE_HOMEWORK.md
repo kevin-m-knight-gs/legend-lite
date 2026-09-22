@@ -32,6 +32,38 @@ Tools, all re-runnable against any tree:
 
 ---
 
+## 0. Validated against bytecode
+
+Everything below started as regex over source text. That is a hypothesis, so it
+was checked against the compiler's own answer: `jdeps -v` over
+`core/target/classes`, which reads bytecode.
+
+**The regex graph was 90.3% recall, 93.3% precision** — it missed 722 real edges
+and invented 484. Enough to be worth redoing, so the analysis was rebuilt on a
+**union** graph, and the reason it must be a union is itself a finding:
+
+> Neither tool alone is correct for a *build* dependency graph. `jdeps` misses
+> everything the compiler erases — decisively `@Nullable`, which is
+> `RetentionPolicy.CLASS` + `TYPE_USE` and therefore lives in
+> `RuntimeInvisibleTypeAnnotations`, which jdeps does not walk. **jdeps reports
+> 4 referrers of `Nullable`; the source has 355.** A `java_library` whose
+> sources write `@com.legend.Nullable` still needs it on the compile classpath,
+> so the source edge is real even though the bytecode edge is not there.
+> Conversely regex misses inherited members, erased generics and implicit
+> references — the 722.
+
+On the validated union graph every structural finding holds: **one package
+cycle of 25 packages / 654 classes**, 18 class-level SCCs of which only **two
+span packages** (38 classes `protocol`/`protocol.spec`, 26
+`parser`/`parser.section`), largest class SCC 85. The plan holds too — the same
+ten move groups to the same destinations, **43 moves rather than 42** (one more
+class into `resolver`), 39 packages, zero cycles, edit surface ~1,264 files.
+
+Reproduce with `union-graph.py` and `validate-plan.py`; `jdeps-raw.txt` is the
+bytecode extract they were checked against.
+
+---
+
 ## 1. The method, and the mistake that proves it
 
 Depth is the whole game. A class's **depth** is its longest path down the
