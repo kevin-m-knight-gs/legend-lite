@@ -224,6 +224,9 @@ final class AssertVerdicts {
         if (fqn == null) {
             return null;
         }
+        // cleanup move 2b (2026-09-21): the run's judge mode names the arm ONCE; every
+        // family below classifies, then hands the sides to it
+        VerdictArm arm = arm(env);
         // SQLTEXT charter §8.3b — the assertSameSQL ROOT arm: the
         // statement root arrives PRE-inline, so SqlTextVerdicts owns
         // the whole golden-vs-executed-frame shape (rows judge, text
@@ -292,34 +295,7 @@ final class AssertVerdicts {
             if (targs.size() < 3 || targs.size() > 4) {
                 yield null;
             }
-            if (databaseMode(env)) {
-                yield DatabaseJudge.databaseTdsEquivalent(name, targs, letPrefix, specs, env, hook);
-            }
-            ExecutionResult.Tabular one =
-                    tabular(targs.get(0), letPrefix, specs, env, hook);
-            ExecutionResult.Tabular two =
-                    tabular(targs.get(1), letPrefix, specs, env, hook);
-            if (one == null || two == null) {
-                yield null;   // non-tabular shape — fall through, loud later
-            }
-            double delta = ((Number) one(side(targs.get(2), letPrefix,
-                    specs, env, hook), "assertTdsEquivalent delta")).doubleValue();
-            double timeDelta = targs.size() == 4
-                    ? ((Number) one(side(targs.get(3), letPrefix, specs,
-                            env, hook), "assertTdsEquivalent timeDelta"))
-                            .doubleValue()
-                    : 0.0;
-            List<String> c1 = one.columns().stream()
-                    .map(com.legend.exec.Column::name).toList();
-            List<String> c2 = two.columns().stream()
-                    .map(com.legend.exec.Column::name).toList();
-            if (!c1.equals(c2) || one.rows().size() != two.rows().size()) {
-                yield fail("\n" + HostJudge.summarize(one) + "\n is not"
-                        + " equivalent to:\n" + HostJudge.summarize(two));
-            }
-            String d = com.legend.exec.TdsCompare.tdsEquivalent(
-                    cells(one), cells(two), delta, timeDelta);
-            yield d == null ? ok() : fail(d);
+            yield arm.tdsEquivalent(name, targs, letPrefix, specs, env, hook);
             }
             // toCSV is an OPERAND form (a rendered grid text the verdict
             // compares), never an assert of its own
@@ -361,21 +337,12 @@ final class AssertVerdicts {
                 // sorting a mixed-type cell pool is never a SQL column
                 TypedSpec cellsE = bareSortOverCells(args.get(0));
                 TypedSpec cellsA = bareSortOverCells(args.get(1));
-                if (databaseMode(env) && wantEqual
-                        && (cellsE != null || cellsA != null)) {
-                    // the sorted flat-cells idiom IS the cell-pool multiset
-                    yield DatabaseJudge.databaseVerdict(name, true,
-                            cellsE != null ? cellsE : args.get(0),
-                            cellsA != null ? cellsA : args.get(1),
-                            letPrefix, specs, env, hook, true, true);
-                }
                 if (wantEqual && (cellsE != null || cellsA != null)) {
-                    HostJudge.SideFetch ef0 = HostJudge.sideCanon(cellsE != null ? cellsE : args.get(0),
-                            letPrefix, specs, env, false, hook);
-                    HostJudge.SideFetch af0 = HostJudge.sideCanon(cellsA != null ? cellsA : args.get(1),
-                            letPrefix, specs, env, false, hook);
-                    if (ef0.grid() != null || af0.grid() != null) {
-                        yield HostJudge.tdsRowValuesSameElements(name, ef0, af0);
+                    // the sorted flat-cells idiom IS the cell-pool multiset
+                    ExecutionResult pool = arm.cellPool(name, cellsE != null ? cellsE : args.get(0),
+                            cellsA != null ? cellsA : args.get(1), letPrefix, specs, env, hook);
+                    if (pool != null) {
+                        yield pool;
                     }
                 }
                 // D3 — the GRID-PAIR arm: both sides statically
@@ -423,61 +390,7 @@ final class AssertVerdicts {
                 // host-side instead — semantics-free string sorting.
                 boolean gridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
-                if (databaseMode(env)) {
-                    // 3.1b: grid sides route too (the statement frames the
-                    // peer by the grid's width; a grid PAIR is unjudged there)
-                    yield DatabaseJudge.databaseVerdict(name, wantEqual, args.get(0), args.get(1),
-                            letPrefix, specs, env, hook, incidental, false);
-                }
-                HostJudge.SideFetch ef = HostJudge.sideCanon(args.get(0), letPrefix, specs,
-                        env, incidental && !gridPair, hook);
-                HostJudge.SideFetch af = HostJudge.sideCanon(args.get(1), letPrefix, specs,
-                        env, incidental && !gridPair, hook);
-                // the FLAT-CELLS verdict (grid canon byte channel +
-                // host cell lattice referee)
-                if (ef.grid() != null || af.grid() != null) {
-                    yield HostJudge.tdsRowValuesVerdict(name, wantEqual, args,
-                            letPrefix, ef, af, incidental);
-                }
-                // X5: a same-class KEYED pair restricts both sides to
-                // the key tree — the engine's own equality relation for
-                // keyed classes, applied before EITHER channel judges
-                // a CLASS-kind side that rode a JSON carrier (a polymorphic
-                // Node[1] program value) arrives as object text: decode it
-                // to the structure the key restriction reads (the executor's
-                // own rule for JSON slots — WORLD_MAP §4, __type rides along)
-                List<Object> eVals = structuredSide(args.get(0), ef.values());
-                List<Object> aVals = structuredSide(args.get(1), af.values());
-                var ik = instanceKeys(args.get(0), args.get(1), env, eVals, aVals);
-                List<Object> e = ik != null
-                        ? HostJudge.restrictToKeys(eVals, ik, env.ctx()) : eVals;
-                List<Object> a = ik != null
-                        ? HostJudge.restrictToKeys(aVals, ik, env.ctx()) : aVals;
-                List<com.legend.exec.Equality.Typed> te = HostJudge.typedSide(e, args.get(0));
-                List<com.legend.exec.Equality.Typed> ta = HostJudge.typedSide(a, args.get(1));
-                boolean equal = incidental
-                        ? com.legend.exec.Equality.sameElements(te, ta) == null
-                        : com.legend.exec.Equality.ordered(te, ta) == null;
-                // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
-                // host lattice vs host byte channel, measurement only
-                com.legend.exec.CanonicalDivergence.probeEqual(
-                        name, e, a, equal, incidental);
-                // R2a/V11 — THE BYTE VERDICT OF RECORD for scalar-kind
-                // sides: the canon rode the SIDE QUERY ITSELF (one
-                // execution, wrapWithCanon); Java compares two
-                // DB-computed byte strings. The host lattice above is
-                // the PERMANENT PARALLEL REFEREE (ratified dual-verdict
-                // design): disagreement is a pinned census row, never a
-                // rescue. A decline (unclaimed kind, non-SQL arm,
-                // non-scalar shape) is counted and the host judges.
-                HostJudge.SqlVerdict byteVerdict = HostJudge.sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af, letPrefix, env, equal);
-                yield HostJudge.finish(name, wantEqual, equal,
-                        byteVerdict == null ? null : byteVerdict.held(),
-                        byteVerdict == null ? "" : byteVerdict.detail(),
-                        () -> incidental
-                                ? PureAsserts.assertSameElements(e, a)
-                                : PureAsserts.assertEquals(e, a, args.get(0).info().type(), args.get(1).info().type()));
+                yield arm.equals(name, wantEqual, args, incidental, gridPair, letPrefix, specs, env, hook);
             }
             case ASSERT_SAME_ELEMENTS -> {
                 if (args.size() < 2) {
@@ -493,83 +406,13 @@ final class AssertVerdicts {
                 }
                 boolean seGridPair = tabularShaped(args.get(0))
                         || tabularShaped(args.get(1));
-                if (databaseMode(env)) {
-                    yield DatabaseJudge.databaseVerdict(name, true, args.get(0), args.get(1),
-                            letPrefix, specs, env, hook, true, true);
-                }
-                HostJudge.SideFetch ef = HostJudge.sideCanon(args.get(0), letPrefix, specs,
-                        env, !seGridPair, hook);
-                HostJudge.SideFetch af = HostJudge.sideCanon(args.get(1), letPrefix, specs,
-                        env, !seGridPair, hook);
-                // §8 leg 1 — TABULAR sides under the MULTISET form:
-                // loose CELL pool (the corpus writes flat expected sets
-                // column-grouped — loose multiset IS this assert's
-                // reference semantics, audit 9), cell-level byte canon
-                if (ef.grid() != null || af.grid() != null) {
-                    yield HostJudge.tdsRowValuesSameElements("assertSameElements", ef, af);
-                }
-                // a CLASS-kind side that rode a JSON carrier (a polymorphic
-                // Node[1] program value) arrives as object text: decode it
-                // to the structure the key restriction reads (the executor's
-                // own rule for JSON slots — WORLD_MAP §4, __type rides along)
-                List<Object> eVals = structuredSide(args.get(0), ef.values());
-                List<Object> aVals = structuredSide(args.get(1), af.values());
-                var ik = instanceKeys(args.get(0), args.get(1), env, eVals, aVals);
-                List<Object> e = ik != null
-                        ? HostJudge.restrictToKeys(eVals, ik, env.ctx()) : eVals;
-                List<Object> a = ik != null
-                        ? HostJudge.restrictToKeys(aVals, ik, env.ctx()) : aVals;
-                String d = com.legend.exec.Equality.sameElements(
-                        HostJudge.typedSide(e, args.get(0)), HostJudge.typedSide(a, args.get(1))) == null
-                        ? null : PureAsserts.assertSameElements(e, a);
-                com.legend.exec.CanonicalDivergence.probeSameElements(
-                        e, a, d == null);
-                // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
-                // arrive ORDER BY canon text (the wrap's sort key) in
-                // the SAME execution; the host multiset judgment above
-                // is the parallel referee.
-                HostJudge.SqlVerdict byteVerdict = HostJudge.sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af, letPrefix, env, d == null);
-                yield HostJudge.finish("assertSameElements", true, d == null,
-                        byteVerdict == null ? null : byteVerdict.held(),
-                        byteVerdict == null ? "" : byteVerdict.detail(),
-                        () -> d);
+                yield arm.sameElements(name, args, seGridPair, letPrefix, specs, env, hook);
             }
             case ASSERT_SIZE -> {
                 if (args.size() < 2) {
                     yield null;
                 }
-                if (databaseMode(env)) {
-                    yield DatabaseJudge.databaseSize(name, args, letPrefix, specs, env, hook);
-                }
-                Object n = one(side(args.get(1), letPrefix, specs, env, hook),
-                        "assertSize size");
-                // D3: the size rule is per-result-kind — grid ROWS,
-                // graph array length, values otherwise; the ONE-CARRIER
-                // envelope rule ({@code $r.values} of a relation-rooted
-                // execute holds one TDS) is the MODEL's
-                // (ExecutionResult.envelopeCarriers), keyed by the READ
-                // SHAPE exactly as the harness's cluster-34 arm.
-                ExecutionResult r0 = StatementExecutor.evalValue(
-                        args.get(0), letPrefix, specs, env, null, false,
-                        hook);
-                long actual = switch (r0) {
-                    case null -> 0L;
-                    case ExecutionResult.Tabular t ->
-                            envelopeValuesRead(args.get(0), letPrefix)
-                                    ? t.envelopeCarriers(t.rows().size())
-                                    : t.rows().size();
-                    case ExecutionResult.Graph g -> {
-                        Object p = com.legend.sql.Json.parse(g.json());
-                        yield p instanceof List<?> l ? l.size() : 1L;
-                    }
-                    default -> decodeSide(r0).size();
-                };
-                boolean heldSize = n instanceof Number num
-                        && num.longValue() == actual;
-                yield heldSize ? ok()
-                        : fail("assertSize: expected " + n + ", got "
-                                + actual);
+                yield arm.size(name, args, letPrefix, specs, env, hook);
             }
             case ASSERT_JSON_STRINGS_EQUAL -> {
                 // D4 — the JSON verdict: engine semantics (object keys
@@ -579,114 +422,7 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                if (databaseMode(env)) {
-                    // bucket 3: the document the database built against the
-                    // golden's CANONICAL text — compact, keys sorted on both
-                    // sides (the verdict plan's objects through JsonKeyOrder),
-                    // the engine's root [x] ≡ x applied to the golden at
-                    // compile time when the query root is many-valued; bytes
-                    // decide. Measured first (2026-09-19): 81 byte-equal as
-                    // built, 69 key order, 15 root envelope, 9 whitespace, 1
-                    // root order (unsorted chain — the collections leg).
-                    // the golden, through its let and the pretty-print natives
-                    // (identity up to whitespace), to the literal chain
-                    String goldenText = com.legend.compiler.spec.VerdictQueries
-                            .foldedStringLiteral(chaseLets(
-                                    com.legend.compiler.spec.VerdictQueries.throughJsonPrettyPrint(
-                                            chaseLets(args.get(0), letPrefix)), letPrefix));
-                    if (goldenText == null) {
-                        yield DatabaseJudge.unjudged(name, "json golden is not a literal");
-                    }
-                    TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
-                            .throughJsonPrettyPrint(chaseLets(args.get(1), letPrefix));
-                    DatabaseJudge.SideRows ja = DatabaseJudge.planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
-                    // the engine's bare-object print applies to a serialize DOCUMENT
-                    // whose root is many-valued — never to a RESULT ENVELOPE
-                    // ({"builder":…,"values":…}, executeLegendQuery's contract:
-                    // always one object; the many-ness lives inside "values") —
-                    // read off the planned side's root object
-                    boolean rootMany = ja.side() != null && !planIsEnvelope(ja.side().plan())
-                            && serializedRootMany(actualJson, letPrefix, hook);
-                    // bucket 9: an unsorted many-valued root is a MULTISET of root objects
-                    if (rootMany && ja.why() == null
-                            && com.legend.compiler.spec.OrderView.of(actualJson, letPrefix) != com.legend.compiler.spec.OrderView.SORTED) {
-                        TypedSpec elements = com.legend.compiler.spec.VerdictQueries
-                                .jsonRootElements(goldenText);
-                        if (elements != null) {
-                            DatabaseJudge.SideRows jr = DatabaseJudge.planSide(elements, true, false, false, letPrefix, specs, env, hook);
-                            if (jr.why() == null) {
-                                com.legend.sql.SqlQuery mq = com.legend.lowering.VerdictSql.jsonRootMultiset(
-                                        jr.textRowsMany(), ja.textRows());
-                                boolean placeable;
-                                try {
-                                    env.dialect().render(mq);
-                                    placeable = true;
-                                } catch (com.legend.sql.dialect.DialectCapability wall) {
-                                    placeable = false;
-                                }
-                                if (placeable) {
-                                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
-                                    yield DatabaseJudge.runVerdict(name, true, mq, ja.on(env));
-                                }
-                            }
-                        }
-                    }
-                    var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
-                            goldenText, rootMany);
-                    if (golden == null) {
-                        yield DatabaseJudge.unjudged(name, "json golden does not parse");
-                    }
-                    DatabaseJudge.SideRows je = DatabaseJudge.planSide(golden, true, false, false, letPrefix, specs, env, hook);
-                    if (je.why() != null || ja.why() != null) {
-                        yield DatabaseJudge.unjudged(name, "json side: " + (je.why() != null ? je.why() : ja.why()));
-                    }
-                    com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
-                    yield DatabaseJudge.runVerdict(name, true,
-                            com.legend.lowering.VerdictSql.jsonText(je.textRows(), ja.textRows()),
-                            ja.on(env));
-                }
-                String ejson = jsonSideText(args.get(0), letPrefix,
-                        specs, env, hook);
-                String ajson = jsonSideText(args.get(1), letPrefix,
-                        specs, env, hook);
-                if (ejson == null || ajson == null) {
-                    yield null;   // non-[1]-string shape: generic path
-                }
-                // the GOLDEN side parses first and names itself when it
-                // does not: a golden the engine only accepts because its
-                // json-simple parser stops after the first complete value
-                // (a stray `]"` tail) is an engine-golden defect, never a
-                // divergence of ours (AssertLedger's register keys on this
-                // wording by exact test FQN)
-                Object expected;
-                try {
-                    expected = com.legend.sql.Json.parse(ejson);
-                } catch (IllegalStateException e) {
-                    throw new IllegalStateException(
-                            "golden JSON does not parse: " + e.getMessage(), e);
-                }
-                Object actual = com.legend.sql.Json.parse(ajson);
-                // pure's [x] ≡ x at the ROOT: the engine serializes a
-                // one-element result as the bare object; an enveloping
-                // array bridges exactly that case (harness parity)
-                if (!(expected instanceof List)
-                        && actual instanceof List<?> al && al.size() == 1) {
-                    actual = al.get(0);
-                }
-                // D3 for graph results: an INCIDENTAL-order chain (a root
-                // read with no sort) has SQL arrival order on BOTH sides —
-                // the golden's is H2's, ours DuckDB's — so the ROOT array
-                // compares as a multiset, exactly the row verdict's policy
-                // under the same compile-time fact; nested arrays stay
-                // ordered (a property's order is the mapping's)
-                boolean incidentalRoot = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
-                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
-                                String diff = incidentalRoot
-                        ? com.legend.exec.Equality.pureJsonUnorderedRoot(expected, actual)
-                        : com.legend.exec.Equality.pureJson(expected, actual);
-                yield diff == null ? ok()
-                        : fail("assertJsonStringsEqual: FIRST DIFF at "
-                                + diff);
+                yield arm.jsonStringsEqual(name, args, letPrefix, specs, env, hook);
             }
             case ASSERT_CONTAINS -> {
                 // real pure membership (assertContains.pure): both
@@ -695,109 +431,26 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     yield null;
                 }
-                if (databaseMode(env)) {
-                    yield DatabaseJudge.databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook);
-                }
-                List<Object> coll = side(args.get(0), letPrefix, specs,
-                        env, hook);
-                List<Object> val = side(args.get(1), letPrefix, specs,
-                        env, hook);
-                if (val.size() != 1) {
-                    yield null;   // non-[1] value arg — generic path
-                }
-                boolean member = coll.stream().anyMatch(x ->
-                        com.legend.exec.Equality.same(com.legend.exec.Equality.Typed.of(x), com.legend.exec.Equality.Typed.of(val.get(0))));
-                yield member ? ok()
-                        : fail("assertContains: " + coll
-                                + " does not contain " + val.get(0));
+                yield arm.contains(name, args, letPrefix, specs, env, hook);
             }
             case ASSERT_EQ -> {
                 if (args.size() < 2) {
                     yield null;
                 }
-                // task #14 leg 2 (2026-09-21): eq over PRIMITIVES is equals — the
-                // database verdict decides (a class-instance pair keeps the host's
-                // LOUD identity wall below)
-                if (databaseMode(env) && !classKind(args.get(0)) && !classKind(args.get(1))) {
-                    yield DatabaseJudge.databaseVerdict(name, true, args.get(0), args.get(1),
-                            letPrefix, specs, env, hook, false, false);
-                }
-                HostJudge.SideFetch ef = HostJudge.sideCanon(args.get(0), letPrefix, specs,
-                        env, false, hook);
-                HostJudge.SideFetch af = HostJudge.sideCanon(args.get(1), letPrefix, specs,
-                        env, false, hook);
-                Object ee = one(ef.values(), "assertEq expected");
-                Object aa = one(af.values(), "assertEq actual");
-                // host judgment FIRST: eq's non-primitive identity rule
-                // throws LOUD here (P2-5) before any byte verdict
-                String d = PureAsserts.assertEq(ee, aa);
-                com.legend.exec.CanonicalDivergence.probeEqual("assertEq",
-                        java.util.Collections.singletonList(ee),
-                        java.util.Collections.singletonList(aa), d == null);
-                // V5/V11 — byte verdict of record (primitive eq
-                // coincides with equal; the identity rule walled above)
-                HostJudge.SqlVerdict byteVerdict = HostJudge.sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af, letPrefix, env, d == null);
-                yield HostJudge.finish("assertEq", true, d == null,
-                        byteVerdict == null ? null : byteVerdict.held(),
-                        byteVerdict == null ? "" : byteVerdict.detail(),
-                        () -> d);
+                yield arm.eq(name, args, letPrefix, specs, env, hook);
             }
             case ASSERT_EQ_WITHIN_TOLERANCE -> {
                 if (args.size() < 3) {
                     yield null;
                 }
-                if (databaseMode(env)) {
-                    yield DatabaseJudge.databaseTolerance(name, args, letPrefix, specs, env, hook);
-                }
-                String d = PureAsserts.assertEqWithinTolerance(
-                        (Number) one(side(args.get(0), letPrefix, specs, env, hook),
-                                "tolerance expected"),
-                        (Number) one(side(args.get(1), letPrefix, specs, env, hook),
-                                "tolerance actual"),
-                        (Number) one(side(args.get(2), letPrefix, specs, env, hook),
-                                "tolerance delta"));
-                yield d == null ? ok() : fail(d);
+                yield arm.tolerance(name, args, letPrefix, specs, env, hook);
             }
             case ASSERT, ASSERT_FALSE -> {
                 if (args.isEmpty()) {
                     yield null;
                 }
-                if (databaseMode(env)) {
-                    yield DatabaseJudge.databaseCondition(name, args.get(0), fn == NativeFn.Verdict.ASSERT,
-                            letPrefix, specs, env, hook);
-                }
-                // forAll-contains SUBSET (the functionvariables idiom
-                // — the harness's audited fc arm, moved to the owner):
-                // both sides evaluate IN THE DATABASE; the membership
-                // fold is assert-level logic judged host-side (a
-                // subquery inside a SQL lambda cannot lower, and
-                // pure's own evaluation of this shape is in-memory).
-                TypedSpec[] fc = forAllContains(args.get(0));
-                if (fc != null) {
-                    List<Object> need = side(fc[0], letPrefix, specs,
-                            env, hook);
-                    List<Object> have = side(fc[1], letPrefix, specs,
-                            env, hook);
-                    List<Object> missing = need.stream()
-                            .filter(n2 -> have.stream().noneMatch(h ->
-                                    com.legend.exec.Equality.same(com.legend.exec.Equality.Typed.of(n2), com.legend.exec.Equality.Typed.of(h))))
-                            .toList();
-                    boolean subsetHolds = missing.isEmpty();
-                    if (subsetHolds == (fn == NativeFn.Verdict.ASSERT)) {
-                        yield ok();
-                    }
-                    yield fail(name + " (forAll-contains subset):"
-                            + " missing " + missing);
-                }
-                // F13c: the CONDITION rides the identity lane — eq/
-                // equal over instances compile the engine relation
-                // (identity/key canon); the egress is one boolean, so
-                // no other lane ever sees the identity field
-                Object c = one(HostJudge.identitySide(args.get(0), letPrefix,
-                        specs, env, hook), name + " condition");
-                boolean held = Boolean.TRUE.equals(c) == (fn == NativeFn.Verdict.ASSERT);
-                yield held ? ok() : fail("Assert failed");
+                yield arm.condition(name, args.get(0), fn == NativeFn.Verdict.ASSERT,
+                        letPrefix, specs, env, hook);
             }
             case ASSERT_INSTANCE_OF -> {
                 if (args.size() < 2) {
@@ -807,36 +460,7 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                if (databaseMode(env)) {
-                    // bucket 5: the model's subtype relation IS instanceOf —
-                    // minted as the native call, judged as a condition
-                    TypedSpec cond = com.legend.compiler.spec.VerdictQueries
-                            .instanceOfCondition(args.get(0), args.get(1), specs);
-                    if (cond == null) {
-                        yield DatabaseJudge.unjudged(name, "instanceOf: no two-argument native in the catalog");
-                    }
-                    yield DatabaseJudge.databaseCondition(name, cond, true, letPrefix, specs, env, hook);
-                }
-                Object v = one(side(args.get(0), letPrefix, specs, env, hook),
-                        "assertInstanceOf instance");
-                String type = typeRefName(args.get(1));
-                if (type == null) {
-                    yield null;   // non-literal type arg — fall through
-                }
-                // a CLASS value's wire carries its classifier (__type,
-                // batch 53): instanceOf is the model's subtype relation
-                // (a property-less class such as NullLiteral has nothing
-                // else on the wire)
-                if (com.legend.exec.Executor.structured(v) instanceof java.util.Map<?, ?> m
-                        && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
-                                instanceof String wireType) {
-                    boolean ok = wireType.equals(type)
-                            || env.ctx().isSubtype(wireType, type);
-                    yield ok ? ok() : fail("expected an instance of " + type
-                            + ", actual: " + wireType);
-                }
-                String d = PureAsserts.assertInstanceOf(v, type);
-                yield d == null ? ok() : fail(d);
+                yield arm.instanceOf(name, args, letPrefix, specs, env, hook);
             }
             case ASSERT_IS -> {
                 // is() = IDENTITY (real pure is.pure:23, PCT.platformOnly).
@@ -847,66 +471,17 @@ final class AssertVerdicts {
                 }
                 ExecutionResult isv = isVerdict(args.get(0), args.get(1));
                 if (isv != null) {
-                    if (databaseMode(env)) {
-                        // a statically identified pair: decided by the compiler
-                        // (the same count as the static kind gate)
-                        com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
-                    }
+                    arm.staticallyDecided(name);
                     yield isv;
                 }
-                if (databaseMode(env)) {
-                    KindClass ki = kindKey(args.get(0), letPrefix, env);
-                    KindClass kj = kindKey(args.get(1), letPrefix, env);
-                    if (ki instanceof KindClass.Enum && kj instanceof KindClass.Enum) {
-                        // an enum's identity IS its value: the equality statement
-                        // (Enumeration.NAME on both sides — bucket 1)
-                        yield DatabaseJudge.databaseVerdict(name, true, args.get(0), args.get(1),
-                                letPrefix, specs, env, hook, false, false);
-                    }
-                    if (elementTyped(args.get(0), specs) && elementTyped(args.get(1), specs)) {
-                        TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
-                                specs.ctx(), args.get(0), args.get(1));
-                        yield DatabaseJudge.databaseCondition(name, cond, true, letPrefix, specs, env, hook);
-                    }
-                    yield DatabaseJudge.unjudged(name, "is: neither an enum pair nor a tracked element pair");
-                }
-                // ELEMENT IDENTITY (metamodel-as-relations D2/D3): a tracked
-                // element's identity is its row's primary key — `is` over an
-                // element reference and a metamodel row is the same equality
-                // the chain normalizer rewrites to a key compare
-                // (ChainNormalizer.identityEquality); adjudicated as the
-                // condition assert on the identity lane
-                if (elementTyped(args.get(0), specs) && elementTyped(args.get(1), specs)) {
-                    TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
-                            specs.ctx(), args.get(0), args.get(1));
-                    Object c2 = one(HostJudge.identitySide(cond, letPrefix, specs, env, hook),
-                            name + " condition");
-                    yield Boolean.TRUE.equals(c2) ? ok()
-                            : fail("assertIs: the element references differ");
-                }
-                yield null;
+                yield arm.is(name, args, letPrefix, specs, env, hook);
             }
             case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> {
                 if (args.isEmpty()) {
                     yield null;
                 }
-                if (databaseMode(env)) {
-                    yield DatabaseJudge.databaseEmpty(name, args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY,
-                            letPrefix, specs, env, hook);
-                }
-                // §8 leg 1: a TABULAR side's emptiness is its ROW count
-                // (engine relation semantics) — no canon involved
-                ExecutionResult er = StatementExecutor.evalValue(
-                        args.get(0), letPrefix, specs, env, null, false,
-                        hook);
-                boolean empty = er instanceof ExecutionResult.Tabular te3
-                        ? te3.rows().isEmpty()
-                        : decodeSide(er).isEmpty();
-                boolean held = empty == (fn == NativeFn.Verdict.ASSERT_EMPTY);
-                yield held ? ok()
-                        : fail(fn == NativeFn.Verdict.ASSERT_EMPTY
-                                ? "collection is not empty"
-                                : "collection is empty");
+                yield arm.empty(name, args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY,
+                        letPrefix, specs, env, hook);
             }
         };
         if (adjudicated == null) {
@@ -1196,25 +771,7 @@ final class AssertVerdicts {
         // below stays host-side (Clause 2c)
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
-        if (databaseMode(env)) {
-            // task #14 leg 2 (2026-09-21): the predicate vector is planned and the
-            // database returns the one verdict row — no element true/false is read
-            // in Java
-            DatabaseJudge.SideRows vector = DatabaseJudge.planSide(predMap, false, letPrefix, specs, env, hook);
-            if (vector.why() != null) {
-                return DatabaseJudge.unjudged(fqn, vector.why());
-            }
-            return DatabaseJudge.runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
-                    qfn == NativeFn.Verdict.ASSERT), vector.on(env));
-        }
-        List<Object> verdicts = HostJudge.identitySide(predMap, letPrefix, specs, env, hook);
-        boolean wantTrue = qfn == NativeFn.Verdict.ASSERT;
-        for (Object v : verdicts) {
-            if (Boolean.TRUE.equals(v) != wantTrue) {
-                return fail(msg);
-            }
-        }
-        return ok();
+        return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, msg, letPrefix, specs, env, hook);
     }
 
     /** D1 (V7_ARCH_AUDIT 2026-08-28) — THE ONE dual-verdict finisher:
@@ -1234,6 +791,12 @@ final class AssertVerdicts {
      * lets the database return the verdict row. */
     static boolean databaseMode(StatementExecutor.ExecEnv env) {
         return env.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE;
+    }
+
+    /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
+     * arm; the router classifies and hands the sides over, nowhere else forks. */
+    static VerdictArm arm(StatementExecutor.ExecEnv env) {
+        return databaseMode(env) ? DatabaseJudge.ARM : HostJudge.ARM;
     }
 
     /** DATABASE mode (leg 3.1, docs/DATABASE_MODE_HOMEWORK §4b): both
@@ -1609,42 +1172,13 @@ final class AssertVerdicts {
         String form = aForm != null ? aForm
                 : java.util.Objects.requireNonNull(eForm);
         TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
-        if (databaseMode(env)) {
-            // bucket 8 (homework §4s): the rendered VALUE against the golden
-            // brought to rows by the render function's own grammar — the
-            // grid / collection statements judge; ordered only when the
-            // chain ends in a sort and the assert is ordered
-            return renderedValueVerdict(name, wantEqual, args, letPrefix, specs, env, hook,
-                    orderedForm);
-        }
-        List<Object> ev = side(args.get(0), letPrefix, specs, env, hook);
-        List<Object> av = side(args.get(1), letPrefix, specs, env, hook);
-        if (ev.size() == 1 && ev.get(0) instanceof String et
-                && av.size() == 1 && av.get(0) instanceof String at) {
-            // a BOTH-rendered pair always judges as a multiset (even
-            // sorted queries legally tie-flip between two executions)
-            boolean sorted = orderedForm
-                    && (eForm == null ^ aForm == null)
-                    && com.legend.compiler.spec.OrderView.of(rendered, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
-            boolean held = com.legend.exec.TdsCompare.renderedText(
-                    aForm != null ? et : at, aForm != null ? at : et,
-                    form, sorted);
-            if (held != wantEqual) {
-                return fail(name + " (rendered " + form + "): "
-                        + firstTextDiff(et, at));
-            }
-            return ok();
-        }
-        // a render form whose sides are not two strings — loud, never
-        // a silent fall-through re-execution
-        throw new com.legend.error.NotImplementedException(
-                "rendered-text assert side is not a string pair ("
-                        + form + ")");
+        return arm(env).rendered(name, wantEqual, args, form, rendered, eForm, aForm, orderedForm,
+                        letPrefix, specs, env, hook);
     }
 
     /** One-line first-difference sketch of two rendered texts (failure
      * message position — the full texts drown the diagnosis). */
-    private static String firstTextDiff(String e, String a) {
+    static String firstTextDiff(String e, String a) {
         String[] el = e.split("\n", -1);
         String[] al = a.split("\n", -1);
         if (el.length != al.length) {
@@ -1664,7 +1198,7 @@ final class AssertVerdicts {
      * the two values as a multiset (two executions of one query); one side
      * rendered → its value against the golden brought to rows, ordered only
      * when the chain ends in a sort and the assert is ordered. */
-    private static ExecutionResult renderedValueVerdict(String name, boolean wantEqual,
+    static ExecutionResult renderedValueVerdict(String name, boolean wantEqual,
             List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook,
             boolean orderedForm) {
@@ -2025,7 +1559,7 @@ final class AssertVerdicts {
     }
 
     /** A class-kind side's values with JSON object text decoded to structures. */
-    private static List<Object> structuredSide(TypedSpec spec, List<Object> vals) {
+    static List<Object> structuredSide(TypedSpec spec, List<Object> vals) {
         if (com.legend.compiler.element.EqualityKeys.fqnOf(spec.info().type()) == null) {
             return vals;
         }

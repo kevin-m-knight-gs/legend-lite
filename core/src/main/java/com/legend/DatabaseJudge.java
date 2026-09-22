@@ -548,4 +548,193 @@ final class DatabaseJudge {
             return side != null && !side.storeFree() ? env.withConnection(side.connection()) : env;
         }
     }
+
+    /** A statically identified {@code is} pair: decided by the compiler (the same count as
+     * the static kind gate). */
+    static void staticallyDecided(String name) {
+        com.legend.exec.CanonicalDivergence.sqlJudgedInDatabase(name);
+    }
+
+    /** The database arm, chosen once per adjudication by the router. */
+    static final VerdictArm ARM = new VerdictArm() {
+        @Override public ExecutionResult rendered(String name, boolean wantEqual, List<TypedSpec> args, String form, TypedSpec rendered, @com.legend.Nullable String eForm, @com.legend.Nullable String aForm, boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            // bucket 8 (homework §4s): the rendered VALUE against the golden
+            // brought to rows by the render function's own grammar — the
+            // grid / collection statements judge; ordered only when the
+            // chain ends in a sort and the assert is ordered
+            return AssertVerdicts.renderedValueVerdict(name, wantEqual, args, letPrefix, specs, env, hook,
+                    orderedForm);
+        }
+        @Override public void staticallyDecided(String name) {
+            DatabaseJudge.staticallyDecided(name);
+        }
+        @Override public ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return DatabaseJudge.jsonStringsEqual(name, args, letPrefix, specs, env, hook);
+        }
+        @Override public ExecutionResult equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            // 3.1b: grid sides route too (the statement frames the
+            // peer by the grid's width; a grid PAIR is unjudged there)
+            return databaseVerdict(name, wantEqual, args.get(0), args.get(1),
+                    letPrefix, specs, env, hook, incidental, false);
+        }
+        @Override public ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseVerdict(name, true, cellsE, cellsA, letPrefix, specs, env, hook, true, true);
+        }
+        @Override public ExecutionResult quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            // task #14 leg 2 (2026-09-21): the predicate vector is planned and the
+            // database returns the one verdict row — no element true/false is read
+            // in Java
+            SideRows vector = planSide(predMap, false, letPrefix, specs, env, hook);
+            if (vector.why() != null) {
+                return unjudged(fqn, vector.why());
+            }
+            return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
+                    wantTrue), vector.on(env));
+        }
+        @Override public ExecutionResult sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseVerdict(name, true, args.get(0), args.get(1),
+                    letPrefix, specs, env, hook, true, true);
+        }
+        @Override public ExecutionResult is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            KindClass ki = AssertVerdicts.kindKey(args.get(0), letPrefix, env);
+            KindClass kj = AssertVerdicts.kindKey(args.get(1), letPrefix, env);
+            if (ki instanceof KindClass.Enum && kj instanceof KindClass.Enum) {
+                // an enum's identity IS its value: the equality statement
+                // (Enumeration.NAME on both sides — bucket 1)
+                return databaseVerdict(name, true, args.get(0), args.get(1),
+                        letPrefix, specs, env, hook, false, false);
+            }
+            if (AssertVerdicts.elementTyped(args.get(0), specs) && AssertVerdicts.elementTyped(args.get(1), specs)) {
+                TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
+                        specs.ctx(), args.get(0), args.get(1));
+                return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
+            }
+            return unjudged(name, "is: neither an enum pair nor a tracked element pair");
+        }
+        @Override public ExecutionResult instanceOf(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            // bucket 5: the model's subtype relation IS instanceOf —
+            // minted as the native call, judged as a condition
+            TypedSpec cond = com.legend.compiler.spec.VerdictQueries
+                    .instanceOfCondition(args.get(0), args.get(1), specs);
+            if (cond == null) {
+                return unjudged(name, "instanceOf: no two-argument native in the catalog");
+            }
+            return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
+        }
+        @Override public ExecutionResult eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            // task #14 leg 2 (2026-09-21): eq over PRIMITIVES is equals — the database
+            // verdict decides; a class-instance pair keeps the host's LOUD identity wall
+            if (!AssertVerdicts.classKind(args.get(0)) && !AssertVerdicts.classKind(args.get(1))) {
+                return databaseVerdict(name, true, args.get(0), args.get(1),
+                        letPrefix, specs, env, hook, false, false);
+            }
+            return HostJudge.eq(name, args, letPrefix, specs, env, hook);
+        }
+        @Override public @com.legend.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseTdsEquivalent(name, targs, letPrefix, specs, env, hook);
+        }
+        @Override public ExecutionResult size(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseSize(name, args, letPrefix, specs, env, hook);
+        }
+        @Override public ExecutionResult contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook);
+        }
+        @Override public ExecutionResult tolerance(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseTolerance(name, args, letPrefix, specs, env, hook);
+        }
+        @Override public ExecutionResult condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook);
+        }
+        @Override public ExecutionResult empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            return databaseEmpty(name, arg, wantEmpty, letPrefix, specs, env, hook);
+        }
+    };
+
+    /** {@code assertJsonStringsEqual(golden, actual)}: the document the database built against
+     * the golden's canonical text (compact, keys sorted on both sides), the engine's root
+     * {@code [x] ≡ x} applied to the golden at compile time when the query root is
+     * many-valued; an unsorted many-valued root is a MULTISET of root objects. */
+    static ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        // bucket 3: the document the database built against the
+        // golden's CANONICAL text — compact, keys sorted on both
+        // sides (the verdict plan's objects through JsonKeyOrder),
+        // the engine's root [x] ≡ x applied to the golden at
+        // compile time when the query root is many-valued; bytes
+        // decide. Measured first (2026-09-19): 81 byte-equal as
+        // built, 69 key order, 15 root envelope, 9 whitespace, 1
+        // root order (unsorted chain — the collections leg).
+        // the golden, through its let and the pretty-print natives
+        // (identity up to whitespace), to the literal chain
+        String goldenText = com.legend.compiler.spec.VerdictQueries
+                .foldedStringLiteral(AssertVerdicts.chaseLets(
+                        com.legend.compiler.spec.VerdictQueries.throughJsonPrettyPrint(
+                                AssertVerdicts.chaseLets(args.get(0), letPrefix)), letPrefix));
+        if (goldenText == null) {
+            return unjudged(name, "json golden is not a literal");
+        }
+        TypedSpec actualJson = com.legend.compiler.spec.VerdictQueries
+                .throughJsonPrettyPrint(AssertVerdicts.chaseLets(args.get(1), letPrefix));
+        SideRows ja = planSide(actualJson, false, false, true, letPrefix, specs, env, hook);
+        // the engine's bare-object print applies to a serialize DOCUMENT
+        // whose root is many-valued — never to a RESULT ENVELOPE
+        // ({"builder":…,"values":…}, executeLegendQuery's contract:
+        // always one object; the many-ness lives inside "values") —
+        // read off the planned side's root object
+        boolean rootMany = ja.side() != null && !AssertVerdicts.planIsEnvelope(ja.side().plan())
+                && AssertVerdicts.serializedRootMany(actualJson, letPrefix, hook);
+        // bucket 9: an unsorted many-valued root is a MULTISET of root objects
+        if (rootMany && ja.why() == null
+                && com.legend.compiler.spec.OrderView.of(actualJson, letPrefix) != com.legend.compiler.spec.OrderView.SORTED) {
+            TypedSpec elements = com.legend.compiler.spec.VerdictQueries
+                    .jsonRootElements(goldenText);
+            if (elements != null) {
+                SideRows jr = planSide(elements, true, false, false, letPrefix, specs, env, hook);
+                if (jr.why() == null) {
+                    com.legend.sql.SqlQuery mq = com.legend.lowering.VerdictSql.jsonRootMultiset(
+                            jr.textRowsMany(), ja.textRows());
+                    boolean placeable;
+                    try {
+                        env.dialect().render(mq);
+                        placeable = true;
+                    } catch (com.legend.sql.dialect.DialectCapability wall) {
+                        placeable = false;
+                    }
+                    if (placeable) {
+                        com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
+                        return runVerdict(name, true, mq, ja.on(env));
+                    }
+                }
+            }
+        }
+        var golden = com.legend.compiler.spec.VerdictQueries.canonicalJsonGolden(
+                goldenText, rootMany);
+        if (golden == null) {
+            return unjudged(name, "json golden does not parse");
+        }
+        SideRows je = planSide(golden, true, false, false, letPrefix, specs, env, hook);
+        if (je.why() != null || ja.why() != null) {
+            return unjudged(name, "json side: " + (je.why() != null ? je.why() : ja.why()));
+        }
+        com.legend.exec.CanonicalDivergence.sqlRoute(name, "json-bytes");
+        return runVerdict(name, true,
+                com.legend.lowering.VerdictSql.jsonText(je.textRows(), ja.textRows()),
+                ja.on(env));
+    }
 }

@@ -715,3 +715,11 @@ environment and the batch reads the connection from it. No `java.sql` in the cla
 temporary register rows of move 1 are gone. Owed from the same audit: the router's four `java.sql`
 value arms (JDBC Array / Timestamp / Date decoding in `decodeSideValues`) belong in the exec funnel.
 
+**Move 2b LANDED (2026-09-21): one dispatch.** `VerdictArm` — one method per assert family —
+implemented by `HostJudge.ARM` and `DatabaseJudge.ARM`; the router names the arm once
+(`arm(env)`), classifies, hands the sides over. The switch's thirteen host bodies moved verbatim
+into `HostJudge`, its database blocks into `DatabaseJudge`; mode forks 16 → 1. Router 3,313 →
+1,722 lines across moves 1–2b. No judgment changed: four lanes exact, ladder pins byte-identical.
+Next: move 2c, host mode through the compiler (the host arm consumes the artifact), then the
+census owner and stage 4.
+

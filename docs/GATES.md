@@ -4609,3 +4609,31 @@ and the JDBC census drop the temporary rows move 1 added (both registers SHRINK 
 arms (JDBC Array / Timestamp / Date decoding in `decodeSideValues`) — an exec-funnel move owed.
 Four lanes GREEN, exact; ladder pins byte-identical; differential agree 5,848 · disagree 0.
 Chain: GREEN, SEQUENTIAL — G2 27 · G1 45 · G3 7 · G4 60 · G5 28 · G6 87 · G7 28 · G9 21 · G8 97 · G10 26.
+
+
+## 2026-09-21 — cleanup move 2b: one dispatch — the sixteen mode forks are gone
+
+**What landed.** `VerdictArm`: one interface, one method per assert family (tdsEquivalent, size,
+contains, tolerance, condition, empty, eq, instanceOf, is, sameElements, cellPool, equals,
+jsonStringsEqual, quantified, rendered, staticallyDecided). `HostJudge.ARM` and
+`DatabaseJudge.ARM` implement it; the router (`AssertVerdicts`) names the arm ONCE per
+adjudication (`arm(env)`) and every case classifies, then hands the sides over. The thirteen
+switch cases' host bodies moved VERBATIM into `HostJudge` methods with the database methods'
+signatures; the switch's database blocks (the JSON verdict, the instanceOf / is / eq routing,
+the cell pool, the quantified vector, the rendered value) moved into `DatabaseJudge`. The
+router's grid-pair arm for two relation-stamped sides stays in the router exactly where it was
+(it ran in both modes before; it still does). `eq` over a class pair: the database arm hands
+it to the host arm, as the fork did (the identity wall).
+
+**Sizes.** Router 2,188 → 1,722 lines (from 3,313 before move 1); HostJudge 1,148; DatabaseJudge
+736; VerdictArm 93. Mode forks in the router: 16 → 1 (the dispatch itself).
+
+**Registers.** Ledger: AssertVerdicts 1,627 → 1,272; HostJudge 423 → 802; DatabaseJudge 438 → 586
+(the moved bodies and the arms' delegating methods); VerdictArm in the root-class register.
+Four lanes GREEN, exact; ladder pins byte-identical; differential agree 5,848 · disagree 0.
+Chain: GREEN, SEQUENTIAL — G2 27 · G1 44 · G3 7 · G4 59 · G5 27 · G6 86 · G7 28 · G9 21 · G8 88 · G10 26.
+
+**Next (move 2c).** Host mode through the compiler: with the arm in hand, `BodyCompiler`
+runs in both judge modes and the host arm consumes the artifact — the sides executed at the
+segment's close, compared in Java — which makes the statement loop deletable in both modes
+(stage 4).
