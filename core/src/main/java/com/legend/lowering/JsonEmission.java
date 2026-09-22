@@ -78,6 +78,11 @@ final class JsonEmission {
      * chain's own order. Class: the classBuilder envelope with the rows
      * as {@code objects}. An absent activity text is the empty array.
      */
+    /** A JSON value as its compact text (the database's own spelling). */
+    private static SqlExpr text(SqlExpr json) {
+        return new SqlExpr.Cast(json, PureSql.type(Type.Primitive.STRING));
+    }
+
     static SqlExpr result(Lowerer lw, TypedJsonResult jr) {
         String alias = "_lq";   // the wrapper select's own scope — no collision possible
         SqlExpr activities = jr.sql() == null
@@ -160,16 +165,33 @@ final class JsonEmission {
                         new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta),
                         new SqlExpr.StringLit("rows"), rows));
             } else {
-                SqlExpr result = new SqlExpr.JsonObject(List.of(
-                        new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colNames),
-                        new SqlExpr.StringLit("rows"), rows));
+                // THE ENGINE'S BYTES (RelationalResultToJsonDefaultSerializer, a
+                // hand-written stream): `{"builder": ` + builder (Jackson compact)
+                // + `, "activities": [` + activities (compact, comma-joined) +
+                // `], "result" : {"columns" : [` + names (compact) + `], "rows" : [`
+                // + rows, each `{"values": [` + cells (comma-joined) + `]}`,
+                // comma-joined + `]}}`. The compact pieces ARE the database's
+                // compact JSON; the skeleton's separators are the engine's own —
+                // the result string a test reads (`$json->contains('"result" :
+                // {…')`) is the engine's, byte for byte, as ordinary compiled Pure.
                 SqlExpr builder = new SqlExpr.JsonObject(List.of(
                         new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("tdsBuilder"),
                         new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta)));
-                envelope = new SqlExpr.JsonObject(List.of(
-                        new SqlExpr.StringLit("builder"), builder,
-                        new SqlExpr.StringLit("activities"), activities,
-                        new SqlExpr.StringLit("result"), result));
+                SqlExpr rowText = new SqlExpr.Call(SqlFn.CONCAT, List.of(
+                        new SqlExpr.StringLit("{\"values\": "),
+                        text(new SqlExpr.JsonArray(cells)),
+                        new SqlExpr.StringLit("}")));
+                SqlExpr rowsText = new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                        new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.STRING_AGG,
+                                List.of(rowText, new SqlExpr.StringLit(",")), false, List.of()),
+                        new SqlExpr.StringLit("")));
+                envelope = new SqlExpr.Call(SqlFn.CONCAT, List.of(
+                        new SqlExpr.StringLit("{\"builder\": "), text(builder),
+                        new SqlExpr.StringLit(", \"activities\": "), text(activities),
+                        new SqlExpr.StringLit(", \"result\" : {\"columns\" : "),
+                        text(new SqlExpr.JsonArray(colNames)),
+                        new SqlExpr.StringLit(", \"rows\" : ["), rowsText,
+                        new SqlExpr.StringLit("]}}")));
             }
         }
         SqlSelect agg = new SqlSelect(

@@ -86,7 +86,12 @@ final class TableReferenceChecker {
                     com.legend.compiler.SynthFqn.view(dbRef.fullPath(), viewName));
             if (lifted.size() == 1 && lifted.get(0).body().isPresent()
                     && lifted.get(0).body().get().size() == 1) {
-                return t.synth(lifted.get(0).body().get().get(0), env);
+                // a CALL to the lifted function, typed as its body: every
+                // lowering path inlines user calls, and the inliner keeps a
+                // view's name on the inlined body (TypedViewRelation)
+                TypedSpec typedBody = t.synth(lifted.get(0).body().get().get(0), env);
+                return new com.legend.compiler.spec.typed.TypedUserCall(
+                        lifted.get(0), List.of(), typedBody.info());
             }
             throw new TypeInferenceException(
                     "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'");

@@ -239,7 +239,6 @@ meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDa
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
 meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
-meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMappingOverlap
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMappingWithDynaFunction

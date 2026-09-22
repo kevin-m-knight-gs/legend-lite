@@ -81,7 +81,6 @@ meta::relational::tests::json::testResultToJsonStream
 meta::relational::tests::m2m2r::testProp3
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
-meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
 meta::relational::tests::mapping::union::biTemporal::testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting
 meta::relational::tests::mapping::union::biTemporal::testBiTemporalUnionJoin_milestoningColumnInOnClause
 meta::relational::tests::mapping::union::testChainedUnions

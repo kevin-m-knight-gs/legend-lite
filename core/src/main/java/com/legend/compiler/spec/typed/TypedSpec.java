@@ -73,6 +73,7 @@ public sealed interface TypedSpec permits
         TypedExtendAgg,
         TypedJoin,
         TypedJoinSlot,
+        TypedViewRelation,
         TypedAsOfJoin, TypedJsonAccess, TypedJsonResult,
         TypedSelect,
         TypedDistinct,

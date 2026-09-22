@@ -60,6 +60,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedTds;
 import com.legend.compiler.spec.typed.TypedUserCall;
+import com.legend.compiler.spec.typed.TypedViewRelation;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.compiler.spec.typed.TypedWrite;
 import com.legend.error.LegendCompileException;
@@ -542,6 +543,13 @@ public final class Lowerer {
                     new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info(), OutputCol.Origin.PHYSICAL)));
 
             case TypedTds tds -> tdsLiteral(tds);
+            // a VIEW at relation position: the engine plans it as an inline
+            // derived table aliased by the view (ViewSelectSQLQuery —
+            // personview_0, its root table "root" inside); the product
+            // render is lean — the body lowers flat, a name is not a nesting
+            case TypedViewRelation v -> engineText
+                    ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
+                    : relation(v.body());
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw ->
                     SqlSelect.starOf(new SqlSource.RawSql(   // Phase 1c

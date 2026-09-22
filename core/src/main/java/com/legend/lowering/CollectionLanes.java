@@ -188,6 +188,7 @@ final class CollectionLanes {
             case TypedFlatten ignored -> false;
             case TypedJoin ignored -> false;
             case TypedJoinSlot ignored -> false;
+            case com.legend.compiler.spec.typed.TypedViewRelation ignored -> false;
             case TypedAsOfJoin ignored -> false;
             case TypedOver ignored -> false;
             case TypedWrite ignored -> false;

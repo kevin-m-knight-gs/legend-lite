@@ -284,6 +284,18 @@ comes from the lifted body through the real lowerer, and lineage's tree derives 
 `viewFetchSql`, `expandView`, `viewExpansion`'s raw walk and the private `findView` ×3 die. It
 belongs to the TDG program's leg (its 33 tests + 13 lineage tests as the guard).
 
+## 8c. Stage 4 LANDED (2026-09-22) — and what it taught
+
+Stage 4 landed as PRODUCT work only. Part (3) — the view as a named root-position frame — is
+`TypedViewRelation`, minted by the inliner, lowered as a named subselect in engine text. Part (1)
+was the null-mapping guard. Part (2) was WRONG as planned: judging the test's fragments with
+verdict arms put the test's spelling into the harness. USER RULING: the test body compiles as one
+statement and passes on the product's own output or fails on data/setup. The product-side fact
+behind the rows assert was that the result envelope was spelled by the database's `json_object`
+while the engine's serializer is a hand-written byte stream; the envelope now spells the engine's
+bytes and the H2 lane passes the test as well (no JSON function in the skeleton). The test passes
+on all four lanes as plain compiled `contains`.
+
 ## 9. Open decisions for the user
 
 1. ~~Eager versus lazy~~ DECIDED 2026-09-22: eager, like E.2–E.4 (all three lifts are eager; walls

@@ -524,7 +524,7 @@ final class StatementExecutor {
 
     static EngineSql engineSql(
             com.legend.compiler.spec.typed.TypedLambda lam,
-            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            @com.legend.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
             com.legend.sql.dialect.EngineStyleH2 renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
@@ -536,7 +536,7 @@ final class StatementExecutor {
      * variable lowers to the engine's {@code ${name}} placeholder
      * (value = string-typed, driving the freemarker quote template). */
     static EngineSql engineSql(java.util.List<TypedSpec> raw,
-            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            @com.legend.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
             com.legend.sql.dialect.EngineStyleH2 renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
@@ -550,7 +550,7 @@ final class StatementExecutor {
      * surface's runtime argument (M2M2R — ~src classes resolve through
      * them). */
     private static EngineSql engineSql(java.util.List<TypedSpec> raw,
-            String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
+            @com.legend.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env,
             com.legend.sql.dialect.EngineStyleH2 renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
@@ -1425,7 +1425,10 @@ final class StatementExecutor {
                     || lqChain.chain().info().type() instanceof com.legend.compiler
                             .element.type.Type.ClassType) {
                 String mappingFqn = firstMappingFqn(lqChain.chain());
-                if (mappingFqn != null) {
+                // a RELATION-rooted chain (the relation accessor) carries no
+                // mapping and renders without one (the resolver and the root
+                // form both take none); a class-rooted chain needs its mapping
+                if (mappingFqn != null || lqChain.relationRooted()) {
                     try {
                         activitySql = engineSql(java.util.List.of(lqChain.chain()),
                                 mappingFqn, specs, env,

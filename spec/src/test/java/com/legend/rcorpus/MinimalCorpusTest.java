@@ -585,7 +585,12 @@ class MinimalCorpusTest {
     // DuckDB differential 1543 -> 1020, spelling 60 -> 22 (2026-09-21, rung 2a + option 1):
     // see H2_STRENGTH — 523 passes witnessed by a referee row match are now decided by
     // the held text row (LITERAL); text-decided (SPELLING) passes fall the same way.
-    private static final int[] DUCKDB_STRENGTH = {1020, 22, 26};
+    // DuckDB cardinality 26 -> 27 (2026-09-22, views stage 4): testRelationStoreAccessorOnView
+    // passes as ORDINARY compiled Pure — its two asserts are `assert($json->contains(…))` over
+    // the executeLegendQuery result string, boolean verdicts by the engine test's own shape;
+    // their content is the engine's activities SQL (byte-exact) and the engine's result JSON
+    // (the serializer's own bytes), which the census cannot see behind a bare assert.
+    private static final int[] DUCKDB_STRENGTH = {1020, 22, 27};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -611,7 +616,9 @@ class MinimalCorpusTest {
     // passes that were witnessed by a referee row match are now decided by the text
     // row itself (LITERAL strength). A rows leg did not stop being judged: it is no
     // longer needed for a held text. The DuckDB floor moves the same way.
-    private static final int[] H2_STRENGTH = {953, 22, 26};
+    // H2 cardinality 26 -> 27 (2026-09-22, views stage 4): the same pass on H2 — the envelope
+    // is plain string building, no JSON function; see DUCKDB_STRENGTH's note.
+    private static final int[] H2_STRENGTH = {953, 22, 27};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
