@@ -282,6 +282,7 @@ engine-order meta::relational::tests::mapping::groupBy::testGroupByMappingProjec
 engine-order meta::relational::tests::mapping::in::testJoinWithInClause0
 engine-order meta::relational::tests::mapping::in::testJoinWithPrefixInClauseContainingNumberLiterals
 engine-order meta::relational::tests::mapping::in::testJoinWithPrefixInClauseContainingStringLiterals
+engine-order meta::relational::tests::mapping::include::testStoreSubstitution
 engine-order meta::relational::tests::mapping::inheritance::cross::testAssociation
 engine-order meta::relational::tests::mapping::inheritance::cross::testProjectTwoLambdas
 engine-order meta::relational::tests::mapping::inheritance::relational::selfJoin::testSubTypeProjectSharedNonDirectlyRouted

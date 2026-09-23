@@ -158,21 +158,29 @@ public final class MetamodelSeeds {
     }
 
     /**
-     * STORE SUBSTITUTION as a relation: for every (mapping, database) pair the
-     * store the engine's {@code Mapping.resolveStore} answers — a PROJECTION
-     * of the compiled fact the normalizer's one include walk recorded
-     * ({@code MappingDefinition.resolvedStores}, stamped at Phase E by
-     * StoreSubstitutionRewrite.resolveAllStores), the store itself when the chain leaves it alone. Every
-     * pair has a row, so the system function reads ONE row, no conditional.
+     * STORE SUBSTITUTION as a relation: one row per database a mapping's
+     * include chain SUBSTITUTES — the engine's {@code findSubstituteStore}
+     * fold (functions_Mapping.pure) as a compiled fact, composed through
+     * the includes once by the normalizer ({@code
+     * MappingDefinition.resolvedStores}, StoreSubstitutionRewrite
+     * .resolveAllStores), the way the store keeps every recursive walk as a
+     * closure. A store the chain leaves alone has no row: {@code
+     * resolveStore} answers the store itself (its engine body's else
+     * branch). Every pair used to be a row — the identity materialized,
+     * 94K rows for the corpus graph's 679 x 139 — only because a run-time
+     * if over class queries did not resolve.
      */
     private static List<List<String>> storeResolutions(ModelContext ctx) {
         List<List<String>> rows = new ArrayList<>();
-        List<String> dbs = extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE);
+        Set<String> dbs = new java.util.HashSet<>(
+                extent(ctx, com.legend.compiler.element.type.PlatformTypes.DATABASE));
         for (String fqn : extent(ctx, com.legend.compiler.element.type.PlatformTypes.MAPPING)) {
             var resolved = ctx.findMapping(fqn).map(MappingDefinition::resolvedStores)
                     .orElse(java.util.Map.of());
-            for (String db : dbs) {
-                rows.add(List.of(fqn, db, resolved.getOrDefault(db, db)));
+            for (var e : new java.util.TreeMap<>(resolved).entrySet()) {
+                if (dbs.contains(e.getKey()) && !e.getKey().equals(e.getValue())) {
+                    rows.add(List.of(fqn, e.getKey(), e.getValue()));
+                }
             }
         }
         return rows;

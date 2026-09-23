@@ -43,13 +43,19 @@ final class SubQueryLift {
      * returns {@code n} unchanged when none match. */
     static TypedSpec lift(TypedSpec n, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
-            Map<String, TypedSpec> letBindings) {
-        return walk(n, context, ctx, specs, letBindings, false);
+            Map<String, TypedSpec> letBindings,
+            java.util.function.Predicate<TypedSpec> storeRooted) {
+        return walk(n, context, ctx, specs, letBindings, storeRooted, false);
     }
+
+    private static final java.util.Set<String> EXISTENCE = java.util.Set.of(
+            "meta::pure::functions::collection::isEmpty",
+            "meta::pure::functions::collection::isNotEmpty");
 
     private static TypedSpec walk(TypedSpec n, StoreResolver.Context context,
             ModelContext ctx, SpecCompiler specs,
-            Map<String, TypedSpec> letBindings, boolean underLambda) {
+            Map<String, TypedSpec> letBindings,
+            java.util.function.Predicate<TypedSpec> storeRooted, boolean underLambda) {
         if (n instanceof com.legend.compiler.spec.typed.TypedFrom) {
             // a from() carries its OWN mapping/runtime context: its
             // subqueries lift when the resolver reaches it (the TypedFrom
@@ -77,9 +83,22 @@ final class SubQueryLift {
                         letBindings);
             }
         }
+        if (underLambda && n instanceof TypedNativeCall ec && ec.args().size() == 1
+                && EXISTENCE.contains(ec.callee().qualifiedName())
+                && Type.asClassType(ec.args().get(0).info().type()) instanceof Type.ClassType
+                && storeRooted.test(ec.args().get(0))
+                && uncorrelated(ec.args().get(0),
+                        new java.util.LinkedHashSet<>(letBindings.keySet()))) {
+            // an EXISTENCE test of a class query that reads no enclosing
+            // row: [NOT] EXISTS over the query resolved as a relation (the
+            // lowerer's relation-predicate family) — the engine's
+            // isEmpty/isNotEmpty over the fetched instances
+            return new TypedNativeCall(ec.callee(), List.of(resolveExistsRelation(
+                    ec.args().get(0), context, ctx, specs, letBindings)), ec.info());
+        }
         boolean nowUnder = underLambda || n instanceof TypedLambda;
         return SyntheticHeads.rebuildChildren(n,
-                c -> walk(c, context, ctx, specs, letBindings, nowUnder));
+                c -> walk(c, context, ctx, specs, letBindings, storeRooted, nowUnder));
     }
 
     /** {@code toOne/first/graphFetch} wrappers peel down to the
@@ -196,6 +215,43 @@ final class SubQueryLift {
                 ? Optional.empty()
                 : Optional.of(new TypedPackageableRef(
                         context.runtimeFqn(), proj.info()));
+        TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
+                m, r, context.chainMappings(), context.jsonSources()), proj.info());
+        TypedSpec resolved = new StoreResolver(ctx, specs)
+                .withLetBindings(letBindings)
+                .resolve(List.of(wrapped), null).get(0);
+        while (resolved instanceof TypedFrom fr) {
+            resolved = fr.source();
+        }
+        return resolved;
+    }
+
+    /** A class query as the relation an existence test reads: one constant
+     * column per fetched instance, resolved through a fresh resolver under
+     * the same context (the scalar-read path's recursion). */
+    private static TypedSpec resolveExistsRelation(TypedSpec chain,
+            StoreResolver.Context context, ModelContext ctx, SpecCompiler specs,
+            Map<String, TypedSpec> letBindings) {
+        Type ct = chain.info().type();
+        var one = Multiplicity.Bounded.ONE;
+        String v = "_ex";
+        TypedSpec mark = new com.legend.compiler.spec.typed.TypedCInteger(1L,
+                new ExprType(com.legend.compiler.element.type.Type.Primitive.INTEGER, one));
+        TypedLambda mapper = new TypedLambda(List.of(v), List.of(mark),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(ct, one)),
+                        new Type.Param(mark.info().type(), one)), one));
+        Type.RelationType row = new Type.RelationType(List.of(
+                new Type.Column("_ex", mark.info().type(), one)));
+        TypedProject proj = new TypedProject(chain,
+                List.of(new TypedFuncCol("_ex", mapper)),
+                new ExprType(Type.relation(row), Multiplicity.Bounded.ZERO_MANY));
+        Optional<TypedPackageableRef> m = context.explicitMapping() == null
+                ? Optional.empty()
+                : Optional.of(new TypedPackageableRef(context.explicitMapping(), proj.info()));
+        Optional<TypedPackageableRef> r = context.runtimeFqn() == null
+                ? Optional.empty()
+                : Optional.of(new TypedPackageableRef(context.runtimeFqn(), proj.info()));
         TypedSpec wrapped = new TypedFrom(proj, com.legend.compiler.spec.typed.ExecutionContext.of(
                 m, r, context.chainMappings(), context.jsonSources()), proj.info());
         TypedSpec resolved = new StoreResolver(ctx, specs)

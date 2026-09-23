@@ -112,6 +112,9 @@ public final class ChainNormalizer {
         // per picked row, and a many-row pick stays loud downstream (the
         // condition egress demands exactly one)
         row = unwrapSinglePick(row);
+        if (!(row instanceof TypedPropertyAccess) && ref instanceof TypedPackageableRef gpr) {
+            return keyIdentity(eq, row, gpr, ctx, trackedElementClass);
+        }
         String rowCls = row instanceof TypedPropertyAccess rpa
                 ? Type.classFqn(rpa.info().type()) : null;
         if (!(ref instanceof TypedPackageableRef pr)
@@ -140,6 +143,48 @@ public final class ChainNormalizer {
                 com.legend.model.ClassMapping.foreignKeyBinding(pa.property()), str);
         return new TypedNativeCall(eq.callee(),
                 List.of(keyRead, new TypedCString(pr.fullPath(), str)), eq.info());
+    }
+
+    /** {@code equal(<element-typed class query>, <tracked element reference>)}
+     * for a query that is NOT a navigation read (a union of guarded if
+     * branches, a filtered extent): identity is the KEY — the query's
+     * instances mapped to their primary-key pseudo-binding (every class
+     * source registers it), the one instance's key against the reference's
+     * path. Null when the pair is not that shape or the metaclass has no
+     * single key column. */
+    private static @com.legend.Nullable TypedSpec keyIdentity(TypedNativeCall eq,
+            TypedSpec row, TypedPackageableRef pr, ModelContext ctx,
+            Function<TypedPackageableRef, java.util.Optional<String>> trackedElementClass) {
+        String rowCls = Type.classFqn(row.info().type());
+        String refCls = trackedElementClass.apply(pr).orElse(null);
+        if (rowCls == null || refCls == null || !(ctx.isSubtype(refCls, rowCls)
+                || ctx.isSubtype(rowCls, refCls))) {
+            return null;
+        }
+        var md = ctx.findMapping(com.legend.builtin.SystemMetamodel.MAPPING_FQN).orElse(null);
+        List<String> pk = md == null ? List.of()
+                : md.bindings().ofClass(refCls).stream().findFirst()
+                        .map(com.legend.model.MappingDefinition.ClassBinding::primaryKeyColumns)
+                        .orElse(List.of());
+        if (pk.size() != 1) {
+            return null;
+        }
+        var one = Multiplicity.Bounded.ONE;
+        ExprType str = new ExprType(Type.Primitive.STRING, one);
+        Type elem = row.info().type();
+        String v = "_idk";
+        TypedSpec keyRead = new TypedPropertyAccess(
+                new com.legend.compiler.spec.typed.TypedVariable(v, new ExprType(elem, one)),
+                com.legend.model.ClassMapping.primaryKeyBinding(pk.get(0)), str);
+        var keys = new com.legend.compiler.spec.typed.TypedMap(row,
+                new com.legend.compiler.spec.typed.TypedLambda(List.of(v), List.of(keyRead),
+                        new ExprType(new Type.FunctionType(List.of(new Type.Param(elem, one)),
+                                new Type.Param(Type.Primitive.STRING, one)), one)),
+                new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ZERO_MANY));
+        TypedSpec key = new TypedNativeCall(oneArgCallee(ctx,
+                "meta::pure::functions::multiplicity::toOne"), List.of(keys), str);
+        return new TypedNativeCall(eq.callee(),
+                List.of(key, new TypedCString(pr.fullPath(), str)), eq.info());
     }
 
     /** {@code equal(a, b)} as the identity condition of two element-typed

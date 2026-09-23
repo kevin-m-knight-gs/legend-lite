@@ -5182,3 +5182,27 @@ helpers, the context and the effect arms behind a name and javadoc that say "exe
 already-resolved statements"; stage 4 of the block compiler deleted the loop and never scheduled
 the executor's dissolution. The lifted query functions (E.4) that nothing calls. The `OTHER`
 column typing that walls a whole table. The 34-class protocol-desugaring register.
+
+## 2026-09-23 — Runtime `if` over class queries; store resolutions sparse, `resolveStore` in the engine's shape
+
+**What.** `Mapping.resolveStore` is written as the engine writes it (`findSubstituteStore`, then
+`if($substitute->isEmpty(), |$store, |$substitute->toOne())`) over SPARSE store-resolution facts:
+one row per substituted database, not one identity row per (mapping, database) pair. The resolver
+gains the capability that shape needs: a class-valued `if` whose condition only the data decides,
+and one of whose branches reads the store, becomes the union of its branches, each filtered by
+the condition or its negation (`ChainDispatch.ifAsUnion`) — exactly one guard holds, so exactly
+one branch contributes. An existence test (`isEmpty` / `isNotEmpty`) of an uncorrelated store
+query under a lambda lifts to `[NOT] EXISTS` (`SubQueryLift`); identity equality on a row that is
+not a property access compares primary keys (`ChainNormalizer.keyIdentity`). An object-space `if`
+(branches of `^C(...)` instances, no store read) keeps the constructed-instance route.
+
+**Register.** DuckDB host engine-order +1:
+`meta::relational::tests::mapping::include::testStoreSubstitution`. Its statements now navigate
+`storeResolutions -> resolved` inside the union's branches, and the test-lane scan-order
+emulation orders that navigation's join subselect as it orders every such subselect. The
+statement is a scalar comparison of one key; the order cannot reach the result. The test passes
+as before.
+
+**Ledgers.** Own-corpus parity 2528 → 2532 (`RuntimeIfClassQueryTest`'s model). `native-claims.tsv`
+regenerated: new consumers of existing natives (`not`, `isEmpty`, `isNotEmpty`, `toOne`), no
+native added.

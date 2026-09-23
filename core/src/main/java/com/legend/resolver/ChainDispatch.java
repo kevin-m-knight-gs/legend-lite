@@ -242,6 +242,69 @@ final class ChainDispatch {
         return false;
     }
 
+    /** A class-valued {@code if} with a RUN-TIME condition, outside any
+     * lambda body, becomes the union of its guarded branches
+     * ({@link #ifAsUnion}); a statically decided one keeps the resolver's
+     * branch choice. Lambda bodies (a per-row if) are not rewritten here,
+     * nor an object-space if (no branch reads the store: {@code ^C(...)}
+     * instances evaluate on the constructed-instance route). */
+    TypedSpec runtimeIfsAsUnions(TypedSpec n, java.util.function.Predicate<TypedSpec> readsStore) {
+        if (n instanceof TypedLambda) {
+            return n;
+        }
+        TypedSpec r = n.mapChildren(c -> runtimeIfsAsUnions(c, readsStore));
+        if (r instanceof TypedIf i
+                && Type.asClassType(i.info().type()) instanceof Type.ClassType
+                && LiteralFolds.staticBool(i.condition()) == null
+                && i.elseBranch().isPresent()
+                && (readsStore.test(i.thenBranch()) || readsStore.test(i.elseBranch().get()))) {
+            return ifAsUnion(i);
+        }
+        return r;
+    }
+
+    /** {@code if(c, |A, |B)} whose branches are CLASS values and whose
+     * condition is decided at RUN TIME is the UNION of the two branches,
+     * each guarded by the condition — {@code A->filter(_|c)} and
+     * {@code B->filter(_|!c)}: exactly one guard holds, so the UNION ALL is
+     * the branch pure evaluates (the ROW-arm match's union, with the
+     * condition as the arm test). A branch's {@code ->toOne()} keeps its
+     * guard INSIDE: a disabled branch is empty, never a failed toOne. */
+    TypedSpec ifAsUnion(TypedIf i) {
+        TypedSpec c = i.condition();
+        ExprType boolOne = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
+        TypedSpec notC = new TypedNativeCall(notCallee(), List.of(c), boolOne);
+        TypedSpec a = guarded(LiteralFolds.unthunk(i.thenBranch()), c);
+        TypedSpec b = guarded(LiteralFolds.unthunk(i.elseBranch().orElseThrow(() ->
+                new NotImplementedException("class query under if() without an else branch"))),
+                notC);
+        return new TypedNativeCall(concatCallee(), List.of(a, b), i.info());
+    }
+
+    private TypedSpec guarded(TypedSpec branch, TypedSpec cond) {
+        if (branch instanceof TypedNativeCall one && one.args().size() == 1
+                && TO_ONE_FQN.equals(one.callee().qualifiedName())) {
+            return guarded(one.args().get(0), cond);
+        }
+        Type row = branch.info().type();
+        String v = "_if" + fresh.getAsInt();
+        TypedLambda pred = new TypedLambda(List.of(v), List.of(cond),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(row, Multiplicity.Bounded.ONE)),
+                        new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        return new TypedFilter(branch, pred, new ExprType(row, Multiplicity.Bounded.ZERO_MANY));
+    }
+
+    private static final String TO_ONE_FQN = "meta::pure::functions::multiplicity::toOne";
+
+    private TypedFunction notCallee() {
+        return ctx.findFunction("meta::pure::functions::boolean::not").stream()
+                .filter(f -> f.parameters().size() == 1).findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no not(Boolean) registration"));
+    }
+
     private TypedFunction concatCallee() {
         return ctx.findFunction(StoreResolver.CONCAT_FQN).stream()
                 .filter(f -> f.parameters().size() == 2).findFirst()

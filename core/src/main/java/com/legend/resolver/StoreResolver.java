@@ -188,7 +188,7 @@ public final class StoreResolver {
                 : Context.ofRuntime(driverRuntimeFqn);
         List<TypedSpec> out = new ArrayList<>(body.size());
         for (TypedSpec stmt0 : body) {
-            TypedSpec stmt = ChainNormalizer.normalize(stmt0, ctx,
+            TypedSpec stmt = ChainNormalizer.normalize(chainDispatch.runtimeIfsAsUnions(stmt0, this::storeRooted), ctx,
                     pr -> java.util.Optional.ofNullable(trackedElementClass(pr)));
             // milestoning-date let env (engine inScopeVars, M:648):
             // shared by reference with every TemporalFrame
@@ -207,7 +207,7 @@ public final class StoreResolver {
                 out.add(stmt);
                 continue;
             }
-            stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings);
+            stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings, this::storeRooted);
             out.add(ObjectReferenceDecode.rewrite(resolveNode(stmt, context), ctx, sources));
         }
         for (int i = 0; i < out.size(); i++) {
@@ -335,7 +335,7 @@ public final class StoreResolver {
             // in-query CLASS SUBQUERIES under lambdas lift FIRST
             // (SubQueryLift) under THIS from()'s context
             TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
-                    inner, ctx, specs, letBindings);
+                    inner, ctx, specs, letBindings, this::storeRooted);
             return new TypedFrom(resolveNode(liftedSrc, inner),
                     from.context(), from.executedExtent(), from.extentFrame(), from.info());
         }
@@ -461,10 +461,12 @@ public final class StoreResolver {
             case TypedMap m when classConcatOf(m.source()) != null -> {
                 TypedNativeCall c = java.util.Objects.requireNonNull(
                         classConcatOf(m.source()));
-                yield new TypedConcatenate(
-                        resolveNode(new TypedMap(c.args().get(0), m.mapper(), m.info()), context),
-                        resolveNode(new TypedMap(c.args().get(1), m.mapper(), m.info()), context),
-                        m.info());
+                TypedSpec a = resolveNode(new TypedMap(c.args().get(0), m.mapper(), m.info()), context);
+                TypedSpec b = resolveNode(new TypedMap(c.args().get(1), m.mapper(), m.info()), context);
+                // resolved sides are RELATIONS: their union is one too
+                boolean relations = Type.isRelation(a.info().type()) && Type.isRelation(b.info().type());
+                yield new TypedConcatenate(a, b, relations
+                        ? new ExprType(a.info().type(), m.info().multiplicity()) : m.info());
             }
             // executed-concatenate map distribution / whole-instance terminal (ClassConcatenates)
             case TypedMap m when m.source() instanceof TypedFrom fr0 && classConcatOf(fr0.source()) != null ->
@@ -1442,6 +1444,18 @@ public final class StoreResolver {
 
     static boolean containsGetAll(TypedSpec n) {
         return Anchors.containsGetAll(n);
+    }
+
+    /** Whether a class query READS THE STORE: a getAll, a tracked element
+     * reference, or a table identity beneath it. Constructed instances
+     * ({@code ^C(...)}) are not store reads — an object-space query over
+     * them keeps the constructed-instance route. */
+    private boolean storeRooted(TypedSpec n) {
+        return n instanceof com.legend.compiler.spec.typed.TypedGetAll
+                || n instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr && trackedElementClass(pr) != null
+                || n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
+                        && com.legend.compiler.spec.typed.StoreElementIdentity.isTableIdentity(uc)
+                || n.children().stream().anyMatch(this::storeRooted);
     }
 
     /** Every {@code getAll} class FQN beneath {@code n} — D1's tracked-

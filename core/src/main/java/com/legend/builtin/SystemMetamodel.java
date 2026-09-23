@@ -1159,7 +1159,8 @@ public final class SystemMetamodel {
             }
             function meta::pure::mapping::resolveStore(_this:meta::pure::mapping::Mapping[1], store:meta::pure::store::Store[1]):meta::pure::store::Store[1]
             {
-                $_this.storeResolutions->filter(r|$r.original == $store).resolved->toOne()
+                let substitute = $_this.storeResolutions->filter(r|$r.original == $store).resolved;
+                if($substitute->isEmpty(), |$store, |$substitute->toOne());
             }
             function meta::relational::runtime::extractDBs(m:meta::pure::mapping::Mapping[1]):meta::relational::metamodel::Database[*]
             {
