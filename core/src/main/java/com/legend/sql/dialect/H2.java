@@ -143,9 +143,12 @@ public class H2 extends AnsiSqlRenderer {
                     + c.name() + " — stamp the construction site"
                     + " (Column.derived/physical or an OutputCol door)");
         }
-        return c.origin() == com.legend.sql.OutputCol.Origin.DERIVED
-                ? aliasIdent(c.name())
-                : execPart(c.name());
+        return switch (c.origin()) {
+            case DERIVED -> aliasIdent(c.name());
+            // declared quoted: delimited, its case kept
+            case PHYSICAL_QUOTED -> delimited(c.name());
+            case PHYSICAL -> execPart(c.name());
+        };
     }
 
     private String execPart(String part) {

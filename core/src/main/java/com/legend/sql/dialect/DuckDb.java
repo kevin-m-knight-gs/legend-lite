@@ -221,7 +221,7 @@ public final class DuckDb extends AnsiSqlRenderer {
         // args arrive pre-unqualified (the UnqualifyPivotArgs pass)
         sb.append(" ON ").append(p.on().stream()
                 .map(e -> e instanceof SqlExpr.Column c
-                        ? quoteChar() + c.name() + quoteChar()
+                        ? delimited(c.name())
                         : expr(e, 0))
                 .collect(Collectors.joining(", ")));
         if (!p.in().isEmpty()) {

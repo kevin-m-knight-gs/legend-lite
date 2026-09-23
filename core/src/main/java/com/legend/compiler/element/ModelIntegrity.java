@@ -368,13 +368,13 @@ final class ModelIntegrity {
                         + db.qualifiedName() + "' (" + site + ")");
     }
 
-    /** Declared columns + milestoning-declared temporal columns; matches
-     * the quote-bearing identity (StoreCompiler ledger cluster 7). */
+    /** Declared columns + milestoning-declared temporal columns, by bare name
+     * (a reference and a declaration both keep the bare name; quoting is a
+     * spelling — model.RelationalIdentifier). */
     private static boolean hasColumn(
             com.legend.model.DatabaseDefinition.TableDefinition td, String name) {
         for (var c : td.columns()) {
-            if (c.name().equals(name)
-                    || (c.quoted() && ("\"" + c.name() + "\"").equals(name))) {
+            if (c.name().equals(name)) {
                 return true;
             }
         }

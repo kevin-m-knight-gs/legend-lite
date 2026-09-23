@@ -16,8 +16,23 @@ public record OutputCol(String name, SqlType type, boolean nullable,
      * DERIVED name is invented by the query (projection label, VALUES
      * column) and quotes unconditionally at definition AND reference —
      * the engine's own convention (as "root", as "legalName").
-     * Stamped at construction, never re-derived at consumption. */
-    public enum Origin { PHYSICAL, DERIVED }
+     * Stamped at construction, never re-derived at consumption.
+     * PHYSICAL_QUOTED: a physical name the DDL declared QUOTED — the name is
+     * bare (quotes are a spelling, not identity) and it spells delimited
+     * wherever it is referenced, keeping its case on a case-folding database
+     * ({@code "firstName"} is not {@code firstName} on H2). */
+    public enum Origin { PHYSICAL, PHYSICAL_QUOTED, DERIVED }
+
+    /** A store table's {@code outputs}, with the columns its DDL declared
+     *  QUOTED ({@code quoted}, by bare name) as {@link Origin#PHYSICAL_QUOTED}
+     *  — stamped once, where the table's scan is born. */
+    public static java.util.List<OutputCol> declaredQuoted(java.util.List<OutputCol> outputs,
+            java.util.Set<String> quoted) {
+        return quoted.isEmpty() ? outputs : outputs.stream()
+                .map(c -> quoted.contains(c.name())
+                        ? new OutputCol(c.name(), c.type(), c.nullable(), Origin.PHYSICAL_QUOTED) : c)
+                .toList();
+    }
 
     /** Derived-frame convenience — PHYSICAL outputs are born ONLY at
      * the store boundary ({@code Lowerer.outputsOf}), which uses the

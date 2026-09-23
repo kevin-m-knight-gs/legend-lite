@@ -17,10 +17,23 @@ import java.util.List;
  * @param store the resolved database FQN (e.g. {@code "store::PersonDatabase"})
  * @param table the physical table name (e.g. {@code "T_PERSON"})
  * @param info  the relation type ({@link com.legend.compiler.element.type.Type.RelationType}) at {@code [1]}
+ * @param quotedColumns the columns the table's DDL declared QUOTED, by their
+ *              (bare) names: the relation type names every column bare, and the
+ *              lowering spells these delimited (a rendering fact, not identity)
  */
 public record TypedTableReference(String store, String table, ExprType info,
-                                  boolean accessor, @com.legend.Nullable String frame)
+                                  boolean accessor, @com.legend.Nullable String frame,
+                                  java.util.Set<String> quotedColumns)
         implements TypedSpec {
+    public TypedTableReference {
+        quotedColumns = java.util.Set.copyOf(quotedColumns);
+    }
+
+    public TypedTableReference(String store, String table, ExprType info, boolean accessor,
+            @com.legend.Nullable String frame) {
+        this(store, table, info, accessor, frame, java.util.Set.of());
+    }
+
     /** {@code frame}: the rows of this table identity are a PLANNED
      * frame's (a class-rooted let executed once as a CTE — lean ladder rung
      * 12): the lowering reads the CTE by name where the store table stood;
@@ -31,7 +44,7 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
 
     public TypedTableReference withFrame(String frame) {
-        return new TypedTableReference(store, table, info, accessor, frame);
+        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns);
     }
     /** {@code accessor}: the {@code #>{db.TABLE}#} relation-accessor
      * spelling (engine: columns typed as precisePrimitives from the
@@ -53,6 +66,6 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedTableReference(store, table, info, accessor);
+        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns);
     }
 }

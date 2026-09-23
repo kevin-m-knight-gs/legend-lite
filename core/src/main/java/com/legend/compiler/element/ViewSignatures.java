@@ -83,8 +83,7 @@ public final class ViewSignatures {
             var td = store.findTableDefinition(srcDb, cr.table());
             if (td.isPresent()) {
                 for (var col : td.get().columns()) {
-                    if (col.name().equals(cr.column())
-                            || (col.quoted() && ("\"" + col.name() + "\"").equals(cr.column()))) {
+                    if (col.name().equals(cr.column())) {
                         return new Type.Column(cm.name(), pureType(col.dataType()),
                                 col.notNull() || col.primaryKey()
                                         ? Multiplicity.Bounded.ONE : Multiplicity.Bounded.ZERO_ONE);

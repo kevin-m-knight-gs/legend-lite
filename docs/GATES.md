@@ -5254,3 +5254,32 @@ the text was conformed to the engine's spelling, not the ledger re-pinned.
 
 **Ledgers.** SQL-text ratchet: `exec/CsvSeed.java` row DELETED (1 → 0). Evaluator ledger
 `StatementExecutor` 2427 → 2415. Own-corpus parity 2535 → 2540.
+
+## 2026-09-23 — Quoted columns: relation space is bare, quoting is a rendering fact
+
+**What.** A column whose name needs quoting (`"total pnl"`, `"x,y"`, `"a\"b"`) could be selected
+and filtered but not sorted or grouped (DataCube over non-ASCII headers; datacube/dual-plane
+0f5176f80 fixed three of the consumers). The cause: `StoreCompiler.tableSchema` put the
+declaration's quotes back INTO each relation column's name, so relation space was quoted where
+the engine's is bare (the engine strips where a table becomes a relation —
+`RelationalCompilerExtension.java:936`, `_Column.getColumnInstance`: unescape(removeQuotes)), and
+every consumer normalized on its own or not at all (`Fold` compared exactly). Fixed at the root,
+engine-aligned: `model.RelationalIdentifier` reads a declaration AND a column reference (mapping,
+view, join) once — bare name, backslash escape decoded, the quoted flag kept; relation types name
+columns bare and keys resolve by exact equality (the engine's `Handlers.findColumn`); quoting
+travels to the SQL as a RENDERING fact — `OutputCol.Origin.PHYSICAL_QUOTED`, stamped where a
+table's scan is born from `TypedTableReference.quotedColumns` — and every renderer (ANSI, H2,
+engine-text) spells it delimited with the quote doubled (a declared-quoted `"firstName"` keeps its
+case on H2; `a"b` renders `"a""b"`, which the engine's own renderer gets wrong). Deleted: the three
+`"\"" + name + "\""` rebuilds that matched quoted references (ModelIntegrity, ViewSignatures,
+RelationalTypeInference).
+
+**Test.** `QuotedColumnNameTest` — rows, not SQL text: sort by a spaced name, group by a comma
+name, sort by an embedded quote, plain names unquoted, a missing column still refused. All three
+failures reproduced on the tree before the fix.
+
+**Registers.** DuckDB and H2 unordered-chain +1:
+`meta::relational::tests::tds::groupBy::testTableToTDSWithQuotedColumns`. Its second query groups
+by the QUOTED spelling `'"FIRST NAME"'`, which lite could not resolve before, so the harness had
+only the SQL text to judge; both queries now plan and execute, and their rows (no sort in the
+chain) compare as multisets. Own-corpus parity 2548 -> 2551 (`QuotedColumnNameTest`'s model).

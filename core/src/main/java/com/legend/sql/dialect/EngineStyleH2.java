@@ -307,6 +307,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         this.timeZone = timeZone;
     }
 
+    /** A physical column's spelling: a column the DDL declared QUOTED keeps
+     *  its quotes (the engine's metamodel name carries them: "root"."calendar
+     *  name"); any other goes through {@link #phys}. */
+    private String physColumn(SqlExpr.Column c) {
+        return c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED
+                ? delimited(c.name()) : phys(c.name());
+    }
+
     private String phys(String name) {
         return quoteIdentifiers ? '"' + name + '"' : name;
     }
@@ -1230,8 +1238,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 }
                 return '"' + rename(c.table()) + "\".\"" + c.name() + '"';
             }
-            return c.table() == null ? phys(c.name())
-                    : '"' + rename(c.table()) + "\"." + phys(c.name());
+            return c.table() == null ? physColumn(c)
+                    : '"' + rename(c.table()) + "\"." + physColumn(c);
         }
         if (e instanceof SqlExpr.RowOrder ro) {
             return rowOrder(ro);

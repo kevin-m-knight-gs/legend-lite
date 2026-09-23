@@ -186,6 +186,9 @@ class TypedSpecChildrenTest {
         if (type == java.util.Map.class) {
             return java.util.Map.of("k", dummyOfGenericArg(generic, 1));
         }
+        if (type == java.util.Set.class) {
+            return java.util.Set.of(dummyOfGenericArg(generic, 0));
+        }
         if (type == TypedSpec.class) {
             return leaf();
         }

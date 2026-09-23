@@ -32,12 +32,11 @@ public final class StoreCompiler {
         for (var col : table.columns()) {
             Multiplicity mult = (col.notNull() || col.primaryKey())
                     ? Multiplicity.Bounded.ONE : Multiplicity.Bounded.ZERO_ONE;
-            // a QUOTED declaration carries its quotes IN the column
-            // identity (the Typer's quote-bearing RelationType
-            // convention) — renderers emit the spelling as-is
-            columns.add(new Type.Column(
-                    col.quoted() ? "\"" + col.name() + "\"" : col.name(),
-                    columnType(col.dataType()), mult));
+            // the BARE name: relation space names columns as Pure does
+            // (the engine strips a declaration's quotes where a table becomes
+            // a relation). Quoting is a spelling, carried to the SQL as a
+            // rendering fact (TypedTableReference.quotedColumns)
+            columns.add(new Type.Column(col.name(), columnType(col.dataType()), mult));
         }
         return new Type.RelationType(columns);
     }

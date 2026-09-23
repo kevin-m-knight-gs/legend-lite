@@ -203,11 +203,11 @@ public final class FromProtocol {
             com.legend.protocol.Protocol.PDbTable t) {
         List<DatabaseDefinition.ColumnDefinition> cols = new java.util.ArrayList<>();
         for (com.legend.protocol.Protocol.PDbColumn c : t.columns()) {
-            cols.add(new DatabaseDefinition.ColumnDefinition(unquote(c.name()),
+            cols.add(new DatabaseDefinition.ColumnDefinition(RelationalIdentifier.bare(c.name()),
                     dataType(c.type()), t.primaryKey().contains(c.name()),
-                    !c.nullable(), isQuoted(c.name())));
+                    !c.nullable(), RelationalIdentifier.isQuoted(c.name())));
         }
-        return new DatabaseDefinition.TableDefinition(unquote(t.name()), cols,
+        return new DatabaseDefinition.TableDefinition(RelationalIdentifier.bare(t.name()), cols,
                 milestoning(t.milestoning()));
     }
 
@@ -296,15 +296,6 @@ public final class FromProtocol {
 
     /** The wire keeps a quoted identifier's quotes; the model keeps the bare
      *  name and remembers that it was quoted. */
-    private static String unquote(String name) {
-        return isQuoted(name) ? name.substring(1, name.length() - 1) : name;
-    }
-
-    private static boolean isQuoted(String name) {
-        return name.length() >= 2 && name.charAt(0) == '"'
-                && name.charAt(name.length() - 1) == '"';
-    }
-
     private static RelationalDataType dataType(
             com.legend.protocol.Protocol.PDbType t) {
         int size = t.size() == null ? 0 : t.size().intValue();

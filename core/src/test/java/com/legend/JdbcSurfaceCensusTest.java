@@ -421,6 +421,7 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/resolver/RoutedEquiJoinTest.java",
             "core/src/test/java/com/legend/resolver/RuntimeIfClassQueryTest.java",
             "core/src/test/java/com/legend/resolver/PivotOverClassQueryTest.java",
+            "core/src/test/java/com/legend/lowering/QuotedColumnNameTest.java",
             // names java.sql only to assert it ABSENT: runs the planner in a JVM
             // limited to java.base (no connection, no statement)
             "core/src/test/java/com/legend/PlannerRunsOnJavaBaseTest.java",

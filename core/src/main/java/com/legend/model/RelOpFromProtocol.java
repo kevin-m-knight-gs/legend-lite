@@ -80,14 +80,9 @@ public final class RelOpFromProtocol {
         // double-quoted relational identifier ("test table") reaches the
         // wire WITH its quotes and the model stores it bare.
         String table = t.schema() == null || "default".equals(t.schema())
-                ? unquote(t.table())
-                : unquote(t.schema()) + "." + unquote(t.table());
-        return new RelationalOperation.ColumnRef(db, table, c.column());
-    }
-
-    private static String unquote(String s) {
-        return s.length() >= 2 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"'
-                ? s.substring(1, s.length() - 1) : s;
+                ? RelationalIdentifier.bare(t.table())
+                : RelationalIdentifier.bare(t.schema()) + "." + RelationalIdentifier.bare(t.table());
+        return new RelationalOperation.ColumnRef(db, table, RelationalIdentifier.bare(c.column()));
     }
 
     private static RelationalOperation joinNavigation(Protocol.PElemtWithJoins j,

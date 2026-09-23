@@ -1182,7 +1182,16 @@ public class AnsiSqlRenderer implements SqlDialect {
      * the DDL spelled it; an origin-less reference WALLS rather than
      * guess. */
     protected String columnName(SqlExpr.Column c) {
-        return ident(c.name());
+        return c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED
+                ? delimited(c.name())
+                : ident(c.name());
+    }
+
+    /** {@code name} as a DELIMITED identifier: always quoted, the quote
+     *  character doubled inside ({@code a"b} spells {@code "a""b"}). */
+    protected String delimited(String name) {
+        String q = String.valueOf(quoteChar());
+        return q + name.replace(q, q + q) + q;
     }
 
     /** EXCEPT/EXCLUDE-list name spelling — DIALECT-owned: the base
@@ -1192,7 +1201,7 @@ public class AnsiSqlRenderer implements SqlDialect {
      * case-sensitive session (PCT witness: EXCEPT ("country") vs bare
      * _tds0.country in one SELECT). */
     protected String starExceptName(String name) {
-        return quoteChar() + name + quoteChar();
+        return delimited(name);
     }
 
     /** ALIAS/label positions ({@code AS x}, VALUES column lists) —

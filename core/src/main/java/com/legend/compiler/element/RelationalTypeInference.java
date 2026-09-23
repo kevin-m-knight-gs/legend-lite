@@ -269,8 +269,7 @@ public final class RelationalTypeInference {
         var td = ctx.findTableDefinition(dbFqn, table);
         if (td.isPresent()) {
             for (var c : td.get().columns()) {
-                if (c.name().equals(column)
-                        || (c.quoted() && ("\"" + c.name() + "\"").equals(column))) {
+                if (c.name().equals(column)) {
                     return c.dataType();
                 }
             }

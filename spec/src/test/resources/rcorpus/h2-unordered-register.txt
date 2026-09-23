@@ -808,6 +808,7 @@ unordered-chain meta::relational::tests::tds::groupBy::simpleFilterWithGroupByWi
 unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithAssociationWithJoinStrings
 unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithJoinStrings
 unordered-chain meta::relational::tests::tds::groupBy::testTDSGroupByEmptyColsNonTerminalOperation
+unordered-chain meta::relational::tests::tds::groupBy::testTableToTDSWithQuotedColumns
 unordered-chain meta::relational::tests::tds::tabletds::testSimpleConcatenate
 unordered-chain meta::relational::tests::tds::tdsConcatenate::testConcatenateWithJoin
 unordered-chain meta::relational::tests::tds::tdsConcatenate::testConcatenateWithPostOperation1
