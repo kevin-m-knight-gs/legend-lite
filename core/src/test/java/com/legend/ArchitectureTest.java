@@ -537,14 +537,19 @@ final class ArchitectureTest {
      *  at the type level. Measured zero before the rule; the rule keeps it. */
     @Test
     void upstreamJavaNeverEntersCore() {
-        JavaClasses mainAndTests = new ClassFileImporter().importPackages("com.legend");
-        noClasses()
+        // main AND tests: the production import already read, plus this test
+        // tree alone (re-importing everything re-parsed every class)
+        JavaClasses thisTestTree = new ClassFileImporter()
+                .withImportOption(location -> !notThisTestTree(location))
+                .importPackages("com.legend");
+        var rule = noClasses()
             .that().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "org.finos.legend..")
             .as("the upstream boundary: core imports no org.finos.legend class"
-                    + " (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B)")
-            .check(mainAndTests);
+                    + " (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B)");
+        rule.check(CORE_PROD_CLASSES);
+        rule.check(thisTestTree);
     }
 
     /** Invariant 5 as an ALLOWLIST: lowering's whole dependency surface. */

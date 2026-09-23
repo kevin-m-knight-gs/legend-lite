@@ -342,11 +342,7 @@ class CodeShapeGuardrailTest {
             // the spans makes recursion invisible to the use count
             // (ADVERSARIAL_TENET_AUDIT §3 probe: a dead RECURSIVE
             // method was green — `uses` counted its own self-call)
-            Matcher d = Pattern.compile(
-                    "(?m)^\\s*private\\s+(?:static\\s+|final\\s+"
-                    + "|synchronized\\s+|@[\\w.]+\\s+|<[^>]+>\\s+)*"
-                    + "[\\w.<>\\[\\], ?@]+\\s+(\\w+)\\(")
-                    .matcher(code);
+            Matcher d = PRIVATE_METHOD.matcher(code);
             java.util.Map<String, List<int[]>> spans =
                     new java.util.HashMap<>();
             while (d.find()) {
@@ -369,20 +365,26 @@ class CodeShapeGuardrailTest {
                 spans.computeIfAbsent(d.group(1),
                         k -> new ArrayList<>()).add(new int[]{d.start(), i});
             }
-            for (var e : spans.entrySet()) {
-                StringBuilder masked = new StringBuilder(code);
-                for (int[] s : e.getValue()) {
-                    for (int i = s[0]; i < s[1]; i++) {
-                        masked.setCharAt(i, ' ');
-                    }
+            // ONE pass over the file's calls (name( ) and references
+            // (::name): a private method is live when one of them falls
+            // OUTSIDE its own declarations' spans
+            java.util.Set<String> live = new java.util.HashSet<>();
+            Matcher u = CALL_OR_REF.matcher(code);
+            while (u.find()) {
+                int g = u.group(1) != null ? 1 : 2;
+                String name = u.group(g);
+                List<int[]> own = spans.get(name);
+                if (own == null || live.contains(name)) {
+                    continue;
                 }
-                String outside = masked.toString();
-                int uses = countMatches(outside,
-                        "\\b" + Pattern.quote(e.getKey()) + "\\s*\\(");
-                int refs = countMatches(outside,
-                        "::" + Pattern.quote(e.getKey()) + "\\b");
-                if (uses + refs == 0) {
-                    dead.add(cls + "." + e.getKey());
+                int at = u.start(g);
+                if (own.stream().noneMatch(sp -> at >= sp[0] && at < sp[1])) {
+                    live.add(name);
+                }
+            }
+            for (String name : spans.keySet()) {
+                if (!live.contains(name)) {
+                    dead.add(cls + "." + name);
                 }
             }
         }
@@ -464,14 +466,11 @@ class CodeShapeGuardrailTest {
         return out.toString();
     }
 
-    private static int countMatches(String code, String regex) {
-        Matcher m = Pattern.compile(regex).matcher(code);
-        int n = 0;
-        while (m.find()) {
-            n++;
-        }
-        return n;
-    }
+    private static final Pattern PRIVATE_METHOD = Pattern.compile(
+            "(?m)^\\s*private\\s+(?:static\\s+|final\\s+"
+            + "|synchronized\\s+|@[\\w.]+\\s+|<[^>]+>\\s+)*"
+            + "[\\w.<>\\[\\], ?@]+\\s+(\\w+)\\(");
+    private static final Pattern CALL_OR_REF = Pattern.compile("::(\\w+)\\b|\\b(\\w+)\\s*\\(");
 
     @Test
     void noMethodBeyondTheLimit() throws IOException {

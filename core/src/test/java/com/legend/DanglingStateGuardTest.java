@@ -58,6 +58,8 @@ class DanglingStateGuardTest {
             .filter(Files::isDirectory)
             .toList();
 
+    private static final Pattern WORD = Pattern.compile("[A-Za-z_]\\w*");
+
     /** A static field whose type is a mutable slot. Group 1 = the field name. */
     private static final Pattern SLOT_DECL = Pattern.compile(
             "^\\s*(?:public |protected |private )?static\\s+(?:final\\s+)?(?:volatile\\s+)?"
@@ -117,20 +119,31 @@ class DanglingStateGuardTest {
         }
         assertTrue(slots.size() >= 40, "slot census collapsed: " + slots.size()
                 + " static slots found — the declaration regex rotted");
+        // every file a word occurs in, from ONE pass over the sources: a
+        // slot's uses are searched only where its name occurs at all
+        Map<String, Set<Path>> filesByWord = new java.util.HashMap<>();
+        for (Map.Entry<Path, String> e : sources.entrySet()) {
+            Matcher w = WORD.matcher(e.getValue());
+            while (w.find()) {
+                filesByWord.computeIfAbsent(w.group(), k -> new java.util.LinkedHashSet<>())
+                        .add(e.getKey());
+            }
+        }
         Map<String, String> dangling = new TreeMap<>();
         for (Slot s : slots) {
             int reads = 0;
             int writes = 0;
-            for (Map.Entry<Path, String> e : sources.entrySet()) {
-                boolean own = e.getKey().equals(s.file());
-                // in the declaring file the bare name; elsewhere Class.NAME
-                Pattern use = Pattern.compile(own
-                        ? "(?<![\\w.])" + Pattern.quote(s.name()) + "\\b(\\s*\\.\\s*(\\w+)\\s*\\()?(\\s*=(?!=))?"
-                        : "\\b" + Pattern.quote(s.cls()) + "\\s*\\.\\s*" + Pattern.quote(s.name())
-                                + "\\b(\\s*\\.\\s*(\\w+)\\s*\\()?(\\s*=(?!=))?");
-                Matcher m = use.matcher(e.getValue());
+            // in the declaring file the bare name; elsewhere Class.NAME
+            Pattern ownUse = Pattern.compile("(?<![\\w.])" + Pattern.quote(s.name())
+                    + "\\b(\\s*\\.\\s*(\\w+)\\s*\\()?(\\s*=(?!=))?");
+            Pattern foreignUse = Pattern.compile("\\b" + Pattern.quote(s.cls()) + "\\s*\\.\\s*"
+                    + Pattern.quote(s.name()) + "\\b(\\s*\\.\\s*(\\w+)\\s*\\()?(\\s*=(?!=))?");
+            for (Path file : filesByWord.getOrDefault(s.name(), Set.of())) {
+                boolean own = file.equals(s.file());
+                String src = sources.get(file);
+                Matcher m = (own ? ownUse : foreignUse).matcher(src);
                 while (m.find()) {
-                    if (own && isDeclaration(e.getValue(), m.start())) {
+                    if (own && isDeclaration(src, m.start())) {
                         continue;
                     }
                     String method = m.group(2);
