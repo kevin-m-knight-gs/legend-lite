@@ -124,7 +124,18 @@ final class AssociationSynthesis {
                 boolean opOwner = owner0 != null
                         && (view.unionOf(owner0) != null
                                 || view.inheritanceOf(owner0) != null);
-                if (!unionTgt && !inheritanceTgt && !opOwner && bindingPossible) {
+                // an end whose written id names a NON-ROOT set navigates to
+                // THAT set (engine: the property mapping's source/target set
+                // ids); the class-level predicate pairs the classes' ROOT
+                // extents, so such a pair is routed onto its sets too
+                String tgtSetId = join.targetSetId() != null
+                        ? join.targetSetId() : apm.targetSetId();
+                ClassMapping tgtSet = tgtSetId == null ? null : view.set(tgtSetId);
+                ClassMapping srcSet = view.set(apm.sourceSetId());
+                boolean nonRootEnd = (tgtSet != null && !view.isRootOrSole(tgtSet))
+                        || (srcSet != null && !view.isRootOrSole(srcSet));
+                if (!unionTgt && !inheritanceTgt && !opOwner && !nonRootEnd
+                        && bindingPossible) {
                     continue;   // plain pair: the predicate path
                 }
                 // an end whose class cannot ANCHOR a predicate (an Operation-
@@ -445,7 +456,15 @@ final class AssociationSynthesis {
         // (A,B)->Boolean predicate — no binding is emitted, and NAVIGATING
         // the association stays loud at resolve time ("association not
         // mapped in mapping"). Declaring it is not an error.
-        EndAnchors anchors = endAnchors(md, classA, classB, firstJoin, model);
+        // ENGINE RULE: an end written with a set id (prop[sourceId, targetId])
+        // anchors on THAT set (RelationalValidator.validateAssociationId); an
+        // end without one keeps the class rule below
+        String srcId = firstAm.sourceSetId();
+        String tgtId = firstJoin.targetSetId() != null
+                ? firstJoin.targetSetId() : firstAm.targetSetId();
+        boolean onProperty1 = ad.property1().propertyName().equals(firstAm.propertyName());
+        EndAnchors anchors = endAnchors(md, classA, classB,
+                onProperty1 ? tgtId : srcId, onProperty1 ? srcId : tgtId, firstJoin, model);
         if (anchors == null) {
             // WITHHELD, with the reason recorded: navigating this association
             // is loud at resolve time, and before audit 2026-09-15 P3-3 the
@@ -561,10 +580,11 @@ final class AssociationSynthesis {
     }
 
     private static @com.legend.Nullable EndAnchors endAnchors(
-            ResolvedMapping md, String classA, String classB, PropertyMapping.Join join,
-            ModelBuilder model) {
-        LegacyMappingDefinition.TableReference a = anchorTableOf(md, classA, model);
-        LegacyMappingDefinition.TableReference b = anchorTableOf(md, classB, model);
+            ResolvedMapping md, String classA, String classB,
+            @com.legend.Nullable String idA, @com.legend.Nullable String idB,
+            PropertyMapping.Join join, ModelBuilder model) {
+        LegacyMappingDefinition.TableReference a = endAnchor(md, classA, idA, model);
+        LegacyMappingDefinition.TableReference b = endAnchor(md, classB, idB, model);
         if (a != null && b != null) {
             return new EndAnchors(a, b);
         }
@@ -716,6 +736,50 @@ final class AssociationSynthesis {
             }
         }
         return null;
+    }
+
+    /** One end's anchor: the set its id names when written and resolvable
+     * (the engine's rule), else the class's ({@link #anchorTableOf}). An
+     * unresolvable id is only a WARNING in the engine
+     * (validateAssociationId's useWarning), so the class rule stands in. */
+    private static LegacyMappingDefinition.@com.legend.Nullable TableReference endAnchor(
+            ResolvedMapping md, String classFqn, @com.legend.Nullable String setId,
+            ModelBuilder model) {
+        if (setId != null) {
+            LegacyMappingDefinition.TableReference byId = anchorOfSet(md, setId);
+            if (byId != null) {
+                return byId;
+            }
+        }
+        return anchorTableOf(md, classFqn, model);
+    }
+
+    /** The table of the set {@code setId} names: a Relational set's
+     * ~mainTable, or — an EMBEDDED set, id {@code <ownerId>_<property>} —
+     * its owner's (engine findMainTableAlias: an embedded set shares its
+     * owner's main table). Null when the id names no such set. */
+    private static LegacyMappingDefinition.@com.legend.Nullable TableReference anchorOfSet(
+            ResolvedMapping md, String setId) {
+        if (md.set(setId) instanceof ClassMapping.Relational rcm) {
+            return mainTableOfSet(rcm);
+        }
+        for (int cut = setId.lastIndexOf('_'); cut > 0; cut = setId.lastIndexOf('_', cut - 1)) {
+            String prop = setId.substring(cut + 1);
+            if (md.set(setId.substring(0, cut)) instanceof ClassMapping.Relational owner
+                    && owner.propertyMappings().stream().anyMatch(pm ->
+                            (pm instanceof PropertyMapping.Embedded
+                                    || pm instanceof PropertyMapping.OtherwiseEmbedded)
+                                    && pm.propertyName().equals(prop))) {
+                return mainTableOfSet(owner);
+            }
+        }
+        return null;
+    }
+
+    private static LegacyMappingDefinition.@com.legend.Nullable TableReference mainTableOfSet(
+            ClassMapping.Relational rcm) {
+        return rcm.mainTable() != null ? rcm.mainTable()
+                : MappingNormalizer.inferMainTableQuiet(rcm);
     }
 
     /** {@link #anchorTableOf}'s table NAME — loud when unresolvable (the

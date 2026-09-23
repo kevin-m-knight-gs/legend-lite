@@ -19,16 +19,16 @@ import java.util.Map;
  *       schema in order.</li>
  *   <li>{@code SCHEMA.T} is schema {@code SCHEMA}'s table {@code T} only,
  *       the first such schema declaring it.</li>
- *   <li>{@code default.T} is the flat list's {@code T} (ENGINE PARITY,
- *       RelationalParseTreeWalker:149: a database's top-level tables ARE
- *       schema 'default'), then an explicit {@code Schema default(...)}
- *       block's.</li>
+ *   <li>{@code default.T} is a TOP-LEVEL table {@code T} only (ENGINE
+ *       PARITY, RelationalParseTreeWalker:149: a database's top-level
+ *       tables ARE schema 'default' — a named schema's table is not), then
+ *       an explicit {@code Schema default(...)} block's.</li>
  * </ul>
  * Names compare exactly.
  */
 final class TableIndex {
 
-    private final Map<String, TableDefinition> flat = new HashMap<>();
+    private final Map<String, TableDefinition> top = new HashMap<>();
     private final Map<String, TableDefinition> bare = new HashMap<>();
     private final Map<String, Map<String, TableDefinition>> bySchema = new HashMap<>();
 
@@ -38,8 +38,10 @@ final class TableIndex {
     static TableIndex of(DatabaseDefinition db) {
         TableIndex ix = new TableIndex();
         for (TableDefinition t : db.tables()) {
-            ix.flat.putIfAbsent(t.name(), t);
             ix.bare.putIfAbsent(t.name(), t);
+        }
+        for (TableDefinition t : db.defaultSchemaTables()) {
+            ix.top.putIfAbsent(t.name(), t);
         }
         for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
             Map<String, TableDefinition> own =
@@ -61,9 +63,9 @@ final class TableIndex {
         String schema = name.substring(0, dot);
         String table = name.substring(dot + 1);
         if (schema.equals("default")) {
-            TableDefinition top = flat.get(table);
-            if (top != null) {
-                return top;
+            TableDefinition hit = top.get(table);
+            if (hit != null) {
+                return hit;
             }
         }
         Map<String, TableDefinition> own = bySchema.get(schema);
