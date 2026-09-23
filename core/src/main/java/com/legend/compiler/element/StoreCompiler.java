@@ -26,62 +26,6 @@ public final class StoreCompiler {
     private StoreCompiler() {
     }
 
-    /** The schema of {@code name} within {@code db} — top-level tables first, then each schema's. */
-    static Optional<Type.RelationType> resolveTable(DatabaseDefinition db, String name) {
-        // a VIEW is not a table: it is a lifted relation function (E.5),
-        // typed through its body by TableReferenceChecker
-        return findTableDef(db, name).map(StoreCompiler::tableSchema);
-    }
-
-    public static Optional<DatabaseDefinition.TableDefinition> findTableDef(
-            DatabaseDefinition db, String name) {
-        // A DOTTED name is schema-qualified (~mainTable [db] hr.EMPLOYEES):
-        // match the named schema's table only.
-        int dot = name.indexOf('.');
-        if (dot > 0) {
-            String schemaName = name.substring(0, dot);
-            String tableName = name.substring(dot + 1);
-            if (schemaName.equals("default")) {
-                // ENGINE PARITY (RelationalParseTreeWalker:149): a
-                // database's top-level tables ARE schema 'default' — the
-                // qualified spelling resolves ONLY those (audit 22b F4:
-                // the bare-name fallback found same-named tables in OTHER
-                // schemas where the engine's schema('default')->table()
-                // fails loud). An EXPLICIT Schema default(...) block
-                // counts too.
-                for (var t : db.tables()) {
-                    if (t.name().equals(tableName)) {
-                        return Optional.of(t);
-                    }
-                }
-            }
-            for (var s : db.schemas()) {
-                if (!s.name().equals(schemaName)) {
-                    continue;
-                }
-                for (var t : s.tables()) {
-                    if (t.name().equals(tableName)) {
-                        return Optional.of(t);
-                    }
-                }
-            }
-            return Optional.empty();
-        }
-        for (var t : db.tables()) {
-            if (t.name().equals(name)) {
-                return Optional.of(t);
-            }
-        }
-        for (var s : db.schemas()) {
-            for (var t : s.tables()) {
-                if (t.name().equals(name)) {
-                    return Optional.of(t);
-                }
-            }
-        }
-        return Optional.empty();
-    }
-
     /** A table's columns as a bare {@link Type.RelationType} row-struct (doc §G-α). */
     static Type.RelationType tableSchema(DatabaseDefinition.TableDefinition table) {
         List<Type.Column> columns = new ArrayList<>(table.columns().size());

@@ -181,6 +181,9 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
      * for per-schema views.
      */
     private final Map<Integer, Map<String, IndexedView>> viewsByDb = new HashMap<>();
+    /** Per-database tables by spelling ({@link TableIndex}), built at ingest
+     * beside the join and view indexes. */
+    private final Map<Integer, TableIndex> tablesByDb = new HashMap<>();
     private final Map<Integer, List<IndexedView>> viewsInOrder = new HashMap<>();
 
     /**
@@ -398,6 +401,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     private void ingestDatabase(DatabaseDefinition db) {
         int id = internElement(db.qualifiedName());
         putAtId(databases, id, db);
+        tablesByDb.put(id, TableIndex.of(db));
         // Precompute filter, join, and view secondary indexes.
         if (!db.filters().isEmpty() || !db.multiGrainFilters().isEmpty()) {
             Map<String, FilterDefinition> byName = new HashMap<>();
@@ -1013,8 +1017,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
         if (db == null) {
             return Optional.empty();
         }
-        Optional<DatabaseDefinition.TableDefinition> own =
-                com.legend.compiler.element.StoreCompiler.findTableDef(db, name);
+        Optional<DatabaseDefinition.TableDefinition> own = ownTable(dbFqn, name);
         if (own.isPresent()) {
             return own;
         }
@@ -1025,6 +1028,13 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
             }
         }
         return Optional.empty();
+    }
+
+    /** The TABLE {@code name} declared in database {@code dbFqn} itself (its
+     *  includes not consulted), by {@link TableIndex}'s spelling rules. */
+    public Optional<DatabaseDefinition.TableDefinition> ownTable(String dbFqn, String name) {
+        TableIndex tables = tablesByDb.get(symbols.resolveId(dbFqn));
+        return tables == null ? Optional.empty() : Optional.ofNullable(tables.find(name));
     }
 
     /** {@link #findView} by schema and name: the {@code default} schema (or

@@ -319,8 +319,7 @@ final class ModelIntegrity {
     private static void checkColumnRef(com.legend.model.DatabaseDefinition db,
             ModelBuilder model,
             com.legend.model.RelationalOperation.ColumnRef cr, String site) {
-        var table = findTableInClosure(model, db, cr.table(),
-                new java.util.HashSet<>());
+        var table = model.findTableDefinition(db.qualifiedName(), cr.table());
         if (table.isPresent()) {
             if (!hasColumn(table.get(), cr.column())) {
                 throw new com.legend.error.ModelException(
@@ -380,26 +379,4 @@ final class ModelIntegrity {
         return false;
     }
 
-    private static java.util.Optional<com.legend.model.DatabaseDefinition.TableDefinition>
-            findTableInClosure(ModelBuilder model,
-                    com.legend.model.DatabaseDefinition db, String name,
-                    java.util.Set<String> seen) {
-        if (!seen.add(db.qualifiedName())) {
-            return java.util.Optional.empty();
-        }
-        var own = StoreCompiler.findTableDef(db, name);
-        if (own.isPresent()) {
-            return own;
-        }
-        for (String inc : db.includes()) {
-            var included = model.findDatabase(inc);
-            if (included.isPresent()) {
-                var hit = findTableInClosure(model, included.get(), name, seen);
-                if (hit.isPresent()) {
-                    return hit;
-                }
-            }
-        }
-        return java.util.Optional.empty();
-    }
 }

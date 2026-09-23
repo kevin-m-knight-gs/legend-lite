@@ -352,61 +352,25 @@ public final class KnowledgeLayer {
     }
 
     /** The physical TABLE behind a mapping's table spelling in database
-     * {@code dbFqn}: schema-aware ({@code SCHEMA.T} matches the named
-     * schema's table only; a bare name matches the top level and every
-     * schema), case-insensitive on the table name, the database's own
-     * tables first then its includes, transitively. Empty for a null
-     * spelling, an unknown database, or a view. */
+     * {@code dbFqn}: {@link ModelBuilder#findTableDefinition}, the one table
+     * lookup ({@code SCHEMA.T} is the named schema's table only, a bare
+     * name the top level's then each schema's; names compare exactly, as
+     * the engine's do), the database's own tables first then its includes,
+     * transitively. Empty for a null spelling, an unknown database, or a
+     * view. */
     public Optional<DatabaseDefinition.TableDefinition> table(
             @com.legend.Nullable String dbFqn, @com.legend.Nullable String table) {
         if (dbFqn == null || table == null) {
             return Optional.empty();
         }
-        String t = canonicalTable(table);
-        String schema = null;
-        int dot = t.indexOf('.');
-        if (dot > 0) {
-            schema = t.substring(0, dot);
-            t = t.substring(dot + 1);
-        }
-        return Optional.ofNullable(table(dbFqn, schema, t, new java.util.HashSet<>()));
+        return model.findTableDefinition(dbFqn, table);
     }
 
-    private DatabaseDefinition.@com.legend.Nullable TableDefinition table(String dbFqn,
-            @com.legend.Nullable String schema, String table, java.util.Set<String> seen) {
-        if (!seen.add(dbFqn)) {
-            return null;
-        }
-        DatabaseDefinition db = model.findDatabase(dbFqn).orElse(null);
-        if (db == null) {
-            return null;
-        }
-        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>(db.tables());
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            if (schema == null || s.name().equals(schema)) {
-                tables.addAll(s.tables());
-            }
-        }
-        for (DatabaseDefinition.TableDefinition td : tables) {
-            if (td.name().equalsIgnoreCase(table)) {
-                return td;
-            }
-        }
-        for (String inc : db.includes()) {
-            DatabaseDefinition.TableDefinition hit = table(inc, schema, table, seen);
-            if (hit != null) {
-                return hit;
-            }
-        }
-        return null;
-    }
-
-    /** The physical COLUMN {@code column} of {@link #table}, case-insensitive
-     * on the column name; the same include walk. */
+    /** The physical COLUMN {@code column} of {@link #table}, by exact name. */
     public Optional<DatabaseDefinition.ColumnDefinition> column(
             @com.legend.Nullable String dbFqn, @com.legend.Nullable String table, String column) {
         return table(dbFqn, table).flatMap(td -> td.columns().stream()
-                .filter(cd -> cd.name().equalsIgnoreCase(column)).findFirst());
+                .filter(cd -> cd.name().equals(column)).findFirst());
     }
 
     /** The pure KIND ("String", "Integer", …; {@link RelationalKinds}) of a

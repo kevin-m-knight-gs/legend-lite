@@ -553,7 +553,7 @@ public final class PureModelContext implements ModelContext {
     private Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             milestoningWithIncludes(com.legend.model.DatabaseDefinition db,
                     String name, java.util.Set<String> seen) {
-        var own = StoreCompiler.findTableDef(db, name)
+        var own = model.ownTable(db.qualifiedName(), name)
                 .map(com.legend.model.DatabaseDefinition.TableDefinition::milestoning);
         if (own.isPresent() && own.get() != null) {
             return Optional.of(own.get());

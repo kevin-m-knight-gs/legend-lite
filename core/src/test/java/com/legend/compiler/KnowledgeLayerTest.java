@@ -220,15 +220,16 @@ class KnowledgeLayerTest {
                 Database w::Top ( include w::Base
                   Table LOCAL (ID INTEGER PRIMARY KEY, WHEN_ TIMESTAMP) )
                 """);
-        // include walk, case-insensitive table and column names
-        assertTrue(k.table("w::Top", "dept").isPresent());
-        assertEquals("TITLE", k.column("w::Top", "DEPT", "title").orElseThrow().name());
+        // include walk; table and column names compare exactly, as the engine's do
+        assertTrue(k.table("w::Top", "DEPT").isPresent());
+        assertTrue(k.table("w::Top", "dept").isEmpty());
+        assertEquals("TITLE", k.column("w::Top", "DEPT", "TITLE").orElseThrow().name());
+        assertTrue(k.column("w::Top", "DEPT", "title").isEmpty());
         // a dotted spelling names the schema's table only; a bare name reaches every schema
         assertTrue(k.table("w::Top", "hr.EMP").isPresent());
         assertTrue(k.table("w::Top", "EMP").isPresent());
-        // (a WRONG schema qualifier still resolves: the parser also lists every
-        // schema's tables at the database's top level, which the walk always
-        // searches — the rule the shadow had; the engine refuses it. Owed.)
+        // a WRONG schema qualifier resolves nothing (the engine refuses it)
+        assertTrue(k.table("w::Top", "sales.EMP").isEmpty());
         assertTrue(k.table("w::Top", "default.DEPT").isPresent());
         assertTrue(k.table("w::Top", null).isEmpty());
         assertTrue(k.table("w::Nowhere", "DEPT").isEmpty());

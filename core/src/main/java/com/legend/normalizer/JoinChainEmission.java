@@ -620,8 +620,13 @@ final class JoinChainEmission {
         // (classMappingFilterWithInnerJoin's milestongingDB includes the
         // milestoning db that declares ProductTable.exchange)
         // a slot named after the platform's RELATION accessors (`columns`,
-        // `rows`) would read as the accessor on the row var — mint clear
-        boolean collides = model.knowledge().column(mainDb, tableName, propName).isPresent()
+        // `rows`) would read as the accessor on the row var — mint clear.
+        // The column test ignores case: the slot and the column share one
+        // SQL row, where an unquoted `mid` and `MID` are the same name.
+        boolean collides = model.knowledge().table(mainDb, tableName)
+                        .map(td -> td.columns().stream()
+                                .anyMatch(cd -> cd.name().equalsIgnoreCase(propName)))
+                        .orElse(false)
                 || propName.equals("columns")
                 || propName.equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER);
         String alias = collides ? propName + "_nav" : propName;
