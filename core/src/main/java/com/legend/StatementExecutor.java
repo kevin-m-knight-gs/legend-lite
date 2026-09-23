@@ -1458,9 +1458,7 @@ final class StatementExecutor {
                         env);
                 }
             }
-            PlanAllocations.registerActivityRows(ec,
-                    PlanAllocations.activitySql(ec, envelope, letPrefix, specs, env),
-                    AggAwareActivities.rewrittenQuery(envelope, env.ctx(), specs),
+            PlanAllocations.registerActivityRows(ec, envelope, letPrefix, specs,
                     activityComment(lqRun, env), env);
             return new ExecFrame(envelope, false, lqRun, env.tableReplace(), ec);
         }
@@ -1513,9 +1511,7 @@ final class StatementExecutor {
             run = executeTyped(body, env);
             }
         }
-        PlanAllocations.registerActivityRows(ec,
-                PlanAllocations.activitySql(ec, assembled.chain(), letPrefix, specs, env),
-                AggAwareActivities.rewrittenQuery(assembled.chain(), env.ctx(), specs),
+        PlanAllocations.registerActivityRows(ec, assembled.chain(), letPrefix, specs,
                 activityComment(run, env), env);
         // leg 3.4 step 2: a relation-rooted frame of STATIC schema that ran
         // (eager) is also PLANNED once — every assert side that reads it

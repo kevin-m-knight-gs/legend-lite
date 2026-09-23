@@ -64,6 +64,10 @@ class CodeShapeGuardrailTest {
             // same lifecycle as the inliner (the compile artifact); it
             // exists so a program-sized tree walk walls instead of hanging
             "UserCallInliner.spent",
+            // a LAZY value (2026-09-23): an execute() call's activity rows
+            // carry a second render of its chain, computed on the first
+            // read and kept — set once, never reassigned after
+            "LazyRows.computed",
             // the SEGMENT WALK's state object (block-compiler stage 3, 2026-09-21):
             // the open effect segment — its sink and the ordinals of the body's
             // statements it spans — and whether the last statement was a value;

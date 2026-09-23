@@ -276,12 +276,27 @@ final class PlanAllocations {
      * run records none), and no rewritten query is printed from Java
      * (the routed query as rows is its own leg). */
     static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
-            @com.legend.Nullable String sql, @com.legend.Nullable String rewrittenQuery,
+            com.legend.compiler.spec.typed.TypedSpec chain,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs,
             @com.legend.Nullable String comment,
             StatementExecutor.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(ec);
-        if (sql == null || env.planRows().containsKey(scope)) {
+        if (env.planRows().containsKey(scope)) {
             return;
+        }
+        // the SQL is a second render of the chain: computed only if a
+        // program reads the result's activities (no SQL = no rows, as ever)
+        env.planRows().put(scope, new com.legend.plan.LazyRows(
+                () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
+                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment)));
+    }
+
+    private static java.util.@com.legend.Nullable Map<String, java.util.List<java.util.List<String>>>
+            activityRows(String scope, @com.legend.Nullable String sql,
+                    @com.legend.Nullable String rewrittenQuery, @com.legend.Nullable String comment) {
+        if (sql == null) {
+            return null;
         }
         java.util.Map<String, java.util.List<java.util.List<String>>> rows =
                 new java.util.LinkedHashMap<>();
@@ -298,7 +313,7 @@ final class PlanAllocations {
         acts.add(java.util.List.of(scope + "/" + k, scope, Integer.toString(k),
                 "RelationalActivity", sql, comment == null ? "" : comment, ""));
         rows.put("activities", acts);
-        env.planRows().put(scope, rows);
+        return rows;
     }
 
     /** Every HANDLE native call inside a let's binding registers its rows

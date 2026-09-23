@@ -106,7 +106,25 @@ final class ConstructedInstances {
      * rows — PlanRows): registered under their scope id, read like any
      * constructed tree's. */
     void register(String id, Map<String, List<List<String>>> rows) {
-        rowsById.put(id, rows);
+        if (rows instanceof com.legend.plan.LazyRows lazy) {
+            pending.put(id, lazy);   // computed when first read
+        } else {
+            rowsById.put(id, rows);
+        }
+    }
+
+    /** Registered rows not yet computed ({@link com.legend.plan.LazyRows}). */
+    private final Map<String, com.legend.plan.LazyRows> pending = new LinkedHashMap<>();
+
+    /** Moves {@code id}'s pending rows into place (none: not registered). */
+    private void materialize(String id) {
+        com.legend.plan.LazyRows lazy = pending.remove(id);
+        if (lazy != null) {
+            Map<String, List<List<String>>> rows = lazy.rows();
+            if (rows != null) {
+                rowsById.put(id, rows);
+            }
+        }
     }
 
     private java.util.function.@com.legend.Nullable Function<
@@ -135,10 +153,12 @@ final class ConstructedInstances {
     }
 
     boolean has(String id) {
+        materialize(id);
         return rowsById.containsKey(id);
     }
 
     Map<String, List<List<String>>> rowsFor(String id) {
+        materialize(id);
         Map<String, List<List<String>>> rows = rowsById.get(id);
         return rows == null ? Map.of() : rows;
     }
