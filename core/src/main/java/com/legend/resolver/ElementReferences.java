@@ -204,13 +204,7 @@ final class ElementReferences {
         if (md == null || ctx.findClass(classFqn).isEmpty()) {
             return false;
         }
-        for (var cb : md.classBindings()) {
-            if (!cb.classFqn().equals(classFqn)
-                    && ctx.isSubtype(cb.classFqn(), classFqn)) {
-                return true;
-            }
-        }
-        return false;
+        return !md.bindings().ofClasses(ctx.subtree(classFqn)).isEmpty();
     }
 
 

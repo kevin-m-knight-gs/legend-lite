@@ -490,10 +490,9 @@ public final class ClassSources {
         if (!seen.add(mapping.qualifiedName())) {
             return null;
         }
-        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
-            if (setId.equals(setIdOf(cb))) {
-                return cb;
-            }
+        MappingDefinition.ClassBinding own = mapping.bindings().withSetId(setId);
+        if (own != null) {
+            return own;
         }
         for (MappingInclude inc : mapping.includes()) {
             MappingDefinition included = ctx.findMapping(inc.mappingPath()).orElse(null);
@@ -518,10 +517,9 @@ public final class ClassSources {
         if (!seen.add(mapping.qualifiedName())) {
             return null;
         }
-        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
-            if (functionFqn.equals(cb.functionFqn())) {
-                return cb;
-            }
+        MappingDefinition.ClassBinding own = mapping.bindings().realizedBy(functionFqn);
+        if (own != null) {
+            return own;
         }
         for (MappingInclude inc : mapping.includes()) {
             MappingDefinition included = ctx.findMapping(inc.mappingPath()).orElse(null);
@@ -792,11 +790,8 @@ public final class ClassSources {
         // downstream). Local bindings only — extends is same-mapping.
         Map<String, com.legend.compiler.spec.typed.TypedNavigate>
                 stcNavTransplants = new LinkedHashMap<>();
-        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
-            if (cb.classFqn().equals(classFqn)
-                    || !ctx.isSubtype(cb.classFqn(), classFqn)) {
-                continue;
-            }
+        for (MappingDefinition.ClassBinding cb
+                : mapping.bindings().ofClasses(ctx.subtree(classFqn))) {
             ClassSource sub;
             try {
                 sub = get(mappingFqn, cb.classFqn(), null);
@@ -1255,10 +1250,8 @@ public final class ClassSources {
         if (!visited.add(mapping.qualifiedName())) {
             return false;
         }
-        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
-            if (cb.classFqn().equals(classFqn)) {
-                return true;
-            }
+        if (!mapping.bindings().ofClass(classFqn).isEmpty()) {
+            return true;
         }
         for (MappingInclude inc : mapping.includes()) {
             MappingDefinition inner = ctx.findMapping(inc.mappingPath()).orElseThrow(() ->
@@ -1391,9 +1384,8 @@ public final class ClassSources {
                                                        @com.legend.Nullable String setId,
                                                        LinkedHashSet<String> visited) {
         List<MappingDefinition.ClassBinding> local = new ArrayList<>();
-        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
-            if (cb.classFqn().equals(classFqn)
-                    && (setId == null || setId.equals(cb.setId()))) {
+        for (MappingDefinition.ClassBinding cb : mapping.bindings().ofClass(classFqn)) {
+            if (setId == null || setId.equals(cb.setId())) {
                 local.add(cb);
             }
         }

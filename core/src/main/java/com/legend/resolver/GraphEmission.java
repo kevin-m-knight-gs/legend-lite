@@ -3211,7 +3211,7 @@ final class GraphEmission {
         // own javadoc states and the binding lookup applies; it used to scan
         // the includes FIRST, so a class bound in both named the include
         // (audit 2026-09-15 P2-3)
-        if (m.classBindings().stream().anyMatch(cb -> cb.classFqn().equals(classFqn))) {
+        if (!m.bindings().ofClass(classFqn).isEmpty()) {
             return mappingFqn;
         }
         for (var inc : m.includes()) {

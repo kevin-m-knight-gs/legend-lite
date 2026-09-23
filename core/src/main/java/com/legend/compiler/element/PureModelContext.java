@@ -122,6 +122,11 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Set<String> subtree(String baseFqn) {
+        return model.knowledge().subtree(baseFqn);
+    }
+
+    @Override
     public boolean isSubtype(String childFqn, String parentFqn) {
         SubtypeMemo memo = derived(SubtypeMemo.class, c -> new SubtypeMemo());
         String key = childFqn + '\u0000' + parentFqn;

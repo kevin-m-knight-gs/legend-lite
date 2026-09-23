@@ -344,6 +344,12 @@ public interface ModelContext extends StoreLookups {
      * since the bootstrap primitive lattice (Integer &lt; Number &lt; Any) is
      * carried as {@link TypedClass} superclass chains.
      */
+    /** Every STRICT subclass of {@code baseFqn}, graph and platform catalog,
+     * discovery order: {@link #isSubtype}'s relation walked downward, so
+     * "the subclasses of X" is a walk of X's subtree, never a subtype test
+     * of every class. */
+    java.util.Set<String> subtree(String baseFqn);
+
     default boolean isSubtype(String childFqn, String parentFqn) {
         return isSubtype(childFqn, parentFqn, new java.util.HashSet<>());
     }

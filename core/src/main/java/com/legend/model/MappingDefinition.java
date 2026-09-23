@@ -104,7 +104,7 @@ public record MappingDefinition(
         Objects.requireNonNull(facts, "facts");
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         includes = includes == null ? List.of() : List.copyOf(includes);
-        classBindings = classBindings == null ? List.of() : List.copyOf(classBindings);
+        classBindings = ClassBindings.of(classBindings == null ? List.of() : classBindings);
         associationBindings = associationBindings == null ? List.of() : List.copyOf(associationBindings);
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
         // original store FQN -> resolved store FQN: the engine's
@@ -114,6 +114,81 @@ public record MappingDefinition(
         // mapping_store_resolutions projects it
         resolvedStores = resolvedStores == null
                 ? java.util.Map.of() : java.util.Map.copyOf(resolvedStores);
+    }
+
+    /** The class bindings keyed the ways a resolver asks of them (the
+     * {@link #classBindings()} list itself, in declaration order). */
+    public ClassBindings bindings() {
+        return (ClassBindings) classBindings;
+    }
+
+    /**
+     * A mapping's OWN class bindings in declaration order, keyed as they are
+     * asked for — by class, by effective set id ({@link SetId}), by realizing
+     * function — when the mapping is built, so a lookup never walks the
+     * bindings. An immutable list: equal to any list of the same bindings.
+     */
+    public static final class ClassBindings extends java.util.AbstractList<ClassBinding>
+            implements java.util.RandomAccess {
+
+        private final List<ClassBinding> all;
+        private final java.util.Map<String, List<ClassBinding>> byClass = new java.util.HashMap<>();
+        private final java.util.Map<String, ClassBinding> bySetId = new java.util.HashMap<>();
+        private final java.util.Map<String, ClassBinding> byFunction = new java.util.HashMap<>();
+        /** Each binding's declaration position (by identity: two bindings may be equal). */
+        private final java.util.Map<ClassBinding, Integer> position = new java.util.IdentityHashMap<>();
+
+        private ClassBindings(List<ClassBinding> all) {
+            this.all = all;
+            for (int i = 0; i < all.size(); i++) {
+                ClassBinding cb = all.get(i);
+                position.put(cb, i);
+                byClass.computeIfAbsent(cb.classFqn(), k -> new java.util.ArrayList<>()).add(cb);
+                bySetId.putIfAbsent(SetId.of(cb), cb);
+                byFunction.putIfAbsent(cb.functionFqn(), cb);
+            }
+            byClass.replaceAll((k, v) -> List.copyOf(v));
+        }
+
+        static ClassBindings of(List<ClassBinding> bindings) {
+            return bindings instanceof ClassBindings cb ? cb : new ClassBindings(List.copyOf(bindings));
+        }
+
+        @Override
+        public ClassBinding get(int index) {
+            return all.get(index);
+        }
+
+        @Override
+        public int size() {
+            return all.size();
+        }
+
+        /** {@code classFqn}'s bindings, declaration order; empty when none. */
+        public List<ClassBinding> ofClass(@com.legend.Nullable String classFqn) {
+            List<ClassBinding> hit = classFqn == null ? null : byClass.get(classFqn);
+            return hit == null ? List.of() : hit;
+        }
+
+        /** The first binding whose effective set id is {@code setId}, else null. */
+        public @com.legend.Nullable ClassBinding withSetId(String setId) {
+            return bySetId.get(setId);
+        }
+
+        /** The first binding realized by {@code functionFqn}, else null. */
+        public @com.legend.Nullable ClassBinding realizedBy(String functionFqn) {
+            return byFunction.get(functionFqn);
+        }
+
+        /** The bindings of any class in {@code classes}, declaration order. */
+        public List<ClassBinding> ofClasses(java.util.Collection<String> classes) {
+            List<ClassBinding> hits = new java.util.ArrayList<>();
+            for (String c : classes) {
+                hits.addAll(ofClass(c));
+            }
+            hits.sort(java.util.Comparator.comparingInt(position::get));
+            return hits;
+        }
     }
 
     /**

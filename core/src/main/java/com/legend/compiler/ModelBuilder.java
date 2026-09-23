@@ -645,9 +645,12 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
                 if (cd == null) {
                     continue;
                 }
+                // bare and generic heads alike (extends Foo<T> IS a
+                // superclass) — the relation isSubtype walks upward
                 for (TypeExpression sup : cd.superClasses()) {
-                    if (sup instanceof TypeExpression.NameRef nr) {
-                        index.computeIfAbsent(nr.name(), k -> new ArrayList<>())
+                    String head = TypeExpression.rawClassName(sup);
+                    if (head != null) {
+                        index.computeIfAbsent(head, k -> new ArrayList<>())
                                 .add(cd.qualifiedName());
                     }
                 }

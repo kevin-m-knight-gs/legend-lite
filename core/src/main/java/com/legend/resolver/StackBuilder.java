@@ -1701,8 +1701,7 @@ final class StackBuilder {
             String classFqn) {
         MappingDefinition.ClassBinding tb = findBinding(mapping, classFqn);
         if (tb == null) {
-            List<MappingDefinition.ClassBinding> own = mapping.classBindings().stream()
-                    .filter(cb -> cb.classFqn().equals(classFqn)).toList();
+            List<MappingDefinition.ClassBinding> own = mapping.bindings().ofClass(classFqn);
             if (own.size() != 1) {
                 return null;
             }
