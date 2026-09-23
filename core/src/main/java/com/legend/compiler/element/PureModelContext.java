@@ -567,6 +567,12 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public Optional<com.legend.model.DatabaseDefinition.TableDefinition>
+            findOwnTableDefinition(String dbFqn, String name) {
+        return model.findOwnTableDefinition(dbFqn, name);
+    }
+
+    @Override
     public Optional<com.legend.model.DatabaseDefinition.ViewDefinition> findView(String dbFqn, String name) {
         return model.findView(dbFqn, name);
     }
@@ -610,7 +616,7 @@ public final class PureModelContext implements ModelContext {
     private Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             milestoningWithIncludes(com.legend.model.DatabaseDefinition db,
                     String name, java.util.Set<String> seen) {
-        var own = model.ownTable(db.qualifiedName(), name)
+        var own = model.findOwnTableDefinition(db.qualifiedName(), name)
                 .map(com.legend.model.DatabaseDefinition.TableDefinition::milestoning);
         if (own.isPresent() && own.get() != null) {
             return Optional.of(own.get());

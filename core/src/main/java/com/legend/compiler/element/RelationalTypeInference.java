@@ -246,10 +246,13 @@ public final class RelationalTypeInference {
         return null;
     }
 
-    /** The declared type of {@code table.column}: the op's OWN database
-     * (mapping expressions carry it) via ctx, else the scoping db —
-     * searching declared schemas and the top-level default; a VIEW's
-     * column resolves THROUGH its column expression (view-on-view). */
+    /** The declared type of {@code table.column}: in the op's OWN database
+     * when its {@code [db]} names one, else the scoping db — through the
+     * one table lookup (include closure, schema-qualified spellings, exact
+     * names); a VIEW's column resolves THROUGH its column expression
+     * (view-on-view). The op's own name is tried first as spelled: a
+     * legacy surface (the metamodel seed's input) still carries an
+     * UNQUALIFIED [db], which resolves to nothing and falls to the scope. */
     private static @com.legend.Nullable RelationalDataType columnType(
             @com.legend.Nullable DatabaseDefinition scope,
             @com.legend.Nullable StoreLookups ctx,
@@ -259,51 +262,25 @@ public final class RelationalTypeInference {
         if (opDb != null && ctx != null) {
             db = ctx.findDatabase(opDb).orElse(db);
         }
-        if (db == null) {
+        if (db == null || ctx == null) {
             return null;
         }
-        if (ctx != null) {
-            // THE index's lookup: include closure, schema-qualified spellings
-            // (a view's plain column in an included database — the census
-            // of 2026-09-22 found 21 columns this scan could not type)
-            var td = ctx.findTableDefinition(opDb != null ? opDb : db.qualifiedName(), table);
-            if (td.isPresent()) {
-                for (var c : td.get().columns()) {
-                    if (c.name().equals(column)
-                            || (c.quoted() && ("\"" + c.name() + "\"").equals(column))) {
-                        return c.dataType();
-                    }
+        String dbFqn = db.qualifiedName();
+        var td = ctx.findTableDefinition(dbFqn, table);
+        if (td.isPresent()) {
+            for (var c : td.get().columns()) {
+                if (c.name().equals(column)
+                        || (c.quoted() && ("\"" + c.name() + "\"").equals(column))) {
+                    return c.dataType();
                 }
             }
+            return null;
         }
-        List<DatabaseDefinition.TableDefinition> all = new ArrayList<>(
-                db.tables());
-        for (var s : db.schemas()) {
-            all.addAll(s.tables());
-        }
-        // ColumnRefs may spell schema-qualified names (default.T / S.T)
-        String bare = table.contains(".")
-                ? table.substring(table.lastIndexOf('.') + 1) : table;
-        for (var t : all) {
-            if (t.name().equalsIgnoreCase(bare)) {
-                for (var c : t.columns()) {
-                    if (c.name().equalsIgnoreCase(column)) {
-                        return c.dataType();
-                    }
-                }
-            }
-        }
-        List<DatabaseDefinition.ViewDefinition> vs = new ArrayList<>(
-                db.views());
-        for (var s : db.schemas()) {
-            vs.addAll(s.views());
-        }
-        for (var v : vs) {
-            if (v.name().equalsIgnoreCase(bare)) {
-                for (var cm : v.columnMappings()) {
-                    if (cm.name().equalsIgnoreCase(column)) {
-                        return infer(cm.expression(), db, ctx);
-                    }
+        var view = ctx.findView(dbFqn, table);
+        if (view.isPresent()) {
+            for (var cm : view.get().columnMappings()) {
+                if (cm.name().equals(column)) {
+                    return infer(cm.expression(), db, ctx);
                 }
             }
         }

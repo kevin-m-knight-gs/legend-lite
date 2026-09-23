@@ -1027,7 +1027,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
         if (db == null) {
             return Optional.empty();
         }
-        Optional<DatabaseDefinition.TableDefinition> own = ownTable(dbFqn, name);
+        Optional<DatabaseDefinition.TableDefinition> own = findOwnTableDefinition(dbFqn, name);
         if (own.isPresent()) {
             return own;
         }
@@ -1042,7 +1042,8 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
 
     /** The TABLE {@code name} declared in database {@code dbFqn} itself (its
      *  includes not consulted), by {@link TableIndex}'s spelling rules. */
-    public Optional<DatabaseDefinition.TableDefinition> ownTable(String dbFqn, String name) {
+    @Override
+    public Optional<DatabaseDefinition.TableDefinition> findOwnTableDefinition(String dbFqn, String name) {
         TableIndex tables = tablesByDb.get(symbols.resolveId(dbFqn));
         return tables == null ? Optional.empty() : Optional.ofNullable(tables.find(name));
     }

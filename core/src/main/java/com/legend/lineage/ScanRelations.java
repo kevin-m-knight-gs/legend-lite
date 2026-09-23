@@ -1120,19 +1120,9 @@ public final class ScanRelations {
         if (n.db == null || n.table == null) {
             return Set.of();
         }
-        DatabaseDefinition db = ctx.findDatabase(n.db).orElse(null);
-        if (db == null) {
-            return Set.of();
-        }
-        List<DatabaseDefinition.TableDefinition> tables =
-                new ArrayList<>(db.tables());
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            tables.addAll(s.tables());
-        }
-        for (DatabaseDefinition.TableDefinition td : tables) {
-            if (!td.name().equalsIgnoreCase(n.table) || td.milestoning() == null) {
-                continue;
-            }
+        DatabaseDefinition.TableDefinition td =
+                ctx.findTableDefinition(n.db, n.table).orElse(null);
+        if (td != null && td.milestoning() != null) {
             Set<String> out = new TreeSet<>();
             var ms = td.milestoning();
             if (ms.business() != null) {
@@ -1735,38 +1725,24 @@ public final class ScanRelations {
     /** PRIMARY KEY columns of {@code table} in {@code dbFqn}. */
     private static Set<String> pkCols(ModelContext ctx, String dbFqn,
             @com.legend.Nullable String table) {
-        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
-        if (db == null || table == null) {
+        if (table == null) {
             return Set.of();
         }
-        List<DatabaseDefinition.TableDefinition> tables =
-                new ArrayList<>(db.tables());
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            tables.addAll(s.tables());
-        }
         Set<String> out = new TreeSet<>();
-        tables.stream().filter(t -> t.name().equalsIgnoreCase(table))
-                .flatMap(t -> t.columns().stream())
+        ctx.findTableDefinition(dbFqn, table).ifPresent(t -> t.columns().stream()
                 .filter(DatabaseDefinition.ColumnDefinition::primaryKey)
-                .forEach(c -> out.add(c.name()));
+                .forEach(c -> out.add(c.name())));
         return out;
     }
 
     private static boolean tableHasCol(ModelContext ctx, String dbFqn,
             @com.legend.Nullable String table, String col) {
-        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
-        if (db == null || table == null) {
+        if (table == null) {
             return false;
         }
-        List<DatabaseDefinition.TableDefinition> tables =
-                new ArrayList<>(db.tables());
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            tables.addAll(s.tables());
-        }
-        return tables.stream()
-                .filter(t -> t.name().equalsIgnoreCase(table))
-                .flatMap(t -> t.columns().stream())
-                .anyMatch(c -> c.name().equals(col));
+        return ctx.findTableDefinition(dbFqn, table)
+                .map(t -> t.columns().stream().anyMatch(c -> c.name().equals(col)))
+                .orElse(false);
     }
 
     /** One property hop's mappings dispatch — shared by class-mapping hops

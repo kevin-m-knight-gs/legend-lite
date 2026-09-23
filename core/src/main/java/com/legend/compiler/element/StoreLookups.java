@@ -23,6 +23,10 @@ public interface StoreLookups {
      *  {@code dbFqn}, with its declared columns. */
     Optional<DatabaseDefinition.TableDefinition> findTableDefinition(String dbFqn, String name);
 
+    /** The TABLE {@code name} declared in {@code dbFqn} ITSELF (its
+     *  includes not consulted) — which database OWNS a table. */
+    Optional<DatabaseDefinition.TableDefinition> findOwnTableDefinition(String dbFqn, String name);
+
     /** The VIEW {@code name} ({@code V} or {@code SCHEMA.V}) reached from {@code dbFqn}. */
     Optional<DatabaseDefinition.ViewDefinition> findView(String dbFqn, String name);
 }

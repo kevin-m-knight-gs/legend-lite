@@ -363,17 +363,8 @@ public final class RelationalMapperRenames {
 
     private static boolean hasTable(ModelContext ctx, String dbFqn,
             String schema, String table) {
-        DatabaseDefinition db = ctx.findDatabase(dbFqn).orElse(null);
-        if (db == null) {
-            return false;
-        }
-        if ("default".equals(schema)) {
-            return db.tables().stream()
-                    .anyMatch(t -> t.name().equals(table));
-        }
-        return db.schemas().stream()
-                .filter(sd -> sd.name().equals(schema))
-                .anyMatch(sd -> sd.tables().stream()
-                        .anyMatch(t -> t.name().equals(table)));
+        // which candidate database OWNS the table: its own tables only
+        return ctx.findOwnTableDefinition(dbFqn,
+                "default".equals(schema) ? table : schema + "." + table).isPresent();
     }
 }

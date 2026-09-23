@@ -408,7 +408,7 @@ public final class KnowledgeLayer {
             // store stamps on every relational-operation row
             com.legend.model.RelationalDataType t =
                     com.legend.compiler.element.RelationalTypeInference.infer(
-                            vc.expression(), model.findDatabase(db).orElse(null), null);
+                            vc.expression(), model.findDatabase(db).orElse(null), model);
             return t == null ? null : RelationalKinds.pureKindOf(t);
         }
         return null;
