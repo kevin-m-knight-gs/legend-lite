@@ -1005,6 +1005,10 @@ class JavaEvalLedgerTest {
                     // seam an engine's own bulk API joins through. Egress
                     // only: nothing is typed, produced or compared here
                     "RowLoad.java", "BulkLoad.java",
+                    // datacube port (2026-09-23): the driver's ONE metadata read
+                    // (dialect resolution), moved out of Compiler so the plan
+                    // surface loads without java.sql; reads a name, computes nothing
+                    "JdbcMetadata.java",
                     // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
                     // construction — the statements the effect natives would have
                     // sent, collected (text + the ledger's text + a statically

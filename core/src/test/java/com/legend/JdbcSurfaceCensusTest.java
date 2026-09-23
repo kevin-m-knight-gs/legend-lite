@@ -88,6 +88,9 @@ class JdbcSurfaceCensusTest {
             // types each value, exactly as the text path's quoted literals
             "core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java",
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
+            // the driver's one metadata read, moved from Compiler: a java.sql
+            // catch clause there made the plan surface need java.sql (2026-09-23)
+            "core/src/main/java/com/legend/exec/JdbcMetadata.java",
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
             "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
@@ -418,6 +421,10 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/resolver/RoutedEquiJoinTest.java",
             "core/src/test/java/com/legend/resolver/RuntimeIfClassQueryTest.java",
             "core/src/test/java/com/legend/resolver/PivotOverClassQueryTest.java",
+            // names java.sql only to assert it ABSENT: runs the planner in a JVM
+            // limited to java.base (no connection, no statement)
+            "core/src/test/java/com/legend/PlannerRunsOnJavaBaseTest.java",
+            "core/src/test/java/com/legend/PlanOnJavaBase.java",   // its program: plans, prints; checks java.sql is absent
             "core/src/test/java/com/legend/exec/RowLoadTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java",
             "spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",

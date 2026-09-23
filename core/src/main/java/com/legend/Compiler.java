@@ -685,18 +685,12 @@ public final class Compiler {
         return h2d;
     }
 
-    /** The driver's ONE metadata read (dialect resolution), seam-
-     * translated: java.sql stops here like at every other boundary. */
+    /** The driver's ONE metadata read, at the JDBC boundary
+     * ({@link com.legend.exec.JdbcMetadata}): no java.sql catch clause here,
+     * so this class &mdash; the plan surface &mdash; loads without java.sql. */
     private static String metadata(java.sql.Connection connection,
             boolean product) {
-        try {
-            return product
-                    ? connection.getMetaData().getDatabaseProductName()
-                    : connection.getMetaData().getDatabaseProductVersion();
-        } catch (java.sql.SQLException e) {
-            throw new com.legend.error.DataError(
-                    String.valueOf(e.getMessage()), e);
-        }
+        return com.legend.exec.JdbcMetadata.read(connection, product);
     }
 
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
