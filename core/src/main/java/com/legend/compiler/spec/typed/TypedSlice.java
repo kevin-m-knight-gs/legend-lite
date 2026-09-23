@@ -14,7 +14,7 @@ import java.util.List;
  * @param stop   exclusive stop index
  * @param info   the source type unchanged
  */
-public record TypedSlice(TypedSpec source, TypedSpec start, TypedSpec stop, ExprType info) implements TypedSpec {
+public record TypedSlice(TypedSpec source, TypedSpec start, TypedSpec stop, ExprType info) implements TypedRelationOp {
     @Override
     public List<TypedSpec> children() {
         return List.of(source, start, stop);

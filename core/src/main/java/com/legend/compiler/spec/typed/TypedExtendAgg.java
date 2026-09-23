@@ -20,7 +20,7 @@ import java.util.List;
  *               extent's own rows, never the query-filtered subset.
  */
 public record TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType info,
-                             boolean extentBoundary) implements TypedSpec {
+                             boolean extentBoundary) implements TypedRelationOp {
     public TypedExtendAgg {
         aggs = List.copyOf(aggs);
     }

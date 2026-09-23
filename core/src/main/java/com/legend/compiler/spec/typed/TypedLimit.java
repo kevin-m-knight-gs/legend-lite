@@ -13,7 +13,7 @@ import java.util.List;
  * @param count  the row/element count expression
  * @param info   the source type unchanged
  */
-public record TypedLimit(TypedSpec source, TypedSpec count, ExprType info) implements TypedSpec {
+public record TypedLimit(TypedSpec source, TypedSpec count, ExprType info) implements TypedRelationOp {
     @Override
     public List<TypedSpec> children() {
         return List.of(source, count);

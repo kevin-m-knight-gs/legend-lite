@@ -23,7 +23,7 @@ import java.util.List;
  *                  LAST). {@link Stamp#NONE} for every user-written filter.
  */
 public record TypedFilter(TypedSpec source, TypedLambda predicate, ExprType info,
-        Stamp stamp) implements TypedSpec {
+        Stamp stamp) implements TypedRelationOp {
 
     /** Resolver provenance classes, in engine WHERE order. */
     public enum Stamp { NONE, CORRELATION, TEMPORAL }

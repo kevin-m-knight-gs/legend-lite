@@ -16,7 +16,7 @@ import java.util.List;
  * @param renames the ordered {@code old -> new} column renames
  * @param info    the result type &mdash; the renamed {@code RelationType[1]} (G-&alpha;)
  */
-public record TypedRename(TypedSpec source, List<ColRename> renames, ExprType info) implements TypedSpec {
+public record TypedRename(TypedSpec source, List<ColRename> renames, ExprType info) implements TypedRelationOp {
 
     public TypedRename {
         renames = List.copyOf(renames);

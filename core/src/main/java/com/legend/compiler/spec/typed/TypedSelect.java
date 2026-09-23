@@ -14,7 +14,7 @@ import java.util.List;
  * @param columns the selected column names, in output order (all of them for the no-arg form)
  * @param info    the result &mdash; {@code Relation<Z>} resolved to the concrete narrowed row
  */
-public record TypedSelect(TypedSpec source, List<String> columns, ExprType info) implements TypedSpec {
+public record TypedSelect(TypedSpec source, List<String> columns, ExprType info) implements TypedRelationOp {
     public TypedSelect {
         columns = List.copyOf(columns);
     }

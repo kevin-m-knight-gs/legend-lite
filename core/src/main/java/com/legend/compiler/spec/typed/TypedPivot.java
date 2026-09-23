@@ -23,7 +23,7 @@ import java.util.List;
  * @param info         the static half of the schema &mdash; the group-by columns, {@code [1]}
  */
 public record TypedPivot(TypedSpec source, List<String> pivotColumns, List<TypedSpec> values,
-                         List<TypedAggCol> aggs, ExprType info) implements TypedSpec {
+                         List<TypedAggCol> aggs, ExprType info) implements TypedRelationOp {
 
     public TypedPivot {
         pivotColumns = List.copyOf(pivotColumns);

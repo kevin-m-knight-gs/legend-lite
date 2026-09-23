@@ -530,41 +530,16 @@ public final class StoreResolver {
                     when anchored(pa.source())
                     && Type.schemaView(pa.source().info().type()) != null ->
                     structural(pa, context);
-            case TypedFilter f when anchored(f.source()) ->
-                    structural(f, context);
+            // every RELATION OPERATOR above a resolved class chain is a
+            // relation-space wrapper, rebuilt over its resolved source — named
+            // once (TypedRelationOp), so none can be missed (TypedPivot was)
+            case com.legend.compiler.spec.typed.TypedRelationOp op when anchored(op.source()) ->
+                    structural(op, context);
             case TypedSpec js when com.legend.compiler.spec.typed.TypedJsonAccess.isJsonNode(js) -> structural(js, context);
-            case TypedProject p when anchored(p.source()) ->
-                    structural(p, context);
-            case TypedSort s when anchored(s.source()) ->
-                    structural(s, context);
             case TypedCast c
                     when anchored(c.source())
                     && Type.isRelation(c.info().type()) ->
                     structural(c, context);
-            case TypedSortBy sb when anchored(sb.source()) ->
-                    structural(sb, context);
-            case TypedLimit l when anchored(l.source()) ->
-                    structural(l, context);
-            case TypedDrop d when anchored(d.source()) ->
-                    structural(d, context);
-            case TypedSlice s when anchored(s.source()) ->
-                    structural(s, context);
-            case TypedDistinct d when anchored(d.source()) ->
-                    structural(d, context);
-            case TypedGroupBy g when anchored(g.source()) ->
-                    structural(g, context);
-            case TypedAggregate a when anchored(a.source()) ->
-                    structural(a, context);
-            case TypedExtend e when anchored(e.source()) ->
-                    structural(e, context);
-            case TypedExtendWindow w when anchored(w.source()) ->
-                    structural(w, context);
-            case TypedExtendAgg e when anchored(e.source()) ->
-                    structural(e, context);
-            case TypedRename r when anchored(r.source()) ->
-                    structural(r, context);
-            case TypedSelect s when anchored(s.source()) ->
-                    structural(s, context);
             case TypedConcatenate c -> structural(c, context);
             // navigate keeps its TARGET verbatim (the navigation pipeline
             // is resolver OUTPUT vocabulary) — only the source resolves

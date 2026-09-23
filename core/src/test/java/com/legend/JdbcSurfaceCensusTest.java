@@ -417,6 +417,7 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/normalizer/AssociationSetIdTest.java",
             "core/src/test/java/com/legend/resolver/RoutedEquiJoinTest.java",
             "core/src/test/java/com/legend/resolver/RuntimeIfClassQueryTest.java",
+            "core/src/test/java/com/legend/resolver/PivotOverClassQueryTest.java",
             "core/src/test/java/com/legend/exec/RowLoadTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java",
             "spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",

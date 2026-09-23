@@ -49,10 +49,34 @@ class TypedSpecChildrenTest {
 
     private static final ModelContext CTX = Compiler.compileModel("");
 
+    /** Every node type: TypedSpec's permitted subclasses, flattened through its
+     *  sealed sub-interfaces (TypedRelationOp) — an interface is a KIND of node,
+     *  its records are the nodes, and none may drop out of these checks. */
+    static final List<Class<?>> NODES = nodes(TypedSpec.class);
+
+    private static List<Class<?>> nodes(Class<?> sealed) {
+        List<Class<?>> out = new ArrayList<>();
+        for (Class<?> c : sealed.getPermittedSubclasses()) {
+            if (c.isInterface()) {
+                out.addAll(nodes(c));
+            } else {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void everyNodeIsARecordReachedOnce() {
+        // the flattening loses and duplicates nothing
+        assertTrue(NODES.stream().allMatch(Class::isRecord), "a TypedSpec node that is not a record");
+        assertTrue(NODES.size() == new java.util.HashSet<>(NODES).size(), "a node reached twice");
+    }
+
     @Test
     void everyNodesChildrenCoverItsTypedSpecComponents() throws Exception {
         List<String> failures = new ArrayList<>();
-        for (Class<?> node : TypedSpec.class.getPermittedSubclasses()) {
+        for (Class<?> node : NODES) {
             TypedSpec instance = (TypedSpec) build(node);
             var expected = new ArrayList<TypedSpec>();
             for (RecordComponent rc : node.getRecordComponents()) {
@@ -76,7 +100,7 @@ class TypedSpecChildrenTest {
         // node from its own children yields an EQUAL node, for every
         // variant the sealed interface permits.
         List<String> failures = new ArrayList<>();
-        for (Class<?> node : TypedSpec.class.getPermittedSubclasses()) {
+        for (Class<?> node : NODES) {
             TypedSpec instance = (TypedSpec) build(node);
             TypedSpec rebuilt = instance.withChildren(instance.children());
             if (!instance.equals(rebuilt)) {
@@ -97,7 +121,7 @@ class TypedSpecChildrenTest {
         var variableArity = java.util.Set.of("TypedNativeCall", "TypedUserCall",
                 "TypedCollection", "TypedLambda", "TypedGetAll");
         List<String> silent = new ArrayList<>();
-        for (Class<?> node : TypedSpec.class.getPermittedSubclasses()) {
+        for (Class<?> node : NODES) {
             if (variableArity.contains(node.getSimpleName())) {
                 continue;
             }

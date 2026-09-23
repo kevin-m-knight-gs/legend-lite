@@ -14,7 +14,7 @@ import java.util.List;
  * @param aggs   the aggregate columns
  * @param info   the result &mdash; {@code Relation<R>} resolved
  */
-public record TypedAggregate(TypedSpec source, List<TypedAggCol> aggs, ExprType info) implements TypedSpec {
+public record TypedAggregate(TypedSpec source, List<TypedAggCol> aggs, ExprType info) implements TypedRelationOp {
     public TypedAggregate {
         aggs = List.copyOf(aggs);
     }

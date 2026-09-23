@@ -26,7 +26,7 @@ import java.util.List;
  *                 is carried, never re-derived
  */
 public record TypedProject(TypedSpec source, List<TypedFuncCol> columns,
-        ExprType info, boolean wireForm) implements TypedSpec {
+        ExprType info, boolean wireForm) implements TypedRelationOp {
     public TypedProject {
         columns = List.copyOf(columns);
     }

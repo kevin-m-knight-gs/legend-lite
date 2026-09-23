@@ -17,7 +17,7 @@ import java.util.List;
  * @param columns the added columns (alias + checked lambda each)
  * @param info    the result &mdash; {@code T+Z} resolved
  */
-public record TypedExtend(TypedSpec source, List<TypedFuncCol> columns, ExprType info) implements TypedSpec {
+public record TypedExtend(TypedSpec source, List<TypedFuncCol> columns, ExprType info) implements TypedRelationOp {
     public TypedExtend {
         columns = List.copyOf(columns);
     }

@@ -14,7 +14,7 @@ import java.util.List;
  * @param columns the distinct-on column names (all columns for the whole-row form)
  * @param info    the result schema (source's, or the narrowed {@code X})
  */
-public record TypedDistinct(TypedSpec source, List<String> columns, ExprType info) implements TypedSpec {
+public record TypedDistinct(TypedSpec source, List<String> columns, ExprType info) implements TypedRelationOp {
     public TypedDistinct {
         columns = List.copyOf(columns);
     }

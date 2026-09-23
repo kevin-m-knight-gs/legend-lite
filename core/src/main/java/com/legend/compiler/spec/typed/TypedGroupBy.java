@@ -21,7 +21,7 @@ import java.util.Optional;
  * @param info   the result &mdash; {@code Z+R} resolved
  */
 public record TypedGroupBy(TypedSpec source, List<GroupKey> keys, List<TypedAggCol> aggs,
-                           ExprType info) implements TypedSpec {
+                           ExprType info) implements TypedRelationOp {
 
     public TypedGroupBy {
         keys = List.copyOf(keys);

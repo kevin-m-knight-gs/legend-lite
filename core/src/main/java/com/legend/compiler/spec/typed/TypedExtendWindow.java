@@ -35,7 +35,7 @@ import java.util.List;
  */
 public record TypedExtendWindow(TypedSpec source, TypedOver window, List<TypedFuncCol> columns,
                                 List<TypedAggCol> aggs, ExprType info,
-                                boolean extentBoundary) implements TypedSpec {
+                                boolean extentBoundary) implements TypedRelationOp {
 
     public TypedExtendWindow {
         columns = List.copyOf(columns);

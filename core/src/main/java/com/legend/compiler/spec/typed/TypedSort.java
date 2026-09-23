@@ -30,7 +30,7 @@ import java.util.List;
  *               from the sort signature's {@code Relation<T>[1]} return
  */
 public record TypedSort(TypedSpec source, List<TypedSortKey> keys,
-        boolean pureNullOrder, ExprType info) implements TypedSpec {
+        boolean pureNullOrder, ExprType info) implements TypedRelationOp {
 
     public TypedSort {
         keys = List.copyOf(keys);
