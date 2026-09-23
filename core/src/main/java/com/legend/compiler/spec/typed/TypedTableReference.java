@@ -20,10 +20,12 @@ import java.util.List;
  * @param quotedColumns the columns the table's DDL declared QUOTED, by their
  *              (bare) names: the relation type names every column bare, and the
  *              lowering spells these delimited (a rendering fact, not identity)
+ * @param call  the named relation is a TABULAR FUNCTION: the lowering reads it
+ *              as a call ({@code FROM fn()}), not a table reference
  */
 public record TypedTableReference(String store, String table, ExprType info,
                                   boolean accessor, @com.legend.Nullable String frame,
-                                  java.util.Set<String> quotedColumns)
+                                  java.util.Set<String> quotedColumns, boolean call)
         implements TypedSpec {
     public TypedTableReference {
         quotedColumns = java.util.Set.copyOf(quotedColumns);
@@ -31,7 +33,7 @@ public record TypedTableReference(String store, String table, ExprType info,
 
     public TypedTableReference(String store, String table, ExprType info, boolean accessor,
             @com.legend.Nullable String frame) {
-        this(store, table, info, accessor, frame, java.util.Set.of());
+        this(store, table, info, accessor, frame, java.util.Set.of(), false);
     }
 
     /** {@code frame}: the rows of this table identity are a PLANNED
@@ -44,7 +46,7 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
 
     public TypedTableReference withFrame(String frame) {
-        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns);
+        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns, call);
     }
     /** {@code accessor}: the {@code #>{db.TABLE}#} relation-accessor
      * spelling (engine: columns typed as precisePrimitives from the
@@ -66,6 +68,6 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns);
+        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns, call);
     }
 }

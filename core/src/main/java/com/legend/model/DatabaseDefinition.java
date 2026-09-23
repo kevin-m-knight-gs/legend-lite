@@ -39,6 +39,7 @@ public record DatabaseDefinition(
         List<SchemaDefinition> schemas,
         List<TableDefinition> tables,
         List<ViewDefinition> views,
+        List<TableDefinition> tabularFunctions,
         List<JoinDefinition> joins,
         List<FilterDefinition> filters,
         List<FilterDefinition> multiGrainFilters) implements PackageableElement {
@@ -49,6 +50,7 @@ public record DatabaseDefinition(
         schemas           = schemas           == null ? List.of() : List.copyOf(schemas);
         tables            = tables            == null ? List.of() : List.copyOf(tables);
         views             = views             == null ? List.of() : List.copyOf(views);
+        tabularFunctions  = tabularFunctions  == null ? List.of() : List.copyOf(tabularFunctions);
         joins             = joins             == null ? List.of() : List.copyOf(joins);
         filters           = filters           == null ? List.of() : List.copyOf(filters);
         multiGrainFilters = multiGrainFilters == null ? List.of() : List.copyOf(multiGrainFilters);
@@ -98,21 +100,28 @@ public record DatabaseDefinition(
     public record SchemaDefinition(
             String name,
             List<TableDefinition> tables,
-            List<ViewDefinition> views) {
+            List<ViewDefinition> views,
+            List<TableDefinition> tabularFunctions) {
         public SchemaDefinition {
             Objects.requireNonNull(name, "Schema name cannot be null");
             tables = tables == null ? List.of() : List.copyOf(tables);
             views  = views  == null ? List.of() : List.copyOf(views);
+            tabularFunctions = tabularFunctions == null ? List.of() : List.copyOf(tabularFunctions);
         }
     }
 
-    /** A table with ordered column declarations. */
+    /** A table with ordered column declarations &mdash; or a TABULAR FUNCTION
+     *  ({@code function}): a named relation that is a CALL, with declared
+     *  columns and no arguments (upstream {@code TabularFunction extends
+     *  NamedRelation} beside {@code Table}; its grammar declares columns only).
+     *  Looked up like a table; kept out of {@link DatabaseDefinition#tables()},
+     *  so nothing that walks tables (DDL, seeds) mistakes it for one. */
     public record TableDefinition(String name, List<ColumnDefinition> columns,
-            @com.legend.Nullable Milestoning milestoning) {
+            @com.legend.Nullable Milestoning milestoning, boolean function) {
 
-        /** Without a milestoning block. */
+        /** A table without a milestoning block. */
         public TableDefinition(String name, List<ColumnDefinition> columns) {
-            this(name, columns, null);
+            this(name, columns, null, false);
         }
 
         public TableDefinition {

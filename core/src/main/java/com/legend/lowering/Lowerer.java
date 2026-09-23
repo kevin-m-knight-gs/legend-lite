@@ -545,7 +545,7 @@ public final class Lowerer {
                             outputsOf(t.info(), OutputCol.Origin.PHYSICAL)))
                     : SqlSelect.starOf(
                     new SqlSource.Table(t.table(), nextAlias(),
-                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())));
+                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call()));
 
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position: the engine plans it as an inline

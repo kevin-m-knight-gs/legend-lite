@@ -366,9 +366,9 @@ class SqlTypingTest {
 
     private static SqlSelect starJoin(@com.legend.Nullable SqlExpr where) {
         SqlSource.Table a = new SqlSource.Table("A", "a0", List.of(
-                new OutputCol("ID", SqlType.Scalar.BIGINT, false)));
+                new OutputCol("ID", SqlType.Scalar.BIGINT, false)), false);
         SqlSource.Table b = new SqlSource.Table("B", "b0", List.of(
-                new OutputCol("BID", SqlType.Scalar.BIGINT, false)));
+                new OutputCol("BID", SqlType.Scalar.BIGINT, false)), false);
         SqlSource.Join j = new SqlSource.Join(a, b,
                 SqlSource.Join.Kind.LEFT, new SqlExpr.BoolLit(true));
         // born outputs: pad-weakened (the joined() shape)

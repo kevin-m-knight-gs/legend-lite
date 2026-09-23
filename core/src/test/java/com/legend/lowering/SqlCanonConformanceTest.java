@@ -72,7 +72,7 @@ class SqlCanonConformanceTest {
             }
             OutputCol v = new OutputCol("v", SqlType.Scalar.DOUBLE, true);
             OutputCol k = new OutputCol("k", SqlType.Scalar.INTEGER, false);
-            SqlSource.Table b = new SqlSource.Table("B", "b", List.of(k, v));
+            SqlSource.Table b = new SqlSource.Table("B", "b", List.of(k, v), false);
             for (int i = 0; i < battery.length; i++) {
                 SqlExpr canon = CanonicalRenderSql.scalarCanon(
                         SqlExpr.Column.of("b", "v", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.DERIVED),

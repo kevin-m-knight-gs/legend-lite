@@ -19,7 +19,7 @@ class DuckDbRenderTest {
     private final DuckDb duck = new DuckDb();
 
     private static final SqlSource.Table T_PERSON =
-            new SqlSource.Table("T_PERSON", "t0", List.of());
+            new SqlSource.Table("T_PERSON", "t0", List.of(), false);
 
     private static SqlExpr col(String name) {
         return new SqlExpr.Column("t0", name);
@@ -71,7 +71,7 @@ class DuckDbRenderTest {
     @Test
     @DisplayName("identifiers quote ONLY when necessary")
     void leanQuoting() {
-        SqlSelect s = SqlSelect.starOf(new SqlSource.Table("my table", "t0", List.of()))
+        SqlSelect s = SqlSelect.starOf(new SqlSource.Table("my table", "t0", List.of(), false))
                 .withProjections(List.of(
                         new SqlSelect.Projection(new SqlExpr.Column("t0", "NAME"), null, null),
                         new SqlSelect.Projection(new SqlExpr.Column("t0", "order"), null, null),
@@ -139,10 +139,10 @@ class DuckDbRenderTest {
     void flatJoinTree() {
         SqlSource joined = new SqlSource.Join(
                 new SqlSource.Join(T_PERSON,
-                        new SqlSource.Table("T_FIRM", "t1", List.of()),
+                        new SqlSource.Table("T_FIRM", "t1", List.of(), false),
                         SqlSource.Join.Kind.LEFT,
                         SqlExpr.Call.of(SqlFn.EQUAL, col("FIRM_ID"), new SqlExpr.Column("t1", "ID"))),
-                new SqlSource.Table("T_CITY", "t2", List.of()),
+                new SqlSource.Table("T_CITY", "t2", List.of(), false),
                 SqlSource.Join.Kind.LEFT,
                 SqlExpr.Call.of(SqlFn.EQUAL, new SqlExpr.Column("t1", "CITY_ID"),
                         new SqlExpr.Column("t2", "ID")));
@@ -179,7 +179,7 @@ class DuckDbRenderTest {
     @DisplayName("EXISTS renders inline — Boolean-composable")
     void existsInline() {
         SqlExpr exists = new SqlExpr.Exists(SqlSelect.starOf(
-                new SqlSource.Table("T_FIRM", "t1", List.of()))
+                new SqlSource.Table("T_FIRM", "t1", List.of(), false))
                 .withWhere(SqlExpr.Call.of(SqlFn.EQUAL,
                         new SqlExpr.Column("t1", "ID"), col("FIRM_ID"))));
         SqlExpr pred = SqlExpr.Call.of(SqlFn.OR, exists,
@@ -224,7 +224,7 @@ class DuckDbRenderTest {
     void bareUnion() {
         SqlUnion u = new SqlUnion(List.of(
                 SqlSelect.starOf(T_PERSON),
-                SqlSelect.starOf(new SqlSource.Table("T_PERSON2", "t1", List.of()))),
+                SqlSelect.starOf(new SqlSource.Table("T_PERSON2", "t1", List.of(), false))),
                 true, List.of());
         String sql = duck.render(u);
         assertEquals("""
@@ -268,7 +268,7 @@ class DuckDbRenderTest {
     void allJoinKinds() {
         for (var k : SqlSource.Join.Kind.values()) {
             SqlSource j = new SqlSource.Join(T_PERSON,
-                    new SqlSource.Table("T_FIRM", "t1", List.of()), k,
+                    new SqlSource.Table("T_FIRM", "t1", List.of(), false), k,
                     k == SqlSource.Join.Kind.CROSS
                             || k == SqlSource.Join.Kind.CROSS_LATERAL ? null
                             : SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col("ID"),
@@ -284,7 +284,7 @@ class DuckDbRenderTest {
     void remainingExprVariants() {
         assertEquals("(SELECT * FROM T_FIRM AS t1)",
                 renderExpr(new SqlExpr.ScalarSubquery(SqlSelect.starOf(
-                        new SqlSource.Table("T_FIRM", "t1", List.of())))));
+                        new SqlSource.Table("T_FIRM", "t1", List.of(), false)))));
         assertEquals("list_filter(t0.XS, x -> x > 1)",
                 renderExpr(new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(col("XS"),
                         new SqlExpr.Lambda(List.of("x"),

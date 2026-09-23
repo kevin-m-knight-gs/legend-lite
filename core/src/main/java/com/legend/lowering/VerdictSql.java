@@ -307,13 +307,13 @@ public final class VerdictSql {
     /** {@code assertContains}: some element's canon equals the value's. */
     public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar) {
         OutputCol vc = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
-        SqlSource v0 = new SqlSource.Table("__v0", "__v0", valScalar.outputs());
+        SqlSource v0 = new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false);
         OneRow v = new OneRow("v", new SqlSelect(List.of(new SqlSelect.Projection(
                 SqlExpr.Column.of("__v0", valScalar.outputs(), C), C, vc)),
                 false, v0, null, List.of(), null, null, List.of(), null, null, List.of(vc)), List.of(vc));
         OutputCol mOut = new OutputCol("__m", SqlType.Scalar.BIGINT, false);
         SqlSource matched = new SqlSource.Join(cte("__a"),
-                new SqlSource.Table("__v0", "__v0", valScalar.outputs()), SqlSource.Join.Kind.INNER,
+                new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false), SqlSource.Join.Kind.INNER,
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__a", C), SqlExpr.Column.of("__v0", valScalar.outputs(), C)));
         OneRow m = new OneRow("m", new SqlSelect(List.of(new SqlSelect.Projection(
                 new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__m", mOut)),
@@ -616,7 +616,7 @@ public final class VerdictSql {
                         new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true)),
                 new SqlSelect.Projection(new SqlExpr.BoolLit(false), LENIENT,
                         new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false)));
-        SqlSelect body = new SqlSelect(ps, false, new SqlSource.Table(P, "p", pOuts), null,
+        SqlSelect body = new SqlSelect(ps, false, new SqlSource.Table(P, "p", pOuts, false), null,
                 List.of(), null, null, List.of(), null, null, List.of());
         return new SqlWith(all, body);
     }
@@ -638,7 +638,7 @@ public final class VerdictSql {
     private static OneRow textOf(String alias, String factsCte) {
         return new OneRow(alias, new SqlSelect(List.of(
                 new SqlSelect.Projection(SqlExpr.Column.of(factsCte, factOutputs(), F_TEXT), F_TEXT, factOutputs().get(0))),
-                false, new SqlSource.Table(factsCte, factsCte, factOutputs()), null, List.of(), null, null,
+                false, new SqlSource.Table(factsCte, factsCte, factOutputs(), false), null, List.of(), null, null,
                 List.of(), null, null, List.of(factOutputs().get(0))), List.of(factOutputs().get(0)));
     }
 
@@ -865,7 +865,7 @@ public final class VerdictSql {
     }
 
     private static SqlSource facts(String cteName, String alias) {
-        return new SqlSource.Table(cteName, alias, factOutputs());
+        return new SqlSource.Table(cteName, alias, factOutputs(), false);
     }
 
     private static SqlExpr factCol(String alias, String col) {
@@ -952,7 +952,7 @@ public final class VerdictSql {
     }
 
     private static SqlSource pairFactsSource(String cteName, String alias) {
-        return new SqlSource.Table(cteName, alias, pairOutputs());
+        return new SqlSource.Table(cteName, alias, pairOutputs(), false);
     }
 
     private static SqlExpr pairCol(String alias, String col) {
@@ -1118,7 +1118,7 @@ public final class VerdictSql {
             if (s instanceof SqlSource.Table t) {
                 String renamed = names.get(t.name());
                 if (renamed != null) {
-                    return new SqlSource.Table(renamed, t.alias(), t.outputs());
+                    return new SqlSource.Table(renamed, t.alias(), t.outputs(), t.call());
                 }
             }
             return s;
@@ -1551,7 +1551,7 @@ public final class VerdictSql {
     }
 
     private static SqlSource cte(String name) {
-        return new SqlSource.Table(name, name, cteOutputs());
+        return new SqlSource.Table(name, name, cteOutputs(), false);
     }
 
     private static SqlExpr col(String cteName, String col) {

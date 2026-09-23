@@ -242,7 +242,7 @@ class SpecChildrenContractsTest {
             return build(SqlSelect.class);
         }
         if (type == SqlSource.class) {
-            return new SqlSource.Table("T", "t0", List.of());
+            return new SqlSource.Table("T", "t0", List.of(), false);
         }
         if (type == SqlType.class) {
             return SqlType.Scalar.values()[0];

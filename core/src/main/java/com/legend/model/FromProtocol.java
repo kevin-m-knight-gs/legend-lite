@@ -132,6 +132,7 @@ public final class FromProtocol {
         List<DatabaseDefinition.SchemaDefinition> schemas = new java.util.ArrayList<>();
         List<DatabaseDefinition.TableDefinition> flatTables = new java.util.ArrayList<>();
         List<DatabaseDefinition.ViewDefinition> flatViews = new java.util.ArrayList<>();
+        List<DatabaseDefinition.TableDefinition> flatFunctions = new java.util.ArrayList<>();
         // The flat lists are the BARE-NAME lookup mirror, and a bare name
         // means the DEFAULT schema — `schemaB.personTable` and
         // `personTable` are different tables that share a short name. The
@@ -157,9 +158,17 @@ public final class FromProtocol {
             List<DatabaseDefinition.TableDefinition> st = new java.util.ArrayList<>();
             List<DatabaseDefinition.ViewDefinition> sv = new java.util.ArrayList<>();
             for (com.legend.protocol.Protocol.PDbTable tb : s.tables()) {
-                DatabaseDefinition.TableDefinition d = table(tb);
+                DatabaseDefinition.TableDefinition d = table(tb, false);
                 st.add(d);
                 flatTables.add(d);
+            }
+            // TABULAR FUNCTIONS: named relations that are calls, looked up like
+            // tables and kept in their own lists (the wire's own split)
+            List<DatabaseDefinition.TableDefinition> sf = new java.util.ArrayList<>();
+            for (com.legend.protocol.Protocol.PDbTable tb : s.tabularFunctions()) {
+                DatabaseDefinition.TableDefinition d = table(tb, true);
+                sf.add(d);
+                flatFunctions.add(d);
             }
             for (com.legend.protocol.Protocol.PDbView vw : s.views()) {
                 DatabaseDefinition.ViewDefinition d = view(vw, db.qualifiedName());
@@ -171,7 +180,7 @@ public final class FromProtocol {
             // legacy model records a SchemaDefinition only when the source
             // WROTE one. The protocol cannot tell the two apart.
             if (!"default".equals(s.name())) {
-                schemas.add(new DatabaseDefinition.SchemaDefinition(s.name(), st, sv));
+                schemas.add(new DatabaseDefinition.SchemaDefinition(s.name(), st, sv, sf));
             }
         }
         List<DatabaseDefinition.JoinDefinition> joins = new java.util.ArrayList<>();
@@ -196,11 +205,11 @@ public final class FromProtocol {
             }
         }
         return new DatabaseDefinition(db.qualifiedName(), includes, schemas,
-                flatTables, flatViews, joins, filters, multiGrain);
+                flatTables, flatViews, flatFunctions, joins, filters, multiGrain);
     }
 
     private static DatabaseDefinition.TableDefinition table(
-            com.legend.protocol.Protocol.PDbTable t) {
+            com.legend.protocol.Protocol.PDbTable t, boolean function) {
         List<DatabaseDefinition.ColumnDefinition> cols = new java.util.ArrayList<>();
         for (com.legend.protocol.Protocol.PDbColumn c : t.columns()) {
             cols.add(new DatabaseDefinition.ColumnDefinition(RelationalIdentifier.bare(c.name()),
@@ -208,7 +217,7 @@ public final class FromProtocol {
                     !c.nullable(), RelationalIdentifier.isQuoted(c.name())));
         }
         return new DatabaseDefinition.TableDefinition(RelationalIdentifier.bare(t.name()), cols,
-                milestoning(t.milestoning()));
+                milestoning(t.milestoning()), function);
     }
 
     /** The wire carries a LIST of milestoning entries, one per dimension;

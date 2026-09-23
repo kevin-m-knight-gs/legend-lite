@@ -103,10 +103,13 @@ final class TableReferenceChecker {
         Type.RelationType schema = table.get();
         String carried = strictDefault ? tableName.value() : resolvedName;
         // the columns the DDL declared quoted: a spelling the SQL keeps
-        java.util.Set<String> quoted = t.model().findTableDefinition(dbRef.fullPath(), resolvedName)
-                .map(def -> def.columns().stream().filter(c -> c.quoted()).map(c -> c.name())
+        var def = t.model().findTableDefinition(dbRef.fullPath(), resolvedName);
+        java.util.Set<String> quoted = def
+                .map(d -> d.columns().stream().filter(c -> c.quoted()).map(c -> c.name())
                         .collect(java.util.stream.Collectors.toUnmodifiableSet()))
                 .orElse(java.util.Set.of());
+        // a TABULAR FUNCTION is read as a call
+        boolean call = def.map(d -> d.function()).orElse(false);
         return new TypedTableReference(dbRef.fullPath(), carried,
                 // the literal IS the store accessor (upstream: RelationStoreAccessor<T>
                 // extends Relation<T>) — every Relation<T> formal admits it through the
@@ -114,7 +117,7 @@ final class TableReferenceChecker {
                 new ExprType(new Type.GenericType(
                         com.legend.compiler.element.type.PlatformTypes.RELATION_STORE_ACCESSOR,
                         java.util.List.of(schema)), sig.output().multiplicity()),
-                n == 2, null, quoted);
+                n == 2, null, quoted, call);
     }
 
     /**

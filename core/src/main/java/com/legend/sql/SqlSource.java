@@ -51,7 +51,12 @@ public sealed interface SqlSource {
     record SourceUrl(String url, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 
-    record Table(String name, String alias, List<OutputCol> outputs) implements SqlSource {
+    /** A base table &mdash; or, {@code call}, a TABULAR FUNCTION: a named
+     *  relation the database computes, read as {@code FROM name()}. It is a
+     *  table to every pass (its outputs are declared, like a table's) except
+     *  the renderer; it has no physical row order (no rowid). No defaulting
+     *  constructor: a rebuild site says what it carries. */
+    record Table(String name, String alias, List<OutputCol> outputs, boolean call) implements SqlSource {
     }
 
     /** A reference to a CTE the statement defines (leg 3.4 step 2: a planned

@@ -51,6 +51,25 @@ final class TableIndex {
                 ix.bare.putIfAbsent(t.name(), t);
             }
         }
+        // TABULAR FUNCTIONS are named relations too (upstream: NamedRelation
+        // beside Table), reached by the same spellings; a table keeps a name
+        // both declare. The top level's are the flat ones no schema owns.
+        java.util.Set<TableDefinition> inSchemas =
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            Map<String, TableDefinition> own =
+                    ix.bySchema.computeIfAbsent(s.name(), k -> new HashMap<>());
+            for (TableDefinition f : s.tabularFunctions()) {
+                own.putIfAbsent(f.name(), f);
+                inSchemas.add(f);
+            }
+        }
+        for (TableDefinition f : db.tabularFunctions()) {
+            ix.bare.putIfAbsent(f.name(), f);
+            if (!inSchemas.contains(f)) {
+                ix.top.putIfAbsent(f.name(), f);
+            }
+        }
         return ix;
     }
 

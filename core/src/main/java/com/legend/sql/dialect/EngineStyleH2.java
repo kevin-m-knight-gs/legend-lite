@@ -976,6 +976,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                 .collect(java.util.stream.Collectors
                                         .joining("."))
                         : t.name());
+                if (t.call()) {
+                    sb.append("()");   // a tabular function is called
+                }
                 if (t.alias() != null) {
                     sb.append(" as \"").append(rename(t.alias())).append('"');
                 }

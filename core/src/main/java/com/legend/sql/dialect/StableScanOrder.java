@@ -324,7 +324,7 @@ public final class StableScanOrder extends SqlRewriter {
     private static boolean aliasIsBaseTable(com.legend.sql.SqlSource src,
             @com.legend.Nullable String alias) {
         return switch (src) {
-            case com.legend.sql.SqlSource.Table t -> t.alias().equals(alias);
+            case com.legend.sql.SqlSource.Table t -> t.alias().equals(alias) && !t.call();
             case com.legend.sql.SqlSource.Join j -> aliasIsBaseTable(j.left(), alias)
                     || aliasIsBaseTable(j.right(), alias);
             default -> false;

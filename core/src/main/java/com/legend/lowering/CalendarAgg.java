@@ -72,12 +72,12 @@ final class CalendarAgg {
                 String cal0 = "cal" + aliasCounter.getAsInt();
                 String cal1 = "cal" + aliasCounter.getAsInt();
                 from = new SqlSource.Join(from,
-                        new SqlSource.Table(table, cal0, List.of()),
+                        new SqlSource.Table(table, cal0, List.of(), false),
                         SqlSource.Join.Kind.LEFT,
                         SqlExpr.Call.of(SqlFn.EQUAL, dateExpr,
                                 SqlExpr.Column.physical(cal0, "date")));
                 from = new SqlSource.Join(from,
-                        new SqlSource.Table(table, cal1, List.of()),
+                        new SqlSource.Table(table, cal1, List.of(), false),
                         SqlSource.Join.Kind.LEFT,
                         SqlExpr.Call.of(SqlFn.EQUAL, endExpr,
                                 SqlExpr.Column.physical(cal1, "date")));

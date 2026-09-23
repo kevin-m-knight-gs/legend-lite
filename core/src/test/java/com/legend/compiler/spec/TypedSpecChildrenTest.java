@@ -344,7 +344,7 @@ class TypedSpecChildrenTest {
             // TypedFrameRef.plan (leg 3.4 step 2): the planned frame's SQL —
             // a lowered artifact the reference carries, not a typed child
             return com.legend.sql.SqlSelect.starOf(
-                    new com.legend.sql.SqlSource.Table("T", "t0", List.of()));
+                    new com.legend.sql.SqlSource.Table("T", "t0", List.of(), false));
         }
         throw new IllegalStateException("TypedSpecChildrenTest needs a dummy rule for "
                 + type.getName() + " — add one when introducing new node component types");

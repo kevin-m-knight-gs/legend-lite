@@ -277,7 +277,8 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.Dual d -> throw new IllegalStateException(
                     "Dual renders as FROM-clause omission — caller bug");
             case SqlSource.Table t -> {
-                sb.append(tableName(t.name()));
+                // a tabular function is CALLED (upstream: schema.fn())
+                sb.append(tableName(t.name())).append(t.call() ? "()" : "");
                 if (t.alias() != null) {
                     sb.append(" AS ").append(aliasIdent(t.alias()));
                 }

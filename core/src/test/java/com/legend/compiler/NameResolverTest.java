@@ -544,7 +544,7 @@ class NameResolverTest {
     void databaseIncludesResolved() {
         var db = new DatabaseDefinition("store::Main",
                 List.of("OtherDB"),
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var r = (DatabaseDefinition) resolveOne(db, WILDCARD_STORE, FQNS);
         assertEquals(List.of("store::OtherDB"), r.includes());
     }
@@ -558,7 +558,7 @@ class NameResolverTest {
                 new RelationalOperation.ColumnRef("DB", "B", "fk"));
         var join = new JoinDefinition("AB", cmp);
         var db = new DatabaseDefinition("store::Main",
-                List.of(), List.of(), List.of(), List.of(), List.of(join),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(join),
                 List.of(), List.of());
         var r = (DatabaseDefinition) resolveOne(db, WILDCARD_STORE, FQNS);
         var rop = (RelationalOperation.Comparison) r.joins().get(0).operation();
@@ -574,7 +574,7 @@ class NameResolverTest {
                 new RelationalOperation.ColumnRef("DB", "A", "id"));
         var filter = new FilterDefinition("ActiveOnly", cond);
         var db = new DatabaseDefinition("store::Main",
-                List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(filter), List.of());
         var r = (DatabaseDefinition) resolveOne(db, WILDCARD_STORE, FQNS);
         var rcond = (RelationalOperation.IsNotNull) r.filters().get(0).condition();
@@ -591,7 +591,7 @@ class NameResolverTest {
                 new RelationalOperation.TargetColumnRef("result"));
         var filter = new FilterDefinition("nav", nav);
         var db = new DatabaseDefinition("store::Main",
-                List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(filter), List.of());
         var r = (DatabaseDefinition) resolveOne(db, WILDCARD_STORE, FQNS);
         var rnav = (RelationalOperation.JoinNavigation) r.filters().get(0).condition();
@@ -1013,7 +1013,7 @@ class NameResolverTest {
     private static RelationalOperation resolveDbFilter(
             RelationalOperation op, ImportScope imp) {
         var db = new DatabaseDefinition("store::Main",
-                List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(new FilterDefinition("F", op)),
                 List.of());
         var r = (DatabaseDefinition) resolveOne(db, imp, FQNS);

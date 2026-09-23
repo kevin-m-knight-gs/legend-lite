@@ -29,7 +29,7 @@ class DuckDbValidityTest {
     private static final DuckDb duck = new DuckDb();
 
     private static final SqlSource.Table T_PERSON =
-            new SqlSource.Table("T_PERSON", "t0", List.of());
+            new SqlSource.Table("T_PERSON", "t0", List.of(), false);
 
     private static SqlExpr col(String name) {
         return new SqlExpr.Column("t0", name);
@@ -129,7 +129,7 @@ class DuckDbValidityTest {
     @DisplayName("ASOF LEFT JOIN spelling is valid DuckDB")
     void asofJoin() throws SQLException {
         SqlSource j = new SqlSource.Join(T_PERSON,
-                new SqlSource.Table("T_FIRM", "t1", List.of()),
+                new SqlSource.Table("T_FIRM", "t1", List.of(), false),
                 SqlSource.Join.Kind.ASOF_LEFT,
                 SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col("TS"), new SqlExpr.Column("t1", "TS")));
         exec(SqlSelect.starOf(j));
@@ -139,13 +139,13 @@ class DuckDbValidityTest {
     @DisplayName("flat multi-join, EXISTS, IN, CASE, arrays, lambdas all execute")
     void remainingShapes() throws SQLException {
         SqlSource joined = new SqlSource.Join(T_PERSON,
-                new SqlSource.Table("T_FIRM", "t1", List.of()),
+                new SqlSource.Table("T_FIRM", "t1", List.of(), false),
                 SqlSource.Join.Kind.LEFT,
                 SqlExpr.Call.of(SqlFn.EQUAL, col("FIRM_ID"), new SqlExpr.Column("t1", "ID")));
         exec(SqlSelect.starOf(joined));
 
         exec(SqlSelect.starOf(T_PERSON).withWhere(new SqlExpr.Exists(
-                SqlSelect.starOf(new SqlSource.Table("T_FIRM", "t1", List.of()))
+                SqlSelect.starOf(new SqlSource.Table("T_FIRM", "t1", List.of(), false))
                         .withWhere(SqlExpr.Call.of(SqlFn.EQUAL,
                                 new SqlExpr.Column("t1", "ID"), col("FIRM_ID"))))));
 
@@ -191,7 +191,7 @@ class DuckDbValidityTest {
         assertEquals("ACME", execExpr(new SqlExpr.ScalarSubquery(
                 new SqlSelect(List.of(new SqlSelect.Projection(
                         new SqlExpr.Column("t1", "LEGAL_NAME"), null, null)), false,
-                        new SqlSource.Table("T_FIRM", "t1", List.of()),
+                        new SqlSource.Table("T_FIRM", "t1", List.of(), false),
                         null, List.of(), null, null, List.of(), null, null, List.of()))));
     }
 
@@ -202,7 +202,7 @@ class DuckDbValidityTest {
             st.execute("CREATE TABLE \"my table\" (\"order\" INTEGER, \"first name\" VARCHAR)");
             st.execute("INSERT INTO \"my table\" VALUES (1, 'x')");
         }
-        SqlSelect s = SqlSelect.starOf(new SqlSource.Table("my table", "t0", List.of()))
+        SqlSelect s = SqlSelect.starOf(new SqlSource.Table("my table", "t0", List.of(), false))
                 .withProjections(List.of(
                         new SqlSelect.Projection(new SqlExpr.Column("t0", "order"), null, null),
                         new SqlSelect.Projection(new SqlExpr.Column("t0", "first name"), null, null)));

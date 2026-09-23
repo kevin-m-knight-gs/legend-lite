@@ -83,11 +83,11 @@ public final class ScanOrder {
         List<SqlSource.Table> out = new java.util.ArrayList<>();
         if (from instanceof SqlSource.Join j) {
             out.addAll(scanTables(j.left()));
-            if (j.right() instanceof SqlSource.Table t) {
+            if (j.right() instanceof SqlSource.Table t && !t.call()) {
                 out.add(t);
             }
-        } else if (from instanceof SqlSource.Table t) {
-            out.add(t);
+        } else if (from instanceof SqlSource.Table t && !t.call()) {
+            out.add(t);   // a tabular function's rows have no rowid
         }
         return out;
     }
@@ -112,7 +112,7 @@ public final class ScanOrder {
         while (leftmost instanceof SqlSource.Join j) {
             leftmost = j.left();
         }
-        return leftmost instanceof SqlSource.Table t ? t : null;
+        return leftmost instanceof SqlSource.Table t && !t.call() ? t : null;
     }
 
     /** A top-level aggregate anywhere in the expression — Reducer,

@@ -32,7 +32,7 @@ class WireTypesTest {
     /** {@code SELECT t.id AS id FROM t} with the column STAMPED {@code stamp}. */
     private static SqlSelect plan(SqlType stamp) {
         OutputCol id = new OutputCol("id", stamp, true);
-        SqlSource.Table t = new SqlSource.Table("t", "t", List.of(id));
+        SqlSource.Table t = new SqlSource.Table("t", "t", List.of(id), false);
         return new SqlSelect(List.of(new SqlSelect.Projection(
                         SqlExpr.Column.of("t", "id", stamp, true, OutputCol.Origin.DERIVED), "id", id)),
                 false, t, null, List.of(), null, null, List.of(), null, null, List.of(id));
@@ -72,7 +72,7 @@ class WireTypesTest {
         SqlSelect computed = new SqlSelect(List.of(new SqlSelect.Projection(
                         new SqlExpr.Cast(SqlExpr.Column.of("t", "id", SqlType.Scalar.VARCHAR, true,
                                 OutputCol.Origin.DERIVED), SqlType.Scalar.DOUBLE), "n", n)),
-                false, new SqlSource.Table("t", "t", List.of(n)), null, List.of(), null, null,
+                false, new SqlSource.Table("t", "t", List.of(n), false), null, List.of(), null, null,
                 List.of(), null, null, List.of(n));
         assertSame(computed, WireTypes.reconcile(computed, grid(Type.Primitive.NUMBER), dialect, c, memo));
         // a plan the compiler could not type, framed by the database's columns

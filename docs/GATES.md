@@ -5283,3 +5283,22 @@ failures reproduced on the tree before the fix.
 by the QUOTED spelling `'"FIRST NAME"'`, which lite could not resolve before, so the harness had
 only the SQL text to judge; both queries now plan and execute, and their rows (no sort in the
 chain) compare as multisets. Own-corpus parity 2548 -> 2551 (`QuotedColumnNameTest`'s model).
+
+## 2026-09-23 — TabularFunction is executable
+
+**What.** A `TabularFunction FN (cols)` parsed and round-tripped, then a reference to it failed to
+compile ("unknown table") — `FromProtocol` dropped the wire's `tabularFunctions` list (ported from
+datacube/dual-plane b829ac2a3). Upstream models it beside `Table` (both `NamedRelation`s with
+declared columns) and renders it as a call, `schema.fn()`, with no arguments (its grammar
+declares columns only; the protocol carries no parameters). The model keeps tabular functions in
+their own lists (per schema and flat, the wire's split), so nothing that walks `tables()` — DDL,
+seeds, lineage — mistakes one for a table; `TableIndex` reaches them by the same spellings (a
+table wins a shared name); `TableDefinition.function` says what a lookup found. The SQL keeps it a
+TABLE to every pass — `SqlSource.Table.call`, no defaulting constructor, so each of the 15
+construction and rebuild sites states what it carries — except the renderers (`FN()`) and the
+scan-order passes (a function's rows have no `rowid`). The datacube branch's argument-carrying
+SQL source is not ported: no upstream text or wire can author an argument.
+
+**Test.** `TabularFunctionTest` on rows, against a DuckDB table macro: select, filter + groupBy,
+the call spelling, a plain table unchanged; with the `()` rendering removed it fails. Own-corpus
+parity 2551 -> 2554.

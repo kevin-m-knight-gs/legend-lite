@@ -29,7 +29,7 @@ class FoldTest {
                     new com.legend.sql.OutputCol("B", com.legend.sql.SqlType.Scalar.BIGINT, false),
                     new com.legend.sql.OutputCol("AGE", com.legend.sql.SqlType.Scalar.BIGINT, false),
                     new com.legend.sql.OutputCol("NAME", com.legend.sql.SqlType.Scalar.VARCHAR, false),
-                    new com.legend.sql.OutputCol("C", com.legend.sql.SqlType.Scalar.BIGINT, false))));
+                    new com.legend.sql.OutputCol("C", com.legend.sql.SqlType.Scalar.BIGINT, false)), false));
 
     private static SqlExpr col(String n) {
         // stamped from the fixture's own declared outputs (M2: a
@@ -174,7 +174,7 @@ class FoldTest {
             outs.add(new com.legend.sql.OutputCol(c,
                     com.legend.sql.SqlType.Scalar.BIGINT, false));
         }
-        return new SqlSource.Table(name, alias, outs);
+        return new SqlSource.Table(name, alias, outs, false);
     }
 
     private static boolean nul(SqlExpr.Column c) {

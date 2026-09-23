@@ -41,8 +41,8 @@ class LineageScanTest {
         // LEFT JOIN db.firmTable t1 ON t0.FIRMID = t1.ID
         // WHERE t1.LEGAL = 'x'
         SqlSource from = new SqlSource.Join(
-                new SqlSource.Table("personTable", "t0", List.of()),
-                new SqlSource.Table("db.firmTable", "t1", List.of()),
+                new SqlSource.Table("personTable", "t0", List.of(), false),
+                new SqlSource.Table("db.firmTable", "t1", List.of(), false),
                 SqlSource.Join.Kind.LEFT,
                 eq(col("t0", "FIRMID"), col("t1", "ID")));
         SqlSelect q = select(
@@ -64,10 +64,10 @@ class LineageScanTest {
         SqlSelect inner = select(List.of(
                 new SqlSelect.Projection(col("t0", "NAME"), "nm", null),
                 new SqlSelect.Projection(col("t0", "ID"), "id", null)),
-                new SqlSource.Table("T", "t0", List.of()), null);
+                new SqlSource.Table("T", "t0", List.of(), false), null);
         SqlSource from = new SqlSource.Join(
                 new SqlSource.Subselect(inner, "t2", null),
-                new SqlSource.Table("U", "t3", List.of()),
+                new SqlSource.Table("U", "t3", List.of(), false),
                 SqlSource.Join.Kind.INNER,
                 eq(col("t2", "id"), col("t3", "fk")));
         SqlSelect q = select(
@@ -86,10 +86,10 @@ class LineageScanTest {
         //                   UNION ALL SELECT b.y AS c FROM B b) t4
         SqlSelect left = select(
                 List.of(new SqlSelect.Projection(col("a", "x"), "c", null)),
-                new SqlSource.Table("A", "a", List.of()), null);
+                new SqlSource.Table("A", "a", List.of(), false), null);
         SqlSelect right = select(
                 List.of(new SqlSelect.Projection(col("b", "y"), "c", null)),
-                new SqlSource.Table("B", "b", List.of()), null);
+                new SqlSource.Table("B", "b", List.of(), false), null);
         SqlSelect q = select(
                 List.of(new SqlSelect.Projection(col("t4", "c"), "c", null)),
                 new SqlSource.Subselect(

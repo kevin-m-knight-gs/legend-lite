@@ -1232,12 +1232,12 @@ public final class NameResolver {
             return db;
         }
         return new DatabaseDefinition(db.qualifiedName(), includes, schemas,
-                tables, views, joins, filters, multiGrain);
+                tables, views, db.tabularFunctions(), joins, filters, multiGrain);
     }
 
     private static SchemaDefinition resolveSchema(SchemaDefinition s, Scope scope) {
         List<ViewDefinition> views = resolveViews(s.views(), scope);
-        return views == s.views() ? s : new SchemaDefinition(s.name(), s.tables(), views);
+        return views == s.views() ? s : new SchemaDefinition(s.name(), s.tables(), views, s.tabularFunctions());
     }
 
     private static List<SchemaDefinition> resolveSchemas(
