@@ -279,8 +279,15 @@ public class CorpusSweepTest {
             }
 
             // ---------------- oracle REFUSED this source ----------------
-            boolean docAccepts = accepts(() -> com.legend.parser.PmcdParser
-                    .parseDocument(src.text()));
+            // our document parse, ONCE: its JSON (accepted) or its refusal
+            String docJson = null;
+            Throwable docRefusal = null;
+            try {
+                docJson = com.legend.parser.PmcdParser.parseDocument(src.text());
+            } catch (Throwable t) {
+                docRefusal = t;
+            }
+            boolean docAccepts = docRefusal == null;
             boolean strictAccepts = accepts(() -> Surfaces.engine(src.text()));
             boolean platformAccepts = accepts(() -> Surfaces.platform(src.text()));
             boolean pureOnly = !SECTION.matcher(src.text()).find();
@@ -288,8 +295,8 @@ public class CorpusSweepTest {
             // exist, legend-pure's own M3 parser vs our PLATFORM tier.
             // m3-accepts-platform-REFUSES is the finding that matters:
             // a genuine platform-tier gap. Down-only.
+            boolean m3 = pureOnly && m3Accepts(src.text());
             if (pureOnly) {
-                boolean m3 = m3Accepts(src.text());
                 if (m3 == platformAccepts) {
                     m3PlatformAgree++;
                 } else if (m3) {
@@ -302,9 +309,8 @@ public class CorpusSweepTest {
                 // A6 (message-parity floor): on both-reject rows, does
                 // OUR refusal say what the engine's says? First line,
                 // verbatim. The floor ratchets the drop-in error voice.
-                try {
-                    com.legend.parser.PmcdParser.parseDocument(src.text());
-                } catch (Throwable ours) {
+                {
+                    Throwable ours = java.util.Objects.requireNonNull(docRefusal);
                     String om = msgOf(oracleRoot);
                     String lm = String.valueOf(rootOf(ours).getMessage())
                             .split("\n")[0]
@@ -340,8 +346,7 @@ public class CorpusSweepTest {
                     // are exempt by construction: their wire IS the
                     // engine's.
                     try {
-                        mapper.readValue(com.legend.parser.PmcdParser
-                                .parseDocument(src.text()),
+                        mapper.readValue(docJson,
                                 org.finos.legend.engine.protocol.pure.v1
                                         .model.context.PureModelContextData.class);
                     } catch (Throwable t) {
@@ -352,7 +357,7 @@ public class CorpusSweepTest {
                 // CLAIM 2b: verdict symmetry — every asymmetry is an
                 // allowlist line
                 String category = !pureOnly ? "sectioned"
-                        : m3Accepts(src.text()) ? "m3-corroborated"
+                        : m3 ? "m3-corroborated"
                                 : "m3-rejects";
                 String surfaces = (docAccepts ? "document" : "")
                         + (docAccepts && strictAccepts ? "+" : "")
@@ -889,6 +894,28 @@ public class CorpusSweepTest {
                 errors.add(line + ":" + charPositionInLine + " " + msg);
             }
         };
+        // TWO-STAGE (ANTLR's standard exact speed-up): SLL prediction with a
+        // bailing strategy first; SLL accepting means LL accepts, and any
+        // SLL failure is decided again by full LL — the verdict is LL's
+        try {
+            var lexer = new org.finos.legend.pure.m3.serialization.grammar
+                    .m3parser.antlr.M3Lexer(CharStreams.fromString(text));
+            lexer.removeErrorListeners();
+            lexer.addErrorListener(listener);
+            var parser = new org.finos.legend.pure.m3.serialization.grammar
+                    .m3parser.antlr.M3Parser(new CommonTokenStream(lexer));
+            parser.removeErrorListeners();
+            parser.getInterpreter().setPredictionMode(
+                    org.antlr.v4.runtime.atn.PredictionMode.SLL);
+            parser.setErrorHandler(new org.antlr.v4.runtime.BailErrorStrategy());
+            parser.definition();
+            if (errors.isEmpty()) {
+                return true;
+            }
+        } catch (Throwable sllFailed) {
+            // fall through to full LL
+        }
+        errors.clear();
         try {
             var lexer = new org.finos.legend.pure.m3.serialization.grammar
                     .m3parser.antlr.M3Lexer(CharStreams.fromString(text));
