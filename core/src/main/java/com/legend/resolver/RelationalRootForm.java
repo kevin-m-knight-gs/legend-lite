@@ -220,9 +220,8 @@ public final class RelationalRootForm {
                 // walked the queried mapping's own bindings only — the
                 // fourth "find the binding" rule of audit 2026-09-15 P2-3
                 for (MappingDefinition.ClassBinding cb
-                        : mapping.classBindingsWithIncludes(ctx::findMapping)) {
-                    if (cb.classFqn().equals(classFqn)
-                            && !cb.primaryKeyColumns().isEmpty()) {
+                        : mapping.classBindingsWithIncludes(classFqn, ctx::findMapping)) {
+                    if (!cb.primaryKeyColumns().isEmpty()) {
                         return dedup(cb.primaryKeyColumns());
                     }
                 }

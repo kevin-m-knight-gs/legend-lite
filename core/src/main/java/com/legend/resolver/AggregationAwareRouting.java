@@ -172,9 +172,8 @@ public final class AggregationAwareRouting {
         if (md == null) {
             return null;
         }
-        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-            if (cb.classFqn().equals(classFqn)
-                    && cb instanceof MappingDefinition.ClassBinding.Relational rb
+        for (var cb : md.classBindingsWithIncludes(classFqn, ctx::findMapping)) {
+            if (cb instanceof MappingDefinition.ClassBinding.Relational rb
                     && rb.source() instanceof MappingDefinition.RelationalSource.Table t
                     && t.aggregationAwareMain()) {
                 return cb.setId();
@@ -191,9 +190,8 @@ public final class AggregationAwareRouting {
         if (md == null) {
             return List.of();
         }
-        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-            if (cb.classFqn().equals(classFqn)
-                    && cb instanceof MappingDefinition.ClassBinding.Relational rb
+        for (var cb : md.classBindingsWithIncludes(classFqn, ctx::findMapping)) {
+            if (cb instanceof MappingDefinition.ClassBinding.Relational rb
                     && !rb.aggregateViews().isEmpty()) {
                 return rb.aggregateViews();
             }

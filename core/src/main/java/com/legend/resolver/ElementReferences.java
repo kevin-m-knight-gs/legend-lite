@@ -90,11 +90,9 @@ final class ElementReferences {
         List<String> pk = new ArrayList<>();
         var md = ctx.findMapping(mappingFqn).orElse(null);
         if (md != null) {
-            for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-                if (cb.classFqn().equals(classFqn)) {
-                    pk = cb.primaryKeyColumns();
-                    break;
-                }
+            for (var cb : md.classBindingsWithIncludes(classFqn, ctx::findMapping)) {
+                pk = cb.primaryKeyColumns();
+                break;
             }
         }
         if (pk.size() != 1) {
@@ -175,11 +173,7 @@ final class ElementReferences {
             return false;
         }
         boolean any = false;
-        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-            if (cb.classFqn().equals(srcClass)
-                    || !ctx.isSubtype(cb.classFqn(), srcClass)) {
-                continue;
-            }
+        for (var cb : md.classBindingsWithIncludes(ctx.subtree(srcClass), ctx::findMapping)) {
             any = true;
             if (!ctx.isSubtype(cb.classFqn(), target)) {
                 return false;

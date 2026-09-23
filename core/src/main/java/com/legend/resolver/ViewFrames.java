@@ -34,9 +34,8 @@ public final class ViewFrames {
         if (md == null) {
             return null;
         }
-        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-            if (!cb.classFqn().equals(cs.classFqn())
-                    || !(cb instanceof com.legend.model.MappingDefinition
+        for (var cb : md.classBindingsWithIncludes(cs.classFqn(), ctx::findMapping)) {
+            if (!(cb instanceof com.legend.model.MappingDefinition
                             .ClassBinding.Relational rb)
                     || !(rb.source() instanceof com.legend.model
                             .MappingDefinition.RelationalSource.Table src)) {

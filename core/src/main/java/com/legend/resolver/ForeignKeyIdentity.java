@@ -41,11 +41,9 @@ final class ForeignKeyIdentity {
                 continue;
             }
             List<String> tgtKeys = List.of();
-            for (var tcb : mapping.classBindingsWithIncludes(ctx::findMapping)) {
-                if (tcb.classFqn().equals(tg.classFqn())) {
-                    tgtKeys = tcb.primaryKeyColumns();
-                    break;
-                }
+            for (var tcb : mapping.classBindingsWithIncludes(tg.classFqn(), ctx::findMapping)) {
+                tgtKeys = tcb.primaryKeyColumns();
+                break;
             }
             String fkCol = sourceKeyColumn(step.predicate(), tgtKeys);
             for (var c : rowType.columns()) {

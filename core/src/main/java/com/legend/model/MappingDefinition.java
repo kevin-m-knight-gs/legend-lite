@@ -105,7 +105,8 @@ public record MappingDefinition(
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
         includes = includes == null ? List.of() : List.copyOf(includes);
         classBindings = ClassBindings.of(classBindings == null ? List.of() : classBindings);
-        associationBindings = associationBindings == null ? List.of() : List.copyOf(associationBindings);
+        associationBindings = AssociationBindings.of(
+                associationBindings == null ? List.of() : associationBindings);
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
         // original store FQN -> resolved store FQN: the engine's
         // Mapping.resolveStore for every store this mapping's include chain
@@ -120,6 +121,43 @@ public record MappingDefinition(
      * {@link #classBindings()} list itself, in declaration order). */
     public ClassBindings bindings() {
         return (ClassBindings) classBindings;
+    }
+
+    /** This mapping's OWN binding for association {@code associationFqn}
+     * (the first declared), else null. */
+    public @com.legend.Nullable AssociationBinding associationBinding(String associationFqn) {
+        return ((AssociationBindings) associationBindings).byAssociation.get(associationFqn);
+    }
+
+    /** A mapping's OWN association bindings in declaration order, keyed by
+     * association when the mapping is built. Equal to any list of the same
+     * bindings. */
+    private static final class AssociationBindings
+            extends java.util.AbstractList<AssociationBinding> implements java.util.RandomAccess {
+        private final List<AssociationBinding> all;
+        private final java.util.Map<String, AssociationBinding> byAssociation = new java.util.HashMap<>();
+
+        private AssociationBindings(List<AssociationBinding> all) {
+            this.all = all;
+            for (AssociationBinding ab : all) {
+                byAssociation.putIfAbsent(ab.associationFqn(), ab);
+            }
+        }
+
+        static AssociationBindings of(List<AssociationBinding> bindings) {
+            return bindings instanceof AssociationBindings ab ? ab
+                    : new AssociationBindings(List.copyOf(bindings));
+        }
+
+        @Override
+        public AssociationBinding get(int index) {
+            return all.get(index);
+        }
+
+        @Override
+        public int size() {
+            return all.size();
+        }
     }
 
     /**
@@ -370,17 +408,60 @@ public record MappingDefinition(
     public List<ClassBinding> classBindingsWithIncludes(
             java.util.function.Function<String,
                     java.util.Optional<MappingDefinition>> find) {
-        List<ClassBinding> out = new java.util.ArrayList<>(classBindings);
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        seen.add(qualifiedName);
-        collectIncludedBindings(this, find, out, seen);
+        List<ClassBinding> out = new java.util.ArrayList<>();
+        for (MappingDefinition m : withIncludes(find)) {
+            out.addAll(m.classBindings());
+        }
         return out;
     }
 
-    private static void collectIncludedBindings(MappingDefinition md,
+    /** {@code classFqn}'s bindings across {@link #withIncludes}, in its
+     * order — {@link #classBindingsWithIncludes} filtered to one class,
+     * asked of each mapping's keyed bindings. */
+    public List<ClassBinding> classBindingsWithIncludes(String classFqn,
+            java.util.function.Function<String,
+                    java.util.Optional<MappingDefinition>> find) {
+        List<ClassBinding> out = new java.util.ArrayList<>();
+        for (MappingDefinition m : withIncludes(find)) {
+            out.addAll(m.bindings().ofClass(classFqn));
+        }
+        return out;
+    }
+
+    /** The same over several classes (a subtree): each mapping's bindings
+     * of any of {@code classes}, in declaration order, mappings in
+     * {@link #withIncludes} order. */
+    public List<ClassBinding> classBindingsWithIncludes(java.util.Collection<String> classes,
+            java.util.function.Function<String,
+                    java.util.Optional<MappingDefinition>> find) {
+        List<ClassBinding> out = new java.util.ArrayList<>();
+        if (classes.isEmpty()) {
+            return out;
+        }
+        for (MappingDefinition m : withIncludes(find)) {
+            out.addAll(m.bindings().ofClasses(classes));
+        }
+        return out;
+    }
+
+    /** This mapping then its includes, transitively: depth-first, own
+     * first, each once (cycle-safe); a bare include path resolves in the
+     * includer's package when a mapping is there. */
+    public List<MappingDefinition> withIncludes(
+            java.util.function.Function<String,
+                    java.util.Optional<MappingDefinition>> find) {
+        List<MappingDefinition> out = new java.util.ArrayList<>();
+        out.add(this);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        seen.add(qualifiedName);
+        collectIncludes(this, find, out, seen);
+        return out;
+    }
+
+    private static void collectIncludes(MappingDefinition md,
             java.util.function.Function<String,
                     java.util.Optional<MappingDefinition>> find,
-            List<ClassBinding> out, java.util.Set<String> seen) {
+            List<MappingDefinition> out, java.util.Set<String> seen) {
         for (MappingInclude inc : md.includes()) {
             String path = inc.mappingPath();
             if (!path.contains("::") && md.qualifiedName().contains("::")) {
@@ -397,8 +478,8 @@ public record MappingDefinition(
             if (included == null) {
                 continue;
             }
-            out.addAll(included.classBindings());
-            collectIncludedBindings(included, find, out, seen);
+            out.add(included);
+            collectIncludes(included, find, out, seen);
         }
     }
 

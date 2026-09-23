@@ -67,11 +67,9 @@ final class CastReRoot {
         List<String> pk = List.of();
         var md = ctx.findMapping(src.mappingFqn()).orElse(null);
         if (md != null) {
-            for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-                if (cb.classFqn().equals(subFqn)) {
-                    pk = cb.primaryKeyColumns();
-                    break;
-                }
+            for (var cb : md.classBindingsWithIncludes(subFqn, ctx::findMapping)) {
+                pk = cb.primaryKeyColumns();
+                break;
             }
         }
         if (pk.isEmpty()) {

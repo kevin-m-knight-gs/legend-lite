@@ -662,11 +662,9 @@ final class AssociationJoins {
             if (m.isEmpty()) {
                 continue;
             }
-            var hit = m.get().associationBindings().stream()
-                    .filter(ab -> ab.associationFqn().equals(assocFqn))
-                    .findFirst();
-            if (hit.isPresent()) {
-                return hit;
+            var hit = m.get().associationBinding(assocFqn);
+            if (hit != null) {
+                return java.util.Optional.of(hit);
             }
             for (var inc : m.get().includes()) {
                 queue.add(inc.mappingPath());
@@ -715,11 +713,9 @@ final class AssociationJoins {
         if (declared != null) {
             members.addAll(declared);
         }
-        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
-            if (!cb.classFqn().equals(unionTarget.classFqn())
-                    && ctx.isSubtype(cb.classFqn(), unionTarget.classFqn())) {
-                members.add(cb.classFqn());
-            }
+        for (var cb : md.classBindingsWithIncludes(
+                ctx.subtree(unionTarget.classFqn()), ctx::findMapping)) {
+            members.add(cb.classFqn());
         }
         for (String m : members) {
             ClassSource ms;

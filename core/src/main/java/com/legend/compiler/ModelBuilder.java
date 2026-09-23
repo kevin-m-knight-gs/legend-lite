@@ -115,15 +115,21 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     private final ArrayList<ClassDefinition>       classes       = new ArrayList<>();
     private final ArrayList<AssociationDefinition> associations  = new ArrayList<>();
     /**
-     * Association ends indexed by {@code ownerFqn -> propName -> end} —
-     * association navigation is on the type-checker's HOT PATH (every class
-     * property lookup that isn't declared falls through to here), so the
-     * lookup must be O(1), not a scan. Built lazily on first use (all
-     * associations are interned by then; the builder is read-only after
-     * construction).
+     * Association ends indexed by {@code ownerFqn -> propName ->} every
+     * (association, end) injecting that property onto that class, in
+     * declaration order — the ONE index behind {@link #findAssociationEnd}
+     * and {@link #findAssociationOf}. Association navigation is on the
+     * type checker's and the resolver's HOT PATH, so both are lookups, not
+     * scans. Built on first use after a batch (all associations are
+     * interned by then) and dropped when a batch is added.
      */
-    private @com.legend.Nullable Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>>
+    private @com.legend.Nullable Map<String, Map<String, List<InjectedEnd>>>
             associationEndsByOwner;
+
+    /** One association end injected onto a class. */
+    private record InjectedEnd(AssociationDefinition association,
+            AssociationDefinition.AssociationEndDefinition end) {
+    }
     private final ArrayList<EnumDefinition>        enums         = new ArrayList<>();
     private final ArrayList<ProfileDefinition>     profiles      = new ArrayList<>();
     private final ArrayList<com.legend.model.MeasureDefinition> measures = new ArrayList<>();
@@ -744,13 +750,10 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     private Optional<AssociationDefinition> findAssociationAtClass(
             String ownerClassFqn, String propName) {
         java.util.List<AssociationDefinition> hits = new java.util.ArrayList<>();
-        for (AssociationDefinition ad : associations) {
-            if (ad == null) continue;
-            if ((isNameRef(ad.property2().targetClass(), ownerClassFqn)
-                    && ad.property1().propertyName().equals(propName))
-                    || (isNameRef(ad.property1().targetClass(), ownerClassFqn)
-                    && ad.property2().propertyName().equals(propName))) {
-                hits.add(ad);
+        for (InjectedEnd e : injectedEnds(ownerClassFqn, propName)) {
+            // a self-association naming both ends alike injects twice: one association
+            if (hits.isEmpty() || hits.get(hits.size() - 1) != e.association()) {
+                hits.add(e.association());
             }
         }
         if (hits.size() > 1) {
@@ -770,34 +773,38 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
         return hits.isEmpty() ? Optional.empty() : Optional.of(hits.get(0));
     }
 
+    /** The end named {@code propName} injected onto {@code ownerClassFqn};
+     * with several, the LAST declared (see {@link #findAssociationAtClass},
+     * which refuses the ambiguity). */
     public Optional<AssociationDefinition.AssociationEndDefinition> findAssociationEnd(
             String ownerClassFqn, String propName) {
-        if (associationEndsByOwner == null) {
-            Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>> idx =
-                    new HashMap<>();
+        List<InjectedEnd> ends = injectedEnds(ownerClassFqn, propName);
+        return ends.isEmpty() ? Optional.empty() : Optional.of(ends.get(ends.size() - 1).end());
+    }
+
+    private List<InjectedEnd> injectedEnds(String ownerClassFqn, String propName) {
+        Map<String, Map<String, List<InjectedEnd>>> idx = associationEndsByOwner;
+        if (idx == null) {
+            idx = new HashMap<>();
             for (AssociationDefinition ad : associations) {
                 if (ad == null) continue;
-                indexEnd(idx, ad.property2().targetClass(), ad.property1());
-                indexEnd(idx, ad.property1().targetClass(), ad.property2());
+                // each end injects onto the class the OPPOSITE end targets
+                indexEnd(idx, ad, ad.property2().targetClass(), ad.property1());
+                indexEnd(idx, ad, ad.property1().targetClass(), ad.property2());
             }
             associationEndsByOwner = idx;
         }
-        return Optional.ofNullable(associationEndsByOwner
-                .getOrDefault(ownerClassFqn, Map.of()).get(propName));
+        return idx.getOrDefault(ownerClassFqn, Map.of()).getOrDefault(propName, List.of());
     }
 
-    /** {@code end} injects onto the class named by {@code ownerRef} (opposite end's target). */
-    private static void indexEnd(
-            Map<String, Map<String, AssociationDefinition.AssociationEndDefinition>> idx,
-            TypeExpression ownerRef,
+    private static void indexEnd(Map<String, Map<String, List<InjectedEnd>>> idx,
+            AssociationDefinition ad, TypeExpression ownerRef,
             AssociationDefinition.AssociationEndDefinition end) {
         if (ownerRef instanceof TypeExpression.NameRef n) {
-            idx.computeIfAbsent(n.name(), k -> new HashMap<>()).put(end.propertyName(), end);
+            idx.computeIfAbsent(n.name(), k -> new HashMap<>())
+                    .computeIfAbsent(end.propertyName(), k -> new ArrayList<>())
+                    .add(new InjectedEnd(ad, end));
         }
-    }
-
-    private static boolean isNameRef(TypeExpression t, String fqn) {
-        return t instanceof TypeExpression.NameRef nr && nr.name().equals(fqn);
     }
 
     /** O(1). Returns {@link EnumDefinition} for {@code fqn}, if any. */
