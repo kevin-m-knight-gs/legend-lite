@@ -1169,6 +1169,30 @@ final class StackBuilder {
                 entries = List.of(entries.get(entries.size() - 1));
             }
         }
+        // SHARED KEYS: when every entry is ONE condition shape and the entries
+        // are exactly every (arm, target set) pair, a source row fills only
+        // its own arm's keys and a union row only its own set's — so the
+        // per-entry and per-set keys can be ONE column each: the repointed
+        // conditions coincide and the OR below collapses to one condition
+        // (an equi-join the database hashes, where the OR of per-pair
+        // equalities was a nested loop — 105 terms for inferredType's
+        // 5 x 21 sets). Same answers: the OR's only live term for a row pair
+        // is that pair's own entry, and it exists iff both are in the rectangle.
+        boolean sharedKeys = sharedKeys(entries);
+        if (sharedKeys) {
+            List<Entry> shared = new ArrayList<>(entries.size());
+            for (Entry e : entries) {
+                List<String> keys = new ArrayList<>(e.sourceKeys());
+                for (int k = 0; k < keys.size(); k++) {
+                    if (keys.get(k).equals(e.pairSourceKeys().get(k))) {   // not a modeled column
+                        keys.set(k, "__s_" + liftIx + "_all_" + k);
+                    }
+                }
+                shared.add(new Entry(e.arm(), e.target(), e.rows(), e.cond(), e.targetReads(),
+                        e.sourceReads(), keys, e.pairSourceKeys()));
+            }
+            entries = shared;
+        }
         // the groups: one per target SET (or extent), each once — the OR
         // runs over every entry's condition
         Map<Object, Group> groups = new LinkedHashMap<>();
@@ -1187,12 +1211,14 @@ final class StackBuilder {
             Map<String, String> modeled = everyArmRoutes
                     ? modeledColumns(mapping, targetClass, g.target()) : Map.of();
             for (Entry e : g.entries()) {
+                List<String> order = targetReadOrder(e);
                 for (String read : e.targetReads()) {
                     if (!g.pairKeyByRead().containsKey(read)) {
                         String pair = "__route" + gi + "_" + g.pairKeyByRead().size();
                         g.pairKeyByRead().put(read, pair);
                         String prop = modeled.get(read);
-                        g.keyByRead().put(read, prop != null ? prop : pair);
+                        g.keyByRead().put(read, prop != null ? prop
+                                : sharedKeys ? "__route_all_" + order.indexOf(read) : pair);
                     }
                 }
             }
@@ -1228,6 +1254,32 @@ final class StackBuilder {
                 c.perArm().put(e.arm(), pathRead(
                         new TypedVariable(arms.get(e.arm()).rowVar(), new ExprType(aRow, one)),
                         aRow, path, new ExprType(t, optional)));
+            }
+        }
+        // the shared source keys: one column per read position, each arm
+        // projecting its own read (the same path in every entry of the arm)
+        if (sharedKeys) {
+            for (Entry e : entries) {
+                Type.RelationType aRow = armRows.get(e.arm());
+                for (int k = 0; k < e.sourceReads().size(); k++) {
+                    String name = e.sourceKeys().get(k);
+                    if (!name.startsWith("__s_" + liftIx + "_all_")) {
+                        continue;   // a modeled read: the stack's own column
+                    }
+                    String path = e.sourceReads().get(k);
+                    Type t = java.util.Objects.requireNonNull(pathType(aRow, path));
+                    Col c = byName.get(name);
+                    if (c == null) {
+                        c = new Col(name, t, optional);
+                        byName.put(name, c);
+                        srcCols.add(c);
+                    }
+                    if (!c.perArm().containsKey(e.arm())) {
+                        c.perArm().put(e.arm(), pathRead(
+                                new TypedVariable(arms.get(e.arm()).rowVar(), new ExprType(aRow, one)),
+                                aRow, path, new ExprType(t, optional)));
+                    }
+                }
             }
         }
         // ONE group into ONE plain set (the class's root or sole set): a
@@ -1597,6 +1649,51 @@ final class StackBuilder {
 
     /** The condition's SHAPE: target reads erased to a placeholder, source
      * reads reduced to their bare paths, the variables normalized. */
+    /** Whether the entries share their keys (see liftOf): two or more, ONE
+     * condition shape, every (arm, target set) pair exactly once, and within
+     * each target set the same target reads in the same positions (a key
+     * column is one target column per set). */
+    private static boolean sharedKeys(List<Entry> entries) {
+        if (entries.size() < 2) {
+            return false;
+        }
+        TypedSpec shape = null;
+        Set<Integer> armIds = new LinkedHashSet<>();
+        Map<Object, List<String>> readsBySet = new LinkedHashMap<>();
+        Set<List<Object>> pairs = new LinkedHashSet<>();
+        for (Entry e : entries) {
+            TypedSpec sh = condShape(e.cond());
+            if (shape == null) {
+                shape = sh;
+            } else if (!shape.equals(sh)) {
+                return false;
+            }
+            Object set = targetIdentity(e.target());
+            List<String> order = targetReadOrder(e);
+            if (!order.containsAll(e.targetReads())) {
+                return false;
+            }
+            List<String> prior = readsBySet.putIfAbsent(set, order);
+            if (prior != null && !prior.equals(order)) {
+                return false;
+            }
+            armIds.add(e.arm());
+            if (!pairs.add(List.of(e.arm(), set))) {
+                return false;
+            }
+        }
+        return pairs.size() == armIds.size() * readsBySet.size();
+    }
+
+    /** An entry's target reads in the order its condition reads them (the
+     * order condShape's erased positions follow). */
+    private static List<String> targetReadOrder(Entry e) {
+        TypedSpec body = e.cond().body().get(e.cond().body().size() - 1);
+        List<String> out = new ArrayList<>();
+        collectReads(body, e.cond().parameters().get(1), out);
+        return out;
+    }
+
     /** A condition's SHAPE: its body with the target reads erased and the
      * source reads normalized — a typed node whose structural equality is
      * the identity (two routes of one shape read the same source paths

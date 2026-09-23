@@ -409,6 +409,7 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/lowering/ValueSortComparatorTest.java",
             "core/src/test/java/com/legend/normalizer/AssocSimpleNameProbeTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationSetIdTest.java",
+            "core/src/test/java/com/legend/resolver/RoutedEquiJoinTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java",
             "spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",
             // the product test runner's proof (batch 7a, 2026-09-11): opens an
