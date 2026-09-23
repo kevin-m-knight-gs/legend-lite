@@ -34,6 +34,7 @@ public final class DdlSpelling {
                 case TIMESTAMP -> "TIMESTAMP";
                 case DATE -> "DATE";
                 case JSON -> "JSON";
+                case VARCHAR -> "VARCHAR";
                 case OTHER, DISTINCT, ARRAY, OBJECT -> throw new IllegalStateException(
                         "no DDL spelling for declared column type " + p.kind());
             };

@@ -128,10 +128,11 @@ public final class SystemDatabase {
         for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
             for (DatabaseDefinition.TableDefinition def : schema.tables()) {
                 List<List<String>> r = rows.computeIfAbsent(def.name(), rowsOf);
-                for (String stmt : Ddl.metamodelSeed(def, schema.name(), r, dialect)) {
-                    try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
+                try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
+                    for (String stmt : Ddl.metamodelSeed(def, schema.name(), dialect)) {
                         Executor.executeRaw(c, stmt);
                     }
+                    Executor.load(c, dialect, Ddl.metamodelRows(def, schema.name(), r));
                 }
             }
         }

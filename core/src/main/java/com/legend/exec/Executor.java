@@ -55,6 +55,51 @@ public final class Executor {
         }
     }
 
+    /** The engines' own bulk-load APIs, found beside the drivers. */
+    private static final List<BulkLoad> BULK_LOADS = java.util.ServiceLoader.load(BulkLoad.class)
+            .stream().map(java.util.ServiceLoader.Provider::get).toList();
+
+    /** Loads {@code load}'s rows: through the engine's bulk API when one is
+     * present, else as ONE multi-row insert. The database types every cell
+     * on both paths ({@link BulkLoad}'s contract); {@code dialect} renders
+     * every statement either path sends. */
+    public static void load(Connection connection, com.legend.sql.dialect.SqlDialect dialect,
+            RowLoad load) {
+        if (load.rows().isEmpty()) {
+            return;
+        }
+        try {
+            for (BulkLoad bulk : BULK_LOADS) {
+                if (bulk.accepts(connection)) {
+                    List<com.legend.sql.SqlDdl.Column> text = new ArrayList<>(load.width());
+                    for (int c = 0; c < load.width(); c++) {
+                        text.add(new com.legend.sql.SqlDdl.Column("c" + c, false,
+                                new com.legend.sql.SqlDdl.ColumnType.Plain(
+                                        com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR),
+                                false, false));
+                    }
+                    BulkLoad.Staging staging = new BulkLoad.Staging(STAGE,
+                            dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, text, true)),
+                            dialect.render(load.fromStage(STAGE)),
+                            dialect.render(new com.legend.sql.SqlDdl.DropTable(null, STAGE)));
+                    Census.inc(Census.Key.SQL_ROUND_TRIPS);
+                    Census.inc(Census.Key.BULK_LOADS);
+                    StatementOrigin.count();
+                    bulk.load(connection, load, staging);
+                    return;
+                }
+            }
+        } catch (SQLException e) {
+            java.sql.SQLException un = RaisedErrors.unwrapped(e);
+            throw new DataError(String.valueOf(un.getMessage()), un);
+        }
+        executeRaw(connection, dialect.render(load.values()));
+    }
+
+    /** A bulk load's staging table: temporary, so one per session, created
+     *  and dropped inside the one load. */
+    private static final String STAGE = "legend_row_load";
+
     /** ONE round trip for a multi-statement SCRIPT (block-compiler stage 3): the
      * engine runs it sequentially and stops at the first failing statement, the
      * earlier ones applied (probed on both engines, homework §19); result sets are

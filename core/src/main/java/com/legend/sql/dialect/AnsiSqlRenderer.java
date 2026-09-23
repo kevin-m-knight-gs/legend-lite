@@ -1250,6 +1250,35 @@ public class AnsiSqlRenderer implements SqlDialect {
         };
     }
 
+    @Override
+    public String render(com.legend.sql.SqlDml dml) {
+        return switch (dml) {
+            case com.legend.sql.SqlDml.InsertValues iv -> {
+                StringBuilder sb = new StringBuilder("INSERT INTO ")
+                        .append(ddlQualified(iv.schema(), iv.table()))
+                        .append(dmlColumns(iv.columns())).append(" VALUES ");
+                for (int r = 0; r < iv.rows().size(); r++) {
+                    sb.append(r == 0 ? "(" : ", (");
+                    java.util.List<com.legend.sql.SqlExpr> row = iv.rows().get(r);
+                    for (int c = 0; c < row.size(); c++) {
+                        sb.append(c == 0 ? "" : ", ").append(expr(row.get(c), 0));
+                    }
+                    sb.append(')');
+                }
+                yield sb.append(';').toString();
+            }
+            case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO "
+                    + ddlQualified(it.schema(), it.table()) + dmlColumns(it.columns())
+                    + " SELECT * FROM " + ident(it.source()) + ";";
+        };
+    }
+
+    /** {@code " (a, b)"} by the identifier rule, or empty for every column. */
+    private String dmlColumns(java.util.List<String> columns) {
+        return columns.isEmpty() ? "" : " (" + String.join(", ",
+                columns.stream().map(this::ident).toList()) + ")";
+    }
+
     /** {@code schema.table}; the default schema spells bare. */
     protected String ddlQualified(@com.legend.Nullable String schema, String table) {
         return schema == null || schema.isEmpty() || "default".equals(schema)

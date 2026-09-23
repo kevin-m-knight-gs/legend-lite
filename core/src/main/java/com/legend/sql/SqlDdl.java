@@ -22,9 +22,11 @@ public sealed interface SqlDdl
 
     /** A declared column type, as the relational grammar spells it. */
     sealed interface ColumnType permits ColumnType.Plain, ColumnType.Sized, ColumnType.Scaled {
-        /** The unsized kinds. */
+        /** The unsized kinds. {@code VARCHAR}: text of any length &mdash; no store
+         *  declares it (the grammar sizes VARCHAR); a bulk load's staging
+         *  columns hold each cell as text before the database casts it. */
         enum Kind { BIGINT, SMALLINT, TINYINT, INTEGER, FLOAT, DOUBLE, REAL, BIT, TIMESTAMP, DATE,
-            JSON, OTHER, DISTINCT, ARRAY, OBJECT }
+            JSON, VARCHAR, OTHER, DISTINCT, ARRAY, OBJECT }
         record Plain(Kind kind) implements ColumnType {
         }
         /** {@code VARCHAR(n)}, {@code CHAR(n)}, {@code BINARY(n)}, {@code VARBINARY(n)}. */

@@ -82,6 +82,12 @@ class JdbcSurfaceCensusTest {
             // leg 3.4: the deferred verdict statements are keyed by the
             // session they run on (a store side's routed connection, or the
             // body's); sent through the one Executor choke point
+            // 2026-09-23: DuckDB's Appender behind core's BulkLoad seam (its own
+            // target beside the drivers; core compiles against none). It stages
+            // every cell as TEXT and one INSERT ... SELECT casts: the DATABASE
+            // types each value, exactly as the text path's quoted literals
+            "core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java",
+            "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
             "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
@@ -411,6 +417,7 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/normalizer/AssociationSetIdTest.java",
             "core/src/test/java/com/legend/resolver/RoutedEquiJoinTest.java",
             "core/src/test/java/com/legend/resolver/RuntimeIfClassQueryTest.java",
+            "core/src/test/java/com/legend/exec/RowLoadTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java",
             "spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",
             // the product test runner's proof (batch 7a, 2026-09-11): opens an

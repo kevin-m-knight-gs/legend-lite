@@ -5206,3 +5206,29 @@ as before.
 **Ledgers.** Own-corpus parity 2528 → 2532 (`RuntimeIfClassQueryTest`'s model). `native-claims.tsv`
 regenerated: new consumers of existing natives (`not`, `isEmpty`, `isNotEmpty`, `toOne`), no
 native added.
+
+## 2026-09-23 — The system seed's rows: one pass, and DuckDB's Appender
+
+**What.** The first metamodel query of a graph derives and loads the system database's rows.
+Two costs made it superlinear (1K classes 0.6 s, 10K 6.4 s, 50K 61 s). `MetamodelSeeds.classMappings`
+counted each set's sibling sets by re-scanning the mapping for every set (quadratic in the
+mapping's size); it now counts once per mapping. And DuckDB spent most of the rest PREPARING the
+seed's one multi-row INSERT text (424 of 506 native samples at 20K classes). Rows now load
+through DuckDB's Appender behind a `ServiceLoader` seam (`exec.BulkLoad`; the implementation
+`core/src/main/duckdb`, target `//core:duckdb_load`, rides with `//core:drivers` — core still
+compiles against no driver). The typing stays in the DATABASE: every cell is appended as text
+into a temporary staging table and one `INSERT ... SELECT` casts it, the cast the text path's
+string literals get (`RowLoadTest` compares the two paths row for row, NULLs, quotes, DATE,
+DECIMAL, BOOLEAN, TIMESTAMP, a failing cast). Every statement is our IR rendered by the dialect:
+`SqlDml` (new: `InsertValues`, `InsertFromTable`) beside `SqlDdl` (a temporary `CreateTable`
+with the new unsized `VARCHAR` kind, `DropTable`); the loader spells no SQL. Engines without a
+loader (H2, SQLite) take `RowLoad.values()`, one dialect-rendered multi-row insert.
+
+**Measured.** First metamodel query (compile + seed + query), best of 2: 1K 0.15 s, 10K 0.72 s,
+20K 1.26 s, 50K 3.07 s, 100K 6.33 s — linear (was 0.6 / 6.4 / 15.5 / 61 s / did not finish).
+`corpus_duckdb` alone: 36.6 s mean of 2 (baseline 37.9 s; the seed was ~1.2 s of the lane).
+
+**Ledgers.** SQL-text ratchet `exec/Ddl.java` 2 → 1 (the seed INSERT is a `SqlDml` node). JDBC
+census: `BulkLoad.java` and `DuckDbAppenderLoad.java` registered. Exec class register:
+`RowLoad.java`, `BulkLoad.java`. Census key `sql.bulk-loads`. Own-corpus parity 2532 → 2535
+(`RowLoadTest`'s model).

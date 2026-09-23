@@ -91,7 +91,7 @@ class SqlTextRatchetTest {
         // 3 -> 4 (metamodel-store leg 2026-08-28): metamodelSeed's
         // registry-extent INSERT joins the one DDL owner — system
         // setup text beside the create/drop it already renders
-        REGISTER.put("exec/Ddl.java", 2);   // 4 -> 2 (2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes; the engine-text INSERT rows remain)
+        REGISTER.put("exec/Ddl.java", 1);   // 2 -> 1 (2026-09-23: the metamodel seed's INSERT is a dialect-rendered SqlDml node, RowLoad.values); 4 -> 2 (2026-09-16: CREATE/DROP are dialect-rendered SqlDdl nodes; the engine-text INSERT rows remain)
         REGISTER.put("plan/InProtocol.java", 1);
         REGISTER.put("plan/PlanText.java", 2);
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG

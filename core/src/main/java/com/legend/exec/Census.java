@@ -35,6 +35,8 @@ public final class Census {
         WIRE_SLOT_SKEW("wire.slot-skew"),
         SQL_ROUND_TRIPS("sql.round-trips"),
         SQL_CHARS("sql.chars"),
+        /** Row loads an engine's own bulk API took ({@link BulkLoad}). */
+        BULK_LOADS("sql.bulk-loads"),
         /** Read through to the SQL layer's own counter (see {@link #count}). */
         SCAN_ORDER_FIRINGS("test-lane.scan-order-firings"),
         ULP_FIRINGS("host.ulp-firings"),

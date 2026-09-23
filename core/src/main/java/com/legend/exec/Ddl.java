@@ -359,64 +359,26 @@ public final class Ddl {
         }
     }
 
-    /** The SYSTEM metamodel seed (METAMODEL_STORE_HANDOFF.md &sect;5):
-     * schema + drop/create through the ONE generator, then the registry
-     * extent as a single multi-row VALUES insert (all-string columns,
-     * rows pre-sorted by the registry's deterministic-order contract).
-     * Idempotent per context &mdash; the content is a pure function of
-     * the active model context, so overlays simply re-seed. */
+    /** The SYSTEM metamodel seed's DDL (METAMODEL_STORE_HANDOFF.md &sect;5):
+     * schema + drop/create through the ONE generator. Its rows are
+     * {@link #metamodelRows}. Idempotent per context &mdash; the content is
+     * a pure function of the active model context, so overlays simply
+     * re-seed. */
     public static java.util.List<String> metamodelSeed(
             DatabaseDefinition.TableDefinition def, String schema,
-            java.util.List<java.util.List<String>> rows,
             com.legend.sql.dialect.SqlDialect dialect) {
-        java.util.List<String> out = new java.util.ArrayList<>();
-        out.add(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema)));
-        out.add(dialect.render(dropTable(schema, def.name())));
-        out.add(dialect.render(createTable(def, schema)));
-        String ins = metamodelInsert(def, schema, rows);
-        if (ins != null) {
-            out.add(ins);
-        }
-        return out;
+        return java.util.List.of(
+                dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema)),
+                dialect.render(dropTable(schema, def.name())),
+                dialect.render(createTable(def, schema)));
     }
 
-    /** ONE multi-row {@code INSERT} of {@code rows} into the store table
-     * (null when there are none) — the seed's insert half, also the
-     * content-addressed rows a query constructs. */
-    public static @com.legend.Nullable String metamodelInsert(
-            DatabaseDefinition.TableDefinition def, String schema,
+    /** The seed's rows for one store table (all-string cells, pre-sorted by
+     * the registry's deterministic-order contract; null an absent optional
+     * fact), every column in declared order. */
+    public static RowLoad metamodelRows(DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows) {
-        if (!rows.isEmpty()) {
-            StringBuilder ins = new StringBuilder("insert into ")
-                    .append(qualify(schema, def.name())).append(" values ");
-            for (int r = 0; r < rows.size(); r++) {
-                if (r > 0) {
-                    ins.append(", ");
-                }
-                ins.append('(');
-                java.util.List<String> row = rows.get(r);
-                for (int c = 0; c < row.size(); c++) {
-                    if (c > 0) {
-                        ins.append(", ");
-                    }
-                    String cell = row.get(c);
-                    if (cell == null) {
-                        ins.append("NULL");   // an absent optional fact
-                    } else {
-                        ins.append('\'').append(cell.replace("'", "''"))
-                                .append('\'');
-                    }
-                }
-                ins.append(')');
-            }
-            return ins.append(';').toString();
-        }
-        return null;
-    }
-
-    private static String qualify(@com.legend.Nullable String schema, String table) {
-        return schema == null || schema.isEmpty() || "default".equals(schema)
-                ? table : schema + "." + table;
+        return new RowLoad(schema, def.name(), java.util.List.of(), def.columns().size(), rows);
     }
 
     /** The FLAVORED type spelling: the deltas from the H2 base are the

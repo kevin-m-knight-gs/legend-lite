@@ -1000,6 +1000,11 @@ class JavaEvalLedgerTest {
                     // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): counters only —
                     // one storage, one snapshot; no value is produced or compared
                     "Census.java",
+                    // bulk load (2026-09-23): rows for one table as TEXT cells
+                    // the database casts (the seed's, test data's), and the
+                    // seam an engine's own bulk API joins through. Egress
+                    // only: nothing is typed, produced or compared here
+                    "RowLoad.java", "BulkLoad.java",
                     // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
                     // construction — the statements the effect natives would have
                     // sent, collected (text + the ledger's text + a statically

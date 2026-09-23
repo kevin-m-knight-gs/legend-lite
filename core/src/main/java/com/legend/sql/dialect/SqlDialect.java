@@ -72,4 +72,8 @@ public interface SqlDialect {
      *  ternaries that chose it: a target is decided INSIDE its dialect. */
     String render(com.legend.sql.SqlDdl ddl);
 
+    /** Row writes rendered like DDL (2026-09-23): the dialect's identifier
+     *  rule and literal spelling. */
+    String render(com.legend.sql.SqlDml dml);
+
 }

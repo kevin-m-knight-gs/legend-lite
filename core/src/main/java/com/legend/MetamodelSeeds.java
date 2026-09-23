@@ -279,6 +279,14 @@ public final class MetamodelSeeds {
             if (md == null) {
                 continue;
             }
+            // m3 SetImplementation.root: the '*' set, else the class's SOLE
+            // set among the mapping's OWN sets (MappingValidator.validateStar
+            // — includes do not count). Counted in one pass: a count per set
+            // re-scanned every set (quadratic in the mapping's size)
+            java.util.Map<String, Integer> ownSets = new java.util.HashMap<>();
+            for (MappingDefinition.ClassBinding b : md.classBindings()) {
+                ownSets.merge(b.classFqn(), 1, Integer::sum);
+            }
             for (MappingDefinition.ClassBinding cb : md.classBindings()) {
                 if (!(cb instanceof MappingDefinition.ClassBinding.Relational rel)
                         || !(rel.source()
@@ -292,11 +300,7 @@ public final class MetamodelSeeds {
                 int dot = t.table().indexOf('.');
                 String schema = dot < 0 ? "default" : t.table().substring(0, dot);
                 String name = dot < 0 ? t.table() : t.table().substring(dot + 1);
-                // m3 SetImplementation.root: the '*' set, else the class's
-                // SOLE set among the mapping's OWN sets (MappingValidator.
-                // validateStar — includes do not count)
-                long own = md.classBindings().stream()
-                        .filter(b -> b.classFqn().equals(cb.classFqn())).count();
+                int own = java.util.Objects.requireNonNull(ownSets.get(cb.classFqn()));
                 rows.add(java.util.Arrays.asList(fqn, id, cb.classFqn(),
                         cb.extendsSetId(), t.database(), schema, name,
                         rel.declared().distinct() ? "true" : null,
