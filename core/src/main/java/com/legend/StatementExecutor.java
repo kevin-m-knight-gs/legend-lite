@@ -2704,26 +2704,22 @@ final class StatementExecutor {
      * collection declaration (when a primitive collection is declared over a
      * relation root), the planned env, and whether it reads no store. */
     /** The test-data generator's VIEW fetch renderer (TestDataGenerator.ViewSql):
-     *  the view's relation accessor {@code #>{db.VIEW}#} compiled and planned
-     *  like any query (the accessor types as the view's lifted function, E.5;
-     *  the inliner names the relation; the resolver materializes its joins),
-     *  the fetched base tables renamed to their temps (the replaceTables pass
-     *  — the engine's {@code fixTables}), rendered in the lane's own dialect
-     *  (the text is executed on this connection). The generator's package
-     *  never reaches the lowering: the driver hands it this. */
+     *  the view's lifted function (E.5, reached through the include closure
+     *  like a table) as the compiler's relation — the same node a user's
+     *  accessor inlines to — planned like any query (the resolver
+     *  materializes its joins), the fetched base tables renamed to their
+     *  temps (the replaceTables pass — the engine's {@code fixTables}),
+     *  rendered in the lane's own dialect (the text is executed on this
+     *  connection). The generator's package never reaches the lowering: the
+     *  driver hands it this. */
     static com.legend.testdatagen.TestDataGenerator.ViewSql viewSqlRenderer(
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return (db, view, tableToTemp) -> {
-            String accessor = env.ctx().viewAccessor(db, view)
+            com.legend.compiler.element.TypedFunction fn = env.ctx().findViewFunction(db, view)
                     .orElseThrow(() -> new com.legend.error.NotImplementedException(
                             "testDataGen: view '" + view + "' is not a view of '" + db + "'"));
-            TypedSpec relation = specs.typeExpression(
-                    new com.legend.protocol.spec.LambdaFunction(java.util.List.of(),
-                            java.util.List.of(new com.legend.protocol.spec.AppliedFunction(
-                                    "tableReference", java.util.List.of(
-                                            new com.legend.protocol.spec.PackageableElementPtr(db),
-                                            new com.legend.protocol.spec.CString(accessor))))));
-            BarePlan b = planBare(relation, java.util.List.of(), specs, env, null, null);
+            BarePlan b = planBare(specs.viewRelation(fn), java.util.List.of(), specs, env,
+                    null, null);
             if (b.answered() != null) {
                 throw new com.legend.error.NotImplementedException(
                         "testDataGen: view '" + view + "' planned to a host answer, not a query");

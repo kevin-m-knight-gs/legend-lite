@@ -50,6 +50,19 @@ public final class SpecCompiler {
         this.typer = new Typer(ctx, new InferenceKernel(ctx));
     }
 
+    private TypedSpec viewBody(TypedFunction fn) {
+        List<TypedSpec> body = compile(fn).body();
+        return body.get(body.size() - 1);
+    }
+
+    /** The lifted view {@code fn} AS A RELATION — its compiled body named by
+     *  the view, the node the inliner produces for a call to it (the
+     *  driver's view fetch plans this; nothing outside the compiler spells a
+     *  view accessor). */
+    public TypedSpec viewRelation(TypedFunction fn) {
+        return com.legend.compiler.spec.typed.TypedViewRelation.of(fn, viewBody(fn));
+    }
+
     /** The model this compiler compiles against (the literal unroll's
      * class-hierarchy oracle). */
     public ModelContext ctx() {

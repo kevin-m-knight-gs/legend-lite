@@ -86,14 +86,16 @@ final class TableReferenceChecker {
             String viewName = strictDefault ? tableName.value() : resolvedName;
             java.util.Optional<com.legend.compiler.element.TypedFunction> lifted =
                     t.model().findViewFunction(dbRef.fullPath(), viewName);
-            if (lifted.isPresent() && lifted.get().body().isPresent()
-                    && lifted.get().body().get().size() == 1) {
-                // a CALL to the lifted function, typed as its body: every
-                // lowering path inlines user calls, and the inliner keeps a
-                // view's name on the inlined body (TypedViewRelation)
-                TypedSpec typedBody = t.synth(lifted.get().body().get().get(0), env);
+            if (lifted.isPresent()) {
+                // a CALL to the lifted function, typed from its DECLARED
+                // signature like every call (the view's relation type, read
+                // off store facts by the lift — ViewSignatures; the compiler
+                // checks the body against it once). Every lowering path
+                // inlines user calls, and the inliner keeps a view's name on
+                // the inlined body (TypedViewRelation).
                 return new com.legend.compiler.spec.typed.TypedUserCall(
-                        lifted.get(), List.of(), typedBody.info());
+                        lifted.get(), List.of(), new ExprType(
+                                lifted.get().returnType(), lifted.get().returnMultiplicity()));
             }
             throw new TypeInferenceException(
                     "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'");

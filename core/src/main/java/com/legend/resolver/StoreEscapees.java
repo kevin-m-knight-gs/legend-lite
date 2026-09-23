@@ -31,6 +31,12 @@ final class StoreEscapees {
             // nor demands a bound chain here (getAll-76 lane, §6.1)
             return;
         }
+        if (n instanceof com.legend.compiler.spec.typed.TypedJoinSlot js) {
+            throw new com.legend.error.NotImplementedException(
+                    "store resolution left join slot '" + js.alias()
+                    + "' unmaterialized — a slot outside a class pipeline or a"
+                    + " view body is a resolver gap [at " + path + "]");
+        }
         if (n instanceof TypedGetAll ga) {
             throw new com.legend.error.NotImplementedException(
                     "store resolution left getAll(" + ga.classFqn()

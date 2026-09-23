@@ -4,7 +4,6 @@
 package com.legend.normalizer;
 
 import com.legend.compiler.ModelBuilder;
-import com.legend.compiler.SynthFqn;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.error.NotImplementedException;
@@ -46,11 +45,9 @@ import java.util.Set;
  */
 final class LiftedViews {
 
-    private record Owner(String dbFqn, String liftName) {
-    }
-
     private final ModelBuilder model;
-    private final Map<DatabaseDefinition.ViewDefinition, Owner> owners = new IdentityHashMap<>();
+    private final Map<DatabaseDefinition.ViewDefinition, ModelBuilder.ViewLift> owners =
+            new IdentityHashMap<>();
     private final List<DatabaseDefinition.ViewDefinition> order = new ArrayList<>();
     private final Map<DatabaseDefinition.ViewDefinition, FunctionDefinition> functions =
             new IdentityHashMap<>();
@@ -65,21 +62,12 @@ final class LiftedViews {
             if (!(el instanceof DatabaseDefinition db)) {
                 continue;
             }
-            for (DatabaseDefinition.ViewDefinition v : db.views()) {
-                register(db, v, v.name());
-            }
-            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-                for (DatabaseDefinition.ViewDefinition v : s.views()) {
-                    register(db, v, s.name() + "." + v.name());
-                }
+            // the index decided every view's spelling (bare / SCHEMA.NAME) once
+            for (ModelBuilder.IndexedView iv : model.viewsOf(db.qualifiedName())) {
+                owners.put(iv.definition(), iv.lift());
+                order.add(iv.definition());
             }
         }
-    }
-
-    private void register(DatabaseDefinition db, DatabaseDefinition.ViewDefinition v,
-            String liftName) {
-        owners.put(v, new Owner(db.qualifiedName(), liftName));
-        order.add(v);
     }
 
     /** The view's relation body — the lifted function's one body expression,
@@ -94,25 +82,29 @@ final class LiftedViews {
         if (wall != null) {
             throw wall;
         }
-        Owner owner = owners.get(view);
+        ModelBuilder.ViewLift owner = owners.get(view);
         if (owner == null) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "view '" + view.name() + "' is not declared by any database of this model");
         }
         if (!expanding.add(view)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "view '" + owner.liftName() + "' expands through itself (cyclic"
-                    + " view-on-view chain); store=" + owner.dbFqn());
+                    "view '" + owner.spelling() + "' expands through itself (cyclic"
+                    + " view-on-view chain); store=" + owner.ownerDb());
         }
         try {
+            // THE signature, from store facts (ViewSignatures): the body is
+            // emitted to conform to it, and the compiler checks that it does
+            com.legend.compiler.element.type.Type.RelationType signature =
+                    com.legend.compiler.element.ViewSignatures.of(model, owner.ownerDb(), view);
             ValueSpecification body = ViewRelation.viewRelationExpr(
-                    view, owner.liftName(), owner.dbFqn(), model, null, this);
+                    view, owner.spelling(), owner.ownerDb(), model, null, this, signature);
             functions.put(view, new FunctionDefinition(
-                    SynthFqn.view(owner.dbFqn(), owner.liftName()), List.of(), List.of(), List.of(),
-                    new TypeExpression.NameRef(com.legend.compiler.element.type.PlatformTypes.ANY),
-                    Multiplicity.Concrete.ZERO_MANY, List.of(body), List.of(), List.of())
+                    owner.fqn(), List.of(), List.of(), List.of(),
+                    spell(signature),
+                    Multiplicity.Concrete.PURE_ONE, List.of(body), List.of(), List.of())
                     .withSynthesizedFrom(new FunctionDefinition.Synthesized(
-                            SynthHat.VIEW, owner.dbFqn(), owner.liftName())));
+                            SynthHat.VIEW, owner.ownerDb(), view.name())));
             return body;
         } catch (ModelException | NotImplementedException e) {
             walls.put(view, e);
@@ -120,6 +112,32 @@ final class LiftedViews {
         } finally {
             expanding.remove(view);
         }
+    }
+
+    /** A relation type spelled as the declaration a user would write:
+     *  {@code Relation<(name: Type[m], ...)>} — a primitive by its name, a
+     *  precise decimal as {@code Decimal} (a declaration carries no
+     *  precision; the body's precise type conforms), a class by its FQN. */
+    private static TypeExpression spell(com.legend.compiler.element.type.Type.RelationType rt) {
+        List<TypeExpression.Column> cols = new ArrayList<>(rt.columns().size());
+        for (com.legend.compiler.element.type.Type.Column c : rt.columns()) {
+            String name = switch (c.type()) {
+                case com.legend.compiler.element.type.Type.Primitive p -> p.qualifiedName();
+                case com.legend.compiler.element.type.Type.PrecisionDecimal d ->
+                        com.legend.builtin.Pure.DECIMAL.qualifiedName();
+                default -> c.type().typeName();
+            };
+            cols.add(new TypeExpression.Column(c.name(), new TypeExpression.NameRef(name),
+                    c.multiplicity().equals(
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)
+                            ? Multiplicity.Concrete.PURE_ONE : Multiplicity.Concrete.ZERO_ONE));
+        }
+        // Relation<(...)>: the RELATION generic around the schema, exactly as a
+        // user's return type spells it (a bare schema is no relation to the
+        // relation natives — select found no overload over it)
+        return new TypeExpression.Generic(
+                com.legend.compiler.element.type.PlatformTypes.RELATION,
+                List.of(new TypeExpression.RelationType(cols)), List.of(), null);
     }
 
     /** E.5, eager like E.2–E.4: every view lifted; a wall recorded under the
@@ -132,9 +150,9 @@ final class LiftedViews {
                 if (wallSink == null) {
                     throw e;
                 }
-                Owner owner = java.util.Objects.requireNonNull(owners.get(v), "registered view");
-                wallSink.putIfAbsent(SynthFqn.view(owner.dbFqn(), owner.liftName()),
-                        String.valueOf(e.getMessage()));
+                ModelBuilder.ViewLift owner = java.util.Objects.requireNonNull(
+                        owners.get(v), "registered view");
+                wallSink.putIfAbsent(owner.fqn(), String.valueOf(e.getMessage()));
             }
         }
     }

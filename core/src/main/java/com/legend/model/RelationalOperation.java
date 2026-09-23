@@ -110,6 +110,32 @@ public sealed interface RelationalOperation
         }
     }
 
+    /** This operation and every operation beneath it, pre-order — THE one
+     *  walk every reader of a relational expression shares (a
+     *  {@link JoinNavigation}'s hop chain is metadata, not a subtree:
+     *  only its terminal is beneath it). */
+    default java.util.stream.Stream<RelationalOperation> descendants() {
+        return java.util.stream.Stream.concat(java.util.stream.Stream.of(this),
+                children().stream().flatMap(RelationalOperation::descendants));
+    }
+
+    /** Whether a join is navigated anywhere in this expression. */
+    default boolean navigatesJoin() {
+        return descendants().anyMatch(o -> o instanceof JoinNavigation);
+    }
+
+    /** Every table this expression's column references read, as spelled,
+     *  in reading order (a navigated join's terminal reads count). */
+    default java.util.Set<String> tables() {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        descendants().forEach(o -> {
+            if (o instanceof ColumnRef cr) {
+                out.add(cr.table());
+            }
+        });
+        return out;
+    }
+
     /** Identity-preserving one-level rewrite through {@link #withChildren}. */
     default RelationalOperation mapChildren(
             java.util.function.UnaryOperator<RelationalOperation> f) {

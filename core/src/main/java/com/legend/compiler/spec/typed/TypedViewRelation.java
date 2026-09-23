@@ -52,16 +52,24 @@ public record TypedViewRelation(String view, TypedSpec body, ExprType info)
     }
 
     /** The view's bare name when {@code fn} is a lifted view function
-     *  (E.5 provenance, {@link SynthHat#VIEW}); null for every other
-     *  callee. ONE reader of the provenance — the inliner asks here. */
+     *  (E.5 provenance, {@link SynthHat#VIEW}: the member IS the view's
+     *  name); null for every other callee. ONE reader of the provenance. */
     public static @com.legend.Nullable String liftedViewName(TypedFunction fn) {
         if (!(fn.definition() instanceof FunctionDefinition fd)
                 || fd.synthesizedFrom() == null
                 || fd.synthesizedFrom().hat() != SynthHat.VIEW) {
             return null;
         }
-        String member = fd.synthesizedFrom().memberName();
-        int dot = member.lastIndexOf('.');
-        return dot < 0 ? member : member.substring(dot + 1);
+        return fd.synthesizedFrom().memberName();
+    }
+
+    /** THE one mint: the lifted view {@code fn}'s relation, its compiled
+     *  (or inlined) {@code body} named by the view. */
+    public static TypedViewRelation of(TypedFunction fn, TypedSpec body) {
+        String view = liftedViewName(fn);
+        if (view == null) {
+            throw new IllegalArgumentException("not a lifted view function: " + fn.qualifiedName());
+        }
+        return new TypedViewRelation(view, body, body.info());
     }
 }

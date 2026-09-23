@@ -24,7 +24,7 @@ import java.util.Optional;
  * resolved by the one {@link #findFunction}. Constraints are metadata on
  * {@link TypedClass}, not a lookup (doc §1.4, §4).
  */
-public interface ModelContext {
+public interface ModelContext extends StoreLookups {
 
     /** O(1)-ish. The {@link TypedClass} for {@code fqn}, if present. */
     Optional<TypedClass> findClass(String fqn);
@@ -239,10 +239,10 @@ public interface ModelContext {
      *  the model index's one rule; loud when the view has no single root. */
     String viewMainTable(String dbFqn, com.legend.model.DatabaseDefinition.ViewDefinition view);
 
-    /** The view's ACCESSOR spelling ({@code #>{db.<spelling>}#}: a schema
-     *  view as {@code SCHEMA.NAME}, a top-level view bare) — a driver that
-     *  needs a view's relation compiles the accessor, like any query. */
-    Optional<String> viewAccessor(String dbFqn, String name);
+    /** {@link #findView} by schema and name — the index spells the key
+     *  ({@code default} or no schema: bare; any other: {@code SCHEMA.NAME}). */
+    Optional<com.legend.model.DatabaseDefinition.ViewDefinition> findView(String dbFqn,
+            @com.legend.Nullable String schema, String name);
 
     /** The view's LIFTED function (E.5: {@code <owner>$view$<spelling>}, its
      *  one body expression the view's relation), reached from {@code dbFqn}
@@ -284,9 +284,11 @@ public interface ModelContext {
 
     /**
      * The full store TABLE DEFINITION (columns with relational data types)
-     * — the K-native {@code dropAndCreateTableInDb} renders DDL from it.
+     * — the K-native {@code dropAndCreateTableInDb} renders DDL from it;
+     * {@link StoreLookups#findTableDefinition}, include closure.
      * {@code name} may be schema-qualified ({@code hr.EMPLOYEES}).
      */
+    @Override
     default Optional<com.legend.model.DatabaseDefinition.TableDefinition>
             findTableDefinition(String dbFqn, String name) {
         return Optional.empty();
@@ -294,6 +296,7 @@ public interface ModelContext {
 
     /** The full store definition — DDL derivation (the harness's model-
      * driven seeding) enumerates a module's databases through this. */
+    @Override
     default Optional<com.legend.model.DatabaseDefinition>
             findDatabase(@com.legend.Nullable String dbFqn) {
         return Optional.empty();

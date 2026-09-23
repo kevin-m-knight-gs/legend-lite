@@ -21,7 +21,7 @@ import java.util.Optional;
  * decimal carries its precision/scale. A type with no Pure spelling throws
  * (no fallback, AGENTS.md invariant 4).
  */
-final class StoreCompiler {
+public final class StoreCompiler {
 
     private StoreCompiler() {
     }
@@ -33,7 +33,7 @@ final class StoreCompiler {
         return findTableDef(db, name).map(StoreCompiler::tableSchema);
     }
 
-    static Optional<DatabaseDefinition.TableDefinition> findTableDef(
+    public static Optional<DatabaseDefinition.TableDefinition> findTableDef(
             DatabaseDefinition db, String name) {
         // A DOTTED name is schema-qualified (~mainTable [db] hr.EMPLOYEES):
         // match the named schema's table only.
@@ -83,7 +83,7 @@ final class StoreCompiler {
     }
 
     /** A table's columns as a bare {@link Type.RelationType} row-struct (doc §G-α). */
-    private static Type.RelationType tableSchema(DatabaseDefinition.TableDefinition table) {
+    static Type.RelationType tableSchema(DatabaseDefinition.TableDefinition table) {
         List<Type.Column> columns = new ArrayList<>(table.columns().size());
         for (var col : table.columns()) {
             Multiplicity mult = (col.notNull() || col.primaryKey())
@@ -98,8 +98,17 @@ final class StoreCompiler {
         return new Type.RelationType(columns);
     }
 
-    private static Type columnType(RelationalDataType dt) {
-        return switch (dt) {
+    /** THE store column type: a relational data type as its scalar Pure type
+     *  (loud for the kinds that have none). */
+    static Type columnType(RelationalDataType dt) {
+        return scalarType(dt).orElseThrow(() -> unsupportedColumnType(dt));
+    }
+
+    /** {@link #columnType} as a decision: empty for the kinds with no scalar
+     *  Pure type (DISTINCT, OTHER, ARRAY, OBJECT) — a reader that declares
+     *  such a column as nothing (a view's signature) asks here. */
+    static java.util.Optional<Type> scalarType(RelationalDataType dt) {
+        return java.util.Optional.ofNullable(switch (dt) {
             case RelationalDataType.Bit b -> Type.Primitive.BOOLEAN;
             case RelationalDataType.TinyInt i -> Type.Primitive.INTEGER;
             case RelationalDataType.SmallInt i -> Type.Primitive.INTEGER;
@@ -116,15 +125,15 @@ final class StoreCompiler {
             case RelationalDataType.Varbinary b -> Type.Primitive.BYTE;
             case RelationalDataType.Date_ d -> Type.Primitive.STRICT_DATE;
             case RelationalDataType.Timestamp t -> Type.Primitive.DATE_TIME;
-            case RelationalDataType.Distinct d -> throw unsupportedColumnType(dt);
-            case RelationalDataType.Other o -> throw unsupportedColumnType(dt);
+            case RelationalDataType.Distinct d -> null;
+            case RelationalDataType.Other o -> null;
             // Semi-structured (JSON) columns are Variant — the get()/to(@Type)
             // navigation surface (engine GetChecker's source shape).
             case RelationalDataType.SemiStructured s ->
                     new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.VARIANT);
-            case RelationalDataType.Array a -> throw unsupportedColumnType(dt);
-            case RelationalDataType.Object_ o -> throw unsupportedColumnType(dt);
-        };
+            case RelationalDataType.Array a -> null;
+            case RelationalDataType.Object_ o -> null;
+        });
     }
 
     private static com.legend.error.ModelException unsupportedColumnType(RelationalDataType dt) {

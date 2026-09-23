@@ -5094,3 +5094,40 @@ main-table wall — a TDG item, not a views item.
 G6 117, G7 46, G9 34, G8 118, G10 29 — 513 s.
 
 **The views program is closed** (docs/VIEWS_COMPILED_ONCE_HOMEWORK_2026_09_22.md §8f).
+
+## 2026-09-22 — views audit fix leg: a declared signature from store facts, no hand-spelled protocol
+
+**What landed.** The lifted view function declares its real signature, `Relation<(…)>[1]`, computed
+from store facts by `ViewSignatures` (compiler element layer: the table column's type and NOT NULL
+multiplicity through the index's include-aware lookup, an inner view's signature for view-on-view,
+Pure's reducer overloads for aggregates, the engine's inferred type otherwise, `Any` where the
+engine's own rule has none, [1] for a view PRIMARY KEY); the compiler checks the body against it
+when it compiles the function; a view call is typed from its signature like every call. The body
+conforms by emission (the store's trust wrap on declared-[1] columns, erasing in SQL). The
+`Any[*]` lie, the per-site body typing, the typer callback and the kernel callback are gone. The
+driver's hand-built protocol accessor is gone: it asks the compiler for the view's relation. One
+walker on the relational-expression record; the view spelling decided once at index time; one
+include-aware table-definition walk (`StoreLookups`); the resolver's view-slot arm is one walk;
+a join slot outside its home is the resolver's own escapee wall. `RelationalTypeInference`
+resolves columns through the include closure and treats an unsafe pair as untypeable, as the
+engine does.
+
+**The rule.** `ArchitectureTest.protocolNodesAreConstructedOnlyByTheParserAndTheNormalizer`:
+protocol nodes are constructed by the parser, the normalizer and the protocol package — nowhere
+else; the compiler-layer desugaring sites that construct protocol today are a measured
+shrink-only register (34 classes / 389 constructor calls, from bytecode), owed.
+
+**Measured.** Signature census: 45 / 45 corpus views and 6 / 7 stress views compile against their
+declared signature (the seventh: the pre-existing `OTHER`-column table wall). Four lanes exact
+and unchanged (DuckDB 107 / H2 362, differential 5,851 / 0, registers untouched). Fetch-text
+census unchanged (23). Guardrail ratchets: evaluator lines `StatementExecutor` 2436 → 2431 (the
+hand-built accessor deleted); the protocol register pinned.
+
+**Chain GREEN (gates 1,2,3,4,5,6,7,8,9,10), sequential:** G2 47, G1 69, G3 11, G4 103, G5 55,
+G6 132, G7 44, G9 31, G8 132, G10 36 — 660 s.
+
+**Named, not done:** `StatementExecutor` (3,376 lines) still holds the compiler's phases, the plan
+helpers, the context and the effect arms behind a name and javadoc that say "executes
+already-resolved statements"; stage 4 of the block compiler deleted the loop and never scheduled
+the executor's dissolution. The lifted query functions (E.4) that nothing calls. The `OTHER`
+column typing that walls a whole table. The 34-class protocol-desugaring register.

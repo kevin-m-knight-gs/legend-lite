@@ -1583,7 +1583,7 @@ public final class MappingNormalizer {
      * deleted flattening fallback, for the record:)
      * <ol>
      *   <li>Infer the view's single underlying physical table from its
-     *       non-join column expressions ({@link #inferViewMainTable}).
+     *       non-join column expressions ({@code ModelBuilder.viewMainTable}).
      *       That physical table &mdash; <em>not</em> the view name &mdash;
      *       is the pipeline's {@code tableReference} source.</li>
      *   <li>Resolve user PMs against the view's column mappings: a PM that

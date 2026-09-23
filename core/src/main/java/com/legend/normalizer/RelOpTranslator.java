@@ -90,22 +90,11 @@ final class RelOpTranslator {
     }
 
     static void collectTablesIn(RelationalOperation op, Set<String> sink) {
-        switch (op) {
-            case RelationalOperation.ColumnRef cr            -> sink.add(cr.table());
-            case RelationalOperation.TargetColumnRef ignored -> { }
-            case RelationalOperation.Literal ignored         -> { }
-            case RelationalOperation.FunctionCall fc         -> fc.args().forEach(a -> collectTablesIn(a, sink));
-            case RelationalOperation.Comparison c            -> { collectTablesIn(c.left(), sink); collectTablesIn(c.right(), sink); }
-            case RelationalOperation.BooleanOp b             -> { collectTablesIn(b.left(), sink); collectTablesIn(b.right(), sink); }
-            case RelationalOperation.IsNull n                -> collectTablesIn(n.operand(), sink);
-            case RelationalOperation.IsNotNull n             -> collectTablesIn(n.operand(), sink);
-            case RelationalOperation.Group g                 -> collectTablesIn(g.inner(), sink);
-            case RelationalOperation.ArrayLiteral a          -> a.elements().forEach(e -> collectTablesIn(e, sink));
-            case RelationalOperation.Lambda lam              -> collectTablesIn(lam.body(), sink);
-            case RelationalOperation.LambdaParam ignored     -> { }
-            case RelationalOperation.JoinNavigation ignored  -> throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+        if (op.navigatesJoin()) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "JoinNavigation inside expression");
         }
+        sink.addAll(op.tables());
     }
 
     static ValueSpecification columnRead(String table, String column,

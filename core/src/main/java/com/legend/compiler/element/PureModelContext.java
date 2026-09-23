@@ -520,8 +520,9 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
-    public Optional<String> viewAccessor(String dbFqn, String name) {
-        return model.viewLift(dbFqn, name).map(com.legend.compiler.ModelBuilder.ViewLift::spelling);
+    public Optional<com.legend.model.DatabaseDefinition.ViewDefinition> findView(String dbFqn,
+            @com.legend.Nullable String schema, String name) {
+        return model.findView(dbFqn, schema, name);
     }
 
     @Override
@@ -534,8 +535,7 @@ public final class PureModelContext implements ModelContext {
     public Optional<Type.RelationType> findTable(String dbFqn, String name) {
         Objects.requireNonNull(dbFqn, "dbFqn");
         Objects.requireNonNull(name, "name");
-        return model.findDatabase(dbFqn)
-                .flatMap(db -> resolveTableWithIncludes(db, name, new java.util.HashSet<>()));
+        return model.findTableDefinition(dbFqn, name).map(StoreCompiler::tableSchema);
     }
 
     @Override
@@ -651,48 +651,7 @@ public final class PureModelContext implements ModelContext {
     @Override
     public Optional<com.legend.model.DatabaseDefinition.TableDefinition>
             findTableDefinition(String dbFqn, String name) {
-        return model.findDatabase(dbFqn)
-                .flatMap(db -> tableDefWithIncludes(db, name, new java.util.HashSet<>()));
+        return model.findTableDefinition(dbFqn, name);
     }
 
-    private Optional<com.legend.model.DatabaseDefinition.TableDefinition>
-            tableDefWithIncludes(com.legend.model.DatabaseDefinition db,
-                    String name, java.util.Set<String> seen) {
-        var own = StoreCompiler.findTableDef(db, name);
-        if (own.isPresent()) {
-            return own;
-        }
-        for (String include : db.includes()) {
-            if (!seen.add(include)) {
-                continue;
-            }
-            var inc = model.findDatabase(include)
-                    .flatMap(d -> tableDefWithIncludes(d, name, seen));
-            if (inc.isPresent()) {
-                return inc;
-            }
-        }
-        return Optional.empty();
-    }
-
-    /** Own tables first, then each {@code include}d database, depth-first (cycle-safe). */
-    private Optional<Type.RelationType> resolveTableWithIncludes(
-            com.legend.model.DatabaseDefinition db, String name,
-            java.util.Set<String> seen) {
-        Optional<Type.RelationType> own = StoreCompiler.resolveTable(db, name);
-        if (own.isPresent()) {
-            return own;
-        }
-        for (String include : db.includes()) {
-            if (!seen.add(include)) {
-                continue;
-            }
-            Optional<Type.RelationType> found = model.findDatabase(include)
-                    .flatMap(d -> resolveTableWithIncludes(d, name, seen));
-            if (found.isPresent()) {
-                return found;
-            }
-        }
-        return Optional.empty();
-    }
 }

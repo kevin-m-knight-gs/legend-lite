@@ -421,6 +421,64 @@ owner of its body (stage 2), the accessor computes as ordinary compiled Pure (st
 engine's own SQL shape (stage 4), and every other reader of a view — the mapping route, the
 lineage, the test-data generator — reads the index's facts and the compiler's SQL (stage 3).
 
+## 8g. The audit of the whole program, and the fix leg (2026-09-22)
+
+**The user's audit questions** (hacks, architecture, duplication, the real problem, deferrals,
+smells) were answered by reading the code as committed at stage 3, and the honest answers were
+bad enough to fix at once, in one leg. What was wrong, and what replaced it:
+
+1. **The lifted function declared `Any[*]`** — a signature that says nothing, copied from the
+   query lift (E.4, whose function nobody calls). Because it said nothing, the accessor checker
+   typed the view's body itself at every accessor site; the first "fix" injected a compiler
+   callback into the typer, the second moved that callback into the inference kernel to dodge the
+   typer's file-size ceiling. Both were stacked on the wrong premise that the lift cannot know its
+   type. **Now:** `ViewSignatures` (compiler element layer) declares the view's relation type from
+   STORE FACTS the way the engine types view columns — a plain column carries its table column's
+   Pure type and NOT NULL multiplicity through the index's include-aware lookup; an inner view's
+   column carries that view's signature (view-on-view); an aggregate column carries its reducer's
+   Pure result over the argument's store type (Pure's real overloads: Integer, Float and the dates
+   keep their type, other numbers are `Number`, `count` Integer[1], `sum`/`average` [1],
+   `max`/`min` [0..1]); any other expression carries the engine's inferred relational type at
+   [0..1], or `Any` when the engine's own rule has none; a view PRIMARY KEY column is [1]. The lift
+   spells it as `Relation<(name: Type[m], …)>[1]`, the compiler CHECKS the body against it when
+   it compiles the function, and a view call is typed from its signature like every call. No
+   callback, no kernel state, no per-site typing.
+2. **The body conforms by emission.** Columns the signature declares [1] (a view key, a grouped
+   NOT NULL column) carry the store's trust wrap (`Pure.Lite.TRUST_ONE`, erases in SQL), the
+   sanctioned conform-by-emission pattern. SQL text unchanged (fetch-text census 23 = 23).
+3. **The store rule is honest.** `RelationalTypeInference` resolves a column through the index's
+   include closure (the census had found 21 plain columns of included / schema tables it could not
+   type), and a pair with no safe type (an INT branch against a VARCHAR branch) is UNTYPEABLE —
+   the engine asserts there — never the first operand. `accountView.name` declares `Any`.
+4. **The driver spelled Pure by hand** (a protocol lambda around a `tableReference` node, the only
+   hand-built protocol expression outside the parser and the normalizer). **Now:** the driver asks
+   the compiler for the view's relation (`SpecCompiler.viewRelation` — the same node the inliner
+   produces for a call) and plans it. And an ArchUnit rule pins protocol-node construction from
+   BYTECODE: allowed in the parser, the normalizer and the protocol package; every other class in
+   a measured shrink-only register (34 classes / 389 constructor calls of desugaring debt, owed).
+5. **Duplication:** the relational-expression walkers (`RelationalOperation.descendants()`,
+   `navigatesJoin()`, `tables()` — the record's one walk; the index's main-table rule and the
+   normalizer's collector read it); the view spelling decided once at index time
+   (`ModelBuilder.IndexedView` / `ViewLift`; the lift, the lookups and the lineage read it); one
+   include-aware table-definition walk on the index (`StoreLookups`, implemented by the index and
+   relayed by the context — the context's two private walks deleted); the bare view name carried
+   on the provenance, no decode; the resolver's view-slot arm is ONE identity-preserving walk; a
+   join slot outside a class pipeline or a view body is the resolver's own escapee wall.
+
+**Measured.** Signature census (every lifted view compiled against its declaration): rcorpus 45 / 45,
+stress 6 / 7 — the seventh is `SURFACE_VIEW` over a table with an `OTHER` column, the pre-existing
+table-typing wall (OTHER is a real engine column type; a column nobody reads should not wall its
+table — an item of its own). Four lanes exact and unchanged (DuckDB 107 / H2 362, differential
+5,851 / 0, registers untouched). Two lane runs went red on the way and were read before any edit:
+`testRelationStoreAccessorOnView` once because the declared schema was spelled bare instead of as
+the `Relation` generic (fixed), and two guardrails caught a catch-that-returns-a-value and a
+numeric default arm in the new rule (both became designed sentinels: `StoreCompiler.scalarType`,
+the integer widening order as a list). Chain GREEN sequential 660 s.
+
+**Items of their own, recorded:** the query lift's functions that nothing calls (the service runner
+executes the raw lambda); the `OTHER` column typing; the executor file that holds the compiler's
+phases (docs/GATES.md 2026-09-22); the 34-class protocol-desugaring register.
+
 ## 9. Open decisions for the user
 
 1. ~~Eager versus lazy~~ DECIDED 2026-09-22: eager, like E.2–E.4 (all three lifts are eager; walls

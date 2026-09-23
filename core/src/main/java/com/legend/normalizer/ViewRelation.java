@@ -85,8 +85,18 @@ final class ViewRelation {
      *  view's body from the same owner. */
     static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, @com.legend.Nullable ResolvedMapping md, LiftedViews views) {
+            ModelBuilder model, @com.legend.Nullable ResolvedMapping md, LiftedViews views,
+            com.legend.compiler.element.type.Type.RelationType signature) {
         String phys = model.viewMainTable(db, view);
+        // the columns the SIGNATURE declares [1] — a PRIMARY KEY of the view, a
+        // NOT NULL column — conform by emission: the store's own trust wrap
+        // (Pure.Lite.TRUST_ONE erases in SQL); the compiler checks the rest
+        java.util.Set<String> ones = new java.util.HashSet<>();
+        for (com.legend.compiler.element.type.Type.Column c : signature.columns()) {
+            if (c.multiplicity().equals(com.legend.compiler.element.type.Multiplicity.Bounded.ONE)) {
+                ones.add(c.name());
+            }
+        }
         Variable r = new Variable("vr");
         // VIEW-ON-VIEW: the inferred root is itself a view — expand it
         // recursively as the SOURCE relation (engine lineage model:
@@ -183,9 +193,9 @@ final class ViewRelation {
                     aggCols.add(new ColSpec(vc.name(),
                             new LambdaFunction(List.of(r), List.of(selector)),
                             new LambdaFunction(List.of(vals),
-                                    List.of(new AppliedFunction(
+                                    List.of(declaredOne(ones, vc.name(), new AppliedFunction(
                                             RelOpTranslator.dynaFnName(fc),
-                                            List.of(vals))))));
+                                            List.of(vals)))))));
                     continue;
                 }
                 int match = -1;
@@ -208,15 +218,16 @@ final class ViewRelation {
                     aggCols.add(new ColSpec(vc.name(),
                             new LambdaFunction(List.of(r), List.of(wSel)),
                             new LambdaFunction(List.of(wVals),
-                                    List.of(new AppliedFunction("first",
-                                            List.of(wVals))))));
+                                    List.of(declaredOne(ones, vc.name(),
+                                            new AppliedFunction("first", List.of(wVals)))))));
                     continue;
                 }
                 claimed[match] = true;
                 ValueSpecification keyValue = RelOpTranslator.translate(expr, scope,
                         null, r, vp.view());
                 keyCols.add(new ColSpec(vc.name(),
-                        new LambdaFunction(List.of(r), List.of(keyValue)), null));
+                        new LambdaFunction(List.of(r), List.of(declaredOne(ones, vc.name(), keyValue))),
+                        null));
             }
             for (int i = 0; i < keyOps.size(); i++) {
                 if (!claimed[i]) {
@@ -238,7 +249,8 @@ final class ViewRelation {
                 ValueSpecification val = RelOpTranslator.translate(vc.expression(), scope,
                         null, r, vp.view());
                 cols.add(new ColSpec(vc.name(),
-                        new LambdaFunction(List.of(r), List.of(val)), null));
+                        new LambdaFunction(List.of(r), List.of(declaredOne(ones, vc.name(), val))),
+                        null));
             }
             src = new AppliedFunction("project", List.of(src, new ColSpecArray(cols)));
         }
@@ -265,6 +277,16 @@ final class ViewRelation {
             src = new AppliedFunction("distinct", List.of(src));
         }
         return src;
+    }
+
+    /** A column value the signature declares {@code [1]}, trusted to one
+     *  (the store's contract: a view's PRIMARY KEY, a NOT NULL column);
+     *  any other column as emitted. */
+    private static ValueSpecification declaredOne(java.util.Set<String> ones, String column,
+            ValueSpecification value) {
+        return ones.contains(column)
+                ? new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(value))
+                : value;
     }
 
     /** Every {@code <view>.<col>} reference in {@code op} (a filter or

@@ -1086,4 +1086,100 @@ final class ArchitectureTest {
                     + " pinned exceptions only shrink; see the rule javadoc")
             .check(CORE_PROD_CLASSES);
     }
+
+    /**
+     * <strong>THE PROGRAM IS PARSED ONCE.</strong> Protocol nodes
+     * ({@code com.legend.protocol..}: value specifications, type expressions,
+     * multiplicities) are constructed by the PARSER (text &rarr; protocol), by
+     * the NORMALIZER (protocol &rarr; protocol, the pre-typing phase) and by the
+     * protocol package's own helpers &mdash; nowhere else. A driver, a judge, a
+     * generator or a resolver that spells Pure by hand in AST form injects a
+     * program below the parser (user, 2026-09-22: "nothing can create protocol
+     * except the one place that is allowed").
+     *
+     * <p>The compiler-layer desugaring sites that construct protocol today are
+     * the MEASURED DEBT in {@link #PROTOCOL_DESUGAR_DEBT} (a typer that rewrites
+     * syntax while typing; the driver wrapping parsed statements into a query
+     * lambda; the test runners spelling a test call / a parameter let). Each row
+     * only shrinks (a shrink is recorded in the same commit); a class absent from
+     * the map constructs NONE. Counted from bytecode (every constructor call whose
+     * target is a protocol class, lambdas included), never from text.
+     */
+    private static final java.util.Map<String, Integer> PROTOCOL_DESUGAR_DEBT =
+            new java.util.TreeMap<>(java.util.Map.ofEntries(
+                    // MEASURED 2026-09-22 (the day the rule was pinned), 34 classes /
+                    // 389 constructor calls. The typer and its checkers rewrite syntax
+                    // while typing (the bulk); the driver wraps parsed statements into
+                    // the query lambda (Compiler 2); the test runners spell the test
+                    // call and a parameter let (2 + 2); the lineage and the model
+                    // builder carry 2 + 4. Owed: each family moves into the parser or
+                    // the normalizer, and its row goes to 0 in that commit. The
+                    // driver's own hand-built view accessor (StatementExecutor, 4)
+                    // was deleted the day this was pinned — it is not a row.
+                    java.util.Map.entry("com.legend.Compiler", 2),
+                    java.util.Map.entry("com.legend.compiler.DerivedProps", 3),
+                    java.util.Map.entry("com.legend.compiler.LiteralMapUnroll", 2),
+                    java.util.Map.entry("com.legend.compiler.NameResolver", 30),
+                    java.util.Map.entry("com.legend.compiler.StatementInline", 6),
+                    java.util.Map.entry("com.legend.compiler.element.TypeClassifier", 1),
+                    java.util.Map.entry("com.legend.compiler.spec.AlphaRename", 7),
+                    java.util.Map.entry("com.legend.compiler.spec.CallShapes", 9),
+                    java.util.Map.entry("com.legend.compiler.spec.DistinctChecker", 2),
+                    java.util.Map.entry("com.legend.compiler.spec.EvalChecker", 2),
+                    java.util.Map.entry("com.legend.compiler.spec.ExtendChecker", 5),
+                    java.util.Map.entry("com.legend.compiler.spec.FoldChecker", 4),
+                    java.util.Map.entry("com.legend.compiler.spec.FromChecker", 2),
+                    java.util.Map.entry("com.legend.compiler.spec.GroupByChecker", 21),
+                    java.util.Map.entry("com.legend.compiler.spec.GroupLambdaAggs", 16),
+                    java.util.Map.entry("com.legend.compiler.spec.IfChecker", 1),
+                    java.util.Map.entry("com.legend.compiler.spec.IsDistinctChecker", 6),
+                    java.util.Map.entry("com.legend.compiler.spec.JoinChecker", 22),
+                    java.util.Map.entry("com.legend.compiler.spec.JsonChecker", 16),
+                    java.util.Map.entry("com.legend.compiler.spec.LambdaBodies", 10),
+                    java.util.Map.entry("com.legend.compiler.spec.NewChecker", 2),
+                    java.util.Map.entry("com.legend.compiler.spec.ProjectChecker", 16),
+                    java.util.Map.entry("com.legend.compiler.spec.RenameChecker", 1),
+                    java.util.Map.entry("com.legend.compiler.spec.SortChecker", 13),
+                    java.util.Map.entry("com.legend.compiler.spec.SourceSubst", 10),
+                    java.util.Map.entry("com.legend.compiler.spec.StaticFold", 13),
+                    java.util.Map.entry("com.legend.compiler.spec.TdsNullForms", 1),
+                    java.util.Map.entry("com.legend.compiler.spec.TypeAnnotations", 1),
+                    java.util.Map.entry("com.legend.compiler.spec.Typer", 127),
+                    java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
+                    java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
+                    java.util.Map.entry("com.legend.test.PureTestRunner", 2),
+                    java.util.Map.entry("com.legend.test.ServiceTestRunner", 2),
+                    java.util.Map.entry("com.legend.validation.ValidateDesugar", 27)
+            ));
+
+    @Test
+    void protocolNodesAreConstructedOnlyByTheParserAndTheNormalizer() {
+        java.util.Map<String, Integer> actual = new java.util.TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            String pkg = c.getPackageName();
+            if (pkg.equals("com.legend.parser") || pkg.startsWith("com.legend.parser.")
+                    || pkg.equals("com.legend.normalizer") || pkg.startsWith("com.legend.normalizer.")
+                    || pkg.equals("com.legend.protocol") || pkg.startsWith("com.legend.protocol.")) {
+                continue;
+            }
+            int n = 0;
+            for (com.tngtech.archunit.core.domain.JavaConstructorCall call
+                    : c.getConstructorCallsFromSelf()) {
+                String target = call.getTargetOwner().getPackageName();
+                if (target.equals("com.legend.protocol") || target.startsWith("com.legend.protocol.")) {
+                    n++;
+                }
+            }
+            if (n > 0) {
+                // nested and anonymous classes count against their top-level class
+                actual.merge(c.getName().split("\\$")[0], n, Integer::sum);
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(PROTOCOL_DESUGAR_DEBT, actual,
+                "protocol-node construction outside the parser / normalizer / protocol"
+                + " packages drifted: GROWTH is a new program spelled by hand below the"
+                + " parser — build it in the parser or the normalizer instead; SHRINKAGE"
+                + " means a desugaring site went home — ratchet the row down in the same"
+                + " commit");
+    }
 }

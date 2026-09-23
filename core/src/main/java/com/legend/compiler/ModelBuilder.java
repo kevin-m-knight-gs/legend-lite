@@ -94,7 +94,7 @@ import java.util.stream.Stream;
  * class deliberately accepts last-write-wins for top-level kinds to
  * preserve current normalizer behavior.
  */
-public final class ModelBuilder {
+public final class ModelBuilder implements com.legend.compiler.element.StoreLookups {
 
     // ====================================================================
     // Storage
@@ -180,7 +180,8 @@ public final class ModelBuilder {
      * include both bare view names and {@code SCHEMA.VIEW} dotted forms
      * for per-schema views.
      */
-    private final Map<Integer, Map<String, ViewDefinition>> viewsByDb = new HashMap<>();
+    private final Map<Integer, Map<String, IndexedView>> viewsByDb = new HashMap<>();
+    private final Map<Integer, List<IndexedView>> viewsInOrder = new HashMap<>();
 
     /**
      * Element FQNs registered MORE THAN ONCE in the packageable-element
@@ -420,17 +421,30 @@ public final class ModelBuilder {
         // "SCHEMA.V" (qualified) depending on how the user references
         // it from ~mainTable.
         if (!db.views().isEmpty() || !db.schemas().isEmpty()) {
-            Map<String, ViewDefinition> byName = new HashMap<>();
+            // THE ONE place a view's spelling is decided: a top-level view is
+            // its bare name, a schema view is SCHEMA.NAME (reachable bare too,
+            // first declared wins) — the accessor, the lift and every lookup
+            // read the spelling from here
+            Map<String, IndexedView> byName = new HashMap<>();
+            List<IndexedView> declared = new ArrayList<>();
             for (ViewDefinition v : db.views()) {
-                byName.put(v.name(), v);
+                IndexedView iv = new IndexedView(v, new ViewLift(db.qualifiedName(), v.name()));
+                byName.put(v.name(), iv);
+                declared.add(iv);
             }
             for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
                 for (ViewDefinition v : s.views()) {
-                    byName.put(s.name() + "." + v.name(), v);
-                    byName.putIfAbsent(v.name(), v);
+                    IndexedView iv = new IndexedView(v,
+                            new ViewLift(db.qualifiedName(), s.name() + "." + v.name()));
+                    byName.put(iv.lift().spelling(), iv);
+                    byName.putIfAbsent(v.name(), iv);
+                    declared.add(iv);
                 }
             }
-            if (!byName.isEmpty()) viewsByDb.put(id, byName);
+            if (!byName.isEmpty()) {
+                viewsByDb.put(id, byName);
+                viewsInOrder.put(id, List.copyOf(declared));
+            }
         }
     }
 
@@ -796,6 +810,7 @@ public final class ModelBuilder {
 
 
     /** O(1). Returns {@link DatabaseDefinition} for {@code fqn}, if any. */
+    @Override
     public Optional<DatabaseDefinition> findDatabase(@com.legend.Nullable String fqn) {
         if (fqn == null) {
             return Optional.empty();
@@ -974,8 +989,62 @@ public final class ModelBuilder {
      * {@code ~mainTable [DB] X} reference resolves to a view rather
      * than a table.
      */
+    @Override
     public Optional<ViewDefinition> findView(String dbFqn, String viewName) {
-        return findView(dbFqn, viewName, new java.util.HashSet<>());
+        return indexedView(dbFqn, viewName, new java.util.HashSet<>()).map(IndexedView::definition);
+    }
+
+    /** The TABLE {@code name} reached from {@code dbFqn} through the include
+     *  closure (own first), with its declared columns — the one lookup behind
+     *  every store fact read off a column (a view's signature, a column's
+     *  relational type). */
+    @Override
+    public Optional<DatabaseDefinition.TableDefinition> findTableDefinition(String dbFqn,
+            String name) {
+        return findTableDefinition(dbFqn, name, new java.util.HashSet<>());
+    }
+
+    private Optional<DatabaseDefinition.TableDefinition> findTableDefinition(String dbFqn,
+            String name, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return Optional.empty();
+        }
+        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return Optional.empty();
+        }
+        Optional<DatabaseDefinition.TableDefinition> own =
+                com.legend.compiler.element.StoreCompiler.findTableDef(db, name);
+        if (own.isPresent()) {
+            return own;
+        }
+        for (String inc : db.includes()) {
+            Optional<DatabaseDefinition.TableDefinition> hit = findTableDefinition(inc, name, seen);
+            if (hit.isPresent()) {
+                return hit;
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** {@link #findView} by schema and name: the {@code default} schema (or
+     *  none) is the bare spelling, any other schema the dotted one. */
+    public Optional<ViewDefinition> findView(String dbFqn, @com.legend.Nullable String schema,
+            String viewName) {
+        return findView(dbFqn, schema == null || "default".equals(schema)
+                ? viewName : schema + "." + viewName);
+    }
+
+    /** A view with the spelling the index gave it. */
+    public record IndexedView(ViewDefinition definition, ViewLift lift) {
+    }
+
+    /** The views {@code dbFqn} itself declares (no include closure), in
+     *  declaration order: top-level views, then each schema's. */
+    public List<IndexedView> viewsOf(String dbFqn) {
+        int id = symbols.resolveId(dbFqn);
+        return id == SymbolTable.UNRESOLVED ? List.of()
+                : viewsInOrder.getOrDefault(id, List.of());
     }
 
     /**
@@ -999,8 +1068,8 @@ public final class ModelBuilder {
     public String viewMainTable(String dbFqn, ViewDefinition view) {
         Set<String> tables = new LinkedHashSet<>();
         for (ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
-            if (!navigatesJoin(vc.expression())) {
-                collectTables(vc.expression(), tables);
+            if (!vc.expression().navigatesJoin()) {
+                tables.addAll(vc.expression().tables());
             }
         }
         if (tables.isEmpty()) {
@@ -1034,7 +1103,7 @@ public final class ModelBuilder {
                 first = jn.chain().get(0);
             }
             if (jn.terminal() != null) {
-                collectTables(jn.terminal(), terminals);
+                terminals.addAll(jn.terminal().tables());
             }
         }
         if (first == null) {
@@ -1048,62 +1117,9 @@ public final class ModelBuilder {
                         com.legend.error.LegendCompileException.Phase.MODEL,
                         "View '" + view.name() + "' of '" + dbFqn + "' navigates join '"
                         + joinName + "' which '" + joinDb + "' does not declare"));
-        Set<String> condTables = new LinkedHashSet<>();
-        collectTables(jd.operation(), condTables);
+        Set<String> condTables = new LinkedHashSet<>(jd.operation().tables());
         condTables.removeAll(terminals);
         return condTables.size() == 1 ? condTables.iterator().next() : null;
-    }
-
-    /** Whether a relational expression navigates a join anywhere inside. */
-    private static boolean navigatesJoin(com.legend.model.RelationalOperation op) {
-        return switch (op) {
-            case com.legend.model.RelationalOperation.JoinNavigation ignored -> true;
-            case com.legend.model.RelationalOperation.FunctionCall fc ->
-                    fc.args().stream().anyMatch(ModelBuilder::navigatesJoin);
-            case com.legend.model.RelationalOperation.Comparison c ->
-                    navigatesJoin(c.left()) || navigatesJoin(c.right());
-            case com.legend.model.RelationalOperation.BooleanOp b ->
-                    navigatesJoin(b.left()) || navigatesJoin(b.right());
-            case com.legend.model.RelationalOperation.IsNull n -> navigatesJoin(n.operand());
-            case com.legend.model.RelationalOperation.IsNotNull n -> navigatesJoin(n.operand());
-            case com.legend.model.RelationalOperation.Group g -> navigatesJoin(g.inner());
-            case com.legend.model.RelationalOperation.ArrayLiteral a ->
-                    a.elements().stream().anyMatch(ModelBuilder::navigatesJoin);
-            case com.legend.model.RelationalOperation.Lambda lam -> navigatesJoin(lam.body());
-            case com.legend.model.RelationalOperation.ColumnRef ignored -> false;
-            case com.legend.model.RelationalOperation.TargetColumnRef ignored -> false;
-            case com.legend.model.RelationalOperation.Literal ignored -> false;
-            case com.legend.model.RelationalOperation.LambdaParam ignored -> false;
-        };
-    }
-
-    /** Every table a join-free relational expression reads, as spelled. */
-    private static void collectTables(com.legend.model.RelationalOperation op, Set<String> sink) {
-        switch (op) {
-            case com.legend.model.RelationalOperation.ColumnRef cr -> sink.add(cr.table());
-            case com.legend.model.RelationalOperation.FunctionCall fc ->
-                    fc.args().forEach(a -> collectTables(a, sink));
-            case com.legend.model.RelationalOperation.Comparison c -> {
-                collectTables(c.left(), sink);
-                collectTables(c.right(), sink);
-            }
-            case com.legend.model.RelationalOperation.BooleanOp b -> {
-                collectTables(b.left(), sink);
-                collectTables(b.right(), sink);
-            }
-            case com.legend.model.RelationalOperation.IsNull n -> collectTables(n.operand(), sink);
-            case com.legend.model.RelationalOperation.IsNotNull n -> collectTables(n.operand(), sink);
-            case com.legend.model.RelationalOperation.Group g -> collectTables(g.inner(), sink);
-            case com.legend.model.RelationalOperation.ArrayLiteral a ->
-                    a.elements().forEach(e -> collectTables(e, sink));
-            case com.legend.model.RelationalOperation.Lambda lam -> collectTables(lam.body(), sink);
-            case com.legend.model.RelationalOperation.JoinNavigation ignored ->
-                    throw new IllegalStateException("model bug: join navigation inside a"
-                            + " join-free expression");
-            case com.legend.model.RelationalOperation.TargetColumnRef ignored -> { }
-            case com.legend.model.RelationalOperation.Literal ignored -> { }
-            case com.legend.model.RelationalOperation.LambdaParam ignored -> { }
-        }
     }
 
     /** A view's lift identity: the OWNING database of the include closure
@@ -1119,58 +1135,27 @@ public final class ModelBuilder {
     /** The view reached as {@code viewName} from {@code dbFqn} (include
      *  closure, like {@link #findTable}), whatever spelling reached it. */
     public Optional<ViewLift> viewLift(String dbFqn, String viewName) {
-        return viewLift(dbFqn, viewName, new java.util.HashSet<>());
-    }
-
-    private Optional<ViewLift> viewLift(String dbFqn, String viewName,
-            java.util.Set<String> seen) {
-        if (!seen.add(dbFqn)) {
-            return Optional.empty();
-        }
-        int id = symbols.resolveId(dbFqn);
-        if (id == SymbolTable.UNRESOLVED) return Optional.empty();
-        Map<String, ViewDefinition> byName = viewsByDb.get(id);
-        ViewDefinition own = byName == null ? null : byName.get(viewName);
-        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
-        if (own != null && db != null) {
-            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-                for (ViewDefinition v : s.views()) {
-                    if (v == own) {
-                        return Optional.of(new ViewLift(dbFqn, s.name() + "." + v.name()));
-                    }
-                }
-            }
-            return Optional.of(new ViewLift(dbFqn, own.name()));
-        }
-        if (db != null) {
-            for (String inc : db.includes()) {
-                Optional<ViewLift> hit = viewLift(inc, viewName, seen);
-                if (hit.isPresent()) {
-                    return hit;
-                }
-            }
-        }
-        return Optional.empty();
+        return indexedView(dbFqn, viewName, new java.util.HashSet<>()).map(IndexedView::lift);
     }
 
     /** Include-closure aware, mirroring {@link #findJoin}: an including
      * database resolves the included database's views. Own wins. */
-    private Optional<ViewDefinition> findView(String dbFqn, String viewName,
+    private Optional<IndexedView> indexedView(String dbFqn, String viewName,
             java.util.Set<String> seen) {
         if (!seen.add(dbFqn)) {
             return Optional.empty();
         }
         int id = symbols.resolveId(dbFqn);
         if (id == SymbolTable.UNRESOLVED) return Optional.empty();
-        Map<String, ViewDefinition> byName = viewsByDb.get(id);
-        ViewDefinition own = byName == null ? null : byName.get(viewName);
+        Map<String, IndexedView> byName = viewsByDb.get(id);
+        IndexedView own = byName == null ? null : byName.get(viewName);
         if (own != null) {
             return Optional.of(own);
         }
         DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
         if (db != null) {
             for (String inc : db.includes()) {
-                Optional<ViewDefinition> hit = findView(inc, viewName, seen);
+                Optional<IndexedView> hit = indexedView(inc, viewName, seen);
                 if (hit.isPresent()) {
                     return hit;
                 }

@@ -38,7 +38,7 @@ public final class RelationalTypeInference {
      * carry it). */
     public static @com.legend.Nullable RelationalDataType infer(RelationalOperation op,
             @com.legend.Nullable DatabaseDefinition db,
-            @com.legend.Nullable ModelContext ctx) {
+            @com.legend.Nullable StoreLookups ctx) {
         return switch (op) {
             case RelationalOperation.ColumnRef c ->
                     columnType(db, ctx, c.databaseName(), c.table(), c.column());
@@ -217,8 +217,23 @@ public final class RelationalTypeInference {
             return new RelationalDataType.Varchar(
                     Math.max(va.size(), vb.size()));
         }
-        return a;
+        int ra = INT_WIDENING.indexOf(a.getClass());
+        int rb = INT_WIDENING.indexOf(b.getClass());
+        if (ra >= 0 && rb >= 0) {
+            return ra >= rb ? a : b;
+        }
+        // NO safe type (the engine's isSafeTypePossible is false: an INT
+        // branch against a VARCHAR branch, a DATE against a TIMESTAMP) —
+        // the engine ASSERTS there; this platform types the element as
+        // nothing (Any), never as the first operand (an earlier fallback)
+        return null;
     }
+
+    /** The engine's integer widening order (safeTypeMap): a pair of integer
+     *  kinds is safe at the wider. */
+    private static final List<Class<? extends RelationalDataType>> INT_WIDENING = List.of(
+            RelationalDataType.TinyInt.class, RelationalDataType.SmallInt.class,
+            RelationalDataType.Integer_.class, RelationalDataType.BigInt.class);
 
     private static Integer @com.legend.Nullable [] decimalOf(
             RelationalDataType t) {
@@ -237,7 +252,7 @@ public final class RelationalTypeInference {
      * column resolves THROUGH its column expression (view-on-view). */
     private static @com.legend.Nullable RelationalDataType columnType(
             @com.legend.Nullable DatabaseDefinition scope,
-            @com.legend.Nullable ModelContext ctx,
+            @com.legend.Nullable StoreLookups ctx,
             @com.legend.Nullable String opDb,
             String table, String column) {
         DatabaseDefinition db = scope;
@@ -246,6 +261,20 @@ public final class RelationalTypeInference {
         }
         if (db == null) {
             return null;
+        }
+        if (ctx != null) {
+            // THE index's lookup: include closure, schema-qualified spellings
+            // (a view's plain column in an included database — the census
+            // of 2026-09-22 found 21 columns this scan could not type)
+            var td = ctx.findTableDefinition(opDb != null ? opDb : db.qualifiedName(), table);
+            if (td.isPresent()) {
+                for (var c : td.get().columns()) {
+                    if (c.name().equals(column)
+                            || (c.quoted() && ("\"" + c.name() + "\"").equals(column))) {
+                        return c.dataType();
+                    }
+                }
+            }
         }
         List<DatabaseDefinition.TableDefinition> all = new ArrayList<>(
                 db.tables());

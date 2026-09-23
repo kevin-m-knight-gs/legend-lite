@@ -361,7 +361,7 @@ public final class StoreResolver {
         return switch (anchors.spaceOf(n)) {
             case OBJECT -> objectNode(n, context);
             case ANCHORED -> anchoredNode(n, context);
-            case INERT -> Pipelines.containsSlot(n) ? viewSlots(n) : n;
+            case INERT -> viewSlots(n);
         };
     }
 
@@ -369,9 +369,10 @@ public final class StoreResolver {
      *  a class pipeline — a join-navigating view column) materialize with the
      *  body's OWN demand: the view's projection reads its slots the way a
      *  class's bindings read theirs, and {@link Pipelines#materialize}'s
-     *  project arm derives that demand from the projection itself. A
-     *  slot-free INERT tree passes untouched; a slot outside a view node is
-     *  the lowerer's loud wall (a normalizer emission this arm cannot own). */
+     *  project arm derives that demand from the projection itself. ONE walk:
+     *  the descent preserves identity where nothing changes (a slot-free
+     *  INERT tree comes back as itself); a slot outside a view node is the
+     *  resolver's own escapee wall (a normalizer emission this arm cannot own). */
     private TypedSpec viewSlots(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedViewRelation v) {
             return new com.legend.compiler.spec.typed.TypedViewRelation(v.view(),

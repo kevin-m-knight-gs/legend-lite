@@ -401,11 +401,10 @@ public final class UserCallInliner {
             // a lifted VIEW (E.5) inlines like every function AND keeps its
             // name: the engine's ViewSelectSQLQuery — the relation is named
             // by the view where it stands (TypedViewRelation)
-            String view = com.legend.compiler.spec.typed.TypedViewRelation
-                    .liftedViewName(call.callee());
-            if (view != null) {
-                reduced = new com.legend.compiler.spec.typed.TypedViewRelation(
-                        view, reduced, reduced.info());
+            if (com.legend.compiler.spec.typed.TypedViewRelation
+                    .liftedViewName(call.callee()) != null) {
+                reduced = com.legend.compiler.spec.typed.TypedViewRelation
+                        .of(call.callee(), reduced);
             }
             return reduced;
         } catch (NotImplementedException e) {

@@ -884,14 +884,14 @@ public final class ScanRelations {
     /** Whether {@code name} is a VIEW of {@code db} (include closure). */
     public static boolean isView(ModelContext ctx, String db,
             @com.legend.Nullable String name) {
-        return db != null && findView(ctx, db, name) != null;
+        return db != null && name != null && ctx.findView(db, name).isPresent();
     }
 
     /** The view definition, or a loud wall — the tdg view-fetch builder's
      * accessor (the private lookup keeps its null-tolerant contract). */
     public static DatabaseDefinition.ViewDefinition viewDef(ModelContext ctx,
             String db, String name) {
-        DatabaseDefinition.ViewDefinition vd = findView(ctx, db, name);
+        DatabaseDefinition.ViewDefinition vd = ctx.findView(db, name).orElse(null);
         if (vd == null) {
             throw new NotImplementedException("scanRelations: view '" + name
                     + "' not found in '" + db + "'");
@@ -923,7 +923,8 @@ public final class ScanRelations {
 
     public static ViewExpansion viewExpansion(ModelContext ctx, String db,
             @com.legend.Nullable String viewName) {
-        DatabaseDefinition.ViewDefinition vd = findView(ctx, db, viewName);
+        DatabaseDefinition.ViewDefinition vd = viewName == null ? null
+                : ctx.findView(db, viewName).orElse(null);
         if (vd == null) {
             throw new NotImplementedException("scanRelations: view '"
                     + viewName + "' not found in '" + db + "'");
@@ -1070,8 +1071,8 @@ public final class ScanRelations {
     private static void flatten(List<Line> out, Node n, int depth,
             ModelContext ctx, @com.legend.Nullable String rootTable,
             boolean runtimeVariant) {
-        DatabaseDefinition.ViewDefinition vd = n.db == null ? null
-                : findView(ctx, n.db, n.schema, n.table);
+        DatabaseDefinition.ViewDefinition vd = n.db == null || n.table == null ? null
+                : ctx.findView(n.db, n.schema, n.table).orElse(null);
         String label = null;
         if (n.labelOverride != null) {
             label = n.labelOverride.isEmpty() ? null : n.labelOverride;
@@ -1355,25 +1356,6 @@ public final class ScanRelations {
             }
         }
         return false;
-    }
-
-    private static DatabaseDefinition.@com.legend.Nullable ViewDefinition findView(ModelContext ctx,
-            String dbName, @com.legend.Nullable String name) {
-        return findView(ctx, dbName, null, name);
-    }
-
-    /** {@code schema} non-null pins the lookup: two views may share a
-     * name across schemas with DIFFERENT bodies (the ViewSchema
-     * AltID_View corpus model) — the model index keys a schema view by
-     * its {@code SCHEMA.NAME} spelling; ONE lookup (the context's,
-     * include closure included), never a private walk beside it. */
-    private static DatabaseDefinition.@com.legend.Nullable ViewDefinition findView(ModelContext ctx,
-            String dbName, @com.legend.Nullable String schema, @com.legend.Nullable String name) {
-        if (name == null) {
-            return null;
-        }
-        String key = schema == null || "default".equals(schema) ? name : schema + "." + name;
-        return ctx.findView(dbName, key).orElse(null);
     }
 
     // ------------------------------------------------------------------
