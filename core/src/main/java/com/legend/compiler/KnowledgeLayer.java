@@ -43,7 +43,13 @@ import java.util.Optional;
 public final class KnowledgeLayer {
 
     private final ModelBuilder model;
-    private final Map<String, Boolean> subtypeMemo = new java.util.HashMap<>();
+    /** Each asked class's REACH: itself and every class its declared supers
+     * lead to (an unknown class reaches only itself) — the hierarchy's
+     * closure, walked once per class, so a subtype test is a membership
+     * test. Was: a memo of (child, parent) answers, one string key per
+     * pair asked, growing with the square of the classes. */
+    private final Map<String, java.util.Set<String>> reach =
+            new java.util.concurrent.ConcurrentHashMap<>();
     /** Facts a phase DERIVES from the index and memoizes here for the
      * graph's lifetime (rebuilt with the kernel when a batch is added) —
      * the {@code ModelContext.derived} idiom, one level down. */
@@ -106,38 +112,28 @@ public final class KnowledgeLayer {
     /** Whether {@code child} is {@code parent} or a (transitive) declared
      * subclass of it. An unknown class is nobody's subtype (the miss is
      * the answer: metamodel and protocol class names are not user
-     * classes). Memoized for the graph's lifetime. */
+     * classes); a cycle contributes nothing new. */
     public boolean isSubtype(String child, String parent) {
-        if (child.equals(parent)) {
-            return true;
-        }
-        String key = child + '\u0000' + parent;
-        Boolean hit = subtypeMemo.get(key);
-        if (hit != null) {
-            return hit;
-        }
-        boolean answer = isSubtype(child, parent, new java.util.HashSet<>());
-        subtypeMemo.put(key, answer);
-        return answer;
+        return child.equals(parent) || reach(child).contains(parent);
     }
 
-    private boolean isSubtype(String child, String parent, java.util.Set<String> visited) {
-        if (child.equals(parent)) {
-            return true;
+    private java.util.Set<String> reach(String cls) {
+        java.util.Set<String> known = reach.get(cls);
+        if (known != null) {
+            return known;
         }
-        if (!visited.add(child)) {
-            return false;
-        }
-        ClassDefinition cd = hierarchyClass(child).orElse(null);
-        if (cd == null) {
-            return false;
-        }
-        for (String sup : superClassFqns(cd)) {
-            if (isSubtype(sup, parent, visited)) {
-                return true;
+        java.util.Set<String> out = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+        work.add(cls);
+        while (!work.isEmpty()) {
+            String cur = work.poll();
+            if (out.add(cur)) {
+                hierarchyClass(cur).ifPresent(cd -> work.addAll(superClassFqns(cd)));
             }
         }
-        return false;
+        java.util.Set<String> frozen = java.util.Set.copyOf(out);
+        reach.putIfAbsent(cls, frozen);
+        return frozen;
     }
 
     /** {@code cls} and every ancestor, breadth-first from {@code cls}

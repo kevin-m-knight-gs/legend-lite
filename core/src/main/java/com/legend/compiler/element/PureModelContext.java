@@ -164,13 +164,21 @@ public final class PureModelContext implements ModelContext {
         return classifier.findType(fqn);
     }
 
-    /** THE SUBTYPE MEMO — the declared-supertype walk is a fact of the
-     * immutable model, asked millions of times per corpus run (every
-     * conformance check, every layout's function-carrier test); memoized
-     * on the context (batch 170's profile: 1,477 samples in isSubtype). */
-    private static final class SubtypeMemo {
-        final java.util.Map<String, Boolean> answers =
+    /** Each asked class's REACH through its compiled supers (itself
+     * included; a class that does not compile is a dead end) — the
+     * hierarchy's closure, walked once per class, so a subtype test is a
+     * membership test. Was: a memo of (child, parent) answers keyed by a
+     * string built per call, growing with the square of the classes (it
+     * filled an 8 GB heap on a 20K-class model's queries). */
+    private static final class Reach {
+        final java.util.Map<String, Walked> of =
                 new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
+    /** A class's reach, and the first class on it that failed to compile
+     * (a poisoned or unknown super): its supers are not walked. */
+    private record Walked(java.util.Set<String> classes,
+            com.legend.error.@com.legend.Nullable LegendCompileException failure) {
     }
 
     @Override
@@ -180,15 +188,50 @@ public final class PureModelContext implements ModelContext {
 
     @Override
     public boolean isSubtype(String childFqn, String parentFqn) {
-        SubtypeMemo memo = derived(SubtypeMemo.class, c -> new SubtypeMemo());
-        String key = childFqn + '\u0000' + parentFqn;
-        Boolean hit = memo.answers.get(key);
-        if (hit != null) {
-            return hit;
+        if (childFqn.equals(parentFqn)) {
+            return true;
         }
-        boolean answer = ModelContext.super.isSubtype(childFqn, parentFqn);
-        memo.answers.putIfAbsent(key, answer);
-        return answer;
+        Walked r = reach(childFqn);
+        // Nil is the BOTTOM type — a subtype of every type (ModelContext's
+        // walk: reaching it answers true whatever the parent)
+        if (r.classes().contains(parentFqn)
+                || r.classes().contains(com.legend.compiler.element.type.PlatformTypes.NIL)) {
+            return true;
+        }
+        // a NO walked everything reachable, so a class that failed to
+        // compile on the way is this question's failure (as it always was)
+        if (r.failure() != null) {
+            throw r.failure();
+        }
+        return false;
+    }
+
+    private Walked reach(String cls) {
+        Reach memo = derived(Reach.class, c -> new Reach());
+        Walked known = memo.of.get(cls);
+        if (known != null) {
+            return known;
+        }
+        java.util.Set<String> out = new java.util.HashSet<>();
+        com.legend.error.LegendCompileException failure = null;
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+        work.add(cls);
+        while (!work.isEmpty()) {
+            String cur = work.poll();
+            if (!out.add(cur) || cur.equals(com.legend.compiler.element.type.PlatformTypes.NIL)) {
+                continue;
+            }
+            try {
+                findClass(cur).ifPresent(tc -> work.addAll(tc.superClassFqns()));
+            } catch (com.legend.error.LegendCompileException e) {
+                if (failure == null) {
+                    failure = e;
+                }
+            }
+        }
+        Walked walked = new Walked(java.util.Set.copyOf(out), failure);
+        memo.of.putIfAbsent(cls, walked);
+        return walked;
     }
 
     @Override
