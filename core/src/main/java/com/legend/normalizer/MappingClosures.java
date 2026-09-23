@@ -130,6 +130,7 @@ final class MappingClosures {
         private @com.legend.Nullable Map<String, ClassMapping.Inheritance> inheritances;
         private @com.legend.Nullable LinkedHashMap<String, ClassMapping> roots;
         private @com.legend.Nullable List<EnumerationMapping> enums;
+        private @com.legend.Nullable Map<String, List<ClassMapping.Relational>> relationalSets;
         private final Map<String, Map<String, List<PropertyMapping.Join>>> pairEntries = new HashMap<>();
 
         private Closure(String fqn) {
@@ -166,6 +167,24 @@ final class MappingClosures {
             for (MappingInclude inc : md.includes()) {
                 surfaceOf(inc.mappingPath()).ifPresent(m -> walkMappings(m, out, seen));
             }
+        }
+
+        /** {@code classFqn}'s Relational sets across {@link #mappings()}, in
+         * that order then declaration order. */
+        List<ClassMapping.Relational> relationalSets(@com.legend.Nullable String classFqn) {
+            Map<String, List<ClassMapping.Relational>> out = relationalSets;
+            if (out == null) {
+                out = new HashMap<>();
+                for (LegacyMappingDefinition m : mappings()) {
+                    for (ClassMapping cm : m.classMappings()) {
+                        if (cm instanceof ClassMapping.Relational rcm) {
+                            out.computeIfAbsent(rcm.className(), k -> new ArrayList<>()).add(rcm);
+                        }
+                    }
+                }
+                relationalSets = out;
+            }
+            return out.getOrDefault(classFqn, List.of());
         }
 
         /** Set ids visible through the includes, transitively: a nearer

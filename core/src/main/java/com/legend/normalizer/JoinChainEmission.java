@@ -888,8 +888,7 @@ final class JoinChainEmission {
         // (suffixed keys / temporal columns) that speak the view's row —
         // those keep the expansion (sweep-proven: unionOfViews +
         // milestoned-view regressions under the looser gate).
-        List<ClassMapping.Relational> sets = MappingNormalizer
-                .relationalMappingsInClosure(md, model, targetClassFqn);
+        List<ClassMapping.Relational> sets = md.relationalSets(targetClassFqn);
         if (sets.size() != 1 || !sets.get(0).groupBy().isEmpty()
                 || sets.get(0).distinct()
                 || MilestoningFacts.isTemporal(targetClassFqn, model)) {

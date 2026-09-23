@@ -11,6 +11,7 @@ import com.legend.model.MappingInclude;
 import com.legend.model.PropertyMapping;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +41,14 @@ final class ResolvedMapping {
     /** The lifted view bodies (E.5, LiftedViews) every view-expansion site of
      * this mapping reads — an input of the phase, never recomputed here. */
     private final LiftedViews views;
+    /** This record's OWN sets keyed the two ways synthesis asks of them —
+     * by class (declaration order) and by effective id (the first set
+     * declaring an id) — and the ROOT set per class over the whole closure.
+     * Built with the record, so every class or id question is a lookup,
+     * never a walk of the sets. */
+    private final Map<String, List<ClassMapping>> ownByClass;
+    private final Map<String, ClassMapping> ownById;
+    private final Map<String, ClassMapping> roots;
 
     ResolvedMapping(LegacyMappingDefinition md, LegacyMappingDefinition surface,
             Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
@@ -50,6 +59,17 @@ final class ResolvedMapping {
         this.declaredKeys = declaredKeys;
         this.invalid = invalid;
         this.views = views;
+        Map<String, List<ClassMapping>> byClass = new HashMap<>();
+        Map<String, ClassMapping> byId = new HashMap<>();
+        for (ClassMapping cm : md.classMappings()) {
+            byClass.computeIfAbsent(cm.className(), k -> new ArrayList<>()).add(cm);
+            byId.putIfAbsent(idOf(cm), cm);
+        }
+        this.ownByClass = byClass;
+        this.ownById = byId;
+        Map<String, ClassMapping> rootsByClass = new LinkedHashMap<>(closure.roots());
+        MappingClosures.Closure.ownRoots(md, rootsByClass);
+        this.roots = java.util.Collections.unmodifiableMap(rootsByClass);
     }
 
     LiftedViews views() { return views; }
@@ -98,12 +118,8 @@ final class ResolvedMapping {
         if (setId == null) {
             return null;
         }
-        for (ClassMapping cm : md.classMappings()) {
-            if (setId.equals(idOf(cm))) {
-                return cm;
-            }
-        }
-        return closure.sets().get(setId);
+        ClassMapping own = ownById.get(setId);
+        return own != null ? own : closure.sets().get(setId);
     }
 
     /** This mapping then its includes, depth-first in include order, each once. */
@@ -117,6 +133,21 @@ final class ResolvedMapping {
                 out.add(m);
             }
         }
+        return out;
+    }
+
+    /** {@code classFqn}'s Relational sets across {@link #closure()}: this
+     * mapping's own in declaration order, then each include's (union V3:
+     * association mappings routinely live in a mapping that only INCLUDES
+     * the class-mapping definitions). */
+    List<ClassMapping.Relational> relationalSets(@com.legend.Nullable String classFqn) {
+        List<ClassMapping.Relational> out = new ArrayList<>();
+        for (ClassMapping cm : ownByClass.getOrDefault(classFqn, List.of())) {
+            if (cm instanceof ClassMapping.Relational rcm) {
+                out.add(rcm);
+            }
+        }
+        out.addAll(closure.relationalSets(classFqn));
         return out;
     }
 
@@ -138,8 +169,8 @@ final class ResolvedMapping {
     /** The Union operation set for {@code classFqn}: own first, else the
      * first found through the includes. */
     ClassMapping.@com.legend.Nullable Union unionOf(@com.legend.Nullable String classFqn) {
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Union u && u.className().equals(classFqn)) {
+        for (ClassMapping cm : ownByClass.getOrDefault(classFqn, List.of())) {
+            if (cm instanceof ClassMapping.Union u) {
                 return u;
             }
         }
@@ -148,8 +179,8 @@ final class ResolvedMapping {
 
     /** The Inheritance operation set for {@code classFqn}, the same rule. */
     ClassMapping.@com.legend.Nullable Inheritance inheritanceOf(String classFqn) {
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Inheritance ih && ih.className().equals(classFqn)) {
+        for (ClassMapping cm : ownByClass.getOrDefault(classFqn, List.of())) {
+            if (cm instanceof ClassMapping.Inheritance ih) {
                 return ih;
             }
         }
@@ -159,9 +190,7 @@ final class ResolvedMapping {
     /** ROOT set per class: the includes' (deeper first), this mapping's own
      * overriding; the {@code *} set or the class's sole set. */
     Map<String, ClassMapping> roots() {
-        Map<String, ClassMapping> out = new LinkedHashMap<>(closure.roots());
-        MappingClosures.Closure.ownRoots(md, out);
-        return out;
+        return roots;
     }
 
     /** Is {@code set} the ROOT (or sole) set of its class — the engine's
@@ -172,7 +201,7 @@ final class ResolvedMapping {
      * unmarked set counted zero). Judged in the OWNING scope: the closure's
      * roots with this mapping's own overriding. */
     boolean isRootOrSole(ClassMapping set) {
-        ClassMapping root = roots().get(set.className());
+        ClassMapping root = roots.get(set.className());
         return root != null && idOf(root).equals(idOf(set));
     }
 

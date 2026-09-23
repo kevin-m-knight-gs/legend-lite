@@ -681,8 +681,9 @@ final class AssociationSynthesis {
     static LegacyMappingDefinition.@com.legend.Nullable TableReference
             anchorTableOf(ResolvedMapping md, String classFqn,
             ModelBuilder model) {
-        if (MappingNormalizer.hasMainTable(md, classFqn, model)) {
-            return MappingNormalizer.mainTableDefOf(md, classFqn, model);
+        LegacyMappingDefinition.TableReference own = MappingNormalizer.mainTableOrNull(md, classFqn);
+        if (own != null) {
+            return own;
         }
         List<LegacyMappingDefinition> closure = new ArrayList<>();
         closure.addAll(md.closure());

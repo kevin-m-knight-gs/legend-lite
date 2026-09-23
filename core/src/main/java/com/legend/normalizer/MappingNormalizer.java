@@ -2307,59 +2307,40 @@ public final class MappingNormalizer {
 
     static boolean hasMainTable(ResolvedMapping md, String classFqn,
             ModelBuilder model) {
-        for (ClassMapping.Relational rcm
-                : relationalMappingsInClosure(md, model, classFqn)) {
-            if (rcm.mainTable() != null || inferMainTableQuiet(rcm) != null) {
-                return true;
-            }
-        }
-        return false;
+        return mainTableOrNull(md, classFqn) != null;
     }
 
-    /** {@code classFqn}'s Relational class mappings across the INCLUDE
-     * CLOSURE, own mapping first (union V3: assoc mappings routinely live
-     * in a mapping that only INCLUDES the class-mapping definitions). */
-    static List<ClassMapping.Relational> relationalMappingsInClosure(ResolvedMapping md, ModelBuilder model, @com.legend.Nullable String classFqn) {
-        List<LegacyMappingDefinition> closure = new ArrayList<>();
-        closure.addAll(md.closure());
-        List<ClassMapping.Relational> out = new ArrayList<>();
-        for (LegacyMappingDefinition m : closure) {
-            for (ClassMapping cm : m.classMappings()) {
-                if (cm instanceof ClassMapping.Relational rcm
-                        && rcm.className().equals(classFqn)) {
-                    out.add(rcm);
-                }
+    /** {@code classFqn}'s ~mainTable in {@code md}'s closure, null when no
+     * Relational set of the class has one. The ROOT set's table — with
+     * multiple set IDs, .all() and every synthesized association predicate
+     * anchor on the root; taking the FIRST declared set bound predicates to
+     * the wrong table whenever a non-root set was declared first (audit) —
+     * else the first set's that has one. */
+    static LegacyMappingDefinition.@com.legend.Nullable TableReference mainTableOrNull(
+            ResolvedMapping md, @com.legend.Nullable String classFqn) {
+        LegacyMappingDefinition.TableReference first = null;
+        for (ClassMapping.Relational rcm : md.relationalSets(classFqn)) {
+            LegacyMappingDefinition.TableReference mt = rcm.mainTable() != null
+                    ? rcm.mainTable() : inferMainTableQuiet(rcm);
+            if (mt == null) {
+                continue;
+            }
+            if (rcm.root()) {
+                return mt;
+            }
+            if (first == null) {
+                first = mt;
             }
         }
-        return out;
+        return first;
     }
 
     /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */
     static LegacyMappingDefinition.TableReference mainTableDefOf(
             ResolvedMapping md, @com.legend.Nullable String classFqn, ModelBuilder model) {
-        // The ROOT set's table — with multiple set IDs, .all() and every
-        // synthesized association predicate anchor on the root; taking the
-        // FIRST declared set bound predicates to the wrong table whenever a
-        // non-root set was declared first (audit). Include-closure aware.
-        LegacyMappingDefinition.TableReference first = null;
-        for (ClassMapping.Relational rcm
-                : relationalMappingsInClosure(md, model, classFqn)) {
-            {
-                LegacyMappingDefinition.TableReference mt = rcm.mainTable() != null
-                        ? rcm.mainTable() : inferMainTableQuiet(rcm);
-                if (mt == null) {
-                    continue;
-                }
-                if (rcm.root()) {
-                    return mt;
-                }
-                if (first == null) {
-                    first = mt;
-                }
-            }
-        }
-        if (first != null) {
-            return first;
+        LegacyMappingDefinition.TableReference mt = mainTableOrNull(md, classFqn);
+        if (mt != null) {
+            return mt;
         }
         throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                 "No ~mainTable for class '" + classFqn + "' in mapping="
