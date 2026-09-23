@@ -48,6 +48,7 @@ public class LegendHttpServer {
 
         // Engine - query and SQL execution
         server.createContext("/engine/execute", new ExecuteHandler());
+        server.createContext("/engine/plan", new PlanHandler());
         server.createContext("/engine/sql", new ExecuteSqlHandler());
         server.createContext("/engine/diagram", new DiagramHandler());
 
@@ -177,6 +178,74 @@ public class LegendHttpServer {
                 response.put("error", e.getMessage());
                 sendResponse(exchange, 200, Json.toCompact(response));
             }
+        }
+    }
+
+    /**
+     * Compile Pure to SQL WITHOUT executing it: parse, compile, lower, render,
+     * return &mdash; {@link com.legend.Compiler#plan} needs no connection. The
+     * seam a client-side executor needs (DataCube's browser plane runs the SQL
+     * against an embedded DuckDB): the SQL is still produced HERE, so there is
+     * ONE planner, and the same Pure lowers to the same SQL wherever it runs
+     * (ported from datacube/dual-plane 36c78809f, af4c9e1ff).
+     *
+     * <p>Request: {@code {"code": "<model + query>", "runtime": "<fqn>"}}, the
+     * runtime optional (found in the source when absent). Response:
+     * {@code {"success": true, "sql": "...", "shape": "..."}}; a query that does
+     * not compile, a construct not implemented, or a dialect that cannot express
+     * it answers {@code {"success": false, "error": "..."}}; anything else is a
+     * bug, logged with its stack and answered {@code "internal": true} &mdash;
+     * letting it escape dropped the connection, and the client saw a socket
+     * error with no message.
+     */
+    private class PlanHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            addCorsHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+                return;
+            }
+            Map<String, Object> response = new LinkedHashMap<>();
+            try {
+                Json.Obj request = Json.parseObject(readBody(exchange));
+                String fullSource = request.getStringOr("code", null);
+                if (fullSource == null || fullSource.isBlank()) {
+                    sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
+                    return;
+                }
+                String runtimeName = request.getStringOr("runtime", null);
+                if (runtimeName == null || runtimeName.isBlank()) {
+                    runtimeName = extractRuntimeName(fullSource);
+                }
+                String[] parts = separateModelAndQuery(fullSource);
+                if (runtimeName == null || parts[1] == null || parts[1].isBlank()) {
+                    sendResponse(exchange, 400, "{\"error\":\"Need a Runtime and a query expression after it\"}");
+                    return;
+                }
+                com.legend.exec.QueryPlan plan = com.legend.Compiler.plan(parts[0], parts[1], runtimeName);
+                response.put("success", true);
+                response.put("sql", plan.sql());
+                response.put("shape", String.valueOf(plan.shape()));
+            } catch (com.legend.error.LegendCompileException
+                    | com.legend.error.NotImplementedException
+                    | com.legend.sql.dialect.DialectCapability e) {
+                // the honest outcomes of a plan-only call
+                response.put("success", false);
+                response.put("error", String.valueOf(e.getMessage()));
+            } catch (RuntimeException | StackOverflowError e) {
+                // a BUG: logged whole, answered loudly — never a dropped connection
+                e.printStackTrace();
+                response.put("success", false);
+                response.put("internal", true);
+                response.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+            sendResponse(exchange, 200, Json.toCompact(response));
         }
     }
 

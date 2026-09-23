@@ -92,7 +92,11 @@ class ErrorShapeGuardrailTest {
             // catch converts ANY failure into a JSON error response and
             // keeps the server alive — LSP handler, execute, executeSql,
             // diagram (whose response-write fallback is the 5th)
-            Map.entry("LegendHttpServer.java", 5),
+            // 5 -> 6 (2026-09-23, /engine/plan from datacube/dual-plane): a plan
+            // call's non-honest failure is a BUG, logged whole and answered
+            // "internal": letting it escape dropped the TCP connection and the
+            // client saw a socket error with no message
+            Map.entry("LegendHttpServer.java", 6),
             // 2 = the LSP protocol boundary (reviewed): dispatch converts
             // failures to JSON-RPC error responses; rebuild converts a
             // compile crash into published diagnostics
