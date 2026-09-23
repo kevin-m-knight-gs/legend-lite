@@ -382,7 +382,11 @@ public final class Lowerer {
         // RECORDS the representation by boxing; Bottom/Unknown never
         // guess (censused, unboxed). Root scope is FROM-less — no
         // column bindings.
-        boolean anyStamp = sqlTypeOf(spec.info().type()) == SqlType.Scalar.JSON;
+        // the root's SQL type, computed ONCE: the stamp test and the label
+        // below both read it (it unfolded a class root's whole nested
+        // struct twice, once only to compare it with JSON)
+        SqlType rootType = sqlTypeOf(spec.info().type());
+        boolean anyStamp = rootType == SqlType.Scalar.JSON;
         // read unconditionally: a LITERAL-carried product under ANY
         // stamp (generic/TypeVar dedup results included) must label
         // truthfully — the TREE carries the carrier through
@@ -413,7 +417,7 @@ public final class Lowerer {
         // e.type() states. This arm's residual content is the label
         // SPELLING (scalar LITERAL for the element contract) — it
         // retires at M4 with the carrier rule.
-        com.legend.sql.SqlType label = sqlTypeOf(spec.info().type());
+        com.legend.sql.SqlType label = rootType;
         if (e.type() instanceof com.legend.sql.TypeFact.Typed jt
                 && (jt.type() == SqlType.Scalar.LITERAL
                         || (jt.type() instanceof com.legend.sql.SqlType.Array ja
