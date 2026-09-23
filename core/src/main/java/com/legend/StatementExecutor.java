@@ -2023,65 +2023,48 @@ final class StatementExecutor {
         if (!state.dirty && state.done.contains(key)) {
             return;
         }
-        java.util.List<String> setups = new java.util.ArrayList<>();
+        java.util.List<com.legend.exec.CsvSeed.Step> setups = new java.util.ArrayList<>();
         for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
-            setups.addAll(fr.sqlSetups());
-            setups.addAll(com.legend.exec.CsvSeed.setupSqls(fr, env.ctx(), env.dialect()));
+            for (String sql : fr.sqlSetups()) {
+                setups.add(new com.legend.exec.CsvSeed.Step.Sql(sql));
+            }
+            setups.addAll(com.legend.exec.CsvSeed.setupSteps(fr, env.ctx(), env.dialect()));
             // an ELEMENT runtime named by the from(): its declared
             // connections' test data (the instance form above carries the
             // same facts on the instance)
             fr.context().runtime().ifPresent(ref ->
-                    setups.addAll(declaredSetups(ref.fullPath(), env.ctx(), env.dialect())));
+                    setups.addAll(com.legend.exec.CsvSeed.declaredSteps(ref.fullPath(), env.ctx(), env.dialect())));
         }
         // the AMBIENT runtime (the driver's execution context): its
         // declared connections' test data seeds the session the same way
         if (env.runtimeFqn() != null) {
-            setups.addAll(declaredSetups(env.runtimeFqn(), env.ctx(), env.dialect()));
+            setups.addAll(com.legend.exec.CsvSeed.declaredSteps(env.runtimeFqn(), env.ctx(), env.dialect()));
         }
-        for (String blob : setups) {
-            for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
-                boolean query;
-                try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-                    query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+        for (com.legend.exec.CsvSeed.Step step : setups) {
+            switch (step) {
+                case com.legend.exec.CsvSeed.Step.Sql blob -> {
+                    for (String stmt : com.legend.sql.RawSql.splitStatements(blob.text())) {
+                        boolean query;
+                        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+                            query = Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
+                        }
+                        record(env, stmt, query);
+                    }
                 }
-                record(env, stmt, query);
+                // test data's ROWS: the engine's bulk load when it has one; the
+                // referee's ledger records the one insert that lands the same rows
+                case com.legend.exec.CsvSeed.Step.Rows rows -> {
+                    try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+                        Executor.load(env.connection(), env.dialect(), rows.load());
+                    }
+                    if (env.options().recorder() != null) {
+                        record(env, rows.text(env.dialect()), false);
+                    }
+                }
             }
         }
         state.done.add(key);
         state.dirty = false;
-    }
-
-    /** The test data an ELEMENT runtime's connections declare — every
-     *  {@code LocalH2 { testDataSetupSqls; testDataSetupCSV }} bound under
-     *  it, as the SQL the platform establishes the session with (the CSV
-     *  typed from the bound store's parsed tables, {@link com.legend.exec.CsvSeed}).
-     *  Before 2026-09-16 only the Pure-INSTANCE runtime form seeded; a
-     *  declared connection's data was parsed and carried but never run. */
-    private static java.util.List<String> declaredSetups(String runtimeFqn, ModelContext ctx,
-            com.legend.sql.dialect.SqlDialect dialect) {
-        java.util.List<String> out = new java.util.ArrayList<>();
-        java.util.Optional<com.legend.model.RuntimeDefinition> rt = ctx.findRuntime(runtimeFqn);
-        if (rt.isEmpty()) {
-            return out;
-        }
-        for (var binding : rt.get().connectionBindings().entrySet()) {
-            String store = binding.getKey();
-            for (String connFqn : binding.getValue()) {
-                ctx.findConnection(connFqn).ifPresent(cd -> {
-                    if (cd.specification()
-                            instanceof com.legend.model.ConnectionSpecification.LocalH2 h2) {
-                        if (h2.testDataSetupSqls() != null) {
-                            out.addAll(h2.testDataSetupSqls());
-                        }
-                        if (h2.testDataSetupCsv() != null) {
-                            String db = ctx.findDatabase(store).isPresent() ? store : null;
-                            out.addAll(com.legend.exec.CsvSeed.sqls(h2.testDataSetupCsv(), db, ctx, dialect));
-                        }
-                    }
-                });
-            }
-        }
-        return out;
     }
 
     /** A session's established state: the setup texts run on it, and

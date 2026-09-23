@@ -11,7 +11,7 @@ import java.util.List;
  * literal spelling. A table is named as DDL names it ({@code schema} null or
  * {@code default}: bare).
  */
-public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTable {
+public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTable, SqlDml.DeleteAll {
 
     /** {@code INSERT INTO [schema.]table [(columns)] VALUES (row), ...};
      *  {@code columns} empty: every column in declared order. */
@@ -30,5 +30,9 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
         public InsertFromTable {
             columns = List.copyOf(columns);
         }
+    }
+
+    /** {@code DELETE FROM [schema.]table}: every row. */
+    record DeleteAll(@com.legend.Nullable String schema, String table) implements SqlDml {
     }
 }

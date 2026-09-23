@@ -32,7 +32,33 @@ public final class CsvSeed {
      *  type's 3571428.5714285714). */
     public static List<String> sqls(String csvBlocks, @com.legend.Nullable String dbFqn,
             ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
-        List<String> out = new ArrayList<>();
+        return steps(csvBlocks, dbFqn, ctx, dialect).stream().map(st -> st.text(dialect)).toList();
+    }
+
+    /** One step of a seed, in order: a statement (the dialect's DDL text), or
+     *  rows to load ({@link Executor#load} &mdash; an engine's bulk API when
+     *  it has one; its text is the one multi-row insert). */
+    public sealed interface Step permits Step.Sql, Step.Rows {
+        record Sql(String text) implements Step {
+        }
+
+        record Rows(RowLoad load) implements Step {
+        }
+
+        /** The step as SQL text, rendered by {@code dialect}. */
+        default String text(com.legend.sql.dialect.SqlDialect dialect) {
+            return switch (this) {
+                case Sql q -> q.text();
+                case Rows r -> dialect.render(r.load().values());
+            };
+        }
+    }
+
+    /** The seed as {@link Step}s &mdash; {@link #sqls}' statements, the rows
+     *  still rows. */
+    public static List<Step> steps(String csvBlocks, @com.legend.Nullable String dbFqn,
+            ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
+        List<Step> out = new ArrayList<>();
         // block separators: a line of dashes — '-' (the Alloy '\n-\n'
         // form) or '-----' (the testDataGeneration CSV form)
         StringBuilder block = new StringBuilder();
@@ -52,7 +78,7 @@ public final class CsvSeed {
     }
 
     private static void blockSqls(String csv, @com.legend.Nullable String dbFqn, ModelContext ctx,
-            com.legend.sql.dialect.SqlDialect dialect, List<String> out) {
+            com.legend.sql.dialect.SqlDialect dialect, List<Step> out) {
         String[] lines = csv.split("\n");
         while (lines.length > 0 && lines[0].isBlank()) {
             lines = java.util.Arrays.copyOfRange(lines, 1, lines.length);
@@ -63,8 +89,6 @@ public final class CsvSeed {
         String schema = lines[0].strip();
         String table = lines[1].strip();
         boolean defaultSchema = "default".equals(schema);
-        String qualified = defaultSchema ? ident(table)
-                : ident(schema) + "." + ident(table);
         String[] cols = cells(lines[2]);
         var def = dbFqn == null
                 ? java.util.Optional.<com.legend.model.DatabaseDefinition.TableDefinition>empty()
@@ -77,20 +101,21 @@ public final class CsvSeed {
             // IF NOT EXISTS: idempotent on both engines and on mirrors
             // that already carry the schema.
             if (!defaultSchema) {
-                out.add(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema)));
+                out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema))));
             }
             // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
             // engine's own target) has no OR REPLACE for tables — this was
             // the recorded root cause of ~39 'Table already exists' H2
             // replay declines (H2_BACKEND.md §12 step 2); DuckDB accepts
             // the two-statement form identically
-            out.add(dialect.render(Ddl.dropTable(defaultSchema ? null : schema, table)));
+            out.add(new Step.Sql(dialect.render(Ddl.dropTable(defaultSchema ? null : schema, table))));
             // THE ONE DDL PRODUCER: the store's declared column types,
             // spelled for the target (the engine creates what the store
             // declares — its setUpDataSQLs reads the metamodel's types)
-            out.add(dialect.render(Ddl.createTable(def.get(), defaultSchema ? null : schema)));
+            out.add(new Step.Sql(dialect.render(Ddl.createTable(def.get(), defaultSchema ? null : schema))));
         } else {
-            out.add("DELETE FROM " + qualified);
+            out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDml.DeleteAll(
+                    defaultSchema ? null : ident(schema), ident(table)))));
         }
         // F7.5: ONE multi-row INSERT per block — the statement count is
         // the seed cost (task #14: per-statement parse+plan+JNI), and
@@ -101,9 +126,9 @@ public final class CsvSeed {
                 rows.add(cells(lines[i]));
             }
         }
-        String sql = insertStatement(qualified, cols, rows);
-        if (sql != null) {
-            out.add(sql);
+        RowLoad load = rowLoad(defaultSchema ? null : ident(schema), ident(table), cols, rows);
+        if (load != null) {
+            out.add(new Step.Rows(load));
         }
     }
 
@@ -170,56 +195,78 @@ public final class CsvSeed {
         return out.toArray(String[]::new);
     }
 
-    /** ONE multi-row INSERT of CSV cells — the seed spelling, shared with
-     * the loadCsvToDbTable arm (batch 85): every value rides as a QUOTED
-     * literal and the DATABASE casts it to the column's type (F7.2); an
-     * empty or {@code ---null---} cell is NULL. Null when no rows. */
-    public static @com.legend.Nullable String insertStatement(String qualified,
-            String[] cols, List<String[]> rows) {
-        StringBuilder sql = null;
+    /** CSV cells as rows for {@code [schema.]table} (both spelled as SQL names
+     * them) &mdash; the seed's rows, shared with the loadCsvToDbTable arm
+     * (batch 85): every value rides as TEXT and the DATABASE casts it to the
+     * column's type (F7.2); an empty or {@code ---null---} cell, or one past
+     * the row's end, is NULL. Null when no rows. */
+    public static @com.legend.Nullable RowLoad rowLoad(@com.legend.Nullable String schema,
+            String table, String[] cols, List<String[]> rows) {
+        if (rows.isEmpty()) {
+            return null;
+        }
+        List<String> names = new ArrayList<>(cols.length);
+        for (String c : cols) {
+            names.add(ident(c.strip()));
+        }
+        List<List<String>> out = new ArrayList<>(rows.size());
         for (String[] vals : rows) {
-            if (sql == null) {
-                sql = new StringBuilder("INSERT INTO ")
-                        .append(qualified).append(" (");
-                for (int c = 0; c < cols.length; c++) {
-                    if (c > 0) {
-                        sql.append(", ");
-                    }
-                    sql.append(ident(cols[c].strip()));
-                }
-                sql.append(") VALUES ");
-            } else {
-                sql.append(", ");
-            }
-            sql.append('(');
+            List<String> row = new ArrayList<>(cols.length);
             for (int c = 0; c < cols.length; c++) {
                 String tok = c < vals.length ? vals[c].strip() : "";
-                if (c > 0) {
-                    sql.append(", ");
-                }
-                if (tok.isEmpty() || tok.equals("---null---")) {
-                    sql.append("NULL");
-                } else {
-                    sql.append("'").append(tok.replace("'", "''"))
-                            .append("'");
-                }
+                row.add(tok.isEmpty() || tok.equals("---null---") ? null : tok);
             }
-            sql.append(')');
+            out.add(row);
         }
-        return sql == null ? null : sql.toString();
+        return new RowLoad(schema, table, names, cols.length, out);
     }
 
     /** The from() node's {@code testDataSetupCsv} FACTS as seed SQL — the
      * executor's half against the store (the compiler only records the
      * block and its database). */
-    public static List<String> setupSqls(
+    public static List<Step> setupSteps(
             com.legend.compiler.spec.typed.TypedFrom fr,
             com.legend.compiler.element.ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
-        List<String> out = new java.util.ArrayList<>();
+        List<Step> out = new java.util.ArrayList<>();
         for (var c : fr.csvSetups()) {
             String db = c.dbFqn() != null && ctx.findDatabase(c.dbFqn()).isPresent()
                     ? c.dbFqn() : null;
-            out.addAll(sqls(c.csv(), db, ctx, dialect));
+            out.addAll(steps(c.csv(), db, ctx, dialect));
+        }
+        return out;
+    }
+
+    /** The test data an ELEMENT runtime's connections declare — every
+     *  {@code LocalH2 { testDataSetupSqls; testDataSetupCSV }} bound under
+     *  it, as the SQL the platform establishes the session with (the CSV
+     *  typed from the bound store's parsed tables, {@link CsvSeed}).
+     *  Before 2026-09-16 only the Pure-INSTANCE runtime form seeded; a
+     *  declared connection's data was parsed and carried but never run. */
+    public static List<Step> declaredSteps(String runtimeFqn,
+            ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
+        List<Step> out = new ArrayList<>();
+        java.util.Optional<com.legend.model.RuntimeDefinition> rt = ctx.findRuntime(runtimeFqn);
+        if (rt.isEmpty()) {
+            return out;
+        }
+        for (var binding : rt.get().connectionBindings().entrySet()) {
+            String store = binding.getKey();
+            for (String connFqn : binding.getValue()) {
+                ctx.findConnection(connFqn).ifPresent(cd -> {
+                    if (cd.specification()
+                            instanceof com.legend.model.ConnectionSpecification.LocalH2 h2) {
+                        if (h2.testDataSetupSqls() != null) {
+                            for (String sql : h2.testDataSetupSqls()) {
+                                out.add(new Step.Sql(sql));
+                            }
+                        }
+                        if (h2.testDataSetupCsv() != null) {
+                            String db = ctx.findDatabase(store).isPresent() ? store : null;
+                            out.addAll(steps(h2.testDataSetupCsv(), db, ctx, dialect));
+                        }
+                    }
+                });
+            }
         }
         return out;
     }

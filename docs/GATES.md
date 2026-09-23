@@ -5232,3 +5232,25 @@ loader (H2, SQLite) take `RowLoad.values()`, one dialect-rendered multi-row inse
 census: `BulkLoad.java` and `DuckDbAppenderLoad.java` registered. Exec class register:
 `RowLoad.java`, `BulkLoad.java`. Census key `sql.bulk-loads`. Own-corpus parity 2532 → 2535
 (`RowLoadTest`'s model).
+
+## 2026-09-23 — Test data's rows through the bulk load; CsvSeed spells no SQL
+
+**What.** `CsvSeed` produces ordered `Step`s — a statement (dialect-rendered DDL) or `Rows` (a
+`RowLoad`) — instead of SQL text. The executor's own test-data establishment (a `from()`'s CSV,
+a runtime's declared `testDataSetupCSV`) loads rows through `Executor.load`: DuckDB's Appender
+behind the staging copy, the one multi-row insert elsewhere; the referee's ledger records the
+insert that lands the same rows. The Pure-visible text surfaces keep their contract as text:
+`setUpDataSQLs` (its value IS the SQL strings) and `loadCsvToDbTable` (an effect in the script)
+render the same `RowLoad` through the dialect. `CsvSeed`'s DELETE is a `SqlDml.DeleteAll` node.
+A runtime's declared test data moved from `StatementExecutor` to `CsvSeed.declaredSteps`.
+Identifiers keep `CsvSeed`'s union quoting (words either engine reserves), so the H2 replay reads
+what the DuckDB session ran. No corpus, judge or PCT lane moved.
+
+**Test.** `RowLoadTest.declaredCsvTestDataIsBulk`: a connection's declared CSV (a quote, an empty
+cell, `---null---`) lands exact rows on DuckDB through the Appender; with the loader unregistered
+it fails with the other two bulk tests. Its model text was first written leniently (`auth:
+DefaultH2 {}`, raw newlines inside a Pure string) — the own-corpus leniency ledger caught both and
+the text was conformed to the engine's spelling, not the ledger re-pinned.
+
+**Ledgers.** SQL-text ratchet: `exec/CsvSeed.java` row DELETED (1 → 0). Evaluator ledger
+`StatementExecutor` 2427 → 2415. Own-corpus parity 2535 → 2540.

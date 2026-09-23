@@ -58,10 +58,12 @@ final class CsvLoad {
             }
             rows.add(vals);
         }
-        // the seed spelling (CsvSeed) — one producer, the database executes
-        String sql = com.legend.exec.CsvSeed.insertStatement(qualified, cols, rows);
-        if (sql != null) {
-            StatementExecutor.sendEffect(env, sql, null,
+        // the seed's rows (CsvSeed) — one producer, the dialect spells the
+        // insert, the database casts every cell
+        com.legend.exec.RowLoad load = com.legend.exec.CsvSeed.rowLoad(
+                "default".equals(ref[1]) ? null : ref[1], ref[2], cols, rows);
+        if (load != null) {
+            StatementExecutor.sendEffect(env, env.dialect().render(load.values()), null,
                     com.legend.exec.StatementOrigin.SEED_GENERATED, true);
         }
         return new ExecutionResult.Scalar(null, call.info().type());

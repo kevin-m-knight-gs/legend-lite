@@ -124,6 +124,38 @@ class RowLoadTest {
     }
 
     @Test
+    @DisplayName("a connection's declared CSV test data loads through the bulk path, rows exact")
+    void declaredCsvTestDataIsBulk() throws Exception {
+        String model = """
+                Class x::Firm { name: String[1]; since: StrictDate[0..1]; size: Integer[0..1]; }
+                ###Relational
+                Database x::DB ( Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32), SINCE DATE, SIZE INTEGER) )
+                ###Mapping
+                Mapping x::M ( *x::Firm: Relational { ~mainTable [x::DB] FIRM
+                    name: [x::DB] FIRM.NAME, since: [x::DB] FIRM.SINCE, size: [x::DB] FIRM.SIZE } )
+                ###Connection
+                RelationalDatabaseConnection x::Conn
+                {
+                    store: x::DB;
+                    type: H2;
+                    specification: LocalH2 { testDataSetupCSV: 'default\\nFIRM\\nID,NAME,SINCE,SIZE\\n1,Acme,2020-01-02,10\\n2,O\\'Brien,,---null---\\n'; };
+                    auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
+                """;
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            long before = Census.count(Census.Key.BULK_LOADS);
+            var r = com.legend.Compiler.execute(model, "|x::Firm.all()->project(~[name: f|$f.name,"
+                    + " since: f|$f.since, size: f|$f.size])->sort(~name->ascending())", "x::RT", c);
+            assertEquals(List.of("Acme|2020-01-02|10", "O'Brien|null|null"), r.rows().stream()
+                    .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());
+            assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
+                    "declared test data's rows must take DuckDB's Appender");
+        }
+    }
+
+    @Test
     @DisplayName("an engine without a bulk loader takes the insert text")
     void h2TakesText() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:h2:mem:rowload")) {

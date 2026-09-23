@@ -1270,6 +1270,8 @@ public class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO "
                     + ddlQualified(it.schema(), it.table()) + dmlColumns(it.columns())
                     + " SELECT * FROM " + ident(it.source()) + ";";
+            case com.legend.sql.SqlDml.DeleteAll da ->
+                    "DELETE FROM " + ddlQualified(da.schema(), da.table()) + ";";
         };
     }
 

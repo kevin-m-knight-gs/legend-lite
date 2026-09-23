@@ -78,7 +78,7 @@ class SqlTextRatchetTest {
         // a GOLDEN — a referee's read of the spec text's shape (the let
         // it populates supplies our rows), never an emission of ours.
         REGISTER.put("SqlTextVerdicts.java", 1);
-        REGISTER.put("exec/CsvSeed.java", 1);   // 4 -> 1 (2026-09-16: DDL is rendered by the dialect from SqlDdl nodes; only the INSERT text remains)
+        // exec/CsvSeed.java: 1 -> 0 and row deleted (2026-09-23): its INSERT is a RowLoad and its DELETE a SqlDml node, both dialect-rendered
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure
         // text composition, no JDBC)
