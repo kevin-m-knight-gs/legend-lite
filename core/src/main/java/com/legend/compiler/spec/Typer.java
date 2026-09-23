@@ -299,10 +299,6 @@ final class Typer {
                     yield new TypedLambda(names, List.copyOf(stmts),
                             new ExprType(fnType, Multiplicity.Bounded.ONE));
                 }
-                if (System.getenv("LL_TMP_DEBUG") != null) {
-                    System.err.println("[bare-lambda] " + lf);
-                    Thread.dumpStack();
-                }
                 throw new TypeInferenceException(
                         "a bare lambda has no type outside a call position"
                                 + " (lambdas type against their call's signature)");
