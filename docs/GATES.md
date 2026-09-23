@@ -5032,3 +5032,32 @@ took 417 s).
 
 **Next (homework §8b):** stage 2 — the lift runs before the mapping normalizer and hands its
 bodies in; view-on-view becomes a call → stage 3 under the TDG program.
+
+
+## 2026-09-22 — views stage 2: one owner of every view body, read by the mapping route
+
+**What landed.** `LiftedViews` (normalizer): the store views as lifted functions with ONE owner
+of every view's relation body — built BEFORE the mapping normalizer runs and handed to it as an
+input of the same phase (T4.1 invariant 5: no write into the model index); memoized by the view
+definition's IDENTITY (two schemas may declare a view of one name with different bodies) with an
+identity cycle guard; eager (`liftAll`) like E.2–E.4; a walled view keeps its wall and a mapping
+reading it meets the same wall at its own site. The 17 expansion sites (a class on a view, a
+join hop onto a view, an association end on a view, the view-on-view recursion inside the lift)
+each became one lookup, `md.views().body(view)` / `p.views.body(view)` — the mapping handle and
+the pipeline carry the owner, so the join-chain emitter gained no parameter. The old expander
+entry and its name-keyed cycle set are gone; `ViewRelation.viewRelationExpr` is now called once
+per view, by the owner.
+
+**Measured.** Zero test movement, by design: four lanes exact (DuckDB 107 / H2 362 unchanged),
+differential agree 5,851 · disagree 0, registers untouched. Two normalizer unit tests took the
+new pre-pass parameter.
+
+**Chain GREEN (gates 1,2,3,4,5,6,7,8,9,10), sequential:** G2 47, G1 117, G3 16, G4 93, G5 51,
+G6 128, G7 35, G9 47, G8 256, G10 38 — 828 s (a loaded box; G8 alone 256 s vs 88–127 s in the
+earlier runs today — no code path of this leg touches gate 8).
+
+**Parked, named (lean ladder):** a query-JSON let read by two asserts computes its query twice
+inside the one fused statement (witness `testRelationStoreAccessorOnView`; 24 other query-JSON
+lets read once). The correct form is "every let is a frame; a scalar let is a one-row frame",
+a typed-IR decision with its own homework — not squeezed in by typing a relation reference as a
+string (user, 2026-09-22).

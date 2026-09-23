@@ -45,7 +45,7 @@ final class MappingPrePass {
      * absent from the result) or thrown under a strict one &mdash; exactly
      * the driver's own per-mapping discipline. */
     static Map<String, ResolvedMapping> run(ParsedModel parsed, ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink, LiftedViews views) {
         Map<String, ResolvedMapping> pre = new LinkedHashMap<>();
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof LegacyMappingDefinition md)) {
@@ -54,7 +54,7 @@ final class MappingPrePass {
             try {
                 pre.put(md.qualifiedName(), MappingNormalizer.withElement(
                         md.qualifiedName(), () -> {
-                            ResolvedMapping r = prePass(md, model);
+                            ResolvedMapping r = prePass(md, model, views);
                             // VALIDATION before synthesis (step 5): the
                             // translator records every invalid set; THE
                             // DRIVER'S policy (B4) — a strict build rejects
@@ -81,7 +81,8 @@ final class MappingPrePass {
         return pre;
     }
 
-    private static ResolvedMapping prePass(LegacyMappingDefinition authored, ModelBuilder model) {
+    private static ResolvedMapping prePass(LegacyMappingDefinition authored, ModelBuilder model,
+            LiftedViews views) {
         LegacyMappingDefinition surface = MappingClosures.of(model).surface(authored);
         detectM2MCycles(surface);
         // the sets' OWN key text, captured BEFORE the extends pre-pass
@@ -99,7 +100,7 @@ final class MappingPrePass {
         // ONE construction (B3.3): every step rewrites the record under
         // construction and asks its closure questions of that record
         ResolvedMapping r = new ResolvedMapping(surface, surface, declaredKeys, Map.of(),
-                MappingClosures.of(model).closure(surface.qualifiedName()));
+                MappingClosures.of(model).closure(surface.qualifiedName()), views);
         r = r.withMapping(resolveExtends(r, model));
         r = r.withMapping(ImplicitInheritance.apply(r, model));
         // Pre-pass: IMPORT-SCOPE store-ref qualification (see

@@ -296,6 +296,36 @@ while the engine's serializer is a hand-written byte stream; the envelope now sp
 bytes and the H2 lane passes the test as well (no JSON function in the skeleton). The test passes
 on all four lanes as plain compiled `contains`.
 
+## 8d. Stage 2 LANDED (2026-09-22) and stage 3 RE-READ against the engine
+
+**Stage 2 landed** as `LiftedViews` (one owner; identity-keyed; eager; handed to the mapping
+normalizer as an input). View-on-view stayed an INLINE expansion read from the owner (the inner
+view's body spliced into the outer's), not a call: the corpus's 7 view-on-view chains are all
+consumed by the mapping route, whose bodies are protocol Pure spliced before typing; a call
+would only change trees for no consumer that needs it. Zero movement.
+
+**Stage 3, corrected by reading the engine's own test-data generator** (testDataGeneration.pure
+377–412): the engine's view fetch is NOT hand-built from the view's columns — it is the SQL
+generator's own view planning (`processRelationalMappingSpecification($relationTree.view, …)`)
+with the fetched base tables substituted by the temps (`fixTables($oldToNew)`) and printed. Our
+`TestDataGenerator.viewFetchSql` (~120 lines) rebuilds that SQL by hand from the raw column
+mappings, filter, group-by and distinct — a second SQL generator for views. The engine's LINEAGE
+(`scanRelations(v: View)`) and its tree/child expansion ARE metamodel walks over
+`columnMappings`, as ours are (`ScanRelations.expandView`, `TestDataGenerator.expandIfView` /
+`substituteViewRefs`); those stay metamodel walks — the engine's own shape.
+
+So stage 3 is exactly: (a) `viewFetchSql` = the lifted view body LOWERED in engine text with the
+fetched tables replaced by the temps (the replaceTables IR pass exists) — deletes the hand-built
+renderer (`viewFetchSql`, `joinTarget`, the view arm of `renderOverAliases`); (b) the private
+include-aware `ScanRelations.findView` ×3 replaced by the model context's lookup (the "sidecar"
+the user asked about on day one — a context method beside `findTable`); (c) ONE owner of the
+view's main-table rule (`ViewRelation.inferViewMainTable`, `ScanRelations.expandView`'s seed
+rule, the engine's `findMainTableForView`) — a store fact, home beside `StoreCompiler`.
+Ratchet: the 6 TDG view tests keep their outside-body rows (the fetch statements are the TDG
+program's own, by design) with ZERO movement; candidate
+`testAlloyTestDatGenWithQuotedColumnsForViews` (both rosters: it asserts the planner's quoting of
+view join columns). Guard: 33 TDG + 13 lineage tests exact.
+
 ## 9. Open decisions for the user
 
 1. ~~Eager versus lazy~~ DECIDED 2026-09-22: eager, like E.2–E.4 (all three lifts are eager; walls

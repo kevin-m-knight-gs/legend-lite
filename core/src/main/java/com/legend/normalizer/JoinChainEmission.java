@@ -405,9 +405,7 @@ final class JoinChainEmission {
                 // same expansion the physical-hop arm uses — engine: views
                 // are subselects, joins accept Table OR View)
                 ValueSpecification targetRows = viewTarget != null
-                        ? ViewRelation.viewRelationExpr(
-                                model.findView(hopDb, viewTarget).orElseThrow(),
-                                viewTarget, hopDb, model, md)
+                        ? p.views.body(model.findView(hopDb, viewTarget).orElseThrow())
                         : new AppliedFunction(
                                 "tableReference", List.of(
                                         new PackageableElementPtr(hopDb),
@@ -437,8 +435,7 @@ final class JoinChainEmission {
                 p.classSlots.add(slotAlias);
             } else {
                 ValueSpecification targetRel = viewTarget != null
-                        ? ViewRelation.viewRelationExpr(model.findView(hopDb, viewTarget).orElseThrow(),
-                                viewTarget, hopDb, model, md)
+                        ? p.views.body(model.findView(hopDb, viewTarget).orElseThrow())
                         : new AppliedFunction("tableReference",
                                 List.of(new PackageableElementPtr(hopDb), new CString(targetTable)));
                 // a VIEW hop carries the frame identity in the spare
@@ -477,8 +474,7 @@ final class JoinChainEmission {
     private static ValueSpecification relationRef(String db, String name, ModelBuilder model,
             ResolvedMapping md) {
         return model.findView(db, name).isPresent()
-                ? ViewRelation.viewRelationExpr(model.findView(db, name).orElseThrow(), name, db,
-                        model, md)
+                ? md.views().body(model.findView(db, name).orElseThrow())
                 : new AppliedFunction("tableReference", List.of(
                         new PackageableElementPtr(db), new CString(name)));
     }
@@ -570,8 +566,7 @@ final class JoinChainEmission {
                 rows = rfMember != null
                         ? MappingNormalizer.relationFunctionPipeline(rfMember, model)
                         : model.findView(db, tgt).isPresent()
-                        ? ViewRelation.viewRelationExpr(model.findView(db, tgt).orElseThrow(),
-                                tgt, db, model, md)
+                        ? md.views().body(model.findView(db, tgt).orElseThrow())
                         : new AppliedFunction("tableReference", List.of(
                                 new PackageableElementPtr(db), new CString(tgt)));
                 Map<String, ValueSpecification> scope = new LinkedHashMap<>();
@@ -928,7 +923,7 @@ final class JoinChainEmission {
         // must gate that threading by the failing assemblies' shapes.
         // the main relation: a table, or a VIEW's frame (the engine's
         // ViewSelectSQLQuery — the filter chain departs from the view's row)
-        Pipeline p = new Pipeline(relationRef(mainDb, mainTable, model, md), ledger);
+        Pipeline p = new Pipeline(relationRef(mainDb, mainTable, model, md), ledger, md.views());
         JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
                 /* propName */ null, rcm.className(), mainDb, mainTable,
                 r, model, md, /* classTypedTerminus */ false);

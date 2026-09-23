@@ -67,20 +67,23 @@ final class Pipeline {
      * VIEW pipeline: a view emits physical hops only and records
      * nothing; {@link #ledger()} is loud if that ever changes. */
     private final @com.legend.Nullable MappingLedger ledgerOrNull;
+    /** The lifted view bodies every hop onto a view reads (E.5, LiftedViews). */
+    final LiftedViews views;
 
-    Pipeline(ValueSpecification expr, MappingLedger ledger) {
-        this(expr, ledger, false);
+    Pipeline(ValueSpecification expr, MappingLedger ledger, LiftedViews views) {
+        this(expr, ledger, false, views);
     }
 
     private Pipeline(ValueSpecification expr, @com.legend.Nullable MappingLedger ledger,
-            boolean view) {
+            boolean view, LiftedViews views) {
         this.expr = expr;
         this.ledgerOrNull = view ? null : java.util.Objects.requireNonNull(ledger, "ledger");
+        this.views = java.util.Objects.requireNonNull(views, "views");
     }
 
     /** A VIEW's relation pipeline: physical hops only, no ledger. */
-    static Pipeline forView(ValueSpecification expr) {
-        return new Pipeline(expr, null, true);
+    static Pipeline forView(ValueSpecification expr, LiftedViews views) {
+        return new Pipeline(expr, null, true, views);
     }
 
     MappingLedger ledger() {

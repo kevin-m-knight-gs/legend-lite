@@ -62,7 +62,7 @@ final class ViewRelation {
         DatabaseDefinition.ViewDefinition view =
                 model.findView(ref.database(), table).orElseGet(MissProbe::miss);
         return view != null
-                ? viewRelationExpr(view, table, ref.database(), model, md)
+                ? md.views().body(view)
                 : new AppliedFunction("tableReference", List.of(
                         new PackageableElementPtr(ref.database()),
                         new CString(table)));
@@ -75,12 +75,6 @@ final class ViewRelation {
      * names, so join conditions and terminal reads spelling
      * {@code <view>.<col>} resolve against this row.
      */
-    static ValueSpecification viewRelationExpr(
-            DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, @com.legend.Nullable ResolvedMapping md) {
-        return viewRelationExpr(view, viewName, db, model, md,
-                new java.util.HashSet<>());
-    }
 
     /** The owner a message names: the mapping expanding the view, or — for
      *  the E.5 lift, which has no mapping — the store itself. */
@@ -88,15 +82,12 @@ final class ViewRelation {
         return md == null ? "store=" + db : "mapping=" + md.qualifiedName();
     }
 
-    private static ValueSpecification viewRelationExpr(
+    /** THE view's relation body — called by {@link LiftedViews#body} ONCE per
+     *  view (the lift): a view whose root or hop is another view reads that
+     *  view's body from the same owner. */
+    static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
-            java.util.Set<String> expanding) {
-        if (!expanding.add(viewName)) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "view '" + viewName + "' expands through itself (cyclic"
-                  + " view-on-view chain); " + owner(md, db));
-        }
+            ModelBuilder model, @com.legend.Nullable ResolvedMapping md, LiftedViews views) {
         String phys = inferViewMainTable(view, viewName, md, model, db);
         Variable r = new Variable("vr");
         // VIEW-ON-VIEW: the inferred root is itself a view — expand it
@@ -108,14 +99,14 @@ final class ViewRelation {
         DatabaseDefinition.ViewDefinition innerView =
                 model.findView(db, phys).orElseGet(MissProbe::miss);
         ValueSpecification source = innerView != null
-                ? viewRelationExpr(innerView, phys, db, model, md, expanding)
+                ? views.body(innerView)
                 : new AppliedFunction("tableReference",
                         List.of(new PackageableElementPtr(db), new CString(phys)));
         // JOIN-NAVIGATING view columns (orderPnl: @Join | T.COL) hoist as
         // slots on a real Pipeline — the same pass-2 machinery PM bodies
         // use; the JoinNavigation arm of RelOpTranslator then resolves
         // them through the pipeline view (V1c).
-        Pipeline vp = Pipeline.forView(source);
+        Pipeline vp = Pipeline.forView(source, views);
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc0
                 : view.columnMappings()) {
             List<JoinChainEmission.JoinNavSpec> navs0 = new ArrayList<>();

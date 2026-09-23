@@ -37,26 +37,32 @@ final class ResolvedMapping {
     /** The sets the validation walled, BY SET ID (never by object: the
      * construction steps rebuild the records) with the recorded reason. */
     private final Map<String, String> invalid;
+    /** The lifted view bodies (E.5, LiftedViews) every view-expansion site of
+     * this mapping reads — an input of the phase, never recomputed here. */
+    private final LiftedViews views;
 
     ResolvedMapping(LegacyMappingDefinition md, LegacyMappingDefinition surface,
             Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys,
-            Map<String, String> invalid, MappingClosures.Closure closure) {
+            Map<String, String> invalid, MappingClosures.Closure closure, LiftedViews views) {
         this.md = md;
         this.closure = closure;
         this.surface = surface;
         this.declaredKeys = declaredKeys;
         this.invalid = invalid;
+        this.views = views;
     }
+
+    LiftedViews views() { return views; }
 
     /** The same record over a rewritten mapping (a construction step, the
      * multi-hop injection). */
     ResolvedMapping withMapping(LegacyMappingDefinition rewritten) {
-        return new ResolvedMapping(rewritten, surface, declaredKeys, invalid, closure);
+        return new ResolvedMapping(rewritten, surface, declaredKeys, invalid, closure, views);
     }
 
     /** The same record with the sets the validation walled (by set id). */
     ResolvedMapping withInvalid(Map<String, String> walled) {
-        return new ResolvedMapping(md, surface, declaredKeys, walled, closure);
+        return new ResolvedMapping(md, surface, declaredKeys, walled, closure, views);
     }
 
     LegacyMappingDefinition surface() { return surface; }

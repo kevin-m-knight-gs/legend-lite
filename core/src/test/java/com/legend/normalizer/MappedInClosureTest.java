@@ -28,7 +28,7 @@ class MappedInClosureTest {
     private static Map<String, ResolvedMapping> resolve(String src) {
         ParsedModel resolved = NameResolver.resolve(com.legend.testing.Own.model(src));
         ModelBuilder index = ModelBuilder.from(resolved);
-        return MappingPrePass.run(resolved, index, null);
+        return MappingPrePass.run(resolved, index, null, new LiftedViews(resolved, index));
     }
 
     private static Set<String> mappedFor(Map<String, ResolvedMapping> pre, String mapping) {

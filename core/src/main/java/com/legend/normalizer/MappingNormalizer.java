@@ -140,6 +140,16 @@ public final class MappingNormalizer {
      * error line) and EXCLUDES those mappings instead of throwing. */
     public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        LiftedViews views = new LiftedViews(parsed, model);
+        views.liftAll(wallSink);
+        return normalize(parsed, model, wallSink, views);
+    }
+
+    /** {@code views}: the lifted view bodies (E.5), built by the caller BEFORE
+     *  this phase and read by every view-expansion site through the mapping
+     *  handle — never computed here twice. */
+    static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model,
+            java.util.@com.legend.Nullable Map<String, String> wallSink, LiftedViews views) {
         Objects.requireNonNull(parsed, "parsed");
         Objects.requireNonNull(model, "model");
         List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
@@ -157,7 +167,7 @@ public final class MappingNormalizer {
         // fixed — a mapping's synthesis never depends on which mappings
         // normalized before it (T4.1 step 2, verified item 1).
         java.util.Map<String, ResolvedMapping> resolved =
-                MappingPrePass.run(parsed, model, wallSink);
+                MappingPrePass.run(parsed, model, wallSink, views);
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof LegacyMappingDefinition md) {
                 ResolvedMapping pp = resolved.get(md.qualifiedName());
@@ -1605,7 +1615,7 @@ public final class MappingNormalizer {
         // flattening fallback of docs/TRANSLATOR_AUDIT_2026_09_15.md F1 was
         // ours alone and is gone).
         String viewName = rcm.mainTable().table();
-        ValueSpecification viewSource = ViewRelation.viewRelationExpr(view, viewName, mainDb, model, md);
+        ValueSpecification viewSource = md.views().body(view);
         ClassMapping.Relational overView = ViewRelation.throughFrame(rcm, view, viewName, md);
         return synthTableBackedMapping(md, overView, model, ledger, viewSource);
     }
@@ -1677,7 +1687,7 @@ public final class MappingNormalizer {
         Pipeline p = new Pipeline(sourceOverride != null ? sourceOverride
                 : new AppliedFunction("tableReference",
                         List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
-                ledger);
+                ledger, md.views());
         UnionSynthesis.classifyUnionRoutes(md, rcm, model, p);
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,

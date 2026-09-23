@@ -83,7 +83,8 @@ class IncludeRulesTest {
                 """;
         ParsedModel resolved = NameResolver.resolve(com.legend.testing.Own.model(ops));
         ModelBuilder index = ModelBuilder.from(resolved);
-        Map<String, ResolvedMapping> rm = MappingPrePass.run(resolved, index, null);
+        Map<String, ResolvedMapping> rm = MappingPrePass.run(resolved, index, null,
+                new LiftedViews(resolved, index));
         assertEquals(List.of("u2b"), rm.get("w::Top").unionOf("w::Person").memberSetIds());
     }
 
