@@ -235,7 +235,7 @@ public final class Compiler {
         // owner, parsed elements, no parallel lane)
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), null), null);
-        return PureModelContext.from(layer.model(), layer.index());
+        return PureModelContext.from(layer.model(), layer.index(), null, boot().checked());
     }
 
     /** A normalized layer with THE index its Phase E read (T4.1 step 2):
@@ -268,15 +268,23 @@ public final class Compiler {
     private static final com.legend.cache.ContentStore BOOT =
             new com.legend.cache.ContentStore(4);
 
+    /** The boot layer and its integrity: checked ON ITS OWN when it is
+     * built, so a graph's check covers only the graph (and what spans the
+     * two) instead of re-checking the whole platform per compile. */
+    private record Boot(NormalizedModel model, PureModelContext.CheckedLayer checked) {
+    }
+
     private static NormalizedModel bootLayer() {
+        return boot().model();
+    }
+
+    private static Boot boot() {
         // the system metamodel AND the generated prelude module
         // (SYSTEM_PRELUDE_DESIGN §10): one boot source, its hash the cache
         // key; the prelude's elements keep their section imports (a
         // derived body resolves through them), the system metamodel's
         // resolve in the empty scope as before
-        String source = com.legend.builtin.SystemMetamodel.source() + "\n"
-                + com.legend.builtin.Prelude.source();
-        return BOOT.getOrCompute(com.legend.cache.Hash.ofUtf8(source), () -> {
+        return BOOT.getOrCompute(BootKey.HASH, () -> {
             // the system metamodel's own row-reading twins of platform
             // functions (classMappingById, mainTable, …) are the platform's
             // implementations — they win over the library's copies exactly
@@ -288,10 +296,21 @@ public final class Compiler {
             elements.addAll(pre.elements());
             ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
                     pre.elementOffsets(), pre.elementImports(), pre.elementSources());
-            // the boot layer's own index is discarded with the closure: its
+            // the boot layer's own index is checked and then discarded: its
             // prepared elements enter every graph's index at that graph's gate
-            return normalizeLayer(NameResolver.resolve(boot), null).model();
+            Layer layer = normalizeLayer(NameResolver.resolve(boot), null);
+            return new Boot(layer.model(),
+                    PureModelContext.checkLayer(layer.model(), layer.index()));
         });
+    }
+
+    /** The boot source's content address: both sources are constants of
+     * the process, so their hash is too — computed once, not per compile
+     * (it hashed ~330 KB on every call to find the one cached layer). */
+    private static final class BootKey {
+        static final com.legend.cache.Hash HASH = com.legend.cache.Hash.ofUtf8(
+                com.legend.builtin.SystemMetamodel.source() + "\n"
+                        + com.legend.builtin.Prelude.source());
     }
 
     /** The boot layer's FQNs — what a graph's own elements may name by import. */
@@ -405,7 +424,8 @@ public final class Compiler {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), walls), walls);
-        PureModelContext ctx = PureModelContext.from(layer.model(), layer.index(), walls);
+        PureModelContext ctx = PureModelContext.from(layer.model(), layer.index(), walls,
+                boot().checked());
         return new BuiltModule(ctx, walls);
     }
 

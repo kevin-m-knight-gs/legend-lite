@@ -62,6 +62,12 @@ public final class PureModelContext implements ModelContext {
      * and rebuilds — the strict form throws on the first. */
     public PureModelContext(ModelBuilder model,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        this(model, wallSink, null);
+    }
+
+    private PureModelContext(ModelBuilder model,
+            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            @com.legend.Nullable CheckedLayer prior) {
         this.model = Objects.requireNonNull(model, "model");
         this.classifier = new TypeClassifier(model);
         this.functions = new FunctionCompiler(model, classifier);
@@ -75,7 +81,46 @@ public final class PureModelContext implements ModelContext {
         // F.a + F.b: THE eager reference-safety pass — every reference every
         // element makes (types, realizers, mapping bindings, association ends)
         // is checked once, whole-model, before this context exists.
-        ModelIntegrity.check(model, classifier, this.functions, wallSink);
+        ModelIntegrity.check(model, classifier, this.functions, wallSink, prior);
+    }
+
+    /**
+     * A layer whose elements passed the integrity check ON THEIR OWN (the
+     * boot layer, once per process): the element instances, by identity,
+     * and their functions' dispatch signatures. A graph built over it checks
+     * only its own elements and the rules that span the two
+     * ({@link ModelIntegrity#check}).
+     */
+    public static final class CheckedLayer {
+        private final java.util.Set<Object> elements =
+                java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        private final java.util.Set<String> signatureKeys = new java.util.HashSet<>();
+
+        boolean contains(Object element) {
+            return elements.contains(element);
+        }
+
+        java.util.Set<String> signatureKeys() {
+            return signatureKeys;
+        }
+    }
+
+    /** Check {@code normalized}'s layer on its own, STRICTLY (a failure is a
+     * platform bug and throws), over the index Phase E built for it. */
+    public static CheckedLayer checkLayer(com.legend.model.NormalizedModel normalized,
+            ModelBuilder index) {
+        PureModelContext alone = from(normalized, index);
+        CheckedLayer out = new CheckedLayer();
+        alone.model.classes().forEach(out.elements::add);
+        alone.model.functions().forEach(f -> {
+            out.elements.add(f);
+            out.signatureKeys.add(f.signatureKey());
+        });
+        alone.model.associations().forEach(out.elements::add);
+        alone.model.enums().forEach(out.elements::add);
+        alone.model.databases().forEach(out.elements::add);
+        alone.model.mappings().forEach(out.elements::add);
+        return out;
     }
 
     /**
@@ -93,6 +138,13 @@ public final class PureModelContext implements ModelContext {
     /** {@link #from} with a tolerant integrity wall sink (module compile). */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        return from(normalized, index, wallSink, null);
+    }
+
+    /** {@link #from} over a graph that includes an already-checked layer. */
+    public static PureModelContext from(com.legend.model.NormalizedModel normalized,
+            ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink,
+            @com.legend.Nullable CheckedLayer prior) {
         // THE Phase-E -> Phase-F gate (T4.1 step 2): the index Phase E read
         // gains Phase E's products — the compiled mappings (their facts
         // stamped on them), the lifted functions — and the boot layer's
@@ -103,7 +155,7 @@ public final class PureModelContext implements ModelContext {
         // (static lineage #44) — F+ compilation never reads them
         normalized.legacySurfaces().values()
                 .forEach(index::retainLegacySurface);
-        return new PureModelContext(index, wallSink);
+        return new PureModelContext(index, wallSink, prior);
     }
 
     @Override

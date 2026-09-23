@@ -36,15 +36,26 @@ final class ModelIntegrity {
     }
 
     static void check(ModelBuilder model, TypeClassifier classifier, FunctionCompiler functions) {
-        check(model, classifier, functions, null);
+        check(model, classifier, functions, null, null);
     }
 
     /** TOLERANT variant (module compile): a non-null {@code wallSink}
      * collects EVERY failing element's first error line in one pass instead
-     * of throwing on the first — the caller drops them and re-runs. */
+     * of throwing on the first — the caller drops them and re-runs.
+     *
+     * <p>{@code prior}: a layer already checked on its own (the boot layer,
+     * once per process). Its elements' OWN checks are not repeated — nothing
+     * a graph adds can change them (a graph element shadowing a boot FQN is
+     * a duplicate, reported below) — while every check that spans the two
+     * layers still runs: duplicate element names, a graph function repeating
+     * a boot signature, and every graph element's references into the boot
+     * layer. */
     static void check(ModelBuilder model, TypeClassifier classifier,
             FunctionCompiler functions,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            PureModelContext.@com.legend.Nullable CheckedLayer prior) {
+        java.util.function.Predicate<Object> fresh = prior == null ? el -> true
+                : el -> !prior.contains(el);
         // D6b: element-identity first, so a duplicated FQN poisons with
         // ITS reason rather than a downstream confusion from whichever
         // definition happened to win the last-wins slot.
@@ -53,21 +64,22 @@ final class ModelIntegrity {
                     throw new com.legend.error.ModelException(
                             com.legend.error.LegendCompileException.Phase.MODEL, msg);
                 }, wallSink));
-        model.classes().forEach(cd -> withElement(cd.qualifiedName(),
+        model.classes().filter(fresh).forEach(cd -> withElement(cd.qualifiedName(),
                 () -> checkClass(cd, classifier, functions), wallSink));
-        checkInheritanceAcyclic(model, classifier, wallSink);
-        model.functions().forEach(f -> withElement(f.qualifiedName(),
+        checkInheritanceAcyclic(model, classifier, wallSink, fresh);
+        model.functions().filter(fresh).forEach(f -> withElement(f.qualifiedName(),
                 () -> checkFunction(f, classifier), wallSink));
-        checkDuplicateSignatures(model, wallSink);
-        model.associations().forEach(a -> withElement(a.qualifiedName(), () -> {
+        checkDuplicateSignatures(model, wallSink, fresh,
+                prior == null ? java.util.Set.of() : prior.signatureKeys());
+        model.associations().filter(fresh).forEach(a -> withElement(a.qualifiedName(), () -> {
             classifier.classify(a.property1().targetClass(), List.of());
             classifier.classify(a.property2().targetClass(), List.of());
         }, wallSink));
-        model.enums().forEach(ed -> withElement(ed.qualifiedName(),
+        model.enums().filter(fresh).forEach(ed -> withElement(ed.qualifiedName(),
                 () -> checkEnum(ed), wallSink));
-        model.databases().forEach(db -> withElement(db.qualifiedName(),
+        model.databases().filter(fresh).forEach(db -> withElement(db.qualifiedName(),
                 () -> checkDatabase(db, model), wallSink));
-        model.mappings().forEach(md -> withElement(md.qualifiedName(),
+        model.mappings().filter(fresh).forEach(md -> withElement(md.qualifiedName(),
                 () -> checkMapping(md, model, classifier, functions), wallSink));
     }
 
@@ -143,11 +155,12 @@ final class ModelIntegrity {
      * rejects the second definition; silently letting one win answers
      * calls with an arbitrary body. */
     private static void checkDuplicateSignatures(ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            java.util.function.Predicate<Object> fresh, java.util.Set<String> priorKeys) {
         java.util.Set<String> seen = new java.util.HashSet<>();
-        for (Function f : model.functions().toList()) {
+        for (Function f : model.functions().filter(fresh).toList()) {
             String key = f.signatureKey();
-            if (!seen.add(key)) {
+            if (priorKeys.contains(key) || !seen.add(key)) {
                 withElement(f.qualifiedName(), () -> {
                     throw new com.legend.error.ModelException(
                             com.legend.error.LegendCompileException.Phase.MODEL,
@@ -243,9 +256,12 @@ final class ModelIntegrity {
      * the classify checks' concern, not this walk's. */
     private static void checkInheritanceAcyclic(ModelBuilder model,
             TypeClassifier classifier,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            java.util.function.Predicate<Object> fresh) {
+        // a prior layer cannot reach a graph class (it was checked alone),
+        // so every cycle through a graph class starts at one
         java.util.Set<String> acyclic = new java.util.HashSet<>();
-        model.classes().forEach(cd -> withElement(cd.qualifiedName(),
+        model.classes().filter(fresh).forEach(cd -> withElement(cd.qualifiedName(),
                 () -> walkSupers(cd, classifier,
                         new java.util.LinkedHashSet<>(), acyclic), wallSink));
     }
