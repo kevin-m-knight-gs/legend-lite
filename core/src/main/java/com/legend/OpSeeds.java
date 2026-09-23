@@ -127,13 +127,17 @@ final class OpSeeds {
     // property mappings
 
     private void propertyMappingRows() {
-        for (MetamodelSeeds.SetRow set : MetamodelSeeds.relationalSetsOf(ctx)) {
-            List<MetamodelSeeds.SetRow> chain = MetamodelSeeds.ancestry(ctx, set);
+        MetamodelSeeds.SetGraph graph = MetamodelSeeds.setGraph(ctx);
+        java.util.Map<String, java.util.Map<String, com.legend.model.ClassMapping.Relational>>
+                legacyByMapping = new java.util.HashMap<>();
+        for (MetamodelSeeds.SetRow set : graph.sets()) {
+            List<MetamodelSeeds.SetRow> chain = graph.ancestry(set);
             Set<String> seen = new LinkedHashSet<>();
             int ordinal = 0;
             for (int depth = 0; depth < chain.size(); depth++) {
                 MetamodelSeeds.SetRow owner = chain.get(depth);
-                var legacy = MetamodelSeeds.legacySet(ctx, owner.mappingFqn(), owner.id());
+                var legacy = legacyByMapping.computeIfAbsent(owner.mappingFqn(),
+                        m -> MetamodelSeeds.legacySets(ctx, m)).get(owner.id());
                 if (legacy == null) {
                     continue;
                 }

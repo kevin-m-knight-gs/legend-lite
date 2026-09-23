@@ -325,27 +325,61 @@ public final class MetamodelSeeds {
         return out;
     }
 
-    /** The set a set EXTENDS: the super id resolved in the declaring
-     * mapping's include closure (the engine's classMappingById walk —
-     * own sets first, then the includes in order). */
-    private static @com.legend.Nullable SetRow superOf(SetRow set,
-            List<SetRow> all, List<List<String>> closure) {
-        String superId = set.binding().extendsSetId();
-        if (superId == null) {
-            return null;
-        }
-        for (List<String> inc : closure) {
-            if (!inc.get(0).equals(set.mappingFqn())) {
-                continue;
+    /** Every relational set, keyed by (mapping, id), with every mapping's
+     * include order — built ONCE per seed build, so a set's extends chain
+     * is a lookup per hop (it rebuilt both, then scanned them, per set). */
+    static final class SetGraph {
+        private final List<SetRow> all;
+        private final java.util.Map<String, List<String>> includeOrder = new java.util.HashMap<>();
+        private final java.util.Map<String, SetRow> byKey = new java.util.HashMap<>();
+
+        private SetGraph(List<SetRow> all, List<List<String>> closure) {
+            this.all = all;
+            for (List<String> row : closure) {
+                includeOrder.computeIfAbsent(row.get(0), k -> new ArrayList<>()).add(row.get(1));
             }
-            for (SetRow cand : all) {
-                if (cand.mappingFqn().equals(inc.get(1))
-                        && cand.id().equals(superId)) {
-                    return cand;
+            for (SetRow s : all) {
+                byKey.putIfAbsent(s.mappingFqn() + "\u0000" + s.id(), s);
+            }
+        }
+
+        List<SetRow> sets() {
+            return all;
+        }
+
+        /** The set {@code set} EXTENDS: the super id resolved in the
+         * declaring mapping's include closure (the engine's
+         * classMappingById walk — own sets first, then the includes in
+         * order). */
+        @com.legend.Nullable SetRow superOf(SetRow set) {
+            String superId = set.binding().extendsSetId();
+            if (superId == null) {
+                return null;
+            }
+            for (String inc : includeOrder.getOrDefault(set.mappingFqn(), List.of())) {
+                SetRow hit = byKey.get(inc + "\u0000" + superId);
+                if (hit != null) {
+                    return hit;
                 }
             }
+            return null;
         }
-        return null;
+
+        /** The extends chain of a set, this set first (depth 0), cycle-safe. */
+        List<SetRow> ancestry(SetRow set) {
+            List<SetRow> out = new ArrayList<>();
+            Set<String> seen = new LinkedHashSet<>();
+            SetRow cur = set;
+            while (cur != null && seen.add(cur.mappingFqn() + "$" + cur.id())) {
+                out.add(cur);
+                cur = superOf(cur);
+            }
+            return out;
+        }
+    }
+
+    static SetGraph setGraph(ModelContext ctx) {
+        return new SetGraph(relationalSets(ctx), includesClosure(ctx));
     }
 
     /** The REFLEXIVE-transitive extends closure of every relational set
@@ -353,18 +387,14 @@ public final class MetamodelSeeds {
      * allSuperSetImplementations / resolvePrimaryKey read the chain as
      * rows instead of recursing; cycle-safe. */
     private static List<List<String>> setAncestry(ModelContext ctx) {
-        List<SetRow> all = relationalSets(ctx);
-        List<List<String>> closure = includesClosure(ctx);
+        SetGraph graph = setGraph(ctx);
         List<List<String>> rows = new ArrayList<>();
-        for (SetRow set : all) {
-            Set<String> seen = new LinkedHashSet<>();
-            SetRow cur = set;
-            int depth = 0;
-            while (cur != null && seen.add(cur.mappingFqn() + "$" + cur.id())) {
+        for (SetRow set : graph.sets()) {
+            List<SetRow> chain = graph.ancestry(set);
+            for (int depth = 0; depth < chain.size(); depth++) {
+                SetRow cur = chain.get(depth);
                 rows.add(List.of(set.mappingFqn(), set.id(), cur.mappingFqn(),
                         cur.id(), Integer.toString(depth)));
-                cur = superOf(cur, all, closure);
-                depth++;
             }
         }
         return rows;
@@ -404,33 +434,14 @@ public final class MetamodelSeeds {
 
     private static List<String> tablePrimaryKey(ModelContext ctx,
             MappingDefinition.RelationalSource.Table t) {
-        DatabaseDefinition db = ctx.findDatabase(t.database()).orElse(null);
-        if (db == null) {
-            return List.of();
-        }
-        int dot = t.table().indexOf('.');
-        String schema = dot < 0 ? null : t.table().substring(0, dot);
-        String name = dot < 0 ? t.table() : t.table().substring(dot + 1);
-        List<DatabaseDefinition.TableDefinition> cands = new ArrayList<>();
-        if (schema == null) {
-            cands.addAll(db.tables());
-        }
-        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
-            if (schema == null || s.name().equals(schema)) {
-                cands.addAll(s.tables());
-            }
-        }
         List<String> out = new ArrayList<>();
-        for (DatabaseDefinition.TableDefinition td : cands) {
-            if (td.name().equals(name)) {
-                for (DatabaseDefinition.ColumnDefinition c : td.columns()) {
-                    if (c.primaryKey()) {
-                        out.add(c.name());
-                    }
+        ctx.findTableDefinition(t.database(), t.table()).ifPresent(td -> {
+            for (DatabaseDefinition.ColumnDefinition c : td.columns()) {
+                if (c.primaryKey()) {
+                    out.add(c.name());
                 }
-                break;
             }
-        }
+        });
         return out;
     }
 
@@ -700,37 +711,19 @@ public final class MetamodelSeeds {
         return new ArrayList<>(rows);
     }
 
-    /** The relational sets' LEGACY class mappings (property mappings
-     * live there; the compiled binding is a lifted function), keyed like
-     * {@link SetRow}. */
-    static com.legend.model.ClassMapping.@com.legend.Nullable Relational legacySet(
-            ModelContext ctx, String mappingFqn, String id) {
+    /** A mapping's LEGACY Relational sets (property mappings live there;
+     * the compiled binding is a lifted function) by id, keyed like
+     * {@link SetRow} — the first declaring an id. */
+    static java.util.Map<String, com.legend.model.ClassMapping.Relational> legacySets(
+            ModelContext ctx, String mappingFqn) {
         var lm = ctx.findLegacyMapping(mappingFqn).orElse(null);
-        if (lm == null) {
-            return null;
-        }
-        for (var cm : lm.classMappings()) {
-            if (cm instanceof com.legend.model.ClassMapping.Relational r) {
-                String rid = com.legend.model.SetId.of(r);
-                if (rid.equals(id)) {
-                    return r;
+        java.util.Map<String, com.legend.model.ClassMapping.Relational> out = new java.util.HashMap<>();
+        if (lm != null) {
+            for (var cm : lm.classMappings()) {
+                if (cm instanceof com.legend.model.ClassMapping.Relational r) {
+                    out.putIfAbsent(com.legend.model.SetId.of(r), r);
                 }
             }
-        }
-        return null;
-    }
-
-    /** The extends chain of a set, this set first (depth 0), as the
-     * seed's own rows would list it. */
-    static List<SetRow> ancestry(ModelContext ctx, SetRow set) {
-        List<SetRow> all = relationalSets(ctx);
-        List<List<String>> closure = includesClosure(ctx);
-        List<SetRow> out = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        SetRow cur = set;
-        while (cur != null && seen.add(cur.mappingFqn() + "$" + cur.id())) {
-            out.add(cur);
-            cur = superOf(cur, all, closure);
         }
         return out;
     }
