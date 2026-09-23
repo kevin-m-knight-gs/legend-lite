@@ -12,9 +12,12 @@ genquery(
     scope = ["//core:core"],
 )
 
+# NullAway subtracted as for core: //core:duckdb_load (the drivers' bulk loader)
+# compiles with it, and a compiler plugin is on javac's processor path, never on a
+# running core's classpath (2026-09-23: its jsr305 read as a driver)
 genquery(
     name = "drivers_closure",
-    expression = "kind(jvm_import, deps(//core:drivers))",
+    expression = "kind(jvm_import, deps(//core:drivers) except deps(//core:nullaway))",
     opts = ["--noimplicit_deps"],
     scope = ["//core:drivers"],
 )
