@@ -3,6 +3,7 @@
 
 package com.legend.architecture;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -67,9 +68,16 @@ class ParserBoundaryArchTest {
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)
             "com/legend/generators/PreludeGeneratorTest.java",
+            // the same generator's code, MOVED out of the test into a program
+            // (Bazel: generators are build actions, 2026-09-22) — the dialect
+            // decision is unchanged, only its file
+            "com/legend/generators/PreludeGenerator.java",
             // the SIGNATURE generator reads the same declaration files (upstream
             // boundary batch 5): Pure.java's text is upstream's, parsed as such
             "com/legend/generators/NativeSignatureGeneratorTest.java",
+            // its generation code, MOVED into a program (Bazel: generators are
+            // build actions, 2026-09-22) — the same dialect decision, its file
+            "com/legend/generators/NativesGenerator.java",
             // the typing CENSUS parses legend-pure's platform packages —
             // the spec's own declaration files, the same provenance as the
             // generator (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08)
@@ -153,11 +161,13 @@ class ParserBoundaryArchTest {
 
     private static List<Path> roots() {
         List<Path> roots = new ArrayList<>();
-        roots.add(Path.of("src/main/java"));
-        roots.add(Path.of("src/test/java"));
-        for (String sibling : new String[] {"../nlq/src", "../server/src",
-                "../pct/src", "../parser-equivalence/src"}) {
-            Path p = Path.of(sibling);
+        roots.add(Repo.module("src/main/java"));
+        roots.add(Repo.module("src/test/java"));
+        // "server" names a module that no longer exists; its isDirectory check
+        // below keeps it a no-op, as it has been under Maven
+        for (String sibling : new String[] {"server/src",
+                "pct/src", "parser-equivalence/src"}) {
+            Path p = Repo.path(sibling);
             if (Files.isDirectory(p)) {
                 roots.add(p);
             }

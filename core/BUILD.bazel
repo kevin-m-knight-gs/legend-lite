@@ -1,0 +1,237 @@
+# core, as ONE java_library — the first step of the Bazel migration.
+#
+# Deliberately coarse. Building core as a single target separates two risks that
+# a per-package layout would confuse: "can Bazel compile this code at all"
+# (toolchain, deps, resources, Error Prone) from "is the dependency graph right".
+# Only the first is under test here. The split into ~28 targets follows, and
+# Bazel itself checks each one by refusing to load on a cycle.
+load("@rules_java//java:defs.bzl", "java_binary", "java_library", "java_plugin")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/junit:defs.bzl", "junit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# core's sources, exported for spec's generator parity checks (they compare the
+# committed generated files — prelude.pure, Pure.java's signature text — against
+# what upstream says they should be).
+filegroup(
+    name = "srcs",
+    srcs = glob(["src/**"]),
+)
+
+# THE NULL GATE. A java_plugin with NO processor_class lands on javac's
+# --processorpath, where Error Prone's ServiceLoader finds NullAway's
+# @AutoService(BugChecker.class) registration.
+java_plugin(
+    name = "nullaway",
+    deps = ["@maven_tools//:com_uber_nullaway_nullaway"],
+)
+
+# The Maven build's flags, minus the three that do not apply under Bazel
+# (feasibility.md Q1): NO -Xplugin:ErrorProne (JavaBuilder instantiates Error
+# Prone itself and rejects the Maven form), and NO -J--add-exports block
+# (rules_java's BASE_JDK9_JVM_OPTS already passes every one of them).
+NULLAWAY_OPTS = [
+    "-XDcompilePolicy=simple",
+    "--should-stop=ifError=FLOW",
+    "-Xmaxerrs",
+    "10000",
+    "-XepDisableAllChecks",
+    "-Xep:NullAway:ERROR",
+    "-XepOpt:NullAway:AnnotatedPackages=com.legend",
+    "-XepOpt:NullAway:CustomNullableAnnotations=com.legend.Nullable",
+    "-XepOpt:NullAway:CustomNonnullAnnotations=com.legend.NonNull",
+    "-XepOpt:NullAway:JSpecifyMode=true",
+    "-XepOpt:NullAway:CheckOptionalEmptiness=true",
+    "-XDaddTypeAnnotationsToSymbol=true",
+]
+
+java_library(
+    name = "core",
+    srcs = glob(["src/main/java/**/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    resources = glob(["src/main/resources/**"]),
+)
+
+# THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
+# speaks java.sql, and names driver classes only as strings (Executor's
+# "org.duckdb.JsonNode"). So a driver is a RUNTIME choice made by whatever runs
+# core — a test, a server, a CLI — not a dependency of the product. A target that
+# executes queries depends on this; one that only plans (a WASM or native planner)
+# does not, and then carries no external jar at all.
+java_library(
+    name = "drivers",
+    runtime_deps = [
+        "@maven_core//:com_h2database_h2",
+        "@maven_core//:org_duckdb_duckdb_jdbc",
+        "@maven_core//:org_xerial_sqlite_jdbc",
+    ],
+)
+
+# THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
+# the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
+# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship.
+java_binary(
+    name = "server",
+    main_class = "com.legend.server.LegendHttpServer",
+    runtime_deps = [
+        ":core",
+        ":drivers",
+    ],
+)
+
+# every file a core test reads by path, declared, so it exists in runfiles and
+# nothing is read by accident. The sibling trees are the cross-module reads
+# (census, skip and boundary guards that walk every module; the stress corpus's
+# linked projects) — today's hidden coupling, now visible here.
+_TEST_READS = glob(["src/**"]) + [
+    "//parser-equivalence:srcs",
+    "//pct:srcs",
+    "//projects:srcs",
+    "//spec:srcs",
+]
+
+# core's tests, compiled ONCE; every lane below runs from this library.
+java_library(
+    name = "core_tests_lib",
+    testonly = True,
+    srcs = glob(["src/test/java/**/*.java"]),
+    resources = glob(["src/test/resources/**"]),
+    deps = [
+        ":core",
+        "//testing",
+        "@maven_test//:com_tngtech_archunit_archunit",
+        "@maven_core//:com_h2database_h2",
+        "@maven_test//:com_tngtech_archunit_archunit_junit5",
+        "@maven_core//:org_duckdb_duckdb_jdbc",
+        "@maven_test//:org_junit_jupiter_junit_jupiter",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+        "@maven_core//:org_xerial_sqlite_jdbc",
+    ],
+)
+
+# Maven gate 1: every core test except the heavy and stress groups, JUnit's own
+# console launcher selecting by package.
+junit_test(
+    name = "core_tests",
+    size = "enormous",
+    data = _TEST_READS,
+    select = ["--select-package=com.legend"],
+    exclude_tags = ["heavy", "stress"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+# THE SCALE TESTS: generated models far past the 1K baseline (StressTest, in
+# core_tests) — 10K, 100K, dense links, complex multi-hop queries, 50K chaotic
+# classes, and the 100K parse-vs-compile profile. Named explicitly: none of these
+# class names matches a test-name pattern, so no default discovery (Maven's
+# surefire included) ever ran them.
+_SCALE = [
+    "StressTest10K",
+    "StressTest100K",
+    "StressTestDense",
+    "StressTestComplexQueries",
+    "StressTestChaotic",
+    "ProfileBuildCost",
+]
+
+[junit_test(
+    name = "scale_" + c.lower(),
+    size = "enormous",
+    data = _TEST_READS,
+    select = [
+        "--select-class=com.legend.integration." + c,
+        "--include-classname=.*",
+    ],
+    tags = ["manual"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+) for c in _SCALE]
+
+# Maven gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
+# sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest. Its own
+# lane: the stress group is what gate 1 leaves out.
+junit_test(
+    name = "stress_suites",
+    size = "enormous",
+    data = _TEST_READS,
+    select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
+    exclude_tags = ["heavy"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+# ── GENERATED FILES ─────────────────────────────────────────────────────────────
+# Committed files that are generator OUTPUTS (their generators: //spec, "THE
+# GENERATORS"). `bazel run //core:update_generated` (or //:update_generated)
+# writes them; `bazel test` fails when a committed copy differs, naming the command.
+_GENERATED = {
+    "src/main/java/com/legend/builtin/DynaFn.java": "//spec:gen_dynafn",
+    "src/main/java/com/legend/builtin/Pure.java": "//spec:gen_natives",
+    "src/main/java/com/legend/compiler/NameResolver.java": "//spec:gen_imports",
+    "src/main/resources/com/legend/builtin/native-claims.tsv": "//spec:gen_claims",
+    "src/main/resources/com/legend/builtin/prelude.pure": "//spec:gen_prelude",
+}
+
+# the committed copies are also generator INPUTS (a generator splices its part
+# in), as is the hand-owned membership list natives reads
+exports_files(list(_GENERATED.keys()) + [
+    "src/main/resources/com/legend/builtin/native-membership.tsv",
+])
+
+# core's main Java sources as TEXT — the prelude generator reads what the
+# platform's own code names
+filegroup(
+    name = "main_java",
+    srcs = glob(["src/main/java/**"]),
+)
+
+write_source_files(
+    name = "update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
+    files = _GENERATED,
+)
+
+# CORE AS THE GENERATORS REWRITE IT: the generated Java and prelude in place of
+# the committed copies. Only the claims generator runs on it — the one generator
+# that reads the COMPILED registries the others rewrite. At a fixpoint (every
+# committed file current) it is core, byte for byte.
+java_library(
+    name = "core_next",
+    srcs = glob(
+        ["src/main/java/**/*.java"],
+        exclude = [
+            "src/main/java/com/legend/builtin/DynaFn.java",
+            "src/main/java/com/legend/builtin/Pure.java",
+            "src/main/java/com/legend/compiler/NameResolver.java",
+        ],
+    ) + [
+        "//spec:gen_dynafn",
+        "//spec:gen_imports",
+        "//spec:gen_natives",
+    ],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    resources = glob(
+        ["src/main/resources/**"],
+        exclude = ["src/main/resources/com/legend/builtin/prelude.pure"],
+    ),
+    visibility = ["//spec:__pkg__"],
+    runtime_deps = [":core_next_prelude"],
+)
+
+java_library(
+    name = "core_next_prelude",
+    resource_strip_prefix = "spec/generated",
+    resources = ["//spec:gen_prelude"],
+)
+

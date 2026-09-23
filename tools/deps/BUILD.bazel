@@ -1,0 +1,80 @@
+# Guards on the build graph itself: who may reach which jars (MODULE.bazel, THE JAR
+# POOLS). Bazel-only by nature — they check what Bazel resolves and links.
+load("//tools/junit:defs.bzl", "junit_test")
+
+# Every external jar the product reaches: core itself (NullAway subtracted — a
+# compiler plugin, on javac's processor path, never on a classpath) and the
+# drivers a running core is given.
+genquery(
+    name = "core_closure",
+    expression = "kind(jvm_import, deps(//core:core) except deps(//core:nullaway))",
+    opts = ["--noimplicit_deps"],
+    scope = ["//core:core"],
+)
+
+genquery(
+    name = "drivers_closure",
+    expression = "kind(jvm_import, deps(//core:drivers))",
+    opts = ["--noimplicit_deps"],
+    scope = ["//core:drivers"],
+)
+
+# spec reads the pinned checkouts as FILES and imports no upstream Java (its
+# SpecBoundaryTest bans the imports; this bans the jars) — the half of the old
+# gate 2 convergence check that pools alone do not make true.
+genquery(
+    name = "spec_closure",
+    expression = "kind(jvm_import, deps(//spec:spec_tests_lib))",
+    opts = ["--noimplicit_deps"],
+    scope = ["//spec:spec_tests_lib"],
+)
+
+junit_test(
+    name = "core_closure_test",
+    size = "small",
+    srcs = ["CoreClosureTest.java"],
+    data = [
+        ":core_closure",
+        ":drivers_closure",
+        ":spec_closure",
+    ],
+    select = ["--select-class=com.legend.tools.deps.CoreClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+junit_test(
+    name = "pools_are_disjoint",
+    size = "small",
+    srcs = ["PoolsAreDisjointTest.java"],
+    data = [
+        "//:maven_core_install.json",
+        "//:maven_h2_modern_install.json",
+        "//:maven_test_install.json",
+        "//:maven_upstream_install.json",
+    ],
+    select = ["--select-class=com.legend.tools.deps.PoolsAreDisjointTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# one release: MODULE.bazel and tools/oracle-pins.env agree (//tools/bump writes both)
+junit_test(
+    name = "one_release",
+    size = "small",
+    srcs = ["OneReleaseTest.java"],
+    data = [
+        "//:MODULE.bazel",
+        "//tools:oracle-pins.env",
+    ],
+    select = ["--select-class=com.legend.tools.deps.OneReleaseTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+

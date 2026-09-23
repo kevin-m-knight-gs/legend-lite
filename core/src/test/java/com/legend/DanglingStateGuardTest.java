@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -49,11 +50,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DanglingStateGuardTest {
 
     /** Source roots, relative to the core module (the test's cwd): every
-     * module of the reactor (core, nlq, pct, parser-equivalence), main and
+     * module of the reactor (core, spec, pct, parser-equivalence), main and
      * test trees where they exist — a slot's readers may live in another
      * module (batch 123's lesson: pct reads core's censuses). */
-    private static final List<Path> ROOTS = Stream.of("core", "spec", "nlq", "pct", "parser-equivalence")
-            .flatMap(m -> Stream.of(Path.of("..", m, "src/main/java"), Path.of("..", m, "src/test/java")))
+    private static final List<Path> ROOTS = Stream.of("core", "spec", "pct", "parser-equivalence")
+            .flatMap(m -> Stream.of(Repo.path(m, "src/main/java"), Repo.path(m, "src/test/java")))
             .filter(Files::isDirectory)
             .toList();
 
@@ -99,7 +100,12 @@ class DanglingStateGuardTest {
                 }
             }
         }
-        assertTrue(ROOTS.size() >= 6, "module roots collapsed: " + ROOTS);
+        // 6 -> 5 (2026-09-22): the nlq module was DELETED (owner decision; its
+        // natural-language layer calls an external LLM and had no place in the
+        // clean-room compiler), taking its main and test roots. The five left:
+        // core main + test, and the test trees of spec, pct and
+        // parser-equivalence, none of which has a src/main/java.
+        assertTrue(ROOTS.size() >= 5, "module roots collapsed: " + ROOTS);
         GuardCoverage.assertFloor("DanglingStateGuardTest", sources.size(), 900);
         List<Slot> slots = new ArrayList<>();
         for (Map.Entry<Path, String> e : sources.entrySet()) {
@@ -186,7 +192,7 @@ class DanglingStateGuardTest {
         // not tree classes; only classes spelled like ours count
         List<String> bad = new ArrayList<>();
         List<Path> guards;
-        try (Stream<Path> files = Files.list(Path.of("src/test/java/com/legend"))) {
+        try (Stream<Path> files = Files.list(Repo.module("src/test/java/com/legend"))) {
             guards = files.filter(p -> p.getFileName().toString().matches(".*(Test|Coverage)\\.java")).sorted().toList();
         }
         GuardCoverage.assertFloor("DanglingStateGuardTest(guards)", guards.size(), 20);

@@ -1,5 +1,6 @@
 package com.legend.equivalence.harvest;
 
+import com.legend.testing.Repo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
@@ -37,12 +38,12 @@ class ZFixtureAdjudicationProbe {
         java.util.List<String> diffSamples = new java.util.ArrayList<>();
         java.util.List<String> refuseSamples = new java.util.ArrayList<>();
         // fresh harvest dump if present, else the committed snapshot —
-        // NOTE: honest verdicts need the PRODUCTION oracle (run WITHOUT
-        // -Pengine-fixture-harvest; the tests-jars alter the oracle)
-        Path dump = Files.exists(Path.of("target/engine-fixtures.jsonl"))
-                ? Path.of("target/engine-fixtures.jsonl")
-                : Path.of("src/test/resources/"
-                        + "engine-grammar-fixtures-4.138.2.jsonl");
+        // NOTE: honest verdicts need the PRODUCTION oracle (run on the
+        // ordinary test classpath, never :harvest_lib — the tests-jars alter it)
+        Path dump = Files.exists(Repo.out("engine-fixtures.jsonl"))
+                ? Repo.out("engine-fixtures.jsonl")
+                : Repo.module("src/test/resources/"
+                        + "engine-grammar-fixtures.jsonl");
         for (String line : Files.readAllLines(dump)) {
             JsonNode n = json.readTree(line);
             String src = n.get("source").asText();
@@ -86,8 +87,7 @@ class ZFixtureAdjudicationProbe {
                         .replaceAll(".*\\.", "") + " :: "
                         + (m.length() > 90 ? m.substring(0, 90) : m));
                 try {
-                    java.nio.file.Files.writeString(java.nio.file.Path.of(
-                            "target/pref-" + Math.abs(src.hashCode())
+                    java.nio.file.Files.writeString(Repo.out("pref-" + Math.abs(src.hashCode())
                                     + ".pure"), src);
                 } catch (Exception e) {
                     // best-effort dump
@@ -142,12 +142,9 @@ class ZFixtureAdjudicationProbe {
             } else {
                 diffs++;
                 verdicts.merge("DIFF", 1, Integer::sum);
-                Files.writeString(Path.of("target",
-                        "diff-" + diffs + "-src.pure"), src);
-                Files.writeString(Path.of("target",
-                        "diff-" + diffs + "-expected.json"), expectedJson);
-                Files.writeString(Path.of("target",
-                        "diff-" + diffs + "-actual.json"), actual);
+                Files.writeString(Repo.out("diff-" + diffs + "-src.pure"), src);
+                Files.writeString(Repo.out("diff-" + diffs + "-expected.json"), expectedJson);
+                Files.writeString(Repo.out("diff-" + diffs + "-actual.json"), actual);
                 if (diffSamples.size() < 8) {
                     int i = 0;
                     int n2 = Math.min(expectedJson.length(), actual.length());

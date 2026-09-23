@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import org.junit.jupiter.api.Test;
 
@@ -34,8 +35,8 @@ class PmcdReachabilityCensusTest {
         // ---- tag -> class (and class -> subtypes) from every jar ----
         Map<String, String> tagToClass = new TreeMap<>();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
-        String cp = System.getProperty("java.class.path");
-        for (String entry : cp.split(java.io.File.pathSeparator)) {
+        for (java.nio.file.Path jarPath : com.legend.testing.Repo.listed("legend.engine.jars")) {
+            String entry = jarPath.toString();
             if (!entry.endsWith(".jar") || !entry.contains("legend-engine")) {
                 continue;
             }
@@ -123,7 +124,7 @@ class PmcdReachabilityCensusTest {
         // on a gate roster): the roster this reads is materialized HERE
         // when absent (DEEP_AUDIT §11c: this was a raw
         // NoSuchFileException ERROR dependent on class run order).
-        Path roster = Path.of("target", "protocol-roster.txt");
+        Path roster = Repo.out("protocol-roster.txt");
         if (!Files.exists(roster)) {
             ProtocolRosterCensusTest.materializeRoster();
         }

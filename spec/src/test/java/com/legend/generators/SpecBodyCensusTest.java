@@ -3,6 +3,7 @@
 
 package com.legend.generators;
 
+import com.legend.testing.Repo;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
@@ -49,16 +50,7 @@ public class SpecBodyCensusTest {
     }
 
 
-    public static final List<String> PLATFORM_ROOTS = List.of(
-            "legend-pure-core/legend-pure-m3-core/src/main/resources/platform",
-            "legend-pure-core/legend-pure-m3-precisePrimitives/src/main/resources/platform_precise_primitives",
-            "legend-pure-dsl/legend-pure-dsl-diagram/legend-pure-m2-dsl-diagram-pure/src/main/resources/platform_dsl_diagram",
-            "legend-pure-dsl/legend-pure-dsl-graph/legend-pure-m2-dsl-graph-pure/src/main/resources/platform_dsl_graph",
-            "legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping",
-            "legend-pure-dsl/legend-pure-dsl-path/legend-pure-m2-dsl-path-pure/src/main/resources/platform_dsl_path",
-            "legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources/platform_dsl_store",
-            "legend-pure-dsl/legend-pure-dsl-tds/legend-pure-m2-dsl-tds-pure/src/main/resources/platform_dsl_tds",
-            "legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational");
+    public static final List<String> PLATFORM_ROOTS = UpstreamFiles.PLATFORM_ROOTS;
 
     @Test
     @DisplayName("typing census: every Pure body in legend-pure's platform packages typed once, failures as rows")
@@ -68,8 +60,7 @@ public class SpecBodyCensusTest {
         // ${user.home} default), and gate 1 passes the resolved roots — so
         // the census RUNS there and its shrink-only pin below is a standing
         // gate; the literal is only the IDE fallback
-        Path pure = Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        Path pure = com.legend.testing.Upstream.pure();
         // PRECHECK ALL NINE ROOTS (upstream boundary batch 2): a missing
         // checkout skips (there is nothing to census); a PRESENT checkout
         // missing any one root FAILS, every miss named — a root that moved
@@ -195,8 +186,7 @@ public class SpecBodyCensusTest {
         // the world it runs in (boot + platform packages + its own spec
         // file + the corpus's library files), then bucketed by the spec's
         // marking. A measurement: no arm, no registration.
-        Path engineRoot = Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
+        Path engineRoot = com.legend.testing.Upstream.engine();
         CensusWorlds.Report worlds = CensusWorlds.run(sources, failures,
                 specNativeNames, engineRoot);
 
@@ -223,8 +213,8 @@ public class SpecBodyCensusTest {
             out.add(r.bucket() + " | " + r.id() + " | " + r.detail()
                     + (r.runningMessage() == null ? "" : " | running: " + r.runningMessage()));
         }
-        Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/spec-body-census.txt"), out);
+        Files.createDirectories(Repo.outDir());
+        Files.write(Repo.out("spec-body-census.txt"), out);
         System.out.println("[spec-census] files=" + fileCount + " loadWalls=" + loadWalls.size()
                 + " typedOK=" + ok.size() + " walled=" + walled.size() + " failed(UNWALLED)=" + failures.size()
                 + " nativesSkipped=" + natives);

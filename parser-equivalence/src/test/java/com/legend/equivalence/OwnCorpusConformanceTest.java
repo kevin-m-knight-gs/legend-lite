@@ -1,9 +1,9 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * THE MIRROR CORPUS (deep audit): the same Java-literal extractor that
  * harvests Pure from the ENGINE'S tests, run over OUR OWN test sources —
- * every Pure snippet legend-lite's core/pct/nlq tests embed goes to
+ * every Pure snippet legend-lite's core/spec/pct tests embed goes to
  * the REAL engine oracle. A refusal must classify exactly like a corpus
  * leniency row (the dialect constructs our tests deliberately exercise);
  * an UNCLASSIFIED refusal means our own test surface bakes in grammar
@@ -24,10 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OwnCorpusConformanceTest {
 
     static List<Corpus.Source> ownSnippets() {
-        Path repo = Path.of(System.getProperty("user.dir")).getParent();
         List<Corpus.Source> ours = new ArrayList<>();
-        for (String module : new String[]{"core", "spec", "pct", "nlq"}) {
-            ours.addAll(InlineSnippets.extract(repo.resolve(module),
+        for (String module : new String[]{"core", "spec", "pct"}) {
+            ours.addAll(InlineSnippets.extract(Repo.path(module),
                     "lite-" + module, InlineSnippets.OWN_DECL));
         }
         return ours;
@@ -202,9 +201,9 @@ class OwnCorpusConformanceTest {
                     .append(msg, 0, Math.min(160, msg.length()))
                     .append('\n');
         }
-        java.nio.file.Files.createDirectories(Path.of("target"));
+        java.nio.file.Files.createDirectories(Repo.outDir());
         java.nio.file.Files.writeString(
-                Path.of("target", "own-corpus-conformance.txt"),
+                Repo.out("own-corpus-conformance.txt"),
                 report.toString());
         System.out.println("own-corpus: " + ours.size() + " snippets, "
                 + accepted + " oracle-accepted, " + bothRefuse

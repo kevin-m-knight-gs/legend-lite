@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -71,7 +72,8 @@ class SkipCensusTest {
             "PlatformNamesSpellingTest.java",
             // the upstream path manifest (upstream boundary batch 2,
             // 2026-09-10): skips ONLY when a checkout root itself is absent
-            // (tools/oracle-roots.sh fails the gates upstream of that); a
+            // (under Bazel the pinned archive is a declared input, so it is
+            // always present — the skip cannot fire in a gate); a
             // PRESENT checkout is checked in full — 90 paths, every miss
             // named, the count pinned
             "UpstreamPathManifestTest.java",
@@ -161,10 +163,10 @@ class SkipCensusTest {
         // core-only scope let 8 assumption-skipping files sit invisible
         // in parser-equivalence (the exact scope-rot this file's own
         // header warns about). pct is included for the same reason.
-        for (Path root : List.of(Path.of("src/test/java"),
-                Path.of("../spec/src/test/java"),
-                Path.of("../parser-equivalence/src/test/java"),
-                Path.of("../pct/src/test/java"))) {
+        for (Path root : List.of(Repo.module("src/test/java"),
+                Repo.path("spec/src/test/java"),
+                Repo.path("parser-equivalence/src/test/java"),
+                Repo.path("pct/src/test/java"))) {
             if (!Files.isDirectory(root)) {
                 continue;
             }

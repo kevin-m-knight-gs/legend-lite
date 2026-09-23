@@ -1,0 +1,288 @@
+# spec — the tests that read the upstream sources as the SPEC: the generators'
+# byte-parity checks (Maven gate 3) and the relational corpus lanes (gates 4, 5).
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools/generators:defs.bzl", "ENGINE_ROOT", "PURE_ROOT", "UPSTREAM_TREES")
+load("//tools/junit:defs.bzl", "junit_test")
+
+# spec's sources, exported for core's guard tests that walk every module.
+filegroup(
+    name = "srcs",
+    srcs = glob(["src/**"]),
+    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
+)
+
+# Compiled ONCE; every lane below runs from this library.
+# THE GENERATOR PROGRAMS (see "THE GENERATORS" below): plain code, no test
+# framework — a program reads its declared inputs and writes one file.
+_GENERATOR_SRCS = [
+    "src/test/java/com/legend/claims/Claims.java",
+    "src/test/java/com/legend/claims/ClaimsGenerator.java",
+    "src/test/java/com/legend/generators/DynaFnGenerator.java",
+    "src/test/java/com/legend/generators/ImportsGenerator.java",
+    "src/test/java/com/legend/generators/NativesGenerator.java",
+    "src/test/java/com/legend/generators/PreludeGenerator.java",
+    "src/test/java/com/legend/generators/SourceTree.java",
+    "src/test/java/com/legend/generators/UpstreamFiles.java",
+]
+
+java_library(
+    name = "generators",
+    srcs = _GENERATOR_SRCS,
+    deps = ["//core"],
+)
+
+java_library(
+    name = "spec_tests_lib",
+    testonly = True,
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = _GENERATOR_SRCS,
+    ),
+    resources = glob(["src/test/resources/**"]),
+    runtime_deps = ["//core:drivers"],
+    deps = [
+        ":generators",
+        "//core",
+        "//testing",
+        "@maven_core//:com_h2database_h2",
+        "@maven_test//:com_tngtech_archunit_archunit",
+        "@maven_test//:com_tngtech_archunit_archunit_junit5",
+        "@maven_core//:org_duckdb_duckdb_jdbc",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
+)
+
+# the generators' byte-parity checks read core's committed generated files
+_INPUTS = [
+    ":srcs",
+    "//core:srcs",
+]
+
+# Maven gate 3: every spec test except the heavy corpus sweep.
+junit_test(
+    name = "spec_tests",
+    data = _INPUTS,
+    exclude_tags = ["heavy"],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-package=com.legend"],
+    upstream = True,
+)
+
+# Maven gate 4: the relational corpus against DuckDB.
+junit_test(
+    name = "corpus_duckdb",
+    data = _INPUTS,
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
+)
+
+# Maven gate 5: the same corpus against H2.
+junit_test(
+    name = "corpus_h2",
+    data = _INPUTS,
+    jvm_flags = ["-Drcorpus.backend=h2"],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
+)
+
+# the H2 corpus under the DATABASE judge (the fourth judge lane; DuckDB's is the
+# second pass of :judge_differential)
+junit_test(
+    name = "corpus_h2_database",
+    data = _INPUTS,
+    jvm_flags = [
+        "-Drcorpus.backend=h2",
+        "-Dlegend.judge.mode=database",
+    ],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
+)
+
+# THE MEASURE BEFORE ANY CHAIN (was tools/corpus-both.sh): the full corpus on both
+# backends. `bazel test //spec:corpus_lanes`
+test_suite(
+    name = "corpus_lanes",
+    tests = [
+        ":corpus_duckdb",
+        ":corpus_h2",
+    ],
+)
+
+# THE JUDGE LANES (was tools/judge-lanes.sh; docs/DATABASE_MODE_HOMEWORK_2026_09_18.md):
+# DuckDB and H2 under both judges, and the per-assert differential at zero
+# unregistered disagreements. `bazel test //spec:judge_lanes`
+test_suite(
+    name = "judge_lanes",
+    tests = [
+        ":corpus_duckdb",
+        ":corpus_h2",
+        ":corpus_h2_database",
+        ":judge_differential",
+    ],
+)
+
+# Maven gate 11: THE JUDGE DIFFERENTIAL. The DuckDB corpus under the HOST judge
+# writing its per-assert ledger (the prerun, a child JVM), then under the DATABASE
+# judge, which joins the two per assert in the lane itself
+# (MinimalCorpusTest.pinJudgeDifferential). Both passes are this target's own.
+junit_test(
+    name = "judge_differential",
+    data = _INPUTS,
+    jvm_flags = [
+        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+        "-Dlegend.judge.mode=database",
+        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
+        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+    ],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
+)
+
+# ── THE GENERATORS ──────────────────────────────────────────────────────────────
+# Each generator is a PROGRAM: declared inputs (named upstream files and, where it
+# splices one, the committed file), one output. Bazel runs it as a sandboxed build
+# action, so an undeclared read fails and the result is cached.
+# //core:update_generated writes the outputs into the checkout; its diff tests fail
+# `bazel test` when a committed file is not its generator's output.
+_ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/CompileContext.java"
+
+
+java_binary(
+    name = "imports_generator",
+    main_class = "com.legend.generators.ImportsGenerator",
+    runtime_deps = [":generators"],
+)
+
+# NameResolver.java's CORE_IMPORTS: the engine's META_IMPORTS sequence
+genrule(
+    name = "gen_imports",
+    srcs = [
+        _ENGINE_COMPILE_CONTEXT,
+        "//core:src/main/java/com/legend/compiler/NameResolver.java",
+    ],
+    outs = ["generated/NameResolver.java"],
+    cmd = "$(location :imports_generator) $(location %s) $(location //core:src/main/java/com/legend/compiler/NameResolver.java) $@" % _ENGINE_COMPILE_CONTEXT,
+    tools = [":imports_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
+java_binary(
+    name = "dynafn_generator",
+    main_class = "com.legend.generators.DynaFnGenerator",
+    runtime_deps = [":generators"],
+)
+
+# DynaFn.java's members: the engine's dynafunction registries, every dialect
+genrule(
+    name = "gen_dynafn",
+    srcs = UPSTREAM_TREES + [
+        "//core:src/main/java/com/legend/builtin/DynaFn.java",
+    ],
+    outs = ["generated/DynaFn.java"],
+    cmd = "$(location :dynafn_generator) " + ENGINE_ROOT + " $(location //core:src/main/java/com/legend/builtin/DynaFn.java) $@",
+    tools = [":dynafn_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
+java_binary(
+    name = "natives_generator",
+    main_class = "com.legend.generators.NativesGenerator",
+    runtime_deps = [":generators"],
+)
+
+# Pure.java's membership signatures: upstream's spelling of OUR membership rows.
+# Runs on core AS COMMITTED (its parser and resolver) — the first link of the chain.
+genrule(
+    name = "gen_natives",
+    srcs = UPSTREAM_TREES + [
+        "//core:src/main/resources/com/legend/builtin/native-membership.tsv",
+        "//core:src/main/java/com/legend/builtin/Pure.java",
+    ],
+    outs = ["generated/Pure.java"],
+    cmd = " ".join([
+        "$(location :natives_generator)",
+        ENGINE_ROOT,
+        PURE_ROOT,
+        "$(location //core:src/main/resources/com/legend/builtin/native-membership.tsv)",
+        "$(location //core:src/main/java/com/legend/builtin/Pure.java)",
+        "$@",
+    ]),
+    tools = [":natives_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
+java_binary(
+    name = "prelude_generator",
+    main_class = "com.legend.generators.PreludeGenerator",
+    runtime_deps = [":generators"],
+)
+
+# prelude.pure: the spec shapes the platform and the corpus name. It reads core's
+# Java SOURCES with Pure.java as :gen_natives wrote it (the chain: natives, then
+# prelude), and runs on core as committed.
+genrule(
+    name = "gen_prelude",
+    srcs = UPSTREAM_TREES + [
+        ":gen_natives",
+        "//core:main_java",
+    ],
+    outs = ["generated/com/legend/builtin/prelude.pure"],
+    cmd = " ".join([
+        "$(location :prelude_generator)",
+        ENGINE_ROOT,
+        PURE_ROOT,
+        "core/src/main/java",
+        "$@",
+        "com/legend/builtin/Pure.java=$(location :gen_natives)",
+    ]),
+    tools = [":prelude_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
+# the claims generator reads the COMPILED registries, so it is compiled against,
+# and runs on, //core:core_next — core as the generators above rewrite it — and
+# never beside a second core
+java_library(
+    name = "claims_generator_lib",
+    srcs = [
+        "src/test/java/com/legend/claims/Claims.java",
+        "src/test/java/com/legend/claims/ClaimsGenerator.java",
+        "src/test/java/com/legend/generators/SourceTree.java",
+    ],
+    deps = ["//core:core_next"],
+)
+
+java_binary(
+    name = "claims_generator",
+    main_class = "com.legend.claims.ClaimsGenerator",
+    runtime_deps = [":claims_generator_lib"],
+)
+
+# native-claims.tsv: the implemented surface. The last link of the chain: it
+# runs on core_next and reads core's sources with the three generated Java files.
+genrule(
+    name = "gen_claims",
+    srcs = [
+        ":gen_dynafn",
+        ":gen_imports",
+        ":gen_natives",
+        "//core:main_java",
+    ],
+    outs = ["generated/native-claims.tsv"],
+    cmd = " ".join([
+        "$(location :claims_generator)",
+        "core/src/main/java",
+        "$@",
+        "com/legend/builtin/DynaFn.java=$(location :gen_dynafn)",
+        "com/legend/builtin/Pure.java=$(location :gen_natives)",
+        "com/legend/compiler/NameResolver.java=$(location :gen_imports)",
+    ]),
+    tools = [":claims_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
