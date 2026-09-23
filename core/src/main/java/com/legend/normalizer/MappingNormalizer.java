@@ -2559,7 +2559,7 @@ public final class MappingNormalizer {
                     yield cr;
                 }
                 String crDb = cr.databaseName() != null ? cr.databaseName() : db;
-                String phys = ViewRelation.inferViewMainTable(view, cr.table(), md, model, crDb);
+                String phys = model.viewMainTable(crDb, view);
                 if (anySide
                         ? (cr.table().equals(backingView)
                                 || cr.table().equals(sourceTable)
@@ -2642,7 +2642,7 @@ public final class MappingNormalizer {
             if (v == null) {
                 return false;
             }
-            walk = ViewRelation.inferViewMainTable(v, walk, md, model, db);
+            walk = model.viewMainTable(db, v);
         }
         return false;
     }

@@ -42,7 +42,8 @@ public final class TestDataGenerationNatives {
     public static TypedSpec foldCensus(TypedSpec stmt, ModelContext ctx,
             java.sql.Connection conn,
             List<TypedSpec> letPrefix,
-            com.legend.sql.dialect.SqlDialect engineText) {
+            com.legend.sql.dialect.SqlDialect engineText,
+            TestDataGenerator.ViewSql viewSql) {
         if (stmt instanceof TypedCsvCensus cc) {
             return literal(cc, ctx);
         }
@@ -61,7 +62,7 @@ public final class TestDataGenerationNatives {
                         // a [1] string, not a collection — unwrap
                         .children().get(0);
             }
-            TestDataGenerator.Result r = transcript(g, ctx, conn);
+            TestDataGenerator.Result r = transcript(g, ctx, conn, viewSql);
             return com.legend.compiler.spec.CsvCensusChecker.literalTestData(
                     java.util.Objects.requireNonNull(r.dataCsvString(),
                             "generateTestData produced no csv"),
@@ -74,7 +75,7 @@ public final class TestDataGenerationNatives {
         List<TypedSpec> out = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec r = foldCensus(k, ctx, conn, letPrefix, engineText);
+            TypedSpec r = foldCensus(k, ctx, conn, letPrefix, engineText, viewSql);
             changed |= r != k;
             out.add(r);
         }
@@ -183,7 +184,8 @@ public final class TestDataGenerationNatives {
      * so a re-run yields the same fetch texts and rows. */
     public static TestDataGenerator.Result transcript(
             com.legend.compiler.spec.typed.TypedTestDataGen g,
-            ModelContext ctx, java.sql.Connection conn) {
+            ModelContext ctx, java.sql.Connection conn,
+            TestDataGenerator.ViewSql viewSql) {
         List<ValueSpecification> ps = g.params();
         LambdaFunction query = (LambdaFunction) ps.get(0);
         String mappingFqn = ((com.legend.protocol.spec
@@ -197,7 +199,7 @@ public final class TestDataGenerationNatives {
         }
         try {
             return TestDataGenerator.generate(ctx, query, mappingFqn,
-                    rowIds, dates[0], hash[0], conn);
+                    rowIds, dates[0], hash[0], conn, viewSql);
         } catch (java.sql.SQLException e) {
             // the seam: the TDG funnel's java.sql stops at this door
             throw new com.legend.error.DataError(

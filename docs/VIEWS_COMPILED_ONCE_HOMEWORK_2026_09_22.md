@@ -326,6 +326,101 @@ program's own, by design) with ZERO movement; candidate
 `testAlloyTestDatGenWithQuotedColumnsForViews` (both rosters: it asserts the planner's quoting of
 view join columns). Guard: 33 TDG + 13 lineage tests exact.
 
+## 8e. Stage 3 homework — READ (2026-09-22), the plan to nail it
+
+**What the engine does (testDataGeneration.pure 377–412, 585).** For a VIEW root the engine
+plans the view with its SQL generator (`processRelationalMappingSpecification($relationTree.view,
+…)`), substitutes the fetched base tables by the temps (`fixTables($oldToNew)`), prints the
+select (`sqlQueryToStringPretty`) and executes it. Its tree walk (`scanRelations(v: View)`,
+`findMainTableForView`) is a METAMODEL walk over `columnMappings` / `mainRelation()`. So the
+engine has exactly one SQL generator for views; its lineage and its test-data tree are metamodel
+walks.
+
+**What we do.** `TestDataGenerator.viewFetchSql` (+ `joinTarget`, the view arm of
+`renderOverAliases`, ~150 lines) builds the view's fetch SQL BY HAND from the raw column mappings
+— our second SQL generator for views. The tree walks (`ScanRelations.expandView`,
+`TestDataGenerator.expandIfView` / `substituteViewRefs`) mirror the engine's metamodel walks and
+STAY. `ScanRelations.findView` ×3 is a private include-aware lookup duplicating the model
+index's. The view's main-table rule exists three times (`ViewRelation.inferViewMainTable`,
+`expandView`'s seed rule, the engine's `findMainTableForView`).
+
+**The plan.**
+1. **The view fetch is the lowering.** The generator is DRIVEN by the root driver
+   (`StatementExecutor` → `TestDataGenerationNatives`); the driver hands it a renderer: the lifted
+   view body typed and lowered in engine text through `engineSql(…, tableRenames)` — its
+   `tableRenames` hook IS `fixTables`, mapping each fetched table to its temp. The generator's
+   package never reaches the lowering itself (Invariant 6e's intent). `viewFetchSql`, `joinTarget`
+   and the view arm of `renderOverAliases` are deleted.
+2. **One view lookup.** `ModelContext.findView(db, name)` beside `findTable`, delegating to the
+   index's include-aware lookup; `ScanRelations.findView` ×3 deleted (the "sidecar" question of
+   day one: it is the model index, nothing beside it).
+3. **One main-table rule.** A store fact in the model layer (the rule reads only
+   `RelationalOperation` and the database's joins): `ViewRelation.inferViewMainTable` and
+   `expandView`'s seed rule call it.
+
+**Ratchet, named before the leg.** Zero test movement (4 lanes exact); the 6 TDG view tests keep
+their outside-body rows (the fetch statements are the TDG program's own) with unchanged counts;
+candidate `testAlloyTestDatGenWithQuotedColumnsForViews` (both rosters — it asserts the
+planner's quoting of view join columns, which the lowering's engine text spells and the hand
+renderer does not); guard 33 TDG + 13 lineage tests. Text vs the TDG goldens is census, rows
+the verdict (`tryArmTdgSql` → `verifyFetchTexts`): a spelling difference between the lowering's
+engine text and the hand renderer's cannot fail a test, only move the text census.
+
+**Risk, honestly.** The TDG goldens are `sqlQueryToStringPretty` output; the hand renderer
+matches them today; the lowering's engine text matches the main lane's goldens. If the two
+spellings differ on the view fetch, the rows verdict holds the tests and the difference is a
+renderer parity item, not a stage 3 blocker.
+
+## 8f. Stage 3 LANDED (2026-09-22) — the program is closed
+
+**The three moves, as planned in §8e, plus the one gap they exposed.**
+
+1. **The view fetch is the lowering.** `TestDataGenerator.ViewSql` is a renderer the DRIVER hands
+   the generator (`StatementExecutor.viewSqlRenderer`): the view's relation accessor
+   (`#>{db.VIEW}#`, the protocol `tableReference` node) typed and planned like any query, the
+   fetched tables renamed by the replaceTables pass (the engine's `fixTables`), rendered in the
+   lane's dialect. `viewFetchSql`, `joinTarget`, `renderOverAliases` and `tempOrReal` are deleted
+   (the generator: 248 lines changed, ~200 gone). The generator's package never reaches the
+   lowering.
+2. **One view lookup.** `ModelContext.findView` / `viewAccessor` / `findViewFunction`, all
+   delegating to the index's include-aware `ModelBuilder.viewLift` (owner database + the lift's
+   spelling); `ScanRelations.findView` ×3 deleted.
+3. **One main-table rule.** `ModelBuilder.viewMainTable` (the engine's `findMainTableForView`,
+   a store fact on the model index): the normalizer's `inferViewMainTable` + `joinOnlyViewRoot`
+   deleted, its four sites and the lineage's `expandView` seed read the index. The shadow-walker
+   census row `inferViewMainTable` 5 → 0 (the family moved INTO the kernel).
+
+**The gap the plan did not name — the resolver.** A view whose columns navigate a join carries
+JOIN_SLOT steps in its body; the store resolver rewrote those only inside CLASS pipelines, so a
+view body planned as a bare relation reached the lowerer's loud wall (`TypedJoinSlot … escaped
+Phase H`; witnesses `testSimpleViewRoot`, `testSimpleViewRootToJoin`, `testUnionViewOnView`).
+The fix is one resolver arm, no new machinery: an INERT tree carrying slots descends to its
+`TypedViewRelation` node and materializes the body with EMPTY demand — `Pipelines.materialize`'s
+project arm already derives a projection's demand from its own column reads, which is exactly
+what a view's projection is. The same arm makes the accessor over a join-navigating view lower
+(a stage 1 gap closed for free).
+
+**The second gap — include closure.** The first lane run lost `testViewEmbeddedInChainedJoin`
+on all four lanes: `PersonFirmView` is declared in an INCLUDED database, and the accessor
+checker looked the lifted function up under the queried database's name only. Now the checker
+asks `findViewFunction` (include-aware, like `findTable`) — a user's `#>{db.View}#` over an
+included view was failing the same way since stage 1.
+
+**Measured.** Four lanes exact (DuckDB 107 / H2 362 unchanged), differential agree 5,851 ·
+disagree 0, registers untouched — zero movement, as named. The candidate
+`testAlloyTestDatGenWithQuotedColumnsForViews` did NOT move: it fails earlier, at the generator's
+own "view-backed relation … view slice pending" wall in `locate` (a class mapped onto a view
+as its main table), a TDG item outside this program. Guardrail ratchets, each with its reason in
+the test: shadow-walker `inferViewMainTable` 5 → 0; never-fired floor 12 → 10 (ViewRelation#6/#7
+went with the deleted copy; the kernel's miss is a `ModelException`); SQL-text sites in the
+generator 16 → 15; evaluator lines `SqlTextVerdicts` 1239 → 1240 (one argument threaded),
+`StatementExecutor` 2414 → 2436 (the renderer). Chain GREEN sequential 513 s.
+
+**Closed.** Every stage of §8 has landed: a view is a lifted zero-arg relation function with one
+owner of its body (stage 2), the accessor computes as ordinary compiled Pure (stage 1) in the
+engine's own SQL shape (stage 4), and every other reader of a view — the mapping route, the
+lineage, the test-data generator — reads the index's facts and the compiler's SQL (stage 3).
+
 ## 9. Open decisions for the user
 
 1. ~~Eager versus lazy~~ DECIDED 2026-09-22: eager, like E.2–E.4 (all three lifts are eager; walls

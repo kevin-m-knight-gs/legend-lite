@@ -80,18 +80,20 @@ final class TableReferenceChecker {
             // (E.5, docs/VIEWS_COMPILED_ONCE_HOMEWORK_2026_09_22.md §7): its
             // body IS the relation, typed here the way the ~func mapping
             // route consumes a relation function (FromChecker's zero-arg
-            // user-call splice) — every user call inlines, a view's too
+            // user-call splice) — every user call inlines, a view's too.
+            // Reached through the include closure like a table (the lifted
+            // function is named by the OWNING database).
             String viewName = strictDefault ? tableName.value() : resolvedName;
-            List<com.legend.compiler.element.TypedFunction> lifted = t.model().findFunction(
-                    com.legend.compiler.SynthFqn.view(dbRef.fullPath(), viewName));
-            if (lifted.size() == 1 && lifted.get(0).body().isPresent()
-                    && lifted.get(0).body().get().size() == 1) {
+            java.util.Optional<com.legend.compiler.element.TypedFunction> lifted =
+                    t.model().findViewFunction(dbRef.fullPath(), viewName);
+            if (lifted.isPresent() && lifted.get().body().isPresent()
+                    && lifted.get().body().get().size() == 1) {
                 // a CALL to the lifted function, typed as its body: every
                 // lowering path inlines user calls, and the inliner keeps a
                 // view's name on the inlined body (TypedViewRelation)
-                TypedSpec typedBody = t.synth(lifted.get(0).body().get().get(0), env);
+                TypedSpec typedBody = t.synth(lifted.get().body().get().get(0), env);
                 return new com.legend.compiler.spec.typed.TypedUserCall(
-                        lifted.get(0), List.of(), typedBody.info());
+                        lifted.get(), List.of(), typedBody.info());
             }
             throw new TypeInferenceException(
                     "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'");

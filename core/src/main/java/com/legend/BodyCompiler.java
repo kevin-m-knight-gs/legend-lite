@@ -65,7 +65,8 @@ public final class BodyCompiler {
             // TDG lane S1: the checker's census CARRIER folds to instance literals
             // before the statement is planned (orchestration owns testdatagen)
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(
-                    stmts.get(i), seg.env().ctx(), seg.env().connection(), letPrefix, StatementExecutor.ENGINE_TEXT);
+                    stmts.get(i), seg.env().ctx(), seg.env().connection(), letPrefix, StatementExecutor.ENGINE_TEXT,
+                    StatementExecutor.viewSqlRenderer(specs, seg.env()));
             StatementExecutor.establishContexts(stmt, seg.env());
             boolean last = i == stmts.size() - 1;
             if (effect || StatementExecutor.containsEffect(stmt, specs, effectMemo)) {

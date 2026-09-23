@@ -978,6 +978,181 @@ public final class ModelBuilder {
         return findView(dbFqn, viewName, new java.util.HashSet<>());
     }
 
+    /**
+     * THE view's MAIN TABLE — the engine's {@code findMainTableForView}, a
+     * store fact read off the view's column mappings and the database's
+     * joins (ONE rule: the normalizer's relation body, the lineage's tree
+     * seed and the test-data generator's root all read it here):
+     * <ul>
+     *   <li>the ONE table the view's non-join column expressions read
+     *       (a column that navigates a join anywhere reads its terminal,
+     *       not the root);</li>
+     *   <li>a JOIN-ONLY view (every column {@code @J|T.COL}): the first
+     *       chain's first join's condition tables minus the terminals the
+     *       columns read — a single remainder is the root (a table or a
+     *       view; PersonViewWithDistinct);</li>
+     *   <li>no table, or several: loud — a view resolves to one root.</li>
+     * </ul>
+     * The spelling is the column reference's own ({@code T} or
+     * {@code SCHEMA.T}), what the accessor and the lift name it by.
+     */
+    public String viewMainTable(String dbFqn, ViewDefinition view) {
+        Set<String> tables = new LinkedHashSet<>();
+        for (ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+            if (!navigatesJoin(vc.expression())) {
+                collectTables(vc.expression(), tables);
+            }
+        }
+        if (tables.isEmpty()) {
+            String root = joinOnlyViewRoot(dbFqn, view);
+            if (root != null) {
+                return root;
+            }
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.MODEL,
+                    "View '" + view.name() + "' of '" + dbFqn + "': cannot infer its main"
+                    + " table — no non-join column references found");
+        }
+        if (tables.size() > 1) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.MODEL,
+                    "View '" + view.name() + "' of '" + dbFqn + "' references multiple root"
+                    + " tables " + tables + "; a view must resolve to a single root table");
+        }
+        return tables.iterator().next();
+    }
+
+    private @com.legend.Nullable String joinOnlyViewRoot(String dbFqn, ViewDefinition view) {
+        Set<String> terminals = new LinkedHashSet<>();
+        com.legend.model.JoinChainElement first = null;
+        for (ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
+            if (!(vc.expression() instanceof com.legend.model.RelationalOperation.JoinNavigation jn)
+                    || jn.chain().isEmpty()) {
+                continue;
+            }
+            if (first == null) {
+                first = jn.chain().get(0);
+            }
+            if (jn.terminal() != null) {
+                collectTables(jn.terminal(), terminals);
+            }
+        }
+        if (first == null) {
+            return null;
+        }
+        String joinDb = first.databaseName() != null ? first.databaseName() : dbFqn;
+        String joinName = first.joinName();
+        JoinDefinition jd = findDatabase(joinDb)
+                .flatMap(d -> d.joins().stream().filter(j -> j.name().equals(joinName)).findFirst())
+                .orElseThrow(() -> new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.MODEL,
+                        "View '" + view.name() + "' of '" + dbFqn + "' navigates join '"
+                        + joinName + "' which '" + joinDb + "' does not declare"));
+        Set<String> condTables = new LinkedHashSet<>();
+        collectTables(jd.operation(), condTables);
+        condTables.removeAll(terminals);
+        return condTables.size() == 1 ? condTables.iterator().next() : null;
+    }
+
+    /** Whether a relational expression navigates a join anywhere inside. */
+    private static boolean navigatesJoin(com.legend.model.RelationalOperation op) {
+        return switch (op) {
+            case com.legend.model.RelationalOperation.JoinNavigation ignored -> true;
+            case com.legend.model.RelationalOperation.FunctionCall fc ->
+                    fc.args().stream().anyMatch(ModelBuilder::navigatesJoin);
+            case com.legend.model.RelationalOperation.Comparison c ->
+                    navigatesJoin(c.left()) || navigatesJoin(c.right());
+            case com.legend.model.RelationalOperation.BooleanOp b ->
+                    navigatesJoin(b.left()) || navigatesJoin(b.right());
+            case com.legend.model.RelationalOperation.IsNull n -> navigatesJoin(n.operand());
+            case com.legend.model.RelationalOperation.IsNotNull n -> navigatesJoin(n.operand());
+            case com.legend.model.RelationalOperation.Group g -> navigatesJoin(g.inner());
+            case com.legend.model.RelationalOperation.ArrayLiteral a ->
+                    a.elements().stream().anyMatch(ModelBuilder::navigatesJoin);
+            case com.legend.model.RelationalOperation.Lambda lam -> navigatesJoin(lam.body());
+            case com.legend.model.RelationalOperation.ColumnRef ignored -> false;
+            case com.legend.model.RelationalOperation.TargetColumnRef ignored -> false;
+            case com.legend.model.RelationalOperation.Literal ignored -> false;
+            case com.legend.model.RelationalOperation.LambdaParam ignored -> false;
+        };
+    }
+
+    /** Every table a join-free relational expression reads, as spelled. */
+    private static void collectTables(com.legend.model.RelationalOperation op, Set<String> sink) {
+        switch (op) {
+            case com.legend.model.RelationalOperation.ColumnRef cr -> sink.add(cr.table());
+            case com.legend.model.RelationalOperation.FunctionCall fc ->
+                    fc.args().forEach(a -> collectTables(a, sink));
+            case com.legend.model.RelationalOperation.Comparison c -> {
+                collectTables(c.left(), sink);
+                collectTables(c.right(), sink);
+            }
+            case com.legend.model.RelationalOperation.BooleanOp b -> {
+                collectTables(b.left(), sink);
+                collectTables(b.right(), sink);
+            }
+            case com.legend.model.RelationalOperation.IsNull n -> collectTables(n.operand(), sink);
+            case com.legend.model.RelationalOperation.IsNotNull n -> collectTables(n.operand(), sink);
+            case com.legend.model.RelationalOperation.Group g -> collectTables(g.inner(), sink);
+            case com.legend.model.RelationalOperation.ArrayLiteral a ->
+                    a.elements().forEach(e -> collectTables(e, sink));
+            case com.legend.model.RelationalOperation.Lambda lam -> collectTables(lam.body(), sink);
+            case com.legend.model.RelationalOperation.JoinNavigation ignored ->
+                    throw new IllegalStateException("model bug: join navigation inside a"
+                            + " join-free expression");
+            case com.legend.model.RelationalOperation.TargetColumnRef ignored -> { }
+            case com.legend.model.RelationalOperation.Literal ignored -> { }
+            case com.legend.model.RelationalOperation.LambdaParam ignored -> { }
+        }
+    }
+
+    /** A view's lift identity: the OWNING database of the include closure
+     *  and the lift's own spelling (a schema view {@code SCHEMA.NAME}, a
+     *  top-level view bare) — what {@code #>{db.<spelling>}#} names it by and
+     *  what its lifted function is named by (E.5, {@code <owner>$view$<spelling>}). */
+    public record ViewLift(String ownerDb, String spelling) {
+        public String fqn() {
+            return SynthFqn.view(ownerDb, spelling);
+        }
+    }
+
+    /** The view reached as {@code viewName} from {@code dbFqn} (include
+     *  closure, like {@link #findTable}), whatever spelling reached it. */
+    public Optional<ViewLift> viewLift(String dbFqn, String viewName) {
+        return viewLift(dbFqn, viewName, new java.util.HashSet<>());
+    }
+
+    private Optional<ViewLift> viewLift(String dbFqn, String viewName,
+            java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return Optional.empty();
+        }
+        int id = symbols.resolveId(dbFqn);
+        if (id == SymbolTable.UNRESOLVED) return Optional.empty();
+        Map<String, ViewDefinition> byName = viewsByDb.get(id);
+        ViewDefinition own = byName == null ? null : byName.get(viewName);
+        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+        if (own != null && db != null) {
+            for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+                for (ViewDefinition v : s.views()) {
+                    if (v == own) {
+                        return Optional.of(new ViewLift(dbFqn, s.name() + "." + v.name()));
+                    }
+                }
+            }
+            return Optional.of(new ViewLift(dbFqn, own.name()));
+        }
+        if (db != null) {
+            for (String inc : db.includes()) {
+                Optional<ViewLift> hit = viewLift(inc, viewName, seen);
+                if (hit.isPresent()) {
+                    return hit;
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
     /** Include-closure aware, mirroring {@link #findJoin}: an including
      * database resolves the included database's views. Own wins. */
     private Optional<ViewDefinition> findView(String dbFqn, String viewName,

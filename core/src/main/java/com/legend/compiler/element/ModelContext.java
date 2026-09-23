@@ -230,6 +230,26 @@ public interface ModelContext {
      */
     Optional<Type.RelationType> findTable(String dbFqn, String name);
 
+    /** The VIEW named {@code name} in {@code dbFqn} (include closure; a
+     *  schema view by its {@code SCHEMA.NAME} spelling or its bare name) —
+     *  the model index's one lookup, never a private walk beside it. */
+    Optional<com.legend.model.DatabaseDefinition.ViewDefinition> findView(String dbFqn, String name);
+
+    /** The view's MAIN TABLE (the engine's {@code findMainTableForView}) —
+     *  the model index's one rule; loud when the view has no single root. */
+    String viewMainTable(String dbFqn, com.legend.model.DatabaseDefinition.ViewDefinition view);
+
+    /** The view's ACCESSOR spelling ({@code #>{db.<spelling>}#}: a schema
+     *  view as {@code SCHEMA.NAME}, a top-level view bare) — a driver that
+     *  needs a view's relation compiles the accessor, like any query. */
+    Optional<String> viewAccessor(String dbFqn, String name);
+
+    /** The view's LIFTED function (E.5: {@code <owner>$view$<spelling>}, its
+     *  one body expression the view's relation), reached from {@code dbFqn}
+     *  through the include closure like a table — the accessor checker's
+     *  one view lookup. */
+    Optional<TypedFunction> findViewFunction(String dbFqn, String name);
+
     /** Every USER function FQN in the model (natives excluded) — the
      * eager-G compileAll mode enumerates over this. */
     default java.util.Set<String> functionFqns() {

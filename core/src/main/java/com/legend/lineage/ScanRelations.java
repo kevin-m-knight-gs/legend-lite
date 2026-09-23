@@ -1223,12 +1223,13 @@ public final class ScanRelations {
         };
     }
 
-    /** The view's INTERNAL tree: plain column expressions seed the root
-     * table and its columns; JoinNavigation expressions and the view
+    /** The view's INTERNAL tree: the model's main-table rule seeds the
+     * root ({@link ModelContext#viewMainTable}), the plain column
+     * expressions its columns; JoinNavigation expressions and the view
      * ~filter fold their join chains off it. */
     private static @com.legend.Nullable Node expandView(ModelContext ctx, String dbName,
             DatabaseDefinition.ViewDefinition vd) {
-        Node root = null;
+        String main = ctx.viewMainTable(dbName, vd);
         List<RelationalOperation.ColumnRef> plainRefs = new ArrayList<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
                 : vd.columnMappings()) {
@@ -1237,21 +1238,16 @@ public final class ScanRelations {
                 columnRefs(cm.expression(), plainRefs);
             }
         }
+        String rootDb = dbName;
         for (RelationalOperation.ColumnRef r : plainRefs) {
-            if (root == null) {
-                root = new Node(r.databaseName() != null ? r.databaseName()
-                        : dbName, bare(r.table()), null);
+            if (r.databaseName() != null) {
+                rootDb = r.databaseName();
+                break;
             }
-            if (!java.util.Objects.equals(bare(r.table()), root.table)) {
-                throw new NotImplementedException("scanRelations: view '"
-                        + vd.name() + "' columns span tables '" + root.table
-                        + "' and '" + r.table() + "'");
-            }
-            root.cols.add(r.column());
         }
-        if (root == null) {
-            throw new NotImplementedException("scanRelations: view '"
-                    + vd.name() + "' has no plain column to seed its root");
+        Node root = new Node(rootDb, bare(main), null);
+        for (RelationalOperation.ColumnRef r : plainRefs) {
+            root.cols.add(r.column());
         }
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping cm
                 : vd.columnMappings()) {
@@ -1368,50 +1364,16 @@ public final class ScanRelations {
 
     /** {@code schema} non-null pins the lookup: two views may share a
      * name across schemas with DIFFERENT bodies (the ViewSchema
-     * AltID_View corpus model) — a schema-blind first-match expanded the
-     * wrong one. */
+     * AltID_View corpus model) — the model index keys a schema view by
+     * its {@code SCHEMA.NAME} spelling; ONE lookup (the context's,
+     * include closure included), never a private walk beside it. */
     private static DatabaseDefinition.@com.legend.Nullable ViewDefinition findView(ModelContext ctx,
             String dbName, @com.legend.Nullable String schema, @com.legend.Nullable String name) {
-        return findView(ctx, dbName, schema, name,
-                new java.util.LinkedHashSet<>());
-    }
-
-    private static DatabaseDefinition.@com.legend.Nullable ViewDefinition findView(ModelContext ctx,
-            String dbName, @com.legend.Nullable String schema, @com.legend.Nullable String name, Set<String> seen) {
-        if (!seen.add(dbName)) {
+        if (name == null) {
             return null;
         }
-        DatabaseDefinition db = ctx.findDatabase(dbName).orElse(null);
-        if (db == null) {
-            return null;
-        }
-        if (schema == null || "default".equals(schema)) {
-            for (DatabaseDefinition.ViewDefinition v : db.views()) {
-                if (v.name().equals(name)) {
-                    return v;
-                }
-            }
-        }
-        for (var sc : db.schemas()) {
-            if (schema != null && !schema.equals(sc.name())) {
-                continue;
-            }
-            for (DatabaseDefinition.ViewDefinition v : sc.views()) {
-                if (v.name().equals(name)) {
-                    return v;
-                }
-            }
-        }
-        // a view may live in an INCLUDED database (engine include
-        // resolution — PersonFirmView sits in dbInc, reached via db)
-        for (String inc : db.includes()) {
-            DatabaseDefinition.ViewDefinition v =
-                    findView(ctx, inc, schema, name, seen);
-            if (v != null) {
-                return v;
-            }
-        }
-        return null;
+        String key = schema == null || "default".equals(schema) ? name : schema + "." + name;
+        return ctx.findView(dbName, key).orElse(null);
     }
 
     // ------------------------------------------------------------------

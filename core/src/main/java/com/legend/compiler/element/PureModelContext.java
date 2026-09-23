@@ -510,6 +510,27 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public Optional<com.legend.model.DatabaseDefinition.ViewDefinition> findView(String dbFqn, String name) {
+        return model.findView(dbFqn, name);
+    }
+
+    @Override
+    public String viewMainTable(String dbFqn, com.legend.model.DatabaseDefinition.ViewDefinition view) {
+        return model.viewMainTable(dbFqn, view);
+    }
+
+    @Override
+    public Optional<String> viewAccessor(String dbFqn, String name) {
+        return model.viewLift(dbFqn, name).map(com.legend.compiler.ModelBuilder.ViewLift::spelling);
+    }
+
+    @Override
+    public Optional<TypedFunction> findViewFunction(String dbFqn, String name) {
+        return model.viewLift(dbFqn, name)
+                .flatMap(lift -> findFunction(lift.fqn()).stream().findFirst());
+    }
+
+    @Override
     public Optional<Type.RelationType> findTable(String dbFqn, String name) {
         Objects.requireNonNull(dbFqn, "dbFqn");
         Objects.requireNonNull(name, "name");

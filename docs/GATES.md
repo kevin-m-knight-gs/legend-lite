@@ -5061,3 +5061,36 @@ inside the one fused statement (witness `testRelationStoreAccessorOnView`; 24 ot
 lets read once). The correct form is "every let is a frame; a scalar let is a one-row frame",
 a typed-IR decision with its own homework — not squeezed in by typing a relation reference as a
 string (user, 2026-09-22).
+
+## 2026-09-22 — views stage 3: the view fetch is the lowering; one lookup, one main-table rule
+
+**What landed.** (1) The test-data generator's VIEW fetch is rendered by the compiler: the driver
+hands the generator a renderer (`TestDataGenerator.ViewSql` ← `StatementExecutor.viewSqlRenderer`)
+that types the view's relation accessor like any query, plans it, renames the fetched tables to
+their temps through the replaceTables pass (the engine's `fixTables`) and renders in the lane's
+dialect; the hand-built view SQL (`viewFetchSql`, `joinTarget`, `renderOverAliases`, `tempOrReal`)
+is deleted. (2) One view lookup on the model context (`findView`, `viewAccessor`,
+`findViewFunction`, all over the include-aware `ModelBuilder.viewLift`); the lineage's private
+copies are gone. (3) One main-table rule, `ModelBuilder.viewMainTable` (the engine's
+`findMainTableForView`), read by the normalizer's four sites and the lineage's tree seed; the
+normalizer's copy is deleted.
+
+**Two gaps closed on the way.** The store resolver materialized JOIN_SLOT steps only inside class
+pipelines, so a join-navigating view body planned as a bare relation hit the lowerer's loud wall;
+one resolver arm now materializes a `TypedViewRelation` body with empty demand (the project arm
+derives demand from the projection's own reads). And the accessor checker looked a lifted view
+function up under the queried database only; it now resolves through the include closure like a
+table (`testViewEmbeddedInChainedJoin`, `PersonFirmView` in the included `dbInc`).
+
+**Measured.** Four lanes exact (DuckDB 107 / H2 362 unchanged), differential agree 5,851 ·
+disagree 0, registers untouched — zero movement, as named before the leg. Guardrail ratchets with
+written reasons: shadow-walker `inferViewMainTable` 5 → 0 (into the kernel); never-fired floor
+12 → 10; generator SQL-text sites 16 → 15; evaluator lines `SqlTextVerdicts` +1 (one argument),
+`StatementExecutor` +22 (the renderer). The candidate
+`testAlloyTestDatGenWithQuotedColumnsForViews` fails earlier at the generator's own view-backed
+main-table wall — a TDG item, not a views item.
+
+**Chain GREEN (gates 1,2,3,4,5,6,7,8,9,10), sequential:** G2 28, G1 44, G3 7, G4 60, G5 30,
+G6 117, G7 46, G9 34, G8 118, G10 29 — 513 s.
+
+**The views program is closed** (docs/VIEWS_COMPILED_ONCE_HOMEWORK_2026_09_22.md §8f).

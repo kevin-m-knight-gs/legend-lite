@@ -77,7 +77,11 @@ class ShadowWalkerCensusTest {
             // still walks RelationalOperation records with the normalizer's
             // own collectors and names the mapping in its errors; retire
             // with step 4/6's compiled-store facts
-            Map.entry("inferViewMainTable", 5)));
+            // 5 -> 0 (views stage 3, 2026-09-22): the view main-table rule
+            // moved INTO the kernel — ModelBuilder.viewMainTable, the one
+            // owner (the normalizer, the lineage and the test-data
+            // generator read it there); no walker of it remains outside
+            Map.entry("inferViewMainTable", 0)));
 
     @Test
     void shadowWalkerCallSitesArePinned() throws IOException {

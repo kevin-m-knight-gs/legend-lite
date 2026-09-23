@@ -99,7 +99,10 @@ class SqlTextRatchetTest {
         // capture's whole-relation read consolidated with csvEnvelope's
         // union arm onto ONE selectAll() spelling — the count STAYS 16;
         // internal plumbing, not recorded artifact)
-        REGISTER.put("testdatagen/TestDataGenerator.java", 16);
+        // 16 -> 15 (views stage 3, 2026-09-22): the hand-built view fetch
+        // renderer is gone — the view's SQL is the compiler's, handed in by
+        // the driver (TestDataGenerator.ViewSql)
+        REGISTER.put("testdatagen/TestDataGenerator.java", 15);
     }
 
     @Test

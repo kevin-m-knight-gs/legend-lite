@@ -662,7 +662,7 @@ class JavaEvalLedgerTest {
             // one effect-only rule — the evaluator shrank
             // 2388 -> 2394 (2026-09-21, block compiler stage 1): the dispatch of a PURE body to
             // BodyCompiler and the batch construction factored out for it — sequencing only
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2414),   // 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2436),   // 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -842,7 +842,7 @@ class JavaEvalLedgerTest {
             // converges on defers the text row into the batch with the rows leg as its APPEAL,
             // and applies the byte-equal ruling outside a batch — routing and deferral, nothing
             // evaluated on the host that was not before
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1239),   // 1248 -> 1239 (cleanup move 4, 2026-09-22: the let-binding lookups and callee-name readers moved to Lets / Calls in the typed package; no rule changed)
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1240),   // 1239 -> 1240 (views stage 3, 2026-09-22: the TDG transcript takes the driver's view renderer — one argument threaded to the generator, no rule; 1248 -> 1239 cleanup move 4: the let-binding lookups and callee-name readers moved to Lets / Calls in the typed package)
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the

@@ -28,8 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.legend.model.JoinChainElement;
-import java.util.LinkedHashSet;
 
 /**
  * Views as standalone RELATION expressions (V1b/V1c): a grouped or
@@ -88,7 +86,7 @@ final class ViewRelation {
     static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
             ModelBuilder model, @com.legend.Nullable ResolvedMapping md, LiftedViews views) {
-        String phys = inferViewMainTable(view, viewName, md, model, db);
+        String phys = model.viewMainTable(db, view);
         Variable r = new Variable("vr");
         // VIEW-ON-VIEW: the inferred root is itself a view — expand it
         // recursively as the SOURCE relation (engine lineage model:
@@ -433,88 +431,4 @@ final class ViewRelation {
             default -> pm;
         };
     }
-
-    static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, @com.legend.Nullable ResolvedMapping md) {
-        return inferViewMainTable(view, viewName, md, null, null);
-    }
-
-    static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, @com.legend.Nullable ResolvedMapping md,
-                                            @com.legend.Nullable ModelBuilder model, @com.legend.Nullable String dbFqn) {
-        Set<String> tables = new LinkedHashSet<>();
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
-            RelationalOperation expr = vc.expression();
-            List<JoinChainEmission.JoinNavSpec> navs = new ArrayList<>();
-            JoinChainEmission.collectJoinNavigations(expr, navs);
-            if (!navs.isEmpty()) continue;   // joined column — not the view's root table
-            RelOpTranslator.collectTablesIn(expr, tables);
-        }
-        if (tables.isEmpty() && model != null && dbFqn != null) {
-            // JOIN-ONLY view (every column @J|table.COL): the root is the
-            // first chain's first JOIN's OTHER side — the join connects
-            // the view's root to the terminal table the columns read
-            // (PersonViewWithDistinct: @PersonWithPersonView joins
-            // personTable to personViewWithGroupBy; columns read
-            // personTable, so the root is personViewWithGroupBy)
-            String inferred = joinOnlyViewRoot(view, model, dbFqn);
-            if (inferred != null) {
-                return inferred;
-            }
-        }
-        if (tables.isEmpty()) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "View '" + viewName + "': cannot infer underlying main table — no "
-                  + "non-join column references found; " + owner(md, String.valueOf(dbFqn)));
-        }
-        if (tables.size() > 1) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "View '" + viewName + "' references multiple root tables " + tables
-                  + "; a view must resolve to a single root table. "
-                  + owner(md, String.valueOf(dbFqn)));
-        }
-        return tables.iterator().next();
-    }
-
-    /** The root of a JOIN-ONLY view: the first chain's first join's
-     * condition tables MINUS the terminal tables the columns read — a
-     * single remainder is the root (table or view); null keeps the
-     * caller's loud wall. */
-    private static @com.legend.Nullable String joinOnlyViewRoot(DatabaseDefinition.ViewDefinition view,
-            ModelBuilder model, String dbFqn) {
-        Set<String> terminals = new LinkedHashSet<>();
-        JoinChainElement first = null;
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
-            if (!(vc.expression() instanceof RelationalOperation.JoinNavigation jn)
-                    || jn.chain().isEmpty()) {
-                continue;
-            }
-            if (first == null) {
-                first = jn.chain().get(0);
-            }
-            if (jn.terminal() != null) {
-                RelOpTranslator.collectTablesIn(jn.terminal(), terminals);
-            }
-        }
-        if (first == null) {
-            return null;
-        }
-        final JoinChainElement head = first;
-        String db = head.databaseName() != null ? head.databaseName() : dbFqn;
-        var found = model.findDatabase(db).orElseThrow(() -> MissProbe.neverFired("ViewRelation#6"));
-        if (found == null) {
-            return null;
-        }
-        var jd = found.joins().stream()
-                .filter(j -> j.name().equals(head.joinName())).findFirst()
-                .orElseThrow(() -> MissProbe.neverFired("ViewRelation#7"));
-        if (jd == null) {
-            return null;
-        }
-        Set<String> condTables = new LinkedHashSet<>();
-        RelOpTranslator.collectTablesIn(jd.operation(), condTables);
-        condTables.removeAll(terminals);
-        return condTables.size() == 1 ? condTables.iterator().next() : null;
-    }
-
 }

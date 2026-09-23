@@ -1014,20 +1014,20 @@ final class SqlTextVerdicts {
             // compared) is its APPEAL, run at the flush only when the row failed.
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
                     env.connection(), () -> tdgRowsNow(name, golden, ours, textEqual, oracle,
-                            actualSide, letPrefix, env));
+                            actualSide, letPrefix, specs, env));
             return ok();
         }
         if (textEqual) {
             // the host judge, the same rule (option 1): a byte-equal text IS the verdict
             return ok();
         }
-        return tdgRowsNow(name, golden, ours, textEqual, oracle, actualSide, letPrefix, env);
+        return tdgRowsNow(name, golden, ours, textEqual, oracle, actualSide, letPrefix, specs, env);
     }
 
     /** The TDG rows leg itself — the referee's fetch replay, judged now. */
     private static ExecutionResult tdgRowsNow(String name, String golden, String ours,
             boolean textEqual, SqlReplayOracle oracle, TypedSpec actualSide,
-            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
+            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env) {
         // batch 64: a hop addressed as $testData.sqls->at(i) carries its
         // hop index and the carrier's generator node — the oracle's
         // chained arm replays ancestor temps from the earlier hops'
@@ -1041,7 +1041,8 @@ final class SqlTextVerdicts {
                         golden, ours, () -> fetchTranscript(
                                 com.legend.testdatagen.TestDataGenerationNatives
                                         .transcript(hop.source(), env.ctx(),
-                                                env.connection())));
+                                                env.connection(),
+                                                StatementExecutor.viewSqlRenderer(specs, env))));
         }
         refereed(env, name, rv);
         return switch (rv.outcome()) {

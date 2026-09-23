@@ -865,8 +865,7 @@ final class JoinChainEmission {
                 return null;
             }
         }
-        String vPhys = ViewRelation.inferViewMainTable(
-                vd, viewTarget, md, model, hopDb);
+        String vPhys = model.viewMainTable(hopDb, vd);
         String tgtMain;
         try {
             tgtMain = MappingNormalizer.mainTableOf(md, targetClassFqn, model);

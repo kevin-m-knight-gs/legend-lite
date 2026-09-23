@@ -64,8 +64,13 @@ class FallbackLedgerTest {
             Map.entry("ViewRelation.java", 5)));
 
     /** Loud "this default never fired" sites. Growth is GOOD (a silent
-     * default went loud); a drop means one went quiet again. */
-    private static final int NEVER_FIRED_FLOOR = 12;
+     * default went loud); a drop means one went quiet again.
+     * 12 -> 10 (views stage 3, 2026-09-22): ViewRelation#6/#7 guarded the
+     * normalizer's copy of the view main-table rule; the rule's one home is
+     * now ModelBuilder.viewMainTable, whose miss (a navigated join its
+     * database does not declare) is a ModelException — still loud, in the
+     * kernel's own vocabulary. */
+    private static final int NEVER_FIRED_FLOOR = 10;
 
     @org.junit.jupiter.api.Test
     void noBareEmptyAnswerOutsideTheFunnel() throws IOException {
