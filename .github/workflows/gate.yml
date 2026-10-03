@@ -17,7 +17,6 @@
 name: gates
 on:
   push:
-    branches: [main]
     # Prose cannot change a gate's verdict, and a lane costs runner minutes — a
     # documentation commit must not spend them.
     paths-ignore:
