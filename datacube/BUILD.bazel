@@ -5,7 +5,7 @@
 # parallel on its own, and `bazel test //datacube:<name>_test` runs one.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/generators:defs.bzl", "write_generated_files")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//warehouse:defs.bzl", "POSTGRES_EXTENSION", "warehouse_run")
 load("@rules_java//java:defs.bzl", "java_library")
@@ -315,7 +315,7 @@ java_run(
     deps = [":catalog_facts_main"],
 )
 
-write_source_files(
+write_generated_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {

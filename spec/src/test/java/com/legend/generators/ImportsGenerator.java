@@ -38,7 +38,11 @@ public final class ImportsGenerator {
                     "usage: ImportsGenerator <CompileContext.java> <NameResolver.java> <output>");
         }
         List<String> imports = metaImports(Files.readString(Path.of(args[0]), StandardCharsets.UTF_8));
-        String generated = generate(imports, Files.readString(Path.of(args[1]), StandardCharsets.UTF_8));
+        // the committed copy in '\n', whatever the checkout's line endings: the
+        // output is '\n' on every machine (write_generated_files gives it the
+        // checkout's)
+        String generated = generate(imports,
+                Files.readString(Path.of(args[1]), StandardCharsets.UTF_8).replace("\r\n", "\n"));
         Files.writeString(Path.of(args[2]), generated, StandardCharsets.UTF_8);
         System.out.println("[imports] generated " + imports.size() + " packages");
     }

@@ -1,4 +1,5 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/generators:defs.bzl", "write_generated_files")
 
 # docs/ is prose, except for the committed LEDGERS some tests compare against
 # (the protocol roster, the refusal allowlists, the skew claims, ...). Declared here
@@ -10,7 +11,7 @@ filegroup(
 )
 
 # GENERATED ledgers in docs/ (see //:update_generated)
-write_source_files(
+write_generated_files(
     name = "update_generated",
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",

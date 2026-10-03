@@ -33,15 +33,18 @@ public final class DynaFnGenerator {
     private DynaFnGenerator() {}
 
     private static final Pattern DYNA = Pattern.compile("dynaFnToSql\\('([A-Za-z0-9_]+)'");
-    private static final Pattern INFERENCE_ENTRY = Pattern.compile("pair\\(\\s*\\n\\s*'([A-Za-z0-9_]+)',");
+    private static final Pattern INFERENCE_ENTRY = Pattern.compile("pair\\(\\s*\\R\\s*'([A-Za-z0-9_]+)',");
     private static final String INFERENCE_MAP = "getDynaFunctionTypeInferenceMap():";
 
     public static void main(String[] args) throws IOException {
         if (args.length != 3) {
             throw new IllegalArgumentException("usage: DynaFnGenerator <legend-engine root> <DynaFn.java> <output>");
         }
+        // the committed copy in '\n', whatever the checkout's line endings: the
+        // output is '\n' on every machine (write_generated_files gives it the
+        // checkout's)
         String generated = generate(upstream(Path.of(args[0])),
-                Files.readString(Path.of(args[1]), StandardCharsets.UTF_8));
+                Files.readString(Path.of(args[1]), StandardCharsets.UTF_8).replace("\r\n", "\n"));
         Files.writeString(Path.of(args[2]), generated, StandardCharsets.UTF_8);
     }
 
@@ -146,7 +149,11 @@ public final class DynaFnGenerator {
         }
         String last = lines.get(lines.size() - 1);
         lines.set(lines.size() - 1, last.substring(0, last.length() - 1) + ";");
-        int start = text.indexOf("public enum DynaFn {\n") + "public enum DynaFn {\n".length();
+        int open = text.indexOf("public enum DynaFn {\n");
+        if (open < 0) {
+            throw new IllegalStateException("enum declaration not found");
+        }
+        int start = open + "public enum DynaFn {\n".length();
         Matcher end = Pattern.compile("^    [A-Z_0-9]+\\(.*\\);\\n", Pattern.MULTILINE).matcher(text);
         if (!end.find(start)) {
             throw new IllegalStateException("member block not found");

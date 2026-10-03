@@ -2,8 +2,7 @@
 # compared byte for byte (Maven gate 8). The upstream jars are TEST inputs only and
 # live only here: core must never see org.finos.legend.
 load("@rules_java//java:defs.bzl", "java_library")
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
-load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
+load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags", "write_generated_files")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/jars:defs.bzl", "java_jars")
@@ -241,7 +240,7 @@ java_run(
 
 # GENERATED FILES in this package: `bazel run //:update_generated` writes them;
 # `bazel test` fails when a committed copy differs, naming the command.
-write_source_files(
+write_generated_files(
     name = "update_generated",
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",

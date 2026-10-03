@@ -33,7 +33,10 @@ Beside the gates, in `bazel test //...`:
   (Pure.java's signatures, DynaFn.java, NameResolver.java's imports,
   prelude.pure, native-claims.tsv, the fixture snapshot, the corpus manifest,
   the protocol roster, DataCube's lite-facts.ts) equals its generator's output.
-  Regenerate: `bazel run //:update_generated`.
+  Regenerate: `bazel run //:update_generated`. The generators write `\n`;
+  `write_generated_files` (//tools/generators) gives each output its committed
+  copy's line endings first, by git's autocrlf rule, so a CRLF checkout compares
+  as equal too (`//tools/generators:checkout_line_endings_test` holds that rule).
 - **Source checks** — `//core:guardrails` (tests whose subject is core's own
   code: size and layer guardrails, shrink-only ratchets, ledgers; `@Tag("guardrail")`)
   and `//core:census` (the ones that walk other modules too; `@Tag("census")`).

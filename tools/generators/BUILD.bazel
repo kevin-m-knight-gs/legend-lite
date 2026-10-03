@@ -1,0 +1,21 @@
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+
+# A generator's output with its committed copy's line endings: the step
+# write_generated_files (defs.bzl) puts between each generator and its diff test.
+java_library(
+    name = "checkout_line_endings",
+    srcs = ["CheckoutLineEndings.java"],
+    visibility = ["//visibility:public"],
+)
+
+junit_test(
+    name = "checkout_line_endings_test",
+    size = "small",
+    srcs = ["CheckoutLineEndingsTest.java"],
+    select = ["--select-class=com.legend.tools.generators.CheckoutLineEndingsTest"],
+    deps = [
+        ":checkout_line_endings",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
