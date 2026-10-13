@@ -27,7 +27,7 @@ import java.util.List;
 public final class MySql extends MariaDb {
 
     public MySql() {
-        super(Lexicon.MARIADB, TypeNames.MARIADB, Spellings.MARIADB);
+        super(Lexicon.MARIADB, TypeNames.MARIADB);
     }
 
     /** Every function, by name: MariaDB's (the dialect program's Phase 1, 2026-10-13: MySQL decides each function

@@ -178,12 +178,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return writer.append(")");
     }
 
-    /** joinStrings over a LITERAL element list: the engine's H2 emission
-     * is one flat {@code concat(el1, el2, ..., <separator args as
-     * written>)} — separators appended at the END, never between (the
-     * 1-arg form desugars to three {@code ''}). Recognizes the lowered
-     * COALESCE(STRING_AGG)+CONCAT wrappers; non-literal collections fall
-     * through to the honest wall. */
     /** Engine-TEXT view of checked narrowing: the VERBATIM inner value
      * — the engine translates toOne to processNoOp in SQL (D1; the
      * NULLS-suppression precedent for engine-verbatim views). */
@@ -200,38 +194,64 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return writer.expr(cl.list(), parentPrec);
     }
 
-    private SqlWriter.@com.legend.base.Nullable Piece joinStringsFlat(SqlExpr.Call c) {
+    /** The {@code CONCAT} arm of {@link #call}. joinStrings over a LITERAL
+     * element list: the engine's H2 emission is one flat {@code concat(el1,
+     * el2, ..., <separator args as written>)} — separators appended at the
+     * END, never between (the 1-arg form desugars to three {@code ''}).
+     * Recognizes the lowered COALESCE(STRING_AGG)+CONCAT wrappers (the
+     * 1/2-arg forms are {@link #coalesceArm}'s); non-literal collections
+     * fall through to the honest wall. */
+    private SqlWriter concatArm(SqlWriter writer, SqlExpr.Call c) {
         // 4-arg forms: CONCAT(CONCAT(prefix, J), suffix) [list-value arm]
         // or CONCAT(prefix, CONCAT(J, suffix)) [pure-value arm]
-        if (c.fn() == com.legend.sql.SqlFn.CONCAT && c.args().size() == 2) {
+        if (c.args().size() == 2) {
             if (c.args().get(0) instanceof SqlExpr.Call c0
                     && c0.fn() == com.legend.sql.SqlFn.CONCAT
                     && c0.args().size() == 2
                     && joinedReduction(c0.args().get(1)) instanceof
                             SqlExpr.ReduceCollection rc) {
-                return flatConcat(rc, java.util.List.of(c0.args().get(0),
-                        rc.extras().get(0), c.args().get(1)));
+                return writer.piece(flatConcat(rc, java.util.List.of(c0.args().get(0),
+                        rc.extras().get(0), c.args().get(1))));
             }
             if (c.args().get(1) instanceof SqlExpr.Call c1
                     && c1.fn() == com.legend.sql.SqlFn.CONCAT
                     && c1.args().size() == 2
                     && joinedReduction(c1.args().get(0)) instanceof
                             SqlExpr.ReduceCollection rc2) {
-                return flatConcat(rc2, java.util.List.of(c.args().get(0),
-                        rc2.extras().get(0), c1.args().get(1)));
+                return writer.piece(flatConcat(rc2, java.util.List.of(c.args().get(0),
+                        rc2.extras().get(0), c1.args().get(1))));
             }
         }
-        // 1/2-arg forms: bare COALESCE(RC, '') — an EMPTY separator is
-        // the 1-arg desugar joinStrings(s, '', '', '')
+        return writer.append("concat(").list(flattenConcat(c.args())).append(")");
+    }
+
+    /** The {@code COALESCE} arm of {@link #call}. */
+    private SqlWriter coalesceArm(SqlWriter writer, SqlExpr.Call c) {
+        java.util.List<SqlExpr> a = c.args();
+        // joinStrings' 1/2-arg forms (the 4-arg ones are concatArm's): bare
+        // COALESCE(RC, '') — an EMPTY separator is the 1-arg desugar
+        // joinStrings(s, '', '', '')
         if (joinedReduction(c) instanceof SqlExpr.ReduceCollection rc) {
             SqlExpr sep = rc.extras().get(0);
             java.util.List<SqlExpr> seps = sep instanceof SqlExpr.StringLit s
                     && s.value().isEmpty()
                     ? java.util.List.of(sep, sep, sep)
                     : java.util.List.of(sep);
-            return flatConcat(rc, seps);
+            return writer.piece(flatConcat(rc, seps));
         }
-        return null;
+        // an OPTIONAL COLLECTION plan parameter's size (isEmpty/isNotEmpty
+        // over a String[*] param): the engine's collectionSize template —
+        // (${collectionSize(input![])}) — where execution reads the
+        // coalesced list length (testIsEmptyOnCollection golden)
+        if (a.size() == 2
+                && a.get(0) instanceof SqlExpr.Call len
+                && len.fn() == com.legend.sql.SqlFn.LIST_LENGTH
+                && len.args().size() == 1
+                && len.args().get(0) instanceof SqlExpr.PlanParam cp
+                && a.get(1) instanceof SqlExpr.IntLit zero && zero.value() == 0) {
+            return writer.append("(${collectionSize(").append(cp.name()).append("![])})");
+        }
+        return writer.function("coalesce", a);
     }
 
     /** The COALESCE(ReduceCollection(STRING_AGG, <literal list>, [sep]),
@@ -324,7 +344,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     public EngineStyleH2(boolean quoteIdentifiers, @com.legend.base.Nullable String timeZone) {
-        super(Lexicon.ENGINE_STYLE, TypeNames.ANSI, Spellings.DUCKDB);
+        super(Lexicon.ENGINE_STYLE, TypeNames.ANSI);
         this.quoteIdentifiers = quoteIdentifiers;
         this.timeZone = timeZone;
     }
@@ -1703,29 +1723,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
-        SqlWriter.Piece flat = joinStringsFlat(c);
-        if (flat != null) {
-            return writer.piece(flat);
-        }
-        // an OPTIONAL COLLECTION plan parameter's size (isEmpty/isNotEmpty
-        // over a String[*] param): the engine's collectionSize template —
-        // (${collectionSize(input![])}) — where execution reads the
-        // coalesced list length (testIsEmptyOnCollection golden)
-        if (c.fn() == com.legend.sql.SqlFn.COALESCE && a.size() == 2
-                && a.get(0) instanceof SqlExpr.Call len
-                && len.fn() == com.legend.sql.SqlFn.LIST_LENGTH
-                && len.args().size() == 1
-                && len.args().get(0) instanceof SqlExpr.PlanParam cp
-                && a.get(1) instanceof SqlExpr.IntLit zero && zero.value() == 0) {
-            return writer.append("(${collectionSize(").append(cp.name()).append("![])})");
-        }
         return switch (c.fn()) {
             // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
             // relational H2 codegen for every HashType
-            case MD5, SHA1, SHA256 -> writer.append("rawtohex(hash('")
-                    .append(c.fn() == com.legend.sql.SqlFn.MD5 ? "MD5"
-                            : c.fn() == com.legend.sql.SqlFn.SHA1 ? "SHA-1" : "SHA-256")
-                    .append("', ").expr(a.get(0), 0).append("))");
+            case MD5 -> digest(writer, "MD5", a);
+            case SHA1 -> digest(writer, "SHA-1", a);
+            case SHA256 -> digest(writer, "SHA-256", a);
             // engine-H2 spellings (sqlstring goldens): cbrt has no H2
             // native; the trim family spells regexp; pads ride the
             // legend H2 extension with the pad char EXPLICIT
@@ -1740,13 +1743,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case RPAD -> padCall(writer, "legend_h2_extension_rpad", a);
             // n-ary concat: nested CONCAT calls SPLICE (the engine emits
             // one flat concat(a, '_', b), never concat(concat(a,'_'),b))
-            case CONCAT -> writer.append("concat(").list(flattenConcat(a)).append(")");
+            case CONCAT -> concatArm(writer, c);
             // datediff(<bare unit>, a, b); composite elapsed-time forms
             // built at lowering (weeks/hours/...) have no re-spelling here
             case DATE_DIFF -> a.get(0) instanceof SqlExpr.StringLit u
                     ? writer.append("datediff(").append(u.value()).append(", ").expr(a.get(1), 0).append(", ")
                             .expr(a.get(2), 0).append(")")
-                    : row(writer, c);
+                    : writer.function("date_diff", a);
             // engine H2 adjust: dateadd(UNIT, n, x) (h2Extension dynaFn
             // 'adjust' + extensionDefaults mapToDBUnitType) — the ANSI
             // base's d + to_days(n) is the DuckDB-executable spelling
@@ -1771,74 +1774,22 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // enum-by-name temporals: the engine's H2 formatdatetime forms.
             // UNMATCHED formats THROW — falling back to strftime() would
             // leak a DuckDB spelling into engine-H2 golden text (audit 19)
-            case STRFTIME -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl
-                        && fl.parts().size() == 1
-                        && fl.parts().get(0) instanceof com.legend.sql.DateFmt.Part p) {
-                    String java = switch (p) {
-                        case MONTH_NAME -> "MMMM";
-                        case WEEKDAY_NAME -> "EEEE";
-                        default -> null;
-                    };
-                    if (java != null) {
-                        yield writer.append("formatdatetime(").expr(a.get(0), 0).append(", '").append(java)
-                                .append("')");
-                    }
-                }
-                throw new IllegalStateException("strftime format has no"
-                        + " engine-H2 formatdatetime spelling yet: " + a);
-            }
+            case STRFTIME -> strftimeArm(writer, c);
             case TRIM -> a.size() == 1
                     ? writer.append("trim(both from ").expr(a.get(0), 0).append(")")
-                    : row(writer, c);
+                    : writer.function("trim", a);
             case DATE_TRUNC_DAY -> writer.append("cast(truncate(").expr(a.get(0), 0).append(") as date)");
             // contains(x, 'lit') lowers strpos(x, lit) > 0; the engine's
             // H2 spelling is the LIKE form (extensionDefaults 'contains'
             // — m2m2rShowcase golden: description like '%RECEIVE CASH%')
-            case GREATER -> {
-                if (a.size() == 2
-                    && a.get(0) instanceof SqlExpr.Call sp
-                    && sp.fn() == com.legend.sql.SqlFn.STRPOS
-                    && sp.args().size() == 2
-                    && sp.args().get(1) instanceof SqlExpr.StringLit lit
-                    && a.get(1) instanceof SqlExpr.IntLit z
-                    && z.value() == 0) {
-                    writer.expr(sp.args().get(0), 0).append(" like '%").append(lit.value().replace("'", "''"))
-                            .append("%'");
-                } else {
-                    infix(writer, c, parentPrec);
-                }
-                yield writer;
-            }
+            case GREATER -> greater(writer, c, parentPrec);
             // extract-part goldens spell the SQL-standard extract form
             // (testToSQLString.pure:368 'extract(doy from ...)'; the
             // engine's spelling of that form: oracleExtension.pure:204)
-            case EXTRACT -> {
-                if (a.size() == 2
-                    && a.get(0) instanceof SqlExpr.StringLit part
-                    && "doy".equals(part.value())) {
-                    writer.append("extract(doy from ").expr(a.get(1), 0).append(")");
-                } else {
-                    row(writer, c);
-                }
-                yield writer;
-            }
+            case EXTRACT -> extractArm(writer, c);
             // firstDayOf* family: every H2 golden spells the uniform
             // double cast; a TODAY anchor renders bare now() inside
-            case DATE_TRUNC -> {
-                if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u
-                        && Set.of("week", "month", "quarter", "year")
-                                .contains(u.value())) {
-                    writer.append("cast(cast(date_trunc('").append(u.value()).append("', ");
-                    if (a.get(1) instanceof SqlExpr.Call tc && tc.fn() == com.legend.sql.SqlFn.TODAY) {
-                        writer.append("now()");
-                    } else {
-                        writer.expr(a.get(1), 0);
-                    }
-                    yield writer.append(") as timestamp) as date)");
-                }
-                yield dateTruncDateGrained(writer, a);
-            }
+            case DATE_TRUNC -> dateTrunc(writer, c);
             // parse-date family: the engine's rule (convertToDateH2) is
             // substring(x, 1, 10) + the Java pattern for ALL date-only
             // formats; datetime formats parse the whole string. UNMATCHED
@@ -1847,28 +1798,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // (h2Extension2_1_214 transformToTimestampH2 — ONE fixed pattern)
             case PARSE_DATE -> writer.append("cast(parsedatetime(").expr(a.get(0), 0)
                     .append(", 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]') as timestamp)");
-            case STRPTIME -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
-                    String java = h2Pattern(fl);
-                    if (java != null) {
-                        boolean dateOnly = !fl.parts()
-                                .contains(com.legend.sql.DateFmt.Part.HOUR2);
-                        // the engine's MMMyyyy hack (convertToDateH2 FIXME):
-                        // a month-year text parses with a '01' day prepended
-                        if (java.equals("MMMyyyy")) {
-                            yield writer.append("parsedatetime(concat('01', ").expr(a.get(0), 0)
-                                    .append("), 'ddMMMyyyy')");
-                        }
-                        yield dateOnly
-                                ? writer.append("parsedatetime(substring(").expr(a.get(0), 0).append(", 1, 10), '")
-                                        .append(java).append("')")
-                                : writer.append("parsedatetime(").expr(a.get(0), 0).append(", '").append(java)
-                                        .append("')");
-                    }
-                }
-                throw new IllegalStateException("strptime format has no"
-                        + " engine-H2 parsedatetime spelling yet: " + a);
-            }
+            case STRPTIME -> strptimeArm(writer, c);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1919,14 +1849,66 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case TO_VARIANT -> variantConstruct(writer, c.args());
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
             case VARIANT_GET -> variantGet(writer, c.args());
-            // this dialect's Spellings row: name(args)
-            case ABS, COALESCE, UPPER, LOWER, GREATEST, LEAST, LIST_FLATTEN, SQRT, EXP, LN, LOG10, POW, SIN, COS, TAN,
-                 ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE,
-                 REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
-                 STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, REPLACE, SPLIT, ASCII_CODE, LEVENSHTEIN, FORMAT,
-                 MAKE_DATE, TIMEZONE, EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, DAYNAME, MONTHNAME,
-                 COT, RADIANS, DEGREES, REPEAT_STR, JARO_WINKLER, LIST_LENGTH, FLOOR_RAW, JSON_TYPE,
-                 JSON_ARRAY_LENGTH, JSON_PRETTY -> row(writer, c);
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case COALESCE -> coalesceArm(writer, c);
+            case UPPER -> writer.function("upper", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case GREATEST -> writer.function("greatest", c.args());
+            case LEAST -> writer.function("least", c.args());
+            case LIST_FLATTEN -> writer.function("flatten", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case POW -> writer.function("power", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case COS -> writer.function("cos", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case ASIN -> writer.function("asin", c.args());
+            case ACOS -> writer.function("acos", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case REGEXP_EXTRACT -> writer.function("regexp_extract", c.args());
+            case REGEXP_EXTRACT_ALL -> writer.function("regexp_extract_all", c.args());
+            case REGEXP_REPLACE -> writer.function("regexp_replace", c.args());
+            case REGEXP_FULL_MATCH -> writer.function("regexp_full_match", c.args());
+            case MAP_FROM_LISTS -> writer.function("map", c.args());
+            case MAP_FROM_ENTRIES -> writer.function("map_from_entries", c.args());
+            case MAP_EXTRACT -> writer.function("map_extract", c.args());
+            case MAP_KEYS -> writer.function("map_keys", c.args());
+            case MAP_VALUES -> writer.function("map_values", c.args());
+            case MAP_CONCAT -> writer.function("map_concat", c.args());
+            case STARTS_WITH -> writer.function("starts_with", c.args());
+            case ENDS_WITH -> writer.function("ends_with", c.args());
+            case MATCHES -> writer.function("regexp_matches", c.args());
+            case LEFT -> writer.function("left", c.args());
+            case RIGHT -> writer.function("right", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case SPLIT -> writer.function("string_split", c.args());
+            case ASCII_CODE -> writer.function("ascii", c.args());
+            case LEVENSHTEIN -> writer.function("levenshtein", c.args());
+            case FORMAT -> writer.function("printf", c.args());
+            case MAKE_DATE -> writer.function("make_date", c.args());
+            case TIMEZONE -> writer.function("timezone", c.args());
+            case EPOCH_SECONDS -> writer.function("epoch", c.args());
+            case EPOCH_MS -> writer.function("epoch_ms", c.args());
+            case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
+            case DAYNAME -> writer.function("dayname", c.args());
+            case MONTHNAME -> writer.function("monthname", c.args());
+            case COT -> writer.function("cot", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case REPEAT_STR -> writer.function("repeat", c.args());
+            case JARO_WINKLER -> writer.function("jaro_winkler_similarity", c.args());
+            case LIST_LENGTH -> writer.function("len", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case JSON_TYPE -> writer.function("json_type", c.args());
+            case JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
+            case JSON_PRETTY -> writer.function("json_pretty", c.args());
             // DuckDB's spellings, which this text has carried since they were the base renderer's: legend-engine's
             // H2 text spells none of them, but the corpus reads this text on DuckDB too, and refusing them broke 14
             // passing corpus tests (D1, measured 2026-10-13) — the engine-text work's question (DuckDbSpellings)
@@ -1941,6 +1923,104 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case TIME_BUCKET -> DuckDbSpellings.timeBucket(writer, c.args());
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
         };
+    }
+
+    /** The digest arms of {@link #call}: {@code rawtohex(hash('<algorithm>', x))}. */
+    private SqlWriter digest(SqlWriter writer, String algorithm, java.util.List<SqlExpr> a) {
+        return writer.append("rawtohex(hash('").append(algorithm).append("', ").expr(a.get(0), 0).append("))");
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftimeArm(SqlWriter writer, SqlExpr.Call c) {
+        java.util.List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl
+                && fl.parts().size() == 1
+                && fl.parts().get(0) instanceof com.legend.sql.DateFmt.Part p) {
+            String java = switch (p) {
+                case MONTH_NAME -> "MMMM";
+                case WEEKDAY_NAME -> "EEEE";
+                default -> null;
+            };
+            if (java != null) {
+                return writer.append("formatdatetime(").expr(a.get(0), 0).append(", '").append(java)
+                        .append("')");
+            }
+        }
+        throw new IllegalStateException("strftime format has no"
+                + " engine-H2 formatdatetime spelling yet: " + a);
+    }
+
+    /** The {@code GREATER} arm of {@link #call}. */
+    private SqlWriter greater(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        java.util.List<SqlExpr> a = c.args();
+        if (a.size() == 2
+            && a.get(0) instanceof SqlExpr.Call sp
+            && sp.fn() == com.legend.sql.SqlFn.STRPOS
+            && sp.args().size() == 2
+            && sp.args().get(1) instanceof SqlExpr.StringLit lit
+            && a.get(1) instanceof SqlExpr.IntLit z
+            && z.value() == 0) {
+            writer.expr(sp.args().get(0), 0).append(" like '%").append(lit.value().replace("'", "''"))
+                    .append("%'");
+        } else {
+            infix(writer, c, parentPrec);
+        }
+        return writer;
+    }
+
+    /** The {@code EXTRACT} arm of {@link #call}. */
+    private SqlWriter extractArm(SqlWriter writer, SqlExpr.Call c) {
+        java.util.List<SqlExpr> a = c.args();
+        if (a.size() == 2
+            && a.get(0) instanceof SqlExpr.StringLit part
+            && "doy".equals(part.value())) {
+            writer.append("extract(doy from ").expr(a.get(1), 0).append(")");
+        } else {
+            writer.function("date_part", a);
+        }
+        return writer;
+    }
+
+    /** The {@code DATE_TRUNC} arm of {@link #call}. */
+    private SqlWriter dateTrunc(SqlWriter writer, SqlExpr.Call c) {
+        java.util.List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u
+                && Set.of("week", "month", "quarter", "year")
+                        .contains(u.value())) {
+            writer.append("cast(cast(date_trunc('").append(u.value()).append("', ");
+            if (a.get(1) instanceof SqlExpr.Call tc && tc.fn() == com.legend.sql.SqlFn.TODAY) {
+                writer.append("now()");
+            } else {
+                writer.expr(a.get(1), 0);
+            }
+            return writer.append(") as timestamp) as date)");
+        }
+        return dateTruncDateGrained(writer, a);
+    }
+
+    /** The {@code STRPTIME} arm of {@link #call}. */
+    private SqlWriter strptimeArm(SqlWriter writer, SqlExpr.Call c) {
+        java.util.List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
+            String java = h2Pattern(fl);
+            if (java != null) {
+                boolean dateOnly = !fl.parts()
+                        .contains(com.legend.sql.DateFmt.Part.HOUR2);
+                // the engine's MMMyyyy hack (convertToDateH2 FIXME):
+                // a month-year text parses with a '01' day prepended
+                if (java.equals("MMMyyyy")) {
+                    return writer.append("parsedatetime(concat('01', ").expr(a.get(0), 0)
+                            .append("), 'ddMMMyyyy')");
+                }
+                return dateOnly
+                        ? writer.append("parsedatetime(substring(").expr(a.get(0), 0).append(", 1, 10), '")
+                                .append(java).append("')")
+                        : writer.append("parsedatetime(").expr(a.get(0), 0).append(", '").append(java)
+                                .append("')");
+            }
+        }
+        throw new IllegalStateException("strptime format has no"
+                + " engine-H2 parsedatetime spelling yet: " + a);
     }
 
     /** TYPED format parts → the Java pattern the engine's parsedatetime

@@ -231,7 +231,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     public DuckDb() {
-        super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
+        super(Lexicon.DUCKDB, TypeNames.DUCKDB);
     }
 
     /** DuckDB DDL: a store FLOAT is DOUBLE (H2's FLOAT is double
@@ -254,28 +254,8 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        // len(DOUBLE): the corpus spells length() over numeric-typed
-        // expressions (engine H2 coerces); DuckDB has no len(DOUBLE) —
-        // stringify the argument first, matching the engine's implicit
-        // varchar coercion.
-        if (c.fn() == com.legend.sql.SqlFn.LENGTH
-                && !(c.args().get(0) instanceof SqlExpr.StringLit)) {
-            return writer.append("length(CAST(").expr(c.args().get(0), 0).append(" AS VARCHAR))");
-        }
-        // date_trunc('day', ts): DuckDB returns a DATE at day grain and
-        // coarser (TIMESTAMP only for hour and finer); the semantic fact is
-        // pure's firstHourOfDay(Date):DateTime — the engine's H2 keeps the
-        // TIMESTAMP, so this backend casts back to it. The coarser parts
-        // are the Date-typed heads (firstDayOf*) and stay as they are.
-        if (c.fn() == com.legend.sql.SqlFn.DATE_TRUNC
-                && c.args().get(0) instanceof SqlExpr.StringLit part
-                && part.value().equals("day")) {
-            writer.append("CAST(");
-            dateTruncDateGrained(writer, a);
-            return writer.append(" AS TIMESTAMP)");
-        }
-        // every function the checks above do not spell, each by name (the dialect program's Phase 1,
-        // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
+        // every function, each by name (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a new
+        // function asks this dialect too)
         return switch (c.fn()) {
             // ---- DuckDB's own spellings (the base renderer's until the dialect program's Phase 1, D1, 2026-10-13)
             // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
@@ -283,9 +263,8 @@ public final class DuckDb extends AnsiSqlRenderer {
             // DuckDB THROWS 'Unable to compute acos of 1.1'. Same rows on
             // both backends means guarding the domain and yielding NaN —
             // the engine's answer — not propagating DuckDB's exception.
-            case ACOS, ASIN -> writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ")
-                    .append(c.fn() == SqlFn.ACOS ? "acos" : "asin").append("(").expr(a.get(0), 0)
-                    .append(") ELSE 'NaN'::DOUBLE END)");
+            case ACOS -> domainGuarded(writer, "acos", a);
+            case ASIN -> domainGuarded(writer, "asin", a);
             // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
             // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
             // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
@@ -340,7 +319,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
-            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args());
+            case DATE_TRUNC -> dateTruncArm(writer, c);
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
@@ -368,16 +347,108 @@ public final class DuckDb extends AnsiSqlRenderer {
             case TO_VARIANT -> variantConstruct(writer, c.args());
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
             case VARIANT_GET -> variantGet(writer, c.args());
-            // this dialect's Spellings row: name(args)
-            case ABS, COALESCE, LENGTH, UPPER, LOWER, GREATEST, LEAST, LIST_FLATTEN, SQRT, CBRT, EXP, LN, LOG10, POW,
-                 SIN, COS, TAN, ATAN, ATAN2, SINH, COSH, TANH, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL,
-                 REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EXTRACT, MAP_KEYS,
-                 MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, TRIM, LTRIM,
-                 RTRIM, REPLACE, SPLIT, SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, LEVENSHTEIN, FORMAT, MD5, SHA1,
-                 SHA256, EXTRACT, MAKE_DATE, DATE_DIFF, TIMEZONE, EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS,
-                 DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, REPEAT_STR, JARO_WINKLER, LIST_LENGTH, STRFTIME, STRPTIME,
-                 FLOOR_RAW, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> row(writer, c);
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case COALESCE -> writer.function("coalesce", c.args());
+            case LENGTH -> lengthArm(writer, c);
+            case UPPER -> writer.function("upper", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case GREATEST -> writer.function("greatest", c.args());
+            case LEAST -> writer.function("least", c.args());
+            case LIST_FLATTEN -> writer.function("flatten", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case POW -> writer.function("power", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case COS -> writer.function("cos", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case REGEXP_EXTRACT -> writer.function("regexp_extract", c.args());
+            case REGEXP_EXTRACT_ALL -> writer.function("regexp_extract_all", c.args());
+            case REGEXP_REPLACE -> writer.function("regexp_replace", c.args());
+            case REGEXP_FULL_MATCH -> writer.function("regexp_full_match", c.args());
+            case MAP_FROM_LISTS -> writer.function("map", c.args());
+            case MAP_FROM_ENTRIES -> writer.function("map_from_entries", c.args());
+            case MAP_EXTRACT -> writer.function("map_extract", c.args());
+            case MAP_KEYS -> writer.function("map_keys", c.args());
+            case MAP_VALUES -> writer.function("map_values", c.args());
+            case MAP_CONCAT -> writer.function("map_concat", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case STRPOS -> writer.function("strpos", c.args());
+            case STARTS_WITH -> writer.function("starts_with", c.args());
+            case ENDS_WITH -> writer.function("ends_with", c.args());
+            case MATCHES -> writer.function("regexp_matches", c.args());
+            case LEFT -> writer.function("left", c.args());
+            case RIGHT -> writer.function("right", c.args());
+            case TRIM -> writer.function("trim", c.args());
+            case LTRIM -> writer.function("ltrim", c.args());
+            case RTRIM -> writer.function("rtrim", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case SPLIT -> writer.function("string_split", c.args());
+            case SPLIT_PART -> writer.function("split_part", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case ASCII_CODE -> writer.function("ascii", c.args());
+            case CHR -> writer.function("chr", c.args());
+            case LEVENSHTEIN -> writer.function("levenshtein", c.args());
+            case FORMAT -> writer.function("printf", c.args());
+            case MD5 -> writer.function("md5", c.args());
+            case SHA1 -> writer.function("sha1", c.args());
+            case SHA256 -> writer.function("sha256", c.args());
+            case EXTRACT -> writer.function("date_part", c.args());
+            case MAKE_DATE -> writer.function("make_date", c.args());
+            case DATE_DIFF -> writer.function("date_diff", c.args());
+            case TIMEZONE -> writer.function("timezone", c.args());
+            case EPOCH_SECONDS -> writer.function("epoch", c.args());
+            case EPOCH_MS -> writer.function("epoch_ms", c.args());
+            case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
+            case DAYNAME -> writer.function("dayname", c.args());
+            case MONTHNAME -> writer.function("monthname", c.args());
+            case COT -> writer.function("cot", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case REPEAT_STR -> writer.function("repeat", c.args());
+            case JARO_WINKLER -> writer.function("jaro_winkler_similarity", c.args());
+            case LIST_LENGTH -> writer.function("len", c.args());
+            case STRFTIME -> writer.function("strftime", c.args());
+            case STRPTIME -> writer.function("strptime", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case JSON_TYPE -> writer.function("json_type", c.args());
+            case JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
+            case JSON_PRETTY -> writer.function("json_pretty", c.args());
         };
+    }
+
+    /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: NaN outside the domain, as the engine's H2. */
+    private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
+        return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn).append("(")
+                .expr(a.get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
+    }
+
+    /** len(DOUBLE): the corpus spells length() over numeric-typed expressions (engine H2 coerces); DuckDB has no
+     *  len(DOUBLE) — stringify the argument first, matching the engine's implicit varchar coercion. */
+    private SqlWriter lengthArm(SqlWriter writer, SqlExpr.Call c) {
+        return c.args().get(0) instanceof SqlExpr.StringLit
+                ? writer.function("length", c.args())
+                : writer.append("length(CAST(").expr(c.args().get(0), 0).append(" AS VARCHAR))");
+    }
+
+    /** date_trunc('day', ts): DuckDB returns a DATE at day grain and coarser (TIMESTAMP only for hour and finer); the
+     *  semantic fact is pure's firstHourOfDay(Date):DateTime — the engine's H2 keeps the TIMESTAMP, so this backend
+     *  casts back to it. The coarser parts are the Date-typed heads (firstDayOf*) and stay as they are. */
+    private SqlWriter dateTruncArm(SqlWriter writer, SqlExpr.Call c) {
+        if (c.args().get(0) instanceof SqlExpr.StringLit part && part.value().equals("day")) {
+            writer.append("CAST(");
+            dateTruncDateGrained(writer, c.args());
+            return writer.append(" AS TIMESTAMP)");
+        }
+        return dateTruncDateGrained(writer, c.args());
     }
 
     @Override

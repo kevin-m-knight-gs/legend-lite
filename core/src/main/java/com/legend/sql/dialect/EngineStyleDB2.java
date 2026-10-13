@@ -179,16 +179,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             case REVERSE_STRING -> writer.append("reverse(").expr(a.get(0), 0).append(")");
             // DB2 spells dayOfYear as the bare function
             // (db2Extension.pure:91 — 'dayofyear(%s)')
-            case EXTRACT -> {
-                if (c.args().size() == 2
-                    && c.args().get(0) instanceof SqlExpr.StringLit pt
-                    && "doy".equals(pt.value())) {
-                    writer.append("dayofyear(").expr(c.args().get(1), 0).append(")");
-                } else {
-                    super.call(writer, c, parentPrec);
-                }
-                yield writer;
-            }
+            case EXTRACT -> extract(writer, c, parentPrec);
             // DB2 wraps left/right in trim (db2Extension.pure:100/:115 —
             // 'trim(left(%s, %s))'/'trim(right(%s, %s))')
             case LEFT -> writer.append("trim(left(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append("))");
@@ -199,72 +190,15 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             // date(1) with labeled year/month arithmetic (per-unit golden
             // text, parens verbatim — quarter parenthesizes the YEARS
             // term, month/year do not)
-            case DATE_TRUNC -> {
-                if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u) {
-                    SqlWriter.Piece anchor = a.get(1) instanceof SqlExpr.Call tc
-                            && tc.fn() == com.legend.sql.SqlFn.TODAY
-                            ? w -> w.append("current date") : w -> w.expr(a.get(1), 0);
-                    SqlWriter.Piece spelled = switch (u.value()) {
-                        case "year" -> w -> w.append("date(1) + (year(").piece(anchor).append(")-1) YEARS");
-                        case "month" -> w -> w.append("date(1) + (year(").piece(anchor)
-                                .append(")-1) YEARS + (month(").piece(anchor).append(")-1) MONTHS");
-                        case "quarter" -> w -> w.append("date(1) + ((year(").piece(anchor)
-                                .append(")-1) YEARS) + (3 * QUARTER(").piece(anchor).append(") - 3) MONTHS");
-                        default -> null;
-                    };
-                    if (spelled != null) {
-                        yield writer.piece(spelled);
-                    }
-                }
-                throw new IllegalStateException("date_trunc unit has no"
-                        + " engine-DB2 spelling yet: " + a);
-            }
+            case DATE_TRUNC -> dateTrunc(writer, c);
             // DB2 interval arithmetic: x - 1 MONTHS / x + 3 DAYS (the
             // relative-date goldens) — the IR's ADD_INTERVAL
             // [unitFn, count, anchor] respells as infix labeled units
-            case ADD_INTERVAL -> {
-                if (a.size() == 3 && a.get(0) instanceof SqlExpr.StringLit u
-                        && a.get(1) instanceof SqlExpr.IntLit n) {
-                    String unit = switch (u.value()) {
-                        case "to_years" -> "YEARS";
-                        case "to_months" -> "MONTHS";
-                        case "to_days" -> "DAYS";
-                        case "to_hours" -> "HOURS";
-                        case "to_minutes" -> "MINUTES";
-                        case "to_seconds" -> "SECONDS";
-                        default -> null;
-                    };
-                    long v = n.value();
-                    if (unit == null && u.value().equals("to_weeks")) {
-                        // DB2 has no WEEKS label — the engine spells
-                        // weeks as days ('- 14 DAYS' for 2 weeks)
-                        unit = "DAYS";
-                        v = v * 7;
-                    }
-                    if (unit != null) {
-                        yield writer.expr(a.get(2), 0).append((v < 0 ? " - " + (-v) : " + " + v)).append(" ")
-                                .append(unit);
-                    }
-                }
-                throw new IllegalStateException("interval shape has no"
-                        + " engine-DB2 spelling yet: " + a);
-            }
+            case ADD_INTERVAL -> addInterval(writer, c);
             // parse-date family: DB2's to_date/timestamp_format take the
             // whole string with the Java-style pattern (no substring, no
             // space after the comma — the goldens' exact text)
-            case STRPTIME -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
-                    String java = db2Pattern(fl);
-                    if (java != null) {
-                        boolean dateOnly = !fl.parts()
-                                .contains(com.legend.sql.DateFmt.Part.HOUR2);
-                        yield writer.append((dateOnly ? "to_date(" : "timestamp_format(")).expr(a.get(0), 0)
-                                .append(",'").append(java).append("')");
-                    }
-                }
-                throw new IllegalStateException("strptime format has no"
-                        + " engine-DB2 spelling yet: " + a);
-            }
+            case STRPTIME -> strptime(writer, c);
             // every other function, by name: inherited from the parent dialect as written today (the dialect
             // program's Phase 1, 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
@@ -286,6 +220,87 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                  ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS,
                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
         };
+    }
+
+    /** The {@code EXTRACT} arm of {@link #call}. */
+    private SqlWriter extract(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        if (c.args().size() == 2
+            && c.args().get(0) instanceof SqlExpr.StringLit pt
+            && "doy".equals(pt.value())) {
+            writer.append("dayofyear(").expr(c.args().get(1), 0).append(")");
+        } else {
+            super.call(writer, c, parentPrec);
+        }
+        return writer;
+    }
+
+    /** The {@code DATE_TRUNC} arm of {@link #call}. */
+    private SqlWriter dateTrunc(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u) {
+            SqlWriter.Piece anchor = a.get(1) instanceof SqlExpr.Call tc
+                    && tc.fn() == com.legend.sql.SqlFn.TODAY
+                    ? w -> w.append("current date") : w -> w.expr(a.get(1), 0);
+            SqlWriter.Piece spelled = switch (u.value()) {
+                case "year" -> w -> w.append("date(1) + (year(").piece(anchor).append(")-1) YEARS");
+                case "month" -> w -> w.append("date(1) + (year(").piece(anchor)
+                        .append(")-1) YEARS + (month(").piece(anchor).append(")-1) MONTHS");
+                case "quarter" -> w -> w.append("date(1) + ((year(").piece(anchor)
+                        .append(")-1) YEARS) + (3 * QUARTER(").piece(anchor).append(") - 3) MONTHS");
+                default -> null;
+            };
+            if (spelled != null) {
+                return writer.piece(spelled);
+            }
+        }
+        throw new IllegalStateException("date_trunc unit has no"
+                + " engine-DB2 spelling yet: " + a);
+    }
+
+    /** The {@code ADD_INTERVAL} arm of {@link #call}. */
+    private SqlWriter addInterval(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 3 && a.get(0) instanceof SqlExpr.StringLit u
+                && a.get(1) instanceof SqlExpr.IntLit n) {
+            String unit = switch (u.value()) {
+                case "to_years" -> "YEARS";
+                case "to_months" -> "MONTHS";
+                case "to_days" -> "DAYS";
+                case "to_hours" -> "HOURS";
+                case "to_minutes" -> "MINUTES";
+                case "to_seconds" -> "SECONDS";
+                default -> null;
+            };
+            long v = n.value();
+            if (unit == null && u.value().equals("to_weeks")) {
+                // DB2 has no WEEKS label — the engine spells
+                // weeks as days ('- 14 DAYS' for 2 weeks)
+                unit = "DAYS";
+                v = v * 7;
+            }
+            if (unit != null) {
+                return writer.expr(a.get(2), 0).append((v < 0 ? " - " + (-v) : " + " + v)).append(" ")
+                        .append(unit);
+            }
+        }
+        throw new IllegalStateException("interval shape has no"
+                + " engine-DB2 spelling yet: " + a);
+    }
+
+    /** The {@code STRPTIME} arm of {@link #call}. */
+    private SqlWriter strptime(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
+            String java = db2Pattern(fl);
+            if (java != null) {
+                boolean dateOnly = !fl.parts()
+                        .contains(com.legend.sql.DateFmt.Part.HOUR2);
+                return writer.append((dateOnly ? "to_date(" : "timestamp_format(")).expr(a.get(0), 0)
+                        .append(",'").append(java).append("')");
+            }
+        }
+        throw new IllegalStateException("strptime format has no"
+                + " engine-DB2 spelling yet: " + a);
     }
 
     /** TYPED format parts → DB2's pattern spelling; null when a part has

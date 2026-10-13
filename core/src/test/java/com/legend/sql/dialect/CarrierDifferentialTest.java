@@ -625,7 +625,7 @@ class CarrierDifferentialTest {
         private final DuckDb duck = new DuckDb();
 
         Portable() {
-            super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
+            super(Lexicon.DUCKDB, TypeNames.DUCKDB);
         }
 
         @Override

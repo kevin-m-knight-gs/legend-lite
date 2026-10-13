@@ -1,7 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1 and 2 are done (2a4a5c8, 9373aec), and P1a, P1c, P1d and the capability matrix remain before the review (D7).
+steps 1 and 2 are done (2a4a5c8, 9373aec), step 3's function tables are written (its measurement and the aggregate
+tables next), and P1a, P1c, P1d and the capability matrix remain before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -425,6 +426,26 @@ baseline's targets, on all eleven databases, pass with SQL identical to the base
 also here, as above). BigQuery's channel B grammar failed once and differed, then passed and matched on a rerun: an
 ordered collection there comes back in either order (§3, defect 10), and its outcome decides the statements after it; BigQuery waits on a permission
 (below). `//gates:local` is green again on the final code (b2efac3: 347 under the recipe, the root-only pair as root). The corpus caught what neither PCT nor the gate did: on 9373aec, 14 tests that pass at 2a4a5c8 failed on both corpora (sibling 1a's run), all through the engine-H2 text's refusals (above). After c7cd917, `//spec:corpus_duckdb` is green and `//spec:corpus_h2` is green with two of its registers shrunk (27a7b8a; the reasons in `docs/GATES.md`); `//core:stress_suites` and `//core:stress_suites_h2` pass. The lesson for every later step: the corpus suites run on any step that touches H2, the engine-H2 text or raw SQL.
+
+**Step 3, 2026-10-13: each concrete dialect's switch is its whole function table** (the user's call: compile-checked,
+with nothing around it to read). Every arm of a dialect's deciding switch is one expression:
+- the spelling, its name written inline (`case ABS -> writer.function("abs", c.args())`). These replaced the
+  `Spellings` rows: `Spellings.java` is deleted, and so is `SpellingsTest`, the classification ledger that stood in for
+  the switch's exhaustiveness while the names were data; javac's exhaustive switches and `DialectVocabularyTest` do
+  its job;
+- a call to a named method: the 69 block arms; the checks of one function ahead of the switch (H2's five, DuckDB's
+  two, H2Modern's `CARDINALITY`, the composite equalities of SQLite, MariaDB, ClickHouse and BigQuery, the engine
+  text's flattened joinStrings and `collectionSize`, EngineStyleComposite's two), each now that function's arm; the
+  nine arms that picked their name with a ternary on the function, now an arm per function;
+- or a refusal.
+The base's `call` refuses every function. Postgres had two switches, `call`'s list-making arms ahead of
+`postgresCall`'s table, so five functions had two arms; they are one switch. `DialectVocabularyTest
+.eachFunctionTableIsOneSwitchOfOneExpressionArms` fails on a block arm, or on a test of which function the deciding
+method has, before the switch or inside an arm (checked by planting each). A rearrangement ahead of the switch that
+applies to a SET of functions stays: SQLite's repeated bindable arguments, Trino's and Databricks' NULL over an empty
+list, Postgres's empty collection. Every deciding method fits `CodeShapeGuardrailTest`'s 250-line limit with its
+allowlist empty (the longest, Postgres's `call`, 241 lines). The aggregate tables come next, the same way; the guard
+then holds `reducer` too (`ONE_EXPRESSION_TABLES`).
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 

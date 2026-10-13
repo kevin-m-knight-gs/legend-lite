@@ -40,12 +40,10 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     private final Lexicon lexicon;
     private final TypeNames typeNames;
-    private final Spellings spellings;
 
-    public AnsiSqlRenderer(Lexicon lexicon, TypeNames typeNames, Spellings spellings) {
+    public AnsiSqlRenderer(Lexicon lexicon, TypeNames typeNames) {
         this.lexicon = java.util.Objects.requireNonNull(lexicon, "lexicon");
         this.typeNames = java.util.Objects.requireNonNull(typeNames, "typeNames");
-        this.spellings = java.util.Objects.requireNonNull(spellings, "spellings");
     }
 
     private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
@@ -691,26 +689,16 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * A function call. Each concrete dialect decides every {@link SqlFn} in its own exhaustive switch
-     * (DialectVocabularyTest; the dialect program's Phase 1, 2026-10-13), calling by name the helpers below: the
-     * base spells none. Only a dialect's own {@link Spellings} row reaches it ({@link #row}), until P1a writes the rows
-     * into the switches.
+     * A function call. Each concrete dialect decides every {@link SqlFn} in its own exhaustive switch, its whole table:
+     * each function's spelling, the named helper that writes it, or its refusal (DialectVocabularyTest; the dialect
+     * program's Phase 1, 2026-10-13). The base spells none, so a call reaching it is refused.
      */
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        return row(writer, c);
+        throw new DialectCapability(c.fn() + " reached the base renderer, which spells no function");
     }
 
     // ---- the helpers a dialect's switch calls by name: a spelling several databases share, written once (helpers
     // implement, the switch decides; none is reached unless a dialect names it)
-
-    /** The function as this dialect's {@link Spellings} row names it: {@code name(args)}. */
-    protected final SqlWriter row(SqlWriter writer, SqlExpr.Call c) {
-        String plain = spellings.fnNames().get(c.fn());
-        if (plain == null) {
-            throw new DialectCapability(c.fn() + " has no spelling row in this dialect");
-        }
-        return writer.append(plain).append("(").list(c.args()).append(")");
-    }
 
     /** An infix operator (OR, AND, the comparisons, {@code + - *}), ANSI-spelled, parenthesized by precedence. */
     protected final SqlWriter infix(SqlWriter writer, SqlExpr.Call c, int parentPrec) {

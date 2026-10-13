@@ -75,15 +75,7 @@ class DialectVocabularyTest {
                 if (v.sw() == null) {
                     continue;
                 }
-                // the switch that decides: in the method itself, or in the one it hands every point to
-                // (SQLite.calls, ClickHouse.reducerIn); a helper's own switch over a subset is not it
-                String first = "\\s*\\(\\s*[\\w.]*" + v.params()[0].getSimpleName() + "\\b";
-                String decider = body(src, "\\b" + v.method() + first);
-                if (decider != null && !decider.contains(v.sw())) {
-                    java.util.regex.Matcher to = java.util.regex.Pattern
-                            .compile("return\\s+(\\w+)\\(writer,\\s*[cr]\\b").matcher(decider);
-                    decider = to.find() ? body(src, "\\b" + to.group(1) + first) : null;
-                }
+                String decider = decider(src, v);
                 if (decider == null) {
                     wrong.add(name + ": its " + v.method() + "() was not found in its source");
                     continue;
@@ -114,7 +106,7 @@ class DialectVocabularyTest {
      * THE BASE SPELLS NO FUNCTION (decision D1, 2026-10-13): a dialect whose parent is the base renderer names every
      * function's spelling itself, calling the base's shared helpers by name, and never hands one to the base's
      * {@code call} (only a family member hands a function to its parent, a concrete dialect); the base's {@code call}
-     * writes only a dialect's own Spellings row.
+     * refuses every function.
      */
     @Test
     void noDialectTakesAFunctionFromTheBase() throws IOException, ClassNotFoundException {
@@ -133,13 +125,104 @@ class DialectVocabularyTest {
             }
             if (cls == AnsiSqlRenderer.class) {
                 String call = body(code, "\\bcall\\s*\\(\\s*SqlWriter\\b");
-                if (call == null || !call.replaceAll("\\s+", " ").equals("{ return row(writer, c); }")) {
-                    wrong.add("the base renderer's call() spells something beyond a dialect's row: " + call);
+                if (call == null || !call.replaceAll("\\s+", " ").startsWith("{ throw new DialectCapability(")) {
+                    wrong.add("the base renderer's call() spells something instead of refusing: " + call);
                 }
             }
         }
         assertTrue(wrong.isEmpty(), "a function spelled by the base renderer for a dialect that did not name it: "
                 + wrong);
+    }
+
+    /**
+     * EACH DIALECT'S FUNCTION TABLE IS ONE SWITCH OF ONE-EXPRESSION ARMS (the user's decision, 2026-10-13, "let's do
+     * it right"; docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md Phase 1b step 3). The switch that decides a
+     * dialect's functions is its whole table: each arm is one expression (the spelling, its names written inline; a
+     * call to a named method; a refusal), never a block, and nothing in the deciding method tests which function it
+     * has, before the switch or inside an arm, so an arm is all there is to read for its function. A rearrangement
+     * before the switch that applies to a SET of functions (a set's {@code contains}) tests no one function and stays.
+     */
+    @Test
+    void eachFunctionTableIsOneSwitchOfOneExpressionArms() throws IOException, ClassNotFoundException {
+        List<String> wrong = new ArrayList<>();
+        int tables = 0;
+        for (Path f : SourceFiles.in(DIALECTS)) {
+            String file = f.getFileName().toString();
+            if (!file.endsWith(".java") || file.equals("package-info.java")) {
+                continue;
+            }
+            String name = file.substring(0, file.length() - ".java".length());
+            Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
+                    DialectVocabularyTest.class.getClassLoader());
+            if (cls == AnsiSqlRenderer.class || !AnsiSqlRenderer.class.isAssignableFrom(cls)
+                    || Modifier.isAbstract(cls.getModifiers())) {
+                continue;
+            }
+            String code = code(Files.readString(f));
+            for (Vocabulary v : VOCABULARIES) {
+                if (!ONE_EXPRESSION_TABLES.contains(v.method())) {
+                    continue;
+                }
+                String decider = decider(code, v);
+                if (decider == null) {
+                    continue;   // the first test names it
+                }
+                tables++;
+                wrong.addAll(oneExpressionArms(name + "." + v.method() + "()", decider, v.sw()));
+            }
+        }
+        assertTrue(tables >= 15, "the dialects' function tables were not found: " + tables);
+        assertTrue(wrong.isEmpty(), "a function table that is not one switch of one-expression arms: " + wrong);
+    }
+
+    /** The vocabularies whose deciding switch is held to one-expression arms. */
+    private static final java.util.Set<String> ONE_EXPRESSION_TABLES = java.util.Set.of("call");
+
+    /** What is wrong with {@code decider} (its source with comments and literals blanked) as one switch {@code sw} of
+     *  one-expression arms, each wrong thing named by {@code where}. */
+    static List<String> oneExpressionArms(String where, String decider, String sw) {
+        List<String> wrong = new ArrayList<>();
+        int at = decider.indexOf(sw);
+        if (at < 0 || decider.indexOf(sw, at + 1) >= 0) {
+            wrong.add(where + " decides in " + (at < 0 ? "no " : "more than one ") + sw);
+            return wrong;
+        }
+        // the function tested by name: c.fn() == / != (r.fn() for an aggregate)
+        String subject = sw.substring(sw.indexOf('(') + 1, sw.indexOf('.')).strip();
+        if (java.util.regex.Pattern.compile("\\b" + subject + "\\s*\\.\\s*fn\\s*\\(\\s*\\)\\s*[!=]=")
+                .matcher(decider).find()) {
+            wrong.add(where + " tests which function it has (" + subject + ".fn() ==): give that function its own arm");
+        }
+        int open = decider.indexOf('{', at);
+        int depth = 0;
+        for (int i = open; i < decider.length(); i++) {
+            char ch = decider.charAt(i);
+            if (ch == '{' || ch == '(') {
+                depth++;
+            } else if (ch == '}' || ch == ')') {
+                if (--depth == 0) {
+                    break;
+                }
+            } else if (depth == 1 && decider.startsWith("->", i)
+                    && decider.substring(i + 2).stripLeading().startsWith("{")) {
+                String arm = decider.substring(decider.lastIndexOf("case ", i), i).replaceAll("\\s+", " ").strip();
+                wrong.add(where + "'s arm '" + arm + "' is a block: make it a named method");
+            }
+        }
+        return wrong;
+    }
+
+    /** The switch that decides vocabulary {@code v} in {@code src}: the method itself, or the one it hands every point
+     *  to (SQLite.calls, ClickHouse.reducerIn); a helper's own switch over a subset is not it. Null when not found. */
+    private static @com.legend.base.Nullable String decider(String src, Vocabulary v) {
+        String first = "\\s*\\(\\s*[\\w.]*" + v.params()[0].getSimpleName() + "\\b";
+        String decider = body(src, "\\b" + v.method() + first);
+        if (decider != null && v.sw() != null && !decider.contains(v.sw())) {
+            java.util.regex.Matcher to = java.util.regex.Pattern
+                    .compile("return\\s+(\\w+)\\(writer,\\s*[cr]\\b").matcher(decider);
+            decider = to.find() ? body(src, "\\b" + to.group(1) + first) : null;
+        }
+        return decider;
     }
 
     /** {@code src} with every comment and literal blanked, so a search finds only code. */

@@ -65,14 +65,14 @@ import java.util.Set;
  *       TIMESTAMP; JSON objects keep their keys SORTED (DuckDB keeps insertion order).</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * {@link Spellings#BIGQUERY} row), a BigQuery arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling
  * is a silent wrong answer.
  */
 public final class BigQuery extends AnsiSqlRenderer {
 
     public BigQuery() {
-        super(Lexicon.BIGQUERY, TypeNames.BIGQUERY, Spellings.BIGQUERY);
+        super(Lexicon.BIGQUERY, TypeNames.BIGQUERY);
     }
 
     // ==================================================================
@@ -1323,30 +1323,18 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        if ((c.fn() == SqlFn.EQUAL || c.fn() == SqlFn.NOT_EQUAL) && a.size() == 2
-                && (composite(a.get(0)) || composite(a.get(1)))) {
-            return compositeEquality(writer, a, c.fn() == SqlFn.EQUAL);
-        }
-        // null-safe: a NULL composite's JSON text is 'null', no composite value's is
-        if ((c.fn() == SqlFn.IS_DISTINCT_FROM || c.fn() == SqlFn.NULL_SAFE_EQUAL
-                || c.fn() == SqlFn.NULL_SAFE_NOT_EQUAL) && a.size() == 2
-                && (composite(a.get(0)) || composite(a.get(1)))) {
-            return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0)
-                    .append(c.fn() == SqlFn.NULL_SAFE_EQUAL ? ") = " : ") <> ").append("TO_JSON_STRING(")
-                    .expr(a.get(1), 0).append("))");
-        }
         return switch (c.fn()) {
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
-            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
-                    infix(writer, c, parentPrec);
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
+            case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
             // the shared spellings (the base's named helpers)
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case IS_NULL -> isNullTest(writer, c.args());
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
-            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
-            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> nullSafeArm(writer, c, false);
+            case NULL_SAFE_EQUAL -> nullSafeArm(writer, c, true);
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case LPAD -> padWithSpace(writer, "lpad", c.args());
             case RPAD -> padWithSpace(writer, "rpad", c.args());
@@ -1368,17 +1356,42 @@ public final class BigQuery extends AnsiSqlRenderer {
             case TO_VARIANT -> variantConstruct(writer, c.args());
             case VARIANT_GET -> variantGet(writer, c.args());
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
-            // this dialect's Spellings row: name(args)
-            case ABS, ACOS, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, SIN, SINH, TAN, TANH, LOWER,
-                 UPPER, LTRIM, RTRIM, TRIM, REPLACE, STARTS_WITH, ENDS_WITH, STRPOS, SPLIT, ASCII_CODE,
-                 REVERSE_STRING, REPEAT_STR, LEVENSHTEIN, FLOOR_RAW, MATCHES, SUBSTRING, LIST_REVERSE, LIST_LENGTH ->
-                    row(writer, c);
-            case IN -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    throw listParameter(p);
-                }
-                yield inList(writer, a, parentPrec);
-            }
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("ABS", c.args());
+            case ACOS -> writer.function("ACOS", c.args());
+            case ASIN -> writer.function("ASIN", c.args());
+            case ATAN -> writer.function("ATAN", c.args());
+            case ATAN2 -> writer.function("ATAN2", c.args());
+            case CBRT -> writer.function("CBRT", c.args());
+            case CHR -> writer.function("CHR", c.args());
+            case COALESCE -> writer.function("COALESCE", c.args());
+            case COS -> writer.function("COS", c.args());
+            case COSH -> writer.function("COSH", c.args());
+            case COT -> writer.function("COT", c.args());
+            case SIN -> writer.function("SIN", c.args());
+            case SINH -> writer.function("SINH", c.args());
+            case TAN -> writer.function("TAN", c.args());
+            case TANH -> writer.function("TANH", c.args());
+            case LOWER -> writer.function("LOWER", c.args());
+            case UPPER -> writer.function("UPPER", c.args());
+            case LTRIM -> writer.function("LTRIM", c.args());
+            case RTRIM -> writer.function("RTRIM", c.args());
+            case TRIM -> writer.function("TRIM", c.args());
+            case REPLACE -> writer.function("REPLACE", c.args());
+            case STARTS_WITH -> writer.function("STARTS_WITH", c.args());
+            case ENDS_WITH -> writer.function("ENDS_WITH", c.args());
+            case STRPOS -> writer.function("STRPOS", c.args());
+            case SPLIT -> writer.function("SPLIT", c.args());
+            case ASCII_CODE -> writer.function("ASCII", c.args());
+            case REVERSE_STRING -> writer.function("REVERSE", c.args());
+            case REPEAT_STR -> writer.function("REPEAT", c.args());
+            case LEVENSHTEIN -> writer.function("EDIT_DISTANCE", c.args());
+            case FLOOR_RAW -> writer.function("FLOOR", c.args());
+            case MATCHES -> writer.function("REGEXP_CONTAINS", c.args());
+            case SUBSTRING -> writer.function("SUBSTR", c.args());
+            case LIST_REVERSE -> writer.function("ARRAY_REVERSE", c.args());
+            case LIST_LENGTH -> writer.function("ARRAY_LENGTH", c.args());
+            case IN -> in(writer, c, parentPrec);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
 
@@ -1390,13 +1403,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case MOD, REM -> writer.piece(remainder(c.fn(), a));
             // DuckDB's // truncates toward zero and answers NULL for a zero divisor (measured); so does DIV, which
             // raises instead
-            case INT_DIVIDE -> {
-                if (a.stream().anyMatch(BigQuery::isDouble)) {
-                    throw wall(c.fn(), "DIV takes no FLOAT64");
-                }
-                yield writer.append("(CASE WHEN ").expr(a.get(1), 4).append(" = 0 THEN NULL ELSE DIV(")
-                        .expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") END)");
-            }
+            case INT_DIVIDE -> intDivide(writer, c);
             case CEILING -> writer.append("CAST(CEIL(").expr(a.get(0), 0).append(") AS INT64)");
             case FLOOR -> writer.append("CAST(FLOOR(").expr(a.get(0), 0).append(") AS INT64)");
             case SIGN -> writer.append("CAST(SIGN(").expr(a.get(0), 0).append(") AS INT64)");
@@ -1417,7 +1424,8 @@ public final class BigQuery extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
             // in for itself, or for another when NULL, so only all-NULL is NULL
-            case GREATEST, LEAST -> writer.piece(nullSkipping(c.fn() == SqlFn.GREATEST ? "GREATEST" : "LEAST", a));
+            case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
+            case LEAST -> writer.piece(nullSkipping("LEAST", a));
 
             // ---- strings
             // NULL-ignoring, as DuckDB's concat (BigQuery's is NULL if any argument is, measured)
@@ -1432,12 +1440,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case SPLIT_PART -> splitPart(writer, a);
             case REGEXP_FULL_MATCH -> writer.append("REGEXP_CONTAINS(").expr(a.get(0), 0).append(", ")
                     .piece(anchored(a.get(1))).append(")");
-            case REGEXP_EXTRACT -> {
-                String pattern = onlyGroup(literal(a.get(1), "a regexp_extract pattern"), group(a));
-                yield writer.append("(CASE WHEN ").expr(a.get(0), 4)
-                        .append(" IS NULL THEN NULL ELSE COALESCE(REGEXP_EXTRACT(").expr(a.get(0), 0)
-                        .append(", " + stringLit(pattern) + "), '') END)");
-            }
+            case REGEXP_EXTRACT -> regexpExtract(writer, c);
             case REGEXP_EXTRACT_ALL -> regexpExtractAll(writer, a);
             case REGEXP_REPLACE -> writer.piece(regexpReplace(a));
             case ENCODE_BASE64 -> writer.append("TO_BASE64(CAST(").piece(asText(a.get(0))).append(" AS BYTES))");
@@ -1487,21 +1490,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                     .expr(a.get(0), 0).append(" AS INT64))")));
             case DAYNAME -> writer.append("FORMAT_DATETIME('%A', CAST(").expr(a.get(0), 0).append(" AS DATETIME))");
             case MONTHNAME -> writer.append("FORMAT_DATETIME('%B', CAST(").expr(a.get(0), 0).append(" AS DATETIME))");
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.piece(strftime(a.get(0), fl));
-            }
+            case STRFTIME -> strftimeArm(writer, c);
             case STRPTIME -> strptime(writer, a, c);
 
             // ---- lists (ARRAY<T>; lambdas as correlated subqueries)
-            case LIST_FILTER -> {
-                SqlExpr.Lambda l = lambdaOf(a.get(1), c.fn());
-                String x = l.params().get(0);
-                yield writer.piece(overElements(a.get(0), x, offsetOf(l), w -> w.append(param(x)),
-                        w -> w.expr(lambdaBody(a.get(0), l), 0)));
-            }
+            case LIST_FILTER -> listFilter(writer, c);
             case LIST_TRANSFORM -> listTransform(writer, c);
             // NULL ++ xs is xs, as DuckDB's list_concat (measured)
             case LIST_CONCAT -> writer.append("ARRAY_CONCAT(").join(a, ", ", (w, x) -> w.append("IFNULL(").expr(x, 0)
@@ -1566,6 +1559,71 @@ public final class BigQuery extends AnsiSqlRenderer {
             case JSON_PRETTY -> throw wall(c.fn(), "BigQuery has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "BigQuery has no JSON merge patch");
         };
+    }
+
+    /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #call}. */
+    private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            return compositeEquality(writer, a, c.fn() == SqlFn.EQUAL);
+        }
+        return infix(writer, c, parentPrec);
+    }
+
+    /** The null-safe arms of {@link #call}: a NULL composite's JSON text is 'null', no composite value's is. */
+    private SqlWriter nullSafeArm(SqlWriter writer, SqlExpr.Call c, boolean equal) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0).append(equal ? ") = " : ") <> ")
+                    .append("TO_JSON_STRING(").expr(a.get(1), 0).append("))");
+        }
+        return equal ? notDistinctFrom(writer, a) : distinctFrom(writer, a);
+    }
+
+    /** The {@code IN} arm of {@link #call}. */
+    private SqlWriter in(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
+            throw listParameter(p);
+        }
+        return inList(writer, a, parentPrec);
+    }
+
+    /** The {@code INT_DIVIDE} arm of {@link #call}. */
+    private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.stream().anyMatch(BigQuery::isDouble)) {
+            throw wall(c.fn(), "DIV takes no FLOAT64");
+        }
+        return writer.append("(CASE WHEN ").expr(a.get(1), 4).append(" = 0 THEN NULL ELSE DIV(")
+                .expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") END)");
+    }
+
+    /** The {@code REGEXP_EXTRACT} arm of {@link #call}. */
+    private SqlWriter regexpExtract(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String pattern = onlyGroup(literal(a.get(1), "a regexp_extract pattern"), group(a));
+        return writer.append("(CASE WHEN ").expr(a.get(0), 4)
+                .append(" IS NULL THEN NULL ELSE COALESCE(REGEXP_EXTRACT(").expr(a.get(0), 0)
+                .append(", " + stringLit(pattern) + "), '') END)");
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftimeArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.piece(strftime(a.get(0), fl));
+    }
+
+    /** The {@code LIST_FILTER} arm of {@link #call}. */
+    private SqlWriter listFilter(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlExpr.Lambda l = lambdaOf(a.get(1), c.fn());
+        String x = l.params().get(0);
+        return writer.piece(overElements(a.get(0), x, offsetOf(l), w -> w.append(param(x)),
+                w -> w.expr(lambdaBody(a.get(0), l), 0)));
     }
 
     /** A list with one element appended (NULL ++ x is [x]; no nested lists). */

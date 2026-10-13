@@ -33,8 +33,8 @@ import java.util.List;
  *   <li>arrays, structs, maps and variants arrive over JDBC as JSON text ({@link #normalize}).</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * {@code Spellings.DATABRICKS} row), a Databricks arm, or a {@link DialectCapability} wall. A wall is honest; a
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a
  * guessed spelling is a silent wrong answer.
  */
 public final class Databricks extends AnsiSqlRenderer {
@@ -67,7 +67,7 @@ public final class Databricks extends AnsiSqlRenderer {
     }
 
     public Databricks() {
-        super(Lexicon.DATABRICKS, TypeNames.DATABRICKS, Spellings.DATABRICKS);
+        super(Lexicon.DATABRICKS, TypeNames.DATABRICKS);
     }
 
     // ==================================================================
@@ -970,12 +970,54 @@ public final class Databricks extends AnsiSqlRenderer {
             case TO_VARIANT -> variantConstruct(writer, c.args());
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
             case VARIANT_GET -> variantGet(writer, c.args());
-            // this dialect's Spellings row: name(args)
-            case ABS, ACOS, ASCII_CODE, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES, EXP,
-                 GREATEST, LEAST, LEFT, LENGTH, LEVENSHTEIN, LIST_FLATTEN, LN, LOG10, LOWER, MAKE_DATE, MAP_KEYS,
-                 MAP_VALUES, MD5, POW, RADIANS, REPEAT_STR, REPLACE, REVERSE_STRING, RIGHT, SHA1, SIN, SINH,
-                 SPLIT_PART, SQRT, SUBSTRING, TAN, TANH, UPPER, STARTS_WITH, ENDS_WITH, STRPOS, MAP_FROM_LISTS,
-                 MAP_FROM_ENTRIES, LIST_REVERSE -> row(writer, c);
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case ACOS -> writer.function("acos", c.args());
+            case ASCII_CODE -> writer.function("ascii", c.args());
+            case ASIN -> writer.function("asin", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
+            case CHR -> writer.function("chr", c.args());
+            case COALESCE -> writer.function("coalesce", c.args());
+            case COS -> writer.function("cos", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case COT -> writer.function("cot", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case GREATEST -> writer.function("greatest", c.args());
+            case LEAST -> writer.function("least", c.args());
+            case LEFT -> writer.function("left", c.args());
+            case LENGTH -> writer.function("length", c.args());
+            case LEVENSHTEIN -> writer.function("levenshtein", c.args());
+            case LIST_FLATTEN -> writer.function("flatten", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case MAKE_DATE -> writer.function("make_date", c.args());
+            case MAP_KEYS -> writer.function("map_keys", c.args());
+            case MAP_VALUES -> writer.function("map_values", c.args());
+            case MD5 -> writer.function("md5", c.args());
+            case POW -> writer.function("power", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case REPEAT_STR -> writer.function("repeat", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case REVERSE_STRING, LIST_REVERSE -> writer.function("reverse", c.args());
+            case RIGHT -> writer.function("right", c.args());
+            case SHA1 -> writer.function("sha1", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case SPLIT_PART -> writer.function("split_part", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case UPPER -> writer.function("upper", c.args());
+            case STARTS_WITH -> writer.function("startswith", c.args());
+            case ENDS_WITH -> writer.function("endswith", c.args());
+            case STRPOS -> writer.function("instr", c.args());
+            case MAP_FROM_LISTS -> writer.function("map_from_arrays", c.args());
+            case MAP_FROM_ENTRIES -> writer.function("map_from_entries", c.args());
 
             // NULL-ignoring, as DuckDB's concat (Spark's concat is NULL if any argument is)
             case CONCAT -> writer.append("concat_ws('', ").join(flattenConcat(a), ", ", this::asText).append(")");
@@ -1000,37 +1042,11 @@ public final class Databricks extends AnsiSqlRenderer {
             // DuckDB replaces the first match unless 'g'; Spark replaces every one: the first alone is the match of
             // ^(.*?)(?:p) -- the shortest prefix before p's leftmost match -- replaced by that prefix and r, r's group
             // references shifted by one
-            case REGEXP_REPLACE -> {
-                boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
-                if (!(a.get(2) instanceof SqlExpr.StringLit r)) {
-                    throw wall(c.fn(), "a computed regexp replacement");
-                }
-                if (global) {
-                    yield writer.append("regexp_replace(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
-                            .append(", ").append(stringLit(javaReplacement(r.value(), 0))).append(")");
-                }
-                if (a.get(1) instanceof SqlExpr.StringLit p && p.value().matches("(?s).*\\\\[0-9].*")) {
-                    throw wall(c.fn(), "a first-match replacement whose pattern has a back reference");
-                }
-                writer.append("regexp_replace(").expr(a.get(0), 0).append(", ");
-                if (a.get(1) instanceof SqlExpr.StringLit p) {
-                    writer.append(stringLit("^(?s:(.*?))(?:" + p.value() + ")"));
-                } else {
-                    writer.append("concat('^(?s:(.*?))(?:', ").expr(a.get(1), 0).append(", ')')");
-                }
-                yield writer.append(", ").append(stringLit("$1" + javaReplacement(r.value(), 1))).append(")");
-            }
+            case REGEXP_REPLACE -> regexpReplace(writer, c);
             case SPLIT -> writer.piece(split(a.get(0), a.get(1)));
             // Spark's two-argument trims take the characters FIRST (measured: rtrim('a00', '0') is ''): the
             // standard form says which is which
-            case TRIM, LTRIM, RTRIM -> {
-                String fn = c.fn() == SqlFn.TRIM ? "trim" : c.fn() == SqlFn.LTRIM ? "ltrim" : "rtrim";
-                if (a.size() == 1) {
-                    yield writer.append(fn + "(").expr(a.get(0), 0).append(")");
-                }
-                String side = c.fn() == SqlFn.TRIM ? "BOTH" : c.fn() == SqlFn.LTRIM ? "LEADING" : "TRAILING";
-                yield writer.append("TRIM(" + side + " ").expr(a.get(1), 0).append(" FROM ").expr(a.get(0), 0).append(")");
-            }
+            case TRIM, LTRIM, RTRIM -> trim(writer, c);
             // base64 without line breaks (Spark may chunk at 76 characters)
             case ENCODE_BASE64 -> writer.append("replace(replace(base64(CAST(").expr(a.get(0), 0)
                     .append(" AS BINARY)), chr(13), ''), chr(10), '')");
@@ -1044,13 +1060,7 @@ public final class Databricks extends AnsiSqlRenderer {
             // ---- temporal
             case NOW -> writer.append("current_timestamp()");
             case EXTRACT -> writer.piece(extract(a));
-            case MAKE_TIMESTAMP -> {
-                if (a.size() != 6) {
-                    throw wall(c.fn(), "make_timestamp of " + a.size() + " arguments");
-                }
-                yield writer.append("make_timestamp(").list(a.subList(0, 5)).append(", CAST(").expr(a.get(5), 0)
-                        .append(" AS DECIMAL(16,6)))");
-            }
+            case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("timestampadd(")
                     .append(intervalUnit(literal(a.get(0), c.fn().name()))).append(", ").expr(a.get(1), 0)
                     .append(", ").expr(a.get(2), 0).append(")");
@@ -1067,34 +1077,14 @@ public final class Databricks extends AnsiSqlRenderer {
             case FROM_EPOCH_MS -> writer.append("timestamp_millis(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
             case DAYNAME -> writer.append("date_format(").expr(a.get(0), 0).append(", 'EEEE')");
             case MONTHNAME -> writer.append("date_format(").expr(a.get(0), 0).append(", 'MMMM')");
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.append("date_format(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
-            }
-            case STRPTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.append("to_timestamp(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
-            }
+            case STRFTIME -> strftime(writer, c);
+            case STRPTIME -> strptime(writer, c);
 
             // ---- lists whose first argument is no list
             case LIST_LENGTH -> writer.append("array_size(").piece(list(a.get(0))).append(")");
             // DuckDB's range: [start, stop) by step (start 0, step 1 by default); Spark's sequence is inclusive and
             // refuses a step away from the stop
-            case RANGE_FN -> {
-                SqlWriter.Piece start = a.size() == 1 ? w -> w.append("0L") : w -> w.append("CAST(").expr(a.get(0), 0)
-                        .append(" AS BIGINT)");
-                SqlWriter.Piece stop = w -> w.append("CAST(").expr(a.get(a.size() == 1 ? 0 : 1), 0).append(" AS BIGINT)");
-                SqlWriter.Piece step = a.size() > 2 ? w -> w.append("CAST(").expr(a.get(2), 0).append(" AS BIGINT)")
-                        : w -> w.append("1L");
-                yield writer.append("(CASE WHEN (").piece(stop).append(" - ").piece(start).append(") * ").piece(step)
-                        .append(" > 0 THEN filter(sequence(").piece(start).append(", ").piece(stop).append(", ")
-                        .piece(step).append("), `__g` -> `__g` <> ").piece(stop)
-                        .append(") ELSE CAST(array() AS ARRAY<BIGINT>) END)");
-            }
+            case RANGE_FN -> rangeFn(writer, c);
             case REPEAT_VALUE -> writer.append("array_repeat(").expr(a.get(0), 0).append(", CAST(").expr(a.get(1), 0)
                     .append(" AS INT))");
 
@@ -1106,41 +1096,125 @@ public final class Databricks extends AnsiSqlRenderer {
                     .expr(a.get(1), 0).append(")) ELSE array() END)");
             // DuckDB's map_concat keeps a duplicate key's LAST value; Spark's refuses the duplicate (its dedup policy is
             // not a warehouse setting): each map less the keys a later one sets, then concatenated
-            case MAP_CONCAT -> {
-                writer.append("map_concat(");
-                for (int i = 0; i < a.size(); i++) {
-                    writer.append(i > 0 ? ", " : "");
-                    if (i == a.size() - 1) {
-                        writer.expr(a.get(i), 0);
-                        continue;
-                    }
-                    writer.append("map_filter(").expr(a.get(i), 0).append(", (`__k`, `__v`) -> NOT (");
-                    for (int j = i + 1; j < a.size(); j++) {
-                        writer.append(j > i + 1 ? " OR " : "").append("coalesce(map_contains_key(").expr(a.get(j), 0)
-                                .append(", `__k`), FALSE)");
-                    }
-                    writer.append("))");
-                }
-                yield writer.append(")");
-            }
+            case MAP_CONCAT -> mapConcat(writer, c);
 
             // ---- variant
             // in DuckDB's json_type vocabulary, which the lowering compares against
-            case JSON_TYPE -> {
-                SqlWriter.Piece s = w -> w.append("schema_of_variant(").expr(a.get(0), 0).append(")");
-                yield writer.append("(CASE WHEN ").expr(a.get(0), 0).append(" IS NULL THEN NULL WHEN ").piece(s)
-                        .append(" = 'VOID' THEN 'NULL' WHEN ").piece(s).append(" = 'STRING' THEN 'VARCHAR' WHEN ")
-                        .piece(s).append(" = 'BOOLEAN' THEN 'BOOLEAN' WHEN startswith(").piece(s)
-                        .append(", 'ARRAY') THEN 'ARRAY' WHEN startswith(").piece(s)
-                        .append(", 'OBJECT') THEN 'OBJECT' WHEN ").piece(s)
-                        .append(" IN ('BIGINT', 'INT', 'SMALLINT', 'TINYINT') OR regexp_like(").piece(s)
-                        .append(", '^DECIMAL\\\\([0-9]+,0\\\\)$') THEN 'BIGINT' ELSE 'DOUBLE' END)");
-            }
+            case JSON_TYPE -> jsonType(writer, c);
             case JSON_ARRAY_LENGTH -> writer.append("array_size(try_cast(").expr(a.get(0), 0)
                     .append(" AS ARRAY<VARIANT>))");
             case JSON_PRETTY -> throw wall(c.fn(), "Databricks has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "Databricks has no JSON merge patch");
         };
+    }
+
+    /** The {@code REGEXP_REPLACE} arm of {@link #call}. */
+    private SqlWriter regexpReplace(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
+        if (!(a.get(2) instanceof SqlExpr.StringLit r)) {
+            throw wall(c.fn(), "a computed regexp replacement");
+        }
+        if (global) {
+            return writer.append("regexp_replace(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                    .append(", ").append(stringLit(javaReplacement(r.value(), 0))).append(")");
+        }
+        if (a.get(1) instanceof SqlExpr.StringLit p && p.value().matches("(?s).*\\\\[0-9].*")) {
+            throw wall(c.fn(), "a first-match replacement whose pattern has a back reference");
+        }
+        writer.append("regexp_replace(").expr(a.get(0), 0).append(", ");
+        if (a.get(1) instanceof SqlExpr.StringLit p) {
+            writer.append(stringLit("^(?s:(.*?))(?:" + p.value() + ")"));
+        } else {
+            writer.append("concat('^(?s:(.*?))(?:', ").expr(a.get(1), 0).append(", ')')");
+        }
+        return writer.append(", ").append(stringLit("$1" + javaReplacement(r.value(), 1))).append(")");
+    }
+
+    /** The {@code TRIM}, {@code LTRIM}, {@code RTRIM} arm of {@link #call}. */
+    private SqlWriter trim(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String fn = c.fn() == SqlFn.TRIM ? "trim" : c.fn() == SqlFn.LTRIM ? "ltrim" : "rtrim";
+        if (a.size() == 1) {
+            return writer.append(fn + "(").expr(a.get(0), 0).append(")");
+        }
+        String side = c.fn() == SqlFn.TRIM ? "BOTH" : c.fn() == SqlFn.LTRIM ? "LEADING" : "TRAILING";
+        return writer.append("TRIM(" + side + " ").expr(a.get(1), 0).append(" FROM ").expr(a.get(0), 0).append(")");
+    }
+
+    /** The {@code MAKE_TIMESTAMP} arm of {@link #call}. */
+    private SqlWriter makeTimestamp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() != 6) {
+            throw wall(c.fn(), "make_timestamp of " + a.size() + " arguments");
+        }
+        return writer.append("make_timestamp(").list(a.subList(0, 5)).append(", CAST(").expr(a.get(5), 0)
+                .append(" AS DECIMAL(16,6)))");
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftime(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.append("date_format(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+    }
+
+    /** The {@code STRPTIME} arm of {@link #call}. */
+    private SqlWriter strptime(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.append("to_timestamp(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+    }
+
+    /** The {@code RANGE_FN} arm of {@link #call}. */
+    private SqlWriter rangeFn(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece start = a.size() == 1 ? w -> w.append("0L") : w -> w.append("CAST(").expr(a.get(0), 0)
+                .append(" AS BIGINT)");
+        SqlWriter.Piece stop = w -> w.append("CAST(").expr(a.get(a.size() == 1 ? 0 : 1), 0).append(" AS BIGINT)");
+        SqlWriter.Piece step = a.size() > 2 ? w -> w.append("CAST(").expr(a.get(2), 0).append(" AS BIGINT)")
+                : w -> w.append("1L");
+        return writer.append("(CASE WHEN (").piece(stop).append(" - ").piece(start).append(") * ").piece(step)
+                .append(" > 0 THEN filter(sequence(").piece(start).append(", ").piece(stop).append(", ")
+                .piece(step).append("), `__g` -> `__g` <> ").piece(stop)
+                .append(") ELSE CAST(array() AS ARRAY<BIGINT>) END)");
+    }
+
+    /** The {@code MAP_CONCAT} arm of {@link #call}. */
+    private SqlWriter mapConcat(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("map_concat(");
+        for (int i = 0; i < a.size(); i++) {
+            writer.append(i > 0 ? ", " : "");
+            if (i == a.size() - 1) {
+                writer.expr(a.get(i), 0);
+                continue;
+            }
+            writer.append("map_filter(").expr(a.get(i), 0).append(", (`__k`, `__v`) -> NOT (");
+            for (int j = i + 1; j < a.size(); j++) {
+                writer.append(j > i + 1 ? " OR " : "").append("coalesce(map_contains_key(").expr(a.get(j), 0)
+                        .append(", `__k`), FALSE)");
+            }
+            writer.append("))");
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code JSON_TYPE} arm of {@link #call}. */
+    private SqlWriter jsonType(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece s = w -> w.append("schema_of_variant(").expr(a.get(0), 0).append(")");
+        return writer.append("(CASE WHEN ").expr(a.get(0), 0).append(" IS NULL THEN NULL WHEN ").piece(s)
+                .append(" = 'VOID' THEN 'NULL' WHEN ").piece(s).append(" = 'STRING' THEN 'VARCHAR' WHEN ")
+                .piece(s).append(" = 'BOOLEAN' THEN 'BOOLEAN' WHEN startswith(").piece(s)
+                .append(", 'ARRAY') THEN 'ARRAY' WHEN startswith(").piece(s)
+                .append(", 'OBJECT') THEN 'OBJECT' WHEN ").piece(s)
+                .append(" IN ('BIGINT', 'INT', 'SMALLINT', 'TINYINT') OR regexp_like(").piece(s)
+                .append(", '^DECIMAL\\\\([0-9]+,0\\\\)$') THEN 'BIGINT' ELSE 'DOUBLE' END)");
     }
 
     /** A CONCAT argument as text: Spark's concat_ws takes strings only. */

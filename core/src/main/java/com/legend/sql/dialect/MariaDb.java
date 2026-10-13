@@ -55,18 +55,18 @@ import java.util.Set;
  *       every match); base64, MD5, SHA-1 and SHA-2 are native.</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * {@link Spellings#MARIADB} row), a MariaDB arm, or a {@link DialectCapability} wall.
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
 public class MariaDb extends AnsiSqlRenderer {
 
     public MariaDb() {
-        super(Lexicon.MARIADB, TypeNames.MARIADB, Spellings.MARIADB);
+        super(Lexicon.MARIADB, TypeNames.MARIADB);
     }
 
     /** A dialect of the family ({@link MySql}): MariaDB's spellings where the two agree, its own hooks where not. */
-    protected MariaDb(Lexicon lexicon, TypeNames types, Spellings spellings) {
-        super(lexicon, types, spellings);
+    protected MariaDb(Lexicon lexicon, TypeNames types) {
+        super(lexicon, types);
     }
 
     // ==================================================================
@@ -1689,17 +1689,12 @@ public class MariaDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        if ((c.fn() == SqlFn.EQUAL || c.fn() == SqlFn.NOT_EQUAL) && a.size() == 2
-                && (composite(a.get(0)) || composite(a.get(1)))) {
-            return writer.append("(").piece(compact(w -> w.expr(a.get(0), 0)))
-                    .append(c.fn() == SqlFn.EQUAL ? " = " : " <> ").piece(compact(w -> w.expr(a.get(1), 0))).append(")");
-        }
         return switch (c.fn()) {
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
-            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
-                    infix(writer, c, parentPrec);
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
+            case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
             // the shared spellings (the base's named helpers)
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             case IS_NULL -> isNullTest(writer, c.args());
@@ -1720,15 +1715,29 @@ public class MariaDb extends AnsiSqlRenderer {
             case TO_VARIANT -> variantConstruct(writer, c.args());
             case VARIANT_GET -> variantGet(writer, c.args());
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
-            // this dialect's Spellings row: name(args)
-            case ABS, ATAN, ATAN2, COS, COT, SIN, TAN, DEGREES, RADIANS, EXP, LN, LOG10, SQRT, POW, LOWER, UPPER,
-                 REPLACE, REVERSE_STRING, FLOOR_RAW, STRPOS, LIST_LENGTH, JSON_ARRAY_LENGTH -> row(writer, c);
-            case IN -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    throw listParameter(p);
-                }
-                yield inList(writer, a, parentPrec);
-            }
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case COS -> writer.function("cos", c.args());
+            case COT -> writer.function("cot", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case POW -> writer.function("POW", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case UPPER -> writer.function("upper", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case STRPOS -> writer.function("INSTR", c.args());
+            case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("JSON_LENGTH", c.args());
+            case IN -> in(writer, c, parentPrec);
             // a Pure integer (no CAST to BIGINT here: SIGNED)
             case CEILING -> writer.append("CAST(CEIL(").expr(a.get(0), 0).append(") AS SIGNED)");
             case FLOOR -> writer.append("CAST(FLOOR(").expr(a.get(0), 0).append(") AS SIGNED)");
@@ -1752,12 +1761,8 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(", 1) USING utf32)), 16, 10) AS SIGNED) END)");
             case CHR -> writer.append("CONVERT(CHAR(").expr(a.get(0), 0).append(" USING utf32) USING utf8mb4)");
             // outside [-1, 1] MariaDB answers NULL (measured), DuckDB raises
-            case ACOS, ASIN -> writer.append("(CASE WHEN ").expr(a.get(0), 4)
-                    .append(" IS NULL THEN NULL ELSE coalesce(")
-                    .append(c.fn() == SqlFn.ACOS ? "ACOS(" : "ASIN(").expr(a.get(0), 0).append("), ")
-                    .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]")),
-                            SqlType.Scalar.DOUBLE))
-                    .append(") END)");
+            case ACOS -> domainGuarded(writer, c, "ACOS");
+            case ASIN -> domainGuarded(writer, c, "ASIN");
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
@@ -1769,12 +1774,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(" AS DOUBLE))");
             case MOD, REM -> writer.piece(remainder(c.fn(), a));
             // DuckDB's // truncates toward zero, NULL for a zero divisor: DIV
-            case INT_DIVIDE -> {
-                if (a.stream().anyMatch(MariaDb::isDouble)) {
-                    throw wall(c.fn(), "an integer division of a Float");
-                }
-                yield writer.append("(").expr(a.get(0), 6).append(" DIV ").expr(a.get(1), 7).append(")");
-            }
+            case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -POW(-(").expr(a.get(0), 0)
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
@@ -1786,7 +1786,8 @@ public class MariaDb extends AnsiSqlRenderer {
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
-            case GREATEST, LEAST -> writer.piece(nullSkipping(c.fn() == SqlFn.GREATEST ? "GREATEST" : "LEAST", a));
+            case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
+            case LEAST -> writer.piece(nullSkipping("LEAST", a));
 
             // ---- strings
             // NULL-skipping, as DuckDB's concat (CONCAT is NULL for any NULL argument here; CONCAT_WS skips them)
@@ -1795,9 +1796,8 @@ public class MariaDb extends AnsiSqlRenderer {
             case CONCAT_JOIN -> writer.append("CONCAT_WS('', ").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
             case LENGTH -> writer.append("CHAR_LENGTH(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
-            case LPAD, RPAD -> writer.append(c.fn() == SqlFn.LPAD ? "LPAD(" : "RPAD(").expr(a.get(0), 0).append(", ")
-                    .expr(a.get(1), 0).append(", ").piece(a.size() > 2 ? w -> w.expr(a.get(2), 0) : w -> w.append("' '"))
-                    .append(")");
+            case LPAD -> pad(writer, "LPAD", a);
+            case RPAD -> pad(writer, "RPAD", a);
             // a NULL (a cast one is written bare) is cast to text: REPEAT of a bare NULL is binary (measured)
             case REPEAT_STR -> (a.get(0) instanceof SqlExpr.NullLit
                     || a.get(0) instanceof SqlExpr.Cast n && n.value() instanceof SqlExpr.NullLit
@@ -1858,12 +1858,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC date-time: UTC's wall time is the instant's, either way
-            case TIMEZONE -> {
-                if (!(a.get(0) instanceof SqlExpr.StringLit zone) || !UTC_ZONES.contains(zone.value())) {
-                    throw wall(c.fn(), product() + " knows no named time zone but UTC without its zone tables");
-                }
-                yield writer.expr(a.get(1), parentPrec);
-            }
+            case TIMEZONE -> timezone(writer, c, parentPrec);
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" DIV 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
@@ -1872,12 +1867,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(") * 1000 MICROSECOND)");
             case DAYNAME -> writer.append("DAYNAME(").expr(a.get(0), 0).append(")");
             case MONTHNAME -> writer.append("MONTHNAME(").expr(a.get(0), 0).append(")");
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.piece(strftime(a.get(0), fl));
-            }
+            case STRFTIME -> strftimeArm(writer, c);
             case STRPTIME -> throw wall(c.fn(), "a date parsed by a DuckDB format has no measured " + product() + " spelling");
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
@@ -1899,6 +1889,69 @@ public class MariaDb extends AnsiSqlRenderer {
             case JSON_PRETTY -> writer.append("JSON_DETAILED(").expr(a.get(0), 0).append(")");
             case JSON_MERGE_PATCH -> writer.append("JSON_MERGE_PATCH(").list(a).append(")");
         };
+    }
+
+    /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: undefined outside [-1, 1], raised. */
+    private SqlWriter domainGuarded(SqlWriter writer, SqlExpr.Call c, String fn) {
+        List<SqlExpr> a = c.args();
+        return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
+                .append("(").expr(a.get(0), 0).append("), ")
+                .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]")),
+                        SqlType.Scalar.DOUBLE))
+                .append(") END)");
+    }
+
+    /** The {@code LPAD} and {@code RPAD} arms of {@link #call}: a space by default. */
+    private SqlWriter pad(SqlWriter writer, String fn, List<SqlExpr> a) {
+        return writer.append(fn).append("(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(", ")
+                .piece(a.size() > 2 ? w -> w.expr(a.get(2), 0) : w -> w.append("' '")).append(")");
+    }
+
+    /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #call}. */
+    private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            return writer.append("(").piece(compact(w -> w.expr(a.get(0), 0)))
+                    .append(c.fn() == SqlFn.EQUAL ? " = " : " <> ").piece(compact(w -> w.expr(a.get(1), 0)))
+                    .append(")");
+        }
+        return infix(writer, c, parentPrec);
+    }
+
+    /** The {@code IN} arm of {@link #call}. */
+    private SqlWriter in(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
+            throw listParameter(p);
+        }
+        return inList(writer, a, parentPrec);
+    }
+
+    /** The {@code INT_DIVIDE} arm of {@link #call}. */
+    private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.stream().anyMatch(MariaDb::isDouble)) {
+            throw wall(c.fn(), "an integer division of a Float");
+        }
+        return writer.append("(").expr(a.get(0), 6).append(" DIV ").expr(a.get(1), 7).append(")");
+    }
+
+    /** The {@code TIMEZONE} arm of {@link #call}. */
+    private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(0) instanceof SqlExpr.StringLit zone) || !UTC_ZONES.contains(zone.value())) {
+            throw wall(c.fn(), product() + " knows no named time zone but UTC without its zone tables");
+        }
+        return writer.expr(a.get(1), parentPrec);
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftimeArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.piece(strftime(a.get(0), fl));
     }
 
     private static boolean composite(SqlExpr e) {
