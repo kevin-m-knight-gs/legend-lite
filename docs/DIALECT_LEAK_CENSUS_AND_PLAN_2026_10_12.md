@@ -1,7 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
-**Status: PLAN, for review. Nothing below has been implemented, except five items that neema2/legend-lite#30 did on
-its way to main (listed in the evidence folder's README).**
+**Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
+steps 1 and 2 are done (2a4a5c8, 9373aec), and P1a, P1c, P1d and the capability matrix remain before the review (D7).
+Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
 
@@ -72,25 +73,35 @@ its way to main (listed in the evidence folder's README).**
   `.plan(runtime).sql()`. Use the dialect's `renderPasses()` to see what each pass does to a node's type. Delete the
   test afterwards.
 
-**Measure in parallel: three containers, not one** (the user, 2026-10-13). Every phase re-measures the eight local
-databases on both channels, and the clouds join after Phase 2 and at the end (§5): about 3 hours for all eleven in
-one container, in small batches because of the memory and disk limits above. Spread it over sibling cloud sessions
-instead: sibling 1 started at Phase 0 and reused for every phase, sibling 2 only for the cloud runs:
+**Measure in parallel: six containers, each about 12 to 15 minutes** (the user, 2026-10-13). Every phase re-measures
+the eight local databases on both channels, and the clouds join at the end of Phase 1, after Phase 2 and at the end
+(§5). In one container that is about 2 hours 10 minutes (measured 2026-10-13: the local gate, then each database's
+lanes in turn, two targets at a time). A container has 4 cores and 15 GB and runs one Bazel command at a time; each
+database's ten targets (five suites, two channels) take, one at a time: H2 (Relation only) 1.5 min, SQLite 4.7,
+Postgres 5.1, DuckDB 5.9, MySQL 5.9, ClickHouse 6.6, MariaDB 6.7, Trino 21.7 (each target boots its own Trino),
+Snowflake 43.6, BigQuery 44.3, Databricks 46.3 (each query a network round trip); no single target takes more than
+8.6 min. Packed by those times:
 
-| container | databases | why |
-|---|---|---|
-| this session | DuckDB, SQLite, H2, MariaDB, MySQL | the light lanes, and the local gate |
-| sibling 1 | Postgres, ClickHouse, Trino | the heavy embedded servers (ClickHouse and Trino together hit the memory limit) |
-| sibling 2 | Snowflake, Databricks, BigQuery | the clouds, mostly waiting on the network |
+| container | work | jobs | wall |
+|---|---|---|---|
+| this session | the local gate, with the root recipe from the start (`docs/GATES.md`) | Bazel's own | 15 to 20 min (estimated) |
+| sibling 1a | Trino and H2 | 2 (Trino's memory) | about 12 min |
+| sibling 1b | DuckDB, SQLite, MariaDB, MySQL and ClickHouse in one Bazel command, then Postgres in its own (the unprivileged recipe) | 4 (3 if the embedded servers crowd the memory) | about 12 min |
+| siblings 2, 3, 4 | Snowflake, Databricks, BigQuery, one each | 5 (each target compiles Pure locally too) | 12 to 15 min |
+
+The H2 and DuckDB corpus suites (`//spec:corpus_h2`, `//spec:corpus_duckdb`, `//core:stress_suites_h2`) run in
+sibling 1a after its lanes, for the steps that touch H2, the engine-H2 text or raw SQL (D1, P1c, D8). If the gate turns
+out much longer than the lanes, split it next (`:core` and `:checks` here, the browser suites in another container);
+each half then builds core itself, so measure before splitting.
 
 - **Starting one.** `create_session` (the claude-code-remote tools) with no `environment_id`: the sibling gets this
   environment, so the same network policy and the `DB_AWS_*` variables the cloud credentials are read from. Give it
   `source_url` and the branch as `source_revision`. Each sibling is a full session with its own tokens and compute,
-  and the clouds bill for their queries: start sibling 1 for a program that re-measures every phase, as this one
-  does, and sibling 2 when the clouds run.
+  and the clouds bill for their queries: start siblings 1a and 1b for a program that re-measures every phase, as this
+  one does, and each cloud's sibling about half an hour before its first run (an idle session can be reclaimed).
 - **Its first job is the setup**, once: `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §6 (bazelisk, the bats and
-  reference-checkout overrides, the proxy flags in `~/.bazelrc`), the Postgres recipe above for sibling 1, the
-  credentials file for sibling 2 (§4 there; never print a value), and a first build. Expect about half an hour before
+  reference-checkout overrides, the proxy flags in `~/.bazelrc`), the Postgres recipe above for sibling 1b, the
+  credentials file for a cloud's sibling (§4 there; never print a value), and a first build. Expect about half an hour before
   its first test; it stays warm for later phases until it is idle long enough to be reclaimed.
 - **Each phase:** commit and push the phase's head; send each sibling the commit to fetch and its list of targets;
   each runs its lanes in the batches above and replies with every target's status and its channel B `measured:`
@@ -240,7 +251,7 @@ structural, not scattered:
 
 | # | defect | evidence |
 |---|---|---|
-| 1 | H2 (and H2Modern, EngineStyleH2) get DuckDB spellings for functions they do not override, instead of an honest refusal | `H2.java:404` → `super.call`; base arms at `AnsiSqlRenderer.java:637-892, 1095-1270` |
+| 1 | H2 (and H2Modern, EngineStyleH2) get DuckDB spellings for functions they do not override, instead of an honest refusal. *Fixed by Phase 1b step 2 (D1), 9373aec: eight refused by name on H2, ten in the engine-H2 text.* | `H2.java:404` → `super.call`; base arms at `AnsiSqlRenderer.java:637-892, 1095-1270` |
 | 2 | Postgres `int8`, ClickHouse `Nullable(Int64)` and BigQuery `INT64` are absent from the driver-type table that types dynamic-pivot and grid columns | `Executor.java:1062-1085` (read; a test will confirm the failure) |
 | 3 | Every raw SQL on DuckDB is rewritten *as if it were H2 text*, including a user's native `executeInDb` SQL (an unaliased `count(*)` gets relabelled) | `DuckDb.java:273` → `RawSqlAdapt`; `RawSql` records no origin |
 | 4 | `CorpusDifferentialTest` renders every service with the DuckDB dialect, even services whose runtime declares H2, Postgres, Snowflake or Databricks | `CorpusDifferentialTest.java:46, 63, 81-83` |
@@ -248,6 +259,7 @@ structural, not scattered:
 | 6 | `AbstractDatabaseTest`'s SQLite subclass declares `type: SQLite; specification: DuckDB {}` | `AbstractDatabaseTest.java:285-296` |
 | 7 | The warehouse wraps `BEGIN`/`COMMIT` in `postgres_query` on an attached Postgres catalog (expected to fail; read, not run) | `warehouse/.../WhConnection.java:66-93` |
 | 8 | The warehouse reports engine "DuckDB" for an attached Postgres catalog | `warehouse/.../server/Sessions.java:46` |
+| 9 | ClickHouse's `concat` is NULL when any argument is NULL, where the flat concat's contract skips NULLs (H2, DuckDB, Postgres and SQLite skip them; Trino emulates it): a left-join-missed operand yields NULL on ClickHouse only. No PCT lane reaches it (found by D1, 2026-10-13; a follow-up task) | `clickhouse local` 25.8: `concat('a', NULL, 'b')` is `\N`; `ClickHouse.java` CONCAT → `concatFlat` |
 
 ## 4. The target: what adding a 12th database touches
 
@@ -369,6 +381,40 @@ the wire census 10 (not 3) and the PMCD reader 1, each pinned with its reason. T
     `SqlDialect` javadoc and a wrong `RawSql` package note.
 
 Size: about 1,500 lines touched, most of them moved.
+
+**Step 1 done 2026-10-13** (2a4a5c8, pure): every concrete dialect, a family member's included, declares `call`,
+`reducer`, `formatText` and `scalarTypeName` itself, each deciding in a switch expression with no `default`
+(`DialectVocabularyTest`, `//core:guardrails`); an inherited point is named in a grouped arm handing it to the parent.
+Proof: the 72 local lane dumps (both channels) are identical to the baseline's, statement for statement.
+
+**Step 2 (D1) done 2026-10-13: the base spells no function.** The base renderer's function switch became named
+helpers (`infix`, `inList`, `isNullTest`, `distinctFrom`, `divideAsDoubles`, `modFloored`, `bigintOf`, `castAs`,
+`padWithSpace`, `firstCharCased`, `concatFlat`, `raiseEnvelope`, `dateTruncDateGrained`, ...); its `call` writes only a
+dialect's own Spellings row (`row`, until P1a). Each dialect whose parent is the base names every function's spelling in
+its own switch, and the DuckDB-only arms (`MAP {}`, `xor`, `epoch_ms`, `make_timestamp`, `time_bucket`, `x + to_days(n)`,
+`//`, `error()`, the base64 pair, `json_merge_patch`) moved into `DuckDb`. `DialectVocabularyTest
+.noDialectTakesAFunctionFromTheBase` fails if such a dialect hands a function to `super.call`, or if the base's `call`
+grows a spelling (checked by planting one). The inventory first (arm × dialect, read by rendering every function on every
+root dialect against the base given that dialect's own rows), then the evidence for each inherited arm:
+
+| dialect | inherited arms | kept (the evidence) | refused by name |
+|---|---|---|---|
+| Postgres, Trino, Snowflake, Databricks, BigQuery, SQLite, MariaDB | 21 to 38 each | all: a passing statement in the dialect's own lanes carries each; the five unreached (`current_date` on Postgres, run in single-user mode; on Trino, Snowflake and Databricks, the SQL keyword each documents; Databricks' `date_trunc`) | none |
+| ClickHouse | 28 | 27, from its lanes | `today()`: ClickHouse 25.8 has no bare `current_date` (an unknown identifier, measured with `clickhouse local`; `today()` and `current_date()` are its spellings, left to a burn-down) |
+| H2 (and H2Modern) | 50 | 42, each run on H2 2.1.214 and 2.4.240 (its PCT lane reaches few) | 8 H2 cannot run (measured on both): `xor()` (bitNot), `from_base64`/`to_base64`, `epoch_ms`, `json_merge_patch`, `make_timestamp`, `MAP {}`, `time_bucket`. GUID, named here first as a refusal, runs (`CAST(uuid() AS VARCHAR)`) and is kept |
+| the engine-H2 text (EngineStyleH2 and its family) | 41 | 31 | the same 8, and `//` and `error()`: legend-engine's H2 text runs on H2, so a spelling H2 cannot run is not that text |
+
+The step's own code moves: H2's and the engine text's unconditional pre-switch checks became switch arms (a switch is
+the dialect's whole table, so no arm is unreachable); twelve long arms of Trino, BigQuery, ClickHouse, Postgres and
+Snowflake moved into named methods (`CodeShapeGuardrailTest`'s 250-line method limit). `CarrierDifferentialTest`'s
+portable renderer, which was the base with DuckDB's rows, keeps the base's carrier strategies and takes each function's
+spelling from `DuckDb`.
+
+Measured on 9373aec: the 72 local lane targets (eight databases, both channels) pass, and their SQL dumps are
+identical to the baseline's, statement for statement, so no lane reached a refused spelling. `//gates:local` is green:
+326 tests in one run, and the 23 the root container needs the recipe for (the three Postgres tests, the DataCube,
+Query and site browser tests, and the root-only pair) green under it. The clouds kept every spelling they inherited, so
+their text is unchanged by construction; their lanes run at the end of Phase 1. The H2 and DuckDB corpus suites and the H2 stress suite: the stress suite passes; the corpus verdicts, red on 15 tests, are being compared with the parent commit's (sibling 1).
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
