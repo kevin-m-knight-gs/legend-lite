@@ -2568,77 +2568,98 @@ public final class SQLite extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> super.reducer(writer, r);
+            case SUM -> aggregate(writer, "SUM", r);
+            case COUNT -> aggregate(writer, "COUNT", r);
+            case AVG -> aggregate(writer, "AVG", r);
+            case MIN -> aggregate(writer, "MIN", r);
+            case MAX -> aggregate(writer, "MAX", r);
             // any non-NULL value: the least (SQLite has no any_value)
             case ANY_VALUE -> writer.append("min(").piece(aggregateArgs(r)).append(")");
             // the driver's statistics extension: stdev and variance are the sample ones
             case STDDEV_SAMP, STDDEV -> writer.append("stdev(").piece(aggregateArgs(r)).append(")");
             case VAR_SAMP, VARIANCE -> writer.append("variance(").piece(aggregateArgs(r)).append(")");
-            case VAR_POP, STDDEV_POP -> {
-                SqlExpr x = r.args().get(0);
-                SqlWriter.Piece pop = w -> w.append("(CASE count(").expr(x, 0)
-                        .append(") WHEN 0 THEN NULL WHEN 1 THEN 0.0"
-                        + " ELSE variance(").expr(x, 0).append(") * (count(").expr(x, 0).append(") - 1) / count(")
-                        .expr(x, 0).append(") END)");
-                yield r.fn() == SqlAgg.Fn.STDDEV_POP ? writer.append("sqrt(").piece(pop).append(")")
-                        : writer.piece(pop);
-            }
+            case VAR_POP -> writer.piece(populationVariance(r));
+            case STDDEV_POP -> writer.append("sqrt(").piece(populationVariance(r)).append(")");
             case COVAR_POP, COVAR_SAMP, CORR -> writer.piece(moments(r));
             case BOOL_AND -> writer.append("min(").piece(aggregateArgs(r)).append(")");
             case BOOL_OR -> writer.append("max(").piece(aggregateArgs(r)).append(")");
-            case STRING_AGG -> {
-                writer.append("group_concat(").piece(aggregateArgs(r));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
-                }
-                yield writer.append(")");
-            }
-            case LIST -> {
-                if (r.args().size() != 1) {
-                    throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached SQLite");
-                }
-                writer.append("json_group_array(").append(r.distinct() ? "DISTINCT " : "").piece(json(r.args().get(0)));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
-                }
-                yield writer.append(")");
-            }
-            case MEDIAN -> {
-                if (r.args().size() != 1 || r.distinct()) {
-                    throw new DialectCapability("a median of this shape reached SQLite");
-                }
-                yield writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
-            }
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached SQLite");
-                }
-                yield writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
-            }
+            case STRING_AGG -> groupConcat(writer, r);
+            case LIST -> listOfValues(writer, r);
+            case MEDIAN -> median(writer, r);
+            case QUANTILE_CONT, QUANTILE_DISC -> percentile(writer, r);
             // the most frequent non-NULL value, the least among ties
-            case MODE -> {
-                SqlExpr x = r.args().get(0);
-                yield writer.append("(SELECT __m.value FROM json_each(json_group_array(").piece(json(x))
-                        .append(")) AS __m WHERE __m.value IS NOT NULL GROUP BY __m.value ORDER BY count(*) DESC,"
-                                + " min(__m.key) LIMIT 1)");
-            }
+            case MODE -> writer.append("(SELECT __m.value FROM json_each(json_group_array(")
+                    .piece(json(r.args().get(0)))
+                    .append(")) AS __m WHERE __m.value IS NOT NULL GROUP BY __m.value ORDER BY count(*) DESC,"
+                            + " min(__m.key) LIMIT 1)");
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached SQLite");
-                }
-                SqlExpr v = r.args().get(0);
-                SqlExpr k = r.args().get(1);
-                // an aggregate's own ORDER BY (a json_each over the group's array is a subquery, where SQLite refuses
-                // the aggregate: "misuse of aggregate function", measured)
-                yield writer.append("((json_group_array(").piece(json(v)).append(" ORDER BY ").expr(k, 0)
-                        .append(r.fn() == SqlAgg.Fn.ARG_MAX ? " DESC" : " ASC").append(") FILTER (WHERE ").expr(k, 4)
-                        .append(" IS NOT NULL)) ->> 0)");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> argExtreme(writer, r, " DESC");
+            case ARG_MIN -> argExtreme(writer, r, " ASC");
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** The population variance from the sample one: NULL over no value, 0 over one. */
+    private static SqlWriter.Piece populationVariance(SqlAgg.Reducer r) {
+        SqlExpr x = r.args().get(0);
+        return w -> w.append("(CASE count(").expr(x, 0)
+                .append(") WHEN 0 THEN NULL WHEN 1 THEN 0.0"
+                + " ELSE variance(").expr(x, 0).append(") * (count(").expr(x, 0).append(") - 1) / count(")
+                .expr(x, 0).append(") END)");
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducer}. */
+    private SqlWriter groupConcat(SqlWriter writer, SqlAgg.Reducer r) {
+        writer.append("group_concat(").piece(aggregateArgs(r));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter listOfValues(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1) {
+            throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached SQLite");
+        }
+        writer.append("json_group_array(").append(r.distinct() ? "DISTINCT " : "").piece(json(r.args().get(0)));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code MEDIAN} arm of {@link #reducer}. */
+    private SqlWriter median(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct()) {
+            throw new DialectCapability("a median of this shape reached SQLite");
+        }
+        return writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
+    }
+
+    /** The {@code QUANTILE_CONT} and {@code QUANTILE_DISC} arms of {@link #reducer}. */
+    private SqlWriter percentile(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached SQLite");
+        }
+        return writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
+    }
+
+    /** The value at the first row in the key's {@code direction}, rows of a NULL key ignored: an aggregate's own ORDER
+     *  BY (a json_each over the group's array is a subquery, where SQLite refuses the aggregate: "misuse of aggregate
+     *  function", measured). */
+    private SqlWriter argExtreme(SqlWriter writer, SqlAgg.Reducer r, String direction) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached SQLite");
+        }
+        SqlExpr v = r.args().get(0);
+        SqlExpr k = r.args().get(1);
+        return writer.append("((json_group_array(").piece(json(v)).append(" ORDER BY ").expr(k, 0)
+                .append(direction).append(") FILTER (WHERE ").expr(k, 4)
+                .append(" IS NOT NULL)) ->> 0)");
     }
 
     /** Covariance and correlation over the pairs with both values: their sums, as the moments' definitions. */

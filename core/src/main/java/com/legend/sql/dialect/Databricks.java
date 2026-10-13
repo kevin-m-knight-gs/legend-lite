@@ -1452,57 +1452,90 @@ public final class Databricks extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, CORR, COVAR_SAMP,
-                 COVAR_POP, BOOL_AND, BOOL_OR, VARIANCE, STDDEV, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST,
-                 NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached Databricks");
-                }
-                yield super.reducer(writer, r);
-            }
-            case STRING_AGG -> {
-                writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args()).append(")");
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey)
-                            .append(")");
-                }
-                yield writer;
-            }
+            case SUM -> aggregate(unordered(writer, r), "SUM", r);
+            case COUNT -> aggregate(unordered(writer, r), "COUNT", r);
+            case AVG -> aggregate(unordered(writer, r), "AVG", r);
+            case MIN -> aggregate(unordered(writer, r), "MIN", r);
+            case MAX -> aggregate(unordered(writer, r), "MAX", r);
+            case ANY_VALUE -> aggregate(unordered(writer, r), "ANY_VALUE", r);
+            case STDDEV_SAMP -> aggregate(unordered(writer, r), "STDDEV_SAMP", r);
+            case STDDEV_POP -> aggregate(unordered(writer, r), "STDDEV_POP", r);
+            case VAR_SAMP -> aggregate(unordered(writer, r), "VAR_SAMP", r);
+            case VAR_POP -> aggregate(unordered(writer, r), "VAR_POP", r);
             case MEDIAN -> writer.append("median(").expr(r.args().get(0), 0).append(")");
             case MODE -> writer.append("mode(").expr(r.args().get(0), 0).append(")");
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Databricks");
-                }
-                boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
-                // percentile_disc answers a DOUBLE whatever its input: cast to the value's own type
-                SqlType type = r.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
-                String cast = r.fn() == SqlAgg.Fn.QUANTILE_DISC && type != null ? castTypeName(type) : null;
-                if (cast != null) {
-                    writer.append("CAST(");
-                }
-                writer.append(r.fn() == SqlAgg.Fn.QUANTILE_CONT ? "percentile_cont(" : "percentile_disc(")
-                        .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
-                        .append(desc ? " DESC" : "").append(")");
-                yield cast != null ? writer.append(" AS ").append(cast).append(")") : writer;
-            }
-            case LIST -> {
-                if (r.distinct() || r.args().size() != 1) {
-                    throw new DialectCapability("a distinct LIST aggregate reached Databricks");
-                }
-                yield writer.piece(collected(w -> w.expr(r.args().get(0), 0),
-                        r.orderBy().stream().map(this::sortKeyOf).toList()));
-            }
+            case STRING_AGG -> listagg(writer, r);
+            case LIST -> arrayAgg(writer, r);
+            case QUANTILE_CONT -> percentile(writer, "percentile_cont", r, false);
+            // percentile_disc answers a DOUBLE whatever its input: cast to the value's own type
+            case QUANTILE_DISC -> percentile(writer, "percentile_disc", r, true);
+            case CORR -> aggregate(unordered(writer, r), "CORR", r);
+            case COVAR_SAMP -> aggregate(unordered(writer, r), "COVAR_SAMP", r);
+            case COVAR_POP -> aggregate(unordered(writer, r), "COVAR_POP", r);
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Databricks");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "max_by(" : "min_by(").list(r.args()).append(")");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> byExtreme(writer, "max_by", r);
+            case ARG_MIN -> byExtreme(writer, "min_by", r);
+            case BOOL_AND -> aggregate(unordered(writer, r), "BOOL_AND", r);
+            case BOOL_OR -> aggregate(unordered(writer, r), "BOOL_OR", r);
+            case VARIANCE -> aggregate(unordered(writer, r), "VARIANCE", r);
+            case STDDEV -> aggregate(unordered(writer, r), "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** {@code writer}, for an aggregate Databricks cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached Databricks");
+        }
+        return writer;
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducer}: {@code listagg(...)[ WITHIN GROUP (ORDER BY ...)]}. */
+    private SqlWriter listagg(SqlWriter writer, SqlAgg.Reducer r) {
+        writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args()).append(")");
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey)
+                    .append(")");
+        }
+        return writer;
+    }
+
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}, cast to the value's own type when {@code cast}. */
+    private SqlWriter percentile(SqlWriter writer, String name, SqlAgg.Reducer r, boolean cast) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached Databricks");
+        }
+        boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
+        SqlType type = r.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
+        String castTo = cast && type != null ? castTypeName(type) : null;
+        if (castTo != null) {
+            writer.append("CAST(");
+        }
+        writer.append(name).append("(")
+                .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
+                .append(desc ? " DESC" : "").append(")");
+        return castTo != null ? writer.append(" AS ").append(castTo).append(")") : writer;
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter arrayAgg(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.distinct() || r.args().size() != 1) {
+            throw new DialectCapability("a distinct LIST aggregate reached Databricks");
+        }
+        return writer.piece(collected(w -> w.expr(r.args().get(0), 0),
+                r.orderBy().stream().map(this::sortKeyOf).toList()));
+    }
+
+    /** {@code max_by(value, key)} / {@code min_by}: the value at the key's greatest (least) row. */
+    private static SqlWriter byExtreme(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached Databricks");
+        }
+        return writer.append(name).append("(").list(r.args()).append(")");
     }
 
     /** A windowed average is a DOUBLE (the pass sees only grouped ones); a value or ranking function's offset is an

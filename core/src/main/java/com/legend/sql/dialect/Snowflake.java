@@ -2267,60 +2267,91 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
-        if (!r.orderBy().isEmpty() && r.fn() != SqlAgg.Fn.STRING_AGG && r.fn() != SqlAgg.Fn.LIST
-                && r.fn() != SqlAgg.Fn.QUANTILE_CONT && r.fn() != SqlAgg.Fn.QUANTILE_DISC) {
-            throw new DialectCapability("an ordered " + r.fn() + " reached Snowflake");
-        }
         return switch (r.fn()) {
-            case SUM, COUNT, MIN, MAX, ANY_VALUE, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG,
-                 LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE -> super.reducer(writer, r);
-            case AVG -> r.args().size() == 1 && typeOf(r.args().get(0)) instanceof SqlType.Decimal
-                    ? super.reducer(writer.append("CAST("), r).append(" AS DOUBLE)")
-                    : super.reducer(writer, doubleArgs(r));
-            case STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, CORR, COVAR_SAMP, COVAR_POP, VARIANCE, STDDEV ->
-                    super.reducer(writer, doubleArgs(r));
-            case BOOL_AND -> writer.append("BOOLAND_AGG(").list(r.args()).append(")");
-            case BOOL_OR -> writer.append("BOOLOR_AGG(").list(r.args()).append(")");
+            case SUM -> aggregate(unordered(writer, r), "SUM", r);
+            case COUNT -> aggregate(unordered(writer, r), "COUNT", r);
+            case MIN -> aggregate(unordered(writer, r), "MIN", r);
+            case MAX -> aggregate(unordered(writer, r), "MAX", r);
+            case ANY_VALUE -> aggregate(unordered(writer, r), "ANY_VALUE", r);
+            case AVG -> avg(unordered(writer, r), r);
+            case STDDEV_SAMP -> aggregate(unordered(writer, r), "STDDEV_SAMP", doubleArgs(r));
+            case STDDEV_POP -> aggregate(unordered(writer, r), "STDDEV_POP", doubleArgs(r));
+            case VAR_SAMP -> aggregate(unordered(writer, r), "VAR_SAMP", doubleArgs(r));
+            case VAR_POP -> aggregate(unordered(writer, r), "VAR_POP", doubleArgs(r));
+            case CORR -> aggregate(unordered(writer, r), "CORR", doubleArgs(r));
+            case COVAR_SAMP -> aggregate(unordered(writer, r), "COVAR_SAMP", doubleArgs(r));
+            case COVAR_POP -> aggregate(unordered(writer, r), "COVAR_POP", doubleArgs(r));
+            case VARIANCE -> aggregate(unordered(writer, r), "VARIANCE", doubleArgs(r));
+            case STDDEV -> aggregate(unordered(writer, r), "STDDEV", doubleArgs(r));
+            case BOOL_AND -> unordered(writer, r).append("BOOLAND_AGG(").list(r.args()).append(")");
+            case BOOL_OR -> unordered(writer, r).append("BOOLOR_AGG(").list(r.args()).append(")");
             // LISTAGG answers '' over no row (measured); DuckDB's string_agg NULL
             case STRING_AGG -> writer.append("(CASE WHEN COUNT(").expr(r.args().get(0), 0)
                     .append(") = 0 THEN NULL ELSE ").piece(listagg(r)).append(" END)");
             // DuckDB's median interpolates numbers in DOUBLE (an integer's median is a DOUBLE)
-            case MEDIAN -> writer.append("MEDIAN(").piece(numericArg(r.args().get(0))).append(")");
-            case MODE -> writer.append("MODE(").expr(r.args().get(0), 0).append(")");
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
-                }
-                boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
-                boolean cont = r.fn() == SqlAgg.Fn.QUANTILE_CONT;
-                writer.append(cont ? "PERCENTILE_CONT(" : "PERCENTILE_DISC(").expr(r.args().get(1), 0)
-                        .append(") WITHIN GROUP (ORDER BY ");
-                yield (cont ? writer.piece(numericArg(r.args().get(0))) : writer.expr(r.args().get(0), 0))
-                        .append(desc ? " DESC" : "").append(")");
-            }
+            case MEDIAN -> unordered(writer, r).append("MEDIAN(").piece(numericArg(r.args().get(0))).append(")");
+            case MODE -> unordered(writer, r).append("MODE(").expr(r.args().get(0), 0).append(")");
+            case QUANTILE_CONT -> percentile(writer, "PERCENTILE_CONT", r, true);
+            case QUANTILE_DISC -> percentile(writer, "PERCENTILE_DISC", r, false);
             // a NULL value kept (ARRAY_AGG drops it, measured), in the keys' order
-            case LIST -> {
-                if (r.args().size() != 1) {
-                    throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached Snowflake");
-                }
-                writer.append("ARRAY_AGG(").append(r.distinct() ? "DISTINCT " : "").piece(keepNull(r.args().get(0)))
-                        .append(")");
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey)
-                            .append(")");
-                }
-                yield writer;
-            }
+            case LIST -> arrayAgg(writer, r);
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "MAX_BY(" : "MIN_BY(").list(r.args()).append(")");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> byExtreme(unordered(writer, r), "MAX_BY", r);
+            case ARG_MIN -> byExtreme(unordered(writer, r), "MIN_BY", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** {@code writer}, for an aggregate Snowflake cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached Snowflake");
+        }
+        return writer;
+    }
+
+    /** The {@code AVG} arm of {@link #reducer}: a DOUBLE, a Decimal's average cast to one. */
+    private SqlWriter avg(SqlWriter writer, SqlAgg.Reducer r) {
+        return r.args().size() == 1 && typeOf(r.args().get(0)) instanceof SqlType.Decimal
+                ? aggregate(writer.append("CAST("), "AVG", r).append(" AS DOUBLE)")
+                : aggregate(writer, "AVG", doubleArgs(r));
+    }
+
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}, the value a number when {@code numeric}. */
+    private SqlWriter percentile(SqlWriter writer, String name, SqlAgg.Reducer r, boolean numeric) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
+        writer.append(name).append("(").expr(r.args().get(1), 0)
+                .append(") WITHIN GROUP (ORDER BY ");
+        return (numeric ? writer.piece(numericArg(r.args().get(0))) : writer.expr(r.args().get(0), 0))
+                .append(desc ? " DESC" : "").append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter arrayAgg(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1) {
+            throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached Snowflake");
+        }
+        writer.append("ARRAY_AGG(").append(r.distinct() ? "DISTINCT " : "").piece(keepNull(r.args().get(0)))
+                .append(")");
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey)
+                    .append(")");
+        }
+        return writer;
+    }
+
+    /** {@code MAX_BY(value, key)} / {@code MIN_BY}: the value at the key's greatest (least) row. */
+    private static SqlWriter byExtreme(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct()) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        return writer.append(name).append("(").list(r.args()).append(")");
     }
 
     private SqlWriter.Piece numericArg(SqlExpr x) {
@@ -2482,7 +2513,7 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         if (r.fn() == SqlAgg.Fn.AVG && r.args().size() == 1 && typeOf(r.args().get(0)) instanceof SqlType.Decimal) {
             writer.append("CAST(");
-            super.reducer(writer, r);
+            aggregate(writer, "AVG", r);
             over(writer, win);
             return writer.append(" AS DOUBLE)");
         }

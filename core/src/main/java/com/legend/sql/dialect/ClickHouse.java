@@ -45,7 +45,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
 
     /** The settings every statement carries: SQL's NULLs for an outer join's missing side, a bare UNION distinct, a cast
      *  keeping its value's NULL, the zone UTC (the platform's naive-UTC contract). An aggregate's NULL over no row is
-     *  each aggregate's own {@code OrNull} form ({@link #aggregateName}): {@code aggregate_functions_null_for_empty}
+     *  each aggregate's own {@code OrNull} form ({@link #reducerIn}): {@code aggregate_functions_null_for_empty}
      *  makes {@code groupArray} a NULLABLE array, which ClickHouse refuses (measured). And a CASE's branch runs only
      *  where its guard holds: the planner's merge of a subquery's expressions into its reader's drops that (a guarded
      *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off. */
@@ -2125,108 +2125,138 @@ public final class ClickHouse extends AnsiSqlRenderer {
     /** A reducer, windowed over {@code win} when it is one. */
     private SqlWriter reducerIn(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
         return switch (r.fn()) {
-            case COUNT -> {
-                writer.append("toInt64(");
-                super.reducer(writer, r);
-                yield ov(writer, win).append(")");
-            }
+            case COUNT -> count(writer, r, win);
             // corr takes no Decimal beside an Int64 (measured): Float64 operands
             case CORR -> ov(writer.append("corrOrNull(toFloat64(").expr(r.args().get(0), 0).append("), toFloat64(")
                     .expr(r.args().get(1), 0).append("))"), win);
-            case SUM, AVG, MIN, MAX, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached ClickHouse");
-                }
-                yield ov(super.reducer(writer, r), win);
-            }
+            // an aggregate over no row is NULL in SQL, its type's default here unless the aggregate is its OrNull form
+            case SUM -> ov(aggregate(unordered(writer, r), "sumOrNull", r), win);
+            case AVG -> ov(aggregate(unordered(writer, r), "avgOrNull", r), win);
+            case MIN -> ov(aggregate(unordered(writer, r), "minOrNull", r), win);
+            case MAX -> ov(aggregate(unordered(writer, r), "maxOrNull", r), win);
             // one value's sample deviation and variance are inf here, DuckDB's NULL (measured 25.8, 2026-10-13)
             case STDDEV_SAMP, STDDEV -> sampled(writer, "stddevSampStableOrNull", r, win);
             case STDDEV_POP -> ov(plain(writer, "stddevPopStableOrNull", r), win);
             case VAR_SAMP, VARIANCE -> sampled(writer, "varSampStableOrNull", r, win);
             case VAR_POP -> ov(plain(writer, "varPopStableOrNull", r), win);
             // one row's sample covariance is NaN here, DuckDB's NULL (measured)
-            case COVAR_SAMP -> {
-                writer.append("if(");
-                ov(writer.append("count(").expr(r.args().get(0), 0).append(")"), win).append(" < 2, NULL, ");
-                yield ov(plain(writer, "covarSampStableOrNull", r), win).append(")");
-            }
+            case COVAR_SAMP -> covarSamp(writer, r, win);
             case COVAR_POP -> ov(plain(writer, "covarPopStableOrNull", r), win);
             case BOOL_AND -> ov(plain(writer, "minOrNull", r), win);
             case BOOL_OR -> ov(plain(writer, "maxOrNull", r), win);
             case ANY_VALUE -> ov(plain(writer, "anyOrNull", r), win);
-            case LAG, LEAD -> throw new IllegalStateException(r.fn() + " is a window function: windowCall writes it");
-            case STRING_AGG -> {
-                if (r.args().size() != 2) {
-                    throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached ClickHouse");
-                }
-                SqlExpr v = r.args().get(0);
-                SqlWriter.Piece values = r.distinct()
-                        ? w -> ov(w.append("arrayDistinct(groupArray(").expr(v, 0).append(")"), win).append(")")
-                        : r.orderBy().isEmpty()
-                                ? w -> ov(w.append("groupArray(").expr(v, 0).append(")"), win)
-                                : w -> w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ").piece(collected(
-                                        x -> x.expr(v, 0), r.orderBy().stream().map(this::sortKeyOf).toList(), win))
-                                        .append(")");
-                yield writer.append("if(empty(").piece(values).append("), NULL, arrayStringConcat(").piece(values)
-                        .append(", ").expr(r.args().get(1), 0).append("))");
-            }
+            case STRING_AGG -> stringAgg(writer, r, win);
             case MEDIAN -> ov(writer.append("quantileExactInclusiveOrNull(0.5)(toFloat64(").expr(r.args().get(0), 0)
                     .append("))"), win);
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
-                }
-                boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
-                if (r.fn() == SqlAgg.Fn.QUANTILE_CONT) {
-                    writer.append("quantileExactInclusiveOrNull(");
-                    if (desc) {
-                        writer.append("1 - ");
-                    }
-                    yield ov(writer.expr(r.args().get(1), 6).append(")(toFloat64(").expr(r.args().get(0), 0).append("))"),
-                            win);
-                }
-                // DuckDB's quantile_disc: the sorted values' element at max(ceil(n q) - 1, 0), 0-based
-                SqlWriter.Piece sorted = w -> ov(w.append("arraySort(groupArray(").expr(r.args().get(0), 0).append(")"),
-                        win).append(")");
-                SqlWriter.Piece q = desc ? w -> w.append("(1 - ").expr(r.args().get(1), 6).append(")")
-                        : w -> w.expr(r.args().get(1), 6);
-                yield writer.append("if(empty(").piece(sorted).append("), NULL, arrayElement(").piece(sorted)
-                        .append(", toInt64(greatest(ceil(length(").piece(sorted).append(") * ").piece(q)
-                        .append(") - 1, 0)) + 1))");
-            }
+            case QUANTILE_CONT -> quantileCont(writer, r, win);
+            case QUANTILE_DISC -> quantileDisc(writer, r, win);
             case MODE -> writer.piece(modeOf(w -> ov(w.append("groupArray(").expr(r.args().get(0), 0).append(")"), win)));
-            case LIST -> {
-                if (r.distinct() || r.args().size() != 1) {
-                    throw new DialectCapability("a distinct LIST aggregate reached ClickHouse");
-                }
-                yield writer.piece(collected(w -> w.expr(r.args().get(0), 0),
-                        r.orderBy().stream().map(this::sortKeyOf).toList(), win));
-            }
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
-                }
-                yield ov(writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "argMax(" : "argMin(").list(r.args()).append(")"),
-                        win);
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case LIST -> listOfValues(writer, r, win);
+            case ARG_MAX -> argExtreme(writer, "argMax", r, win);
+            case ARG_MIN -> argExtreme(writer, "argMin", r, win);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
     }
 
-    /** An aggregate over no row is NULL in SQL, its type's default here unless the aggregate is its {@code OrNull}
-     *  form. */
+    /** {@code writer}, for an aggregate ClickHouse cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached ClickHouse");
+        }
+        return writer;
+    }
+
+    /** The {@code COUNT} arm of {@link #reducerIn}: an Int64. */
+    private SqlWriter count(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        writer.append("toInt64(");
+        aggregate(writer, "count", r);
+        return ov(writer, win).append(")");
+    }
+
+    /** The {@code COVAR_SAMP} arm of {@link #reducerIn}: one row's sample covariance is NaN here, DuckDB's NULL. */
+    private SqlWriter covarSamp(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        writer.append("if(");
+        ov(writer.append("count(").expr(r.args().get(0), 0).append(")"), win).append(" < 2, NULL, ");
+        return ov(plain(writer, "covarSampStableOrNull", r), win).append(")");
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducerIn}. */
+    private SqlWriter stringAgg(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        if (r.args().size() != 2) {
+            throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached ClickHouse");
+        }
+        SqlExpr v = r.args().get(0);
+        SqlWriter.Piece values = r.distinct()
+                ? w -> ov(w.append("arrayDistinct(groupArray(").expr(v, 0).append(")"), win).append(")")
+                : r.orderBy().isEmpty()
+                        ? w -> ov(w.append("groupArray(").expr(v, 0).append(")"), win)
+                        : w -> w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ").piece(collected(
+                                x -> x.expr(v, 0), r.orderBy().stream().map(this::sortKeyOf).toList(), win))
+                                .append(")");
+        return writer.append("if(empty(").piece(values).append("), NULL, arrayStringConcat(").piece(values)
+                .append(", ").expr(r.args().get(1), 0).append("))");
+    }
+
+    /** A percentile's shape here: a value and a level, at most one order key (its direction). */
+    private static boolean descendingPercentile(SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
+        }
+        return !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
+    }
+
+    /** The {@code QUANTILE_CONT} arm of {@link #reducerIn}. */
+    private SqlWriter quantileCont(SqlWriter writer, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        boolean desc = descendingPercentile(r);
+        writer.append("quantileExactInclusiveOrNull(");
+        if (desc) {
+            writer.append("1 - ");
+        }
+        return ov(writer.expr(r.args().get(1), 6).append(")(toFloat64(").expr(r.args().get(0), 0).append("))"),
+                win);
+    }
+
+    /** The {@code QUANTILE_DISC} arm of {@link #reducerIn}: DuckDB's quantile_disc, the sorted values' element at
+     *  max(ceil(n q) - 1, 0), 0-based. */
+    private SqlWriter quantileDisc(SqlWriter writer, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        boolean desc = descendingPercentile(r);
+        SqlWriter.Piece sorted = w -> ov(w.append("arraySort(groupArray(").expr(r.args().get(0), 0).append(")"),
+                win).append(")");
+        SqlWriter.Piece q = desc ? w -> w.append("(1 - ").expr(r.args().get(1), 6).append(")")
+                : w -> w.expr(r.args().get(1), 6);
+        return writer.append("if(empty(").piece(sorted).append("), NULL, arrayElement(").piece(sorted)
+                .append(", toInt64(greatest(ceil(length(").piece(sorted).append(") * ").piece(q)
+                .append(") - 1, 0)) + 1))");
+    }
+
+    /** The {@code LIST} arm of {@link #reducerIn}. */
+    private SqlWriter listOfValues(SqlWriter writer, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        if (r.distinct() || r.args().size() != 1) {
+            throw new DialectCapability("a distinct LIST aggregate reached ClickHouse");
+        }
+        return writer.piece(collected(w -> w.expr(r.args().get(0), 0),
+                r.orderBy().stream().map(this::sortKeyOf).toList(), win));
+    }
+
+    /** {@code argMax(value, key)} / {@code argMin}: the value at the key's greatest (least) row. */
+    private SqlWriter argExtreme(SqlWriter writer, String name, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
+        }
+        return ov(writer.append(name).append("(").list(r.args()).append(")"), win);
+    }
+
+    /** A window function's name: lowercase (each aggregate's is {@link #reducerIn}'s). */
     @Override
     protected String aggregateName(SqlAgg.Fn fn) {
-        return switch (fn) {
-            case SUM -> "sumOrNull";
-            case MIN -> "minOrNull";
-            case MAX -> "maxOrNull";
-            case AVG -> "avgOrNull";
-            case CORR -> "corrOrNull";
-            default -> super.aggregateName(fn).toLowerCase(java.util.Locale.ROOT);
-        };
+        return fn.toString().toLowerCase(java.util.Locale.ROOT);
     }
 
     /** A sample statistic, NULL under two values (as DuckDB's; ClickHouse answers inf for one). */
@@ -2358,7 +2388,10 @@ public final class ClickHouse extends AnsiSqlRenderer {
             conds.add(hi);
         }
         String agg = switch (r.fn()) {
-            case SUM, AVG, MIN, MAX -> aggregateName(r.fn());
+            case SUM -> "sumOrNull";
+            case AVG -> "avgOrNull";
+            case MIN -> "minOrNull";
+            case MAX -> "maxOrNull";
             case COUNT -> "count";
             case STDDEV_SAMP, STDDEV -> "stddevSampStableOrNull";
             case STDDEV_POP -> "stddevPopStableOrNull";

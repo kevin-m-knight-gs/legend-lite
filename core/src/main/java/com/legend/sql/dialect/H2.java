@@ -764,75 +764,109 @@ public class H2 extends AnsiSqlRenderer {
      * reducers render on the base. */
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
-        if (r.fn() == com.legend.sql.SqlAgg.Fn.ANY_VALUE && r.args().size() == 1
-                && !r.distinct() && r.orderBy().isEmpty()) {
-            // Pure's first() over a group is ANY non-empty value (empties
-            // vanish from a collection); H2 2.1.214 has no ANY_VALUE, so a
-            // comparable scalar takes MIN, which is such a value. A JSON or
-            // array carrier has no order to take a minimum over: a wall,
-            // never a guess (rebuild W0.6 push 13, E5).
-            SqlExpr arg = r.args().get(0);
-            if (arg.type() instanceof com.legend.sql.TypeFact.Typed t
-                    && t.type() instanceof com.legend.sql.SqlType.Scalar sc
-                    && sc != com.legend.sql.SqlType.Scalar.JSON) {
-                return writer.append("MIN(").expr(arg, 0).append(")");
-            }
-            throw new DialectCapability("first() over a group of "
-                    + (arg.type() instanceof com.legend.sql.TypeFact.Typed t2 ? t2.type() : arg.type())
-                    + " values has no H2 spelling: this H2 has no ANY_VALUE and MIN needs a comparable scalar");
-        }
-        if ((r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
-                    || r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_DISC)
-                && r.args().size() == 2 && !r.distinct()
-                && r.orderBy().size() <= 1) {
-            // the reducer's single order key IS the within-group order
-            // (a descending percentile); none = ascending
-            boolean desc = !r.orderBy().isEmpty()
-                    && !r.orderBy().get(0).ascending();
-            return writer.append(r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
-                            ? "PERCENTILE_CONT(" : "PERCENTILE_DISC(")
-                    .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
-                    .append(desc ? " DESC" : "").append(")");
-        }
-        if (r.fn() == com.legend.sql.SqlAgg.Fn.LIST && r.args().size() == 1
-                && !r.distinct()) {
-            writer.append("JSON_ARRAYAGG(").expr(r.args().get(0), 0);
-            if (!r.orderBy().isEmpty()) {
-                writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
-                        .append(k.ascending() ? " ASC" : " DESC")
-                        .append(k.nullOrder() == null ? ""
-                                : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
-                                        ? " NULLS FIRST" : " NULLS LAST"));
-            }
-            return writer.append(" NULL ON NULL)");
-        }
-        // ordered aggregates pin the reference NULL placement too (the
-        // sortKey pin's aggregate-internal twin — witnessed: sorted
-        // joinStrings led with TDSNull under H2's NULLS-FIRST default)
-        if (!r.orderBy().isEmpty()) {
-            writer.append(r.fn().toString()).append("(").append(r.distinct() ? "DISTINCT " : "");
-            if (r.args().isEmpty()) {
-                writer.append("*");
-            } else {
-                writer.list(r.args());
-            }
-            return writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
-                    .append(k.ascending() ? " ASC" : " DESC")
-                    .append(k.nullOrder() == null
-                            ? (k.ascending() ? " NULLS LAST" : " NULLS FIRST")
-                            : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
-                                    ? " NULLS FIRST" : " NULLS LAST"))
-                    .append(")");
-        }
-        // every aggregate the checks above do not spell, by name: the parent's (the dialect program's Phase 1,
-        // 2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too)
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, MEDIAN, MODE,
-                 STRING_AGG, LIST, QUANTILE_CONT, QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN, WAVG,
-                 HASH_LIST, BOOL_AND, BOOL_OR, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY, VARIANCE, STDDEV, ROW_NUMBER,
-                 RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE ->
-                    super.reducer(writer, r);
+            case SUM -> h2Aggregate(writer, "SUM", r);
+            case COUNT -> h2Aggregate(writer, "COUNT", r);
+            case AVG -> h2Aggregate(writer, "AVG", r);
+            case MIN -> h2Aggregate(writer, "MIN", r);
+            case MAX -> h2Aggregate(writer, "MAX", r);
+            // Pure's first() over a group is ANY non-empty value (empties vanish from a collection); H2 2.1.214 has no
+            // ANY_VALUE, so a comparable scalar takes MIN (anyValue)
+            case ANY_VALUE -> r.args().size() == 1 && !r.distinct() && r.orderBy().isEmpty() ? anyValue(writer, r)
+                    : h2Aggregate(writer, "ANY_VALUE", r);
+            case STDDEV_SAMP -> h2Aggregate(writer, "STDDEV_SAMP", r);
+            case STDDEV_POP -> h2Aggregate(writer, "STDDEV_POP", r);
+            case VAR_SAMP -> h2Aggregate(writer, "VAR_SAMP", r);
+            case VAR_POP -> h2Aggregate(writer, "VAR_POP", r);
+            case MEDIAN -> h2Aggregate(writer, "MEDIAN", r);
+            case MODE -> h2Aggregate(writer, "MODE", r);
+            case STRING_AGG -> h2Aggregate(writer, "STRING_AGG", r);
+            case LIST -> r.args().size() == 1 && !r.distinct() ? listOfValues(writer, r)
+                    : h2Aggregate(writer, "LIST", r);
+            // the reducer's single order key IS the within-group order (a descending percentile); none = ascending
+            case QUANTILE_CONT -> withinGroupShaped(r) ? percentile(writer, "PERCENTILE_CONT", r)
+                    : h2Aggregate(writer, "QUANTILE_CONT", r);
+            case QUANTILE_DISC -> withinGroupShaped(r) ? percentile(writer, "PERCENTILE_DISC", r)
+                    : h2Aggregate(writer, "QUANTILE_DISC", r);
+            case CORR -> h2Aggregate(writer, "CORR", r);
+            case COVAR_SAMP -> h2Aggregate(writer, "COVAR_SAMP", r);
+            case COVAR_POP -> h2Aggregate(writer, "COVAR_POP", r);
+            case ARG_MAX -> h2Aggregate(writer, "ARG_MAX", r);
+            case ARG_MIN -> h2Aggregate(writer, "ARG_MIN", r);
+            case BOOL_AND -> h2Aggregate(writer, "BOOL_AND", r);
+            case BOOL_OR -> h2Aggregate(writer, "BOOL_OR", r);
+            case VARIANCE -> h2Aggregate(writer, "VARIANCE", r);
+            case STDDEV -> h2Aggregate(writer, "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** An aggregate by its name; an ordered one pins the reference NULL placement too (the sortKey pin's
+     *  aggregate-internal twin — witnessed: sorted joinStrings led with TDSNull under H2's NULLS-FIRST default). */
+    private SqlWriter h2Aggregate(SqlWriter writer, String name, com.legend.sql.SqlAgg.Reducer r) {
+        if (r.orderBy().isEmpty()) {
+            return aggregate(writer, name, r);
+        }
+        writer.append(name).append("(").append(r.distinct() ? "DISTINCT " : "");
+        if (r.args().isEmpty()) {
+            writer.append("*");
+        } else {
+            writer.list(r.args());
+        }
+        return writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
+                .append(k.ascending() ? " ASC" : " DESC")
+                .append(k.nullOrder() == null
+                        ? (k.ascending() ? " NULLS LAST" : " NULLS FIRST")
+                        : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                                ? " NULLS FIRST" : " NULLS LAST"))
+                .append(")");
+    }
+
+    /** Pure's first() over a group is ANY non-empty value (empties
+     * vanish from a collection); H2 2.1.214 has no ANY_VALUE, so a
+     * comparable scalar takes MIN, which is such a value. A JSON or
+     * array carrier has no order to take a minimum over: a wall,
+     * never a guess (rebuild W0.6 push 13, E5). */
+    private SqlWriter anyValue(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+        SqlExpr arg = r.args().get(0);
+        if (arg.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() instanceof com.legend.sql.SqlType.Scalar sc
+                && sc != com.legend.sql.SqlType.Scalar.JSON) {
+            return writer.append("MIN(").expr(arg, 0).append(")");
+        }
+        throw new DialectCapability("first() over a group of "
+                + (arg.type() instanceof com.legend.sql.TypeFact.Typed t2 ? t2.type() : arg.type())
+                + " values has no H2 spelling: this H2 has no ANY_VALUE and MIN needs a comparable scalar");
+    }
+
+    /** A percentile H2 writes WITHIN GROUP: a value and a level, at most one order key. */
+    private static boolean withinGroupShaped(com.legend.sql.SqlAgg.Reducer r) {
+        return r.args().size() == 2 && !r.distinct() && r.orderBy().size() <= 1;
+    }
+
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}. */
+    private SqlWriter percentile(SqlWriter writer, String name, com.legend.sql.SqlAgg.Reducer r) {
+        boolean desc = !r.orderBy().isEmpty()
+                && !r.orderBy().get(0).ascending();
+        return writer.append(name).append("(")
+                .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
+                .append(desc ? " DESC" : "").append(")");
+    }
+
+    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}. */
+    private SqlWriter listOfValues(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+        writer.append("JSON_ARRAYAGG(").expr(r.args().get(0), 0);
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
+                    .append(k.ascending() ? " ASC" : " DESC")
+                    .append(k.nullOrder() == null ? ""
+                            : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                                    ? " NULLS FIRST" : " NULLS LAST"));
+        }
+        return writer.append(" NULL ON NULL)");
     }
 
     /** Banker's ROUND (probed on 2.1.214 against DuckDB ROUND_EVEN over

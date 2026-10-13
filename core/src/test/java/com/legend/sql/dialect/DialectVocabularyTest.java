@@ -103,10 +103,11 @@ class DialectVocabularyTest {
     }
 
     /**
-     * THE BASE SPELLS NO FUNCTION (decision D1, 2026-10-13): a dialect whose parent is the base renderer names every
-     * function's spelling itself, calling the base's shared helpers by name, and never hands one to the base's
-     * {@code call} (only a family member hands a function to its parent, a concrete dialect); the base's {@code call}
-     * refuses every function.
+     * THE BASE SPELLS NO FUNCTION (decision D1, 2026-10-13) AND NO AGGREGATE (Phase 1b step 3): a dialect whose parent
+     * is the base renderer names every function's and aggregate's spelling itself, calling the base's shared helpers
+     * by name ({@code aggregate(writer, "SUM", r)}), and never hands one to the base's {@code call} or {@code reducer}
+     * (only a family member hands a point to its parent, a concrete dialect); the base's {@code call} and
+     * {@code reducer} refuse every point.
      */
     @Test
     void noDialectTakesAFunctionFromTheBase() throws IOException, ClassNotFoundException {
@@ -120,13 +121,17 @@ class DialectVocabularyTest {
             Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
                     DialectVocabularyTest.class.getClassLoader());
             String code = code(Files.readString(f));
-            if (cls.getSuperclass() == AnsiSqlRenderer.class && code.contains("super.call(")) {
-                wrong.add(name + " hands a function to the base renderer (super.call)");
-            }
-            if (cls == AnsiSqlRenderer.class) {
-                String call = body(code, "\\bcall\\s*\\(\\s*SqlWriter\\b");
-                if (call == null || !call.replaceAll("\\s+", " ").startsWith("{ throw new DialectCapability(")) {
-                    wrong.add("the base renderer's call() spells something instead of refusing: " + call);
+            for (String vocabulary : List.of("call", "reducer")) {
+                if (cls.getSuperclass() == AnsiSqlRenderer.class && code.contains("super." + vocabulary + "(")) {
+                    wrong.add(name + " hands a point to the base renderer (super." + vocabulary + ")");
+                }
+                if (cls == AnsiSqlRenderer.class) {
+                    String decider = body(code, "\\b" + vocabulary + "\\s*\\(\\s*SqlWriter\\b");
+                    if (decider == null
+                            || !decider.replaceAll("\\s+", " ").startsWith("{ throw new DialectCapability(")) {
+                        wrong.add("the base renderer's " + vocabulary + "() spells something instead of refusing: "
+                                + decider);
+                    }
                 }
             }
         }
@@ -175,8 +180,8 @@ class DialectVocabularyTest {
         assertTrue(wrong.isEmpty(), "a function table that is not one switch of one-expression arms: " + wrong);
     }
 
-    /** The vocabularies whose deciding switch is held to one-expression arms. */
-    private static final java.util.Set<String> ONE_EXPRESSION_TABLES = java.util.Set.of("call");
+    /** The vocabularies whose deciding switch is held to one-expression arms: the functions and the aggregates. */
+    private static final java.util.Set<String> ONE_EXPRESSION_TABLES = java.util.Set.of("call", "reducer");
 
     /** What is wrong with {@code decider} (its source with comments and literals blanked) as one switch {@code sw} of
      *  one-expression arms, each wrong thing named by {@code where}. */

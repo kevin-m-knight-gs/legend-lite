@@ -1843,86 +1843,118 @@ public final class Postgres extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
-        // Postgres has no max/min over BOOLEAN (measured: "function max(boolean) does not exist");
-        // over false < true they ARE bool_or/bool_and. DataCube's "the group's one value" columns
-        // (CASE WHEN COUNT(DISTINCT b) = 1 THEN MAX(b) END) reach this on every boolean column.
-        if ((r.fn() == SqlAgg.Fn.MAX || r.fn() == SqlAgg.Fn.MIN) && r.args().size() == 1
-                && r.orderBy().isEmpty() && isBoolean(r.args().get(0))) {
-            return writer.append(r.fn() == SqlAgg.Fn.MAX ? "bool_or(" : "bool_and(").expr(r.args().get(0), 0)
-                    .append(")");
-        }
-        // nor over jsonb (measured: "function max(jsonb) does not exist"), though jsonb is ordered: the
-        // first of the values in that order, NULLs last, is max/min exactly -- NULL only when all are.
-        // A Variant column (json read as jsonb, StoredReads) reaches this in DataCube's one-value columns.
-        if ((r.fn() == SqlAgg.Fn.MAX || r.fn() == SqlAgg.Fn.MIN) && r.args().size() == 1
-                && r.orderBy().isEmpty() && isJson(r.args().get(0))) {
-            return writer.append("(array_agg(").expr(r.args().get(0), 0).append(" ORDER BY ").expr(r.args().get(0), 0)
-                    .append(r.fn() == SqlAgg.Fn.MAX ? " DESC" : " ASC").append(" NULLS LAST))[1]");
-        }
         return switch (r.fn()) {
-            // ANY_VALUE is Postgres 16+; ordered aggregates keep the base's spelling —
-            // Postgres' default null placement (ASC last, DESC first) IS the
-            // reference's NULL-largest
+            // ANY_VALUE is Postgres 16+; ordered aggregates keep the plain spelling — Postgres' default null
+            // placement (ASC last, DESC first) IS the reference's NULL-largest
             // (avg and the moments are a Float: AggregatesDeliverDouble casts them, windowCall in a window)
-            case SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP,
-                 VAR_POP, STRING_AGG, CORR, COVAR_SAMP, COVAR_POP, BOOL_AND, BOOL_OR,
-                 VARIANCE, STDDEV, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST,
-                 NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE -> super.reducer(writer, r);
+            case SUM -> aggregate(writer, "SUM", r);
+            case COUNT -> aggregate(writer, "COUNT", r);
+            case AVG -> aggregate(writer, "AVG", r);
+            case MIN -> extreme(writer, "MIN", "bool_and", " ASC", r);
+            case MAX -> extreme(writer, "MAX", "bool_or", " DESC", r);
+            case ANY_VALUE -> aggregate(writer, "ANY_VALUE", r);
+            case STDDEV_SAMP -> aggregate(writer, "STDDEV_SAMP", r);
+            case STDDEV_POP -> aggregate(writer, "STDDEV_POP", r);
+            case VAR_SAMP -> aggregate(writer, "VAR_SAMP", r);
+            case VAR_POP -> aggregate(writer, "VAR_POP", r);
+            case STRING_AGG -> aggregate(writer, "STRING_AGG", r);
+            case CORR -> aggregate(writer, "CORR", r);
+            case COVAR_SAMP -> aggregate(writer, "COVAR_SAMP", r);
+            case COVAR_POP -> aggregate(writer, "COVAR_POP", r);
+            case BOOL_AND -> aggregate(writer, "BOOL_AND", r);
+            case BOOL_OR -> aggregate(writer, "BOOL_OR", r);
+            case VARIANCE -> aggregate(writer, "VARIANCE", r);
+            case STDDEV -> aggregate(writer, "STDDEV", r);
             // DuckDB's median interpolates numbers; a median of anything else walls
-            case MEDIAN -> {
-                if (r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()
-                        || !isNumeric(r.args().get(0))) {
-                    throw new DialectCapability("median of a non-number reached Postgres,"
-                            + " whose percentile_cont interpolates numbers only");
-                }
-                yield writer.append("percentile_cont(0.5) WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
-                        .append(")");
-            }
-            case MODE -> {
-                if (r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability("a distinct or ordered mode reached Postgres");
-                }
-                yield writer.append("mode() WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0).append(")");
-            }
+            case MEDIAN -> median(writer, r);
+            case MODE -> mode(writer, r);
             // the reducer's single order key IS the within-group order (H2's arm)
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Postgres");
-                }
-                boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
-                yield writer.append(r.fn() == SqlAgg.Fn.QUANTILE_CONT ? "percentile_cont(" : "percentile_disc(")
-                        .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
-                        .append(desc ? " DESC" : "").append(")");
-            }
+            case QUANTILE_CONT -> percentile(writer, "percentile_cont", r);
+            case QUANTILE_DISC -> percentile(writer, "percentile_disc", r);
             // DuckDB's list(x): the values in order, NULLs kept, NULL over no row (array_agg's own), each value
             // held as a list holds it (a list as jsonb, a struct jsonb already)
-            case LIST -> {
-                if (r.args().size() != 1 || r.distinct() && !r.orderBy().isEmpty()) {
-                    throw new DialectCapability("a LIST aggregate of this shape reached Postgres");
-                }
-                SqlExpr x = r.args().get(0);
-                writer.append("array_agg(").append(r.distinct() ? "DISTINCT " : "")
-                        .piece(encode(w -> w.expr(x, 0), typeOf(x)));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
-                }
-                yield writer.append(")");
-            }
+            case LIST -> listOfValues(writer, r);
             // no arg_max/arg_min: the value at the first row in the key's order, rows of a NULL key
             // ignored, as DuckDB's arg_max/arg_min (a flat, internal array: never a carrier)
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Postgres");
-                }
-                yield writer.append("(array_agg(").expr(r.args().get(0), 0).append(" ORDER BY ")
-                        .expr(r.args().get(1), 0)
-                        .append(r.fn() == SqlAgg.Fn.ARG_MAX ? " DESC" : " ASC").append(") FILTER (WHERE ")
-                        .expr(r.args().get(1), 0).append(" IS NOT NULL))[1]");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn()
-                            + " reached the renderer");
+            case ARG_MAX -> argExtreme(writer, " DESC", r);
+            case ARG_MIN -> argExtreme(writer, " ASC", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** The {@code MAX} and {@code MIN} arms of {@link #reducer}. Postgres has no max/min over BOOLEAN (measured:
+     *  "function max(boolean) does not exist"); over false < true they ARE bool_or/bool_and. DataCube's "the group's
+     *  one value" columns (CASE WHEN COUNT(DISTINCT b) = 1 THEN MAX(b) END) reach this on every boolean column. Nor
+     *  over jsonb (measured: "function max(jsonb) does not exist"), though jsonb is ordered: the first of the values in
+     *  that order, NULLs last, is max/min exactly -- NULL only when all are. A Variant column (json read as jsonb,
+     *  StoredReads) reaches this in DataCube's one-value columns. */
+    private SqlWriter extreme(SqlWriter writer, String name, String overBoolean, String direction, SqlAgg.Reducer r) {
+        if (r.args().size() == 1 && r.orderBy().isEmpty() && isBoolean(r.args().get(0))) {
+            return writer.append(overBoolean).append("(").expr(r.args().get(0), 0).append(")");
+        }
+        if (r.args().size() == 1 && r.orderBy().isEmpty() && isJson(r.args().get(0))) {
+            return writer.append("(array_agg(").expr(r.args().get(0), 0).append(" ORDER BY ").expr(r.args().get(0), 0)
+                    .append(direction).append(" NULLS LAST))[1]");
+        }
+        return aggregate(writer, name, r);
+    }
+
+    /** The {@code MEDIAN} arm of {@link #reducer}. */
+    private SqlWriter median(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()
+                || !isNumeric(r.args().get(0))) {
+            throw new DialectCapability("median of a non-number reached Postgres,"
+                    + " whose percentile_cont interpolates numbers only");
+        }
+        return writer.append("percentile_cont(0.5) WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
+                .append(")");
+    }
+
+    /** The {@code MODE} arm of {@link #reducer}. */
+    private SqlWriter mode(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability("a distinct or ordered mode reached Postgres");
+        }
+        return writer.append("mode() WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0).append(")");
+    }
+
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}. */
+    private SqlWriter percentile(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached Postgres");
+        }
+        boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
+        return writer.append(name).append("(")
+                .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
+                .append(desc ? " DESC" : "").append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter listOfValues(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct() && !r.orderBy().isEmpty()) {
+            throw new DialectCapability("a LIST aggregate of this shape reached Postgres");
+        }
+        SqlExpr x = r.args().get(0);
+        writer.append("array_agg(").append(r.distinct() ? "DISTINCT " : "")
+                .piece(encode(w -> w.expr(x, 0), typeOf(x)));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
+        }
+        return writer.append(")");
+    }
+
+    /** The value at the first row in the key's {@code direction}, rows of a NULL key ignored. */
+    private SqlWriter argExtreme(SqlWriter writer, String direction, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached Postgres");
+        }
+        return writer.append("(array_agg(").expr(r.args().get(0), 0).append(" ORDER BY ")
+                .expr(r.args().get(1), 0)
+                .append(direction).append(") FILTER (WHERE ")
+                .expr(r.args().get(1), 0).append(" IS NOT NULL))[1]");
     }
 
     private static boolean isBoolean(SqlExpr e) {

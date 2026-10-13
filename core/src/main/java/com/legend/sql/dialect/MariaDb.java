@@ -2849,11 +2849,13 @@ public class MariaDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, MIN, MAX, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> super.reducer(writer, r);
+            case SUM -> aggregate(writer, "SUM", r);
+            case COUNT -> aggregate(writer, "COUNT", r);
+            case MIN -> aggregate(writer, "MIN", r);
+            case MAX -> aggregate(writer, "MAX", r);
             // DuckDB's avg is a DOUBLE (an average here is a DECIMAL of four more digits)
-            case AVG -> writer.append("AVG(").append(r.distinct() ? "DISTINCT " : "").append("CAST(").expr(r.args().get(0), 0)
-                    .append(" AS DOUBLE))");
+            case AVG -> writer.append("AVG(").append(r.distinct() ? "DISTINCT " : "").append("CAST(")
+                    .expr(r.args().get(0), 0).append(" AS DOUBLE))");
             // any non-NULL value: the least
             case ANY_VALUE -> writer.append("MIN(").piece(aggregateArgs(r)).append(")");
             case STDDEV_SAMP, STDDEV -> writer.append("STDDEV_SAMP(").piece(aggregateArgs(r)).append(")");
@@ -2864,60 +2866,78 @@ public class MariaDb extends AnsiSqlRenderer {
             case BOOL_AND -> writer.append("MIN(").piece(aggregateArgs(r)).append(")");
             case BOOL_OR -> writer.append("MAX(").piece(aggregateArgs(r)).append(")");
             // GROUP_CONCAT's separator is a literal
-            case STRING_AGG -> {
-                SqlExpr sep = r.args().size() > 1 ? r.args().get(1) : new SqlExpr.StringLit(",");
-                writer.append("GROUP_CONCAT(").append(r.distinct() ? "DISTINCT " : "").piece(asText(r.args().get(0)));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::orderKey);
-                }
-                yield writer.append(" SEPARATOR " + stringLit(literal(sep, "a string_agg separator")) + ")");
-            }
-            case LIST -> {
-                if (r.args().size() != 1) {
-                    throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached " + product());
-                }
-                yield writer.piece(arrayAgg(r.distinct(), json(r.args().get(0)), r.orderBy().isEmpty() ? null
-                        : w -> w.join(r.orderBy(), ", ", this::orderKey), false));
-            }
-            case MEDIAN -> {
-                if (r.args().size() != 1 || r.distinct()) {
-                    throw new DialectCapability("a median of this shape reached " + product());
-                }
-                yield writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
-            }
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached " + product());
-                }
-                yield writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
-            }
+            case STRING_AGG -> groupConcat(writer, r);
+            case LIST -> listOfValues(writer, r);
+            case MEDIAN -> median(writer, r);
+            case QUANTILE_CONT, QUANTILE_DISC -> percentile(writer, r);
             // the most frequent non-NULL value, the least among ties: the group's values as a JSON array, grouped by a
             // subquery over it (an outer aggregate inside a correlated table function, measured)
-            case MODE -> {
-                if (groupedModesCounted()) {
-                    yield modeArm(writer, r);
-                }
-                SqlExpr x = r.args().get(0);
-                String type = columnType(typeOf(x));
-                yield writer.append("(SELECT __m.\"v\" FROM JSON_TABLE(JSON_ARRAYAGG(").piece(json(x))
-                        .append("), '$[*]' COLUMNS (\"v\" " + type + " PATH '$')) AS __m WHERE __m.\"v\" IS NOT NULL")
-                        .append(" GROUP BY __m.\"v\" ORDER BY count(*) DESC, __m.\"v\" LIMIT 1)");
-            }
+            case MODE -> groupedModesCounted() ? modeArm(writer, r) : modeOverJson(writer, r);
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached " + product());
-                }
-                SqlExpr v = r.args().get(0);
-                SqlExpr k = r.args().get(1);
-                SqlWriter.Piece first = arrayAgg(false, json(v), elementSortOf(w -> w.expr(k, 0),
-                        r.fn() != SqlAgg.Fn.ARG_MAX), true);
-                yield writer.append("(CASE WHEN count(").expr(k, 0).append(") = 0 THEN NULL ELSE ")
-                        .piece(valueAt(first, w -> w.append("'$[0]'"), typeOf(v))).append(" END)");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> argExtreme(writer, r, false);
+            case ARG_MIN -> argExtreme(writer, r, true);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducer}: GROUP_CONCAT, its separator a literal. */
+    private SqlWriter groupConcat(SqlWriter writer, SqlAgg.Reducer r) {
+        SqlExpr sep = r.args().size() > 1 ? r.args().get(1) : new SqlExpr.StringLit(",");
+        writer.append("GROUP_CONCAT(").append(r.distinct() ? "DISTINCT " : "").piece(asText(r.args().get(0)));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::orderKey);
+        }
+        return writer.append(" SEPARATOR " + stringLit(literal(sep, "a string_agg separator")) + ")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter listOfValues(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1) {
+            throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached " + product());
+        }
+        return writer.piece(arrayAgg(r.distinct(), json(r.args().get(0)), r.orderBy().isEmpty() ? null
+                : w -> w.join(r.orderBy(), ", ", this::orderKey), false));
+    }
+
+    /** The {@code MEDIAN} arm of {@link #reducer}. */
+    private SqlWriter median(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct()) {
+            throw new DialectCapability("a median of this shape reached " + product());
+        }
+        return writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
+    }
+
+    /** The {@code QUANTILE_CONT} and {@code QUANTILE_DISC} arms of {@link #reducer}. */
+    private SqlWriter percentile(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached " + product());
+        }
+        return writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
+    }
+
+    /** The {@code MODE} arm of {@link #reducer} where the grouped modes are not counted: the group's values as a
+     *  JSON array, grouped by a subquery over it. */
+    private SqlWriter modeOverJson(SqlWriter writer, SqlAgg.Reducer r) {
+        SqlExpr x = r.args().get(0);
+        String type = columnType(typeOf(x));
+        return writer.append("(SELECT __m.\"v\" FROM JSON_TABLE(JSON_ARRAYAGG(").piece(json(x))
+                .append("), '$[*]' COLUMNS (\"v\" " + type + " PATH '$')) AS __m WHERE __m.\"v\" IS NOT NULL")
+                .append(" GROUP BY __m.\"v\" ORDER BY count(*) DESC, __m.\"v\" LIMIT 1)");
+    }
+
+    /** The value at the key's greatest ({@code asc} false) or least row, rows of a NULL key ignored. */
+    private SqlWriter argExtreme(SqlWriter writer, SqlAgg.Reducer r, boolean asc) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached " + product());
+        }
+        SqlExpr v = r.args().get(0);
+        SqlExpr k = r.args().get(1);
+        SqlWriter.Piece first = arrayAgg(false, json(v), elementSortOf(w -> w.expr(k, 0), asc), true);
+        return writer.append("(CASE WHEN count(").expr(k, 0).append(") = 0 THEN NULL ELSE ")
+                .piece(valueAt(first, w -> w.append("'$[0]'"), typeOf(v))).append(" END)");
     }
 
     /** Covariance and correlation over the pairs with both values: their sums, as the moments' definitions (no FILTER

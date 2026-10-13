@@ -58,11 +58,35 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, MEDIAN, MODE,
-                 STRING_AGG, LIST, QUANTILE_CONT, QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN, WAVG,
-                 HASH_LIST, BOOL_AND, BOOL_OR, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY, VARIANCE, STDDEV, ROW_NUMBER,
-                 RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE ->
-                    super.reducer(writer, r);
+            case SUM -> aggregate(writer, "SUM", r);
+            case COUNT -> aggregate(writer, "COUNT", r);
+            case AVG -> aggregate(writer, "AVG", r);
+            case MIN -> aggregate(writer, "MIN", r);
+            case MAX -> aggregate(writer, "MAX", r);
+            case ANY_VALUE -> aggregate(writer, "ANY_VALUE", r);
+            case STDDEV_SAMP -> aggregate(writer, "STDDEV_SAMP", r);
+            case STDDEV_POP -> aggregate(writer, "STDDEV_POP", r);
+            case VAR_SAMP -> aggregate(writer, "VAR_SAMP", r);
+            case VAR_POP -> aggregate(writer, "VAR_POP", r);
+            case MEDIAN -> aggregate(writer, "MEDIAN", r);
+            case MODE -> aggregate(writer, "MODE", r);
+            case STRING_AGG -> aggregate(writer, "STRING_AGG", r);
+            case LIST -> aggregate(writer, "LIST", r);
+            case QUANTILE_CONT -> aggregate(writer, "QUANTILE_CONT", r);
+            case QUANTILE_DISC -> aggregate(writer, "QUANTILE_DISC", r);
+            case CORR -> aggregate(writer, "CORR", r);
+            case COVAR_SAMP -> aggregate(writer, "COVAR_SAMP", r);
+            case COVAR_POP -> aggregate(writer, "COVAR_POP", r);
+            case ARG_MAX -> aggregate(writer, "ARG_MAX", r);
+            case ARG_MIN -> aggregate(writer, "ARG_MIN", r);
+            case BOOL_AND -> aggregate(writer, "BOOL_AND", r);
+            case BOOL_OR -> aggregate(writer, "BOOL_OR", r);
+            case VARIANCE -> aggregate(writer, "VARIANCE", r);
+            case STDDEV -> aggregate(writer, "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
     }
 

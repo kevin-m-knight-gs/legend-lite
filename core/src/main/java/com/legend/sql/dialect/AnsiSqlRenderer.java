@@ -1050,8 +1050,16 @@ public class AnsiSqlRenderer implements SqlDialect {
         };
     }
 
+    /** Each dialect names every aggregate itself (the dialect program's Phase 1b step 3, 2026-10-13): the base spells
+     *  none. */
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
-        writer.append(aggregateName(r.fn())).append("(").append(r.distinct() ? keyword("DISTINCT") + " " : "");
+        throw new DialectCapability(r.fn() + " reached the base renderer, which spells no aggregate");
+    }
+
+    /** An aggregate as most databases write it, by the name its dialect gives it:
+     *  {@code name([DISTINCT ]args[ ORDER BY keys])}, {@code *} for no argument. */
+    protected final SqlWriter aggregate(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        writer.append(name).append("(").append(r.distinct() ? keyword("DISTINCT") + " " : "");
         if (r.args().isEmpty()) {
             writer.append("*");
         } else {
@@ -1064,6 +1072,16 @@ public class AnsiSqlRenderer implements SqlDialect {
                     .join(r.orderBy(), ", ", this::aggregateOrderKey);
         }
         return writer.append(")");
+    }
+
+    /** A lowering-internal pseudo-aggregate ({@link SqlAgg.Fn#marker}) reached a renderer: the lowering's bug. */
+    protected static IllegalStateException loweringMarker(SqlAgg.Reducer r) {
+        return new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+    }
+
+    /** A window function as an aggregate: it is a ranking or value function, which {@code windowCall} writes. */
+    protected static IllegalStateException windowFunction(SqlAgg.Reducer r) {
+        return new IllegalStateException(r.fn() + " is a window function: windowCall writes it");
     }
 
     /** A key of an aggregate's own ordering: the expression, its direction, its declared null placement. */

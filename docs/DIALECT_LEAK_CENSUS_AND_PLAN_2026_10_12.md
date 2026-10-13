@@ -1,8 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1 and 2 are done (2a4a5c8, 9373aec), step 3's function tables are written (its measurement and the aggregate
-tables next), and P1a, P1c, P1d and the capability matrix remain before the review (D7).
+steps 1 and 2 are done (2a4a5c8, 9373aec), step 3's function and aggregate tables are written (4a9f1bc and the next;
+measurement next), and P1a, P1c, P1d and the capability matrix remain before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -444,8 +444,19 @@ The base's `call` refuses every function. Postgres had two switches, `call`'s li
 method has, before the switch or inside an arm (checked by planting each). A rearrangement ahead of the switch that
 applies to a SET of functions stays: SQLite's repeated bindable arguments, Trino's and Databricks' NULL over an empty
 list, Postgres's empty collection. Every deciding method fits `CodeShapeGuardrailTest`'s 250-line limit with its
-allowlist empty (the longest, Postgres's `call`, 241 lines). The aggregate tables come next, the same way; the guard
-then holds `reducer` too (`ONE_EXPRESSION_TABLES`).
+allowlist empty (the longest, Postgres's `call`, 241 lines).
+
+The aggregate tables, the same way: each dialect names every aggregate in its `reducer`
+(`case SUM -> aggregate(writer, "SUM", r)`, `aggregate` the base's shared spelling of `name([DISTINCT ]args[ ORDER BY
+keys])`), and the base's `reducer` refuses every aggregate. The checks of one aggregate ahead of a switch (H2's four,
+the engine text's three, Postgres's boolean and jsonb MAX/MIN, Snowflake's ordered-aggregate refusal, which named its
+exceptions by `!=`) and the 43 block arms became arms of their own; an aggregate a database cannot order says so in its
+arm (`aggregate(unordered(writer, r), "SUM", r)`). The lowering markers and the window functions are refused by name in
+every table: a window function never reaches one (`Windows` builds it as a `RankingFn` or `ValueFn`, which
+`windowCall` writes), where five tables wrote it as a plain aggregate. `aggregateName` now names only the window
+functions (ClickHouse's `OrNull` names and the engine text's `listagg` moved into their aggregate arms); spelling those
+per dialect is Phase 2's item. The guard holds both tables (`ONE_EXPRESSION_TABLES`), and
+`noDialectTakesAFunctionFromTheBase` refuses a `super.reducer` from a root dialect too (each checked by planting).
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 

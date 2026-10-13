@@ -1453,49 +1453,71 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     /** Engine aggregate names are lowercase ({@code sum(}, {@code count(}
-     * — every aggregation golden's spelling). */
+     * — every aggregation golden's spelling), and the string aggregate is
+     * {@code listagg} (h2SqlDialect.pure). */
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
-        // the H2-LENIENT per-group witness spells the BARE expression
-        // (view ~groupBy per-row columns — H2 1.x goldens never wrap;
-        // our DB-side form is ANY_VALUE, an engine-text-only unwrap)
-        if (r.fn() == com.legend.sql.SqlAgg.Fn.ANY_VALUE && r.args().size() == 1) {
-            return writer.expr(r.args().get(0), 0);
-        }
-        // percentile: the engine's inverse-distribution form with the
-        // direction spelled explicitly (extensionDefaults.pure:790) —
-        // percentile_cont(p) within group (order by v asc)
-        if ((r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
-                    || r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_DISC)
-                && r.args().size() == 2 && !r.distinct()
-                && r.orderBy().size() <= 1) {
-            boolean desc = !r.orderBy().isEmpty()
-                    && !r.orderBy().get(0).ascending();
-            return writer.append(r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
-                            ? "percentile_cont(" : "percentile_disc(")
-                    .expr(r.args().get(1), 0).append(") within group (order by ").expr(r.args().get(0), 0)
-                    .append(desc ? " desc" : " asc").append(")");
-        }
-        // an ordered string aggregate: legend-engine's H2 listagg takes its ordering WITHIN GROUP (its
-        // withinGroupFunctionProcessor, sqlDialect.pure:200-214; 4.145.0 measured, render-census/legacy-text)
-        if (r.fn() == com.legend.sql.SqlAgg.Fn.STRING_AGG && !r.orderBy().isEmpty()) {
-            return withinGroup(listagg(writer, r), r);
-        }
-        // every aggregate the checks above do not spell, by name: the parent's (the dialect program's Phase 1,
-        // 2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too)
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, MEDIAN, MODE,
-                 STRING_AGG, LIST, QUANTILE_CONT, QUANTILE_DISC, CORR, COVAR_SAMP, COVAR_POP, ARG_MAX, ARG_MIN, WAVG,
-                 HASH_LIST, BOOL_AND, BOOL_OR, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY, VARIANCE, STDDEV, ROW_NUMBER,
-                 RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE ->
-                    super.reducer(writer, r);
+            case SUM -> aggregate(writer, "sum", r);
+            case COUNT -> aggregate(writer, "count", r);
+            case AVG -> aggregate(writer, "avg", r);
+            case MIN -> aggregate(writer, "min", r);
+            case MAX -> aggregate(writer, "max", r);
+            // the H2-LENIENT per-group witness spells the BARE expression (view ~groupBy per-row columns — H2
+            // 1.x goldens never wrap; our DB-side form is ANY_VALUE, an engine-text-only unwrap)
+            case ANY_VALUE -> r.args().size() == 1 ? writer.expr(r.args().get(0), 0)
+                    : aggregate(writer, "any_value", r);
+            case STDDEV_SAMP -> aggregate(writer, "stddev_samp", r);
+            case STDDEV_POP -> aggregate(writer, "stddev_pop", r);
+            case VAR_SAMP -> aggregate(writer, "var_samp", r);
+            case VAR_POP -> aggregate(writer, "var_pop", r);
+            case MEDIAN -> aggregate(writer, "median", r);
+            case MODE -> aggregate(writer, "mode", r);
+            // an ordered string aggregate: legend-engine's H2 listagg takes its ordering WITHIN GROUP (its
+            // withinGroupFunctionProcessor, sqlDialect.pure:200-214; 4.145.0 measured, render-census/legacy-text)
+            case STRING_AGG -> r.orderBy().isEmpty() ? aggregate(writer, "listagg", r)
+                    : withinGroup(listagg(writer, r), r);
+            case LIST -> aggregate(writer, "list", r);
+            // percentile: the engine's inverse-distribution form with the direction spelled explicitly
+            // (extensionDefaults.pure:790) — percentile_cont(p) within group (order by v asc)
+            case QUANTILE_CONT -> withinGroupShaped(r) ? percentile(writer, "percentile_cont", r)
+                    : aggregate(writer, "quantile_cont", r);
+            case QUANTILE_DISC -> withinGroupShaped(r) ? percentile(writer, "percentile_disc", r)
+                    : aggregate(writer, "quantile_disc", r);
+            case CORR -> aggregate(writer, "corr", r);
+            case COVAR_SAMP -> aggregate(writer, "covar_samp", r);
+            case COVAR_POP -> aggregate(writer, "covar_pop", r);
+            case ARG_MAX -> aggregate(writer, "arg_max", r);
+            case ARG_MIN -> aggregate(writer, "arg_min", r);
+            case BOOL_AND -> aggregate(writer, "bool_and", r);
+            case BOOL_OR -> aggregate(writer, "bool_or", r);
+            case VARIANCE -> aggregate(writer, "variance", r);
+            case STDDEV -> aggregate(writer, "stddev", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** A percentile the engine writes within group: a value and a level, at most one order key. */
+    private static boolean withinGroupShaped(com.legend.sql.SqlAgg.Reducer r) {
+        return r.args().size() == 2 && !r.distinct() && r.orderBy().size() <= 1;
+    }
+
+    /** {@code name(p) within group (order by v asc|desc)}. */
+    private SqlWriter percentile(SqlWriter writer, String name, com.legend.sql.SqlAgg.Reducer r) {
+        boolean desc = !r.orderBy().isEmpty()
+                && !r.orderBy().get(0).ascending();
+        return writer.append(name).append("(")
+                .expr(r.args().get(1), 0).append(") within group (order by ").expr(r.args().get(0), 0)
+                .append(desc ? " desc" : " asc").append(")");
     }
 
     /** {@code listagg([distinct] x, separator)}: legend-engine's H2 string aggregate. */
     private SqlWriter listagg(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
-        return writer.append(aggregateName(r.fn())).append("(").append(r.distinct() ? keyword("DISTINCT") + " " : "")
-                .list(r.args()).append(")");
+        return writer.append("listagg(").append(r.distinct() ? keyword("DISTINCT") + " " : "").list(r.args())
+                .append(")");
     }
 
     /** {@code within group (order by ...)}: an ordered string aggregate's ordering. */
@@ -1511,11 +1533,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return keyword.toLowerCase(Locale.ROOT);
     }
 
-    /** legend-engine's H2 function names: lowercase, and the string aggregate is {@code listagg}
-     *  (h2SqlDialect.pure). */
+    /** legend-engine's H2 window function names: lowercase (h2SqlDialect.pure); its aggregates' are
+     *  {@link #reducer}'s. */
     @Override
     protected String aggregateName(com.legend.sql.SqlAgg.Fn fn) {
-        return fn == com.legend.sql.SqlAgg.Fn.STRING_AGG ? "listagg" : fn.toString().toLowerCase(Locale.ROOT);
+        return fn.toString().toLowerCase(Locale.ROOT);
     }
 
     /** Engine sort keys spell the direction EXPLICITLY and lowercase

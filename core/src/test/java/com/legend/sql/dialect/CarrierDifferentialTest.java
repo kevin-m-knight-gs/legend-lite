@@ -619,8 +619,9 @@ class CarrierDifferentialTest {
         return new Portable();
     }
 
-    /** THE PORTABLE STRATEGY on DuckDB: the base renderer's carrier strategies (its passes), each function as DuckDB
-     *  spells it, since the base spells none (the dialect program's decision D1, 2026-10-13). */
+    /** THE PORTABLE STRATEGY on DuckDB: the base renderer's carrier strategies (its passes), each function and
+     *  aggregate as DuckDB spells it, since the base spells none (the dialect program's decision D1 and Phase 1b
+     *  step 3, 2026-10-13). */
     private static final class Portable extends AnsiSqlRenderer {
         private final DuckDb duck = new DuckDb();
 
@@ -631,6 +632,11 @@ class CarrierDifferentialTest {
         @Override
         protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
             return duck.call(writer, c, parentPrec);
+        }
+
+        @Override
+        protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+            return duck.reducer(writer, r);
         }
     }
 

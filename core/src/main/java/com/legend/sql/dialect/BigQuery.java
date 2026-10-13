@@ -2435,56 +2435,86 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, CORR, COVAR_SAMP,
-                 COVAR_POP, VARIANCE, STDDEV, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached BigQuery");
-                }
-                yield super.reducer(writer, r);
-            }
-            case BOOL_AND, BOOL_OR -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached BigQuery");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.BOOL_AND ? "LOGICAL_AND(" : "LOGICAL_OR(")
-                        .piece(aggregateArgs(r)).append(")");
-            }
-            case STRING_AGG, LIST -> {
-                if (r.fn() == SqlAgg.Fn.LIST
-                        && (r.args().size() != 1 || typeOf(r.args().get(0)) instanceof SqlType.Array)) {
-                    throw r.args().size() != 1 ? new DialectCapability("a LIST aggregate of " + r.args().size()
-                            + " arguments reached BigQuery") : nestedList();
-                }
-                writer.append(r.fn() == SqlAgg.Fn.LIST ? "ARRAY_AGG(" : "STRING_AGG(").piece(aggregateArgs(r));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.piece(aggregateKey(k)));
-                }
-                yield writer.append(")");
-            }
-            case MEDIAN -> {
-                if (r.args().size() != 1 || r.distinct()) {
-                    throw new DialectCapability("a median of this shape reached BigQuery");
-                }
-                yield writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
-            }
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
-                }
-                yield writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
-            }
+            case SUM -> aggregate(unordered(writer, r), "SUM", r);
+            case COUNT -> aggregate(unordered(writer, r), "COUNT", r);
+            case AVG -> aggregate(unordered(writer, r), "AVG", r);
+            case MIN -> aggregate(unordered(writer, r), "MIN", r);
+            case MAX -> aggregate(unordered(writer, r), "MAX", r);
+            case ANY_VALUE -> aggregate(unordered(writer, r), "ANY_VALUE", r);
+            case STDDEV_SAMP -> aggregate(unordered(writer, r), "STDDEV_SAMP", r);
+            case STDDEV_POP -> aggregate(unordered(writer, r), "STDDEV_POP", r);
+            case VAR_SAMP -> aggregate(unordered(writer, r), "VAR_SAMP", r);
+            case VAR_POP -> aggregate(unordered(writer, r), "VAR_POP", r);
+            case MEDIAN -> median(writer, r);
             case MODE -> modeArm(writer, r);
+            case STRING_AGG -> orderedAggregate(writer, "STRING_AGG", r);
+            case LIST -> arrayAgg(writer, r);
+            case QUANTILE_CONT, QUANTILE_DISC -> percentile(writer, r);
+            case CORR -> aggregate(unordered(writer, r), "CORR", r);
+            case COVAR_SAMP -> aggregate(unordered(writer, r), "COVAR_SAMP", r);
+            case COVAR_POP -> aggregate(unordered(writer, r), "COVAR_POP", r);
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "MAX_BY(" : "MIN_BY(").list(r.args()).append(")");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> byExtreme(writer, "MAX_BY", r);
+            case ARG_MIN -> byExtreme(writer, "MIN_BY", r);
+            case BOOL_AND -> unordered(writer, r).append("LOGICAL_AND(").piece(aggregateArgs(r)).append(")");
+            case BOOL_OR -> unordered(writer, r).append("LOGICAL_OR(").piece(aggregateArgs(r)).append(")");
+            case VARIANCE -> aggregate(unordered(writer, r), "VARIANCE", r);
+            case STDDEV -> aggregate(unordered(writer, r), "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** {@code writer}, for an aggregate BigQuery cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached BigQuery");
+        }
+        return writer;
+    }
+
+    /** {@code name([DISTINCT ]args[ ORDER BY keys])}: the string and list aggregates. */
+    private SqlWriter orderedAggregate(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        writer.append(name).append("(").piece(aggregateArgs(r));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.piece(aggregateKey(k)));
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}: ARRAY_AGG of one value that is no list. */
+    private SqlWriter arrayAgg(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || typeOf(r.args().get(0)) instanceof SqlType.Array) {
+            throw r.args().size() != 1 ? new DialectCapability("a LIST aggregate of " + r.args().size()
+                    + " arguments reached BigQuery") : nestedList();
+        }
+        return orderedAggregate(writer, "ARRAY_AGG", r);
+    }
+
+    /** The {@code MEDIAN} arm of {@link #reducer}. */
+    private SqlWriter median(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct()) {
+            throw new DialectCapability("a median of this shape reached BigQuery");
+        }
+        return writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
+    }
+
+    /** The {@code QUANTILE_CONT} and {@code QUANTILE_DISC} arms of {@link #reducer}. */
+    private SqlWriter percentile(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
+        }
+        return writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
+    }
+
+    /** {@code MAX_BY(value, key)} / {@code MIN_BY}: the value at the key's greatest (least) row. */
+    private static SqlWriter byExtreme(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
+        }
+        return writer.append(name).append("(").list(r.args()).append(")");
     }
 
     /**
