@@ -17,6 +17,8 @@ import java.sql.DriverManager;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE BOUNDARY RESOLVER's pins (Phase 1c grid endgame): late-bound
@@ -43,6 +45,39 @@ class RawGridSchemaTest {
     @AfterAll
     static void close() throws Exception {
         conn.close();
+    }
+
+    /** A connection a helper builds, the way the corpus's {@code testRuntime()} does: the zero-parameter helper names
+     *  an overload of one parameter, and every overload of that arity declares the same database. */
+    private static final String HELPERS = """
+            function test::conn():meta::external::store::relational::runtime::DatabaseConnection[1]
+            { test::conn('x') }
+            function test::conn(s:String[1]):meta::external::store::relational::runtime::DatabaseConnection[1]
+            { ^meta::external::store::relational::runtime::TestDatabaseConnection(
+                    type=meta::relational::runtime::DatabaseType.DuckDB) }
+            function test::conn(i:Integer[1]):meta::external::store::relational::runtime::DatabaseConnection[1]
+            { ^meta::external::store::relational::runtime::TestDatabaseConnection(
+                    type=meta::relational::runtime::DatabaseType.%s) }
+            """;
+
+    @Test
+    @DisplayName("a connection a helper builds declares its database through the helper's body (decision D2)")
+    void helperConnectionDeclaresItsDatabase() throws Exception {
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(HELPERS.formatted("DuckDB"), DatabaseType.DuckDB),
+                "{| " + EXEC + "'select 1 as A union all select 2', test::conn(), 0, 1000).rows.value('A')->size();}",
+                StorelessRuntime.RUNTIME, conn);
+        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value()).longValue());
+    }
+
+    @Test
+    @DisplayName("overloads that declare different databases leave the text's language unknown: refused (decision D2)")
+    void disagreeingOverloadsAreRefused() {
+        // the raw body names test::conn, not which overload: H2 and DuckDB both answer, so neither is guessed
+        Exception e = assertThrows(Exception.class, () -> Execution.execute(
+                StorelessRuntime.with(HELPERS.formatted("H2"), DatabaseType.DuckDB),
+                "{| " + EXEC + "'select 1 as A', test::conn(), 0, 1000).rows.value('A')->size();}",
+                StorelessRuntime.RUNTIME, conn));
+        assertTrue(String.valueOf(e.getMessage()).contains("decision D2"), e.toString());
     }
 
     @Test
