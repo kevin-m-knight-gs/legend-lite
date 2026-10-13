@@ -9,6 +9,7 @@ import com.legend.sql.SqlFn;
 import com.legend.sql.SqlType;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * The PostgreSQL EXECUTION dialect, version 16 and later (2026-10-01 W5.5/P1 Postgres
@@ -30,25 +31,40 @@ import java.util.List;
  */
 public final class Postgres extends AnsiSqlRenderer {
 
+    /** PostgreSQL 16+ (2026-10-01 W5.5/P1 Postgres dialect). The {@code Postgres} dialect
+     * QUOTES EVERY identifier (Postgres folds an unquoted name to lowercase, so a bare
+     * {@code NAME} reads {@code name}), so this list never decides a spelling there; it
+     * is the documented reserved set (SQL key words appendix, "reserved" in the
+     * PostgreSQL column) for any reader that asks. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "all", "analyse", "analyze", "and", "any", "array", "as", "asc", "asymmetric",
+            "authorization", "binary", "both", "case", "cast", "check", "collate", "collation",
+            "column", "concurrently", "constraint", "create", "cross", "current_catalog",
+            "current_date", "current_role", "current_schema", "current_time",
+            "current_timestamp", "current_user", "default", "deferrable", "desc", "distinct",
+            "do", "else", "end", "except", "false", "fetch", "for", "foreign", "freeze", "from",
+            "full", "grant", "group", "having", "ilike", "in", "initially", "inner", "intersect",
+            "into", "is", "isnull", "join", "lateral", "leading", "left", "like", "limit",
+            "localtime", "localtimestamp", "natural", "not", "notnull", "null", "offset", "on",
+            "only", "or", "order", "outer", "overlaps", "placing", "primary", "references",
+            "returning", "right", "select", "session_user", "similar", "some", "symmetric",
+            "system_user", "table", "tablesample", "then", "to", "trailing", "true", "union",
+            "unique", "user", "using", "variadic", "verbose", "when", "where", "window", "with"));
+
+    /** Postgres (2026-10-01 W5.5/P1 Postgres dialect): the portable
+     * strategies (no native-list carrier — jsonb, POSTGRES_BACKEND.md §5)
+     * WITHOUT H2's FULL OUTER emulation: Postgres joins FULL OUTER
+     * natively. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, true, true, true);
+
     public Postgres() {
-        super(Lexicon.POSTGRES, TypeNames.POSTGRES);
+        super(LEXICON);
     }
 
     // ==================================================================
     // The catalog: a Postgres table's model, from Postgres's own catalog
     // ==================================================================
 
-    /**
-     * A Postgres column, from Postgres's OWN catalog (the warehouse asks it inside the attached
-     * database, {@code pg_catalog}; docs/STORE_TYPES_HOMEWORK_2026_10_02.md step 7): its canonical
-     * type is the base type's {@code pg_catalog} name ({@code int4}, {@code numeric}, {@code inet};
-     * a domain is its base type's), or, outside {@code pg_catalog}, the kind information_schema
-     * names -- {@code ARRAY}, {@code ENUM}, {@code COMPOSITE}, {@code RANGE}, {@code USER-DEFINED}; a
-     * {@code numeric} column's precision and scale come as numbers. Never DuckDB's view of the table:
-     * it reads a Postgres array as a LIST and a {@code point} as a STRUCT, which this dialect would
-     * read as {@code jsonb} (Postgres refuses the cast), and {@code inet} as VARCHAR, which Postgres
-     * will not search as text.
-     */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -69,6 +85,23 @@ public final class Postgres extends AnsiSqlRenderer {
         };
     }
 
+    /** No STRUCT type here: a struct cast is refused. */
+    @Override
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
+    }
+
+    /**
+     * A Postgres column, from Postgres's OWN catalog (the warehouse asks it inside the attached
+     * database, {@code pg_catalog}; docs/STORE_TYPES_HOMEWORK_2026_10_02.md step 7): its canonical
+     * type is the base type's {@code pg_catalog} name ({@code int4}, {@code numeric}, {@code inet};
+     * a domain is its base type's), or, outside {@code pg_catalog}, the kind information_schema
+     * names -- {@code ARRAY}, {@code ENUM}, {@code COMPOSITE}, {@code RANGE}, {@code USER-DEFINED}; a
+     * {@code numeric} column's precision and scale come as numbers. Never DuckDB's view of the table:
+     * it reads a Postgres array as a LIST and a {@code point} as a STRUCT, which this dialect would
+     * read as {@code jsonb} (Postgres refuses the cast), and {@code inet} as VARCHAR, which Postgres
+     * will not search as text.
+     */
     @Override
     public CatalogType catalogType(CatalogModel.Column column) {
         return CATALOG_RULES.typeOf(column);
@@ -182,7 +215,7 @@ public final class Postgres extends AnsiSqlRenderer {
      * it). */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.POSTGRES),
+        return List.of(new CarrierStrategies(CAPS),
                 new StarExceptToColumns(),
                 new WholePartitionOrderedSets(),
                 new SubstringClamp(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES), new QualifyToSubselect(true),

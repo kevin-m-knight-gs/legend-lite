@@ -6,6 +6,7 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * The DuckDB dialect: {@link AnsiSqlRenderer} plus DuckDB's genuine
@@ -17,19 +18,6 @@ import java.util.List;
  */
 public final class DuckDb extends AnsiSqlRenderer {
 
-    /** B6 — DuckDB sessions pin UTC: the driver's Timestamps are
-     * wall-preserving under it (the platform's naive-UTC temporal
-     * contract, PureDateLiteral); a local-zone session shifts wall
-     * times at the JDBC boundary. H2 deliberately does NOT pin (its
-     * driver funnels zone-less TIMESTAMPs through the session zone —
-     * a UTC session + local JVM shifted every wall time; witnessed
-     * 2026-01-07T00:00 read back as 01-06T19:00). The FACT lives here;
-     * execution stays in the exec funnel (F1.3). */
-    /** DuckDB's aggregates are the base's own spelling, by name (the dialect program's Phase 1, 2026-10-13: an
-     *  exhaustive switch, so a new aggregate asks this dialect too). */
-    /** A date format's parts: DuckDB's strftime codes, the base's spelling (the dialect program's Phase 1,
-     * 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -50,11 +38,22 @@ public final class DuckDb extends AnsiSqlRenderer {
         };
     }
 
+    /** A struct type: {@code STRUCT(a T, ...)}, each field its name (spelled) and type. */
     @Override
-    protected String formatText(SqlExpr.FormatLit fl) {
-        return super.formatText(fl);
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        return "STRUCT(" + structFields(st).stream().map(f -> f.getKey() + " " + f.getValue())
+                .collect(java.util.stream.Collectors.joining(", ")) + ")";
     }
 
+    /** A date format's parts: DuckDB's strftime codes, the base's {@code strftimeText} (the dialect program's
+     *  Phase 1, 2026-10-13: each dialect declares its date-format vocabulary). */
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return strftimeText(fl);
+    }
+
+    /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too). */
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
         return switch (r.fn()) {
@@ -90,6 +89,14 @@ public final class DuckDb extends AnsiSqlRenderer {
         };
     }
 
+    /** B6 — DuckDB sessions pin UTC: the driver's Timestamps are
+     * wall-preserving under it (the platform's naive-UTC temporal
+     * contract, PureDateLiteral); a local-zone session shifts wall
+     * times at the JDBC boundary. H2 deliberately does NOT pin (its
+     * driver funnels zone-less TIMESTAMPs through the session zone —
+     * a UTC session + local JVM shifted every wall time; witnessed
+     * 2026-01-07T00:00 read back as 01-06T19:00). The FACT lives here;
+     * execution stays in the exec funnel (F1.3). */
     @Override
     public java.util.List<String> sessionSetup() {
         return java.util.List.of("SET TimeZone='UTC'");
@@ -254,8 +261,27 @@ public final class DuckDb extends AnsiSqlRenderer {
         return java.util.Collections.unmodifiableMap(m);
     }
 
+    /** DuckDB (the execution backend): every keyword DuckDB will not take as a table or column name (its
+     *  {@code reserved} and {@code type_function} categories, {@code duckdb_keywords()}), held so by
+     *  DuckDbKeywordsTest against the pinned DuckDB; a few more DML words besides. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "all", "analyse", "analyze", "and", "anti", "any", "array", "as", "asc", "asof", "asymmetric", "at",
+            "authorization", "between", "binary", "both", "by", "case", "cast", "check", "collate", "collation",
+            "column", "columns", "concurrently", "constraint", "create", "cross", "default", "deferrable", "delete",
+            "desc", "describe", "distinct", "do", "drop", "else", "end", "except", "exists", "false", "fetch", "for",
+            "foreign", "freeze", "from", "full", "generated", "glob", "group", "having", "ilike", "in", "initially",
+            "inner", "insert", "intersect", "into", "is", "isnull", "join", "lambda", "lateral", "leading", "left",
+            "like", "limit", "map", "natural", "not", "notnull", "null", "offset", "on", "only", "or", "order",
+            "outer", "overlaps", "pivot", "pivot_longer", "pivot_wider", "placing", "positional", "primary",
+            "qualify", "references", "returning", "right", "select", "semi", "show", "similar", "some", "struct",
+            "summarize", "symmetric", "table", "tablesample", "then", "to", "trailing", "true", "try_cast", "union",
+            "unique", "unpack", "unpivot", "update", "using", "values", "variadic", "verbose", "when", "where",
+            "window", "with"));
+
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public DuckDb() {
-        super(Lexicon.DUCKDB, TypeNames.DUCKDB);
+        super(LEXICON);
     }
 
     /** DuckDB DDL: a store FLOAT is DOUBLE (H2's FLOAT is double
@@ -487,7 +513,7 @@ public final class DuckDb extends AnsiSqlRenderer {
         // corpus runner opts in, the ENGINE_CASED precedent.
         java.util.List<com.legend.sql.SqlRewriter> ps =
                 new java.util.ArrayList<>(java.util.List.of(
-                        new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
+                        new CarrierStrategies(CAPS),
                         new QuantileOrder(),
                         new UnqualifyPivotArgs(), new FoldToListReduce(),
                         new CheckedDefectsToLists(),

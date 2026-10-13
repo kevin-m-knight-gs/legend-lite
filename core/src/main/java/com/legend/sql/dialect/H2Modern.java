@@ -20,11 +20,6 @@ import java.util.List;
  */
 public class H2Modern extends H2 {
 
-    /** Already the 2.3+ profile. */
-    /** Every aggregate, by name: H2's (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a new
-     *  aggregate asks this dialect too). */
-    /** A date format's parts: H2's (the dialect program's Phase 1, 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** Every scalar type's name: H2's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override
@@ -36,11 +31,15 @@ public class H2Modern extends H2 {
         };
     }
 
+    /** A date format's parts: H2's (the dialect program's Phase 1, 2026-10-13: each dialect
+     *  declares its date-format vocabulary). */
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
         return super.formatText(fl);
     }
 
+    /** Every aggregate, by name: H2's (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a new
+     *  aggregate asks this dialect too). */
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
         return switch (r.fn()) {
@@ -52,6 +51,7 @@ public class H2Modern extends H2 {
         };
     }
 
+    /** Already the 2.3+ profile. */
     @Override
     public SqlDialect forServer(String version) {
         return this;

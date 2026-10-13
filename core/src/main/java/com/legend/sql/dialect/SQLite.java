@@ -67,18 +67,49 @@ import java.util.Set;
  */
 public final class SQLite extends AnsiSqlRenderer {
 
+    /**
+     * SQLite (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>)
+     * &mdash; the ANSI baseline rendering with SQLite's reserved-word list.
+     * SQLite accepts the relational core the base renderer emits (SELECT/
+     * JOIN/WHERE/GROUP BY/ORDER BY/LIMIT-OFFSET, TRUE/FALSE since 3.23).
+     * KNOWN GAPS that fail LOUD at execution, pending SQLite-specific
+     * passes: aliased VALUES sources (TDS literals &mdash; SQLite lacks
+     * {@code (VALUES ...) AS t(c1, c2)}), typed DATE/TIMESTAMP literals,
+     * and everything with no ANSI encoding at all (list lambdas, QUALIFY,
+     * ASOF, native PIVOT) on the base renderer's loud defaults.
+     */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "abort", "action", "add", "after", "all", "alter", "analyze", "and", "as",
+            "asc", "attach", "autoincrement", "before", "begin", "between", "by",
+            "cascade", "case", "cast", "check", "collate", "column", "commit",
+            "conflict", "constraint", "create", "cross", "current_date",
+            "current_time", "current_timestamp", "database", "default", "deferrable",
+            "deferred", "delete", "desc", "detach", "distinct", "drop", "each",
+            "else", "end", "escape", "except", "exclusive", "exists", "explain",
+            "fail", "for", "foreign", "from", "full", "glob", "group", "having",
+            "if", "ignore", "immediate", "in", "index", "indexed", "initially",
+            "inner", "insert", "instead", "intersect", "into", "is", "isnull",
+            "join", "key", "left", "like", "limit", "match", "natural", "no", "not",
+            "notnull", "null", "of", "offset", "on", "or", "order", "outer", "plan",
+            "pragma", "primary", "query", "raise", "recursive", "references",
+            "regexp", "reindex", "release", "rename", "replace", "restrict", "right",
+            "rollback", "row", "savepoint", "select", "set", "table", "temp",
+            "temporary", "then", "to", "transaction", "trigger", "union", "unique",
+            "update", "using", "vacuum", "values", "view", "virtual", "when",
+            "where", "with", "without"));
+
+    /** SQLite (2026-10-11): the portable strategies over its JSON lists (json_each correlates, measured); FULL
+     *  OUTER is native (3.39). */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, true, true, true);
+
     public SQLite() {
-        super(Lexicon.SQLITE, TypeNames.SQLITE);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
 
-    /** LIKE is case-insensitive unless the session says otherwise (measured: 'ABC' LIKE 'a%' is 1). */
-    /** A date format's parts: the base's strftime codes (its own strftime helper spells the parts it formats itself)
-     * (the dialect program's Phase 1, 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -92,11 +123,21 @@ public final class SQLite extends AnsiSqlRenderer {
         };
     }
 
+    /** No STRUCT type here: a struct cast is refused. */
     @Override
-    protected String formatText(SqlExpr.FormatLit fl) {
-        return super.formatText(fl);
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
     }
 
+    /** A date format's parts: the base's strftime codes, {@code strftimeText} (its own strftime helper spells the
+     *  parts it formats itself; the dialect program's Phase 1, 2026-10-13: each dialect declares its date-format
+     *  vocabulary). */
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return strftimeText(fl);
+    }
+
+    /** LIKE is case-insensitive unless the session says otherwise (measured: 'ABC' LIKE 'a%' is 1). */
     @Override
     public List<String> sessionSetup() {
         return List.of("PRAGMA case_sensitive_like = ON");
@@ -122,7 +163,7 @@ public final class SQLite extends AnsiSqlRenderer {
 
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.SQLITE), new StarExceptToColumns(),
+        return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new WholePartitionOrderedSets(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new QualifyToSubselect(true), new ConstantKeysAsExpressions(), new CommonSubexpressions());

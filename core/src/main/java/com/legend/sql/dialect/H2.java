@@ -7,6 +7,7 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * The H2 EXECUTION dialect (H2_BACKEND.md §12 step 8) — a sibling of
@@ -28,8 +29,6 @@ import java.util.List;
  */
 public class H2 extends AnsiSqlRenderer {
 
-    /** The base passes plus the lateral explode (H2 2.1 has no LATERAL;
-     * see LateralExplodeToUnion). */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -50,10 +49,21 @@ public class H2 extends AnsiSqlRenderer {
         };
     }
 
+    /** No STRUCT type here: a struct cast is refused. */
+    @Override
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
+    }
+
+    /** The base passes plus the lateral explode (H2 2.1 has no LATERAL;
+     * see LateralExplodeToUnion). */
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        java.util.List<com.legend.sql.SqlRewriter> ps =
-                new java.util.ArrayList<>(super.passes());
+        java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
+        ps.add(new CarrierStrategies(CAPS));
+        if (!supportsQualify()) {
+            ps.add(new QualifyToSubselect());
+        }
         ps.add(new LateralExplodeToUnion());
         ps.add(new AggregatesDeliverDouble(java.util.Set.of(com.legend.sql.SqlAgg.Fn.AVG)));
         // LAST: every source the passes above introduced is in scope when
@@ -80,8 +90,42 @@ public class H2 extends AnsiSqlRenderer {
         return java.util.OptionalInt.empty();
     }
 
+    /** H2 2.1.214 reserved words — the ENGINE's own list
+     * (h2Extension2_1_214.pure:180-192). This is the GOLDEN TEXT
+     * channel's set ({@code Ddl.createTable ENGINE_TEXT}'s
+     * column-name rule quotes exactly what the engine quotes); the
+     * EXECUTION lexicon {@link #LEXICON} derives from it. */
+    public static final Lexicon ENGINE_LEXICON = new Lexicon('"', Set.of(
+            "all", "and", "array", "as", "between", "case", "check",
+            "constraint", "cross", "current_catalog", "current_date",
+            "current_schema", "current_time", "current_timestamp",
+            "current_user", "distinct", "except", "exists", "false", "fetch",
+            "for", "foreign", "from", "full", "group", "having", "if", "in",
+            "inner", "intersect", "interval", "is", "join", "left", "like",
+            "limit", "localtime", "localtimestamp", "minus", "natural", "not",
+            "null", "offset", "on", "or", "order", "primary", "qualify",
+            "row", "rownum", "select", "table", "true", "union", "unique",
+            "unknown", "using", "values", "where", "window", "with",
+            "_rowid_", "both", "groups", "ilike", "leading", "over",
+            "partition", "range", "regexp", "rows", "top", "trailing"));
+
+    /** Stock H2 2.1.214 EXECUTION lexicon: the engine's list plus the
+     * words the STOCK parser rejects in alias position (witnessed:
+     * {@code AS right} &rarr; syntax error) that the engine's laxer
+     * FORK omits. Execution-dialect-only — golden text channels use
+     * {@link #ENGINE_LEXICON} or {@link EngineStyleH2#LEXICON}. */
+    public static final Lexicon LEXICON = new Lexicon('"',
+            java.util.stream.Stream.concat(
+                    ENGINE_LEXICON.reservedWords().stream(),
+                    java.util.stream.Stream.of("right"))
+                    .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet)));
+
+    /** H2: no native lists, no correlated explosion (the ONLY probed
+     * backend without it), JSON constructors only. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
+
     public H2() {
-        super(Lexicon.H2, TypeNames.H2);
+        super(LEXICON);
     }
 
     @Override

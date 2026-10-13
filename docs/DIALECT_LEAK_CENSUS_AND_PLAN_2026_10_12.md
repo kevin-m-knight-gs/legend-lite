@@ -1,8 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and P1a, P1c, P1d and the capability matrix
-remain before the review (D7).
+steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), P1a is written (its measurement next), and P1c,
+P1d and the capability matrix remain before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -465,6 +465,25 @@ and `//core:stress_suites_h2`. `//gates:local` is green: 347 under the root-cont
 root. Its one skip, `//tools/guards:classpath_test`, is older than this program's steps: the guard depends on
 `//python:duckdb_httpfs_linux_arm64`, which this x86 host cannot build (main's cfe639f), and it has been skipped in
 every gate run here since D1.
+
+**1a done 2026-10-13: each database's rows are its own class's.**
+- Lexicon: each dialect holds its `LEXICON` (`DuckDb.LEXICON`, ...). H2 also holds the engine's H2 reserved list,
+  `H2.ENGINE_LEXICON`: the engine text's DDL quotes column names by it, and `H2.LEXICON` derives from it. The engine
+  text's own is `EngineStyleH2.LEXICON`; MySQL names MariaDB's (`super(MariaDb.LEXICON)`). `Lexicon` is the record
+  alone.
+- Caps: each dialect holds its `CAPS`; `CarrierStrategies.Caps` is the record alone, and the engine text names H2's.
+- TypeNames is deleted, not moved. Step 1 made every dialect's `scalarTypeName` a switch naming each type, so its
+  scalar rows had become a second copy only the base read. Its struct bit is now each dialect's `structTypeName`:
+  the spelling (DuckDB, BigQuery, ClickHouse, Databricks, Snowflake, Trino) or a refusal (H2, Postgres, SQLite,
+  MariaDB, the engine text).
+- The base renderer is abstract in every vocabulary point (`call`, `reducer`, `scalarTypeName`, `formatText`,
+  `structTypeName`, `passes`): javac refuses a dialect that leaves one undecided, so the base spells nothing. Its
+  strftime codes became a named helper (`strftimeText`) that the four dialects writing them call. Its default passes,
+  which carried H2's capabilities, are H2's own. `DialectVocabularyTest` checks the base stays abstract (checked by
+  planting a concrete `call`).
+- The 26 javadocs step 1 left stacked above one declaration, each separated from its own method, are above their
+  own methods again; the 15 piles older than this program are left as they were.
+The rows the plan counted from `DUCKDB.fnNames()` were `Spellings`', gone with step 3.
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 

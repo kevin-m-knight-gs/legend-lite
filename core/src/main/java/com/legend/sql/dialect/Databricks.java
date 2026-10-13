@@ -11,6 +11,7 @@ import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * The Databricks SQL EXECUTION dialect (a SQL warehouse; 2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md). A sibling
@@ -39,9 +40,6 @@ import java.util.List;
  */
 public final class Databricks extends AnsiSqlRenderer {
 
-    /** No java.time re-fetch (measured 2026-10-11): its driver answers getObject(int, LocalDateTime.class)
-     *  with the timestamp as text. A timestamp cell keeps the driver's Timestamp;
-     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -61,13 +59,35 @@ public final class Databricks extends AnsiSqlRenderer {
         };
     }
 
+    /** No java.time re-fetch (measured 2026-10-11): its driver answers getObject(int, LocalDateTime.class)
+     *  with the timestamp as text. A timestamp cell keeps the driver's Timestamp;
+     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
     @Override
     public boolean refetchesTimestampAsJavaTime() {
         return false;
     }
 
+    /** Databricks SQL (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): backticks. The {@code Databricks}
+     * dialect quotes EVERY identifier, so this list never decides a spelling there; it is Databricks' documented
+     * reserved set (ANSI mode's reserved words) for any reader that asks. */
+    public static final Lexicon LEXICON = new Lexicon('`', Set.of(
+            "all", "alter", "and", "any", "array", "as", "at", "authorization", "between", "both", "by", "case",
+            "cast", "check", "collate", "column", "commit", "constraint", "create", "cross", "cube", "current",
+            "current_date", "current_time", "current_timestamp", "current_user", "delete", "describe", "distinct",
+            "drop", "else", "end", "escape", "except", "exists", "external", "false", "fetch", "filter", "for",
+            "foreign", "from", "full", "function", "global", "grant", "group", "grouping", "having", "in", "inner",
+            "insert", "intersect", "interval", "into", "is", "join", "lateral", "leading", "left", "like", "local",
+            "natural", "no", "not", "null", "of", "on", "only", "or", "order", "out", "outer", "overlaps",
+            "partition", "position", "primary", "range", "references", "revoke", "right", "rollback", "rollup",
+            "row", "rows", "select", "session_user", "set", "some", "start", "table", "tablesample", "then", "time",
+            "to", "trailing", "true", "union", "unique", "unknown", "update", "user", "using", "values", "when",
+            "where", "window", "with"));
+
+    /** Databricks (2026-10-11): typed native arrays with lambdas, as DuckDB's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md). */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public Databricks() {
-        super(Lexicon.DATABRICKS, TypeNames.DATABRICKS);
+        super(LEXICON);
     }
 
     // ==================================================================
@@ -94,7 +114,7 @@ public final class Databricks extends AnsiSqlRenderer {
      *  computed decimal's precision, and a HUGEINT sum is a DECIMAL(20,0)). QUALIFY is native. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.DATABRICKS),
+        return List.of(new CarrierStrategies(CAPS),
                 new UnqualifyPivotArgs(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
@@ -308,7 +328,8 @@ public final class Databricks extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String structTypeName(List<java.util.Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         StringBuilder sb = new StringBuilder("STRUCT<");
         for (int i = 0; i < fields.size(); i++) {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(": ").append(fields.get(i).getValue());

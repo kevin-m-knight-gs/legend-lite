@@ -106,8 +106,9 @@ class DialectVocabularyTest {
      * THE BASE SPELLS NO FUNCTION (decision D1, 2026-10-13) AND NO AGGREGATE (Phase 1b step 3): a dialect whose parent
      * is the base renderer names every function's and aggregate's spelling itself, calling the base's shared helpers
      * by name ({@code aggregate(writer, "SUM", r)}), and never hands one to the base's {@code call} or {@code reducer}
-     * (only a family member hands a point to its parent, a concrete dialect); the base's {@code call} and
-     * {@code reducer} refuse every point.
+     * (only a family member hands a point to its parent, a concrete dialect). The base is abstract in every
+     * vocabulary point ({@code call}, {@code reducer}, {@code scalarTypeName}, {@code formatText},
+     * {@code structTypeName}, {@code passes}: Phase 1a), so javac refuses a dialect that leaves one undecided.
      */
     @Test
     void noDialectTakesAFunctionFromTheBase() throws IOException, ClassNotFoundException {
@@ -125,14 +126,20 @@ class DialectVocabularyTest {
                 if (cls.getSuperclass() == AnsiSqlRenderer.class && code.contains("super." + vocabulary + "(")) {
                     wrong.add(name + " hands a point to the base renderer (super." + vocabulary + ")");
                 }
-                if (cls == AnsiSqlRenderer.class) {
-                    String decider = body(code, "\\b" + vocabulary + "\\s*\\(\\s*SqlWriter\\b");
-                    if (decider == null
-                            || !decider.replaceAll("\\s+", " ").startsWith("{ throw new DialectCapability(")) {
-                        wrong.add("the base renderer's " + vocabulary + "() spells something instead of refusing: "
-                                + decider);
-                    }
-                }
+            }
+        }
+        // the base is abstract in every vocabulary point, so javac refuses a dialect that does not decide one (the
+        // dialect program's Phase 1a, 2026-10-13)
+        if (!Modifier.isAbstract(AnsiSqlRenderer.class.getModifiers())) {
+            wrong.add("the base renderer is not abstract");
+        }
+        for (String point : List.of("call", "reducer", "scalarTypeName", "formatText", "structTypeName", "passes")) {
+            boolean abstractPoint = java.util.Arrays.stream(AnsiSqlRenderer.class.getDeclaredMethods())
+                    .filter(m -> m.getName().equals(point))
+                    .anyMatch(m -> Modifier.isAbstract(m.getModifiers()));
+            if (!abstractPoint) {
+                wrong.add("the base renderer's " + point + "() is not abstract: it spells something a dialect did not"
+                        + " choose");
             }
         }
         assertTrue(wrong.isEmpty(), "a function spelled by the base renderer for a dialect that did not name it: "

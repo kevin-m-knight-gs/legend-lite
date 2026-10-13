@@ -12,6 +12,7 @@ import com.legend.sql.SqlType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The Trino EXECUTION dialect (Trino 483, its memory connector; 2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md
@@ -43,15 +44,31 @@ import java.util.List;
  */
 public final class Trino extends AnsiSqlRenderer {
 
+    /** Trino (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): double quotes; Trino's documented reserved
+     *  keywords. The {@code Trino} dialect quotes every identifier, so the list decides no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "alter", "and", "as", "auto", "between", "by", "case", "cast", "constraint", "create", "cross", "cube",
+            "current_catalog", "current_date", "current_path", "current_role", "current_schema", "current_time",
+            "current_timestamp", "current_user", "deallocate", "delete", "describe", "distinct", "drop", "else", "end",
+            "escape", "except", "execute", "exists", "extract", "false", "for", "from", "full", "group", "grouping",
+            "having", "in", "inner", "insert", "intersect", "into", "is", "join", "json_array", "json_exists",
+            "json_object", "json_query", "json_table", "json_value", "left", "like", "listagg", "localtime",
+            "localtimestamp", "natural", "normalize", "not", "null", "on", "or", "order", "outer", "prepare",
+            "recursive", "right", "rollup", "select", "skip", "table", "then", "trim", "true", "uescape", "union",
+            "unnest", "using", "values", "when", "where", "with"));
+
+    /** Trino (2026-10-12): typed native arrays with lambdas -- the strategies stand aside, as on Databricks; its
+     *  dialect writes the static pivot and the as-of join itself (Trino has neither); FULL OUTER is native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public Trino() {
-        super(Lexicon.TRINO, TypeNames.TRINO);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
 
-    /** The platform's naive-UTC temporal contract. */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -72,6 +89,7 @@ public final class Trino extends AnsiSqlRenderer {
         };
     }
 
+    /** The platform's naive-UTC temporal contract. */
     @Override
     public List<String> sessionSetup() {
         return List.of("SET TIME ZONE 'UTC'");
@@ -92,7 +110,7 @@ public final class Trino extends AnsiSqlRenderer {
      *  DECIMAL(p,s) and HUGEINT columns cast to their declared types. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.TRINO), new PivotAsGroupBy(), new AsOfAsPick(),
+        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new AsOfAsPick(),
                 new StarExceptToColumns(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new CheckedDefectsToLists(), new SubstringClamp(),
@@ -270,7 +288,8 @@ public final class Trino extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String structTypeName(List<java.util.Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         StringBuilder sb = new StringBuilder("ROW(");
         for (int i = 0; i < fields.size(); i++) {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(" ").append(fields.get(i).getValue());

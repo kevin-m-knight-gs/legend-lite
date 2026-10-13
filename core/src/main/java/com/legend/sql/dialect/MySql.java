@@ -27,15 +27,10 @@ import java.util.List;
 public final class MySql extends MariaDb {
 
     public MySql() {
-        super(Lexicon.MARIADB, TypeNames.MARIADB);
+        // MariaDB's reserved words and quoting: the same lexicon, named
+        super(MariaDb.LEXICON);
     }
 
-    /** Every function, by name: MariaDB's (the dialect program's Phase 1, 2026-10-13: MySQL decides each function
-     *  itself, so a new function asks it as well as MariaDB; a spelling MySQL needs of its own becomes its own arm). */
-    /** Every aggregate, by name: MariaDB's (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a
-     *  new aggregate asks this dialect too). */
-    /** A date format's parts: MariaDB's (the dialect program's Phase 1, 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** Every scalar type's name: MariaDB's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override
@@ -47,11 +42,15 @@ public final class MySql extends MariaDb {
         };
     }
 
+    /** A date format's parts: MariaDB's (the dialect program's Phase 1, 2026-10-13: each dialect
+     *  declares its date-format vocabulary). */
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
         return super.formatText(fl);
     }
 
+    /** Every aggregate, by name: MariaDB's (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a
+     *  new aggregate asks this dialect too). */
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
@@ -63,6 +62,8 @@ public final class MySql extends MariaDb {
         };
     }
 
+    /** Every function, by name: MariaDB's (the dialect program's Phase 1, 2026-10-13: MySQL decides each function
+     *  itself, so a new function asks it as well as MariaDB; a spelling MySQL needs of its own becomes its own arm). */
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         return switch (c.fn()) {

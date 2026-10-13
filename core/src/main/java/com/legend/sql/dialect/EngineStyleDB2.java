@@ -26,12 +26,6 @@ public class EngineStyleDB2 extends EngineStyleH2 {
         super(quoteIdentifiers, timeZone);
     }
 
-    /** DB2 plan goldens wrap a top-level WHERE conjunction in one extra
-     * paren pair ({@code where ((A) and (B))}). */
-    /** Every aggregate, by name: the engine H2 text's (the dialect program's Phase 1, 2026-10-13: an exhaustive
-     *  switch, so a new aggregate asks this dialect too). */
-    /** A date format's parts: the engine H2 text's (the dialect program's Phase 1, 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** Every scalar type's name: the engine H2 text's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override
@@ -43,11 +37,15 @@ public class EngineStyleDB2 extends EngineStyleH2 {
         };
     }
 
+    /** A date format's parts: the engine H2 text's (the dialect program's Phase 1, 2026-10-13: each dialect
+     *  declares its date-format vocabulary). */
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
         return super.formatText(fl);
     }
 
+    /** Every aggregate, by name: the engine H2 text's (the dialect program's Phase 1, 2026-10-13: an exhaustive
+     *  switch, so a new aggregate asks this dialect too). */
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
         return switch (r.fn()) {
@@ -59,6 +57,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
         };
     }
 
+    /** DB2 plan goldens wrap a top-level WHERE conjunction in one extra
+     * paren pair ({@code where ((A) and (B))}). */
     @Override
     protected String groupBySeparator() {
         return ",";

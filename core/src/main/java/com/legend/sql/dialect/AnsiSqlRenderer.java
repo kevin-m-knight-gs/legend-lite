@@ -36,14 +36,13 @@ import java.util.stream.Collectors;
  * <p>Every {@code throw} below is a capability statement, not a TODO: a
  * dialect that cannot express a construct fails LOUDLY at render time.
  */
-public class AnsiSqlRenderer implements SqlDialect {
+public abstract class AnsiSqlRenderer implements SqlDialect {
 
     private final Lexicon lexicon;
-    private final TypeNames typeNames;
 
-    public AnsiSqlRenderer(Lexicon lexicon, TypeNames typeNames) {
+    /** A dialect over its own lexicon ({@code LEXICON}, a constant of its class: the dialect program's Phase 1a). */
+    protected AnsiSqlRenderer(Lexicon lexicon) {
         this.lexicon = java.util.Objects.requireNonNull(lexicon, "lexicon");
-        this.typeNames = java.util.Objects.requireNonNull(typeNames, "typeNames");
     }
 
     private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
@@ -91,15 +90,10 @@ public class AnsiSqlRenderer implements SqlDialect {
      * (remediation T3.2; {@code SubselectPrune} is the common-pass model
      * at the lowering exit). The CARRIER STRATEGY pass runs FIRST on
      * every dialect (CARRIER_REDESIGN.md §1): semantic collection nodes
-     * become this dialect's emission before any other rewrite sees them.
+     * become this dialect's emission before any other rewrite sees them,
+     * over the dialect's own capabilities ({@code CAPS}).
      */
-    protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        CarrierStrategies carriers = new CarrierStrategies(
-                CarrierStrategies.Caps.H2);
-        return supportsQualify()
-                ? java.util.List.of(carriers)
-                : java.util.List.of(carriers, new QualifyToSubselect());
-    }
+    protected abstract java.util.List<com.legend.sql.SqlRewriter> passes();
 
     /** What {@code render()} runs: this dialect's {@link #passes()}, then the STORED READS LAST
      *  (docs/STORE_TYPES_HOMEWORK_2026_10_02.md, 4.3) -- every source the passes introduced is in
@@ -691,11 +685,10 @@ public class AnsiSqlRenderer implements SqlDialect {
     /**
      * A function call. Each concrete dialect decides every {@link SqlFn} in its own exhaustive switch, its whole table:
      * each function's spelling, the named helper that writes it, or its refusal (DialectVocabularyTest; the dialect
-     * program's Phase 1, 2026-10-13). The base spells none, so a call reaching it is refused.
+     * program's Phase 1, 2026-10-13). The base spells none: the method is abstract, so a dialect that does not decide
+     * is a compile error.
      */
-    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        throw new DialectCapability(c.fn() + " reached the base renderer, which spells no function");
-    }
+    protected abstract SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec);
 
     // ---- the helpers a dialect's switch calls by name: a spelling several databases share, written once (helpers
     // implement, the switch decides; none is reached unless a dialect names it)
@@ -1052,9 +1045,7 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     /** Each dialect names every aggregate itself (the dialect program's Phase 1b step 3, 2026-10-13): the base spells
      *  none. */
-    protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
-        throw new DialectCapability(r.fn() + " reached the base renderer, which spells no aggregate");
-    }
+    protected abstract SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r);
 
     /** An aggregate as most databases write it, by the name its dialect gives it:
      *  {@code name([DISTINCT ]args[ ORDER BY keys])}, {@code *} for no argument. */
@@ -1163,18 +1154,11 @@ public class AnsiSqlRenderer implements SqlDialect {
         throw new DialectCapability("a struct extraction reached a dialect without struct support");
     }
 
-    /** SQL type → CAST spelling: scalar LEAVES from {@link TypeNames}
-     * (absence loud), composite RULES structural and shared. */
-    /** A scalar type's name: each concrete dialect decides every scalar in its own switch (the dialect program's
-     *  Phase 1, 2026-10-13; DialectVocabularyTest); the base's row is the portable renderer's alone. */
-    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
-        String n = typeNames.scalarNames().get(s);
-        if (n == null) {
-            throw new IllegalStateException(s + " cast reached a"
-                    + " dialect without " + s + " support");
-        }
-        return n;
-    }
+    /** A scalar type's name: each concrete dialect decides every scalar in its own switch, a name or a refusal (the
+     *  dialect program's Phase 1, 2026-10-13; DialectVocabularyTest). */
+    protected abstract String scalarTypeName(com.legend.sql.SqlType.Scalar s);
+
+    /** SQL type → CAST spelling: the scalar leaves the dialect's, the composite rules structural and shared. */
 
     protected final String castTypeName(com.legend.sql.SqlType t) {
         return switch (t) {
@@ -1183,14 +1167,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
             case com.legend.sql.SqlType.Array a -> arrayTypeName(castTypeName(a.element()));
             case com.legend.sql.SqlType.Map m -> mapTypeName(castTypeName(m.key()), castTypeName(m.value()));
-            case com.legend.sql.SqlType.Struct st -> {
-                if (!typeNames.structSupport()) {
-                    throw new DialectCapability(
-                            "a STRUCT type reached a dialect without struct support");
-                }
-                yield structTypeName(st.fields().stream()
-                        .map(fl -> java.util.Map.entry(ident(fl.name()), castTypeName(fl.type()))).toList());
-            }
+            case com.legend.sql.SqlType.Struct st -> structTypeName(st);
         };
     }
 
@@ -1205,17 +1182,23 @@ public class AnsiSqlRenderer implements SqlDialect {
         return "MAP(" + key + ", " + value + ")";
     }
 
-    /** A struct type's spelling, each field its name (spelled) and type: {@code STRUCT(a T, ...)}. */
-    protected String structTypeName(List<java.util.Map.Entry<String, String>> fields) {
-        return "STRUCT(" + fields.stream().map(f -> f.getKey() + " " + f.getValue())
-                .collect(Collectors.joining(", ")) + ")";
+    /** A struct type's spelling, or its refusal where the database has none: each dialect decides. */
+    protected abstract String structTypeName(com.legend.sql.SqlType.Struct st);
+
+    /** A struct type's fields, each its name (spelled) and its type (spelled), for a dialect's {@link
+     *  #structTypeName}. */
+    protected final List<java.util.Map.Entry<String, String>> structFields(com.legend.sql.SqlType.Struct st) {
+        return st.fields().stream()
+                .map(fl -> java.util.Map.entry(ident(fl.name()), castTypeName(fl.type()))).toList();
     }
 
-    /** The DATE-FORMAT spelling — this renderer family's voice is DuckDB
-     * strftime codes; a dialect with its own vocabulary overrides (or
-     * consumes {@link SqlExpr.FormatLit} parts in its call arms and never
-     * lets one reach here). EXHAUSTIVE: a new part is a compile error. */
-    protected String formatText(SqlExpr.FormatLit fl) {
+    /** The DATE-FORMAT spelling: each dialect writes its own vocabulary (or consumes {@link SqlExpr.FormatLit} parts
+     *  in its call arms and never lets one reach here). */
+    protected abstract String formatText(SqlExpr.FormatLit fl);
+
+    /** A date format in strftime codes (DuckDB's; SQLite's and MariaDB's strftime helpers read them too), for a
+     *  dialect's {@link #formatText}. EXHAUSTIVE: a new part is a compile error. */
+    protected final String strftimeText(SqlExpr.FormatLit fl) {
         StringBuilder out = new StringBuilder();
         for (com.legend.sql.DateFmt p : fl.parts()) {
             out.append(switch (p) {

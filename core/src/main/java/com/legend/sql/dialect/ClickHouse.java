@@ -13,6 +13,7 @@ import com.legend.sql.SqlType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The ClickHouse EXECUTION dialect (ClickHouse 25.8, its Memory engine; 2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md
@@ -68,15 +69,27 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  an EXISTS, IN written as EXISTS, or a quantified comparison. */
     private final boolean[] correlatedExists = {false};
 
+    /** ClickHouse (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19): double quotes (case-sensitive names). The
+     *  {@code ClickHouse} dialect quotes every identifier, so this list decides no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "all", "and", "any", "array", "as", "asc", "asof", "between", "by", "case", "cast", "cross", "desc",
+            "distinct", "else", "end", "except", "exists", "false", "final", "format", "from", "full", "global",
+            "group", "having", "in", "inner", "interval", "into", "is", "join", "left", "like", "limit", "not", "null",
+            "offset", "on", "or", "order", "outer", "prewhere", "qualify", "right", "sample", "select", "settings",
+            "then", "true", "union", "using", "when", "where", "window", "with"));
+
+    /** ClickHouse (2026-10-12): typed native arrays with lambdas -- the strategies stand aside; FULL OUTER, the
+     *  as-of join and QUALIFY are native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public ClickHouse() {
-        super(Lexicon.CLICKHOUSE, TypeNames.CLICKHOUSE);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
 
-    /** No session: the driver speaks HTTP, statement by statement; the settings ride each statement. */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -95,6 +108,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
         };
     }
 
+    /** No session: the driver speaks HTTP, statement by statement; the settings ride each statement. */
     @Override
     public List<String> sessionSetup() {
         return List.of();
@@ -112,7 +126,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  exclusion and the as-of join are native. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.CLICKHOUSE), new PivotAsGroupBy(),
+        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
                 new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)), new ConstantKeysAsExpressions(),
@@ -662,7 +676,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
     /** A Tuple; a field that is itself a struct is its {@code Variant}, which holds NULL (an absent instance: a Tuple
      *  is never NULL, measured) and is read through {@link #structGet}. */
     @Override
-    protected String structTypeName(List<java.util.Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         StringBuilder sb = new StringBuilder("Tuple(");
         for (int i = 0; i < fields.size(); i++) {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(" ")

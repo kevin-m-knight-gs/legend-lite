@@ -619,14 +619,36 @@ class CarrierDifferentialTest {
         return new Portable();
     }
 
-    /** THE PORTABLE STRATEGY on DuckDB: the base renderer's carrier strategies (its passes), each function and
-     *  aggregate as DuckDB spells it, since the base spells none (the dialect program's decision D1 and Phase 1b
-     *  step 3, 2026-10-13). */
+    /** THE PORTABLE STRATEGY on DuckDB: the carrier strategies over H2's capabilities (no native lists, no
+     *  correlated explosion: what the base renderer's passes were before each dialect held its own), every other
+     *  point as DuckDB spells it (the dialect program's decision D1 and Phase 1, 2026-10-13). */
     private static final class Portable extends AnsiSqlRenderer {
         private final DuckDb duck = new DuckDb();
 
         Portable() {
-            super(Lexicon.DUCKDB, TypeNames.DUCKDB);
+            super(DuckDb.LEXICON);
+        }
+
+        @Override
+        protected java.util.List<com.legend.sql.SqlRewriter> passes() {
+            CarrierStrategies carriers = new CarrierStrategies(H2.CAPS);
+            return supportsQualify() ? java.util.List.of(carriers)
+                    : java.util.List.of(carriers, new QualifyToSubselect());
+        }
+
+        @Override
+        protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+            return duck.scalarTypeName(s);
+        }
+
+        @Override
+        protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+            return duck.structTypeName(st);
+        }
+
+        @Override
+        protected String formatText(SqlExpr.FormatLit fl) {
+            return strftimeText(fl);
         }
 
         @Override

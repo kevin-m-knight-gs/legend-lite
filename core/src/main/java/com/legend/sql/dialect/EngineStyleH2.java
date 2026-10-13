@@ -26,8 +26,6 @@ import java.util.Set;
  */
 public class EngineStyleH2 extends AnsiSqlRenderer {
 
-    /** A date format's parts: the base's strftime codes (the dialect program's Phase 1, 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -47,9 +45,17 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         };
     }
 
+    /** No STRUCT type here: a struct cast is refused. */
+    @Override
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
+    }
+
+    /** A date format's parts: the base's strftime codes (the dialect program's Phase 1, 2026-10-13: each dialect
+     *  declares its date-format vocabulary). */
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
-        return super.formatText(fl);
+        return strftimeText(fl);
     }
 
     @Override
@@ -335,6 +341,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * (relationalPlanSupportFunctions gate). Null = default. */
     private final @com.legend.base.Nullable String timeZone;
 
+    /** Engine-text lowering (H2/DB2 golden style): minimal quoting. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of());
+
     public EngineStyleH2() {
         this(false);
     }
@@ -344,7 +353,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     public EngineStyleH2(boolean quoteIdentifiers, @com.legend.base.Nullable String timeZone) {
-        super(Lexicon.ENGINE_STYLE, TypeNames.ANSI);
+        super(LEXICON);
         this.quoteIdentifiers = quoteIdentifiers;
         this.timeZone = timeZone;
     }
@@ -896,7 +905,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // the H2 execution dialect runs (text divergence is advisory;
         // rows are the verdict)
         return java.util.List.of(
-                new CarrierStrategies(CarrierStrategies.Caps.H2, false),
+                new CarrierStrategies(H2.CAPS, false),
                 new LateralExplodeToUnion());
     }
 

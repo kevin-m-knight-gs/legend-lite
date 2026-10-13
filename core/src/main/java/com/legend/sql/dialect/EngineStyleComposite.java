@@ -13,10 +13,6 @@ import com.legend.sql.SqlExpr;
  */
 public final class EngineStyleComposite extends EngineStyleDB2 {
 
-    /** Every aggregate, by name: the engine DB2 text's (the dialect program's Phase 1, 2026-10-13: an exhaustive
-     *  switch, so a new aggregate asks this dialect too). */
-    /** A date format's parts: the engine DB2 text's (the dialect program's Phase 1, 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** Every scalar type's name: the engine DB2 text's (the dialect program's Phase 1, 2026-10-13: an exhaustive
      *  switch, so a new scalar type asks this dialect too). */
     @Override
@@ -28,11 +24,15 @@ public final class EngineStyleComposite extends EngineStyleDB2 {
         };
     }
 
+    /** A date format's parts: the engine DB2 text's (the dialect program's Phase 1, 2026-10-13: each dialect
+     *  declares its date-format vocabulary). */
     @Override
     protected String formatText(SqlExpr.FormatLit fl) {
         return super.formatText(fl);
     }
 
+    /** Every aggregate, by name: the engine DB2 text's (the dialect program's Phase 1, 2026-10-13: an exhaustive
+     *  switch, so a new aggregate asks this dialect too). */
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
         return switch (r.fn()) {

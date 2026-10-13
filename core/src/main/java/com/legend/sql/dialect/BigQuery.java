@@ -71,17 +71,31 @@ import java.util.Set;
  */
 public final class BigQuery extends AnsiSqlRenderer {
 
+    /** BigQuery (GoogleSQL; 2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): backticks; GoogleSQL's reserved
+     *  keywords. The {@code BigQuery} dialect quotes every identifier, so the list decides no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('`', Set.of(
+            "all", "and", "any", "array", "as", "asc", "assert_rows_modified", "at", "between", "by", "case", "cast",
+            "collate", "contains", "create", "cross", "cube", "current", "default", "define", "desc", "distinct",
+            "else", "end", "enum", "escape", "except", "exclude", "exists", "extract", "false", "fetch", "following",
+            "for", "from", "full", "group", "grouping", "groups", "hash", "having", "if", "ignore", "in", "inner",
+            "intersect", "interval", "into", "is", "join", "lateral", "left", "like", "limit", "lookup", "merge",
+            "natural", "new", "no", "not", "null", "nulls", "of", "on", "or", "order", "outer", "over", "partition",
+            "preceding", "proto", "qualify", "range", "recursive", "respect", "right", "rollup", "rows", "select",
+            "set", "some", "struct", "tablesample", "then", "to", "treat", "true", "unbounded", "union", "unnest",
+            "using", "when", "where", "window", "with", "within"));
+
+    /** BigQuery (2026-10-11): the portable strategies (static pivot and as-of emulation, explode placements, list
+     *  reductions fused), as on Postgres: arrays are native but lambda-less; FULL OUTER is native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, true, true, true);
+
     public BigQuery() {
-        super(Lexicon.BIGQUERY, TypeNames.BIGQUERY);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
 
-    /** Nothing to set: a BigQuery session's zone is UTC unless a statement names one (measured {@code @@time_zone}),
-     *  which is the platform's naive-UTC contract -- CURRENT_DATETIME() is the UTC wall time, a TIMESTAMP reads as
-     *  its UTC DATETIME. (A SET would need a session-mode connection; each JDBC statement is its own job.) */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -101,6 +115,9 @@ public final class BigQuery extends AnsiSqlRenderer {
         };
     }
 
+    /** Nothing to set: a BigQuery session's zone is UTC unless a statement names one (measured {@code @@time_zone}),
+     *  which is the platform's naive-UTC contract -- CURRENT_DATETIME() is the UTC wall time, a TIMESTAMP reads as
+     *  its UTC DATETIME. (A SET would need a session-mode connection; each JDBC statement is its own job.) */
     @Override
     public List<String> sessionSetup() {
         return List.of();
@@ -130,7 +147,7 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.BIGQUERY), new FoldsAsRecursiveCtes(),
+        return List.of(new CarrierStrategies(CAPS), new FoldsAsRecursiveCtes(),
                 new SubstringClamp(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.SelectListUnnestAsLateral(),
                 new ExplosionMarkers.StarOverExplosionUnwrapped(),
@@ -752,7 +769,8 @@ public final class BigQuery extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String structTypeName(List<Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         StringBuilder sb = new StringBuilder("STRUCT<");
         for (int i = 0; i < fields.size(); i++) {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(' ').append(fields.get(i).getValue());

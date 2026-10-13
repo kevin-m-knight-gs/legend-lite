@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 /**
  * DuckDB's own keyword table against the renderer's quoting list: every keyword DuckDB will not take as a plain table
  * or column name ({@code reserved} and {@code type_function} in {@code duckdb_keywords()}) is quoted by
- * {@link Lexicon#DUCKDB}. A table named {@code aT} rendered unquoted failed to parse (found 2026-10-05 when Bazel
+ * {@link DuckDb#LEXICON}. A table named {@code aT} rendered unquoted failed to parse (found 2026-10-05 when Bazel
  * workplan P3-17 made ResolveUnionV4ProbeTest run its SQL); a DuckDB bump that reserves a new word fails here.
  */
 class DuckDbKeywordsTest {
@@ -28,12 +28,12 @@ class DuckDbKeywordsTest {
                         + " WHERE keyword_category IN ('reserved', 'type_function')")) {
             while (rs.next()) {
                 String word = rs.getString(1).toLowerCase(java.util.Locale.ROOT);
-                if (!Lexicon.DUCKDB.reservedWords().contains(word)) {
+                if (!DuckDb.LEXICON.reservedWords().contains(word)) {
                     missing.add(word);
                 }
             }
         }
-        assertEquals(new TreeSet<String>(), missing, "keywords DuckDB refuses as names that Lexicon.DUCKDB renders bare");
+        assertEquals(new TreeSet<String>(), missing, "keywords DuckDB refuses as names that DuckDb.LEXICON renders bare");
     }
 
     @Test

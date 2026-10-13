@@ -60,13 +60,41 @@ import java.util.Set;
  */
 public class MariaDb extends AnsiSqlRenderer {
 
+    /** MariaDB (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): double quotes under the session's
+     *  ANSI_QUOTES; MariaDB's reserved words. The {@code MariaDb} dialect quotes EVERY identifier, so the list decides
+     *  no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "accessible", "add", "all", "alter", "analyze", "and", "as", "asc", "asensitive", "before", "between",
+            "bigint", "binary", "blob", "both", "by", "call", "cascade", "case", "change", "char", "character", "check",
+            "collate", "column", "condition", "constraint", "continue", "convert", "create", "cross", "current_date",
+            "current_role", "current_time", "current_timestamp", "current_user", "cursor", "database", "databases",
+            "day_hour", "day_microsecond", "day_minute", "day_second", "dec", "decimal", "declare", "default",
+            "delayed", "delete", "desc", "describe", "deterministic", "distinct", "distinctrow", "div", "double",
+            "drop", "dual", "each", "else", "elseif", "enclosed", "escaped", "except", "exists", "exit", "explain",
+            "false", "fetch", "float", "for", "force", "foreign", "from", "fulltext", "general", "grant", "group",
+            "having", "high_priority", "if", "ignore", "in", "index", "infile", "inner", "inout", "insensitive",
+            "insert", "int", "integer", "intersect", "interval", "into", "is", "iterate", "join", "key", "keys",
+            "kill", "leading", "leave", "left", "like", "limit", "lines", "load", "localtime", "localtimestamp",
+            "lock", "long", "loop", "match", "minus", "mod", "modifies", "natural", "not", "null", "numeric", "offset",
+            "on", "optimize", "option", "or", "order", "out", "outer", "over", "partition", "precision", "primary",
+            "procedure", "range", "read", "reads", "real", "recursive", "references", "regexp", "release", "rename",
+            "repeat", "replace", "require", "restrict", "return", "returning", "revoke", "right", "rlike", "row_number",
+            "rows", "schema", "schemas", "select", "sensitive", "separator", "set", "show", "signal", "smallint",
+            "spatial", "specific", "sql", "starting", "straight_join", "table", "terminated", "then", "to",
+            "trailing", "trigger", "true", "undo", "union", "unique", "unlock", "unsigned", "update", "usage", "use",
+            "using", "values", "varchar", "when", "where", "while", "window", "with", "write", "xor", "zerofill"));
+
+    /** MariaDB (2026-10-11): the portable strategies over its JSON lists (a JSON_TABLE argument correlates,
+     *  measured); no FULL OUTER JOIN (measured: a syntax error), so it is emulated, as on H2. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, true, true, false);
+
     public MariaDb() {
-        super(Lexicon.MARIADB, TypeNames.MARIADB);
+        super(LEXICON);
     }
 
     /** A dialect of the family ({@link MySql}): MariaDB's spellings where the two agree, its own hooks where not. */
-    protected MariaDb(Lexicon lexicon, TypeNames types) {
-        super(lexicon, types);
+    protected MariaDb(Lexicon lexicon) {
+        super(lexicon);
     }
 
     // ==================================================================
@@ -146,13 +174,6 @@ public class MariaDb extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The session the dialect's spellings assume (measured: without ANSI_QUOTES {@code "name"} is the string
-     *  'name'); recursion and GROUP_CONCAT lengths past their small defaults; and no condition pushed into a derived
-     *  table (measured on 11.4.13: a filter on a JSON value of a UNION derived table, pushed into its branches, kept
-     *  no row it should). */
-    /** A date format's parts: the base's strftime codes (its own strftime helper spells the parts it formats itself)
-     * (the dialect program's Phase 1, 2026-10-13: each dialect
-     *  declares its date-format vocabulary). */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -169,11 +190,24 @@ public class MariaDb extends AnsiSqlRenderer {
         };
     }
 
+    /** No STRUCT type here: a struct cast is refused. */
     @Override
-    protected String formatText(SqlExpr.FormatLit fl) {
-        return super.formatText(fl);
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
     }
 
+    /** A date format's parts: the base's strftime codes, {@code strftimeText} (its own strftime helper spells the
+     *  parts it formats itself; the dialect program's Phase 1, 2026-10-13: each dialect declares its date-format
+     *  vocabulary). */
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return strftimeText(fl);
+    }
+
+    /** The session the dialect's spellings assume (measured: without ANSI_QUOTES {@code "name"} is the string
+     *  'name'); recursion and GROUP_CONCAT lengths past their small defaults; and no condition pushed into a derived
+     *  table (measured on 11.4.13: a filter on a JSON value of a UNION derived table, pushed into its branches, kept
+     *  no row it should). */
     @Override
     public List<String> sessionSetup() {
         return List.of("SET SESSION optimizer_switch = 'condition_pushdown_for_derived=off'","SET SESSION sql_mode = 'ANSI_QUOTES,PIPES_AS_CONCAT,NO_BACKSLASH_ESCAPES,STRICT_ALL_TABLES,"
@@ -202,7 +236,7 @@ public class MariaDb extends AnsiSqlRenderer {
      *  11 GB on ten of them (measured, the server killed). */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.MARIADB), new StarExceptToColumns(),
+        return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new QualifyToSubselect(true), new ConstantKeysAsExpressions());

@@ -52,38 +52,10 @@ public final class CarrierStrategies extends SqlRewriter {
     /** The dialect's collection CAPABILITIES (§2b: a record, not a
      * binary — SQLite/MariaDB have correlated explosion but no native
      * lists; H2 has neither; DuckDB has everything). Strategy rules
-     * dispatch on these. */
+     * dispatch on these. Each dialect class holds its own row
+     * ({@link DuckDb#CAPS}, ...: the dialect program's Phase 1a). */
     public record Caps(boolean nativeLists, boolean correlatedExplode,
             boolean jsonCarrier, boolean nativeFullOuter) {
-        public static final Caps DUCKDB = new Caps(true, true, true, true);
-        /** H2: no native lists, no correlated explosion (the ONLY probed
-         * backend without it), JSON constructors only. */
-        public static final Caps H2 = new Caps(false, false, false, false);
-        /** Postgres (2026-10-01 W5.5/P1 Postgres dialect): the portable
-         * strategies (no native-list carrier — jsonb, POSTGRES_BACKEND.md §5)
-         * WITHOUT H2's FULL OUTER emulation: Postgres joins FULL OUTER
-         * natively. */
-        public static final Caps POSTGRES = new Caps(false, true, true, true);
-        /** Databricks (2026-10-11): typed native arrays with lambdas, as DuckDB's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md). */
-        public static final Caps DATABRICKS = new Caps(true, true, true, true);
-        /** Snowflake (2026-10-11): semi-structured arrays with higher-order functions -- the strategies stand aside,
-         *  as on DuckDB and Databricks; FULL OUTER is native. */
-        public static final Caps SNOWFLAKE = new Caps(true, true, true, true);
-        /** BigQuery (2026-10-11): the portable strategies (static pivot and as-of emulation, explode placements, list
-         *  reductions fused), as on Postgres: arrays are native but lambda-less; FULL OUTER is native. */
-        public static final Caps BIGQUERY = new Caps(false, true, true, true);
-        /** SQLite (2026-10-11): the portable strategies over its JSON lists (json_each correlates, measured); FULL
-         *  OUTER is native (3.39). */
-        public static final Caps SQLITE = new Caps(false, true, true, true);
-        /** MariaDB (2026-10-11): the portable strategies over its JSON lists (a JSON_TABLE argument correlates,
-         *  measured); no FULL OUTER JOIN (measured: a syntax error), so it is emulated, as on H2. */
-        public static final Caps MARIADB = new Caps(false, true, true, false);
-        /** Trino (2026-10-12): typed native arrays with lambdas -- the strategies stand aside, as on Databricks; its
-         *  dialect writes the static pivot and the as-of join itself (Trino has neither); FULL OUTER is native. */
-        public static final Caps TRINO = new Caps(true, true, true, true);
-        /** ClickHouse (2026-10-12): typed native arrays with lambdas -- the strategies stand aside; FULL OUTER, the
-         *  as-of join and QUALIFY are native. */
-        public static final Caps CLICKHOUSE = new Caps(true, true, true, true);
     }
 
     private final Caps caps;

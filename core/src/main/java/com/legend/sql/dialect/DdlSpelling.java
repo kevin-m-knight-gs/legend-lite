@@ -71,7 +71,7 @@ public final class DdlSpelling {
      * come from the dialect lexicon — the ONE H2 list. */
     public static String engineColumnName(String name) {
         if (name.startsWith("\"")
-                || Lexicon.H2_ENGINE_TEXT.reservedWords()
+                || H2.ENGINE_LEXICON.reservedWords()
                         .contains(name.toLowerCase(java.util.Locale.ROOT))
                 || name.contains(" ")) {
             return '"' + name.replace("\"", "") + '"';

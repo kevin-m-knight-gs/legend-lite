@@ -62,9 +62,6 @@ import java.util.Set;
  */
 public final class Snowflake extends AnsiSqlRenderer {
 
-    /** No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
-     *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
-     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -85,13 +82,33 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
+    /** No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
+     *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
+     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
     @Override
     public boolean refetchesTimestampAsJavaTime() {
         return false;
     }
 
+    /** Snowflake (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): double quotes; Snowflake's documented reserved keywords. The dialect quotes EVERY
+     *  identifier, so the list never decides a spelling here. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "account", "all", "alter", "and", "any", "as", "between", "by", "case", "cast", "check", "column",
+            "connect", "connection", "constraint", "create", "cross", "current", "current_date", "current_time",
+            "current_timestamp", "current_user", "database", "delete", "distinct", "drop", "else", "exists", "false",
+            "following", "for", "from", "full", "grant", "group", "gscluster", "having", "ilike", "in", "increment",
+            "inner", "insert", "intersect", "into", "is", "issue", "join", "lateral", "left", "like", "localtime",
+            "localtimestamp", "minus", "natural", "not", "null", "of", "on", "or", "order", "organization", "qualify",
+            "regexp", "revoke", "right", "rlike", "row", "rows", "sample", "schema", "select", "set", "some", "start",
+            "table", "tablesample", "then", "to", "trigger", "true", "try_cast", "union", "unique", "update", "using",
+            "values", "view", "when", "whenever", "where", "window", "with"));
+
+    /** Snowflake (2026-10-11): semi-structured arrays with higher-order functions -- the strategies stand aside,
+     *  as on DuckDB and Databricks; FULL OUTER is native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public Snowflake() {
-        super(Lexicon.SNOWFLAKE, TypeNames.SNOWFLAKE);
+        super(LEXICON);
     }
 
     // ==================================================================
@@ -158,7 +175,7 @@ public final class Snowflake extends AnsiSqlRenderer {
      */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.SNOWFLAKE), new PivotAsGroupBy(), new CheckedDefectsToLists(),
+        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
@@ -288,7 +305,8 @@ public final class Snowflake extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String structTypeName(List<Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         return "OBJECT";
     }
 
