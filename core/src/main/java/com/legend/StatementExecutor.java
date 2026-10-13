@@ -1912,12 +1912,7 @@ final class StatementExecutor {
         for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
             for (String sql : fr.sqlSetups()) {
                 // written in the database the from()'s connection declares (decision D2)
-                String writtenFor = fr.context().databaseType();
-                if (writtenFor == null) {
-                    throw new com.legend.error.NotImplementedException("setup SQL over a connection whose declared"
-                            + " database is not statically readable: the language of its text is unknown (decision D2)");
-                }
-                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql, writtenFor));
+                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
             }
             setups.addAll(com.legend.setup.CsvSeed.setupSteps(fr, env.ctx(), env.dialect()));
             // an ELEMENT runtime named by the from(): its declared
@@ -2845,18 +2840,6 @@ final class StatementExecutor {
      * evaluation. The blob is dialect-adapted, split on top-level
      * {@code ;}, and executed statement by statement.
      */
-    /** The database {@code executeInDb}'s text is written for: the one its connection argument declares (decision
-     *  D2, the dialect program's Phase 1c), read statically (lets chased) -- every corpus call's reads, measured
-     *  2026-10-13 (122,823 of 122,823, as H2). One that cannot be read is refused: the text's language is unknown. */
-    private static String writtenFor(java.util.List<TypedSpec> body, TypedSpec connection) {
-        TypedSpec c = com.legend.compiler.spec.typed.Lets.bound(connection, body);
-        String db = com.legend.compiler.spec.typed.ExecutionContext.declaredDatabase(c);
-        if (db == null) {
-            throw new com.legend.error.NotImplementedException("executeInDb over a connection whose declared"
-                    + " database is not statically readable: the language of its SQL is unknown (decision D2)");
-        }
-        return db;
-    }
 
     /** THE ONE SEND of an effect native (block-compiler stage 3, 2026-09-21): with a
      * sink on the environment the statement is COLLECTED into the effect segment
@@ -2929,7 +2912,10 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String raw = evalStringArg(body, call.args().get(0), env);
-        String writtenFor = writtenFor(body, call.args().get(1));
+        // the database its connection declares (decision D2, lets bound): every corpus call's reads, measured
+        // 2026-10-13 (122,823 of 122,823, as H2); one that cannot be read is refused
+        String writtenFor = com.legend.compiler.spec.typed.ExecutionContext.rawLanguage(
+                com.legend.compiler.spec.typed.Lets.bound(call.args().get(1), body));
         // split FIRST: translation is per-statement (its recognizers anchor
         // at statement start). The engine's H2 text crosses THE boundary
         // translator through the session's dialect, any other runs as

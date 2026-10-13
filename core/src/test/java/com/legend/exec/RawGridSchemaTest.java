@@ -28,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class RawGridSchemaTest {
 
+    /** The database each test's session runs on. */
+    private static final DatabaseType SESSION = DatabaseType.DuckDB;
+
     private static final String CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                     + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
@@ -63,7 +66,7 @@ class RawGridSchemaTest {
     @Test
     @DisplayName("a connection a helper builds declares its database through the helper's body (decision D2)")
     void helperConnectionDeclaresItsDatabase() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(HELPERS.formatted("DuckDB"), DatabaseType.DuckDB),
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(HELPERS.formatted("DuckDB"), SESSION),
                 "{| " + EXEC + "'select 1 as A union all select 2', test::conn(), 0, 1000).rows.value('A')->size();}",
                 StorelessRuntime.RUNTIME, conn);
         assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value()).longValue());
@@ -74,7 +77,7 @@ class RawGridSchemaTest {
     void disagreeingOverloadsAreRefused() {
         // the raw body names test::conn, not which overload: H2 and DuckDB both answer, so neither is guessed
         Exception e = assertThrows(Exception.class, () -> Execution.execute(
-                StorelessRuntime.with(HELPERS.formatted("H2"), DatabaseType.DuckDB),
+                StorelessRuntime.with(HELPERS.formatted("H2"), SESSION),
                 "{| " + EXEC + "'select 1 as A', test::conn(), 0, 1000).rows.value('A')->size();}",
                 StorelessRuntime.RUNTIME, conn));
         assertTrue(String.valueOf(e.getMessage()).contains("decision D2"), e.toString());
@@ -83,7 +86,7 @@ class RawGridSchemaTest {
     @Test
     @DisplayName("columnNames resolves to the string collection and composes")
     void columnNamesComposes() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 1 as A, 2 as B', $c, 0, 1000)"
                 + ".columnNames->at(1);}", StorelessRuntime.RUNTIME, conn);
         assertEquals("B", ((ExecutionResult.Scalar) r).value());
@@ -92,7 +95,7 @@ class RawGridSchemaTest {
     @Test
     @DisplayName(".rows.value('N') AUTO-MAPS over many rows (pure's dot rule)")
     void rowsValueAutoMaps() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 1 as A union all select 2', $c, 0, 1000)"
                 + ".rows.value('A')->size();}", StorelessRuntime.RUNTIME, conn);
         assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value())
@@ -102,7 +105,7 @@ class RawGridSchemaTest {
     @Test
     @DisplayName("row-major .rows.values->at(k) resolves via the cells map")
     void rowMajorCellRead() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
                 + "let rs = " + EXEC + "'select 1 as A, \\'x\\' as B', $c);\n"
                 + "$rs.rows.values->at(1);}", StorelessRuntime.RUNTIME, conn);
         assertEquals("x", ((ExecutionResult.Scalar) r).value());
@@ -111,7 +114,7 @@ class RawGridSchemaTest {
     @Test
     @DisplayName("fold column-collect lowers as the per-row map")
     void foldColumnCollect() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 1 as A, \\'x\\' as B union all"
                 + " select 2, \\'y\\'', $c, 0, 1000)"
                 + ".rows->fold({a,b| concatenate($a.values->at(1), $b)}, [])"
@@ -127,7 +130,7 @@ class RawGridSchemaTest {
         // PLAIN collection re-binds `r` — its $r must stay the inner
         // value (2, 3), never the outer row's cells. A wrong resolver
         // would substitute the grid cells and change the sum.
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 10 as A', $c, 0, 1000)"
                 + ".rows->map(r | [2, 3]->map(r | $r)->sum());}", StorelessRuntime.RUNTIME, conn);
         // one grid row -> one mapped value: 2 + 3 = 5

@@ -235,14 +235,36 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     // The reader — the only code that knows the runtime value's shape
     // =====================================================================
 
-    /** The database a CONNECTION argument declares (that type's name), read statically: the value, or a
-     *  zero-parameter function answering it ({@code executeInDbToTDS}'s); null when it cannot be read. The language
-     *  of raw text written for that connection (decision D2). */
-    public static @com.legend.base.Nullable String declaredDatabase(TypedSpec connection) {
-        return declaredDatabase(connection, reader());
+    /** The language of raw text written for a CONNECTION argument ({@code executeInDb}'s, its helpers inlined and
+     *  its lets bound): the database it declares (decision D2, {@link #declaredDatabase}). Refused by name when it
+     *  cannot be read, never assumed. */
+    public static String rawLanguage(TypedSpec connection) {
+        String db = declaredDatabase(connection, reader());
+        if (db == null) {
+            throw unknownLanguage("executeInDb");
+        }
+        return db;
     }
 
-    /** {@link #declaredDatabase(TypedSpec)} through {@code reader} (its helper bodies, its let bindings). */
+    /** The language of the setup SQL this context's connection carries: the database it declares (decision D2).
+     *  Refused by name when it cannot be read, never assumed. */
+    public String rawLanguage() {
+        if (databaseType == null) {
+            throw unknownLanguage("setup SQL");
+        }
+        return databaseType;
+    }
+
+    /** {@code what}'s raw text over a connection whose database cannot be read: its language is unknown (D2). */
+    static com.legend.error.NotImplementedException unknownLanguage(String what) {
+        return new com.legend.error.NotImplementedException(what + " over a connection whose declared database is not"
+                + " statically readable: the language of its text is unknown (decision D2)");
+    }
+
+    /** The database a CONNECTION argument declares (that type's name), read statically through {@code reader} (its
+     *  helper bodies, its let bindings): the value, or a zero-parameter function answering it
+     *  ({@code executeInDbToTDS}'s); null when it cannot be read. The language of raw text written for that
+     *  connection (decision D2). */
     public static @com.legend.base.Nullable String declaredDatabase(TypedSpec connection, Reader reader) {
         TypedSpec c = connection;
         if (c instanceof TypedLambda l && l.parameters().isEmpty() && !l.body().isEmpty()) {

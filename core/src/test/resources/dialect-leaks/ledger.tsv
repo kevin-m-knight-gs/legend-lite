@@ -68,7 +68,7 @@ core/src/main/java/com/legend/protocol/sql/PostgresDateTime.java	product-name	2
 core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	34
 core/src/main/java/com/legend/resolver/GraphEmission.java	product-name	2
 core/src/main/java/com/legend/resolver/RawGridSchema.java	product-name	12
-core/src/main/java/com/legend/setup/CsvSeed.java	product-name	6
+core/src/main/java/com/legend/setup/CsvSeed.java	product-name	5
 core/src/main/java/com/legend/test/PureTestRunner.java	product-name	5
 core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	6
 core/src/main/java/com/legend/test/TestObserver.java	product-name	2
@@ -135,9 +135,9 @@ core/src/test/java/com/legend/exec/ExecuteFrameTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java	database-type	1
 core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/ExecuteInDbProbeCountTest.java	product-name	1
-core/src/test/java/com/legend/exec/ExecuteInDbTest.java	database-type	9
+core/src/test/java/com/legend/exec/ExecuteInDbTest.java	database-type	1
 core/src/test/java/com/legend/exec/ExecuteInDbTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/ExecuteInDbTest.java	product-name	9
+core/src/test/java/com/legend/exec/ExecuteInDbTest.java	product-name	1
 core/src/test/java/com/legend/exec/ExecutorTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/InstanceIdentityTest.java	database-type	1
 core/src/test/java/com/legend/exec/InstanceIdentityTest.java	jdbc-url	1
@@ -154,9 +154,9 @@ core/src/test/java/com/legend/exec/Phase1AuditTest.java	product-name	5
 core/src/test/java/com/legend/exec/PlanRunnerTest.java	database-type	17
 core/src/test/java/com/legend/exec/PlanRunnerTest.java	jdbc-url	2
 core/src/test/java/com/legend/exec/PlanRunnerTest.java	product-name	26
-core/src/test/java/com/legend/exec/RawGridSchemaTest.java	database-type	5
+core/src/test/java/com/legend/exec/RawGridSchemaTest.java	database-type	1
 core/src/test/java/com/legend/exec/RawGridSchemaTest.java	jdbc-url	1
-core/src/test/java/com/legend/exec/RawGridSchemaTest.java	product-name	5
+core/src/test/java/com/legend/exec/RawGridSchemaTest.java	product-name	1
 core/src/test/java/com/legend/exec/RowLoadTest.java	database-type	1
 core/src/test/java/com/legend/exec/RowLoadTest.java	dialect-class	2
 core/src/test/java/com/legend/exec/RowLoadTest.java	jdbc-url	4

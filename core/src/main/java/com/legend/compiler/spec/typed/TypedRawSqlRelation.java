@@ -52,8 +52,7 @@ public record TypedRawSqlRelation(String sql, boolean authored, @com.legend.base
      *  language of its text is unknown. */
     public @com.legend.base.Nullable String writtenFor() {
         if (authored && database == null) {
-            throw new com.legend.error.NotImplementedException("raw SQL over a connection whose declared database is"
-                    + " not statically readable: the language of its text is unknown (decision D2)");
+            throw ExecutionContext.unknownLanguage("raw SQL");
         }
         return database;
     }
