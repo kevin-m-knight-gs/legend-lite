@@ -73,7 +73,7 @@ Before it, five items landed on main with neema2/legend-lite#30 (listed in the e
   `.plan(runtime).sql()`. Use the dialect's `renderPasses()` to see what each pass does to a node's type. Delete the
   test afterwards.
 
-**Measure in parallel: six containers, each about 12 to 15 minutes** (the user, 2026-10-13). Every phase re-measures
+**Measure in parallel: six containers, about 23 minutes warm** (the user, 2026-10-13). Every phase re-measures
 the eight local databases on both channels, and the clouds join at the end of Phase 1, after Phase 2 and at the end
 (§5). In one container that is about 2 hours 10 minutes (measured 2026-10-13: the local gate, then each database's
 lanes in turn, two targets at a time). A container has 4 cores and 15 GB and runs one Bazel command at a time; each
@@ -82,12 +82,18 @@ Postgres 5.1, DuckDB 5.9, MySQL 5.9, ClickHouse 6.6, MariaDB 6.7, Trino 21.7 (ea
 Snowflake 43.6, BigQuery 44.3, Databricks 46.3 (each query a network round trip); no single target takes more than
 8.6 min. Packed by those times:
 
-| container | work | jobs | wall |
+| container | work | jobs | measured 2026-10-13 (D1, 270dcfb) |
 |---|---|---|---|
-| this session | the local gate, with the root recipe from the start (`docs/GATES.md`) | Bazel's own | 15 to 20 min (estimated) |
-| sibling 1a | Trino and H2 | 2 (Trino's memory) | about 12 min |
-| sibling 1b | DuckDB, SQLite, MariaDB, MySQL and ClickHouse in one Bazel command, then Postgres in its own (the unprivileged recipe) | 4 (3 if the embedded servers crowd the memory) | about 12 min |
-| siblings 2, 3, 4 | Snowflake, Databricks, BigQuery, one each | 5 (each target compiles Pure locally too) | 12 to 15 min |
+| this session | the local gate, with the root recipe from the start (`docs/GATES.md`) | Bazel's own | 18 min (every test rerun, the build warm) |
+| sibling 1a | Trino and H2 | 2 (Trino's memory) | 17 min (Trino's ten targets alone take 26 min of test time) |
+| sibling 1b | DuckDB, SQLite, MariaDB, MySQL and ClickHouse in one Bazel command, then Postgres in its own (the unprivileged recipe) | 4 (no memory trouble: 6 of 15 GB) | 42 min cold (its first build); warm, about 12 |
+| sibling 2 | Snowflake | 5 (each target compiles Pure locally too) | 18 min, after 9 min of setup |
+| sibling 3 | Databricks | 5 | 23 min, after 16 min of setup and the login proof |
+| sibling 4 | BigQuery | 5 | not run: the auto-mode permission check refused the Secrets Manager fetch of its service-account key twice (Snowflake's and Databricks' passed), so it needs a permission rule in that session, or BigQuery runs where the credentials already are |
+
+So a warm measurement takes about 23 minutes, Databricks the long pole, against about 2 hours 10 minutes in one
+container. Each sibling reports its targets' statuses and each dump's digest (`digests.sh`); the session holding the
+baseline compares them, so no dump moves between containers.
 
 The H2 and DuckDB corpus suites (`//spec:corpus_h2`, `//spec:corpus_duckdb`, `//core:stress_suites_h2`) run in
 sibling 1a after its lanes, for the steps that touch H2, the engine-H2 text or raw SQL (D1, P1c, D8). If the gate turns
@@ -413,8 +419,10 @@ spelling from `DuckDb`.
 Measured on 9373aec: the 72 local lane targets (eight databases, both channels) pass, and their SQL dumps are
 identical to the baseline's, statement for statement, so no lane reached a refused spelling. `//gates:local` is green:
 326 tests in one run, and the 23 the root container needs the recipe for (the three Postgres tests, the DataCube,
-Query and site browser tests, and the root-only pair) green under it. The clouds kept every spelling they inherited, so
-their text is unchanged by construction; their lanes run at the end of Phase 1. The corpus caught what neither PCT nor the gate did: on 9373aec, 14 tests that pass at 2a4a5c8 failed on both corpora (sibling 1a's run), all through the engine-H2 text's refusals (above). After c7cd917, `//spec:corpus_duckdb` is green and `//spec:corpus_h2` is green with two of its registers shrunk (27a7b8a; the reasons in `docs/GATES.md`); `//core:stress_suites` and `//core:stress_suites_h2` pass. The lesson for every later step: the corpus suites run on any step that touches H2, the engine-H2 text or raw SQL.
+Query and site browser tests, and the root-only pair) green under it. In the six-container layout's first run (below), 92 of the baseline's
+102 targets (ten databases: every one but BigQuery) pass with SQL identical to the baseline's (by digest; the 72
+local ones also here, as above); BigQuery waits on a permission
+(below). `//gates:local` is green again on the final code (b2efac3: 347 under the recipe, the root-only pair as root). The corpus caught what neither PCT nor the gate did: on 9373aec, 14 tests that pass at 2a4a5c8 failed on both corpora (sibling 1a's run), all through the engine-H2 text's refusals (above). After c7cd917, `//spec:corpus_duckdb` is green and `//spec:corpus_h2` is green with two of its registers shrunk (27a7b8a; the reasons in `docs/GATES.md`); `//core:stress_suites` and `//core:stress_suites_h2` pass. The lesson for every later step: the corpus suites run on any step that touches H2, the engine-H2 text or raw SQL.
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
