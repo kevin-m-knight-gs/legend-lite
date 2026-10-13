@@ -279,28 +279,6 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        // integer division: the base renderer spells DuckDB's `a // b`,
-        // and `//` is a LINE COMMENT on H2 — `SELECT 7 // 2` returns 7
-        // silently (H2_BACKEND.md H5.2). H2's `/` over INT operands IS
-        // integer division; CAST pins the operand type against widening.
-        if (c.fn() == SqlFn.INT_DIVIDE) {
-            return writer.append("CAST(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6).append(" AS BIGINT)");
-        }
-        // date arithmetic: the ANSI base spells DuckDB's interval idiom
-        // `d + to_days(n)`; H2's form is dateadd(UNIT, n, d) — probed
-        // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
-        // CAST-around composition.
-        if (c.fn() == SqlFn.ADD_INTERVAL || c.fn() == SqlFn.ADD_INTERVAL_TEMPORAL) {
-            return writer.append("dateadd(").append(dateUnit(((SqlExpr.StringLit) a.get(0)).value())).append(", ")
-                    .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
-        }
-        // H2 has no date_part — the SQL-standard extract(UNIT FROM x)
-        // form (probed 2.1.214: HOUR over TIMESTAMP and TIME)
-        if (c.fn() == SqlFn.EXTRACT) {
-            return writer.append("extract(")
-                    .append(((SqlExpr.StringLit) a.get(0)).value().toUpperCase(java.util.Locale.ROOT))
-                    .append(" FROM ").expr(a.get(1), 0).append(")");
-        }
         // format(template, args…) over a LITERAL template: H2 has no printf
         // (probed absent, 2026-07-31) — the template is a concatenation of
         // its text segments with each %d / %s slot CAST to VARCHAR (the
@@ -309,23 +287,6 @@ public class H2 extends AnsiSqlRenderer {
         if (c.fn() == SqlFn.FORMAT && !a.isEmpty()
                 && a.get(0) instanceof SqlExpr.StringLit tpl) {
             return formatAsConcat(writer, tpl.value(), a.subList(1, a.size()));
-        }
-        // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
-        // incl. '%' in the prefix: no LIKE-escaping hazard)
-        if (c.fn() == SqlFn.STARTS_WITH) {
-            return writer.append("(LEFT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0).append(")) = ")
-                    .expr(a.get(1), 0).append(")");
-        }
-        // strpos (P3): H2 spells LOCATE with SWAPPED args — probed
-        // 2.1.214 parity on all edges (1-based, miss 0, empty needle 1).
-        if (c.fn() == SqlFn.STRPOS) {
-            return writer.append("LOCATE(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
-        }
-        // ends_with (P3): the RIGHT/CHAR_LENGTH twin of STARTS_WITH
-        // (probed incl. '%' suffix and needle-longer-than-string).
-        if (c.fn() == SqlFn.ENDS_WITH) {
-            return writer.append("(RIGHT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0).append(")) = ")
-                    .expr(a.get(1), 0).append(")");
         }
         // bool = text (P8): the reference COERCES the string to bool
         // ('N' -> false, probed) where strict H2 rejects the compare —
@@ -348,40 +309,12 @@ public class H2 extends AnsiSqlRenderer {
                 }
             }
         }
-        // boolean text (P7): H2 CAST prints 'TRUE' — the reference
-        // prints 'true'; NULL stays NULL through the CASE.
-        if (c.fn() == SqlFn.BOOL_TO_TEXT) {
-            return writer.append("CASE WHEN ").expr(a.get(0), 0).append(" THEN 'true' WHEN NOT ").expr(a.get(0), 0)
-                    .append(" THEN 'false' END");
-        }
         // date_diff (P7): DATEDIFF(UNIT, a, b) — probed sign parity
         // (10 / -10) with the reference date_diff('unit', a, b).
         if (c.fn() == SqlFn.DATE_DIFF
                 && a.get(0) instanceof SqlExpr.StringLit du) {
             return writer.append("DATEDIFF(").append(du.value().toUpperCase(java.util.Locale.ROOT)).append(", ")
                     .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
-        }
-        // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
-        // probed partial-vs-full parity; literal patterns anchor at
-        // build time, dynamic ones through CONCAT.
-        if (c.fn() == SqlFn.REGEXP_FULL_MATCH) {
-            writer.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ");
-            return (a.get(1) instanceof SqlExpr.StringLit pl
-                    ? writer.append(stringLit("^(?:" + pl.value() + ")$"))
-                    : writer.append("CONCAT('^(?:', ").expr(a.get(1), 0).append(", ')$')")).append(")");
-        }
-        // error(msg) (P3): SIGNAL raises with the message and is LAZY
-        // under CASE (probed 2.1.214: guarded branches do not fire,
-        // taken branches raise, THEN-arm types unify). B7: the U+001F
-        // provenance sentinel rides both ends (RaisedErrors).
-        if (c.fn() == SqlFn.ERROR) {
-            // optional second arg = 'line:col' provenance (PureSql.raise) —
-            // same in-envelope U+001E convention as the ANSI arm
-            writer.append("SIGNAL('45000', CHAR(31) || ");
-            if (c.args().size() > 1) {
-                writer.expr(c.args().get(1), 0).append(" || CHAR(30) || ");
-            }
-            return writer.append("(").expr(a.get(0), 0).append(") || CHAR(31))");
         }
         // split_part (R5c): H2 has no token pick — the probed EXACT
         // spelling (empty tokens KEPT, missing token -> '', matching
@@ -412,38 +345,152 @@ public class H2 extends AnsiSqlRenderer {
                     .append(", 1, 1, NULL, ");
             return (a.size() == 3 ? writer.expr(a.get(2), 0) : writer.append("0")).append("), '')");
         }
-        // epoch(ts) / epoch_ms(ts): H2 has neither — the standard
-        // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
-        // probed 2.1.214: 1417706543.123) and its millisecond scaling.
-        if (c.fn() == SqlFn.EPOCH_SECONDS) {
-            return writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
-        }
-        if (c.fn() == SqlFn.EPOCH_MS) {
-            return writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
-        }
-        // every function the checks above do not spell, by name: the parent's (the dialect program's Phase 1,
+        // every function the checks above do not spell, each by name (the dialect program's Phase 1,
         // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
         return switch (c.fn()) {
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
-                 DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
-                 LOWER, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET,
-                 LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH,
-                 SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
-                 CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
-                 BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS,
-                 MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS,
-                 STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT,
-                 SPLIT_PART, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST, ENCODE_BASE64,
-                 LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256, EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE,
-                 MAKE_TIMESTAMP, DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, ADD_INTERVAL_TEMPORAL,
-                 EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS,
-                 DEGREES, INT_DIVIDE, REPEAT_STR, JARO_WINKLER, DECODE_BASE64, CURRENT_USER_FN, LIST_LENGTH,
-                 LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN,
-                 LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
-                 LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS,
-                 VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
+            // ---- this dialect's own spellings
+            // integer division: DuckDB spells `a // b`,
+            // and `//` is a LINE COMMENT on H2 — `SELECT 7 // 2` returns 7
+            // silently (H2_BACKEND.md H5.2). H2's `/` over INT operands IS
+            // integer division; CAST pins the operand type against widening.
+            case INT_DIVIDE ->
+                    writer.append("CAST(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6).append(" AS BIGINT)");
+            // date arithmetic: DuckDB spells its interval idiom
+            // `d + to_days(n)`; H2's form is dateadd(UNIT, n, d) — probed
+            // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
+            // CAST-around composition.
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("dateadd(")
+                    .append(dateUnit(((SqlExpr.StringLit) a.get(0)).value())).append(", ").expr(a.get(1), 0)
+                    .append(", ").expr(a.get(2), 0).append(")");
+            // H2 has no date_part — the SQL-standard extract(UNIT FROM x)
+            // form (probed 2.1.214: HOUR over TIMESTAMP and TIME)
+            case EXTRACT -> writer.append("extract(")
+                    .append(((SqlExpr.StringLit) a.get(0)).value().toUpperCase(java.util.Locale.ROOT))
+                    .append(" FROM ").expr(a.get(1), 0).append(")");
+            // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
+            // incl. '%' in the prefix: no LIKE-escaping hazard)
+            case STARTS_WITH -> writer.append("(LEFT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0)
+                    .append(")) = ").expr(a.get(1), 0).append(")");
+            // strpos (P3): H2 spells LOCATE with SWAPPED args — probed
+            // 2.1.214 parity on all edges (1-based, miss 0, empty needle 1).
+            case STRPOS -> writer.append("LOCATE(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
+            // ends_with (P3): the RIGHT/CHAR_LENGTH twin of STARTS_WITH
+            // (probed incl. '%' suffix and needle-longer-than-string).
+            case ENDS_WITH -> writer.append("(RIGHT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0)
+                    .append(")) = ").expr(a.get(1), 0).append(")");
+            // boolean text (P7): H2 CAST prints 'TRUE' — the reference
+            // prints 'true'; NULL stays NULL through the CASE.
+            case BOOL_TO_TEXT -> writer.append("CASE WHEN ").expr(a.get(0), 0).append(" THEN 'true' WHEN NOT ")
+                    .expr(a.get(0), 0).append(" THEN 'false' END");
+            // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
+            // probed partial-vs-full parity; literal patterns anchor at
+            // build time, dynamic ones through CONCAT.
+            case REGEXP_FULL_MATCH -> {
+                writer.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ");
+                yield (a.get(1) instanceof SqlExpr.StringLit pl
+                        ? writer.append(stringLit("^(?:" + pl.value() + ")$"))
+                        : writer.append("CONCAT('^(?:', ").expr(a.get(1), 0).append(", ')$')")).append(")");
+            }
+            // error(msg) (P3): SIGNAL raises with the message and is LAZY
+            // under CASE (probed 2.1.214: guarded branches do not fire,
+            // taken branches raise, THEN-arm types unify). B7: the U+001F
+            // provenance sentinel rides both ends (RaisedErrors).
+            case ERROR -> {
+                // optional second arg = 'line:col' provenance (PureSql.raise) —
+                // same in-envelope U+001E convention as raiseEnvelope
+                writer.append("SIGNAL('45000', CHAR(31) || ");
+                if (c.args().size() > 1) {
+                    writer.expr(c.args().get(1), 0).append(" || CHAR(30) || ");
+                }
+                yield writer.append("(").expr(a.get(0), 0).append(") || CHAR(31))");
+            }
+            // epoch(ts) / epoch_ms(ts): H2 has neither — the standard
+            // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
+            // probed 2.1.214: 1417706543.123) and its millisecond scaling.
+            case EPOCH_SECONDS -> writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
+            case EPOCH_MS -> writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // NULL-skipping flat concat (the database's concat skips NULL arguments)
+            case CONCAT -> concatFlat(writer, c.args());
+            // joinStrings' interleaved concat, never flattened
+            case CONCAT_JOIN -> writer.function("concat", c.args());
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // generateGuid's contract is text: the uuid as VARCHAR
+            case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            case TODAY -> writer.append("current_date");
+            case NOW -> writer.append("now()");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args());
+            case CURRENT_USER_FN -> writer.append("current_user");
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            // parseDate(text): the ISO text as a timestamp
+            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
+            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
+                 LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, COALESCE, LENGTH, UPPER, LOWER, GREATEST, LEAST, LIST_FLATTEN, SQRT, CBRT, EXP, LN, LOG10, POW,
+                 SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL,
+                 REGEXP_REPLACE, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
+                 SUBSTRING, MATCHES, LEFT, RIGHT, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART, REVERSE_STRING,
+                 ASCII_CODE, CHR, LEVENSHTEIN, FORMAT, MD5, SHA1, SHA256, MAKE_DATE, DATE_DIFF, TIMEZONE,
+                 FROM_EPOCH_SECONDS, DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, REPEAT_STR, JARO_WINKLER, LIST_LENGTH,
+                 STRFTIME, STRPTIME, FLOOR_RAW, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
+                    row(writer, c);
+            // refused by name (D1, measured 2026-10-13: H2 cannot run DuckDB's spelling)
+            case JSON_MERGE_PATCH ->
+                    throw new DialectCapability("a JSON merge reached H2, which has no json_merge_patch()");
+            case BIT_NOT -> throw new DialectCapability("bitNot reached H2, which has no xor()");
+            case MAP_EMPTY -> throw new DialectCapability("an empty map reached H2, which has no map type");
+            case ENCODE_BASE64 -> throw new DialectCapability("encodeBase64 reached H2, which has no to_base64()");
+            case MAKE_TIMESTAMP ->
+                    throw new DialectCapability("a date-time constructor reached H2, which has no make_timestamp()");
+            case FROM_EPOCH_MS ->
+                    throw new DialectCapability("a date from epoch milliseconds reached H2, which has no epoch_ms()");
+            case DECODE_BASE64 -> throw new DialectCapability("decodeBase64 reached H2, which has no from_base64()");
+            case TIME_BUCKET -> throw new DialectCapability("a time bucket reached H2, which has no time_bucket()");
         };
     }
 

@@ -1707,16 +1707,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (flat != null) {
             return writer.piece(flat);
         }
-        // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
-        // relational H2 codegen for every HashType
-        if (c.fn() == com.legend.sql.SqlFn.MD5
-                || c.fn() == com.legend.sql.SqlFn.SHA1
-                || c.fn() == com.legend.sql.SqlFn.SHA256) {
-            String digest = c.fn() == com.legend.sql.SqlFn.MD5 ? "MD5"
-                    : c.fn() == com.legend.sql.SqlFn.SHA1 ? "SHA-1"
-                    : "SHA-256";
-            return writer.append("rawtohex(hash('").append(digest).append("', ").expr(c.args().get(0), 0).append("))");
-        }
         // an OPTIONAL COLLECTION plan parameter's size (isEmpty/isNotEmpty
         // over a String[*] param): the engine's collectionSize template —
         // (${collectionSize(input![])}) — where execution reads the
@@ -1730,6 +1720,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             return writer.append("(${collectionSize(").append(cp.name()).append("![])})");
         }
         return switch (c.fn()) {
+            // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
+            // relational H2 codegen for every HashType
+            case MD5, SHA1, SHA256 -> writer.append("rawtohex(hash('")
+                    .append(c.fn() == com.legend.sql.SqlFn.MD5 ? "MD5"
+                            : c.fn() == com.legend.sql.SqlFn.SHA1 ? "SHA-1" : "SHA-256")
+                    .append("', ").expr(a.get(0), 0).append("))");
             // engine-H2 spellings (sqlstring goldens): cbrt has no H2
             // native; the trim family spells regexp; pads ride the
             // legend H2 extension with the pad char EXPLICIT
@@ -1750,7 +1746,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case DATE_DIFF -> a.get(0) instanceof SqlExpr.StringLit u
                     ? writer.append("datediff(").append(u.value()).append(", ").expr(a.get(1), 0).append(", ")
                             .expr(a.get(2), 0).append(")")
-                    : super.call(writer, c, parentPrec);
+                    : row(writer, c);
             // engine H2 adjust: dateadd(UNIT, n, x) (h2Extension dynaFn
             // 'adjust' + extensionDefaults mapToDBUnitType) — the ANSI
             // base's d + to_days(n) is the DuckDB-executable spelling
@@ -1794,7 +1790,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             case TRIM -> a.size() == 1
                     ? writer.append("trim(both from ").expr(a.get(0), 0).append(")")
-                    : super.call(writer, c, parentPrec);
+                    : row(writer, c);
             case DATE_TRUNC_DAY -> writer.append("cast(truncate(").expr(a.get(0), 0).append(") as date)");
             // contains(x, 'lit') lowers strpos(x, lit) > 0; the engine's
             // H2 spelling is the LIKE form (extensionDefaults 'contains'
@@ -1810,7 +1806,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     writer.expr(sp.args().get(0), 0).append(" like '%").append(lit.value().replace("'", "''"))
                             .append("%'");
                 } else {
-                    super.call(writer, c, parentPrec);
+                    infix(writer, c, parentPrec);
                 }
                 yield writer;
             }
@@ -1823,7 +1819,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     && "doy".equals(part.value())) {
                     writer.append("extract(doy from ").expr(a.get(1), 0).append(")");
                 } else {
-                    super.call(writer, c, parentPrec);
+                    row(writer, c);
                 }
                 yield writer;
             }
@@ -1841,7 +1837,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     }
                     yield writer.append(") as timestamp) as date)");
                 }
-                yield super.call(writer, c, parentPrec);
+                yield dateTruncDateGrained(writer, a);
             }
             // parse-date family: the engine's rule (convertToDateH2) is
             // substring(x, 1, 10) + the Java pattern for ALL date-only
@@ -1873,26 +1869,82 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 throw new IllegalStateException("strptime format has no"
                         + " engine-H2 parsedatetime spelling yet: " + a);
             }
-            // every other function, by name: inherited from the parent dialect as written today (the dialect
-            // program's Phase 1, 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER_EQUAL, PLUS, MINUS, TIMES, DIVIDE, MOD,
-                 REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, UPPER, LOWER, GREATEST, LEAST, CONCAT_JOIN,
-                 LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL,
-                 STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH, SQRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN,
-                 ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH, CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR,
-                 BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL,
-                 REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT,
-                 MAP_KEYS, MAP_VALUES, MAP_CONCAT, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, REPLACE, SPLIT,
-                 PURE_SPLIT_PART, ASCII_CODE, UC_FIRST, LC_FIRST, ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH,
-                 MD5, SHA1, SHA256, NOW, MAKE_DATE, MAKE_TIMESTAMP, TIME_BUCKET, TIMEZONE, EPOCH_SECONDS, EPOCH_MS,
-                 FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, INT_DIVIDE,
-                 REPEAT_STR, JARO_WINKLER, DECODE_BASE64, CURRENT_USER_FN, LIST_LENGTH, LIST_ZIP, LIST_DISTINCT,
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            // joinStrings' interleaved concat, never flattened
+            case CONCAT_JOIN -> writer.function("concat", c.args());
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // generateGuid's contract is text: the uuid as VARCHAR
+            case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            case NOW -> writer.append("now()");
+            case CURRENT_USER_FN -> writer.append("current_user");
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
+            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
-                 LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
-                 LIST_REVERSE, TYPEOF, ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, FLOAT_CANON, VARIANT_ELEMENTS,
-                 VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
+                 LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, COALESCE, UPPER, LOWER, GREATEST, LEAST, LIST_FLATTEN, SQRT, EXP, LN, LOG10, POW, SIN, COS, TAN,
+                 ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE,
+                 REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
+                 STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, REPLACE, SPLIT, ASCII_CODE, LEVENSHTEIN, FORMAT,
+                 MAKE_DATE, TIMEZONE, EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, DAYNAME, MONTHNAME,
+                 COT, RADIANS, DEGREES, REPEAT_STR, JARO_WINKLER, LIST_LENGTH, FLOOR_RAW, JSON_TYPE,
+                 JSON_ARRAY_LENGTH, JSON_PRETTY -> row(writer, c);
+            // refused by name (D1, measured 2026-10-13: legend-engine's H2 text runs on H2, which cannot run
+            // DuckDB's spelling)
+            case JSON_MERGE_PATCH -> throw noEngineText("a JSON merge", "json_merge_patch()");
+            case BIT_NOT -> throw noEngineText("bitNot", "xor()");
+            case MAP_EMPTY -> throw noEngineText("an empty map", "map type");
+            case ENCODE_BASE64 -> throw noEngineText("encodeBase64", "to_base64()");
+            case DECODE_BASE64 -> throw noEngineText("decodeBase64", "from_base64()");
+            case MAKE_TIMESTAMP -> throw noEngineText("a date-time constructor", "make_timestamp()");
+            case FROM_EPOCH_MS -> throw noEngineText("a date from epoch milliseconds", "epoch_ms()");
+            case INT_DIVIDE -> throw noEngineText("an integer division", "// operator");
+            case ERROR -> throw noEngineText("a raised error", "error()");
+            case TIME_BUCKET -> throw noEngineText("a time bucket", "time_bucket()");
         };
+    }
+
+    /** A function legend-engine's H2 text cannot spell: that text runs on H2, which lacks {@code missing}. */
+    private static DialectCapability noEngineText(String what, String missing) {
+        return new DialectCapability(what + " has no engine-H2 text: H2 has no " + missing);
     }
 
     /** TYPED format parts → the Java pattern the engine's parsedatetime

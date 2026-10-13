@@ -1371,22 +1371,47 @@ public final class SQLite extends AnsiSqlRenderer {
                     .expr(a.get(1), 0).append("))");
         }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.SQLITE row) is SQLite's
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
-                 IS_NULL, IS_NOT_NULL, IS_DISTINCT_FROM, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, UC_FIRST, LC_FIRST,
-                 CEILING, FLOOR, SIGN, PI,
-                 // the base's hooks, overridden below
-                 HASH, ROUND, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, STRUCT_INSERT, UNNEST,
-                 PURE_SPLIT_PART, LIST_EXISTS, LIST_FOR_ALL, ALL_DISTINCT, TO_VARIANT, VARIANT_GET, VARIANT_ELEMENTS,
-                 // Spellings.SQLITE rows
-                 ABS, ATAN, ATAN2, COS, COSH, COT, SIN, SINH, TAN, TANH, DEGREES, RADIANS, EXP, LN, LOG10,
-                 SQRT, POW, LOWER, UPPER, LTRIM, RTRIM, TRIM, REPLACE, REVERSE_STRING, CHR, FLOOR_RAW,
-                 SUBSTRING, STRPOS, LIST_LENGTH, JSON_ARRAY_LENGTH, FLOAT_CANON -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case PI -> writer.append("pi()");
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case HASH -> hashSigned(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, ATAN, ATAN2, COS, COSH, COT, SIN, SINH, TAN, TANH, DEGREES, RADIANS, EXP, LN, LOG10, SQRT, POW,
+                 LOWER, UPPER, LTRIM, RTRIM, TRIM, REPLACE, REVERSE_STRING, CHR, FLOOR_RAW, SUBSTRING, STRPOS,
+                 LIST_LENGTH, JSON_ARRAY_LENGTH -> row(writer, c);
             case IN -> {
                 if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
                     throw listParameter(p);
                 }
-                yield super.call(writer, c, parentPrec);
+                yield inList(writer, a, parentPrec);
             }
             // DuckDB's ascii('') is 0 (unicode('') is NULL here, measured)
             case ASCII_CODE -> writer.append("(CASE WHEN ").expr(a.get(0), 4)

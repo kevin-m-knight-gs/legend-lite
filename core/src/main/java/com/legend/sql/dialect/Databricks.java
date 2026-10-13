@@ -916,25 +916,66 @@ public final class Databricks extends AnsiSqlRenderer {
             return writer.append("CAST(NULL AS ").append(castTypeName(t.type())).append(")");
         }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.DATABRICKS row) is Databricks SQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, NEGATE, IS_NULL, IS_NOT_NULL, IN, IS_DISTINCT_FROM,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, PARSE_INT, PARSE_DATE, PI, CEILING, FLOOR, SIGN,
-                 LPAD, RPAD, UC_FIRST, LC_FIRST, TODAY, DATE_TRUNC_DAY, DIVIDE, MOD, REM,
-                 ROUND, ROUND_HALF_UP, HASH, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, ERROR,
-                 DATE_TRUNC,
-                 // Spellings.DATABRICKS rows
-                 ABS, ACOS, ASCII_CODE, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES, EXP,
-                 GREATEST, LEAST, LEFT, LENGTH, LEVENSHTEIN, LIST_FLATTEN, LN, LOG10, LOWER, MAKE_DATE,
-                 MAP_KEYS, MAP_VALUES, MD5, POW, RADIANS, REPEAT_STR, REPLACE, REVERSE_STRING, RIGHT, SHA1,
-                 SIN, SINH, SPLIT_PART, SQRT, SUBSTRING, TAN, TANH, UPPER, STARTS_WITH, ENDS_WITH, STRPOS,
-                 MAP_FROM_LISTS, MAP_FROM_ENTRIES, LIST_REVERSE,
-                 // the base's idiom points, overridden above
-                 UNNEST, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, STRUCT_INSERT,
-                 PURE_SPLIT_PART, LIST_EXISTS, ALL_DISTINCT, LIST_FOR_ALL, TO_VARIANT, VARIANT_ELEMENTS, VARIANT_GET,
-                 LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE,
-                 LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE,
-                 LIST_BOOL_AND, LIST_BOOL_OR, TYPEOF, FLOAT_CANON -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // parseDate(text): the ISO text as a timestamp
+            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case TODAY -> writer.append("current_date");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
+            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case ROUND -> roundHalfEven(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
+                 LIST_BOOL_OR, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, ACOS, ASCII_CODE, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES, EXP,
+                 GREATEST, LEAST, LEFT, LENGTH, LEVENSHTEIN, LIST_FLATTEN, LN, LOG10, LOWER, MAKE_DATE, MAP_KEYS,
+                 MAP_VALUES, MD5, POW, RADIANS, REPEAT_STR, REPLACE, REVERSE_STRING, RIGHT, SHA1, SIN, SINH,
+                 SPLIT_PART, SQRT, SUBSTRING, TAN, TANH, UPPER, STARTS_WITH, ENDS_WITH, STRPOS, MAP_FROM_LISTS,
+                 MAP_FROM_ENTRIES, LIST_REVERSE -> row(writer, c);
 
             // NULL-ignoring, as DuckDB's concat (Spark's concat is NULL if any argument is)
             case CONCAT -> writer.append("concat_ws('', ").join(flattenConcat(a), ", ", this::asText).append(")");

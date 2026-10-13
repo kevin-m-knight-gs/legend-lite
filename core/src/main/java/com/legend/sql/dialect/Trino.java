@@ -781,24 +781,56 @@ public final class Trino extends AnsiSqlRenderer {
             return writer.append("CAST(NULL AS ").append(castTypeName(t.type())).append(")");
         }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.TRINO row) is Trino SQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, NEGATE, IS_NULL, IS_NOT_NULL, IN, IS_DISTINCT_FROM,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, PARSE_INT, PI, CEILING, FLOOR, SIGN,
-                 LPAD, RPAD, UC_FIRST, LC_FIRST, TODAY, DIVIDE,
-                 ROUND, HASH, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
-                 // Spellings.TRINO rows
-                 ABS, ACOS, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, DEGREES, EXP,
-                 GREATEST, LEAST, LENGTH, LEVENSHTEIN, LIST_FLATTEN, LN, LOG10, LOWER,
-                 MAP_KEYS, MAP_VALUES, POW, RADIANS, REPLACE, REVERSE_STRING,
-                 SIN, SINH, SQRT, SUBSTRING, TAN, TANH, UPPER, STARTS_WITH, STRPOS,
-                 MAP_FROM_ENTRIES, LIST_REVERSE,
-                 // the base's idiom points, overridden above
-                 UNNEST, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, STRUCT_INSERT,
-                 PURE_SPLIT_PART, LIST_EXISTS, ALL_DISTINCT, LIST_FOR_ALL, TO_VARIANT, VARIANT_ELEMENTS, VARIANT_GET,
-                 LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE,
-                 LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE,
-                 LIST_BOOL_AND, LIST_BOOL_OR, TYPEOF, FLOAT_CANON -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case TODAY -> writer.append("current_date");
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case ROUND -> roundHalfEven(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
+                 LIST_BOOL_OR, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, ACOS, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, DEGREES, EXP, GREATEST, LEAST, LENGTH,
+                 LEVENSHTEIN, LIST_FLATTEN, LN, LOG10, LOWER, MAP_KEYS, MAP_VALUES, POW, RADIANS, REPLACE,
+                 REVERSE_STRING, SIN, SINH, SQRT, SUBSTRING, TAN, TANH, UPPER, STARTS_WITH, STRPOS, MAP_FROM_ENTRIES,
+                 LIST_REVERSE -> row(writer, c);
 
             // fail(message): the raise, its message the platform's envelope
             case ERROR -> {
@@ -858,26 +890,7 @@ public final class Trino extends AnsiSqlRenderer {
                     .expr(a.get(1), 0).append(", ").piece(group(a)).append(")");
             // DuckDB replaces the first match unless 'g'; Trino replaces every one: the first alone is the match of
             // ^(.*?)(?:p), replaced by that prefix and r, r's group references shifted by one
-            case REGEXP_REPLACE -> {
-                boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
-                if (!(a.get(2) instanceof SqlExpr.StringLit r)) {
-                    throw wall(c.fn(), "a computed regexp replacement");
-                }
-                if (global) {
-                    yield writer.append("regexp_replace(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
-                            .append(", ").append(stringLit(javaReplacement(r.value(), 0))).append(")");
-                }
-                if (a.get(1) instanceof SqlExpr.StringLit p && p.value().matches("(?s).*\\\\[0-9].*")) {
-                    throw wall(c.fn(), "a first-match replacement whose pattern has a back reference");
-                }
-                writer.append("regexp_replace(").expr(a.get(0), 0).append(", ");
-                if (a.get(1) instanceof SqlExpr.StringLit p) {
-                    writer.append(stringLit("^(?s:(.*?))(?:" + p.value() + ")"));
-                } else {
-                    writer.append("concat('^(?s:(.*?))(?:', ").expr(a.get(1), 0).append(", ')')");
-                }
-                yield writer.append(", ").append(stringLit("$1" + javaReplacement(r.value(), 1))).append(")");
-            }
+            case REGEXP_REPLACE -> regexpReplace(writer, c);
             // split takes the delimiter as text
             case SPLIT -> writer.append("split(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
             case TRIM, LTRIM, RTRIM -> {
@@ -975,17 +988,7 @@ public final class Trino extends AnsiSqlRenderer {
             case LIST_LENGTH -> writer.append("cardinality(").piece(list(a.get(0))).append(")");
             // DuckDB's range: [start, stop) by step (start 0, step 1 by default); Trino's sequence is inclusive and
             // refuses a step away from the stop
-            case RANGE_FN -> {
-                SqlWriter.Piece start = a.size() == 1 ? w -> w.append("BIGINT '0'") : w -> w.append("CAST(")
-                        .expr(a.get(0), 0).append(" AS BIGINT)");
-                SqlWriter.Piece stop = w -> w.append("CAST(").expr(a.get(a.size() == 1 ? 0 : 1), 0).append(" AS BIGINT)");
-                SqlWriter.Piece step = a.size() > 2 ? w -> w.append("CAST(").expr(a.get(2), 0).append(" AS BIGINT)")
-                        : w -> w.append("BIGINT '1'");
-                yield writer.append("(CASE WHEN (").piece(stop).append(" - ").piece(start).append(") * ").piece(step)
-                        .append(" > 0 THEN filter(sequence(").piece(start).append(", ").piece(stop).append(", ")
-                        .piece(step).append("), \"__g\" -> \"__g\" <> ").piece(stop)
-                        .append(") ELSE CAST(ARRAY[] AS ARRAY(BIGINT)) END)");
-            }
+            case RANGE_FN -> rangeOf(writer, c);
             case REPEAT_VALUE -> writer.append("repeat(").expr(a.get(0), 0).append(", greatest(").expr(a.get(1), 0)
                     .append(", 0))");
 
@@ -1014,6 +1017,43 @@ public final class Trino extends AnsiSqlRenderer {
             case JSON_PRETTY -> throw wall(c.fn(), "Trino has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "Trino has no JSON merge patch");
         };
+    }
+
+    /** DuckDB's range: [start, stop) by step, as a filtered sequence. */
+    private SqlWriter rangeOf(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece start = a.size() == 1 ? w -> w.append("BIGINT '0'") : w -> w.append("CAST(")
+                .expr(a.get(0), 0).append(" AS BIGINT)");
+        SqlWriter.Piece stop = w -> w.append("CAST(").expr(a.get(a.size() == 1 ? 0 : 1), 0).append(" AS BIGINT)");
+        SqlWriter.Piece step = a.size() > 2 ? w -> w.append("CAST(").expr(a.get(2), 0).append(" AS BIGINT)")
+                : w -> w.append("BIGINT '1'");
+        return writer.append("(CASE WHEN (").piece(stop).append(" - ").piece(start).append(") * ").piece(step)
+                .append(" > 0 THEN filter(sequence(").piece(start).append(", ").piece(stop).append(", ")
+                .piece(step).append("), \"__g\" -> \"__g\" <> ").piece(stop)
+                .append(") ELSE CAST(ARRAY[] AS ARRAY(BIGINT)) END)");
+    }
+
+    /** DuckDB's regexp_replace on Trino: the first match alone unless 'g' (the call arm's comment says how). */
+    private SqlWriter regexpReplace(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
+        if (!(a.get(2) instanceof SqlExpr.StringLit r)) {
+            throw wall(c.fn(), "a computed regexp replacement");
+        }
+        if (global) {
+            return writer.append("regexp_replace(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                    .append(", ").append(stringLit(javaReplacement(r.value(), 0))).append(")");
+        }
+        if (a.get(1) instanceof SqlExpr.StringLit p && p.value().matches("(?s).*\\\\[0-9].*")) {
+            throw wall(c.fn(), "a first-match replacement whose pattern has a back reference");
+        }
+        writer.append("regexp_replace(").expr(a.get(0), 0).append(", ");
+        if (a.get(1) instanceof SqlExpr.StringLit p) {
+            writer.append(stringLit("^(?s:(.*?))(?:" + p.value() + ")"));
+        } else {
+            writer.append("concat('^(?s:(.*?))(?:', ").expr(a.get(1), 0).append(", ')')");
+        }
+        return writer.append(", ").append(stringLit("$1" + javaReplacement(r.value(), 1))).append(")");
     }
 
     /** A CONCAT argument as text: concat_ws takes strings only. */

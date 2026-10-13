@@ -49,8 +49,7 @@ class CarrierDifferentialTest {
         String nativeSql = new DuckDb().render(q);
         // the PORTABLE strategy must also be VALID DuckDB — that is the
         // whole differential contract
-        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+        String portableSql = portable().render(q);
         assertTrue(nativeSql.contains("list_aggregate"),
                 "native strategy should use the list carrier: " + nativeSql);
         assertTrue(portableSql.contains("STRING_AGG"),
@@ -91,8 +90,7 @@ class CarrierDifferentialTest {
                 .withProjections(List.of(
                                 new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
-        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+        String portableSql = portable().render(q);
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             st.execute("CREATE TABLE t (v VARCHAR)");
@@ -121,8 +119,7 @@ class CarrierDifferentialTest {
                 .withProjections(List.of(
                                 new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
-        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+        String portableSql = portable().render(q);
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             assertEquals(one(st, nativeSql), one(st, portableSql),
@@ -159,8 +156,7 @@ class CarrierDifferentialTest {
                     .withProjections(List.of(
                                     new SqlSelect.Projection(member, "m", null)));
             String nativeSql = new DuckDb().render(q);
-            String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                    TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+            String portableSql = portable().render(q);
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 assertEquals(one(st, nativeSql), one(st, portableSql),
@@ -620,8 +616,22 @@ class CarrierDifferentialTest {
     }
 
     private static AnsiSqlRenderer portable() {
-        return new AnsiSqlRenderer(Lexicon.DUCKDB, TypeNames.DUCKDB,
-                Spellings.DUCKDB);
+        return new Portable();
+    }
+
+    /** THE PORTABLE STRATEGY on DuckDB: the base renderer's carrier strategies (its passes), each function as DuckDB
+     *  spells it, since the base spells none (the dialect program's decision D1, 2026-10-13). */
+    private static final class Portable extends AnsiSqlRenderer {
+        private final DuckDb duck = new DuckDb();
+
+        Portable() {
+            super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
+        }
+
+        @Override
+        protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+            return duck.call(writer, c, parentPrec);
+        }
     }
 
     private static java.util.List<String> all(Statement st, String sql)

@@ -643,8 +643,8 @@ public final class Postgres extends AnsiSqlRenderer {
             // a struct with one field set (struct_insert): the jsonb object, the field replaced or added
             case STRUCT_INSERT -> writer.append("(").expr(c.args().get(0), 0).append(" || jsonb_build_object(")
                     .expr(c.args().get(1), 0).append(", ").expr(c.args().get(2), 0).append("))");
-            // every other function, by name: inherited from the parent dialect as written today (the dialect
-            // program's Phase 1, 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
+            // every other function, by name: Postgres's own table below, postgresCall (the dialect program's Phase 1,
+            // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
                  DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
                  LOWER, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_EXISTS,
@@ -666,6 +666,57 @@ public final class Postgres extends AnsiSqlRenderer {
                  BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
                     postgresCall(writer, c, parentPrec);
         };
+    }
+
+    /** A date-time from its parts (the call arm's comment says how). */
+    private SqlWriter makeTimestamp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() != 6) {
+            throw new DialectCapability("make_timestamp of " + a.size()
+                    + " arguments has no Postgres spelling");
+        }
+        return writer.append("make_timestamp(")
+                .join(a.subList(0, 5), ", ", (w, x) -> w.append("CAST(").expr(x, 0).append(" AS INTEGER)"))
+                .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE PRECISION))");
+    }
+
+    /** Pure's HALF_UP rounding: round over NUMERIC (half away from zero), a double cast back. */
+    private SqlWriter roundHalfUp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece r = w -> {
+            w.append("round(CAST(").expr(a.get(0), 0).append(" AS NUMERIC)");
+            if (a.size() > 1) {
+                w.append(", CAST(").expr(a.get(1), 0).append(" AS INTEGER)");
+            }
+            w.append(")");
+        };
+        return isDouble(a.get(0))
+                ? writer.append("CAST(").piece(r).append(" AS DOUBLE PRECISION)")
+                : writer.piece(r);
+    }
+
+    /** DuckDB's time_bucket on Postgres: date_bin for fixed-length units, the month index for calendar ones. */
+    private SqlWriter timeBucket(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String unit = intervalUnit(literal(a.get(0), "TIME_BUCKET"));
+        String origin = BUCKET_ORIGINS.get(unit);
+        if (origin != null) {
+            return writer.append("date_bin(").expr(a.get(1), 6).append(" * INTERVAL '1 ").append(unit)
+                    .append("', ").piece(naive(a.get(2))).append(", ").append(origin).append(")");
+        }
+        Integer monthsPerUnit = CALENDAR_UNITS.get(unit);
+        if (monthsPerUnit == null) {
+            throw new DialectCapability("a " + unit + " time bucket has no Postgres spelling");
+        }
+        // the month index since 1970-01, floored to the bucket's size in months: n months, or
+        // 12n for n years (a year bucket of the month index is the year's own, before 1970 too)
+        SqlWriter.Piece t = naive(a.get(2));
+        SqlWriter.Piece size = w -> w.append("(CAST(").expr(a.get(1), 0)
+                .append(" AS INTEGER) * " + monthsPerUnit
+                + ")");
+        return writer.append("(TIMESTAMP '1970-01-01 00:00:00' + CAST(floor(((extract(year FROM ").piece(t)
+                .append(") - 1970) * 12 + extract(month FROM ").piece(t).append(") - 1) / ").piece(size)
+                .append(") AS INTEGER) * ").piece(size).append(" * INTERVAL '1 month')");
     }
 
     /** exists([]) is false, forAll([]) is true: Pure's empty-collection semantics. */
@@ -1075,21 +1126,49 @@ public final class Postgres extends AnsiSqlRenderer {
     private SqlWriter postgresCall(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.POSTGRES row) is Postgres SQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, NEGATE, IS_NULL, IS_NOT_NULL, IN, IS_DISTINCT_FROM,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, CONCAT, CONCAT_JOIN, PARSE_INT,
-                 PARSE_DATE, PI, CEILING, FLOOR, SIGN, LPAD, RPAD, UC_FIRST, LC_FIRST, TODAY,
-                 DATE_TRUNC_DAY, BOOL_TO_TEXT, FLOAT_CANON, CURRENT_USER_FN,
-                 // bit operators and rounding ride the base's hooks (overridden below);
-                 // HASH's hook walls: Postgres has no signed 64-bit hash of the reference
-                 BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, ROUND, HASH,
-                 // Spellings.POSTGRES rows
-                 ABS, ASCII_CODE, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES,
-                 FLOOR_RAW, GREATEST, LEAST, LEFT, LOWER, LTRIM, MD5,
-                 RADIANS, REPEAT_STR, REPLACE, REVERSE_STRING, RIGHT, RTRIM,
-                 SIN, SINH, SPLIT_PART, STARTS_WITH, STRPOS, SUBSTRING, TAN, TANH,
-                 TIMEZONE, TRIM, UPPER -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            // NULL-skipping flat concat (the database's concat skips NULL arguments)
+            case CONCAT -> concatFlat(writer, c.args());
+            // joinStrings' interleaved concat, never flattened
+            case CONCAT_JOIN -> writer.function("concat", c.args());
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // parseDate(text): the ISO text as a timestamp
+            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case TODAY -> writer.append("current_date");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case CURRENT_USER_FN -> writer.append("current_user");
+            // the hooks: this dialect's own (or the base's refusal)
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, ASCII_CODE, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES, FLOOR_RAW, GREATEST,
+                 LEAST, LEFT, LOWER, LTRIM, MD5, RADIANS, REPEAT_STR, REPLACE, REVERSE_STRING, RIGHT, RTRIM, SIN,
+                 SINH, SPLIT_PART, STARTS_WITH, STRPOS, SUBSTRING, TAN, TANH, TIMEZONE, TRIM, UPPER -> row(writer, c);
             // a Float, as DuckDB's answers; each of these has a numeric overload on Postgres, which a
             // numeric argument would pick (sqrt(9.0) is 3.000000000000000)
             case SQRT -> writer.append("sqrt(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION))");
@@ -1112,7 +1191,7 @@ public final class Postgres extends AnsiSqlRenderer {
                     throw new DialectCapability(c.fn() + " over a Float reached Postgres,"
                             + " which has no double-precision remainder");
                 }
-                yield super.call(writer, c, parentPrec);
+                yield c.fn() == SqlFn.MOD ? modFloored(writer, a) : modTruncated(writer, a);
             }
             // DuckDB's // truncates toward zero; so does div() (numeric), and a
             // double operand is refused by Postgres itself (no implicit cast)
@@ -1123,18 +1202,7 @@ public final class Postgres extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP; Postgres rounds double precision
             // half-EVEN and numeric half away from zero (POSTGRES_BACKEND.md §4.3),
             // and has no round(double, int) at all
-            case ROUND_HALF_UP -> {
-                SqlWriter.Piece r = w -> {
-                    w.append("round(CAST(").expr(a.get(0), 0).append(" AS NUMERIC)");
-                    if (a.size() > 1) {
-                        w.append(", CAST(").expr(a.get(1), 0).append(" AS INTEGER)");
-                    }
-                    w.append(")");
-                };
-                yield isDouble(a.get(0))
-                        ? writer.append("CAST(").piece(r).append(" AS DOUBLE PRECISION)")
-                        : writer.piece(r);
-            }
+            case ROUND_HALF_UP -> roundHalfUp(writer, c);
             // the engine's out-of-domain answer is NaN; Postgres raises
             case ACOS, ASIN -> {
                 String f = c.fn() == SqlFn.ACOS ? "acos" : "asin";
@@ -1205,15 +1273,7 @@ public final class Postgres extends AnsiSqlRenderer {
             // Postgres' make_date/make_timestamp take INTEGER, never BIGINT
             case MAKE_DATE -> writer.append("make_date(")
                     .join(a, ", ", (w, x) -> w.append("CAST(").expr(x, 0).append(" AS INTEGER)")).append(")");
-            case MAKE_TIMESTAMP -> {
-                if (a.size() != 6) {
-                    throw new DialectCapability("make_timestamp of " + a.size()
-                            + " arguments has no Postgres spelling");
-                }
-                yield writer.append("make_timestamp(")
-                        .join(a.subList(0, 5), ", ", (w, x) -> w.append("CAST(").expr(x, 0).append(" AS INTEGER)"))
-                        .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE PRECISION))");
-            }
+            case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             // (unitFn, amount, date): amount × a one-unit interval — exact for every
             // unit and any BIGINT amount (make_interval takes INTEGER)
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
@@ -1224,27 +1284,7 @@ public final class Postgres extends AnsiSqlRenderer {
             // 1970); date_bin bins fixed-length intervals, so months and years count whole calendar
             // months from 1970-01 and floor to the bucket's multiple, as DuckDB's time_bucket does
             // (before 1970 too: floor, not truncation)
-            case TIME_BUCKET -> {
-                String unit = intervalUnit(literal(a.get(0), "TIME_BUCKET"));
-                String origin = BUCKET_ORIGINS.get(unit);
-                if (origin != null) {
-                    yield writer.append("date_bin(").expr(a.get(1), 6).append(" * INTERVAL '1 ").append(unit)
-                            .append("', ").piece(naive(a.get(2))).append(", ").append(origin).append(")");
-                }
-                Integer monthsPerUnit = CALENDAR_UNITS.get(unit);
-                if (monthsPerUnit == null) {
-                    throw new DialectCapability("a " + unit + " time bucket has no Postgres spelling");
-                }
-                // the month index since 1970-01, floored to the bucket's size in months: n months, or
-                // 12n for n years (a year bucket of the month index is the year's own, before 1970 too)
-                SqlWriter.Piece t = naive(a.get(2));
-                SqlWriter.Piece size = w -> w.append("(CAST(").expr(a.get(1), 0)
-                        .append(" AS INTEGER) * " + monthsPerUnit
-                        + ")");
-                yield writer.append("(TIMESTAMP '1970-01-01 00:00:00' + CAST(floor(((extract(year FROM ").piece(t)
-                        .append(") - 1970) * 12 + extract(month FROM ").piece(t).append(") - 1) / ").piece(size)
-                        .append(") AS INTEGER) * ").piece(size).append(" * INTERVAL '1 month')");
-            }
+            case TIME_BUCKET -> timeBucket(writer, c);
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("CAST(extract(epoch FROM ").expr(a.get(0), 0)
                     .append(") AS DOUBLE PRECISION)");
@@ -1269,7 +1309,9 @@ public final class Postgres extends AnsiSqlRenderer {
             case LEVENSHTEIN -> writer.piece(levenshtein(a.get(0), a.get(1)));
             case JARO_WINKLER -> writer.piece(jaroWinkler(a.get(0), a.get(1)));
             // ---- variant (jsonb)
-            case TO_VARIANT, VARIANT_GET -> super.call(writer, c, parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
             // in DuckDB's json_type vocabulary, which the lowering compares against (NULL, VARCHAR,
             // BIGINT, DOUBLE, BOOLEAN, ARRAY, OBJECT): a whole number is a BIGINT, any other a DOUBLE
             case JSON_TYPE -> {
@@ -1288,11 +1330,15 @@ public final class Postgres extends AnsiSqlRenderer {
                     : writer.piece(decode(w -> w.expr(a.get(0), 0), new SqlType.Array(SqlType.Scalar.JSON), 0));
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "variant over jsonb is leg P4");
             // ---- lists: a list of scalars is a native array (listCall and its siblings below)
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION,
-                 LIST_EXISTS, LIST_FOR_ALL, UNNEST, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN,
-                 LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL,
-                 LIST_INIT, RANGE_FN, LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR,
-                 ALL_DISTINCT, LIST_REVERSE -> super.call(writer, c, parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
+                 LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL,
+                 LIST_INIT, RANGE_FN, LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE ->
+                    listCall(writer, c.fn(), c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
             case LIST_LENGTH -> writer.append("cardinality(").piece(listOf(a.get(0), c.fn())).append(")");
             // DuckDB's string_split('', d) is [''], Postgres's string_to_array is {}
             case SPLIT -> writer.append("(CASE WHEN ").expr(a.get(0), 0)

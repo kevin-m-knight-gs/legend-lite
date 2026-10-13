@@ -253,25 +253,7 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
-        // the engine's H2 returns NaN for out-of-domain acos/asin;
-        // DuckDB THROWS 'Unable to compute acos of 1.1'. Same rows on
-        // both backends means guarding the domain and yielding NaN —
-        // the engine's answer — not propagating DuckDB's exception.
-        if (c.fn() == com.legend.sql.SqlFn.ACOS
-                || c.fn() == com.legend.sql.SqlFn.ASIN) {
-            String fn = c.fn() == com.legend.sql.SqlFn.ACOS
-                    ? "acos" : "asin";
-            return writer.append("(CASE WHEN (").expr(c.args().get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn)
-                    .append("(").expr(c.args().get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
-        }
-        // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
-        // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
-        // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
-        // type (session TZ is pinned UTC).
-        if (c.fn() == com.legend.sql.SqlFn.NOW) {
-            return writer.append("CAST(now() AS TIMESTAMP)");
-        }
+        List<SqlExpr> a = c.args();
         // len(DOUBLE): the corpus spells length() over numeric-typed
         // expressions (engine H2 coerces); DuckDB has no len(DOUBLE) —
         // stringify the argument first, matching the engine's implicit
@@ -289,32 +271,125 @@ public final class DuckDb extends AnsiSqlRenderer {
                 && c.args().get(0) instanceof SqlExpr.StringLit part
                 && part.value().equals("day")) {
             writer.append("CAST(");
-            super.call(writer, c, 0);
+            dateTruncDateGrained(writer, a);
             return writer.append(" AS TIMESTAMP)");
         }
-        // every function the checks above do not spell, by name: the parent's (the dialect program's Phase 1,
+        // every function the checks above do not spell, each by name (the dialect program's Phase 1,
         // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
         return switch (c.fn()) {
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
-                 DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
-                 LOWER, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET,
-                 LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH,
-                 SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
-                 CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
-                 BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS,
-                 MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS,
-                 STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT,
-                 SPLIT_PART, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST, ENCODE_BASE64,
-                 LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256, EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE,
-                 MAKE_TIMESTAMP, DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, ADD_INTERVAL_TEMPORAL,
-                 EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS,
-                 DEGREES, INT_DIVIDE, REPEAT_STR, JARO_WINKLER, DECODE_BASE64, CURRENT_USER_FN, LIST_LENGTH,
-                 LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN,
-                 LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
-                 LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS,
-                 VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
+            // ---- DuckDB's own spellings (the base renderer's until the dialect program's Phase 1, D1, 2026-10-13)
+            // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
+            // the engine's H2 returns NaN for out-of-domain acos/asin;
+            // DuckDB THROWS 'Unable to compute acos of 1.1'. Same rows on
+            // both backends means guarding the domain and yielding NaN —
+            // the engine's answer — not propagating DuckDB's exception.
+            case ACOS, ASIN -> writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ")
+                    .append(c.fn() == SqlFn.ACOS ? "acos" : "asin").append("(").expr(a.get(0), 0)
+                    .append(") ELSE 'NaN'::DOUBLE END)");
+            // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
+            // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
+            // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
+            // type (session TZ is pinned UTC).
+            case NOW -> writer.append("CAST(now() AS TIMESTAMP)");
+            // ~x without negation overflow at MIN_LONG
+            case BIT_NOT -> writer.append("xor(").expr(a.get(0), 0).append(", -1)");
+            case MAP_EMPTY -> writer.append("MAP {}");
+            case JSON_MERGE_PATCH -> writer.function("json_merge_patch", a);
+            case ENCODE_BASE64 -> writer.append("to_base64(CAST(").expr(a.get(0), 0).append(" AS BLOB))");
+            // decode(blob) — a CAST of the blob to VARCHAR ESCAPES quotes and
+            // non-printables (\x22), never the text itself (batch 72b)
+            case DECODE_BASE64 -> writer.append("decode(from_base64(").expr(a.get(0), 0).append("))");
+            // make_timestamp wants DOUBLE seconds; (part, value) otherwise
+            case MAKE_TIMESTAMP -> a.size() == 6
+                    ? writer.append("make_timestamp(").list(a.subList(0, 5)).append(", CAST(").expr(a.get(5), 0)
+                            .append(" AS DOUBLE))")
+                    : writer.function("make_timestamp", a);
+            // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
+            // as a string literal and renders bare: d + to_years(n).
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
+                    .append(" + ").append(((SqlExpr.StringLit) a.get(0)).value()).append("(").expr(a.get(1), 0)
+                    .append(")"));
+            // Week buckets align to the Monday ON/BEFORE the epoch
+            // (1969-12-29 — real pure's origin, PCT-pinned); every other
+            // unit aligns to the 1970 epoch.
+            case TIME_BUCKET -> writer.append("time_bucket(").append(((SqlExpr.StringLit) a.get(0)).value())
+                    .append("(").expr(a.get(1), 0).append("), ").expr(a.get(2), 0)
+                    .append("to_weeks".equals(((SqlExpr.StringLit) a.get(0)).value())
+                            ? ", TIMESTAMP '1969-12-29 00:00:00'" : ", TIMESTAMP '1970-01-01 00:00:00'")
+                    .append(")");
+            case FROM_EPOCH_MS -> writer.append("epoch_ms(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
+            case INT_DIVIDE -> writer.append("(").expr(a.get(0), 6).append(" // ").expr(a.get(1), 6).append(")");
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings this dialect's lanes prove
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // NULL-skipping flat concat (the database's concat skips NULL arguments)
+            case CONCAT -> concatFlat(writer, c.args());
+            // joinStrings' interleaved concat, never flattened
+            case CONCAT_JOIN -> writer.function("concat", c.args());
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // generateGuid's contract is text: the uuid as VARCHAR
+            case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            case TODAY -> writer.append("current_date");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args());
+            case CURRENT_USER_FN -> writer.append("current_user");
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            // parseDate(text): the ISO text as a timestamp
+            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
+            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case ERROR -> raiseEnvelope(writer, c.args(), "error");
+            case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
+                 LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, COALESCE, LENGTH, UPPER, LOWER, GREATEST, LEAST, LIST_FLATTEN, SQRT, CBRT, EXP, LN, LOG10, POW,
+                 SIN, COS, TAN, ATAN, ATAN2, SINH, COSH, TANH, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL,
+                 REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EXTRACT, MAP_KEYS,
+                 MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, TRIM, LTRIM,
+                 RTRIM, REPLACE, SPLIT, SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, LEVENSHTEIN, FORMAT, MD5, SHA1,
+                 SHA256, EXTRACT, MAKE_DATE, DATE_DIFF, TIMEZONE, EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS,
+                 DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, REPEAT_STR, JARO_WINKLER, LIST_LENGTH, STRFTIME, STRPTIME,
+                 FLOOR_RAW, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> row(writer, c);
         };
     }
 

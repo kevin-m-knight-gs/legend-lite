@@ -1263,21 +1263,54 @@ public final class Snowflake extends AnsiSqlRenderer {
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings row) is Snowflake SQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, NEGATE, IS_NULL, IS_NOT_NULL, IS_DISTINCT_FROM,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, PI, CEILING, FLOOR, SIGN,
-                 LPAD, RPAD, UC_FIRST, LC_FIRST, TODAY, DATE_TRUNC_DAY, BOOL_TO_TEXT, DIVIDE, MOD, REM,
-                 ROUND, HASH, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
-                 // the base's idiom points, overridden above
-                 STRUCT_INSERT, PURE_SPLIT_PART, LIST_EXISTS, ALL_DISTINCT, LIST_FOR_ALL, TO_VARIANT,
-                 VARIANT_ELEMENTS, VARIANT_GET, UNNEST,
-                 // Spellings rows
-                 ABS, ASCII_CODE, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES, EXP, FLOOR_RAW,
-                 GREATEST, LEAST, LEFT, LENGTH, LEVENSHTEIN, LN, LOWER, LTRIM, MAKE_DATE, MD5, POW, RADIANS,
-                 REPEAT_STR, REPLACE, REVERSE_STRING, RIGHT, RTRIM, SHA1, SIN, SINH, SPLIT_PART, SQRT,
-                 STARTS_WITH, ENDS_WITH, SUBSTRING, TAN, TANH, TRIM, UPPER, LIST_LENGTH, LIST_REVERSE, MAP_KEYS,
-                 ENCODE_BASE64, DECODE_BASE64, JSON_ARRAY_LENGTH, FLOAT_CANON -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case TODAY -> writer.append("current_date");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case ROUND -> roundHalfEven(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            // this dialect's Spellings row: name(args)
+            case ABS, ASCII_CODE, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES, EXP, FLOOR_RAW, GREATEST,
+                 LEAST, LEFT, LENGTH, LEVENSHTEIN, LN, LOWER, LTRIM, MAKE_DATE, MD5, POW, RADIANS, REPEAT_STR,
+                 REPLACE, REVERSE_STRING, RIGHT, RTRIM, SHA1, SIN, SINH, SPLIT_PART, SQRT, STARTS_WITH, ENDS_WITH,
+                 SUBSTRING, TAN, TANH, TRIM, UPPER, LIST_LENGTH, LIST_REVERSE, MAP_KEYS, ENCODE_BASE64, DECODE_BASE64,
+                 JSON_ARRAY_LENGTH -> row(writer, c);
 
             // a list parameter is bound as one array on the base (= ANY(?)): Snowflake binds none
             case IN -> {
@@ -1285,7 +1318,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                     throw new DialectCapability("list parameter '" + p.name() + "' reached Snowflake, which binds"
                             + " no array (= ANY(?))");
                 }
-                yield super.call(writer, c, parentPrec);
+                yield inList(writer, a, parentPrec);
             }
             // NULL-ignoring, as DuckDB's concat (|| and CONCAT are NULL if any argument is, measured)
             case CONCAT -> writer.piece(concat(flattenConcat(a)));
@@ -1301,7 +1334,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)
             case ROUND_HALF_UP -> {
                 if (!isDouble(a.get(0))) {
-                    yield super.call(writer, c, parentPrec);
+                    yield writer.function("ROUND", a);
                 }
                 SqlWriter.Piece scale = a.size() > 1 ? w -> w.append("POWER(10, ").expr(a.get(1), 0).append(")") : null;
                 SqlWriter.Piece v = scale == null ? w -> w.expr(a.get(0), 6)
@@ -1452,23 +1485,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                         .append(")");
             }
             // the later map's keys win, as DuckDB's map_concat
-            case MAP_CONCAT -> {
-                SqlWriter.Piece acc = w -> w.append("COALESCE(").expr(a.get(0), 0).append(", OBJECT_CONSTRUCT())");
-                for (int n = 1; n < a.size(); n++) {
-                    SqlWriter.Piece left = acc;
-                    SqlExpr next = a.get(n);
-                    String m = freshName("m");
-                    String k = freshName("k");
-                    acc = w -> w.append("REDUCE(COALESCE(OBJECT_KEYS(").expr(next, 0).append("), ARRAY_CONSTRUCT()), ")
-                            .piece(left).append(", ")
-                            .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(k, "VARCHAR")), Map.of(),
-                                    v -> v.append("OBJECT_INSERT(" + delimited(m) + ", " + delimited(k)
-                                            + ", COALESCE(GET(").expr(next, 0).append(", " + delimited(k)
-                                            + "), PARSE_JSON('null')), TRUE)")))
-                            .append(")");
-                }
-                yield writer.piece(acc);
-            }
+            case MAP_CONCAT -> mapConcat(writer, c);
 
             // ---- variant
             // in DuckDB's json_type vocabulary (NULL, VARCHAR, BIGINT, DOUBLE, BOOLEAN, ARRAY, OBJECT); Snowflake
@@ -1479,24 +1496,48 @@ public final class Snowflake extends AnsiSqlRenderer {
                     .append(" 'OBJECT', 'OBJECT', 'VARCHAR') END)");
             case JSON_PRETTY -> throw wall(c.fn(), "Snowflake has no JSON pretty-printer in SQL");
             // RFC 7386 with a literal object patch of non-null values: each key replaced (OBJECT_INSERT)
-            case JSON_MERGE_PATCH -> {
-                if (!(a.get(1) instanceof SqlExpr.JsonObject patch) || patch.kv().size() % 2 != 0) {
-                    throw wall(c.fn(), "a merge patch that is not a literal object");
-                }
-                SqlWriter.Piece acc = w -> w.expr(a.get(0), 0);
-                for (int n = 0; n < patch.kv().size(); n += 2) {
-                    SqlExpr k = patch.kv().get(n);
-                    SqlExpr val = patch.kv().get(n + 1);
-                    if (!(k instanceof SqlExpr.StringLit) || val instanceof SqlExpr.NullLit) {
-                        throw wall(c.fn(), "a merge patch with a computed key or a null value");
-                    }
-                    SqlWriter.Piece left = acc;
-                    acc = w -> w.append("OBJECT_INSERT(").piece(left).append(", ").expr(k, 0).append(", ")
-                            .expr(val, 0).append(", TRUE)");
-                }
-                yield writer.piece(acc);
-            }
+            case JSON_MERGE_PATCH -> jsonMergePatch(writer, c);
         };
+    }
+
+    /** RFC 7386 with a literal object patch of non-null values: each key replaced (OBJECT_INSERT). */
+    private SqlWriter jsonMergePatch(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.JsonObject patch) || patch.kv().size() % 2 != 0) {
+            throw wall(c.fn(), "a merge patch that is not a literal object");
+        }
+        SqlWriter.Piece acc = w -> w.expr(a.get(0), 0);
+        for (int n = 0; n < patch.kv().size(); n += 2) {
+            SqlExpr k = patch.kv().get(n);
+            SqlExpr val = patch.kv().get(n + 1);
+            if (!(k instanceof SqlExpr.StringLit) || val instanceof SqlExpr.NullLit) {
+                throw wall(c.fn(), "a merge patch with a computed key or a null value");
+            }
+            SqlWriter.Piece left = acc;
+            acc = w -> w.append("OBJECT_INSERT(").piece(left).append(", ").expr(k, 0).append(", ")
+                    .expr(val, 0).append(", TRUE)");
+        }
+        return writer.piece(acc);
+    }
+
+    /** Maps concatenated, the later map's keys winning, as DuckDB's map_concat. */
+    private SqlWriter mapConcat(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece acc = w -> w.append("COALESCE(").expr(a.get(0), 0).append(", OBJECT_CONSTRUCT())");
+        for (int n = 1; n < a.size(); n++) {
+            SqlWriter.Piece left = acc;
+            SqlExpr next = a.get(n);
+            String m = freshName("m");
+            String k = freshName("k");
+            acc = w -> w.append("REDUCE(COALESCE(OBJECT_KEYS(").expr(next, 0).append("), ARRAY_CONSTRUCT()), ")
+                    .piece(left).append(", ")
+                    .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(k, "VARCHAR")), Map.of(),
+                            v -> v.append("OBJECT_INSERT(" + delimited(m) + ", " + delimited(k)
+                                    + ", COALESCE(GET(").expr(next, 0).append(", " + delimited(k)
+                                    + "), PARSE_JSON('null')), TRUE)")))
+                    .append(")");
+        }
+        return writer.piece(acc);
     }
 
     /** DuckDB's concat: each argument as text, a NULL one skipped (an all-NULL concat is ''). */

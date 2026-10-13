@@ -110,6 +110,53 @@ class DialectVocabularyTest {
         assertTrue(wrong.isEmpty(), "a dialect that does not decide its whole vocabulary itself: " + wrong);
     }
 
+    /**
+     * THE BASE SPELLS NO FUNCTION (decision D1, 2026-10-13): a dialect whose parent is the base renderer names every
+     * function's spelling itself, calling the base's shared helpers by name, and never hands one to the base's
+     * {@code call} (only a family member hands a function to its parent, a concrete dialect); the base's {@code call}
+     * writes only a dialect's own Spellings row.
+     */
+    @Test
+    void noDialectTakesAFunctionFromTheBase() throws IOException, ClassNotFoundException {
+        List<String> wrong = new ArrayList<>();
+        for (Path f : SourceFiles.in(DIALECTS)) {
+            String file = f.getFileName().toString();
+            if (!file.endsWith(".java") || file.equals("package-info.java")) {
+                continue;
+            }
+            String name = file.substring(0, file.length() - ".java".length());
+            Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
+                    DialectVocabularyTest.class.getClassLoader());
+            String code = code(Files.readString(f));
+            if (cls.getSuperclass() == AnsiSqlRenderer.class && code.contains("super.call(")) {
+                wrong.add(name + " hands a function to the base renderer (super.call)");
+            }
+            if (cls == AnsiSqlRenderer.class) {
+                String call = body(code, "\\bcall\\s*\\(\\s*SqlWriter\\b");
+                if (call == null || !call.replaceAll("\\s+", " ").equals("{ return row(writer, c); }")) {
+                    wrong.add("the base renderer's call() spells something beyond a dialect's row: " + call);
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "a function spelled by the base renderer for a dialect that did not name it: "
+                + wrong);
+    }
+
+    /** {@code src} with every comment and literal blanked, so a search finds only code. */
+    private static String code(String src) {
+        StringBuilder out = new StringBuilder(src.length());
+        for (int i = 0; i < src.length(); i++) {
+            int skipped = skip(src, i);
+            if (skipped != i) {
+                out.append(" ".repeat(skipped - i));
+                i = skipped - 1;
+            } else {
+                out.append(src.charAt(i));
+            }
+        }
+        return out.toString();
+    }
+
     /** The body of the method whose declaration {@code declaration} (a regex) finds, its braces matched past
      *  comments and literals; null when there is none. */
     private static @com.legend.base.Nullable String body(String src, String declaration) {
