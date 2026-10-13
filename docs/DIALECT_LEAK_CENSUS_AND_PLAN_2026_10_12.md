@@ -1,8 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1 and 2 are done (2a4a5c8, 9373aec), step 3's function and aggregate tables are written (4a9f1bc and the next;
-measurement next), and P1a, P1c, P1d and the capability matrix remain before the review (D7).
+steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and P1a, P1c, P1d and the capability matrix
+remain before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -457,6 +457,14 @@ every table: a window function never reaches one (`Windows` builds it as a `Rank
 functions (ClickHouse's `OrNull` names and the engine text's `listagg` moved into their aggregate arms); spelling those
 per dialect is Phase 2's item. The guard holds both tables (`ONE_EXPRESSION_TABLES`), and
 `noDialectTakesAFunctionFromTheBase` refuses a `super.reducer` from a root dialect too (each checked by planting).
+
+Measured on 43ad660 (both halves) in the six-container layout, each container about 20 to 25 minutes warm: all 102 of
+the baseline's targets, on all eleven databases, pass with SQL identical to the baseline's, by digest (BigQuery's order
+flake did not fire). `//spec:corpus_duckdb` and `//spec:corpus_h2` pass (12 of 12), and so do `//core:stress_suites`
+and `//core:stress_suites_h2`. `//gates:local` is green: 347 under the root-container recipe, the root-only pair as
+root. Its one skip, `//tools/guards:classpath_test`, is older than this program's steps: the guard depends on
+`//python:duckdb_httpfs_linux_arm64`, which this x86 host cannot build (main's cfe639f), and it has been skipped in
+every gate run here since D1.
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
