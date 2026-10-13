@@ -9257,3 +9257,22 @@ green (51 checks). `//gates:local` green on 96e49c0, run in a root cloud contain
 4. **Known, and where it goes:** the classpath guard's skip is main's (a suggested task); `%0Nd` zero padding cuts on
    every database, Postgres's Levenshtein is slow on long text, a Postgres struct's date-time and map fields stay raw
    (each a suggested task); the dialect consolidation program starts from this commit (§0 of the plan).
+
+## 2026-10-13 — The dialect program's D1: the base renderer spells no function (the ninth line, on its branch)
+
+Branch `claude/great-wright-p6t5s1`, not landed (Phase 1 lands for the user's review, decision D7). The step and its
+evidence: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`, Phase 1b. One register moves:
+
+- **`spec/src/test/resources/rcorpus/h2-database-outside-body-register.txt` shrinks by two `fallback=1` rows**
+  (`objectReferenceIn::testObjectReferenceInWithObjReferenceOutput`,
+  `graphFetch::tests::simple::testRelationalGraphFetchWithAlloySerializationConfig`). Both are on H2's fail roster
+  before and after. Each sent `to_base64(...)` to H2, which has no such function, from the database judge's fallback;
+  the H2 dialect now refuses it by name (`DialectCapability`) before it is sent, so no statement leaves the body. The
+  H2 roster is unchanged (`//spec:update_rcorpus_h2_*` green).
+- **`spec/src/test/resources/rcorpus/h2-database-untriaged-register.txt` loses
+  `objectReferenceIn::testObjectReferenceInWithObjReferenceOutput`** ("#0 database FAIL, host never reached it",
+  2026-09-23): the two judges no longer disagree on it, both stopping at the same refused `to_base64` (the guard's own
+  instruction: delete an entry whose test no longer disagrees). It stays on H2's fail roster.
+- **The first cut of D1 (9373aec) regressed 14 corpus tests on both lanes** by refusing those DuckDB spellings in the
+  engine-H2 text too: the corpus reads that text on DuckDB, and a refusal left the result without its SQL. Caught by
+  the corpus run in a sibling container, not by PCT or `//gates:local`; c7cd917 restores them there (`DuckDbSpellings`).
