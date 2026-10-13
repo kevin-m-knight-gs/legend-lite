@@ -89,7 +89,7 @@ Snowflake 43.6, BigQuery 44.3, Databricks 46.3 (each query a network round trip)
 | sibling 1b | DuckDB, SQLite, MariaDB, MySQL and ClickHouse in one Bazel command, then Postgres in its own (the unprivileged recipe) | 4 (no memory trouble: 6 of 15 GB) | 42 min cold (its first build); warm, about 12 |
 | sibling 2 | Snowflake | 5 (each target compiles Pure locally too) | 18 min, after 9 min of setup |
 | sibling 3 | Databricks | 5 | 23 min, after 16 min of setup and the login proof |
-| sibling 4 | BigQuery | 5 | not run: the auto-mode permission check refused the Secrets Manager fetch of its service-account key twice (Snowflake's and Databricks' passed), so it needs a permission rule in that session, or BigQuery runs where the credentials already are |
+| sibling 4 | BigQuery | 5 | 19 min, after 10 min of setup (and an hour's wait: the auto-mode permission check refused the Secrets Manager fetch of its service-account key twice, where Snowflake's and Databricks' passed, until the user added a permission rule in that session) |
 
 So a warm measurement takes about 23 minutes, Databricks the long pole, against about 2 hours 10 minutes in one
 container. Each sibling reports its targets' statuses and each dump's digest (`digests.sh`); the session holding the
@@ -266,6 +266,7 @@ structural, not scattered:
 | 7 | The warehouse wraps `BEGIN`/`COMMIT` in `postgres_query` on an attached Postgres catalog (expected to fail; read, not run) | `warehouse/.../WhConnection.java:66-93` |
 | 8 | The warehouse reports engine "DuckDB" for an attached Postgres catalog | `warehouse/.../server/Sessions.java:46` |
 | 9 | ClickHouse's `concat` is NULL when any argument is NULL, where the flat concat's contract skips NULLs (H2, DuckDB, Postgres and SQLite skip them; Trino emulates it): a left-join-missed operand yields NULL on ClickHouse only. No PCT lane reaches it (found by D1, 2026-10-13; a follow-up task) | `clickhouse local` 25.8: `concat('a', NULL, 'b')` is `\N`; `ClickHouse.java` CONCAT → `concatFlat` |
+| 10 | On BigQuery an ordered collection of instances comes back in either order: the literal list lowers to a `UNION ALL` of one-row selects with no ordinal and no `ORDER BY`, and BigQuery keeps no branch order (`collection::tests::filter::testFilterInstance`, `[i1, i2]` or `[i2, i1]` from run to run; found by D1's measurement, 2026-10-13, older than it) | sibling 4's two runs of `pct_channel_b_bigquery_grammar` on 270dcfb |
 
 ## 4. The target: what adding a 12th database touches
 
@@ -419,9 +420,10 @@ spelling from `DuckDb`.
 Measured on 9373aec: the 72 local lane targets (eight databases, both channels) pass, and their SQL dumps are
 identical to the baseline's, statement for statement, so no lane reached a refused spelling. `//gates:local` is green:
 326 tests in one run, and the 23 the root container needs the recipe for (the three Postgres tests, the DataCube,
-Query and site browser tests, and the root-only pair) green under it. In the six-container layout's first run (below), 92 of the baseline's
-102 targets (ten databases: every one but BigQuery) pass with SQL identical to the baseline's (by digest; the 72
-local ones also here, as above); BigQuery waits on a permission
+Query and site browser tests, and the root-only pair) green under it. In the six-container layout's first run (below), all 102 of the
+baseline's targets, on all eleven databases, pass with SQL identical to the baseline's (by digest; the 72 local ones
+also here, as above). BigQuery's channel B grammar failed once and differed, then passed and matched on a rerun: an
+ordered collection there comes back in either order (§3, defect 10), and its outcome decides the statements after it; BigQuery waits on a permission
 (below). `//gates:local` is green again on the final code (b2efac3: 347 under the recipe, the root-only pair as root). The corpus caught what neither PCT nor the gate did: on 9373aec, 14 tests that pass at 2a4a5c8 failed on both corpora (sibling 1a's run), all through the engine-H2 text's refusals (above). After c7cd917, `//spec:corpus_duckdb` is green and `//spec:corpus_h2` is green with two of its registers shrunk (27a7b8a; the reasons in `docs/GATES.md`); `//core:stress_suites` and `//core:stress_suites_h2` pass. The lesson for every later step: the corpus suites run on any step that touches H2, the engine-H2 text or raw SQL.
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
