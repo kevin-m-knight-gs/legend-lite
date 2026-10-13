@@ -1,8 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so is P1a (e64e7e8); P1c, P1d and the
-capability matrix remain before the review (D7).
+steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so are P1a (e64e7e8) and P1c (9e6363e to
+074bd95); P1d and the capability matrix remain before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -490,6 +490,49 @@ with SQL identical to the baseline's (by digest; the light databases and Postgre
 its own earlier list, itself equal to the baseline). `//spec:corpus_duckdb` and `//spec:corpus_h2` pass (12 of 12),
 `//core:stress_suites` and `//core:stress_suites_h2` pass, and `//gates:local` is green (347 under the root-container
 recipe, the root-only pair as root, `//tools/guards:classpath_test` skipped as before).
+
+**1c done 2026-10-13: raw text runs by the database its connection declares (decision D2).**
+- One rule, in the dialect: `SqlDialect.raw(statement, writtenFor)` translates a statement only when its connection
+  declares the engine's H2 (`RawSqlBoundary.ENGINE_H2`), through `fromEngineH2`, and returns any other as written. The
+  base's `raw` is `final`; every root dialect decides `fromEngineH2`: H2 and the engine text run H2's text as written,
+  DuckDB and Postgres translate it (`RawSqlBoundary.h2ToDuckDb`, `h2ToPostgres`), the other seven refuse it by name.
+  `rawH2IsNative()`, `rawTarget()`, the public `RawSqlBoundary.Target` and the `RawSqlAdapt` pass are gone. One
+  statement in, one out, as the translator always was (the plan's `List<String>` was not needed).
+- Each text carries its language from where it is written to where it runs:
+  - `executeInDb`'s statements (the effect path): the database its connection argument declares, read after the
+    helpers are inlined. Every corpus call reads: 122,823 of 122,823 (a temporary probe, both lanes), all H2.
+  - `executeInDb` as a relation (`TypedRawSqlRelation`, then `SqlSource.RawSql`): the same fact, read when the call
+    is typed, as `from()` reads its runtime: a let-bound connection through its alias, a helper's connection through
+    its raw body. A raw body names its callee, not the overload, so every overload of the call's arity is read, and
+    the database is theirs only when those that declare one agree (`testRuntime(db)`'s four all answer H2);
+    overloads that disagree leave it unknown. The catalog grids (`CatalogGrids`) are the session's own text.
+  - Setup SQL: an element connection's `testDataSetupSqls` carry its declared type; a `from()` runtime's carry the
+    database its context reads (the reader now reads a helper-built runtime's database through the helper's body, as
+    it already read its setups, its chain and its plan-text name). CSV seeds are rendered by the session's dialect.
+  - Text whose database cannot be read is refused by name ("decision D2"), never assumed to be H2's or the
+    session's. The context reader owns the read and the refusal (`ExecutionContext.rawLanguage`); the executor keeps
+    no reading of its own.
+- The reader takes the model's overloads (`Reader.overloads`) instead of a first-body lookup: its chain, JSON and setup
+  facets keep their rule (a name's first overload with a body); the database type reads every overload of the arity.
+- Pinned: `ExecuteInDbTest.ownDatabaseTextRunsAsWritten` (a `FLOAT` column written for DuckDB stays DuckDB's 4-byte
+  `FLOAT`; written for H2 it becomes `DOUBLE`, H2's), and two `RawGridSchemaTest` cases (agreeing overloads read,
+  disagreeing ones refused).
+- The guards, with dated notes: `RawSqlLedgerTest` (the one `h2ToDuckDb` call is `DuckDb.fromEngineH2`; `RawSqlAdapt`
+  left the RawSql constructor census), `DialectBoundaryTest.RAW_H2_CALLERS` (empty), `ArchitectureTest`'s RawSql
+  constructor rule, and pins lowered to their measurements: `JavaEvalLedgerTest`'s StatementExecutor 2298 -> 2297, the
+  dialect-leak ledger's CsvSeed 6 -> 5, ExecuteInDbTest 9 -> 1 and RawGridSchemaTest 5 -> 1 (each names its
+  session's database once).
+- The engine-text face of the CSV DDL (`Ddl.setUpDataSqlsText`: legend-engine's own H2 text, for plans and the assert
+  surface) stays text; nothing executes it through `raw`. Its inserts move with Phase 3 (`Ddl.insertText`).
+
+Measured on 074bd95 in the six-container layout: all 102 of the baseline's targets, on all eleven databases, pass
+with SQL identical to the baseline's, by digest. D2 changes which text is translated, but no lane's dumped statement
+moved: no PCT lane sends the engine's H2 text to a database that is not H2, DuckDB or Postgres. One Databricks failure,
+in the batch only: `pct_databricks_essential` stopped before sending one statement (`'fAlse'->parseBoolean()`). The
+batch's log was not kept. The target passed alone, 345 of 345, with the baseline's digest. `//spec:corpus_duckdb` and
+`//spec:corpus_h2` pass (12 of 12, no roster or register moved; here on 9e6363e and in sibling 1a on 074bd95), as do
+`//core:stress_suites` and `//core:stress_suites_h2`. `//gates:local` is green (347 under the root-container recipe, the
+root-only pair as root, `//tools/guards:classpath_test` skipped as before).
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
