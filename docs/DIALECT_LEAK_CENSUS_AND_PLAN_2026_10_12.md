@@ -251,7 +251,7 @@ structural, not scattered:
 
 | # | defect | evidence |
 |---|---|---|
-| 1 | H2 (and H2Modern, EngineStyleH2) get DuckDB spellings for functions they do not override, instead of an honest refusal. *Fixed by Phase 1b step 2 (D1), 9373aec: eight refused by name on H2, ten in the engine-H2 text.* | `H2.java:404` → `super.call`; base arms at `AnsiSqlRenderer.java:637-892, 1095-1270` |
+| 1 | H2 (and H2Modern, EngineStyleH2) get DuckDB spellings for functions they do not override, instead of an honest refusal. *Fixed by Phase 1b step 2 (D1), 9373aec and c7cd917: eight refused by name on H2; the engine-H2 text keeps them, named (the corpus reads it on DuckDB).* | `H2.java:404` → `super.call`; base arms at `AnsiSqlRenderer.java:637-892, 1095-1270` |
 | 2 | Postgres `int8`, ClickHouse `Nullable(Int64)` and BigQuery `INT64` are absent from the driver-type table that types dynamic-pivot and grid columns | `Executor.java:1062-1085` (read; a test will confirm the failure) |
 | 3 | Every raw SQL on DuckDB is rewritten *as if it were H2 text*, including a user's native `executeInDb` SQL (an unaliased `count(*)` gets relabelled) | `DuckDb.java:273` → `RawSqlAdapt`; `RawSql` records no origin |
 | 4 | `CorpusDifferentialTest` renders every service with the DuckDB dialect, even services whose runtime declares H2, Postgres, Snowflake or Databricks | `CorpusDifferentialTest.java:46, 63, 81-83` |
@@ -392,7 +392,7 @@ helpers (`infix`, `inList`, `isNullTest`, `distinctFrom`, `divideAsDoubles`, `mo
 `padWithSpace`, `firstCharCased`, `concatFlat`, `raiseEnvelope`, `dateTruncDateGrained`, ...); its `call` writes only a
 dialect's own Spellings row (`row`, until P1a). Each dialect whose parent is the base names every function's spelling in
 its own switch, and the DuckDB-only arms (`MAP {}`, `xor`, `epoch_ms`, `make_timestamp`, `time_bucket`, `x + to_days(n)`,
-`//`, `error()`, the base64 pair, `json_merge_patch`) moved into `DuckDb`. `DialectVocabularyTest
+`//`, `error()`, the base64 pair, `json_merge_patch`) moved into `DuckDb` (the ten the engine-H2 text names too, into `DuckDbSpellings`). `DialectVocabularyTest
 .noDialectTakesAFunctionFromTheBase` fails if such a dialect hands a function to `super.call`, or if the base's `call`
 grows a spelling (checked by planting one). The inventory first (arm × dialect, read by rendering every function on every
 root dialect against the base given that dialect's own rows), then the evidence for each inherited arm:
@@ -402,7 +402,7 @@ root dialect against the base given that dialect's own rows), then the evidence 
 | Postgres, Trino, Snowflake, Databricks, BigQuery, SQLite, MariaDB | 21 to 38 each | all: a passing statement in the dialect's own lanes carries each; the five unreached (`current_date` on Postgres, run in single-user mode; on Trino, Snowflake and Databricks, the SQL keyword each documents; Databricks' `date_trunc`) | none |
 | ClickHouse | 28 | 27, from its lanes | `today()`: ClickHouse 25.8 has no bare `current_date` (an unknown identifier, measured with `clickhouse local`; `today()` and `current_date()` are its spellings, left to a burn-down) |
 | H2 (and H2Modern) | 50 | 42, each run on H2 2.1.214 and 2.4.240 (its PCT lane reaches few) | 8 H2 cannot run (measured on both): `xor()` (bitNot), `from_base64`/`to_base64`, `epoch_ms`, `json_merge_patch`, `make_timestamp`, `MAP {}`, `time_bucket`. GUID, named here first as a refusal, runs (`CAST(uuid() AS VARCHAR)`) and is kept |
-| the engine-H2 text (EngineStyleH2 and its family) | 41 | 31 | the same 8, and `//` and `error()`: legend-engine's H2 text runs on H2, so a spelling H2 cannot run is not that text |
+| the engine-H2 text (EngineStyleH2 and its family) | 41 | all 41, the ten DuckDB-only ones written once with DuckDb's (`DuckDbSpellings`) | none. The first cut refused the same 8 and `//` and `error()`, reasoning that legend-engine's H2 text runs on H2; the corpus reads this text on DuckDB too, and the refusals broke 14 passing corpus tests (c7cd917 restored them). legend-engine's H2 text spells none of the ten: a question for the engine-text work, not D1's |
 
 The step's own code moves: H2's and the engine text's unconditional pre-switch checks became switch arms (a switch is
 the dialect's whole table, so no arm is unreachable); twelve long arms of Trino, BigQuery, ClickHouse, Postgres and
@@ -414,7 +414,7 @@ Measured on 9373aec: the 72 local lane targets (eight databases, both channels) 
 identical to the baseline's, statement for statement, so no lane reached a refused spelling. `//gates:local` is green:
 326 tests in one run, and the 23 the root container needs the recipe for (the three Postgres tests, the DataCube,
 Query and site browser tests, and the root-only pair) green under it. The clouds kept every spelling they inherited, so
-their text is unchanged by construction; their lanes run at the end of Phase 1. The H2 and DuckDB corpus suites and the H2 stress suite: the stress suite passes; the corpus verdicts, red on 15 tests, are being compared with the parent commit's (sibling 1).
+their text is unchanged by construction; their lanes run at the end of Phase 1. The corpus caught what neither PCT nor the gate did: on 9373aec, 14 tests that pass at 2a4a5c8 failed on both corpora (sibling 1a's run), all through the engine-H2 text's refusals (above). After c7cd917, `//spec:corpus_duckdb` is green and `//spec:corpus_h2` is green with two of its registers shrunk (27a7b8a; the reasons in `docs/GATES.md`); `//core:stress_suites` and `//core:stress_suites_h2` pass. The lesson for every later step: the corpus suites run on any step that touches H2, the engine-H2 text or raw SQL.
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
