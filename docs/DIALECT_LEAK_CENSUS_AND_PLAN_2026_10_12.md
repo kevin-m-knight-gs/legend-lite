@@ -1,8 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), P1a is written (its measurement next), and P1c,
-P1d and the capability matrix remain before the review (D7).
+steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so is P1a (e64e7e8); P1c, P1d and the
+capability matrix remain before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -484,6 +484,12 @@ every gate run here since D1.
 - The 26 javadocs step 1 left stacked above one declaration, each separated from its own method, are above their
   own methods again; the 15 piles older than this program are left as they were.
 The rows the plan counted from `DUCKDB.fnNames()` were `Spellings`', gone with step 3.
+
+Measured on e64e7e8 in the six-container layout: all 102 of the baseline's targets, on all eleven databases, pass
+with SQL identical to the baseline's (by digest; the light databases and Postgres compared by the sibling against
+its own earlier list, itself equal to the baseline). `//spec:corpus_duckdb` and `//spec:corpus_h2` pass (12 of 12),
+`//core:stress_suites` and `//core:stress_suites_h2` pass, and `//gates:local` is green (347 under the root-container
+recipe, the root-only pair as root, `//tools/guards:classpath_test` skipped as before).
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
