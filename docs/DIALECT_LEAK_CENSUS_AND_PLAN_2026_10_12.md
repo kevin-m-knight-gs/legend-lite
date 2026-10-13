@@ -34,6 +34,13 @@ its way to main (listed in the evidence folder's README).**
 - An empty diff is the evidence a move changed nothing: on all eight local databases every phase, and on the three
   clouds when they run (§5: after Phase 2 and at the end). The dialect unit goldens alone cover a fraction of the
   arms.
+- **The tooling** is in `docs/dialect-leak-census-2026-10-12/sqldiff/`: `lanes.sh <out dir> [--clouds]` dumps every
+  lane in batches (`sqlrun.sh` runs one batch, `extract.py` keeps whole statements and the expression behind each);
+  `compare.py <before> <after>` compares two dumps target by target.
+- **The baseline** (2026-10-13) was taken on main fca0aef, every lane and the three clouds: 102 targets, all
+  passing. The dump is the same run to run: Essential repeated on every local database, both channels, gave
+  identical statements (12 of 12), and the cloud dumps hold no run-specific token. It lives in the implementing
+  session's scratchpad; a new session rebuilds it from fca0aef with `lanes.sh` (about 2 hours).
 
 **Running the lanes** (measured in a root cloud container, 4 cores, 15 GB, a ~40 GB disk allowance):
 - **Postgres refuses root.** Run it with
@@ -290,6 +297,15 @@ The cloud lanes (Snowflake, Databricks and BigQuery) run once after Phase 2 and 
 - Each pin corrected here carries a dated justification ("the guard was blind; the census of 2026-10-12").
 
 Size: about 300 lines of tests.
+
+**Done 2026-10-13** (branch `claude/great-wright-p6t5s1`): `DialectBoundaryTest` builds its patterns from the
+`DatabaseType` enum, counts switch arms on a type (`case Snowflake ->`, 60 lines in 5 files) and walks
+`core/src/main/duckdb`; widened, it found `Sessions` naming 3 types (not 1), the connection grammar 12 names (not 2),
+the wire census 10 (not 3) and the PMCD reader 1, each pinned with its reason. The driver rules of `ArchitectureTest`,
+`JdbcSurfaceCensusTest` and `TenetRatchetTest` see all eleven drivers, and found nothing new. `SqlTextRatchetTest` sees
+`create schema` and registers the two sites it was blind to (`StatementExecutor`). `DialectLeakRatchetTest` (new,
+`//core:census`) pins 2,033 lines naming a database outside the owners, in 329 files (812 in core's product code,
+807 in core's tests), in `core/src/test/resources/dialect-leaks/ledger.tsv`.
 
 ### Phase 1: one place per database inside the dialect package (pure moves)
 

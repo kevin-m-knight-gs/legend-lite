@@ -631,6 +631,13 @@ final class ArchitectureTest {
      * (hashString over rs.getString) survived 691 commits because no
      * rule forbade it.
      */
+    /** java.sql and every JDBC driver's own packages: a driver-native API rides with java.sql (F1.11). Every driver
+     *  the product reaches since 2026-10-11 (the dialect program's Phase 0, 2026-10-13: the rules named DuckDB's and
+     *  H2's only, blind to the nine drivers added since; docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md). */
+    private static final String[] JDBC_AND_DRIVERS = {"java.sql..", "javax.sql..", "org.duckdb..", "org.h2..",
+            "org.postgresql..", "org.sqlite..", "org.mariadb..", "com.mysql..", "com.clickhouse..", "io.trino..",
+            "net.snowflake..", "com.databricks..", "com.simba..", "com.google.cloud.bigquery.."};
+
     @Test
     void javaSqlIsFunnelledToTheCharteredSeam() {
         noClasses()
@@ -646,8 +653,7 @@ final class ArchitectureTest {
             // F1.11: driver-NATIVE APIs ride with java.sql — importing
             // org.duckdb/org.h2 types was a funnel bypass (the audit
             // framed the boundary as java.sql only)
-            .resideInAnyPackage("java.sql..", "javax.sql..",
-                    "org.duckdb..", "org.h2..")
+            .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("F1.3: java.sql AND the driver-native APIs are funnelled"
                     + " to {exec, server, root, testdatagen} — Charter"
                     + " clauses C1/C2")
@@ -672,8 +678,7 @@ final class ArchitectureTest {
         noClasses()
             .that().haveNameMatching(".*\\.(PlanText|AggAwareActivities)")
             .should().dependOnClassesThat()
-            .resideInAnyPackage("java.sql..", "javax.sql..",
-                    "org.duckdb..", "org.h2..")
+            .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("E4: the metamodel channel evaluates model constants"
                     + " only — grid chains compile to SQL at the"
                     + " GridReads.tryLower exec seam")
@@ -817,8 +822,7 @@ final class ArchitectureTest {
         noClasses()
             .that().haveNameMatching("com\\.legend\\.server\\.PureV1Api(\\$.*)?")
             .should().dependOnClassesThat()
-            .resideInAnyPackage("java.sql..", "javax.sql..",
-                    "org.duckdb..", "org.h2..")
+            .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("the pure/v1 API is plan side: its host runs its queries")
             .check(CORE_PROD_CLASSES);
     }

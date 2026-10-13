@@ -55,7 +55,9 @@ class SqlTextRatchetTest {
 
     private static final Pattern SQL_SHAPE = Pattern.compile(
             "(?i)(\\bselect\\s+\\S.*\\s+from\\b"
-            + "|^\"\\s*(select|create table|insert into|drop table"
+            // create schema (2026-10-13, the dialect program's Phase 0: its blind spot let StatementExecutor's
+            // dropAndCreateSchemaInDb text through)
+            + "|^\"\\s*(select|create table|create schema|insert into|drop table"
             + "|delete from|alter table)\\s+\\S"
             + "|information_schema|\\bunion all\\s|\\blimit \\d"
             + "|\\bleft lateral\\s)");
@@ -80,6 +82,10 @@ class SqlTextRatchetTest {
         // a GOLDEN — a referee's read of the spec text's shape (the let
         // it populates supplies our rows), never an emission of ours.
         REGISTER.put("SqlTextVerdicts.java", 1);
+        // 0 -> 2 (2026-10-13, the dialect program's Phase 0, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): not new
+        // sites -- the rule now sees `create schema`, and two were there: dropAndCreateSchemaInDb's H2 text and a
+        // schema's create in the module DDL. They go to the dialect (a SqlDdl node) with the program's Phase 3
+        REGISTER.put("StatementExecutor.java", 2);
         // exec/CsvSeed.java: 1 -> 0 and row deleted (2026-09-23): its INSERT is a RowLoad and its DELETE a SqlDml node, both dialect-rendered
         // Phase 1c: DbMetaData's 9 catalog-SQL sites moved verbatim to
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure

@@ -53,6 +53,20 @@ class DialectBoundaryTest {
 
     private static final String MAIN = "core/src/main/java/com/legend";
 
+    /** The DuckDB-only sources (the bulk loader, the driver's cells): walked too since 2026-10-13. */
+    private static final String DUCKDB_MAIN = "core/src/main/duckdb/com/legend";
+
+    /** Every declared database type, from the enum itself: a type added tomorrow is counted the day it is added
+     *  (2026-10-13, the dialect program's Phase 0: the patterns named H2, DuckDB and Postgres only, so every decision
+     *  about the other 21 types was invisible here; docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md). */
+    private static final String TYPES = java.util.Arrays.stream(
+            com.legend.model.ConnectionDefinition.DatabaseType.values()).map(Enum::name)
+            .collect(java.util.stream.Collectors.joining("|"));
+
+    /** Every name a database goes by: its declared type, and the product name its driver reports where that differs
+     *  ({@code Sessions.jdbcProduct}). */
+    private static final String NAMES = TYPES + "|PostgreSQL|SparkSQL|Google BigQuery";
+
     /** {@code rawH2IsNative()} CALLS outside the dialect package, by file. */
     private static final Map<String, Integer> RAW_H2_CALLERS = Map.of(
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
@@ -80,7 +94,23 @@ class DialectBoundaryTest {
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
             "Databases.java", 2,            // PLATFORM (S27), REPLAY_ORACLE
             "EngineText.java", 1,           // ENGINE_TEST_DATABASE
-            "Sessions.java", 1);            // Opening.Held for an in-memory DuckDB
+            // 1 -> 3 (2026-10-13, the dialect program's Phase 0): not new lines -- the census counts every declared type
+            // now, and Sessions also names the in-memory SQLite and, on one line, MariaDB and MySQL (raisedMessage's
+            // product check); the connectors take them (the program's Phase 5)
+            "Sessions.java", 3);            // the in-memory DuckDB and SQLite; MariaDB and MySQL's raise check
+
+    /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
+     *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a
+     *  switch over the type was invisible). Pinned at what is there; shrink-only. */
+    private static final Map<String, Integer> DATABASE_TYPE_CASES = Map.of(
+            "Databases.java", 20,           // the owner: a declared type's dialect, engine text and plan facts
+            "Sessions.java", 24,            // the session owner: each type's product name, URL and opening (Phase 5)
+            "EngineText.java", 7,           // legend-engine's golden text per database, root layer only
+            // a connection specification's tag (same names as the types) when a plan's JSON is read: each
+            // specification's own fields, the connector's (Phase 5)
+            "PlanJson.java", 4,
+            // the test runtime a type declares (core/.../test): its specification text, the harness's (Phase 6)
+            "StorelessRuntime.java", 5);
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
@@ -88,7 +118,12 @@ class DialectBoundaryTest {
     private static final Map<String, Integer> DATABASE_NAME_DECISIONS = Map.of(
             // the grammar: a specification keyword parses per database, as upstream's (3 -> 2, 2026-10-11,
             // docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13: the lite database types are a set, no longer SQLite by name)
-            "ConnectionSectionGrammar.java", 2,
+            // 2 -> 12 (2026-10-13, the dialect program's Phase 0): not new lines -- the census names every database now,
+            // and the grammar parses ten more specification keywords by name (DuckDB, SQLite, Snowflake, Redshift, Trino,
+            // Athena, Aurora, Oracle, Spanner, Databricks, BigQuery), as upstream's grammar does
+            "ConnectionSectionGrammar.java", 12,
+            // 0 -> 1 (2026-10-13, Phase 0, the same widening): the PMCD reader's connection kinds by their protocol names
+            "PmcdParser.java", 1,
             // 0 -> 2 (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12): the wire census (a diagnostic, deciding no
             // SQL) reads SQLite's own type names by the label the executor gives it, the dialect class's simple name, as
             // it reads Snowflake's and BigQuery's (names this pattern does not list); exec may not reference the
@@ -96,7 +131,10 @@ class DialectBoundaryTest {
             // review): a map delivered as its entries (an ARRAY) is accepted on BigQuery and Postgres only, the two with
             // no map type; it had been widened to every database, so DuckDB's census could no longer catch a map
             // shipped as an ARRAY. Moves into the dialect with the plan's P4 (the dialect reads its own wire names)
-            "SqlTypeCensus.java", 3);
+            // 3 -> 10 (2026-10-13, the dialect program's Phase 0): not new lines -- the census names every database now,
+            // and the wire census reads Trino's, Snowflake's, ClickHouse's and BigQuery's names too; all of it moves
+            // into each dialect with Phase 4
+            "SqlTypeCensus.java", 10);
 
     /** Lines CONSTRUCTING a dialect outside the dialect package, by file: the one owner per side picks it
      *  (C3, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; the guard at zero, 2026-10-04). */
@@ -139,13 +177,17 @@ class DialectBoundaryTest {
                         + " a target is decided inside its dialect (render it), never by"
                         + " a ternary at the call site");
         assertEquals(new TreeMap<>(DATABASE_TYPE_DECISIONS),
-                census(Pattern.compile("\\bDatabaseType\\s*\\.\\s*(H2|DuckDB|Postgres)\\b")),
+                census(Pattern.compile("\\bDatabaseType\\s*\\.\\s*(" + TYPES + ")\\b")),
                 "DatabaseType comparisons outside com.legend.sql.dialect drifted —"
                         + " only dialect resolution maps a declared type to a dialect");
+        assertEquals(new TreeMap<>(DATABASE_TYPE_CASES),
+                census(Pattern.compile("\\bcase\\s+(" + TYPES + ")\\b\\s*(,|->|:)")),
+                "a switch arm on a declared database type outside its owners drifted —"
+                        + " com.legend.database.Databases decides by the declared type");
         assertEquals(new TreeMap<>(DATABASE_NAME_DECISIONS),
-                census(Pattern.compile("\"(H2|DB2|Composite|DuckDB|Postgres|PostgreSQL|SQLite)\"\\s*\\.\\s*equals"
-                        + "|\\.equals\\(\\s*\"(H2|DB2|Composite|DuckDB|Postgres|PostgreSQL|SQLite)\"\\s*\\)"
-                        + "|\\bcase\\s+\"(H2|DB2|Composite|DuckDB|Postgres|PostgreSQL|SQLite)\"")),
+                census(Pattern.compile("\"(" + NAMES + ")\"\\s*\\.\\s*equals"
+                        + "|\\.equals(IgnoreCase)?\\(\\s*\"(" + NAMES + ")\"\\s*\\)"
+                        + "|\\bcase\\s+\"(" + NAMES + ")\"")),
                 "a decision by a database's name drifted — com.legend.database.Databases owns it,"
                         + " by the declared DatabaseType");
         assertEquals(new TreeMap<>(), census(Pattern.compile("\\bFlavor\\.(H2_EXEC|DUCK_EXEC|ENGINE_TEXT)\\b")),
@@ -153,10 +195,12 @@ class DialectBoundaryTest {
                         + " text is rendered by the dialect from an IR node");
     }
 
-    /** file name → number of non-comment lines matching, outside the dialect package. */
+    /** file name → number of non-comment lines matching, outside the dialect package: core's main sources and the
+     *  DuckDB-only ones. */
     private static TreeMap<String, Integer> census(Pattern p) throws IOException {
         TreeMap<String, Integer> out = new TreeMap<>();
         List<Path> files = new ArrayList<>();
+        SourceFiles.under(DUCKDB_MAIN).stream().filter(f -> f.toString().endsWith(".java")).forEach(files::add);
         try (Stream<Path> s = SourceFiles.under(MAIN).stream()) {
             // relative to MAIN and '/'-separated: the absolute path would let the
             // checkout's directory names reach the contains(), and on Windows

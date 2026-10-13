@@ -73,6 +73,10 @@ class TenetRatchetTest {
 
     private static final int RESULT_SET_ACCESSOR_SITES = 15;
 
+    private static final List<String> DRIVERS = List.of("org.duckdb", "org.h2.", "org.sqlite", "org.postgresql",
+            "org.mariadb", "com.mysql", "com.clickhouse", "io.trino", "net.snowflake", "com.databricks", "com.simba",
+            "com.google.cloud.bigquery");
+
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"
             + "|Date|Timestamp|Time|Bytes|Array|Float|Short|Byte"
@@ -91,10 +95,8 @@ class TenetRatchetTest {
                     .toList()) {
                 scanned++;
                 String src = Files.readString(f);
-                if (!src.contains("java.sql")
-                        && !src.contains("org.duckdb")
-                        && !src.contains("org.h2.")
-                        && !src.contains("org.sqlite")) {
+                // every driver's packages (2026-10-13, the dialect program's Phase 0: DuckDB, H2 and SQLite only before)
+                if (!src.contains("java.sql") && DRIVERS.stream().noneMatch(src::contains)) {
                     continue;
                 }
                 String code = src.replaceAll("//.*", "")
