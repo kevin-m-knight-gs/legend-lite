@@ -2,7 +2,8 @@
 # One batch of PCT targets with every statement dumped (-Dlegend.diagnostics=dump-sql): run them, extract each
 # test.log's whole statements into <out dir>/<target>.sql.gz (extract.py), keep a summary, then drop the test logs
 # and the runfiles trees (a container's disk allowance cannot hold them all).
-# usage: sqlrun.sh <out dir> <batch name> [--pg] <targets...>     (--pg: Postgres as an unprivileged user, docs/GATES.md)
+# usage: [JOBS=n] sqlrun.sh <out dir> <batch name> [--pg] <targets...>     (--pg: Postgres as an unprivileged user,
+# docs/GATES.md; JOBS: targets at once, 2 by default — the plan §0 sizes each container's)
 # The plan, §0: docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md.
 out=$(realpath -m "$1"); shift; name=$1; shift
 here=$(cd "$(dirname "$0")" && pwd)
@@ -12,7 +13,7 @@ logs="$out/../logs"; mkdir -p "$out" "$logs"
 cd "$(git rev-parse --show-toplevel)" || exit 2
 TL=$(bazel info bazel-testlogs 2>/dev/null)/pct
 BIN=$(bazel info bazel-bin 2>/dev/null)/pct
-bazel test "$@" --disk_cache= --local_test_jobs=2 --nocache_test_results --test_output=errors \
+bazel test "$@" --disk_cache= --local_test_jobs="${JOBS:-2}" --nocache_test_results --test_output=errors \
   --jvmopt=-Dlegend.diagnostics=dump-sql "${extra[@]}" > "$logs/$name.bazel.log" 2>&1
 echo "exit=$?" >> "$logs/$name.bazel.log"
 for t in "$@"; do
