@@ -291,34 +291,21 @@ public final class DuckDb extends AnsiSqlRenderer {
             // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
             // type (session TZ is pinned UTC).
             case NOW -> writer.append("CAST(now() AS TIMESTAMP)");
-            // ~x without negation overflow at MIN_LONG
-            case BIT_NOT -> writer.append("xor(").expr(a.get(0), 0).append(", -1)");
-            case MAP_EMPTY -> writer.append("MAP {}");
-            case JSON_MERGE_PATCH -> writer.function("json_merge_patch", a);
-            case ENCODE_BASE64 -> writer.append("to_base64(CAST(").expr(a.get(0), 0).append(" AS BLOB))");
-            // decode(blob) — a CAST of the blob to VARCHAR ESCAPES quotes and
-            // non-printables (\x22), never the text itself (batch 72b)
-            case DECODE_BASE64 -> writer.append("decode(from_base64(").expr(a.get(0), 0).append("))");
-            // make_timestamp wants DOUBLE seconds; (part, value) otherwise
-            case MAKE_TIMESTAMP -> a.size() == 6
-                    ? writer.append("make_timestamp(").list(a.subList(0, 5)).append(", CAST(").expr(a.get(5), 0)
-                            .append(" AS DOUBLE))")
-                    : writer.function("make_timestamp", a);
+            // the functions only DuckDB runs (DuckDbSpellings: the engine-H2 text names them too)
+            case BIT_NOT -> DuckDbSpellings.bitNot(writer, a);
+            case MAP_EMPTY -> DuckDbSpellings.mapEmpty(writer);
+            case JSON_MERGE_PATCH -> DuckDbSpellings.jsonMergePatch(writer, a);
+            case ENCODE_BASE64 -> DuckDbSpellings.encodeBase64(writer, a);
+            case DECODE_BASE64 -> DuckDbSpellings.decodeBase64(writer, a);
+            case MAKE_TIMESTAMP -> DuckDbSpellings.makeTimestamp(writer, a);
+            case TIME_BUCKET -> DuckDbSpellings.timeBucket(writer, a);
+            case FROM_EPOCH_MS -> DuckDbSpellings.fromEpochMs(writer, a);
+            case INT_DIVIDE -> DuckDbSpellings.intDivide(writer, a);
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
                     .append(" + ").append(((SqlExpr.StringLit) a.get(0)).value()).append("(").expr(a.get(1), 0)
                     .append(")"));
-            // Week buckets align to the Monday ON/BEFORE the epoch
-            // (1969-12-29 — real pure's origin, PCT-pinned); every other
-            // unit aligns to the 1970 epoch.
-            case TIME_BUCKET -> writer.append("time_bucket(").append(((SqlExpr.StringLit) a.get(0)).value())
-                    .append("(").expr(a.get(1), 0).append("), ").expr(a.get(2), 0)
-                    .append("to_weeks".equals(((SqlExpr.StringLit) a.get(0)).value())
-                            ? ", TIMESTAMP '1969-12-29 00:00:00'" : ", TIMESTAMP '1970-01-01 00:00:00'")
-                    .append(")");
-            case FROM_EPOCH_MS -> writer.append("epoch_ms(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
-            case INT_DIVIDE -> writer.append("(").expr(a.get(0), 6).append(" // ").expr(a.get(1), 6).append(")");
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators

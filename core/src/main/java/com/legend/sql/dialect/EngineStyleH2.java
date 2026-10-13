@@ -1927,24 +1927,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                  MAKE_DATE, TIMEZONE, EPOCH_SECONDS, EPOCH_MS, FROM_EPOCH_SECONDS, DAYNAME, MONTHNAME,
                  COT, RADIANS, DEGREES, REPEAT_STR, JARO_WINKLER, LIST_LENGTH, FLOOR_RAW, JSON_TYPE,
                  JSON_ARRAY_LENGTH, JSON_PRETTY -> row(writer, c);
-            // refused by name (D1, measured 2026-10-13: legend-engine's H2 text runs on H2, which cannot run
-            // DuckDB's spelling)
-            case JSON_MERGE_PATCH -> throw noEngineText("a JSON merge", "json_merge_patch()");
-            case BIT_NOT -> throw noEngineText("bitNot", "xor()");
-            case MAP_EMPTY -> throw noEngineText("an empty map", "map type");
-            case ENCODE_BASE64 -> throw noEngineText("encodeBase64", "to_base64()");
-            case DECODE_BASE64 -> throw noEngineText("decodeBase64", "from_base64()");
-            case MAKE_TIMESTAMP -> throw noEngineText("a date-time constructor", "make_timestamp()");
-            case FROM_EPOCH_MS -> throw noEngineText("a date from epoch milliseconds", "epoch_ms()");
-            case INT_DIVIDE -> throw noEngineText("an integer division", "// operator");
-            case ERROR -> throw noEngineText("a raised error", "error()");
-            case TIME_BUCKET -> throw noEngineText("a time bucket", "time_bucket()");
+            // DuckDB's spellings, which this text has carried since they were the base renderer's: legend-engine's
+            // H2 text spells none of them, but the corpus reads this text on DuckDB too, and refusing them broke 14
+            // passing corpus tests (D1, measured 2026-10-13) — the engine-text work's question (DuckDbSpellings)
+            case JSON_MERGE_PATCH -> DuckDbSpellings.jsonMergePatch(writer, c.args());
+            case BIT_NOT -> DuckDbSpellings.bitNot(writer, c.args());
+            case MAP_EMPTY -> DuckDbSpellings.mapEmpty(writer);
+            case ENCODE_BASE64 -> DuckDbSpellings.encodeBase64(writer, c.args());
+            case DECODE_BASE64 -> DuckDbSpellings.decodeBase64(writer, c.args());
+            case MAKE_TIMESTAMP -> DuckDbSpellings.makeTimestamp(writer, c.args());
+            case FROM_EPOCH_MS -> DuckDbSpellings.fromEpochMs(writer, c.args());
+            case INT_DIVIDE -> DuckDbSpellings.intDivide(writer, c.args());
+            case TIME_BUCKET -> DuckDbSpellings.timeBucket(writer, c.args());
+            case ERROR -> raiseEnvelope(writer, c.args(), "error");
         };
-    }
-
-    /** A function legend-engine's H2 text cannot spell: that text runs on H2, which lacks {@code missing}. */
-    private static DialectCapability noEngineText(String what, String missing) {
-        return new DialectCapability(what + " has no engine-H2 text: H2 has no " + missing);
     }
 
     /** TYPED format parts → the Java pattern the engine's parsedatetime
