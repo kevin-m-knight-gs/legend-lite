@@ -150,6 +150,30 @@ public class MariaDb extends AnsiSqlRenderer {
      *  'name'); recursion and GROUP_CONCAT lengths past their small defaults; and no condition pushed into a derived
      *  table (measured on 11.4.13: a filter on a JSON value of a UNION derived table, pushed into its branches, kept
      *  no row it should). */
+    /** A date format's parts: the base's strftime codes (its own strftime helper spells the parts it formats itself)
+     * (the dialect program's Phase 1, 2026-10-13: each dialect
+     *  declares its date-format vocabulary). */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN, INTEGER, BIGINT -> "SIGNED";
+            case HUGEINT -> "DECIMAL(38,0)";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return super.formatText(fl);
+    }
+
     @Override
     public List<String> sessionSetup() {
         return List.of("SET SESSION optimizer_switch = 'condition_pushdown_for_derived=off'","SET SESSION sql_mode = 'ANSI_QUOTES,PIPES_AS_CONCAT,NO_BACKSLASH_ESCAPES,STRICT_ALL_TABLES,"

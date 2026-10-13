@@ -65,6 +65,26 @@ public final class Snowflake extends AnsiSqlRenderer {
     /** No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
      *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
      *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INTEGER";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "NUMBER(38,0)";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "TIMESTAMP_NTZ";
+            case TIMESTAMPTZ -> "TIMESTAMP_LTZ";
+            case JSON -> "VARIANT";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
     @Override
     public boolean refetchesTimestampAsJavaTime() {
         return false;

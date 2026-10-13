@@ -52,6 +52,26 @@ public final class Trino extends AnsiSqlRenderer {
     // ==================================================================
 
     /** The platform's naive-UTC temporal contract. */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INTEGER";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "DECIMAL(38,0)";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "TIMESTAMP(6)";
+            case TIMESTAMPTZ -> "TIMESTAMP(6) WITH TIME ZONE";
+            case JSON -> "JSON";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
     @Override
     public List<String> sessionSetup() {
         return List.of("SET TIME ZONE 'UTC'");

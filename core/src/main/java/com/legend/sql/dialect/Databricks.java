@@ -42,6 +42,25 @@ public final class Databricks extends AnsiSqlRenderer {
     /** No java.time re-fetch (measured 2026-10-11): its driver answers getObject(int, LocalDateTime.class)
      *  with the timestamp as text. A timestamp cell keeps the driver's Timestamp;
      *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INT";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "DECIMAL(38,0)";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "STRING";
+            case DATE -> "DATE";
+            case TIMESTAMP, TIMESTAMPTZ -> "TIMESTAMP";
+            case JSON -> "VARIANT";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
     @Override
     public boolean refetchesTimestampAsJavaTime() {
         return false;

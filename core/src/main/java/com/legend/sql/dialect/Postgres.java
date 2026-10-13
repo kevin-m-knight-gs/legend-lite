@@ -49,6 +49,26 @@ public final class Postgres extends AnsiSqlRenderer {
      * read as {@code jsonb} (Postgres refuses the cast), and {@code inet} as VARCHAR, which Postgres
      * will not search as text.
      */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INTEGER";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "NUMERIC(38)";
+            case DOUBLE -> "DOUBLE PRECISION";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "TIMESTAMP";
+            case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            case JSON -> "JSONB";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
     @Override
     public CatalogType catalogType(CatalogModel.Column column) {
         return CATALOG_RULES.typeOf(column);
@@ -623,7 +643,28 @@ public final class Postgres extends AnsiSqlRenderer {
             // a struct with one field set (struct_insert): the jsonb object, the field replaced or added
             case STRUCT_INSERT -> writer.append("(").expr(c.args().get(0), 0).append(" || jsonb_build_object(")
                     .expr(c.args().get(1), 0).append(", ").expr(c.args().get(2), 0).append("))");
-            default -> postgresCall(writer, c, parentPrec);
+            // every other function, by name: inherited from the parent dialect as written today (the dialect
+            // program's Phase 1, 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
+            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
+                 DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
+                 LOWER, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_EXISTS,
+                 LIST_FOR_ALL, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH, SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS,
+                 TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH, CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR,
+                 BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL,
+                 REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT,
+                 MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
+                 LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, SPLIT, SPLIT_PART, PURE_SPLIT_PART, REVERSE_STRING,
+                 ASCII_CODE, CHR, UC_FIRST, LC_FIRST, ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1,
+                 SHA256, EXTRACT, TODAY, NOW, DATE_TRUNC_DAY, MAKE_DATE, MAKE_TIMESTAMP, DATE_TRUNC, ADD_INTERVAL,
+                 DATE_DIFF, TIME_BUCKET, TIMEZONE, ADD_INTERVAL_TEMPORAL, EPOCH_SECONDS, EPOCH_MS,
+                 FROM_EPOCH_SECONDS, FROM_EPOCH_MS, DAYNAME, MONTHNAME, COT, RADIANS, DEGREES, INT_DIVIDE,
+                 REPEAT_STR, JARO_WINKLER, DECODE_BASE64, CURRENT_USER_FN, LIST_LENGTH, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
+                 LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME,
+                 STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF, ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT,
+                 BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
+                    postgresCall(writer, c, parentPrec);
         };
     }
 

@@ -1198,16 +1198,20 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     /** SQL type → CAST spelling: scalar LEAVES from {@link TypeNames}
      * (absence loud), composite RULES structural and shared. */
+    /** A scalar type's name: each concrete dialect decides every scalar in its own switch (the dialect program's
+     *  Phase 1, 2026-10-13; DialectVocabularyTest); the base's row is the portable renderer's alone. */
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        String n = typeNames.scalarNames().get(s);
+        if (n == null) {
+            throw new IllegalStateException(s + " cast reached a"
+                    + " dialect without " + s + " support");
+        }
+        return n;
+    }
+
     protected final String castTypeName(com.legend.sql.SqlType t) {
         return switch (t) {
-            case com.legend.sql.SqlType.Scalar s -> {
-                String n = typeNames.scalarNames().get(s);
-                if (n == null) {
-                    throw new IllegalStateException(s + " cast reached a"
-                            + " dialect without " + s + " support");
-                }
-                yield n;
-            }
+            case com.legend.sql.SqlType.Scalar s -> scalarTypeName(s);
             case com.legend.sql.SqlType.Decimal d ->
                     "DECIMAL(" + d.precision() + ", " + d.scale() + ")";
             case com.legend.sql.SqlType.Array a -> arrayTypeName(castTypeName(a.element()));

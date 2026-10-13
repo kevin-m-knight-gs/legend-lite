@@ -82,6 +82,25 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** Nothing to set: a BigQuery session's zone is UTC unless a statement names one (measured {@code @@time_zone}),
      *  which is the platform's naive-UTC contract -- CURRENT_DATETIME() is the UTC wall time, a TIMESTAMP reads as
      *  its UTC DATETIME. (A SET would need a session-mode connection; each JDBC statement is its own job.) */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOL";
+            case INTEGER, BIGINT -> "INT64";
+            case HUGEINT -> "BIGNUMERIC";
+            case DOUBLE -> "FLOAT64";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "STRING";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "DATETIME";
+            case TIMESTAMPTZ -> "TIMESTAMP";
+            case JSON -> "JSON";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
     @Override
     public List<String> sessionSetup() {
         return List.of();

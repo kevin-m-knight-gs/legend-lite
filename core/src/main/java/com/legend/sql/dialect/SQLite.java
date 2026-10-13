@@ -76,6 +76,27 @@ public final class SQLite extends AnsiSqlRenderer {
     // ==================================================================
 
     /** LIKE is case-insensitive unless the session says otherwise (measured: 'ABC' LIKE 'a%' is 1). */
+    /** A date format's parts: the base's strftime codes (its own strftime helper spells the parts it formats itself)
+     * (the dialect program's Phase 1, 2026-10-13: each dialect
+     *  declares its date-format vocabulary). */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
+            case DOUBLE -> "REAL";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return super.formatText(fl);
+    }
+
     @Override
     public List<String> sessionSetup() {
         return List.of("PRAGMA case_sensitive_like = ON");

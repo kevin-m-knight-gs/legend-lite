@@ -77,6 +77,24 @@ public final class ClickHouse extends AnsiSqlRenderer {
     // ==================================================================
 
     /** No session: the driver speaks HTTP, statement by statement; the settings ride each statement. */
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "Nullable(Bool)";
+            case INTEGER -> "Nullable(Int32)";
+            case BIGINT -> "Nullable(Int64)";
+            case HUGEINT -> "Nullable(Int128)";
+            case DOUBLE -> "Nullable(Float64)";
+            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "Nullable(String)";
+            case DATE -> "Nullable(Date32)";
+            case TIMESTAMP, TIMESTAMPTZ -> "Nullable(DateTime64(6, 'UTC'))";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
     @Override
     public List<String> sessionSetup() {
         return List.of();
