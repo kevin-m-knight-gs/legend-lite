@@ -234,9 +234,10 @@ public class H2 extends AnsiSqlRenderer {
         return part;
     }
 
+    /** The engine's H2 text is H2's own. */
     @Override
-    public boolean rawH2IsNative() {
-        return true;
+    public String fromEngineH2(String statement) {
+        return statement;
     }
 
     /** The server versions this dialect writes for, as prefixes of the version a session reports: 2.1 and 2.2, the

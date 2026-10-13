@@ -41,7 +41,14 @@ public final class CsvSeed {
      *  rows to load ({@code exec.Executor.load} &mdash; an engine's bulk API when
      *  it has one; its text is the one multi-row insert). */
     public sealed interface Step permits Step.Sql, Step.Rows {
-        record Sql(String text) implements Step {
+        /** A statement: written for the database {@code writtenFor} (its connection's declared type, by name;
+         *  decision D2), or by the session's own dialect ({@code writtenFor} null). */
+        record Sql(String text, @com.legend.base.Nullable String writtenFor) implements Step {
+
+            /** The statement as the session runs it: the engine's H2 text translated, any other as written. */
+            public String runOn(com.legend.sql.dialect.SqlDialect dialect) {
+                return dialect.raw(text, writtenFor);
+            }
         }
 
         record Rows(RowLoad load) implements Step {
@@ -103,21 +110,21 @@ public final class CsvSeed {
             // IF NOT EXISTS: idempotent on both engines and on mirrors
             // that already carry the schema.
             if (!defaultSchema) {
-                out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema))));
+                out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema)), null));
             }
             // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
             // engine's own target) has no OR REPLACE for tables — this was
             // the recorded root cause of ~39 'Table already exists' H2
             // replay declines (H2_BACKEND.md §12 step 2); DuckDB accepts
             // the two-statement form identically
-            out.add(new Step.Sql(dialect.render(Ddl.dropTable(defaultSchema ? null : schema, table))));
+            out.add(new Step.Sql(dialect.render(Ddl.dropTable(defaultSchema ? null : schema, table)), null));
             // THE ONE DDL PRODUCER: the store's declared column types,
             // spelled for the target (the engine creates what the store
             // declares — its setUpDataSQLs reads the metamodel's types)
-            out.add(new Step.Sql(dialect.render(Ddl.createTable(def.get(), defaultSchema ? null : schema))));
+            out.add(new Step.Sql(dialect.render(Ddl.createTable(def.get(), defaultSchema ? null : schema)), null));
         } else {
             out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDml.DeleteAll(
-                    defaultSchema ? null : schema, table))));
+                    defaultSchema ? null : schema, table)), null));
         }
         // F7.5: ONE multi-row INSERT per block — the statement count is
         // the seed cost (task #14: per-statement parse+plan+JNI), and
@@ -234,7 +241,8 @@ public final class CsvSeed {
                             instanceof com.legend.model.ConnectionSpecification.LocalH2 h2) {
                         if (h2.testDataSetupSqls() != null) {
                             for (String sql : h2.testDataSetupSqls()) {
-                                out.add(new Step.Sql(sql));
+                                // written in the database the connection declares (D2)
+                                out.add(new Step.Sql(sql, cd.databaseType().name()));
                             }
                         }
                         if (h2.testDataSetupCsv() != null) {
@@ -248,9 +256,4 @@ public final class CsvSeed {
         return out;
     }
 
-    /** A raw (H2-spelled) setup statement for the session's dialect. */
-    public static String adaptRaw(String sql, com.legend.sql.dialect.SqlDialect dialect) {
-        return dialect.rawH2IsNative() ? sql
-                : com.legend.sql.dialect.RawSqlBoundary.h2ToDuckDb(sql, dialect.rawTarget());
-    }
 }

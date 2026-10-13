@@ -584,7 +584,8 @@ public final class Lowerer {
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw ->
                     SqlSelect.starOf(new SqlSource.RawSql(   // Phase 1c
-                            raw.sql(), nextAlias(), outputsOf(raw.info(), OutputCol.Origin.DERIVED)));
+                            raw.sql(), nextAlias(), outputsOf(raw.info(), OutputCol.Origin.DERIVED),
+                            raw.writtenFor()));
 
             // leg 3.4 step 2: a planned frame, referenced by name (FrameRefs)
             case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this, fr);

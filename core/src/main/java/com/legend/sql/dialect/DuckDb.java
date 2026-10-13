@@ -52,6 +52,13 @@ public final class DuckDb extends AnsiSqlRenderer {
         return strftimeText(fl);
     }
 
+    /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
+     *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
+    @Override
+    public String fromEngineH2(String statement) {
+        return RawSqlBoundary.h2ToDuckDb(statement);
+    }
+
     /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too). */
     @Override
@@ -517,7 +524,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                         new QuantileOrder(),
                         new UnqualifyPivotArgs(), new FoldToListReduce(),
                         new CheckedDefectsToLists(),
-                        new SubstringClamp(), new RawSqlAdapt()));
+                        new SubstringClamp()));
         if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
             ps.add(new StableScanOrder());
         }

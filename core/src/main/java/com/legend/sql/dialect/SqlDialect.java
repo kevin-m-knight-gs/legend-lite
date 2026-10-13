@@ -59,10 +59,6 @@ public interface SqlDialect {
         return jdbcValue;
     }
 
-    /** True when corpus-authored raw H2 statements execute NATIVELY on
-     * this dialect's session — the {@code RawSqlBoundary.h2ToDuckDb}
-     * rewrite is a DUCKDB-TARGET adaptation and must be identity here
-     * (H2_BACKEND.md §12 step 12). */
     /** Whether dynamic PIVOT needs the two-phase staticization
      * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
      * dynamic pivot on this backend). */
@@ -70,15 +66,17 @@ public interface SqlDialect {
         return false;
     }
 
-    default boolean rawH2IsNative() {
-        return false;
-    }
+    /**
+     * A raw statement as this session runs it (decision D2, the dialect program's Phase 1c): raw text is in the language
+     * of the database its connection DECLARES ({@code writtenFor}, that type's name), and is translated only when it
+     * runs on another. The engine's H2 text (legend-engine's test database's: its corpus's setup, an H2 connection's
+     * {@code executeInDb}) is this dialect's {@link #fromEngineH2}; text written for any other database, or by this
+     * session's own dialect ({@code writtenFor} null), runs as written, as legend-engine sends it.
+     */
+    String raw(String statement, @com.legend.base.Nullable String writtenFor);
 
-    /** Whom the corpus's raw H2 text is translated for (RawSqlBoundary, where the translation lives): DuckDB's
-     *  flavor unless a dialect says otherwise. */
-    default RawSqlBoundary.Target rawTarget() {
-        return RawSqlBoundary.Target.DUCKDB;
-    }
+    /** One statement of the engine's H2 text as this database runs it: H2's own, translated, or refused by name. */
+    String fromEngineH2(String statement);
 
     /** An effect segment's statements as ONE script (block-compiler stage 3): the
      *  target decides its transaction bracket INSIDE its dialect — DuckDB brackets

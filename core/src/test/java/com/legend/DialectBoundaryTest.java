@@ -67,12 +67,10 @@ class DialectBoundaryTest {
      *  ({@code Sessions.jdbcProduct}). */
     private static final String NAMES = TYPES + "|PostgreSQL|SparkSQL|Google BigQuery";
 
-    /** {@code rawH2IsNative()} CALLS outside the dialect package, by file. */
-    private static final Map<String, Integer> RAW_H2_CALLERS = Map.of(
-            // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
-            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: adaptRaw moved with the text half
-            // (setup/CsvSeed.java), the file name and count unchanged
-            "CsvSeed.java", 1);   // adaptRaw — the raw-SQL boundary (moved from StatementExecutor 2026-09-27 with the setup loop, CsvSeed.run; one site still)
+    /** {@code rawH2IsNative()} CALLS outside the dialect package, by file. None: the hook is gone (2026-10-13, the
+     *  dialect program's Phase 1c, decision D2) -- raw text runs by the database its connection declares, which the
+     *  dialect decides ({@code SqlDialect.raw}). The census stays, so the hook cannot come back unseen. */
+    private static final Map<String, Integer> RAW_H2_CALLERS = Map.of();
 
     /** Lines naming a target ({@code DatabaseType.H2} / {@code .DuckDB} / {@code .Postgres})
      *  outside the dialect package, by file. Carrying a type as DATA needs

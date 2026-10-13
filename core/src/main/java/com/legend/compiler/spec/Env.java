@@ -127,6 +127,13 @@ public final class Env {
         return v;
     }
 
+    /** The let-bound alias of the variable named {@code name}, stepped transitively as {@link #resolveAlias} does;
+     *  null when it has none (a parameter, a lambda binder, an unaliased let). */
+    public com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification aliasOf(String name) {
+        com.legend.protocol.spec.ValueSpecification next = exprAliases.get(name);
+        return next == null ? null : resolveAlias(next);
+    }
+
     /** The whole let-alias channel (name &rarr; raw rhs), for consumers
      * that must CLOSE a captured expression over its free let references
      * (the test-data-generation checkers substitute into their query

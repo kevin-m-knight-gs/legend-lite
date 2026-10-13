@@ -131,13 +131,17 @@ public sealed interface SqlSource {
                   List<OutputCol> outputs) implements SqlSource {
     }
 
-    /** A CORPUS-AUTHORED raw SQL text as a relation source —
+    /** An AUTHORED raw SQL text as a relation source —
      * {@code (rawSql) AS alias} (One-Platform Plan Phase 1: the typed
      * {@code executeInDb} result grid; columns from the LIMIT-0 schema
      * probe). The text is CARRIED data (a user/test-authored query),
-     * never platform-composed SQL — the SQL-text ratchet's distinction. */
-    record RawSql(String sql, String alias, List<OutputCol> outputs)
-            implements SqlSource {
+     * never platform-composed SQL — the SQL-text ratchet's distinction.
+     * {@code writtenFor} is the database its connection declares (that
+     * type's name): the dialect translates the engine's H2 text and runs
+     * any other as written (decision D2); null for the platform's own
+     * text (a catalog grid's), written in the session's language. */
+    record RawSql(String sql, String alias, List<OutputCol> outputs,
+            @com.legend.base.Nullable String writtenFor) implements SqlSource {
     }
 
     /** {@code on} is KIND-COUPLED, enforced at construction: the CROSS

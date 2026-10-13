@@ -40,6 +40,13 @@ import java.util.Set;
  */
 public final class Databricks extends AnsiSqlRenderer {
 
+    /** The engine's H2 text is refused here: Databricks has no translation of it (decision D2: raw text runs on the
+     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+    @Override
+    public String fromEngineH2(String statement) {
+        throw new DialectCapability("the engine's H2 text reached Databricks, which has no translation of it");
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override

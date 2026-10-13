@@ -1309,10 +1309,10 @@ final class StatementExecutor {
      * included) out of the resolver. */
     static com.legend.resolver.RawGridSchema.SchemaOracle gridOracle(
             java.sql.Connection connection, ExecEnv env) {
-        return sql -> {
+        return (sql, writtenFor) -> {
             try {
                 return com.legend.exec.GridProbe.probeTypedColumns(
-                        sql, connection, env.dialect());
+                        sql, writtenFor, connection, env.dialect());
             } catch (java.sql.SQLException e) {
                 throw new IllegalStateException(e);
             }
@@ -1911,7 +1911,13 @@ final class StatementExecutor {
         java.util.List<com.legend.setup.CsvSeed.Step> setups = new java.util.ArrayList<>();
         for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
             for (String sql : fr.sqlSetups()) {
-                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql));
+                // written in the database the from()'s connection declares (decision D2)
+                String writtenFor = fr.context().databaseType();
+                if (writtenFor == null) {
+                    throw new com.legend.error.NotImplementedException("setup SQL over a connection whose declared"
+                            + " database is not statically readable: the language of its text is unknown (decision D2)");
+                }
+                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql, writtenFor));
             }
             setups.addAll(com.legend.setup.CsvSeed.setupSteps(fr, env.ctx(), env.dialect()));
             // an ELEMENT runtime named by the from(): its declared
@@ -2839,12 +2845,17 @@ final class StatementExecutor {
      * evaluation. The blob is dialect-adapted, split on top-level
      * {@code ;}, and executed statement by statement.
      */
-    /** Corpus-authored raw H2 adapts to the SESSION: identity on a
-     * dialect that executes H2 natively, the boundary translator for the
-     * DuckDB reference target (H2_BACKEND.md §12 step 12 — the rewrite
-     * is a DuckDB-target adaptation, never generic). */
-    private static String adaptRaw(String sql, ExecEnv env) {
-        return com.legend.setup.CsvSeed.adaptRaw(sql, env.dialect());
+    /** The database {@code executeInDb}'s text is written for: the one its connection argument declares (decision
+     *  D2, the dialect program's Phase 1c), read statically (lets chased) -- every corpus call's reads, measured
+     *  2026-10-13 (122,823 of 122,823, as H2). One that cannot be read is refused: the text's language is unknown. */
+    private static String writtenFor(java.util.List<TypedSpec> body, TypedSpec connection) {
+        TypedSpec c = com.legend.compiler.spec.typed.Lets.bound(connection, body);
+        String db = com.legend.compiler.spec.typed.ExecutionContext.declaredDatabase(c);
+        if (db == null) {
+            throw new com.legend.error.NotImplementedException("executeInDb over a connection whose declared"
+                    + " database is not statically readable: the language of its SQL is unknown (decision D2)");
+        }
+        return db;
     }
 
     /** THE ONE SEND of an effect native (block-compiler stage 3, 2026-09-21): with a
@@ -2918,13 +2929,15 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String raw = evalStringArg(body, call.args().get(0), env);
-        // split FIRST: adaptation is per-statement (its recognizers anchor
-        // at statement start). Corpus-authored raw H2 goes through THE
-        // boundary translator — never a dialect renderer (R0 rule).
+        String writtenFor = writtenFor(body, call.args().get(1));
+        // split FIRST: translation is per-statement (its recognizers anchor
+        // at statement start). The engine's H2 text crosses THE boundary
+        // translator through the session's dialect, any other runs as
+        // written (decision D2).
         for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
             // recorded AFTER it executes, with its kind: the ledger
             // mirrors executed reality by construction
-            sendEffect(env, adaptRaw(stmt, env), stmt, com.legend.exec.StatementOrigin.RAW, false);
+            sendEffect(env, env.dialect().raw(stmt, writtenFor), stmt, com.legend.exec.StatementOrigin.RAW, false);
         }
         // an opaque ResultSet handle: setup statements ignore it; a test
         // that READS it will surface loudly here when that day comes

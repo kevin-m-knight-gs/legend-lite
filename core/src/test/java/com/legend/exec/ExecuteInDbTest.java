@@ -24,15 +24,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The K-native {@code executeInDb} dispatch ({@code Compiler}): raw SQL
  * executes over the AMBIENT connection — the connection ARGUMENT (the
- * corpus's {@code testRuntime()->connectionByElement(...)} chain) exists to
- * type-check and is never evaluated. The SQL argument is an ordinary Pure
- * expression evaluated through the pipeline; the resulting blob is
- * dialect-adapted (keyword column quoting, {@code CURRENT_TIMESTAMP()}) and
- * split on top-level {@code ;}.
+ * corpus's {@code testRuntime()->connectionByElement(...)} chain) is never
+ * evaluated; it is read statically for the database it declares, the
+ * language of the SQL (decision D2). The SQL argument is an ordinary Pure
+ * expression evaluated through the pipeline; the resulting blob is split on
+ * top-level {@code ;}, and the engine's H2 text is translated for the session
+ * (keyword column quoting, {@code CURRENT_TIMESTAMP()}), any other run as
+ * written.
  */
 class ExecuteInDbTest {
 
+    /** A connection declaring the engine's H2: its SQL is H2's, translated for the DuckDB session (decision D2). */
     private static final String CONN_LET =
+            "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                    + "type=meta::relational::runtime::DatabaseType.H2);\n";
+
+    /** A connection declaring DuckDB, the session's own database: its SQL runs as written. */
+    private static final String DUCKDB_CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                     + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
 
@@ -66,6 +74,29 @@ class ExecuteInDbTest {
             assertTrue(rs.next());
             assertEquals(7, rs.getInt(1));
             assertEquals("x", rs.getString(2));
+        }
+    }
+
+    @Test
+    @DisplayName("executeInDb: text written for the session's own database runs as written (decision D2)")
+    void ownDatabaseTextRunsAsWritten() throws Exception {
+        // H2's FLOAT is an 8-byte double, which the engine's H2 text maps to DOUBLE; on a connection declaring
+        // DuckDB the text is DuckDB's, whose FLOAT (a 4-byte REAL) stays
+        Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), DUCKDB_CONN_LET
+                + "meta::relational::metamodel::execute::executeInDb('Create Table fOwn(f FLOAT);', $c, 0, 1000);}",
+                StorelessRuntime.RUNTIME, conn);
+        Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+                + "meta::relational::metamodel::execute::executeInDb('Create Table fH2(f FLOAT);', $c, 0, 1000);}",
+                StorelessRuntime.RUNTIME, conn);
+        try (Statement st = conn.createStatement();
+                ResultSet rs = st.executeQuery("select table_name, data_type from information_schema.columns"
+                        + " where table_name in ('fOwn', 'fH2') order by table_name")) {
+            assertTrue(rs.next());
+            assertEquals("fH2", rs.getString(1));
+            assertEquals("DOUBLE", rs.getString(2), "the engine's H2 FLOAT, translated");
+            assertTrue(rs.next());
+            assertEquals("fOwn", rs.getString(1));
+            assertEquals("FLOAT", rs.getString(2), "DuckDB's own FLOAT, as written");
         }
     }
 

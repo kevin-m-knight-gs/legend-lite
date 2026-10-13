@@ -190,10 +190,10 @@ public final class Postgres extends AnsiSqlRenderer {
         return "ROLLBACK";
     }
 
-    /** The corpus's raw H2 text in DuckDB's flavor, its types Postgres's (DOUBLE PRECISION, no TINYINT). */
+    /** The engine's H2 text in DuckDB's flavor, its types Postgres's (DOUBLE PRECISION, no TINYINT). */
     @Override
-    public RawSqlBoundary.Target rawTarget() {
-        return RawSqlBoundary.Target.POSTGRES;
+    public String fromEngineH2(String statement) {
+        return RawSqlBoundary.h2ToPostgres(statement);
     }
 
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic

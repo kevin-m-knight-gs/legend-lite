@@ -25,22 +25,29 @@ import java.util.function.UnaryOperator;
  * {@code testDataSetupCsv}, {@code quoteIdentifiers}, {@code timeZone},
  * {@code type}, {@code element}, {@code url}) — over a typed value, a
  * let-bound variable (chased through {@code bind}) or a helper call's raw
- * body (through {@code fnBody}; nested helpers depth-capped). Package-
+ * body (through {@code overloads}; nested helpers depth-capped). Package-
  * private: readers are minted through {@link ExecutionContext#reader()}.
  */
 final class ContextReading {
-    private final Function<String, Optional<List<ValueSpecification>>> fnBody;
+    private final Function<String, List<com.legend.compiler.element.TypedFunction>> overloads;
     private final UnaryOperator<TypedSpec> bind;
     private final UnaryOperator<String> canon;
     private final Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy;
 
-    ContextReading(Function<String, Optional<List<ValueSpecification>>> fnBody,
+    ContextReading(Function<String, List<com.legend.compiler.element.TypedFunction>> overloads,
             UnaryOperator<TypedSpec> bind, UnaryOperator<String> canon,
             Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy) {
-        this.fnBody = fnBody;
+        this.overloads = overloads;
         this.bind = bind;
         this.canon = canon;
         this.dbOfCopy = dbOfCopy;
+    }
+
+    /** A helper's raw body by name: the first overload with one (the chain's, the JSON sources' and the setups'
+     *  rule; the database type reads every overload of the call's arity, {@link #rawDatabaseType}). */
+    private Optional<List<ValueSpecification>> fnBody(String fqn) {
+        return overloads.apply(fqn).stream().map(com.legend.compiler.element.TypedFunction::body)
+                .filter(Optional::isPresent).map(Optional::get).findFirst();
     }
 
     ExecutionContext read(Optional<TypedPackageableRef> mapping,
@@ -64,7 +71,7 @@ final class ContextReading {
         return new ExecutionContext(mapping, Optional.empty(), chain, json, sql, csv,
                 connectionName(runtimeArg), quoteIdentifiers(runtimeArg),
                 timeZone(runtimeArg),
-                conn == null ? null : databaseType(conn), conn,
+                conn != null ? databaseType(conn) : helperDatabaseType(runtimeArg), conn,
                 storeFqn(runtimeArg), false, List.of(), postProcessors(runtimeArg),
                 java.util.Set.of());
     }
@@ -548,7 +555,7 @@ final class ContextReading {
                 }
                 if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
-                    var body = fnBody.apply(af.function());
+                    var body = fnBody(af.function());
                     if (body.isPresent()) {
                         for (var b : body.get()) {
                             collectChainRaw(b, out, depth + 1);
@@ -704,7 +711,7 @@ final class ContextReading {
                 }
                 if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
-                    var body = fnBody.apply(af.function());
+                    var body = fnBody(af.function());
                     if (body.isPresent()) {
                         Map<String, ValueSpecification> inner = new java.util.HashMap<>();
                         for (var b : body.get()) {
@@ -801,6 +808,78 @@ final class ContextReading {
     static String databaseType(TypedNewInstance conn) {
         return conn.properties().get("type") instanceof TypedEnumValue ev
                 ? String.valueOf(ev.value()) : "H2";
+    }
+
+    /** The DatabaseType of the first connection instance in a helper call's raw body, met where the value holds no
+     *  typed instance ({@code testRuntime()}, {@code createTestDatabaseConnection()}): read as the setups are, nested
+     *  helpers through their overloads, depth-capped. Null when none appears, or when overloads disagree. */
+    private @com.legend.base.Nullable String helperDatabaseType(TypedSpec n) {
+        if (n instanceof TypedVariable) {
+            TypedSpec b = chase(n);
+            return b == n ? null : helperDatabaseType(b);
+        }
+        if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
+            for (ValueSpecification b : uc.callee().body().get()) {
+                String r = rawDatabaseType(b, 0);
+                if (r != null) {
+                    return r;
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            String r = helperDatabaseType(c);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    private @com.legend.base.Nullable String rawDatabaseType(ValueSpecification v, int depth) {
+        if (v instanceof com.legend.protocol.spec.NewInstance ni
+                && PlatformTypes.relationalConnectionSimpleName(ni.className()) != null) {
+            com.legend.protocol.spec.KeyExpression ke = ni.first("type");
+            return ke != null && ke.value() instanceof com.legend.protocol.spec.EnumValue ev ? ev.value() : "H2";
+        }
+        List<ValueSpecification> kids = switch (v) {
+            case com.legend.protocol.spec.NewInstance ni -> ni.properties().stream()
+                    .map(b -> b.expression().value()).toList();
+            case com.legend.protocol.spec.AppliedFunction af -> af.parameters();
+            case com.legend.protocol.spec.PureCollection pc -> pc.values();
+            case com.legend.protocol.spec.LambdaFunction lf -> lf.body();
+            default -> List.of();
+        };
+        for (ValueSpecification c : kids) {
+            String r = rawDatabaseType(c, depth);
+            if (r != null) {
+                return r;
+            }
+        }
+        if (v instanceof com.legend.protocol.spec.AppliedFunction af && depth < 3
+                && !com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
+            // an unchecked body names its callee, not the overload: every overload of the call's arity is read, and
+            // the database is theirs only when those that declare one agree (testRuntime(db)'s four answer H2)
+            String agreed = null;
+            for (com.legend.compiler.element.TypedFunction f : overloads.apply(af.function())) {
+                if (f.parameters().size() != af.parameters().size() || f.body().isEmpty()) {
+                    continue;
+                }
+                String r = null;
+                for (ValueSpecification b : f.body().get()) {
+                    r = rawDatabaseType(b, depth + 1);
+                    if (r != null) {
+                        break;
+                    }
+                }
+                if (r != null && agreed != null && !agreed.equals(r)) {
+                    return null;
+                }
+                agreed = r != null ? r : agreed;
+            }
+            return agreed;
+        }
+        return null;
     }
 
     /** The connection's plan-text spelling ({@code DatabaseConnection(type =

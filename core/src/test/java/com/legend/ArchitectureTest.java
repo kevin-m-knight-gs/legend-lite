@@ -887,8 +887,9 @@ final class ArchitectureTest {
         noClasses()
             .that().haveNameNotMatching(
                     // sql.AliasPrefix (leg 3.4 step 2): re-aliases an EXISTING RawSql
-                    // node — the authored text rides through verbatim, like RawSqlAdapt
-                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.dialect\\.RawSqlAdapt|sql\\.AliasPrefix)(\\$.*)?")
+                    // node — the authored text rides through verbatim (RawSqlAdapt is gone, 2026-10-13: the
+                    // renderer translates the text in place, SqlDialect.raw)
+                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain

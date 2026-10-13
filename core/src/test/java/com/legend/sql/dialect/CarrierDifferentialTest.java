@@ -652,6 +652,11 @@ class CarrierDifferentialTest {
         }
 
         @Override
+        public String fromEngineH2(String statement) {
+            return duck.fromEngineH2(statement);
+        }
+
+        @Override
         protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
             return duck.call(writer, c, parentPrec);
         }

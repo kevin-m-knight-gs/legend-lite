@@ -362,9 +362,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .append(vp.varName()).append("}) as ")
                     .append(aliasIdent(vp.alias()));
             case SqlSource.Values v -> valuesSource(writer, v);
-            // corpus-authored raw SQL as a relation source (Phase 1:
-            // the typed executeInDb grid) — carried text, parenthesized
-            case SqlSource.RawSql r -> writer.append("(").append(r.sql())
+            // authored raw SQL as a relation source (the typed executeInDb grid) — carried text, parenthesized, in
+            // this session's language (raw: the engine's H2 text translated, any other as written)
+            case SqlSource.RawSql r -> writer.append("(").append(raw(r.sql(), r.writtenFor()))
                     .append(") AS ").append(aliasIdent(r.alias()));
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
@@ -1063,6 +1063,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .join(r.orderBy(), ", ", this::aggregateOrderKey);
         }
         return writer.append(")");
+    }
+
+    /** {@inheritDoc} The engine's H2 text is the one translated language: its connection declares
+     *  {@link RawSqlBoundary#ENGINE_H2}. */
+    @Override
+    public final String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+        return RawSqlBoundary.ENGINE_H2.equals(writtenFor) ? fromEngineH2(statement) : statement;
     }
 
     /** A lowering-internal pseudo-aggregate ({@link SqlAgg.Fn#marker}) reached a renderer: the lowering's bug. */
