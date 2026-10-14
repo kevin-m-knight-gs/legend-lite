@@ -86,6 +86,17 @@ public interface InputDialect {
     /** {@code b}'s translation: its operands are translated {@code at} its place. */
     SqlToPure.Tx binary(SqlAst.Binary b, SqlToPure.At at);
 
+    /** {@code u}'s translation ({@code -x}, {@code +x}, {@code NOT c}): Postgres's unless the dialect says otherwise. */
+    default SqlToPure.Tx unary(SqlAst.Unary u, SqlToPure.At at) {
+        return at.postgresUnary(u);
+    }
+
+    /** The count of a row limit, {@code clause} {@code LIMIT} or {@code OFFSET} (the query's {@link SqlAst.Select#limit}
+     *  and {@link SqlAst.Select#offset}): Postgres's is a non-negative integer constant, as written. */
+    default com.legend.protocol.spec.ValueSpecification rowCount(SqlAst.Expr count, String clause) {
+        return SqlToPure.count(count, clause);
+    }
+
     /** Values that are one value's alternatives, as one type -- a CASE's results ({@code what} names the construct,
      *  for the dialect's errors): each value, read as that type where it is read otherwise ({@code exprs[i]} is
      *  {@code values[i]}'s expression), and the type's kind. */

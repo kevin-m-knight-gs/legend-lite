@@ -388,9 +388,11 @@ legend_java_library(
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
-            # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's
+            # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
+            # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
             "src/test/java/com/legend/server/IqParityPostgresTest.java",
+            "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
@@ -786,6 +788,31 @@ junit_test(
     deps = [
         ":core",
         ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE #IQ{...}# ISLAND'S SYNTAX-CASE RATCHET (docs/IQ_SQL_STUDY_2026_10_13.md §6.4): the research's derived syntax cases
+# (iq-parity/syntax-cases.jsonl: probe, options, policy, SQL Anywhere's outcome), each read by the island's reader and
+# given a verdict, the counts and the known wrong verdicts held by iq-parity/syntax-pins.tsv, which only improves.
+junit_test(
+    name = "iq_syntax_cases_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java"],
+    data = [
+        "src/test/resources/iq-parity/syntax-cases.jsonl",
+        "src/test/resources/iq-parity/syntax-pins.tsv",
+    ],
+    jvm_flags = [
+        "-Diq.syntax.cases=$(rlocationpath src/test/resources/iq-parity/syntax-cases.jsonl)",
+        "-Diq.syntax.pins=$(rlocationpath src/test/resources/iq-parity/syntax-pins.tsv)",
+    ],
+    select = ["--select-class=com.legend.protocol.sql.iq.IqSyntaxCasesTest"],
+    deps = [
+        ":core",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

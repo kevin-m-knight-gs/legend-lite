@@ -306,6 +306,27 @@ source; there is nothing to port.
     UNSUPPORTED and its message names the decision.
   - The rest of the research's ten highest risks (D-R1, D-C7, D-N2, D-C1/D-C2) are reached in later slices; each is
     put to the same test when its slice comes. **A refusal by name is always better than a possibly wrong answer.**
+  - **D-E2, provisional (the lead, 2026-10-14; the second review's B2).** The research has no rule for the order in
+    which a search condition's operands are evaluated, and its D-E1 is the engine of a mixed statement, so this one
+    takes the next number. When an operand of AND or OR in a WHERE can raise a run-time error (an integer result out
+    of its type, a zero divisor), whether it is computed for a row that another operand already decides is a matter
+    of the plan, in IQ and in lite's databases alike: SQL Anywhere computed such an operand for rows another operand
+    excluded, except when an equality filter ran first, while DuckDB and Postgres skip it. So lite may answer where
+    IQ raises (or raise where IQ answers); where no row raises, the two answers never differ. Ordinary WHERE
+    arithmetic is not refused. A parity case whose WHERE puts such an operand beside AND or OR is not judged (`skip:
+    plan-dependent run-time error (D-E2)`) or is rewritten, and the harness fails a judged one (§6.3). AND and OR
+    inside a CASE's or an IF's condition, and the arguments of COALESCE, ISNULL, CASE and IF, are lazy in SQL
+    Anywhere as in lite: outside the decision.
+  - **Refused by name after the second review (2026-10-14):** a select-list alias read inside an ORDER BY expression
+    (IQ reads the alias there; a bare alias or a position is read as before); an operation that can raise (a result
+    that may leave its type, a divisor that may be zero) in the select list or ORDER BY of a statement with TOP,
+    FIRST or START AT (IQ computes the select list only for the rows it keeps; lite's databases may compute it for
+    the rows the limit drops); TOP, FIRST or START AT over a FROM clause without ORDER BY (the rows kept are the
+    plan's choice); an expression whose checked operations would write out more than a bound of Pure nodes (each
+    repeats its operands: about fourfold per nested level, twentyfold per quotient). A constant result out of its
+    type's range is IQ's error at translation only when every operand is a constant IQ folds and none is NULL;
+    otherwise the check runs where the value is computed. A BIGINT result is never checked by lite: the database
+    raises its own overflow first.
 - **I5. The oracle is local; CI judges the committed answers** (§2.3), guarded so that the file cannot silently fall
   behind the cases (§6.3).
 - **I6. One translator.** `SqlToPure` gains an input-dialect seam and Postgres's behaviour moves behind it unchanged;
@@ -445,7 +466,7 @@ never Java computing a value:
 | `lite/*.yaml` | the cases: `id`, `sql`, optional `profile`, `engine`, `skip`; a provisional case adds `decision: D-xx` and `expect:` |
 | `iq-answers.jsonl` | SA's answer per case and profile (§2.3) |
 | `ledger.tsv` | per case: the DuckDB status, the Postgres status, and the judge (`sa:lite_iq`, `sa:lite_sa` or `D-xx`) |
-| `syntax-cases.jsonl` | derived from the research: id, probe SQL, options, policy, SA's outcome. No rule text, no notes, and no probe that reproduces a manual's example (the derivation checks each probe against the manuals' text and drops matches) |
+| `syntax-cases.jsonl` | derived from the research: id, probe SQL, options, policy, SA's outcome. No rule text, no notes, and no probe that reproduces a manual's example. The derivation (re-run 2026-10-14) keeps only the research's own probe families and drops a case whose note or rule marks a documentation example, whose probe shares a run of six words with the manuals' text, or holds a name or a string of twelve characters or more that the manuals print |
 
 ### 6.2 The ledger and the lanes
 
@@ -469,6 +490,12 @@ never Java computing a value:
   If the two Pure texts differ, the rule is engine-dependent, and the case must either name its decision or pin
   `engine: sa`. This is the mechanical form of §2.4.
 - **Crashers:** `snap.py` refuses to send a case matching the known-crashers list.
+- **Evaluation order (D-E2, §4):** a judged case whose WHERE puts arithmetic or NULLIF over a column beside AND or OR
+  fails the lane: its answer depends on IQ's plan, so it is skipped or rewritten.
+- **An `engine: iq` pin needs a decision:** a case SQL Anywhere judges must translate alike under both engines' rules,
+  which a pin to the IQ engine alone would hide.
+- **The judge** compares a both-error's SQLCODE when legend-lite's error names IQ's (`(IQ: SQLCODE n, ...)`): another
+  code than SQL Anywhere's is a FAIL. It compares a NUMERIC column's scale with each of lite's decimal cells.
 
 ### 6.4 The syntax-case ratchet
 

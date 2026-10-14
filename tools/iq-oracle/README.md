@@ -43,7 +43,7 @@ bazel run //tools/iq-oracle:snap -- --check   # the same, through Bazel (it runs
 |---|---|
 | `DRIFT` | SQL Anywhere's answer now differs from the committed one. The line names the fields that differ (`rows`, `columns`, `error`, `sa_build`, `db`). `DRIFT meta` means the databases, server flags or profiles changed. |
 | `UNSNAPPED` | A case (or one of its profiles) has no committed answer. |
-| `STALE` | The committed answer's `sqlSha` no longer matches the case's SQL, its profile or `schema.yaml`. |
+| `STALE` | The committed answer's `sqlSha` no longer matches the case's SQL, its profile, its `decision` and `expect`, or `schema.yaml`. |
 | `GONE` | A committed answer has no live case: the case was deleted, renamed, or is now skipped. |
 | `CRASH` | The case took the server down twice. List it in `known_crashers.txt` or mark it `sa_defect`. |
 | `FAILED` | The tool could not snap the case, for example because the timestamp re-fetch came back with a different shape. |
@@ -173,8 +173,10 @@ or, when SQL Anywhere refuses the statement:
 {"id":…,"profile":…,"db":…,"sa_build":…,"sqlSha":…,"error":{"sqlcode":-143,"sqlstate":"52003","message":"Column 'nope' not found"}}
 ```
 
-**`sqlSha`** is `sha256(utf8(sql) || 0x00 || utf8(profile) || 0x00 || bytes of schema.yaml)`, in lowercase hex.
-`sql` is the YAML scalar after unquoting.
+**`sqlSha`** is `sha256(utf8(sql) || 0x00 || utf8(profile) || 0x00 || utf8(decision) || 0x00 || utf8(expect) || 0x00 ||
+bytes of schema.yaml)`, in lowercase hex (format 2; `decision` and `expect` are empty for a case SQL Anywhere judges).
+`sql`, `decision` and `expect` are the YAML scalars after unquoting. So editing a decided case's rows makes its answer
+STALE, as editing its SQL does.
 
 **`columns`** is one `[name, type, precision, scale]` per column, as SQL Anywhere describes the result.
 - `name` is the column's name as SQL Anywhere derives it, including the expression text for an unnamed column.

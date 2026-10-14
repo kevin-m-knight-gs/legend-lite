@@ -193,7 +193,7 @@ public final class SqlToPure {
      *  divide computes it in double precision, within 2^-52 of it; shrunk by 2^-50 and truncated, the estimate is never
      *  beyond the quotient, so {@code A - q0 * b} (exact integer arithmetic, never beyond A) is a small multiple of the
      *  divisor, divided once more and added. A divisor of zero is Postgres's error and rem's. */
-    private static ValueSpecification integerQuotient(ValueSpecification a, ValueSpecification b) {
+    public static ValueSpecification integerQuotient(ValueSpecification a, ValueSpecification b) {
         ValueSpecification whole = AppliedFunction.infixRun("minus", List.of(a, call("rem", a, b)));
         ValueSpecification shrunk = AppliedFunction.infixRun("times", List.of(call("divide", whole, b),
                 new com.legend.protocol.spec.CFloat(1.0 - Math.pow(2, -50))));
@@ -357,6 +357,10 @@ public final class SqlToPure {
 
         Tx postgresBinary(SqlAst.Binary b) {
             return binary(b, scope, row);
+        }
+
+        Tx postgresUnary(SqlAst.Unary u) {
+            return unary(u, scope, row);
         }
 
         Tx postgresCast(SqlAst.Cast c) {
@@ -1474,11 +1478,11 @@ public final class SqlToPure {
         }
         SqlAst.Expr offset = s.offset();
         if (offset != null) {
-            vs = call("drop", vs, count(offset, "OFFSET"));
+            vs = call("drop", vs, dialect.rowCount(offset, "OFFSET"));
         }
         SqlAst.Expr limit = s.limit();
         if (limit != null) {
-            vs = call("limit", vs, count(limit, "LIMIT"));
+            vs = call("limit", vs, dialect.rowCount(limit, "LIMIT"));
         }
         return new Rel(vs, columns);
     }
@@ -2569,11 +2573,11 @@ public final class SqlToPure {
         }
         SqlAst.Expr offset = s.offset();
         if (offset != null) {
-            relation = call("drop", relation, count(offset, "OFFSET"));
+            relation = call("drop", relation, dialect.rowCount(offset, "OFFSET"));
         }
         SqlAst.Expr limit = s.limit();
         if (limit != null) {
-            relation = call("limit", relation, count(limit, "LIMIT"));
+            relation = call("limit", relation, dialect.rowCount(limit, "LIMIT"));
         }
         List<OutCol> columns = new ArrayList<>();
         for (Output o : outputs) {
@@ -2653,7 +2657,7 @@ public final class SqlToPure {
         return value.bitLength() < Long.SIZE ? new CInteger(value.longValue()) : new CInteger(value);
     }
 
-    private static CInteger count(SqlAst.Expr e, String clause) {
+    static CInteger count(SqlAst.Expr e, String clause) {
         if (e instanceof SqlAst.IntegerLit n && n.value().signum() >= 0) {
             return integer(n.value());
         }
@@ -3280,12 +3284,16 @@ public final class SqlToPure {
         return t;
     }
 
-    /** A column's value; a boolean column is a condition (TRUE when it holds true, FALSE when it holds false). */
+    /** A column's value; a boolean column is a condition (TRUE when it holds true, FALSE when it holds false). Either
+     *  carries what the dialect knows of the column's type ({@link InputDialect#read} reads it). */
     private static Tx columnValue(String row, Col c) {
         String var = c.var();
         ValueSpecification v = property(var != null ? var : row, c.name());
-        return c.kind() == Kind.BOOLEAN ? booleanValue(v, c.nullable()) : Tx.value(v, c.kind(), c.nullable(),
-                c.detail());
+        if (c.kind() == Kind.BOOLEAN) {
+            Tx b = booleanValue(v, c.nullable());
+            return c.detail() == null ? b : new Tx(b.vs(), b.kind(), b.nullable(), b.whenFalse(), c.detail());
+        }
+        return Tx.value(v, c.kind(), c.nullable(), c.detail());
     }
 
     /** A boolean VALUE (a column, a CASE, a coalesce) as a condition. A nullable one's tests say "known and true",
@@ -3424,7 +3432,7 @@ public final class SqlToPure {
             case SqlAst.TypedLit lit -> dialect.literal(lit);
             case SqlAst.Param p -> throw SqlTranslationException.unsupported("parameters ($" + p.index() + ") are not"
                     + " supported yet", p.pos());
-            case SqlAst.Unary u -> unary(u, scope, row);
+            case SqlAst.Unary u -> dialect.unary(u, new At(scope, row));
             case SqlAst.Binary b -> dialect.binary(b, new At(scope, row));
             case SqlAst.Operator o when o.left() != null && JSON_OPERATORS.contains(o.operator()) ->
                     jsonOperator(o, scope, row);
@@ -3700,8 +3708,14 @@ public final class SqlToPure {
         return k == Kind.DATE || k == Kind.DATETIME;
     }
 
-    /** Values resolved to one type, and that type's kind. */
-    public record Common(List<Tx> values, Kind kind) {
+    /** Values resolved to one type, that type's kind, and what the dialect knows of the type beyond its kind (none in
+     *  Postgres's). */
+    public record Common(List<Tx> values, Kind kind, InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+
+        /** Values resolved to one type of no {@link InputDialect.TypeDetail}. */
+        public Common(List<Tx> values, Kind kind) {
+            this(values, kind, null);
+        }
     }
 
     /** The results of a CASE, or the arguments of COALESCE, GREATEST or LEAST, as one type, by Postgres's resolution
@@ -4128,7 +4142,11 @@ public final class SqlToPure {
             // every result a NULL: Postgres resolves the CASE as text (ceil of it is Postgres's error)
             return nullOf(Kind.NULL);
         }
-        return kind == Kind.BOOLEAN ? booleanValue(vs, nullable) : Tx.value(vs, kind, nullable);
+        if (results.detail() != null && values.stream().allMatch(SqlToPure::isNullConstant)) {
+            // every result a NULL of the type the dialect resolved (none in Postgres's): that NULL
+            return Tx.value(nullOf(kind).vs(), kind, true, results.detail());
+        }
+        return kind == Kind.BOOLEAN ? booleanValue(vs, nullable) : Tx.value(vs, kind, nullable, results.detail());
     }
 
     private Tx function(SqlAst.FunctionCall f, Scope scope, String row) {
@@ -6089,7 +6107,7 @@ public final class SqlToPure {
     }
 
     /** {@code @Name}: a type as a value, as {@code to(@String)} takes it. */
-    private static ValueSpecification typeArg(String name) {
+    public static ValueSpecification typeArg(String name) {
         return new TypeAnnotation.Named(new TypeExpression.NameRef(name));
     }
 
@@ -6282,7 +6300,7 @@ public final class SqlToPure {
         return new LambdaFunction(List.of(new Variable(first), new Variable(second)), List.of(body));
     }
 
-    private static LambdaFunction thunk(ValueSpecification body) {
+    public static LambdaFunction thunk(ValueSpecification body) {
         return new LambdaFunction(List.of(), List.of(body));
     }
 

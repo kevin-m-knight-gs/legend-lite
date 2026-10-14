@@ -59,7 +59,6 @@ tests:
   # ---- names: IQ's identifiers match without regard to case, quoted or not; a column shows as written
   - id: names_match_without_case
     sql: "SELECT ID, T.VC, [Nm], \"Bt\" FROM T WHERE Id = 2"
-    engine: iq
   - id: aliases_plain_quoted_and_bare
     sql: "SELECT id x, vc AS \"the value\", nm AS [n] FROM t a WHERE a.id = 2"
   - id: alias_of_its_own_column
@@ -128,10 +127,15 @@ tests:
     sql: "SELECT id FROM t WHERE '' = ' ' ORDER BY id"
   - id: no_break_space_is_no_blank
     sql: "SELECT id FROM t WHERE 'a' = 'a\\xA0' ORDER BY id"
+  # D-S1: the IQ engine reads ch padded, which comparisons ignore: the decided rows are SQL Anywhere's
   - id: char_equals_ignoring_its_padding
     sql: "SELECT id FROM t WHERE ch = 'ab' OR ch = 'A' OR 'zz   ' = ch ORDER BY id"
+    decision: D-S1
+    expect: '[["1"],["3"],["4"]]'
   - id: char_and_varchar_compared
     sql: "SELECT id FROM t WHERE ch = vc OR ch <> 'ab' AND ch = ch ORDER BY id"
+    decision: D-S1
+    expect: '[["2"],["3"],["4"],["6"],["7"]]'
   - id: double_quoted_string_under_tds
     sql: "SELECT id FROM t WHERE vc = \"hello\" ORDER BY id"
     profile: iq16-tds
@@ -189,13 +193,15 @@ tests:
     sql: "SELECT TRUE FROM t"
 
   # ---- refused by name, not read yet (later slices)
-  - id: top_is_not_read_yet
-    sql: "SELECT TOP 2 id FROM t ORDER BY id"
   - id: comma_join_is_not_read_yet
     sql: "SELECT t.id FROM t, u WHERE u.t_id = t.id ORDER BY 1"
-  - id: arithmetic_is_not_read_yet
-    sql: "SELECT id + 1 AS n FROM t WHERE id = 1"
   - id: like_is_not_read_yet
     sql: "SELECT id FROM t WHERE vc LIKE 'h%' ORDER BY id"
-  - id: tsql_alias_is_not_read_yet
+
+  # ---- read since the rest of M0 (lite/m0.yaml has their families)
+  - id: top_two
+    sql: "SELECT TOP 2 id FROM t ORDER BY id"
+  - id: integer_plus_a_constant
+    sql: "SELECT id + 1 AS n FROM t WHERE id = 1"
+  - id: tsql_alias
     sql: "SELECT n = id FROM t WHERE id = 1"

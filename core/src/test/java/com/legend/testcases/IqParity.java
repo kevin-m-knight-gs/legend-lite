@@ -204,9 +204,13 @@ public final class IqParity {
     }
 
     /** An IQ type of the schema as the lane's database declares it: a BIT is a boolean (the relational store's BIT is
-     *  Pure's Boolean), a CHAR(n) a CHAR(n) (Postgres's bpchar; DuckDB's text). */
+     *  Pure's Boolean), a CHAR(n) a VARCHAR(n), holding the value as written (DuckDB's CHAR is its text; Postgres's
+     *  bpchar would pad it, which is the IQ engine's rule to apply -- D-S1, the island's read -- not the store's). */
     private static String databaseType(String iqType, boolean postgres) {
         String t = relationalType(iqType);
+        if (t.startsWith("CHAR(")) {
+            return "VARCHAR" + t.substring("CHAR".length());
+        }
         return switch (t) {
             case "BIT" -> "BOOLEAN";
             case "DOUBLE", "FLOAT" -> postgres ? "DOUBLE PRECISION" : "DOUBLE";
@@ -355,14 +359,177 @@ public final class IqParity {
         } catch (SqlSyntaxException e) {
             return null;
         }
-        String engine = IqDialect.engineOf(statement).name().toLowerCase(Locale.ROOT);
+        String engine = IqDialect.engineOf(statement, run.profile()).name().toLowerCase(Locale.ROOT);
         return engine.equals(pinned) ? null : "ENGINE: " + run.key() + " pins engine=" + pinned + ", and its island"
                 + " runs in engine=" + engine;
     }
 
+    /** A run whose case SQL Anywhere judges (no decision, no pinned engine) over tables, translated under the IQ
+     *  engine's rules: those must be SQL Anywhere's too (the study's §6.3, engine neutrality), else the case names the
+     *  decision that judges it, or pins {@code engine: sa}. A translation the IQ engine's rules refuse is never judged
+     *  by SQL Anywhere, so it is no breach; one they answer and SQL Anywhere's rules do not, or answer otherwise, is. */
+    public static @com.legend.base.Nullable String engineNeutrality(Run run, List<SqlParity.Table> tables,
+            Set<String> names) {
+        Case c = run.c();
+        if ("iq".equals(c.engine()) && c.decision() == null && c.skip() == null) {
+            // IQ island, 2026-10-14 (the second review's m2): a pin to the IQ engine would escape this guard while
+            // SQL Anywhere still judges the case
+            return "ENGINE NEUTRALITY: " + run.key() + " pins engine=iq and names no decision: SQL Anywhere judges it,"
+                    + " so drop the pin (the guard then checks it translates alike under both engines' rules), or name"
+                    + " the decision that judges it";
+        }
+        if (c.engine() != null || c.decision() != null || c.skip() != null) {
+            return null;
+        }
+        String sql = rewrite(c.sql(), names, run.profile());
+        SqlAst.Statement statement;
+        try {
+            statement = IqParser.parse(sql, run.profile());
+        } catch (SqlSyntaxException e) {
+            return null;
+        }
+        if (IqDialect.engineOf(statement, run.profile()) != IqDialect.Engine.IQ) {
+            return null;
+        }
+        String iq = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.IQ));
+        if (iq == null) {
+            return null;
+        }
+        String sa = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.SA));
+        return iq.equals(sa) ? null : "ENGINE NEUTRALITY: " + run.key() + " translates otherwise under the IQ engine's"
+                + " rules than under SQL Anywhere's, which judges it: name its decision, or pin engine: sa";
+    }
+
+    /** The skip a case takes when its answer depends on the order IQ evaluates a search condition's operands in (the
+     *  study's provisional decision D-E2). */
+    public static final String PLAN_DEPENDENT = "plan-dependent run-time error (D-E2)";
+
+    /** A run whose WHERE puts an operation that can raise (arithmetic or NULLIF over a column) beside AND or OR
+     *  (outside a CASE's or an IF's condition): SQL Anywhere evaluates such an operand, or not, as its plan has it, and
+     *  lite's databases short-circuit, so the answer is no evidence either way (D-E2). Such a case is skipped
+     *  ({@link #PLAN_DEPENDENT}) or rewritten; null for any other. */
+    public static @com.legend.base.Nullable String evaluationOrder(Run run) {
+        if (run.c().skip() != null) {
+            return null;
+        }
+        SqlAst.Statement statement;
+        try {
+            statement = IqParser.parse(run.c().sql(), run.profile());
+        } catch (SqlSyntaxException e) {
+            return null;
+        }
+        if (!(statement instanceof SqlAst.Select s) || s.where() == null
+                || !raisesBesideAndOr(java.util.Objects.requireNonNull(s.where()))) {
+            return null;
+        }
+        return "EVALUATION ORDER: " + run.key() + " puts an operation that can raise beside AND or OR in its WHERE:"
+                + " whether IQ raises depends on its plan (D-E2), so skip it (skip: " + PLAN_DEPENDENT + ") or rewrite"
+                + " it";
+    }
+
+    /** Whether a search condition has an AND or OR (outside a CASE) one of whose operands holds an operation that
+     *  can raise. */
+    private static boolean raisesBesideAndOr(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR ->
+                    canRaise(b.left()) || canRaise(b.right()) || raisesBesideAndOr(b.left())
+                            || raisesBesideAndOr(b.right());
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> raisesBesideAndOr(u.operand());
+            default -> false;
+        };
+    }
+
+    /** Whether {@code e} holds integer arithmetic, a minus or NULLIF over a column (a CASE's or an IF's branches
+     *  included: IQ evaluates the one it takes). */
+    private static boolean canRaise(SqlAst.Expr e) {
+        boolean here = switch (e) {
+            case SqlAst.Binary b -> switch (b.op()) {
+                case PLUS, MINUS, TIMES, DIVIDE, MODULO -> readsAColumn(e);
+                default -> false;
+            };
+            case SqlAst.Unary u -> u.op() == SqlAst.UnaryOp.MINUS && readsAColumn(e);
+            case SqlAst.FunctionCall f -> f.name().get(f.name().size() - 1).text().equalsIgnoreCase("nullif")
+                    && readsAColumn(e);
+            default -> false;
+        };
+        return here || subexpressions(e).stream().anyMatch(IqParity::canRaise);
+    }
+
+    private static boolean readsAColumn(SqlAst.Expr e) {
+        return e instanceof SqlAst.ColumnRef || subexpressions(e).stream().anyMatch(IqParity::readsAColumn);
+    }
+
+    /** The expressions directly inside {@code e}, for the forms IQ's reader makes. */
+    private static List<SqlAst.Expr> subexpressions(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.Binary b -> List.of(b.left(), b.right());
+            case SqlAst.Unary u -> List.of(u.operand());
+            case SqlAst.IsNull n -> List.of(n.operand());
+            case SqlAst.FunctionCall f -> f.args();
+            case SqlAst.Case c -> {
+                List<SqlAst.Expr> all = new ArrayList<>();
+                if (c.operand() != null) {
+                    all.add(java.util.Objects.requireNonNull(c.operand()));
+                }
+                for (SqlAst.When w : c.whens()) {
+                    all.add(w.condition());
+                    all.add(w.result());
+                }
+                if (c.otherwise() != null) {
+                    all.add(java.util.Objects.requireNonNull(c.otherwise()));
+                }
+                yield all;
+            }
+            default -> List.of();
+        };
+    }
+
+    /** {@code sql}'s Pure under {@code dialect}, the schema's tables its sources; null when the dialect refuses it,
+     *  the refusal's kind and message when it rejects it. */
+    private static @com.legend.base.Nullable String pureOf(String sql, List<SqlParity.Table> tables,
+            IqDialect dialect) {
+        try {
+            return com.legend.protocol.PureComposer.valueSpecification(com.legend.protocol.sql.SqlToPure.translate(sql,
+                    (source, column) -> {
+                        String printed = com.legend.protocol.PureComposer.valueSpecification(source,
+                                com.legend.protocol.PureComposer.Style.STANDARD);
+                        String table = printed.substring(printed.lastIndexOf('.') + 1, printed.lastIndexOf("}#"));
+                        for (SqlParity.Table t : tables) {
+                            if (t.name().equals(table)) {
+                                t.columns().forEach(col -> column.column(col.name(), pureType(col.type()), true,
+                                        relationalType(col.type())));
+                            }
+                        }
+                    }, dialect), com.legend.protocol.PureComposer.Style.STANDARD);
+        } catch (com.legend.protocol.sql.SqlTranslationException e) {
+            return e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? null
+                    : e.kind() + ": " + e.getMessage();
+        }
+    }
+
+    /** The Pure type of a schema column of IQ type {@code iqType}, as the typer reports it to the island. */
+    private static String pureType(String iqType) {
+        String t = relationalType(iqType);
+        if (t.startsWith("CHAR") || t.startsWith("VARCHAR")) {
+            return "String";
+        }
+        if (t.startsWith("NUMERIC") || t.startsWith("DECIMAL")) {
+            return "Decimal";
+        }
+        return switch (t) {
+            case "BIT" -> "Boolean";
+            case "DOUBLE", "FLOAT", "REAL" -> "Float";
+            case "DATE" -> "StrictDate";
+            case "TIMESTAMP" -> "DateTime";
+            default -> "Integer";
+        };
+    }
+
     // ------------------------------------------------------------------ one run's outcome
 
-    /** One run in one lane: its island run through legend-lite, judged against its judge by SqlParity's rules. */
+    /** One run in one lane: its island run through legend-lite, judged against its judge by this harness's exact
+     *  comparison ({@link #compare}). An error is a both-error only when it is the island's own (its syntax error, its
+     *  refusal, IQ's error it raises) or the database's; any other exception in legend-lite is an ERROR. */
     public static SqlParity.Outcome outcome(Run run, IqAnswers.@com.legend.base.Nullable Snap snap,
             Set<String> tables, SqlParity.Legend legend) {
         if (run.c().skip() != null) {
@@ -372,40 +539,115 @@ public final class IqParity {
             return new SqlParity.Outcome(SqlParity.Status.ERROR, "no snapped answer (UNSNAPPED)");
         }
         SqlParity.Answer expected = IqAnswers.expected(run, snap);
-        SqlParity.Grid actual;
+        com.legend.exec.ExecutionResult result;
         try {
-            actual = SqlParity.grid(legend.run(island(run, tables)));
+            result = legend.run(island(run, tables));
         } catch (com.legend.error.NotImplementedException e) {
-            return expected instanceof SqlParity.Rejected ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR,
-                    oneLine(e)) : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+            return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                    : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         } catch (Exception | StackOverflowError e) {
-            return expected instanceof SqlParity.Rejected ? new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR,
-                    oneLine(e)) : new SqlParity.Outcome(SqlParity.Status.ERROR, oneLine(e));
+            if (!liteError(e)) {
+                return new SqlParity.Outcome(SqlParity.Status.ERROR, "a Java exception in legend-lite: " + oneLine(e));
+            }
+            return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                    : new SqlParity.Outcome(SqlParity.Status.ERROR, oneLine(e));
         }
+        SqlParity.Grid actual = SqlParity.grid(result);
+        List<String> types = result.columns().stream().map(c -> c.pureType().typeName()).toList();
         return switch (expected) {
             case SqlParity.Rejected r -> new SqlParity.Outcome(SqlParity.Status.BUG, "SQL Anywhere rejects it ("
                     + r.message() + ") and legend-lite answered " + actual.rows().size() + " rows");
             case SqlParity.Rows rows -> {
-                List<String> diffs = compare(run, rows.grid(), actual);
+                List<String> diffs = compare(run, rows.grid(), snap, actual, types);
                 yield diffs.isEmpty() ? new SqlParity.Outcome(SqlParity.Status.PASS, "")
                         : new SqlParity.Outcome(SqlParity.Status.FAIL, String.join("; ", diffs));
             }
         };
     }
 
-    /** SqlParity's comparison, the run's ORDER BY read by IQ's reader: rows in order when the query orders them (the
-     *  order among rows tied on keys that are all output columns is the database's), else as a set. */
-    private static List<String> compare(Run run, SqlParity.Grid expected, SqlParity.Grid actual) {
+    private static final Pattern LITE_CODE = Pattern.compile("\\(IQ: SQLCODE (-?\\d+), SQLSTATE ([0-9A-Z]{5})\\)");
+    private static final Pattern SA_CODE = Pattern.compile("^SQLCODE (-?\\d+), SQLSTATE ([0-9A-Z]{5})");
+
+    /** Both reject the run: a BOTH_ERROR, unless legend-lite's error names IQ's SQLCODE ({@code (IQ: SQLCODE n,
+     *  SQLSTATE s)}, as the island's own errors do) and SQL Anywhere raised another one -- then lite's claim is
+     *  wrong, a FAIL. An error without a code (a refusal, a database's run-time error) is judged by being one. */
+    public static SqlParity.Outcome bothError(Throwable e, SqlParity.Rejected sa) {
+        Matcher theirs = SA_CODE.matcher(sa.message());
+        String code = theirs.find() ? theirs.group(1) : null;
+        for (Throwable t = e; t != null && code != null; t = t.getCause() == t ? null : t.getCause()) {
+            Matcher ours = LITE_CODE.matcher(String.valueOf(t.getMessage()));
+            if (ours.find()) {
+                if (!ours.group(1).equals(code)) {
+                    return new SqlParity.Outcome(SqlParity.Status.FAIL, "both reject it, but legend-lite names IQ's"
+                            + " SQLCODE " + ours.group(1) + " where SQL Anywhere raised " + code + " (" + sa.message()
+                            + "): " + oneLine(e));
+                }
+                break;
+            }
+        }
+        return new SqlParity.Outcome(SqlParity.Status.BOTH_ERROR, oneLine(e));
+    }
+
+    /** Whether {@code e} is an error legend-lite reports on purpose: the island's syntax error or IQ's error it raises
+     *  in translation (its message begins with the island's opening), or the database's (a {@code DataError}). */
+    private static boolean liteError(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.error.IslandSyntaxException || t instanceof com.legend.error.DataError) {
+                return true;
+            }
+            if (t.getClass().getSimpleName().equals("TypeInferenceException") && t.getMessage() != null
+                    && t.getMessage().startsWith("#IQ")) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    /** The judge's comparison: column names exactly as SQL Anywhere reports them (the island names a column as IQ
+     *  does, so case counts), each column's type family against SQL Anywhere's type, a NUMERIC column's scale against
+     *  each of lite's decimal cells ({@link #scale}), each cell exactly by SQL
+     *  Anywhere's type ({@link #cellEquals}); rows in order when the query orders them (the order among rows tied on
+     *  keys that are all output columns is the database's), else as a set. The run's ORDER BY is read by IQ's
+     *  reader. */
+    private static List<String> compare(Run run, SqlParity.Grid expected, IqAnswers.Snap snap, SqlParity.Grid actual,
+            List<String> liteTypes) {
+        List<String> diffs = new ArrayList<>();
+        if (expected.columns().size() != actual.columns().size()) {
+            diffs.add("Column count mismatch: expected " + expected.columns().size() + " but got "
+                    + actual.columns().size());
+            return diffs;
+        }
+        for (int i = 0; i < expected.columns().size(); i++) {
+            if (!expected.columns().get(i).equals(actual.columns().get(i))) {
+                diffs.add("Column name mismatch at index " + i + ": expected '" + expected.columns().get(i)
+                        + "' but got '" + actual.columns().get(i) + "'");
+            }
+            String family = family(snap.types().get(i), i < snap.scales().size() ? snap.scales().get(i) : 0,
+                    liteTypes.get(i));
+            if (family != null) {
+                diffs.add("Column '" + expected.columns().get(i) + "': " + family);
+            }
+            String scale = scale(snap.types().get(i), i < snap.scales().size() ? snap.scales().get(i) : 0, actual, i);
+            if (scale != null) {
+                diffs.add("Column '" + expected.columns().get(i) + "': " + scale);
+            }
+        }
+        if (!diffs.isEmpty()) {
+            return diffs;
+        }
         List<SqlAst.SortItem> orderBy;
         try {
             SqlAst.Statement st = IqParser.parse(run.c().sql(), run.profile());
             orderBy = st instanceof SqlAst.Select s ? s.orderBy() : List.of();
         } catch (SqlSyntaxException e) {
             boolean ordered = run.c().sql().toUpperCase(Locale.ROOT).contains("ORDER BY");
-            return SqlParity.compare(ordered, null, expected, actual);
+            return rows(ordered, null, expected, actual, snap.types());
         }
         if (orderBy.isEmpty()) {
-            return SqlParity.compare(false, null, expected, actual);
+            return rows(false, null, expected, actual, snap.types());
         }
         List<Integer> keys = new ArrayList<>();
         for (SqlAst.SortItem item : orderBy) {
@@ -421,11 +663,151 @@ public final class IqParity {
                 }
             }
             if (found < 0) {
-                return SqlParity.compare(true, null, expected, actual);
+                return rows(true, null, expected, actual, snap.types());
             }
             keys.add(found);
         }
-        return SqlParity.compare(true, keys, expected, actual);
+        return rows(true, keys, expected, actual, snap.types());
+    }
+
+    /** The rows: in order ({@code ordered}, no {@code keys}), as a set, or as a set whose {@code keys} columns are in
+     *  order. */
+    private static List<String> rows(boolean ordered, @com.legend.base.Nullable List<Integer> keys,
+            SqlParity.Grid expected, SqlParity.Grid actual, List<String> types) {
+        List<String> diffs = new ArrayList<>();
+        if (expected.rows().size() != actual.rows().size()) {
+            diffs.add("Row count mismatch: expected " + expected.rows().size() + " but got " + actual.rows().size());
+            return diffs;
+        }
+        List<List<Object>> e = ordered && keys == null ? expected.rows() : sorted(expected.rows());
+        List<List<Object>> a = ordered && keys == null ? actual.rows() : sorted(actual.rows());
+        for (int r = 0; r < e.size() && diffs.size() < 10; r++) {
+            for (int c = 0; c < types.size() && diffs.size() < 10; c++) {
+                if (!cellEquals(e.get(r).get(c), a.get(r).get(c), types.get(c))) {
+                    diffs.add("Row " + r + ", column '" + expected.columns().get(c) + "': expected '"
+                            + e.get(r).get(c) + "' but got '" + a.get(r).get(c) + "'");
+                }
+            }
+        }
+        if (keys != null && diffs.isEmpty()) {
+            for (int r = 0; r < expected.rows().size() && diffs.isEmpty(); r++) {
+                for (int k : keys) {
+                    Object ev = expected.rows().get(r).get(k);
+                    Object av = actual.rows().get(r).get(k);
+                    if (!cellEquals(ev, av, types.get(k))) {
+                        diffs.add("Row " + r + ", sort key '" + expected.columns().get(k) + "': expected '" + ev
+                                + "' but got '" + av + "'");
+                    }
+                }
+            }
+        }
+        return diffs;
+    }
+
+    /** Rows in one order whatever their source: by each cell's canonical text ({@link #canonical}). */
+    private static List<List<Object>> sorted(List<List<Object>> rows) {
+        List<List<Object>> out = new ArrayList<>(rows);
+        out.sort(java.util.Comparator.comparing(r -> String.join("\001", r.stream().map(IqParity::canonical)
+                .toList())));
+        return out;
+    }
+
+    /** A cell's text for ordering a set of rows: a number by its exact value, whatever its Java type. */
+    private static String canonical(@com.legend.base.Nullable Object v) {
+        if (v == null) {
+            return "\000";
+        }
+        if (v instanceof Double || v instanceof Float) {
+            return "d" + v;
+        }
+        BigDecimal n = exact(v);
+        return n != null ? "n" + n.stripTrailingZeros().toPlainString() : "s" + v;
+    }
+
+    /** An exact number's value: a Long, an Integer, a Short, a Byte, a BigInteger, a BigDecimal; null otherwise. */
+    private static @com.legend.base.Nullable BigDecimal exact(Object v) {
+        return switch (v) {
+            case BigDecimal d -> d;
+            case java.math.BigInteger i -> new BigDecimal(i);
+            case Long l -> BigDecimal.valueOf(l);
+            case Integer i -> BigDecimal.valueOf(i);
+            case Short i -> BigDecimal.valueOf(i);
+            case Byte i -> BigDecimal.valueOf(i);
+            default -> null;
+        };
+    }
+
+    /** How close two doubles must be when SQL Anywhere's column is a DOUBLE: a few units in the last place. */
+    private static final double RELATIVE = 1e-15;
+
+    /** A cell against SQL Anywhere's, by SQL Anywhere's type {@code saType}: an integer exactly (as a whole number, of
+     *  any Java integer type), a numeric exactly by value (its scale is the column's, {@link #scale}), a double within
+     *  {@link #RELATIVE} of it (a NaN or an infinity exactly), anything else as the same text. */
+    public static boolean cellEquals(@com.legend.base.Nullable Object expected, @com.legend.base.Nullable Object actual,
+            String saType) {
+        if (expected == null || actual == null) {
+            return expected == actual;
+        }
+        if (IqAnswers.INTEGER_TYPES.contains(saType) || saType.equals("numeric") || saType.equals("decimal")) {
+            BigDecimal e = exact(expected);
+            BigDecimal a = exact(actual);
+            return e != null && a != null && e.compareTo(a) == 0
+                    && (!IqAnswers.INTEGER_TYPES.contains(saType) || !(actual instanceof BigDecimal));
+        }
+        if (saType.equals("double") || saType.equals("float") || saType.equals("real")) {
+            if (!(expected instanceof Double e) || !(actual instanceof Double || actual instanceof Float)) {
+                return false;
+            }
+            double a = ((Number) actual).doubleValue();
+            if (Double.isNaN(e) || Double.isInfinite(e) || Double.isNaN(a) || Double.isInfinite(a)) {
+                return e.equals(a);
+            }
+            return Math.abs(e - a) <= RELATIVE * Math.max(Math.abs(e), Math.abs(a));
+        }
+        return !(actual instanceof Number) && !(actual instanceof Boolean) && expected.toString().equals(
+                actual.toString());
+    }
+
+    /** Whether lite's column type (its Pure type's name) is of SQL Anywhere's type's family: null when it is, else
+     *  the difference. An integer type (a BIT too) is an Integer; a numeric a Decimal (one of scale 0 an Integer too);
+     *  a double a Float; text a String; a date a StrictDate; a timestamp a DateTime. */
+    private static @com.legend.base.Nullable String family(String saType, int scale, String liteType) {
+        String lite = liteType.contains("(") ? liteType.substring(0, liteType.indexOf('(')) : liteType;
+        Set<String> allowed;
+        if (IqAnswers.INTEGER_TYPES.contains(saType)) {
+            allowed = Set.of("Integer");
+        } else if (saType.equals("numeric") || saType.equals("decimal")) {
+            allowed = scale == 0 ? Set.of("Decimal", "Integer") : Set.of("Decimal");
+        } else if (saType.equals("double") || saType.equals("float") || saType.equals("real")) {
+            allowed = Set.of("Float");
+        } else if (saType.equals("char") || saType.equals("varchar") || saType.equals("long varchar")) {
+            allowed = Set.of("String");
+        } else if (saType.equals("date")) {
+            allowed = Set.of("StrictDate", "Date");
+        } else if (saType.equals("timestamp")) {
+            allowed = Set.of("DateTime");
+        } else {
+            return null;
+        }
+        return allowed.contains(lite) ? null : "SQL Anywhere's type " + saType + " is " + allowed + ", legend-lite's is "
+                + liteType;
+    }
+
+    /** Whether lite's numbers in column {@code i} carry SQL Anywhere's scale where its type is a NUMERIC of
+     *  {@code scale} places (IQ shows {@code 1.50} as NUMERIC(2,1) {@code 1.5}): null when every decimal cell does (an
+     *  integer cell is a NUMERIC of scale 0 read as one), else the difference. */
+    public static @com.legend.base.Nullable String scale(String saType, int scale, SqlParity.Grid actual, int i) {
+        if (!saType.equals("numeric") && !saType.equals("decimal")) {
+            return null;
+        }
+        for (List<Object> row : actual.rows()) {
+            Object v = row.get(i);
+            int places = v instanceof BigDecimal d ? d.scale() : 0;
+            if (v != null && places != scale) {
+                return "SQL Anywhere's NUMERIC has " + scale + " places, legend-lite's value " + v + " has " + places;
+            }
+        }
+        return null;
     }
 
     private static String oneLine(Throwable e) {
@@ -447,6 +829,12 @@ public final class IqParity {
         List<SqlParity.Case> cases = new ArrayList<>();
         Map<String, SqlParity.Outcome> byKey = new LinkedHashMap<>();
         for (Run r : runs) {
+            SqlParity.Outcome o = outcomes.get(r.key());
+            if (o != null && (o.status() == SqlParity.Status.FAIL || o.status() == SqlParity.Status.BUG
+                    || o.status() == SqlParity.Status.ERROR || System.getProperty("iq.parity.verbose") != null)) {
+                // the line the ledger cannot hold: why a run is not as SQL Anywhere answers
+                System.out.println("[iq-parity] " + lane + " " + o.status() + " " + r.key() + ": " + o.detail());
+            }
             SqlParity.Case c = r.asSqlParityCase();
             cases.add(c);
             byKey.put(SqlParity.key(c), outcomes.get(r.key()));

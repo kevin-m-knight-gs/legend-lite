@@ -152,6 +152,11 @@ public final class IqLexer {
             }
             return new Token(Kind.STRING, doubleQuotedString(pos), pos, start, at);
         }
+        if (c == '[' && peek(1) == '[' || c == ']' && peek(1) == ']') {
+            // an array subscript's brackets (the research's GRAMMAR E9): no delimited identifier holds a bracket
+            advance(2);
+            return new Token(Kind.OP, text.substring(start, at), pos, start, at);
+        }
         if (c == '[') {
             return new Token(Kind.QUOTED, delimited(']', pos), pos, start, at);
         }
@@ -249,7 +254,18 @@ public final class IqLexer {
                     continue;
                 }
                 if ((e == 'x' || e == 'X') && isHex(peek(2)) && isHex(peek(3))) {
-                    value.append((char) Integer.parseInt(text.substring(at + 2, at + 4), 16));
+                    int code = Integer.parseInt(text.substring(at + 2, at + 4), 16);
+                    if (code == 0) {
+                        throw SqlSyntaxException.unsupported("a NUL character (\\x00) in a string is not supported: not"
+                                + " every database lite runs on can hold one", pos);
+                    }
+                    if (code > 0x7F && !profile.latin1()) {
+                        // a UTF-8 database stores the escape's byte as it is, which is no character of its own
+                        throw SqlSyntaxException.unsupported("the escape \\x" + text.substring(at + 2, at + 4)
+                                + " of a byte above 0x7F is not supported in profile " + profile.spelling()
+                                + "'s UTF-8 database", pos);
+                    }
+                    value.append((char) code);
                     advance(4);
                     continue;
                 }

@@ -66,6 +66,21 @@ class IqIslandRoundTripTest {
         assertTrue(wire.getMessage().contains("unknown #IQ{...}# profile 'iq15'"), wire.getMessage());
     }
 
+    /** An island in a model's function body, read at the product surface: the declared lite extension
+     *  LITE-DESIGN-iq-island (docs/OWN_CORPUS_DECISIONS.md), which upstream's grammar refuses as an unknown island. */
+    @Test
+    void aModelsFunctionMayBeAnIsland() {
+        com.legend.model.ParsedModel model = Compiler.parseModel("###Pure\n"
+                + "function iq::ids(): Any[*]\n"
+                + "{\n"
+                + "    #IQ{SELECT TOP 2 id FROM tb('e2e::DB.t') ORDER BY id}#\n"
+                + "}\n");
+        com.legend.model.FunctionDefinition f = (com.legend.model.FunctionDefinition) model.elements().get(0);
+        SqlIsland island = (SqlIsland) f.body().get(0);
+        assertEquals(SqlIsland.IQ, island.language());
+        assertNull(island.profile());
+    }
+
     @Test
     void theEngineSurfaceKeepsRefusingAnUnknownIsland() {
         // the engine drop-in surface's lambda door (upstream's grammarToJson/lambda)

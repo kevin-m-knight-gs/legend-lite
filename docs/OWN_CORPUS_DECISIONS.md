@@ -322,3 +322,23 @@ LITE-DESIGN family after the own-dialect census (2026-08-12: the ENTIRE
 compiler-reachable census was this one family — 11 rows). Parses at
 LEGEND_LITE; LEGEND_ENGINE refuses with the engine's own messages.
 Extension tests are whitelisted and asserted in OwnDialectCensusTest.
+
+## 14. LITE-DESIGN-iq-island — declared 2026-10-14 (IQ island) — 1 row
+
+The `#IQ{...}#` island (docs/IQ_SQL_STUDY_2026_10_13.md, the tenth line): a query written for SAP IQ 16.2 in an island,
+`#IQ{ select ... }#` or `#IQ:<profile>{ select ... }#`, which the translator reads as IQ reads it and turns into an
+ordinary Relation expression. Upstream has the `#SQL{...}#` island and no other SQL island, so its grammar refuses
+`#IQ{` as an unknown island type. The construct is lite's by design.
+
+| # | row | construct |
+|---|---|---|
+| 1 | protocol/sql/iq/IqIslandRoundTripTest (`aModelsFunctionMayBeAnIsland`) | a `###Pure` function whose body is `#IQ{SELECT TOP 2 id FROM tb('e2e::DB.t') ORDER BY id}#` |
+
+- **Surfaces:** LEGEND_LITE reads it (the product surface) and so does LEGEND_PLATFORM, where it takes the place of
+  legend-pure's legacy graph-fetch reading of the same spelling (a tree rooted at a class named `IQ`, which nothing in
+  the repository writes). LEGEND_ENGINE keeps the engine's refusal of an unknown island type.
+- **The census:** `OwnDialectCensusTest` hosts the row in its marked extension set (`IqIslandRoundTripTest.java`,
+  pinned at 1); `OwnCorpusConformanceTest` classifies the engine's refusal under this family (pinned at 1);
+  `FixtureAdjudicationTest` pins the engine's refusal as a leniency kind (no parser for the island type `IQ`).
+- **DECISION:** DECIDED: **KEEP** (the user's ask, 2026-10-13: the island is the tenth line). A row is added only with a
+  test that exercises the island in a model, and pinned in both census tests in the same change.

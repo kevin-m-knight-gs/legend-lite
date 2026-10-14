@@ -43,3 +43,13 @@ tables:
       - [3, 3, 'three', null]
       - [4, 99, 'orphan', '-4.5']
       - [5, null, 'none', '0.0']
+  # REAL and FLOAT (a REAL without its precision): SQL Anywhere compares an exact number with one in double precision;
+  # a table holding either is refused by the island (single precision on DuckDB is no IQ comparison)
+  - name: r
+    columns:
+      - {name: id, type: integer}
+      - {name: rl, type: real}
+      - {name: fl, type: float}
+    rows:
+      - [1, '0.1', '0.1']
+      - [2, '16777217', '16777217']

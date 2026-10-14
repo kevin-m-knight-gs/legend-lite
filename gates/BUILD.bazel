@@ -42,6 +42,9 @@ test_suite(
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",
         "//core:iq_parity_postgres_test",
+        # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
+        # held by iq-parity/syntax-pins.tsv
+        "//core:iq_syntax_cases_test",
         "//spec:spec_tests",
         "//json:tests",
         # TeaVM's corrected number conversions and unmodifiable wrappers against the JDK, on the JVM (seconds)

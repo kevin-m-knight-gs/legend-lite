@@ -319,7 +319,8 @@ def read_cases(lite_dir):
                 check_expect(m["expect"], where)
             skip = m.get("skip") or (("sa_defect: " + str(m["sa_defect"])) if m.get("sa_defect") else None)
             cases.append({"key": key, "id": m["id"], "sql": m["sql"], "profiles": profiles,
-                          "skip": None if skip is None else str(skip)})
+                          "skip": None if skip is None else str(skip),
+                          "decision": str(m.get("decision") or ""), "expect": str(m.get("expect") or "")})
     return cases
 
 
@@ -347,8 +348,11 @@ def single_select(sql):
     return ";" not in sql and re.match(r"(SELECT|WITH)\b|\(", s, re.I) is not None
 
 
-def sql_sha(sql, profile, schema_bytes):
-    return hashlib.sha256(sql.encode("utf-8") + b"\0" + profile.encode("utf-8") + b"\0" + schema_bytes).hexdigest()
+def sql_sha(case, profile, schema_bytes):
+    """What an answer is snapped for: the case's SQL, the profile, the decision and decided rows that judge it instead
+    (empty when SQL Anywhere judges it), and schema.yaml -- so editing any of them makes the answer STALE."""
+    parts = [case["sql"], profile, case["decision"], case["expect"]]
+    return hashlib.sha256(b"".join(p.encode("utf-8") + b"\0" for p in parts) + schema_bytes).hexdigest()
 
 
 def known_crashers(path):
@@ -748,7 +752,7 @@ def run_cases(oracle, cases, schema_bytes, report):
                 if a is None:
                     continue
                 line = {"id": c["key"], "profile": profile, "db": db, "sa_build": oracle.facts[db]["build"],
-                        "sqlSha": sql_sha(c["sql"], profile, schema_bytes)}
+                        "sqlSha": sql_sha(c, profile, schema_bytes)}
                 line.update(a)
                 out[(c["key"], profile)] = line
         finally:
@@ -759,7 +763,7 @@ def run_cases(oracle, cases, schema_bytes, report):
 def meta(oracle):
     return {"meta": {
         "tool": "tools/iq-oracle/snap.py",
-        "format": 1,
+        "format": 2,
         "server": " ".join(["dbsrv17"] + [f.format(port="<free>") for f in SERVER_FLAGS]),
         "locale": LOCALE,
         "databases": {db: oracle.facts[db]["meta"] for db in DATABASES},
@@ -870,7 +874,7 @@ def main(argv):
             old, new = committed.get(k), fresh.get(k)
             if old is None:
                 report.append(("UNSNAPPED", k[0], k[1], "no answer in iq-answers.jsonl"))
-            elif old.get("sqlSha") != sql_sha(expected[k]["sql"], k[1], schema_bytes):
+            elif old.get("sqlSha") != sql_sha(expected[k], k[1], schema_bytes):
                 report.append(("STALE", k[0], k[1], "the sql, profile or schema.yaml changed since the snap"))
             elif new is not None and old != new:
                 report.append(("DRIFT", k[0], k[1], differences(old, new)))

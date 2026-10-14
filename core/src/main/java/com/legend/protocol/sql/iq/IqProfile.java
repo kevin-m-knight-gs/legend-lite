@@ -95,6 +95,12 @@ public enum IqProfile {
         return spelling;
     }
 
+    /** Whether the profile is an IQ database's ({@code iq16-*}): only there does a query over tables follow the IQ
+     *  engine's rules; a {@code sqla17-*} profile is a SQL Anywhere database, whose every query its front end runs. */
+    public boolean iqDatabase() {
+        return spelling.startsWith("iq16");
+    }
+
     /** The database compares strings case-sensitively (IQ's CASE RESPECT; SQL Anywhere's default ignores case). */
     public boolean caseSensitive() {
         return caseSensitive;

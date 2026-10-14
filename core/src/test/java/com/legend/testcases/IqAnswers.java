@@ -38,7 +38,14 @@ public final class IqAnswers {
      *  error. */
     public record Snap(String key, String profile, String sqlSha, List<String> columns, List<String> types,
             @com.legend.base.Nullable List<List<@com.legend.base.Nullable String>> rows,
-            @com.legend.base.Nullable String error) {
+            @com.legend.base.Nullable String error, List<Integer> scales) {
+
+        /** An answer of no recorded scales (a test's). */
+        public Snap(String key, String profile, String sqlSha, List<String> columns, List<String> types,
+                @com.legend.base.Nullable List<List<@com.legend.base.Nullable String>> rows,
+                @com.legend.base.Nullable String error) {
+            this(key, profile, sqlSha, columns, types, rows, error, List.of());
+        }
     }
 
     /** The answers file: {@code key@profile} to the snapped answer (its first line, the run's meta, skipped). */
@@ -64,12 +71,14 @@ public final class IqAnswers {
             } else {
                 List<String> columns = new ArrayList<>();
                 List<String> types = new ArrayList<>();
+                List<Integer> scales = new ArrayList<>();
                 for (Json.Node n : ((Json.Arr) o.get("columns")).items()) {
                     List<Json.Node> c = ((Json.Arr) n).items();
                     columns.add(((Json.Str) c.get(0)).value());
                     types.add(((Json.Str) c.get(1)).value());
+                    scales.add(c.size() > 3 ? (int) ((Json.Num) c.get(3)).longValue() : 0);
                 }
-                snap = new Snap(key, profile, sha, columns, types, cells(o.get("rows")), null);
+                snap = new Snap(key, profile, sha, columns, types, cells(o.get("rows")), null, scales);
             }
             answers.put(key + "@" + profile, snap);
         }
@@ -123,18 +132,21 @@ public final class IqAnswers {
         return new SqlParity.Grid(columns, out);
     }
 
-    /** A snapped cell as a grid cell, by SQL Anywhere's type: an integer a Long (a BigInteger beyond), a numeric a
+    /** SQL Anywhere's integer types: their cells are integers, compared exactly. A BIT is one: IQ's BIT is the
+     *  integer 0 or 1, not a truth value (the island reads a BIT column so). */
+    static final java.util.Set<String> INTEGER_TYPES = java.util.Set.of("integer", "smallint", "bigint", "tinyint",
+            "unsigned int", "unsigned bigint", "unsigned smallint", "bit");
+
+    /** A snapped cell as a grid cell, by SQL Anywhere's type: an integer (a BIT too) a BigInteger, a numeric a
      *  BigDecimal ({@code .01} as written), a double a Double, a timestamp in SqlParity's spelling (no zeros ending its
-     *  fraction), a BIT a Boolean (the relational store's BIT is Pure's Boolean), anything else text. */
+     *  fraction), anything else text. */
     static Object cell(String v, String type) {
+        if (INTEGER_TYPES.contains(type)) {
+            return new BigInteger(v);
+        }
         return switch (type) {
-            case "integer", "smallint", "bigint", "tinyint", "unsigned int", "unsigned bigint", "unsigned smallint" -> {
-                BigInteger n = new BigInteger(v);
-                yield n.bitLength() < Long.SIZE ? (Object) n.longValue() : n;
-            }
             case "numeric", "decimal" -> new BigDecimal(v);
             case "double", "float", "real" -> Double.valueOf(v);
-            case "bit" -> !v.equals("0");
             case "timestamp" -> {
                 String fraction = v.length() > 19 ? v.substring(20).replaceAll("0+$", "") : "";
                 yield fraction.isEmpty() ? v.substring(0, 19) : v.substring(0, 19) + "." + fraction;
@@ -143,14 +155,18 @@ public final class IqAnswers {
         };
     }
 
-    /** {@code sha256(sql 0x00 profile 0x00 schema.yaml)}, lower-case hex: what tools/iq-oracle stamps an answer with. */
-    public static String sqlSha(String sql, String profile, byte[] schema) {
+    /** {@code sha256(sql 0x00 profile 0x00 decision 0x00 expect 0x00 schema.yaml)}, lower-case hex (tools/iq-oracle's
+     *  format 2; the decision and its rows empty for a case SQL Anywhere judges): what an answer is stamped with, so
+     *  editing a case's SQL, its profile, its decided rows or the schema makes its answer STALE. */
+    public static String sqlSha(String sql, String profile, @com.legend.base.Nullable String decision,
+            @com.legend.base.Nullable String expect, byte[] schema) {
         try {
             MessageDigest d = MessageDigest.getInstance("SHA-256");
-            d.update(sql.getBytes(StandardCharsets.UTF_8));
-            d.update((byte) 0);
-            d.update(profile.getBytes(StandardCharsets.UTF_8));
-            d.update((byte) 0);
+            for (String part : new String[] {sql, profile, decision == null ? "" : decision,
+                    expect == null ? "" : expect}) {
+                d.update(part.getBytes(StandardCharsets.UTF_8));
+                d.update((byte) 0);
+            }
             d.update(schema);
             return HexFormat.of().formatHex(d.digest());
         } catch (NoSuchAlgorithmException e) {
@@ -172,8 +188,10 @@ public final class IqAnswers {
             if (snap == null) {
                 problems.add("UNSNAPPED: " + r.key() + " has no answer in iq-answers.jsonl (tools/iq-oracle/snap.sh"
                         + " --write)");
-            } else if (!snap.sqlSha().equals(sqlSha(r.c().sql(), r.profile().spelling(), schema))) {
-                problems.add("STALE: " + r.key() + "'s answer was snapped for other SQL, profile or schema");
+            } else if (!snap.sqlSha().equals(sqlSha(r.c().sql(), r.profile().spelling(), r.c().decision(),
+                    r.c().expect(), schema))) {
+                problems.add("STALE: " + r.key() + "'s answer was snapped for other SQL, profile, decided rows or"
+                        + " schema");
             }
         }
         for (String k : answers.keySet()) {

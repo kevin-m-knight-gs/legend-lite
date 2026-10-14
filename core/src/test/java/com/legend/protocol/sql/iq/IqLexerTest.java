@@ -102,6 +102,24 @@ class IqLexerTest {
     }
 
     @Test
+    void aHighByteEscapeIsRefusedInAUtf8Database_aNulEverywhere() {
+        // a UTF-8 database (sqla17-*) stores the escape's raw byte, no character: refused; ISO-8859-1 reads it
+        assertEquals("STRING:caf\u00e9", kinds("'caf\\xE9'"));
+        SqlSyntaxException high = assertThrows(SqlSyntaxException.class,
+                () -> IqLexer.tokenize("'caf\\xE9'", IqProfile.SQLA17_DEFAULT));
+        assertTrue(high.unsupported() && high.reason().contains("UTF-8"), high.reason());
+        assertEquals("STRING:a\u007Fb", kinds("'a\\x7Fb'", IqProfile.SQLA17_DEFAULT));
+        SqlSyntaxException nul = assertThrows(SqlSyntaxException.class, () -> lex("'a\\x00b'"));
+        assertTrue(nul.unsupported(), nul.reason());
+    }
+
+    @Test
+    void doubledBracketsAreASubscriptsNotAnIdentifier() {
+        assertEquals("WORD:a OP:[[ NUMBER:2 OP:]]", kinds("a[[2]]"));
+        assertEquals("QUOTED:x", kinds("[x]"));
+    }
+
+    @Test
     void eachTokenKnowsItsPlaceAndItsSpan() {
         List<IqLexer.Token> tokens = lex("SELECT\n  [a b]");
         IqLexer.Token name = tokens.get(1);

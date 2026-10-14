@@ -1260,6 +1260,20 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
 - **Not touched:**
   - `sql/dialect/` (the ninth line's). New natives the island needs are announced there one by one.
   - `lowering/`, `compiler/spec/Typer.java`, `NameResolver.java`.
+- **Notes, 2026-10-14 (the rest of M0, uncommitted on the branch):**
+  - **The platform surface:** `#IQ{...}#` is the island on LEGEND_PLATFORM too, in place of legend-pure's legacy
+    graph-fetch reading of that spelling (a tree rooted at a class named `IQ`; `#IQ::pkg::C{...}#` now refuses as an
+    unknown profile). Nothing in the repository writes either legacy spelling. Keeping the legacy reading would hide
+    the island from the own-corpus census, which reads only what the platform surface parses.
+  - **The wire** reads a `classInstance` of type `IQ` on every surface, as it reads `SQL`; the text parser's
+    LEGEND_ENGINE refusal is the only gate.
+  - **More of the seventh line's file:** `SqlToPure.java` gains two dialect hooks with Postgres's behaviour as their
+    defaults (`InputDialect.unary`, `InputDialect.rowCount`), a type detail on CASE's one type (`Common.detail`), a
+    boolean column's detail carried to the dialect's read, and five helpers made public. The sql-parity ledgers and
+    the Postgres translation dump are unchanged.
+  - **parser-equivalence's census:** `OwnDialectCensusTest` hosts `IqIslandRoundTripTest.java` in its marked extension
+    set, and `OwnCorpusConformanceTest` classifies the island under LITE-DESIGN-iq-island
+    (`docs/OWN_CORPUS_DECISIONS.md` §14), each pinned at 1 with a dated entry.
 
 ## Rules between sessions
 

@@ -3119,7 +3119,9 @@ public final class SpecParser implements TokenStreamCursor {
      * {@code #IQ{ select ... }#} and {@code #IQ:<profile>{ select ... }#}: legend-lite's SAP IQ island
      * (docs/IQ_SQL_STUDY_2026_10_13.md §4, I1-I2), carried like the SQL island, its text UNTRIMMED. A profile is one
      * of a closed set ({@code IqProfile}); any other is refused by name. Upstream has no such island: the
-     * LEGEND_ENGINE surface refuses it as it refuses any unknown island type.
+     * LEGEND_ENGINE surface refuses it as it refuses any unknown island type. On the LEGEND_PLATFORM surface the
+     * island takes the place of legend-pure's legacy graph-fetch reading of the same spelling (a tree rooted at a class
+     * named {@code IQ}, which nothing here writes), so the own-corpus census sees it as the lite extension it is.
      */
     private ValueSpecification iqIsland(String dslType, String sql, int islandStart) {
         if (dialect().refusesLiteExtensions()) {
