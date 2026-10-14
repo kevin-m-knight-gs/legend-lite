@@ -347,7 +347,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     "Dual renders as FROM-clause omission — caller bug");
             case SqlSource.Table t -> {
                 // a tabular function is CALLED (upstream: schema.fn())
-                writer.append(tableName(t.name())).append(t.call() ? "()" : "");
+                writer.append(tableName(t.name(), t.quoting())).append(t.call() ? "()" : "");
                 if (t.alias() != null) {
                     writer.append(" AS ").append(aliasIdent(t.alias()));
                 }
@@ -1422,30 +1422,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * UNCONDITIONALLY — the engine's emission for schema tables, pinned by
      * the corpus ("hr"."EMPLOYEES").
      */
-    protected String tableName(String name) {
+    protected String tableName(String name, com.legend.sql.NameQuoting quoting) {
         int dot = name.indexOf('.');
         if (dot <= 0) {
-            String quoted = declaredQuoted(name);
-            return quoted != null ? delimited(quoted) : ident(name);
+            // a name the store declared quoted ({@code Table "Orders"}) keeps its case: delimited
+            return quoting.table() ? delimited(name) : ident(name);
         }
-        return tablePart(name.substring(0, dot)) + "." + tablePart(name.substring(dot + 1));
-    }
-
-    /** A part of a schema-qualified table name: delimited, a declared-quoted part by its own text. */
-    private String tablePart(String part) {
-        String quoted = declaredQuoted(part);
-        return delimited(quoted != null ? quoted : part);
-    }
-
-    /** The text of a stored name the store declared QUOTED, which reaches the renderer carrying its double quotes
-     *  ({@code "Orders"}, a quote inside doubled; TypedTableReference.sqlName, setup/Ddl): its case kept, delimited by
-     *  this dialect's own quote character. Null for a name declared bare. */
-    protected static @com.legend.base.Nullable String declaredQuoted(String name) {
-        if (name.length() < 2 || name.charAt(0) != '"' || name.charAt(name.length() - 1) != '"') {
-            return null;
-        }
-        String inner = name.substring(1, name.length() - 1);
-        return inner.replace("\"\"", "").contains("\"") ? null : inner.replace("\"\"", "\"");
+        return delimited(name.substring(0, dot)) + "." + delimited(name.substring(dot + 1));
     }
 
     /** COLUMN-NAME spelling at a reference — DIALECT-owned. The base
@@ -1502,7 +1485,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 // a TEMPORARY table: the one ANSI spelling every target here accepts
                 // (H2: CREATE [LOCAL] TEMPORARY TABLE; DuckDB: CREATE TEMPORARY TABLE)
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "Create Temporary Table " : "Create Table ")
-                        .append(ddlQualified(ct.schema(), ct.table())).append("(");
+                        .append(ddlQualified(ct.schema(), ct.table(), ct.quoting())).append("(");
                 boolean first = true;
                 for (com.legend.sql.SqlDdl.Column col : ct.columns()) {
                     if (!first) {
@@ -1525,11 +1508,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 yield sb.append(");").toString();
             }
             case com.legend.sql.SqlDdl.DropTable dt ->
-                    "Drop table if exists " + ddlQualified(dt.schema(), dt.table()) + ";";
+                    "Drop table if exists " + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
             case com.legend.sql.SqlDdl.CreateSchema cs ->
-                    "Create Schema if not exists " + ddlPart(cs.schema()) + ";";
+                    "Create Schema if not exists " + storedName(cs.schema(), cs.quoted()) + ";";
             case com.legend.sql.SqlDdl.DropSchema ds ->
-                    "Drop schema if exists " + ddlPart(ds.schema()) + " cascade;";
+                    "Drop schema if exists " + storedName(ds.schema(), ds.quoted()) + " cascade;";
         };
     }
 
@@ -1537,8 +1520,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     public String render(com.legend.sql.SqlDml dml) {
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
-                SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table()))
-                        .append(dmlColumns(iv.columns())).append(" VALUES ");
+                SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table(), iv.quoting()))
+                        .append(dmlColumns(iv.columns(), iv.quotedColumns())).append(" VALUES ");
                 for (int r = 0; r < iv.rows().size(); r++) {
                     writer.append(r == 0 ? "(" : ", (").list(iv.rows().get(r)).append(")");
                 }
@@ -1550,32 +1533,35 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 yield insert.sql();
             }
             case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO "
-                    + ddlQualified(it.schema(), it.table()) + dmlColumns(it.columns())
+                    + ddlQualified(it.schema(), it.table(), it.quoting()) + dmlColumns(it.columns(), it.quotedColumns())
                     + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da ->
-                    "DELETE FROM " + ddlQualified(da.schema(), da.table()) + ";";
+                    "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
         };
     }
 
-    /** {@code " (a, b)"} by the identifier rule, or empty for every column. */
-    private String dmlColumns(java.util.List<String> columns) {
+    /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every
+     *  column. */
+    private String dmlColumns(java.util.List<String> columns, java.util.Set<String> quoted) {
         return columns.isEmpty() ? "" : " (" + String.join(", ",
-                columns.stream().map(this::ident).toList()) + ")";
+                columns.stream().map(c -> storedName(c, quoted.contains(c))).toList()) + ")";
     }
 
-    /** {@code schema.table}, each name spelled as a query references it ({@link #physicalName}: a reserved or
-     *  unusual name quoted), so the statement that creates or fills a table and the query that reads it name one
-     *  table; the default schema spells bare. */
-    private String ddlQualified(@com.legend.base.Nullable String schema, String table) {
+    /** {@code schema.table}, each name spelled as a query references it ({@link #storedName}: a declared-quoted one
+     *  delimited, its case kept; a bare one by {@link #physicalName}, a reserved or unusual name quoted), so the
+     *  statement that creates or fills a table and the query that reads it name one table; the default schema spells
+     *  bare. */
+    private String ddlQualified(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
-                ? ddlPart(table) : ddlPart(schema) + "." + ddlPart(table);
+                ? storedName(table, quoting.table())
+                : storedName(schema, quoting.schema()) + "." + storedName(table, quoting.table());
     }
 
-    /** A part of a table's name in DDL and DML: a declared-quoted one delimited by its own text, a bare one as this
-     *  dialect's queries reference it ({@link #physicalName}). */
-    private String ddlPart(String part) {
-        String quoted = declaredQuoted(part);
-        return quoted != null ? delimited(quoted) : physicalName(part);
+    /** {@inheritDoc} A declared-quoted name delimited by this dialect's quote character, its case kept; a bare one by
+     *  {@link #physicalName}. */
+    @Override
+    public String storedName(String name, boolean declaredQuoted) {
+        return declaredQuoted ? delimited(name) : physicalName(name);
     }
 
     /** A store column's declared type, spelled for this target (the H2
@@ -1585,9 +1571,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** A column identifier in DDL: the dialect's ONE identifier rule
-     *  ({@link #ident}); a declared-quoted name keeps its quotes. */
+     *  ({@link #ident}); a declared-quoted name is delimited by this dialect's quote character, its case kept (a
+     *  {@code "} on every database wrote a string, not a name, on Databricks: the PR #39 audit, 2026-10-14). */
     protected String ddlIdentifier(String name, boolean declaredQuoted) {
-        return declaredQuoted ? '"' + name + '"' : ident(name);
+        return declaredQuoted ? delimited(name) : ident(name);
     }
 
     /** {@inheritDoc} The DDL's column rule ({@link #ddlIdentifier}). */
@@ -1610,11 +1597,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return notNull ? " NOT NULL" : " NULL";
     }
 
-    /** {@inheritDoc} A name the store declared quoted (carrying its double quotes) is delimited, its case kept. */
     @Override
     public String physicalName(String name) {
-        String quoted = declaredQuoted(name);
-        return quoted != null ? delimited(quoted) : ident(name);
+        return ident(name);
     }
 
     protected String ident(String name) {

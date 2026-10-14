@@ -59,9 +59,14 @@ final class CsvLoad {
             rows.add(vals);
         }
         // the seed's rows (CsvSeed) — one producer, the dialect spells the
-        // insert, the database casts every cell
-        com.legend.setup.RowLoad load = com.legend.setup.CsvSeed.rowLoad(env.dialect(),
-                "default".equals(ref[1]) ? null : ref[1], ref[2], cols, rows);
+        // insert, the database casts every cell; the table's names as its store declared them (a quoted one keeps
+        // its case)
+        String schema = "default".equals(ref[1]) ? null : ref[1];
+        var def = env.ctx().findTableDefinition(ref[0], qualified).orElseThrow(() ->
+                new com.legend.error.NotImplementedException("loadCsvToDbTable: table '" + qualified
+                        + "' is not declared in " + ref[0]));
+        com.legend.setup.RowLoad load = com.legend.setup.CsvSeed.rowLoad(schema, ref[2],
+                com.legend.setup.Ddl.quoting(def, schema), cols, com.legend.setup.CsvSeed.quotedColumns(def), rows);
         if (load != null) {
             StatementExecutor.sendEffect(env, env.dialect().render(load.values()), null,
                     com.legend.exec.StatementOrigin.SEED_GENERATED, true);

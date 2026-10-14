@@ -26,8 +26,8 @@ import java.util.List;
  *              (StoreCompiler.declaredType): what the database holds, which the
  *              relation type -- the value as read -- does not say; the lowering
  *              stamps them on the scan (docs/STORE_TYPES_HOMEWORK_2026_10_02.md)
- * @param quotedTable  the table's name was declared QUOTED ({@code Table "Orders"}): a spelling the SQL keeps
- *              ({@link #sqlName}); {@code table} stays bare, the identity every lookup spells
+ * @param quotedTable  the table's name was declared QUOTED ({@code Table "Orders"}): the scan carries it as data
+ *              ({@code com.legend.sql.NameQuoting}); {@code table} stays bare, the identity every lookup spells
  * @param quotedSchema the same for its schema's name
  */
 public record TypedTableReference(String store, String table, ExprType info,
@@ -44,18 +44,6 @@ public record TypedTableReference(String store, String table, ExprType info,
     public TypedTableReference(String store, String table, ExprType info, boolean accessor,
             @com.legend.base.Nullable String frame) {
         this(store, table, info, accessor, frame, java.util.Set.of(), false, java.util.Map.of(), false, false);
-    }
-
-    /** The table's name as its SQL spells it: {@code table}, each part the store declared quoted carrying its quotes
-     *  (the dialect delimits such a part, its case kept: AnsiSqlRenderer.tableName); bare parts as they are. */
-    public String sqlName() {
-        int dot = table.indexOf('.');
-        return dot <= 0 ? quoted(table, quotedTable)
-                : quoted(table.substring(0, dot), quotedSchema) + "." + quoted(table.substring(dot + 1), quotedTable);
-    }
-
-    private static String quoted(String part, boolean quoted) {
-        return quoted ? '"' + part.replace("\"", "\"\"") + '"' : part;
     }
 
     /** {@code frame}: the rows of this table identity are a PLANNED

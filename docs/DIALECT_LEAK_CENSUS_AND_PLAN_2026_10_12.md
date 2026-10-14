@@ -679,6 +679,39 @@ fca0aef, or was copied verbatim with the digests unchanged. They are recorded fo
 - Postgres folding an untaken constant CASE branch;
 - nested `times` lowered as one chain.
 
+**The independent review (2026-10-14, PR neema2/legend-lite#39).** An agent that wrote none of this code audited the
+branch at 5ba5c62 against its merge base, by differential and by probes run on both. It confirmed claims 1 to 5 at
+render level (about 10M renders across the 16 dialect configurations, every difference one of D1's or D8's), and found
+five defects and two guard gaps. Each is fixed on the branch, with a test that reproduces it:
+- **Findings 1 to 4 (one root cause).** D8 carried a declared-quoted table or schema as quote characters inside the
+  IR's name (`"Items"`), and every consumer that read the name broke: the engine text's alias (`""items"_0"`, which H2
+  refuses), the plan text's table lookup (a crash), the column lineage's (a refusal), the engine's setup text and the
+  DDL natives (half their statements quoted), and the Postgres seed of a quoted mixed-case column (folded to `amt`).
+  The fix makes the declaration data: `sql.NameQuoting(schema, table)` on the scan, the DDL and the DML, with the name
+  bare. Each dialect spells a stored name once, by `SqlDialect.storedName(name, declaredQuoted)`, and a seed's columns
+  are their text plus the set its store declared quoted. The engine-text printer keeps its spelling from before D8.
+  Tests: `DeclaredQuotedTableTest` (the five consumers) and `SeedSpellingTest` (each database's seed and query name
+  one table and one column).
+- **Finding 5.** D2 read a connection's database as H2 whenever its `type` was not a literal: a let-bound type, a
+  function's, or a helper's parameter. The grid form translated the text as the engine's H2 while the statement form
+  ran it as written. The reader now follows a let, a zero-parameter function and a helper's parameter, raw or typed. A
+  type it still cannot read is unknown, which D2 refuses by name. Tests: `RawGridSchemaTest` (both forms agree on the
+  four spellings; an `if` is refused).
+- **Finding 6.** `DialectLeakRatchetTest` did not count H2 or DB2 inside an identifier (`isH2`, `LocalH2`,
+  `ENGINE_H2`, `h2Mode`, `isDb2`). Now it does (`H2_OR_DB2`, with a planted self-test). That adds 255 lines in 40 files,
+  each always there and uncounted, pinned as measured with a dated reason.
+- **Finding 7.** `DialectVocabularyTest` did not see a colon-form arm, a colon-form `default`, or the function tested
+  as `SqlFn.X == c.fn()` (or by `equals`). Now it does, with a planted self-test.
+
+Three defects the audit recorded as pre-existing were in the same code and are fixed with it:
+- the H2 seed of a quoted mixed-case column (`Column "AMT" not found`);
+- the Databricks and BigQuery seed inserts, which delimited every name twice;
+- Databricks DDL, which wrote a declared-quoted column as `"Amt"`, a string there (the base DDL rule now delimits by
+  the dialect's own quote character).
+
+The engine's setup text still writes `Create Schema if not exists default`, which H2 refuses. That is older than this
+program, and not fixed here.
+
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
 - `Join.Kind.sql` becomes `joinKeyword(Kind)` on the renderer.

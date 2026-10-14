@@ -1221,12 +1221,14 @@ public final class Postgres extends AnsiSqlRenderer {
         return declaredQuoted ? super.ddlIdentifier(name, true) : physicalName(name);
     }
 
-    /** A stored table, each part a {@link #physicalName}. */
+    /** A stored table, each part a {@link #storedName}: folded where the store declared it bare, its case kept where
+     *  it declared it quoted. */
     @Override
-    protected String tableName(String name) {
+    protected String tableName(String name, com.legend.sql.NameQuoting quoting) {
         int dot = name.indexOf('.');
-        return dot <= 0 ? physicalName(name)
-                : physicalName(name.substring(0, dot)) + "." + physicalName(name.substring(dot + 1));
+        return dot <= 0 ? storedName(name, quoting.table())
+                : storedName(name.substring(0, dot), quoting.schema()) + "."
+                        + storedName(name.substring(dot + 1), quoting.table());
     }
 
     /** A stored column the store declared bare is a {@link #physicalName}; a derived one (the query's own label) and one

@@ -59,8 +59,15 @@ class DialectLeakRatchetTest {
     private static final String DIALECTS = "AnsiSqlRenderer|DuckDb|H2Modern|H2|Postgres|Snowflake|Databricks|BigQuery"
             + "|SQLite|MariaDb|MySql|Trino|ClickHouse|EngineStyleH2|EngineStyleDB2|EngineStyleComposite";
 
+    /** H2 and DB2 as a word or an identifier's word ({@code h2}, {@code isH2}, {@code LocalH2}, {@code ENGINE_H2},
+     *  {@code h2Mode}, {@code isDb2}): after a lower-case letter or digit only in upper case, a camel-case word's start,
+     *  so {@code width2} is no H2; never followed by a digit ({@code H264}). Until the PR #39 audit (2026-10-14) both
+     *  needed a word boundary on each side, and an identifier naming either was not counted. */
+    private static final String H2_OR_DB2 = "(?-i:(?<=[a-z0-9])H2|(?<![A-Za-z0-9])[Hh]2"
+            + "|(?<=[a-z0-9])D[Bb]2|(?<![A-Za-z0-9])[Dd][Bb]2)(?![0-9])";
+
     private static final String PRODUCTS = "duck\\s?db|postgres(?:ql)?|snowflake|databricks|big\\s?query|sqlite"
-            + "|maria\\s?db|mysql|trino|presto|click\\s?house|\\bh2\\b|\\bdb2\\b|sybase|oracle|sql\\s?server|redshift"
+            + "|maria\\s?db|mysql|trino|presto|click\\s?house|" + H2_OR_DB2 + "|sybase|oracle|sql\\s?server|redshift"
             + "|athena|spanner|hive\\b|memsql|singlestore|mongo|elastic";
 
     /** The kinds counted in code, each by the census's own pattern (scanner/scan.py). */
@@ -76,6 +83,20 @@ class DialectLeakRatchetTest {
             "product-call", Pattern.compile("\\bgetDatabaseProductName\\b"));
 
     private static final Pattern JDBC_URL = Pattern.compile("jdbc:\\w+");
+
+    /** The product pattern counts H2 and DB2 as an identifier's word, as it counts {@code isPostgres}, and not as a
+     *  word's letters (the PR #39 audit's planted identifiers, 2026-10-14). */
+    @Test
+    void theProductPatternSeesH2AndDb2InIdentifiers() {
+        Pattern products = IN_CODE.get("product-name");
+        for (String named : List.of("h2", "H2", "isH2", "LocalH2", "EmbeddedH2", "H2Settings", "rawH2IsNative",
+                "ENGINE_H2", "h2Mode", "isDb2", "DB2", "EngineStyleDB2", "db2Text", "isPostgres", "DuckDbCells")) {
+            assertTrue(products.matcher("x = " + named + ";").find(), named);
+        }
+        for (String not : List.of("width2", "sha2", "SHA256", "H264", "cache2", "IDB2X", "depth2")) {
+            assertTrue(!products.matcher("x = " + not + ";").find(), not);
+        }
+    }
 
     @Test
     void databaseNamesOutsideTheirOwnersOnlyShrink() throws IOException {

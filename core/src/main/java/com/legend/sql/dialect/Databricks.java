@@ -746,7 +746,8 @@ public final class Databricks extends AnsiSqlRenderer {
             throw new IllegalArgumentException("a session table is temporary: " + table.table());
         }
         List<com.legend.sql.SqlDdl.Column> cols = table.columns();
-        SqlWriter writer = newWriter().append("CREATE TEMPORARY VIEW ").append(physicalName(table.table()))
+        SqlWriter writer = newWriter().append("CREATE TEMPORARY VIEW ")
+                .append(storedName(table.table(), table.quoting().table()))
                 .append(" AS SELECT ");
         for (int c = 0; c < cols.size(); c++) {
             com.legend.sql.SqlDdl.Column col = cols.get(c);

@@ -140,7 +140,7 @@ final class TableReferenceChecker {
                         com.legend.compiler.element.type.PlatformTypes.RELATION_STORE_ACCESSOR,
                         java.util.List.of(schema)), sig.output().multiplicity()),
                 n == 2, null, quoted, call, stored,
-                // the table's and its schema's names declared quoted: a spelling the SQL keeps (sqlName)
+                // the table's and its schema's names declared quoted: carried to the scan as data (NameQuoting)
                 def.map(d -> d.quoted()).orElse(false), def.map(d -> d.schemaQuoted()).orElse(false));
     }
 

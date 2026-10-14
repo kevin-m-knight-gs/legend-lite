@@ -33,7 +33,7 @@ class StoredReadsTest {
     private static final OutputCol V = new OutputCol("V", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
 
     private static SqlSource.Table table(Map<String, SqlDdl.ColumnType> stored) {
-        return new SqlSource.Table("T", "t0", List.of(ID, V), false, stored);
+        return new SqlSource.Table("T", "t0", List.of(ID, V), false, stored, com.legend.sql.NameQuoting.BARE);
     }
 
     private static SqlSelect selectV(SqlSource.Table t) {

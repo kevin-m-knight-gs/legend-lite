@@ -41,6 +41,12 @@ public interface SqlDialect {
      *  table and a query reading it spell one name (C3c). */
     String physicalName(String name);
 
+    /** A stored table, schema or column name as this dialect's queries reference it, given how its store DECLARED it:
+     *  one declared quoted ({@code Table "Orders"}) delimited, its case kept; one declared bare by
+     *  {@link #physicalName} (decision D8: Postgres folds it). The declaration is data ({@code sql.NameQuoting}, a
+     *  column's {@code declaredQuoted}), never quote characters inside the name. */
+    String storedName(String name, boolean declaredQuoted);
+
     /** This dialect for the server version a session reports ({@code DatabaseMetaData}'s product version):
      *  a dialect whose SQL differs by version says how. Default: every version is spelled alike. */
     default SqlDialect forServer(String version) {

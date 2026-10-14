@@ -83,6 +83,68 @@ class RawGridSchemaTest {
         assertTrue(String.valueOf(e.getMessage()).contains("decision D2"), e.toString());
     }
 
+    private static final String T = "meta::external::store::relational::runtime::TestDatabaseConnection";
+
+    private static final String DUCK = "meta::relational::runtime::DatabaseType.DuckDB";
+
+    /** A database type that is not a literal: a function answering one, and a helper whose parameter is one. */
+    private static final String TYPES = """
+            function my::duck():meta::relational::runtime::DatabaseType[1] { meta::relational::runtime::DatabaseType.DuckDB }
+            function my::conn(t:meta::relational::runtime::DatabaseType[1]):meta::external::store::relational::runtime::DatabaseConnection[1]
+            { ^meta::external::store::relational::runtime::TestDatabaseConnection(type=$t) }
+            """;
+
+    /** The four ways a connection declares DuckDB: lets, then the connection argument. */
+    private static final List<String[]> DUCK_CONNECTIONS = List.of(
+            new String[] {"let c = ^" + T + "(type=" + DUCK + ");\n", "$c"},
+            new String[] {"let t = " + DUCK + "; let c = ^" + T + "(type=$t);\n", "$c"},
+            new String[] {"let c = ^" + T + "(type=my::duck());\n", "$c"},
+            new String[] {"", "my::conn(" + DUCK + ")"});
+
+    /** The name of the one column of {@code select count(*)} as the session ran it: DuckDB's {@code count_star()} for
+     *  the text as written, {@code COUNT(*)} for the text translated as the engine's H2. */
+    private static String countColumn(String lets, String connection) throws Exception {
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(TYPES, SESSION), "{| " + lets + EXEC
+                + "'select count(*) from (select 1 as x)', " + connection + ", 0, 1000).columnNames->at(0);}",
+                StorelessRuntime.RUNTIME, conn);
+        return String.valueOf(((ExecutionResult.Scalar) r).value());
+    }
+
+    @Test
+    @DisplayName("a connection's type read through a let, a function or a helper's parameter is its database (decision D2)")
+    void aTypeThatIsNotALiteralIsItsDatabase() throws Exception {
+        // the PR #39 audit (2026-10-14): every type but a literal was read as H2's, and the text translated
+        for (String[] c : DUCK_CONNECTIONS) {
+            assertEquals("count_star()", countColumn(c[0], c[1]), c[0] + c[1]);
+        }
+        assertEquals("COUNT(*)", countColumn("let c = ^" + T + "(type=meta::relational::runtime::DatabaseType.H2);\n",
+                "$c"));
+    }
+
+    @Test
+    @DisplayName("the statement form reads the connection's database as the grid form does (decision D2)")
+    void theStatementFormReadsTheSameDatabase() throws Exception {
+        // DuckDB keeps a FLOAT as written; the engine's H2 text has its FLOAT translated to a DOUBLE
+        for (int i = 0; i < DUCK_CONNECTIONS.size(); i++) {
+            String[] c = DUCK_CONNECTIONS.get(i);
+            Execution.execute(StorelessRuntime.with(TYPES, SESSION), "{| " + c[0] + EXEC + "'Create Table d2_float_" + i
+                    + "(f FLOAT);', " + c[1] + ", 0, 1000);}", StorelessRuntime.RUNTIME, conn);
+            try (var st = conn.createStatement(); var rs = st.executeQuery("select data_type from"
+                    + " information_schema.columns where table_name = 'd2_float_" + i + "'")) {
+                assertTrue(rs.next(), c[0] + c[1]);
+                assertEquals("FLOAT", rs.getString(1), c[0] + c[1]);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("a connection whose type cannot be read statically is refused, never read as H2's (decision D2)")
+    void anUnreadableTypeIsRefused() {
+        Exception e = assertThrows(Exception.class, () -> countColumn("let c = ^" + T + "(type=if(true, |" + DUCK
+                + ", |meta::relational::runtime::DatabaseType.H2));\n", "$c"));
+        assertTrue(String.valueOf(e.getMessage()).contains("decision D2"), e.toString());
+    }
+
     @Test
     @DisplayName("columnNames resolves to the string collection and composes")
     void columnNamesComposes() throws Exception {

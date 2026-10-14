@@ -60,9 +60,14 @@ public sealed interface SqlSource {
      *  {@code storedTypes}: the columns' DECLARED store types, by bare name -- what the database
      *  holds, which a column's {@code outputs} type (the value as read) does not say. A dialect reads
      *  a stored type the platform cannot use as held (docs/STORE_TYPES_HOMEWORK_2026_10_02.md).
-     *  Empty for a table nothing declared (a synthetic CTE, the calendar table). */
+     *  Empty for a table nothing declared (a synthetic CTE, the calendar table).
+     *
+     *  {@code name} is the table's text, {@code schema.table} for a schema's, bare (no quote characters): the
+     *  identity every reader looks it up by. {@code quoting}: which parts the store declared quoted, which the
+     *  dialect delimits, their case kept ({@link NameQuoting}; {@link NameQuoting#BARE} for every name the
+     *  platform makes). */
     record Table(String name, String alias, List<OutputCol> outputs, boolean call,
-            java.util.Map<String, SqlDdl.ColumnType> storedTypes) implements SqlSource {
+            java.util.Map<String, SqlDdl.ColumnType> storedTypes, NameQuoting quoting) implements SqlSource {
         public Table {
             storedTypes = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(storedTypes));
         }

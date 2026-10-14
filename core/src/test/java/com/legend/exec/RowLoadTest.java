@@ -70,7 +70,7 @@ class RowLoadTest {
     @Test
     @DisplayName("DuckDB: the bulk path runs and lands exactly the text path's rows")
     void bulkMatchesText() throws Exception {
-        RowLoad load = new RowLoad("s", "t", List.of(), 7, rows());
+        RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of(), java.util.Set.of(), 7, rows());
         try (Connection bulk = duck(); Connection text = duck()) {
             long before = Census.count(Census.Key.BULK_LOADS);
             Executor.load(bulk, DUCK, load);
@@ -85,7 +85,7 @@ class RowLoadTest {
     @Test
     @DisplayName("a named column subset: the rest take their default")
     void columnSubset() throws Exception {
-        RowLoad load = new RowLoad("s", "t", List.of("v", "i"), 2,
+        RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("v", "i"), java.util.Set.of(), 2,
                 List.of(List.of("x", "7"), List.of("y", "8")));
         try (Connection bulk = duck(); Connection text = duck()) {
             Executor.load(bulk, DUCK, load);
@@ -99,7 +99,7 @@ class RowLoadTest {
     @Test
     @DisplayName("a cell the column cannot take fails on the bulk path as on the text path")
     void badCastFails() throws Exception {
-        RowLoad load = new RowLoad("s", "t", List.of("i"), 1, List.of(List.of("not a number")));
+        RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i"), java.util.Set.of(), 1, List.of(List.of("not a number")));
         try (Connection bulk = duck(); Connection text = duck()) {
             assertThrows(DataError.class, () -> Executor.load(bulk, DUCK, load));
             assertThrows(DataError.class, () -> Executor.executeRaw(text, DUCK.render(load.values())));
@@ -170,7 +170,7 @@ class RowLoadTest {
                 st.execute(DDL.replace("DOUBLE", "DOUBLE PRECISION"));
             }
             long before = Census.count(Census.Key.BULK_LOADS);
-            Executor.load(c, new com.legend.sql.dialect.H2Modern(), new RowLoad("s", "t", List.of("i", "v"), 2, List.of(List.of("1", "a"))));
+            Executor.load(c, new com.legend.sql.dialect.H2Modern(), new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a"))));
             assertEquals(before, Census.count(Census.Key.BULK_LOADS));
             assertEquals(List.of("1|a|null|null|null|null|null"), contents(c));
         }

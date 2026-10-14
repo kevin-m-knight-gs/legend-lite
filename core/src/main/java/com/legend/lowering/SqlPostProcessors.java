@@ -209,7 +209,7 @@ public final class SqlPostProcessors {
                 levelIndex.put(level, index);
                 String name = "subquery_cte_" + level + "_" + index;
                 out.add(new com.legend.sql.SqlWith.Cte(name, processed));
-                yield new SqlSource.Table(name, sub.alias(), sub.outputs(), false, java.util.Map.of());
+                yield new SqlSource.Table(name, sub.alias(), sub.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
             }
             default -> src;
         };
@@ -240,7 +240,9 @@ public final class SqlPostProcessors {
             case SqlSource.Table t -> {
                 String nn = m.apply(t.name());
                 yield nn.equals(t.name()) ? t
-                        : new SqlSource.Table(nn, t.alias(), t.outputs(), t.call(), t.storedTypes());
+                        : new SqlSource.Table(nn, t.alias(), t.outputs(), t.call(), t.storedTypes(),
+                                // a mapped name is the mapping's own text, spelled as a bare name (as before D8)
+                                com.legend.sql.NameQuoting.BARE);
             }
             case SqlSource.Join j -> new SqlSource.Join(source(j.left(), m),
                     source(j.right(), m), j.kind(),

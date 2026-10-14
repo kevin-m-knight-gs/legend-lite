@@ -1097,7 +1097,9 @@ final class StatementExecutor {
             throw new IllegalStateException(
                     "plan connection: unmatched connection class " + ni.classFqn());
         }
-        String type = com.legend.compiler.spec.typed.ExecutionContext.Reader.databaseType(ni);
+        // the database the context read declares (a literal, a let-bound or function-answered one); C4 (handed off,
+        // as planDatabase): one it cannot read is planned for the engine test connection's
+        String type = pc.databaseType() != null ? pc.databaseType() : EngineText.ENGINE_TEST_DATABASE.name();
         String csv = ni.properties().get("testDataSetupCsv")
                 instanceof com.legend.compiler.spec.typed.TypedCString c
                 ? c.value() : null;
@@ -3037,7 +3039,7 @@ final class StatementExecutor {
             cols.add(new com.legend.sql.SqlDdl.Column(name.value(), false,
                     com.legend.compiler.element.StoreCompiler.declaredType(datatypeLiteral(type)), false, false));
         }
-        com.legend.sql.SqlDdl.CreateTable ct = new com.legend.sql.SqlDdl.CreateTable(null, table, cols, true);
+        var ct = new com.legend.sql.SqlDdl.CreateTable(null, table, com.legend.sql.NameQuoting.BARE, cols, true);
         sendEffect(env, env.dialect().render(ct), H2_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(null, call.info().type());
     }

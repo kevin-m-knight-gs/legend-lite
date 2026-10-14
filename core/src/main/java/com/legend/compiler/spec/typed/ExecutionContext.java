@@ -321,9 +321,5 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             return new ContextReading(overloads, bind, canon, dbOfCopy).read(mapping, runtimeArg);
         }
 
-        /** The connection's DatabaseType name ("H2" when unspelled). */
-        public static String databaseType(TypedNewInstance conn) {
-            return ContextReading.databaseType(conn);
-        }
     }
 }

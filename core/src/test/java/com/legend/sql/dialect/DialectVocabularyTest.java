@@ -187,6 +187,27 @@ class DialectVocabularyTest {
         assertTrue(wrong.isEmpty(), "a function table that is not one switch of one-expression arms: " + wrong);
     }
 
+    /** The two checks see every form a function table could take: a colon-form arm, a colon-form {@code default}, and
+     *  the function tested before the switch on either side of {@code ==}, each planted as the PR #39 audit
+     *  (2026-10-14) planted them; and a ternary inside an arm is no colon-form arm. */
+    @Test
+    void theChecksSeeEveryFormOfArmDefaultAndTest() {
+        String sw = "switch (c.fn())";
+        String colon = "{ return switch (c.fn()) { case ABS: yield f(); default: { g(); yield h(x); } }; }";
+        assertTrue(oneExpressionArms("colon", colon, sw).stream().anyMatch(w -> w.contains("colon-form")),
+                String.valueOf(oneExpressionArms("colon", colon, sw)));
+        assertTrue(hasDefault(colon, colon.indexOf('{', colon.indexOf(sw))));
+        for (String test : List.of("SqlFn.ABS == c.fn()", "c.fn() == SqlFn.ABS", "SqlFn.ABS != c.fn()",
+                "SqlFn.ABS.equals(c.fn())", "c.fn().equals(SqlFn.ABS)")) {
+            String tested = "{ if (" + test + ") { return x; } return switch (c.fn()) { case ABS -> f(); }; }";
+            assertTrue(oneExpressionArms("tested", tested, sw).stream().anyMatch(w -> w.contains("tests which")),
+                    test);
+        }
+        String clean = "{ return switch (c.fn()) { case ABS -> a ? b : d; case NEG, POS -> f(x, Foo::bar); }; }";
+        assertTrue(oneExpressionArms("clean", clean, sw).isEmpty(), String.valueOf(oneExpressionArms("clean", clean, sw)));
+        assertTrue(!hasDefault(clean, clean.indexOf('{', clean.indexOf(sw))));
+    }
+
     /** The vocabularies whose deciding switch is held to one-expression arms: the functions and the aggregates. */
     private static final java.util.Set<String> ONE_EXPRESSION_TABLES = java.util.Set.of("call", "reducer");
 
@@ -199,9 +220,10 @@ class DialectVocabularyTest {
             wrong.add(where + " decides in " + (at < 0 ? "no " : "more than one ") + sw);
             return wrong;
         }
-        // the function tested by name: c.fn() == / != (r.fn() for an aggregate)
+        // the function tested by name: c.fn() == / != (r.fn() for an aggregate), either side, or by equals
         String subject = sw.substring(sw.indexOf('(') + 1, sw.indexOf('.')).strip();
-        if (java.util.regex.Pattern.compile("\\b" + subject + "\\s*\\.\\s*fn\\s*\\(\\s*\\)\\s*[!=]=")
+        String fn = "\\b" + subject + "\\s*\\.\\s*fn\\s*\\(\\s*\\)";
+        if (java.util.regex.Pattern.compile(fn + "\\s*([!=]=|\\.\\s*equals\\b)|([!=]=|\\bequals\\s*\\()\\s*" + fn)
                 .matcher(decider).find()) {
             wrong.add(where + " tests which function it has (" + subject + ".fn() ==): give that function its own arm");
         }
@@ -215,6 +237,12 @@ class DialectVocabularyTest {
                 if (--depth == 0) {
                     break;
                 }
+            } else if (depth == 1 && decider.startsWith("case", i) && !Character.isJavaIdentifierPart(decider.charAt(i - 1))
+                    && Character.isWhitespace(decider.charAt(i + 4)) && colonLabel(decider, i + 4)) {
+                // a colon-form arm is a statement group, which javac does not hold to one expression (the PR #39
+                // audit, 2026-10-14: this check read only '->')
+                String arm = decider.substring(i, decider.indexOf(':', i)).replaceAll("\\s+", " ").strip();
+                wrong.add(where + "'s arm '" + arm + "' is colon-form: write it as one '->' expression");
             } else if (depth == 1 && decider.startsWith("->", i)
                     && decider.substring(i + 2).stripLeading().startsWith("{")) {
                 String arm = decider.substring(decider.lastIndexOf("case ", i), i).replaceAll("\\s+", " ").strip();
@@ -222,6 +250,27 @@ class DialectVocabularyTest {
             }
         }
         return wrong;
+    }
+
+    /** Whether the case label starting at {@code from} ends in {@code :} (a colon-form arm) rather than {@code ->}: the
+     *  first of the two at the label's own depth (a pattern's parentheses nest). */
+    private static boolean colonLabel(String src, int from) {
+        int depth = 0;
+        for (int i = from; i < src.length(); i++) {
+            char ch = src.charAt(i);
+            if (ch == '(' || ch == '{' || ch == '[') {
+                depth++;
+            } else if (ch == ')' || ch == '}' || ch == ']') {
+                if (--depth < 0) {
+                    return false;
+                }
+            } else if (depth == 0 && src.startsWith("->", i)) {
+                return false;
+            } else if (depth == 0 && ch == ':' && !src.startsWith("::", i)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The switch that decides vocabulary {@code v} in {@code src}: the method itself, or the one it hands every point
@@ -297,7 +346,8 @@ class DialectVocabularyTest {
                     return false;
                 }
             } else if (depth == 1 && src.startsWith("default", i) && !Character.isJavaIdentifierPart(src.charAt(i - 1))
-                    && src.substring(i + "default".length()).stripLeading().startsWith("->")) {
+                    && (src.substring(i + "default".length()).stripLeading().startsWith("->")
+                            || src.substring(i + "default".length()).stripLeading().startsWith(":"))) {
                 return true;
             }
         }

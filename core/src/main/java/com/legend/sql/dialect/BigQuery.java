@@ -2818,7 +2818,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "CREATE TEMP TABLE " : "CREATE TABLE ")
-                        .append(qualified(ct.schema(), ct.table())).append(" (");
+                        .append(qualified(ct.schema(), ct.table(), ct.quoting())).append(" (");
                 List<String> keys = new ArrayList<>();
                 for (int i = 0; i < ct.columns().size(); i++) {
                     com.legend.sql.SqlDdl.Column col = ct.columns().get(i);
@@ -2833,11 +2833,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                 }
                 yield sb.append(");").toString();
             }
-            case com.legend.sql.SqlDdl.DropTable dt -> "DROP TABLE IF EXISTS " + qualified(dt.schema(), dt.table())
+            case com.legend.sql.SqlDdl.DropTable dt -> "DROP TABLE IF EXISTS " + qualified(dt.schema(), dt.table(), dt.quoting())
                     + ";";
-            case com.legend.sql.SqlDdl.CreateSchema cs -> "CREATE SCHEMA IF NOT EXISTS " + physicalName(cs.schema())
+            case com.legend.sql.SqlDdl.CreateSchema cs -> "CREATE SCHEMA IF NOT EXISTS " + storedName(cs.schema(), cs.quoted())
                     + ";";
-            case com.legend.sql.SqlDdl.DropSchema ds -> "DROP SCHEMA IF EXISTS " + physicalName(ds.schema())
+            case com.legend.sql.SqlDdl.DropSchema ds -> "DROP SCHEMA IF EXISTS " + storedName(ds.schema(), ds.quoted())
                     + " CASCADE;";
         };
     }
@@ -2846,14 +2846,15 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     public String render(com.legend.sql.SqlDml dml) {
         if (dml instanceof com.legend.sql.SqlDml.DeleteAll da) {
-            return "DELETE FROM " + qualified(da.schema(), da.table()) + " WHERE TRUE;";
+            return "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + " WHERE TRUE;";
         }
         return super.render(dml);
     }
 
-    private String qualified(@com.legend.base.Nullable String schema, String table) {
+    private String qualified(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
-                ? physicalName(table) : physicalName(schema) + "." + physicalName(table);
+                ? storedName(table, quoting.table())
+                : storedName(schema, quoting.schema()) + "." + storedName(table, quoting.table());
     }
 
     @Override

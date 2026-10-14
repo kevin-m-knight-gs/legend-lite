@@ -71,7 +71,7 @@ final class ContextReading {
         return new ExecutionContext(mapping, Optional.empty(), chain, json, sql, csv,
                 connectionName(runtimeArg), quoteIdentifiers(runtimeArg),
                 timeZone(runtimeArg),
-                conn != null ? databaseType(conn) : helperDatabaseType(runtimeArg), conn,
+                conn != null ? typeOf(conn) : helperDatabaseType(runtimeArg), conn,
                 storeFqn(runtimeArg), false, List.of(), postProcessors(runtimeArg),
                 java.util.Set.of());
     }
@@ -804,10 +804,74 @@ final class ContextReading {
         return null;
     }
 
-    /** The connection's DatabaseType name ("H2" when unspelled). */
-    static String databaseType(TypedNewInstance conn) {
-        return conn.properties().get("type") instanceof TypedEnumValue ev
-                ? String.valueOf(ev.value()) : "H2";
+    /** The connection's declared DatabaseType name, read statically: a literal, a let-bound one, or one a
+     *  zero-parameter function answers. Null when it cannot be read: the language of the connection's raw text is
+     *  then unknown, refused by name (decision D2), never assumed to be H2's (invariant 4; until the PR #39 audit,
+     *  2026-10-14, every type but a literal read "H2"). */
+    private @com.legend.base.Nullable String typeOf(TypedNewInstance conn) {
+        return enumValue(conn.properties().get("type"), 0);
+    }
+
+    /** The enum value {@code t} names: a literal, a let-bound one, or a zero-parameter function's answer (its raw
+     *  body); null otherwise. */
+    private @com.legend.base.Nullable String enumValue(@com.legend.base.Nullable TypedSpec t, int depth) {
+        if (t instanceof TypedEnumValue ev) {
+            return ev.value();
+        }
+        if (t instanceof TypedVariable) {
+            TypedSpec b = chase(t);
+            return b == t ? null : enumValue(b, depth);
+        }
+        if (t instanceof TypedUserCall uc && uc.args().isEmpty() && uc.callee().body().isPresent() && depth < 3) {
+            List<ValueSpecification> body = uc.callee().body().get();
+            return body.isEmpty() ? null : rawEnumValue(body.get(body.size() - 1), name -> null, depth + 1);
+        }
+        return null;
+    }
+
+    /** The enum value a RAW expression names: a literal, a parameter the caller bound to one ({@code params}), or the
+     *  answer of a function's overloads of its arity when they agree; null otherwise. */
+    private @com.legend.base.Nullable String rawEnumValue(ValueSpecification v,
+            Function<String, @com.legend.base.Nullable String> params, int depth) {
+        return switch (v) {
+            case com.legend.protocol.spec.EnumValue ev -> ev.value();
+            case com.legend.protocol.spec.Variable var -> params.apply(var.name());
+            case com.legend.protocol.spec.AppliedFunction af when depth < 3 -> {
+                String agreed = null;
+                for (com.legend.compiler.element.TypedFunction f : overloads.apply(af.function())) {
+                    if (f.parameters().size() != af.parameters().size() || f.body().isEmpty()
+                            || f.body().get().isEmpty()) {
+                        continue;
+                    }
+                    List<ValueSpecification> body = f.body().get();
+                    String r = rawEnumValue(body.get(body.size() - 1), rawParams(f, af, params, depth), depth + 1);
+                    if (r == null || agreed != null && !agreed.equals(r)) {
+                        yield null;
+                    }
+                    agreed = r;
+                }
+                yield agreed;
+            }
+            default -> null;
+        };
+    }
+
+    /** {@code f}'s parameters as the raw call {@code af} binds them: each to the enum value its argument names. */
+    private Function<String, @com.legend.base.Nullable String> rawParams(com.legend.compiler.element.TypedFunction f,
+            com.legend.protocol.spec.AppliedFunction af, Function<String, @com.legend.base.Nullable String> outer,
+            int depth) {
+        return name -> {
+            for (int i = 0; i < f.parameters().size(); i++) {
+                if (f.parameters().get(i).name().equals(name)) {
+                    return rawEnumValue(af.parameters().get(i), outer, depth + 1);
+                }
+            }
+            return null;
+        };
+    }
+
+    /** A connection instance met in a raw body: its database, or null when its type cannot be read. */
+    private record RawType(@com.legend.base.Nullable String type) {
     }
 
     /** The DatabaseType of the first connection instance in a helper call's raw body, met where the value holds no
@@ -819,10 +883,19 @@ final class ContextReading {
             return b == n ? null : helperDatabaseType(b);
         }
         if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {
+            // the helper's parameters, each the enum value its argument names here (my::conn(DatabaseType.DuckDB))
+            Function<String, @com.legend.base.Nullable String> params = name -> {
+                for (int i = 0; i < uc.callee().parameters().size(); i++) {
+                    if (uc.callee().parameters().get(i).name().equals(name)) {
+                        return enumValue(uc.args().get(i), 0);
+                    }
+                }
+                return null;
+            };
             for (ValueSpecification b : uc.callee().body().get()) {
-                String r = rawDatabaseType(b, 0);
+                RawType r = rawDatabaseType(b, 0, params);
                 if (r != null) {
-                    return r;
+                    return r.type();
                 }
             }
         }
@@ -835,11 +908,15 @@ final class ContextReading {
         return null;
     }
 
-    private @com.legend.base.Nullable String rawDatabaseType(ValueSpecification v, int depth) {
+    /** The database of the first connection instance in a raw body ({@code params}: the enum values its parameters
+     *  are bound to), null when none appears; a {@link RawType} of null when one appears but its type cannot be read,
+     *  or when the overloads read disagree. */
+    private @com.legend.base.Nullable RawType rawDatabaseType(ValueSpecification v, int depth,
+            Function<String, @com.legend.base.Nullable String> params) {
         if (v instanceof com.legend.protocol.spec.NewInstance ni
                 && PlatformTypes.relationalConnectionSimpleName(ni.className()) != null) {
             com.legend.protocol.spec.KeyExpression ke = ni.first("type");
-            return ke != null && ke.value() instanceof com.legend.protocol.spec.EnumValue ev ? ev.value() : "H2";
+            return new RawType(ke == null ? null : rawEnumValue(ke.value(), params, depth));
         }
         List<ValueSpecification> kids = switch (v) {
             case com.legend.protocol.spec.NewInstance ni -> ni.properties().stream()
@@ -850,7 +927,7 @@ final class ContextReading {
             default -> List.of();
         };
         for (ValueSpecification c : kids) {
-            String r = rawDatabaseType(c, depth);
+            RawType r = rawDatabaseType(c, depth, params);
             if (r != null) {
                 return r;
             }
@@ -860,20 +937,21 @@ final class ContextReading {
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
             // an unchecked body names its callee, not the overload: every overload of the call's arity is read, and
             // the database is theirs only when those that declare one agree (testRuntime(db)'s four answer H2)
-            String agreed = null;
+            RawType agreed = null;
             for (com.legend.compiler.element.TypedFunction f : overloads.apply(af.function())) {
                 if (f.parameters().size() != af.parameters().size() || f.body().isEmpty()) {
                     continue;
                 }
-                String r = null;
+                RawType r = null;
                 for (ValueSpecification b : f.body().get()) {
-                    r = rawDatabaseType(b, depth + 1);
+                    r = rawDatabaseType(b, depth + 1, rawParams(f, af, params, depth));
                     if (r != null) {
                         break;
                     }
                 }
-                if (r != null && agreed != null && !agreed.equals(r)) {
-                    return null;
+                if (r != null && (r.type() == null || agreed != null && !java.util.Objects.equals(agreed.type(), r.type()))) {
+                    // a connection whose type cannot be read, or overloads that disagree: unknown, never guessed
+                    return new RawType(null);
                 }
                 agreed = r != null ? r : agreed;
             }
@@ -894,7 +972,8 @@ final class ContextReading {
         if (n instanceof TypedNewInstance ni) {
             String simple = PlatformTypes.relationalConnectionSimpleName(ni.classFqn());
             if (simple != null) {
-                return simple + "(type = \"" + databaseType(ni) + "\")";
+                String type = typeOf(ni);
+                return type == null ? null : simple + "(type = \"" + type + "\")";
             }
         }
         if (n instanceof TypedUserCall uc && uc.callee().body().isPresent()) {

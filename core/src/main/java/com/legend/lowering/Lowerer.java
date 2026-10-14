@@ -569,9 +569,9 @@ public final class Lowerer {
                             com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())))
                     : SqlSelect.starOf(
-                    new SqlSource.Table(t.sqlName(), nextAlias(),
+                    new SqlSource.Table(t.table(), nextAlias(),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
-                            t.storedTypes()));
+                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable())));
 
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position: the engine plans it as an inline

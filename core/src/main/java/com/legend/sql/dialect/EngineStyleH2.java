@@ -384,6 +384,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return declaredQuoted ? '"' + name + '"' : engineColumnName(name);
     }
 
+    /** The engine's text spells a stored table's and schema's names as the store wrote them, declared quoted or not (its
+     *  FROM writes {@code t.name()}, the DDL each part by {@link #physicalName}): the declaration's quoting is a
+     *  dialect's, not the engine text's, which keeps the spelling it had before decision D8. */
+    @Override
+    public String storedName(String name, boolean declaredQuoted) {
+        return physicalName(name);
+    }
+
     /** The engine's rule plus the execution necessity: a name that is not a plain identifier quotes, so the insert
      *  runs on a case-sensitive session (moved here from the shared DdlSpelling, the dialect program's Phase 1d). */
     @Override

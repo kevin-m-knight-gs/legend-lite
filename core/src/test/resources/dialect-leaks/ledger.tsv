@@ -3,38 +3,57 @@
 # A count below its pin is printed: lower the pin (the run writes the whole table to its outputs, dialect-leaks.tsv).
 # docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 0. At the program's end every pin is zero.
 # 2026-10-13: measured on main fca0aef, the program's start.
-core/src/main/java/com/legend/AssertVerdicts.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: the product pattern counts H2 and DB2 as an identifier's word (isH2, LocalH2, ENGINE_H2, h2Mode, isDb2), as it counted isPostgres; each such line was always there, uncounted, and is pinned as measured (DialectLeakRatchetTest.H2_OR_DB2).
+core/src/main/java/com/legend/AssertVerdicts.java	product-name	4
 core/src/main/java/com/legend/BodyCompiler.java	product-name	1
 core/src/main/java/com/legend/EngineText.java	database-type	1
 core/src/main/java/com/legend/EngineText.java	dialect-class	6
-core/src/main/java/com/legend/EngineText.java	product-name	9
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/EngineText.java	product-name	12
 core/src/main/java/com/legend/Execution.java	product-name	4
 core/src/main/java/com/legend/PlanEnvelope.java	dialect-class	1
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/PlanEnvelope.java	product-name	1
 core/src/main/java/com/legend/SeedSqlForms.java	product-name	3
-core/src/main/java/com/legend/SqlTextVerdicts.java	product-name	59
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/SqlTextVerdicts.java	product-name	63
 core/src/main/java/com/legend/StatementExecutor.java	dialect-class	5
-core/src/main/java/com/legend/StatementExecutor.java	product-name	20
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/StatementExecutor.java	product-name	31
 core/src/main/java/com/legend/builtin/DynaFn.java	product-name	175
 core/src/main/java/com/legend/compiler/NameResolver.java	product-name	1
 core/src/main/java/com/legend/compiler/element/RelationalTypeInference.java	product-name	6
 # 2026-10-14, the merge of neema2/legend-lite#37 (#IQ{...}#, the tenth line) into this branch at 1a36a71: the SQL front end's input dialects (InputDialect, PostgresDialect, SqlToPure, SqlIslands) and the iq-parity tests name the language of the SQL text a user writes (Postgres, SAP IQ / SQL Anywhere), not a database the platform executes on; pinned as measured. Whether protocol/sql/'s input dialects are owners is the user's question (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 1, 'after #37').
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/compiler/element/type/PlatformTypes.java	product-name	5
 core/src/main/java/com/legend/compiler/spec/SqlIslands.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/compiler/spec/typed/ContextReading.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/exec/H2Settings.java	product-name	2
 core/src/main/java/com/legend/exec/PlanSessions.java	product-call	1
 core/src/main/java/com/legend/exec/Sessions.java	database-type	3
 core/src/main/java/com/legend/exec/Sessions.java	jdbc-url	10
 core/src/main/java/com/legend/exec/Sessions.java	product-call	2
-core/src/main/java/com/legend/exec/Sessions.java	product-name	52
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/exec/Sessions.java	product-name	65
 core/src/main/java/com/legend/exec/SqlReplayOracle.java	product-name	3
 core/src/main/java/com/legend/exec/SqlTypeCensus.java	product-name	10
 core/src/main/java/com/legend/executionplan/PlanJson.java	database-type	2
-core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	18
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	27
 core/src/main/java/com/legend/lexer/Lexer.java	product-name	1
 core/src/main/java/com/legend/lexer/TokenType.java	product-name	1
-core/src/main/java/com/legend/model/AuthenticationSpec.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/lowering/AsorRef.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/model/AuthenticationSpec.java	product-name	4
 core/src/main/java/com/legend/model/ConnectionDefinition.java	product-name	22
-core/src/main/java/com/legend/model/ConnectionSpecification.java	product-name	8
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/model/ConnectionSpecification.java	product-name	13
 core/src/main/java/com/legend/model/FromProtocol.java	database-type	2
-core/src/main/java/com/legend/model/FromProtocol.java	product-name	24
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/model/FromProtocol.java	product-name	27
 core/src/main/java/com/legend/model/MappingFromProtocol.java	product-name	1
 core/src/main/java/com/legend/model/ModelFromProtocol.java	product-name	5
 core/src/main/java/com/legend/model/PackageableElement.java	product-name	1
@@ -77,9 +96,13 @@ core/src/main/java/com/legend/resolver/GraphEmission.java	product-name	2
 core/src/main/java/com/legend/resolver/RawGridSchema.java	product-name	12
 core/src/main/java/com/legend/setup/CsvSeed.java	product-name	5
 core/src/main/java/com/legend/test/PureTestRunner.java	product-name	5
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/main/java/com/legend/test/ServiceTestRunner.java	product-name	1
 core/src/main/java/com/legend/test/StorelessRuntime.java	product-name	6
 core/src/main/java/com/legend/test/TestObserver.java	product-name	2
 core/src/test/java/com/legend/ArchitectureTest.java	dialect-class	5
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/ArchitectureTest.java	product-name	3
 core/src/test/java/com/legend/AssertErrorNativeTest.java	database-type	1
 core/src/test/java/com/legend/AssertErrorNativeTest.java	jdbc-url	1
 core/src/test/java/com/legend/AssertErrorNativeTest.java	product-name	1
@@ -98,7 +121,8 @@ core/src/test/java/com/legend/PipelineStageFailureTest.java	dialect-class	2
 core/src/test/java/com/legend/PipelineStageFailureTest.java	product-name	2
 core/src/test/java/com/legend/PlanMakerTest.java	database-type	22
 core/src/test/java/com/legend/PlanMakerTest.java	jdbc-url	4
-core/src/test/java/com/legend/PlanMakerTest.java	product-name	32
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/PlanMakerTest.java	product-name	35
 core/src/test/java/com/legend/PlanOnJavaBase.java	product-name	4
 core/src/test/java/com/legend/StoreTypesTest.java	jdbc-url	1
 core/src/test/java/com/legend/StoreTypesTest.java	product-name	2
@@ -154,20 +178,23 @@ core/src/test/java/com/legend/exec/LiteralChannelTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/LiteralChannelTest.java	product-name	1
 core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	database-type	3
 core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	jdbc-url	2
-core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	product-name	6
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java	product-name	7
 core/src/test/java/com/legend/exec/Phase1AuditTest.java	database-type	5
 core/src/test/java/com/legend/exec/Phase1AuditTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/Phase1AuditTest.java	product-name	5
 core/src/test/java/com/legend/exec/PlanRunnerTest.java	database-type	17
 core/src/test/java/com/legend/exec/PlanRunnerTest.java	jdbc-url	2
-core/src/test/java/com/legend/exec/PlanRunnerTest.java	product-name	26
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/exec/PlanRunnerTest.java	product-name	32
 core/src/test/java/com/legend/exec/RawGridSchemaTest.java	database-type	1
 core/src/test/java/com/legend/exec/RawGridSchemaTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/RawGridSchemaTest.java	product-name	1
 core/src/test/java/com/legend/exec/RowLoadTest.java	database-type	1
 core/src/test/java/com/legend/exec/RowLoadTest.java	dialect-class	2
 core/src/test/java/com/legend/exec/RowLoadTest.java	jdbc-url	4
-core/src/test/java/com/legend/exec/RowLoadTest.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/exec/RowLoadTest.java	product-name	5
 core/src/test/java/com/legend/exec/StructValueTest.java	database-type	1
 core/src/test/java/com/legend/exec/StructValueTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/StructValueTest.java	product-name	1
@@ -176,10 +203,12 @@ core/src/test/java/com/legend/exec/VerdictWorld2ConsistencyTest.java	jdbc-url	1
 core/src/test/java/com/legend/exec/VerdictWorld2ConsistencyTest.java	product-name	1
 core/src/test/java/com/legend/exec/WireTypesTest.java	dialect-class	2
 core/src/test/java/com/legend/exec/WireTypesTest.java	jdbc-url	2
-core/src/test/java/com/legend/exec/WireTypesTest.java	product-name	3
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/exec/WireTypesTest.java	product-name	4
 core/src/test/java/com/legend/executionplan/PlanJsonTest.java	database-type	3
 core/src/test/java/com/legend/executionplan/PlanJsonTest.java	jdbc-url	1
-core/src/test/java/com/legend/executionplan/PlanJsonTest.java	product-name	8
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/executionplan/PlanJsonTest.java	product-name	12
 core/src/test/java/com/legend/integration/AsOfJoinCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/AssociationIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/ComputedProjectIntegrationTest.java	jdbc-url	6
@@ -188,6 +217,12 @@ core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	dialect-cl
 core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	product-name	1
 core/src/test/java/com/legend/integration/CorrelatedRelationCheckerTest.java	jdbc-url	1
+# 2026-10-14, the PR #39 audit's findings 1-4 (declared quoting as data, sql.NameQuoting): regression tests that run one store's quoted names through each database's dialect and on H2/DuckDB, so they name each; pinned as measured.
+core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	database-type	1
+core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	dialect-class	6
+core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	jdbc-url	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	product-name	7
 core/src/test/java/com/legend/integration/DuckDBIntegrationTest.java	jdbc-url	2
 core/src/test/java/com/legend/integration/DuckDBIntegrationTest.java	product-name	3
 core/src/test/java/com/legend/integration/DuckDBStructSyntaxTest.java	jdbc-url	2
@@ -254,7 +289,10 @@ core/src/test/java/com/legend/integration/SqlIslandIntegrationTest.java	product-
 core/src/test/java/com/legend/integration/SqlParityTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/SqlParityTest.java	product-name	6
 core/src/test/java/com/legend/integration/StreamingIntegrationTest.java	jdbc-url	1
-core/src/test/java/com/legend/integration/StressServiceSuitesTest.java	product-name	3
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/integration/StressServiceSuitesH2Test.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/integration/StressServiceSuitesTest.java	product-name	4
 core/src/test/java/com/legend/integration/StressSuites.java	database-type	2
 core/src/test/java/com/legend/integration/StressSuites.java	jdbc-url	1
 core/src/test/java/com/legend/integration/StressSuites.java	product-name	10
@@ -289,6 +327,8 @@ core/src/test/java/com/legend/integration/VariantIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/WindowFunctionTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/WriteCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/ladder/FrameQuotedColumnTest.java	jdbc-url	1
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/ladder/FrameQuotedColumnTest.java	product-name	2
 core/src/test/java/com/legend/ladder/LadderRender.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java	database-type	1
 core/src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java	jdbc-url	1
@@ -326,7 +366,8 @@ core/src/test/java/com/legend/lowering/Part1SemanticsTest.java	product-name	1
 core/src/test/java/com/legend/lowering/QuotedColumnNameTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java	dialect-class	4
 core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java	jdbc-url	5
-core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java	product-name	7
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java	product-name	8
 core/src/test/java/com/legend/lowering/ToOneLaneTest.java	database-type	1
 core/src/test/java/com/legend/lowering/ToOneLaneTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/ToOneLaneTest.java	product-name	1
@@ -336,6 +377,8 @@ core/src/test/java/com/legend/lowering/ValueSortComparatorTest.java	product-name
 core/src/test/java/com/legend/normalizer/AssocSimpleNameProbeTest.java	jdbc-url	1
 core/src/test/java/com/legend/normalizer/AssociationSetIdTest.java	jdbc-url	1
 core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java	jdbc-url	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/normalizer/MappingNormalizerTest.java	product-name	19
 core/src/test/java/com/legend/parser/ElementParserTest.java	database-type	2
 core/src/test/java/com/legend/parser/ElementParserTest.java	product-name	4
 core/src/test/java/com/legend/protocol/OlderModelShapesTest.java	product-name	1
@@ -427,6 +470,8 @@ core/src/test/java/com/legend/resolver/StackShapeWitnessTest.java	product-name	2
 core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java	dialect-class	2
 core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java	jdbc-url	1
 core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java	product-name	2
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/server/ConnectionLeaseTest.java	product-name	5
 core/src/test/java/com/legend/server/CreateClassTest.java	database-type	1
 core/src/test/java/com/legend/server/CreateClassTest.java	jdbc-url	1
 core/src/test/java/com/legend/server/CreateClassTest.java	product-name	1
@@ -436,14 +481,18 @@ core/src/test/java/com/legend/server/PostgresArmTest.java	dialect-class	3
 core/src/test/java/com/legend/server/PostgresArmTest.java	jdbc-url	1
 core/src/test/java/com/legend/server/PostgresArmTest.java	product-name	9
 core/src/test/java/com/legend/server/PureV1ApiTest.java	jdbc-url	1
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/server/PureV1ApiTest.java	product-name	1
 core/src/test/java/com/legend/server/ServerSessionsTest.java	product-name	1
 core/src/test/java/com/legend/server/SqlIslandPostgresTest.java	product-name	9
 core/src/test/java/com/legend/server/SqlParityPostgresTest.java	product-name	4
 core/src/test/java/com/legend/setup/ReservedNamesSeedTest.java	dialect-class	2
 core/src/test/java/com/legend/setup/ReservedNamesSeedTest.java	jdbc-url	2
-core/src/test/java/com/legend/setup/ReservedNamesSeedTest.java	product-name	3
-core/src/test/java/com/legend/setup/SeedSpellingTest.java	dialect-class	3
-core/src/test/java/com/legend/setup/SeedSpellingTest.java	product-name	5
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+core/src/test/java/com/legend/setup/ReservedNamesSeedTest.java	product-name	4
+# 2026-10-14, the PR #39 audit's findings 1-4: a per-database regression test (the reason above DeclaredQuotedTableTest.java).
+core/src/test/java/com/legend/setup/SeedSpellingTest.java	dialect-class	5
+core/src/test/java/com/legend/setup/SeedSpellingTest.java	product-name	8
 core/src/test/java/com/legend/sql/DuckDbRenderTest.java	dialect-class	2
 core/src/test/java/com/legend/sql/DuckDbRenderTest.java	product-name	3
 core/src/test/java/com/legend/sql/DuckDbValidityTest.java	dialect-class	2
@@ -492,6 +541,8 @@ pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_GrammarFu
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_RelationFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_StandardFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_Databricks_UnclassifiedFunctions_PCT.java	product-name	1
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_H2_RelationFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_EssentialFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_GrammarFunctions_PCT.java	product-name	1
 pct/src/test/java/org/finos/legend/lite/pct/Test_LegendLite_MariaDB_RelationFunctions_PCT.java	product-name	1
@@ -528,14 +579,22 @@ pct/src/test/java/org/finos/legend/lite/pct/extension/CloudLane.java	database-ty
 pct/src/test/java/org/finos/legend/lite/pct/extension/CloudLane.java	product-name	3
 pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	database-type	11
 pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	jdbc-url	3
-pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	product-name	59
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+pct/src/test/java/org/finos/legend/lite/pct/extension/PctBackend.java	product-name	60
 spec/src/test/java/com/legend/generators/Phase3bProbesTest.java	product-name	3
-spec/src/test/java/com/legend/harness/H2Verify.java	product-name	3
-spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	3
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+spec/src/test/java/com/legend/harness/H2ExtensionFunctions.java	product-name	12
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+spec/src/test/java/com/legend/harness/H2Verify.java	product-name	6
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+spec/src/test/java/com/legend/harness/H2VerifyNormTest.java	product-name	7
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+spec/src/test/java/com/legend/harness/PlanReplay.java	product-name	12
 spec/src/test/java/com/legend/harness/ReplayOracle.java	driver	1
 spec/src/test/java/com/legend/harness/ReplayOracle.java	jdbc-url	1
 spec/src/test/java/com/legend/harness/ReplayOracle.java	product-call	1
-spec/src/test/java/com/legend/harness/ReplayOracle.java	product-name	62
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+spec/src/test/java/com/legend/harness/ReplayOracle.java	product-name	115
 spec/src/test/java/com/legend/rcorpus/Corpus.java	dialect-class	1
 spec/src/test/java/com/legend/rcorpus/Corpus.java	product-name	1
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	driver	1
@@ -543,8 +602,10 @@ spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	jdbc-url	2
 spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java	product-name	2
 spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	database-type	3
 spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	jdbc-url	2
-spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	product-name	17
-spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java	product-name	22
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java	product-name	32
+# 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
+spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java	product-name	52
 spec/src/test/java/com/legend/rcorpus/ServerWorkspaces.java	product-name	2
 warehouse/src/test/java/com/legend/warehouse/TestServer.java	product-name	4
 warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java	jdbc-url	2

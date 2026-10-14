@@ -2995,26 +2995,18 @@ public final class SQLite extends AnsiSqlRenderer {
      *  an attached database is a namespace, but ATTACH has no IF NOT EXISTS and the metamodel's seed creates its schema
      *  once per table (measured: "database metamodel is already in use"). */
     @Override
-    protected String tableName(String name) {
+    protected String tableName(String name, com.legend.sql.NameQuoting quoting) {
         int dot = name.indexOf('.');
         if (dot <= 0) {
-            return super.tableName(name);
+            return super.tableName(name, quoting);
         }
-        return delimited(text(name.substring(0, dot)) + "." + text(name.substring(dot + 1)));
+        // one delimited name, its case kept, whichever parts the store declared quoted
+        return delimited(name);
     }
 
-    private String qualified(@com.legend.base.Nullable String schema, String table) {
-        if (schema == null || schema.isEmpty() || "default".equals(schema)) {
-            String quoted = declaredQuoted(table);
-            return quoted != null ? delimited(quoted) : physicalName(table);
-        }
-        return delimited(text(schema) + "." + text(table));
-    }
-
-    /** A name part's text: a declared-quoted one's inner text, a bare one as it is. */
-    private static String text(String part) {
-        String quoted = declaredQuoted(part);
-        return quoted != null ? quoted : part;
+    private String qualified(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting) {
+        return schema == null || schema.isEmpty() || "default".equals(schema) ? storedName(table, quoting.table())
+                : delimited(schema + "." + table);
     }
 
     /** A schema names no object of its own ({@link #tableName}): its creation and its drop are no statement. */
@@ -3025,7 +3017,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.DropSchema ds -> "SELECT 1;";
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "Create Temporary Table " : "Create Table ")
-                        .append(qualified(ct.schema(), ct.table())).append("(");
+                        .append(qualified(ct.schema(), ct.table(), ct.quoting())).append("(");
                 List<String> keys = new ArrayList<>();
                 for (int i = 0; i < ct.columns().size(); i++) {
                     com.legend.sql.SqlDdl.Column col = ct.columns().get(i);
@@ -3042,7 +3034,7 @@ public final class SQLite extends AnsiSqlRenderer {
                 yield sb.append(");").toString();
             }
             case com.legend.sql.SqlDdl.DropTable dt ->
-                    "Drop table if exists " + qualified(dt.schema(), dt.table()) + ";";
+                    "Drop table if exists " + qualified(dt.schema(), dt.table(), dt.quoting()) + ";";
         };
     }
 
@@ -3051,8 +3043,8 @@ public final class SQLite extends AnsiSqlRenderer {
     public String render(com.legend.sql.SqlDml dml) {
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
-                SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table()))
-                        .append(columns(iv.columns())).append(" VALUES ");
+                SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table(), iv.quoting()))
+                        .append(columns(iv.columns(), iv.quotedColumns())).append(" VALUES ");
                 for (int r = 0; r < iv.rows().size(); r++) {
                     writer.append(r == 0 ? "(" : ", (").list(iv.rows().get(r)).append(")");
                 }
@@ -3063,14 +3055,15 @@ public final class SQLite extends AnsiSqlRenderer {
                 }
                 yield insert.sql();
             }
-            case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO " + qualified(it.schema(), it.table())
-                    + columns(it.columns()) + " SELECT * FROM " + ident(it.source()) + ";";
-            case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table()) + ";";
+            case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO " + qualified(it.schema(), it.table(), it.quoting())
+                    + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
+            case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
         };
     }
 
-    private String columns(List<String> columns) {
-        return columns.isEmpty() ? "" : " (" + String.join(", ", columns.stream().map(this::ident).toList()) + ")";
+    private String columns(List<String> columns, java.util.Set<String> quoted) {
+        return columns.isEmpty() ? ""
+                : " (" + String.join(", ", columns.stream().map(c -> storedName(c, quoted.contains(c))).toList()) + ")";
     }
 
     @Override

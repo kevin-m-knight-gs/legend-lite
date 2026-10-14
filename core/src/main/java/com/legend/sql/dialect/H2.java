@@ -145,13 +145,14 @@ public class H2 extends AnsiSqlRenderer {
      * {@link #ident} (bare-unless-needed); this brings the dotted
      * branch to the same rule. */
     @Override
-    protected String tableName(String name) {
+    protected String tableName(String name, com.legend.sql.NameQuoting quoting) {
         int dot = name.indexOf('.');
         if (dot <= 0) {
-            return super.tableName(name);
+            return super.tableName(name, quoting);
         }
-        return execPart(name.substring(0, dot)) + "."
-                + execPart(name.substring(dot + 1));
+        // a part the store declared quoted keeps its case (delimited); a bare one by the reference rule
+        return (quoting.schema() ? delimited(name.substring(0, dot)) : execPart(name.substring(0, dot))) + "."
+                + (quoting.table() ? delimited(name.substring(dot + 1)) : execPart(name.substring(dot + 1)));
     }
 
     /** EXCEPT names are DERIVED labels of the framed source (TDS/pivot

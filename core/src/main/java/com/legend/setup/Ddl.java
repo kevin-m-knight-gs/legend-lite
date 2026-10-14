@@ -48,31 +48,23 @@ public final class Ddl {
      * dropTableStatement spelling, identical across every flavor. */
     public static com.legend.sql.SqlDdl.DropTable dropTable(@com.legend.base.Nullable String schema,
             String table) {
-        return new com.legend.sql.SqlDdl.DropTable(schema, table);
+        return new com.legend.sql.SqlDdl.DropTable(schema, table, com.legend.sql.NameQuoting.BARE);
     }
 
-    /** {@link #dropTable(String, String)} of a declared table: its names spelled as the store declared them
-     *  ({@link #spelledTable}, {@link #spelledSchema}). */
+    /** {@link #dropTable(String, String)} of a declared table: its names, and which the store declared quoted
+     *  ({@link #quoting}). */
     public static com.legend.sql.SqlDdl.DropTable dropDeclaredTable(DatabaseDefinition.TableDefinition def,
             @com.legend.base.Nullable String schema) {
-        return new com.legend.sql.SqlDdl.DropTable(spelledSchema(schema, def), spelledTable(def));
+        return new com.legend.sql.SqlDdl.DropTable(schema, def.name(), quoting(def, schema));
     }
 
-    /** A table's name as its SQL spells it: carrying its double quotes when the store declared it quoted
-     *  ({@code Table "Orders"}), which the dialect delimits, its case kept; bare otherwise. */
-    public static String spelledTable(DatabaseDefinition.TableDefinition def) {
-        return def.quoted() ? quoted(def.name()) : def.name();
-    }
-
-    /** {@link #spelledTable} for the table's schema {@code schema} (null, or {@code default}, for none). */
-    public static @com.legend.base.Nullable String spelledSchema(@com.legend.base.Nullable String schema,
-            DatabaseDefinition.TableDefinition def) {
-        return schema != null && !schema.isEmpty() && !"default".equals(schema) && def.schemaQuoted()
-                ? quoted(schema) : schema;
-    }
-
-    private static String quoted(String name) {
-        return '"' + name.replace("\"", "\"\"") + '"';
+    /** Which of a declared table's names, in schema {@code schema} (null, or {@code default}, for none), its store
+     *  declared quoted ({@code Table "Orders"}, {@code Schema "Sales"}): data the dialect spells (sql.NameQuoting), never
+     *  quote characters in the names. */
+    public static com.legend.sql.NameQuoting quoting(DatabaseDefinition.TableDefinition def,
+            @com.legend.base.Nullable String schema) {
+        boolean named = schema != null && !schema.isEmpty() && !"default".equals(schema);
+        return new com.legend.sql.NameQuoting(named && def.schemaQuoted(), def.quoted());
     }
 
 
@@ -95,7 +87,7 @@ public final class Ddl {
             cols.add(new com.legend.sql.SqlDdl.Column(col.name(), col.quoted(), com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()),
                     col.notNull(), col.primaryKey()));
         }
-        return new com.legend.sql.SqlDdl.CreateTable(spelledSchema(schema, def), spelledTable(def), cols);
+        return new com.legend.sql.SqlDdl.CreateTable(schema, def.name(), quoting(def, schema), cols);
     }
 
 
@@ -134,11 +126,12 @@ public final class Ddl {
                 defaults);
         java.util.List<String> out = new java.util.ArrayList<>();
         for (var sc : named.entrySet()) {
-            out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema(sc.getKey())));
-            out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema(sc.getKey())));
+            // the engine's text spells a schema bare (EngineStyleH2.storedName), quoted or not
+            out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema(sc.getKey(), false)));
+            out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema(sc.getKey(), false)));
         }
-        out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema("default")));
-        out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema("default")));
+        out.add(engineText.render(new com.legend.sql.SqlDdl.DropSchema("default", false)));
+        out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema("default", false)));
         for (var sc : named.entrySet()) {
             for (var t : sc.getValue().values()) {
                 out.add(engineText.render(dropDeclaredTable(t, sc.getKey())));
@@ -360,7 +353,7 @@ public final class Ddl {
             DatabaseDefinition.TableDefinition def, String schema,
             com.legend.sql.dialect.SqlDialect dialect) {
         return java.util.List.of(
-                dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema)),
+                dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema, false)),
                 dialect.render(dropTable(schema, def.name())),
                 dialect.render(createTable(def, schema)));
     }
@@ -370,7 +363,8 @@ public final class Ddl {
      * fact), every column in declared order. */
     public static RowLoad metamodelRows(DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows) {
-        return new RowLoad(schema, def.name(), java.util.List.of(), def.columns().size(), rows);
+        return new RowLoad(schema, def.name(), quoting(def, schema), java.util.List.of(), java.util.Set.of(),
+                def.columns().size(), rows);
     }
 
     /** A store table's name in a SERVER engine's system database (exec.SystemDatabase): {@code schema_table}, one
@@ -401,7 +395,7 @@ public final class Ddl {
                     c.notNull() || c.primaryKey(), false));
         }
         return dialect.sessionTable(new com.legend.sql.SqlDdl.CreateTable(null, systemTable(schema, def.name()),
-                columns, true), rows.isEmpty() ? null : metamodelTemporaryRows(def, schema, rows).values());
+                com.legend.sql.NameQuoting.BARE, columns, true), rows.isEmpty() ? null : metamodelTemporaryRows(def, schema, rows).values());
     }
 
     /** The rows of {@link #metamodelTemporary}'s table, as {@link #metamodelRows}, each cell of a column that is not
@@ -419,8 +413,9 @@ public final class Ddl {
                         + " BIT)");
             });
         }
-        return new RowLoad(null, systemTable(schema, def.name()), java.util.List.of(), def.columns().size(), rows,
-                casts);
+        return new RowLoad(null, systemTable(schema, def.name()), com.legend.sql.NameQuoting.BARE, java.util.List.of(),
+                java.util.Set.of(),
+                def.columns().size(), rows, casts);
     }
 
     /** The FLAVORED type spelling: the deltas from the H2 base are the
