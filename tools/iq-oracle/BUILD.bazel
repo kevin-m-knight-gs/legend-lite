@@ -1,0 +1,26 @@
+# THE IQ ISLAND'S ORACLE (README.md): SQL Anywhere 17's answers for the #IQ{...}# island's parity cases
+# (core/src/test/resources/iq-parity), snapped into the committed iq-answers.jsonl by a person on a Mac with SQL Anywhere
+# 17 installed, never by a test: CI judges from the committed file, and the live drift check is run by hand.
+#   bazel run //tools/iq-oracle:snap -- --check      (or --write; tools/iq-oracle/snap.sh runs the same without Bazel)
+# A hand tool: manual, so a wildcard build does not build it, and the checks lane builds it (tools_build_test). The
+# script runs the checkout's own snap.py (BUILD_WORKSPACE_DIRECTORY under `bazel run`), so only snap.sh is the binary.
+# native_binary, not sh_binary: Bazel 9 has no native shell rules and rules_shell is no direct dependency of this
+# repository.
+
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+load("//tools/guards:defs.bzl", "guards_package")
+
+native_binary(
+    name = "snap",
+    src = "snap.sh",
+    tags = ["manual"],
+)
+
+# the hand tool builds (the build rebuild's L1b): the checks lane builds it, nothing runs
+build_test(
+    name = "tools_build_test",
+    targets = [":snap"],
+)
+
+guards_package()

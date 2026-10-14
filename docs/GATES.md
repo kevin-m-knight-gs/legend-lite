@@ -9433,6 +9433,80 @@ both green after); `//gates:local` 359 pass, 2 skipped (the two guards incompati
 CI run 38492848369 on the core lane, every platform, green on the core lane's three platform jobs and the linux-arm
 warehouse job; main's own run on the landing, 38493945113, green on every job.
 
+## 2026-10-14 — `#IQ{...}#`: the first landing — SAP IQ SQL inside any Pure query, judged against SQL Anywhere 17 (the tenth line)
+
+Announced in `docs/IN_FLIGHT.md` ("A tenth line", 987c37e18). Branch `claude/iq-island-1`: four commits over main
+941f8382d (5c977f4bf the study and the oracle, 27e1e4dbf the seam, 9fb52c67e the island, 9ba06c4ad the rest of M0 and
+the reviews' fixes), built on `claude/iq-island` and rebased. The study, `docs/IQ_SQL_STUDY_2026_10_13.md` (§9.1 holds
+what reads, what is refused and why, the reviews' findings and the numbers below).
+
+1. **What lands.** A query written for SAP IQ 16.2 as `#IQ{...}#`, or `#IQ:<profile>{...}#` for one of five closed
+   profiles, becomes an ordinary Relation expression that returns IQ's answer.
+   - **The seam:** `SqlToPure` takes an `InputDialect`; Postgres's own behaviour moved unchanged into
+     `PostgresDialect`. One translator, no fork.
+   - **The oracle:** `tools/iq-oracle/` snaps SQL Anywhere 17's answers (two databases, one IQ-like and one at SQL
+     Anywhere's defaults; five profiles) into `core/src/test/resources/iq-parity/iq-answers.jsonl`. CI judges from the
+     file; `--check` against SQL Anywhere is local.
+   - **The island:** `protocol/sql/iq/` (`IqLexer`, `IqParser`, `IqDialect`, `IqProfile`, `IqType`, `IqTypes`); the
+     plumbing in `SqlIsland`, `SpecParser`, the wire and the printers, and `compiler/spec/SqlIslands`.
+   - **All of M0:** names, NULL as the lowest value, blank-padded `=`, CHAR(n) padding under the IQ engine, ansinull
+     Off, IQ's integer types and overflow, `/` and `%`, BIT as 0 or 1, `||` and string `+`, TOP, FIRST and START AT,
+     T-SQL and string aliases, IF … ENDIF and CASE, ISNULL, COALESCE, IFNULL and NULLIF.
+   - **Decisions:** adopted D-S1, D-L1, D-N3, D-Q1, D-S3, and D-E2 (new: an operand that can raise beside AND or OR in
+     a WHERE is plan-dependent, so such a case is never judged). Refused by name until verified: D-N1 (its refusal
+     names it), D-N6, D-S5, D-C6, D-T2/D-T12 and D-F1 (their constructs are not read yet).
+   - **Declared:** `docs/OWN_CORPUS_DECISIONS.md` §14 (LITE-DESIGN-iq-island) and `docs/SEMANTICS_REGISTER.md` S50 to
+     S54.
+2. **The seam's judge.** The generated Pure (the composed text and the protocol tree) of all 2,225 cases (2,180
+   `sql-parity`, 45 island cases), dumped before and after the seam: byte-identical. With 95 probes that reach every
+   hook, 2,320 lines byte-identical, rerun on every later commit. Both `sql-parity` ledgers are unchanged in both
+   lanes: 2,180 cases, PASS 1,527, REFUSED 449, BOTH_ERROR 136, SKIP 68.
+3. **The IQ parity corpus,** identical in both lanes (`//core:iq_parity_test` on DuckDB,
+   `//core:iq_parity_postgres_test` on Postgres 16, both in `//gates:core`), judged by SQL Anywhere 17.0.11.7254's
+   snapped answers or by a case's decision:
+
+   | | `lite/basics.yaml` | `lite/m0.yaml` | all |
+   |---|---|---|---|
+   | runs (case × profile) | 84 | 248 | 332 |
+   | PASS | 62 | 143 | 205 |
+   | FAIL, BUG, ERROR | 0 | 0 | 0 |
+   | REFUSED by name | 10 | 37 | 47 |
+   | BOTH_ERROR | 12 | 65 | 77 |
+   | SKIP (D-E2) | 0 | 3 | 3 |
+
+   - **The answers:** `tools/iq-oracle/snap.sh --write`, then `--check`: 312 cases, 329 answers (3 skipped), clean.
+   - **The syntax ratchet,** `//core:iq_syntax_cases_test` (new, in `//gates:core`): 7,169 cases derived from the
+     research; PARSED accept 659, flag 8, reject 31 (each reject that parses is a SQL Anywhere post-parse error the
+     translation reaches); none crashed.
+4. **Judges.**
+   - **The local gate:** `bazel test --lockfile_mode=error //gates:local` on 670761332 (`claude/iq-island`, the rest
+     of M0 before the second review's fixes): 365 tests, 363 pass, 2 skipped (`//tools/guards:classpath_test` and
+     `:markdown_inputs_test`, incompatible with macOS). The second review's fixes came after it and were re-run
+     uncached: `//core:iq_parity_test`, `//core:iq_parity_postgres_test`, `//core:iq_syntax_cases_test`,
+     `//core:sql_parity_test`, `//core:sql_parity_postgres_test`, `//core:core_tests`, `//gates:checks` and
+     `//parser-equivalence:diagnostics`: 166 pass, the same 2 skipped; `//sdlc-server:page` and `//wasm:planner`
+     build (TeaVM); the dump byte-identical again. All green.
+   - **Guard entries,** each with a dated reason: `CodeShapeGuardrailTest` (IqLexer's and IqParser's cursors, "IQ
+     island, 2026-10-13"); `OwnDialectCensusTest`, `OwnCorpusConformanceTest` and `FixtureAdjudicationTest` (the island
+     as a declared extension, each pinned at 1, "IQ island, 2026-10-14"); `syntax-pins.tsv` (re-seeded after the
+     syntax cases were re-derived, 2026-10-14). The other guards that objected on the way were met in the code:
+     `SqlTextRatchetTest`, `ParserBoundaryArchTest`, `ErrorShapeGuardrailTest`, `IdentityGuardrailTest`.
+   - **Two independent reviews** (agents that wrote none of it; read-only; each claim run on lite and on SQL Anywhere):
+     - review 1, of the seam and the island: 6 BLOCKER, 4 MAJOR, 7 MINOR. The seam clean; each blocker an accepted
+       query answered otherwise than SQL Anywhere answers it (REAL in single precision, `ORDER BY +1` and `(1)`,
+       Postgres's FROM functions, aliases equal but for case, constants beyond 38 places, sqla17's 30 digits);
+     - review 2, of the rest of M0: 3 BLOCKER, 3 MAJOR, 9 MINOR (an alias inside an ORDER BY expression, AND and OR
+       around IQ's run-time errors, manual examples in the syntax cases; the SQL's growth under checked arithmetic,
+       row limits computing the rows they drop, a constant that may be NULL raised at translation).
+
+     All blockers and majors are fixed, each pinned by a case or a test that fails without its fix; the minors are
+     fixed or recorded in the study's §9.1.
+   - CI: run <pending> on the PR.
+5. **Not done, recorded in the study** (§9.1, "Recorded, not fixed" and "Next steps"): M1a to M1e; the natives (an
+   ASCII-only case fold and right trim, exact decimal division, a range check that takes its operand once, a raise
+   that carries IQ's code); the syntax ratchet pinning PARSED ids; `SELECT id, ID … ORDER BY id`'s false ambiguity;
+   Postgres's default name of nested casts, 2^n in their depth (the seventh line's, older than the seam).
+
 ## 2026-10-13 — The dialect program's D1: the base renderer spells no function (the ninth line, on its branch)
 
 Branch `claude/great-wright-p6t5s1`, not landed (Phase 1 lands for the user's review, decision D7). The step and its

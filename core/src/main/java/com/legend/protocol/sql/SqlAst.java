@@ -90,8 +90,15 @@ public final class SqlAst {
     public record AllColumns(@com.legend.base.Nullable Ident qualifier, Pos pos) implements SelectItem {
     }
 
-    /** {@code expr [[AS] alias]}. */
-    public record SelectExpr(Expr expr, @com.legend.base.Nullable Ident alias, Pos pos) implements SelectItem {
+    /** {@code expr [[AS] alias]}; {@code text} is the expression as written, when the reader keeps it (a dialect
+     *  that names an unaliased item by its text), else null (Postgres's reader). */
+    public record SelectExpr(Expr expr, @com.legend.base.Nullable Ident alias, Pos pos,
+            @com.legend.base.Nullable String text) implements SelectItem {
+
+        /** An item whose text is not kept. */
+        public SelectExpr(Expr expr, @com.legend.base.Nullable Ident alias, Pos pos) {
+            this(expr, alias, pos, null);
+        }
     }
 
     /** {@code expr [ASC | DESC] [NULLS FIRST | NULLS LAST]}; {@code nullsFirst} is null when not written. */

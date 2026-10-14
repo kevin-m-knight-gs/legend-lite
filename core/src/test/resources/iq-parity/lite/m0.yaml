@@ -1,0 +1,606 @@
+# The rest of M0 for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.2): integer arithmetic with IQ's types
+# and overflow, division, signs, BIT as an integer, || and + of strings, row limits, IF and CASE, ISNULL, COALESCE,
+# IFNULL and NULLIF, the T-SQL and string aliases, and the review's cases (ORDER BY positions, constants lite cannot
+# hold, REAL columns, other dialects' functions, the sqla17 profiles). Each is judged by SQL Anywhere 17's answer in
+# iq-answers.jsonl unless it names a decision (D-S1: a CHAR(n) value padded under the IQ engine; D-L1: = NULL under
+# ansinull Off rewritten in a CASE's or an IF's condition by the IQ engine), whose expect is the decided rows.
+# A case without FROM runs in SQL Anywhere's front end (engine: sa); one over tables in the IQ engine, unless its
+# profile is a sqla17 one (a SQL Anywhere database, no IQ engine). tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- integers: IQ's types for constants and results, overflow an error (-158), never a wider type (TYPING §2-§3, D-N3)
+  - id: integer_plus_overflow
+    sql: "SELECT it + 1 AS n FROM t WHERE id = 1"
+  - id: integer_plus
+    sql: "SELECT id, it + 1 AS n FROM t WHERE id > 1 ORDER BY id"
+  - id: smallint_plus_overflow
+    sql: "SELECT sm + 1 AS n FROM t WHERE id = 1"
+  - id: smallint_minus_overflow
+    sql: "SELECT sm - 1 AS n FROM t WHERE id = 2"
+  - id: smallint_plus_integer_constant
+    sql: "SELECT id, sm + 40000 AS n FROM t ORDER BY id"
+  - id: smallint_times_smallint_is_an_integer
+    sql: "SELECT id, sm * sm AS n FROM t ORDER BY id"
+  - id: smallint_times_a_constant
+    sql: "SELECT sm * 2 AS n FROM t WHERE id = 1"
+  - id: smallint_plus_smallint_overflow
+    sql: "SELECT sm + sm AS n FROM t WHERE id = 1"
+  - id: integer_times_overflow
+    sql: "SELECT it * 2 AS n FROM t WHERE id = 1"
+  - id: integer_times_smallint
+    sql: "SELECT id, it * sm AS n FROM t WHERE id > 2 ORDER BY id"
+  - id: integer_times_smallint_overflow
+    sql: "SELECT it * sm AS n FROM t WHERE id = 1"
+  - id: bigint_plus_overflow
+    sql: "SELECT bg + 1 AS n FROM t WHERE id = 1"
+  - id: bigint_minus
+    sql: "SELECT id, bg - 1 AS n FROM t WHERE id <> 2 ORDER BY id"
+  - id: bigint_times_overflow
+    sql: "SELECT bg * bg AS n FROM t WHERE id = 1"
+  - id: integer_plus_bigint_overflow
+    sql: "SELECT it + bg AS n FROM t WHERE id = 1"
+  - id: bigint_plus_a_smallint_constant
+    sql: "SELECT id, bg + 32767 AS n FROM t WHERE id = 3"
+  - id: constants_smallint_overflow
+    sql: "SELECT 32767 + 1 AS n"
+    engine: sa
+  - id: constants_smallint_overflow_over_a_table
+    sql: "SELECT 32767 + 1 AS n FROM t WHERE id = 1"
+  - id: constants_integer_results
+    sql: "SELECT 32768 + 1 AS n, 30000 * 30000 AS m, 32767 * 32767 AS k"
+    engine: sa
+  - id: constants_integer_overflow
+    sql: "SELECT 50000 * 50000 AS n"
+    engine: sa
+  - id: constants_negative_smallint_edge
+    sql: "SELECT -32767 - 1 AS n, -32768 AS m, - 32768 + 0 AS k"
+    engine: sa
+  - id: constants_negative_smallint_overflow
+    sql: "SELECT -32768 - 1 AS n"
+    engine: sa
+  - id: constants_integer_edge
+    sql: "SELECT -2147483647 - 1 AS m, -2147483648 AS n"
+    engine: sa
+  - id: constants_integer_edge_overflow
+    sql: "SELECT -2147483647 - 2 AS m"
+    engine: sa
+  - id: constants_keep_their_types_when_folded
+    sql: "SELECT (40000 - 39999) + 32767 AS n"
+    engine: sa
+  - id: constant_negated_in_parentheses
+    sql: "SELECT -(32768) AS n"
+    engine: sa
+  - id: constant_negated_twice_overflow
+    sql: "SELECT -(-32768) AS n"
+    engine: sa
+  - id: precedence_of_the_value_operators
+    sql: "SELECT 2 + 3 * 4 - 10 / 3 % 2 AS n"
+    engine: sa
+  - id: numeric_constant_arithmetic_is_refused
+    sql: "SELECT 2147483648 + 1 AS n"
+    engine: sa
+  - id: numeric_column_arithmetic_is_refused
+    sql: "SELECT nm + 1 AS n FROM t WHERE id = 1"
+  - id: double_arithmetic_is_refused
+    sql: "SELECT dbl + 1 AS n FROM t WHERE id = 1"
+  - id: bigint_modulo_is_numeric_and_refused
+    sql: "SELECT bg % it AS n FROM t WHERE id = 4"
+
+  # ---- division and modulo: / truncates toward zero, % keeps the dividend's sign, a zero divisor IQ's error -628
+  - id: division_truncates
+    sql: "SELECT id, it / 2 AS q, it % 2 AS r, sm / 3 AS q3, sm % 3 AS r3 FROM t ORDER BY id"
+  - id: division_signs
+    sql: "SELECT -7 / 2 AS a, 7 / -2 AS b, -7 % 2 AS c, 7 % -2 AS d, -7 / -2 AS e, -7 % -2 AS f"
+    engine: sa
+  - id: division_by_zero
+    sql: "SELECT it / 0 AS n FROM t WHERE id = 3"
+  - id: modulo_by_zero
+    sql: "SELECT it % 0 AS n FROM t WHERE id = 3"
+  - id: division_by_a_zero_column
+    sql: "SELECT id / (id - id) AS n FROM t WHERE id = 1"
+  - id: division_of_null_by_zero
+    sql: "SELECT sm / 0 AS n FROM t WHERE id = 5"
+  - id: constant_division_by_zero
+    sql: "SELECT 1 / 0 AS n"
+    engine: sa
+  - id: null_constant_divided_by_zero
+    sql: "SELECT NULL / 0 AS n"
+    engine: sa
+  - id: integer_minimum_divided_by_minus_one
+    sql: "SELECT it / -1 AS n FROM t WHERE id = 2"
+  - id: smallint_minimum_divided_by_minus_one
+    sql: "SELECT sm / -1 AS n FROM t WHERE id = 2"
+  - id: bigint_minimum_divided_by_minus_one
+    sql: "SELECT bg / -1 AS n FROM t WHERE id = 2"
+  - id: constant_division
+    sql: "SELECT 7 / 2 AS a, 1 / 3 * 3 AS b, 10 / 4 * 4 AS c FROM t WHERE id = 1"
+  - id: bit_divided_by_a_zero_bit
+    sql: "SELECT bt / bt AS n FROM t WHERE id = 2"
+
+  # ---- signs: a minus before a column negates it in its type (checked); before a constant it is a constant
+  - id: negation
+    sql: "SELECT id, -sm AS a, -it AS b, -bg AS c FROM t WHERE id <> 2 ORDER BY id"
+  - id: negation_of_the_smallint_minimum
+    sql: "SELECT -sm AS n FROM t WHERE id = 2"
+  - id: negation_of_the_bigint_minimum
+    sql: "SELECT -bg AS n FROM t WHERE id = 2"
+  - id: negation_twice_of_the_integer_minimum
+    sql: "SELECT id, - - it AS n FROM t WHERE id = 2"
+  - id: negation_of_a_sum
+    sql: "SELECT -(sm + 1) AS n FROM t WHERE id = 3"
+  - id: plus_sign
+    sql: "SELECT +sm AS n FROM t WHERE id = 1"
+  - id: negation_of_a_bit_is_a_smallint
+    sql: "SELECT id, -bt AS n FROM t ORDER BY id"
+
+  # ---- NULL in arithmetic: NULL op T is a NULL of T op T's type
+  - id: integer_plus_null
+    sql: "SELECT id + NULL AS n FROM t WHERE id = 1"
+  - id: null_op_null
+    sql: "SELECT NULL + NULL AS n, NULL * NULL AS m, NULL / NULL AS k"
+    engine: sa
+
+  # ---- BIT: IQ's integer 0 or 1 (the lead's decision, 2026-10-14): read as one, compared, computed with
+  - id: bit_with_a_smallint
+    sql: "SELECT id, bt + sm AS n, sm - bt AS m, bt * sm AS k FROM t WHERE id < 5 ORDER BY id"
+  - id: bit_plus_an_integer_is_a_bigint
+    sql: "SELECT bt + it AS n FROM t WHERE id = 1"
+  - id: bit_minus_bit
+    sql: "SELECT id, bt - bt AS n FROM t ORDER BY id"
+  - id: bit_plus_bit_is_unsigned_and_refused
+    sql: "SELECT bt + bt AS n FROM t WHERE id = 1"
+  - id: bit_equals_an_integer
+    sql: "SELECT id FROM t WHERE bt = 1 ORDER BY id"
+  - id: bit_against_a_column
+    sql: "SELECT id FROM t WHERE bt < id ORDER BY id"
+  - id: bit_against_two
+    sql: "SELECT id FROM t WHERE bt = 2 OR bt <> 0 ORDER BY id"
+  - id: bit_in_isnull
+    sql: "SELECT id, ISNULL(bt, 2) AS n FROM t ORDER BY id"
+  - id: bit_in_a_case
+    sql: "SELECT id, CASE WHEN bt = 1 THEN 'y' ELSE 'n' END AS s FROM t ORDER BY id"
+  - id: bit_joined_as_text
+    sql: "SELECT id, bt || 'x' AS s FROM t ORDER BY id"
+  - id: distinct_top_bits
+    sql: "SELECT DISTINCT TOP 2 bt FROM t ORDER BY bt"
+
+  # ---- || and + of strings: a single NULL is '', all NULL is NULL (D-S3); + of a string and a number is NUMERIC addition
+  - id: concat
+    sql: "SELECT id, vc || '!' AS s FROM t ORDER BY id"
+  - id: concat_of_nulls
+    sql: "SELECT NULL || NULL AS s, 'a' || NULL AS t2, NULL || 'b' AS u, '' || NULL AS v"
+    engine: sa
+  - id: concat_of_two_nulls
+    sql: "SELECT id, vc || vc AS s FROM t ORDER BY id"
+  - id: concat_of_three
+    sql: "SELECT id, vc || NULL || vc AS s, 'A' || vc || 'B' AS t2 FROM t ORDER BY id"
+  - id: concat_of_integers
+    sql: "SELECT id, id || 'x' AS s, sm || it AS t2, bg || '' AS u FROM t ORDER BY id"
+  - id: concat_of_a_negative_integer
+    sql: "SELECT id, sm || '' AS s FROM t WHERE id = 2"
+  - id: concat_precedence
+    sql: "SELECT 1 + 2 || 3 AS s, 2 * 3 || 4 * 5 AS t2, 'a' || 1 + 2 || 'b' AS u"
+    engine: sa
+  - id: concat_null_and_numbers
+    sql: "SELECT NULL || 1 AS s, 1 || 2 AS t2"
+    engine: sa
+  - id: plus_of_strings
+    sql: "SELECT id, vc + '!' AS s, vc + vc AS t2 FROM t ORDER BY id"
+  - id: plus_of_string_constants
+    sql: "SELECT '123' + '456' AS s, 'a' + 'b' + 'c' AS t2"
+    engine: sa
+  - id: plus_of_strings_around_a_null
+    sql: "SELECT vc + '-' + vc AS s FROM t WHERE id = 5"
+  - id: plus_of_a_string_and_null_is_refused
+    sql: "SELECT 'a' + NULL AS s"
+    engine: sa
+  - id: plus_of_a_string_and_a_number_is_refused
+    sql: "SELECT vc + 1 AS s FROM t WHERE id = 1"
+  - id: concat_keeps_a_char_pad
+    sql: "SELECT id, ch || '|' AS s FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","ab   |"],["2","abc  |"],["3","A    |"],["4","zz   |"],["5","|"],["6","     |"],["7"," b   |"]]'
+  - id: plus_keeps_a_char_pad
+    sql: "SELECT id, ch + '|' AS s FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","ab   |"],["2","abc  |"],["3","A    |"],["4","zz   |"],["5","|"],["6","     |"],["7"," b   |"]]'
+  - id: concat_of_a_char_in_a_sql_anywhere_database
+    sql: "SELECT id, ch || '|' AS s FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: concat_of_a_numeric_is_refused
+    sql: "SELECT nm || 'x' AS s FROM t WHERE id = 1"
+  - id: concat_of_a_date_is_refused
+    sql: "SELECT dt || 'x' AS s FROM t WHERE id = 1"
+
+  # ---- row limits: TOP n [START AT m], FIRST; literal TOP 0, a negative count, START AT below 1: IQ's error -674 (D-Q1)
+  - id: top_expression
+    sql: "SELECT TOP (1+1) id FROM t ORDER BY id"
+  - id: top_expression_of_zero
+    sql: "SELECT TOP (1-1) id FROM t ORDER BY id"
+  - id: top_expression_negative
+    sql: "SELECT TOP (1-2) id FROM t ORDER BY id"
+  - id: top_zero
+    sql: "SELECT TOP 0 id FROM t ORDER BY id"
+  - id: top_zero_in_parentheses
+    sql: "SELECT TOP (0) id FROM t ORDER BY id"
+  - id: top_start_at
+    sql: "SELECT TOP 2 START AT 3 id FROM t ORDER BY id"
+  - id: top_start_at_one
+    sql: "SELECT TOP 1 START AT 1 id FROM t ORDER BY id"
+  - id: start_at_zero
+    sql: "SELECT TOP 2 START AT 0 id FROM t ORDER BY id"
+  - id: start_at_an_expression_of_zero
+    sql: "SELECT TOP 2 START AT (1-1) id FROM t ORDER BY id"
+  - id: start_at_beyond_the_rows
+    sql: "SELECT TOP 2 START AT 100 id FROM t ORDER BY id"
+  - id: top_all_start_at
+    sql: "SELECT TOP ALL START AT 6 id FROM t ORDER BY id"
+  - id: first
+    sql: "SELECT FIRST id FROM t ORDER BY id"
+  - id: first_star_descending
+    sql: "SELECT FIRST * FROM u ORDER BY id DESC"
+  - id: top_of_an_int_s_largest
+    sql: "SELECT TOP 2147483647 id FROM t ORDER BY id"
+  - id: top_beyond_an_int
+    sql: "SELECT TOP 2147483648 id FROM t ORDER BY id"
+  - id: top_expression_overflow
+    sql: "SELECT TOP (2147483647+1) id FROM t ORDER BY id"
+  - id: top_expression_precedence
+    sql: "SELECT TOP (1+2*2) id FROM t ORDER BY id"
+  - id: top_and_start_at_expressions
+    sql: "SELECT TOP (2*2) START AT (1+1) id FROM t ORDER BY id"
+  - id: top_two_plus_one_is_top_two
+    sql: "SELECT TOP 2+1 x FROM t ORDER BY 1"
+  - id: top_percent_is_refused
+    sql: "SELECT TOP 10 PERCENT id FROM t ORDER BY id"
+  - id: top_with_ties
+    sql: "SELECT TOP 2 WITH TIES id FROM t ORDER BY id"
+  - id: top_before_distinct
+    sql: "SELECT TOP 2 DISTINCT bt FROM t ORDER BY bt"
+  - id: top_start_at_star
+    sql: "SELECT TOP 3 START AT 2 * FROM u ORDER BY id"
+  - id: top_without_from
+    sql: "SELECT TOP 1 1 AS x"
+    engine: sa
+  - id: top_over_nulls
+    sql: "SELECT TOP 2 id, sm FROM t ORDER BY sm, id"
+  - id: top_start_at_descending
+    sql: "SELECT TOP 3 START AT 2 id FROM t WHERE id < 5 ORDER BY id DESC"
+
+  # ---- IF ... ENDIF: CASE WHEN c THEN a WHEN NOT c THEN b END, so an UNKNOWN condition is NULL, ELSE or not
+  - id: if_else
+    sql: "SELECT id, IF sm > 0 THEN 1 ELSE 0 ENDIF AS n FROM t ORDER BY id"
+  - id: if_end_if
+    sql: "SELECT id, IF sm > 0 THEN 1 ELSE 0 END IF AS n FROM t ORDER BY id"
+  - id: if_without_else
+    sql: "SELECT id, IF sm > 0 THEN 1 ENDIF AS n FROM t ORDER BY id"
+  - id: if_of_two_integer_types
+    sql: "SELECT id, IF id < 3 THEN sm ELSE it ENDIF AS n FROM t ORDER BY id"
+  - id: if_of_strings_without_from
+    sql: "SELECT IF 1 = 1 THEN 'pos' ELSE 'nonpos' ENDIF AS s, IF 1 = 0 THEN 'pos' ELSE 'nonpos' ENDIF AS t2"
+    engine: sa
+  - id: if_of_strings_of_two_lengths_is_refused
+    sql: "SELECT id, IF sm > 0 THEN 'pos' ELSE 'nonpos' ENDIF AS s FROM t ORDER BY id"
+  - id: if_closed_by_end
+    sql: "SELECT IF id > 1 THEN 1 ELSE 2 END AS s FROM t"
+  - id: if_has_no_elseif
+    sql: "SELECT IF id > 1 THEN 1 ELSEIF id > 0 THEN 2 ELSE 3 ENDIF AS s FROM t"
+  - id: if_as_a_function
+    sql: "SELECT IF(id > 1, 1, 2) AS s FROM t"
+  - id: if_in_where
+    sql: "SELECT id FROM t WHERE IF sm > 0 THEN 1 ELSE 0 ENDIF = 1 ORDER BY id"
+  - id: if_nested
+    sql: "SELECT id, IF sm > 0 THEN IF sm > 1000 THEN 2 ELSE 1 ENDIF ELSE 0 ENDIF AS n FROM t ORDER BY id"
+  - id: if_over_a_padded_string_comparison
+    sql: "SELECT id, IF vc = 'x' THEN 1 ELSE 0 ENDIF AS n FROM t ORDER BY id"
+  - id: if_needs_a_condition
+    sql: "SELECT IF id THEN 1 ENDIF AS s FROM t"
+  - id: if_equals_null
+    sql: "SELECT id, IF sm = NULL THEN 1 ELSE 0 ENDIF AS n FROM t ORDER BY id"
+  - id: if_equals_null_under_tds
+    sql: "SELECT id, IF sm = NULL THEN 1 ELSE 0 ENDIF AS n FROM t ORDER BY id"
+    profile: iq16-tds
+    decision: D-L1
+    expect: '[["1","0"],["2","0"],["3","0"],["4","0"],["5","1"],["6","0"],["7","0"]]'
+  - id: if_equals_null_under_tds_without_from
+    sql: "SELECT IF NULL = NULL THEN 1 ELSE 0 ENDIF AS n"
+    profile: iq16-tds
+    engine: sa
+
+  # ---- CASE: searched and simple (the simple one compares as = does); IQ's unification of its results
+  - id: case_searched
+    sql: "SELECT id, CASE WHEN sm > 0 THEN 'p' WHEN sm < 0 THEN 'n' ELSE 'z' END AS s FROM t ORDER BY id"
+  - id: case_simple
+    sql: "SELECT id, CASE id WHEN 1 THEN 10 WHEN 2 THEN 20 ELSE 0 END AS n FROM t ORDER BY id"
+  - id: case_end_case
+    sql: "SELECT id, CASE id WHEN 1 THEN 'one' END CASE AS s FROM t ORDER BY id"
+  - id: case_simple_when_null
+    sql: "SELECT id, CASE sm WHEN NULL THEN 1 ELSE 0 END AS n FROM t ORDER BY id"
+  - id: case_simple_when_null_under_tds
+    sql: "SELECT id, CASE sm WHEN NULL THEN 1 ELSE 0 END AS n FROM t ORDER BY id"
+    profile: iq16-tds
+    decision: D-L1
+    expect: '[["1","0"],["2","0"],["3","0"],["4","0"],["5","1"],["6","0"],["7","0"]]'
+  - id: case_of_two_integer_types
+    sql: "SELECT id, CASE WHEN id = 1 THEN sm ELSE bg END AS n FROM t ORDER BY id"
+  - id: case_of_a_smallint_and_a_constant
+    sql: "SELECT id, CASE WHEN id = 1 THEN sm ELSE 1 END AS n FROM t ORDER BY id"
+  - id: case_of_a_string_and_a_number_is_refused
+    sql: "SELECT id, CASE WHEN id = 1 THEN 'a' ELSE 1 END AS s FROM t ORDER BY id"
+  - id: case_of_integers_and_a_numeric_is_refused
+    sql: "SELECT CASE WHEN id = 1 THEN 1 ELSE 2.5 END AS n FROM t WHERE id = 1"
+  - id: case_of_nulls_only
+    sql: "SELECT id, CASE WHEN id = 1 THEN NULL END AS n FROM t ORDER BY id"
+  - id: case_of_null_and_a_string
+    sql: "SELECT CASE WHEN 1 = 1 THEN NULL ELSE 'a' END AS s"
+    engine: sa
+  - id: case_simple_over_padded_strings
+    sql: "SELECT id, CASE vc WHEN 'x' THEN 1 ELSE 0 END AS n FROM t ORDER BY id"
+  - id: case_of_a_char_and_a_varchar
+    sql: "SELECT id, CASE WHEN id = 1 THEN ch ELSE vc END AS s FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","ab   "],["2","hello"],["3","Résumé"],["4","ÉCOLE"],["5",null],["6","x  "],["7","apple"]]'
+  - id: case_of_a_string_constant_and_a_varchar
+    sql: "SELECT id, CASE WHEN id = 1 THEN 'x' ELSE vc END AS s FROM t ORDER BY id"
+  - id: case_of_strings_of_one_length
+    sql: "SELECT id, CASE WHEN id = 1 THEN 'ab' ELSE 'cd' END AS s FROM t WHERE id < 4 ORDER BY id"
+  - id: case_of_strings_of_two_lengths_is_refused
+    sql: "SELECT id, CASE WHEN id = 1 THEN 'ab' ELSE 'c' END AS s FROM t WHERE id < 3 ORDER BY id"
+  - id: case_when_needs_a_condition
+    sql: "SELECT CASE WHEN id THEN 1 END AS s FROM t"
+
+  # ---- ISNULL, COALESCE, IFNULL, NULLIF
+  - id: isnull
+    sql: "SELECT id, ISNULL(sm, -1) AS n FROM t ORDER BY id"
+  - id: isnull_of_three
+    sql: "SELECT id, ISNULL(sm, it, 0) AS n FROM t ORDER BY id"
+  - id: isnull_of_two_types
+    sql: "SELECT id, ISNULL(sm, bg) AS n FROM t ORDER BY id"
+  - id: isnull_of_strings
+    sql: "SELECT id, ISNULL(vc, 'none') AS s FROM t ORDER BY id"
+  - id: coalesce
+    sql: "SELECT id, COALESCE(vc, 'none') AS s, COALESCE(sm, it, bg) AS n FROM t ORDER BY id"
+  - id: coalesce_of_five
+    sql: "SELECT id, COALESCE(NULL, sm, NULL, it, bg) AS n FROM t ORDER BY id"
+  - id: isnull_of_four
+    sql: "SELECT id, ISNULL(sm, NULL, it, 5) AS n FROM t ORDER BY id"
+  - id: ifnull_is_null_when_its_first_is_not
+    sql: "SELECT id, IFNULL(sm, 99) AS n FROM t ORDER BY id"
+  - id: ifnull_is_typed_as_its_second
+    sql: "SELECT id, IFNULL(sm, bg) AS n, IFNULL(bg, sm) AS m FROM t ORDER BY id"
+  - id: ifnull_of_three
+    sql: "SELECT id, IFNULL(sm, 'n', 'y') AS s FROM t ORDER BY id"
+  - id: ifnull_of_nulls
+    sql: "SELECT IFNULL(NULL, 1) AS n, IFNULL(1, NULL) AS m"
+    engine: sa
+  - id: nullif
+    sql: "SELECT id, NULLIF(sm, 0) AS n FROM t ORDER BY id"
+  - id: nullif_of_strings
+    sql: "SELECT id, NULLIF(vc, 'apple') AS s FROM t ORDER BY id"
+  - id: nullif_reads_its_second_as_its_first_s_type
+    sql: "SELECT id, NULLIF(sm, 100000) AS n FROM t ORDER BY id"
+  - id: nullif_narrowing_in_range
+    sql: "SELECT id, NULLIF(sm, it) AS n FROM t WHERE id > 2 ORDER BY id"
+  - id: nullif_widening
+    sql: "SELECT id, NULLIF(bg, sm) AS n FROM t ORDER BY id"
+  - id: nullif_of_nulls
+    sql: "SELECT NULLIF(NULL, 1) AS n, NULLIF(1, NULL) AS m"
+    engine: sa
+  - id: isnull_of_one_argument
+    sql: "SELECT ISNULL(sm) AS n FROM t"
+  - id: coalesce_of_one_argument
+    sql: "SELECT COALESCE(sm) AS n FROM t WHERE id = 1"
+  - id: isnull_of_a_string_and_a_number_is_refused
+    sql: "SELECT ISNULL(vc, 1) AS n FROM t WHERE id = 1"
+  - id: isnull_of_nulls
+    sql: "SELECT ISNULL(NULL, NULL) AS n, COALESCE(NULL, NULL) AS m"
+    engine: sa
+  - id: function_names_ignore_case
+    sql: "SELECT IsNull(sm, 0) AS a, coalesce(sm, 0) AS b FROM t WHERE id = 1"
+  - id: an_unknown_function
+    sql: "SELECT nosuchfn(id) AS n FROM t"
+  - id: an_unaliased_call_is_refused
+    sql: "SELECT ISNULL(sm, 0) FROM t WHERE id = 1"
+
+  # ---- aliases: T-SQL's alias = expression (never a comparison), string aliases, delimited ones
+  - id: tsql_string_alias
+    sql: "SELECT 'n' = id FROM t WHERE id = 1"
+  - id: string_alias
+    sql: "SELECT id 'n' FROM t WHERE id = 1"
+  - id: string_alias_after_as
+    sql: "SELECT id AS 'the n', vc 'c' FROM t WHERE id = 1"
+  - id: bracket_and_backtick_aliases
+    sql: "SELECT id [n], vc `v` FROM t WHERE id = 1"
+  - id: tsql_double_quoted_alias
+    sql: "SELECT \"n\" = id FROM t WHERE id = 1"
+    profile: iq16-default, iq16-tds
+  - id: double_quoted_alias
+    sql: "SELECT id \"n\" FROM t WHERE id = 1"
+    profile: iq16-default, iq16-tds
+  - id: tsql_aliases_of_expressions
+    sql: "SELECT n = id + 1, m = vc FROM t WHERE id = 1"
+  - id: tsql_alias_of_a_condition
+    sql: "SELECT n = id = 1 FROM t"
+  - id: tsql_alias_and_as
+    sql: "SELECT n = id AS m FROM t"
+  - id: tsql_alias_qualified
+    sql: "SELECT t.n = id FROM t"
+  - id: tsql_alias_of_a_parenthesized_condition
+    sql: "SELECT x = (id = 1) FROM t"
+  - id: a_condition_in_the_select_list
+    sql: "SELECT id + 1 = 2 FROM t"
+  - id: string_alias_with_an_escape
+    sql: "SELECT id 'a\\x09' FROM t"
+  - id: string_alias_with_a_bracket
+    sql: "SELECT id 'a[b' FROM t"
+  - id: string_alias_with_a_doubled_quote
+    sql: "SELECT id 'it''s' FROM t WHERE id = 1"
+  - id: string_alias_with_a_backslash
+    sql: "SELECT id 'a\\b' FROM t WHERE id = 1"
+    profile: iq16-default, iq16-tds
+  - id: string_alias_empty_is_refused
+    sql: "SELECT id '' FROM t WHERE id = 1"
+  - id: tsql_assignment_is_refused
+    sql: "SELECT @v = id FROM t"
+  - id: tsql_alias_read_in_where
+    sql: "SELECT n = id FROM t WHERE n = 1"
+  - id: string_alias_in_order_by
+    sql: "SELECT id 'k' FROM t ORDER BY k DESC"
+  - id: aliases_that_differ_in_case
+    sql: "SELECT sm AS k, it AS K FROM t WHERE id < 3"
+  - id: one_alias_twice
+    sql: "SELECT id AS k, id AS k FROM t"
+  - id: string_alias_of_a_string
+    sql: "SELECT 'abc' 'x' FROM t WHERE id = 1"
+  - id: tsql_aliases_without_from
+    sql: "SELECT n = 1, 'm' = 'v'"
+    engine: sa
+  - id: tsql_alias_beside_a_star
+    sql: "SELECT n = id, * FROM u WHERE id = 1"
+
+  # ---- ORDER BY: +n is a position, (n) and -n are constants (measured)
+  - id: order_by_a_signed_position
+    sql: "SELECT id FROM t ORDER BY +1 DESC"
+  - id: order_by_a_parenthesized_constant
+    sql: "SELECT sm, id FROM t ORDER BY (1) DESC, 2"
+  - id: order_by_a_negative_constant
+    sql: "SELECT id FROM t ORDER BY -1, id"
+
+  # ---- constants lite cannot hold exactly as the profile's database does: refused
+  - id: constant_of_41_places
+    sql: "SELECT 0.00000000000000000000000000000000000001234 AS v"
+    engine: sa
+  - id: constant_exponent_below_38_places
+    sql: "SELECT 1e-50 AS v"
+    engine: sa
+  - id: constant_of_37_digits_in_a_sql_anywhere_database
+    sql: "SELECT 1234567890123456789012345678901234567 AS v"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: constant_of_30_digits
+    sql: "SELECT 123456789012345678901234567890 AS v"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: constant_of_38_digits
+    sql: "SELECT 12345678901234567890123456789012345678 AS v"
+    engine: sa
+  - id: numeric_compared_with_a_constant_of_31_places
+    sql: "SELECT id FROM t WHERE nm = 0.0000000000000000000000000000001 OR id = 3"
+
+  # ---- REAL and FLOAT columns: refused (a single-precision comparison is no IQ's)
+  - id: real_compared_with_a_constant
+    sql: "SELECT id FROM r WHERE rl = 0.1"
+  - id: float_compared_with_a_constant
+    sql: "SELECT id FROM r WHERE fl > 0.1"
+
+  # ---- FROM functions other than the table source, and the other dialect's names: refused
+  - id: generate_series_in_from
+    sql: "SELECT * FROM generate_series(1, 3)"
+  - id: generate_series_in_the_select_list
+    sql: "SELECT generate_series(1, 3) AS g"
+
+  # ---- SQL Anywhere's databases (sqla17-*): no IQ engine, so no CHAR padding; a UTF-8 database's escapes
+  - id: char_in_a_sql_anywhere_database
+    sql: "SELECT id, ch FROM t WHERE id < 3 ORDER BY id"
+    profile: sqla17-default
+  - id: escape_of_a_high_byte
+    sql: "SELECT 'caf\\xE9' AS x"
+    engine: sa
+  - id: escape_of_a_nul
+    sql: "SELECT 'a\\x00b' AS x"
+    engine: sa
+
+  # ---- escapes and identifiers by profile
+  - id: escapes_by_profile
+    sql: "SELECT 'a\\nb' AS s, 'x\\\\y' AS t2, 'q\\q' AS u FROM t WHERE id = 1"
+    profile: iq16-default, iq16-tds
+  - id: double_quoted_string_plus_a_string
+    sql: "SELECT \"ab\" + 'c' AS s FROM t WHERE id = 1"
+    profile: iq16-tds
+  - id: identifiers_of_every_quote_in_arithmetic
+    sql: "SELECT [ID] + `sm` AS n FROM t WHERE \"Id\" = 3"
+
+  # ---- the second review (2026-10-14). IQ reads a select-list alias before a column of its name everywhere, also
+  # inside an ORDER BY expression: refused there until it is read (a bare alias and a position read the select list)
+  - id: alias_inside_an_order_by_sum
+    sql: "SELECT id, sm AS it FROM t ORDER BY it + 0"
+  - id: alias_after_a_plus_sign_in_order_by
+    sql: "SELECT id, sm AS it FROM t ORDER BY +it"
+  - id: alias_inside_isnull_in_order_by
+    sql: "SELECT id, sm AS it FROM t ORDER BY ISNULL(it, 0), id"
+  - id: alias_inside_nullif_in_order_by
+    sql: "SELECT id, sm AS it FROM t ORDER BY NULLIF(it, 1), id"
+  - id: alias_inside_case_in_order_by
+    sql: "SELECT id, it AS sm FROM t ORDER BY CASE WHEN sm > 0 THEN 0 ELSE 1 END, id"
+  - id: alias_inside_if_in_order_by
+    sql: "SELECT id, it AS sm FROM t ORDER BY IF sm > 0 THEN 0 ELSE 1 ENDIF, id"
+  - id: alias_of_another_case_inside_order_by
+    sql: "SELECT id, sm AS IT FROM t ORDER BY it + 0"
+  - id: alias_negated_in_order_by
+    sql: "SELECT id AS sm FROM t ORDER BY -sm"
+  - id: alias_of_no_column_inside_order_by
+    sql: "SELECT sm AS x FROM t ORDER BY x + 0"
+  - id: bare_alias_in_order_by
+    sql: "SELECT id, sm AS it FROM t ORDER BY it"
+  - id: qualified_column_of_an_alias_name_in_order_by
+    sql: "SELECT id, sm AS it FROM t ORDER BY t.it + 0"
+
+  # ---- an operation that can raise beside AND or OR in WHERE: whether IQ raises depends on its plan, while lite's
+  # databases short-circuit (the provisional decision D-E2): no evidence either way, so not judged
+  - id: and_beside_an_overflow
+    sql: "SELECT id FROM t WHERE id > 1 AND it + 1 > 0 ORDER BY id"
+    skip: plan-dependent run-time error (D-E2)
+  - id: or_beside_an_overflow
+    sql: "SELECT id FROM t WHERE sm = 32767 OR sm + 1 > 0 ORDER BY id"
+    skip: plan-dependent run-time error (D-E2)
+  - id: and_guarding_a_zero_divisor
+    sql: "SELECT id FROM t WHERE sm <> 0 AND 100 / sm > 1 ORDER BY id"
+    skip: plan-dependent run-time error (D-E2)
+  - id: where_overflow_alone
+    sql: "SELECT id FROM t WHERE it + 1 > 0 ORDER BY id"
+
+  # ---- a row limit over a select list or ORDER BY that can raise: IQ computes the select list only for the rows it
+  # keeps, lite's databases may compute it for every row first: refused. TOP or START AT without ORDER BY: refused
+  - id: top_over_an_overflowing_item
+    sql: "SELECT TOP 1 id, it + 1 AS n FROM t ORDER BY id DESC"
+  - id: top_over_a_zero_divisor
+    sql: "SELECT TOP 1 id, 100 / sm AS n FROM t ORDER BY id DESC"
+  - id: first_over_an_overflowing_product
+    sql: "SELECT FIRST id, it * 2 AS n FROM t ORDER BY id DESC"
+  - id: start_at_over_an_overflowing_item
+    sql: "SELECT TOP 1 START AT 7 id, it + 1 AS n FROM t ORDER BY id"
+  - id: top_ordered_by_an_overflowing_key
+    sql: "SELECT TOP 1 id FROM t ORDER BY it + 1"
+  - id: top_over_arithmetic_that_cannot_raise
+    sql: "SELECT TOP 2 id, sm + 0 AS n FROM t ORDER BY id DESC"
+  - id: top_without_order_by
+    sql: "SELECT TOP 2 id FROM t"
+  - id: start_at_without_order_by
+    sql: "SELECT TOP ALL START AT 6 id FROM t"
+
+  # ---- a constant that may be NULL is computed at run time: NULL where it is NULL, IQ's -158 only where computed
+  - id: if_of_a_constant_plus_one_where_unknown
+    sql: "SELECT id, IF id = 1 THEN 32767 ENDIF + 1 AS n FROM t WHERE id = 2"
+  - id: case_of_a_constant_plus_one_where_unknown
+    sql: "SELECT id, CASE WHEN id = 1 THEN 2147483647 END + 1 AS n FROM t WHERE id = 2"
+  - id: nullif_of_a_constant_plus_one
+    sql: "SELECT id, NULLIF(32767, sm) + 1 AS n FROM t WHERE id = 1"
+  - id: if_of_constants_plus_one_without_from
+    sql: "SELECT IF 1 = 2 THEN 32767 ENDIF + 1 AS n"
+    engine: sa
+  - id: if_of_a_constant_plus_one_where_taken
+    sql: "SELECT id, IF id = 1 THEN 32767 ENDIF + 1 AS n FROM t WHERE id = 1"
+
+  # ---- the size of checked arithmetic: each checked operation repeats its operands in lite's SQL, so an expression
+  # past a bound is refused; a BIGINT result is not checked (the database raises its own overflow)
+  - id: a_sum_of_six_smallint_terms
+    sql: "SELECT id, sm + sm + sm + sm + sm + sm AS v FROM t WHERE id = 4"
+  - id: a_sum_of_twelve_smallint_terms
+    sql: "SELECT id, sm + sm + sm + sm + sm + sm + sm + sm + sm + sm + sm + sm AS v FROM t WHERE id = 4"
+  - id: a_sum_of_ten_bigint_terms
+    sql: "SELECT id, bg + bg + bg + bg + bg + bg + bg + bg + bg + bg AS v FROM t WHERE id = 4"
+
+  # ---- numeric constants at IQ's scale: their digits without trailing zeros
+  - id: numeric_constants_at_their_scale
+    sql: "SELECT 1.50 AS a, 1.50E1 AS b, 0.0 AS c, -2.500 AS d"
+    engine: sa

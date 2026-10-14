@@ -38,6 +38,13 @@ test_suite(
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
         "//core:sql_parity_postgres_test",
+        # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
+        # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
+        "//core:iq_parity_test",
+        "//core:iq_parity_postgres_test",
+        # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
+        # held by iq-parity/syntax-pins.tsv
+        "//core:iq_syntax_cases_test",
         "//spec:spec_tests",
         "//json:tests",
         # TeaVM's corrected number conversions and unmodifiable wrappers against the JDK, on the JVM (seconds)
@@ -91,6 +98,8 @@ test_suite(
         "//site:tools_build_test",
         "//studio:tools_build_test",
         "//tools/census:tools_build_test",
+        # the #IQ{}# island's oracle (tools/iq-oracle/README.md): built here, run by hand where SQL Anywhere is installed
+        "//tools/iq-oracle:tools_build_test",
         "//tools/junit:tools_build_test",
     ],
 )

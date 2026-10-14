@@ -72,6 +72,12 @@ class OwnCorpusConformanceTest {
     private static @com.legend.base.Nullable String liteDesign(Throwable root,
             String text) {
         String msg = String.valueOf(root.getMessage());
+        if (text.contains("#IQ{") || text.contains("#IQ:")) {
+            // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}# island, SAP IQ
+            // SQL as a Relation expression (docs/IQ_SQL_STUDY_2026_10_13.md)
+            // — an island upstream's grammar has no parser for, by design
+            return "LITE-DESIGN-iq-island";
+        }
         if (msg.contains("No parser for AssociationMapping")) {
             // clean-sheet inline association predicate:
             //   Assoc: AssociationMapping { {p, f | ...} }
@@ -247,6 +253,9 @@ class OwnCorpusConformanceTest {
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
+                // 0 -> 1 (IQ island, 2026-10-14, REVIEWED): the model whose
+                // function is an #IQ{...}# island (IqIslandRoundTripTest)
+                Map.entry("LITE-DESIGN-iq-island", 1),
                 // 20 -> 21 (2026-09-13, REVIEWED, composition step 1): the
                 // routed-navigate witness is a function-form mapping by design
                 Map.entry("LITE-DESIGN-mapping-as-function", 21),

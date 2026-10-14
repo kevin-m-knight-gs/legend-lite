@@ -74,7 +74,11 @@ class OwnDialectCensusTest {
                     // whose Firm navigates a two-set Person through one
                     // several-route legacyNavigate — mapping-as-function
                     // grammar by design (docs/LEGACY_ROUTES_AS_COMPOSITION)
-                    "RoutedNavigateTest.java");
+                    "RoutedNavigateTest.java",
+                    // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}# island
+                    // in a model's function, the declared extension
+                    // LITE-DESIGN-iq-island (OWN_CORPUS_DECISIONS §14)
+                    "IqIslandRoundTripTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -133,7 +137,10 @@ class OwnDialectCensusTest {
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect
                     // grammar, host declared consciously
-                    java.util.Map.entry("VarianceD4Test.java", 2));
+                    java.util.Map.entry("VarianceD4Test.java", 2),
+                    // IQ island, 2026-10-14 (REVIEWED): one model whose
+                    // function is an #IQ{...}# island (LITE-DESIGN-iq-island)
+                    java.util.Map.entry("IqIslandRoundTripTest.java", 1));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);
