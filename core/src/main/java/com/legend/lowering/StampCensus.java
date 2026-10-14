@@ -65,7 +65,10 @@ public final class StampCensus {
         // carries pure's EMPTY in scalar AND list positions — ListShapes
         // classifies it list-shaped for list consumers, but under a
         // scalar stamp it is the designed [0..1] empty): never a lie.
-        if (e instanceof SqlExpr.NullLit) {
+        // A CASE whose every branch is NULL-only is that value under a
+        // condition (2026-10-14, the tenth line's find: an all-NULL CASE,
+        // reached from both islands, fired the invariant below).
+        if (nullOnly(e)) {
             return;
         }
         // DESIGNED CARRIER TABLE — positive one-arm EXPECTATIONS, never
@@ -107,6 +110,15 @@ public final class StampCensus {
                     + e.getClass().getSimpleName() + " " + digest(spec)
                     + " test=" + CONTEXT.get());
         }
+    }
+
+    /** The NULL value, bare or under a CASE whose every branch is (no
+     * ELSE is SQL's NULL): shape-ambiguous by the carrier convention. */
+    static boolean nullOnly(SqlExpr e) {
+        return e instanceof SqlExpr.NullLit
+                || (e instanceof SqlExpr.Case cs
+                        && cs.whens().stream().allMatch(w -> nullOnly(w.then()))
+                        && (cs.otherwise() == null || nullOnly(cs.otherwise())));
     }
 
     /** Count mode prints; invariant mode THROWS — a provable stamp lie

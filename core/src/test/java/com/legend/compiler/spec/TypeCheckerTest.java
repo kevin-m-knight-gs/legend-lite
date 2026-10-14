@@ -363,6 +363,25 @@ class TypeCheckerTest {
     }
 
     @Test
+    void concatenateUnitesTheColumnStamps() {
+        // the islands spell a NULL constant as []->cast(@String), a column stamped [0..0]; united with a value
+        // column it is [0..1] on either side -- until 2026-10-14 the left schema was taken whole, stamps included,
+        // and a test of the united column folded away (the tenth line's find)
+        String none = T_PERSON + "->extend(~a: x | []->cast(@String))";
+        String some = T_PERSON + "->extend(~a: x | 'v')";
+        assertEquals(new Multiplicity.Bounded(0, 1), column(typeQuery(none + "->concatenate(" + some + ")"), "a"));
+        assertEquals(new Multiplicity.Bounded(0, 1), column(typeQuery(some + "->concatenate(" + none + ")"), "a"));
+        assertEquals(new Multiplicity.Bounded(0, 0), column(typeQuery(none + "->concatenate(" + none + ")"), "a"),
+                "two empty branches stay empty");
+        assertEquals(Multiplicity.Bounded.ONE, column(typeQuery(some + "->concatenate(" + some + ")"), "a"));
+    }
+
+    private static Multiplicity column(TypedSpec relation, String name) {
+        return schemaOf(relation).columns().stream().filter(c -> c.name().equals(name)).findFirst()
+                .orElseThrow(() -> new AssertionError("no column " + name)).multiplicity();
+    }
+
+    @Test
     void takeDropSlicePreserveSchemaAndEmitNodes() {
         assertInstanceOf(TypedLimit.class, typeQuery(T_PERSON + "->take(3)"));
         assertInstanceOf(TypedLimit.class, typeQuery(T_PERSON + "->limit(3)"));
