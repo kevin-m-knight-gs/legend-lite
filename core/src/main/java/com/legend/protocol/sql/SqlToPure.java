@@ -220,18 +220,30 @@ public final class SqlToPure {
      * a CONDITION in Postgres's three-valued logic: {@code vs} holds exactly when it is TRUE and {@code whenFalse}
      * exactly when it is FALSE; when it is NULL, neither holds. Both are two-valued Pure ({@code Boolean[1]}), so
      * {@code NOT}, {@code AND} and {@code OR} keep Postgres's meaning (NOT NULL is NULL, not TRUE).
+     *
+     * <p>A strict operation's value ({@link #strict}) is GUARDED: {@code vs} is {@code if(guard, [], body)}, where
+     * {@code body} is never empty when {@code guard} is false. An enclosing strict operation merges the guard into its
+     * own and computes on the body, so a chain {@code a + 1 + 2} tests {@code a} once and writes it once; testing and
+     * reading the whole guarded value instead doubles the expression at every level (the stress corpus's {@code +}
+     * chains: 10 terms were 96 KB of SQL).
      */
     record Tx(ValueSpecification vs, Kind kind, boolean nullable,
-            @com.legend.base.Nullable ValueSpecification whenFalse) {
+            @com.legend.base.Nullable ValueSpecification whenFalse,
+            @com.legend.base.Nullable ValueSpecification guard, @com.legend.base.Nullable ValueSpecification body) {
 
         /** A value that is not a condition. */
         static Tx value(ValueSpecification vs, Kind kind, boolean nullable) {
-            return new Tx(vs, kind, nullable, null);
+            return new Tx(vs, kind, nullable, null, null, null);
         }
 
         /** A condition: when it is TRUE, when it is FALSE. */
         static Tx condition(ValueSpecification whenTrue, ValueSpecification whenFalse, boolean nullable) {
-            return new Tx(whenTrue, Kind.BOOLEAN, nullable, whenFalse);
+            return new Tx(whenTrue, Kind.BOOLEAN, nullable, whenFalse, null, null);
+        }
+
+        /** A strict operation's value: empty when {@code guard} holds, else {@code body} (never empty then). */
+        static Tx guarded(ValueSpecification guard, ValueSpecification body, Kind kind) {
+            return new Tx(call("if", guard, thunk(empty()), thunk(body)), kind, true, null, guard, body);
         }
 
         ValueSpecification falseWhen() {
@@ -3255,6 +3267,12 @@ public final class SqlToPure {
         List<ValueSpecification> values = new ArrayList<>();
         ValueSpecification anyNull = null;
         for (Tx a : args) {
+            if (a.guard() != null && a.body() != null) {
+                // a strict operand: NULL exactly when its guard holds, else its body
+                anyNull = anyNull == null ? a.guard() : call("or", anyNull, a.guard());
+                values.add(a.body());
+                continue;
+            }
             ValueSpecification v = valueOf(a);
             if (a.nullable()) {
                 anyNull = anyNull == null ? call("isEmpty", v) : call("or", anyNull, call("isEmpty", v));
@@ -3267,7 +3285,7 @@ public final class SqlToPure {
         if (anyNull == null) {
             return Tx.value(result, kind, false);
         }
-        return Tx.value(call("if", anyNull, thunk(empty()), thunk(result)), kind, true);
+        return Tx.guarded(anyNull, result, kind);
     }
 
     /** A strict predicate (a comparison, IN, BETWEEN, LIKE): NULL when an operand is NULL, else {@code test}. */
@@ -3281,6 +3299,13 @@ public final class SqlToPure {
         List<ValueSpecification> values = new ArrayList<>();
         ValueSpecification known = null;
         for (Tx a : operands) {
+            if (a.guard() != null && a.body() != null) {
+                // a strict operand: known exactly when its guard does not hold, and then its body
+                ValueSpecification k = call("not", a.guard());
+                known = known == null ? k : call("and", known, k);
+                values.add(a.body());
+                continue;
+            }
             ValueSpecification v = valueOf(a);
             if (a.nullable()) {
                 known = known == null ? call("isNotEmpty", v) : call("and", known, call("isNotEmpty", v));
@@ -3419,16 +3444,46 @@ public final class SqlToPure {
         };
     }
 
+    /** The Kleene AND (or OR) of {@code ts[from, to)}, grouped as a balanced tree: AND is TRUE when every operand
+     *  is, FALSE when any is; OR the other way round. */
+    private static Tx kleene(boolean and, List<Tx> ts, int from, int to) {
+        if (to - from == 1) {
+            return ts.get(from);
+        }
+        int mid = from + (to - from + 1) / 2;
+        Tx l = kleene(and, ts, from, mid);
+        Tx r = kleene(and, ts, mid, to);
+        boolean nullable = l.nullable() || r.nullable();
+        return and
+                ? Tx.condition(call("and", l.vs(), r.vs()), call("or", l.falseWhen(), r.falseWhen()), nullable)
+                : Tx.condition(call("or", l.vs(), r.vs()), call("and", l.falseWhen(), r.falseWhen()), nullable);
+    }
+
     private Tx binary(SqlAst.Binary b, Scope scope, String row) {
         switch (b.op()) {
             case AND, OR -> {
-                Tx l = truth(tx(b.left(), scope, row), b.op().name(), b.pos());
-                Tx r = truth(tx(b.right(), scope, row), b.op().name(), b.pos());
-                boolean nullable = l.nullable() || r.nullable();
-                // Kleene: AND is TRUE when both are, FALSE when either is; OR the other way round
-                return b.op() == SqlAst.BinaryOp.AND
-                        ? Tx.condition(call("and", l.vs(), r.vs()), call("or", l.falseWhen(), r.falseWhen()), nullable)
-                        : Tx.condition(call("or", l.vs(), r.vs()), call("and", l.falseWhen(), r.falseWhen()), nullable);
+                // a chain of one of them is read as the list of its operands, left to right, each under the position
+                // of the operator that holds it: no recursion per operator (the stress corpus's 500-term OR overflowed
+                // a default thread stack here), and the conditions are combined as a balanced tree, of depth log n for
+                // the typer and the lowering (Kleene's AND and OR are associative, so the grouping changes nothing)
+                List<Tx> operands = new ArrayList<>();
+                java.util.ArrayDeque<SqlAst.Expr> pending = new java.util.ArrayDeque<>();
+                java.util.ArrayDeque<SqlAst.Pos> holders = new java.util.ArrayDeque<>();
+                pending.push(b);
+                holders.push(b.pos());
+                while (!pending.isEmpty()) {
+                    SqlAst.Expr e = pending.pop();
+                    SqlAst.Pos holder = holders.pop();
+                    if (e instanceof SqlAst.Binary x && x.op() == b.op()) {
+                        pending.push(x.right());
+                        holders.push(x.pos());
+                        pending.push(x.left());
+                        holders.push(x.pos());
+                    } else {
+                        operands.add(truth(tx(e, scope, row), b.op().name(), holder));
+                    }
+                }
+                return kleene(b.op() == SqlAst.BinaryOp.AND, operands, 0, operands.size());
             }
             case EQ, NE, LT, LE, GT, GE -> {
                 List<Tx> sides = comparable(b.left(), b.right(), scope, row, b.pos());

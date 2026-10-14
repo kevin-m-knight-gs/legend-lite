@@ -255,13 +255,44 @@ class SqlToPureTest {
                 + " |(($r.ID * 1.5D) - 0.5D)->ceiling())])->select(~[r])",
                 pure("select round(ID * 1.5) as r from tb('s::DB.T')"));
         // to n places, exactly: scaled, rounded half away from zero, scaled back by a decimal constant
-        assertEquals("#>{s::DB.T}#->extend(~[r:r|if(if($r.age->isEmpty(), |[], |$r.age->toOne() * 1.5D)->isEmpty(), |[], |"
-                + "if(if($r.age->isEmpty(), |[], |$r.age->toOne() * 1.5D)->toOne() * 10 >= 0, |floor((if($r.age->isEmpt"
-                + "y(), |[], |$r.age->toOne() * 1.5D)->toOne() * 10) + 0.5D), |((if($r.age->isEmpty(), |[], |$r.age->to"
-                + "One() * 1.5D)->toOne() * 10) - 0.5D)->ceiling()) * 0.1D)])->select(~[r])",
+        // a strict operand's guard is merged, not re-tested: age is tested once and age * 1.5 written once per use
+        assertEquals("#>{s::DB.T}#->extend(~[r:r|if($r.age->isEmpty(), |[], |if(($r.age->toOne() * 1.5D) * 10 >= 0,"
+                + " |floor((($r.age->toOne() * 1.5D) * 10) + 0.5D), |((($r.age->toOne() * 1.5D) * 10) - 0.5D)->ceiling())"
+                + " * 0.1D)])->select(~[r])",
                 pure("select round(age * 1.5, 1) as r from tb('s::DB.T')"));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED,
                 refusal("select round(age / 3.0, 1) from tb('s::DB.T')").kind());
+    }
+
+    @Test
+    void aChainOfAndOrIsABalancedTreeReadWithoutRecursion() throws InterruptedException {
+        // Kleene's OR is associative: four operands are two pairs, not a left-deep chain of three
+        assertEquals("#>{s::DB.T}#->filter(r|(($r.ID == 1) || ($r.ID == 2)) || (($r.ID == 3) || ($r.ID == 4)))"
+                + "->select(~[ID])", pure("select ID from tb('s::DB.T') where ID = 1 or ID = 2 or ID = 3 or ID = 4"));
+        // the stress corpus's 500-term OR overflowed a default (1 MB) thread stack in the translator
+        StringBuilder sql = new StringBuilder("select ID from tb('s::DB.T') where ID = 0");
+        for (int i = 1; i < 5000; i++) {
+            sql.append(" or ID = ").append(i);
+        }
+        java.util.concurrent.atomic.AtomicReference<Object> got = new java.util.concurrent.atomic.AtomicReference<>();
+        Thread t = new Thread(null, () -> {
+            try {
+                got.set(pure(sql.toString()));
+            } catch (Throwable e) {
+                got.set(e);
+            }
+        }, "default-stack", 1 << 20);
+        t.start();
+        t.join();
+        assertTrue(got.get() instanceof String, () -> "translated on a 1 MB stack: " + got.get());
+    }
+
+    @Test
+    void aChainOfStrictOperationsTestsItsOperandOnce() {
+        // the stress corpus's + chains: each level re-tested and re-read the whole level below it, doubling the
+        // expression; the guard of a strict operand is merged instead, so the chain is as long as it is written
+        assertEquals("#>{s::DB.T}#->extend(~[v:r|if($r.age->isEmpty(), |[], |(($r.age->toOne() + 1) + 2) + 3)])"
+                + "->select(~[v])", pure("select age + 1 + 2 + 3 as v from tb('s::DB.T')"));
     }
 
     @Test
