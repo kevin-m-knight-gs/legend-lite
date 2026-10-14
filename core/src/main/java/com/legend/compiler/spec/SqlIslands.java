@@ -4,6 +4,7 @@
 package com.legend.compiler.spec;
 
 import com.legend.compiler.NameResolver;
+import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.SourceInfo;
@@ -32,12 +33,46 @@ final class SqlIslands {
     private SqlIslands() {
     }
 
-    /** The relation expression {@code island} means, names resolved; {@code typeSource} types a resolved source. */
-    static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource) {
+    /** The relation expression {@code island} means, names resolved; {@code typeSource} types a resolved source.
+     *  IQ island, 2026-10-14 (M1e): {@code model}'s tables are the ones a dialect may name without a source function
+     *  (an IQ owner's), and {@code env}'s variables the ones it may read (IQ's host variables); Postgres's reads
+     *  neither. */
+    static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
+            ModelContext model, Env env) {
+        java.util.Set<String> read = new java.util.TreeSet<>();
+        SqlToPure.Sources sources = new SqlToPure.Sources() {
+            @Override
+            public void columns(ValueSpecification source, SqlToPure.Column column) {
+                SqlIslands.columns(typeSource.apply(NameResolver.resolveQuery(source)), island, column);
+            }
+
+            @Override
+            public void tables(SqlToPure.Table table) {
+                model.derived(Catalog.class, Catalog::of).tables().forEach(t -> table.table(t[0], t[1], t[2]));
+            }
+
+            @Override
+            public boolean variable(String name, SqlToPure.Scoped type) {
+                boolean scoped = variableType(env, name, type);
+                if (scoped) {
+                    read.add(name);
+                }
+                return scoped;
+            }
+
+            @Override
+            public void variables(java.util.function.Consumer<String> names) {
+                env.names().forEach(names);
+            }
+        };
         try {
-            ValueSpecification pure = SqlToPure.translate(island.sql(),
-                    (source, column) -> columns(typeSource.apply(NameResolver.resolveQuery(source)), island, column),
-                    dialect(island));
+            ValueSpecification pure = SqlToPure.translate(island.sql(), sources, dialect(island));
+            String hidden = read.isEmpty() ? null : hidden(pure, read);
+            if (hidden != null) {
+                throw new com.legend.error.NotImplementedException(island.opening() + "...}# at "
+                        + position(island, 1, 1) + ": the variable '" + hidden + "' is named like a lambda parameter"
+                        + " of the island's translation, which would hide it there: rename it");
+            }
             return NameResolver.resolveQuery(pure);
         } catch (SqlTranslationException e) {
             String message = island.opening() + "...}# at " + position(island, e.line(), e.column()) + ": "
@@ -48,6 +83,69 @@ final class SqlIslands {
                 case INVALID -> new TypeInferenceException(message);
             };
         }
+    }
+
+    /** IQ island, 2026-10-14 (M1e): the model's tables, by Database, schema ({@code default} for one declared outside
+     *  any) and name: each Database's own (an included one's are its own Database's), computed once per model. */
+    record Catalog(java.util.List<String[]> tables) {
+
+        static Catalog of(ModelContext model) {
+            java.util.List<String[]> out = new java.util.ArrayList<>();
+            for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
+                com.legend.model.DatabaseDefinition db = model.findDatabase(fqn).orElse(null);
+                if (db == null) {
+                    continue;
+                }
+                for (com.legend.model.DatabaseDefinition.TableDefinition t : db.defaultSchemaTables()) {
+                    if (!t.function()) {
+                        out.add(new String[] {db.qualifiedName(), "default", t.name()});
+                    }
+                }
+                for (com.legend.model.DatabaseDefinition.SchemaDefinition schema : db.schemas()) {
+                    for (com.legend.model.DatabaseDefinition.TableDefinition t : schema.tables()) {
+                        if (!t.function()) {
+                            out.add(new String[] {db.qualifiedName(), schema.name(), t.name()});
+                        }
+                    }
+                }
+            }
+            return new Catalog(java.util.List.copyOf(out));
+        }
+    }
+
+    /** IQ island, 2026-10-14 (M1e): one of {@code names} (variables of the enclosing query the translation reads) that
+     *  a lambda of {@code pure} declares as its parameter -- inside it, a reference to the variable would read the
+     *  parameter; null for none. */
+    private static @com.legend.base.Nullable String hidden(ValueSpecification pure, java.util.Set<String> names) {
+        if (pure instanceof com.legend.protocol.spec.LambdaFunction l) {
+            for (com.legend.protocol.spec.Variable p : l.parameters()) {
+                if (names.contains(p.name())) {
+                    return p.name();
+                }
+            }
+        }
+        for (ValueSpecification child : pure.children()) {
+            String h = hidden(child, names);
+            if (h != null) {
+                return h;
+            }
+        }
+        return null;
+    }
+
+    /** IQ island, 2026-10-14 (M1e): reports the type of {@code env}'s variable {@code name} to {@code type}, as the
+     *  translator reads one: its type's name, whether it may hold none, whether it may hold more than one (an unbound
+     *  multiplicity counted so); false when none of that name is in scope. */
+    private static boolean variableType(Env env, String name, SqlToPure.Scoped type) {
+        com.legend.compiler.element.type.ExprType t = env.lookup(name).orElse(null);
+        if (t == null) {
+            return false;
+        }
+        boolean bounded = t.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded;
+        boolean nullable = t.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() == 0;
+        type.variable(t.type().typeName(), nullable, !bounded || t.multiplicity().isMany());
+        return true;
     }
 
     /** The island's dialect: Postgres for {@code #SQL{}}, IQ under the island's profile for {@code #IQ{}}. */

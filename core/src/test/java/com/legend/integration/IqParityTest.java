@@ -23,6 +23,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -36,8 +37,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Its own target ({@code //core:iq_parity_test}). Run with {@code --jvm_flag=-Diq.parity.update=<the ledger's path
  * in the workspace>} to write the ledger's column instead.
+ *
+ * <p>It also pins the showcase's SQL (docs/IQ_SQL_SHOWCASE.md): {@link #theShowcasePlansItsPinnedSql}.
  */
 class IqParityTest {
+
+    /** The showcase's query: {@code lite/showcase.yaml}'s main case, judged by SQL Anywhere above like every case. */
+    private static final String SHOWCASE = "lite/showcase/showcase_main@iq16-default";
+
+    /** The connections the showcase's SQL is pinned for, each a file of {@code iq-parity/showcase/}: Snowflake's is
+     *  rendered only (no Snowflake account is reached; planning never connects), DuckDB's is the SQL the lane runs. */
+    private static final String[][] SHOWCASE_LANES = {
+        {"snowflake", "type: Snowflake;\n    specification: Snowflake { name: 'IQ_SHOWCASE'; account: 'acct';"
+                + " warehouse: 'wh'; region: 'us-east-1'; };\n    auth: SnowflakePublic { publicUserName: 'u';"
+                + " privateKeyVaultReference: 'vault/k'; passPhraseVaultReference: 'vault/pp'; };"},
+        {"duckdb", "type: DuckDB;\n    specification: DuckDB { };\n    auth: Test;"},
+    };
 
     @Test
     void everyIqCaseHasItsLedgerStatusOnDuckDB() throws Exception {
@@ -73,6 +88,49 @@ class IqParityTest {
         problems.addAll(IqParity.ratchet(runs, outcomes, Runfile.property("iq.parity.ledger"), "duckdb",
                 update == null ? null : Path.of(update)));
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
+    }
+
+    /**
+     * IQ island, 2026-10-14: the showcase (docs/IQ_SQL_SHOWCASE.md). Its island -- {@link #SHOWCASE}, with the
+     * variable it binds let before it, as the lane runs it -- compiled with a Snowflake connection and with a DuckDB
+     * one plans the SQL pinned in {@code iq-parity/showcase/snowflake.sql} and {@code duckdb.sql}, byte for byte. Run
+     * with {@code --jvm_flag=-Diq.showcase.update=<core/src/test/resources/iq-parity/showcase in the workspace>} to
+     * rewrite them.
+     */
+    @Test
+    void theShowcasePlansItsPinnedSql() throws Exception {
+        List<SqlParity.Table> tables = IqParity.schema(Runfile.property("iq.parity.schema"));
+        IqParity.Run main = IqParity.runs(IqParity.cases(Runfile.property("iq.parity.lite").getParent())).stream()
+                .filter(r -> r.key().equals(SHOWCASE)).findFirst()
+                .orElseThrow(() -> new AssertionError("no case " + SHOWCASE));
+        String island = IqParity.island(main, IqParity.tableNames(tables));
+        Path pinned = Runfile.property("iq.parity.showcase").getParent();
+        String update = System.getProperty("iq.showcase.update");
+        List<String> problems = new ArrayList<>();
+        for (String[] lane : SHOWCASE_LANES) {
+            String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(IqParity.model(tables, lane[1])),
+                    island).plan(IqParity.RUNTIME).sql() + "\n";
+            String file = lane[0] + ".sql";
+            if (update != null) {
+                Files.writeString(Path.of(update).resolve(file), sql, java.nio.charset.StandardCharsets.UTF_8);
+                continue;
+            }
+            String expected = Files.readString(pinned.resolve(file), java.nio.charset.StandardCharsets.UTF_8);
+            if (!expected.equals(sql)) {
+                List<String> was = expected.lines().toList();
+                List<String> now = sql.lines().toList();
+                int line = 0;
+                while (line < Math.min(was.size(), now.size()) && was.get(line).equals(now.get(line))) {
+                    line++;
+                }
+                problems.add(file + " differs from line " + (line + 1) + ":\n  pinned: "
+                        + (line < was.size() ? was.get(line) : "<end>") + "\n  now:    "
+                        + (line < now.size() ? now.get(line) : "<end>"));
+            }
+        }
+        assertTrue(problems.isEmpty(), "the showcase's SQL moved (if on purpose, rewrite it with"
+                + " -Diq.showcase.update=<core/src/test/resources/iq-parity/showcase in the workspace> and update"
+                + " docs/IQ_SQL_SHOWCASE.md):\n" + String.join("\n", problems));
     }
 
     @Test
@@ -205,6 +263,34 @@ class IqParityTest {
         assertEquals(null, order.apply("SELECT id FROM t WHERE id > 1 AND id = 2 + 3", null));
         // AND inside a CASE's condition is lazy in IQ too
         assertEquals(null, order.apply("SELECT id FROM t WHERE CASE WHEN id > 1 AND id = 2 THEN 1 END = 1", null));
+        // IQ island, 2026-10-14 (review 3's M4): HAVING is a search condition too, and a SUM or an AVG can raise
+        assertTrue(order.apply("SELECT k FROM g GROUP BY k HAVING MAX(v) <> 2147483647 AND MAX(v) + 1 > 0", null)
+                != null);
+        assertTrue(order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND SUM(v) > 0", null) != null);
+        assertEquals(null, order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND MAX(v) > 0", null));
+    }
+
+    @Test
+    void aTieAmongRoundedSortKeysIsNoTie() {
+        // IQ island, 2026-10-14 (review 4's B2): .9990 and .9990 are shown alike, but SQL Anywhere sorts 997/998
+        // before 998/999 -- the tie rule may not hide lite's other order where a select item is (or reads) a quotient
+        // or an AVG
+        java.util.function.BiFunction<String, String, List<String>> judge = (sql, type) -> {
+            IqParity.Run run = IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a", sql, List.of("iq16-default"),
+                    null, null, null, null))).get(0);
+            IqAnswers.Snap snap = new IqAnswers.Snap("lite/x/a", "iq16-default", "", List.of("id", "q"),
+                    List.of("integer", type), List.of(List.of("2", "1"), List.of("1", "1"), List.of("3", "3")), null,
+                    List.of(0, 0));
+            SqlParity.Grid lite = new SqlParity.Grid(List.of("id", "q"), List.of(List.of(1L, 1L), List.of(2L, 1L),
+                    List.of(3L, 3L)));
+            SqlParity.Grid sa = ((SqlParity.Rows) IqAnswers.expected(run, snap)).grid();
+            return IqParity.compare(run, sa, snap, lite, List.of("Integer", "Integer"));
+        };
+        assertFalse(judge.apply("SELECT id, v / w AS q FROM d ORDER BY q", "numeric").isEmpty());
+        assertFalse(judge.apply("SELECT id, AVG(v) AS q FROM d GROUP BY id ORDER BY q", "numeric").isEmpty());
+        assertFalse(judge.apply("SELECT id, q FROM (SELECT id, v / w AS q FROM d) e ORDER BY q", "numeric").isEmpty());
+        // ties of values shown as they are sorted stay the plan's order
+        assertEquals(List.of(), judge.apply("SELECT id, k AS q FROM d ORDER BY q", "integer"));
     }
 
     @Test
@@ -240,5 +326,38 @@ class IqParityTest {
                 IqParity.rewrite("SELECT a.id FROM t a, U", tables, IqProfile.IQ16_DEFAULT));
         // under a TDS login "t" is a string, no table
         assertEquals("SELECT 1 FROM \"t\"", IqParity.rewrite("SELECT 1 FROM \"t\"", tables, IqProfile.IQ16_TDS));
+    }
+
+    /** IQ island, 2026-10-14 (M1e): a case's params are its host variables' values -- each a let before the island,
+     *  each a SQL Anywhere variable of its type for the oracle (tools/iq-oracle/snap.py reads the same spelling; review
+     *  5's M5: a real variable, no longer a constant written into the SQL), {@code null:<type>} a NULL -- and part of its
+     *  answer's sqlSha, so editing them makes the answer STALE; an owner-qualified name is left as written. */
+    @Test
+    void aCaseBindsItsParamsAsLetsBeforeItsIsland() {
+        List<IqParity.Param> params = IqParity.params("lo = 3; name = 'x'; amt = 0.50D; day = %2026-03-04;"
+                + " stamp = %2026-03-04T05:06:07.5; rate = -1.5; n = null:Integer; neg = -0.50D");
+        assertEquals(List.of("Integer", "String", "Decimal(38,2)", "StrictDate", "DateTime", "Float", "Integer",
+                "Decimal"), params.stream().map(IqParity.Param::type).toList());
+        assertEquals(List.of("BIGINT", "LONG VARCHAR", "NUMERIC(38,2)", "DATE", "TIMESTAMP", "DOUBLE", "BIGINT",
+                "NUMERIC(38,2)"), params.stream().map(IqParity.Param::saType).toList());
+        assertEquals(java.util.Arrays.asList("3", "'x'", "0.50", "CAST('2026-03-04' AS DATE)",
+                "CAST('2026-03-04 05:06:07.5' AS TIMESTAMP)", "CAST(-1.5 AS DOUBLE)", null, "-0.50"),
+                params.stream().map(IqParity.Param::saValue).toList());
+        assertEquals("[]->cast(@Integer)", params.get(6).pure());
+        // the two readers would read a backslash otherwise; names are SQL Anywhere's, distinct without case
+        assertThrows(IllegalStateException.class, () -> IqParity.params("s = 'a\\x41b'"));
+        assertThrows(IllegalStateException.class, () -> IqParity.params("lo = 1; LO = 2"));
+        IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT id FROM t, DBA.u WHERE id > @lo",
+                List.of("iq16-default"), null, null, null, null, "lo = 3");
+        assertEquals("|let lo = 3; #IQ{SELECT id FROM tb('e2e::DB.t') AS t, DBA.u WHERE id > @lo}#;",
+                IqParity.island(IqParity.runs(List.of(c)).get(0), Set.of("t", "u")));
+        byte[] schema = "tables:\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Map<String, IqAnswers.Snap> answers = new LinkedHashMap<>();
+        answers.put("lite/x/a@iq16-default", new IqAnswers.Snap("lite/x/a", "iq16-default",
+                IqAnswers.sqlSha(c.sql(), "iq16-default", null, null, "lo = 4", schema), List.of(), List.of(),
+                List.of(), null));
+        List<String> problems = IqAnswers.guards(IqParity.runs(List.of(c)), answers, schema);
+        assertEquals(1, problems.size(), String.join("\n", problems));
+        assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
     }
 }

@@ -1,0 +1,532 @@
+# The natives slice for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.8): what the study's O1 called
+# natives, composed of existing Pure natives exactly -- IQ's ASCII-only case fold (UPPER, LOWER, UCASE, LCASE, and a
+# sqla17 profile's case-insensitive comparisons, LIKE, REPLACE, LOCATE, CHARINDEX, PATINDEX and TRIM sets), IQ's
+# blank padding where it orders strings (trailing U+0020 dropped), TRIM in a UTF-8 database, and SQL Anywhere's
+# exact NUMERIC / and %. Every case is judged by SQL Anywhere 17's answer in iq-answers.jsonl, but two that name D-S1
+# (a CHAR(n) column is padded under the IQ engine; ordering ignores the pad, so SQL Anywhere's rows). A case without FROM, or
+# over sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa); one over tables in the IQ engine. The SQL in
+# YAML double quotes: a backslash in the SQL is written \\. tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- UPPER, LOWER, UCASE, LCASE: the 26 ASCII letters only, in an ISO-8859-1 and a UTF-8 database alike (composed of replace)
+  - id: upper_and_lower_of_constants
+    sql: "SELECT UPPER('abcxyz') AS u, LOWER('ABCXYZ') AS l, UCASE('MiXeD 123') AS uc, LCASE('MiXeD 123') AS lc"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_and_lower_leave_latin1_letters
+    sql: "SELECT UPPER('àéîõüÿ ß µ') AS u, LOWER('ÀÉÎÕÜ Þ') AS l, UCASE('ñ') AS uc, LCASE('Ñ') AS lc"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_and_lower_of_null_and_integers
+    sql: "SELECT UPPER(NULL) AS a, LOWER(123) AS b, UCASE(-45) AS c, LCASE(NULL) AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_and_lower_of_the_characters_beside_the_letters
+    sql: "SELECT UPPER('@[\\\\]^_`{|}~') AS u, LOWER('@[\\\\]^_`{|}~') AS l, UPPER('a_b[c]z') AS m"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_keeps_blanks_and_control_characters
+    sql: "SELECT UPPER('a\\x09b  ') AS u, LOWER(' X\\x0AY ') AS l, LENGTH(UPPER('ab  ')) AS n"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_beyond_latin1_in_a_utf8_database
+    sql: "SELECT UPPER('ǆ ж ά ﬀ ı i') AS u, LOWER('Ǆ Ж Ά İ I') AS l"
+    profile: sqla17-default
+    engine: sa
+  - id: upper_of_upper_and_lower_of_lower
+    sql: "SELECT LOWER(UPPER('aBc')) AS a, UPPER(LOWER('aBc')) || 'x' AS b, UCASE(LCASE('ZzZ')) AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_of_a_concatenation_with_null
+    sql: "SELECT LCASE('A' || NULL) AS a, UCASE(NULL || 'b') AS b"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_over_rowgenerator
+    sql: "SELECT row_num, UPPER('r' || row_num || 'x') AS u, LOWER('R' || row_num) AS l FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: upper_and_lower_of_a_varchar_column
+    sql: "SELECT id, UPPER(vc) AS u, LOWER(vc) AS l FROM t ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: ucase_and_lcase_of_a_varchar_column
+    sql: "SELECT id, UCASE(vc) AS u, LCASE(vc) AS l FROM t WHERE id IN (3, 4, 7) ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: upper_of_a_char_column_in_sql_anywhere
+    sql: "SELECT id, UPPER(ch) AS u, LOWER(ch) AS l FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: upper_of_a_label
+    sql: "SELECT id, UPPER(label) AS u FROM u ORDER BY id"
+  - id: upper_in_a_where
+    sql: "SELECT id FROM t WHERE UPPER(vc) = 'HELLO' ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: lower_in_a_where_keeps_accents
+    sql: "SELECT id FROM t WHERE LOWER(vc) = 'école' OR LOWER(vc) = 'résumé' ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: length_of_upper
+    sql: "SELECT id, LENGTH(UPPER(vc)) AS n FROM t ORDER BY id"
+  - id: upper_of_integer_columns
+    sql: "SELECT id, UPPER(sm) AS a, LOWER(bg) AS b FROM t WHERE id < 4 ORDER BY id"
+
+  # ---- A sqla17 profile's comparisons: without regard to the ASCII letters' case (folded to lower case), trailing blanks significant
+  - id: equal_without_case
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    profile: sqla17-default
+  - id: not_equal_without_case
+    sql: "SELECT id FROM t WHERE vc <> 'hELLO' ORDER BY id"
+    profile: sqla17-default
+  - id: accents_keep_their_case
+    sql: "SELECT id FROM t WHERE vc = 'résumé' OR vc = 'école' ORDER BY id"
+    profile: sqla17-default
+  - id: trailing_blanks_count_without_blank_padding
+    sql: "SELECT id FROM t WHERE vc = 'X' OR vc = 'X  ' ORDER BY id"
+    profile: sqla17-default
+  - id: less_than_without_case
+    sql: "SELECT id FROM t WHERE vc < 'B' ORDER BY id"
+    profile: sqla17-default
+  - id: greater_equal_without_case
+    sql: "SELECT id FROM t WHERE vc >= 'HELLO' ORDER BY id"
+    profile: sqla17-default
+  - id: ordering_folds_to_lower_case
+    sql: "SELECT CASE WHEN 'a' < '_' THEN 1 ELSE 0 END AS a, CASE WHEN 'A' < '_' THEN 1 ELSE 0 END AS b, CASE WHEN 'Z' > '[' THEN 1 ELSE 0 END AS c, CASE WHEN '`' < 'A' THEN 1 ELSE 0 END AS d, CASE WHEN 'a' = 'A' THEN 1 ELSE 0 END AS e"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: ordering_of_latin1_letters
+    sql: "SELECT CASE WHEN 'é' > 'f' THEN 1 ELSE 0 END AS a, CASE WHEN 'É' < 'é' THEN 1 ELSE 0 END AS b, CASE WHEN 'é' = 'É' THEN 1 ELSE 0 END AS c, CASE WHEN 'Ab' < 'aC' THEN 1 ELSE 0 END AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: between_without_case
+    sql: "SELECT id FROM t WHERE vc BETWEEN 'A' AND 'HZ' ORDER BY id"
+    profile: sqla17-default
+  - id: not_between_without_case
+    sql: "SELECT id FROM t WHERE vc NOT BETWEEN 'APPLE' AND 'hello' ORDER BY id"
+    profile: sqla17-default
+  - id: in_without_case
+    sql: "SELECT id FROM t WHERE vc IN ('HELLO', 'APPLE') ORDER BY id"
+    profile: sqla17-default
+  - id: not_in_without_case
+    sql: "SELECT id FROM t WHERE vc NOT IN ('HELLO', 'X  ') ORDER BY id"
+    profile: sqla17-default
+  - id: is_distinct_from_without_case
+    sql: "SELECT id FROM t WHERE vc IS DISTINCT FROM 'HELLO' ORDER BY id"
+    profile: sqla17-default
+  - id: like_without_case
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    profile: sqla17-default
+  - id: like_one_character_without_case
+    sql: "SELECT id FROM t WHERE vc LIKE '_ELL_' ORDER BY id"
+    profile: sqla17-default
+  - id: like_keeps_accents_case
+    sql: "SELECT id FROM t WHERE vc LIKE '%é%' ORDER BY id"
+    profile: sqla17-default
+  - id: not_like_without_case
+    sql: "SELECT id FROM t WHERE vc NOT LIKE '%L%' ORDER BY id"
+    profile: sqla17-default
+  - id: like_escape_without_case
+    sql: "SELECT CASE WHEN 'A_b' LIKE 'a!_B' ESCAPE '!' THEN 1 ELSE 0 END AS a, CASE WHEN 'AxB' LIKE 'a!_B' ESCAPE '!' THEN 1 ELSE 0 END AS b, CASE WHEN 'ABC' LIKE 'a%' THEN 1 ELSE 0 END AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: like_of_special_characters_without_case
+    sql: "SELECT CASE WHEN 'a.B*c' LIKE 'A.b*%' THEN 1 ELSE 0 END AS a, CASE WHEN 'a+b' LIKE 'A_B' THEN 1 ELSE 0 END AS b, CASE WHEN '(x)' LIKE '(X)' THEN 1 ELSE 0 END AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: simple_case_without_case
+    sql: "SELECT id, CASE vc WHEN 'HELLO' THEN 1 WHEN 'APPLE' THEN 2 ELSE 0 END AS c FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: nullif_without_case
+    sql: "SELECT id, NULLIF(vc, 'HELLO') AS a FROM t ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: comparisons_over_rowgenerator_without_case
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 5) WHERE CASE row_num WHEN 1 THEN 'Abc' WHEN 2 THEN 'abc' WHEN 3 THEN 'ABD' WHEN 4 THEN '_b' ELSE 'aBb' END >= 'abc' ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: equal_without_case_in_tds
+    sql: "SELECT id FROM t WHERE vc = 'HELLO' ORDER BY id"
+    profile: sqla17-tds
+  - id: label_without_case
+    sql: "SELECT id FROM u WHERE label > 'ONE' ORDER BY id"
+    profile: sqla17-default
+  - id: upper_in_an_odbc_and_a_tds_profile
+    sql: "SELECT UPPER('abc') AS u, LOWER('ÀBC') AS l"
+    profile: iq16-odbc, iq16-tds, sqla17-tds
+    engine: sa
+  - id: like_over_upper_without_case
+    sql: "SELECT id FROM t WHERE UPPER(vc) LIKE '%LL%' ORDER BY id"
+    profile: sqla17-default
+  - id: like_without_case_in_tds
+    sql: "SELECT id FROM t WHERE vc LIKE 'h_LLO' ORDER BY id"
+    profile: sqla17-tds
+  - id: in_a_long_list_without_case
+    sql: "SELECT id FROM t WHERE vc IN ('A', 'B', 'C', 'HELLO', 'D', 'E', 'F', 'G', 'APPLE', 'H', 'X') ORDER BY id"
+    profile: sqla17-default
+  - id: cyrillic_letters_keep_their_case
+    sql: "SELECT CASE WHEN 'ж' = 'Ж' THEN 1 ELSE 0 END AS a, CASE WHEN 'ж' > 'Ж' THEN 1 ELSE 0 END AS b, CASE WHEN 'Жa' = 'ЖA' THEN 1 ELSE 0 END AS c"
+    profile: sqla17-default
+    engine: sa
+  - id: upper_of_a_column_compared_with_a_column
+    sql: "SELECT id FROM t WHERE UPPER(vc) > LOWER(vc) ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: greater_than_an_accented_capital
+    sql: "SELECT id FROM t WHERE vc > 'É' ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: between_with_a_tab_and_blanks
+    sql: "SELECT id FROM t WHERE vc BETWEEN 'x\\x09' AND 'y' ORDER BY id"
+  - id: string_ordering_in_tds
+    sql: "SELECT id FROM t WHERE vc < 'hello  ' ORDER BY id"
+    profile: iq16-tds
+
+  # ---- An IQ database's orderings: trailing spaces dropped first (U+0020 only: a tab, a no-break space are characters)
+  - id: less_than_ignores_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc < 'x ' ORDER BY id"
+  - id: greater_equal_ignores_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc >= 'x' ORDER BY id"
+  - id: less_equal_of_a_padded_value
+    sql: "SELECT id FROM t WHERE vc <= 'x' ORDER BY id"
+  - id: greater_than_is_case_sensitive
+    sql: "SELECT id FROM t WHERE vc > 'apple' ORDER BY id"
+  - id: between_ignores_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc BETWEEN 'hello  ' AND 'x' ORDER BY id"
+  - id: blanks_and_a_tab
+    sql: "SELECT CASE WHEN 'a' < 'a\\x09' THEN 1 ELSE 0 END AS a, CASE WHEN 'a\\x09' < 'a ' THEN 1 ELSE 0 END AS b, CASE WHEN 'a ' < 'a\\x09' THEN 1 ELSE 0 END AS c, CASE WHEN 'a\\x09' = 'a' THEN 1 ELSE 0 END AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: blanks_and_a_control_character
+    sql: "SELECT CASE WHEN 'a  ' < 'a\\x01' THEN 1 ELSE 0 END AS a, CASE WHEN 'a\\x01' < 'a' THEN 1 ELSE 0 END AS b, CASE WHEN 'ab' < 'a ' THEN 1 ELSE 0 END AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: blanks_and_a_no_break_space
+    sql: "SELECT CASE WHEN 'a' < 'a\\xA0' THEN 1 ELSE 0 END AS a, CASE WHEN 'a\\xA0' = 'a' THEN 1 ELSE 0 END AS b, CASE WHEN 'a\\xA0 ' > 'a  ' THEN 1 ELSE 0 END AS c"
+    engine: sa
+  - id: empty_string_and_blanks
+    sql: "SELECT CASE WHEN '' = '   ' THEN 1 ELSE 0 END AS a, CASE WHEN '' < ' a' THEN 1 ELSE 0 END AS b, CASE WHEN '  ' >= '' THEN 1 ELSE 0 END AS c, CASE WHEN ' ' < '\\x09' THEN 1 ELSE 0 END AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: middle_blanks_count
+    sql: "SELECT CASE WHEN 'a b' > 'a' THEN 1 ELSE 0 END AS a, CASE WHEN 'a  b' < 'a b' THEN 1 ELSE 0 END AS b, CASE WHEN ' a' < 'a' THEN 1 ELSE 0 END AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: ordering_over_rowgenerator_with_blanks
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 6) WHERE CASE row_num WHEN 1 THEN 'b ' WHEN 2 THEN 'a' WHEN 3 THEN 'a ' WHEN 4 THEN 'a\\x09' WHEN 5 THEN 'B' ELSE '_' END > 'a  ' ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: between_over_rowgenerator_with_blanks
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 5) WHERE CASE row_num WHEN 1 THEN 'b ' WHEN 2 THEN 'a' ELSE 'a\\x09' END BETWEEN 'a ' AND 'a\\x09' ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: ordering_a_char_column
+    sql: "SELECT id FROM t WHERE ch < 'abc' ORDER BY id"
+    decision: D-S1
+    expect: '[["1"],["3"],["6"],["7"]]'
+  - id: ordering_a_char_column_with_blanks
+    sql: "SELECT id FROM t WHERE ch >= 'ab   ' ORDER BY id"
+    decision: D-S1
+    expect: '[["1"],["2"],["4"]]'
+  - id: ordering_a_char_column_in_sql_anywhere
+    sql: "SELECT id FROM t WHERE ch < 'ABC' ORDER BY id"
+    profile: sqla17-default
+  - id: ordering_a_label
+    sql: "SELECT id FROM u WHERE label <= 'orphan ' ORDER BY id"
+  - id: ordering_latin1_text
+    sql: "SELECT id FROM t WHERE vc > 'z' ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: string_column_against_column
+    sql: "SELECT id FROM t WHERE vc || '' < UPPER(vc) ORDER BY id"
+    profile: iq16-default, sqla17-default
+  # IQ island, 2026-10-14 (the merge of M1b/M1c with the natives slice): was ordering_strings_is_still_no_key; IQ's collation answers it now
+  - id: ordering_strings_by_their_collation_key
+    sql: "SELECT id FROM t ORDER BY vc"
+  # IQ island, 2026-10-14 (the merge): was distinct_strings_is_still_no_key; refused now because IQ shows the first of 'a', 'a ' it meets
+  - id: distinct_strings_of_a_column_is_refused
+    sql: "SELECT DISTINCT vc FROM t"
+
+  # ---- REPLACE, LOCATE, CHARINDEX, PATINDEX in a sqla17 profile: without regard to the ASCII letters' case
+  - id: replace_without_case
+    sql: "SELECT REPLACE('aAbBa', 'a', 'x') AS a, REPLACE('éÉe', 'é', 'x') AS b, REPLACE('Hello', 'L', '') AS c, REPLACE('ABAB', 'ab', 'Ab') AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: replace_of_pattern_characters_without_case
+    sql: "SELECT REPLACE('a.A.b', '.a', '!') AS a, REPLACE('a+b*C?', 'B*c', 'z') AS b, REPLACE('x[A]y', '[a]', '#') AS c, REPLACE('p$Q^q', '$q', '&') AS d, REPLACE('(Ab)', '(aB)', '|') AS e"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: replace_with_a_backslash_without_case
+    sql: "SELECT REPLACE('aXb', 'x', '\\\\\\\\') AS a, REPLACE('aXb', 'x', '\\\\\\\\1') AS b, REPLACE('a\\\\b', '\\\\B', 'z') AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: replace_of_empty_and_null_without_case
+    sql: "SELECT REPLACE('abc', '', 'x') AS a, REPLACE('abc', NULL, 'x') AS b, REPLACE('ABC', 'b', NULL) AS c, REPLACE(NULL, 'b', 'x') AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: replace_overlapping_without_case
+    sql: "SELECT REPLACE('aAa', 'aa', 'x') AS a, REPLACE('AAAA', 'aa', 'b') AS b, REPLACE('abcABC', 'C', 'c') AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: replace_of_a_number_without_case
+    sql: "SELECT REPLACE('a1b1', 1, 'X') AS a, REPLACE(12321, '2', 'b') AS b"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: replace_over_a_column_without_case
+    sql: "SELECT id, REPLACE(vc, 'L', '_') AS r FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: replace_of_a_column_search_without_case
+    sql: "SELECT id, REPLACE('hello', vc, 'x') AS r FROM t WHERE id < 3 ORDER BY id"
+    profile: sqla17-default
+  - id: locate_without_case
+    sql: "SELECT LOCATE('xAbcABC', 'abc') AS a, LOCATE('xAbcABC', 'ABC', 3) AS b, LOCATE('xAbcABC', 'abc', -1) AS c, LOCATE('xAbcABC', 'é') AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: charindex_without_case
+    sql: "SELECT CHARINDEX('B', 'abc') AS a, CHARINDEX('é', 'É') AS b, CHARINDEX('Z', 'xyz') AS c, CHARINDEX('', 'Ab') AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: patindex_without_case
+    sql: "SELECT PATINDEX('%BC%', 'abc') AS a, PATINDEX('AB%', 'abc') AS b, PATINDEX('%C', 'abc') AS c, PATINDEX('ABC', 'abc') AS d, PATINDEX('%É%', 'é') AS e"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: locate_over_a_column_without_case
+    sql: "SELECT id, LOCATE(vc, 'L') AS a, CHARINDEX('E', vc) AS b, PATINDEX('%LO%', vc) AS c FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: locate_of_a_column_search_without_case
+    sql: "SELECT id, LOCATE('HELLO hello', vc) AS a FROM t ORDER BY id"
+    profile: sqla17-default
+
+  # ---- TRIM, LTRIM, RTRIM in a sqla17 profile's UTF-8 database: the space and tab .. carriage return only; a set without case
+  - id: trim_in_a_utf8_database
+    sql: "SELECT TRIM('  a\\x09 ') AS a, LTRIM('\\x0Ba b') AS b, RTRIM('a\\x0D\\x0A') AS c, LENGTH(TRIM(' \\x0C a \\x0B ')) AS d"
+    profile: sqla17-default
+    engine: sa
+  - id: trim_leaves_unicode_spaces
+    sql: "SELECT LENGTH(TRIM(' a ')) AS a, LENGTH(TRIM('　a　')) AS b, LENGTH(RTRIM('a ')) AS c, LENGTH(LTRIM(' a')) AS d, LENGTH(TRIM('​a')) AS e"
+    profile: sqla17-default
+    engine: sa
+  # IQ island, 2026-10-14 (review 4's m3): the island's own string ('yxyxxYzyq'), not a manual's example
+  - id: trim_a_set_without_case
+    sql: "SELECT LTRIM('yxyxxYzyq', 'xy') AS a, RTRIM('xyzZYX', 'xy') AS b, TRIM('AbcBA', 'ab') AS c, TRIM('éÉé', 'é') AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: trim_a_column_in_a_utf8_database
+    sql: "SELECT id, TRIM(vc) AS a, RTRIM(ch) AS b, LTRIM(ch) AS c FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: trim_a_column_with_a_set_without_case
+    sql: "SELECT id, TRIM(vc, 'eh') AS a FROM t ORDER BY id"
+    profile: sqla17-default
+
+  # ---- NUMERIC / in SQL Anywhere's front end: TYPING §4's type, the quotient cut to ceil((p+1)/2) base-100 digits then rounded half away from zero at s (so truncated at s when p is odd, s even and every whole digit is there); shown as a select item
+  - id: quotients_of_two_numeric_1_0
+    sql: "SELECT CAST(5 AS NUMERIC(1,0)) / CAST(3 AS NUMERIC(1,0)) AS a, CAST(2 AS NUMERIC(1,0)) / CAST(3 AS NUMERIC(1,0)) AS b, CAST(1 AS NUMERIC(1,0)) / CAST(8 AS NUMERIC(1,0)) AS c, CAST(9 AS NUMERIC(1,0)) / CAST(8 AS NUMERIC(1,0)) AS d, CAST(9 AS NUMERIC(1,0)) / CAST(7 AS NUMERIC(1,0)) AS e"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_of_literals
+    sql: "SELECT 10.0 / 3 AS a, 1.0 / 3 AS b, 2.0 / 3.0 AS c, 1 / 8.0 AS d, 6 / 7.0 AS e, 8 / 3.0 AS f, 5 / 3.0 AS g"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_of_odd_and_even_precision
+    sql: "SELECT CAST(8.5 AS NUMERIC(2,1)) / CAST(8 AS NUMERIC(1,0)) AS a, CAST(5 AS NUMERIC(2,1)) / CAST(3 AS NUMERIC(2,0)) AS b, CAST(5 AS NUMERIC(3,2)) / CAST(3 AS NUMERIC(5,0)) AS c, CAST(5 AS NUMERIC(3,2)) / CAST(3 AS NUMERIC(2,0)) AS d, CAST(8 AS NUMERIC(1,0)) / CAST(3 AS NUMERIC(5,0)) AS e"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: negative_quotients
+    sql: "SELECT -7.5 / 2 AS a, 7.5 / -2 AS b, -1 / 3.0 AS c, -2 / -3.0 AS d, -5 / 3.0 AS e, -1 / 8.0 AS f"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: zero_quotients
+    sql: "SELECT 0.0 / 5 AS a, -0.0 / 5 AS b, 0 / 7.5 AS c, CAST(-0.001 AS NUMERIC(4,3)) / CAST(9999 AS NUMERIC(4,0)) AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: halves_round_away_from_zero
+    sql: "SELECT 1 / 8.0 AS a, 5 / 8.0 AS b, -5 / 8.0 AS c, CAST(1 AS NUMERIC(3,2)) / 8 AS d, CAST(0.125 AS NUMERIC(4,3)) / CAST(0.5 AS NUMERIC(2,1)) AS e"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_cut_at_their_whole_digits
+    sql: "SELECT 32768 / 3.0 AS a, 2147483648 / 3.0 AS b, 99999999999 / 7.0 AS c, 100000 / 3.0 AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_tiny_quotient
+    sql: "SELECT CAST('0.000001' AS NUMERIC(7,6)) / CAST('999999' AS NUMERIC(6,0)) AS a, CAST('0.000004' AS NUMERIC(7,6)) / CAST('7' AS NUMERIC(1,0)) AS b"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_large_quotient
+    sql: "SELECT CAST('999999.999999' AS NUMERIC(12,6)) / CAST('0.000001' AS NUMERIC(7,6)) AS a, CAST('123456789.123456789' AS NUMERIC(18,9)) / CAST('0.000000007' AS NUMERIC(9,9)) AS b"
+    engine: sa
+  - id: quotients_of_twenty_digits
+    sql: "SELECT CAST('99999999999999999999.123' AS NUMERIC(23,3)) / CAST('7.77' AS NUMERIC(3,2)) AS a, CAST('-12345678901234567.12345678' AS NUMERIC(25,8)) / CAST('3' AS NUMERIC(1,0)) AS b"
+    engine: sa
+  - id: quotients_of_thirty_six_digits
+    sql: "SELECT CAST('1234567890123456789012345678.9' AS NUMERIC(29,1)) / CAST('3' AS NUMERIC(1,0)) AS a, CAST('1234567890123456789012345678901234' AS NUMERIC(34,0)) / CAST('7' AS NUMERIC(1,0)) AS b"
+    engine: sa
+  - id: quotients_of_ten_digit_numerics
+    sql: "SELECT CAST('12345678.91' AS NUMERIC(10,2)) / CAST('-0.37' AS NUMERIC(10,2)) AS a, CAST('99999999.99' AS NUMERIC(10,2)) / CAST('0.01' AS NUMERIC(10,2)) AS b, CAST('0.01' AS NUMERIC(10,2)) / CAST('99999999.99' AS NUMERIC(10,2)) AS c"
+    engine: sa
+  - id: quotients_of_nines
+    sql: "SELECT CAST('9.99' AS NUMERIC(3,2)) / CAST('0.01' AS NUMERIC(3,2)) AS a, CAST('999' AS NUMERIC(3,0)) / CAST('0.001' AS NUMERIC(3,3)) AS b, CAST('0.999' AS NUMERIC(3,3)) / CAST('999' AS NUMERIC(3,0)) AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_of_constant_arithmetic
+    sql: "SELECT (1.5 + 2.25) / 7 AS a, 7 / (1.5 + 2.25) AS b, 1.5 * 2 / 7 AS c, 7 / (1.5 * 2) AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_of_integer_constants
+    sql: "SELECT 1 / 3.0 AS a, 10 / 4.0 AS b, 1e1 / 3 AS c, 1.50 / 7 AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_over_rowgenerator
+    sql: "SELECT row_num, row_num / 1.5 AS a, 1.5 / row_num AS b, CAST(row_num AS NUMERIC(10,2)) / 7 AS c, (row_num * 2.5) / 3 AS d FROM sa_rowgenerator(1, 4) ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: signed_quotients_over_rowgenerator
+    sql: "SELECT row_num, -row_num / 2.5 AS a, row_num / -2.5 AS b, (row_num - 2) / 0.3 AS c, (row_num + 1) / 1.5 AS d FROM sa_rowgenerator(1, 4) ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_of_wider_integers
+    sql: "SELECT row_num, CAST(row_num AS BIGINT) / 1.5 AS a, CAST(row_num AS SMALLINT) / 1.5 AS b, row_num / (1.5 + row_num) AS c FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_quotient_by_a_row_that_is_zero
+    sql: "SELECT row_num, 1 / (row_num - 2.0) AS q FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: a_quotient_by_zero
+    sql: "SELECT 1 / 0.0 AS q"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_quotient_by_an_integer_zero
+    sql: "SELECT 1.5 / 0 AS q"
+    engine: sa
+  - id: a_quotient_of_null
+    sql: "SELECT NULL / 1.5 AS a, 1.5 / NULL AS b"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_quotient_capped_by_sql_anywhere_precision
+    sql: "SELECT CAST('12345678901.12' AS NUMERIC(13,2)) / CAST('0.37' AS NUMERIC(17,2)) AS a, CAST('-3' AS NUMERIC(20,0)) / CAST('7' AS NUMERIC(15,0)) AS b"
+    profile: sqla17-default
+    engine: sa
+  - id: quotients_in_sql_anywhere
+    sql: "SELECT 10.0 / 3 AS a, CAST(5 AS NUMERIC(1,0)) / CAST(3 AS NUMERIC(1,0)) AS b, row_num / 1.5 AS c FROM sa_rowgenerator(1, 2) ORDER BY row_num"
+    profile: sqla17-default
+    engine: sa
+  - id: a_quotient_sql_anywhere_may_not_show
+    sql: "SELECT CAST(1 AS NUMERIC(30,10)) / CAST(3 AS NUMERIC(30,10)) AS q"
+    profile: sqla17-default
+    engine: sa
+  - id: a_quotient_beyond_lites_digits
+    sql: "SELECT CAST(1 AS NUMERIC(30,0)) / CAST(3 AS NUMERIC(10,0)) AS q"
+    engine: sa
+  - id: a_quotient_as_an_operand
+    sql: "SELECT (10.0 / 3) * 3 AS q"
+    engine: sa
+  - id: a_quotient_compared
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 2) WHERE 10.0 / 3 = 3.33 ORDER BY row_num"
+    engine: sa
+  - id: a_quotient_cast
+    sql: "SELECT CAST(10.0 / 3 AS NUMERIC(10,4)) AS q"
+    engine: sa
+  - id: a_quotient_in_a_case
+    sql: "SELECT CASE WHEN row_num = 1 THEN 10.0 / 3 ELSE 1.12345 END AS q FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: a_distinct_quotient
+    sql: "SELECT DISTINCT 2.0 / 3 AS q FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: a_quotient_of_folded_integers
+    sql: "SELECT (2 + 3) / 1.5 AS a"
+    engine: sa
+  - id: a_quotient_by_folded_integers
+    sql: "SELECT 1.5 / (2 - 5) AS a"
+    engine: sa
+  # IQ island, 2026-10-14 (review 4's B2): renamed, refused -- SQL Anywhere sorts by the unrounded quotient
+  - id: a_quotient_ordered_by_is_refused
+    sql: "SELECT row_num, 10.0 / row_num AS q FROM sa_rowgenerator(1, 4) ORDER BY q"
+    engine: sa
+  - id: a_quotient_in_a_row_limit
+    sql: "SELECT TOP 2 row_num, 1.5 / row_num AS q FROM sa_rowgenerator(1, 4) ORDER BY row_num"
+    engine: sa
+  - id: a_quotient_under_the_iq_engine_is_refused
+    sql: "SELECT id, nm / 2 AS q FROM t ORDER BY id"
+  - id: quotients_of_fractions
+    sql: "SELECT CAST('0.5' AS NUMERIC(1,1)) / CAST('0.3' AS NUMERIC(1,1)) AS a, CAST('0.05' AS NUMERIC(2,2)) / CAST('0.03' AS NUMERIC(2,2)) AS b, CAST('0.5' AS NUMERIC(2,2)) / CAST('3' AS NUMERIC(1,0)) AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_rounding_up_into_a_new_digit
+    sql: "SELECT CAST('9.995' AS NUMERIC(4,3)) / CAST('1' AS NUMERIC(1,0)) AS a, CAST('99.99' AS NUMERIC(4,2)) / CAST('9.99' AS NUMERIC(3,2)) AS b, CAST('-9.9999' AS NUMERIC(5,4)) / CAST('3' AS NUMERIC(1,0)) AS c"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_at_every_scale_of_one_digit
+    sql: "SELECT CAST(7 AS NUMERIC(1,0)) / CAST(3 AS NUMERIC(1,0)) AS a, CAST(0.7 AS NUMERIC(1,1)) / CAST(3 AS NUMERIC(1,0)) AS b, CAST(7 AS NUMERIC(1,0)) / CAST(0.3 AS NUMERIC(1,1)) AS c, CAST(0.7 AS NUMERIC(1,1)) / CAST(0.3 AS NUMERIC(1,1)) AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_of_a_numeric_and_integers
+    sql: "SELECT CAST(10 AS NUMERIC(5,2)) / 3 AS a, 10 / CAST(3 AS NUMERIC(5,2)) AS b, CAST(10 AS NUMERIC(5,2)) / -32768 AS c, 2147483647 / CAST(2 AS NUMERIC(2,1)) AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  # IQ island, 2026-10-14 (review 4's B2): renamed, refused -- SQL Anywhere sorts by the unrounded quotient
+  - id: a_quotient_ordered_by_its_position_is_refused
+    sql: "SELECT row_num, 10.0 / row_num AS q FROM sa_rowgenerator(1, 4) ORDER BY 2"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_quotient_beside_other_items
+    sql: "SELECT row_num, row_num + 1 AS n, 1.0 / row_num AS q, 'x' AS s FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: quotients_over_dummy
+    sql: "SELECT dummy_col / 1.5 AS a, 1.5 / (dummy_col + 2) AS b FROM DUMMY"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_quotient_of_a_quotient
+    sql: "SELECT (1.0 / 3) / 3 AS q"
+    engine: sa
+  - id: a_quotient_in_a_where_and_shown
+    sql: "SELECT row_num, 1.5 / row_num AS q FROM sa_rowgenerator(1, 3) WHERE 1.5 / row_num > 1 ORDER BY row_num"
+    engine: sa
+  - id: a_quotient_of_twenty_eight_digits_in_sql_anywhere
+    sql: "SELECT CAST('1234567890123456789012345678' AS NUMERIC(28,0)) / CAST('7' AS NUMERIC(1,0)) AS a, CAST('-0.5' AS NUMERIC(5,4)) / CAST('3' AS NUMERIC(1,0)) AS b"
+    profile: sqla17-default
+    engine: sa
+  - id: a_quotient_of_many_places_beyond_lites_digits
+    sql: "SELECT CAST('1.23456789012345678901234567' AS NUMERIC(27,26)) / CAST('3' AS NUMERIC(2,0)) AS b"
+    profile: sqla17-default
+    engine: sa
+  - id: remainders_in_sql_anywhere
+    sql: "SELECT 10.0 % 3 AS a, -7.5 % 2 AS b, CAST('123456.789' AS NUMERIC(9,3)) % CAST('0.07' AS NUMERIC(2,2)) AS c"
+    profile: sqla17-default
+    engine: sa
+  - id: remainders_of_integers_and_numerics
+    sql: "SELECT 7 % 2.5 AS a, CAST(7.5 AS NUMERIC(3,1)) % 2 AS b, 2147483647 % 0.7 AS c, -32768 % CAST(0.9 AS NUMERIC(2,1)) AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: remainders_over_dummy
+    sql: "SELECT dummy_col % 1.5 AS a, 1.5 % (dummy_col + 2) AS b FROM DUMMY"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_remainder_compared
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 6) WHERE row_num % 2.5 = 0.5 ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+
+  # ---- NUMERIC %: the remainder after the quotient cut toward zero, the dividend's sign, scale max(s1, s2)
+  - id: remainders_of_literals
+    sql: "SELECT 10.0 % 3 AS a, 7.5 % 2 AS b, -7.5 % 2 AS c, 7.5 % -2 AS d, 1.25 % 0.5 AS e, 0.3 % 0.07 AS f"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: mod_and_remainder_of_numerics
+    sql: "SELECT MOD(CAST(10 AS NUMERIC(5,2)), CAST(3 AS NUMERIC(3,1))) AS a, REMAINDER(-7.5, 2) AS b, MOD(7.5, 2) AS c, MOD(-0.001, 0.0003) AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: remainders_over_rowgenerator
+    sql: "SELECT row_num, row_num % 1.5 AS a, CAST(row_num AS NUMERIC(10,2)) % 0.7 AS b, -row_num % 2.5 AS c FROM sa_rowgenerator(1, 4) ORDER BY row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: remainders_of_large_numerics
+    sql: "SELECT CAST('99999999999999999999999999.99' AS NUMERIC(28,2)) % CAST('0.07' AS NUMERIC(2,2)) AS a, CAST('-12345678901234567890' AS NUMERIC(20,0)) % CAST('987654321.5' AS NUMERIC(10,1)) AS b"
+    engine: sa
+  - id: a_remainder_by_zero
+    sql: "SELECT 7.5 % 0.0 AS a"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_remainder_of_null
+    sql: "SELECT NULL % 1.5 AS a"
+    engine: sa
+  - id: a_remainder_beyond_sql_anywhere_precision
+    sql: "SELECT CAST('8330297617083307947.0' AS NUMERIC(20,1)) % CAST('727296795163.20757333659224' AS NUMERIC(26,14)) AS a"
+    profile: sqla17-default
+    engine: sa
+  - id: a_remainder_as_an_operand
+    sql: "SELECT (7.5 % 2) * 2 AS a, 7.5 % 2 + 0.25 AS b"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_remainder_under_the_iq_engine_is_refused
+    sql: "SELECT id, nm % 2 AS r FROM t ORDER BY id"

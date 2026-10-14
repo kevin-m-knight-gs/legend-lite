@@ -179,8 +179,9 @@ final class Typer {
             case com.legend.protocol.spec.TdsLiteral tl -> synth(tl.desugared(), env);
             // #SQL{...}#: Postgres SQL, translated to the Relation expression it means and typed as one
             // (SqlIslands; docs/LEGEND_SQL_STUDY_2026_10_11.md §3)
+            // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
             case com.legend.protocol.spec.SqlIsland si ->
-                    synth(SqlIslands.desugar(si, source -> synth(source, env)), env);
+                    synth(SqlIslands.desugar(si, source -> synth(source, env), ctx, env), env);
             case com.legend.protocol.spec.GqlIsland gi ->
                     throw new com.legend.error.NotImplementedException(
                             "#GQL{...}# expression islands are not compilable"

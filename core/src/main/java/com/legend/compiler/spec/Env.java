@@ -33,6 +33,12 @@ public final class Env {
         return new Env(Map.of(), Map.of(), false);
     }
 
+    /** The names of the variables in scope (IQ island, 2026-10-14, review 5's m1: an #IQ{...}# island matches a host
+     *  variable's name to them as IQ matches names, without case). */
+    public java.util.Set<String> names() {
+        return java.util.Collections.unmodifiableSet(vars.keySet());
+    }
+
     /** Look up a variable's type, empty if it is not in scope. */
     public Optional<ExprType> lookup(String name) {
         return Optional.ofNullable(vars.get(name));

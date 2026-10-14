@@ -1,0 +1,236 @@
+# The fifth review's findings on M1e and the merge, each pinned (docs/IQ_SQL_STUDY_2026_10_13.md §9.14; IQ island,
+# 2026-10-14): a case that answered where SQL Anywhere raises, or answered otherwise, before its fix. B1: a BIGINT host
+# variable near the bounds is IQ's -158 where its arithmetic leaves BIGINT, and a value BIGINT cannot hold raises at
+# run time; B2: under ansinull Off x = @v and x <> @v are two-valued in a search condition; B3: a date or a
+# timestamp variable is refused (lite's Postgres rendering misreads a year below 100); M1: a variable that may hold no
+# value is refused; M2: an alias spelled like a variable is refused; M4: a date cast to text keeps a year's zeros; M5:
+# the oracle binds real variables (a name in another case reads the variable, a column of its name first); m4: GROUP
+# BY reads an expression over a variable. Judged by SQL Anywhere 17's answers in iq-answers.jsonl, each case's params
+# real variables on its connection. A case without FROM, or over sa_rowgenerator or DUMMY, runs in SQL Anywhere's
+# front end (engine: sa). The SQL in YAML double quotes. tools/iq-oracle's README.md has the keys.
+tests:
+  # ---- B1: IQ's BIGINT arithmetic over a host variable raises -158 at the edge (lite's databases computed it wider)
+  - id: b1_bigint_variable_plus_one_overflow
+    sql: "SELECT @big + 1 AS v"
+    params: "big = 9223372036854775807"
+    engine: sa
+  - id: b1_column_plus_a_bigint_variable_overflow
+    sql: "SELECT id, id + @big AS v FROM t WHERE id = 1"
+    params: "big = 9223372036854775807"
+  - id: b1_column_plus_a_bigint_variable_in_where_overflow
+    sql: "SELECT id FROM t WHERE id + @big > 0 ORDER BY id"
+    params: "big = 9223372036854775807"
+  - id: b1_smallint_plus_a_bigint_variable_overflow
+    sql: "SELECT id, sm + @lo AS v FROM t WHERE id IN (1, 2) ORDER BY id"
+    params: "lo = 9223372036854775807"
+  - id: b1_bigint_column_plus_a_bigint_variable_overflow
+    sql: "SELECT id, bg + @lo AS v FROM t WHERE id = 4"
+    params: "lo = 9223372036854775807"
+  - id: b1_negated_smallest_bigint_variable_overflow
+    sql: "SELECT id, -@lo AS v FROM t WHERE id = 1"
+    params: "lo = -9223372036854775808"
+  - id: b1_column_times_a_bigint_variable_overflow
+    sql: "SELECT id, id * @lo AS v FROM t WHERE id IN (1, 2) ORDER BY id"
+    params: "lo = 4611686018427387904"
+  - id: b1_bigint_variable_times_two_overflow
+    sql: "SELECT id, @lo * 2 AS v FROM t WHERE id = 1"
+    params: "lo = 4611686018427387904"
+  - id: b1_bigint_variable_minus_a_column_overflow
+    sql: "SELECT id, @lo - id AS v FROM t WHERE id = 2"
+    params: "lo = -9223372036854775807"
+  - id: b1_bigint_variable_in_a_counted_where_overflow
+    sql: "SELECT COUNT(*) AS n FROM t WHERE @lo + id > 0"
+    params: "lo = 9223372036854775807"
+  - id: b1_variable_beyond_bigint_overflow
+    sql: "SELECT @lo AS v"
+    params: "lo = 99999999999999999999"
+    engine: sa
+  - id: b1_variable_beyond_bigint_compared_overflow
+    sql: "SELECT id FROM t WHERE bg < @lo ORDER BY id"
+    params: "lo = 99999999999999999999"
+  - id: b1_bigint_string_constant_plus_one_overflow
+    sql: "SELECT CAST('9223372036854775807' AS BIGINT) + 1 AS v"
+    engine: sa
+  - id: b1_bigint_variable_doubled_just_inside
+    sql: "SELECT id, @lo + @lo AS v FROM t WHERE id = 1"
+    params: "lo = 4611686018427387903"
+  - id: b1_bigint_column_minus_a_variable_inside
+    sql: "SELECT id, bg - @lo AS v FROM t WHERE id IN (3, 6) ORDER BY id"
+    params: "lo = 9223372036854775807"
+  - id: b1_absolute_value_of_the_smallest_bigint_variable
+    sql: "SELECT ABS(@lo) AS v"
+    params: "lo = -9223372036854775808"
+    engine: sa
+
+  # ---- B2: under ansinull Off SQL Anywhere reads x = @v and x <> @v two-valued in a search condition (a NULL x is
+  # FALSE, so NOT keeps its row); lite reads them so where the condition reaches them through AND, OR and NOT, refuses
+  # them inside an IF, a CASE or a function there, and reads every other comparison three-valued, as measured
+  - id: b2_negated_comparison_with_a_variable_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (sm = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_negated_comparison_with_a_variable_under_ansinull_on
+    sql: "SELECT id FROM t WHERE NOT (sm = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-default, sqla17-default
+  - id: b2_negated_not_equal_with_a_variable_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (sm <> @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_negated_bang_equal_with_the_variable_first_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (@lo != sm) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b2_negated_string_comparison_with_a_variable_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (vc = @s) ORDER BY id"
+    params: "s = 'x'"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_negated_conjunction_with_a_variable_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (sm = @lo AND id > 0) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b2_negated_comparison_in_having_is_two_valued
+    sql: "SELECT id FROM t GROUP BY id, sm HAVING NOT (sm = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, iq16-default
+  - id: b2_negated_comparison_in_on_is_two_valued
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON NOT (t.sm = @lo) AND u.t_id = t.id ORDER BY 1, 2"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b2_negated_comparison_in_a_subquery_is_two_valued
+    sql: "SELECT id FROM t WHERE id IN (SELECT t2.id FROM t t2 WHERE NOT (t2.sm = @lo)) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, iq16-default
+  - id: b2_variable_comparisons_through_or
+    sql: "SELECT id FROM t WHERE sm = @lo OR sm <> @lo ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_negated_less_than_a_variable_is_three_valued
+    sql: "SELECT id FROM t WHERE NOT (sm < @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_negated_comparison_with_a_variable_expression_is_three_valued
+    sql: "SELECT id FROM t WHERE NOT (sm = @lo + 0) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b2_not_in_over_a_variable_is_three_valued
+    sql: "SELECT id FROM t WHERE sm NOT IN (@lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_not_between_variables_is_three_valued
+    sql: "SELECT id FROM t WHERE sm NOT BETWEEN @lo AND @hi ORDER BY id"
+    params: "lo = 1; hi = 2"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_variable_in_an_if_condition_in_where_is_refused
+    sql: "SELECT id FROM t WHERE IF sm = @lo THEN 1 ELSE 0 ENDIF = 0 ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_variable_in_an_if_inside_coalesce_in_where_is_refused
+    sql: "SELECT id FROM t WHERE COALESCE(IF sm = @lo THEN 1 ELSE 0 ENDIF, 5) = 0 ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b2_variable_in_an_if_condition_in_the_select_list
+    sql: "SELECT id, IF sm = @lo THEN 1 ELSE 0 ENDIF AS c FROM t ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_variable_in_a_case_in_the_select_list
+    sql: "SELECT id, CASE WHEN sm <> @lo THEN 'ne' WHEN sm = @lo THEN 'eq' ELSE 'nn' END AS c FROM t ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b2_variable_in_an_if_in_order_by
+    sql: "SELECT id FROM t ORDER BY IF sm = @lo THEN 0 ELSE 1 ENDIF, id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b2_negated_comparison_of_a_variable_with_a_constant
+    sql: "SELECT id FROM t WHERE NOT (@lo = 2) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b2_variable_in_list_through_and
+    sql: "SELECT id FROM t WHERE sm IN (@lo, 2) AND id > 0 ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+
+  # ---- B3: a date or a timestamp variable is refused (its literal, below the year 100, is misread on Postgres)
+  - id: b3_date_variable_before_the_year_100_is_refused
+    sql: "SELECT id FROM t WHERE dt > @day ORDER BY id"
+    params: "day = %0012-12-12"
+  - id: b3_timestamp_variable_before_the_year_100_is_refused
+    sql: "SELECT id FROM t WHERE ts > @stamp ORDER BY id"
+    params: "stamp = %0012-12-12T00:00:00"
+  - id: b3_year_of_a_date_variable_is_refused
+    sql: "SELECT DATEPART(year, @day) AS y"
+    params: "day = %0012-12-12"
+  - id: b3_date_variable_as_text_is_refused
+    sql: "SELECT @day || '' AS v"
+    params: "day = %0012-12-12"
+
+  # ---- M1: a variable that may hold no value (null:<type>, an empty Pure value) is refused
+  - id: m1_empty_variable_compared_is_refused
+    sql: "SELECT id FROM t WHERE sm = @x ORDER BY id"
+    params: "x = null:Integer"
+    profile: iq16-default, iq16-tds
+  - id: m1_empty_variable_beside_or_is_refused
+    sql: "SELECT id FROM t WHERE id > 5 OR sm = @x ORDER BY id"
+    params: "x = null:Integer"
+  - id: m1_empty_string_variable_is_refused
+    sql: "SELECT id FROM t WHERE vc = @s OR id = 1 ORDER BY id"
+    params: "s = null:String"
+  - id: m1_empty_variable_shown_is_refused
+    sql: "SELECT @x AS v"
+    params: "x = null:Integer"
+    engine: sa
+
+  # ---- M2: SQL Anywhere reads a select-list alias spelled like a variable before the variable
+  - id: m2_alias_spelled_like_a_variable_is_refused
+    sql: "SELECT 5 AS \"@lo\", @lo + 1 AS v"
+    params: "lo = 3"
+    engine: sa
+  - id: m2_alias_spelled_like_a_variable_in_where_is_refused
+    sql: "SELECT row_num AS \"@lo\" FROM sa_rowgenerator(1, 5) WHERE @lo > 3 ORDER BY 1"
+    params: "lo = 3"
+    engine: sa
+  - id: m2_alias_spelled_like_a_variable_read_beside_it_is_refused
+    sql: "SELECT row_num * 10 AS \"@lo\", @lo AS w FROM sa_rowgenerator(1, 2) ORDER BY 1"
+    params: "lo = 3"
+    engine: sa
+  - id: m2_alias_spelled_like_a_missing_variable_is_refused
+    sql: "SELECT 5 AS \"@lo\", @lo + 1 AS v"
+    engine: sa
+
+  # ---- M4: a DATE as text keeps its year's zeros below the year 1000, as || does
+  - id: m4_date_before_the_year_1000_cast_to_varchar
+    sql: "SELECT CAST(CAST('0500-01-01' AS DATE) AS VARCHAR(20)) AS v FROM t WHERE id = 1"
+  - id: m4_date_before_the_year_1000_cast_to_varchar_without_from
+    sql: "SELECT CAST(CAST('0999-12-31' AS DATE) AS VARCHAR(12)) AS v"
+    engine: sa
+  - id: m4_date_before_the_year_1000_cast_to_char
+    sql: "SELECT CAST(CAST('0999-12-31' AS DATE) AS CHAR(12)) AS v"
+    engine: sa
+  - id: m4_date_column_cast_to_varchar
+    sql: "SELECT id, CAST(dt AS VARCHAR(20)) AS v FROM t ORDER BY id"
+    profile: iq16-default, sqla17-default
+
+  # ---- M5 and m1: the oracle's variables are real: a name in another case reads the variable; a column first
+  - id: m5_variable_named_in_another_case_in_where
+    sql: "SELECT id FROM t WHERE id > @LO ORDER BY id"
+    params: "lo = 3"
+  - id: m5_colon_variable_named_in_another_case
+    sql: "SELECT :LO AS v"
+    params: "lo = 3"
+    engine: sa
+  - id: m5_column_named_like_a_variable_is_read_first
+    sql: "SELECT @lo AS v FROM (SELECT 7 AS \"@lo\") d"
+    params: "lo = 3"
+    engine: sa
+  - id: m5_column_named_like_a_variable_beside_it
+    sql: "SELECT d.\"@lo\" + @lo AS v FROM (SELECT 7 AS \"@lo\") d"
+    params: "lo = 3"
+    engine: sa
+
+  # ---- m4: GROUP BY reads an expression over a variable as the select list writes it
+  - id: m4_group_by_a_sum_with_a_variable
+    sql: "SELECT id + @lo AS v, COUNT(*) AS n FROM t GROUP BY id + @lo ORDER BY 1"
+    params: "lo = 3"
+  - id: m4_group_by_a_product_with_a_variable
+    sql: "SELECT k * @lo AS v, COUNT(*) AS n FROM g GROUP BY k * @lo ORDER BY 1"
+    params: "lo = 3"

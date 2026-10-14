@@ -1,0 +1,596 @@
+# M1e: names, variables and profiles (docs/IQ_SQL_STUDY_2026_10_13.md §9.7; IQ island, 2026-10-14). Owner-qualified
+# table names bound to the model's tables (the study's O2: an owner is a schema; DBA owns the tables declared outside
+# any, schema.yaml's tables here); host variables, @name and :name, read as the enclosing Pure query's variables (O3:
+# a case's params are each a let before the island, and written into the SQL SQL Anywhere runs as a constant of the
+# variable's type); a TIMESTAMP or a DATE written as text in the profile's format (three places of the second at the
+# defaults and on a TDS login, six through IQ's ODBC driver); ansinull Off in ON, HAVING and every query's WHERE; date
+# and timestamp strings read by the profile's DATE_ORDER (YMD; MDY on a TDS login) and NEAREST_CENTURY (IqDateTime).
+# Judged by SQL Anywhere 17's answers in iq-answers.jsonl. A case without FROM runs in SQL Anywhere's front end.
+# The SQL in YAML double quotes. tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- owner-qualified tables: DBA owns the tables of the model's default schema
+  - id: owner_dba_reads_the_tables_of_no_schema
+    sql: "SELECT id FROM DBA.t ORDER BY id"
+    profile: iq16-default, sqla17-default, iq16-tds, sqla17-tds
+  - id: owner_in_lower_case
+    sql: "SELECT id FROM dba.t ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: owner_and_table_in_any_case
+    sql: "SELECT id FROM Dba.T ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: owner_and_table_in_double_quotes
+    sql: "SELECT id FROM \"DBA\".\"t\" ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: owner_in_double_quotes_under_tds_is_a_string
+    sql: "SELECT id FROM \"DBA\".t ORDER BY id"
+    profile: iq16-tds
+  - id: owner_and_table_in_brackets
+    sql: "SELECT id FROM [dba].[T] ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: owner_and_table_in_back_quotes
+    sql: "SELECT id FROM `DBA`.`u` ORDER BY id"
+  - id: owner_with_spaces_around_the_dot
+    sql: "SELECT id FROM DBA . u ORDER BY id"
+  - id: owner_after_a_database
+    sql: "SELECT id FROM mydb.DBA.t ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: owner_after_a_server_and_a_database
+    sql: "SELECT id FROM srv.mydb.DBA.t ORDER BY id"
+  - id: database_qualifier_is_ignored
+    sql: "SELECT id FROM nosuchdb.DBA.u ORDER BY id"
+  - id: tsql_database_dot_dot_table
+    sql: "SELECT id FROM mydb..t ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: tsql_database_dot_dot_table_aliased
+    sql: "SELECT x.label FROM db..u x WHERE x.id < 3 ORDER BY x.id"
+  - id: owner_qualified_column_by_its_correlation_name
+    sql: "SELECT t.id, t.vc FROM DBA.t WHERE t.id < 4 ORDER BY 1"
+  - id: owner_qualified_aliased
+    sql: "SELECT x.id FROM DBA.t x WHERE x.id < 4 ORDER BY 1"
+  - id: owner_qualified_aliased_as_its_owner
+    sql: "SELECT DBA.id FROM DBA.t AS DBA ORDER BY 1"
+  - id: owner_qualified_join
+    sql: "SELECT t.id, u.label FROM DBA.t JOIN DBA.u ON u.t_id = t.id ORDER BY 1, 2"
+    profile: iq16-default, sqla17-default
+  - id: owner_qualified_comma_join
+    sql: "SELECT t.id, u.id AS uid FROM DBA.t, DBA.u WHERE u.t_id = t.id ORDER BY 1, 2"
+  - id: owner_qualified_left_join
+    sql: "SELECT t.id, u.qty FROM DBA.t LEFT JOIN dba.u ON u.t_id = t.id ORDER BY 1, 2"
+  - id: owner_qualified_beside_a_table_of_no_owner
+    sql: "SELECT g.k, o.v FROM DBA.g, o WHERE g.id = o.id ORDER BY 1"
+  - id: owner_qualified_in_an_in_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM DBA.u) ORDER BY id"
+  - id: owner_qualified_in_exists
+    sql: "SELECT id FROM DBA.t WHERE EXISTS (SELECT 1 FROM dba.u WHERE u.t_id = t.id) ORDER BY id"
+  - id: owner_qualified_in_a_derived_table
+    sql: "SELECT d.id FROM (SELECT id FROM DBA.t WHERE id > 3) d ORDER BY 1"
+  - id: owner_qualified_union
+    sql: "SELECT id FROM DBA.t UNION SELECT id FROM DBA.u ORDER BY 1"
+  - id: owner_qualified_grouping
+    sql: "SELECT k, COUNT(*) AS n FROM DBA.g GROUP BY k ORDER BY k"
+    profile: iq16-default, sqla17-default
+  - id: owner_qualified_aggregates
+    sql: "SELECT MAX(v) AS mx, MIN(w) AS mn, COUNT(*) AS n FROM DBA.o"
+  - id: owner_qualified_strings_by_the_profile_collation
+    sql: "SELECT id FROM dba.t WHERE vc = 'hello' ORDER BY id"
+    profile: iq16-default, sqla17-default, sqla17-tds
+  - id: owner_qualified_top
+    sql: "SELECT TOP 2 id FROM DBA.t ORDER BY id DESC"
+  - id: owner_qualified_count
+    sql: "SELECT COUNT(*) AS n FROM srv.db.DBA.u"
+  - id: owner_qualified_dates
+    sql: "SELECT id, dt FROM DBA.t WHERE dt > '1999-12-31' ORDER BY id"
+  - id: owner_qualified_ordered_by_its_correlation_name
+    sql: "SELECT t.id FROM DBA.t WHERE t.sm > 0 ORDER BY t.id DESC"
+    profile: iq16-default, iq16-odbc, sqla17-tds
+  - id: owner_qualified_set_operation_with_a_table_of_no_owner
+    sql: "SELECT t_id FROM DBA.u WHERE t_id IS NOT NULL EXCEPT SELECT id FROM t WHERE id > 2 ORDER BY 1"
+  - id: owner_qualified_grouping_with_having
+    sql: "SELECT j, MAX(v) AS mv FROM DBA.g WHERE j IS NOT NULL GROUP BY j HAVING COUNT(*) > 1 ORDER BY j"
+  - id: owner_qualified_scalar_subquery
+    sql: "SELECT id, (SELECT MAX(u.id) FROM DBA.u WHERE u.t_id = t.id) AS l FROM t WHERE id < 4 ORDER BY id"
+  - id: owner_qualified_three_tables
+    sql: "SELECT t.id, u.id AS uid, o.v FROM DBA.t, DBA.u, mydb.DBA.o WHERE u.t_id = t.id AND o.id = t.id ORDER BY 1, 2"
+  - id: owner_qualified_real_table_is_refused
+    sql: "SELECT id FROM DBA.r ORDER BY id"
+
+  # ---- owner-qualified tables: what IQ raises, what the island refuses
+  - id: owner_dbo_is_refused
+    sql: "SELECT id FROM dbo.t"
+    profile: iq16-default, sqla17-default
+  - id: owner_sys_is_refused
+    sql: "SELECT id FROM SYS.t"
+  - id: owner_public_is_refused
+    sql: "SELECT id FROM PUBLIC.t"
+  - id: owner_of_no_user_is_iq_error_140
+    sql: "SELECT id FROM nobody.t"
+    profile: iq16-default, sqla17-default
+  - id: owner_of_no_user_and_no_table_is_iq_error_140
+    sql: "SELECT id FROM nobody.nosuch"
+  - id: owner_of_no_user_after_a_database_is_iq_error_140
+    sql: "SELECT id FROM mydb.nobody.t"
+  - id: table_dba_does_not_own_is_iq_error_141
+    sql: "SELECT id FROM DBA.nosuch"
+    profile: iq16-default, sqla17-default
+  - id: dummy_is_no_table_of_dba
+    sql: "SELECT * FROM DBA.DUMMY"
+  - id: five_part_name_is_a_syntax_error
+    sql: "SELECT id FROM a.b.c.d.e"
+  - id: dot_dot_after_a_second_part_is_a_syntax_error
+    sql: "SELECT id FROM srv.db..t"
+  - id: dot_dot_before_an_owner_is_a_syntax_error
+    sql: "SELECT id FROM srv..o.t"
+  - id: empty_delimited_owner_is_a_syntax_error
+    sql: "SELECT id FROM \"\".t"
+  - id: owner_qualified_rowgenerator_of_dba_is_refused
+    sql: "SELECT row_num FROM DBA.sa_rowgenerator(1, 2)"
+  - id: temporary_table_of_tempdb_is_refused
+    sql: "SELECT * FROM tempdb..#t"
+  - id: owner_qualified_column_is_refused
+    sql: "SELECT DBA.t.id FROM DBA.t ORDER BY 1"
+  - id: owner_qualified_star_is_refused
+    sql: "SELECT dba.t.* FROM dba.t"
+  - id: same_owner_qualified_table_twice_is_refused
+    sql: "SELECT t.id FROM DBA.t, DBA.t ORDER BY 1"
+
+  # ---- SQL Anywhere's DUMMY through its qualifiers
+  - id: dummy_after_a_database
+    sql: "SELECT dummy_col FROM mydb.SYS.DUMMY"
+  - id: dummy_after_a_server_and_a_database
+    sql: "SELECT dummy_col FROM srv.mydb.SYS.DUMMY"
+  - id: dummy_in_brackets_after_a_database
+    sql: "SELECT dummy_col FROM [mydb].[SYS].[DUMMY]"
+  - id: dummy_after_database_dot_dot
+    sql: "SELECT dummy_col FROM XXX..DUMMY"
+  - id: dummy_after_database_dot_dot_aliased
+    sql: "SELECT d.dummy_col + 1 AS v FROM mydb..DUMMY d"
+  - id: dummy_of_no_user_is_iq_error_140
+    sql: "SELECT dummy_col FROM srv.mydb.NOBODY.DUMMY"
+
+  # ---- host variables: @name and :name read the enclosing Pure query's variables (params)
+  - id: host_integer_in_where
+    sql: "SELECT id FROM t WHERE id > @lo ORDER BY id"
+    params: "lo = 3"
+    profile: iq16-default, iq16-tds, sqla17-default
+  - id: host_colon_integer_in_where
+    sql: "SELECT id FROM t WHERE id <= :lo ORDER BY id"
+    params: "lo = 3"
+  - id: host_integer_plus_a_column
+    sql: "SELECT id, id + @lo AS n FROM t WHERE id < 4 ORDER BY id"
+    params: "lo = 3"
+  - id: host_integer_times_a_smallint
+    sql: "SELECT id, sm * @lo AS n FROM t WHERE id < 5 ORDER BY id"
+    params: "lo = 3"
+  - id: host_integers_between
+    sql: "SELECT id FROM t WHERE id BETWEEN @lo AND @hi ORDER BY id"
+    params: "lo = 2; hi = 5"
+  - id: host_integers_in_a_list
+    sql: "SELECT id FROM t WHERE id IN (@lo, :hi, 7) ORDER BY id"
+    params: "lo = 2; hi = 5"
+  - id: host_negative_integer
+    sql: "SELECT id FROM t WHERE it = @lo ORDER BY id"
+    params: "lo = -1"
+  - id: host_largest_bigint
+    sql: "SELECT id FROM t WHERE bg = @big ORDER BY id"
+    params: "big = 9223372036854775807"
+  - id: host_integer_twice
+    sql: "SELECT id FROM t WHERE id >= @lo AND id <= @lo + 2 ORDER BY id"
+    params: "lo = 3"
+  - id: host_integer_against_a_null
+    sql: "SELECT id FROM t WHERE sm = @lo ORDER BY id"
+    params: "lo = 1"
+  - id: host_string_equality
+    sql: "SELECT id FROM t WHERE vc = @name ORDER BY id"
+    params: "name = 'hello'"
+    profile: iq16-default, sqla17-default
+  - id: host_string_against_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = @name ORDER BY id"
+    params: "name = 'x'"
+    profile: iq16-default, sqla17-default
+  - id: host_string_ordering
+    sql: "SELECT id FROM t WHERE vc < @name ORDER BY id"
+    params: "name = 'Z'"
+    profile: iq16-default, sqla17-default
+  - id: host_string_concatenated
+    sql: "SELECT id, vc || @name AS v FROM t WHERE id < 3 ORDER BY id"
+    params: "name = '!'"
+  - id: host_string_length
+    sql: "SELECT LENGTH(@name) AS n"
+    params: "name = 'four'"
+  - id: host_string_without_from
+    sql: "SELECT @name || 'y' AS v"
+    params: "name = 'x'"
+  # IQ island, 2026-10-14 (review 5's B3): was host_date_equality; a date or timestamp variable is refused
+  - id: host_date_equality_is_refused
+    sql: "SELECT id FROM t WHERE dt = @day ORDER BY id"
+    params: "day = %2026-03-04"
+    profile: iq16-default, iq16-tds
+  # IQ island, 2026-10-14 (review 5's B3): was host_date_range; a date or timestamp variable is refused
+  - id: host_date_range_is_refused
+    sql: "SELECT id FROM t WHERE dt >= @day ORDER BY id"
+    params: "day = %2000-01-01"
+  # IQ island, 2026-10-14 (review 5's B3): was host_timestamp_after; a date or timestamp variable is refused
+  - id: host_timestamp_after_is_refused
+    sql: "SELECT id FROM t WHERE ts > @stamp ORDER BY id"
+    params: "stamp = %2026-03-04T05:06:07.123456"
+  # IQ island, 2026-10-14 (review 5's B3): was host_timestamp_equality_to_the_microsecond; a date or timestamp
+  # variable is refused
+  - id: host_timestamp_equality_to_the_microsecond_is_refused
+    sql: "SELECT id FROM t WHERE ts = :stamp ORDER BY id"
+    params: "stamp = %2026-03-04T05:06:07.123457"
+  - id: host_double
+    sql: "SELECT id FROM t WHERE dbl > @rate ORDER BY id"
+    params: "rate = 1.5"
+  - id: host_double_times_a_double
+    sql: "SELECT id, dbl * @rate AS v FROM t WHERE id IN (1, 3) ORDER BY id"
+    params: "rate = 1.5"
+  - id: host_decimal
+    sql: "SELECT id FROM t WHERE nm > @amt ORDER BY id"
+    params: "amt = 0.50D"
+  - id: host_integer_without_from
+    sql: "SELECT @lo + 1 AS n"
+    params: "lo = 3"
+  - id: host_integer_in_case
+    sql: "SELECT id, CASE WHEN id > @lo THEN 'hi' ELSE 'lo' END AS c FROM t ORDER BY id"
+    params: "lo = 3"
+  - id: host_integer_in_if
+    sql: "SELECT id, IF id = :lo THEN 1 ELSE 0 ENDIF AS c FROM t ORDER BY id"
+    params: "lo = 3"
+  - id: host_integer_in_having
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k HAVING COUNT(*) > @lo ORDER BY k"
+    params: "lo = 2"
+  - id: host_integer_in_a_grouped_select_list
+    sql: "SELECT k, @lo AS c, COUNT(*) AS n FROM g GROUP BY k ORDER BY k"
+    params: "lo = 3"
+  - id: host_integer_in_join_on
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON u.t_id = t.id AND u.id > @lo ORDER BY 1, 2"
+    params: "lo = 1"
+  - id: host_integer_in_a_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u WHERE id <= @lo) ORDER BY id"
+    params: "lo = 3"
+  - id: host_integer_in_a_derived_table
+    sql: "SELECT d.n FROM (SELECT id + @lo AS n FROM t) d WHERE d.n < 7 ORDER BY 1"
+    params: "lo = 3"
+  - id: host_variables_over_an_owner_qualified_table
+    sql: "SELECT id FROM DBA.u WHERE t_id = :lo AND label <> @name ORDER BY id"
+    params: "lo = 1; name = 'uno'"
+  - id: host_integer_in_coalesce
+    sql: "SELECT id, COALESCE(sm, @lo) AS n FROM t WHERE id IN (4, 5) ORDER BY id"
+    params: "lo = 9"
+  - id: host_integer_cast_to_text
+    sql: "SELECT CAST(@lo AS VARCHAR(10)) || '!' AS v"
+    params: "lo = -42"
+  - id: host_integer_in_order_by
+    sql: "SELECT id FROM t ORDER BY id * @lo"
+    params: "lo = -1"
+  - id: host_integer_in_not_in
+    sql: "SELECT id FROM t WHERE id NOT IN (@lo, @hi) ORDER BY id"
+    params: "lo = 1; hi = 7"
+  # IQ island, 2026-10-14 (review 5's B3): was host_date_part; a date or timestamp variable is refused
+  - id: host_date_part_is_refused
+    sql: "SELECT DATEPART(year, @day) AS y, DATEPART(month, @day) AS m"
+    params: "day = %2026-03-04"
+  # IQ island, 2026-10-14 (review 5's B3): was host_date_compared_with_a_date_string; a date or timestamp variable is refused
+  - id: host_date_compared_with_a_date_string_is_refused
+    sql: "SELECT 1 AS one WHERE @day = '3/4/2026'"
+    params: "day = %2026-03-04"
+    profile: iq16-tds, sqla17-tds
+  # IQ island, 2026-10-14 (review 5's B3): was host_timestamp_to_text; a date or timestamp variable is refused
+  - id: host_timestamp_to_text_is_refused
+    sql: "SELECT CAST(@stamp AS VARCHAR(30)) AS s"
+    params: "stamp = %2026-03-04T05:06:07.123456"
+    profile: iq16-default, iq16-odbc
+  - id: host_string_upper
+    sql: "SELECT UPPER(@name) AS u, LOWER(@name) AS l"
+    params: "name = 'MiXed'"
+  - id: host_string_like_pattern_is_refused
+    sql: "SELECT id FROM t WHERE vc LIKE @name ORDER BY id"
+    params: "name = 'h%'"
+  - id: host_string_in_a_case_result
+    sql: "SELECT id, CASE WHEN id = 1 THEN @name ELSE vc END AS v FROM t WHERE id < 3 ORDER BY id"
+    params: "name = 'one'"
+  - id: host_variables_under_sqla17_tds
+    sql: "SELECT id FROM t WHERE vc = @name AND id > :lo ORDER BY id"
+    params: "name = 'HELLO'; lo = 0"
+    profile: sqla17-tds, iq16-tds
+  - id: column_of_an_at_name_before_a_variable
+    sql: "SELECT @a1 AS v FROM (SELECT 1 AS @a1) d"
+
+  # ---- host variables: what IQ raises, what the island refuses
+  - id: host_at_name_of_no_variable_is_iq_error_143
+    sql: "SELECT @lo AS v"
+  - id: host_colon_name_of_no_variable_is_iq_error_188
+    sql: "SELECT :lo AS v"
+  # IQ island, 2026-10-14 (review 5's M5 and m1): was host_variable_name_in_another_case_is_iq_error_143; with a real
+  # variable SQL Anywhere matches the name without case and reads it
+  - id: host_variable_name_in_another_case_reads_it
+    sql: "SELECT @LO AS v"
+    params: "lo = 3"
+  - id: positional_parameter_is_refused
+    sql: "SELECT ? AS v"
+  - id: positional_colon_parameter_is_refused
+    sql: "SELECT :? AS v"
+  - id: host_colon_and_a_space_is_a_syntax_error
+    sql: "SELECT : lo AS v"
+  - id: host_double_colon_is_a_syntax_error
+    sql: "SELECT ::lo AS v"
+  - id: host_colon_and_a_digit_is_a_syntax_error
+    sql: "SELECT :1 AS v"
+  - id: host_unaliased_is_refused
+    sql: "SELECT @lo"
+    params: "lo = 3"
+  - id: host_named_like_a_row_of_the_translation_is_refused
+    sql: "SELECT id FROM t WHERE id = @r ORDER BY id"
+    params: "r = 3"
+  - id: host_variable_as_a_top_count_is_refused
+    sql: "SELECT TOP @lo id FROM t ORDER BY id"
+    params: "lo = 2"
+  - id: global_variable_is_refused
+    sql: "SELECT @@version AS v"
+
+  # ---- profiles: a TIMESTAMP and a DATE as text, in TIMESTAMP_FORMAT and DATE_FORMAT
+  - id: timestamp_cast_to_varchar
+    sql: "SELECT id, CAST(ts AS VARCHAR(40)) AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc, iq16-tds, sqla17-default, sqla17-tds
+  - id: timestamp_cast_to_long_varchar
+    sql: "SELECT id, CAST(ts AS LONG VARCHAR) AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_cast_to_varchar_of_no_length
+    sql: "SELECT id, CAST(ts AS VARCHAR) AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_cast_to_its_text_length
+    sql: "SELECT id, CAST(ts AS VARCHAR(23)) AS s FROM t ORDER BY id"
+  - id: timestamp_cast_to_its_odbc_text_length
+    sql: "SELECT id, CAST(ts AS VARCHAR(26)) AS s FROM t ORDER BY id"
+    profile: iq16-odbc
+  - id: timestamp_cast_to_a_shorter_varchar_is_refused
+    sql: "SELECT id, CAST(ts AS VARCHAR(19)) AS s FROM t ORDER BY id"
+  - id: timestamp_concatenated
+    sql: "SELECT id, ts || 'x' AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc, iq16-tds
+  - id: date_concatenated
+    sql: "SELECT id, dt || 'x' AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc, iq16-tds
+  - id: timestamp_string
+    sql: "SELECT id, STRING(ts) AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: date_string
+    sql: "SELECT id, STRING(dt, '|') AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_length
+    sql: "SELECT id, LENGTH(ts) AS n FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_left
+    sql: "SELECT id, LEFT(ts, 13) AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_substring
+    sql: "SELECT id, SUBSTRING(ts, 12, 12) AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_text_compared
+    sql: "SELECT id FROM t WHERE CAST(ts AS VARCHAR(30)) = '2026-03-04 05:06:07.123' ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_text_like
+    sql: "SELECT id FROM t WHERE CAST(ts AS VARCHAR(30)) LIKE '%.12345%' ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_like
+    sql: "SELECT id FROM t WHERE ts LIKE '%:07.12345%' ORDER BY id"
+    profile: iq16-default, iq16-odbc, sqla17-default
+  - id: date_like
+    sql: "SELECT id FROM t WHERE dt LIKE '2026-03%' OR dt LIKE '%-02-29' ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: timestamp_constant_to_text_cuts_the_second
+    sql: "SELECT CAST(CAST('2005-03-04 10:11:12.9999' AS TIMESTAMP) AS VARCHAR(40)) AS s"
+    profile: iq16-default, iq16-odbc, sqla17-default
+  - id: timestamp_constant_to_text_before_midnight
+    sql: "SELECT CAST(CAST('2005-03-04 23:59:59.9999' AS TIMESTAMP) AS VARCHAR(40)) AS s"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_constant_to_text_of_a_microsecond
+    sql: "SELECT CAST(CAST('2005-03-04 10:11:12.000005' AS TIMESTAMP) AS VARCHAR(40)) AS s"
+    profile: iq16-default, iq16-odbc
+  - id: timestamp_of_a_date_to_text
+    sql: "SELECT id, CAST(CAST(dt AS TIMESTAMP) AS VARCHAR(40)) AS s FROM t ORDER BY id"
+    profile: iq16-default, iq16-odbc
+  - id: date_of_a_timestamp_concatenated
+    sql: "SELECT id, CAST(ts AS DATE) || '' AS s FROM t ORDER BY id"
+  - id: timestamp_convert_without_a_style_is_refused
+    sql: "SELECT id, CONVERT(VARCHAR(30), ts) AS s FROM t ORDER BY id"
+  - id: timestamp_text_without_from
+    sql: "SELECT CAST(CAST('2026-03-04' AS TIMESTAMP) AS VARCHAR(30)) || '!' AS s"
+    profile: iq16-default, iq16-odbc, iq16-tds, sqla17-tds
+
+  # ---- profiles: ansinull Off (a TDS login) in ON, HAVING and every query's WHERE; not in a CASE in the front end
+  - id: ansinull_off_in_join_on
+    sql: "SELECT u.id FROM t JOIN u ON u.t_id = NULL ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_left_join_on
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON u.t_id = NULL AND t.sm = NULL ORDER BY 1, 2"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_right_join_on
+    sql: "SELECT u.id FROM t RIGHT JOIN u ON t.id = u.t_id AND t.sm = NULL ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_having
+    sql: "SELECT k FROM g GROUP BY k HAVING k = NULL ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_having_not_equal
+    sql: "SELECT k FROM g GROUP BY k HAVING k <> NULL ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_having_under_not
+    sql: "SELECT k FROM g GROUP BY k HAVING NOT (k = NULL) ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_an_in_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT id FROM t WHERE sm = NULL) ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_a_derived_table
+    sql: "SELECT id FROM (SELECT id, sm FROM t WHERE sm != NULL) d ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_exists
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id AND u.qty = NULL) ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_a_comma_join
+    sql: "SELECT t.id FROM t, u WHERE u.t_id = t.id AND u.qty = NULL ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_of_a_parenthesized_null
+    sql: "SELECT id FROM t WHERE sm = (NULL) ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_leaves_a_null_cast_unknown
+    sql: "SELECT id FROM t WHERE sm = CAST(NULL AS INT) ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_leaves_null_arithmetic_unknown
+    sql: "SELECT id FROM t WHERE sm = NULL + 1 ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_leaves_an_in_list_unknown
+    sql: "SELECT id FROM t WHERE sm IN (NULL) ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_the_front_end_on
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 3) r JOIN DUMMY ON r.row_num <> NULL ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_the_front_end_having
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 3) GROUP BY row_num HAVING row_num != NULL ORDER BY 1"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_in_the_front_end_where
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 3) WHERE row_num = NULL OR row_num = 2"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: ansinull_off_not_in_a_front_end_case
+    sql: "SELECT row_num, CASE WHEN row_num = NULL THEN 1 ELSE 0 END AS c FROM sa_rowgenerator(1, 2) ORDER BY 1"
+    profile: iq16-tds, sqla17-tds
+
+  # ---- IqDateTime: a date string by DATE_ORDER (YMD; MDY on a TDS login) and NEAREST_CENTURY (50)
+  - id: date_string_of_two_digit_fields
+    sql: "SELECT CAST('03/04/05' AS DATE) AS d"
+    profile: iq16-default, iq16-odbc, iq16-tds, sqla17-default, sqla17-tds
+  - id: date_string_of_one_digit_fields
+    sql: "SELECT CAST('3/4/05' AS DATE) AS d"
+    profile: iq16-default, iq16-tds
+  - id: date_string_month_first_with_its_year_last
+    sql: "SELECT CAST('3/4/2026' AS DATE) AS d"
+    profile: iq16-default, iq16-tds
+  - id: date_string_of_dots
+    sql: "SELECT CAST('4.3.2026' AS DATE) AS d"
+    profile: iq16-default, iq16-tds
+  - id: date_string_of_dashes_two_digit_year_first
+    sql: "SELECT CAST('05-03-04' AS DATE) AS d"
+    profile: iq16-default, iq16-tds
+  - id: date_string_year_first_in_every_order
+    sql: "SELECT CAST('2026/3/4' AS DATE) AS a1, CAST('2026-3-04' AS DATE) AS a2, CAST('2026.03.4' AS DATE) AS a3"
+    profile: iq16-default, iq16-tds, sqla17-tds
+  - id: date_string_of_eight_digits
+    sql: "SELECT CAST('20260304' AS DATE) AS d"
+    profile: iq16-default, iq16-tds
+  - id: date_string_of_six_digits
+    sql: "SELECT CAST('990304' AS DATE) AS a1, CAST('490304' AS DATE) AS a2"
+    profile: iq16-default, iq16-tds
+  - id: date_string_nearest_century_below
+    sql: "SELECT CAST('49-01-01' AS DATE) AS d"
+  - id: date_string_nearest_century_at
+    sql: "SELECT CAST('50-01-01' AS DATE) AS d"
+  - id: date_string_nearest_century_month_first
+    sql: "SELECT CAST('1/1/49' AS DATE) AS a1, CAST('12/31/50' AS DATE) AS a2, CAST('1/1/00' AS DATE) AS a3"
+    profile: iq16-tds, sqla17-tds
+  - id: date_string_one_digit_year_first
+    sql: "SELECT CAST('1/2/3' AS DATE) AS d"
+    profile: iq16-default, iq16-tds
+  - id: date_string_month_name_first
+    sql: "SELECT CAST('Mar 4 2026' AS DATE) AS a1, CAST('March 4, 2026' AS DATE) AS a2, CAST('mar 4 26' AS DATE) AS a3"
+    profile: iq16-default, iq16-tds
+  - id: date_string_month_name_second
+    sql: "SELECT CAST('4 Mar 2026' AS DATE) AS a1, CAST('04-MAR-2026' AS DATE) AS a2, CAST('4/December/2026' AS DATE) AS a3"
+    profile: iq16-default, iq16-tds
+  - id: date_string_month_name_after_the_year
+    sql: "SELECT CAST('2026 Mar 04' AS DATE) AS a1, CAST('2026-Sep-4' AS DATE) AS a2"
+    profile: iq16-default, iq16-tds
+  - id: date_string_with_spaces_around
+    sql: "SELECT CAST('  2026-03-04 ' AS DATE) AS d"
+  - id: date_string_compared_month_first
+    sql: "SELECT id FROM t WHERE dt = '3/4/2026' ORDER BY id"
+    profile: iq16-default, iq16-odbc, iq16-tds, sqla17-tds
+  - id: date_string_compared_two_digit_fields
+    sql: "SELECT id FROM t WHERE dt < '12/31/99' ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: date_string_compared_by_month_name
+    sql: "SELECT id FROM t WHERE dt = 'Mar 4 2026' ORDER BY id"
+    profile: iq16-default, iq16-tds, sqla17-default
+  - id: date_string_compared_of_eight_digits
+    sql: "SELECT id FROM t WHERE dt >= '20000229' ORDER BY id"
+  - id: date_strings_in_a_list
+    sql: "SELECT id FROM t WHERE dt IN ('2026/03/04', 'Dec 31 1999') ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: date_strings_between
+    sql: "SELECT id FROM t WHERE dt BETWEEN '1/1/2000' AND '12/31/2026' ORDER BY id"
+    profile: iq16-tds
+  - id: date_part_of_a_date_string
+    sql: "SELECT DATEPART(month, '3/4/26') AS m"
+    profile: iq16-default, iq16-tds
+  - id: date_string_month_name_under_sqla17_tds
+    sql: "SELECT id FROM t WHERE dt IN ('Feb 29 2000', '12/31/1999') ORDER BY id"
+    profile: sqla17-tds
+  - id: date_string_two_digit_year_with_a_month_name
+    sql: "SELECT CAST('Dec 31 99' AS DATE) AS a1, CAST('jan 1 00' AS DATE) AS a2"
+  - id: date_string_leap_day
+    sql: "SELECT CAST('2/29/2024' AS DATE) AS d"
+    profile: iq16-tds
+  - id: date_string_of_the_last_day
+    sql: "SELECT CAST('9999-12-31' AS DATE) AS a1, CAST('12/31/9999' AS DATE) AS a2"
+    profile: iq16-tds
+  - id: date_string_of_the_year_100
+    sql: "SELECT CAST('0100-01-01' AS DATE) AS d"
+  - id: date_string_year_and_dates_of_one_digit
+    sql: "SELECT CAST('2026-1-1' AS DATE) AS a1, CAST('2026/12/1' AS DATE) AS a2"
+  - id: date_string_compared_with_a_timestamp_column
+    sql: "SELECT id FROM t WHERE ts > '12/31/1999 23:59:59.999998' ORDER BY id"
+    profile: iq16-tds, sqla17-tds
+  - id: date_string_invalid_day_is_an_error
+    sql: "SELECT CAST('2026-02-30' AS DATE) AS d"
+  - id: date_string_month_thirteen_is_an_error
+    sql: "SELECT CAST('13/4/2026' AS DATE) AS d"
+    profile: iq16-tds
+  - id: date_string_of_a_time_only_is_refused
+    sql: "SELECT CAST('10:11:12' AS TIMESTAMP) AS ts"
+  - id: date_string_of_a_month_and_a_year_is_refused
+    sql: "SELECT CAST('Mar 2026' AS DATE) AS d"
+  - id: date_string_of_an_iso_week_is_refused
+    sql: "SELECT CAST('2026-W09-5' AS DATE) AS d"
+  - id: date_string_of_a_weekday_is_refused
+    sql: "SELECT CAST('Wednesday Mar 4 2026' AS DATE) AS d"
+  - id: date_string_of_another_month_abbreviation_is_refused
+    sql: "SELECT CAST('Sept 4 2026' AS DATE) AS d"
+  - id: date_string_before_the_year_100_is_refused
+    sql: "SELECT CAST('0099-03-04' AS DATE) AS d"
+
+  # ---- IqDateTime: a timestamp string's time
+  - id: timestamp_string_colon_fraction_of_one_digit
+    sql: "SELECT CAST('2026-03-04 10:11:12:7' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_colon_fraction_of_two_digits
+    sql: "SELECT CAST('2026-03-04 10:11:12:12' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_colon_fraction_of_three_digits
+    sql: "SELECT CAST('2026-03-04 10:11:12:123' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_comma_fraction
+    sql: "SELECT CAST('2026-03-04 10:11:12,5' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_seven_places_cut
+    sql: "SELECT CAST('2026-03-04 10:11:12.9999999' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_pm
+    sql: "SELECT CAST('2026-03-04 10:11:12 PM' AS TIMESTAMP) AS a1, CAST('2026-03-04 12:30 PM' AS TIMESTAMP) AS a2, CAST('2026-03-04 13:11 pm' AS TIMESTAMP) AS a3"
+  - id: timestamp_string_am
+    sql: "SELECT CAST('2026-03-04 12:00 AM' AS TIMESTAMP) AS a1, CAST('2026-03-04 0:11:12AM' AS TIMESTAMP) AS a2"
+  - id: timestamp_string_iso_t
+    sql: "SELECT CAST('2026-03-04T10:11:12.5' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_midnight_of_the_next_day
+    sql: "SELECT CAST('2026-03-04 24:00:00' AS TIMESTAMP) AS a1, CAST('2026-12-31 24:00' AS DATE) AS a2"
+  - id: timestamp_string_hour_only
+    sql: "SELECT CAST('2026-03-04 10' AS TIMESTAMP) AS a1, CAST('2026-3-4 1:2:3' AS TIMESTAMP) AS a2"
+  - id: timestamp_string_month_first_with_a_time
+    sql: "SELECT CAST('3/4/26 10:11:12' AS TIMESTAMP) AS ts"
+    profile: iq16-default, iq16-tds
+  - id: timestamp_string_month_name_with_a_time
+    sql: "SELECT CAST('Mar 4 2026 10:11AM' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_compared
+    sql: "SELECT id FROM t WHERE ts >= 'Mar 4 2026 5:06:07 AM' ORDER BY id"
+  - id: timestamp_string_compared_by_a_colon_fraction
+    sql: "SELECT id FROM t WHERE ts < '03/04/2026 05:06:07:123457' ORDER BY id"
+    profile: iq16-tds
+  - id: timestamp_string_hour_25_is_an_error
+    sql: "SELECT CAST('2026-03-04 25:00:00' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_am_after_12_is_an_error
+    sql: "SELECT CAST('2026-03-04 13:00 AM' AS TIMESTAMP) AS ts"
+  - id: timestamp_string_zone_offset_is_refused
+    sql: "SELECT CAST('2026-03-04 10:11:12+05:00' AS TIMESTAMP) AS ts"

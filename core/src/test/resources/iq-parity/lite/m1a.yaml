@@ -1,0 +1,652 @@
+# M1a for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.3): SQL Anywhere's own relations (DUMMY and
+# sa_rowgenerator), comparisons with IQ's conversions, BETWEEN, IN lists, the truth tests, IS DISTINCT FROM, LIKE without
+# [set] classes, and NUMERIC and DOUBLE arithmetic. Each is judged by SQL Anywhere 17's answer in iq-answers.jsonl unless
+# it names a decision (D-S1: a CHAR(n) value padded under the IQ engine), whose expect is the decided rows.
+# A case without FROM, or over DUMMY or sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa); one over tables in
+# the IQ engine, unless its profile is a sqla17 one (a SQL Anywhere database, no IQ engine). tools/iq-oracle's README.md
+# has the keys.
+tests:
+
+  # ---- sa_rowgenerator: a range of INTEGERs, flattened; its arguments integer constants
+  - id: rowgenerator_rows
+    sql: "SELECT * FROM sa_rowgenerator(1, 5)"
+    engine: sa
+  - id: rowgenerator_step
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 10, 3)"
+    engine: sa
+  - id: rowgenerator_step_past_the_end
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 10, 4)"
+    engine: sa
+  - id: rowgenerator_step_beyond_the_range
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 3, 100)"
+    engine: sa
+  - id: rowgenerator_start_after_end_is_empty
+    sql: "SELECT row_num FROM sa_rowgenerator(5, 1)"
+    engine: sa
+  - id: rowgenerator_negative_step_is_empty
+    sql: "SELECT row_num FROM sa_rowgenerator(5, 1, -1)"
+    engine: sa
+  - id: rowgenerator_negative_step_upward_is_empty
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 5, -1)"
+    engine: sa
+  - id: rowgenerator_zero_step_is_empty
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 5, 0)"
+    engine: sa
+  - id: rowgenerator_one_row
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 0)"
+    engine: sa
+  - id: rowgenerator_across_zero
+    sql: "SELECT row_num FROM sa_rowgenerator(-3, 2)"
+    engine: sa
+  - id: rowgenerator_negative_bounds
+    sql: "SELECT row_num FROM sa_rowgenerator(-3, -1)"
+    engine: sa
+  - id: rowgenerator_signed_bounds
+    sql: "SELECT row_num FROM sa_rowgenerator(+1, +2)"
+    engine: sa
+  - id: rowgenerator_without_arguments
+    sql: "SELECT row_num FROM sa_rowgenerator() WHERE row_num > 97"
+    engine: sa
+  - id: rowgenerator_start_only
+    sql: "SELECT row_num FROM sa_rowgenerator(98)"
+    engine: sa
+  - id: rowgenerator_alias
+    sql: "SELECT g.row_num FROM sa_rowgenerator(1, 3) AS g"
+    engine: sa
+  - id: rowgenerator_alias_without_as
+    sql: "SELECT g.row_num AS n FROM sa_rowgenerator(1, 3) g ORDER BY 1 DESC"
+    engine: sa
+  - id: rowgenerator_qualified_by_its_name
+    sql: "SELECT sa_rowgenerator.row_num FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: rowgenerator_names_without_case
+    sql: "SELECT ROW_NUM FROM SA_ROWGENERATOR(1, 2)"
+    engine: sa
+  - id: rowgenerator_owner_dbo
+    sql: "SELECT row_num FROM dbo.sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: rowgenerator_owner_sys_is_no_procedure
+    sql: "SELECT row_num FROM sys.sa_rowgenerator(1, 2)"
+  - id: rowgenerator_ordered_descending
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 3) ORDER BY row_num DESC"
+    engine: sa
+  - id: rowgenerator_four_arguments
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 2, 1, 1)"
+    engine: sa
+  - id: rowgenerator_argument_beyond_an_integer
+    sql: "SELECT row_num FROM sa_rowgenerator(2147483647, 2147483648)"
+    engine: sa
+  - id: rowgenerator_integer_edges
+    sql: "SELECT row_num FROM sa_rowgenerator(2147483646, 2147483647)"
+    engine: sa
+  - id: rowgenerator_smallest_integers
+    sql: "SELECT row_num FROM sa_rowgenerator(-2147483648, -2147483647)"
+    engine: sa
+  - id: rowgenerator_step_near_the_largest_integer
+    sql: "SELECT row_num FROM sa_rowgenerator(2147483640, 2147483647, 5)"
+    engine: sa
+  - id: rowgenerator_null_argument_is_refused
+    sql: "SELECT row_num FROM sa_rowgenerator(NULL, 3)"
+    engine: sa
+  - id: rowgenerator_expression_arguments_are_refused
+    sql: "SELECT row_num FROM sa_rowgenerator(1 + 1, 2 * 3)"
+    engine: sa
+  - id: rowgenerator_numeric_arguments_are_refused
+    sql: "SELECT row_num FROM sa_rowgenerator(1.5, 3.7)"
+    engine: sa
+  - id: rowgenerator_plus_one
+    sql: "SELECT row_num + 1 AS n FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: rowgenerator_product_overflows_an_integer
+    sql: "SELECT row_num * row_num AS n FROM sa_rowgenerator(46340, 46341)"
+    engine: sa
+  - id: rowgenerator_product_within_an_integer
+    sql: "SELECT row_num * row_num AS n FROM sa_rowgenerator(46339, 46340)"
+    engine: sa
+  - id: rowgenerator_unaliased_expression_is_named
+    sql: "SELECT row_num + 1 FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: rowgenerator_column_twice_is_refused
+    sql: "SELECT g.row_num, g.* FROM sa_rowgenerator(1, 3) AS g"
+    engine: sa
+
+  # ---- DUMMY: one row, dummy_col the INTEGER 0
+  - id: dummy_rows
+    sql: "SELECT * FROM DUMMY"
+    engine: sa
+  - id: dummy_of_sys
+    sql: "SELECT * FROM SYS.DUMMY"
+    engine: sa
+  - id: dummy_lower_case
+    sql: "SELECT dummy_col FROM sys.dummy"
+    engine: sa
+  - id: dummy_alias
+    sql: "SELECT d.dummy_col, 1 AS one FROM dummy d"
+    engine: sa
+  - id: dummy_quoted
+    sql: "SELECT * FROM \"DUMMY\""
+    engine: sa
+  - id: dummy_bracketed
+    sql: "SELECT * FROM [dummy]"
+    engine: sa
+  - id: dummy_plus_one
+    sql: "SELECT dummy_col + 1 AS n FROM DUMMY"
+    engine: sa
+  - id: dummy_filtered_out
+    sql: "SELECT dummy_col FROM DUMMY WHERE dummy_col = 1"
+    engine: sa
+  - id: dummy_times_a_numeric
+    sql: "SELECT dummy_col * 1.5 AS n FROM DUMMY"
+    engine: sa
+  - id: dummy_of_dbo_is_no_table
+    sql: "SELECT * FROM dbo.dummy"
+  - id: iq_dummy_is_refused
+    sql: "SELECT * FROM iq_dummy"
+
+  # ---- a string compared with a number: both as NUMERIC (SQL Anywhere's front end; the IQ engine's is D-N1)
+  - id: string_and_number_compare_as_numbers
+    sql: "SELECT row_num FROM sa_rowgenerator(8, 12) WHERE '10' < row_num"
+    engine: sa
+  - id: string_on_the_right_of_a_number
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 3) WHERE row_num >= '2.0'"
+    engine: sa
+  - id: string_not_equal_to_a_number
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 3) WHERE '2' <> row_num"
+    engine: sa
+  - id: string_with_blanks_around_it
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 2) WHERE ' 1 ' = row_num"
+    engine: sa
+  - id: empty_string_is_zero
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '' = row_num"
+    engine: sa
+  - id: blank_string_is_zero
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '   ' = row_num"
+    engine: sa
+  - id: string_signs
+    sql: "SELECT row_num FROM sa_rowgenerator(-2, 2) WHERE '-1' = row_num OR '+2' = row_num"
+    engine: sa
+  - id: string_points
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 2) WHERE '1.' = row_num OR '.5' > row_num"
+    engine: sa
+  - id: string_exponents
+    sql: "SELECT row_num FROM sa_rowgenerator(8, 12) WHERE '1e1' = row_num OR '1.15E+1' < row_num"
+    engine: sa
+  - id: string_leading_zeros
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 10) WHERE '007' = row_num"
+    engine: sa
+  - id: string_fraction_against_integers
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 3) WHERE '1.5' > row_num"
+    engine: sa
+  - id: string_negative_fraction
+    sql: "SELECT row_num FROM sa_rowgenerator(-2, 1) WHERE '-1.50' < row_num"
+    engine: sa
+  - id: string_not_a_number
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE 'abc' = row_num"
+    engine: sa
+  - id: string_with_a_tab
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '1\t' = row_num"
+    engine: sa
+  - id: string_bare_exponent
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '1e' = row_num"
+    engine: sa
+  - id: string_against_a_numeric_sum
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '0.3000005' > 0.3 + row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: string_rounded_by_a_small_scale_is_refused
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '0.3000005' = 0.300001 + row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: string_of_seventeen_places
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '0.30000000000000001' = 0.3 + row_num"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: string_beyond_lites_digits_is_refused
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 1) WHERE '1e40' > row_num"
+    engine: sa
+  - id: string_and_number_constants
+    sql: "SELECT 1 AS x WHERE '10' > 9"
+    engine: sa
+  - id: string_and_dummy
+    sql: "SELECT dummy_col FROM DUMMY WHERE dummy_col = '0'"
+    engine: sa
+  - id: string_and_integer_column_under_the_iq_engine_is_refused
+    sql: "SELECT id FROM t WHERE id = '3'"
+  - id: string_and_integer_column_in_sql_anywhere
+    sql: "SELECT id FROM t WHERE id = '3'"
+    profile: sqla17-default
+  - id: string_and_numeric_column_in_sql_anywhere
+    sql: "SELECT id FROM t WHERE nm = '0.01'"
+    profile: sqla17-default
+  - id: string_and_bit_column_in_sql_anywhere
+    sql: "SELECT id FROM t WHERE bt = '1' ORDER BY id"
+    profile: sqla17-default
+  - id: string_and_double_is_refused
+    sql: "SELECT id FROM t WHERE dbl = '1.5'"
+    profile: sqla17-default
+  - id: string_column_and_number_is_refused
+    sql: "SELECT id FROM t WHERE vc = 3"
+    profile: sqla17-default
+
+  # ---- a string compared with a date or a timestamp: as a TIMESTAMP (ISO spellings read)
+  - id: date_and_string
+    sql: "SELECT id FROM t WHERE dt = '2026-03-04' ORDER BY id"
+    profile: iq16-default, iq16-tds, sqla17-default
+  - id: date_and_midnight_string
+    sql: "SELECT id FROM t WHERE dt = '2026-03-04 00:00:00' ORDER BY id"
+  - id: date_and_midnight_with_places
+    sql: "SELECT id FROM t WHERE dt = '2026-03-04 00:00:00.000000' ORDER BY id"
+  - id: date_ordered_against_a_string
+    sql: "SELECT id FROM t WHERE dt <= '1999-12-31' ORDER BY id"
+  # IQ island, 2026-10-14 (review 4's m3): renamed, its id shared six words with the manuals' text
+  - id: date_against_a_time_past_midnight_is_refused
+    sql: "SELECT id FROM t WHERE dt < '2026-03-04 10:00' ORDER BY id"
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from date_and_other_spelling_is_refused
+  - id: date_and_other_spelling
+    sql: "SELECT id FROM t WHERE dt = '2026/03/04' ORDER BY id"
+  - id: date_and_no_such_day
+    sql: "SELECT id FROM t WHERE dt = '2026-02-30'"
+  - id: date_and_empty_string
+    sql: "SELECT id FROM t WHERE dt = ''"
+  - id: date_and_month_first_string
+    sql: "SELECT id FROM t WHERE dt = '03/04/2026' ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: timestamp_and_string
+    sql: "SELECT id FROM t WHERE ts = '2026-03-04 05:06:07.123456'"
+    profile: iq16-default, iq16-tds
+  - id: timestamp_and_date_string
+    sql: "SELECT id FROM t WHERE ts >= '2026-03-04' ORDER BY id"
+  - id: timestamp_and_minutes
+    sql: "SELECT id FROM t WHERE ts > '2026-03-04 05:06' ORDER BY id"
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from timestamp_and_seven_places_is_refused
+  - id: timestamp_and_seven_places_cut
+    sql: "SELECT id FROM t WHERE ts = '2026-03-04 05:06:07.1234561'"
+  - id: strings_that_look_like_dates_compare_as_strings
+    sql: "SELECT 1 AS x WHERE '2026-03-04' = '2026-03-04 00:00'"
+    engine: sa
+
+  # ---- an exact number compared with a DOUBLE: as a DOUBLE
+  - id: double_and_numeric_constant
+    sql: "SELECT id FROM t WHERE dbl = 1.5 ORDER BY id"
+  - id: double_and_negative_numeric_constant
+    sql: "SELECT id FROM t WHERE dbl = -0.1 ORDER BY id"
+  - id: double_and_bigint
+    sql: "SELECT id FROM t WHERE bg > dbl ORDER BY id"
+  - id: double_and_numeric_column
+    sql: "SELECT id FROM t WHERE nm < dbl ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: double_and_integer
+    sql: "SELECT id FROM t WHERE dbl > id ORDER BY id"
+
+  # ---- BETWEEN: x >= low AND x <= high, three-valued
+  - id: between_integers
+    sql: "SELECT id FROM t WHERE sm BETWEEN -1 AND 100 ORDER BY id"
+  - id: not_between_integers
+    sql: "SELECT id FROM t WHERE sm NOT BETWEEN 0 AND 100 ORDER BY id"
+  - id: between_a_null_bound
+    sql: "SELECT id FROM t WHERE sm BETWEEN NULL AND 5 ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: not_between_a_null_bound
+    sql: "SELECT id FROM t WHERE sm NOT BETWEEN NULL AND 5 ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: between_reversed_bounds
+    sql: "SELECT id FROM t WHERE sm BETWEEN 100 AND -1 ORDER BY id"
+  - id: between_date_strings
+    sql: "SELECT id FROM t WHERE dt BETWEEN '2000-01-01' AND '2026-03-04' ORDER BY id"
+  # IQ island, 2026-10-14 (natives): answers now (was between_strings_is_refused)
+  - id: between_strings_by_iq_collation
+    sql: "SELECT id FROM t WHERE vc BETWEEN 'a' AND 'z' ORDER BY id"
+  - id: between_then_and
+    sql: "SELECT id FROM t WHERE id BETWEEN 1 AND 3 AND sm > 0 ORDER BY id"
+  - id: between_doubles
+    sql: "SELECT id FROM t WHERE dbl BETWEEN -1 AND 2 ORDER BY id"
+  - id: between_string_bounds_of_numbers
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 4) WHERE row_num BETWEEN '2' AND '3'"
+    engine: sa
+  - id: between_numerics
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 4) WHERE row_num * 0.5 BETWEEN 1 AND 1.5"
+    engine: sa
+  - id: between_in_the_select_list
+    sql: "SELECT id BETWEEN 1 AND 2 FROM t"
+  - id: between_symmetric
+    sql: "SELECT id FROM t WHERE id BETWEEN SYMMETRIC 3 AND 1"
+
+  # ---- IN lists: = for each, three-valued; a NULL in the list is UNKNOWN whatever ansinull says
+  - id: in_with_a_null
+    sql: "SELECT id FROM t WHERE sm IN (1, 100, NULL) ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: not_in_with_a_null
+    sql: "SELECT id FROM t WHERE sm NOT IN (1, NULL) ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: in_only_null
+    sql: "SELECT id FROM t WHERE sm IN (NULL) ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: not_in_integers
+    sql: "SELECT id FROM t WHERE sm NOT IN (1, 100) ORDER BY id"
+  - id: null_in_a_list
+    sql: "SELECT 1 AS x WHERE NULL IN (1, 2)"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: null_not_in_a_list
+    sql: "SELECT 1 AS x WHERE NULL NOT IN (1, 2)"
+    engine: sa
+  - id: in_null_in_an_if_in_a_tds_login
+    sql: "SELECT id, IF sm IN (NULL) THEN 1 ELSE 0 ENDIF AS a FROM t ORDER BY id"
+    profile: iq16-tds
+  - id: in_strings_ignores_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc IN ('x', 'apple') ORDER BY id"
+  - id: in_char_column
+    sql: "SELECT id FROM t WHERE ch IN ('ab', 'abc') ORDER BY id"
+    decision: D-S1
+    expect: "[[\"1\"], [\"2\"]]"
+  - id: in_strings_and_numbers
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 3) WHERE row_num IN ('1', 2)"
+    engine: sa
+  - id: in_strings_and_integers_under_the_iq_engine_is_refused
+    sql: "SELECT id FROM t WHERE id IN ('1', 2) ORDER BY id"
+  - id: in_columns
+    sql: "SELECT id FROM t WHERE 1 IN (sm, it) ORDER BY id"
+  - id: in_dates
+    sql: "SELECT id FROM t WHERE dt IN ('2026-03-04', '2000-02-29') ORDER BY id"
+  - id: in_parenthesized_values
+    sql: "SELECT id FROM t WHERE sm IN ((1), (100)) ORDER BY id"
+  - id: in_a_longer_list
+    sql: "SELECT id FROM t WHERE id IN (1, 3, 5, 7, 9, 11, 13) ORDER BY id"
+  - id: in_an_empty_list
+    sql: "SELECT id FROM t WHERE id IN () ORDER BY id"
+  - id: in_a_subquery_is_refused
+    sql: "SELECT id FROM t WHERE id IN (SELECT 1) ORDER BY id"
+
+  # ---- IS [NOT] TRUE | FALSE | UNKNOWN: after a predicate or a parenthesized condition only
+  - id: is_unknown
+    sql: "SELECT id FROM t WHERE (sm > 0) IS UNKNOWN ORDER BY id"
+  - id: is_not_true
+    sql: "SELECT id FROM t WHERE sm > 0 IS NOT TRUE ORDER BY id"
+  - id: is_false
+    sql: "SELECT id FROM t WHERE sm > 0 IS FALSE ORDER BY id"
+  - id: is_not_false
+    sql: "SELECT id FROM t WHERE sm > 0 IS NOT FALSE ORDER BY id"
+  - id: is_true_of_a_value
+    sql: "SELECT id FROM t WHERE sm IS TRUE"
+  - id: is_null_of_a_condition
+    sql: "SELECT id FROM t WHERE (sm > 0) IS NULL"
+  - id: not_binds_looser_than_is
+    sql: "SELECT id FROM t WHERE NOT sm > 0 IS TRUE ORDER BY id"
+  - id: and_binds_looser_than_is
+    sql: "SELECT id FROM t WHERE sm > 0 AND id > 1 IS TRUE ORDER BY id"
+  - id: truth_test_in_if
+    sql: "SELECT id, IF sm > 0 IS UNKNOWN THEN 1 ELSE 0 ENDIF AS u FROM t ORDER BY id"
+  - id: truth_test_of_a_truth_test
+    sql: "SELECT id FROM t WHERE (sm > 0 IS TRUE) IS TRUE ORDER BY id"
+  - id: two_truth_tests_in_a_row
+    sql: "SELECT id FROM t WHERE sm > 0 IS TRUE IS TRUE ORDER BY id"
+  - id: is_null_then_is_true
+    sql: "SELECT id FROM t WHERE sm IS NULL IS TRUE ORDER BY id"
+  - id: between_is_not_false
+    sql: "SELECT id FROM t WHERE sm BETWEEN 0 AND 5 IS NOT FALSE ORDER BY id"
+  - id: like_is_unknown
+    sql: "SELECT id FROM t WHERE vc LIKE 'h%' IS UNKNOWN ORDER BY id"
+  - id: truth_test_of_equals_null
+    sql: "SELECT id FROM t WHERE (sm = NULL) IS TRUE ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: truth_test_of_equals_null_in_an_if_without_from
+    sql: "SELECT IF (NULL = NULL) IS TRUE THEN 1 ELSE 0 ENDIF AS a"
+    profile: iq16-tds
+    engine: sa
+  - id: truth_test_of_equals_null_in_an_if_in_sql_anywhere
+    sql: "SELECT id, IF (sm = NULL) IS TRUE THEN 1 ELSE 0 ENDIF AS a FROM t ORDER BY id"
+    profile: sqla17-tds
+  - id: truth_test_of_equals_null_in_where_in_sql_anywhere
+    sql: "SELECT id FROM t WHERE (sm = NULL) IS TRUE ORDER BY id"
+    profile: sqla17-tds
+  - id: unknown_without_from
+    sql: "SELECT 1 AS x WHERE (1 = NULL) IS UNKNOWN"
+    engine: sa
+
+  # ---- IS [NOT] DISTINCT FROM: never UNKNOWN; = by IQ's comparison otherwise
+  - id: distinct_from_a_constant
+    sql: "SELECT id FROM t WHERE sm IS DISTINCT FROM 1 ORDER BY id"
+  - id: not_distinct_from_null
+    sql: "SELECT id FROM t WHERE sm IS NOT DISTINCT FROM NULL ORDER BY id"
+  - id: distinct_from_null_in_a_tds_login
+    sql: "SELECT id FROM t WHERE sm IS DISTINCT FROM NULL ORDER BY id"
+    profile: iq16-tds
+  - id: not_distinct_ignores_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc IS NOT DISTINCT FROM 'x' ORDER BY id"
+  - id: null_not_distinct_from_null
+    sql: "SELECT 1 AS x WHERE NULL IS NOT DISTINCT FROM NULL"
+    engine: sa
+  - id: distinct_columns
+    sql: "SELECT id FROM t WHERE sm IS DISTINCT FROM it ORDER BY id"
+  - id: distinct_double
+    sql: "SELECT id FROM t WHERE dbl IS DISTINCT FROM 1.5 ORDER BY id"
+  - id: distinct_then_is_true
+    sql: "SELECT id FROM t WHERE sm IS DISTINCT FROM it IS TRUE ORDER BY id"
+  - id: not_distinct_from_a_string_number
+    sql: "SELECT row_num FROM sa_rowgenerator(0, 4) WHERE row_num IS NOT DISTINCT FROM '2'"
+    engine: sa
+  # IQ island, 2026-10-14 (natives): answers now (was distinct_case_insensitive_is_refused)
+  - id: not_distinct_from_by_the_profiles_case
+    sql: "SELECT id FROM t WHERE vc IS NOT DISTINCT FROM 'HELLO' ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: distinct_without_from
+    sql: "SELECT id FROM t WHERE sm IS DISTINCT 1"
+
+  # ---- LIKE without [set]: % and _, ESCAPE, case-sensitive, trailing blanks significant
+  - id: like_prefix
+    sql: "SELECT id FROM t WHERE vc LIKE 'h%' ORDER BY id"
+  - id: like_is_case_sensitive
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+  # IQ island, 2026-10-14 (natives): answers now (was like_case_insensitive_is_refused)
+  - id: like_without_case_in_sql_anywhere
+    sql: "SELECT id FROM t WHERE vc LIKE 'H%' ORDER BY id"
+    profile: sqla17-default
+  - id: like_underscore
+    sql: "SELECT id FROM t WHERE vc LIKE '_ello' ORDER BY id"
+  - id: like_suffix
+    sql: "SELECT id FROM t WHERE vc LIKE '%e' ORDER BY id"
+  - id: like_contains
+    sql: "SELECT id FROM t WHERE vc LIKE '%ll%' ORDER BY id"
+  - id: like_mixed_wildcards
+    sql: "SELECT id FROM t WHERE vc LIKE 'h%l_o' ORDER BY id"
+  - id: like_trailing_blanks_count
+    sql: "SELECT id FROM t WHERE vc LIKE 'x' ORDER BY id"
+  - id: like_trailing_blanks_by_percent
+    sql: "SELECT id FROM t WHERE vc LIKE 'x%' ORDER BY id"
+  - id: like_trailing_blanks_by_underscores
+    sql: "SELECT id FROM t WHERE vc LIKE 'x__' ORDER BY id"
+  - id: not_like_skips_null
+    sql: "SELECT id FROM t WHERE vc NOT LIKE '%e%' ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: like_percent_alone
+    sql: "SELECT id FROM t WHERE vc LIKE '%' ORDER BY id"
+  - id: like_latin1_letters
+    sql: "SELECT id FROM t WHERE vc LIKE 'R_sum_' ORDER BY id"
+  - id: like_empty_pattern
+    sql: "SELECT 1 AS x WHERE '' LIKE ''"
+    engine: sa
+  - id: like_underscore_needs_a_character
+    sql: "SELECT 1 AS x WHERE '' LIKE '_'"
+    engine: sa
+  - id: like_underscore_matches_a_line_feed
+    sql: "SELECT 1 AS x WHERE 'a\\nb' LIKE 'a_b'"
+    engine: sa
+  - id: like_point_is_itself
+    sql: "SELECT 1 AS x WHERE 'axb' LIKE 'a.b'"
+    engine: sa
+  - id: like_regular_expression_characters
+    sql: "SELECT 1 AS x WHERE 'a*b+c(d)$' LIKE 'a*b+c(_)$'"
+    engine: sa
+  - id: like_closing_bracket_alone
+    sql: "SELECT 1 AS x WHERE 'a]b' LIKE 'a]_'"
+    engine: sa
+  - id: like_escape_percent
+    sql: "SELECT 1 AS x WHERE 'a%b' LIKE 'a!%b' ESCAPE '!'"
+    engine: sa
+  - id: like_escape_underscore
+    sql: "SELECT 1 AS x WHERE 'a_b' LIKE 'a#_b' ESCAPE '#'"
+    engine: sa
+  - id: like_escaped_underscore_is_no_wildcard
+    sql: "SELECT 1 AS x WHERE 'axb' LIKE 'a#_b' ESCAPE '#'"
+    engine: sa
+  - id: like_escape_itself
+    sql: "SELECT 1 AS x WHERE 'a!b' LIKE 'a!!b' ESCAPE '!'"
+    engine: sa
+  - id: like_escape_bracket
+    sql: "SELECT 1 AS x WHERE 'a[b' LIKE 'a![b' ESCAPE '!'"
+    engine: sa
+  # IQ island, 2026-10-14 (review 3's B2): was like_escape_is_a_wildcard_character; an escape that is a wildcard is
+  # refused (SQL Anywhere reads it as the wildcard)
+  - id: like_escape_is_a_wildcard_character_is_refused
+    sql: "SELECT 1 AS x WHERE 'a%b' LIKE 'a%%b' ESCAPE '%'"
+    engine: sa
+  - id: like_escape_before_an_ordinary_character
+    sql: "SELECT 1 AS x WHERE 'ab' LIKE '!ab' ESCAPE '!'"
+    engine: sa
+  - id: like_escape_at_the_end
+    sql: "SELECT 1 AS x WHERE 'ab' LIKE 'ab!' ESCAPE '!'"
+    engine: sa
+  - id: like_escape_of_two_characters
+    sql: "SELECT 1 AS x WHERE 'ab' LIKE 'ab' ESCAPE '!!'"
+    engine: sa
+  - id: like_escape_empty
+    sql: "SELECT 1 AS x WHERE 'ab' LIKE 'ab' ESCAPE ''"
+    engine: sa
+  - id: like_escape_null
+    sql: "SELECT 1 AS x WHERE 'ab' LIKE 'ab' ESCAPE NULL"
+    engine: sa
+  - id: like_escape_lower_case_keyword
+    sql: "SELECT 1 AS x WHERE 'a%b' LIKE 'a!%b' escape '!'"
+    engine: sa
+  - id: like_has_no_default_escape
+    sql: "SELECT 1 AS x WHERE 'a%' LIKE 'a\\%'"
+    engine: sa
+  - id: like_backslash_in_a_tds_login
+    sql: "SELECT 1 AS x WHERE 'a\\x' LIKE 'a\\%'"
+    profile: iq16-tds
+    engine: sa
+  - id: like_bracket_set_is_refused
+    sql: "SELECT 1 AS x WHERE 'a[b' LIKE 'a[b'"
+    engine: sa
+  - id: like_pattern_of_126_characters
+    sql: "SELECT 1 AS x WHERE 'abc' LIKE 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa%'"
+    engine: sa
+  - id: like_pattern_of_127_characters_is_refused
+    sql: "SELECT 1 AS x WHERE 'abc' LIKE 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa%'"
+    engine: sa
+  - id: like_integer
+    sql: "SELECT id FROM t WHERE id LIKE '1%' ORDER BY id"
+  - id: like_negative_integer
+    sql: "SELECT id FROM t WHERE sm LIKE '-%' ORDER BY id"
+  - id: like_null_pattern
+    sql: "SELECT id FROM t WHERE vc LIKE NULL"
+    profile: iq16-default, iq16-tds
+  - id: not_like_null_pattern_in_a_tds_login
+    sql: "SELECT id FROM t WHERE vc NOT LIKE NULL"
+    profile: iq16-tds
+  - id: like_null_operand
+    sql: "SELECT 1 AS x WHERE NULL LIKE 'a'"
+    engine: sa
+  - id: like_char_column_is_refused
+    sql: "SELECT id FROM t WHERE ch LIKE 'ab%' ORDER BY id"
+  - id: like_column_pattern_is_refused
+    sql: "SELECT id FROM t WHERE vc LIKE vc ORDER BY id"
+  - id: like_double_is_refused
+    sql: "SELECT id FROM t WHERE dbl LIKE '1.5' ORDER BY id"
+  - id: like_in_the_select_list
+    sql: "SELECT vc LIKE 'a' AS x FROM t"
+
+  # ---- NUMERIC arithmetic in SQL Anywhere's front end: + - * at TYPING §4's precision and scale
+  - id: numeric_constants_add
+    sql: "SELECT 1.5 + 2.25 AS a, 0.1 + 0.2 AS b, 2.5 - 2.5 AS c, 10.0 - 0.5 AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: numeric_constants_times_integers
+    sql: "SELECT 1.50 * 2 AS a, 1.5 * 2.0 AS b, 100000 * 1.5 AS c, -1.5 * 2 AS d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: numeric_constants_and_integer_constants
+    sql: "SELECT 1.5 + 1 AS a, 1 + 0.25 AS b, 1.25 - 3 AS c"
+    engine: sa
+  - id: numeric_and_rowgenerator
+    sql: "SELECT row_num * 1.5 AS a, row_num + 0.25 AS b, row_num - 2.50 AS c, 1.5 - row_num AS d FROM sa_rowgenerator(1, 3)"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: numeric_products_nested
+    sql: "SELECT (row_num + 0.5) * (row_num + 0.25) AS a, (row_num * 0.1) * (row_num * 0.01) AS b FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: numeric_with_null_is_a_double
+    sql: "SELECT row_num + NULL AS a, 1.5 + NULL AS b, NULL * 1.5 AS c, NULL - 2.5 AS d FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: numeric_negated
+    sql: "SELECT -(row_num * 1.5) AS a, -1.5 AS b, -(1.5) AS c FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: numeric_compared
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 3) WHERE row_num * 1.5 > 2.9"
+    engine: sa
+  - id: numeric_of_more_places_than_sqla_scale
+    sql: "SELECT row_num + 0.1234567 AS a FROM sa_rowgenerator(1, 2)"
+    profile: sqla17-default
+    engine: sa
+  - id: numeric_beyond_38_digits_is_refused
+    sql: "SELECT (row_num * 1.123456789012) * (row_num * 1.123456789012) AS a FROM sa_rowgenerator(1, 2)"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: numeric_capped_by_sqla_precision_is_refused
+    sql: "SELECT (row_num * 1.5) * (row_num * 1.25) * (row_num * 0.5) AS a FROM sa_rowgenerator(1, 2)"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  # IQ island, 2026-10-14 (natives): answers now (was numeric_division_is_refused)
+  - id: numeric_division_in_sql_anywhere
+    sql: "SELECT row_num / 1.5 AS a FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  # IQ island, 2026-10-14 (natives): answers now (was numeric_remainder_is_refused)
+  - id: numeric_remainder_in_sql_anywhere
+    sql: "SELECT row_num % 1.5 AS a FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: integer_constant_beyond_bigint_plus_one
+    sql: "SELECT 9223372036854775807 + 1 AS n"
+    engine: sa
+  - id: numeric_column_in_sql_anywhere
+    sql: "SELECT id, nm + 1 AS a, nm * 2 AS b, nm - nm AS c, nm * nm AS d FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: numeric_column_and_integer_columns_in_sql_anywhere
+    sql: "SELECT id, nm + it AS a, nm * sm AS b, nm + bg AS c FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: numeric_columns_of_another_table_in_sql_anywhere
+    sql: "SELECT id, qty * 2.5 AS a, qty + qty AS b FROM u ORDER BY id"
+    profile: sqla17-default
+  - id: numeric_column_under_the_iq_engine_is_refused
+    sql: "SELECT id, nm + 1 AS a FROM t ORDER BY id"
+  - id: numeric_column_negated_under_the_iq_engine_is_refused
+    sql: "SELECT id, -nm AS a FROM t ORDER BY id"
+
+  # ---- DOUBLE arithmetic: IEEE, the same in every database; past the largest DOUBLE IQ's -158, by zero -628
+  - id: double_arithmetic
+    sql: "SELECT id, dbl + 1 AS a, dbl * 2 AS b, dbl - dbl AS c, -dbl AS d FROM t WHERE id <> 6 ORDER BY id"
+  - id: double_overflow
+    sql: "SELECT id, dbl * dbl AS a FROM t ORDER BY id"
+  - id: double_division
+    sql: "SELECT id, dbl / 2 AS a FROM t ORDER BY id"
+  - id: double_division_by_zero
+    sql: "SELECT id, dbl / 0 AS a FROM t ORDER BY id"
+  - id: double_divisor
+    sql: "SELECT id, 1 / dbl AS a FROM t WHERE id <> 3 ORDER BY id"
+  - id: double_and_bigint_arithmetic
+    sql: "SELECT id, dbl + bg AS a FROM t ORDER BY id"
+  - id: double_and_null
+    sql: "SELECT id, dbl + NULL AS a FROM t ORDER BY id"
+  - id: double_times_zero
+    sql: "SELECT id, dbl * 0 AS a FROM t ORDER BY id"
+  - id: double_product_under_top_is_refused
+    sql: "SELECT TOP 1 id, dbl * dbl AS a FROM t ORDER BY id"
+  - id: double_remainder_is_refused
+    sql: "SELECT id, dbl % 2 AS a FROM t ORDER BY id"
+  - id: double_and_numeric_under_the_iq_engine_is_refused
+    sql: "SELECT id, dbl + nm AS a FROM t WHERE id <> 6 ORDER BY id"
+  - id: double_and_numeric_in_sql_anywhere
+    sql: "SELECT id, dbl + nm AS a, dbl * 1.5 AS b FROM t WHERE id <> 6 ORDER BY id"
+    profile: sqla17-default
+  - id: double_near_its_largest_in_sql_anywhere
+    sql: "SELECT id, -dbl - dbl * 1e8 AS a FROM t ORDER BY id"
+    profile: sqla17-default

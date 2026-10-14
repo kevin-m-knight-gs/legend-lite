@@ -53,3 +53,40 @@ tables:
     rows:
       - [1, '0.1', '0.1']
       - [2, '16777217', '16777217']
+  # M1c: grouping. Keys with duplicates and NULL groups (k, j), values with NULLs, each type's aggregate edge (a group,
+  # k = 4, whose INTEGER, BIGINT and DOUBLE sums leave their types), strings that differ only in case or trailing blanks
+  - name: g
+    columns:
+      - {name: id, type: integer}
+      - {name: k, type: smallint}
+      - {name: j, type: integer}
+      - {name: v, type: integer}
+      - {name: w, type: bigint}
+      - {name: n, type: 'numeric(7,2)'}
+      - {name: d, type: double}
+      - {name: s, type: 'varchar(8)'}
+      - {name: c, type: 'char(3)'}
+      - {name: dt, type: date}
+      - {name: b, type: bit}
+    rows:
+      - [1, 1, 10, 5, 1, '1.25', '0.5', 'a', 'x', '2026-01-01', 1]
+      - [2, 1, 10, 7, 2, '2.50', '1.5', 'b', 'y', '2026-01-02', 0]
+      - [3, 1, 20, null, 3, null, null, 'a', 'x', '2026-01-01', 1]
+      - [4, 2, 20, 1, -4, '-3.75', '-2.25', 'c', 'z', '2025-12-31', 0]
+      - [5, 2, null, 1, 5, '0.00', '4.0', null, null, null, null]
+      - [6, null, 10, 3, null, '9.99', '0.25', 'A', 'x', '2026-01-01', 1]
+      - [7, null, null, null, null, null, null, null, null, null, null]
+      - [8, 3, 30, -2, 8, '-0.01', '-1.0', 'a ', 'y', '2024-02-29', 0]
+      - [9, 3, 30, -2, 9, '5.00', '3.0', 'b', 'y', '2026-01-02', 1]
+      - [10, 4, 40, 2147483647, 9223372036854775807, '99999.99', '1e308', 'e', 'w', '2026-06-30', 1]
+      - [11, 4, 40, 1, 1, '0.01', '1e308', '', 'w', '2026-06-30', 0]
+  # an INTEGER and a BIGINT whose sums pass their type's largest value on the way and end inside it
+  - name: o
+    columns:
+      - {name: id, type: integer}
+      - {name: v, type: integer}
+      - {name: w, type: bigint}
+    rows:
+      - [1, 2147483647, 9223372036854775807]
+      - [2, 1, 1]
+      - [3, -5, -5]
