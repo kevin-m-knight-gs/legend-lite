@@ -1,0 +1,44 @@
+# The #IQ{...}# island's first cases: plain SELECTs over schema.yaml's tables (columns, WHERE, ORDER BY, a join, the
+# three identifier quotes), each judged by SQL Anywhere 17's answer in iq-answers.jsonl, keyed lite/basics/<id> and
+# the profile. A case runs under iq16-default unless it names its profiles (a comma-separated list); tools/iq-oracle's
+# README.md has the keys a case may carry.
+tests:
+  - id: select_every_column
+    sql: "SELECT id, sm, it, bg, nm, dbl, ch, vc, dt, ts, bt FROM t ORDER BY id"
+  - id: select_star_of_u
+    sql: "SELECT * FROM u ORDER BY id"
+  - id: where_integer_comparison
+    sql: "SELECT id, it, bg FROM t WHERE it > 0 OR bg < 0 ORDER BY id"
+  # string equality: case-sensitive in the IQ-like database, case-insensitive at SQL Anywhere's defaults
+  - id: where_string_equality_and_case
+    sql: "SELECT id, vc FROM t WHERE vc = 'hello' ORDER BY id"
+    profile: iq16-default, sqla17-default
+  - id: where_char_with_trailing_blanks
+    sql: "SELECT id, ch FROM t WHERE ch = 'abc' ORDER BY id"
+    profile: iq16-default, sqla17-default
+  # the collation orders the strings: binary Latin-1 against binary UTF-8
+  - id: order_by_varchar_collation
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_numeric_descending_nulls
+    sql: "SELECT id, nm FROM t ORDER BY nm DESC, id"
+  - id: bracket_identifiers
+    sql: "SELECT [id], [vc] AS [the value] FROM [t] WHERE [id] < 3 ORDER BY [id]"
+  - id: backtick_identifiers
+    sql: "SELECT `id`, `vc` AS `v` FROM `t` ORDER BY `id`"
+  # quoted_identifier: an identifier by default, a string under a TDS login
+  - id: double_quotes_by_profile
+    sql: "SELECT id, \"vc\" AS v FROM t WHERE id = 1"
+    profile: iq16-default, iq16-tds
+  - id: join_on_u
+    sql: "SELECT t.id, u.label, u.qty FROM t JOIN u ON u.t_id = t.id ORDER BY u.id"
+  # timestamp_format differs by profile; a TIMESTAMP column is snapped at six fractional digits under each
+  - id: timestamps_and_dates_by_profile
+    sql: "SELECT id, dt, ts FROM t WHERE ts IS NOT NULL ORDER BY ts, id"
+    profile: iq16-default, iq16-odbc, iq16-tds
+  # ansinull: = NULL is UNKNOWN by default, and matches the NULLs under a TDS login
+  - id: equals_null_by_profile
+    sql: "SELECT id FROM t WHERE sm = NULL ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: unknown_column_is_an_error
+    sql: "SELECT nope FROM t"

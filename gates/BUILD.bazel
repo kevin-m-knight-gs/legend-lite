@@ -91,6 +91,8 @@ test_suite(
         "//site:tools_build_test",
         "//studio:tools_build_test",
         "//tools/census:tools_build_test",
+        # the #IQ{}# island's oracle (tools/iq-oracle/README.md): built here, run by hand where SQL Anywhere is installed
+        "//tools/iq-oracle:tools_build_test",
         "//tools/junit:tools_build_test",
     ],
 )
