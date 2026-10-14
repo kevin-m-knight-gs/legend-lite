@@ -712,6 +712,12 @@ Three defects the audit recorded as pre-existing were in the same code and are f
 The engine's setup text still writes `Create Schema if not exists default`, which H2 refuses. That is older than this
 program, and not fixed here.
 
+Measured on c437c0c (docs/GATES.md, the 2026-10-14 Phase 1 entry):
+- CI is green on all four platforms;
+- `//gates:local` is green;
+- all 102 lane targets pass with beebe47's digests;
+- the corpus is 12 of 12, with nothing moved.
+
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
 - `Join.Kind.sql` becomes `joinKeyword(Kind)` on the renderer.

@@ -9556,3 +9556,13 @@ Branch `claude/great-wright-p6t5s1` at beebe47, not landed (Phase 1 waits for th
   - `//spec:corpus_duckdb` and `//spec:corpus_h2`: 12 of 12, no roster or register moved.
 - **Found on the way:** the first gate run of the capability matrix failed `//tools/guards:markdown_inputs_test`. G17
   says no test reads Markdown, and the matrix's pages were diff-tested; 6ff3815 diff-tests its data instead.
+- **After the PR #39 audit's fixes (c437c0c,** the record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`, Phase 1,
+  "The independent review"):
+  - CI run 38596414110: all 52 checks green (Linux, Linux ARM, macOS, Windows).
+  - `//gates:local` in this container: 364 of 368 on the first run. The root-only pair passed as root, the browser
+    guard with the proxy cleared (items 3 and 4), and `classpath_test` was skipped. The stress suites pass.
+  - Every PCT lane, both channels, in the five sibling containers: 102 of 102 targets pass, each with beebe47's
+    digest, and Channel B's counts are unchanged.
+  - The lane dumps hold query statements only, so the seed and DDL spelling changes show in no digest: the targets
+    passing are their proof there.
+  - `//spec:corpus_duckdb` and `//spec:corpus_h2`: 12 of 12, no roster or register moved.
