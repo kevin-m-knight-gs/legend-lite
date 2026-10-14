@@ -1298,8 +1298,15 @@ public final class ProtocolEmitter {
             @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, span != null ? span : si.pos());
-        b.append(",\"type\":\"SQL\",\"value\":{\"sql\":");
+        b.append(",\"type\":");
+        str(b, si.language());
+        b.append(",\"value\":{\"sql\":");
         str(b, si.sql());
+        if (si.profile() != null) {
+            // the IQ island's named profile (docs/IQ_SQL_STUDY_2026_10_13.md §5.3)
+            b.append(",\"profile\":");
+            str(b, java.util.Objects.requireNonNull(si.profile()));
+        }
         b.append("}}");
     }
 

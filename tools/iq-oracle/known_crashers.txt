@@ -1,0 +1,2 @@
+# Case keys (lite/<file>/<id>) whose SQL crashes SQL Anywhere 17: snap.py skips them under every profile. snap.py
+# names a case for this list when it takes the server down twice. Prefer `sa_defect: <reason>` on the case itself.

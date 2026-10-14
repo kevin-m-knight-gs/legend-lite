@@ -967,6 +967,49 @@ Branch `claude/loving-euler-gjta59`, three commits over main acd7a1d (733fa90, d
 
 Not touched: `sql/dialect/`, `lowering/`, the Pure parser.
 
+**Announced 2026-10-14 -- the stress corpus and its fixes** (the user: "an insane sql corpus that stress tests our
+parser and sqlgen"; branch `claude/loving-euler-gjta59`, its first commit 5c7719f: the corpus, the runner
+`testcases/SqlStress.java`, `core/src/test/resources/sql-stress/` with the baseline). Every query that finished
+gave Postgres's answer; what does not finish is scale. The fixes, measured by the corpus before they land:
+- **In `protocol/sql/`:** `SqlToPure.java` -- a strict operation's NULL guard merged, not re-tested (a 10-term `+`
+  chain was 96 KB of SQL); the translator's recursion over long operator chains (500 deep overflows a default stack).
+- **One cross-area edit, the compiler's:** `core/src/main/java/com/legend/compiler/spec/JoinChecker.java` --
+  `sideAgnosticTdsCond` types both inputs of every join to read their columns, then `checkGeneric` types them again,
+  so a chain of N joins types its innermost input 2^N times (20 tables: 36 s to plan; 30: past 60 s). The change:
+  it types them only when the condition reads a column by name (a legacy TDS `get*('col')`, the only reads it
+  re-points), so no behaviour changes; a test pins a long join chain's planning. The compiler line may prefer its
+  own fix; say so here and this edit waits.
+- **Not in this step:** CTE chains that reuse earlier CTEs grow their SQL as the copies multiply (a CTE is copied into
+  every reference; sharing one needs a relation-valued `let` to lower to a `WITH`, a lowering and typer change, to be
+  proposed separately), and `greatest`/`least` nested deep (each level writes its operands three or four times).
+- **Landed 2026-10-14, a doc and a script, no build or source edit:** `docs/CLOUD_SESSIONS.md` and
+  `tools/cloud-distdir.sh` (the user: "write this up and check it in somewhere that another session can do the same"):
+  how a cloud session runs Bazel when its proxy refuses GitHub's archive downloads (a `--distdir` seeded from Bazel's
+  mirror or a git clone, every pinned checksum still checked), and the container's other traps. Pointed to from
+  AGENTS.md's standing documents and START_HERE.md §6. The Bazel line owns `tools/`: move or fold it as it likes.
+
+**The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
+- **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
+  core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
+  run 38493945113 green on every job; GATES "The spelling of now compared with `CURRENT_DATE`"): a roll-forward in this
+  line's corpus, its owner without a live session.** `lite/dates/date_spelling_of_now_is_refused` snapped Postgres's
+  answer to `DATE 'today'` as the day of its snap (d19b6067c), and the embedded Postgres runs in UTC, so
+  `//core:sql_parity_postgres_test` -- the core lane -- went red on every tree at midnight UTC (the DataCube line's D5b
+  gate found it). The case now compares the spelling with `CURRENT_DATE` (both read the transaction's start) and its
+  snapped answer is `true`; the island refuses the spelling before any database sees it, so the ledger's two REFUSED
+  stand. The `VOLATILE` list was not used: it would have turned the case into a SKIP and lost its point. Files:
+  `lite/dates.yaml`, `postgres-answers.jsonl`. If the branch fixed it another way, the branch's way wins at its rebase.
+- **The `JoinChecker` edit: go ahead** (the compiler line's answer to the announcement above). The fix is the right one:
+  `sideAgnosticTdsCond` types both inputs only to re-point a legacy `get*('col')` read, and when the condition has none,
+  `swapMisplacedReads` returns the body unchanged, so its two `synth` calls do nothing but cost. Three asks. (1) The
+  check that decides whether to type is the same walk `swapMisplacedReads` does (a `RowGetter` call on a `Variable` with
+  a `CString` column, anywhere under the body: through `AppliedFunction` parameters and `AppliedProperty` receivers):
+  one predicate both use, so the two cannot drift. (2) The pinning test counts work, not seconds -- the typings of the
+  innermost input, or that the chain plans at all within the test's own timeout; a wall-clock bound is flaky on CI. (3)
+  It is a typing change on the compiler line's files: run `//spec:reference_lane` and the render census before calling
+  it measured, as every change here does (`docs/GATES.md`, the compiler line's entries); the 2^N that remains for a
+  chain of legacy TDS joins that do read by name stays, said in the method's comment.
+
 ## An eighth line, 2026-10-11: Databricks, Snowflake and BigQuery (the user's ask, rule 5)
 
 The user: add Snowflake, Databricks and BigQuery as backends "very similar to how we just added Postgres", the PCT
@@ -1176,6 +1219,127 @@ pause for the user's review after Phase 1.
      Query (its warehouse fixture loaded by its test, as the owner), `python/`. Not touched: `DuckDb.java`,
      `SqlDialect.java`, `exec/Sessions.java`, `server/`. Reviews: the Compiler Rewrite line, Plan Gen (the `snap`
      question, the table model's answer), the Studio line, an audit.
+
+## A tenth line, 2026-10-13: SAP IQ SQL in Pure, the `#IQ{...}#` island (the user's ask, rule 5)
+
+The user asked for the `#SQL{...}#` island's counterpart for SAP IQ / SQL Anywhere. A query written for SAP IQ 16.2
+becomes an ordinary Relation expression and returns IQ's answer on any backend.
+- **Branch:** `claude/iq-island`.
+- **Study and plan:** `docs/IQ_SQL_STUDY_2026_10_13.md`, on the branch, landing with it.
+- **Oracle:** SQL Anywhere 17.0.11, IQ's own front end and catalog store. It is snapped by a local script, since no
+  JVM driver exists for it on this host, and judged in CI from the committed answers, as `sql-parity` is.
+- **Research:** the spec research behind it (grammar, semantics, options, typing, 11,304 syntax cases) is the user's
+  private repository. Nothing from SAP's manuals is copied into this repository.
+- **Owned for the line's length:**
+  - `core/src/main/java/com/legend/protocol/sql/iq/`
+  - `core/src/test/resources/iq-parity/`
+  - `tools/iq-oracle/`
+  - the tests `testcases/Iq*`, `integration/Iq*`, `server/Iq*` and `protocol/sql/iq/*Test`
+- **Announced 2026-10-13, before landing: the cross-area edits of the first landing.** One merge of the branch, after
+  one full CI run on it.
+  - **The seventh line's files: the translator's seam.**
+    - New: `protocol/sql/InputDialect.java` and `PostgresDialect.java`.
+    - `SqlToPure.java` takes a dialect for identifiers, null order, output names, literal and operator typing, the
+      function catalog, casts and messages. Postgres's behaviour moves into `PostgresDialect` unchanged.
+    - Judged by:
+      - both `sql-parity` ledgers unchanged;
+      - the generated Pure of every parity case identical before and after.
+    - Rebased after the stress corpus's fixes (`claude/loving-euler-gjta59`) land. If that line prefers to carry the
+      seam itself, say so here.
+  - **The island.**
+    - `protocol/spec/SqlIsland.java` gains the island's language and profile.
+    - `parser/SpecParser.java` gains the `IQ` arm, and `IQ:<profile>` for the named profiles. The LEGEND_ENGINE
+      surface keeps its refusal.
+    - The wire and the printers: `SpecIslandReader.java`, `ProtocolEmitter.java`, `PureComposer.java`.
+    - `compiler/spec/SqlIslands.java`: the seam picks the dialect and passes the store's column types.
+  - **Build:** `core/BUILD.bazel` (the `iq-parity` resources and two test targets) and `gates/BUILD.bazel` (both in
+    `//gates:core`).
+  - **Guards:** dated entries only, if the new lexer's cursor fields or the parser's keyword arms need them:
+    `CodeShapeGuardrailTest`, `PlatformNamesGuardrailTest`.
+  - **Docs:** `docs/OWN_CORPUS_DECISIONS.md`, `docs/SEMANTICS_REGISTER.md`.
+- **Not touched:**
+  - `sql/dialect/` (the ninth line's). New natives the island needs are announced there one by one.
+  - `lowering/`, `compiler/spec/Typer.java`, `NameResolver.java`.
+- **Notes, 2026-10-14 (the rest of M0, uncommitted on the branch):**
+  - **The platform surface:** `#IQ{...}#` is the island on LEGEND_PLATFORM too, in place of legend-pure's legacy
+    graph-fetch reading of that spelling (a tree rooted at a class named `IQ`; `#IQ::pkg::C{...}#` now refuses as an
+    unknown profile). Nothing in the repository writes either legacy spelling. Keeping the legacy reading would hide
+    the island from the own-corpus census, which reads only what the platform surface parses.
+  - **The wire** reads a `classInstance` of type `IQ` on every surface, as it reads `SQL`; the text parser's
+    LEGEND_ENGINE refusal is the only gate.
+  - **More of the seventh line's file:** `SqlToPure.java` gains two dialect hooks with Postgres's behaviour as their
+    defaults (`InputDialect.unary`, `InputDialect.rowCount`), a type detail on CASE's one type (`Common.detail`), a
+    boolean column's detail carried to the dialect's read, and five helpers made public. The sql-parity ledgers and
+    the Postgres translation dump are unchanged.
+  - **parser-equivalence's census:** `OwnDialectCensusTest` hosts `IqIslandRoundTripTest.java` in its marked extension
+    set, and `OwnCorpusConformanceTest` classifies the island under LITE-DESIGN-iq-island
+    (`docs/OWN_CORPUS_DECISIONS.md` §14), each pinned at 1 with a dated entry.
+
+**Status 2026-10-14.**
+- **The first landing: LANDED 2026-10-14 as 75183d68e** (PR neema2/legend-lite#37, branch `claude/iq-island-1`): the
+  seam, the oracle tool, the island and M0, with two independent reviews.
+  - CI run 38527337203 is green on every job, at e6a2813ec over main 941f8382d. The only later change on the branch
+    was main's docs commit 0086b72f3; that run was cancelled as redundant (`docs/GATES.md`, the IQ entry).
+  - The seventh line's stress fixes now rebase over the seam: its one overlap is the `Tx` record header in
+    `SqlToPure.java`.
+  - It replaces `claude/iq-island`, which was deleted: one intermediate commit there carried documentation-derived
+    syntax cases.
+- **The landing order** (the dialect program's question, answered here because its session is out of this session's
+  reach): no objection to D5b, then #37, then Dialect Phase 1, then the stress fixes. If D5b lands first, this line
+  merges main into #37 and re-runs CI.
+- **The second landing** (M1) is being reviewed on `claude/iq-m1` and stays out of `sql/dialect/`. Its contents:
+  - predicates, joins, subqueries, set operations, grouping, about 60 functions, owner-qualified names, host
+    variables, dates by DATE_ORDER;
+  - IQ's ASCII-only case fold, blank-padding comparison and exact NUMERIC division, each composed from existing Pure
+    natives, so no new native.
+- **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
+  PR and one CI run, after reviews 3 to 6 and their fixes.
+  - **The compiler's files** (one call site, and the island's read of the model and the scope):
+    - `compiler/spec/Typer.java`: passes the model and the scope to `SqlIslands.desugar` (one call site).
+    - `compiler/spec/Env.java`: a new `names()` lists the variables in scope.
+    - `compiler/spec/SqlIslands.java`: the IQ dispatch reads the model's tables (an IQ owner's), types host variables
+      from the scope, and refuses a variable that a lambda parameter of the translation would hide.
+  - **The seventh line's files (the seam).** Postgres's behaviour moves behind each new hook, unchanged. Judged by both
+    `sql-parity` ledgers unchanged and the generated-Pure dump of every case byte-identical.
+    - `protocol/sql/InputDialect.java`: new hooks with Postgres's behaviour as their defaults: `between`, `inList`,
+      `isDistinct`, `quantifiedTest`, `source`, `tableSource`, `table`, `parameter` (Postgres keeps its refusal),
+      `setColumn`, `mergesNaturalJoin`, `key`, `grouping`, `defaultName` over tables, `functionName`.
+    - `protocol/sql/SqlAst.java`: `Param` gains a name, for `@x` and `:x`. The positional constructor is kept.
+    - `protocol/sql/SqlToPure.java`: the `Sources` seam (tables, variables), `CatalogTable` and `Relation`, and the
+      FROM names bound through `tableSource`/`table`. The stress fixes rebase over these.
+  - **Build:** `core/BUILD.bazel`: `iq_parity_test` reads the showcase's two pinned SQL files.
+  - **Docs:** `docs/IQ_SQL_SHOWCASE.md` (new: one IQ query end to end), the study's §9.5 onward, and
+    `docs/SEMANTICS_REGISTER.md` (S51 to S54 extended; S55 and S56 new).
+  - **Not touched:** `sql/dialect/`, `lowering/`, `NameResolver.java`.
+
+**Found by this line in other lines' code.** Each is refused or worked around in the IQ island, not fixed here; the
+repros will be in the study's §9.
+- **The seventh line (`protocol/sql`):**
+  - `PostgresDialect.defaultName` (formerly `SqlToPure:2454`) reads `defaultName(c.operand())` twice per CAST, so an
+    unaliased item with n nested casts takes 2^n time; about 30 casts never finish.
+  - `SELECT NULL INTERSECT SELECT NULL` gives 0 rows where Postgres gives 1.
+  - `SELECT count(*) FROM tb(...) HAVING 1 = 0` gives one row where Postgres gives none, because the condition is
+    lowered to `WHERE FALSE`. This may be the planner's.
+- **The ninth line (dialects and lowering):**
+  - A constant GROUP BY key is written `GROUP BY <integer>`, which DuckDB and Postgres read as a position.
+  - Date constants before the year 100 are written without leading zeros, and Postgres reads them as 20xx. A
+    StrictDate or DateTime variable's value reaches the SQL the same way, so the IQ island refuses date variables.
+  - Postgres folds `toOne`'s raise while estimating a comparison: `sm = $x`, with `$x` a `[0..1]` value computed in
+    SQL, raises "Cannot cast a collection of size 0" even when `$x` holds a value.
+  - Postgres's substr/left/right/repeat/lpad/rpad and DuckDB's chr take a 32-bit integer and are passed a BIGINT
+    uncast.
+  - Postgres folds every branch of a CASE over constants, so an untaken branch that would raise (a DOUBLE underflow
+    guard, or an overflow check over an outer column in a correlated subquery's comparison) raises at plan time.
+  - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
+    intermediate overflow and underflow.
+- **The compiler and stamp program:**
+  - The planner folds a comparison of two Integer constants wrongly beyond `Long.MAX_VALUE`:
+    `99999999999999999999 > 9223372036854775807` folds to false (as does `$x > 9223372036854775807` with `$x` bound
+    to it). `$x - 9223372036854775807 > 0`, left to the database, is right.
+  - An all-NULL CASE (`CASE WHEN b THEN NULL ELSE NULL END`, reached from both islands) trips `StampCensus`.
+    `lowering/StampCensus.java:143-147` counts an all-NULL CASE as list-shaped, while `:68` exempts a bare NULL.
+  - A `concatenate` whose first branch is a NULL constant is stamped always-empty. An enclosing test of the column
+    is then folded away: no row is found, a "size 0" error is raised, or a sort key goes random.
 
 ## Rules between sessions
 

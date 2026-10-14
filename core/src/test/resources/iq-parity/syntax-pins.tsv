@@ -1,0 +1,51 @@
+# the #IQ{...}# island's syntax-case ratchet (IqSyntaxCasesTest): per policy and verdict, how many of iq-parity/syntax-cases.jsonl the
+# reader gives that verdict; then each reject case it parses and each accepting case it rejects (lists that only shrink).
+# Rewrite with -Diq.syntax.update=<this file's path in the workspace>; a regression is refused.
+# IQ island, 2026-10-14 (the second review's B3): syntax-cases.jsonl re-derived with stricter filters, so the pins are
+# re-seeded from it: 1,601 of the 8,770 cases dropped (637 whose research note or rule marks a documentation example,
+# 752 sharing a run of six words with the manuals' text, 12 holding a two-word name the manuals print, 11 a demo
+# database name, 189 a 12-character string the manuals print). Shrinkage only: every kept case is unchanged and keeps
+# its verdict; the reject-parsed and accept-rejected lists lose 5 and 2 ids and gain none.
+accept	parsed	659
+accept	refused	4465
+accept	rejected	1
+accept-with-option	refused	92
+accept-with-option	rejected	1
+flag	parsed	8
+flag	refused	128
+reject	parsed	31
+reject	refused	1197
+reject	rejected	587
+reject-parsed	a1_sa_lang-1597
+reject-parsed	a1_sa_lang-1598
+reject-parsed	a1_sa_lang-1609
+reject-parsed	a1_sa_lang-1616
+reject-parsed	a1_sa_lang-1619
+reject-parsed	a1_sa_lang-1623
+reject-parsed	a1_sa_lang-1634
+reject-parsed	a1_sa_lang-1643
+reject-parsed	a1_sa_lang-1745
+reject-parsed	a1_sa_lang-633
+reject-parsed	a1_sa_lang-634
+reject-parsed	a1_sa_lang-850
+reject-parsed	a4_sa_fn2-255
+reject-parsed	a4_sa_fn2-40
+reject-parsed	a4_sa_fn2-44
+reject-parsed	a4_sa_fn2-48
+reject-parsed	a4_sa_fn2-52
+reject-parsed	a4_sa_fn2-56
+reject-parsed	a4_sa_fn2-60
+reject-parsed	a4_sa_fn2-645
+reject-parsed	a4_sa_fn2-702
+reject-parsed	a5_sa_fn3-482
+reject-parsed	a6_sa_query-198
+reject-parsed	a6_sa_query-199
+reject-parsed	a6_sa_query-695
+reject-parsed	s1_lexical-1164
+reject-parsed	s1_lexical-1622
+reject-parsed	s1_lexical-578
+reject-parsed	s1_lexical-614
+reject-parsed	s1_lexical-683
+reject-parsed	s2_query-74
+accept-rejected	a1_sa_lang-24
+accept-rejected	z2_redteam-382
