@@ -86,7 +86,7 @@ class Document(Paged):
             {'kind': 'condition', 'column': 'desk', 'operator': 'notEqual', 'value': 'Equity'}]})
         self.assertEqual([(v['id'], v['kind'], v['cube']) for v in doc['views']],
                          [(grid.id, 'grid', grid.id), (chart.id, 'chart', grid.id)])
-        self.assertEqual(doc['views'][1]['spec'], {'version': 1, 'mark': 'bar', 'x': 'region',
+        self.assertEqual(doc['views'][1]['spec'], {'version': 2, 'mark': 'bar', 'x': 'region',
                                                    'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}})
         # one sheet: the grid in a band of its own, the chart beside it, as DataCube places them
         self.assertEqual(doc['sheets'], [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': [
@@ -217,12 +217,45 @@ class Document(Paged):
         self.assertEqual(summary.tiles, [other, chart])
         self.assertIs(page.sheets[1], summary, 'the same handle each time')
 
+    def test_a_chart_takes_the_spec_version_2_slots_in_their_own_words(self):
+        page, grid, _ = self.built()
+        chart = grid.chart('bar', x='region', grain='month', y=[
+            ('notional', 'sum'),
+            {'column': 'qty', 'fn': 'average', 'mark': 'line', 'axis': 'right', 'showAs': {'kind': 'movingAverage', 'rows': 3}},
+        ], size=('qty', 'sum'), tooltip=[('notional', 'max')], facet={'column': 'desk'},
+            layers=[{'kind': 'line', 'value': 100, 'label': 'Target'}, {'kind': 'stat', 'stat': 'average'},
+                    {'kind': 'band', 'axis': 'y', 'from': 0, 'to': 50}])
+        spec = page.to_dict()['views'][-1]['spec']
+        self.assertEqual(spec['version'], 2)
+        self.assertEqual(spec['grain'], 'month')
+        self.assertEqual(spec['y'][1], {'column': 'qty', 'fn': 'average', 'mark': 'line', 'axis': 'right',
+                                        'showAs': {'kind': 'movingAverage', 'rows': 3}})
+        self.assertEqual(spec['size'], {'column': 'qty', 'fn': 'sum'})
+        self.assertEqual(spec['facet'], {'column': 'desk'})
+        self.assertEqual([layer['kind'] for layer in spec['layers']], ['line', 'stat', 'band'])
+        # re-plotted, the slots it was not told about stay; a measure's own words survive a re-plot
+        chart.plot('line')
+        self.assertEqual(page.to_dict()['views'][-1]['spec']['y'][1]['mark'], 'line')
+        self.assertEqual(page.to_dict()['views'][-1]['spec']['grain'], 'month')
+        # every word one of DataCube's, refused at the line that names it
+        for bad, why in [({'grain': 'decade'}, 'a grain is one of'),
+                         ({'y': [{'column': 'notional', 'fn': 'sum', 'mark': 'pie'}]}, "a measure's mark"),
+                         ({'y': [{'column': 'notional', 'fn': 'sum', 'axis': 'top'}]}, "a measure's axis"),
+                         ({'y': [{'column': 'notional', 'fn': 'sum', 'showAs': {'kind': 'forecast'}}]}, 'shown as'),
+                         ({'y': [{'column': 'margin', 'fn': 'value'}]}, 'not a group-level column'),
+                         ({'layers': [{'kind': 'sparkle'}]}, "a layer's kind"),
+                         ({'layers': [{'kind': 'stat', 'stat': 'mode'}]}, "a stat layer's stat"),
+                         ({'facet': {'column': 'nope'}}, 'not a column'),
+                         ({'bins': {'size': 3}}, 'bins are')]:
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, why):
+                grid.chart('bar', x='region', **{'y': [('notional', 'sum')], **bad})
+
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()
         chart.plot('line', split='desk')
         chart.options({'labels': True})
         spec = page.to_dict()['views'][1]['spec']
-        self.assertEqual(spec, {'version': 1, 'mark': 'line', 'x': 'region', 'y': [{'column': 'notional', 'fn': 'sum'}],
+        self.assertEqual(spec, {'version': 2, 'mark': 'line', 'x': 'region', 'y': [{'column': 'notional', 'fn': 'sum'}],
                                 'split': 'desk', 'options': {'labels': True}})
         chart.plot(x=None, frozen=True)
         self.assertNotIn('x', page.to_dict()['views'][1]['spec'])
@@ -402,7 +435,7 @@ class Document(Paged):
         page, grid, _ = self.built()
         kpi = grid.chart('kpi', options={'target': 300, 'better': 'lower'}, title='Notional')
         self.assertEqual(page.to_dict()['views'][-1]['spec'], {
-            'version': 1, 'mark': 'kpi', 'y': [{'column': 'notional', 'fn': 'sum'}],
+            'version': 2, 'mark': 'kpi', 'y': [{'column': 'notional', 'fn': 'sum'}],
             'options': {'target': 300, 'better': 'lower'}})
         kpi.plot(x='region')
         self.assertEqual(page.to_dict()['views'][-1]['spec']['x'], 'region')

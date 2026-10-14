@@ -183,7 +183,7 @@ export class ChartPanel {
       form.textContent = 'This cube has no column to chart.';
       return;
     }
-    const { dimensions, measures } = chartColumns(s);
+    const { dimensions, measures, groupLevel } = chartColumns(s, spec ?? undefined);
     const dims = dimensions.map((c) => ({ value: c.name, label: c.name }));
     const scatter = spec.mark === 'scatter';
     const across = scatter
@@ -191,9 +191,27 @@ export class ChartPanel {
       : dims;
     const first = spec.y[0];
     const typeOf = new Map([...dimensions, ...measures].map((c) => [c.name, c.type]));
-    const fns = (first ? aggregatesFor(typeOf.get(first.column)) : [])
+    const fns = (first && first.fn !== 'value' ? aggregatesFor(typeOf.get(first.column)) : [])
       .filter((a) => a.value !== 'wavg')
       .map((a) => ({ value: a.value, label: a.label }));
+    // what a measure can be: a number column, aggregated; or a group-level column, plotted as it is (`fn: 'value'`)
+    const GROUP = 'group:';
+    const plotted = [
+      ...measures.map((c) => ({ value: c.name, label: c.name })),
+      ...groupLevel.map((d) => ({ value: `${GROUP}${d.name}`, label: `${d.name} (group level)` })),
+    ];
+    const plottedValue = first ? (first.fn === 'value' ? `${GROUP}${first.column}` : first.column) : undefined;
+    const pick = (v: string | undefined, fn: AggregateFn | undefined): void => {
+      if (!v) return;
+      const y = v.startsWith(GROUP)
+        ? { column: v.slice(GROUP.length), fn: 'value' as const }
+        : { column: v, fn: fn ?? 'sum' };
+      this.#set({ y: [y] }, true);
+    };
+    const currentFn = (): AggregateFn | undefined => {
+      const f = this.#spec?.y[0]?.fn;
+      return f === 'value' ? undefined : f;
+    };
 
     const markField = field(doc, 'Chart:', dropdown<ChartMark>(doc, spec.mark, CHART_MARKS, (v) => {
       if (v) this.#set({ mark: v }, true);
@@ -203,8 +221,8 @@ export class ChartPanel {
       form.append(
         markField,
         field(doc, 'Value:', dropdown<string>(doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
-          (v) => { if (v) this.#set({ y: [{ column: v, fn: this.#spec?.y[0]?.fn ?? 'sum' }] }, true); })),
-        field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, first?.fn, fns, (v) => {
+          (v) => { if (v) this.#set({ y: [{ column: v, fn: currentFn() ?? 'sum' }] }, true); })),
+        field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, currentFn(), fns, (v) => {
           const now = this.#spec?.y[0];
           if (v && now) this.#set({ y: [{ column: now.column, fn: v }] });
         })),
@@ -243,16 +261,15 @@ export class ChartPanel {
       // every handler reads the spec as it is AT THE EVENT, never the one
       // this form was painted from: a stale copy undid the edit before it
       field(doc, scatter ? 'Y:' : 'Value:', dropdown<string>(
-        doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
-        (v) => {
-          if (v) this.#set({ y: [{ column: v, fn: this.#spec?.y[0]?.fn ?? 'sum' }] }, true);
-        },
+        doc, scatter ? first?.column : plottedValue,
+        scatter ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
+        (v) => pick(v, currentFn()),
       )),
-      ...(scatter ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
-        doc, first?.fn, fns,
+      ...(scatter || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
+        doc, currentFn(), fns,
         (v) => {
           const now = this.#spec?.y[0];
-          if (v && now) this.#set({ y: [{ column: now.column, fn: v }] });
+          if (v && now) this.#set({ y: [{ ...now, fn: v }] });
         },
       ))]),
       field(doc, spec.mark === 'heatmap' ? 'Rows:' : 'Split by:', dropdown<string>(

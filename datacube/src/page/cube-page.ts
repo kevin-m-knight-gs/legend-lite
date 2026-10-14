@@ -32,7 +32,7 @@ import { followCube, measureName } from '../chart-spec.ts';
 import type { GridShown, MarkKey } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import { FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews } from '../page-document.ts';
-import { withoutConditions, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
+import { withoutConditions, type AggregateFn, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -1112,7 +1112,8 @@ export class CubePage {
     const host = this.#doc.createElement('div');
     host.className = 'dc-chart-editor';
     const used = new Set<string>();
-    const measures = spec.y.map((m): Measure => {
+    // a group-level column plotted as it is is the grid's already (its groupDerived comes with the snapshot)
+    const measures = spec.y.filter((m): m is typeof m & { fn: AggregateFn } => m.fn !== 'value').map((m): Measure => {
       // the grid's own measure of that column and aggregate keeps its name (its format)
       const own = source.snapshot.measures.find((c) => c.column === m.column && c.fn === m.fn);
       const name = own?.name ?? (used.has(m.column) ? measureName(m) : m.column);

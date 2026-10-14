@@ -58,6 +58,15 @@ AGGREGATES = frozenset({
     'variancePopulation', 'joinStrings', 'wavg', 'unique',
 })
 MARKS = frozenset({'bar', 'line', 'area', 'scatter', 'pie', 'heatmap', 'treemap', 'kpi'})
+# the chart spec's version 2 slots (chart-spec.ts, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1): a measure's own mark
+# and axis, what it is shown as, a date's grain, a layer's kind and statistic
+CHART_VERSION = 2
+MEASURE_MARKS = frozenset({'bar', 'line', 'area'})
+AXES = frozenset({'left', 'right'})
+SHOW_AS = frozenset({'runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank'})
+GRAINS = frozenset({'day', 'week', 'month', 'quarter', 'year'})
+LAYERS = frozenset({'line', 'stat', 'band', 'threshold', 'extremes'})
+STATS = frozenset({'average', 'min', 'max'})
 DIRECTIONS = frozenset({'asc', 'desc'})
 # a band added at the bottom of a sheet, in screenfuls; the places a band holds side by side, at most; the bands the
 # layout picker fits to a screen, at most
@@ -552,14 +561,25 @@ class Grid(Tile):
         self._page._changed()
         return self
 
-    def chart(self, mark: str, *, x: str | None = None, y: Sequence[tuple[str, str]] | None = None,
+    def chart(self, mark: str, *, x: str | None = None, y: Sequence[Any] | None = None,
               split: str | None = None, title: str | None = None, frozen: bool = False,
-              options: Mapping[str, Any] | None = None) -> Chart:
+              options: Mapping[str, Any] | None = None, grain: str | None = None,
+              bins: Mapping[str, float] | None = None, size: Any = None, tooltip: Sequence[Any] | None = None,
+              facet: Mapping[str, str] | None = None, layers: Sequence[Mapping[str, Any]] | None = None) -> Chart:
         """A chart of this grid, beside it: ``mark`` (one of MARKS), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the grid's first measure unless given -- and a ``split`` (one series per value);
         ``frozen`` keeps its own grouping rather than following the grid's (and stays when the grid is removed, as in
-        DataCube); ``options``: the chart's Options, in its spec's own keys (one left out is its default)."""
-        spec = {**_spec(self, mark, x, y, split, frozen), 'options': _copied(options or {})}
+        DataCube); ``options``: the chart's Options, in its spec's own keys (one left out is its default).
+
+        The spec's version 2 slots, each in its own keys: a measure of ``y`` may be a dict -- ``column``, ``fn`` (an
+        aggregate, or ``'value'``: a group-level column of the grid, plotted as it is), its own ``mark`` (MEASURE_MARKS),
+        ``axis`` (AXES) and ``showAs`` (``{'kind': one of SHOW_AS}``); ``grain`` takes a date across to its period
+        (GRAINS); ``bins`` a number across to its bins (``{'width': w}`` or ``{'count': n}``); ``size`` a measure sizing
+        each mark; ``tooltip`` further measures a hover lists; ``facet`` small multiples (``{'row': c}``,
+        ``{'column': c}``); ``layers`` reference lines, bands, thresholds and pinned extremes (each a dict, its
+        ``kind`` one of LAYERS)."""
+        spec = {**_spec(self, mark, x, y, split, frozen), 'options': _copied(options or {}),
+                **_slots(self, grain, bins, size, tooltip, facet, layers)}
         named = _named(title, 'a title')
         id = self._page._next('chart')
         self._page._doc['views'].append({'id': id, 'kind': 'chart', 'cube': self._view['cube'],
@@ -600,9 +620,9 @@ def _step(derived: dict[str, Any]) -> str:
     return f'->lateral({compiler.print_tree({**lambda_, "body": [flatten]}, "STANDARD")})'
 
 
-def _spec(grid: Grid, mark: str, x: str | None, y: Sequence[tuple[str, str]] | None, split: str | None,
+def _spec(grid: Grid, mark: str, x: str | None, y: Sequence[Any] | None, split: str | None,
           frozen: bool) -> dict[str, Any]:
-    """What a chart of ``grid`` plots (chart-spec.ts, version 1), checked against DataCube's charts and aggregates and
+    """What a chart of ``grid`` plots (chart-spec.ts, version 2), checked against DataCube's charts and aggregates and
     the grid's columns."""
     if mark not in MARKS:
         raise ValueError(f'{mark!r} is not one of DataCube\'s charts: {", ".join(sorted(MARKS))}')
@@ -613,15 +633,78 @@ def _spec(grid: Grid, mark: str, x: str | None, y: Sequence[tuple[str, str]] | N
                                             if m['fn'] != 'wavg' and m['column'] in columns][:1])
     if not plotted:
         raise ValueError('a chart plots something: give y=[(column, aggregate)] (or the grid a measure)')
-    if not all(isinstance(p, tuple) and len(p) == 2 for p in plotted):
-        raise ValueError(f'a chart plots (column, aggregate) pairs, not {plotted!r}')
-    for _, fn in plotted:
+    named = grid._check([n for n in (x, split) if n is not None], 'a chart')
+    return {'version': CHART_VERSION, 'mark': mark, 'y': [_measure(grid, p, 'a chart') for p in plotted],
+            **({'x': named[0]} if x is not None else {}), **({'split': split} if split is not None else {}),
+            **({'frozen': True} if frozen else {})}
+
+
+def _measure(grid: Grid, plotted: Any, what: str) -> dict[str, Any]:
+    """One measure of a chart, in the spec's own keys: a ``(column, aggregate)`` pair, or a dict that may say its own
+    ``mark``, ``axis`` and ``showAs`` -- each word one of DataCube's, its column one of the grid's (a group-level column
+    of the grid for ``fn='value'``)."""
+    if isinstance(plotted, tuple) and len(plotted) == 2:
+        plotted = {'column': plotted[0], 'fn': plotted[1]}
+    if not isinstance(plotted, Mapping) or not isinstance(plotted.get('column'), str) or 'fn' not in plotted:
+        raise ValueError(f'{what} plots (column, aggregate) pairs or dicts with a column and an fn, not {plotted!r}')
+    unknown = set(plotted) - {'column', 'fn', 'mark', 'axis', 'showAs'}
+    if unknown:
+        raise ValueError(f'a chart\'s measure has no {", ".join(sorted(unknown))}: it says column, fn, mark, axis, showAs')
+    fn = plotted['fn']
+    if fn == 'value':
+        group = {d['name'] for d in grid._query.get('groupDerived', []) if 'childAggregate' not in d}
+        if plotted['column'] not in group:
+            raise ValueError(f'{plotted["column"]!r} is not a group-level column of the grid (fn=\'value\' plots one)')
+        column = plotted['column']
+    else:
         if fn not in AGGREGATES or fn == 'wavg':
             raise ValueError(f'{fn!r} is not an aggregate a chart plots: {", ".join(sorted(AGGREGATES - {"wavg"}))}')
-    named = grid._check([c for c, _ in plotted] + [n for n in (x, split) if n is not None], 'a chart')
-    return {'version': 1, 'mark': mark, 'y': [{'column': c, 'fn': fn} for c, (_, fn) in zip(named, plotted)],
-            **({'x': x} if x is not None else {}), **({'split': split} if split is not None else {}),
-            **({'frozen': True} if frozen else {})}
+        column = grid._check([plotted['column']], what)[0]
+    if 'mark' in plotted and plotted['mark'] not in MEASURE_MARKS:
+        raise ValueError(f'a measure\'s mark is one of {", ".join(sorted(MEASURE_MARKS))}, not {plotted["mark"]!r}')
+    if 'axis' in plotted and plotted['axis'] not in AXES:
+        raise ValueError(f'a measure\'s axis is one of {", ".join(sorted(AXES))}, not {plotted["axis"]!r}')
+    show = plotted.get('showAs')
+    if show is not None and (not isinstance(show, Mapping) or show.get('kind') not in SHOW_AS):
+        raise ValueError(f'a measure is shown as {{\'kind\': one of {", ".join(sorted(SHOW_AS))}}}, not {show!r}')
+    return {**_copied(plotted), 'column': column}
+
+
+def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, size: Any,
+           tooltip: Sequence[Any] | None, facet: Mapping[str, str] | None,
+           layers: Sequence[Mapping[str, Any]] | None) -> dict[str, Any]:
+    """The spec's version 2 slots a chart was given, checked word by word as DataCube's reader checks them."""
+    out: dict[str, Any] = {}
+    if grain is not None:
+        if grain not in GRAINS:
+            raise ValueError(f'a grain is one of {", ".join(sorted(GRAINS))}, not {grain!r}')
+        out['grain'] = grain
+    if bins is not None:
+        if not isinstance(bins, Mapping) or not ({'width', 'count'} & set(bins)):
+            raise ValueError(f'bins are {{\'width\': w}} or {{\'count\': n}}, not {bins!r}')
+        out['bins'] = _copied(bins)
+    if size is not None:
+        out['size'] = _measure(grid, size, 'a chart\'s size')
+    if tooltip is not None:
+        out['tooltip'] = [_measure(grid, m, 'a chart\'s tooltip') for m in tooltip]
+    if facet is not None:
+        if not isinstance(facet, Mapping) or not ({'row', 'column'} & set(facet)) or set(facet) - {'row', 'column'}:
+            raise ValueError(f'a facet is {{\'row\': column}} and/or {{\'column\': column}}, not {facet!r}')
+        grid._check(list(facet.values()), 'a facet')
+        out['facet'] = _copied(facet)
+    if layers is not None:
+        for layer in layers:
+            kind = layer.get('kind') if isinstance(layer, Mapping) else None
+            if kind not in LAYERS:
+                raise ValueError(f'a layer\'s kind is one of {", ".join(sorted(LAYERS))}, not {kind!r}')
+            if kind == 'stat' and layer.get('stat') not in STATS:
+                raise ValueError(f'a stat layer\'s stat is one of {", ".join(sorted(STATS))}, not {layer.get("stat")!r}')
+            if kind in ('line', 'threshold') and not isinstance(layer.get('value'), (int, float)):
+                raise ValueError(f'a {kind} layer has a number value, not {layer.get("value")!r}')
+            if kind == 'band' and (layer.get('axis') not in ('x', 'y') or 'from' not in layer or 'to' not in layer):
+                raise ValueError('a band layer has an axis (\'x\' or \'y\'), a from and a to')
+        out['layers'] = [_copied(layer) for layer in layers]
+    return out
 
 
 class GridView:
@@ -691,7 +774,7 @@ class Chart(Tile):
             raise ValueError(f'{self!r} has no grid (it was removed): its columns cannot be checked')
         was = view['spec']
         spec = _spec(grid, mark if mark is not None else was['mark'], was.get('x') if x is _KEEP else x,
-                     [(p['column'], p['fn']) for p in was['y']] if y is _KEEP else y,
+                     list(was['y']) if y is _KEEP else y,
                      was.get('split') if split is _KEEP else split, bool(was.get('frozen')) if frozen is None else frozen)
         # what the spec holds besides (its options, a newer writer's fields) stays
         view['spec'] = {**{k: v for k, v in was.items() if k not in ('mark', 'x', 'y', 'split', 'frozen')}, **spec}

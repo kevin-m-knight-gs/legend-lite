@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { toJson, element } from '../../pure-protocol/src/index.ts';
+import { toJson, element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import {
   chartProblems,
   chartQuery,
@@ -15,6 +15,7 @@ import {
   KPI_TREND_LIMIT,
   kpiQueries,
   measureName,
+  chartColumns,
   type ChartSpec,
 } from '../src/chart-spec.ts';
 import { chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown } from '../src/chart-option.ts';
@@ -114,6 +115,72 @@ describe('the chart\'s query', () => {
 
   it('names a count as count', () => {
     assert.equal(measureName({ column: 'x', fn: 'count' }), 'count');
+  });
+});
+
+describe('a group-level column, plotted as it is (version 2: fn \'value\')', () => {
+  // the cube's margin: its two measures' ratio, after grouping; and a running total of its notional, a window
+  const ratio = lambda(['x'], fn('divide', property(variable('x'), 'pnl_sum'), property(variable('x'), 'total')));
+  const GROUPED: CubeSnapshot = {
+    ...CUBE,
+    columns: [...CUBE.columns, { name: 'pnl', type: 'Float' }],
+    measures: [
+      { name: 'total', column: 'notional', fn: 'sum' },
+      { name: 'pnl_sum', column: 'pnl', fn: 'sum' },
+      { name: 'qty_max', column: 'qty', fn: 'max' },
+    ],
+    groupDerived: [
+      { name: 'margin', lambda: ratio, type: 'Float' },
+      { name: 'running', window: { fn: 'sum', column: 'total', partition: [], order: [{ column: 'region', direction: 'asc' }], frame: 'running' } },
+      { name: 'smallest_desk', childAggregate: { fn: 'min', of: 'total' } },
+    ],
+  };
+  const MARGIN: ChartSpec = { ...BAR, y: [{ column: 'margin', fn: 'value' }] };
+
+  it('is offered beside the number columns; a child aggregate (a second query per level) is not', () => {
+    assert.deepEqual(chartColumns(GROUPED).groupLevel.map((d) => d.name), ['margin', 'running']);
+  });
+
+  it('keeps its name, and brings the measures it reads under the names it reads them by -- and nothing else', () => {
+    assert.equal(measureName({ column: 'margin', fn: 'value' }), 'margin');
+    const s = chartSnapshot(GROUPED, MARGIN);
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['margin']);
+    assert.deepEqual(s.measures.map((m) => m.name), ['pnl_sum', 'total']);
+    assert.deepEqual(s.columns.map((c) => c.name).sort(), ['desk', 'notional', 'pnl', 'region']);
+    assert.deepEqual(s.sorts, [{ column: 'margin', direction: 'desc' }]);
+    // grouped, then extended: the ratio is of the groups' sums, never an average of the rows' ratios
+    const { query } = chartQuery(GROUPED, MARGIN);
+    const text = toJson(query as never);
+    assert.ok(text.indexOf('"groupBy"') < text.indexOf('"margin"'), 'the column is extended after the grouping');
+  });
+
+  it('a window over the chart\'s rows comes with what it reads', () => {
+    const s = chartSnapshot(GROUPED, { ...BAR, y: [{ column: 'notional', fn: 'sum' }, { column: 'running', fn: 'value', mark: 'line' }] });
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['running']);
+    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional', 'total']);
+  });
+
+  it('the chart\'s own calculations: a row-stage one is a dimension it can group by, a group-stage one it can plot', () => {
+    const spec: ChartSpec = {
+      ...BAR,
+      x: 'big',
+      y: [{ column: 'notional', fn: 'sum' }, { column: 'share', fn: 'value' }],
+      calcs: [
+        { stage: 'row', column: { name: 'big', lambda: lambda(['x'], fn('greaterThan', property(variable('x'), 'notional'), { _type: 'integer', value: 100 } as never)), kind: 'dimension', type: 'Boolean' } },
+        { stage: 'group', column: { name: 'share', window: { fn: 'sum', column: 'sum_notional', partition: [], order: [], frame: 'partition' } } },
+      ],
+    };
+    assert.deepEqual(chartProblems(spec, GROUPED), []);
+    assert.deepEqual(chartColumns(GROUPED, spec).dimensions.map((c) => c.name).filter((n) => n === 'big'), ['big']);
+    const s = chartSnapshot(GROUPED, spec);
+    assert.deepEqual(s.derived.map((d) => d.name), ['big']);
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['share']);
+    assert.deepEqual(s.rows, ['big']);
+  });
+
+  it('what stops one: not a group-level column, or on a scatter (it plots rows)', () => {
+    assert.deepEqual(chartProblems({ ...BAR, y: [{ column: 'nope', fn: 'value' }] }, GROUPED), ['The cube has no group-level column \'nope\'.']);
+    assert.match(chartProblems({ ...MARGIN, mark: 'scatter', x: 'notional' }, GROUPED).join(' '), /A scatter plots rows/);
   });
 });
 

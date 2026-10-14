@@ -26,7 +26,7 @@
 // names its cube.
 
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
-import { CHART_MARKS, DEFAULT_OPTIONS, type ChartSpec } from './chart-spec.ts';
+import { CHART_MARKS, CHART_VERSION, DEFAULT_OPTIONS, specProblem, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
 import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { PageModelRef } from './page-model.ts';
@@ -340,9 +340,10 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   if (v['kind'] !== 'chart') throw new PageDocumentError(`view ${id} is of an unknown kind ${JSON.stringify(v['kind'] ?? null)}`);
   if (typeof v['title'] !== 'string') throw new PageDocumentError(`chart ${id} has no title`);
   const spec = v['spec'];
-  if (!isObject(spec) || spec['version'] !== 1 || !CHART_MARKS.some((m) => m.value === spec['mark'])
-    || !Array.isArray(spec['y']) || !isObject(spec['options'])) {
-    throw new PageDocumentError(`chart ${id} has no chart it can draw (version 1: a mark, what is plotted, its options)`);
+  // version 1 or 2 (chart-spec.ts CHART_VERSION): every word of the spec's slots one this DataCube knows
+  const problem = specProblem(spec, CHART_MARKS.map((m) => m.value));
+  if (problem !== null || !isObject(spec)) {
+    throw new PageDocumentError(`chart ${id} has no chart it can draw: ${problem ?? 'it is not a chart'}`);
   }
   const selection = v['selection'];
   if (selection !== undefined && !Array.isArray(selection)) {
@@ -355,7 +356,8 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     title: v['title'],
     // an option it leaves out (a page written in Python sets only those it means: §3 of the Python pages design) is
     // the chart's own default
-    spec: { ...spec, options: { ...DEFAULT_OPTIONS, ...spec['options'] } } as unknown as ChartSpec,
+    // a version 1 spec IS a version 2 spec (every field 2 adds is optional): only its number moves
+    spec: { ...spec, version: CHART_VERSION, options: { ...DEFAULT_OPTIONS, ...(spec['options'] as object) } } as unknown as ChartSpec,
     ...(selection && selection.length > 0 ? { selection: selection as FilterNode[] } : {}),
   };
 }
