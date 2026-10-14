@@ -73,6 +73,19 @@ public interface InputDialect {
         SqlAst.@com.legend.base.Nullable Ident table(SqlAst.ColumnRef ref);
     }
 
+    /** IQ island, 2026-10-14 (the third landing): {@code ref}, a column reference, names no column of its own query's
+     *  FROM items, and the enclosing queries' are searched next: nothing unless the dialect reads such a name
+     *  otherwise there (IQ reads an enclosing query's select-list alias before its columns: refused by name). */
+    default void columnNotHere(SqlAst.ColumnRef ref) {
+    }
+
+    /** IQ island, 2026-10-14 (the third landing): whether no one reads {@code s}'s output names, so that two of one
+     *  name are no error (an EXISTS subquery's, a set operation's later branch's): never, unless the dialect says so
+     *  (Postgres's: a relation's column names are distinct). */
+    default boolean namesUnread(SqlAst.Select s) {
+        return false;
+    }
+
     /** The output name of a select item that is a column reference written without an alias: {@code written} is the
      *  reference's last part as written, {@code label} the name the column has where it is read (Postgres's). */
     default String columnName(SqlAst.Ident written, String label) {
@@ -272,7 +285,8 @@ public interface InputDialect {
         AMBIGUOUS_TABLE,
         /** A qualifier no FROM item has: the qualifier as written. */
         NO_SUCH_TABLE,
-        /** A column of a grouped query that is no group key: the reference as written. */
+        /** A column of a grouped query that is no group key: the reference as written (IQ island, 2026-10-14, the third
+         *  landing: and the reference itself). */
         NOT_GROUPED,
         /** Two FROM items of one name: the name as written. */
         DUPLICATE_TABLE,
@@ -281,6 +295,11 @@ public interface InputDialect {
         /** A USING column one side does not have: the column as written, and the side. */
         NO_SUCH_USING_COLUMN,
         /** A window reference to no named window: the name as written. */
-        NO_SUCH_WINDOW
+        NO_SUCH_WINDOW,
+        /** IQ island, 2026-10-14 (the third landing): a SELECT DISTINCT's ORDER BY key that is none of its items. */
+        DISTINCT_ORDER_KEY,
+        /** IQ island, 2026-10-14 (the third landing): a set operation's two sides of different widths: the operation
+         *  ({@code UNION}, {@code INTERSECT}, {@code EXCEPT}). */
+        SET_WIDTHS
     }
 }

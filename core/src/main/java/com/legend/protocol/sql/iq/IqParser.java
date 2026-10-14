@@ -91,6 +91,10 @@ public final class IqParser {
     private static final Set<String> DATE_PART_CALLS = Set.of("datepart", "datename", "dateadd", "datediff",
             "dateround", "datefloor", "dateceiling");
 
+    /** IQ island, 2026-10-14 (the third landing): how many arguments each of them IQ reads takes (else its -154). */
+    private static final Map<String, Integer> PART_CALL_ARGUMENTS = Map.of("datepart", 2, "datename", 2, "dateadd", 3,
+            "datediff", 3);
+
     /** IQ island, 2026-10-14 (M1d): the date parts (GRAMMAR F20), each abbreviation to its full name. */
     private static final java.util.Map<String, String> DATE_PARTS = datePartNames();
 
@@ -166,11 +170,18 @@ public final class IqParser {
      *  comment or a line break stands between its tokens (each changes the name IQ gives it, measured). */
     public record Written(SqlAst.Expr expr, Map<SqlAst.Expr, Integer> parens, Set<SqlAst.Expr> simpleCases,
             Set<SqlAst.Expr> ifs, boolean commented, boolean brokenLines, Map<SqlAst.Expr, String> partWords,
-            Map<SqlAst.Expr, List<SqlAst.When>> droppedWhens, Map<SqlAst.Expr, SqlAst.Expr> droppedElse) {
+            Map<SqlAst.Expr, List<SqlAst.When>> droppedWhens, Map<SqlAst.Expr, SqlAst.Expr> droppedElse,
+            Map<SqlAst.Pos, int[]> lines, List<IqLexer.Token> tokens) {
 
         /** The parentheses written around {@code e}. */
         public int parensOf(SqlAst.Expr e) {
             return parens.getOrDefault(e, 0);
+        }
+
+        /** IQ island, 2026-10-14 (the third landing): the lines (1-based; a line feed, a carriage return and the two
+         *  together each end one, in a comment too) the token at {@code pos} starts and ends on, or null for none. */
+        public int @com.legend.base.Nullable [] linesAt(SqlAst.Pos pos) {
+            return lines.get(pos);
         }
     }
 
@@ -191,8 +202,36 @@ public final class IqParser {
             commented |= !gap.strip().isEmpty();
             brokenLines |= gap.indexOf('\n') >= 0 || gap.indexOf('\r') >= 0;
         }
+        // IQ island, 2026-10-14 (the third landing): each token's lines, counted as SQL Anywhere counts them (measured:
+        // a carriage return alone breaks a line too)
+        Map<SqlAst.Pos, int[]> lines = new java.util.HashMap<>();
+        int line = 1;
+        int scanned = 0;
+        for (IqLexer.Token t : tokens) {
+            if (t.kind() == IqLexer.Kind.EOF) {
+                break;
+            }
+            line += breaks(text, scanned, t.start());
+            int first = line;
+            line += breaks(text, t.start(), t.end());
+            scanned = t.end();
+            lines.put(t.pos(), new int[] {first, line});
+        }
         return new Written(e, p.parens, p.simpleCases, p.ifs, commented, brokenLines, p.partWords, p.droppedWhens,
-                p.droppedElse);
+                p.droppedElse, lines, tokens);
+    }
+
+    /** The line breaks in {@code text} from {@code from} to {@code to}: a line feed, a carriage return, and the two
+     *  together, one each. */
+    private static int breaks(String text, int from, int to) {
+        int n = 0;
+        for (int i = from; i < to; i++) {
+            char c = text.charAt(i);
+            if (c == '\n' && !(i > from && text.charAt(i - 1) == '\r') || c == '\r') {
+                n++;
+            }
+        }
+        return n;
     }
 
     /** A statement: a query expression ({@link #queryBlock}), with the tail clauses IQ reads after it refused. */
@@ -1635,6 +1674,13 @@ public final class IqParser {
         }
         List<SqlAst.Expr> args = new ArrayList<>();
         if (!empty && DATE_PART_CALLS.contains(IqLexer.lower(name)) && !peek().isOp(")")) {
+            // IQ island, 2026-10-14 (the third landing, measured): IQ counts the arguments before it reads the part
+            // (DATEDIFF(x, y) is its -154, not a part's syntax error)
+            Integer wanted = PART_CALL_ARGUMENTS.get(IqLexer.lower(name));
+            if (wanted != null && arguments() != wanted) {
+                throw new SqlSyntaxException("wrong number of arguments to " + name.toUpperCase(
+                        java.util.Locale.ROOT) + IqDialect.code(-154, "37505"), first.pos());
+            }
             // the date part is a keyword of its own, not an expression (GRAMMAR F19, F43); TZOFFSET only in DATEPART
             IqLexer.Token partToken = peek();
             SqlAst.Expr part = datePart();
@@ -1989,6 +2035,27 @@ public final class IqParser {
         return Integer.parseInt(t.text());
     }
 
+    /** How many arguments the call whose parenthesis was just read has: its commas outside inner parentheses, plus
+     *  one (the tokens are not consumed). */
+    private int arguments() {
+        int depth = 0;
+        int commas = 0;
+        for (int i = at; i < tokens.size() && tokens.get(i).kind() != IqLexer.Kind.EOF; i++) {
+            IqLexer.Token t = tokens.get(i);
+            if (t.isOp("(")) {
+                depth++;
+            } else if (t.isOp(")")) {
+                if (depth == 0) {
+                    return commas + 1;
+                }
+                depth--;
+            } else if (t.isOp(",") && depth == 0) {
+                commas++;
+            }
+        }
+        return commas + 1;
+    }
+
     /** A date part (GRAMMAR F20, F43): a name, plain or delimited, of IQ's parts or their abbreviations, as the
      *  constant string of the part's full name; a string or any other name is IQ's syntax error. */
     private SqlAst.Expr datePart() {
@@ -2205,6 +2272,13 @@ public final class IqParser {
     private SqlSyntaxException unexpected(IqLexer.Token t) {
         if (t.kind() == IqLexer.Kind.EOF) {
             return new SqlSyntaxException("the statement ends too soon" + IqDialect.syntaxCode(), t.pos());
+        }
+        if (t.is("into")) {
+            // IQ island, 2026-10-14 (the third landing): INTO after FROM (IQ reads it before FROM only: SQL Anywhere's
+            // syntax error -131, measured) is the same statement, refused as INTO is where IQ reads it
+            return SqlSyntaxException.unsupported("INTO (a query that stores its rows) is not supported in an"
+                    + " #IQ{...}# island: it is a value, not a statement (and IQ reads INTO before FROM only)",
+                    t.pos());
         }
         return SqlSyntaxException.unsupported("'" + t.text() + "' here is not supported", t.pos());
     }

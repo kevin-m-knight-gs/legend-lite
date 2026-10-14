@@ -1265,8 +1265,9 @@ final class IqAggregates {
     private static void readEverywhere(SqlAst.FunctionCall f, IqDialect dialect) {
         if (dialect.lazilyRead(f)) {
             throw SqlTranslationException.unsupported(f.name().get(0).text().toUpperCase(java.util.Locale.ROOT)
-                    + " read only for some groups (inside IF, CASE, COALESCE, ISNULL, IFNULL, NULLIF, under AND, OR or"
-                    + " NOT in HAVING, under a row limit, in a subquery, a derived table or a set operation's branch)"
+                    + " read only for some groups (a CASE's or an IF's value or later test, a later argument of"
+                    + " COALESCE, ISNULL, IFNULL or ARGN, under AND or OR, a bound of BETWEEN or a value of IN, under a"
+                    + " row limit, in a subquery, a derived table or a set operation's branch)"
                     + " is not supported: IQ checks its running total for every group (D-E3), lite's databases only"
                     + " where they read it", f.pos());
         }
@@ -1342,10 +1343,15 @@ final class IqAggregates {
      *  joinStrings of the values' digits, NULLs skipped, '' over none. */
     private static SqlToPure.Aggregation list(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
             @com.legend.base.Nullable IqType type, IqDialect dialect) {
-        if (f.distinct()) {
-            throw SqlTranslationException.unsupported("LIST(DISTINCT ...) is not supported yet", f.pos());
-        }
         SqlAst.Expr value = f.args().get(0);
+        // IQ island, 2026-10-14 (the third landing, measured): a LIST of a GROUP BY key lists one value, as often as
+        // its group has rows (once under DISTINCT), whatever the order; DISTINCT of anything else is refused (lite's
+        // Postgres orders a DISTINCT aggregate only by its argument, here the value's text)
+        boolean keyed = at.groupKey(value);
+        if (f.distinct() && !keyed) {
+            throw SqlTranslationException.unsupported("LIST(DISTINCT ...) is not supported yet but of a GROUP BY key:"
+                    + " lite's Postgres orders a DISTINCT list only by its text", f.pos());
+        }
         String delimiter = ",";
         if (f.args().size() == 2) {
             SqlAst.Expr d = f.args().get(1);
@@ -1358,13 +1364,13 @@ final class IqAggregates {
                         + " not supported (IQ's error -156 where the group holds two values)", d.pos());
             }
         }
-        if (f.orderBy().isEmpty()) {
+        if (f.orderBy().isEmpty() && !keyed) {
             throw SqlTranslationException.unsupported("LIST without ORDER BY is not supported: the order of its values"
                     + " is the plan's; order it by its value", f.pos());
         }
-        SqlAst.SortItem order = f.orderBy().get(0);
+        SqlAst.SortItem order = keyed ? null : f.orderBy().get(0);
         String column = value instanceof SqlAst.ColumnRef ref ? at.inputColumn(ref) : null;
-        if (f.orderBy().size() != 1 || column == null || !at.same(order.expr(), value)) {
+        if (order != null && (f.orderBy().size() != 1 || column == null || !at.same(order.expr(), value))) {
             throw SqlTranslationException.unsupported("LIST ordered by anything but its value, a column, is not"
                     + " supported yet: the order of tied rows is the plan's", order.pos());
         }
@@ -1387,10 +1393,26 @@ final class IqAggregates {
         Tx digits = SqlToPure.strict(Kind.STRING, List.of(x), v -> strings ? IqDialect.ifThen(SqlToPure.call("equal",
                 v.get(0), new CString("")), SqlToPure.nullOf(Kind.STRING).vs(), v.get(0))
                 : SqlToPure.call("toString", v.get(0)));
-        ValueSpecification key = SqlToPure.call(order.descending() ? "descending" : "ascending",
-                new ColSpec(column, null, null, null));
-        ColSpec spec = new ColSpec(raw, at.overGroup(SqlToPure.call("joinStrings", at.values(),
-                at.overRow(SqlToPure.valueOf(digits)), new CString(delimiter), key)), null, null);
+        if (f.distinct()) {
+            // a GROUP BY key's one value (an integer: of strings one key may hold several spellings), as text
+            if (strings) {
+                throw SqlTranslationException.unsupported("LIST(DISTINCT ...) of strings is not supported yet: one key"
+                        + " of IQ's collation may hold several spellings", f.pos());
+            }
+            ColSpec one = new ColSpec(raw, at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("max",
+                    at.values())), null);
+            ValueSpecification kept = at.column(raw);
+            ValueSpecification text = IqDialect.ifThen(SqlToPure.call("isEmpty", kept), new CString(""),
+                    SqlToPure.call("toString", SqlToPure.call("toOne", kept)));
+            return new SqlToPure.Aggregation(List.of(one), new ColSpec(at.name(), at.overRow(text), null, null),
+                    Kind.STRING, false, new IqType("LONG VARCHAR"));
+        }
+        ColSpec spec = order == null ? new ColSpec(raw, at.overGroup(SqlToPure.call("joinStrings", at.values(),
+                at.overRow(SqlToPure.valueOf(digits)), new CString(delimiter))), null, null)
+                : new ColSpec(raw, at.overGroup(SqlToPure.call("joinStrings", at.values(), at.overRow(
+                        SqlToPure.valueOf(digits)), new CString(delimiter), SqlToPure.call(order.descending()
+                        ? "descending" : "ascending", new ColSpec(java.util.Objects.requireNonNull(column), null, null,
+                        null)))), null, null);
         ValueSpecification listed = at.column(raw);
         ValueSpecification finish = IqDialect.ifThen(SqlToPure.call("isEmpty", listed), new CString(""),
                 SqlToPure.call("toOne", listed));

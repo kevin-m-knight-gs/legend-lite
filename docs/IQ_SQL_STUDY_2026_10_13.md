@@ -1796,3 +1796,98 @@ before the landing, found one blocker, two majors and three minors. Each fix is 
 **Evidence:** both lanes identical, 3,095 runs: PASS 1,913, REFUSED 789, BOTH_ERROR 389, SKIP 4; FAIL, BUG, ERROR 0.
 No earlier run moved. The answers: 2,705 cases, 3,091 answers (89 new; every earlier answer identical). The syntax
 verdicts are unchanged. The measurements and the before/after of each case are kept with the private research.
+
+### 9.16 The third landing, first part: the M1 gaps
+
+Built 2026-10-14 on `claude/iq-island-3`, over the second landing (§9.15). It reads the SELECT features the island
+refused though they need no decision, each measured on SQL Anywhere 17 first; catalog tables, server-state procedures
+and procedural wrappers stay refused by name. Every case answers what SQL Anywhere 17 answers, is refused by name, or
+is an error both raise: `lite/m1gaps.yaml` (356 cases, 360 runs) pins each item and its near misses.
+
+**Where it lives.** One new file, `protocol/sql/iq/IqAliases` (the select-list aliases, read when parsing). The seam
+gains two hooks, each Postgres's answer what it was (its generated Pure byte-identical): `InputDialect.columnNotHere`
+(a name the dialect refuses before it is looked up in an enclosing query) and `InputDialect.namesUnread` (a SELECT
+whose output names no one reads); and two `Problem`s (`DISTINCT_ORDER_KEY`, `SET_WIDTHS`) whose Postgres messages are
+the texts they replace. `SqlToPure.Grouping.groupKey` says whether an expression is a GROUP BY key.
+
+1. **A select-list alias read where IQ reads it** (`IqAliases`): in WHERE, ON, the select list (a later item's alias
+   too), GROUP BY, HAVING and inside an ORDER BY expression, an alias is its expression, written there, before a
+   column of its name (measured: the alias wins at its own level; a name inside its own definition is the column; a
+   definition through itself is IQ's -831; an aggregate's alias in WHERE -150; an ON reading an item outside its join
+   -824; a qualified name is never an alias). Inside a subquery IQ reads the subquery's own columns first, then the
+   enclosing query's alias, then the enclosing query's columns: that read is refused by name
+   (`IqDialect.columnNotHere`). **A latent wrong answer fixed:** the second landing answered such a read with the
+   enclosing column (found by this landing's probes; no committed case read one). Under ansinull Off an alias whose
+   expression reads a host variable is refused in WHERE and ON: where SQL Anywhere reads such a comparison
+   two-valued (§9.15) is measured for comparisons written in place only.
+2. **The name of an unaliased item** (`IqNames`): an alias the item reads is written as written (double quotes only
+   for a name that is not regular; `id AS id` read in `id+1` is `id+1`, not `t.id+1`: **a latent wrong name of the
+   second landing, fixed**). An item written over several lines or with comments is named as SQL Anywhere's printer
+   marks its line breaks: a leaf's line is its last token's (`\n`, `\r\n` and a lone `\r` each a break; a comment with
+   a line break counts); a break between two operands writes a space and the indentation before the operator, inside
+   a CASE or an IF value two spaces more for each level; a call's argument, CASE's THEN, WHEN, ELSE and END each by
+   their own measured rule. Measured over about 2,900 generated items (random and realistic): every name lite gives
+   matches. Refused by name: a break SQL Anywhere marks otherwise (inside a call named by a reserved word, LEFT's,
+   an aggregate's ORDER BY, a chain of `+`/`-` with parentheses, an ELSE after a value that ends in END, IS DISTINCT
+   FROM, a truth test, ESCAPE, an IN list it reorders), and SQL Anywhere's folding of a CASE or an IF whose test is a
+   constant and whose value is not, over a table (**a latent wrong name of the second landing**: it names the folded
+   value).
+3. **`owner.table.column`** (`IqAliases.owned`): bound to the FROM item its owner and table name (an unaliased table,
+   or `tb()` with the same name); none is IQ's -845, a name of no FROM item -142. An owner of IQ's own (`dbo`, `sys`,
+   ...) qualifying a name that is no catalog name's (`IqBindings.catalogName`) reads the model's table of a schema of
+   that owner's name when the model has one (`IqBindingsTest`; the parity model has no such schema); the catalog's
+   names, and such a name the model does not hold, stay refused with the same message as before.
+4. **Two output columns of one name** are answered where no one reads the names: an EXISTS's query, a set
+   operation's later branch, a derived table given a full column list (renamed internally). Where the result shows
+   them (the statement's own SELECT, an IN's or a scalar subquery's single column) the refusal stays: a relation's
+   names are distinct.
+5. **LIKE with a pattern the database computes** (`IqDialect.runtimePattern`, `runtimeLike`): a column, a host
+   variable, `'%' || x || '%'`: the regular expression is built in the database -- each character itself (a
+   backslash and the regular expression's own characters escaped), `%` any run, `_` one character (a line feed
+   too), matched whole. A pattern holding `[` (IQ's set class: measured, `[b]` is a set and an unclosed `[` UNKNOWN)
+   or longer than 126 characters (SQL Anywhere's -606 for some values) raises an error, never answers otherwise.
+   Refused by name: ESCAPE, a profile that matches without case (`sqla17-*`), a CHAR(n) operand or pattern under
+   IQ's engine (D-S5), a pattern that is no string.
+6. **LIST forms** (`IqAggregates.list`): LIST of a GROUP BY key, in any order or none (its group's values are one
+   value), and LIST(DISTINCT key) of an integer key (the value once). Still refused: LIST without ORDER BY of
+   anything else (its order is the plan's), LIST(DISTINCT) of anything else (lite's Postgres orders a DISTINCT
+   aggregate only by its argument's text), LIST(DISTINCT) of a string key (one collation key, several spellings).
+7. **A checked SUM or AVG (D-E3) read for every group** is answered: a CASE's or an IF's first test, the first
+   argument of COALESCE, ISNULL, IFNULL or ARGN, both of NULLIF's, a NOT's or a truth test's operand, BETWEEN's and
+   IN's tested value; and an aggregate also read so elsewhere in its query (`IqDialect.lazyCalls`). Read only for
+   some groups (a CASE's value or later test, a later argument, under AND or OR, BETWEEN's bounds, IN's list) it
+   stays refused.
+8. **TOP or FIRST in a subquery or a derived table** with ORDER BY (or under EXISTS, where only whether a row exists
+   is read) is answered in SQL Anywhere's front end (`sa_rowgenerator`, `DUMMY`, a `sqla17-*` profile). Under IQ's
+   engine it stays refused (the research's D-R1: IQ may ignore it there), and so does one without ORDER BY outside
+   EXISTS and one in a set operation's branch.
+9. **A subquery without FROM** is its one item's value: a whole select item `(SELECT expr)` under every engine,
+   anywhere in SQL Anywhere's front end (IQ's engine restricts subquery positions, §9.4). One with WHERE, an
+   aggregate, a row limit, DISTINCT or two items stays refused. TIME and REAL stay refused: lite has no time-of-day
+   lowering, and SQL Anywhere computes and prints REAL in single precision, which no Pure type holds.
+10. **IQ's codes for errors lite raised in Postgres's words**: an ORDER BY key no SELECT DISTINCT item shows is -854;
+    set-operation branches of different widths -153; a column neither grouped nor aggregated -149, and -854 when
+    ORDER BY reads it (measured). `SELECT ... FROM t INTO x` is refused as INTO (a statement, not a value);
+    DATEPART, DATENAME, DATEADD and DATEDIFF with the wrong number of arguments are -154 (before the date part is
+    read).
+
+**Moved runs.** Eighteen REFUSED runs are PASS on both lanes, none otherwise: `basics/alias_read_in_where`; ten of
+`m0.yaml`'s alias reads in an ORDER BY expression or WHERE (`alias_after_a_plus_sign_in_order_by`,
+`alias_inside_an_order_by_sum`, `alias_inside_case_in_order_by`, `alias_inside_if_in_order_by`,
+`alias_inside_isnull_in_order_by`, `alias_inside_nullif_in_order_by`, `alias_negated_in_order_by`,
+`alias_of_another_case_inside_order_by`, `alias_of_no_column_inside_order_by`, `tsql_alias_read_in_where`);
+`m1a/like_column_pattern_is_refused`; `m1b/name_with_a_comment_is_refused`;
+`m1c/having_an_alias_before_a_column_of_its_name`; `m1e/owner_qualified_column_is_refused`;
+`m1e/host_string_like_pattern_is_refused`; `rules/c01_language-220`; `rules/c09_statements-81` (all `@iq16-default`).
+The four whose ids say "refused" keep their ids, the ledger's keys, with a dated comment. Every other run is unchanged.
+
+**The syntax cases.** Accept PARSED 2,674 -> 2,687 (REFUSED 2,274 -> 2,261), thirteen cases: alias reads, FROM-less
+subqueries with TOP and ORDER BY, and `tempdb.dbo.#t` (parsed now, refused by name when translated). Flag, reject and
+both lists unchanged. The thirteen were snapped on SQL Anywhere 17 and run on both lanes: PASS 9, REFUSED 3, BOTH_ERROR
+1, none otherwise.
+
+**Evidence:** both lanes identical, 3,455 runs: PASS 2,184, REFUSED 835, BOTH_ERROR 432, SKIP 4; FAIL, BUG, ERROR 0
+(was 3,095: PASS 1,913, REFUSED 789, BOTH_ERROR 389, SKIP 4). `m1gaps.yaml` alone: PASS 253, REFUSED 64, BOTH_ERROR 43.
+The answers: 360 new; every earlier answer identical. The Postgres island's Pure is byte-identical and both
+`sql-parity` ledgers unchanged. The measurements (the probe sets and the naming datasets) are kept with the private
+research.

@@ -113,21 +113,35 @@ class IqToPureTest {
     }
 
     @Test
-    void aSelectListAliasReadAnywhereButAsABareOrderByKeyIsRefused() {
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id AS x FROM " + T
-                + " WHERE x = 1").kind());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT vc AS id FROM " + T
-                + " WHERE id = 1").kind());
-        // inside an ORDER BY expression IQ reads the alias too (the second review's B1), in any case and through any
-        // sign or function
+    void aSelectListAliasIsReadWhereIqReadsIt() {
+        // IQ island, 2026-10-14 (the third landing, measured on SQL Anywhere 17; it was refused): IQ reads an alias
+        // before a column of its name in WHERE, ON, the select list and inside ORDER BY, as its expression written
+        // there -- a copy of it
+        assertEquals("#>{s::DB.T}#->filter(r|$r.id == 1)->extend(~[x:r|$r.id])->select(~[x])",
+                pure("SELECT id AS x FROM " + T + " WHERE x = 1"));
+        assertTrue(pure("SELECT vc AS id FROM " + T + " WHERE id = 'a'").contains("$r.vc"));
         for (String key : new String[] {"x + 0", "-x", "+x", "ISNULL(x, 0)", "CASE WHEN X > 0 THEN 0 ELSE 1 END",
                 "IF x > 0 THEN 0 ELSE 1 ENDIF"}) {
-            SqlTranslationException e = refusal("SELECT id, sm AS x FROM " + T + " ORDER BY " + key);
-            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), key);
-            assertTrue(e.getMessage().contains("inside an ORDER BY expression"), e.getMessage());
+            assertTrue(pure("SELECT id, sm AS x FROM " + T + " ORDER BY " + key).contains("$r.sm"), key);
         }
-        SqlTranslationException shadow = refusal("SELECT id AS sm FROM " + T + " ORDER BY -sm");
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, shadow.kind());
+        // an alias defined later in the list, an alias of an alias; inside its own definition its name is the column
+        assertTrue(pure("SELECT x + 1 AS y, id AS x FROM " + T).contains("y:r|if(($r.id->floor() + 1"));
+        assertTrue(pure("SELECT id + 1 AS id FROM " + T + " WHERE id > 3").contains("->filter(r|if(($r.id->floor() + 1"
+                + " < -2147483648)"));
+        // a definition that reaches itself through another alias is IQ's error -831
+        assertTrue(refusal("SELECT id AS a, a + 1 AS id FROM " + T).getMessage().contains("-831"));
+        // an aggregate's alias in WHERE is IQ's -150
+        assertTrue(refusal("SELECT COUNT(*) AS n FROM " + T + " WHERE n > 1").getMessage().contains("-150"));
+        // inside a subquery an enclosing query's alias is read before its columns, a subquery's own column first:
+        // refused by name where the subquery's own FROM items hold no column of the name
+        assertTrue(refusal("SELECT id AS k FROM " + T + " a WHERE EXISTS (SELECT 1 FROM " + T + " b WHERE b.sm = k)")
+                .getMessage().contains("enclosing query's select list"));
+        pure("SELECT id AS sm FROM " + T + " a WHERE EXISTS (SELECT 1 FROM " + T + " b WHERE b.id = sm)");
+        // an unaliased item reading an alias is named as written
+        assertTrue(pure("SELECT id AS x, x + 1 FROM " + T).contains("'x+1'"));
+        assertTrue(pure("SELECT id AS id, id + 1 FROM " + T).contains("'id+1'"));
+        SqlTranslationException shadow = refusal("SELECT id AS sm, sm FROM " + T);
+        assertTrue(shadow.getMessage().contains("appears twice"), shadow.getMessage());
         // a bare alias, a position and a qualified column are read as before
         String bare = pure("SELECT id, sm AS x FROM " + T + " ORDER BY x");
         assertTrue(bare.contains("->sort([~x->ascending("), bare);
@@ -587,12 +601,20 @@ class IqToPureTest {
                 .getMessage().contains("D-S5"));
         assertTrue(refusal("SELECT id FROM " + T + " WHERE ch || '' LIKE 'a%'", IqProfile.IQ16_DEFAULT, WITH_CHAR)
                 .getMessage().contains("D-S5"));
-        for (String like : new String[] {"vc LIKE 'a[b]'", "vc LIKE vc", "vc LIKE 'a' ESCAPE '!!'",
+        for (String like : new String[] {"vc LIKE 'a[b]'", "vc LIKE vc ESCAPE '!'", "vc LIKE 'a' ESCAPE '!!'",
                 "vc LIKE 'a' ESCAPE ''", "vc LIKE '!a' ESCAPE '!'", "vc LIKE 'a!' ESCAPE '!'",
                 "vc LIKE '" + "a".repeat(127) + "'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE " + like)
                     .kind(), like);
         }
+        // IQ island, 2026-10-14 (the third landing): a pattern the database computes is matched as a constant one is,
+        // its regular expression built there; a [ in it (IQ's set class) or a pattern of more than 126 characters
+        // raises
+        String computed = pure("SELECT id FROM " + T + " WHERE vc LIKE '%' || vc");
+        assertTrue(computed.contains("matches('(?s)' + ") && computed.contains(", '[')")
+                && computed.contains(") > 126"), computed);
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE vc LIKE vc",
+                IqProfile.SQLA17_DEFAULT, COLUMNS).kind());
         // a pattern's errors are refused before translation, as the syntax-case ratchet reads them
         assertThrows(SqlTranslationException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT).parse(
                 "SELECT 1 AS x WHERE 'a' LIKE 'a' ESCAPE '!!'"));
@@ -666,8 +688,14 @@ class IqToPureTest {
         // a parenthesized query shows as its one item, named in its own query
         assertTrue(pure("SELECT (SELECT b.sm + 1 FROM " + T + " b WHERE b.id = 1) FROM " + T + " a").contains(
                 "'b.sm+1'"));
-        // no rendering: a comment between the tokens, a derived table's column (SQL Anywhere renders its definition)
-        assertTrue(refusal("SELECT id /* c */ + 1 FROM " + T).getMessage().contains("needs an alias"));
+        // IQ island, 2026-10-14 (the third landing, measured): a comment without a line break leaves no mark, a line
+        // break leaves a space (and two for each CASE value level around it) where SQL Anywhere marks one
+        assertTrue(pure("SELECT id /* c */ + 1 FROM " + T).contains("'T.id+1'"));
+        assertTrue(pure("SELECT id\n+ 1, COALESCE(\nsm, 0), CASE WHEN id > 1\nTHEN id\n+ 1\nELSE 0 END FROM " + T)
+                .contains("['T.id +1', 'COALESCE( T.sm,0)', 'case when T.id > 1 then   T.id   +1 else 0 end']"));
+        // SQL Anywhere's own folding of a constant test over a table names the item otherwise: not named here
+        assertTrue(refusal("SELECT IF 1 = 3 THEN vc ELSE 'b' ENDIF FROM " + T).getMessage().contains("needs an"));
+        // no rendering: a derived table's column (SQL Anywhere renders its definition)
         assertTrue(refusal("SELECT x + 1 FROM (SELECT id AS x FROM " + T + ") d").getMessage().contains("needs an"
                 + " alias"));
         // a name no one sees (an EXISTS subquery's item) is never refused
@@ -793,15 +821,23 @@ class IqToPureTest {
     void aCheckedSumReadForSomeGroupsOnlyIsRefused() {
         // IQ island, 2026-10-14 (review 3's B1): D-E3's check is computed where the SUM is read, so a SUM read inside
         // IF, CASE, COALESCE, under AND/OR in HAVING or under a row limit is refused; read everywhere, it is checked
+        // (the third landing: a CASE's first test, a NULL-reading function's first argument, a NOT's operand are read
+        // for every group)
         for (String sql : List.of(
                 "SELECT sm, IF sm = 4 THEN 0 ELSE SUM(i) ENDIF AS s FROM " + T + " GROUP BY sm",
                 "SELECT sm, COALESCE(MAX(i), SUM(i)) AS s FROM " + T + " GROUP BY sm",
                 "SELECT sm FROM " + T + " GROUP BY sm HAVING COUNT(*) > 2 AND SUM(i) > 0",
-                "SELECT sm FROM " + T + " GROUP BY sm HAVING NOT (SUM(d) <= 0)",
                 "SELECT TOP 1 sm, SUM(i) AS s FROM " + T + " GROUP BY sm ORDER BY sm")) {
             assertTrue(numbersRefusal(sql).getMessage().contains("D-E3"), sql);
         }
         assertTrue(numbers("SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm HAVING SUM(i) > 0").contains("sum()"));
+        for (String sql : List.of("SELECT sm FROM " + T + " GROUP BY sm HAVING NOT (SUM(d) <= 0)",
+                "SELECT sm, IF SUM(i) > 0 THEN 1 ELSE 0 ENDIF AS s FROM " + T + " GROUP BY sm",
+                "SELECT sm, COALESCE(SUM(i), 0) AS s FROM " + T + " GROUP BY sm",
+                "SELECT sm, CASE WHEN SUM(i) > 9 THEN 'a' WHEN SUM(i) > 0 THEN 'b' END AS s FROM " + T
+                        + " GROUP BY sm")) {
+            numbers(sql);
+        }
         // a NUMERIC's SUM has no check to miss
         pure("SELECT SUM(nm) AS s FROM " + T + " HAVING COUNT(*) > 2 AND SUM(nm) > 0", IqProfile.SQLA17_DEFAULT,
                 NUMBERS);

@@ -125,6 +125,8 @@ tests:
   - id: name_of_a_constant_scalar_subquery
     sql: "SELECT (SELECT 1 + 1 FROM DUMMY), ((SELECT dummy_col FROM DUMMY))"
     engine: sa
+  # IQ island, 2026-10-14 (the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16): answered now; the id
+  # is kept as the ledger's key
   - id: name_with_a_comment_is_refused
     sql: "SELECT id /* one */ + 1 FROM t WHERE id = 1"
   - id: name_over_a_derived_column_is_refused

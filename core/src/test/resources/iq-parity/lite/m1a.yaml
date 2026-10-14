@@ -549,6 +549,8 @@ tests:
     engine: sa
   - id: like_char_column_is_refused
     sql: "SELECT id FROM t WHERE ch LIKE 'ab%' ORDER BY id"
+  # IQ island, 2026-10-14 (the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16): answered now; the id
+  # is kept as the ledger's key
   - id: like_column_pattern_is_refused
     sql: "SELECT id FROM t WHERE vc LIKE vc ORDER BY id"
   - id: like_double_is_refused

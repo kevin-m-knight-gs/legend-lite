@@ -523,7 +523,8 @@ tests:
     sql: "SELECT [ID] + `sm` AS n FROM t WHERE \"Id\" = 3"
 
   # ---- the second review (2026-10-14). IQ reads a select-list alias before a column of its name everywhere, also
-  # inside an ORDER BY expression: refused there until it is read (a bare alias and a position read the select list)
+  # inside an ORDER BY expression: refused there until it is read (a bare alias and a position read the select list).
+  # IQ island, 2026-10-14 (the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16): read now, as IQ reads it
   - id: alias_inside_an_order_by_sum
     sql: "SELECT id, sm AS it FROM t ORDER BY it + 0"
   - id: alias_after_a_plus_sign_in_order_by

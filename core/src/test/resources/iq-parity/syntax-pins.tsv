@@ -80,8 +80,16 @@
 # review 4's case file (its 186 dropped cases stay dropped; none of M1e's sixteen is among them): accept PARSED
 # 2,658 -> 2,674 (REFUSED 2,290 -> 2,274), every other count and both lists unchanged. Per case over this file, against
 # review 4's reader only M1e's sixteen move (REFUSED -> PARSED), and against M1e's reader none moves.
-accept	parsed	2674
-accept	refused	2274
+# IQ island, 2026-10-14 (the third landing, the M1 gaps): a select-list alias is read where IQ reads it (WHERE, ON,
+# the select list, GROUP BY, HAVING), a FROM-less subquery is read, TOP in a subquery with ORDER BY under SQL Anywhere's
+# engine, and a non-catalog name an owner of IQ's own qualifies parses (bound when translated to the model's schema of
+# that name, else refused by name): accept PARSED 2,674 -> 2,687 (REFUSED 2,274 -> 2,261), thirteen cases
+# (a1_sa_lang-1744; a6_sa_query-172, -173; s1_lexical-1127 .. -1130; s2_query-239, -242, -243; z2_redteam-97, -823,
+# -825). Flag, reject and both lists unchanged. The thirteen were snapped on SQL Anywhere 17 and run on both lanes:
+# PASS 9, REFUSED 3 (a duplicate output name; two FROM-less union branches inside a subquery), BOTH_ERROR 1 (a
+# temporary table dbo qualifies, refused by name), none otherwise.
+accept	parsed	2687
+accept	refused	2261
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1

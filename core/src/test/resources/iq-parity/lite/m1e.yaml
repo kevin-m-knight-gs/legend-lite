@@ -127,6 +127,8 @@ tests:
     sql: "SELECT row_num FROM DBA.sa_rowgenerator(1, 2)"
   - id: temporary_table_of_tempdb_is_refused
     sql: "SELECT * FROM tempdb..#t"
+  # IQ island, 2026-10-14 (the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16): answered now; the id
+  # is kept as the ledger's key
   - id: owner_qualified_column_is_refused
     sql: "SELECT DBA.t.id FROM DBA.t ORDER BY 1"
   - id: owner_qualified_star_is_refused
@@ -284,6 +286,8 @@ tests:
   - id: host_string_upper
     sql: "SELECT UPPER(@name) AS u, LOWER(@name) AS l"
     params: "name = 'MiXed'"
+  # IQ island, 2026-10-14 (the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16): answered now; the id
+  # is kept as the ledger's key
   - id: host_string_like_pattern_is_refused
     sql: "SELECT id FROM t WHERE vc LIKE @name ORDER BY id"
     params: "name = 'h%'"

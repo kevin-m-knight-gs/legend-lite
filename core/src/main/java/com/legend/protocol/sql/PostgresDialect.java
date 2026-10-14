@@ -201,6 +201,8 @@ public final class PostgresDialect implements InputDialect {
             case NO_SUCH_USING_COLUMN -> "column \"" + args[0] + "\" specified in USING clause does not exist in "
                     + args[1] + " table";
             case NO_SUCH_WINDOW -> "window \"" + args[0] + "\" does not exist";
+            case DISTINCT_ORDER_KEY -> "for SELECT DISTINCT, ORDER BY expressions must appear in select list";
+            case SET_WIDTHS -> "each " + args[0] + " query must have the same number of columns";
         };
     }
 }

@@ -125,6 +125,23 @@ class IqBindingsTest {
         }
     }
 
+    @Test
+    void aNameOfIqsOwnUsersThatIsNoCatalogNameReadsTheModelsSchemaOfThatName() {
+        // IQ island, 2026-10-14 (the third landing): a T-SQL database's dbo.orders is the model's table of a schema dbo
+        List<SqlToPure.CatalogTable> tsql = List.of(new SqlToPure.CatalogTable("e2e::DB", "default", "t"),
+                new SqlToPure.CatalogTable("e2e::DB", "dbo", "orders"),
+                new SqlToPure.CatalogTable("e2e::DB", "dbo", "sysobjects"));
+        assertTrue(pure("SELECT id FROM dbo.orders", tsql).startsWith("#>{e2e::DB.dbo.orders}#"));
+        assertTrue(pure("SELECT id FROM DBO.Orders o", tsql).startsWith("#>{e2e::DB.dbo.orders}#"));
+        // a catalog name stays IQ's catalog's, whatever the model holds; with no such schema, refused as before
+        for (String sql : new String[] {"SELECT id FROM dbo.sysobjects", "SELECT id FROM SYS.SYSTAB",
+                "SELECT id FROM dbo.t", "SELECT id FROM dbo.nosuch"}) {
+            SqlTranslationException e = assertThrows(SqlTranslationException.class, () -> pure(sql, tsql), sql);
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
+            assertTrue(e.getMessage().contains("one of IQ's own users"), e.getMessage());
+        }
+    }
+
     /** An Integer variable read as IQ's BIGINT (IQ island, 2026-10-14, review 5's B1): a value BIGINT cannot hold
      *  raises, tested through differences lite's databases compute wider than 64 bits. */
     private static final String LO = "if(($lo - 9223372036854775807 > 0) || ($lo + 9223372036854775807 < -1),"

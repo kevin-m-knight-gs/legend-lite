@@ -135,10 +135,6 @@ public final class IqDialect implements InputDialect {
      *  limit: IQ computes the select list only for the rows the limit keeps, where lite's databases may compute it for
      *  every row, so an operation there that can raise IQ's error is refused ({@link #checkedInteger}). */
     private final Set<SqlAst.Expr> limited;
-    /** Whether the statement reads a FROM clause and has no ORDER BY: its row limit's rows are IQ's choice. */
-    private final boolean unordered;
-    /** Whether the statement has a TOP count (its LIMIT), beside or instead of a START AT (its OFFSET). */
-    private final boolean counted;
     /** The select items whose names the statement shows (its first branch's, and each derived table's): one IQ's
      *  name for is not known is refused there; anywhere else (a subquery's column) no one sees the name. */
     private final Set<SqlAst.SelectExpr> shown;
@@ -158,6 +154,24 @@ public final class IqDialect implements InputDialect {
     /** The texts the trees {@link #parse} read do not keep (M1c: their GROUP BY items' and aggregates', by identity),
      *  for {@link #reading}. */
     private final Map<SqlAst.Expr, String> spans = new IdentityHashMap<>();
+    /** IQ island, 2026-10-14 (the third landing): the names inside a subquery that an enclosing SELECT's alias may be
+     *  ({@link IqAliases}), by identity: read as their own query's columns only ({@link #columnNotHere}). */
+    private final Set<SqlAst.ColumnRef> outerReads = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-14 (the third landing): the aliases (lower case) each unaliased select item reads
+     *  ({@link IqAliases}), by identity: its name shows them as written. */
+    private final Map<SqlAst.SelectExpr, Set<String>> aliasesRead = new IdentityHashMap<>();
+    /** IQ island, 2026-10-14 (the third landing): the SELECTs of the statement no one reads the output names of -- an
+     *  EXISTS subquery's, a set operation's branches but its first, a derived table's whose column list names each of
+     *  its columns (measured: SQL Anywhere answers them with two columns of one name) -- by identity
+     *  ({@link #namesUnread}). */
+    private final Set<SqlAst.Select> unreadNames = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-14 (the third landing): each row limit's count (TOP's, START AT's) by identity: whether its
+     *  query keeps rows of its plan's choosing (a FROM, no ORDER BY, not an EXISTS subquery's) and whether it has a
+     *  TOP count ({@link #rowCount}). */
+    private final Map<SqlAst.Expr, boolean[]> limits = new IdentityHashMap<>();
+    /** IQ island, 2026-10-14 (the third landing): the column references of the statement's ORDER BY clauses, by
+     *  identity (a grouped query's column no key reads is IQ's -854 there, -149 elsewhere). */
+    private final Set<Object> orderRefs = Collections.newSetFromMap(new IdentityHashMap<>());
     /** IQ island, 2026-10-14 (natives): the expressions the statement shows as they are -- its select items, when it
      *  is one SELECT without DISTINCT (not {@link #shown}, the items whose names it shows: a merge of M1b's and the
      *  natives slice's fields of one name). SQL Anywhere rounds a NUMERIC quotient to its scale only where it shows it:
@@ -188,8 +202,8 @@ public final class IqDialect implements InputDialect {
     private final Map<SqlAst.Select, SqlAst.Select> grouped;
 
     private IqDialect(IqProfile profile, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
-            @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.Expr> limited, boolean unordered,
-            boolean counted, Set<SqlAst.SelectExpr> shown, Set<String> derived, Set<SqlAst.Pos> starred,
+            @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.Expr> limited, Set<SqlAst.SelectExpr> shown,
+            Set<String> derived, Set<SqlAst.Pos> starred,
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
             @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
             Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped) {
@@ -203,8 +217,6 @@ public final class IqDialect implements InputDialect {
         this.caseConditions = caseConditions;
         this.referenced = referenced;
         this.limited = limited;
-        this.unordered = unordered;
-        this.counted = counted;
         this.shown = shown;
         this.derived = derived;
         this.shownValues = shownValues;
@@ -217,14 +229,14 @@ public final class IqDialect implements InputDialect {
     /** The dialect of an island written for {@code profile}: each statement's engine chosen by its FROM clause
      *  ({@link #engineOf}, the study's I3: {@code engine=auto}). */
     public static IqDialect of(IqProfile profile) {
-        return new IqDialect(profile, null, Set.of(), null, Set.of(), false, false, Set.of(), Set.of(), Set.of(),
+        return new IqDialect(profile, null, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of());
     }
 
     /** The dialect under {@code profile} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqProfile profile, Engine engine) {
-        return new IqDialect(profile, engine, Set.of(), null, Set.of(), false, false, Set.of(), Set.of(), Set.of(),
+        return new IqDialect(profile, engine, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of());
     }
@@ -310,6 +322,28 @@ public final class IqDialect implements InputDialect {
     public SqlAst.Statement parse(String sql) {
         IqParser.Parsed read = IqParser.parsed(sql, profile);
         SqlAst.Statement statement = read.statement();
+        // IQ island, 2026-10-14 (the third landing): two aliases of one name are IQ's error, and an alias spelled like
+        // a host variable is refused, as written; then every alias is read where IQ reads it (IqAliases)
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                uniqueAliases(s);
+                variableAliases(s);
+            }
+        }
+        spans.putAll(read.spans());
+        IqAliases.Read aliased = IqAliases.resolve(statement, spans, profile,
+                (engine != null ? engine : engineOf(statement, profile)) == Engine.SA);
+        statement = aliased.statement();
+        outerReads.addAll(aliased.outerReads());
+        aliasesRead.putAll(aliased.aliasesRead());
+        Set<SqlAst.Select> setBranches = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.SetOperation o) {
+                List<SqlAst.Select> all = new ArrayList<>();
+                branches(o, all);
+                setBranches.addAll(all);
+            }
+        }
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.SetOperation o) {
                 setWidths(o);
@@ -339,14 +373,14 @@ public final class IqDialect implements InputDialect {
                 likePatterns(e);
                 subqueryWidths(e);
             }
-            uniqueAliases(s);
-            noAliasRead(s);
             // IQ island, 2026-10-14 (M1c): the errors IQ raises for a query's aggregates and grouping
             IqAggregates.parsed(s);
             nameLengths(s);
             fromClause(s);
             orderPositions(s);
-            if (s != statement && (s.limit() != null || s.offset() != null)) {
+            if (s != statement && (s.limit() != null || s.offset() != null) && setBranches.contains(s)) {
+                // IQ island, 2026-10-14 (the third landing): a subquery's and a derived table's are read
+                // ({@link #reading}); a set operation's branch's stays refused
                 SqlAst.Expr at = s.limit() != null ? s.limit() : s.offset();
                 throw SqlTranslationException.unsupported("TOP, FIRST or START AT in a subquery, a derived table or a"
                         + " set operation's branch is not supported yet (IQ's engine restricts it too)",
@@ -356,7 +390,6 @@ public final class IqDialect implements InputDialect {
         bound(statement, Map.of());
         // IQ island, 2026-10-14 (M1c): the grouping errors a SELECT's own reading cannot see
         IqAggregates.statement(statement);
-        spans.putAll(read.spans());
         return statement;
     }
 
@@ -1001,8 +1034,6 @@ public final class IqDialect implements InputDialect {
         Set<String> setDerivedHere = new java.util.HashSet<>();
         Set<String> names = new java.util.HashSet<>();
         Set<SqlAst.Pos> starredHere = new java.util.HashSet<>();
-        boolean unorderedHere = false;
-        boolean countedHere = false;
         for (SqlAst.Statement q : queries(statement)) {
             if (!(q instanceof SqlAst.Select s)) {
                 continue;
@@ -1038,12 +1069,50 @@ public final class IqDialect implements InputDialect {
                 }
             }
             s.orderBy().forEach(o -> within(o.expr(), limitedHere));
-            unorderedHere = s.orderBy().isEmpty() && !s.from().isEmpty();
-            countedHere = s.limit() != null;
         }
         Engine chosen = engine != null ? engine : engineOf(statement, profile);
         if (chosen == Engine.IQ) {
             subqueryPlaces(statement);
+        }
+        // IQ island, 2026-10-14 (the third landing; measured on SQL Anywhere 17): a row limit in a subquery or a
+        // derived table keeps its rows as the statement's own does; IQ's engine restricts it (the research's D-R1, IQ
+        // may ignore it there), so it is read in SQL Anywhere's front end only
+        Map<SqlAst.Expr, boolean[]> limits = new IdentityHashMap<>();
+        Set<SqlAst.Select> inExists = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : expressions(s)) {
+                    existsQueries(e, inExists);
+                }
+            }
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s) || s.limit() == null && s.offset() == null) {
+                continue;
+            }
+            if (s != statement) {
+                if (chosen == Engine.IQ) {
+                    SqlAst.Expr at = s.limit() != null ? s.limit() : s.offset();
+                    throw SqlTranslationException.unsupported("TOP, FIRST or START AT in a subquery or a derived table"
+                            + " is not supported under IQ's engine, which restricts it (the research's D-R1: IQ may"
+                            + " ignore it there)", java.util.Objects.requireNonNull(at).pos());
+                }
+                for (SqlAst.SelectItem item : s.items()) {
+                    if (item instanceof SqlAst.SelectExpr x) {
+                        within(x.expr(), limitedHere);
+                    }
+                }
+                s.orderBy().forEach(o -> within(o.expr(), limitedHere));
+            }
+            // an EXISTS subquery's rows are counted, never shown: which ones a limit keeps is no one's concern
+            boolean[] flags = {s.orderBy().isEmpty() && !s.from().isEmpty() && !inExists.contains(s),
+                s.limit() != null};
+            if (s.limit() != null) {
+                limits.put(java.util.Objects.requireNonNull(s.limit()), flags);
+            }
+            if (s.offset() != null) {
+                limits.put(java.util.Objects.requireNonNull(s.offset()), flags);
+            }
         }
         nullFirstBranches(statement);
         clocks(statement);
@@ -1056,10 +1125,80 @@ public final class IqDialect implements InputDialect {
                 groupedHere.put(s, IqAggregates.grouping(s));
             }
         }
-        return new IqDialect(profile, chosen, inCase, names, limitedHere, unorderedHere, countedHere, shownHere,
-                derivedHere, starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement),
-                IqKeys.of(statement, profile), lazyAggregates(statement), chains(statement),
-                twoValuedPlaces(statement, groupedHere), groupedHere);
+        IqDialect read = new IqDialect(profile, chosen, inCase, names, limitedHere, shownHere, derivedHere,
+                starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, profile),
+                lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere);
+        read.outerReads.addAll(outerReads);
+        read.aliasesRead.putAll(aliasesRead);
+        read.limits.putAll(limits);
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.SortItem o : s.orderBy()) {
+                    List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                    columnRefs(o.expr(), refs);
+                    read.orderRefs.addAll(refs);
+                }
+            }
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.SetOperation o) {
+                List<SqlAst.Select> later = new ArrayList<>();
+                branches(o, later);
+                later.remove(0);
+                read.unreadNames.addAll(later);
+            } else if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : expressions(s)) {
+                    existsQueries(e, read.unreadNames);
+                }
+                // a derived table whose column list names every column: its query's own names are read by no one
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d && !d.columnAliases().isEmpty()) {
+                            List<SqlAst.Select> all = new ArrayList<>();
+                            branches(d.query(), all);
+                            SqlAst.Select named = all.get(0);
+                            if (named.items().stream().allMatch(i -> i instanceof SqlAst.SelectExpr)
+                                    && named.items().size() == d.columnAliases().size()) {
+                                read.unreadNames.add(named);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return read;
+    }
+
+    /** The SELECTs of the EXISTS subqueries under {@code e} (their own queries' too, through {@link #queries}). */
+    private static void existsQueries(SqlAst.Expr e, Set<SqlAst.Select> out) {
+        if (e instanceof SqlAst.Exists x) {
+            List<SqlAst.Select> all = new ArrayList<>();
+            branches(x.query(), all);
+            out.addAll(all);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            existsQueries(child, out);
+        }
+    }
+
+    /** IQ island, 2026-10-14 (the third landing): an EXISTS subquery's, or a set operation's later branch's, output
+     *  names are read by no one ({@link #unreadNames}). */
+    @Override
+    public boolean namesUnread(SqlAst.Select s) {
+        return unreadNames.contains(s);
+    }
+
+    /** IQ island, 2026-10-14 (the third landing; measured on SQL Anywhere 17): a name inside a subquery that is no
+     *  column of its own query's FROM items, and that an enclosing SELECT's alias may be ({@link IqAliases}): IQ reads
+     *  the alias there, before the enclosing query's columns (a column of the subquery's own comes first), which is
+     *  not read yet. */
+    @Override
+    public void columnNotHere(SqlAst.ColumnRef ref) {
+        if (outerReads.contains(ref)) {
+            throw SqlTranslationException.unsupported("'" + ref.parts().get(0).text() + "' names an alias of an"
+                    + " enclosing query's select list, which IQ reads before its columns inside a subquery: reading it"
+                    + " there is not supported yet; write the alias's expression", ref.pos());
+        }
     }
 
     /**
@@ -1751,15 +1890,21 @@ public final class IqDialect implements InputDialect {
             // query around it reads its column, for some rows only as that query pleases -- only the statement's own
             // SELECT shows a checked one
             boolean all = s0 != statement || inSubqueries.contains(s0) || s.limit() != null || s.offset() != null;
+            Set<String> lazyHere = new java.util.HashSet<>();
+            Set<String> eagerHere = new java.util.HashSet<>();
             for (SqlAst.SelectItem item : s.items()) {
                 if (item instanceof SqlAst.SelectExpr x) {
-                    lazyCalls(x.expr(), all, false, out);
+                    lazyCalls(x.expr(), all, lazyHere, eagerHere);
                 }
             }
-            s.orderBy().forEach(o -> lazyCalls(o.expr(), all, false, out));
+            s.orderBy().forEach(o -> lazyCalls(o.expr(), all, lazyHere, eagerHere));
             if (s.having() != null) {
-                lazyCalls(java.util.Objects.requireNonNull(s.having()), all, true, out);
+                lazyCalls(java.util.Objects.requireNonNull(s.having()), all, lazyHere, eagerHere);
             }
+            // IQ island, 2026-10-14 (the third landing): an aggregate the query also reads for every group is
+            // computed, and checked, for every group
+            lazyHere.removeAll(eagerHere);
+            out.addAll(lazyHere);
         }
         return out;
     }
@@ -1778,21 +1923,34 @@ public final class IqDialect implements InputDialect {
     /** The NULL-reading functions, whose later arguments are read for some rows only. */
     private static final Set<String> NULL_READERS = Set.of("coalesce", "isnull", "ifnull", "nullif", "argn");
 
-    private static void lazyCalls(SqlAst.Expr e, boolean lazy, boolean having, Set<String> out) {
+    /**
+     * The shapes of the aggregate calls under {@code e} into {@code lazyOut} where they are read for some rows or groups
+     * only, into {@code eagerOut} where for every one. IQ island, 2026-10-14 (the third landing; measured on SQL
+     * Anywhere 17): a CASE's (an IF's) first test, a NULL-reading function's first argument (NULLIF's both), a NOT's
+     * and a truth test's operand, BETWEEN's and IN's tested value are read for every row their expression is read
+     * for; a CASE's later tests and its values, the other arguments, the operands of AND and OR (a database may
+     * evaluate either first) and BETWEEN's bounds and IN's list for some only.
+     */
+    private static void lazyCalls(SqlAst.Expr e, boolean lazy, Set<String> lazyOut, Set<String> eagerOut) {
         if (e instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
-            if (lazy) {
-                out.add(IqAggregates.shape(f));
-            }
+            (lazy ? lazyOut : eagerOut).add(IqAggregates.shape(f));
             return;
         }
-        boolean here = lazy || e instanceof SqlAst.Case
-                || e instanceof SqlAst.FunctionCall f && f.name().size() == 1
-                && NULL_READERS.contains(IqLexer.lower(f.name().get(0).text()))
-                || having && (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.AND
-                || b.op() == SqlAst.BinaryOp.OR) || e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.NOT
-                || e instanceof SqlAst.IsTruth || e instanceof SqlAst.Between || e instanceof SqlAst.InList);
-        for (SqlAst.Expr child : children(e)) {
-            lazyCalls(child, here, having, out);
+        List<SqlAst.Expr> parts = children(e);
+        for (int i = 0; i < parts.size(); i++) {
+            boolean here = lazy;
+            if (e instanceof SqlAst.Case) {
+                // its parts in order: [operand,] test, result, test, result, ..., [else]
+                SqlAst.Case c = (SqlAst.Case) e;
+                here |= i != (c.operand() != null ? 1 : 0) && !(c.operand() != null && i == 0);
+            } else if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                    && NULL_READERS.contains(IqLexer.lower(f.name().get(0).text()))) {
+                here |= i > (IqLexer.lower(f.name().get(0).text()).equals("nullif") ? 1 : 0);
+            } else if (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR)
+                    || e instanceof SqlAst.Between || e instanceof SqlAst.InList) {
+                here |= e instanceof SqlAst.Binary || i > 0;
+            }
+            lazyCalls(parts.get(i), here, lazyOut, eagerOut);
         }
     }
 
@@ -2192,46 +2350,20 @@ public final class IqDialect implements InputDialect {
         return "";
     }
 
-    /** A select-list alias read in WHERE, in the select list, or inside an ORDER BY expression: IQ reads the alias's
-     *  expression there (a reference names an alias before a column, everywhere), which is not read yet. ORDER BY's
-     *  bare name (an output column first, as IQ reads it) and its positions read the select list already. An alias of
-     *  the column of its own name reads the same either way. */
-    private static void noAliasRead(SqlAst.Select s) {
-        Map<String, SqlAst.SelectExpr> aliases = new HashMap<>();
+    /** IQ island, 2026-10-14 (review 5's M2, measured with a real variable): an alias spelled like a variable
+     *  ({@code "@lo"}) is read before the variable {@code @lo}, in the select list and in WHERE; lite reads the
+     *  variable, so such a read is refused by name. Any other alias read is read as IQ reads it ({@link IqAliases},
+     *  the third landing). */
+    private static void variableAliases(SqlAst.Select s) {
+        Set<String> aliases = new java.util.HashSet<>();
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x && x.alias() != null) {
-                aliases.putIfAbsent(IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text()), x);
+                aliases.add(IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text()));
             }
         }
         if (aliases.isEmpty()) {
             return;
         }
-        List<SqlAst.ColumnRef> refs = new ArrayList<>();
-        for (SqlAst.SelectItem item : s.items()) {
-            if (item instanceof SqlAst.SelectExpr x) {
-                columnRefs(x.expr(), refs);
-            }
-        }
-        if (s.where() != null) {
-            columnRefs(java.util.Objects.requireNonNull(s.where()), refs);
-        }
-        for (SqlAst.FromItem f : s.from()) {
-            List<SqlAst.Join> joins = new ArrayList<>();
-            joins(f, joins);
-            for (SqlAst.Join j : joins) {
-                if (j.on() != null) {
-                    columnRefs(java.util.Objects.requireNonNull(j.on()), refs);
-                }
-            }
-        }
-        int outside = refs.size();
-        for (SqlAst.SortItem o : s.orderBy()) {
-            if (!(o.expr() instanceof SqlAst.ColumnRef) && !(o.expr() instanceof SqlAst.IntegerLit)) {
-                columnRefs(o.expr(), refs);
-            }
-        }
-        // IQ island, 2026-10-14 (review 5's M2, measured with a real variable): an alias spelled like a variable
-        // ("@lo") is read before the variable @lo, in the select list and in WHERE; lite reads the variable
         List<SqlAst.Param> params = new ArrayList<>();
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x) {
@@ -2259,25 +2391,10 @@ public final class IqDialect implements InputDialect {
         clauses.forEach(e -> params(e, params));
         for (SqlAst.Param p : params) {
             String written = p.name();
-            if (written != null && written.startsWith("@") && aliases.containsKey(IqLexer.lower(written))) {
+            if (written != null && written.startsWith("@") && aliases.contains(IqLexer.lower(written))) {
                 throw SqlTranslationException.unsupported("'" + written + "' names the select list's alias, which IQ"
                         + " reads before a variable of that name: reading an alias in place of a host variable is not"
                         + " supported yet; rename the alias", p.pos());
-            }
-        }
-        for (int i = 0; i < refs.size(); i++) {
-            SqlAst.ColumnRef ref = refs.get(i);
-            if (ref.parts().size() != 1) {
-                continue;
-            }
-            String name = IqLexer.lower(ref.parts().get(0).text());
-            SqlAst.SelectExpr aliased = aliases.get(name);
-            if (aliased != null && !(aliased.expr() instanceof SqlAst.ColumnRef c
-                    && IqLexer.lower(c.parts().get(c.parts().size() - 1).text()).equals(name))) {
-                throw SqlTranslationException.unsupported("'" + ref.parts().get(0).text() + "' names the select"
-                        + " list's alias, which IQ reads before a column of that name: reading an alias "
-                        + (i < outside ? "in WHERE, ON or the select list" : "inside an ORDER BY expression (only a bare"
-                        + " alias or a position is read there)") + " is not supported yet", ref.pos());
             }
         }
     }
@@ -2334,7 +2451,18 @@ public final class IqDialect implements InputDialect {
         while (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
             e = u.operand();
         }
+        // IQ island, 2026-10-14 (the third landing, measured): an alias the item reads shows as written (x + 1 over
+        // an alias x is x+1, "my x" + 1 is "my x"+1)
+        Set<String> read = aliasesRead.getOrDefault(item, Set.of());
         IqNames.Columns columns = (ref, inAggregate) -> {
+            if (ref.parts().size() == 1 && read.contains(IqLexer.lower(ref.parts().get(0).text()))) {
+                return aliasName(ref.parts().get(0).text());
+            }
+            if (ref.parts().size() == 3) {
+                // IQ island, 2026-10-14 (the third landing, measured): owner.table.column shows as written (the
+                // reader bound it to its table's column, IqAliases)
+                return String.join(".", ref.parts().stream().map(SqlAst.Ident::text).toList());
+            }
             SqlAst.Ident table = tables.table(ref);
             if (table == null || derived.contains(IqLexer.lower(table.text())) && !(inAggregate
                     && setDerived.contains(IqLexer.lower(table.text())))) {
@@ -2364,6 +2492,23 @@ public final class IqDialect implements InputDialect {
                     item.pos());
         }
         return name;
+    }
+
+    /** IQ island, 2026-10-14 (the third landing, measured): an alias read inside an unaliased item renders as written,
+     *  in double quotes where it is no regular name ({@code "x y"+1}; {@code "x"} read as {@code x}); null where the
+     *  rendering is not known (a name outside ASCII, or with a double quote). */
+    private static @com.legend.base.Nullable String aliasName(String text) {
+        boolean regular = !text.isEmpty() && !IqLexer.reserved(text);
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c > 127 || c == '"') {
+                return null;
+            }
+            boolean letter = c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' || c == '@' || c == '#'
+                    || c == '$';
+            regular &= letter || i > 0 && c >= '0' && c <= '9';
+        }
+        return regular ? text : "\"" + text + "\"";
     }
 
     /** IQ island, 2026-10-14 (M1e): whether {@code e} reads a host variable as a variable of the enclosing Pure query
@@ -3757,8 +3902,9 @@ public final class IqDialect implements InputDialect {
                     + " yet: IQ matches its text, written by its own format", l.operand().pos());
         }
         if (!(l.pattern() instanceof SqlAst.StringLit pattern)) {
-            throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is not"
-                    + " supported yet", l.pattern().pos());
+            Tx result = bounded(SqlToPure.strictTest(List.of(operand, runtimePattern(l, at)), v -> runtimeLike(
+                    integer ? SqlToPure.call("toString", v.get(0)) : v.get(0), v.get(1))), l.pos());
+            return l.negated() ? SqlToPure.not(result) : result;
         }
         List<String> parts = likeParts(pattern, l.escape(), true);
         boolean caseless = !profile.caseSensitive();
@@ -3768,6 +3914,68 @@ public final class IqDialect implements InputDialect {
         };
         Tx result = SqlToPure.strictTest(List.of(operand), test);
         return bounded(l.negated() ? SqlToPure.not(result) : result, l.pos());
+    }
+
+    /**
+     * IQ island, 2026-10-14 (the third landing; measured on SQL Anywhere 17): a LIKE pattern that is not a constant
+     * (a column, {@code '%' || :x || '%'}), its translation: a string, matched as a constant one is ({@link #like})
+     * where the database's matching is IQ's -- an IQ database's (case-sensitive), without ESCAPE, over no CHAR(n)
+     * under the IQ engine (D-S5). Refused by name otherwise.
+     */
+    private Tx runtimePattern(SqlAst.Like l, SqlToPure.At at) {
+        String why = l.escape() != null ? "with ESCAPE" : !profile.caseSensitive()
+                ? "in a database that matches without regard to case (profile " + profile.spelling() + ": its"
+                + " letters' cases are ASCII's only)" : null;
+        if (why != null) {
+            throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is not"
+                    + " supported yet " + why, l.pattern().pos());
+        }
+        Tx pattern = at.tx(l.pattern());
+        if (pattern.kind() != Kind.STRING) {
+            throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is not"
+                    + " supported yet over " + kindName(pattern.kind()), l.pattern().pos());
+        }
+        if (engine == Engine.IQ) {
+            List<SqlAst.ColumnRef> refs = new ArrayList<>();
+            columnRefs(l.pattern(), refs);
+            if (pattern.detail() instanceof IqType o && o.family().equals("CHAR") && o.size() > 0) {
+                refs.add(0, null);
+            }
+            for (SqlAst.ColumnRef ref : refs) {
+                if (ref == null || at.tx(ref).detail() instanceof IqType t && t.family().equals("CHAR")) {
+                    throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is"
+                            + " not supported yet over a CHAR(n) column under the IQ engine: whether IQ matches its"
+                            + " blank pad is the research's D-S5, not yet verified", l.pattern().pos());
+                }
+            }
+        }
+        return pattern;
+    }
+
+    /** The regular expression's characters a pattern's character is written escaped in. */
+    private static final String REGEX_SPECIAL = ".[]{}()*+?^$|";
+
+    /**
+     * {@code value LIKE pattern}, {@code pattern} computed by the database: the regular expression it is, built there
+     * -- every character itself (a backslash and the regular expression's own escaped), {@code %} any run, {@code _}
+     * one character (a line feed too) -- matched whole. A pattern holding a {@code [} (IQ's set class, measured: SQL
+     * Anywhere matches {@code [b]} as a set and an unclosed one as UNKNOWN) or longer than {@link #LONGEST_PATTERN}
+     * characters (SQL Anywhere's -606 for some values) raises, never answers otherwise than IQ.
+     */
+    private static ValueSpecification runtimeLike(ValueSpecification value, ValueSpecification pattern) {
+        ValueSpecification p = SqlToPure.call("replace", pattern, new CString("\\"), new CString("\\\\"));
+        for (int i = 0; i < REGEX_SPECIAL.length(); i++) {
+            String c = String.valueOf(REGEX_SPECIAL.charAt(i));
+            p = SqlToPure.call("replace", p, new CString(c), new CString("\\" + c));
+        }
+        p = SqlToPure.call("replace", SqlToPure.call("replace", p, new CString("%"), new CString(".*")),
+                new CString("_"), new CString("."));
+        ValueSpecification regex = AppliedFunction.infixRun("plus", List.of(new CString("(?s)"), p));
+        ValueSpecification refused = SqlToPure.call("or", SqlToPure.call("contains", pattern, new CString("[")),
+                SqlToPure.call("greaterThan", SqlToPure.call("length", pattern),
+                        SqlToPure.integer(BigInteger.valueOf(LONGEST_PATTERN))));
+        return ifThen(refused, SqlToPure.call("toOne", SqlToPure.call("cast", SqlToPure.empty(),
+                SqlToPure.typeArg("Boolean"))), SqlToPure.call("matches", value, regex));
     }
 
     /** The longest LIKE pattern SQL Anywhere 17 always matches, in characters (an ISO-8859-1 database's bytes): with
@@ -3908,7 +4116,7 @@ public final class IqDialect implements InputDialect {
      *  client binds {@code @name} as a placeholder, which reads the bound value even where a column of its name is in
      *  scope, while a connection's variable reads the column: which one an island's {@code @name} is there is not
      *  decided, so such an {@code @name} is refused by name (an alias of its name is refused under every profile,
-     *  {@link #noAliasRead}). */
+     *  {@link #variableAliases}). */
     @Override
     public Tx parameter(SqlAst.Param p, SqlToPure.At at, SqlToPure.Sources sources) {
         if (profile.tsqlVariables() && IqBindings.readsColumn(p, at)) {
@@ -4477,7 +4685,11 @@ public final class IqDialect implements InputDialect {
             throw SqlTranslationException.invalid(iq + (offset ? " counts from 1" : " cannot be negative")
                     + code(-674, "09W07"), count.pos());
         }
-        if (unordered && (!offset || !counted)) {
+        boolean[] flags = limits.get(count);
+        if (flags == null) {
+            throw new IllegalStateException("a row limit the statement does not hold: " + count);
+        }
+        if (flags[0] && (!offset || !flags[1])) {
             // after IQ's own errors in either count (START AT's is read first): the rows kept are IQ's choice
             throw SqlTranslationException.unsupported("TOP, FIRST or START AT without ORDER BY is not supported: which"
                     + " rows IQ keeps is its plan's choice; order the query", count.pos());
@@ -4528,10 +4740,17 @@ public final class IqDialect implements InputDialect {
             case AMBIGUOUS_TABLE, DUPLICATE_TABLE -> "two of the query's tables are named '" + args[0] + "'"
                     + code(-139, "52012");
             case NO_SUCH_TABLE -> "no table or correlation name '" + args[0] + "' in the query" + code(-142, "52W02");
-            case NOT_GROUPED -> "'" + args[0] + "' is neither grouped nor aggregated";
+            // IQ island, 2026-10-14 (the third landing, measured): IQ's codes for these three -- -149 in the select
+            // list and HAVING, -854 in ORDER BY (as IqAggregates' own check)
+            case NOT_GROUPED -> "'" + args[0] + "' is neither grouped nor aggregated: it must be a GROUP BY item, or"
+                    + " inside an aggregate" + (args.length > 1 && orderRefs.contains(args[1]) ? code(-854, "42W65")
+                    : code(-149, "53003"));
             case DUPLICATE_USING_COLUMN -> "the column '" + args[0] + "' is twice in the join's " + args[1] + " side";
             case NO_SUCH_USING_COLUMN -> "the join's " + args[1] + " side has no column '" + args[0] + "'";
             case NO_SUCH_WINDOW -> "no window named '" + args[0] + "'";
+            case DISTINCT_ORDER_KEY -> "the ORDER BY key is none of the SELECT DISTINCT's items" + code(-854, "42W65");
+            case SET_WIDTHS -> "the " + args[0] + "'s queries select different numbers of columns" + code(-153,
+                    "53026");
         };
     }
 }

@@ -527,11 +527,20 @@ public final class SqlToPure {
         private final Input in;
         private final Set<String> names;
         private final String name;
+        /** The grouped relation's columns so far, by the canonical form of what they are: its keys first. */
+        private final Map<String, Col> grouped;
 
-        private Grouping(Input in, Set<String> names, String name) {
+        private Grouping(Input in, Set<String> names, String name, Map<String, Col> grouped) {
             this.in = in;
             this.names = names;
             this.name = name;
+            this.grouped = grouped;
+        }
+
+        /** IQ island, 2026-10-14 (the third landing): whether {@code e}, no aggregate, is one of the query's group
+         *  keys (as the translator matches a select item with one), one value in each group. */
+        public boolean groupKey(SqlAst.Expr e) {
+            return grouped.containsKey(canon(e, in));
         }
 
         /** {@code e}'s translation over an input row. */
@@ -691,6 +700,7 @@ public final class SqlToPure {
             if (outer == null) {
                 return null;
             }
+            dialect.columnNotHere(ref);
             // the enclosing query's column, read from its row's lambda parameter
             Col c = outer.columnOrNull(ref);
             return c == null || c.var() != null ? c : c.via(env.outerRow());
@@ -853,7 +863,7 @@ public final class SqlToPure {
             }
             Col key = keyBySource.get(source.name());
             if (key == null) {
-                throw SqlTranslationException.invalid(dialect.message(Problem.NOT_GROUPED, text(ref)), ref.pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NOT_GROUPED, text(ref), ref), ref.pos());
             }
             return key;
         }
@@ -1725,8 +1735,7 @@ public final class SqlToPure {
         Rel right = statement(s.right());
         String op = s.op().name();
         if (left.columns().size() != right.columns().size()) {
-            throw SqlTranslationException.invalid("each " + op + " query must have the same number of columns",
-                    s.pos());
+            throw SqlTranslationException.invalid(dialect.message(Problem.SET_WIDTHS, op), s.pos());
         }
         List<String> names = new ArrayList<>();
         List<OutCol> columns = new ArrayList<>();
@@ -2880,10 +2889,17 @@ public final class SqlToPure {
     private Rel assemble(SqlAst.Select s, Scope scope, ValueSpecification relation, Set<String> present,
             List<Output> outputs) {
         Set<String> shown = new HashSet<>();
-        for (Output o : outputs) {
+        for (int i = 0; i < outputs.size(); i++) {
+            Output o = outputs.get(i);
             if (!shown.add(o.name())) {
-                throw SqlTranslationException.unsupported("the output column name \"" + o.name() + "\" appears twice;"
-                        + " Pure relations need distinct column names, so give one an alias", s.pos());
+                if (!dialect.namesUnread(s)) {
+                    throw SqlTranslationException.unsupported("the output column name \"" + o.name() + "\" appears"
+                            + " twice; Pure relations need distinct column names, so give one an alias", s.pos());
+                }
+                // IQ island, 2026-10-14 (the third landing): a name no one reads (an EXISTS subquery's, a set
+                // operation's later branch's) goes by a name of its own (the callers' lists are their own)
+                outputs.set(i, new Output(fresh(present), o.internal(), o.value(), o.expr(), o.kind(), o.nullable(),
+                        o.detail()));
             }
         }
         List<ColSpec> computed = new ArrayList<>();
@@ -2987,8 +3003,7 @@ public final class SqlToPure {
                     return sortedBy(o, s, e.pos(), computed, present, afterDistinct);
                 }
             }
-            throw SqlTranslationException.invalid("for SELECT DISTINCT, ORDER BY expressions must appear in select"
-                    + " list", e.pos());
+            throw SqlTranslationException.invalid(dialect.message(Problem.DISTINCT_ORDER_KEY), e.pos());
         }
         Col g = scope.grouped(e);
         if (g != null) {
@@ -3196,7 +3211,7 @@ public final class SqlToPure {
             String fn = functionName(f.name().get(0));
             String want = preferred.get(canon);
             String name = want != null && !names.contains(want) && !want.startsWith(SYNTHETIC) ? want : fresh(names);
-            Aggregation own = dialect.aggregate(f, new Grouping(in, names, name));
+            Aggregation own = dialect.aggregate(f, new Grouping(in, names, name, byCanon));
             if (own != null) {
                 // the dialect's own aggregate: its columns, and the one computed from them after the grouping
                 names.add(name);
