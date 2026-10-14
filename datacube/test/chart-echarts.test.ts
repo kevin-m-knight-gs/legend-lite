@@ -21,7 +21,7 @@ import {
   TIME_LIMIT,
   type ChartSpec,
 } from '../src/chart-spec.ts';
-import { chartCsv, chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
+import { chartCsv, chartOption, kpiDrawing, MAX_SERIES, periodText, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
 import '../src/chart-render.ts';   // registers the charts and components the page uses
@@ -860,5 +860,26 @@ describe('the cheaper options (batch 2, step 12)', () => {
 
   it('the CSV is the chart\'s rows, a value with a comma or a quote quoted', () => {
     assert.equal(chartCsv(ROWS), 'region,sum_notional\r\nEMEA,3\r\n"AMER, ""the Americas""",2\r\n');
+  });
+});
+
+describe('a period is named as one', () => {
+  it('a month, a quarter, a year, a week by its first day', () => {
+    assert.equal(periodText('2024-03-01', 'month'), 'Mar 2024');
+    assert.equal(periodText('2024-10-01', 'quarter'), '2024 Q4');
+    assert.equal(periodText('2025-01-01', 'year'), '2025');
+    assert.equal(periodText('2024-03-04', 'week'), 'w/c 2024-03-04');
+  });
+
+  it('bars by quarter are categories named by their quarter; a line by quarter keeps the time scale', () => {
+    const rows = table([
+      { name: 'trade_date__quarter', type: 'StrictDate', values: ['2024-01-01', '2024-04-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2] },
+    ]);
+    const bars = chartOption({ ...BAR, x: 'trade_date', grain: 'quarter' }, rows).option as { xAxis: { type: string; data?: string[] } };
+    assert.equal(bars.xAxis.type, 'category');
+    assert.deepEqual(bars.xAxis.data, ['2024 Q1', '2024 Q2']);
+    const line = chartOption({ ...BAR, mark: 'line', x: 'trade_date', grain: 'quarter' }, rows).option as { xAxis: { type: string } };
+    assert.equal(line.xAxis.type, 'time');
   });
 });

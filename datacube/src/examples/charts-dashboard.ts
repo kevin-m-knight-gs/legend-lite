@@ -195,8 +195,8 @@ const SHEETS: readonly { readonly name: string; readonly views: readonly PageVie
       chart('f-share', 'Each product\'s share of revenue', {
         x: 'product', y: [{ ...REVENUE, showAs: { kind: 'percentOfTotal' } }], options: { labels: true },
       }),
-      chart('f-rank', 'Countries ranked by revenue', {
-        x: 'country', y: [{ ...REVENUE, showAs: { kind: 'rank' } }], options: { sort: { by: 'x', direction: 'asc' } },
+      chart('f-rank', 'Revenue by country, each labelled with its rank', {
+        x: 'country', label: { ...REVENUE, showAs: { kind: 'rank' } }, options: { orientation: 'horizontal', labels: true },
       }),
       chart('f-log', 'Revenue by city, on a log axis', { x: 'city', options: { logAxis: true } }),
       chart('f-patterns', 'Revenue by category, with pattern fills and the toolbox', {

@@ -107,8 +107,11 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  synchronous today) is a follow-up of its own.
  *  Kept at 401,000 (2026-10-14, batch 2 step 12): the charts' options form moved out of startup into its own chunk
  *  (ui/chart-form.ts, 4,822 bytes, fetched the first time a chart's options are shown), so the fields batch 2 added and
- *  every later batch adds grow that chunk. Measured 398,792 with step 12's options in it, 401,306 before the move. */
-const BUDGET = 401_000;
+ *  every later batch adds grow that chunk. Measured 398,792 with step 12's options in it, 401,306 before the move.
+ *  401,000 -> 403,000 (2026-10-14, batch 2 step 14): the sales sample (samples.ts salesCsv: the picker's samples are at
+ *  startup) and the Open window's Examples list (examples/catalog.ts: names only -- each example page is a chunk of its
+ *  own, built when picked). Measured 401,224. */
+const BUDGET = 403_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -158,8 +161,10 @@ const CHART_BUDGET = 433_000;
  *  566,503.
  *  568,000 -> 579,000 (2026-10-14, batch 2 step 9): the data zoom, as in the chart's chunk. Measured 577,285.
  *  579,000 -> 598,000 (2026-10-14, batch 2 step 11): the brush and the toolbox, as in the chart's chunk. Measured
- *  596,247. */
-const WIDGET_BUDGET = 598_000;
+ *  596,247.
+ *  598,000 -> 604,000 (2026-10-14, batch 2 steps 12-14): the options form, the toolbox's CSV, the example page and the
+ *  sales sample -- chunks in the tab, one file here. Measured 602,438. */
+const WIDGET_BUDGET = 604_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

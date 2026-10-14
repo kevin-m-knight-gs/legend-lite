@@ -258,11 +258,14 @@ export function chartOption(
   const measure = (m: ChartSpec['y'][number]) => column(rows, measureName(m));
   // A DATE ACROSS IS A TIME SCALE (batch 2 item 9) on a bar, line or area chart: its points in time order whatever
   // the chart's order, spaced by time, so a missing period is a gap, not a neighbour
-  const timeAxis = isTemporal(xCol.type) && (spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'bar')
+  // Bars by month, quarter or year are a few periods side by side: categories, named by their period ("2024 Q1")
+  const fewPeriods = spec.grain === 'month' || spec.grain === 'quarter' || spec.grain === 'year';
+  const timeAxis = isTemporal(xCol.type) && (spec.mark === 'line' || spec.mark === 'area' || (spec.mark === 'bar' && !fewPeriods))
     && !(spec.mark === 'bar' && spec.options.orientation === 'horizontal');
   const firstSeen = distinct(xCol.values);
   const categories = timeAxis ? [...firstSeen].sort((a, b) => keyText(a).localeCompare(keyText(b))) : firstSeen;
-  const catLabels = categories.map((c) => label(c, spec.x!, xCol.type));
+  // a period is named as one ("Jan 2024", "2024 Q1", "2024"), not by its first day
+  const catLabels = categories.map((c) => (spec.grain !== undefined && c !== null ? periodText(String(c), spec.grain) : label(c, spec.x!, xCol.type)));
   const indexOf = new Map(categories.map((c, i) => [keyText(c), i]));
 
   // -- pie: one category per slice ---------------------------------------
@@ -674,6 +677,20 @@ function downloadText(name: string, type: string, text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+/** A period by its first day, as a reader names it: a week "w/c 2024-03-04", a month "Mar 2024", "2024 Q1", "2024". */
+export function periodText(day: string, grain: NonNullable<ChartSpec['grain']>): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(day);
+  if (!m) return day;
+  const [, y, mo] = m;
+  switch (grain) {
+    case 'year': return y!;
+    case 'quarter': return `${y} Q${Math.floor((Number(mo) - 1) / 3) + 1}`;
+    case 'month': return `${new Date(Date.UTC(Number(y), Number(mo) - 1, 1)).toLocaleString(UI_LOCALE, { month: 'short', timeZone: 'UTC' })} ${y}`;
+    case 'week': return `w/c ${day.slice(0, 10)}`;
+    case 'day': return day.slice(0, 10);
+  }
+}
+
 /** A point's value as ECharts hands it back: a number, or on a time axis the [time, value] pair. */
 function valueOf(v: unknown): number | null {
   if (typeof v === 'number') return v;
@@ -789,12 +806,12 @@ function layersOf(
     if (!firstOf(at)) continue;
     const m = spec.y[at]!;
     if (l.kind === 'line') {
-      lines.push({ [valueKey]: l.value, name: l.label ?? fmt(l.value), lineStyle, label: { formatter: `${escapeLabel(l.label ?? '')}${l.label ? ': ' : ''}${escapeLabel(fmt(l.value))}`, color: theme.inkSecondary } });
+      lines.push({ [valueKey]: l.value, name: l.label ?? fmt(l.value), lineStyle, label: { position: 'insideEndTop', formatter: `${escapeLabel(l.label ?? '')}${l.label ? ': ' : ''}${escapeLabel(fmt(l.value))}`, color: theme.inkSecondary } });
     } else if (l.kind === 'stat') {
       const v = statValue(l.stat, m);
       if (v === null) continue;
       const name = l.label ?? words[l.stat];
-      lines.push({ [valueKey]: v, name, lineStyle, label: { formatter: `${escapeLabel(name)}: ${escapeLabel(fmt(v))}`, color: theme.inkSecondary } });
+      lines.push({ [valueKey]: v, name, lineStyle, label: { position: 'insideEndTop', formatter: `${escapeLabel(name)}: ${escapeLabel(fmt(v))}`, color: theme.inkSecondary } });
     } else if (l.kind === 'extremes') {
       for (const st of ['max', 'min'] as const) {
         const v = statValue(st, m);
@@ -802,7 +819,7 @@ function layersOf(
         // the marks equal to the database's maximum (minimum): compared, never computed
         s.values.forEach((x, i) => {
           if (x !== null && x === v) {
-            points.push({ coord: horizontal ? [x, xAt(i)] : [xAt(i), x], value: fmt(x), name: words[st], symbol: 'pin', symbolSize: 36,
+            points.push({ coord: horizontal ? [x, xAt(i)] : [xAt(i), x], value: fmt(x), name: words[st], symbol: 'pin', symbolSize: 28,
               itemStyle: { color: st === 'max' ? theme.series[2] : theme.bad ?? theme.series[7] } });
           }
         });
@@ -812,7 +829,8 @@ function layersOf(
   return {
     ...(lines.length > 0 ? { markLine: { silent: true, symbol: 'none', data: lines } } : {}),
     ...(areas.length > 0 ? { markArea: { silent: true, data: areas } } : {}),
-    ...(points.length > 0 ? { markPoint: { data: points, label: { color: theme.surface, fontSize: 10 } } } : {}),
+    // a pin's value beside it, where it can be read whole
+    ...(points.length > 0 ? { markPoint: { data: points, label: { position: 'top', distance: 4, color: theme.ink, fontSize: 11 } } } : {}),
   };
 }
 

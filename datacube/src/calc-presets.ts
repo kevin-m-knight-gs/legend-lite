@@ -86,7 +86,8 @@ export function binName(column: string): string {
 }
 
 /**
- * A number column taken to its bin's lower edge, a row-stage dimension. `width`: `floor($x.v / w) * w`. `count`: that
+ * A number column taken to its bin's lower edge, a row-stage dimension. `width`: `floor($x.v / w) * w` (`floorOf`: an edge
+ * value in its own bin). `count`: that
  * many bins over the column's range -- its minimum and maximum are windows over every row (before the grid's filter,
  * so the bins stay put as the filter changes), the edge `min + min(floor((v - min) / w), count - 1) * w` with
  * `w = (max - min) / count`: the database's arithmetic, every step.
@@ -96,7 +97,7 @@ export function binColumns(column: string, bins: Bins): DerivedColumn[] {
   if (bins.width !== undefined) {
     if (!(bins.width > 0)) throw new Error('a bin is wider than nothing');
     const w = number(bins.width);
-    return [{ name, lambda: row(times(fn('floor', divide(one(column), w)), w)), kind: 'dimension' }];
+    return [{ name, lambda: row(times(floorOf(divide(one(column), w)), w)), kind: 'dimension' }];
   }
   const count = Math.floor(bins.count ?? 0);
   if (!(count >= 1)) throw new Error('bins: a width, or a count of at least one');
@@ -104,7 +105,7 @@ export function binColumns(column: string, bins: Bins): DerivedColumn[] {
   const hi = `${name}__max`;
   const whole = { partition: [] as string[], order: [] as SortSpec[], frame: 'partition' as const };
   const width = divide(minus(one(hi), one(lo)), lit.integer(count));
-  const index = fn('floor', divide(minus(one(column), one(lo)), width));
+  const index = floorOf(divide(minus(one(column), one(lo)), width));
   const clamped = fn('if', fn('greaterThanEqual', index, lit.integer(count)),
     lambda([], lit.integer(count - 1)), lambda([], index));
   const edge = fn('if', fn('equal', one(hi), one(lo)), lambda([], one(lo)), lambda([], plus(one(lo), times(clamped, width))));
@@ -113,6 +114,15 @@ export function binColumns(column: string, bins: Bins): DerivedColumn[] {
     { name: hi, window: { ...whole, fn: 'max', column }, kind: 'measure' },
     { name, lambda: row(edge), kind: 'dimension' },
   ];
+}
+
+/**
+ * A quotient's whole part, the database's: `floor(round(q, 9))`. A float quotient lands just under a whole number it
+ * means -- 0.15 / 0.05 is 2.9999999999999996 -- and its floor would put an edge value in the bin below; rounded to nine
+ * places first, it is 3.
+ */
+function floorOf(quotient: ValueSpecification): ValueSpecification {
+  return fn('floor', fn('round', quotient, lit.integer(9)));
 }
 
 // ---------------------------------------------------------------- show as

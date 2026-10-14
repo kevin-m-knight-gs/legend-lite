@@ -421,15 +421,18 @@ export function drilledView(spec: ChartSpec): { readonly spec: ChartSpec; readon
 }
 
 /**
- * The levels a chart drills through: the grid's own row groupings from the column across down (region, then desk) --
- * or, a column across that is not one of them, that column then the groupings -- never the split. Null when there is
- * nothing below.
+ * The levels a chart drills through: the grid's own row groupings from the column across down (region, then desk),
+ * never the split. Null when there is nothing below, or the column across is not one of them (a period, a bin, a column
+ * the grid does not group by).
  */
 export function drillLevels(spec: ChartSpec, s: CubeSnapshot): readonly string[] | null {
   if (spec.drill) return spec.drill.levels;
   if (spec.x === undefined || spec.mark === 'scatter' || spec.mark === 'kpi' || spec.mark === 'treemap') return null;
+  // a period or a bin is not a level of the grid's groupings: there is nowhere "down" from a month
+  if (spec.grain !== undefined || spec.bins !== undefined) return null;
   const at = s.rows.indexOf(spec.x);
-  const levels = (at >= 0 ? s.rows.slice(at) : [spec.x, ...s.rows]).filter((c) => c !== spec.split);
+  if (at < 0) return null;
+  const levels = s.rows.slice(at).filter((c) => c !== spec.split);
   return levels.length > 1 ? levels : null;
 }
 
