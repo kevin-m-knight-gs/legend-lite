@@ -237,8 +237,17 @@ first chart's download. Its example page, "Charts: more kinds", has a sheet per 
 and run on DuckDB (chart-queries.test.ts) and every sheet drawn in a browser (verify_charts). A grid's tree (treemap,
 sunburst, tree) is now valued by its first MEASURE, not its first number column (an id is empty on a group's row).
 
-Still to come in batch 3: the bubble (a scatter's `size`), small multiples (`facet`) and the sparkline grid they make,
-the scatter matrix. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
+**Step 2, built 2026-10-14**: the bubble -- a scatter's `size`, each point sized between the least and the most its
+rows say (ECharts' visual map places them; a point with no size is not drawn, and counted) -- and small multiples
+(`facet`: a chart per value of a column, a row of them, or a matrix of both) of bars, lines and areas, which make the
+sparkline grid too. The query groups by the facet's columns and asks for each panel's most times the most panels drawn
+(12); every window is a panel's own (a share is of the panel's total, an average line the panel's average). Each panel
+is drawn by the chart's own drawing from its rows and laid out as one picture: the value axes shared (each runs to the
+most any panel shows, found by comparing; a stack's panels keep their own scale, said), a series the same colour and
+in the same place in every panel, one legend, one hover, a click saying the panel's facet values too. Refused: a facet
+on another kind, with a brush or a slider, or coloured by value.
+
+Still to come in batch 3: the scatter matrix. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
 design so the page does not compute), Gantt (a start and an end per row: dates as measures).
 
 ### Batch 4: new aggregates, and the kinds they unlock

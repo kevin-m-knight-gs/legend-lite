@@ -568,7 +568,8 @@ class Grid(Tile):
               split: str | None = None, title: str | None = None, frozen: bool = False,
               options: Mapping[str, Any] | None = None, grain: str | None = None,
               bins: Mapping[str, float] | None = None, tooltip: Sequence[Any] | None = None,
-              layers: Sequence[Mapping[str, Any]] | None = None, label: Any = None) -> Chart:
+              layers: Sequence[Mapping[str, Any]] | None = None, label: Any = None, size: Any = None,
+              facet: Mapping[str, str] | None = None) -> Chart:
         """A chart of this grid, beside it: ``mark`` (one of MARKS), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the grid's first measure unless given -- and a ``split`` (one series per value);
         ``frozen`` keeps its own grouping rather than following the grid's (and stays when the grid is removed, as in
@@ -579,10 +580,11 @@ class Grid(Tile):
         ``axis`` (AXES) and ``showAs`` (``{'kind': one of SHOW_AS}``); ``grain`` takes a date across to its period
         (GRAINS); ``bins`` a number across to its bins (``{'width': w}`` or ``{'count': n}``); ``label`` a measure
         written on each mark instead of its own value; ``tooltip`` further measures a hover lists; ``layers`` reference
-        lines, bands, thresholds and pinned extremes (each a dict, its ``kind`` one of LAYERS). What DataCube does not
-        draw yet (small multiples, a bubble's size) it does not offer, and neither does this."""
+        lines, bands, thresholds and pinned extremes (each a dict, its ``kind`` one of LAYERS); ``size`` a scatter's
+        third column, each point sized by it (a bubble); ``facet`` small multiples of bars, lines or areas, a chart per
+        value of ``{'column': ...}`` and/or ``{'row': ...}``."""
         spec = {**_spec(self, mark, x, y, split, frozen), 'options': _copied(options or {}),
-                **_slots(self, grain, bins, tooltip, layers, label)}
+                **_slots(self, grain, bins, tooltip, layers, label, size, facet)}
         _drawable(self, spec)
         named = _named(title, 'a title')
         id = self._page._next('chart')
@@ -737,14 +739,36 @@ def _drawable(grid: Grid | None, spec: Mapping[str, Any]) -> None:
         raise ValueError(f'a {mark} writes no other measure on its marks')
     if spec.get('tooltip') and mark not in _HOVER_EXTRAS:
         raise ValueError(f'a {mark}\'s hover lists no further measures')
+    if 'size' in spec and mark != 'scatter':
+        raise ValueError('only a scatter sizes its marks (a bubble)')
+    facet = spec.get('facet')
+    if facet is not None:
+        if mark not in ('bar', 'line', 'area'):
+            raise ValueError(f'a {mark} is not drawn as small multiples: bars, lines and areas are')
+        for column in facet.values():
+            if column in (x, spec.get('split')):
+                raise ValueError(f'{column!r} is across or split already: a facet is another column')
+        options = spec.get('options', {})
+        if options.get('brush') or options.get('zoom'):
+            raise ValueError('small multiples take no brush and no slider: brush or zoom one chart')
+        if any(layer['kind'] == 'threshold' for layer in layers):
+            raise ValueError('small multiples are not coloured by value yet')
     if spec.get('options', {}).get('stack') == 'percent' and any(layer['kind'] != 'band' for layer in layers):
         raise ValueError('a 100% stack shows shares: a reference line, a threshold or a pinned extreme has no place on it')
 
 
 def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
-           layers: Sequence[Mapping[str, Any]] | None, label: Any = None) -> dict[str, Any]:
+           layers: Sequence[Mapping[str, Any]] | None, label: Any = None, size: Any = None,
+           facet: Mapping[str, str] | None = None) -> dict[str, Any]:
     """The spec's version 2 slots a chart was given, checked word by word as DataCube's reader checks them."""
     out: dict[str, Any] = {}
+    if size is not None:
+        out['size'] = _measure(grid, size, 'a chart\'s size')
+    if facet is not None:
+        if (not isinstance(facet, Mapping) or not facet or set(facet) - {'row', 'column'}
+                or not all(isinstance(v, str) for v in facet.values())):
+            raise ValueError(f'a facet is {{\'column\': name}} and/or {{\'row\': name}}, not {facet!r}')
+        out['facet'] = {k: grid._check([v], 'a facet')[0] for k, v in facet.items()}
     if grain is not None:
         if grain not in GRAINS:
             raise ValueError(f'a grain is one of {", ".join(sorted(GRAINS))}, not {grain!r}')

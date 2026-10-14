@@ -258,8 +258,18 @@ class Document(Paged):
                 grid.chart('bar', x='region', **{'y': [('notional', 'sum')], **bad})
         with self.assertRaisesRegex(ValueError, 'no reference lines'):
             grid.chart('scatter', x='notional', y=[('pnl', 'sum')], layers=[{'kind': 'line', 'value': 1}])
-        with self.assertRaises(TypeError):
-            grid.chart('bar', x='region', facet={'column': 'desk'})
+        # small multiples and a bubble (batch 3), each refused where DataCube does not draw it
+        grid.chart('bar', x='region', facet={'column': 'desk'})
+        self.assertEqual(page.to_dict()['views'][-1]['spec']['facet'], {'column': 'desk'})
+        grid.chart('scatter', x='notional', y=[('pnl', 'sum')], size=('notional', 'sum'))
+        self.assertEqual(page.to_dict()['views'][-1]['spec']['size'], {'column': 'notional', 'fn': 'sum'})
+        for mark, given, why in [('pie', {'x': 'region', 'facet': {'column': 'desk'}}, 'not drawn as small multiples'),
+                                 ('bar', {'x': 'region', 'facet': {'column': 'region'}}, 'across or split already'),
+                                 ('bar', {'x': 'region', 'facet': {'side': 'desk'}}, 'a facet is'),
+                                 ('bar', {'x': 'region', 'facet': {'column': 'desk'}, 'options': {'brush': True}}, 'no brush'),
+                                 ('bar', {'x': 'region', 'size': ('pnl', 'sum')}, 'only a scatter')]:
+            with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
+                grid.chart(mark, **given)
         # and a chart written fine cannot be changed into one DataCube refuses: by plot or by options
         lined = grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')],
                            layers=[{'kind': 'stat', 'stat': 'average'}, {'kind': 'line', 'value': 1, 'measure': 1}])

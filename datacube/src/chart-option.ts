@@ -226,22 +226,55 @@ export function chartOption(
       notes.push(`Showing the first ${MAX_SCATTER_SERIES} of ${groups.length} groups: more cannot be told apart.`);
     }
     const shown = groups.slice(0, MAX_SCATTER_SERIES);
+    // A BUBBLE: each point sized by a third column of its row, the smallest value the smallest mark -- the sizes placed
+    // by ECharts' visual map between the least and the most the rows say (compared, not computed)
+    const sizeCol = spec.size ? column(rows, spec.size.column) : undefined;
+    let least = Infinity;
+    let most = -Infinity;
     const series = shown.map((g) => ({
       type: 'scatter' as const,
       name: splitCol ? label(g, spec.split!, splitCol.type) : first.column,
-      symbolSize: 8,
-      itemStyle: { borderColor: theme.surface, borderWidth: 2 },
+      ...(sizeCol ? {} : { symbolSize: 8 }),
+      itemStyle: { borderColor: theme.surface, borderWidth: sizeCol ? 1 : 2, ...(sizeCol ? { opacity: 0.6 } : {}) },
       data: xCol.values.flatMap((xv, i) => {
         if (splitCol && keyText(splitCol.values[i] ?? null) !== keyText(g)) return [];
         const yv = numberOf(yCol?.values[i] ?? null, yCol?.type);
         const xn = numericX ? numberOf(xv, xCol.type) : label(xv, spec.x!, xCol.type);
-        return yv === null || xn === null ? [] : [[xn, yv]];
+        if (yv === null || xn === null) return [];
+        if (!sizeCol) return [[xn, yv]];
+        const sv = numberOf(sizeCol.values[i] ?? null, sizeCol.type);
+        // a point with no size has no bubble: not drawn, and counted below
+        if (sv === null) return [];
+        if (sv < least) least = sv;
+        if (sv > most) most = sv;
+        return [[xn, yv, sv]];
       }),
     }));
+    if (sizeCol) {
+      const sized = series.reduce((n, s) => n + s.data.length, 0);
+      const all = xCol.values.filter((_, i) => numberOf(yCol?.values[i] ?? null, yCol?.type) !== null).length;
+      if (sized < all && groups.length <= MAX_SCATTER_SERIES) notes.push(`${all - sized} ${all - sized === 1 ? 'point' : 'points'} not shown: no ${spec.size!.column} to size by.`);
+    }
+    const bubbleMap = sizeCol && Number.isFinite(least) ? {
+      visualMap: {
+        show: false, dimension: 2, min: least, max: most === least ? least + 1 : most,
+        inRange: { symbolSize: [5, 28] },
+      },
+    } : {};
     return {
       option: asOption({
         ...base,
-        tooltip: { ...tooltip, trigger: 'item' },
+        tooltip: {
+          ...tooltip, trigger: 'item',
+          ...(sizeCol ? { formatter: (p: { seriesName?: string; value?: unknown[] }) => {
+            const [xv, yv, sv] = (p.value ?? []) as [number | string, number, number];
+            return [`<b>${escapeHtml(p.seriesName ?? '')}</b>`,
+              `${escapeHtml(spec.x!)}: ${escapeHtml(typeof xv === 'number' ? label(xv, spec.x!, xCol.type) : String(xv))}`,
+              `${escapeHtml(first.column)}: ${escapeHtml(label(yv, first.column, yCol?.type))}`,
+              `${escapeHtml(spec.size!.column)}: ${escapeHtml(label(sv, spec.size!.column, sizeCol.type))}`].join('<br>');
+          } } : {}),
+        },
+        ...bubbleMap,
         legend: legendOf(spec, series.length, theme),
         xAxis: { ...axisCommon, type: numericX ? 'value' : 'category', name: spec.x, nameTextStyle: text, scale: true },
         yAxis: { ...axisCommon, type: 'value', name: first.column, nameTextStyle: text, scale: true },

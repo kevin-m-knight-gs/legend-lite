@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 import { element } from '../../pure-protocol/src/index.ts';
 import { chartProblems, chartSnapshot, drillLevels, followCube, type ChartSpec } from '../src/chart-spec.ts';
 import { chartOption, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
-import { gridKindOption, kindOption } from '../src/chart-kinds.ts';
+import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
 import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
@@ -51,6 +51,7 @@ const CUBE: CubeSnapshot = {
 const OPTIONS: ChartSpec['options'] = {
   orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' }, limit: 50, labels: true, legend: 'top',
 };
+const REVENUE_SUM = { column: 'revenue', fn: 'sum' } as const;
 const of = (mark: ChartSpec['mark'], more: Partial<ChartSpec> = {}): ChartSpec =>
   ({ version: 2, mark, x: 'region', y: [{ column: 'revenue', fn: 'sum' }], options: OPTIONS, ...more });
 
@@ -282,5 +283,78 @@ describe('the grid as shown, as a sunburst and a tree', () => {
   });
   it('a tree: a node per group, its rows its branches', () => {
     assert.ok(svg(gridKindOption('tree', shown), 800, 500).includes('Online'));
+  });
+});
+
+describe('a bubble: a scatter sized by a third column of its rows', () => {
+  it('each point [x, y, size], sized between the least and the most the rows say; a point with no size, said', () => {
+    const rows = table([
+      { name: 'cost', type: 'Float', values: [10, 20, 30, 40] },
+      { name: 'revenue', type: 'Float', values: [15, 30, 50, 60] },
+      { name: 'profit', type: 'Float', values: [5, 10, null, 20] },
+    ]);
+    const spec = of('scatter', { x: 'cost', y: [{ column: 'revenue', fn: 'sum' }], size: { column: 'profit', fn: 'sum' } });
+    assert.deepEqual(chartProblems(spec, CUBE), []);
+    const d = chartOption(spec, rows);
+    const option = d.option as { series: { data: number[][] }[]; visualMap: { min: number; max: number; dimension: number } };
+    assert.deepEqual(option.series[0]!.data, [[10, 15, 5], [20, 30, 10], [40, 60, 20]]);
+    assert.deepEqual([option.visualMap.dimension, option.visualMap.min, option.visualMap.max], [2, 5, 20]);
+    assert.match(d.notes.join(), /1 point not shown: no profit to size by/);
+    assert.ok(svg(d).length > 1000);
+  });
+});
+
+describe('small multiples: a chart per value, on shared axes', () => {
+  const rows = table([
+    { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'EMEA', 'APAC', 'EMEA'] },
+    { name: 'channel', type: 'String', values: ['Online', 'Online', 'Retail', 'Retail', 'Partner'] },
+    { name: 'sum_revenue', type: 'Float', values: [100, 80, 60, 300, 40] },
+  ]);
+  it('the query groups by the facet, panel by panel, each a whole of its own', () => {
+    const spec = of('bar', { x: 'region', facet: { column: 'channel' }, layers: [{ kind: 'stat', stat: 'average' }], y: [{ ...REVENUE_SUM, showAs: { kind: 'percentOfTotal' } }] });
+    const s = chartSnapshot(CUBE, spec);
+    assert.deepEqual(s.rows, ['region', 'channel']);
+    assert.deepEqual(s.sorts[0], { column: 'channel', direction: 'asc' }, 'panel by panel');
+    assert.ok(s.groupDerived?.every((d) => !d.window || d.window.fn === 'rank' || d.window.partition.includes('channel')), 'each window within its panel');
+  });
+  it('a grid per panel, its axes renumbered, the value axes shared: each runs to the most any panel shows', () => {
+    const d = facetOption(of('bar', { x: 'region', facet: { column: 'channel' } }), rows);
+    const o = d.option as { grid: unknown[]; yAxis: { max?: number; gridIndex: number }[]; series: { xAxisIndex: number; yAxisIndex: number }[]; title: { text: string }[] };
+    assert.equal(o.grid.length, 3);
+    assert.deepEqual(o.title.map((t) => t.text), ['Online', 'Retail', 'Partner']);
+    assert.deepEqual(o.yAxis.map((a) => [a.gridIndex, a.max]), [[0, 300], [1, 300], [2, 300]]);
+    assert.deepEqual(o.series.map((s) => [s.xAxisIndex, s.yAxisIndex]), [[0, 0], [1, 1], [2, 2]]);
+    // a click: the panel's own mark, and its facet's value
+    assert.deepEqual(d.keyAt(1, 1), { region: 'APAC', channel: 'Retail' });
+    assert.ok(svg(d, 900, 500).includes('Partner'));
+  });
+  it('a matrix of rows and columns; a stack keeps each panel\'s own scale, said', () => {
+    const grid = table([
+      { name: 'day', type: 'StrictDate', values: ['2024-01-01', '2024-01-01', '2024-02-01', '2024-02-01'] },
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'EMEA', 'APAC'] },
+      { name: 'channel', type: 'String', values: ['Online', 'Retail', 'Retail', 'Online'] },
+      { name: 'sum_revenue', type: 'Float', values: [1, 2, 3, 4] },
+    ]);
+    const d = facetOption(of('line', { x: 'day', facet: { row: 'region', column: 'channel' }, options: { ...OPTIONS, sort: { by: 'x', direction: 'asc' } } }), grid);
+    assert.equal((d.option as { grid: unknown[] }).grid.length, 4);
+    const stacked = facetOption(of('bar', { x: 'region', facet: { column: 'channel' }, options: { ...OPTIONS, stack: 'stacked' } }), rows);
+    assert.match(stacked.notes.join(), /own scale/);
+    // a series keeps its colour in every panel, whatever order each panel met it in
+    const split = facetOption(of('bar', { x: 'day', split: 'channel', facet: { column: 'region' } }), grid);
+    const byName = new Map<string, Set<string>>();
+    for (const s of (split.option as { series: { name: string; itemStyle: { color: string } }[] }).series) {
+      byName.set(s.name, (byName.get(s.name) ?? new Set()).add(s.itemStyle.color));
+    }
+    assert.ok([...byName.values()].every((c) => c.size === 1), 'one colour per series name');
+    assert.equal(new Set([...byName.values()].map((c) => [...c][0])).size, byName.size, 'and each its own');
+    // and its place: each panel's series in one order, and a click on one still says its own split's value
+    const merged = (split.option as { series: { name: string; xAxisIndex: number }[] }).series;
+    const panels = [...new Set(merged.map((x) => x.xAxisIndex))].map((a) => merged.filter((x) => x.xAxisIndex === a).map((x) => x.name));
+    const common = panels.map((p) => p.filter((n) => panels.every((q) => q.includes(n))));
+    assert.ok(common.every((p) => JSON.stringify(p) === JSON.stringify(common[0])), JSON.stringify(panels));
+    merged.forEach((x, si) => {
+      const key = split.keyAt(si, 0);
+      if (key) assert.equal(key['channel'], x.name, `series ${si}`);
+    });
   });
 });

@@ -937,7 +937,10 @@ describe('the audit\'s cases (batch 2): a brush by value, the last bin, refusals
   });
 
   it('what nothing draws is refused by name, never ignored', () => {
-    assert.match(chartProblems({ ...BAR, facet: { column: 'desk' } }, CUBE).join(' '), /Small multiples/);
+    // small multiples are drawn now (batch 3): a facet on a kind they are not drawn for, or with a brush, is refused
+    assert.deepEqual(chartProblems({ ...BAR, facet: { column: 'desk' } }, CUBE), []);
+    assert.match(chartProblems({ ...BAR, mark: 'pie', facet: { column: 'desk' } }, CUBE).join(' '), /not drawn as small multiples/);
+    assert.match(chartProblems({ ...BAR, facet: { column: 'desk' }, options: { ...BAR.options, brush: true } }, CUBE).join(' '), /no brush/);
     assert.match(chartProblems({ ...BAR, layers: [{ kind: 'stat', stat: 'average', measure: 3 }] }, CUBE).join(' '), /reads value 4/);
     assert.match(chartProblems({ ...BAR, options: { ...BAR.options, stack: 'percent' }, layers: [{ kind: 'extremes' }] }, CUBE).join(' '), /100% stack/);
     assert.match(chartProblems({ ...BAR, mark: 'scatter', x: 'notional', layers: [{ kind: 'line', value: 1 }] }, CUBE).join(' '), /scatter/);

@@ -22,6 +22,7 @@ import {
   KIND_MARKS,
   kpiQueries,
   markConditions,
+  MAX_FACETS,
   type ChartMark,
   type ChartSpec,
 } from '../chart-spec.ts';
@@ -307,11 +308,13 @@ export class ChartPanel {
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
       let drawing;
-      if (KIND_MARKS.has(spec.mark)) {
-        // batch 3's kinds: their drawing and the rarer ECharts charts, fetched with the first of them
-        const [{ kindOption }] = await Promise.all([import('../chart-kinds.ts'), import('../chart-render-kinds.ts')]);
+      if (KIND_MARKS.has(spec.mark) || spec.facet !== undefined) {
+        // batch 3's kinds and small multiples: their drawing and the rarer ECharts charts, fetched with the first of them
+        const [{ kindOption, facetOption }] = await Promise.all([import('../chart-kinds.ts'), import('../chart-render-kinds.ts')]);
         if (abort.signal.aborted || this.#disposed) return;
-        drawing = kindOption(spec, rows, themeOf(this.#canvas), this.#options.label);
+        drawing = spec.facet !== undefined
+          ? facetOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit)
+          : kindOption(spec, rows, themeOf(this.#canvas), this.#options.label);
       } else {
         drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
       }
@@ -319,12 +322,16 @@ export class ChartPanel {
       // the page's charts with the same column across (at the same grain) share a crosshair: those with an axis of
       // categories or time
       const across = axisName(drilledView(spec).spec);
-      this.#chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && CROSSHAIRED.has(spec.mark)
+      this.#chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && CROSSHAIRED.has(spec.mark) && spec.facet === undefined
         ? `${this.#options.crosshair}|${across}` : undefined);
-      const capped = rows.rowCount >= (spec.mark === 'scatter' ? Infinity : spec.options.limit);
+      // small multiples ask for each panel's most, times the most panels (chart-spec.ts chartQuery)
+      const asked = spec.mark === 'scatter' ? Infinity : spec.options.limit * (spec.facet ? MAX_FACETS : 1);
+      const capped = rows.rowCount >= asked;
       this.#say([
         ...drawing.notes,
-        ...(capped ? [`The first ${spec.options.limit} by the chosen order; raise "At most" to see more.`] : []),
+        ...(capped ? [spec.facet
+          ? `The first ${asked} rows across the charts; filter the cube to see the rest.`
+          : `The first ${spec.options.limit} by the chosen order; raise "At most" to see more.`] : []),
       ].join(' '));
     } catch (e) {
       if (abort.signal.aborted || this.#disposed) return;

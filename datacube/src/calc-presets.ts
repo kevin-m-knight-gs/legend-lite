@@ -216,9 +216,11 @@ export function showAsColumns(
   along: readonly string[],
   within: readonly string[],
   name = showAsName(show.kind, base),
+  panels: readonly string[] = [],
 ): DerivedColumn[] {
   const order: SortSpec[] = along.map((column) => ({ column, direction: 'asc' }));
-  const partition = [...within];
+  // each series restarts it, and each small chart (a facet's panels) is a whole of its own
+  const partition = [...within, ...panels];
   switch (show.kind) {
     case 'runningTotal':
       return [{ name, window: { fn: 'sum', column: base, partition, order, frame: 'running' } }];
@@ -229,7 +231,7 @@ export function showAsColumns(
     case 'percentOfTotal': {
       const total = `${name}__total`;
       return [
-        { name: total, window: wholeOf('sum', base) },
+        { name: total, window: wholeOf('sum', base, panels) },
         { name, lambda: row(divide(one(base), one(total))) },
       ];
     }
@@ -256,9 +258,10 @@ export function statName(stat: LayerStat, measure: string): string {
   return `${stat}_of_${measure}`;
 }
 
-/** A measure's average, minimum or maximum over every row of the chart: a group-level window over all of them. */
-export function statColumn(stat: LayerStat, measure: string): DerivedColumn {
-  return { name: statName(stat, measure), window: wholeOf(stat, measure) };
+/** A measure's average, minimum or maximum over every row of the chart -- of each small chart, given `panels` (a
+ *  facet's columns): a group-level window over all of them. */
+export function statColumn(stat: LayerStat, measure: string, panels: readonly string[] = []): DerivedColumn {
+  return { name: statName(stat, measure), window: wholeOf(stat, measure, panels) };
 }
 
 /**
@@ -266,8 +269,8 @@ export function statColumn(stat: LayerStat, measure: string): DerivedColumn {
  * column it reads. That order is said, not left out: a group-level window with no order takes the level's (query.ts
  * extendDerived), which may be the very column being computed (a chart sorted by its share of the total).
  */
-function wholeOf(fn: 'sum' | LayerStat, column: string): WindowSpec {
-  return { fn, column, partition: [], order: [{ column, direction: 'asc' }], frame: 'partition' };
+function wholeOf(fn: 'sum' | LayerStat, column: string, panels: readonly string[] = []): WindowSpec {
+  return { fn, column, partition: [...panels], order: [{ column, direction: 'asc' }], frame: 'partition' };
 }
 
 // ---------------------------------------------------------------- the kinds' own figures (batch 3)

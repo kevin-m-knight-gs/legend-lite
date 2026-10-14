@@ -348,4 +348,20 @@ describe('batch 3\'s kinds, planned and run: the database computes each kind\'s 
     const t = await rows({ ...spec, mark: 'gauge', options: { ...DEFAULT_OPTIONS, target: 2000 } });
     assert.deepEqual(values(t, 'sum_revenue').map(Number), [1200]);
   });
+  it('small multiples: a share of each panel\'s own total, and its own average line', async () => {
+    const t = await rows({
+      ...BY_REGION, x: 'sold', grain: 'month', facet: { column: 'region' },
+      y: [{ column: 'revenue', fn: 'sum', showAs: { kind: 'percentOfTotal' } }],
+      layers: [{ kind: 'stat', stat: 'average' }],
+    });
+    const regions = values(t, 'region');
+    const shares = values(t, 'percentOfTotal_sum_revenue').map(Number);
+    // each region's months add to the whole of that region: EMEA 100/200/300 of 600, AMER 400/50/150 of 600
+    for (const r of ['EMEA', 'AMER']) {
+      const sum = shares.filter((_, i) => regions[i] === r).reduce((a, b) => a + b, 0);
+      assert.ok(Math.abs(sum - 1) < 1e-9, `${r}'s shares add to one`);
+    }
+    // the average line is each panel's: 200 a month in each
+    assert.deepEqual([...new Set(values(t, 'average_of_percentOfTotal_sum_revenue').map((v) => Number(v).toFixed(6)))], [(1 / 3).toFixed(6)]);
+  });
 });

@@ -512,7 +512,7 @@ export function drilledView(spec: ChartSpec): { readonly spec: ChartSpec; readon
  */
 export function drillLevels(spec: ChartSpec, s: CubeSnapshot): readonly string[] | null {
   if (spec.drill) return spec.drill.levels;
-  if (spec.x === undefined || !DRILLABLE.has(spec.mark)) return null;
+  if (spec.x === undefined || !DRILLABLE.has(spec.mark) || spec.facet !== undefined) return null;
   // a period or a bin is not a level of the grid's groupings: there is nowhere "down" from a month
   if (spec.grain !== undefined || spec.bins !== undefined) return null;
   const at = s.rows.indexOf(spec.x);
@@ -807,7 +807,19 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   // and areas; a mark's size by a scatter (a bubble); a layer reads a value the chart plots, on a kind that draws
   // layers; a scatter plots rows (no show-as); a 100% stack's axis is shares, which a layer of figures would be drawn
   // against
-  if (spec.facet !== undefined) out.push('Small multiples (a facet) are not drawn yet.');
+  if (spec.facet !== undefined) {
+    // small multiples of bars, lines and areas: a panel per value, each its own query's rows; no brush or slider
+    // across many panels, and no colour by value (one scale of colour across the page's panels is a design to make)
+    if (!LAYERED.has(spec.mark)) out.push(`${article} ${kind} is not drawn as small multiples: bars, lines and areas are.`);
+    for (const c of facetColumns(spec)) {
+      if (!known.has(c)) out.push(`The cube has no column '${c}'.`);
+      else if (c === spec.x || c === spec.split) out.push(`'${c}' is across or split already: a facet is another column.`);
+    }
+    if (spec.facet.row !== undefined && spec.facet.row === spec.facet.column) out.push('A facet\'s rows and columns are two columns.');
+    if (spec.options.brush) out.push('Small multiples take no brush: brush one chart.');
+    if (spec.options.zoom) out.push('Small multiples take no slider: zoom one chart.');
+    if ((spec.layers ?? []).some((l) => l.kind === 'threshold')) out.push('Small multiples are not coloured by value yet.');
+  }
   if (spec.size !== undefined && spec.mark !== 'scatter') out.push('Only a scatter sizes its marks (a bubble).');
   for (const l of spec.layers ?? []) {
     if (l.kind !== 'band' && (l.measure ?? 0) >= spec.y.length) out.push(`A ${l.kind} layer reads value ${(l.measure ?? 0) + 1}, which the chart does not plot.`);
@@ -859,7 +871,9 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
     : { kind: 'and', children: [...(s.filter ? [s.filter] : []), ...conditions] };
   const scatter = spec.mark === 'scatter';
   const across = axisName(spec);
-  const keys = [scatter ? spec.x : across, spec.split].filter((c): c is string => c !== undefined);
+  // SMALL MULTIPLES: a chart per value of the facet's columns -- grouped by them too, each panel a whole of its own
+  const panels = facetColumns(spec);
+  const keys = [scatter ? spec.x : across, spec.split, ...panels].filter((c): c is string => c !== undefined);
   // what the chart plots, and the measures a hover lists, a mark's size reads and its label says
   const extras = [...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])];
   const plotted = [...spec.y, ...extras];
@@ -899,7 +913,7 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
       if (!m.showAs || named.has(measureName(m))) continue;
       named.add(measureName(m));
       shown.push(...showAsColumns(m.showAs, baseName(m), across !== undefined ? [across] : [],
-        spec.split !== undefined ? [spec.split] : []));
+        spec.split !== undefined ? [spec.split] : [], measureName(m), panels));
     }
   }
   // A REFERENCE LINE'S VALUE is the database's: a measure's average, minimum or maximum over every row of the chart,
@@ -908,7 +922,7 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
     const named = new Set(shown.map((d) => d.name));
     const stat = (st: LayerStat, m: ChartMeasure | undefined): void => {
       if (!m) return;
-      const d = statColumn(st, measureName(m));
+      const d = statColumn(st, measureName(m), panels);
       if (named.has(d.name)) return;
       named.add(d.name);
       shown.push(d);
@@ -944,11 +958,12 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
     ...filterColumns(filter),
   ]);
   const first = spec.y[0];
-  // the chart's order, ties broken by the category: a waterfall's running total runs along this very order
-  const sorts = scatter ? [] : spec.options.sort.by === 'y' && first
+  // the chart's order, ties broken by the category: a waterfall's running total runs along this very order; small
+  // multiples panel by panel first
+  const sorts = scatter ? [] : [...panels.map((column) => ({ column, direction: 'asc' as const })), ...(spec.options.sort.by === 'y' && first
     ? [{ column: measureName(first), direction: spec.options.sort.direction },
       ...(across !== undefined ? [{ column: across, direction: 'asc' as const }] : [])]
-    : across !== undefined ? [{ column: across, direction: spec.options.sort.direction }] : [];
+    : across !== undefined ? [{ column: across, direction: spec.options.sort.direction }] : [])];
   const {
     pivotValues: _pv, pivotTotal: _pt, groupDerived: _gd, window: _w,
     leafCount: _lc, childCount: _cc, ...rest
@@ -982,6 +997,14 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
     ...(keptGroup.length + shown.length > 0 ? { groupDerived: [...keptGroup, ...shown] } : {}),
     sorts,
   };
+}
+
+/** The most small charts a facet draws: past it, too small to read. */
+export const MAX_FACETS = 12;
+
+/** A facet's columns, its rows' then its columns'. */
+export function facetColumns(spec: ChartSpec): string[] {
+  return [spec.facet?.row, spec.facet?.column].filter((c): c is string => c !== undefined);
 }
 
 /** The chart's order as a window's: by the category, or by the value with ties broken by the category. */
@@ -1027,7 +1050,8 @@ export function kpiQueries(s: CubeSnapshot, spec: ChartSpec): {
 /** The chart's query and the scope it runs at. */
 export function chartQuery(s: CubeSnapshot, spec: ChartSpec): { query: Lambda; snapshot: CubeSnapshot; scope: LevelScope } {
   const snapshot = chartSnapshot(s, spec);
-  const limit = spec.mark === 'scatter' ? SCATTER_LIMIT : spec.options.limit;
+  // small multiples ask for each panel's rows: the most per panel, times the most panels drawn
+  const limit = spec.mark === 'scatter' ? SCATTER_LIMIT : spec.options.limit * (spec.facet ? MAX_FACETS : 1);
   const scope: LevelScope = { level: snapshot.rows.length, parent: [], limit };
   return { query: levelLambda(snapshot, scope), snapshot, scope };
 }

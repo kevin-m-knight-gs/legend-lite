@@ -226,6 +226,29 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   );
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
     form.append(...measureRows(h, spec, plotted, typeOf), ...layerFields(h, spec, plotted));
+    // SMALL MULTIPLES: a chart per value of a column, in a row of charts or a column of them (both: a matrix)
+    const facetField = (which: 'column' | 'row', text: string): HTMLElement => field(doc, text, dropdown<string>(
+      doc, spec.facet?.[which], dims.filter((d) => d.value !== spec.x && d.value !== spec.split), (v) => {
+        if (!h.spec()) return;
+        const { facet, ...rest } = current(h);
+        const { [which]: _old, ...other } = facet ?? {};
+        const next = v ? { ...other, [which]: v } : other;
+        h.replace(Object.keys(next).length > 0 ? { ...rest, facet: next } : rest);
+        h.onSpec();
+        h.refresh();
+      }, { allowNone: true },
+    ));
+    form.append(facetField('column', 'A chart per:'), facetField('row', 'And a row per:'));
+  }
+  if (scatter) {
+    // A BUBBLE: each point sized by a third column of its row
+    form.append(field(doc, 'Size by:', dropdown<string>(doc, spec.size?.column, measures.map((c) => ({ value: c.name, label: c.name })), (v) => {
+      if (!h.spec()) return;
+      const { size: _old, ...rest } = current(h);
+      h.replace(v ? { ...rest, size: { column: v, fn: 'sum' } } : rest);
+      h.onSpec();
+      h.refresh();
+    }, { allowNone: true })));
   }
   // the kinds of several values, none drawn as another mark: a dumbbell's two ends, a radar's spokes
   if (spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'radar' || spec.mark === 'parallel' || spec.mark === 'polar') {

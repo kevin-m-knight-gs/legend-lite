@@ -11,10 +11,11 @@
 // calc-presets.ts) -- or the grid's own row (a sunburst's rings). What happens here is placement: a category's index,
 // a value's position, a calendar's years, all by comparing what the rows say.
 
-import { axisName, drilledView, markLabel, measureName, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
+import { axisName, drilledView, facetColumns, markLabel, MAX_FACETS, measureName, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
 import { paretoName, waterfallNames } from './calc-presets.ts';
 import {
   asOption,
+  chartOption,
   column,
   defaultLabel,
   describe,
@@ -35,6 +36,7 @@ import {
   type GridShown,
   type LabelOf,
   type MarkKey,
+  type UnitOf,
 } from './chart-option.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
@@ -634,5 +636,188 @@ export function gridKindOption(
     },
     notes,
     description: `${mark === 'sunburst' ? 'Sunburst' : 'Tree'} of ${value?.label ?? value?.name ?? 'nothing'} by the grid's rows as shown.`,
+  };
+}
+
+/**
+ * SMALL MULTIPLES (a facet): a chart per value of the facet's columns -- by row, by column, or a matrix of both --
+ * each drawn by the chart's own drawing (chart-option.ts chartOption) from its own rows, laid out as one picture: a
+ * grid per panel, its axes and series renumbered, one legend, one hover. The value axes are SHARED, so panels compare:
+ * each runs to the most any panel shows (found by comparing, not computed); a stack's panels keep their own scale,
+ * said.
+ */
+export function facetOption(
+  drilled: ChartSpec,
+  rows: ResultTable,
+  theme: ChartTheme = LIGHT_THEME,
+  label: LabelOf = defaultLabel,
+  unit?: UnitOf,
+): ChartDrawing {
+  const spec = drilledView(drilled).spec;
+  const facet = spec.facet!;
+  const notes: string[] = [];
+  const rowCol = facet.row !== undefined ? column(rows, facet.row) : undefined;
+  const colCol = facet.column !== undefined ? column(rows, facet.column) : undefined;
+  const rowValues = rowCol ? distinct(rowCol.values) : [null];
+  const colValues = colCol ? distinct(colCol.values) : [null];
+  // the panels that have rows, row by row
+  const panels: { r: Scalar; c: Scalar; at: number[] }[] = [];
+  for (const r of rowValues) {
+    for (const c of colValues) {
+      const at: number[] = [];
+      for (let i = 0; i < rows.rowCount; i++) {
+        if (rowCol && keyText(rowCol.values[i] ?? null) !== keyText(r)) continue;
+        if (colCol && keyText(colCol.values[i] ?? null) !== keyText(c)) continue;
+        at.push(i);
+      }
+      if (at.length > 0) panels.push({ r, c, at });
+    }
+  }
+  if (panels.length > MAX_FACETS) notes.push(`Showing the first ${MAX_FACETS} of ${panels.length} charts.`);
+  const drawn = panels.slice(0, MAX_FACETS);
+  // a matrix keeps its columns; a facet of columns alone wraps; of rows alone, one under another
+  const across = colCol && rowCol ? colValues.length : colCol ? Math.ceil(Math.sqrt(drawn.length)) : 1;
+  const down = Math.ceil(drawn.length / across);
+  const { facet: _f, ...single } = spec;
+  const subs = drawn.map((p, k) => {
+    const sub: ResultTable = {
+      ...rows,
+      columns: rows.columns.map((c) => ({ ...c, values: p.at.map((i) => c.values[i]) })) as ResultTable['columns'],
+      rowCount: p.at.length,
+    };
+    // each panel its own top N, as one chart would be
+    if (sub.rowCount > spec.options.limit && !notes.some((n) => n.startsWith('Each chart shows'))) {
+      notes.push(`Each chart shows its first ${spec.options.limit} by the chosen order; raise "At most" to see more.`);
+    }
+    const limited: ResultTable = sub.rowCount <= spec.options.limit ? sub : {
+      ...sub,
+      columns: sub.columns.map((c) => ({ ...c, values: c.values.slice(0, spec.options.limit) })) as ResultTable['columns'],
+      rowCount: spec.options.limit,
+    };
+    const one: ChartSpec = {
+      ...single,
+      options: { ...spec.options, zoom: false, brush: false, toolbox: false, legend: k === 0 ? spec.options.legend : 'none' },
+    };
+    return chartOption(one, limited, theme, label, unit);
+  });
+  for (const s of subs) for (const n of s.notes) if (!notes.includes(n)) notes.push(n);
+  const name = (p: { r: Scalar; c: Scalar }): string => [
+    ...(rowCol ? [label(p.r, facet.row!, rowCol.type)] : []),
+    ...(colCol ? [label(p.c, facet.column!, colCol.type)] : []),
+  ].join(' · ');
+  type Axis = Record<string, unknown>;
+  const list = (v: unknown): Axis[] => (v === undefined ? [] : Array.isArray(v) ? v as Axis[] : [v as Axis]);
+  // THE SHARED SCALE: the least and the most any panel's first value axis shows, by comparing their values
+  const stacked = spec.options.stack !== 'none';
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const s of subs) {
+    for (const series of list((s.option as { series?: unknown }).series)) {
+      if (series['yAxisIndex'] === 1 || series['xAxisIndex'] === 1) continue;
+      for (const d of (series['data'] as unknown[] | undefined) ?? []) {
+        const v = Array.isArray(d) ? d[1] : d;
+        if (typeof v !== 'number') continue;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+  }
+  const shared = !stacked && Number.isFinite(hi);
+  if (stacked && drawn.length > 1) notes.push('Each stacked chart keeps its own scale.');
+  const horizontal = spec.mark === 'bar' && spec.options.orientation === 'horizontal';
+  const cellW = 100 / across;
+  const top = 8;
+  const grids: Axis[] = [];
+  const titles: Axis[] = [];
+  const xAxes: Axis[] = [];
+  const yAxes: Axis[] = [];
+  const series: Axis[] = [];
+  const offsets: { series: number; panel: number }[] = [];
+  const colours = new Map<string, string>();
+  // each panel's series in the page's order, as their places in the panel's own drawing
+  const perms: number[][] = [];
+  subs.forEach((s, k) => {
+    const o = s.option as Record<string, unknown>;
+    const col = k % across;
+    const row = Math.floor(k / across);
+    const left = col * cellW;
+    const y0 = top + row * (100 - top) / down;
+    grids.push({ left: `${left + 1}%`, width: `${cellW - 3}%`, top: `${y0 + 4}%`, height: `${(100 - top) / down - 9}%`, containLabel: true });
+    titles.push({ text: name(drawn[k]!), left: `${left + 1}%`, top: `${y0}%`, textStyle: { fontSize: 12, fontWeight: 'normal', color: theme.inkSecondary } });
+    const xs = list(o['xAxis']);
+    const ys = list(o['yAxis']);
+    const valueAxes = horizontal ? xs : ys;
+    // the shared end is the data's own figure, not a round one: its label would read oddly, so it is not written
+    const scale = (a: Axis, i: number): Axis => (shared && i === 0 && valueAxes.includes(a) && a['type'] === 'value'
+      ? { ...a, max: hi, ...(lo < 0 ? { min: lo } : {}), axisLabel: { ...(a['axisLabel'] as Axis | undefined), showMaxLabel: false } } : a);
+    const xBase = xAxes.length;
+    const yBase = yAxes.length;
+    xs.forEach((a, i) => xAxes.push({ ...scale(a, i), gridIndex: k }));
+    ys.forEach((a, i) => yAxes.push({ ...scale(a, i), gridIndex: k }));
+    offsets.push({ series: series.length, panel: k });
+    // A SERIES IS THE SAME IN EVERY PANEL: its colour, by its name, so one legend reads them all; and its place in the
+    // order (a stack's bottom), the order the panels first met the names in -- each panel's own order kept beside it
+    const own = list(o['series']);
+    for (const sr of own) {
+      const name = String(sr['name'] ?? '');
+      if (!colours.has(name)) colours.set(name, theme.series[colours.size % theme.series.length]!);
+    }
+    const names = [...colours.keys()];
+    const order = own.map((_, i) => i).sort((a, b) => names.indexOf(String(own[a]!['name'] ?? '')) - names.indexOf(String(own[b]!['name'] ?? '')));
+    perms.push(order);
+    for (const sr of order.map((i) => own[i]!)) {
+      const colour = colours.get(String(sr['name'] ?? ''))!;
+      Object.assign(sr, {
+        itemStyle: { ...(sr['itemStyle'] as Axis | undefined), color: colour },
+        ...(sr['type'] === 'line' ? { lineStyle: { ...(sr['lineStyle'] as Axis | undefined), color: colour } } : {}),
+        ...(sr['areaStyle'] ? { areaStyle: { ...(sr['areaStyle'] as Axis), color: colour } } : {}),
+      });
+      // a stack is a panel's own: the same stack's name in two panels would add one panel's bars to the other's
+      series.push({ ...sr, ...(typeof sr['stack'] === 'string' ? { stack: `${sr['stack']}-${k}` } : {}), xAxisIndex: xBase + ((sr['xAxisIndex'] as number | undefined) ?? 0), yAxisIndex: yBase + ((sr['yAxisIndex'] as number | undefined) ?? 0) });
+    }
+  });
+  const panelOf = (si: number): { at: number; panel: number } => {
+    let found = offsets[0]!;
+    for (const o of offsets) if (o.series <= si) found = o;
+    return { at: perms[found.panel]![si - found.series] ?? si - found.series, panel: found.panel };
+  };
+  const first = subs[0]?.option as Record<string, unknown> | undefined;
+  const tooltip = first?.['tooltip'] as Record<string, unknown> | undefined;
+  return {
+    option: asOption({
+      backgroundColor: 'transparent',
+      textStyle: { color: theme.inkSecondary, fontFamily: 'inherit' },
+      color: [...theme.series],
+      aria: { enabled: true, label: { enabled: false }, decal: { show: spec.options.decal === true } },
+      title: titles,
+      grid: grids,
+      xAxis: xAxes,
+      yAxis: yAxes,
+      legend: first?.['legend'],
+      // one hover: each panel's own, given its own series' numbers
+      tooltip: {
+        ...tooltip,
+        formatter: (params: unknown) => {
+          const ps = (Array.isArray(params) ? params : [params]) as { seriesIndex: number }[];
+          const head = ps[0];
+          if (!head) return '';
+          const { panel } = panelOf(head.seriesIndex);
+          const own = (subs[panel]?.option as { tooltip?: { formatter?: (p: unknown) => string } }).tooltip?.formatter;
+          const local = ps.filter((p) => panelOf(p.seriesIndex).panel === panel).map((p) => ({ ...p, seriesIndex: panelOf(p.seriesIndex).at }));
+          return own ? own(local) : '';
+        },
+      },
+      ...toolboxOf(spec, rows, theme),
+      series,
+    }),
+    keyAt: (si, di, datum) => {
+      const { at, panel } = panelOf(si);
+      const key = subs[panel]?.keyAt(at, di, datum);
+      if (!key) return null;
+      const p = drawn[panel]!;
+      return { ...key, ...(rowCol ? { [facet.row!]: p.r } : {}), ...(colCol ? { [facet.column!]: p.c } : {}) };
+    },
+    notes,
+    description: `${describe(single, rows).replace(/\.$/, '')}, a chart per ${facetColumns(spec).join(' and ')}: ${drawn.length} charts.`,
   };
 }

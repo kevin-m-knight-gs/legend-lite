@@ -80,6 +80,23 @@ const SHEETS: readonly ExampleSheet[] = [
     ],
   },
   {
+    name: 'Small multiples',
+    views: [
+      chart('k-facet-lines', 'Revenue by month, a chart per region, on one scale', {
+        mark: 'line', x: 'sold', grain: 'month', facet: { column: 'region' }, options: BY_TIME,
+      }),
+      chart('k-facet-bars', 'Revenue by category and channel, a chart per region', {
+        x: 'category', split: 'channel', facet: { column: 'region' }, options: { stack: 'stacked' },
+      }),
+      chart('k-sparklines', 'Revenue by quarter, a chart per country', {
+        mark: 'area', x: 'sold', grain: 'quarter', facet: { column: 'country' }, options: BY_TIME,
+      }),
+      chart('k-bubble', 'Each sale\'s cost against its revenue, sized by its units: a bubble chart', {
+        mark: 'scatter', x: 'cost', y: [REVENUE], size: UNITS, split: 'channel',
+      }),
+    ],
+  },
+  {
     name: 'One value',
     views: [
       chart('k-gauge', 'Revenue against its target: a gauge', { mark: 'gauge', options: { target: 40_000_000 } }),
