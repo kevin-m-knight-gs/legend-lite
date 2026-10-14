@@ -9663,3 +9663,29 @@ green; `//gates:local` 363 pass, 2 skipped (the two guards incompatible on this 
 38605839662 on the branch, every lane, every platform, green on all 50 jobs, the Windows Postgres PCT job on its re-run
 (its first try failed to build the test launcher when the runner's query of the remote cache failed, no test having
 run); main's own run on the landing, 38611525856, green on every job.
+
+## 2026-10-14 — A computed column reads the enclosing row: a correlated subquery's select list no longer throws at the lowering (the Compiler Rewrite line)
+
+The tenth line (the `#IQ{...}#` island), compiling real-world queries, reported in IN_FLIGHT that a correlated scalar
+subquery whose select list reads the outer row inside an expression (`SELECT max(x.age) + e.ID FROM ... x` under `FROM
+... e`; both islands reach it) threw `IllegalStateException` "unresolvable even after isolation" at
+`Lowerer.computedColumns`, while the same read in the subquery's WHERE worked. Branch `core/correlated-columns`, one
+commit over cafedc562 (9bc695885 at the head on main); the audit
+(`docs/build-inventory/program/evidence/correlated-columns/AUDIT.md`): see its verdict there.
+
+**The cause and the fix.** `tryComputedColumns` lowered a column lambda's body with a resolver that ignored the variable
+read and resolved every name against the base select: an enclosing row's column was unfoldable (isolate once, then
+loud), and one named like a base column would have resolved to the base's, silently. Predicates never had this:
+`tryPredicate` resolves through `scopedResolver`, the lambda's own row against the select and any other variable through
+the `enclosing` stack every scalar-subquery arm pushes, never the select's same-named column. Computed columns now take
+the same resolver (one line of `Lowerer`). `CorrelatedComputedColumnTest` pins the `#SQL{...}#` spellings end to end on
+DuckDB against the database's own answer to the same SQL (no snap), the plain-Pure spelling (an `extend` over a nested
+relation reading the outer row, under a `groupBy` and without), and a same-named column resolving to the enclosing row.
+
+**Judges.** The six corpus passes against baselines built from main cafedc562 the same day: 0 of 23 result files differ
+(`docs/build-inventory/program/evidence/correlated-columns/judges_compare.txt`); the render census, main's tree against
+the branch: 58,688 entries, 6 differ, all six the new test class's own renders (before 0, after 1), no existing
+statement changed (`render_census_compare.txt` beside it); `//spec:reference_lane` and `//core:census` green;
+`//gates:local` 363 pass, 2 skipped (the two guards incompatible on this Mac); the lane query empty. CI: run 38626481778
+on the branch, every lane, every platform, green on all 50 jobs first time; main's own run on the landing, 38631500150,
+green on every job.
