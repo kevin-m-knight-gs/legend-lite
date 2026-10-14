@@ -33,3 +33,13 @@ tests:
     sql: "SELECT count(*) AS n FROM persons HAVING 1 = 1"
   - id: count_of_an_aggregate_without_group_by
     sql: "SELECT count(*) AS c FROM (SELECT count(*) AS n FROM persons) t"
+  # a column that reads none of such an aggregate keeps its one row (the independent review, 2026-10-14: a
+  # constant column, and a union arm pruned to its constants, read a row per row of the table)
+  - id: constant_over_an_aggregate_without_group_by
+    sql: "SELECT 'x' AS lbl FROM (SELECT count(*) AS c FROM persons) t"
+  - id: count_of_a_constant_over_an_aggregate_without_group_by
+    sql: "SELECT count(*) AS n FROM (SELECT 'x' AS lbl FROM (SELECT count(*) AS c FROM persons) t) u"
+  - id: filtered_aggregate_without_group_by_read_for_a_constant
+    sql: "SELECT lbl FROM (SELECT count(*) AS c, 'x' AS lbl FROM persons WHERE age > 30) t"
+  - id: union_arms_aggregating_without_group_by_read_for_a_constant
+    sql: "SELECT one FROM (SELECT count(*) AS c, 1 AS one FROM persons UNION ALL SELECT count(*) AS c, 2 AS one FROM orders) t ORDER BY one"

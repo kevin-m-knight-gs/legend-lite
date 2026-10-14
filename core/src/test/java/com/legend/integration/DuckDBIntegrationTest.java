@@ -4807,6 +4807,20 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void aColumnThatReadsNoneOfAnAggregateWithNoKeysKeepsItsOneRow() throws SQLException {
+        // merged into the aggregate, a projection that dropped its aggregate read a row per row (the review, 2026-10-14)
+        String source = """
+                #TDS
+                    id, value
+                    1, 10
+                    2, 20
+                    3, 30
+                #->aggregate(~[n : x | $x.id : y | $y->count()])""";
+        assertEquals(1, executeRelation(source + "->extend(~[one : r | 1])->select(~[one])").rows().size());
+        assertEquals(1, executeRelation(source + "->project(~[k : r | 1])").rows().size());
+    }
+
+    @Test
     void twoEmptyColumnsAreEqual() throws SQLException {
         // [] == [] is true in Pure; two empty constant columns, inlined as NULLs, were compared NULL = NULL (never
         // true): #SQL's SELECT NULL INTERSECT SELECT NULL answered no row

@@ -207,7 +207,8 @@ final class RelationPredicates {
         SqlSelect src = lw.relation(rel);
         boolean rowSetFixed = src.limit() != null || src.offset() != null
                 || !src.groupBy().isEmpty() || src.distinct()
-                || src.having() != null || src.qualify() != null;
+                || src.having() != null || src.qualify() != null
+                || Fold.aggregatesWithoutKeys(src);
         SqlSelect base = rowSetFixed ? lw.isolate(src) : src;
         if (!(Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt)
                 || rt.columns().size() != 1) {

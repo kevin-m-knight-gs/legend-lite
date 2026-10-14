@@ -3354,8 +3354,9 @@ public final class SqlToPure {
         }
         List<ValueSpecification> values = new ArrayList<>();
         ValueSpecification anyNull = null;
+        boolean merge = mergesGuards(args);
         for (Tx a : args) {
-            if (a.guard() != null && a.body() != null) {
+            if (merge && a.guard() != null && a.body() != null) {
                 // a strict operand: NULL exactly when its guard holds, else its body
                 anyNull = anyNull == null ? a.guard() : call("or", anyNull, a.guard());
                 values.add(a.body());
@@ -3376,6 +3377,13 @@ public final class SqlToPure {
         return Tx.guarded(anyNull, result, kind);
     }
 
+    /** Whether a strict operation merges a strict operand's guard into its own ({@link Tx#guarded}): only when that
+     *  operand is the one that may be NULL. With another that is NULL, Postgres still computes this one, and raises
+     *  its error (an integer out of range, a division by zero): its whole value is tested, as before the merge. */
+    private static boolean mergesGuards(List<Tx> operands) {
+        return operands.stream().filter(Tx::nullable).count() == 1;
+    }
+
     /** A strict predicate (a comparison, IN, BETWEEN, LIKE): NULL when an operand is NULL, else {@code test}. */
     public static Tx strictTest(List<Tx> operands, java.util.function.Function<List<ValueSpecification>,
             ValueSpecification> test) {
@@ -3386,8 +3394,9 @@ public final class SqlToPure {
         }
         List<ValueSpecification> values = new ArrayList<>();
         ValueSpecification known = null;
+        boolean merge = mergesGuards(operands);
         for (Tx a : operands) {
-            if (a.guard() != null && a.body() != null) {
+            if (merge && a.guard() != null && a.body() != null) {
                 // a strict operand: known exactly when its guard does not hold, and then its body
                 ValueSpecification k = call("not", a.guard());
                 known = known == null ? k : call("and", known, k);
@@ -5572,8 +5581,6 @@ public final class SqlToPure {
         return range == null ? converted : inRange(converted, range, type);
     }
 
-    /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value
-     *  read as one ({@code []->cast(@Integer)->toOne()} raises, typed as the integer it stands for). */
     /** The range {@code e}'s value is already held to by a cast to a narrow integer ({@link #NARROW_INTEGERS},
      *  {@link #SMALL_INTEGERS}: Postgres raised past it), seen through casts to other integers, which keep an
      *  integer's value; the narrowest such range, or null when no cast holds it. */
@@ -5598,6 +5605,8 @@ public final class SqlToPure {
         return inner != null && inner[0] >= outer[0] && inner[1] <= outer[1];
     }
 
+    /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value
+     *  read as one ({@code []->cast(@Integer)->toOne()} raises, typed as the integer it stands for). */
     private static Tx inRange(Tx x, long[] range, String type) {
         return strict(Kind.INTEGER, List.of(x), v -> call("if", call("or", call("lessThan", v.get(0),
                 new CInteger(range[0])), call("greaterThan", v.get(0), new CInteger(range[1]))),

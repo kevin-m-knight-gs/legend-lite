@@ -336,9 +336,14 @@ final class Fold {
      * changes semantics) or truncated (projection commutes with LIMIT, but a
      * narrowed list may drop a column ORDER BY needs only under DISTINCT
      * &mdash; plain ORDER BY may reference source columns in the same select).
+     * Nor over an aggregate with no GROUP BY ({@link #aggregatesWithoutKeys}):
+     * a projection that reads its aggregate cannot fold (an aggregate is not
+     * inlined), and one that reads none would drop it, and the one row with
+     * it (a constant column over {@code aggregate(count)} answered a row per
+     * row read).
      */
     static boolean projectionFolds(SqlSelect s) {
-        return !s.distinct() && s.limit() == null && s.offset() == null;
+        return !s.distinct() && s.limit() == null && s.offset() == null && !aggregatesWithoutKeys(s);
     }
 
     /**
