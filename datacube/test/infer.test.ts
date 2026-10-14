@@ -120,8 +120,9 @@ describe('the model for a table', () => {
     assert.match(m.model, /id INTEGER,\n\s*ia OTHER,\n\s*ip OTHER,\n\s*doc SEMISTRUCTURED\n/);
     assert.deepEqual(m.excluded, ['photo']);
     const sql = (await plannerFor(m.model, m.runtime).plan(from(m.source).lambda())).sql;
-    assert.match(sql, /CAST\("t0"\."ia" AS VARCHAR\) AS "ia"/);
-    assert.match(sql, /CAST\("t0"\."doc" AS JSONB\) AS "doc"/);
+    // the store's bare names folded on Postgres (decision D8), each read labelled as it is referenced
+    assert.match(sql, /CAST\("t0"\.ia AS VARCHAR\) AS ia/);
+    assert.match(sql, /CAST\("t0"\.doc AS JSONB\) AS doc/);
   });
 
   it('declares the database type it is given: a warehouse Postgres catalog plans Postgres SQL', async () => {
