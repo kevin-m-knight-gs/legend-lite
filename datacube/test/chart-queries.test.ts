@@ -159,3 +159,37 @@ describe('presets, planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §
     assert.deepEqual(await shown('rank'), [1, 3, 2]);
   });
 });
+
+describe('the presets in the grid, planned and run: along its own rows', () => {
+  it('a show-as over the grid\'s level is a group-level window in the order the level shows', async () => {
+    const { showAsColumns } = await import('../src/calc-presets.ts');
+    const { levelLambda } = await import('../src/query.ts');
+    const s: CubeSnapshot = {
+      ...cube,
+      rows: ['region'],
+      sorts: [{ column: 'region', direction: 'asc' }],
+      groupDerived: [
+        ...showAsColumns({ kind: 'runningTotal' }, 'revenue', [], [], 'revenue_runningTotal'),
+        ...showAsColumns({ kind: 'percentOfTotal' }, 'revenue', [], [], 'revenue_share'),
+      ],
+    };
+    const t = await engine.execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, 'revenue_runningTotal'), [600, 1200]);
+    assert.deepEqual(values(t, 'revenue_share').map(Number), [0.5, 0.5]);
+  });
+
+  it('a date by its period is a row-stage column the grid can group by', async () => {
+    const { grainColumn } = await import('../src/calc-presets.ts');
+    const { levelLambda } = await import('../src/query.ts');
+    const s: CubeSnapshot = {
+      ...cube,
+      derived: [grainColumn('sold', 'quarter', 'sold_quarter')],
+      rows: ['sold_quarter'],
+      sorts: [{ column: 'sold_quarter', direction: 'asc' }],
+    };
+    const t = await engine.execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    assert.deepEqual(values(t, 'sold_quarter').map((v) => String(v).slice(0, 10)), ['2024-01-01']);
+    assert.deepEqual(values(t, 'revenue'), [1200]);
+  });
+});

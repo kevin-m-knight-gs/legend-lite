@@ -59,8 +59,8 @@ export function grainName(column: string, grain: TimeGrain): string {
  * A date column taken to its period, a row-stage dimension: `$x.d->toOne()->firstDayOfMonth()`; by day, its date part
  * (a DateTime's day; a StrictDate's itself).
  */
-export function grainColumn(column: string, grain: TimeGrain): DerivedColumn {
-  return { name: grainName(column, grain), lambda: row(fn(GRAIN_FUNCTION[grain], one(column))), kind: 'dimension' };
+export function grainColumn(column: string, grain: TimeGrain, name = grainName(column, grain)): DerivedColumn {
+  return { name, lambda: row(fn(GRAIN_FUNCTION[grain], one(column))), kind: 'dimension' };
 }
 
 /** A day, `YYYY-MM-DD`, moved on by one period of `grain` (the end of the period it starts, exclusive). */
@@ -140,10 +140,16 @@ export function showAsName(kind: ShowAsKind, base: string): string {
 /**
  * A measure shown as something computed from it, as GROUP-LEVEL columns over the chart's rows: `base` is the
  * measure's column after grouping, `along` the order the rows run in (the column across, ascending), `within` the
- * columns that restart it (a split: each series its own running total). The last column returned is the one plotted.
+ * columns that restart it (a split: each series its own running total). The last column returned is the one plotted,
+ * `name`; any it reads are named after it (`<name>__total`, `<name>__previous`).
  */
-export function showAsColumns(show: ShowAs, base: string, along: readonly string[], within: readonly string[]): DerivedColumn[] {
-  const name = showAsName(show.kind, base);
+export function showAsColumns(
+  show: ShowAs,
+  base: string,
+  along: readonly string[],
+  within: readonly string[],
+  name = showAsName(show.kind, base),
+): DerivedColumn[] {
   const order: SortSpec[] = along.map((column) => ({ column, direction: 'asc' }));
   const partition = [...within];
   switch (show.kind) {

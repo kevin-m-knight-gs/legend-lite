@@ -106,6 +106,7 @@ import {
 } from './settings.ts';
 import { SETTINGS_WINDOW, buildSettingsPanel } from './ui/settings-panel.ts';
 import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
+import { binColumns, grainColumn, showAsColumns, SHOW_AS_LABELS } from './calc-presets.ts';
 import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
@@ -1739,6 +1740,24 @@ export class CubeApp {
     return refusal(out);
   }
 
+  /**
+   * A preset's calculated columns added to the cube (the grid's Extended Columns menu), in one step: `make` builds them
+   * under the name it is given -- the one the person asked for, the last column -- and names any it reads after it. A
+   * name the cube already has gets a number, so a preset never replaces a column.
+   */
+  async #addPreset(stage: 'row' | 'group', name: string, label: string, make: (name: string) => DerivedColumn[]): Promise<void> {
+    const s = this.#snapshot;
+    const taken = new Set([...rowColumns(s).map((c) => c.name), ...(s.groupDerived ?? []).map((d) => d.name)]);
+    const fits = (n: string): boolean => make(n).every((d) => !taken.has(d.name));
+    let free = name;
+    for (let i = 2; !fits(free); i += 1) free = `${name}_${i}`;
+    const added = make(free);
+    const refused = stage === 'row'
+      ? await this.#setCalc([...s.derived, ...added], [...(s.groupDerived ?? [])])
+      : await this.#setCalc([...s.derived], [...(s.groupDerived ?? []), ...added]);
+    if (refused) this.#status(`Could not add ${label}: ${refused}`, 'error');
+  }
+
   // -- the context menu ------------------------------------------------
 
   #wireContextMenu(): void {
@@ -1967,6 +1986,29 @@ export class CubeApp {
           this.openColumnEditor(json
             ? { json: column, level: 'dimension' }
             : { expression: `x|${columnRef(column)}`, level: this.#kindOf(column) ?? 'measure' });
+        }
+        return;
+      // the chart's presets in the grid (calc-presets.ts): ordinary calculated columns, added in one step
+      case 'calc.grain':
+        if (column && item.grain) {
+          const grain = item.grain;
+          void this.#addPreset('row', `${column}_${grain}`, `${column} by ${grain}`, (n) => [grainColumn(column, grain, n)]);
+        }
+        return;
+      case 'calc.bins':
+        // the width is the person's: the editor opens on the preset's expression (calc-presets.ts, printed by the
+        // compiler), a width of 10 to change
+        if (column) {
+          const seed = binColumns(column, { width: 10 })[0]?.lambda;
+          if (seed) void this.#controller.print(seed).then((text) => this.openColumnEditor({ expression: text, level: 'dimension' }));
+        }
+        return;
+      case 'calc.showAs':
+        if (column && item.showAs) {
+          // along the grid's own rows (an empty order is the order a level shows, query.ts), from the top
+          const show = { kind: item.showAs };
+          void this.#addPreset('group', `${column}_${item.showAs}`, `${column} as ${SHOW_AS_LABELS[item.showAs].toLowerCase()}`,
+            (n) => showAsColumns(show, column, [], [], n));
         }
         return;
       case 'calc.edit':
