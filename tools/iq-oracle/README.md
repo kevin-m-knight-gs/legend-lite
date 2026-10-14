@@ -43,7 +43,7 @@ bazel run //tools/iq-oracle:snap -- --check   # the same, through Bazel (it runs
 |---|---|
 | `DRIFT` | SQL Anywhere's answer now differs from the committed one. The line names the fields that differ (`rows`, `columns`, `error`, `sa_build`, `db`). `DRIFT meta` means the databases, server flags or profiles changed. |
 | `UNSNAPPED` | A case (or one of its profiles) has no committed answer. |
-| `STALE` | The committed answer's `sqlSha` no longer matches the case's SQL, its profile, its `decision` and `expect`, or `schema.yaml`. |
+| `STALE` | The committed answer's `sqlSha` no longer matches the case's SQL, its profile, its `decision` and `expect`, its `params`, or `schema.yaml`. |
 | `GONE` | A committed answer has no live case: the case was deleted, renamed, or is now skipped. |
 | `CRASH` | The case took the server down twice. List it in `known_crashers.txt` or mark it `sa_defect`. |
 | `FAILED` | The tool could not snap the case, for example because the timestamp re-fetch came back with a different shape. |
@@ -150,6 +150,7 @@ tests:
 | `sa_defect` | A reason SQL Anywhere's answer is wrong or unusable here. Treated like `skip`. |
 | `decision` | `D-xx`: the case is judged by that provisional decision rather than by SQL Anywhere. The oracle still snaps SQL Anywhere's answer as evidence. |
 | `expect` | With `decision`: the decided rows as one line of JSON, a list of rows of text cells or null, e.g. `[["1"], [null]]`. |
+| `params` | The values of the case's host variables (`@name`, `:name`), one line: `name = value; ...`, each value an integer (`5`), a float (`1.5`), a decimal (`0.50D`), a `'string'` (no quote or backslash inside), a date (`%2026-03-04`), a timestamp (`%2026-03-04T05:06:07.123456`), or a NULL of a type (`null:Integer`, `null:Float`, `null:String`, `null:StrictDate`, `null:DateTime`, `null:Decimal(38,2)`), as Pure writes them; names distinct without case. The Java harness lets each before the island (the variables the island reads; a NULL is an empty value, `[]->cast(@Integer)`). This tool makes each a real SQL Anywhere variable on the case's connection before it runs (`CREATE VARIABLE @name` of `BIGINT`, `DOUBLE`, `NUMERIC(38,s)`, `LONG VARCHAR`, `DATE` or `TIMESTAMP`, then `SET @name =` the value, a NULL left unset) and drops it after; the case's SQL runs as written but for `:name`, written `@name` (SQL Anywhere reads `:name` in dynamic SQL only as a placeholder a client binds: -188 with none). Under a TDS profile (`tsql_variables` On, where `@name` too is such a placeholder) the case runs with `tsql_variables` Off. A value its type cannot hold is the case's answer: SQL Anywhere's error. IQ island, 2026-10-14 (review 5's M5): the tool wrote each value into the SQL as a constant before, which SQL Anywhere reads otherwise in measured places (`x = @v` two-valued under ansinull Off, a name matched without case, a select-list alias before a variable, `TOP @n`). The answers file's `meta` line says so. |
 
 Any other key is an error, so a misspelt key fails loudly.
 
@@ -174,7 +175,9 @@ or, when SQL Anywhere refuses the statement:
 ```
 
 **`sqlSha`** is `sha256(utf8(sql) || 0x00 || utf8(profile) || 0x00 || utf8(decision) || 0x00 || utf8(expect) || 0x00 ||
-bytes of schema.yaml)`, in lowercase hex (format 2; `decision` and `expect` are empty for a case SQL Anywhere judges).
+bytes of schema.yaml)`, in lowercase hex (format 2; `decision` and `expect` are empty for a case SQL Anywhere judges;
+a case with `params` has them as one more part, `utf8(params) || 0x00`, after `expect`'s, so editing them makes its
+answer STALE too).
 `sql`, `decision` and `expect` are the YAML scalars after unquoting. So editing a decided case's rows makes its answer
 STALE, as editing its SQL does.
 

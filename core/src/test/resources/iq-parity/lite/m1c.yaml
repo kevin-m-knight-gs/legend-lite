@@ -1,0 +1,662 @@
+# M1c for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.5): GROUP BY (names, expressions, select-list
+# aliases, integer constants), HAVING, SELECT DISTINCT, and the aggregates COUNT, SUM, AVG, MIN, MAX, MEDIAN and LIST
+# with SQL Anywhere's result types, over the tables g (keys with duplicates and NULL groups) and o (sums that pass their
+# type's largest value on the way). Each is judged by SQL Anywhere 17's answer in iq-answers.jsonl. A case without FROM,
+# or over DUMMY or sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa); one over tables in the IQ engine,
+# unless its profile is a sqla17 one. No case groups, orders or compares strings (an ASCII-only right trim, not built
+# then; IQ island, 2026-10-14: count_distinct_of_strings answers by IQ's collation since the merge, lite/collation.yaml
+# has the rest), nor reads the CHAR(3) column c under the IQ engine (its padding is the research's D-S1).
+# tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- COUNT: *, a value, DISTINCT; INTEGER in SQL Anywhere's front end, UNSIGNED BIGINT under the IQ engine (D-F15)
+  - id: count_star_value_and_distinct
+    sql: "SELECT COUNT(*), COUNT(v), COUNT(DISTINCT v), COUNT(j) FROM g"
+  - id: count_of_strings_counts_their_values
+    sql: "SELECT COUNT(s), COUNT(vc) FROM g, t WHERE g.id = t.id"
+  - id: count_with_empty_parentheses
+    sql: "SELECT COUNT() FROM g"
+  - id: count_of_no_rows_is_zero
+    sql: "SELECT COUNT(*), COUNT(v), COUNT(DISTINCT v) FROM g WHERE id > 100"
+  - id: count_of_null_is_zero
+    sql: "SELECT COUNT(NULL) FROM g"
+  - id: count_distinct_of_null_is_zero
+    sql: "SELECT COUNT(NULL), COUNT(DISTINCT NULL) FROM g"
+    profile: sqla17-default
+  - id: count_of_a_constant
+    sql: "SELECT COUNT(1), COUNT('x') FROM g"
+  - id: count_distinct_of_bits_and_dates
+    sql: "SELECT COUNT(DISTINCT b), COUNT(DISTINCT dt), COUNT(DISTINCT d) FROM g"
+  - id: count_distinct_of_an_expression
+    sql: "SELECT COUNT(DISTINCT k + 1) FROM g"
+    profile: sqla17-default
+  - id: count_distinct_of_an_expression_under_the_iq_engine_is_refused
+    sql: "SELECT COUNT(DISTINCT k + 1) FROM g"
+  # IQ island, 2026-10-14 (the merge of M1b/M1c with the natives slice): was count_distinct_of_strings_is_refused; IQ's collation answers it now
+  - id: count_distinct_of_strings
+    sql: "SELECT COUNT(DISTINCT s) FROM g"
+  - id: count_in_arithmetic_in_sql_anywhere
+    sql: "SELECT COUNT(*) + 1, COUNT(*) - 20, COUNT(*) * 3 FROM sa_rowgenerator(1, 10)"
+    engine: sa
+  - id: count_out_of_its_integer
+    sql: "SELECT COUNT(*) * 2147483647 FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: count_in_arithmetic_under_the_iq_engine_is_refused
+    sql: "SELECT COUNT(*) + 1 FROM g"
+  - id: count_compared_under_the_iq_engine
+    sql: "SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2"
+  - id: count_ordered_under_the_iq_engine
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k ORDER BY n DESC, k"
+  - id: count_of_rowgenerator
+    sql: "SELECT COUNT(*), COUNT(row_num) FROM sa_rowgenerator(1, 100)"
+    engine: sa
+  - id: count_of_an_empty_rowgenerator
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(5, 1)"
+    engine: sa
+  - id: count_of_dummy
+    sql: "SELECT COUNT(*) FROM DUMMY"
+    engine: sa
+  - id: count_in_a_sql_anywhere_database
+    sql: "SELECT COUNT(*) + 1, COUNT(DISTINCT k) FROM g"
+    profile: sqla17-default
+  - id: count_star_distinct_is_a_syntax_error
+    sql: "SELECT COUNT(DISTINCT *) FROM g"
+  - id: count_of_two_values
+    sql: "SELECT COUNT(v, k) FROM g"
+  - id: count_over_a_join
+    sql: "SELECT COUNT(*) FROM g a, g b WHERE a.k = b.k"
+  - id: count_over_a_left_join
+    sql: "SELECT t.id, COUNT(u.id) FROM t LEFT JOIN u ON u.t_id = t.id GROUP BY t.id ORDER BY 1"
+
+  # ---- SUM: SMALLINT and INTEGER to INTEGER, BIGINT to BIGINT, BIT to NUMERIC(18,0), DOUBLE to DOUBLE, NUMERIC(p,s)
+  #      to NUMERIC(p+8,s) in SQL Anywhere's front end; each running total checked (D-E3)
+  - id: sum_of_smallint_and_integer
+    sql: "SELECT SUM(k), SUM(v), SUM(j) FROM g WHERE k < 4"
+  - id: sum_of_bigint
+    sql: "SELECT SUM(w) FROM g WHERE k < 4"
+  - id: sum_of_smallint_extremes
+    sql: "SELECT SUM(sm) FROM t"
+  - id: sum_per_group
+    sql: "SELECT k, SUM(v), SUM(w) FROM g WHERE k < 4 OR k IS NULL GROUP BY k ORDER BY k"
+  - id: sum_of_an_integer_out_of_range
+    sql: "SELECT SUM(v) FROM g"
+  - id: sum_of_a_bigint_out_of_range
+    sql: "SELECT SUM(w) FROM g"
+  - id: sum_out_of_range_in_one_group
+    sql: "SELECT k, SUM(v) FROM g GROUP BY k"
+  - id: sum_whose_running_total_passes_the_largest
+    sql: "SELECT SUM(v) FROM o"
+  - id: sum_of_a_bigint_whose_running_total_passes_the_largest
+    sql: "SELECT SUM(w) FROM o"
+  - id: sum_whose_running_total_may_pass_the_largest
+    sql: "SELECT SUM(x) FROM (SELECT 2147483647 x UNION ALL SELECT 1 UNION ALL SELECT -5) d"
+    engine: sa
+    skip: "plan-dependent run-time error (D-E3): SQL Anywhere checks each running total in its plan's order"
+  - id: sum_near_the_largest
+    sql: "SELECT SUM(v) FROM o WHERE id <> 2"
+  - id: sum_of_negative_values
+    sql: "SELECT SUM(v), SUM(w) FROM o WHERE id > 1"
+  - id: sum_below_the_smallest
+    sql: "SELECT SUM(x) FROM (SELECT -2147483647 x UNION ALL SELECT -2) d"
+    engine: sa
+  - id: sum_of_smallints_beyond_a_smallint
+    sql: "SELECT SUM(x) FROM (SELECT 32767 x UNION ALL SELECT 32767) d"
+    engine: sa
+  - id: sum_distinct
+    sql: "SELECT SUM(DISTINCT v), SUM(DISTINCT k) FROM g WHERE k < 4"
+  - id: sum_distinct_per_group
+    sql: "SELECT k, SUM(DISTINCT v), COUNT(DISTINCT v) FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_of_an_expression
+    sql: "SELECT SUM(k + 1), SUM(-k), SUM(k * 2) FROM g"
+  - id: sum_of_bits
+    sql: "SELECT SUM(b) FROM g"
+  - id: sum_of_doubles
+    sql: "SELECT SUM(d) FROM g WHERE k < 4"
+  - id: sum_of_doubles_per_group
+    sql: "SELECT k, SUM(d) FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: sum_of_doubles_out_of_range
+    sql: "SELECT SUM(d) FROM g WHERE k = 4 OR id = 4"
+  - id: sum_of_no_rows_is_null
+    sql: "SELECT SUM(v), SUM(w), SUM(d) FROM g WHERE id > 100"
+  - id: sum_of_null_values_is_null
+    sql: "SELECT SUM(v) FROM g WHERE id = 7"
+  - id: sum_of_untyped_null_is_refused
+    sql: "SELECT SUM(NULL) FROM g"
+  - id: sum_of_rowgenerator
+    sql: "SELECT SUM(row_num) FROM sa_rowgenerator(1, 100)"
+    engine: sa
+  - id: sum_of_an_empty_rowgenerator
+    sql: "SELECT SUM(row_num) FROM sa_rowgenerator(5, 1)"
+    engine: sa
+  - id: sum_of_numerics_in_sql_anywhere
+    sql: "SELECT SUM(row_num * 1.5), SUM(1.25), SUM(row_num * 0.25) FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: sum_of_a_numeric_under_the_iq_engine_is_refused
+    sql: "SELECT SUM(n) FROM g"
+  - id: sum_of_strings_is_refused
+    sql: "SELECT SUM(s) FROM g"
+  - id: sum_of_dates_is_refused
+    sql: "SELECT SUM(dt) FROM g"
+  - id: sum_in_arithmetic
+    sql: "SELECT SUM(v) - 1, SUM(k) * 2 FROM g WHERE k < 4"
+  - id: sum_in_a_sql_anywhere_database
+    sql: "SELECT SUM(v), SUM(w) FROM g WHERE k < 4"
+    profile: sqla17-default
+  - id: sum_of_star_is_wrong
+    sql: "SELECT SUM(*) FROM g"
+  - id: sum_of_nothing_is_wrong
+    sql: "SELECT SUM() FROM g"
+  - id: sum_of_two_values_is_wrong
+    sql: "SELECT SUM(v, k) FROM g"
+  - id: sum_with_order_by_is_wrong
+    sql: "SELECT SUM(v ORDER BY v) FROM g"
+
+  # ---- AVG: of a DOUBLE a DOUBLE, checked as its SUM; of an exact number a NUMERIC quotient (refused)
+  - id: avg_of_doubles
+    sql: "SELECT AVG(d) FROM g WHERE k < 4"
+  - id: avg_of_doubles_per_group
+    sql: "SELECT k, AVG(d) FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: avg_distinct_of_doubles
+    sql: "SELECT AVG(DISTINCT d) FROM g WHERE k < 4"
+  - id: avg_of_doubles_out_of_range
+    sql: "SELECT AVG(d) FROM g WHERE k = 4"
+  - id: avg_of_no_doubles_is_null
+    sql: "SELECT AVG(d) FROM g WHERE id > 100"
+  - id: avg_of_an_integer_is_refused
+    sql: "SELECT AVG(v) FROM g WHERE k < 4"
+  - id: avg_of_a_numeric_is_refused
+    sql: "SELECT AVG(n) FROM g"
+  - id: avg_of_rowgenerator_is_refused
+    sql: "SELECT AVG(row_num) FROM sa_rowgenerator(1, 3)"
+    engine: sa
+
+  # ---- MIN and MAX: the argument's type
+  - id: min_max_of_integers
+    sql: "SELECT MIN(k), MAX(k), MIN(v), MAX(v), MIN(w), MAX(w) FROM g"
+  - id: min_max_of_numerics
+    sql: "SELECT MIN(n), MAX(n) FROM g"
+  - id: min_max_of_doubles
+    sql: "SELECT MIN(d), MAX(d) FROM g"
+  - id: min_max_of_dates_and_timestamps
+    sql: "SELECT MIN(dt), MAX(dt), MIN(ts), MAX(ts) FROM t"
+  - id: min_max_of_bits
+    sql: "SELECT MIN(b), MAX(b) FROM g"
+  - id: min_max_of_type_extremes
+    sql: "SELECT MIN(sm), MAX(sm), MIN(it), MAX(it), MIN(bg), MAX(bg), MIN(nm), MAX(nm) FROM t"
+  - id: min_max_per_group
+    sql: "SELECT k, MIN(v), MAX(n), MIN(dt), MAX(d) FROM g GROUP BY k ORDER BY k"
+  - id: min_max_of_no_rows
+    sql: "SELECT MIN(v), MAX(n), MIN(dt) FROM g WHERE id > 100"
+  - id: min_of_a_group_of_nulls
+    sql: "SELECT k, MIN(v) FROM g WHERE id = 7 GROUP BY k"
+  - id: min_distinct
+    sql: "SELECT MIN(DISTINCT k), MAX(DISTINCT v) FROM g"
+  - id: min_max_of_untyped_null
+    sql: "SELECT MIN(NULL), MAX(NULL) FROM g"
+  - id: min_max_of_numerics_in_sql_anywhere
+    sql: "SELECT MIN(1.5), MAX(row_num * 0.5) FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: min_max_in_arithmetic
+    sql: "SELECT MAX(k) + MIN(k), MAX(k) - 1 FROM g"
+  - id: max_minus_min_per_group
+    sql: "SELECT k, MAX(v) - MIN(v) AS spread FROM g WHERE k < 4 GROUP BY k ORDER BY k"
+  - id: min_of_strings_is_refused
+    sql: "SELECT MIN(s) FROM g"
+  - id: max_of_a_char_is_refused
+    sql: "SELECT MAX(c) FROM g"
+  - id: min_with_order_by_is_wrong
+    sql: "SELECT MIN(v ORDER BY v) FROM g"
+
+  # ---- MEDIAN: an integer's midpoint floored, as its type
+  # IQ island, 2026-10-14 (review 3's M2): MEDIAN of an INTEGER column (v, j) is refused now -- SQL Anywhere's midpoint
+  # wraps at 32 bits (its defect) -- so the cases over v and j are judged REFUSED; a SMALLINT's and row_num's answer
+  - id: median_of_integers
+    sql: "SELECT MEDIAN(k), MEDIAN(v) FROM g WHERE k < 4"
+  - id: median_per_group
+    sql: "SELECT k, MEDIAN(v), MEDIAN(j) FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: median_of_an_even_count_is_floored
+    sql: "SELECT MEDIAN(x) AS m FROM (SELECT -1 x UNION ALL SELECT -4) d"
+    engine: sa
+  - id: median_of_an_odd_count
+    sql: "SELECT MEDIAN(row_num) FROM sa_rowgenerator(1, 7)"
+    engine: sa
+  - id: median_of_an_even_rowgenerator
+    sql: "SELECT MEDIAN(row_num) FROM sa_rowgenerator(1, 100)"
+    engine: sa
+  - id: median_all
+    sql: "SELECT MEDIAN(ALL v) FROM g WHERE k < 4"
+  - id: median_distinct_is_refused
+    sql: "SELECT MEDIAN(DISTINCT v), MEDIAN(ALL v) FROM g WHERE k < 4"
+  - id: median_of_no_rows
+    sql: "SELECT MEDIAN(v) FROM g WHERE id > 100"
+  - id: median_of_integer_extremes
+    sql: "SELECT MEDIAN(it), MEDIAN(sm) FROM t"
+  - id: median_of_a_bit_is_wrong
+    sql: "SELECT MEDIAN(b) FROM g"
+  - id: median_of_a_date_is_wrong
+    sql: "SELECT MEDIAN(dt) FROM g"
+  - id: median_of_null_is_wrong
+    sql: "SELECT MEDIAN(NULL) FROM g"
+  - id: median_of_a_bigint_is_refused
+    sql: "SELECT MEDIAN(w) FROM g WHERE k < 4"
+  - id: median_of_a_double_is_refused
+    sql: "SELECT MEDIAN(d) FROM g WHERE k < 4"
+  - id: median_of_a_numeric_is_refused
+    sql: "SELECT MEDIAN(n) FROM g"
+
+  # ---- LIST: an integer column's values in its own order, joined
+  - id: list_ordered_by_its_value
+    sql: "SELECT LIST(id ORDER BY id) FROM g"
+  - id: list_descending
+    sql: "SELECT LIST(v ORDER BY v DESC) FROM g"
+  - id: list_with_a_delimiter
+    sql: "SELECT LIST(id, '-' ORDER BY id) FROM g"
+  - id: list_with_a_spaced_delimiter
+    sql: "SELECT LIST(id, ', ' ORDER BY id) FROM g WHERE k < 3"
+  - id: list_with_an_empty_delimiter
+    sql: "SELECT LIST(id, '' ORDER BY id) FROM g"
+  - id: list_with_a_null_delimiter
+    sql: "SELECT LIST(id, NULL ORDER BY id) FROM g"
+  - id: list_per_group
+    sql: "SELECT k, LIST(id ORDER BY id) FROM g GROUP BY k ORDER BY k"
+  - id: list_skips_nulls
+    sql: "SELECT k, LIST(v ORDER BY v) FROM g WHERE k IS NULL OR k = 2 GROUP BY k ORDER BY k"
+  - id: list_of_no_rows_is_empty
+    sql: "SELECT LIST(v ORDER BY v) FROM g WHERE id > 100"
+  - id: list_of_bigints
+    sql: "SELECT LIST(w ORDER BY w) FROM g"
+  - id: list_of_bits
+    sql: "SELECT LIST(b ORDER BY b) FROM g"
+  - id: list_of_rowgenerator
+    sql: "SELECT LIST(row_num ORDER BY row_num DESC) FROM sa_rowgenerator(1, 5)"
+    engine: sa
+  - id: list_of_an_empty_rowgenerator
+    sql: "SELECT LIST(row_num ORDER BY row_num) FROM sa_rowgenerator(5, 1)"
+    engine: sa
+  - id: two_lists_ordered_alike
+    sql: "SELECT LIST(id ORDER BY id), LIST(id, '|' ORDER BY id) FROM g"
+  - id: two_lists_ordered_differently
+    sql: "SELECT LIST(row_num ORDER BY row_num), LIST(row_num ORDER BY row_num DESC) FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: two_lists_ordered_differently_under_the_iq_engine_are_refused
+    sql: "SELECT LIST(id ORDER BY id), LIST(k ORDER BY k) FROM g"
+  - id: list_without_order_by_is_refused
+    sql: "SELECT LIST(id) FROM g"
+  - id: list_ordered_by_another_column_is_refused
+    sql: "SELECT LIST(k ORDER BY id) FROM g"
+  - id: list_of_strings_is_refused
+    sql: "SELECT LIST(s ORDER BY s) FROM g"
+  - id: list_distinct_is_refused
+    sql: "SELECT LIST(DISTINCT id ORDER BY id) FROM g"
+  - id: list_ordered_by_a_position_is_wrong
+    sql: "SELECT LIST(id ORDER BY 1) FROM g"
+  - id: list_with_a_column_delimiter_is_refused
+    sql: "SELECT LIST(id, k ORDER BY id) FROM g"
+  - id: list_with_nulls_first_is_a_syntax_error
+    sql: "SELECT LIST(id ORDER BY id NULLS FIRST) FROM g"
+
+  # ---- GROUP BY: columns, expressions, select-list aliases; NULL is one group, the lowest
+  - id: group_by_a_column
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY k ORDER BY k"
+  - id: group_by_two_columns
+    sql: "SELECT k, j, COUNT(*) FROM g GROUP BY k, j ORDER BY k, j"
+  - id: group_by_columns_in_another_order
+    sql: "SELECT j, k FROM g GROUP BY k, j ORDER BY 1, 2"
+  - id: group_by_a_column_not_shown
+    sql: "SELECT COUNT(*) FROM g GROUP BY k"
+  - id: group_by_without_aggregates
+    sql: "SELECT k FROM g GROUP BY k ORDER BY 1"
+  - id: group_by_a_column_twice
+    sql: "SELECT k FROM g GROUP BY k, k ORDER BY 1"
+  - id: group_by_an_expression
+    sql: "SELECT k + 1, COUNT(*) FROM g GROUP BY k + 1 ORDER BY 1"
+  - id: group_by_an_expression_shown_inside_another
+    sql: "SELECT (k + 1) * 2 FROM g GROUP BY k + 1 ORDER BY 1"
+  - id: group_by_an_expression_named_as_group_by_writes_it
+    sql: "SELECT k + 1 FROM g GROUP BY (k) + 1"
+  - id: group_by_an_expression_written_otherwise_is_refused
+    sql: "SELECT 1 + k FROM g GROUP BY k + 1"
+  - id: group_by_an_expression_and_its_column_elsewhere_is_refused
+    sql: "SELECT k * 3 FROM g GROUP BY k + 1"
+  - id: group_by_an_expression_and_a_column
+    sql: "SELECT j, k + 1 FROM g GROUP BY j, k + 1 ORDER BY 1, 2"
+  - id: group_by_a_case
+    sql: "SELECT CASE WHEN k > 2 THEN 1 ELSE 0 END AS big, COUNT(*) FROM g GROUP BY big ORDER BY 1"
+  - id: group_by_an_alias
+    sql: "SELECT k AS kk, COUNT(*) FROM g GROUP BY kk ORDER BY 1"
+  - id: group_by_an_alias_of_an_expression
+    sql: "SELECT j + 0 AS x, COUNT(*) FROM g GROUP BY x ORDER BY 1"
+  - id: group_by_an_alias_before_a_column_of_its_name
+    sql: "SELECT j AS k, COUNT(*) FROM g GROUP BY k ORDER BY 1"
+  - id: group_by_an_alias_inside_an_expression
+    sql: "SELECT j AS x, COUNT(*) FROM g GROUP BY x + 0 ORDER BY 1"
+  - id: group_by_an_alias_and_the_same_expression
+    sql: "SELECT k + 1 AS x, k + 1 FROM g GROUP BY x ORDER BY 1"
+  - id: group_by_an_alias_of_an_aggregate_is_wrong
+    sql: "SELECT COUNT(*) AS n FROM g GROUP BY n"
+  - id: group_by_a_bit
+    sql: "SELECT b, COUNT(*), SUM(v) FROM g WHERE k < 4 GROUP BY b ORDER BY b"
+  - id: group_by_a_date
+    sql: "SELECT dt, COUNT(*) FROM g GROUP BY dt ORDER BY dt"
+  - id: group_by_a_double
+    sql: "SELECT d, COUNT(*) FROM g WHERE k < 4 GROUP BY d ORDER BY d"
+  - id: group_by_a_numeric
+    sql: "SELECT n, COUNT(*) FROM g GROUP BY n ORDER BY n"
+  - id: group_by_a_bigint
+    sql: "SELECT w, COUNT(*) FROM g GROUP BY w ORDER BY w"
+  - id: group_by_null_groups
+    sql: "SELECT j, COUNT(*), COUNT(j) FROM g GROUP BY j ORDER BY j"
+  - id: group_by_of_no_rows
+    sql: "SELECT k, COUNT(*) FROM g WHERE id > 100 GROUP BY k"
+  - id: group_by_a_string_is_refused
+    sql: "SELECT s, COUNT(*) FROM g GROUP BY s"
+  - id: group_by_a_varchar_is_refused
+    sql: "SELECT vc FROM t GROUP BY vc"
+  - id: group_by_a_column_not_grouped_is_wrong
+    sql: "SELECT k, j FROM g GROUP BY k"
+  - id: group_by_a_column_not_grouped_in_having_is_wrong
+    sql: "SELECT k FROM g GROUP BY k HAVING j > 1"
+  - id: group_by_order_by_a_column_not_grouped_is_wrong
+    sql: "SELECT k FROM g GROUP BY k ORDER BY j"
+  - id: group_by_one_is_a_constant_not_a_position
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY 1"
+  - id: group_by_positions_are_constants
+    sql: "SELECT k, j, COUNT(*) FROM g GROUP BY 1, 2"
+  - id: group_by_a_constant_beside_a_column
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY k, 1 ORDER BY k"
+  - id: group_by_only_a_constant_under_the_iq_engine_is_refused
+    sql: "SELECT COUNT(*) FROM g GROUP BY 1"
+  - id: group_by_only_a_constant_in_sql_anywhere
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(1, 5) GROUP BY 1"
+    engine: sa
+  - id: group_by_only_a_constant_over_no_rows
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(5, 1) GROUP BY 1"
+    engine: sa
+  - id: group_by_null_is_refused
+    sql: "SELECT COUNT(*) FROM g GROUP BY NULL"
+  - id: group_by_rowgenerator_remainders
+    sql: "SELECT row_num % 3 AS m, COUNT(*), SUM(row_num) FROM sa_rowgenerator(1, 10) GROUP BY m ORDER BY m"
+    engine: sa
+  - id: group_by_a_join
+    sql: "SELECT t.id, COUNT(*), SUM(u.id) FROM t, u WHERE t.id = u.t_id GROUP BY t.id ORDER BY 1"
+  - id: group_by_a_qualified_column
+    sql: "SELECT a.k, COUNT(*) FROM g a GROUP BY a.k ORDER BY 1"
+  - id: group_by_a_derived_table
+    sql: "SELECT x, COUNT(*) FROM (SELECT k AS x FROM g WHERE k < 4) d GROUP BY x ORDER BY x"
+  - id: grouped_derived_table
+    sql: "SELECT d.k, d.n FROM (SELECT k, COUNT(*) AS n FROM g GROUP BY k) d WHERE d.n > 2"
+  - id: grouped_subquery_in_where
+    sql: "SELECT id FROM g WHERE v = (SELECT MAX(v) FROM g WHERE k < 4) ORDER BY id"
+  - id: grouped_subquery_compared_with_each_row
+    sql: "SELECT id FROM t WHERE id > (SELECT COUNT(*) FROM u) ORDER BY id"
+  - id: correlated_count
+    sql: "SELECT t.id, (SELECT COUNT(*) FROM u WHERE u.t_id = t.id) AS n FROM t ORDER BY 1"
+  - id: grouped_union
+    sql: "SELECT k FROM g WHERE k < 3 GROUP BY k UNION ALL SELECT COUNT(*) FROM g ORDER BY 1"
+  - id: group_by_rollup_is_refused
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY ROLLUP(k)"
+  - id: group_by_cube_is_refused
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY CUBE(k)"
+  - id: group_by_with_rollup_is_refused
+    sql: "SELECT k FROM g GROUP BY k WITH ROLLUP"
+  - id: group_by_grouping_sets_is_refused
+    sql: "SELECT k FROM g GROUP BY GROUPING SETS ((k), ())"
+  - id: group_by_an_empty_grouping_is_refused
+    sql: "SELECT COUNT(*) FROM g GROUP BY ()"
+  - id: group_by_a_composite_item_is_refused
+    sql: "SELECT k, j FROM g GROUP BY (k, j)"
+  - id: group_by_a_subquery_is_refused
+    sql: "SELECT COUNT(*) FROM g GROUP BY (SELECT 1)"
+  - id: group_by_all_is_a_syntax_error
+    sql: "SELECT k FROM g GROUP BY ALL"
+  - id: having_before_group_by_is_a_syntax_error
+    sql: "SELECT k FROM g HAVING COUNT(*) > 1 GROUP BY k"
+  - id: an_aggregate_in_group_by_is_wrong
+    sql: "SELECT COUNT(*) FROM g GROUP BY COUNT(*)"
+
+  # ---- HAVING
+  - id: having_an_aggregate
+    sql: "SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 ORDER BY k"
+  # IQ island, 2026-10-14 (review 3's B1 and M4): a SUM beside AND in HAVING is D-E2's (and refused, D-E3's check is
+  # computed only where read): the second aggregate is MAX now, which cannot raise
+  - id: having_two_aggregates
+    sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING COUNT(*) > 1 AND MAX(v) > 0 ORDER BY k"
+  - id: having_an_aggregate_not_shown
+    sql: "SELECT k, COUNT(*) FROM g WHERE k < 4 GROUP BY k HAVING MAX(v) > 1 ORDER BY 1"
+  - id: having_a_group_key
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY k HAVING k > 1 ORDER BY 1"
+  - id: having_an_alias_of_an_aggregate
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k HAVING n > 2 ORDER BY 1"
+  - id: having_an_alias_in_arithmetic
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k HAVING n + 1 > 3 ORDER BY 1"
+    profile: sqla17-default
+  - id: having_count_in_arithmetic_under_the_iq_engine_is_refused
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k HAVING n + 1 > 3 ORDER BY 1"
+  - id: having_a_sum_in_arithmetic
+    sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING SUM(v) * 2 > 5 ORDER BY 1"
+  - id: having_an_alias_of_a_key
+    sql: "SELECT k AS x FROM g GROUP BY k HAVING x > 1 ORDER BY 1"
+  - id: having_an_alias_before_a_column_of_its_name
+    sql: "SELECT MAX(v) AS v FROM g WHERE k < 4 GROUP BY k HAVING v > 1 ORDER BY 1"
+  - id: having_a_null_test
+    sql: "SELECT k, MIN(v) FROM g GROUP BY k HAVING MIN(v) IS NULL"
+  - id: having_without_group_by
+    sql: "SELECT COUNT(*) FROM g HAVING COUNT(*) > 100"
+  - id: having_true_without_group_by
+    sql: "SELECT COUNT(*) FROM g HAVING 1 = 1"
+  - id: having_over_no_rows
+    sql: "SELECT COUNT(*) FROM g WHERE id > 100 HAVING 1 = 0"
+  - id: having_without_an_aggregate_is_refused
+    sql: "SELECT id FROM g HAVING id > 1"
+  - id: having_in_a_sql_anywhere_database
+    sql: "SELECT k, SUM(v) FROM g WHERE k < 4 GROUP BY k HAVING SUM(v) > 0 ORDER BY 1"
+    profile: sqla17-default
+  - id: having_under_tds
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY k HAVING COUNT(*) > 2 ORDER BY 1"
+    profile: iq16-tds
+
+  # ---- SELECT DISTINCT
+  - id: distinct_integers
+    sql: "SELECT DISTINCT k FROM g ORDER BY k"
+  - id: distinct_two_columns
+    sql: "SELECT DISTINCT k, j FROM g ORDER BY k, j"
+  - id: distinct_unordered
+    sql: "SELECT DISTINCT j FROM g"
+  - id: distinct_dates_and_bits
+    sql: "SELECT DISTINCT dt, b FROM g WHERE k < 4"
+  - id: distinct_doubles
+    sql: "SELECT DISTINCT d FROM g ORDER BY d"
+  - id: distinct_numerics
+    sql: "SELECT DISTINCT n FROM g WHERE k < 4"
+  - id: distinct_ordered_by_a_position
+    sql: "SELECT DISTINCT k, j FROM g ORDER BY 2 DESC, 1"
+  - id: distinct_ordered_by_an_alias
+    sql: "SELECT DISTINCT k AS x FROM g ORDER BY x DESC"
+  - id: distinct_ordered_by_the_column_under_an_alias
+    sql: "SELECT DISTINCT k AS x FROM g ORDER BY k"
+  - id: distinct_of_an_expression
+    sql: "SELECT DISTINCT k + 1 FROM g ORDER BY k + 1"
+  - id: distinct_ordered_by_a_column_not_shown_is_wrong
+    sql: "SELECT DISTINCT k FROM g ORDER BY j"
+  - id: distinct_ordered_by_its_column_under_an_expression_is_wrong
+    sql: "SELECT DISTINCT k + 1 FROM g ORDER BY k"
+  - id: distinct_ordered_by_an_expression_is_refused
+    sql: "SELECT DISTINCT k FROM g ORDER BY -k"
+  - id: distinct_strings_is_refused
+    sql: "SELECT DISTINCT s FROM g"
+  - id: distinct_with_top
+    sql: "SELECT DISTINCT TOP 2 k FROM g ORDER BY k"
+  - id: distinct_over_a_grouping
+    sql: "SELECT DISTINCT k FROM g GROUP BY k, j ORDER BY k"
+  - id: distinct_counts
+    sql: "SELECT DISTINCT COUNT(*) FROM g GROUP BY k"
+  - id: distinct_with_a_distinct_aggregate_under_the_iq_engine_is_refused
+    sql: "SELECT DISTINCT COUNT(DISTINCT j) FROM g GROUP BY k"
+  - id: distinct_with_a_distinct_aggregate_in_sql_anywhere
+    sql: "SELECT DISTINCT COUNT(DISTINCT j) FROM g GROUP BY k"
+    profile: sqla17-default
+  - id: distinct_of_rowgenerator
+    sql: "SELECT DISTINCT row_num % 3 AS m FROM sa_rowgenerator(1, 10) ORDER BY m"
+    engine: sa
+  - id: distinct_in_a_sql_anywhere_database
+    sql: "SELECT DISTINCT k FROM g ORDER BY 1"
+    profile: sqla17-default
+
+  # ---- the names of a grouped query's unaliased items: as IQ first reads each part (GROUP BY, HAVING, the select list)
+  - id: name_of_aggregates
+    sql: "SELECT COUNT(*), count(v), Sum(k), MIN(DISTINCT k), max(g.k), COUNT(DISTINCT k) FROM g"
+  - id: name_of_an_aggregate_of_an_expression
+    sql: "SELECT SUM(k + 1), SUM(-k), SUM((k)) FROM g"
+  - id: name_of_an_aggregate_in_arithmetic
+    sql: "SELECT SUM(k) + 1, MAX(k) - MIN(k), 2 * COUNT(*) FROM g"
+  - id: name_of_a_parenthesized_aggregate_is_refused
+    sql: "SELECT (SUM(k)) * 2 FROM g"
+  - id: name_of_a_repeated_aggregate_is_the_first_spelling
+    sql: "SELECT SUM(k), sum(k) + 1, SUM(ALL k) * 2 FROM g"
+  - id: name_of_a_repeated_count_is_the_first_spelling
+    sql: "SELECT COUNT(), count(*) + 1 FROM g"
+    profile: sqla17-default
+  - id: name_of_an_aggregate_of_a_negated_column
+    sql: "SELECT SUM(k), SUM(-k) FROM g"
+  - id: name_of_an_aggregate_spelled_in_having
+    sql: "SELECT k, SUM(V) FROM g WHERE k < 4 GROUP BY k HAVING sum(v) > 0 ORDER BY 1"
+  - id: name_of_count_spelled_in_having
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY k HAVING count(*) > 2 ORDER BY 1"
+  - id: name_of_an_aggregate_not_spelled_in_order_by
+    sql: "SELECT k, SUM(v) FROM g WHERE k < 4 GROUP BY k ORDER BY sum(V)"
+  - id: name_of_an_aggregate_written_otherwise_is_refused
+    sql: "SELECT SUM(v + 1), SUM(1 + v) FROM g WHERE k < 4"
+  - id: name_of_a_qualified_aggregate_argument_is_refused
+    sql: "SELECT SUM(a.v), SUM(v) FROM g a WHERE k < 4"
+  - id: name_of_a_column_spelled_in_group_by
+    sql: "SELECT K, k * 2, K + 1 FROM g GROUP BY k ORDER BY 1"
+  - id: name_of_a_signed_column_spelled_in_group_by
+    sql: "SELECT +k FROM g GROUP BY K ORDER BY 1"
+  - id: name_of_a_parenthesized_key_column
+    sql: "SELECT (k) + 1, ((k)) * 2 FROM g GROUP BY k ORDER BY 1"
+  - id: name_of_a_column_qualified_in_group_by
+    sql: "SELECT a.k + 1, k FROM g a GROUP BY A.K ORDER BY 1"
+  - id: name_of_an_aggregate_of_a_derived_column
+    sql: "SELECT MEDIAN(x), SUM(x), COUNT(x) FROM (SELECT -1 x UNION ALL SELECT -4) d"
+    engine: sa
+  - id: name_of_list
+    sql: "SELECT LIST(id ORDER BY id DESC), LIST(id, '-' ORDER BY id DESC) FROM g WHERE k < 3"
+  - id: name_of_an_aggregate_over_rowgenerator
+    sql: "SELECT COUNT(*), SUM(row_num), MAX(row_num), MEDIAN(row_num) FROM sa_rowgenerator(1, 100)"
+    engine: sa
+  - id: name_of_aggregates_in_a_sql_anywhere_database
+    sql: "SELECT COUNT(*), SUM(k), MAX(j) FROM g"
+    profile: sqla17-default
+
+  # ---- aggregates where IQ raises its errors, and the statistics refused
+  - id: an_aggregate_in_where_is_wrong
+    sql: "SELECT id FROM g WHERE COUNT(*) > 1"
+  - id: a_nested_aggregate_is_wrong
+    sql: "SELECT SUM(COUNT(*)) FROM g"
+  - id: an_aggregate_of_a_condition_is_a_syntax_error
+    sql: "SELECT COUNT(k > 1) FROM g"
+  - id: stddev_is_refused
+    sql: "SELECT STDDEV(v) FROM g WHERE k < 4"
+  - id: variance_is_refused
+    sql: "SELECT VARIANCE(v), VAR_POP(v) FROM g WHERE k < 4"
+  - id: a_window_is_refused
+    sql: "SELECT SUM(v) OVER () FROM g"
+  - id: grouping_is_refused
+    sql: "SELECT GROUPING(k) FROM g GROUP BY k"
+  - id: an_aggregate_with_top
+    sql: "SELECT TOP 2 k, COUNT(*) FROM g GROUP BY k ORDER BY k"
+  - id: an_aggregate_in_a_case
+    sql: "SELECT k, CASE WHEN COUNT(*) > 2 THEN 1 ELSE 0 END AS many FROM g GROUP BY k ORDER BY k"
+  - id: an_aggregate_in_isnull
+    sql: "SELECT ISNULL(MAX(v), 0) AS m FROM g WHERE id > 100"
+  - id: an_aggregate_compared_with_null_under_tds
+    sql: "SELECT k FROM g GROUP BY k HAVING MIN(v) = NULL ORDER BY 1"
+    profile: iq16-tds
+  - id: an_aggregate_compared_with_null
+    sql: "SELECT k FROM g GROUP BY k HAVING MIN(v) = NULL ORDER BY 1"
+
+  # ---- more of the same under other profiles and shapes
+  - id: grouped_in_a_sql_anywhere_database
+    sql: "SELECT k, COUNT(*), SUM(v), MIN(d), MAX(dt), MEDIAN(j) FROM g WHERE k < 4 GROUP BY k ORDER BY k"
+    profile: sqla17-default
+  - id: grouped_under_odbc
+    sql: "SELECT k, COUNT(*), MAX(dt) FROM g GROUP BY k ORDER BY k"
+    profile: iq16-odbc
+  - id: grouped_under_tds
+    sql: "SELECT k, SUM(w), LIST(id ORDER BY id) FROM g WHERE k < 4 GROUP BY k ORDER BY k"
+    profile: iq16-tds
+  - id: grouped_by_an_alias_in_a_sql_anywhere_database
+    sql: "SELECT j AS k, COUNT(*) FROM g GROUP BY k ORDER BY 1"
+    profile: sqla17-default
+  - id: group_by_one_in_a_sql_anywhere_database
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY 1"
+    profile: sqla17-default
+  - id: count_arithmetic_over_a_join_in_a_sql_anywhere_database
+    sql: "SELECT t.id, COUNT(u.id) * 10 AS n FROM t LEFT JOIN u ON u.t_id = t.id GROUP BY t.id ORDER BY 1"
+    profile: sqla17-default
+  - id: sum_of_a_numeric_of_t_in_a_sql_anywhere_database
+    sql: "SELECT SUM(nm) FROM t"
+    profile: sqla17-default
+  - id: sum_of_a_numeric_column_in_a_sql_anywhere_database
+    sql: "SELECT SUM(qty) FROM u"
+    profile: sqla17-default
+  - id: sum_of_doubles_of_t
+    sql: "SELECT SUM(dbl), MIN(dbl), MAX(dbl) FROM t WHERE id < 6"
+  - id: sum_of_doubles_up_to_one_e_three_hundred
+    sql: "SELECT SUM(dbl) FROM t"
+  - id: grouped_by_two_keys_with_having
+    sql: "SELECT k, b, COUNT(*) AS n, SUM(v) AS total FROM g WHERE k < 4 GROUP BY k, b HAVING COUNT(*) >= 1 ORDER BY k, b"
+  - id: grouped_ordered_by_an_aggregate_not_shown
+    sql: "SELECT k FROM g WHERE k < 4 GROUP BY k ORDER BY SUM(v) DESC"
+  - id: grouped_ordered_by_a_key_expression
+    sql: "SELECT k FROM g GROUP BY k ORDER BY k + 1 DESC"
+  - id: grouped_ordered_by_a_position
+    sql: "SELECT COUNT(*), k FROM g GROUP BY k ORDER BY 2"
+  - id: grouped_ordered_by_count_and_key
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY k ORDER BY COUNT(*) DESC, k"
+  - id: aggregate_of_a_join_per_group
+    sql: "SELECT u.t_id, SUM(t.sm), MAX(u.qty) FROM t, u WHERE t.id = u.t_id GROUP BY u.t_id ORDER BY 1"
+  - id: aggregate_of_a_case
+    sql: "SELECT SUM(CASE WHEN b = 1 THEN 1 ELSE 0 END) AS ones, COUNT(*) AS n FROM g"
+  - id: aggregate_of_an_if
+    sql: "SELECT k, SUM(IF v > 0 THEN v ELSE 0 ENDIF) AS positive FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
+  - id: aggregate_of_isnull
+    sql: "SELECT SUM(ISNULL(v, 0)) AS total FROM g WHERE k < 4"
+  - id: count_of_a_derived_grouping
+    sql: "SELECT COUNT(*) FROM (SELECT k FROM g GROUP BY k) d"
+  - id: max_of_counts
+    sql: "SELECT MAX(n) FROM (SELECT k, COUNT(*) AS n FROM g GROUP BY k) d"
+  - id: grouped_exists
+    sql: "SELECT k, COUNT(*) FROM g WHERE EXISTS (SELECT 1 FROM t WHERE t.id = g.id) GROUP BY k ORDER BY 1"
+  - id: grouped_in_list
+    sql: "SELECT k, COUNT(*) FROM g WHERE k IN (1, 3) GROUP BY k ORDER BY 1"
+  - id: grouped_between
+    sql: "SELECT j, MIN(id), MAX(id) FROM g WHERE id BETWEEN 2 AND 9 GROUP BY j ORDER BY 1"
+  - id: grouped_rowgenerator_with_having
+    sql: "SELECT row_num % 4 AS m, SUM(row_num) AS s FROM sa_rowgenerator(1, 20) GROUP BY m HAVING SUM(row_num) > 50 ORDER BY 1"
+    engine: sa
+  - id: grouped_dummy
+    sql: "SELECT dummy_col, COUNT(*) FROM DUMMY GROUP BY dummy_col"
+    engine: sa
+  - id: aggregates_of_no_from
+    sql: "SELECT COUNT(*), SUM(1), MAX(2)"
+    engine: sa
+  - id: distinct_count_of_rowgenerator
+    sql: "SELECT COUNT(DISTINCT row_num % 3) FROM sa_rowgenerator(1, 10)"
+    engine: sa
+  - id: top_of_a_grouping
+    sql: "SELECT TOP 3 j, COUNT(*) FROM g GROUP BY j ORDER BY j DESC"
+  - id: top_start_at_of_a_grouping
+    sql: "SELECT TOP 2 START AT 2 k, SUM(w) FROM g WHERE k < 4 GROUP BY k ORDER BY k"
+  - id: first_of_a_grouping
+    sql: "SELECT FIRST k, COUNT(*) FROM g GROUP BY k ORDER BY 2 DESC, 1"
+  - id: an_aggregate_of_an_enclosing_and_an_own_column_is_wrong
+    sql: "SELECT t.id, (SELECT MAX(u.id + t.id) FROM u) AS m FROM t ORDER BY 1"
+  - id: an_aggregate_of_its_own_columns_in_a_subquery
+    sql: "SELECT t.id, (SELECT MAX(u.id + id) FROM u) AS m FROM t ORDER BY 1"
+  - id: an_aggregate_in_on_is_wrong
+    sql: "SELECT 1 FROM g a JOIN g b ON COUNT(*) = 1"
+  - id: a_column_not_grouped_over_a_derived_table_is_wrong
+    sql: "SELECT a, b FROM (SELECT 1 a, 2 b) d GROUP BY a"
+  - id: a_column_not_grouped_in_order_by_over_a_derived_table_is_wrong
+    sql: "SELECT a FROM (SELECT 1 a, 2 b) d GROUP BY a ORDER BY b"

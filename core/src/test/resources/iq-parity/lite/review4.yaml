@@ -1,0 +1,286 @@
+# The fourth review's findings on the merge and review 3's fixes, each pinned (docs/IQ_SQL_STUDY_2026_10_13.md §9.11; IQ
+# island, 2026-10-14): a case that failed, raised a Java error, or answered where SQL Anywhere raises, before its fix.
+# B1: a * before the item a derived table's or a set operation's column is read from is refused where its strings must
+# be their own keys; B2: a shown NUMERIC quotient or AVG the statement reads again is refused; B3: a checked SUM in a
+# derived table or a set operation's branch is refused; M1: a constant chain's parentheses are named only under the
+# WHERE shapes measured to keep them; M2: a timestamp after 7910 with a time is refused (SQL Anywhere's defect); m1:
+# INTERSECT's column may be NULL; m2: a typed NULL as a CASE's last value answers. Judged by SQL Anywhere 17's answers
+# in iq-answers.jsonl. A case without FROM, or over sa_rowgenerator or DUMMY, runs in SQL Anywhere's front end (engine:
+# sa). The SQL in YAML double quotes. tools/iq-oracle's README.md has the keys.
+tests:
+  # ---- B1: a * before the item IqKeys reads: the item's index is not its column's (SQL Anywhere's values 'b', 'b ',
+  # 'a', 'B', 'c'; lite took the second branch's raw x for the own key RTRIM(x), or 'q' for a branch's 'b ')
+  - id: b1_star_before_an_rtrim_item_distinct_is_refused
+    sql: "SELECT DISTINCT r FROM (SELECT *, RTRIM(x) AS r FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d UNION ALL SELECT 9, 'zz', x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) f) e ORDER BY r"
+    engine: sa
+  - id: b1_star_before_a_constant_distinct_is_refused
+    sql: "SELECT DISTINCT w FROM (SELECT *, 'q' AS w FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION ALL SELECT 1, 'b', 'q' FROM DUMMY UNION ALL SELECT 2, 'x', 'b ' FROM DUMMY UNION ALL SELECT 3, 'y', 'b' FROM DUMMY) e ORDER BY w"
+    engine: sa
+  - id: b1_star_before_a_constant_max_is_refused
+    sql: "SELECT MAX(w) AS m FROM (SELECT *, 'b' AS w FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION ALL SELECT 2, 'x', 'b ' FROM DUMMY) e"
+    engine: sa
+  - id: b1_star_before_a_constant_group_by_is_refused
+    sql: "SELECT w, COUNT(*) AS n FROM (SELECT z.*, 'q' AS w FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION ALL SELECT 2, 'x', 'b ' FROM DUMMY UNION ALL SELECT 3, 'y', 'b' FROM DUMMY) e GROUP BY w ORDER BY w"
+    engine: sa
+  - id: b1_star_then_constants_union_is_refused
+    sql: "SELECT *, 'q', 5 FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION SELECT 1, 'b', 'q', 5 FROM DUMMY ORDER BY 2"
+    engine: sa
+  - id: b1_star_then_constants_except_is_refused
+    sql: "SELECT *, 'q', 5 FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z EXCEPT SELECT 1, 'b', 'q', 5 FROM DUMMY ORDER BY 2"
+    engine: sa
+  - id: b1_star_after_the_own_key_is_read
+    sql: "SELECT DISTINCT r FROM (SELECT RTRIM(x) AS r, * FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d UNION ALL SELECT 'zz', 9, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) f) e ORDER BY r"
+    engine: sa
+
+  # ---- B2: a shown NUMERIC quotient or AVG that the statement reads again (its alias or position in GROUP BY, HAVING
+  # or ORDER BY; the same AVG in HAVING): SQL Anywhere reads it unrounded there, so it is refused by name
+  - id: b2_quotient_grouped_by_its_alias_is_refused
+    sql: "SELECT v / w AS q, COUNT(*) AS n FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 998 WHEN 2 THEN 997 WHEN 3 THEN 10 END AS NUMERIC(5,0)) AS v, CAST(CASE row_num WHEN 1 THEN 999 WHEN 2 THEN 998 WHEN 3 THEN 3 END AS NUMERIC(3,0)) AS w FROM sa_rowgenerator(1,3)) d GROUP BY q ORDER BY n"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_quotient_ordered_by_its_alias_is_refused
+    sql: "SELECT id, v / w AS q FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 998 WHEN 2 THEN 997 WHEN 3 THEN 10 END AS NUMERIC(5,0)) AS v, CAST(CASE row_num WHEN 1 THEN 999 WHEN 2 THEN 998 WHEN 3 THEN 3 END AS NUMERIC(3,0)) AS w FROM sa_rowgenerator(1,3)) d ORDER BY q, id"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_quotient_in_having_by_its_alias_is_refused
+    sql: "SELECT v / w AS q, COUNT(*) AS n FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 998 WHEN 2 THEN 997 WHEN 3 THEN 10 END AS NUMERIC(5,0)) AS v, CAST(CASE row_num WHEN 1 THEN 999 WHEN 2 THEN 998 WHEN 3 THEN 3 END AS NUMERIC(3,0)) AS w FROM sa_rowgenerator(1,3)) d GROUP BY q HAVING q = 0.9990"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_quotient_ordered_by_its_position_is_refused
+    sql: "SELECT id, v / w AS q FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 998 WHEN 2 THEN 997 WHEN 3 THEN 10 END AS NUMERIC(5,0)) AS v, CAST(CASE row_num WHEN 1 THEN 999 WHEN 2 THEN 998 WHEN 3 THEN 3 END AS NUMERIC(3,0)) AS w FROM sa_rowgenerator(1,3)) d ORDER BY 2, 1"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_quotient_grouped_and_ordered_by_its_alias_is_refused
+    sql: "SELECT v / w AS q FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 998 WHEN 2 THEN 997 WHEN 3 THEN 10 END AS NUMERIC(5,0)) AS v, CAST(CASE row_num WHEN 1 THEN 999 WHEN 2 THEN 998 WHEN 3 THEN 3 END AS NUMERIC(3,0)) AS w FROM sa_rowgenerator(1,3)) d GROUP BY q ORDER BY q"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_quotient_ordered_by_its_alias_alone_is_refused
+    sql: "SELECT id, v / w AS q FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 998 WHEN 2 THEN 997 WHEN 3 THEN 10 END AS NUMERIC(5,0)) AS v, CAST(CASE row_num WHEN 1 THEN 999 WHEN 2 THEN 998 WHEN 3 THEN 3 END AS NUMERIC(3,0)) AS w FROM sa_rowgenerator(1,3)) d ORDER BY q"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_avg_above_its_shown_value_in_having_is_refused
+    sql: "SELECT k, AVG(v) AS a FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 1 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 3 WHEN 8 THEN 3 END AS INTEGER) AS k, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN -1 WHEN 7 THEN -1 WHEN 8 THEN -2 END AS NUMERIC(6,2)) AS v FROM sa_rowgenerator(1,8)) d GROUP BY k HAVING a > 1.3333333333333 ORDER BY k"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_avg_equal_to_its_shown_value_in_having_is_refused
+    sql: "SELECT k, AVG(v) AS a FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 1 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 3 WHEN 8 THEN 3 END AS INTEGER) AS k, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN -1 WHEN 7 THEN -1 WHEN 8 THEN -2 END AS NUMERIC(6,2)) AS v FROM sa_rowgenerator(1,8)) d GROUP BY k HAVING a = 1.3333333333333 ORDER BY k"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_avg_below_its_shown_value_in_having_is_refused
+    sql: "SELECT k, AVG(v) AS a FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 1 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 3 WHEN 8 THEN 3 END AS INTEGER) AS k, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN -1 WHEN 7 THEN -1 WHEN 8 THEN -2 END AS NUMERIC(6,2)) AS v FROM sa_rowgenerator(1,8)) d GROUP BY k HAVING a < -1.3333333333333 ORDER BY k"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_avg_written_again_in_having_is_refused
+    sql: "SELECT k, AVG(v) AS a FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 1 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 3 WHEN 8 THEN 3 END AS INTEGER) AS k, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN -1 WHEN 7 THEN -1 WHEN 8 THEN -2 END AS NUMERIC(6,2)) AS v FROM sa_rowgenerator(1,8)) d GROUP BY k HAVING AVG(v) > 1.3333333333333 ORDER BY k"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_avg_written_again_equal_in_having_is_refused
+    sql: "SELECT k, AVG(v) AS a FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 1 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 3 WHEN 8 THEN 3 END AS INTEGER) AS k, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN -1 WHEN 7 THEN -1 WHEN 8 THEN -2 END AS NUMERIC(6,2)) AS v FROM sa_rowgenerator(1,8)) d GROUP BY k HAVING AVG(v) = 1.3333333333333 ORDER BY k"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_avg_beside_a_count_in_having_is_refused
+    sql: "SELECT k, AVG(v) AS a, COUNT(*) AS n FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 1 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 3 WHEN 8 THEN 3 END AS INTEGER) AS k, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN -1 WHEN 7 THEN -1 WHEN 8 THEN -2 END AS NUMERIC(6,2)) AS v FROM sa_rowgenerator(1,8)) d GROUP BY k HAVING n > 2 AND a > 1.3333333333333 ORDER BY k"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_quotient_read_nowhere_else_is_read
+    sql: "SELECT id, v / w AS q FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 998 WHEN 2 THEN 997 WHEN 3 THEN 10 END AS NUMERIC(5,0)) AS v, CAST(CASE row_num WHEN 1 THEN 999 WHEN 2 THEN 998 WHEN 3 THEN 3 END AS NUMERIC(3,0)) AS w FROM sa_rowgenerator(1,3)) d ORDER BY id"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: b2_avg_read_nowhere_else_is_read
+    sql: "SELECT k, AVG(v) AS a FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 1 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN 3 WHEN 7 THEN 3 WHEN 8 THEN 3 END AS INTEGER) AS k, CAST(CASE row_num WHEN 1 THEN 1 WHEN 2 THEN 1 WHEN 3 THEN 2 WHEN 4 THEN 2 WHEN 5 THEN 2 WHEN 6 THEN -1 WHEN 7 THEN -1 WHEN 8 THEN -2 END AS NUMERIC(6,2)) AS v FROM sa_rowgenerator(1,8)) d GROUP BY k ORDER BY k"
+    profile: iq16-default, sqla17-default
+    engine: sa
+
+  # ---- B3: a checked SUM in a derived table, read for some rows only by the query around it (SQL Anywhere raises -158
+  # in the aggregation): refused in any query but the statement's own SELECT
+  - id: b3_derived_sum_inside_if_is_refused
+    sql: "SELECT k, IF k = 4 THEN 0 ELSE s ENDIF AS x FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY k"
+  - id: b3_derived_sum_inside_case_is_refused
+    sql: "SELECT k, CASE WHEN k = 4 THEN 0 ELSE s END AS x FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY k"
+  - id: b3_derived_sum_inside_coalesce_is_refused
+    sql: "SELECT k, COALESCE(IF k = 4 THEN 0 ENDIF, s) AS x FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY k"
+  - id: b3_derived_sum_under_and_in_where_is_refused
+    sql: "SELECT k FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d WHERE n > 2 AND s > 0 ORDER BY k"
+  - id: b3_derived_sum_under_top_is_refused
+    sql: "SELECT TOP 1 k, s FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY k"
+  - id: b3_derived_sum_in_a_case_condition_is_refused
+    sql: "SELECT COUNT(*) AS c FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d WHERE CASE WHEN k = 4 THEN 1 ELSE s END > 0"
+  - id: b3_derived_bigint_sum_inside_if_is_refused
+    sql: "SELECT k, IF k = 4 THEN 0 ELSE s ENDIF AS x FROM (SELECT k, SUM(w) AS s, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY k"
+  - id: b3_sum_through_two_derived_tables_is_refused
+    sql: "SELECT k, IF k = 4 THEN 0 ELSE s2 ENDIF AS x FROM (SELECT k, s AS s2 FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d) e ORDER BY k"
+  - id: b3_derived_sum_in_a_product_inside_if_is_refused
+    sql: "SELECT k, IF k = 4 THEN 0 ELSE s * 1 ENDIF AS x FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY k"
+  - id: b3_derived_sum_inside_isnull_is_refused
+    sql: "SELECT k, ISNULL(IF k = 4 THEN 0 ENDIF, s) AS x FROM (SELECT k, SUM(v) AS s, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY k"
+  - id: b3_sum_in_a_union_branch_is_refused
+    sql: "SELECT k, s FROM (SELECT k, SUM(v) AS s FROM g GROUP BY k UNION ALL SELECT 9, 0 FROM DUMMY) e WHERE k <> 4 ORDER BY k"
+  - id: b3_sum_of_the_statement_still_raises
+    sql: "SELECT k, SUM(v) AS s FROM g GROUP BY k ORDER BY k"
+
+  # ---- M1: a constant chain's parentheses (unaliased items): kept by SQL Anywhere only under no WHERE or one test of a
+  # column against a constant (=, <>, <, <=, >, >=, BETWEEN, IS NULL); any other WHERE is not named (measured)
+  - id: m1_chain_names_under_an_in_list_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col IN (1, 2)"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_a_constant_test_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE 1 = 1"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_a_one_value_in_list_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col IN (1)"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_or_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col = 1 OR dummy_col = 2"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_not_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE NOT dummy_col = 1"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_and_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col > 1 AND dummy_col < 5"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_a_false_test_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE 1 = 0"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_not_in_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col NOT IN (1, 2)"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_a_test_and_a_constant_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col = 0 AND 1 = 1"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_an_ordered_in_list_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col IN (0, 1) ORDER BY 1"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_over_a_table_under_an_in_list_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM t WHERE id IN (1, 2)"
+    profile: iq16-default, iq16-tds
+  - id: m1_chain_names_over_a_table_under_a_negative_constant_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM t WHERE id = -1"
+    profile: iq16-default, iq16-tds
+  - id: m1_chain_names_over_a_table_under_a_constant_first_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM t WHERE 1 = id"
+    profile: iq16-default, iq16-tds
+  - id: m1_chain_names_over_a_table_under_is_not_null_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM t WHERE id IS NOT NULL"
+    profile: iq16-default, iq16-tds
+  - id: m1_chain_names_over_a_table_under_like_are_refused
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM t WHERE vc LIKE 'H%'"
+    profile: iq16-default, iq16-tds
+  - id: m1_chain_names_under_one_comparison_keep_their_parentheses
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col = 0"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_between_keep_their_parentheses
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col BETWEEN 0 AND 5"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_under_is_null_keep_their_parentheses
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM DUMMY WHERE dummy_col IS NULL"
+    profile: iq16-default, iq16-tds
+    engine: sa
+  - id: m1_chain_names_over_a_table_keep_their_parentheses
+    sql: "SELECT 1 + (2), (1) + 2 * (3) FROM t WHERE vc = 'Hello' ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: m1_chain_names_over_a_table_under_top_keep_their_parentheses
+    sql: "SELECT TOP 2 START AT 2 1 + (2), (1) + 2 * (3) FROM t WHERE id BETWEEN 1 AND 4 ORDER BY id DESC"
+    profile: iq16-default, iq16-tds
+
+  # ---- M2: from the year 7911 on SQL Anywhere 17 drops a timestamp's hours and minutes (its defect, the study's §2.5):
+  # a timestamp constant there with a time, and a DATEADD that may reach those years with a time of day, are refused
+  - id: m2_an_hour_past_9999_12_31_22_30_is_refused
+    sql: "SELECT row_num, DATEADD(HOUR, row_num, '9999-12-31 22:30:00') AS a FROM sa_rowgenerator(1, 1) ORDER BY 1"
+    engine: sa
+  - id: m2_a_minute_past_9999_12_31_23_58_30_is_refused
+    sql: "SELECT row_num, DATEADD(MINUTE, row_num, '9999-12-31 23:58:30') AS a FROM sa_rowgenerator(1, 1) ORDER BY 1"
+    engine: sa
+  - id: m2_a_second_past_9999_12_31_23_59_58_is_refused
+    sql: "SELECT row_num, DATEADD(SECOND, row_num, '9999-12-31 23:59:58') AS a FROM sa_rowgenerator(1, 1) ORDER BY 1"
+    engine: sa
+  - id: m2_a_microsecond_at_the_last_day_is_refused
+    sql: "SELECT row_num, DATEADD(MICROSECOND, row_num, '9999-12-31 23:59:59.999998') AS a FROM sa_rowgenerator(1, 1) ORDER BY 1"
+    engine: sa
+  - id: m2_two_hours_past_the_end_is_refused
+    sql: "SELECT row_num, DATEADD(HOUR, row_num, '9999-12-31 22:30:00') AS a FROM sa_rowgenerator(2, 2) ORDER BY 1"
+    engine: sa
+  - id: m2_two_minutes_past_the_end_is_refused
+    sql: "SELECT row_num, DATEADD(MINUTE, row_num, '9999-12-31 23:58:30') AS a FROM sa_rowgenerator(2, 2) ORDER BY 1"
+    engine: sa
+  - id: m2_two_seconds_past_the_end_is_refused
+    sql: "SELECT row_num, DATEADD(SECOND, row_num, '9999-12-31 23:59:58') AS a FROM sa_rowgenerator(2, 2) ORDER BY 1"
+    engine: sa
+  - id: m2_hours_of_a_date_in_the_last_years_are_refused
+    sql: "SELECT row_num, DATEADD(HOUR, row_num, CAST('9999-12-30' AS DATE)) AS a FROM sa_rowgenerator(23, 25) ORDER BY 1"
+    engine: sa
+  - id: m2_years_of_a_timed_timestamp_into_the_last_years_are_refused
+    sql: "SELECT row_num, DATEADD(YEAR, row_num * 6000, '2026-01-01 10:30:00') AS a FROM sa_rowgenerator(1, 1) ORDER BY 1"
+    engine: sa
+  - id: m2_a_timed_timestamp_in_the_last_years_is_refused
+    sql: "SELECT CAST('8000-01-01 10:30' AS TIMESTAMP) AS a"
+    engine: sa
+  - id: m2_years_of_a_date_into_the_last_years_are_read
+    sql: "SELECT row_num, DATEADD(YEAR, row_num * 6000, CAST('2026-01-01' AS DATE)) AS a FROM sa_rowgenerator(1, 1) ORDER BY 1"
+    engine: sa
+  - id: m2_hours_before_the_last_years_are_read
+    sql: "SELECT row_num, DATEADD(HOUR, row_num, '7900-01-01 10:30:00') AS a FROM sa_rowgenerator(1, 2) ORDER BY 1"
+    engine: sa
+  # IQ island, 2026-10-14 (the merge of M1e): the same through IqDateTime's other spellings (slashes, a month's name),
+  # each constant's year carried for DATEADD's guard; a host variable's date has no year known to the translation
+  - id: m2_a_timed_timestamp_with_slashes_in_the_last_years_is_refused
+    sql: "SELECT CAST('8000/06/01 13:00' AS TIMESTAMP) AS a"
+    engine: sa
+  - id: m2_a_timed_timestamp_by_a_month_name_in_the_last_years_is_refused
+    sql: "SELECT CAST('Jun 1 8000 13:00' AS TIMESTAMP) AS a"
+    engine: sa
+  - id: m2_a_timed_string_in_the_last_years_compared_is_refused
+    sql: "SELECT 1 AS one WHERE CAST('8000-06-01' AS TIMESTAMP) < 'Jun 1 8000 13:00'"
+    engine: sa
+  - id: m2_a_day_after_a_timed_timestamp_with_slashes_is_read
+    sql: "SELECT DATEADD(DAY, 1, CAST('7900/06/01 13:00' AS TIMESTAMP)) AS a"
+    engine: sa
+  - id: m2_years_after_a_timed_timestamp_by_a_month_name_are_refused
+    sql: "SELECT DATEADD(YEAR, 20, CAST('Jun 1 7900 1:00' AS TIMESTAMP)) AS a"
+    engine: sa
+  - id: m2_an_hour_after_a_host_timestamp_is_refused
+    sql: "SELECT DATEADD(HOUR, 1, @stamp) AS a"
+    params: "stamp = %2026-03-04T05:06:07"
+    engine: sa
+  # IQ island, 2026-10-14 (review 5's B3): was m2_a_day_after_a_host_date_is_read; a date variable is refused
+  - id: m2_a_day_after_a_host_date_is_refused
+    sql: "SELECT DATEADD(DAY, 1, @day) AS a"
+    params: "day = %2026-03-04"
+    engine: sa
+
+  # ---- m1: INTERSECT's column holds the left's values, NULL where they may be (a key over it failed in the compiler)
+  - id: m1_intersect_ordered_by_a_string
+    sql: "SELECT RTRIM(vc) AS r FROM t INTERSECT SELECT 'Hello' ORDER BY 1"
+  - id: m1_intersect_read_by_a_function
+    sql: "SELECT UPPER(r) AS u, LENGTH(r) AS n FROM (SELECT RTRIM(vc) AS r FROM t INTERSECT SELECT 'Hello') d"
+
+  # ---- m2: a NULL of a type as a CASE's or an IF's last value (CAST(NULL AS VARCHAR(3))): the same value as no branch
+  - id: m2_if_else_a_typed_null
+    sql: "SELECT row_num, IF row_num = 1 THEN 'x' ELSE CAST(NULL AS VARCHAR(3)) ENDIF AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: m2_if_else_a_typed_integer_null
+    sql: "SELECT row_num, IF row_num = 1 THEN 1 ELSE CAST(NULL AS INTEGER) ENDIF AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: m2_if_else_a_converted_null
+    sql: "SELECT row_num, IF row_num = 1 THEN 'x' ELSE CONVERT(VARCHAR(3), NULL) ENDIF AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: m2_case_last_when_a_typed_null
+    sql: "SELECT row_num, CASE WHEN row_num = 1 THEN 'x' WHEN row_num IS NULL THEN CAST(NULL AS VARCHAR(3)) END AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: m2_case_null_beside_a_typed_null_else
+    sql: "SELECT row_num, CASE WHEN row_num = 1 THEN 'x' WHEN row_num IS NULL THEN NULL ELSE CAST(NULL AS VARCHAR(3)) END AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: m2_case_nulls_of_two_types_are_refused
+    sql: "SELECT row_num, CASE WHEN row_num = 1 THEN 'x' WHEN row_num IS NULL THEN CAST(NULL AS CHAR(2)) ELSE CAST(NULL AS VARCHAR(3)) END AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa

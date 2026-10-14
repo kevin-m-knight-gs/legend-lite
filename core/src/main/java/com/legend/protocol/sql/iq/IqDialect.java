@@ -5,16 +5,19 @@ package com.legend.protocol.sql.iq;
 
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CDate;
 import com.legend.protocol.spec.CDecimal;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.InputDialect;
 import com.legend.protocol.sql.SqlAst;
+import com.legend.protocol.sql.SqlSyntaxException;
 import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlToPure.Kind;
 import com.legend.protocol.sql.SqlToPure.Tx;
 import com.legend.protocol.sql.SqlTranslationException;
+import com.legend.values.PureDateLiteral;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -44,11 +47,15 @@ import java.util.Set;
  *       or an IF UNKNOWN (measured) where the IQ engine rewrites them too (the research's D-L1); any other comparison
  *       with NULL is UNKNOWN.</li>
  *   <li><b>Strings</b> compare case-sensitively in an IQ profile's database, ignoring trailing blanks (BLANK PADDING
- *       ON): {@code =} holds when one value starts with the other and the rest is spaces. Ordering
- *       strings ({@code <}, ORDER BY) and DISTINCT over them need an ASCII-only right trim (IQ ignores the blanks
- *       before comparing, which no padding reproduces for characters below the space), and every string comparison
- *       of a {@code sqla17} profile's case-insensitive database needs an ASCII-only case fold: natives not built yet
- *       (the study's O1), so each is refused by name. Under the IQ engine a CHAR(n) column's value is padded with
+ *       ON): {@code =} holds when one value starts with the other and the rest is spaces; {@code <} and the other
+ *       orderings compare the two without their trailing spaces (IQ ignores the blanks before comparing, which no
+ *       padding reproduces for characters below the space: {@code 'a' < 'a\t'}). A {@code sqla17} profile's
+ *       database compares them by their ASCII letters folded to lower case ({@code '_' < 'a'}), trailing blanks
+ *       significant ({@link #collated}; IQ island, 2026-10-14: both composed of existing natives, the study's O1).
+ *       ORDER BY sorts strings by the same collation key, COUNT(DISTINCT) counts them by it, and a GROUP BY key the
+ *       query does not show groups by it; DISTINCT, a GROUP BY key shown, UNION, INTERSECT, EXCEPT, MIN, MAX and LIST
+ *       read strings only where each value is its own key ({@link #key}, {@link IqKeys}; IQ island, 2026-10-14, the
+ *       merge of M1c and the natives slice). Under the IQ engine a CHAR(n) column's value is padded with
  *       blanks to n (the research's D-S1), which the source read computes once, so every reference sees it.
  *       {@code ||} joins two values as text, a single NULL among them read as '' and all NULL giving NULL (the
  *       research's D-S3); {@code +} of two strings does the same, while a string and a number (or an untyped NULL)
@@ -60,11 +67,11 @@ import java.util.Set;
  *       read as one raises, as {@code SqlToPure}'s range checks do), {@code /} truncating toward zero, {@code %}
  *       keeping the dividend's sign, a zero divisor IQ's error -628 (DIVIDE_BY_ZERO_ERROR's default). The database
  *       computes each operation in 64 bits ({@code floor}, Pure's integer of a number, before each operand
- *       that might be narrower), so only IQ's own ranges bound a result. Arithmetic on a NUMERIC (IQ-engine
- *       decimal types are the research's D-N1), a DOUBLE, a string or a date is refused by name, and so are the
- *       results IQ types NUMERIC or unsigned. A constant result out of its type is IQ's error at translation only
- *       when every operand is a constant IQ folds; a BIGINT result is the database's own overflow; an expression
- *       whose checks would write out more Pure than {@link #LARGEST} nodes is refused.</li>
+ *       that might be narrower), so only IQ's own ranges bound a result. Arithmetic on a string or a date is
+ *       refused by name, and so are the integer results IQ types NUMERIC or unsigned. A constant result out of its
+ *       type is IQ's error at translation only when every operand is a constant IQ folds; a BIGINT result is the
+ *       database's own overflow; an expression whose checks would write out more Pure than {@link #LARGEST} nodes is
+ *       refused.</li>
  *   <li><b>CASE, IF, ISNULL, COALESCE, IFNULL, NULLIF</b>: one type for their values by IQ's unification
  *       ({@link #unify}), where it is one the island can prove; {@code IFNULL(a, b)} is NULL when {@code a} is not
  *       (IQ's, not COALESCE's); {@code NULLIF(a, b)} reads {@code b} as {@code a}'s type.</li>
@@ -72,6 +79,32 @@ import java.util.Set;
  *       a negative count or a START AT below 1 is IQ's error -674, the research's D-Q1), which the planner folds. A
  *       row limit over a FROM clause needs an ORDER BY, and its select list and ORDER BY no operation that can raise
  *       (IQ computes them only for the rows it keeps): both refused by name.</li>
+ *   <li><b>SQL Anywhere's own relations</b> (M1a): {@code DUMMY} and {@code sa_rowgenerator(...)} ({@link #source}), a
+ *       statement over them alone running in SQL Anywhere's front end ({@link #engineOf}).</li>
+ *   <li><b>Comparisons</b> (M1a) by IQ's conversions ({@link #compared}): a string with a number as NUMERIC (in SQL
+ *       Anywhere's front end, for a constant string; the IQ engine's NUMERIC is D-N1), with a date as a timestamp (a
+ *       constant in ISO spelling), an exact number with a DOUBLE as a DOUBLE. {@code BETWEEN}, {@code IN} and
+ *       {@code IS [NOT] DISTINCT FROM} compare as {@code =}, {@code <=} and {@code >=} do, in three-valued logic; a
+ *       NULL in an IN list is UNKNOWN whatever ansinull says. {@code LIKE} ({@link #like}) without {@code [set]}
+ *       classes, case-sensitively, trailing blanks significant.</li>
+ *   <li><b>NUMERIC arithmetic</b> (M1a) in SQL Anywhere's front end only, {@code + - *} at the research's TYPING §4
+ *       precision and scale ({@link #decimalArithmetic}), and (IQ island, 2026-10-14) {@code /} and {@code %} exactly
+ *       as SQL Anywhere computes them, a quotient where it is shown ({@link #quotient}); <b>DOUBLE arithmetic</b> in
+ *       both engines, IEEE as every database computes it, past the largest DOUBLE or by zero IQ's error
+ *       ({@link #doubleArithmetic}).</li>
+ *   <li><b>An unaliased item's name</b> (M1b): SQL Anywhere's rendering of it ({@link IqNames}, measured), a column
+ *       qualified by its FROM item's name; refused where the statement shows a name that is not known.</li>
+ *   <li><b>Relations</b> (M1b): joins by comma, [INNER], LEFT, RIGHT, FULL and CROSS JOIN with IQ's comparisons in ON;
+ *       NATURAL JOIN keeps both sides' columns ({@link #mergesNaturalJoin}); KEY JOIN refused. Derived tables name each
+ *       column; an unaliased table function {@code tb('...t')} is known by its table's name. Subqueries -- scalar,
+ *       EXISTS, IN, ANY/SOME/ALL ({@link #quantifiedTest}, IQ's comparisons) -- where IQ's engine takes them
+ *       ({@link #subqueryPlaces}). UNION, EXCEPT and INTERSECT with IQ's unification of each column
+ *       ({@link #setColumn}) and IQ's ORDER BY rules ({@link #setOrder}). The FROM clause's and the query's structural
+ *       errors IQ raises before running ({@link #fromClause}, {@link #bound}) are raised before translating.</li>
+ *   <li><b>Names bound outside the SQL</b> (IQ island, 2026-10-14, M1e): an owner-qualified table to the model's
+ *       tables ({@link #table}), a host variable to the enclosing Pure query's variable ({@link #parameter}), both
+ *       {@link IqBindings}'; a constant date string read by DATE_ORDER and a date written as text by the profile's
+ *       formats, {@link IqDateTime}'s.</li>
  * </ul>
  * Refusals that IQ makes too carry IQ's SQLCODE and SQLSTATE beside the message, which is this dialect's own wording.
  */
@@ -91,9 +124,13 @@ public final class IqDialect implements InputDialect {
     /** The comparisons that are (part of) a CASE's or an IF's condition, in the statement being read: SQL Anywhere's
      *  front end does not rewrite {@code = NULL} there under ansinull Off. */
     private final Set<SqlAst.Expr> caseConditions;
-    /** The names (ASCII lower case) the statement being read refers to a column by, or null when it reads every
-     *  column (a star): a source column read otherwise ({@link #read}) is read so only where it is referred to. */
+    /** The names (ASCII lower case) the statement being read refers to a column by: a source column read otherwise
+     *  ({@link #read}) is read so only where it is referred to, or where its source is in the FROM clause of a query
+     *  with a star ({@link #starred}); null when every column is read so. */
     private final @com.legend.base.Nullable Set<String> referenced;
+    /** The places of the FROM items (tables, functions) of the queries with a star in their select list: each of
+     *  their columns is read as the dialect reads it ({@link #read}), referred to or not. */
+    private final Set<SqlAst.Pos> starred;
     /** The expressions (and every expression inside them) of the select list and ORDER BY of a statement with a row
      *  limit: IQ computes the select list only for the rows the limit keeps, where lite's databases may compute it for
      *  every row, so an operation there that can raise IQ's error is refused ({@link #checkedInteger}). */
@@ -102,28 +139,87 @@ public final class IqDialect implements InputDialect {
     private final boolean unordered;
     /** Whether the statement has a TOP count (its LIMIT), beside or instead of a START AT (its OFFSET). */
     private final boolean counted;
+    /** The select items whose names the statement shows (its first branch's, and each derived table's): one IQ's
+     *  name for is not known is refused there; anywhere else (a subquery's column) no one sees the name. */
+    private final Set<SqlAst.SelectExpr> shown;
+    /** The correlation names (ASCII lower case) of the statement's derived tables: SQL Anywhere names an expression
+     *  over their columns by the columns' definitions, which is not rendered. */
+    private final Set<String> derived;
+    /** IQ island, 2026-10-14 (M1c): those of them over a set operation or a grouped query, whose column an aggregate
+     *  names as {@code d.x} (measured; SQL Anywhere merges a plain SELECT into its query and names the column by its
+     *  definition, {@code COUNT(null as a)}). */
+    private final Set<String> setDerived;
+    /** The names given so far to unaliased items no one sees (null where IQ's is not known): a parenthesized query
+     *  shown as a select item is named by its one item's. */
+    private final Map<SqlAst.SelectExpr, String> given = new IdentityHashMap<>();
+    /** IQ island, 2026-10-14 (M1c): the names of the statement's grouped queries' items
+     *  ({@link IqAggregates.Naming}). */
+    private final IqAggregates.Naming naming;
+    /** The texts the trees {@link #parse} read do not keep (M1c: their GROUP BY items' and aggregates', by identity),
+     *  for {@link #reading}. */
+    private final Map<SqlAst.Expr, String> spans = new IdentityHashMap<>();
+    /** IQ island, 2026-10-14 (natives): the expressions the statement shows as they are -- its select items, when it
+     *  is one SELECT without DISTINCT (not {@link #shown}, the items whose names it shows: a merge of M1b's and the
+     *  natives slice's fields of one name). SQL Anywhere rounds a NUMERIC quotient to its scale only where it shows it:
+     *  an operand, a CAST or a comparison reads more digits ({@link #quotient}). */
+    private final Set<SqlAst.Expr> shownValues;
+    /** IQ island, 2026-10-14 (the merge of M1b and the natives slice): the names (ASCII lower case) of derived tables'
+     *  columns SQL Anywhere may type by a folded constant ({@link #folded}); a quotient over one is refused. */
+    private final Set<String> folded;
+    /** IQ island, 2026-10-14 (the merge of M1c and the natives slice): which of the statement's strings are their own
+     *  collation keys ({@link IqKeys}). */
+    private final IqKeys keys;
+    /** IQ island, 2026-10-14 (review 3's B1): the shapes ({@link IqAggregates#shape}) of the aggregate calls the
+     *  statement reads conditionally ({@link #lazyAggregates}). */
+    private final Set<String> lazy;
+    /** IQ island, 2026-10-14 (review 3's M1): what SQL Anywhere does with the parentheses of each select item's
+     *  constant chain, by its query's FROM ({@link IqNames.Chains}). */
+    private final Map<SqlAst.SelectExpr, IqNames.Chains> chains;
+    /** IQ island, 2026-10-14 (M1e): the host variables read so far as the enclosing Pure query's variables (not as a
+     *  column of their name), by identity: an unaliased item over one is not named (IQ's name of it, measured with
+     *  the value written in, is the value's). */
+    private final Set<SqlAst.Param> variables = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** IQ island, 2026-10-14 (review 5's B2): under ansinull Off, the comparisons with a host variable in a search
+     *  condition: true for one SQL Anywhere reads two-valued, false for one refused ({@link #twoValuedPlaces}). */
+    private final Map<SqlAst.Expr, Boolean> twoValued;
 
     private IqDialect(IqProfile profile, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
             @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.Expr> limited, boolean unordered,
-            boolean counted) {
+            boolean counted, Set<SqlAst.SelectExpr> shown, Set<String> derived, Set<SqlAst.Pos> starred,
+            IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
+            @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
+            Map<SqlAst.Expr, Boolean> twoValued) {
         this.profile = profile;
+        this.twoValued = twoValued;
+        this.naming = naming;
+        this.setDerived = setDerived;
+        this.starred = starred;
         this.engine = engine;
         this.caseConditions = caseConditions;
         this.referenced = referenced;
         this.limited = limited;
         this.unordered = unordered;
         this.counted = counted;
+        this.shown = shown;
+        this.derived = derived;
+        this.shownValues = shownValues;
+        this.folded = folded;
+        this.keys = keys != null ? keys : IqKeys.none(profile);
+        this.lazy = lazy;
+        this.chains = chains;
     }
 
     /** The dialect of an island written for {@code profile}: each statement's engine chosen by its FROM clause
      *  ({@link #engineOf}, the study's I3: {@code engine=auto}). */
     public static IqDialect of(IqProfile profile) {
-        return new IqDialect(profile, null, Set.of(), null, Set.of(), false, false);
+        return new IqDialect(profile, null, Set.of(), null, Set.of(), false, false, Set.of(), Set.of(), Set.of(),
+                IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of());
     }
 
     /** The dialect under {@code profile} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqProfile profile, Engine engine) {
-        return new IqDialect(profile, engine, Set.of(), null, Set.of(), false, false);
+        return new IqDialect(profile, engine, Set.of(), null, Set.of(), false, false, Set.of(), Set.of(), Set.of(),
+                IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of());
     }
 
     public IqProfile profile() {
@@ -135,12 +231,52 @@ public final class IqDialect implements InputDialect {
         return engine;
     }
 
-    /** The engine IQ runs {@code statement} in under {@code profile}: SQL Anywhere's front end when it has no FROM,
-     *  IQ's otherwise (a table of the island's is an IQ table; the research's D-E1 gives a mix to IQ). A
-     *  {@code sqla17-*} profile is a SQL Anywhere database: no IQ engine there, whatever the FROM. */
+    /** The engine IQ runs {@code statement} in under {@code profile}: SQL Anywhere's front end when no query of it
+     *  (a set operation's branch, a derived table, a subquery) reads a table, IQ's otherwise (a table of the island's
+     *  is an IQ table; the research's D-E1 gives a mix to IQ). A {@code sqla17-*} profile is a SQL Anywhere database:
+     *  no IQ engine there, whatever the FROM. */
     public static Engine engineOf(SqlAst.Statement statement, IqProfile profile) {
-        return !profile.iqDatabase() || statement instanceof SqlAst.Select s && s.from().isEmpty() ? Engine.SA
-                : Engine.IQ;
+        if (!profile.iqDatabase()) {
+            return Engine.SA;
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (!(leaf instanceof SqlAst.SubqueryFrom) && !frontEndSource(leaf)) {
+                            return Engine.IQ;
+                        }
+                    }
+                }
+            }
+        }
+        return Engine.SA;
+    }
+
+    /** Whether {@code item} is one of SQL Anywhere's own relations, which IQ's front end reads (the research's
+     *  SEMANTICS §2.1: a statement that reads no IQ table runs there): {@code DUMMY} ({@code SYS.DUMMY}), or the
+     *  system procedure {@code sa_rowgenerator} ({@code dbo.sa_rowgenerator}). */
+    public static boolean frontEndSource(SqlAst.FromItem item) {
+        return switch (item) {
+            case SqlAst.TableName t -> dummy(t.name());
+            case SqlAst.TableFunction f -> rowGenerator(f.name());
+            default -> false;
+        };
+    }
+
+    /** {@code DUMMY} or {@code SYS.DUMMY}, as IQ matches names (IQ island, 2026-10-14, M1e: a database's and a server's
+     *  qualifiers ignored, {@code db..DUMMY} unqualified). */
+    private static boolean dummy(List<SqlAst.Ident> name) {
+        String last = IqLexer.lower(name.get(name.size() - 1).text());
+        SqlAst.Ident owner = IqBindings.owner(name);
+        return last.equals("dummy") && (owner == null || IqLexer.lower(owner.text()).equals("sys"));
+    }
+
+    /** {@code sa_rowgenerator} or {@code dbo.sa_rowgenerator}, as IQ matches names. */
+    private static boolean rowGenerator(List<SqlAst.Ident> name) {
+        String last = IqLexer.lower(name.get(name.size() - 1).text());
+        return last.equals("sa_rowgenerator") && (name.size() == 1 || name.size() == 2
+                && IqLexer.lower(name.get(0).text()).equals("dbo"));
     }
 
     /** IQ's code for a syntax error, as this dialect's messages carry it. */
@@ -148,7 +284,7 @@ public final class IqDialect implements InputDialect {
         return code(-131, "42W04");
     }
 
-    private static String code(int sqlcode, String sqlstate) {
+    static String code(int sqlcode, String sqlstate) {
         return " (IQ: SQLCODE " + sqlcode + ", SQLSTATE " + sqlstate + ")";
     }
 
@@ -160,45 +296,674 @@ public final class IqDialect implements InputDialect {
     /** IQ's query: {@link IqParser}'s, with what the island refuses before translating it -- a FROM function other
      *  than the table source ({@code tb}), a function the catalog lacks (so no other dialect's reading of its name
      *  applies), two select-list aliases IQ cannot tell apart (its error -830), an alias read anywhere but as a bare
-     *  ORDER BY key. */
+     *  ORDER BY key -- and, in each query of it (M1b), the FROM clause's errors IQ raises ({@link #fromClause}), a
+     *  derived table's unnamed columns ({@link #derivedNames}), a set operation's ORDER BY ({@link #setOrder}), a row
+     *  limit anywhere but on the statement's own SELECT. */
     @Override
     public SqlAst.Statement parse(String sql) {
-        SqlAst.Statement statement = IqParser.parse(sql, profile);
-        if (statement instanceof SqlAst.Select s) {
-            for (SqlAst.FromItem item : s.from()) {
-                if (item instanceof SqlAst.TableFunction f && !(f.name().size() == 1
-                        && IqLexer.lower(f.name().get(0).text()).equals("tb"))) {
-                    throw SqlTranslationException.unsupported("the FROM function " + f.name().get(f.name().size() - 1)
-                            .text() + "(...) is not supported yet: an #IQ{...}# island reads tables, tb('...')",
-                            f.pos());
+        IqParser.Parsed read = IqParser.parsed(sql, profile);
+        SqlAst.Statement statement = read.statement();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.SetOperation o) {
+                setWidths(o);
+                setOrder(o);
+                continue;
+            }
+            SqlAst.Select s = (SqlAst.Select) q;
+            for (SqlAst.FromItem from : s.from()) {
+                for (SqlAst.FromItem item : leaves(from)) {
+                    if (item instanceof SqlAst.TableFunction f && !(f.name().size() == 1
+                            && IqLexer.lower(f.name().get(0).text()).equals("tb")) && !rowGenerator(f.name())) {
+                        throw SqlTranslationException.unsupported("the FROM function " + f.name().get(f.name().size()
+                                - 1).text() + "(...) is not supported yet: an #IQ{...}# island reads tables,"
+                                + " tb('...'), and sa_rowgenerator(...)", f.pos());
+                    }
+                    if (item instanceof SqlAst.SubqueryFrom d) {
+                        derivedNames(d);
+                    }
+                    // IQ island, 2026-10-14 (M1c): names that are no table of the island's
+                    if (item instanceof SqlAst.TableName t) {
+                        tableName(t);
+                    }
                 }
             }
             for (SqlAst.Expr e : expressions(s)) {
                 knownFunctions(e);
+                likePatterns(e);
+                subqueryWidths(e);
             }
             uniqueAliases(s);
             noAliasRead(s);
+            // IQ island, 2026-10-14 (M1c): the errors IQ raises for a query's aggregates and grouping
+            IqAggregates.parsed(s);
+            nameLengths(s);
+            fromClause(s);
+            orderPositions(s);
+            if (s != statement && (s.limit() != null || s.offset() != null)) {
+                SqlAst.Expr at = s.limit() != null ? s.limit() : s.offset();
+                throw SqlTranslationException.unsupported("TOP, FIRST or START AT in a subquery, a derived table or a"
+                        + " set operation's branch is not supported yet (IQ's engine restricts it too)",
+                        java.util.Objects.requireNonNull(at).pos());
+            }
         }
+        bound(statement, Map.of());
+        // IQ island, 2026-10-14 (M1c): the grouping errors a SELECT's own reading cannot see
+        IqAggregates.statement(statement);
+        spans.putAll(read.spans());
         return statement;
+    }
+
+    /**
+     * A table named in FROM that no island table can be (IQ island, 2026-10-14, M1c), refused by name:
+     * {@code sa_rowgenerator} without its parentheses (the procedure, called so, is no table: SQL Anywhere's -141), and
+     * IQ's owner names {@code dbo} and {@code SYS} written as a table. IQ island, 2026-10-14 (M1e): an owner-qualified
+     * name is bound to the model's tables when translated ({@link #table}, {@link IqBindings}, the study's O2); one of
+     * IQ's own users' (its catalog) is refused here.
+     */
+    private static void tableName(SqlAst.TableName t) {
+        List<SqlAst.Ident> name = t.name();
+        if (dummy(name)) {
+            return;
+        }
+        String last = IqLexer.lower(name.get(name.size() - 1).text());
+        IqBindings.catalogTable(t);
+        if (name.size() == 1 && (last.equals("sa_rowgenerator") || last.equals("dbo") || last.equals("sys"))) {
+            throw SqlTranslationException.unsupported("the table '" + name.get(0).text() + "' is not supported: "
+                    + (last.equals("sa_rowgenerator") ? "sa_rowgenerator is a procedure, called with parentheses"
+                    : "it is IQ's name of an owner"), t.pos());
+        }
+    }
+
+    // ------------------------------------------------------------------ the statement's queries (M1b)
+
+    /** Every query of {@code statement}, depth first: itself, a set operation's branches, each SELECT's derived
+     *  tables' and subqueries' (in its expressions and its joins' ON conditions). */
+    public static List<SqlAst.Statement> queries(SqlAst.Statement statement) {
+        List<SqlAst.Statement> out = new ArrayList<>();
+        queries(statement, out);
+        return out;
+    }
+
+    private static void queries(SqlAst.Statement statement, List<SqlAst.Statement> out) {
+        out.add(statement);
+        switch (statement) {
+            case SqlAst.Select s -> {
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d) {
+                            queries(d.query(), out);
+                        }
+                        if (leaf instanceof SqlAst.TableFunction fn) {
+                            fn.args().forEach(a -> subqueries(a.value(), out));
+                        }
+                    }
+                }
+                for (SqlAst.Expr e : expressions(s)) {
+                    subqueries(e, out);
+                }
+            }
+            case SqlAst.SetOperation o -> {
+                queries(o.left(), out);
+                queries(o.right(), out);
+            }
+            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+        }
+    }
+
+    /** The queries of the subqueries under {@code e}. */
+    private static void subqueries(SqlAst.Expr e, List<SqlAst.Statement> out) {
+        SqlAst.Statement q = subqueryOf(e);
+        if (q != null) {
+            queries(q, out);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            subqueries(child, out);
+        }
+    }
+
+    /** The query of a subquery expression, or null for any other. */
+    private static SqlAst.@com.legend.base.Nullable Statement subqueryOf(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.ScalarSubquery q -> q.query();
+            case SqlAst.Exists q -> q.query();
+            case SqlAst.InSubquery q -> q.query();
+            case SqlAst.Quantified q -> q.query();
+            default -> null;
+        };
+    }
+
+    /** A FROM item's tables, functions and derived tables, through its joins (not into the derived tables). */
+    static List<SqlAst.FromItem> leaves(SqlAst.FromItem item) {
+        List<SqlAst.FromItem> out = new ArrayList<>();
+        leaves(item, out);
+        return out;
+    }
+
+    private static void leaves(SqlAst.FromItem item, List<SqlAst.FromItem> out) {
+        if (item instanceof SqlAst.Join j) {
+            leaves(j.left(), out);
+            leaves(j.right(), out);
+        } else {
+            out.add(item);
+        }
+    }
+
+    /** The joins of a FROM item, outermost first. */
+    private static void joins(SqlAst.FromItem item, List<SqlAst.Join> out) {
+        if (item instanceof SqlAst.Join j) {
+            out.add(j);
+            joins(j.left(), out);
+            joins(j.right(), out);
+        }
+    }
+
+    /** The first SELECT of a query: itself, or its set operation's first branch's. */
+    private static SqlAst.Select first(SqlAst.Statement q) {
+        return switch (q) {
+            case SqlAst.Select s -> s;
+            case SqlAst.SetOperation o -> first(o.left());
+            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+        };
+    }
+
+    /** The name a FROM item is known by: its alias, else a table's name, a function's ({@code tb('...t')}'s table
+     *  {@code t}); null for none. */
+    static SqlAst.@com.legend.base.Nullable Ident correlation(SqlAst.FromItem item) {
+        return switch (item) {
+            case SqlAst.TableName t -> t.alias() != null ? t.alias() : t.name().get(t.name().size() - 1);
+            case SqlAst.TableFunction f -> f.alias() != null ? f.alias() : tableNamed(f);
+            case SqlAst.SubqueryFrom d -> d.alias();
+            case SqlAst.Join j -> null;
+        };
+    }
+
+    /** The name an unaliased FROM function is known by: {@code tb('pkg::Database.schema.table')}'s table (as IQ knows
+     *  a table by its name), any other by its own. */
+    private static SqlAst.Ident tableNamed(SqlAst.TableFunction f) {
+        if (f.name().size() == 1 && IqLexer.lower(f.name().get(0).text()).equals("tb") && f.args().size() == 1
+                && f.args().get(0).value() instanceof SqlAst.StringLit path) {
+            String p = path.value();
+            int dot = p.lastIndexOf('.');
+            if (dot > 0 && dot < p.length() - 1) {
+                return new SqlAst.Ident(p.substring(dot + 1), false, f.pos());
+            }
+        }
+        return f.name().get(f.name().size() - 1);
+    }
+
+    /** IQ knows an unaliased table by its name: {@code tb('...t')} is {@code t}. */
+    @Override
+    public SqlAst.Ident functionName(SqlAst.TableFunction f) {
+        return tableNamed(f);
+    }
+
+    /**
+     * The errors IQ raises for {@code s}'s FROM clause before reading a row (measured on SQL Anywhere 17), and what is
+     * refused there by name:
+     * <ul>
+     *   <li>two FROM items known by one name (ASCII case aside): IQ's error -139; two unaliased references to one
+     *       table are refused (SQL Anywhere reads them as one table, not a cross join);</li>
+     *   <li>a join with neither ON nor NATURAL is IQ's KEY JOIN, made of the tables' foreign keys: refused (M2);</li>
+     *   <li>an ON naming an earlier item of the FROM list (a comma before its join): IQ's error -824.</li>
+     * </ul>
+     */
+    private static void fromClause(SqlAst.Select s) {
+        Map<String, SqlAst.FromItem> named = new HashMap<>();
+        for (SqlAst.FromItem from : s.from()) {
+            for (SqlAst.FromItem leaf : leaves(from)) {
+                SqlAst.Ident name = correlation(leaf);
+                if (name == null) {
+                    continue;
+                }
+                SqlAst.FromItem before = named.putIfAbsent(IqLexer.lower(name.text()), leaf);
+                if (before == null) {
+                    continue;
+                }
+                if (unaliased(before) && unaliased(leaf)) {
+                    throw SqlTranslationException.unsupported("the table '" + name.text() + "' twice without a"
+                            + " correlation name is not supported: SQL Anywhere reads the two as one table; alias"
+                            + " them", leaf.pos());
+                }
+                String duplicate = "two of the query's tables are named '" + name.text() + "'" + code(-139, "52012");
+                // IQ island, 2026-10-14 (M1c): two names alike but for case are split in the research's syntax cases
+                // (z2_redteam-866, -867 call the form accept; SQL Anywhere raises -139 for both)
+                SqlAst.Ident first = java.util.Objects.requireNonNull(correlation(before));
+                throw first.text().equals(name.text()) ? SqlTranslationException.invalid(duplicate, name.pos())
+                        : split(duplicate, name.pos());
+            }
+        }
+        List<String> earlier = new ArrayList<>();
+        for (SqlAst.FromItem from : s.from()) {
+            List<SqlAst.Join> joins = new ArrayList<>();
+            joins(from, joins);
+            for (SqlAst.Join j : joins) {
+                if (j.on() == null && !j.natural() && j.type() != SqlAst.JoinType.CROSS) {
+                    throw SqlTranslationException.unsupported("a join without ON (IQ's KEY JOIN, made of the tables'"
+                            + " foreign keys) is not supported yet: write its ON condition", j.pos());
+                }
+                if (j.on() != null) {
+                    List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                    columnRefs(java.util.Objects.requireNonNull(j.on()), refs);
+                    for (SqlAst.ColumnRef r : refs) {
+                        if (r.parts().size() == 2 && earlier.contains(IqLexer.lower(r.parts().get(0).text()))) {
+                            // IQ island, 2026-10-14 (M1c): the research's syntax cases are split on this form
+                            // (z2_redteam-836 calls it accept, a6_sa_query-431 and s2_query-147 reject; SQL
+                            // Anywhere raises -824 for each)
+                            throw split("the ON condition names '" + r.parts().get(0).text() + "', a table before"
+                                    + " the comma its join follows" + code(-824, "42U01"), r.parts().get(0).pos());
+                        }
+                    }
+                }
+            }
+            for (SqlAst.FromItem leaf : leaves(from)) {
+                SqlAst.Ident name = correlation(leaf);
+                if (name != null) {
+                    earlier.add(IqLexer.lower(name.text()));
+                }
+            }
+        }
+    }
+
+    /** The longest name of a table, a correlation or an owner IQ takes, in bytes of the database's charset (the
+     *  research's GRAMMAR L13: a select-list alias is never checked). */
+    private static final int LONGEST_NAME = 128;
+
+    /** A correlation name, or a qualifier, longer than {@link #LONGEST_NAME} bytes is IQ's error -250 (measured),
+     *  refused by name ({@link #split}: the research's syntax cases are split on it). */
+    private void nameLengths(SqlAst.Select s) {
+        List<SqlAst.Ident> names = new ArrayList<>();
+        for (SqlAst.FromItem f : s.from()) {
+            for (SqlAst.FromItem leaf : leaves(f)) {
+                SqlAst.Ident c = correlation(leaf);
+                if (c != null) {
+                    names.add(c);
+                }
+            }
+        }
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        for (SqlAst.Expr e : expressions(s)) {
+            columnRefs(e, refs);
+        }
+        refs.forEach(r -> names.addAll(r.parts().subList(0, r.parts().size() - 1)));
+        for (SqlAst.Ident name : names) {
+            int bytes = profile.iqDatabase() ? name.text().length() : utf8Length(name.text());
+            if (bytes > LONGEST_NAME) {
+                throw split("the name '" + name.text().substring(0, 20) + "...' is longer than " + LONGEST_NAME
+                        + " bytes" + code(-250, "54003"), name.pos());
+            }
+        }
+    }
+
+    /** The bytes of {@code text} in UTF-8. */
+    private static int utf8Length(String text) {
+        int n = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            n += c < 0x80 ? 1 : c < 0x800 ? 2 : Character.isHighSurrogate(c) ? 4 : Character.isLowSurrogate(c) ? 0 : 3;
+        }
+        return n;
+    }
+
+    /** A table or a function written without an alias. */
+    private static boolean unaliased(SqlAst.FromItem item) {
+        return item instanceof SqlAst.TableName t && t.alias() == null
+                || item instanceof SqlAst.TableFunction f && f.alias() == null;
+    }
+
+    /**
+     * A derived table's columns each need a name (measured): with a column list, as many names as its first SELECT
+     * has items (fewer is IQ's error -163, more -812; over a {@code *} refused); without one, each item an alias or a
+     * column written bare (an expression, a parenthesized column included, is IQ's error -163).
+     */
+    private void derivedNames(SqlAst.SubqueryFrom d) {
+        SqlAst.Select first = first(d.query());
+        String table = d.alias() == null ? "" : java.util.Objects.requireNonNull(d.alias()).text();
+        boolean star = first.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns);
+        int n = first.items().size();
+        if (!d.columnAliases().isEmpty()) {
+            if (star) {
+                throw SqlTranslationException.unsupported("a derived table's column list over * is not supported yet",
+                        d.pos());
+            }
+            if (d.columnAliases().size() < n) {
+                throw split("the derived table '" + table + "' has no name for column " + (d.columnAliases().size()
+                        + 1) + code(-163, "52004"), d.pos());
+            }
+            if (d.columnAliases().size() > n) {
+                throw SqlTranslationException.invalid("the derived table '" + table + "' has no column for the name '"
+                        + d.columnAliases().get(n).text() + "'" + code(-812, "42W54"), d.pos());
+            }
+            return;
+        }
+        for (int i = 0; i < n; i++) {
+            if (first.items().get(i) instanceof SqlAst.SelectExpr x && x.alias() == null && !bareColumn(x)) {
+                throw SqlTranslationException.invalid("the derived table '" + table + "' has no name for column "
+                        + (i + 1) + code(-163, "52004"), x.pos());
+            }
+        }
+    }
+
+    /** Whether an unaliased item is a column written bare (signs aside, no parentheses), which names itself. */
+    private boolean bareColumn(SqlAst.SelectExpr x) {
+        SqlAst.Expr e = x.expr();
+        while (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
+            e = u.operand();
+        }
+        if (!(e instanceof SqlAst.ColumnRef) || x.text() == null) {
+            return false;
+        }
+        try {
+            IqParser.Written w = IqParser.written(java.util.Objects.requireNonNull(x.text()), profile);
+            for (SqlAst.Expr p = w.expr(); ; p = ((SqlAst.Unary) p).operand()) {
+                if (w.parensOf(p) > 0) {
+                    return false;
+                }
+                if (!(p instanceof SqlAst.Unary)) {
+                    return true;
+                }
+            }
+        } catch (SqlSyntaxException e2) {
+            return false;
+        }
+    }
+
+    /**
+     * A set operation's ORDER BY (measured): a position of the first branch's items, or one of its output names
+     * (ASCII case aside). A position beyond them, a qualified name or any other expression is IQ's error -152, a name
+     * the first branch does not show its -854; a name among items whose names are not read here (a {@code *}, an
+     * unaliased expression) is refused.
+     */
+    private static void setOrder(SqlAst.SetOperation o) {
+        SqlAst.Select first = first(o);
+        boolean star = first.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns);
+        List<String> names = new ArrayList<>();
+        boolean unknown = star;
+        for (SqlAst.SelectItem item : first.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                SqlAst.Expr e = x.expr();
+                while (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
+                    e = u.operand();
+                }
+                if (x.alias() != null) {
+                    names.add(IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text()));
+                } else if (e instanceof SqlAst.ColumnRef ref) {
+                    names.add(IqLexer.lower(ref.parts().get(ref.parts().size() - 1).text()));
+                } else {
+                    unknown = true;
+                }
+            }
+        }
+        for (SqlAst.SortItem item : o.orderBy()) {
+            SqlAst.Expr e = item.expr();
+            if (e instanceof SqlAst.IntegerLit n) {
+                if (!star && (n.value().signum() <= 0
+                        || n.value().compareTo(BigInteger.valueOf(first.items().size())) > 0)) {
+                    throw orderRefused(e);
+                }
+            } else if (e instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
+                if (names.contains(IqLexer.lower(ref.parts().get(0).text()))) {
+                    continue;
+                }
+                if (unknown) {
+                    throw SqlTranslationException.unsupported("ORDER BY '" + ref.parts().get(0).text() + "' after a set"
+                            + " operation whose first branch has items (a *, an unaliased expression) whose names are"
+                            + " not read here is not supported yet: order by position", e.pos());
+                }
+                throw split("ORDER BY '" + ref.parts().get(0).text() + "' after a set operation names no column of"
+                        + " its first branch" + code(-854, "42W90"), e.pos());
+            } else {
+                throw orderRefused(e);
+            }
+        }
+    }
+
+    /** How many items a query's first SELECT has; -1 when one is a star (its width is the translation's to know). */
+    private static int width(SqlAst.Statement q) {
+        SqlAst.Select first = first(q);
+        return first.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns) ? -1 : first.items().size();
+    }
+
+    /** A set operation's branches select as many columns (else IQ's error -153, refused by name: the research's
+     *  syntax cases are split on whether the form reads, so the reader gives no verdict on it before translating). */
+    private static void setWidths(SqlAst.SetOperation o) {
+        int l = width(o.left());
+        int r = width(o.right());
+        if (l >= 0 && r >= 0 && l != r) {
+            throw split("the branches of " + o.op() + " have " + l + " and " + r + " columns" + code(-153,
+                    "21S01"), o.pos());
+        }
+    }
+
+    /** IQ's error that IQ raises before running a query, where the research's syntax cases call the form accepted in
+     *  some cases and rejected in others (each measured as an error on SQL Anywhere 17): refused by name before
+     *  translating, the message naming IQ's error, so that no verdict of the reader's is given on a form the cases are
+     *  split on. */
+    private static SqlTranslationException split(String error, SqlAst.Pos pos) {
+        return splitCases(error, pos);
+    }
+
+    /** {@link #split}, for the grouping's errors ({@link IqAggregates}). */
+    static SqlTranslationException splitCases(String error, SqlAst.Pos pos) {
+        return SqlTranslationException.unsupported(error.replace(" (IQ: SQLCODE", ", IQ's error, refused before"
+                + " translating (IQ: SQLCODE"), pos);
+    }
+
+    /** A subquery read as a value or compared ({@code (query)}, IN, ANY, SOME, ALL) selects one column (else IQ's
+     *  error -151); EXISTS selects any. */
+    private static void subqueryWidths(SqlAst.Expr e) {
+        SqlAst.Statement q = e instanceof SqlAst.Exists ? null : subqueryOf(e);
+        if (q != null && width(q) > 1) {
+            throw SqlTranslationException.invalid("this subquery selects " + width(q) + " columns, where one is read"
+                    + code(-151, "21W01"), e.pos());
+        }
+        for (SqlAst.Expr child : children(e)) {
+            subqueryWidths(child);
+        }
+    }
+
+    /** An ORDER BY position of a SELECT names one of its items (else IQ's error -152). */
+    private static void orderPositions(SqlAst.Select s) {
+        int n = width(s);
+        for (SqlAst.SortItem item : s.orderBy()) {
+            if (n >= 0 && item.expr() instanceof SqlAst.IntegerLit p && (p.value().signum() <= 0
+                    || p.value().compareTo(BigInteger.valueOf(n)) > 0)) {
+                throw orderRefused(item.expr());
+            }
+        }
+    }
+
+    /**
+     * The names a query reads where its FROM items' columns are all known before translating -- derived tables
+     * (their first SELECT's names, or their column lists), DUMMY and {@code sa_rowgenerator} -- in the statement's own
+     * queries and its derived tables (never an expression subquery's, whose names may be an enclosing query's): a
+     * qualifier no FROM item has is IQ's error -142 (-824 when it names one of the enclosing FROM clause's other
+     * items), a column none has -143, one two have -144 (measured). A query reading a table, or a FROM item whose
+     * columns are not known here (a star), is left to the translation; so is an unqualified name without FROM (IQ's
+     * special values read so). Each is refused by name ({@link #split}): the research's syntax cases are split on
+     * such names.
+     */
+    private static void bound(SqlAst.Statement q, Map<String, SqlAst.FromItem> siblings) {
+        switch (q) {
+            case SqlAst.SetOperation o -> {
+                bound(o.left(), siblings);
+                bound(o.right(), siblings);
+            }
+            case SqlAst.Select s -> {
+                Map<String, SqlAst.FromItem> mine = new HashMap<>();
+                Map<String, Set<String>> columns = new HashMap<>();
+                boolean known = true;
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        SqlAst.Ident name = correlation(leaf);
+                        if (name == null) {
+                            known = false;
+                            continue;
+                        }
+                        mine.put(IqLexer.lower(name.text()), leaf);
+                        Set<String> cols = columnsOf(leaf);
+                        if (cols == null) {
+                            known = false;
+                        } else {
+                            columns.put(IqLexer.lower(name.text()), cols);
+                        }
+                        if (leaf instanceof SqlAst.SubqueryFrom d) {
+                            bound(d.query(), mine);
+                        }
+                    }
+                }
+                if (!known) {
+                    return;
+                }
+                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                for (SqlAst.SelectItem item : s.items()) {
+                    if (item instanceof SqlAst.SelectExpr x) {
+                        columnRefs(x.expr(), refs);
+                    }
+                }
+                if (s.where() != null) {
+                    columnRefs(java.util.Objects.requireNonNull(s.where()), refs);
+                }
+                for (SqlAst.FromItem f : s.from()) {
+                    List<SqlAst.Join> joins = new ArrayList<>();
+                    joins(f, joins);
+                    for (SqlAst.Join j : joins) {
+                        if (j.on() != null) {
+                            columnRefs(java.util.Objects.requireNonNull(j.on()), refs);
+                        }
+                    }
+                }
+                for (SqlAst.ColumnRef ref : refs) {
+                    resolvedHere(ref, columns, siblings, s.from().isEmpty());
+                }
+            }
+            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+        }
+    }
+
+    /** The lower-case names of a FROM item's columns where they are known before translating, else null. */
+    static @com.legend.base.Nullable Set<String> knownColumns(SqlAst.FromItem leaf) {
+        return columnsOf(leaf);
+    }
+
+    /** The name a FROM item is known by ({@link #correlation}). */
+    static SqlAst.@com.legend.base.Nullable Ident correlationOf(SqlAst.FromItem item) {
+        return correlation(item);
+    }
+
+    private static @com.legend.base.Nullable Set<String> columnsOf(SqlAst.FromItem leaf) {
+        if (leaf instanceof SqlAst.TableName t && dummy(t.name())) {
+            return Set.of("dummy_col");
+        }
+        if (leaf instanceof SqlAst.TableFunction f && rowGenerator(f.name())) {
+            return Set.of("row_num");
+        }
+        if (!(leaf instanceof SqlAst.SubqueryFrom d)) {
+            return null;
+        }
+        Set<String> names = new java.util.HashSet<>();
+        if (!d.columnAliases().isEmpty()) {
+            d.columnAliases().forEach(c -> names.add(IqLexer.lower(c.text())));
+            return names;
+        }
+        for (SqlAst.SelectItem item : first(d.query()).items()) {
+            if (!(item instanceof SqlAst.SelectExpr x)) {
+                return null;
+            }
+            SqlAst.Expr e = x.expr();
+            while (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
+                e = u.operand();
+            }
+            if (x.alias() != null) {
+                names.add(IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text()));
+            } else if (e instanceof SqlAst.ColumnRef r) {
+                names.add(IqLexer.lower(r.parts().get(r.parts().size() - 1).text()));
+            } else {
+                return null;
+            }
+        }
+        return names;
+    }
+
+    /** {@code ref} resolved among a query's FROM items whose columns are known ({@code columns}). */
+    private static void resolvedHere(SqlAst.ColumnRef ref, Map<String, Set<String>> columns,
+            Map<String, SqlAst.FromItem> siblings, boolean noFrom) {
+        List<SqlAst.Ident> parts = ref.parts();
+        if (parts.size() > 2 || parts.get(0).text().startsWith("@")) {
+            return;
+        }
+        SqlAst.Ident name = parts.get(parts.size() - 1);
+        if (parts.size() == 2) {
+            String q = IqLexer.lower(parts.get(0).text());
+            Set<String> cols = columns.get(q);
+            if (cols == null) {
+                if (siblings.containsKey(q)) {
+                    throw split("'" + parts.get(0).text() + "' names another item of the FROM clause, which a"
+                            + " derived table cannot read" + code(-824, "42U01"), parts.get(0).pos());
+                }
+                throw split("no table or correlation name '" + parts.get(0).text() + "' in the query"
+                        + code(-142, "52W02"), parts.get(0).pos());
+            }
+            if (!cols.contains(IqLexer.lower(name.text()))) {
+                throw split("no column '" + name.text() + "' in '" + parts.get(0).text() + "'" + code(-143, "52003"),
+                        name.pos());
+            }
+            return;
+        }
+        if (noFrom) {
+            return;
+        }
+        int found = 0;
+        for (Set<String> cols : columns.values()) {
+            found += cols.contains(IqLexer.lower(name.text())) ? 1 : 0;
+        }
+        if (found == 0) {
+            throw split("no column '" + name.text() + "' in the query's tables" + code(-143, "52003"), name.pos());
+        }
+        if (found > 1) {
+            throw split("the column '" + name.text() + "' is in more than one of the query's tables: qualify it"
+                    + code(-144, "52002"), name.pos());
+        }
+    }
+
+    private static SqlTranslationException orderRefused(SqlAst.Expr e) {
+        return SqlTranslationException.invalid("a set operation's ORDER BY takes a position or a name of its first"
+                + " branch's columns" + code(-152, "53005"), e.pos());
     }
 
     /** Every call under {@code e} names a function of the catalog ({@link #function}), with as many arguments as
      *  it takes (else IQ's error -154). */
     private void knownFunctions(SqlAst.Expr e) {
-        if (e instanceof SqlAst.FunctionCall f) {
+        if (e instanceof SqlAst.FunctionCall f && !IqAggregates.named(f)) {
             String name = f.name().get(f.name().size() - 1).text();
             if (function(name) == null) {
                 throw SqlTranslationException.unsupported("function " + name + "(...) is not supported yet", f.pos());
             }
             int n = f.args().size();
-            Catalog fn = java.util.Objects.requireNonNull(Catalog.named(name));
-            if (n < fn.min || n > fn.max) {
+            Catalog fn = Catalog.named(name);
+            // IQ island, 2026-10-14 (M1d): the rest of the catalog is IqFunctions'
+            int[] arity = fn != null ? new int[] {fn.min, fn.max} : IqFunctions.arity(f);
+            if (n < arity[0] || n > arity[1]) {
                 throw SqlTranslationException.invalid("wrong number of arguments to " + name.toUpperCase(
                         java.util.Locale.ROOT) + code(-154, "37505"), f.pos());
             }
         }
         for (SqlAst.Expr child : children(e)) {
             knownFunctions(child);
+        }
+    }
+
+    /** Every LIKE under {@code e} whose pattern is a constant has one IQ matches without an error
+     *  ({@link #likeParts}): an escape of one character, before {@code %}, {@code _}, {@code [} or itself only (else
+     *  IQ's errors -629 and -630, which it raises whatever the rows), a pattern of at most {@link #LONGEST_PATTERN}
+     *  characters (else SQL Anywhere's error -606, for some values): each refused by name before translation. (A
+     *  {@code [set]} class reads, and is refused when translated.) */
+    private static void likePatterns(SqlAst.Expr e) {
+        if (e instanceof SqlAst.Like l && l.pattern() instanceof SqlAst.StringLit pattern
+                && !(l.escape() instanceof SqlAst.NullLit)) {
+            likeParts(pattern, l.escape(), false);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            likePatterns(child);
         }
     }
 
@@ -216,35 +981,734 @@ public final class IqDialect implements InputDialect {
         }
     }
 
+    /** The dialect {@code statement} is translated in: its engine, and what the rules read of the statement as a
+     *  whole -- the CASE and IF conditions, the columns it refers to, its row limit's reach, the select items whose
+     *  names it shows, its derived tables. Under the IQ engine, a subquery where IQ's engine restricts it is refused
+     *  here ({@link #subqueryPlaces}). */
     @Override
     public InputDialect reading(SqlAst.Statement statement) {
         Set<SqlAst.Expr> inCase = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<SqlAst.Expr> limitedHere = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<SqlAst.SelectExpr> shownHere = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<String> derivedHere = new java.util.HashSet<>();
+        Set<String> setDerivedHere = new java.util.HashSet<>();
         Set<String> names = new java.util.HashSet<>();
-        boolean star = !(statement instanceof SqlAst.Select);
+        Set<SqlAst.Pos> starredHere = new java.util.HashSet<>();
         boolean unorderedHere = false;
         boolean countedHere = false;
-        if (statement instanceof SqlAst.Select s) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
             for (SqlAst.Expr e : expressions(s)) {
                 caseConditions(e, inCase);
                 List<SqlAst.ColumnRef> refs = new ArrayList<>();
                 columnRefs(e, refs);
                 refs.forEach(r -> names.add(IqLexer.lower(r.parts().get(r.parts().size() - 1).text())));
             }
-            star = s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns);
-            if (s.limit() != null || s.offset() != null) {
-                for (SqlAst.SelectItem item : s.items()) {
-                    if (item instanceof SqlAst.SelectExpr x) {
-                        within(x.expr(), limitedHere);
+            boolean star = s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns);
+            for (SqlAst.FromItem f : s.from()) {
+                for (SqlAst.FromItem leaf : leaves(f)) {
+                    if (star && !(leaf instanceof SqlAst.SubqueryFrom)) {
+                        starredHere.add(leaf.pos());
+                    }
+                    if (leaf instanceof SqlAst.SubqueryFrom d && d.alias() != null) {
+                        derivedHere.add(IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text()));
+                        if (d.query() instanceof SqlAst.SetOperation
+                                || d.query() instanceof SqlAst.Select ds && IqAggregates.grouped(ds)) {
+                            setDerivedHere.add(IqLexer.lower(java.util.Objects.requireNonNull(d.alias()).text()));
+                        }
+                        shown(first(d.query()), shownHere);
                     }
                 }
-                s.orderBy().forEach(o -> within(o.expr(), limitedHere));
-                unorderedHere = s.orderBy().isEmpty() && !s.from().isEmpty();
-                countedHere = s.limit() != null;
             }
         }
-        return new IqDialect(profile, engine != null ? engine : engineOf(statement, profile), inCase,
-                star ? null : names, limitedHere, unorderedHere, countedHere);
+        shown(first(statement), shownHere);
+        if (statement instanceof SqlAst.Select s && (s.limit() != null || s.offset() != null)) {
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr x) {
+                    within(x.expr(), limitedHere);
+                }
+            }
+            s.orderBy().forEach(o -> within(o.expr(), limitedHere));
+            unorderedHere = s.orderBy().isEmpty() && !s.from().isEmpty();
+            countedHere = s.limit() != null;
+        }
+        Engine chosen = engine != null ? engine : engineOf(statement, profile);
+        if (chosen == Engine.IQ) {
+            subqueryPlaces(statement);
+        }
+        nullFirstBranches(statement);
+        clocks(statement);
+        IqAggregates.Naming groupedNames = IqAggregates.read(statement, chosen, spans);
+        Set<SqlAst.Expr> valuesHere = statement instanceof SqlAst.Select s ? shownOnly(s)
+                : Collections.newSetFromMap(new IdentityHashMap<>());
+        return new IqDialect(profile, chosen, inCase, names, limitedHere, unorderedHere, countedHere, shownHere,
+                derivedHere, starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement),
+                IqKeys.of(statement, profile), lazyAggregates(statement), chains(statement),
+                twoValuedPlaces(statement));
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 5's B2, measured on SQL Anywhere 17 with a real variable and with a value a client
+     * binds): under ansinull Off (a TDS profile) SQL Anywhere reads {@code x = @v} and {@code x <> @v} (also
+     * {@code !=}, either side, the variable itself an operand) two-valued in a search condition -- WHERE, HAVING, ON, a
+     * subquery's WHERE -- a NULL x making it FALSE, not UNKNOWN, so {@code NOT (x = @v)} keeps the rows where x is NULL.
+     * Three-valued, as lite reads them: the other comparisons ({@code <}, {@code <=}, {@code >}, {@code >=}), IN,
+     * BETWEEN, LIKE, a variable inside an expression ({@code x = @v + 0}), a constant, two columns, and every comparison
+     * outside a search condition (the select list's IF and CASE, ORDER BY). Where the search condition reaches the
+     * comparison through AND, OR and NOT alone it is read two-valued here ({@link #twoValued}); anywhere else inside one
+     * (an IF's or a CASE's condition, a function's argument, a truth test) SQL Anywhere's answer follows its own
+     * rewriting of the condition (measured both ways: {@code IF x = @v THEN 1 ELSE 0 ENDIF = 0} two-valued, inside a
+     * COALESCE three-valued), and such a comparison is refused when it may be UNKNOWN. An IN or a quantified comparison
+     * with a subquery over a variable is refused anywhere but through AND and OR, and a simple CASE comparing one
+     * anywhere in a search condition.
+     */
+    private Map<SqlAst.Expr, Boolean> twoValuedPlaces(SqlAst.Statement statement) {
+        Map<SqlAst.Expr, Boolean> out = new IdentityHashMap<>();
+        if (profile.ansinull()) {
+            return out;
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            List<SqlAst.Expr> conditions = new ArrayList<>();
+            if (s.where() != null) {
+                conditions.add(java.util.Objects.requireNonNull(s.where()));
+            }
+            if (s.having() != null) {
+                conditions.add(java.util.Objects.requireNonNull(s.having()));
+            }
+            for (SqlAst.FromItem f : s.from()) {
+                List<SqlAst.Join> joins = new ArrayList<>();
+                joins(f, joins);
+                for (SqlAst.Join j : joins) {
+                    if (j.on() != null) {
+                        conditions.add(java.util.Objects.requireNonNull(j.on()));
+                    }
+                }
+            }
+            conditions.forEach(c -> searchCondition(c, true, true, out));
+        }
+        return out;
+    }
+
+    /** Marks {@code e}'s comparisons ({@link #twoValuedPlaces}): {@code positive} while reached through AND and OR
+     *  alone, {@code logical} through AND, OR and NOT. */
+    private void searchCondition(SqlAst.Expr e, boolean positive, boolean logical, Map<SqlAst.Expr, Boolean> out) {
+        if (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR)) {
+            searchCondition(b.left(), positive, logical, out);
+            searchCondition(b.right(), positive, logical, out);
+            return;
+        }
+        if (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.NOT) {
+            searchCondition(u.operand(), false, logical, out);
+            return;
+        }
+        if (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE)
+                && (b.left() instanceof SqlAst.Param || b.right() instanceof SqlAst.Param)) {
+            out.put(b, logical);
+        }
+        if (e instanceof SqlAst.Case c && c.operand() != null) {
+            // a simple CASE compares its operand with each WHEN's value: over a host variable, not measured there
+            List<SqlAst.Param> compared = new ArrayList<>();
+            if (c.operand() instanceof SqlAst.Param p) {
+                compared.add(p);
+            }
+            for (SqlAst.When w : c.whens()) {
+                if (w.condition() instanceof SqlAst.Param p) {
+                    compared.add(p);
+                }
+            }
+            if (!compared.isEmpty()) {
+                throw twoValuedRefused(compared.get(0));
+            }
+        }
+        SqlAst.Expr subqueryOperand = e instanceof SqlAst.InSubquery in && (!positive || in.negated()) ? in.operand()
+                : e instanceof SqlAst.Quantified qc && !positive ? qc.left() : null;
+        if (subqueryOperand != null) {
+            List<SqlAst.Param> left = new ArrayList<>();
+            params(subqueryOperand, left);
+            if (!left.isEmpty()) {
+                throw twoValuedRefused(left.get(0));
+            }
+        }
+        for (SqlAst.Expr child : children(e)) {
+            searchCondition(child, false, false, out);
+        }
+    }
+
+    /** {@code test}, the translation of comparison {@code b}: under ansinull Off, two-valued where SQL Anywhere reads it
+     *  so (a host variable read as the enclosing query's variable, never NULL, an operand of it: FALSE where the other
+     *  side is NULL), refused where its reading is SQL Anywhere's rewriting's ({@link #twoValuedPlaces}). */
+    private Tx twoValued(SqlAst.Binary b, Tx test) {
+        if (twoValued.isEmpty() || !test.nullable() || !(variable(b.left()) || variable(b.right()))) {
+            return test;
+        }
+        Boolean read = twoValued.get(b);
+        if (Boolean.TRUE.equals(read)) {
+            return Tx.condition(test.vs(), SqlToPure.call("not", test.vs()), false);
+        }
+        if (Boolean.FALSE.equals(read)) {
+            throw twoValuedRefused((SqlAst.Param) (variable(b.left()) ? b.left() : b.right()));
+        }
+        return test;
+    }
+
+    /** Whether {@code e} is a host variable read as the enclosing query's variable. */
+    private boolean variable(SqlAst.Expr e) {
+        return e instanceof SqlAst.Param p && variables.contains(p);
+    }
+
+    private SqlTranslationException twoValuedRefused(SqlAst.Param p) {
+        return SqlTranslationException.unsupported("under ansinull Off (the " + profile.spelling() + " profile) SQL"
+                + " Anywhere compares a host variable two-valued in a search condition (NOT (x = " + p.name() + ")"
+                + " keeps the rows where x is NULL), and inside an IF's or a CASE's condition, a function's argument,"
+                + " a truth test or a subquery's IN there, as its own rewriting of the condition has it: not supported"
+                + " yet", p.pos());
+    }
+
+    /**
+     * The select items of top SELECT {@code s} (without DISTINCT) that nothing else in the statement reads -- the
+     * values shown as they are, where a NUMERIC quotient or AVG is rounded ({@link #shownValue}). IQ island, 2026-10-14
+     * (review 4's B2, measured on SQL Anywhere 17): SQL Anywhere rounds a quotient only where it shows it; read again
+     * -- its alias, or its position, in another item, WHERE, GROUP BY, HAVING or ORDER BY ({@code GROUP BY q} over
+     * {@code v / w AS q} found three groups where the shown values make two), or the same expression or aggregate
+     * written again ({@code HAVING AVG(v) = 1.3333333333333} kept no group whose shown AVG is that) -- it is read
+     * unrounded, where lite's reading would be the rounded column: such an item is no shown value.
+     */
+    private static Set<SqlAst.Expr> shownOnly(SqlAst.Select s) {
+        Set<SqlAst.Expr> out = Collections.newSetFromMap(new IdentityHashMap<>());
+        if (s.distinct()) {
+            return out;
+        }
+        List<SqlAst.Expr> clauses = new ArrayList<>();
+        if (s.where() != null) {
+            clauses.add(java.util.Objects.requireNonNull(s.where()));
+        }
+        clauses.addAll(s.groupBy());
+        if (s.having() != null) {
+            clauses.add(java.util.Objects.requireNonNull(s.having()));
+        }
+        s.orderBy().forEach(o -> clauses.add(o.expr()));
+        boolean star = false;
+        java.util.Set<BigInteger> positions = new java.util.HashSet<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            star |= !(item instanceof SqlAst.SelectExpr);
+        }
+        List<SqlAst.Expr> keys = new ArrayList<>(s.groupBy());
+        s.orderBy().forEach(o -> keys.add(o.expr()));
+        for (SqlAst.Expr k : keys) {
+            if (k instanceof SqlAst.IntegerLit n) {
+                positions.add(n.value());
+            }
+        }
+        List<SqlAst.Expr> all = new ArrayList<>(clauses);
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                all.add(x.expr());
+            }
+        }
+        Map<String, Integer> shapes = new java.util.HashMap<>();
+        List<SqlAst.FunctionCall> aggregates = new ArrayList<>();
+        for (SqlAst.Expr e : all) {
+            countShapes(e, shapes);
+            aggregates.addAll(IqAggregates.aggregateCalls(e));
+        }
+        for (int i = 0; i < s.items().size(); i++) {
+            if (!(s.items().get(i) instanceof SqlAst.SelectExpr x)) {
+                continue;
+            }
+            boolean read = positions.contains(BigInteger.valueOf(i + 1)) || star && !positions.isEmpty()
+                    || shapes.getOrDefault(IqAggregates.shape(x.expr()), 0) > 1;
+            SqlAst.Ident alias = x.alias();
+            if (alias != null) {
+                String name = IqLexer.lower(alias.text());
+                List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                clauses.forEach(e -> columnRefs(e, refs));
+                for (SqlAst.SelectItem other : s.items()) {
+                    if (other != x && other instanceof SqlAst.SelectExpr o) {
+                        columnRefs(o.expr(), refs);
+                    }
+                }
+                read |= refs.stream().anyMatch(r -> IqLexer.lower(r.parts().get(r.parts().size() - 1).text())
+                        .equals(name));
+            }
+            if (x.expr() instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
+                read |= aggregates.stream().anyMatch(c -> c != f && IqAggregates.alike(c, f));
+            }
+            if (!read) {
+                out.add(x.expr());
+            }
+        }
+        return out;
+    }
+
+    /** How many times each {@link IqAggregates#shape} occurs among {@code e} and its parts, into {@code out}. */
+    private static void countShapes(SqlAst.Expr e, Map<String, Integer> out) {
+        out.merge(IqAggregates.shape(e), 1, Integer::sum);
+        for (SqlAst.Expr child : children(e)) {
+            countShapes(child, out);
+        }
+    }
+
+    /** The functions that read the clock (IQ's names, lower case; the reader's CURRENT DATE and CURRENT TIMESTAMP). */
+    private static final Set<String> CLOCKS = Set.of("getdate", "now", "today", "current date", "current timestamp");
+
+    /**
+     * IQ island, 2026-10-14 (review 3's M3; the study's D-T13): SQL Anywhere reads GETDATE() apart from a statement's
+     * other readings of the clock (measured: {@code GETDATE() = CURRENT TIMESTAMP} is mostly false, {@code GETDATE() <
+     * NOW()} mostly true), where lite's databases read one clock per statement: a statement that reads GETDATE() beside
+     * another reading of the clock is refused by name.
+     */
+    private static void clocks(SqlAst.Statement statement) {
+        // by identity: an IF's condition is read twice in the reader's CASE, as one call
+        Set<SqlAst.FunctionCall> readings = Collections.newSetFromMap(new IdentityHashMap<>());
+        SqlAst.FunctionCall getdate = null;
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : expressions(s)) {
+                    List<SqlAst.FunctionCall> calls = new ArrayList<>();
+                    clockCalls(e, calls);
+                    for (SqlAst.FunctionCall f : calls) {
+                        readings.add(f);
+                        if (IqLexer.lower(f.name().get(0).text()).equals("getdate")) {
+                            getdate = f;
+                        }
+                    }
+                }
+            }
+        }
+        if (getdate != null && readings.size() > 1) {
+            throw SqlTranslationException.unsupported("GETDATE() beside another reading of the clock is not supported:"
+                    + " SQL Anywhere reads GETDATE() apart from the statement's other clock readings, lite's databases"
+                    + " read one clock (the study's D-T13)", getdate.pos());
+        }
+    }
+
+    private static void clockCalls(SqlAst.Expr e, List<SqlAst.FunctionCall> out) {
+        if (e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                && CLOCKS.contains(IqLexer.lower(f.name().get(0).text()))) {
+            out.add(f);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            clockCalls(child, out);
+        }
+    }
+
+    /**
+     * Each select item's {@link IqNames.Chains} (review 3's M1, measured on SQL Anywhere 17): SQL Anywhere keeps a
+     * constant chain's parentheses where it runs the statement without optimizing it -- one SELECT, without DISTINCT,
+     * grouping or a subquery, over nothing, DUMMY or one table, with no WHERE or one measured test ({@link #simple};
+     * review 4's M1: any other WHERE is not known) -- and drops them where it optimizes it: a join, a
+     * derived table, {@code sa_rowgenerator}, a set operation (its branches, even without FROM), GROUP BY or an
+     * aggregate, DISTINCT, a subquery. Any other query's items (a subquery's, a derived table's) are not known.
+     */
+    private static Map<SqlAst.SelectExpr, IqNames.Chains> chains(SqlAst.Statement statement) {
+        Map<SqlAst.SelectExpr, IqNames.Chains> out = new IdentityHashMap<>();
+        Set<SqlAst.Select> top = Collections.newSetFromMap(new IdentityHashMap<>());
+        topBranches(statement, top);
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            IqNames.Chains mode = IqNames.Chains.UNKNOWN;
+            if (top.contains(s)) {
+                mode = !(statement instanceof SqlAst.Select) || optimized(s) ? IqNames.Chains.DROPPED
+                        : simple(s) ? IqNames.Chains.KEPT : IqNames.Chains.UNKNOWN;
+            }
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr x) {
+                    out.put(x, mode);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Whether SQL Anywhere certainly optimizes {@code s} (measured): a join, a derived table, sa_rowgenerator,
+     *  grouping, DISTINCT, a subquery. */
+    private static boolean optimized(SqlAst.Select s) {
+        if (s.distinct() || IqAggregates.grouped(s) || s.from().size() > 1) {
+            return true;
+        }
+        for (SqlAst.FromItem f : s.from()) {
+            if (f instanceof SqlAst.Join) {
+                return true;
+            }
+            for (SqlAst.FromItem leaf : leaves(f)) {
+                if (leaf instanceof SqlAst.SubqueryFrom || leaf instanceof SqlAst.TableFunction fn
+                        && !IqLexer.lower(fn.name().get(fn.name().size() - 1).text()).equals("tb")) {
+                    return true;
+                }
+            }
+        }
+        for (SqlAst.Expr e : expressions(s)) {
+            List<SqlAst.Statement> inside = new ArrayList<>();
+            subqueries(e, inside);
+            if (!inside.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether {@code s} is a statement SQL Anywhere runs unoptimized (measured): over nothing, DUMMY or one table, with
+     * an ORDER BY or a row limit at most and a WHERE of one test at most. IQ island, 2026-10-14 (review 4's M1,
+     * measured over the parity tables t, g, u, o and DUMMY, 115 statement shapes, every profile alike): the WHERE
+     * keeps the parentheses only when it is one comparison ({@code = <> != < <= > >=}) of a column, written first,
+     * with a constant -- a number that is not negative, a string or NULL (a sign {@code +} is no sign) --, a column
+     * BETWEEN two such constants, or a column IS NULL; IN, OR, AND, NOT, LIKE, IS NOT NULL, NOT BETWEEN, IS DISTINCT
+     * FROM, a truth test, a constant written first, a negative number, a CAST, a function or an expression on either
+     * side, and a test of constants alone drop them. Any other statement's chain is not named ({@link #chains}).
+     */
+    private static boolean simple(SqlAst.Select s) {
+        boolean source = s.from().isEmpty() || s.from().size() == 1 && (s.from().get(0) instanceof SqlAst.TableName
+                || s.from().get(0) instanceof SqlAst.TableFunction fn
+                && IqLexer.lower(fn.name().get(fn.name().size() - 1).text()).equals("tb"));
+        return source && (s.where() == null || keptTest(java.util.Objects.requireNonNull(s.where())));
+    }
+
+    /** A WHERE under which SQL Anywhere keeps a constant chain's parentheses ({@link #simple}). */
+    private static boolean keptTest(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE
+                    || b.op() == SqlAst.BinaryOp.LT || b.op() == SqlAst.BinaryOp.LE || b.op() == SqlAst.BinaryOp.GT
+                    || b.op() == SqlAst.BinaryOp.GE -> b.left() instanceof SqlAst.ColumnRef && keptConstant(b.right());
+            case SqlAst.Between b -> !b.negated() && b.operand() instanceof SqlAst.ColumnRef && keptConstant(b.low())
+                    && keptConstant(b.high());
+            case SqlAst.IsNull n -> !n.negated() && n.operand() instanceof SqlAst.ColumnRef;
+            default -> false;
+        };
+    }
+
+    private static boolean keptConstant(SqlAst.Expr e) {
+        SqlAst.Expr x = e;
+        while (x instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
+            x = u.operand();
+        }
+        return x instanceof SqlAst.IntegerLit n && n.value().signum() >= 0
+                || x instanceof SqlAst.NumericLit d && d.value().signum() >= 0 || x instanceof SqlAst.StringLit
+                || x instanceof SqlAst.NullLit;
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 3's B1): the aggregate calls (by {@link IqAggregates#shape}) {@code statement} reads
+     * only for some rows or groups -- inside an IF or a CASE, an argument of COALESCE, ISNULL, IFNULL, NULLIF or ARGN,
+     * under AND, OR, NOT, a truth test, BETWEEN or IN in HAVING, anywhere in the select list or ORDER BY of a statement
+     * with a row limit, anywhere in a subquery; and (review 4's B3) anywhere in a query other than the statement's own
+     * SELECT -- a derived table's, a set operation's branch's -- whose column the query around it may read for some
+     * rows only (IF, CASE, AND in its WHERE, TOP: measured, SQL Anywhere raises -158 where lite's databases
+     * answered). A SUM's or an AVG's overflow check (D-E3) is computed where the value is read, so lite's databases
+     * raise IQ's -158 only for the groups whose value they read, where SQL Anywhere raises in the aggregation itself,
+     * for every group (measured): such a checked aggregate is refused there.
+     */
+    private static Set<String> lazyAggregates(SqlAst.Statement statement) {
+        Set<SqlAst.Statement> inSubqueries = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.Expr e : expressions(s)) {
+                    subqueryQueries(e, inSubqueries);
+                }
+            }
+        }
+        Set<String> out = new java.util.HashSet<>();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s0)) {
+                continue;
+            }
+            SqlAst.Select s = IqAggregates.grouping(s0);
+            // review 4's B3: a derived table's, a set operation's branch's or a subquery's aggregate is read where the
+            // query around it reads its column, for some rows only as that query pleases -- only the statement's own
+            // SELECT shows a checked one
+            boolean all = s0 != statement || inSubqueries.contains(s0) || s.limit() != null || s.offset() != null;
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr x) {
+                    lazyCalls(x.expr(), all, false, out);
+                }
+            }
+            s.orderBy().forEach(o -> lazyCalls(o.expr(), all, false, out));
+            if (s.having() != null) {
+                lazyCalls(java.util.Objects.requireNonNull(s.having()), all, true, out);
+            }
+        }
+        return out;
+    }
+
+    /** The queries of the subqueries under {@code e}, and all theirs, into {@code out}. */
+    private static void subqueryQueries(SqlAst.Expr e, Set<SqlAst.Statement> out) {
+        SqlAst.Statement q = subqueryOf(e);
+        if (q != null) {
+            out.addAll(queries(q));
+        }
+        for (SqlAst.Expr child : children(e)) {
+            subqueryQueries(child, out);
+        }
+    }
+
+    /** The NULL-reading functions, whose later arguments are read for some rows only. */
+    private static final Set<String> NULL_READERS = Set.of("coalesce", "isnull", "ifnull", "nullif", "argn");
+
+    private static void lazyCalls(SqlAst.Expr e, boolean lazy, boolean having, Set<String> out) {
+        if (e instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
+            if (lazy) {
+                out.add(IqAggregates.shape(f));
+            }
+            return;
+        }
+        boolean here = lazy || e instanceof SqlAst.Case
+                || e instanceof SqlAst.FunctionCall f && f.name().size() == 1
+                && NULL_READERS.contains(IqLexer.lower(f.name().get(0).text()))
+                || having && (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.AND
+                || b.op() == SqlAst.BinaryOp.OR) || e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.NOT
+                || e instanceof SqlAst.IsTruth || e instanceof SqlAst.Between || e instanceof SqlAst.InList);
+        for (SqlAst.Expr child : children(e)) {
+            lazyCalls(child, here, having, out);
+        }
+    }
+
+    /** Whether the statement reads aggregate call {@code f} only for some rows or groups ({@link #lazyAggregates}). */
+    boolean lazilyRead(SqlAst.FunctionCall f) {
+        return lazy.contains(IqAggregates.shape(f));
+    }
+
+    /**
+     * IQ island, 2026-10-14 (the merge of M1b and the natives slice; measured on SQL Anywhere 17): the names (ASCII lower
+     * case) of the columns of {@code statement}'s derived tables that SQL Anywhere may type by a folded constant's
+     * digits. It merges a derived SELECT into its query, so a column defined by a constant integer expression enters a
+     * NUMERIC quotient as that constant ({@code 1.5/x} over {@code (SELECT 2+3 AS x) d} divides a NUMERIC(1,0) and is
+     * a NUMERIC(4,3); so do {@code 5} and {@code CAST(5 AS INT)}), where the column's own type is an integer's
+     * NUMERIC(10,0); a set operation's column is typed by the set operation (measured: NUMERIC(10,0)). By name, over
+     * the whole statement: a column defined without an aggregate, a subquery or a column other than such a one (to a
+     * fixpoint, through nested derived tables).
+     */
+    static Set<String> folded(SqlAst.Statement statement) {
+        List<SqlAst.SubqueryFrom> derivedTables = new ArrayList<>();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d && d.query() instanceof SqlAst.Select) {
+                            derivedTables.add(d);
+                        }
+                    }
+                }
+            }
+        }
+        Set<String> out = new java.util.HashSet<>();
+        boolean grown = true;
+        while (grown) {
+            grown = false;
+            for (SqlAst.SubqueryFrom d : derivedTables) {
+                List<SqlAst.SelectItem> items = ((SqlAst.Select) d.query()).items();
+                boolean starred = false;
+                for (int i = 0; i < items.size(); i++) {
+                    starred |= !(items.get(i) instanceof SqlAst.SelectExpr);
+                    if (!(items.get(i) instanceof SqlAst.SelectExpr x) || !foldable(x.expr(), out)) {
+                        continue;
+                    }
+                    if (starred && !d.columnAliases().isEmpty()) {
+                        // IQ island, 2026-10-14 (review 4's B1): after a * the column list's name i is some earlier
+                        // column's; this item's is one of the names from i on, so each of them may be folded
+                        for (int j = i; j < d.columnAliases().size(); j++) {
+                            grown |= out.add(IqLexer.lower(d.columnAliases().get(j).text()));
+                        }
+                        continue;
+                    }
+                    SqlAst.Ident alias = i < d.columnAliases().size() ? d.columnAliases().get(i) : x.alias();
+                    String name = alias != null ? IqLexer.lower(alias.text())
+                            : x.expr() instanceof SqlAst.ColumnRef r ? IqLexer.lower(r.parts().get(r.parts().size() - 1)
+                            .text()) : null;
+                    if (name != null) {
+                        grown |= out.add(name);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Whether {@code e} reads no aggregate, no subquery and no column but one of {@code folded}. */
+    private static boolean foldable(SqlAst.Expr e, Set<String> folded) {
+        if (subqueryOf(e) != null || e instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
+            return false;
+        }
+        if (e instanceof SqlAst.ColumnRef r) {
+            return folded.contains(IqLexer.lower(r.parts().get(r.parts().size() - 1).text()));
+        }
+        for (SqlAst.Expr child : children(e)) {
+            if (!foldable(child, folded)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * IQ island, 2026-10-14 (the merge of M1b and M1d): a set operation another query reads (a derived table's, a
+     * subquery's), or that orders its rows, whose first branch shows a NULL constant in a column ({@code NULL},
+     * {@code CAST(NULL AS ...)}) is refused by name: the compiler stamps the column of the rows the set operation
+     * concatenates by its first branch's, as always empty, and a test or a key of it then finds no row ({@code x = 'a'}
+     * over {@code (SELECT CAST(NULL AS VARCHAR(3)) AS x UNION ALL SELECT 'a') d} found none), raises, or sorts at random
+     * -- the compiler line's, recorded; a NULL in a later branch is read.
+     */
+    private static void nullFirstBranches(SqlAst.Statement statement) {
+        Set<SqlAst.Statement> top = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (SqlAst.Statement q = statement; q instanceof SqlAst.SetOperation o; q = o.left()) {
+            top.add(q);
+        }
+        boolean ordered = statement instanceof SqlAst.SetOperation so && !so.orderBy().isEmpty();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.SetOperation o) || top.contains(q) && !ordered) {
+                continue;
+            }
+            boolean read = !top.contains(q);
+            for (SqlAst.SelectItem item : first(o).items()) {
+                // ordered, a string's collation key reads the column (an integer's sort does not)
+                if (item instanceof SqlAst.SelectExpr x && (read && x.expr() instanceof SqlAst.NullLit
+                        || x.expr() instanceof SqlAst.Cast c && c.operand() instanceof SqlAst.NullLit
+                        && (read || c.type().name().toUpperCase(java.util.Locale.ROOT).contains("CHAR")))) {
+                    throw SqlTranslationException.unsupported("a set operation read by another query, or ordered, whose"
+                            + " first branch shows a NULL constant is not supported yet: put the NULL in a later branch",
+                            x.expr().pos());
+                }
+            }
+        }
+    }
+
+    private static void shown(SqlAst.Select s, Set<SqlAst.SelectExpr> out) {
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                out.add(x);
+            }
+        }
+    }
+
+    /**
+     * Where IQ's engine takes a subquery (the research's GRAMMAR E15 and appendix B1, the flag list: SQL Anywhere's
+     * front end takes each, so its answer is no evidence for IQ's engine, and each is refused by name under it): a
+     * parenthesized query as a whole item of the statement's select list (a set operation's branches included), or as
+     * a comparison's operand in a WHERE; EXISTS, IN and ANY, SOME, ALL (query) as a WHERE's predicates. Refused: a
+     * subquery in a join's ON, in ORDER BY, inside a CASE, an IF, a function's arguments or arithmetic, anywhere in a
+     * derived table's select list; a set operation inside a subquery.
+     */
+    private static void subqueryPlaces(SqlAst.Statement statement) {
+        Set<SqlAst.Select> top = Collections.newSetFromMap(new IdentityHashMap<>());
+        topBranches(statement, top);
+        Set<SqlAst.Select> inDerived = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d) {
+                            queries(d.query()).forEach(x -> {
+                                if (x instanceof SqlAst.Select ds) {
+                                    inDerived.add(ds);
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            for (SqlAst.SelectItem item : s.items()) {
+                if (item instanceof SqlAst.SelectExpr x) {
+                    boolean whole = x.expr() instanceof SqlAst.ScalarSubquery && top.contains(s) && !inDerived.contains(s);
+                    for (SqlAst.Expr e : whole ? List.<SqlAst.Expr>of() : List.of(x.expr())) {
+                        noSubquery(e, inDerived.contains(s) ? "a derived table's select list"
+                                : "the select list, but as a whole item");
+                    }
+                    if (whole) {
+                        noSetOperation(((SqlAst.ScalarSubquery) x.expr()).query(), x.expr().pos());
+                    }
+                }
+            }
+            if (s.where() != null) {
+                predicates(java.util.Objects.requireNonNull(s.where()));
+            }
+            // IQ island, 2026-10-14 (M1c): HAVING as WHERE; none in GROUP BY
+            if (s.having() != null) {
+                predicates(java.util.Objects.requireNonNull(s.having()));
+            }
+            s.groupBy().forEach(k -> noSubquery(k, "GROUP BY"));
+            s.orderBy().forEach(o -> noSubquery(o.expr(), "ORDER BY"));
+            for (SqlAst.FromItem f : s.from()) {
+                List<SqlAst.Join> joins = new ArrayList<>();
+                joins(f, joins);
+                for (SqlAst.Join j : joins) {
+                    if (j.on() != null) {
+                        noSubquery(java.util.Objects.requireNonNull(j.on()), "a join's ON");
+                    }
+                }
+            }
+        }
+    }
+
+    /** The SELECTs of the statement's own select lists: itself, or its set operation's branches. */
+    private static void topBranches(SqlAst.Statement q, Set<SqlAst.Select> out) {
+        if (q instanceof SqlAst.Select s) {
+            out.add(s);
+        } else if (q instanceof SqlAst.SetOperation o) {
+            topBranches(o.left(), out);
+            topBranches(o.right(), out);
+        }
+    }
+
+    /** A WHERE's condition: EXISTS, IN, ANY/ALL subqueries as predicates, a parenthesized query as a comparison's
+     *  operand; every other subquery refused. */
+    private static void predicates(SqlAst.Expr e) {
+        switch (e) {
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR -> {
+                predicates(b.left());
+                predicates(b.right());
+            }
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> predicates(u.operand());
+            case SqlAst.IsTruth t -> predicates(t.operand());
+            case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE
+                    || b.op() == SqlAst.BinaryOp.LT || b.op() == SqlAst.BinaryOp.LE || b.op() == SqlAst.BinaryOp.GT
+                    || b.op() == SqlAst.BinaryOp.GE -> {
+                for (SqlAst.Expr side : List.of(b.left(), b.right())) {
+                    if (side instanceof SqlAst.ScalarSubquery q) {
+                        noSetOperation(q.query(), q.pos());
+                    } else {
+                        noSubquery(side, "WHERE, but as a comparison's operand");
+                    }
+                }
+            }
+            case SqlAst.Exists x -> noSetOperation(x.query(), x.pos());
+            case SqlAst.InSubquery in -> {
+                noSubquery(in.operand(), "WHERE, but as a comparison's operand");
+                noSetOperation(in.query(), in.pos());
+            }
+            case SqlAst.Quantified q -> {
+                noSubquery(q.left(), "WHERE, but as a comparison's operand");
+                noSetOperation(q.query(), q.pos());
+            }
+            default -> noSubquery(e, "WHERE, but as a comparison's operand or a predicate");
+        }
+    }
+
+    private static void noSubquery(SqlAst.Expr e, String place) {
+        if (subqueryOf(e) != null) {
+            throw SqlTranslationException.unsupported("a subquery here is not supported under IQ's engine, which"
+                    + " restricts it (the research's flag list): IQ takes one in " + place, e.pos());
+        }
+        for (SqlAst.Expr child : children(e)) {
+            noSubquery(child, place);
+        }
+    }
+
+    private static void noSetOperation(SqlAst.Statement query, SqlAst.Pos pos) {
+        if (query instanceof SqlAst.SetOperation) {
+            throw SqlTranslationException.unsupported("a set operation inside a subquery is not supported under IQ's"
+                    + " engine, which restricts it (the research's flag list)", pos);
+        }
     }
 
     /** {@code e} and every expression inside it, into {@code out}. */
@@ -257,8 +1721,9 @@ public final class IqDialect implements InputDialect {
 
     // ------------------------------------------------------------------ the statement's expressions
 
-    /** A select's expressions: its items', WHERE's, ORDER BY's. */
-    private static List<SqlAst.Expr> expressions(SqlAst.Select s) {
+    /** A select's expressions: its items', WHERE's, GROUP BY's, HAVING's, ORDER BY's, its joins' ON conditions (not
+     *  its derived tables' or subqueries'). */
+    static List<SqlAst.Expr> expressions(SqlAst.Select s) {
         List<SqlAst.Expr> all = new ArrayList<>();
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x) {
@@ -268,17 +1733,46 @@ public final class IqDialect implements InputDialect {
         if (s.where() != null) {
             all.add(java.util.Objects.requireNonNull(s.where()));
         }
+        // IQ island, 2026-10-14 (M1c)
+        all.addAll(s.groupBy());
+        if (s.having() != null) {
+            all.add(java.util.Objects.requireNonNull(s.having()));
+        }
         s.orderBy().forEach(o -> all.add(o.expr()));
+        for (SqlAst.FromItem f : s.from()) {
+            List<SqlAst.Join> joins = new ArrayList<>();
+            joins(f, joins);
+            for (SqlAst.Join j : joins) {
+                if (j.on() != null) {
+                    all.add(java.util.Objects.requireNonNull(j.on()));
+                }
+            }
+        }
         return all;
     }
 
     /** The expressions directly inside {@code e}, of the forms {@link IqParser} reads. */
-    private static List<SqlAst.Expr> children(SqlAst.Expr e) {
+    static List<SqlAst.Expr> children(SqlAst.Expr e) {
         return switch (e) {
             case SqlAst.Binary b -> List.of(b.left(), b.right());
             case SqlAst.Unary u -> List.of(u.operand());
             case SqlAst.IsNull n -> List.of(n.operand());
-            case SqlAst.FunctionCall f -> f.args();
+            case SqlAst.IsTruth t -> List.of(t.operand());
+            case SqlAst.IsDistinct d -> List.of(d.left(), d.right());
+            case SqlAst.Between b -> List.of(b.operand(), b.low(), b.high());
+            case SqlAst.InList in -> {
+                List<SqlAst.Expr> all = new ArrayList<>(List.of(in.operand()));
+                all.addAll(in.values());
+                yield all;
+            }
+            case SqlAst.Like l -> l.escape() == null ? List.of(l.operand(), l.pattern())
+                    : List.of(l.operand(), l.pattern(), java.util.Objects.requireNonNull(l.escape()));
+            // IQ island, 2026-10-14 (M1c): an aggregate's ORDER BY too
+            case SqlAst.FunctionCall f -> {
+                List<SqlAst.Expr> all = new ArrayList<>(f.args());
+                f.orderBy().forEach(o -> all.add(o.expr()));
+                yield all;
+            }
             case SqlAst.Case c -> {
                 List<SqlAst.Expr> all = new ArrayList<>();
                 if (c.operand() != null) {
@@ -293,11 +1787,20 @@ public final class IqDialect implements InputDialect {
                 }
                 yield all;
             }
+            // a subquery's own expressions are its query's (queries), not its enclosing one's
+            case SqlAst.ScalarSubquery q -> List.of();
+            case SqlAst.Exists q -> List.of();
+            case SqlAst.InSubquery q -> List.of(q.operand());
+            case SqlAst.Quantified q -> List.of(q.left());
+            // IQ island, 2026-10-14 (M1d): CAST and CONVERT
+            case SqlAst.Cast c -> List.of(c.operand());
             case SqlAst.ColumnRef r -> List.of();
             case SqlAst.IntegerLit n -> List.of();
             case SqlAst.NumericLit n -> List.of();
             case SqlAst.StringLit n -> List.of();
             case SqlAst.NullLit n -> List.of();
+            // IQ island, 2026-10-14 (M1e): a host variable
+            case SqlAst.Param p -> List.of();
             // exhaustive over IqParser's forms: a new form is read here before a walk can miss what is inside it
             default -> throw new IllegalStateException("the #IQ{...}# dialect does not walk " + e.getClass()
                     .getSimpleName() + " yet");
@@ -324,6 +1827,7 @@ public final class IqDialect implements InputDialect {
                 comparisons(b.right(), out);
             }
             case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> comparisons(u.operand(), out);
+            case SqlAst.IsTruth t -> comparisons(t.operand(), out);
             case SqlAst.Binary b -> out.add(b);
             default -> {
             }
@@ -384,10 +1888,54 @@ public final class IqDialect implements InputDialect {
         if (s.where() != null) {
             columnRefs(java.util.Objects.requireNonNull(s.where()), refs);
         }
+        for (SqlAst.FromItem f : s.from()) {
+            List<SqlAst.Join> joins = new ArrayList<>();
+            joins(f, joins);
+            for (SqlAst.Join j : joins) {
+                if (j.on() != null) {
+                    columnRefs(java.util.Objects.requireNonNull(j.on()), refs);
+                }
+            }
+        }
         int outside = refs.size();
         for (SqlAst.SortItem o : s.orderBy()) {
             if (!(o.expr() instanceof SqlAst.ColumnRef) && !(o.expr() instanceof SqlAst.IntegerLit)) {
                 columnRefs(o.expr(), refs);
+            }
+        }
+        // IQ island, 2026-10-14 (review 5's M2, measured with a real variable): an alias spelled like a variable
+        // ("@lo") is read before the variable @lo, in the select list and in WHERE; lite reads the variable
+        List<SqlAst.Param> params = new ArrayList<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                params(x.expr(), params);
+            }
+        }
+        List<SqlAst.Expr> clauses = new ArrayList<>();
+        if (s.where() != null) {
+            clauses.add(java.util.Objects.requireNonNull(s.where()));
+        }
+        if (s.having() != null) {
+            clauses.add(java.util.Objects.requireNonNull(s.having()));
+        }
+        clauses.addAll(s.groupBy());
+        s.orderBy().forEach(o -> clauses.add(o.expr()));
+        for (SqlAst.FromItem f : s.from()) {
+            List<SqlAst.Join> joins = new ArrayList<>();
+            joins(f, joins);
+            for (SqlAst.Join j : joins) {
+                if (j.on() != null) {
+                    clauses.add(java.util.Objects.requireNonNull(j.on()));
+                }
+            }
+        }
+        clauses.forEach(e -> params(e, params));
+        for (SqlAst.Param p : params) {
+            String written = p.name();
+            if (written != null && written.startsWith("@") && aliases.containsKey(IqLexer.lower(written))) {
+                throw SqlTranslationException.unsupported("'" + written + "' names the select list's alias, which IQ"
+                        + " reads before a variable of that name: reading an alias in place of a host variable is not"
+                        + " supported yet; rename the alias", p.pos());
             }
         }
         for (int i = 0; i < refs.size(); i++) {
@@ -401,13 +1949,24 @@ public final class IqDialect implements InputDialect {
                     && IqLexer.lower(c.parts().get(c.parts().size() - 1).text()).equals(name))) {
                 throw SqlTranslationException.unsupported("'" + ref.parts().get(0).text() + "' names the select"
                         + " list's alias, which IQ reads before a column of that name: reading an alias "
-                        + (i < outside ? "in WHERE or the select list" : "inside an ORDER BY expression (only a bare"
+                        + (i < outside ? "in WHERE, ON or the select list" : "inside an ORDER BY expression (only a bare"
                         + " alias or a position is read there)") + " is not supported yet", ref.pos());
             }
         }
     }
 
-    private static void columnRefs(SqlAst.Expr e, List<SqlAst.ColumnRef> out) {
+    /** IQ island, 2026-10-14 (review 5's M2): the named parameters ({@code @name}, {@code :name}) under {@code e}, not
+     *  inside a subquery. */
+    private static void params(SqlAst.Expr e, List<SqlAst.Param> out) {
+        if (e instanceof SqlAst.Param p) {
+            out.add(p);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            params(child, out);
+        }
+    }
+
+    static void columnRefs(SqlAst.Expr e, List<SqlAst.ColumnRef> out) {
         if (e instanceof SqlAst.ColumnRef ref) {
             out.add(ref);
         }
@@ -424,17 +1983,54 @@ public final class IqDialect implements InputDialect {
         return !descending;
     }
 
-    /** A column shows as its reference is written. */
+    /** A column shows as its reference is written; in a grouped query, one that is a GROUP BY item written bare as that
+     *  item is written (M1c, measured: {@code SELECT K ... GROUP BY k} shows {@code k}). */
     @Override
     public String columnName(SqlAst.Ident written, String label) {
-        return written.text();
+        String key = naming.keyName(written);
+        return key != null ? key : written.text();
     }
 
-    /** IQ's name for an unnamed item: its rendering of the item (measured on SQL Anywhere 17, which IQ's front end
-     *  is), where it is known. */
+    /** IQ's name for an unnamed item read with no FROM item known ({@link #defaultName(SqlAst.SelectExpr, Tables)}):
+     *  one over no column. */
     @Override
     public String defaultName(SqlAst.SelectExpr item) {
-        String name = rendering(item.expr());
+        return defaultName(item, ref -> null);
+    }
+
+    /** IQ's name for an unnamed item: its rendering of the item ({@link IqNames}, measured on SQL Anywhere 17, which
+     *  IQ's front end is). Where that rendering is not known, the item is refused by name if the statement shows its
+     *  name; an item no one sees (a subquery's) is named by its own text. */
+    @Override
+    public String defaultName(SqlAst.SelectExpr item, Tables tables) {
+        SqlAst.Expr e = item.expr();
+        while (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
+            e = u.operand();
+        }
+        IqNames.Columns columns = (ref, inAggregate) -> {
+            SqlAst.Ident table = tables.table(ref);
+            if (table == null || derived.contains(IqLexer.lower(table.text())) && !(inAggregate
+                    && setDerived.contains(IqLexer.lower(table.text())))) {
+                return null;
+            }
+            if (ref.parts().size() == 1) {
+                return table.text() + "." + ref.parts().get(0).text();
+            }
+            return String.join(".", ref.parts().stream().map(SqlAst.Ident::text).toList());
+        };
+        // IQ island, 2026-10-14 (M1c): in a grouped query, a GROUP BY item's and an aggregate's parts as IQ reads them
+        String key = e instanceof SqlAst.ColumnRef ref ? naming.keyName(ref.parts().get(ref.parts().size() - 1))
+                : null;
+        String name = key != null ? key : e instanceof SqlAst.ScalarSubquery q ? subqueryName(q.query())
+                : IqNames.name(item.text(), profile, columns, naming.substitutes(item, profile, columns, tables),
+                        chains.getOrDefault(item, IqNames.Chains.UNKNOWN));
+        // IQ island, 2026-10-14 (M1e): an item over a host variable read as a Pure variable is not named
+        name = readsVariable(e) ? null : name;
+        if (!shown.contains(item)) {
+            given.put(item, name);
+            return name != null ? name : item.text() != null ? java.util.Objects.requireNonNull(item.text())
+                    : "expression";
+        }
         if (name == null) {
             throw SqlTranslationException.unsupported("this select item needs an alias (AS name): the name IQ gives an"
                     + " unaliased " + (item.text() == null ? "item" : "'" + item.text() + "'") + " is not known yet",
@@ -443,58 +2039,38 @@ public final class IqDialect implements InputDialect {
         return name;
     }
 
-    /** IQ's rendering of a constant or a column: an integer's digits, a numeric's value without trailing zeros (and
-     *  without a zero before the point; {@code .0} after a whole one that fits an INT, nothing after one of eleven
-     *  digits or more), a string quoted with its quotes doubled and its control characters as {@code \xHH}, NULL as
-     *  {@code null}; null where IQ's rendering is not known. */
-    private static @com.legend.base.Nullable String rendering(SqlAst.Expr e) {
-        return switch (e) {
-            case SqlAst.ColumnRef ref -> ref.parts().get(ref.parts().size() - 1).text();
-            case SqlAst.IntegerLit n -> n.value().toString();
-            case SqlAst.NumericLit n -> numeric(n.value());
-            case SqlAst.StringLit s -> quoted(s.value());
-            case SqlAst.NullLit n -> "null";
-            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.MINUS && constantNumber(u.operand()) -> {
-                String operand = rendering(u.operand());
-                yield operand == null ? null : "-" + operand;
-            }
-            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.PLUS && constantNumber(u.operand()) ->
-                    rendering(u.operand());
-            default -> null;
-        };
-    }
-
-    private static boolean constantNumber(SqlAst.Expr e) {
-        return e instanceof SqlAst.IntegerLit || e instanceof SqlAst.NumericLit;
-    }
-
-    private static @com.legend.base.Nullable String numeric(BigDecimal value) {
-        BigDecimal v = value.stripTrailingZeros();
-        if (v.scale() <= 0) {
-            BigInteger whole = v.toBigInteger();
-            if (whole.abs().compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) <= 0) {
-                return whole + ".0";
-            }
-            return whole.abs().compareTo(BigInteger.TEN.pow(10)) >= 0 ? whole.toString() : null;
+    /** IQ island, 2026-10-14 (M1e): whether {@code e} reads a host variable as a variable of the enclosing Pure query
+     *  ({@link #parameter}). */
+    private boolean readsVariable(SqlAst.Expr e) {
+        if (e instanceof SqlAst.Param p && variables.contains(p)) {
+            return true;
         }
-        String s = v.toPlainString();
-        return s.startsWith("0.") ? s.substring(1) : s;
-    }
-
-    private static String quoted(String value) {
-        StringBuilder b = new StringBuilder("'");
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '\'') {
-                b.append("''");
-            } else if (c < 0x20) {
-                String h = Integer.toHexString(c).toUpperCase(java.util.Locale.ROOT);
-                b.append("\\x").append(h.length() == 1 ? "0" : "").append(h);
-            } else {
-                b.append(c);
+        for (SqlAst.Expr child : children(e)) {
+            if (readsVariable(child)) {
+                return true;
             }
         }
-        return b.append('\'').toString();
+        return false;
+    }
+
+    /** The name of a parenthesized query shown as a select item: its one item's (its alias, its column's name, or
+     *  the name it was given when translated); null where it is not known. */
+    private @com.legend.base.Nullable String subqueryName(SqlAst.Statement query) {
+        if (!(query instanceof SqlAst.Select s) || s.items().size() != 1
+                || !(s.items().get(0) instanceof SqlAst.SelectExpr x)) {
+            return null;
+        }
+        if (x.alias() != null) {
+            return java.util.Objects.requireNonNull(x.alias()).text();
+        }
+        SqlAst.Expr e = x.expr();
+        while (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
+            e = u.operand();
+        }
+        if (e instanceof SqlAst.ColumnRef ref) {
+            return ref.parts().get(ref.parts().size() - 1).text();
+        }
+        return given.get(x);
     }
 
     // ------------------------------------------------------------------ types
@@ -532,9 +2108,10 @@ public final class IqDialect implements InputDialect {
             return null;
         }
         String family = type.family();
-        if (referenced != null && !referenced.contains(IqLexer.lower(column))
+        if (referenced != null && !referenced.contains(IqLexer.lower(column)) && !starred.contains(pos)
                 && (family.equals("CHAR") && type.size() >= 0 || family.equals("BIT"))) {
-            // never seen: read as stored (the CHAR's pad and the BIT's integer change nothing the query sees)
+            // never seen: read as stored (the CHAR's pad and the BIT's integer change nothing the query sees; a NATURAL
+            // join's shared columns compare by IQ's =, which ignores the pad)
             return null;
         }
         if (family.equals("CHAR")) {
@@ -608,8 +2185,8 @@ public final class IqDialect implements InputDialect {
                         : Tx.condition(SqlToPure.call("or", l.vs(), r.vs()),
                                 SqlToPure.call("and", l.falseWhen(), r.falseWhen()), nullable);
             }
-            case EQ, NE, LT, LE, GT, GE -> comparison(b.op(), at.tx(b.left()), at.tx(b.right()),
-                    b.left() instanceof SqlAst.NullLit, b.right() instanceof SqlAst.NullLit, b, b.pos());
+            case EQ, NE, LT, LE, GT, GE -> twoValued(b, comparison(b.op(), at.tx(b.left()), at.tx(b.right()),
+                    b.left() instanceof SqlAst.NullLit, b.right() instanceof SqlAst.NullLit, b, b.pos()));
             case PLUS -> plus(b, at);
             case CONCAT -> {
                 List<Tx> parts = new ArrayList<>();
@@ -618,7 +2195,7 @@ public final class IqDialect implements InputDialect {
                 }
                 yield concatenation(parts, b, "||");
             }
-            case MINUS, TIMES, DIVIDE, MODULO -> integerArithmetic(b, at.tx(b.left()), at.tx(b.right()));
+            case MINUS, TIMES, DIVIDE, MODULO -> arithmetic(b, at.tx(b.left()), at.tx(b.right()));
             case POWER -> throw SqlTranslationException.unsupported("IQ has no power operator", b.pos());
         };
     }
@@ -650,6 +2227,21 @@ public final class IqDialect implements InputDialect {
             Tx negated = SqlToPure.strict(x.kind(), List.of(x), v -> SqlToPure.call("minus", v.get(0)));
             return Tx.value(negated.vs(), x.kind(), false, x.detail());
         }
+        if (x.kind() == Kind.FLOAT) {
+            // a DOUBLE's negation is exact, and never leaves its range
+            doubleOperand(x, u.operand(), "-");
+            Tx negated = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> SqlToPure.call("minus", v.get(0)));
+            return Tx.value(negated.vs(), Kind.FLOAT, negated.nullable(), new IqType("DOUBLE"));
+        }
+        if (decimal(x)) {
+            // a NUMERIC's negation keeps its type (TYPING §6), exactly
+            if (engine == Engine.IQ) {
+                throw numericRefused("-", u.pos());
+            }
+            int[] type = numericType(x, u.operand(), "-");
+            Tx negated = SqlToPure.strict(Kind.DECIMAL, List.of(x), v -> SqlToPure.call("minus", v.get(0)));
+            return Tx.value(negated.vs(), Kind.DECIMAL, negated.nullable(), numeric(type[0], type[1]));
+        }
         IqType t = integerOperand(x, u.operand(), "-");
         IqType result = new IqType(IqTypes.negated(t.family()));
         BigInteger lo = t.hi().negate();
@@ -678,7 +2270,7 @@ public final class IqDialect implements InputDialect {
             throw SqlTranslationException.unsupported("+ of a string and a value that is no string is IQ's NUMERIC"
                     + " addition (the string converted, an untyped NULL included): not supported yet", b.pos());
         }
-        return integerArithmetic(b, at.tx(b.left()), at.tx(b.right()));
+        return arithmetic(b, at.tx(b.left()), at.tx(b.right()));
     }
 
     /** The operands of a run of {@code op} (both sides: {@code ||} and string {@code +} are associative). */
@@ -696,10 +2288,13 @@ public final class IqDialect implements InputDialect {
      *  ({@code ||} writes numerics, doubles and dates by IQ's formats) is refused by name. */
     private Tx concatenation(List<Tx> parts, SqlAst.Binary b, String operator) {
         List<Tx> present = new ArrayList<>();
-        for (Tx p : parts) {
-            if (p.kind() == Kind.NULL) {
+        for (Tx part : parts) {
+            if (part.kind() == Kind.NULL) {
                 continue;
             }
+            // IQ island, 2026-10-14 (M1e): a date or a timestamp in the profile's DATE_FORMAT or TIMESTAMP_FORMAT
+            Tx p = part.kind() == Kind.DATE || part.kind() == Kind.DATETIME
+                    ? IqDateTime.text(part, profile, operator, b.pos()) : part;
             boolean integer = p.kind() == Kind.INTEGER && p.detail() instanceof IqType t && t.isInteger();
             if (p.kind() != Kind.STRING && !integer) {
                 throw SqlTranslationException.unsupported(operator + " of " + kindName(p.kind()) + " (IQ writes it as"
@@ -736,6 +2331,470 @@ public final class IqDialect implements InputDialect {
         }
         return p.nullable() ? ifThen(SqlToPure.call("isEmpty", v), new CString(""),
                 SqlToPure.call("toString", SqlToPure.call("toOne", v))) : SqlToPure.call("toString", v);
+    }
+
+    /** {@code l op r} for {@code + - * / %} of two numbers: a DOUBLE's ({@link #doubleArithmetic}) when either is
+     *  one, a NUMERIC's ({@link #decimalArithmetic}) when either is one, else an integer's
+     *  ({@link #integerArithmetic}). */
+    private Tx arithmetic(SqlAst.Binary b, Tx l, Tx r) {
+        if (l.kind() == Kind.FLOAT || r.kind() == Kind.FLOAT) {
+            return doubleArithmetic(b, l, r);
+        }
+        if (decimal(l) || decimal(r)) {
+            return decimalArithmetic(b, l, r);
+        }
+        return integerArithmetic(b, l, r);
+    }
+
+    private static String operator(SqlAst.BinaryOp op) {
+        return switch (op) {
+            case PLUS -> "+";
+            case MINUS -> "-";
+            case TIMES -> "*";
+            case DIVIDE -> "/";
+            case MODULO -> "%";
+            default -> throw new IllegalArgumentException("not arithmetic: " + op);
+        };
+    }
+
+    /** Whether {@code t} is an exact number IQ types NUMERIC: a numeric constant or column, an integer constant beyond
+     *  an INT's range. */
+    private static boolean decimal(Tx t) {
+        if (t.detail() instanceof IqType type && (type.family().equals("NUMERIC") || type.family().equals("DECIMAL"))) {
+            return true;
+        }
+        return t.kind() == Kind.DECIMAL || t.kind() == Kind.NUMBER;
+    }
+
+    /** IQ's NUMERIC type of precision {@code p} and scale {@code s}. */
+    private static IqType numeric(int p, int s) {
+        return new IqType("NUMERIC(" + p + "," + s + ")");
+    }
+
+    /** The NUMERIC(p, s) an operand of NUMERIC arithmetic enters it as ({p, s}; the research's TYPING §1, §4,
+     *  measured): a NUMERIC its own; an integer literal (signed or not) the NUMERIC of its digits; any other integer
+     *  NUMERIC(10,0), a BIGINT NUMERIC(20,0) -- precisions at least SQL Anywhere's (a folded constant's may be fewer),
+     *  which the island reads only to refuse a result IQ caps or lite cannot hold, so never a wrong answer. Any other
+     *  value is refused by name. */
+    private static int[] numericType(Tx t, SqlAst.Expr e, String operator) {
+        if (t.detail() instanceof IqType type) {
+            String f = type.family();
+            if ((f.equals("NUMERIC") || f.equals("DECIMAL")) && type.size() >= 0) {
+                String sp = type.spelling();
+                int comma = sp.indexOf(',');
+                int scale = comma < 0 ? 0 : Integer.parseInt(sp.substring(comma + 1, sp.indexOf(')')).strip());
+                return new int[] {type.size(), scale};
+            }
+            if (type.isInteger()) {
+                BigInteger literal = integerLiteral(e);
+                if (literal != null) {
+                    return new int[] {Math.max(1, literal.abs().toString().length()), 0};
+                }
+                return new int[] {f.equals("BIGINT") ? 20 : 10, 0};
+            }
+            if (t.kind() == Kind.INTEGER) {
+                throw SqlTranslationException.unsupported(operator + " of a " + type.spelling() + " and a NUMERIC is"
+                        + " not supported yet", e.pos());
+            }
+        }
+        throw SqlTranslationException.unsupported(operator + " of " + kindName(t.kind()) + " and a NUMERIC is not"
+                + " supported yet" + (t.kind() == Kind.STRING ? " (IQ converts the string to NUMERIC)" : ""), e.pos());
+    }
+
+    /** An integer literal's value, signs applied ({@code 5}, {@code -5}, {@code +5}); null for any other expression. */
+    private static @com.legend.base.Nullable BigInteger integerLiteral(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> n.value();
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.MINUS -> {
+                BigInteger v = integerLiteral(u.operand());
+                yield v == null ? null : v.negate();
+            }
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.PLUS -> integerLiteral(u.operand());
+            default -> null;
+        };
+    }
+
+    /**
+     * {@code l op r} where either is a NUMERIC: SQL Anywhere's front end's exact arithmetic (the research's TYPING §4,
+     * measured on SQL Anywhere 17). The result is a NUMERIC(p, s): {@code + -} scale max(s1, s2), precision
+     * max(p1 - s1, p2 - s2) + s + 1; {@code *} precision p1 + p2, scale s1 + s2 -- the scale the databases' own exact
+     * arithmetic gives too, each operand widened to a 38-digit decimal first so that neither computes it narrower. With
+     * an untyped NULL it is a DOUBLE NULL (measured). Refused by name: under the IQ engine (its decimal types are the
+     * research's D-N1, not yet verified); a result the profile's PRECISION caps (SQL Anywhere then rounds it to a
+     * smaller scale); one of more than 38 digits (lite's decimals hold 38). {@code /} and {@code %}: {@link #quotient}
+     * (IQ island, 2026-10-14).
+     */
+    private Tx decimalArithmetic(SqlAst.Binary b, Tx l, Tx r) {
+        String operator = operator(b.op());
+        if (engine == Engine.IQ) {
+            throw numericRefused(operator, b.pos());
+        }
+        if ((l.kind() == Kind.NULL || r.kind() == Kind.NULL) && b.op() == SqlAst.BinaryOp.MODULO) {
+            // IQ island, 2026-10-14 (natives): NULL % 1.5 is a NUMERIC(2,1) NULL (measured), not a DOUBLE
+            throw SqlTranslationException.unsupported("% of an untyped NULL and a NUMERIC is not supported yet: IQ"
+                    + " types it NUMERIC by the NULL's type", b.pos());
+        }
+        if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
+            // an untyped NULL with a NUMERIC is a DOUBLE (measured; / too)
+            return doubleNull();
+        }
+        if (b.op() == SqlAst.BinaryOp.DIVIDE || b.op() == SqlAst.BinaryOp.MODULO) {
+            return quotient(b, l, r, operator);
+        }
+        int[] lt = numericType(l, b.left(), operator);
+        int[] rt = numericType(r, b.right(), operator);
+        int p;
+        int s;
+        if (b.op() == SqlAst.BinaryOp.TIMES) {
+            p = lt[0] + rt[0];
+            s = lt[1] + rt[1];
+        } else {
+            s = Math.max(lt[1], rt[1]);
+            p = Math.max(lt[0] - lt[1], rt[0] - rt[1]) + s + 1;
+        }
+        if (p > profile.precision()) {
+            throw SqlTranslationException.unsupported("this " + operator + " is a NUMERIC(" + p + "," + s + "), more"
+                    + " digits than profile " + profile.spelling() + "'s PRECISION (" + profile.precision() + "): its"
+                    + " database cuts it to a smaller scale, which is not supported", b.pos());
+        }
+        if (p > 38) {
+            throw SqlTranslationException.unsupported("this " + operator + " is a NUMERIC(" + p + "," + s + "), more"
+                    + " than the 38 digits lite's decimals hold", b.pos());
+        }
+        String fn = b.op() == SqlAst.BinaryOp.TIMES ? "times" : b.op() == SqlAst.BinaryOp.PLUS ? "plus" : "minus";
+        boolean lInteger = !decimal(l);
+        boolean rInteger = !decimal(r);
+        // a product of more than 18 digits: one operand a 38-digit decimal, so that DuckDB does not compute it in 64
+        // bits (it raises an overflow there past 18 digits); an integer becomes one anyway. IQ island, 2026-10-14
+        // (review 3's m1): a sum or a difference of more than 18 digits widens both (DuckDB aligns the two scales in
+        // the narrower one's width: 99999999999999999.5 + 1.00 overflowed DECIMAL(18,2))
+        boolean times = b.op() == SqlAst.BinaryOp.TIMES;
+        boolean widen = p > 18 && (times ? !lInteger && !rInteger : true);
+        Tx result = SqlToPure.strict(Kind.DECIMAL, List.of(l, r), v -> AppliedFunction.infixRun(fn,
+                List.of(lInteger ? SqlToPure.call("toDecimal", v.get(0)) : widen ? wide(v.get(0)) : v.get(0),
+                        rInteger ? SqlToPure.call("toDecimal", v.get(1)) : widen && !times ? wide(v.get(1))
+                                : v.get(1))));
+        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable(), numeric(p, s));
+    }
+
+    /**
+     * {@code l / r} and {@code l % r} where either is a NUMERIC, in SQL Anywhere's front end (IQ island, 2026-10-14; the
+     * research's TYPING §4, measured on SQL Anywhere 17). {@code /}: a NUMERIC(p1 + p2 + 1, s1 + p2 - s2 + 1), where
+     * the profile's PRECISION P caps p it is P and the scale shrinks by as much (but not below min(s, SCALE)); its value
+     * is {@link IqFunctions#quotient}'s. {@code %}: a NUMERIC((p2 - s2) + s, s), s = max(s1, s2), the remainder after
+     * the quotient cut toward zero ({@link IqFunctions#remainder}). A zero divisor is IQ's error -628. Refused by name,
+     * where IQ's answer is not lite's: a quotient anywhere but a shown select item nothing else reads (SQL Anywhere
+     * rounds it only where it shows it: {@link #shownValues}); a quotient whose capped type may not hold it (SQL
+     * Anywhere shows '?'); a capped remainder, and one SQL Anywhere computes in more digits than its PRECISION (it
+     * loses the last ones); a quotient
+     * whose operand's type is not read exactly -- SQL Anywhere types a constant integer expression by its folded value
+     * ({@code (2+3)/1.5} divides a NUMERIC(1,0)), which this reader does not compute ({@link #exactlyTyped}); a step of
+     * more than lite's 38 digits; a divisor that may be 0 in the select list or ORDER BY of a row-limited statement.
+     */
+    private Tx quotient(SqlAst.Binary b, Tx l, Tx r, String operator) {
+        boolean divide = b.op() == SqlAst.BinaryOp.DIVIDE;
+        if (divide && !shownValues.contains(b)) {
+            throw SqlTranslationException.unsupported("a NUMERIC / is supported only as a select item of a SELECT"
+                    + " without DISTINCT that nothing else in the statement reads (by its alias or position, or written"
+                    + " again): SQL Anywhere rounds the quotient to its scale only where it shows it, and an operand, a"
+                    + " CAST, a comparison or a key reads it with more digits ((10.0/3)*3 is 10.00), which this reader"
+                    + " does not compute yet", b.pos());
+        }
+        if (divide && (!exactlyTyped(b.left()) || !exactlyTyped(b.right()))) {
+            throw SqlTranslationException.unsupported("this / is not supported yet: SQL Anywhere types an operand of"
+                    + " it that is a constant integer expression (a derived table's column defined by a constant too),"
+                    + " or a function or CASE, by rules this reader does not follow yet, and the quotient's scale"
+                    + " depends on it", b.pos());
+        }
+        int[] lt = numericType(l, b.left(), operator);
+        int[] rt = numericType(r, b.right(), operator);
+        int p;
+        int s;
+        if (divide) {
+            p = lt[0] + rt[0] + 1;
+            s = lt[1] + rt[0] - rt[1] + 1;
+            if (p > profile.precision()) {
+                int cut = s - (p - profile.precision());
+                if (Math.min(s, profile.scale()) > cut) {
+                    throw SqlTranslationException.unsupported("this / is a NUMERIC(" + p + "," + s + ") cut to"
+                            + " profile " + profile.spelling() + "'s PRECISION (" + profile.precision() + ") at a"
+                            + " scale that may not hold the quotient (SQL Anywhere then shows '?'), which is not"
+                            + " supported", b.pos());
+                }
+                s = cut;
+                p = profile.precision();
+            }
+        } else {
+            s = Math.max(lt[1], rt[1]);
+            p = rt[0] - rt[1] + s;
+            if (p > profile.precision() || lt[0] - lt[1] + s > profile.precision()) {
+                throw SqlTranslationException.unsupported("this % needs more digits than profile "
+                        + profile.spelling() + "'s PRECISION (" + profile.precision() + "): its database computes"
+                        + " it in fewer, which is not supported", b.pos());
+            }
+        }
+        boolean fits = divide ? IqFunctions.quotientFits(lt[1], lt[0] - lt[1], rt[1], rt[0] - rt[1], p, s)
+                : IqFunctions.remainderFits(lt[1], lt[0] - lt[1], rt[1], rt[0] - rt[1]);
+        if (!fits) {
+            throw SqlTranslationException.unsupported("this " + operator + " of a NUMERIC(" + lt[0] + "," + lt[1]
+                    + ") and a NUMERIC(" + rt[0] + "," + rt[1] + ") needs a step of more than the 38 digits lite's"
+                    + " decimals hold", b.pos());
+        }
+        BigDecimal divisor = numberLiteral(b.right());
+        if (divisor == null && limited.contains(b)) {
+            throw SqlTranslationException.unsupported("this " + operator + " can raise IQ's error -628 (division by"
+                    + " zero) in the select list or ORDER BY of a statement with TOP, FIRST or START AT, which is not"
+                    + " supported yet: IQ computes those items only for the rows it keeps", b.pos());
+        }
+        boolean lInteger = !decimal(l);
+        boolean rInteger = !decimal(r);
+        int fp = p;
+        int fs = s;
+        Tx result = SqlToPure.strict(Kind.DECIMAL, List.of(l, r), v -> {
+            ValueSpecification x = lInteger ? SqlToPure.call("toDecimal", v.get(0)) : wide(v.get(0));
+            ValueSpecification y = rInteger ? SqlToPure.call("toDecimal", v.get(1)) : wide(v.get(1));
+            if (divisor != null && divisor.signum() == 0) {
+                return raiseDecimal();
+            }
+            ValueSpecification value = divide
+                    ? IqFunctions.quotient(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1], fp, fs)
+                    : IqFunctions.remainder(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1]);
+            return divisor != null ? value : ifThen(SqlToPure.call("equal", y, new CInteger(0L)), raiseDecimal(),
+                    value);
+        });
+        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable(), numeric(p, s));
+    }
+
+    /** A number literal's written value, signs applied ({@code 1.5}, {@code -2}); null for any other expression. */
+    private static @com.legend.base.Nullable BigDecimal numberLiteral(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> new BigDecimal(n.value());
+            case SqlAst.NumericLit n -> n.value();
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.MINUS -> {
+                BigDecimal v = numberLiteral(u.operand());
+                yield v == null ? null : v.negate();
+            }
+            case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.PLUS -> numberLiteral(u.operand());
+            default -> null;
+        };
+    }
+
+    /** A Decimal that raises when computed: an empty value read as one (IQ's error, here -628). */
+    private static ValueSpecification raiseDecimal() {
+        return SqlToPure.call("toOne", SqlToPure.call("cast", SqlToPure.empty(), SqlToPure.typeArg("Decimal")));
+    }
+
+    /**
+     * Whether SQL Anywhere's front end types {@code e}, an operand of a NUMERIC quotient, as this reader does
+     * ({@link #numericType}; measured): a number constant by its digits, a column by its type, a CAST to NUMERIC by its
+     * written precision (or a CAST of a column to an integer type, by that type), and arithmetic of those by TYPING
+     * §4's formulas ({@code (1.5 + 2.25) / 7} divides a
+     * NUMERIC(4,2)), signs included -- but not a constant integer expression, which it folds and types by its value's
+     * digits ({@code (2+3) / 1.5} divides a NUMERIC(1,0), where this reader's type is an INTEGER's NUMERIC(10,0)), nor
+     * a derived table's column defined by one ({@link #folded}), nor a function, a CASE or any other form (not
+     * measured).
+     */
+    private boolean exactlyTyped(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.NumericLit n -> true;
+            // IQ island, 2026-10-14 (the merge): not a derived table's column SQL Anywhere may type as a folded
+            // constant ({@link #folded})
+            case SqlAst.ColumnRef c -> !folded.contains(IqLexer.lower(c.parts().get(c.parts().size() - 1).text()));
+            case SqlAst.Unary u when u.op() != SqlAst.UnaryOp.NOT -> u.operand() instanceof SqlAst.IntegerLit
+                    || u.operand() instanceof SqlAst.NumericLit || exactlyTyped(u.operand()) && !wholeConstant(u);
+            case SqlAst.Binary b -> switch (b.op()) {
+                case PLUS, MINUS, TIMES, DIVIDE, MODULO -> !wholeConstant(b) && exactlyTyped(b.left())
+                        && exactlyTyped(b.right());
+                default -> false;
+            };
+            case SqlAst.Cast c -> (c.type().name().equals("NUMERIC") || c.type().name().equals("DECIMAL"))
+                    && !c.type().modifiers().isEmpty() || INTEGER_TYPES.contains(c.type().name()) && readsColumn(c);
+            default -> false;
+        };
+    }
+
+    /** The integer types a CAST of a column enters a quotient as by its type (measured: a BIGINT as NUMERIC(20,0), a
+     *  SMALLINT and an INTEGER as NUMERIC(10,0)); a CAST of a constant SQL Anywhere folds. */
+    private static final Set<String> INTEGER_TYPES = Set.of("SMALLINT", "INTEGER", "BIGINT");
+
+    /** Whether {@code e} reads a column somewhere. */
+    private static boolean readsColumn(SqlAst.Expr e) {
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        columnRefs(e, refs);
+        return !refs.isEmpty();
+    }
+
+    /** Whether {@code e} is arithmetic of integer constants alone, which SQL Anywhere folds before typing it. */
+    private static boolean wholeConstant(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.Unary u when u.op() != SqlAst.UnaryOp.NOT -> wholeConstant(u.operand());
+            case SqlAst.Binary b -> switch (b.op()) {
+                case PLUS, MINUS, TIMES, DIVIDE, MODULO -> wholeConstant(b.left()) && wholeConstant(b.right());
+                default -> false;
+            };
+            default -> false;
+        };
+    }
+
+    /** A decimal as a 38-digit decimal of its own scale: it plus a 38-digit zero of scale 0. */
+    static ValueSpecification wide(ValueSpecification x) {
+        return AppliedFunction.infixRun("plus", List.of(x, SqlToPure.call("toDecimal", new CInteger(0L))));
+    }
+
+    /** A DOUBLE NULL. */
+    private static Tx doubleNull() {
+        return Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, new IqType("DOUBLE"));
+    }
+
+    /** The largest finite DOUBLE: a result beyond it is IQ's error -158. */
+    private static final double DOUBLE_MAX = Double.MAX_VALUE;
+
+    /**
+     * {@code l op r} where either is a DOUBLE: SQL Anywhere's IEEE double arithmetic, which the databases compute alike
+     * ({@code + - * /} of two doubles round the same everywhere), the other operand converted to a DOUBLE first (an
+     * integer of any of IQ's types; a NUMERIC under SQL Anywhere's front end). A result beyond the largest DOUBLE is
+     * IQ's error -158 and a zero divisor IQ's -628, where DuckDB would answer an infinity: each is checked, so every
+     * database raises. With an untyped NULL it is a DOUBLE NULL. Refused by name: {@code %} (IQ types it NUMERIC), a
+     * string (IQ converts it to NUMERIC), a NUMERIC under the IQ engine (the research's D-N1), a REAL; and, as for
+     * checked integers, one in the select list or ORDER BY of a row-limited statement.
+     */
+    private Tx doubleArithmetic(SqlAst.Binary b, Tx l, Tx r) {
+        String operator = operator(b.op());
+        if (b.op() == SqlAst.BinaryOp.MODULO) {
+            throw SqlTranslationException.unsupported("% of a DOUBLE is not supported yet: IQ's result is a NUMERIC",
+                    b.pos());
+        }
+        if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
+            return doubleNull();
+        }
+        boolean lf = doubleOperand(l, b.left(), operator);
+        boolean rf = doubleOperand(r, b.right(), operator);
+        if (limited.contains(b)) {
+            String zero = b.op() == SqlAst.BinaryOp.DIVIDE ? " or -628 (division by zero)" : "";
+            throw SqlTranslationException.unsupported("this " + operator + " of a DOUBLE can raise IQ's error -158 (out"
+                    + " of range)" + zero + " in the select list or ORDER BY of a statement with TOP, FIRST or START"
+                    + " AT, which is not supported yet: IQ computes the select list only for the rows it keeps, lite's"
+                    + " databases may compute it for the rows the limit drops", b.pos());
+        }
+        SqlAst.BinaryOp op = b.op();
+        // IQ island, 2026-10-14 (review 3's m4): a product or quotient that underflows to 0 is 0 in SQL Anywhere and
+        // DuckDB, and Postgres's error; unless a constant operand rules it out, it is computed so that no step
+        // underflows ({@link #unflowedProduct}, {@link #unflowedQuotient})
+        BigDecimal lc = numberLiteral(b.left());
+        BigDecimal rc = numberLiteral(b.right());
+        BigDecimal one = BigDecimal.ONE;
+        boolean guarded = op == SqlAst.BinaryOp.TIMES ? !(lc != null && lc.abs().compareTo(one) >= 0
+                || rc != null && rc.abs().compareTo(one) >= 0 || lc != null && lc.signum() == 0
+                || rc != null && rc.signum() == 0)
+                : op == SqlAst.BinaryOp.DIVIDE && !(rc != null && rc.abs().compareTo(one) <= 0
+                || lc != null && lc.signum() == 0);
+        if (guarded && !readsColumn(b)) {
+            // Postgres folds an expression of no column, every branch of the guard with it
+            throw SqlTranslationException.unsupported("this " + operator + " of DOUBLEs that read no column may"
+                    + " underflow to 0, which IQ answers and Postgres raises as an error (it folds the expression"
+                    + " whole): not supported", b.pos());
+        }
+        // a guard is computed only where both operands read a column: Postgres folds an operand of no column in every
+        // branch of it, where a scaled constant could overflow; with one such operand the product is as before (an
+        // underflow there is recorded, not guarded)
+        boolean guard = guarded && readsColumn(b.left()) && readsColumn(b.right());
+        Tx result = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> {
+            ValueSpecification x = lf ? v.get(0) : SqlToPure.call("toFloat", v.get(0));
+            ValueSpecification y = rf ? v.get(1) : SqlToPure.call("toFloat", v.get(1));
+            ValueSpecification value = switch (op) {
+                case PLUS -> AppliedFunction.infixRun("plus", List.of(x, y));
+                case MINUS -> AppliedFunction.infixRun("minus", List.of(x, y));
+                case TIMES -> guard ? unflowedProduct(x, y) : AppliedFunction.infixRun("times", List.of(x, y));
+                default -> guard ? unflowedQuotient(x, y) : SqlToPure.call("divide", x, y);
+            };
+            ValueSpecification finite = ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs", value),
+                    new com.legend.protocol.spec.CFloat(DOUBLE_MAX)), floatRaise(), value);
+            return op == SqlAst.BinaryOp.DIVIDE ? ifThen(SqlToPure.call("equal", y,
+                    new com.legend.protocol.spec.CFloat(0.0)), floatRaise(), finite) : finite;
+        });
+        return Tx.value(result.vs(), Kind.FLOAT, result.nullable(), new IqType("DOUBLE"));
+    }
+
+    private static ValueSpecification fl(double d) {
+        return new com.legend.protocol.spec.CFloat(d);
+    }
+
+    private static ValueSpecification times2(ValueSpecification a, ValueSpecification b) {
+        return AppliedFunction.infixRun("times", List.of(a, b));
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 3's m4): {@code x * y} of two doubles, no step of it underflowing to 0 (Postgres
+     * raises there, where SQL Anywhere and DuckDB answer 0): where either is 0, or at least 1 in magnitude, or both at
+     * least 2^-537, the product is no underflow; else the smaller (below 2^-537) is scaled by 2^1074 (exactly) and
+     * multiplied by the other: p = x * y * 2^1074 is no underflow, and x * y is 0 where |p| <= 1/2 (it rounds to 0),
+     * p * 2^-537 * 2^-537 otherwise.
+     */
+    static ValueSpecification unflowedProduct(ValueSpecification x, ValueSpecification y) {
+        ValueSpecification ax = SqlToPure.call("abs", x);
+        ValueSpecification ay = SqlToPure.call("abs", y);
+        double up = Math.scalb(1.0, 537);
+        double down = Math.scalb(1.0, -537);
+        ValueSpecification safe = SqlToPure.call("or", SqlToPure.call("or", SqlToPure.call("equal", x, fl(0.0)),
+                SqlToPure.call("equal", y, fl(0.0))), SqlToPure.call("or", SqlToPure.call("or",
+                SqlToPure.call("greaterThanEqual", ax, fl(1.0)), SqlToPure.call("greaterThanEqual", ay, fl(1.0))),
+                SqlToPure.call("and", SqlToPure.call("greaterThanEqual", ax, fl(down)),
+                        SqlToPure.call("greaterThanEqual", ay, fl(down)))));
+        // the smaller of the two (below 2^-537) scaled by 2^1074, then times the other: x * y * 2^1074, no step past
+        // the largest double or to 0 (the lowering writes a product of products as one chain, left to right)
+        ValueSpecification smallFirst = times2(times2(times2(x, fl(up)), fl(up)), y);
+        ValueSpecification otherFirst = times2(times2(times2(y, fl(up)), fl(up)), x);
+        ValueSpecification p = ifThen(SqlToPure.call("lessThan", ax, ay), smallFirst, otherFirst);
+        ValueSpecification tiny = ifThen(SqlToPure.call("lessThanEqual", SqlToPure.call("abs", p), fl(0.5)), fl(0.0),
+                times2(times2(p, fl(down)), fl(down)));
+        return ifThen(safe, times2(x, y), tiny);
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 3's m4): {@code x / y} of two doubles (y not 0), no step of it underflowing to 0:
+     * where |y| <= 1, or |x| >= |y| * 2^-1022, the quotient is no underflow; else x is scaled by 2^537 (exactly), the
+     * quotient is 0 where |x * 2^537| <= |y| * 2^-538 (it rounds to 0), (x * 2^537) / y * 2^-537 otherwise.
+     */
+    static ValueSpecification unflowedQuotient(ValueSpecification x, ValueSpecification y) {
+        ValueSpecification ax = SqlToPure.call("abs", x);
+        ValueSpecification ay = SqlToPure.call("abs", y);
+        ValueSpecification xs = times2(x, fl(Math.scalb(1.0, 537)));
+        ValueSpecification tiny = ifThen(SqlToPure.call("lessThanEqual", SqlToPure.call("abs", xs), times2(ay,
+                fl(Math.scalb(1.0, -538)))), fl(0.0), times2(SqlToPure.call("divide", xs, y), fl(Math.scalb(1.0,
+                -537))));
+        return ifThen(SqlToPure.call("lessThanEqual", ay, fl(1.0)), SqlToPure.call("divide", x, y),
+                ifThen(SqlToPure.call("greaterThanEqual", ax, times2(ay, fl(Math.scalb(1.0, -1022)))),
+                        SqlToPure.call("divide", x, y), tiny));
+    }
+
+    /** A Float that raises when computed: an empty value read as one. */
+    static ValueSpecification floatRaise() {
+        return SqlToPure.call("toOne", SqlToPure.call("cast", SqlToPure.empty(), SqlToPure.typeArg("Float")));
+    }
+
+    /** Checks an operand of DOUBLE arithmetic: whether it is a DOUBLE already (else an integer or, under SQL
+     *  Anywhere's front end, a NUMERIC, which is converted); anything else is refused by name. */
+    private boolean doubleOperand(Tx t, SqlAst.Expr e, String operator) {
+        if (t.kind() == Kind.FLOAT) {
+            if (t.detail() instanceof IqType type && !type.family().equals("DOUBLE")) {
+                throw SqlTranslationException.unsupported(operator + " of a " + type.spelling() + " is not supported"
+                        + " yet", e.pos());
+            }
+            return true;
+        }
+        if (decimal(t)) {
+            if (engine == Engine.IQ) {
+                throw numericRefused(operator, e.pos());
+            }
+            return false;
+        }
+        if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()) {
+            return false;
+        }
+        throw SqlTranslationException.unsupported(operator + " of a DOUBLE and " + kindName(t.kind()) + " is not"
+                + " supported yet" + (t.kind() == Kind.STRING ? " (IQ converts the string to NUMERIC)" : ""), e.pos());
     }
 
     /** {@code l op r} for {@code + - * / %} of two integers, IQ's way ({@link IqTypes}): the result's type, a check
@@ -789,7 +2848,8 @@ public final class IqDialect implements InputDialect {
     /**
      * An integer operation's translation: strict in its operands (each widened to 64 bits unless it is a constant or
      * already wide), checked against {@code type}'s range unless {@code lo..hi} (the range its operands allow) lies in
-     * it. A BIGINT result is never checked: the database computes it in 64 bits and raises its own overflow first.
+     * it. A BIGINT result is not checked: the database computes it in 64 bits and raises its own overflow first --
+     * but over a value it may compute wider ({@link IqType#wider}, IQ island, 2026-10-14, review 5's B1).
      * <ul>
      *   <li>A result that can only leave the range is IQ's error now when every operand is a constant
      *       ({@code constant}: literals, signs and arithmetic of literals, never NULL), as IQ folds one; otherwise
@@ -815,7 +2875,13 @@ public final class IqDialect implements InputDialect {
                     + " statement with TOP, FIRST or START AT, which is not supported yet: IQ computes the select list"
                     + " only for the rows it keeps, lite's databases may compute it for the rows the limit drops", pos);
         }
-        boolean check = leaves && !type.family().equals("BIGINT");
+        // IQ island, 2026-10-14 (review 5's B1): a BIGINT result over a value the database may compute wider than 64
+        // bits (a host variable's, a constant near 2^63) is checked here, the database's own overflow never coming
+        boolean loose = false;
+        for (IqType t : types) {
+            loose |= t.wider();
+        }
+        boolean check = leaves && (!type.family().equals("BIGINT") || loose);
         boolean wide = false;
         List<Boolean> widen = new ArrayList<>();
         for (int i = 0; i < types.size(); i++) {
@@ -841,7 +2907,8 @@ public final class IqDialect implements InputDialect {
             low = type.min();
             high = type.max();
         }
-        return Tx.value(result.vs(), Kind.INTEGER, result.nullable(), IqType.integer(type.family(), low, high, wide));
+        return Tx.value(result.vs(), Kind.INTEGER, result.nullable(), IqType.integer(type.family(), low, high, wide,
+                loose));
     }
 
     /** Whether every one of {@code exprs} is a constant IQ folds (a literal, a sign or arithmetic of literals) whose
@@ -879,7 +2946,7 @@ public final class IqDialect implements InputDialect {
     static final long LARGEST = 20_000;
 
     /** {@code t}, unless its Pure written out exceeds {@link #LARGEST} nodes: refused by name. */
-    private static Tx bounded(Tx t, SqlAst.Pos pos) {
+    static Tx bounded(Tx t, SqlAst.Pos pos) {
         long size = size(t.vs(), new IdentityHashMap<>());
         if (t.whenFalse() != null) {
             size = Math.max(size, size(t.falseWhen(), new IdentityHashMap<>()));
@@ -922,12 +2989,12 @@ public final class IqDialect implements InputDialect {
     }
 
     /** A value that raises when computed: an empty value read as one, typed Integer. */
-    private static ValueSpecification raise() {
+    static ValueSpecification raise() {
         return SqlToPure.call("toOne", SqlToPure.call("cast", SqlToPure.empty(), SqlToPure.typeArg("Integer")));
     }
 
     /** {@code if(test, |then, |otherwise)}. */
-    private static ValueSpecification ifThen(ValueSpecification test, ValueSpecification then,
+    static ValueSpecification ifThen(ValueSpecification test, ValueSpecification then,
             ValueSpecification otherwise) {
         return SqlToPure.call("if", test, SqlToPure.thunk(then), SqlToPure.thunk(otherwise));
     }
@@ -988,10 +3055,31 @@ public final class IqDialect implements InputDialect {
             }
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
         }
+        return compared(op, l, r, pos);
+    }
+
+    /** {@code l op r} for two values that are not NULL constants, by IQ's conversions (the research's TYPING §9,
+     *  measured on SQL Anywhere 17): two strings as strings; a string with a number as NUMERIC ({@link #numberOf}); a
+     *  string with a date or a timestamp as a timestamp ({@link #dateOf}); an exact number with a DOUBLE as a DOUBLE
+     *  (the database's own comparison of the two converts the exact one); numbers, dates, timestamps among their
+     *  own. */
+    private Tx compared(SqlAst.BinaryOp op, Tx l, Tx r, SqlAst.Pos pos) {
         Kind lk = l.kind();
         Kind rk = r.kind();
         if (lk == Kind.STRING && rk == Kind.STRING) {
             return strings(op, l, r, pos);
+        }
+        if (lk == Kind.STRING || rk == Kind.STRING) {
+            boolean left = lk == Kind.STRING;
+            Kind other = left ? rk : lk;
+            Tx text = left ? l : r;
+            Tx converted = other.numeric() ? numberOf(text, other, pos)
+                    : other == Kind.DATE || other == Kind.DATETIME ? dateOf(text, other, pos) : null;
+            if (converted == null) {
+                throw SqlTranslationException.unsupported("comparing " + kindName(lk) + " with " + kindName(rk)
+                        + " is not supported yet", pos);
+            }
+            return compared(op, left ? converted : l, left ? r : converted, pos);
         }
         boolean comparable = lk.numeric() && rk.numeric() && lk != Kind.NUMBER && rk != Kind.NUMBER
                 || lk == Kind.DATE && rk == Kind.DATE || lk == Kind.DATETIME && rk == Kind.DATETIME;
@@ -1034,19 +3122,23 @@ public final class IqDialect implements InputDialect {
     }
 
     /** Two strings: = and != ignore trailing blanks (BLANK PADDING ON): equal when one starts with the other and the
-     *  two are equal with their spaces taken out (so the longer one's rest is spaces only, exactly); the rest refused
-     *  by name (above). */
+     *  two are equal with their spaces taken out (so the longer one's rest is spaces only, exactly); an ordering, and
+     *  any comparison in a case-insensitive database, compares the two by IQ's collation ({@link #collated}). */
     private Tx strings(SqlAst.BinaryOp op, Tx l, Tx r, SqlAst.Pos pos) {
-        if (!profile.caseSensitive()) {
-            throw SqlTranslationException.unsupported("comparing strings in profile " + profile.spelling()
-                    + "'s case-insensitive database needs an ASCII-only case fold, which is not built yet", pos);
-        }
-        if (op != SqlAst.BinaryOp.EQ && op != SqlAst.BinaryOp.NE) {
-            throw SqlTranslationException.unsupported("ordering strings is not supported yet: IQ ignores trailing"
-                    + " blanks first, which needs an ASCII-only right trim, not built yet", pos);
-        }
-        if (!profile.blankPadding()) {
-            return SqlToPure.compare(op, l, r);
+        boolean equality = op == SqlAst.BinaryOp.EQ || op == SqlAst.BinaryOp.NE;
+        if (!equality || !profile.caseSensitive() || !profile.blankPadding()) {
+            // IQ island, 2026-10-14 (natives): orderings and a sqla17 profile's comparisons, by IQ's collation
+            String fn = switch (op) {
+                case EQ, NE -> "equal";
+                case LT -> "lessThan";
+                case LE -> "lessThanEqual";
+                case GT -> "greaterThan";
+                case GE -> "greaterThanEqual";
+                default -> throw new IllegalArgumentException("not a comparison: " + op);
+            };
+            Tx test = SqlToPure.strictTest(List.of(l, r), v -> SqlToPure.call(fn, collated(v.get(0)),
+                    collated(v.get(1))));
+            return op == SqlAst.BinaryOp.NE ? SqlToPure.not(test) : test;
         }
         Tx equal = SqlToPure.strictTest(List.of(l, r), v -> {
             ValueSpecification prefix = SqlToPure.call("or", SqlToPure.call("startsWith", v.get(0), v.get(1)),
@@ -1059,6 +3151,507 @@ public final class IqDialect implements InputDialect {
         return op == SqlAst.BinaryOp.EQ ? equal : SqlToPure.not(equal);
     }
 
+    /**
+     * The value IQ compares a string {@code s} by in the profile's database (the research's SEMANTICS §3.3, OPTIONS
+     * §9; measured on SQL Anywhere 17): in a case-insensitive ({@code sqla17}) database its ASCII letters folded to
+     * lower case -- the order is the folded strings' ({@code '_' < 'a'}, {@code 'Z' > '['}), and a letter outside ASCII
+     * is not folded ({@code 'é' <> 'É'}); in a blank-padding (IQ) database without its trailing spaces, as IQ orders
+     * strings ({@code 'a' = 'a  '}, {@code 'a' < 'a\t'}, {@code 'a  ' < 'a\x01'}). Both are composed of existing
+     * natives ({@link IqFunctions#asciiFold}, {@link IqFunctions#trailingSpacesDropped}); the databases then compare
+     * the results byte by byte (DuckDB's and the embedded Postgres's, in the C locale, order as IQ's binary
+     * collations do: UTF-8's byte order is the code points' and so ISO-8859-1's). For whoever orders or groups
+     * strings (ORDER BY, DISTINCT, GROUP BY, MIN and MAX): the key is this value; the value shown is the row's own,
+     * and among rows of one key IQ shows the first it meets (measured), the plan's choice.
+     */
+    ValueSpecification collated(ValueSpecification s) {
+        ValueSpecification x = profile.caseSensitive() ? s : IqFunctions.asciiFold(s, false);
+        return profile.blankPadding() ? IqFunctions.trailingSpacesDropped(x) : x;
+    }
+
+    /**
+     * A string compared with a number, as SQL Anywhere's front end reads it: as a NUMERIC of the profile's PRECISION
+     * and SCALE (the research's TYPING §9, measured): blanks around it ignored, nothing but blanks 0, else an optional
+     * sign, digits with an optional point, an optional exponent. Read here for a constant string only, written with at
+     * most the profile's SCALE places and 38 digits, so that its NUMERIC is its own value exactly. Refused by name:
+     * under the IQ engine (which NUMERIC it converts to is the research's D-N1, not yet verified); a DOUBLE (its
+     * NUMERIC is not read yet); a string that is not a constant, or spelled otherwise.
+     */
+    private Tx numberOf(Tx text, Kind other, SqlAst.Pos pos) {
+        if (engine == Engine.IQ) {
+            throw SqlTranslationException.unsupported("comparing a string with a number is not supported under the IQ"
+                    + " engine yet: IQ converts both to NUMERIC, whose type there is the research's D-N1, not yet"
+                    + " verified", pos);
+        }
+        if (other == Kind.FLOAT) {
+            throw SqlTranslationException.unsupported("comparing a string with a DOUBLE is not supported yet: IQ"
+                    + " converts both to NUMERIC", pos);
+        }
+        if (!(text.vs() instanceof CString s) || text.nullable()) {
+            throw SqlTranslationException.unsupported("comparing a string that is not a constant with a number is not"
+                    + " supported yet: IQ converts the string to NUMERIC", pos);
+        }
+        BigDecimal v = numericText(s.value());
+        if (v == null) {
+            throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with a number is not"
+                    + " supported: IQ reads it as a NUMERIC by rules not read for this spelling yet", pos);
+        }
+        BigDecimal d = IqTypes.atScale(v);
+        int places = d.scale();
+        int whole = Math.max(d.precision() - d.scale(), 0);
+        if (places > profile.scale() || whole > profile.precision() - profile.scale() || whole + places > 38) {
+            throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with a number is not"
+                    + " supported under profile " + profile.spelling() + ": as its NUMERIC(" + profile.precision()
+                    + "," + profile.scale() + ") it would be rounded or out of range, or need more than lite's 38"
+                    + " digits", pos);
+        }
+        return Tx.value(new CDecimal(d), Kind.DECIMAL, false, IqTypes.ofNumericConstant(d));
+    }
+
+    /** A string's NUMERIC value as SQL Anywhere's front end reads one in a comparison (measured): spaces around it
+     *  ignored, nothing but spaces 0, else {@code [+-] digits [. digits] [e [+-] digits]} with digits on at least one
+     *  side of the point; null for any other spelling (a tab, a sign apart from its digits, a bare point, ...). */
+    static @com.legend.base.Nullable BigDecimal numericText(String text) {
+        int start = 0;
+        int end = text.length();
+        while (start < end && text.charAt(start) == ' ') {
+            start++;
+        }
+        while (end > start && text.charAt(end - 1) == ' ') {
+            end--;
+        }
+        if (start == end) {
+            return BigDecimal.ZERO;
+        }
+        int i = start;
+        if (text.charAt(i) == '+' || text.charAt(i) == '-') {
+            i++;
+        }
+        int digitsBefore = 0;
+        while (i < end && text.charAt(i) >= '0' && text.charAt(i) <= '9') {
+            i++;
+            digitsBefore++;
+        }
+        int digitsAfter = 0;
+        if (i < end && text.charAt(i) == '.') {
+            i++;
+            while (i < end && text.charAt(i) >= '0' && text.charAt(i) <= '9') {
+                i++;
+                digitsAfter++;
+            }
+        }
+        if (digitsBefore + digitsAfter == 0) {
+            return null;
+        }
+        if (i < end && (text.charAt(i) == 'e' || text.charAt(i) == 'E')) {
+            i++;
+            if (i < end && (text.charAt(i) == '+' || text.charAt(i) == '-')) {
+                i++;
+            }
+            int exponent = 0;
+            while (i < end && text.charAt(i) >= '0' && text.charAt(i) <= '9') {
+                i++;
+                exponent++;
+            }
+            if (exponent == 0 || exponent > 4) {
+                return null;
+            }
+        }
+        if (i != end) {
+            return null;
+        }
+        String number = text.substring(start, end);
+        return new BigDecimal(number.startsWith("+") ? number.substring(1) : number);
+    }
+
+    /**
+     * A string compared with a date or a timestamp, as IQ reads it: a TIMESTAMP (the research's TYPING §9, measured;
+     * a DATE is compared as its midnight). Read here for a constant string only, in ISO spelling --
+     * {@code yyyy-mm-dd}, optionally a space and {@code hh:nn}, {@code :ss}, {@code .ffffff} (at most six places) --
+     * which every profile's date order reads alike; with a DATE only at midnight, where the two compare as dates. Any
+     * other string is refused by name (IQ reads many more spellings, by the profile's date order).
+     */
+    private Tx dateOf(Tx text, Kind other, SqlAst.Pos pos) {
+        if (!(text.vs() instanceof CString s) || text.nullable()) {
+            throw SqlTranslationException.unsupported("comparing a string that is not a constant with a date is not"
+                    + " supported yet: IQ converts the string to TIMESTAMP", pos);
+        }
+        // IQ island, 2026-10-14 (M1e): IQ's spellings by the profile's DATE_ORDER (IqDateTime)
+        String[] parts = IqDateTime.read(s.value(), profile, pos);
+        if (parts == null) {
+            throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with a date is not"
+                    + " supported: it is no date spelling the island reads yet (IqDateTime)", pos);
+        }
+        String time = parts[1];
+        if (other == Kind.DATE) {
+            if (!time.equals("00:00:00")) {
+                throw SqlTranslationException.unsupported("comparing a date with a timestamp of a time other than"
+                        + " midnight is not supported yet", pos);
+            }
+            // IQ island, 2026-10-14 (the merge of M1e): a constant's year carried as every date constant's
+            // (review 4's M2, IqFunctions.dated)
+            return Tx.value(new CDate(PureDateLiteral.parse(parts[0]), parts[0], null), Kind.DATE, false,
+                    IqFunctions.dated("DATE", Integer.parseInt(parts[0].substring(0, 4))));
+        }
+        String body = parts[0] + "T" + time;
+        return Tx.value(new CDate(PureDateLiteral.parse(body), body, null), Kind.DATETIME, false,
+                IqFunctions.dated("TIMESTAMP", Integer.parseInt(parts[0].substring(0, 4))));
+    }
+
+    // IQ island, 2026-10-14 (M1e): a date read from a string -- M1a's isoDate and isoTimestamp, with review 3's B3 and
+    // review 4's M2 -- is IqDateTime's (IQ's spellings by DATE_ORDER and NEAREST_CENTURY)
+
+    /** The last year whose timestamps keep their hours and minutes in SQL Anywhere 17 (measured, review 4's M2: from
+     *  7911-01-01 on they are dropped, by a constant's reading and by DATEADD's arithmetic alike). */
+    static final int LAST_TIMED_YEAR = 7910;
+
+    // ------------------------------------------------------------------ predicates
+
+    /** {@code x [NOT] BETWEEN low AND high}: {@code x >= low AND x <= high}, each by IQ's comparison (its
+     *  conversions, its blank padding), in three-valued logic (a NULL bound leaves the other to decide FALSE). */
+    @Override
+    public Tx between(SqlAst.Between b, SqlToPure.At at) {
+        Tx x = at.tx(b.operand());
+        boolean xNull = b.operand() instanceof SqlAst.NullLit;
+        Tx low = comparison(SqlAst.BinaryOp.GE, x, at.tx(b.low()), xNull, b.low() instanceof SqlAst.NullLit, null,
+                b.pos());
+        Tx high = comparison(SqlAst.BinaryOp.LE, x, at.tx(b.high()), xNull, b.high() instanceof SqlAst.NullLit, null,
+                b.pos());
+        Tx test = Tx.condition(SqlToPure.call("and", low.vs(), high.vs()), SqlToPure.call("or", low.falseWhen(),
+                high.falseWhen()), low.nullable() || high.nullable());
+        return bounded(b.negated() ? SqlToPure.not(test) : test, b.pos());
+    }
+
+    /** {@code x [NOT] IN (v, ...)}: {@code x = v} for each, by IQ's comparison, in three-valued OR -- TRUE where one
+     *  holds, FALSE where every one fails, else UNKNOWN; a NULL in the list (or a NULL x) is UNKNOWN, never IS NULL,
+     *  whatever ansinull says (measured). */
+    @Override
+    public Tx inList(SqlAst.InList in, SqlToPure.At at) {
+        if (in.operand() instanceof SqlAst.NullLit) {
+            return Tx.condition(new CBoolean(false), new CBoolean(false), true);
+        }
+        Tx x = at.tx(in.operand());
+        List<ValueSpecification> holds = new ArrayList<>();
+        List<ValueSpecification> fails = new ArrayList<>();
+        boolean nullable = false;
+        for (SqlAst.Expr v : in.values()) {
+            if (v instanceof SqlAst.NullLit) {
+                nullable = true;
+                fails.add(new CBoolean(false));
+                continue;
+            }
+            Tx eq = compared(SqlAst.BinaryOp.EQ, x, at.tx(v), v.pos());
+            holds.add(eq.vs());
+            fails.add(eq.falseWhen());
+            nullable |= eq.nullable();
+        }
+        if (holds.isEmpty()) {
+            return Tx.condition(new CBoolean(false), new CBoolean(false), true);
+        }
+        Tx test = Tx.condition(balanced("or", holds), balanced("and", fails), nullable);
+        return bounded(in.negated() ? SqlToPure.not(test) : test, in.pos());
+    }
+
+    /** {@code fn} (and, or) of {@code terms} as a balanced tree: no deeper than the logarithm of their count. */
+    private static ValueSpecification balanced(String fn, List<ValueSpecification> terms) {
+        if (terms.size() == 1) {
+            return terms.get(0);
+        }
+        int half = terms.size() / 2;
+        return SqlToPure.call(fn, balanced(fn, terms.subList(0, half)), balanced(fn, terms.subList(half,
+                terms.size())));
+    }
+
+    /** {@code x IS [NOT] DISTINCT FROM y}: never UNKNOWN; two NULLs are not distinct, a NULL and a value are, two
+     *  values are as IQ's {@code =} says (its conversions, its blank padding: measured). */
+    @Override
+    public Tx isDistinct(SqlAst.IsDistinct d, SqlToPure.At at) {
+        boolean leftNull = d.left() instanceof SqlAst.NullLit;
+        boolean rightNull = d.right() instanceof SqlAst.NullLit;
+        ValueSpecification same;
+        if (leftNull && rightNull) {
+            same = new CBoolean(true);
+        } else if (leftNull || rightNull) {
+            same = SqlToPure.call("isEmpty", SqlToPure.valueOf(at.tx(leftNull ? d.right() : d.left())));
+        } else {
+            Tx l = at.tx(d.left());
+            Tx r = at.tx(d.right());
+            Tx eq = compared(SqlAst.BinaryOp.EQ, l, r, d.pos());
+            same = l.nullable() || r.nullable() ? SqlToPure.call("or", SqlToPure.call("and",
+                    SqlToPure.call("isEmpty", SqlToPure.valueOf(l)), SqlToPure.call("isEmpty",
+                            SqlToPure.valueOf(r))), eq.vs()) : eq.vs();
+        }
+        Tx notDistinct = Tx.condition(same, SqlToPure.call("not", same), false);
+        return bounded(d.negated() ? notDistinct : SqlToPure.not(notDistinct), d.pos());
+    }
+
+    /**
+     * {@code x [NOT] LIKE pattern [ESCAPE c]} without IQ's {@code [set]} classes: {@code %} any run, {@code _} one
+     * character (a line feed too), every other character itself, case-sensitively (an IQ database's CASE RESPECT), and
+     * trailing blanks significant (measured: LIKE does not ignore them, as {@code =} does). There is no default escape;
+     * {@code ESCAPE c} makes {@code c%}, {@code c_}, {@code c[} and {@code cc} literal. A string or an integer (its
+     * digits) is matched; a NULL operand, pattern or escape is UNKNOWN. A {@code sqla17} profile's database matches
+     * without regard to the ASCII letters' case (measured: {@code 'ABC' LIKE 'a%'}, not {@code 'É' LIKE 'é'}): each
+     * letter of the pattern a class of its two cases (IQ island, 2026-10-14, natives). Refused by name: under the IQ
+     * engine an operand reading a CHAR(n)
+     * column (its blank pad matched or not is the research's D-S5, not yet verified); a pattern or an escape that is
+     * not a constant; a {@code [} that is not escaped (a {@code ]} alone is itself, measured); an escape that is not
+     * one character, or before any other character (IQ's run-time errors -629 and -630).
+     */
+    @Override
+    public Tx like(SqlAst.Like l, SqlToPure.At at) {
+        Tx unknown = Tx.condition(new CBoolean(false), new CBoolean(false), true);
+        if (l.operand() instanceof SqlAst.NullLit || l.pattern() instanceof SqlAst.NullLit
+                || l.escape() instanceof SqlAst.NullLit) {
+            return unknown;
+        }
+        Tx operand = at.tx(l.operand());
+        // IQ island, 2026-10-14 (M1e): a date or a timestamp is matched as its text in the profile's format (measured)
+        if (operand.kind() == Kind.DATE || operand.kind() == Kind.DATETIME) {
+            operand = IqDateTime.text(operand, profile, "LIKE", l.operand().pos());
+        }
+        if (engine == Engine.IQ) {
+            List<SqlAst.ColumnRef> refs = new ArrayList<>();
+            columnRefs(l.operand(), refs);
+            // IQ island, 2026-10-14 (M1d): a CAST to CHAR(n) is padded under the IQ engine as a CHAR(n) column is
+            if (operand.detail() instanceof IqType o && o.family().equals("CHAR") && o.size() > 0) {
+                refs.add(0, null);
+            }
+            for (SqlAst.ColumnRef ref : refs) {
+                if (ref == null || at.tx(ref).detail() instanceof IqType t && t.family().equals("CHAR")) {
+                    throw SqlTranslationException.unsupported("LIKE over a CHAR(n) column under the IQ engine is not"
+                            + " supported yet: whether IQ matches its blank pad is the research's D-S5, not yet"
+                            + " verified", l.pos());
+                }
+            }
+        }
+        boolean integer = operand.kind() == Kind.INTEGER && operand.detail() instanceof IqType t && t.isInteger();
+        if (operand.kind() != Kind.STRING && !integer) {
+            throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is not supported"
+                    + " yet: IQ matches its text, written by its own format", l.operand().pos());
+        }
+        if (!(l.pattern() instanceof SqlAst.StringLit pattern)) {
+            throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is not"
+                    + " supported yet", l.pattern().pos());
+        }
+        List<String> parts = likeParts(pattern, l.escape(), true);
+        boolean caseless = !profile.caseSensitive();
+        java.util.function.Function<List<ValueSpecification>, ValueSpecification> test = v -> {
+            ValueSpecification value = integer ? SqlToPure.call("toString", v.get(0)) : v.get(0);
+            return likeTest(value, parts, caseless);
+        };
+        Tx result = SqlToPure.strictTest(List.of(operand), test);
+        return bounded(l.negated() ? SqlToPure.not(result) : result, l.pos());
+    }
+
+    /** The longest LIKE pattern SQL Anywhere 17 always matches, in characters (an ISO-8859-1 database's bytes): with
+     *  a longer one it raises its error -606 for some values and not others (measured; IQ's own limit depends on the
+     *  pattern, up to 4095). */
+    static final int LONGEST_PATTERN = 126;
+
+    /** A constant pattern as literal runs between wildcards: run, wildcard, run, ..., run; with {@code escape} (null
+     *  for none) a constant of one character, which makes the {@code %}, {@code _}, {@code [} or escape after it
+     *  literal. What IQ raises an error for is refused by name, and so is a {@code [set]} class when {@code sets}. */
+    private static List<String> likeParts(SqlAst.StringLit pattern, SqlAst.@com.legend.base.Nullable Expr esc,
+            boolean sets) {
+        char escape = 0;
+        if (esc != null) {
+            if (!(esc instanceof SqlAst.StringLit e) || e.value().length() != 1) {
+                throw SqlTranslationException.unsupported("an ESCAPE other than a constant of one character is not"
+                        + " supported (IQ raises its error -629 for one of another length)", esc.pos());
+            }
+            escape = e.value().charAt(0);
+            if (escape == '%' || escape == '_' || escape == '[') {
+                // IQ island, 2026-10-14 (review 3's B2, measured): SQL Anywhere keeps a wildcard that is also the
+                // escape a wildcard ('%%' ESCAPE '%' matches every string) and reads '[' as a set's start
+                throw SqlTranslationException.unsupported("an ESCAPE that is '" + escape + "', a wildcard of LIKE's"
+                        + " own, is not supported: IQ reads it as the wildcard, not as the escape", esc.pos());
+            }
+        }
+        String p = pattern.value();
+        if (p.length() > LONGEST_PATTERN) {
+            throw SqlTranslationException.unsupported("a LIKE pattern of more than " + LONGEST_PATTERN + " characters"
+                    + " is not supported (SQL Anywhere raises its error -606 for some values; IQ's limit depends on the"
+                    + " pattern)",
+                    pattern.pos());
+        }
+        List<String> parts = new ArrayList<>();
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < p.length(); i++) {
+            char c = p.charAt(i);
+            if (escape != 0 && c == escape) {
+                char next = i + 1 < p.length() ? p.charAt(i + 1) : 0;
+                if (next != '%' && next != '_' && next != '[' && next != escape) {
+                    throw SqlTranslationException.unsupported("an escape before " + (next == 0 ? "the pattern's end"
+                            : "'" + next + "'") + " is not supported (IQ raises its error -630)", pattern.pos());
+                }
+                run.append(next);
+                i++;
+            } else if (c == '%' || c == '_') {
+                parts.add(run.toString());
+                parts.add(String.valueOf(c));
+                run.setLength(0);
+            } else if (c == '[' && sets) {
+                throw SqlTranslationException.unsupported("LIKE's [set] classes are not supported yet (escape a [ to"
+                        + " match it)", pattern.pos());
+            } else {
+                run.append(c);
+            }
+        }
+        parts.add(run.toString());
+        return parts;
+    }
+
+    /** A pattern's test, by its shape: no wildcard is equality; a trailing, leading or enclosing {@code %} alone is
+     *  startsWith, endsWith or contains; anything else the equivalent regular expression, whose {@code .} matches a
+     *  line feed too ({@code (?s)}), as IQ's {@code _} does. {@code caseless}: always the regular expression, each
+     *  ASCII letter a class of its two cases. */
+    private static ValueSpecification likeTest(ValueSpecification value, List<String> parts, boolean caseless) {
+        List<String> wild = new ArrayList<>();
+        for (int i = 1; i < parts.size(); i += 2) {
+            wild.add(parts.get(i));
+        }
+        boolean onlyPercent = !wild.contains("_");
+        if (caseless) {
+            StringBuilder regex = new StringBuilder("(?s)^");
+            for (int i = 0; i < parts.size(); i++) {
+                String part = parts.get(i);
+                regex.append(i % 2 == 1 ? part.equals("%") ? ".*" : "." : IqFunctions.caselessPattern(part));
+            }
+            return SqlToPure.call("matches", value, new CString(regex.append('$').toString()));
+        }
+        if (wild.isEmpty()) {
+            return SqlToPure.call("equal", value, new CString(parts.get(0)));
+        }
+        if (onlyPercent && wild.size() == 1 && parts.get(2).isEmpty() && !parts.get(0).isEmpty()) {
+            return SqlToPure.call("startsWith", value, new CString(parts.get(0)));
+        }
+        if (onlyPercent && wild.size() == 1 && parts.get(0).isEmpty() && !parts.get(2).isEmpty()) {
+            return SqlToPure.call("endsWith", value, new CString(parts.get(2)));
+        }
+        if (onlyPercent && wild.size() == 2 && parts.get(0).isEmpty() && parts.get(4).isEmpty()
+                && !parts.get(2).isEmpty()) {
+            return SqlToPure.call("contains", value, new CString(parts.get(2)));
+        }
+        StringBuilder regex = new StringBuilder("(?s)^");
+        for (int i = 0; i < parts.size(); i++) {
+            String part = parts.get(i);
+            if (i % 2 == 1) {
+                regex.append(part.equals("%") ? ".*" : ".");
+            } else {
+                for (int k = 0; k < part.length(); k++) {
+                    char c = part.charAt(k);
+                    if ("\\.[]{}()*+?^$|".indexOf(c) >= 0) {
+                        regex.append('\\');
+                    }
+                    regex.append(c);
+                }
+            }
+        }
+        regex.append('$');
+        return SqlToPure.call("matches", value, new CString(regex.toString()));
+    }
+
+    // ------------------------------------------------------------------ SQL Anywhere's own relations
+
+    /** The rows {@code sa_rowgenerator()} gives when its bounds are not written: 0 to 100. */
+    private static final long ROWGENERATOR_START = 0;
+    private static final long ROWGENERATOR_END = 100;
+
+    /**
+     * SQL Anywhere's own relations, which IQ's front end reads ({@link #frontEndSource}; measured on SQL Anywhere 17):
+     * <ul>
+     *   <li>{@code DUMMY} ({@code SYS.DUMMY}): one row, its one column {@code dummy_col} the INTEGER 0.</li>
+     *   <li>{@code sa_rowgenerator([start [, end [, step]]])}: a column {@code row_num} of INTEGERs, start, start +
+     *       step, ... while not beyond end (start 0, end 100 and step 1 when not written); none when start is beyond
+     *       end or the step is not positive. Its arguments are integer constants of an INTEGER's range (outside it,
+     *       IQ's error -158); any other argument, NULL included, is refused by name.</li>
+     * </ul>
+     */
+    /** IQ island, 2026-10-14 (M1e): a table named without {@code tb()}, bound to the model's ({@link IqBindings}, the
+     *  study's O2). */
+    @Override
+    public com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification table(SqlAst.TableName t,
+            SqlToPure.Sources sources) {
+        return IqBindings.table(t, SqlToPure.tables(sources));
+    }
+
+    /** IQ island, 2026-10-14 (M1e): a host variable, {@code @name} or {@code :name}, as the enclosing Pure query's
+     *  variable ({@link IqBindings}, the study's O3); {@code @name} as a column of its name in scope when there is one. */
+    @Override
+    public Tx parameter(SqlAst.Param p, SqlToPure.At at, SqlToPure.Sources sources) {
+        Tx t = IqBindings.parameter(p, at, sources);
+        if (!IqBindings.readsColumn(p, at)) {
+            variables.add(p);
+        }
+        return t;
+    }
+
+    /** IQ island, 2026-10-14 (review 5's M3, measured on SQL Anywhere 17): an unqualified {@code DUMMY} (and
+     *  {@code db..DUMMY}) reads the user's own table of that name before SYS.DUMMY. When the model holds one (a table
+     *  of the island's user, DBA, named DUMMY as IQ matches names) the name is refused by name: the statement's engine
+     *  is chosen before the model is read (a DUMMY is SQL Anywhere's front end's, a table IQ's). */
+    @Override
+    public SqlToPure.@com.legend.base.Nullable Relation tableSource(SqlAst.TableName t, SqlToPure.Sources sources) {
+        if (dummy(t.name()) && IqBindings.owner(t.name()) == null) {
+            for (SqlToPure.CatalogTable c : SqlToPure.tables(sources)) {
+                if (IqBindings.usersTable(c) && IqLexer.lower(c.table()).equals("dummy")) {
+                    throw SqlTranslationException.unsupported("'" + t.name().get(t.name().size() - 1).text() + "'"
+                            + " names the model's table " + c.database() + "." + c.table() + " of the island's user, "
+                            + IqBindings.USER + ", which IQ reads before its own SYS.DUMMY: write " + IqBindings.USER
+                            + ".DUMMY (or tb('...')) for the model's table, or SYS.DUMMY for IQ's", t.pos());
+                }
+            }
+        }
+        return source(t);
+    }
+
+    @Override
+    public SqlToPure.@com.legend.base.Nullable Relation source(SqlAst.FromItem item) {
+        if (item instanceof SqlAst.TableName t && dummy(t.name())) {
+            String one = "\ndummy_col\n0\n";
+            return new SqlToPure.Relation(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+                    List.of(new SqlToPure.RelationColumn("dummy_col", Kind.INTEGER, false,
+                            IqType.integer("INTEGER", BigInteger.ZERO, BigInteger.ZERO, false))));
+        }
+        if (!(item instanceof SqlAst.TableFunction f) || !rowGenerator(f.name())) {
+            return null;
+        }
+        if (f.args().size() > 3) {
+            throw SqlTranslationException.invalid("wrong number of arguments to sa_rowgenerator" + code(-154, "37505"),
+                    f.pos());
+        }
+        long[] bounds = {ROWGENERATOR_START, ROWGENERATOR_END, 1};
+        for (int i = 0; i < f.args().size(); i++) {
+            SqlAst.Arg a = f.args().get(i);
+            BigInteger v = a.name() == null ? integerLiteral(a.value()) : null;
+            if (v == null) {
+                throw SqlTranslationException.unsupported("an argument of sa_rowgenerator other than an integer"
+                        + " constant is not supported yet", a.value().pos());
+            }
+            if (v.compareTo(IqType.INTEGER_MIN) < 0 || v.compareTo(IqType.INTEGER_MAX) > 0) {
+                throw SqlTranslationException.invalid("sa_rowgenerator's argument " + v + " is out of range for its"
+                        + " type, INTEGER" + overflowCode(), a.value().pos());
+            }
+            bounds[i] = v.longValue();
+        }
+        long start = bounds[0];
+        long end = bounds[1];
+        long step = bounds[2];
+        boolean rows = step > 0 && start <= end;
+        // range's stop is exclusive: the constant after end, written as one (end + 1 computed by a database in its
+        // literal's 32 bits would overflow at an INTEGER's largest); no rows: a range of none
+        ValueSpecification range = rows ? SqlToPure.call("range", new CInteger(start), new CInteger(end + 1),
+                new CInteger(step)) : SqlToPure.call("range", new CInteger(0L), new CInteger(0L), new CInteger(1L));
+        ValueSpecification relation = SqlToPure.call("flatten", range, new com.legend.protocol.spec.ColSpec("row_num",
+                null, null, null));
+        BigInteger lo = BigInteger.valueOf(rows ? start : 0);
+        BigInteger hi = BigInteger.valueOf(rows ? end : 0);
+        // the column is Pure's flatten's, of multiplicity [0..1]: nullable to the translation, though never NULL
+        // IQ island, 2026-10-14 (M1d): and a BIGINT in lite's databases (range's), so computed in 64 bits already
+        return new SqlToPure.Relation(relation, List.of(new SqlToPure.RelationColumn("row_num", Kind.INTEGER, true,
+                IqType.integer("INTEGER", lo, hi, true))));
+    }
+
     private static String kindName(Kind k) {
         return switch (k) {
             case BOOLEAN -> "a condition";
@@ -1069,6 +3662,78 @@ public final class IqDialect implements InputDialect {
             case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT -> "a number";
             case JSON, OTHER -> "a value of this type";
         };
+    }
+
+    // ------------------------------------------------------------------ joins, subqueries and set operations (M1b)
+
+    /** IQ's NATURAL JOIN keeps both sides' columns (measured: an unqualified shared column is ambiguous, IQ's error
+     *  -144), joining on their equality by IQ's {@code =}. */
+    @Override
+    public boolean mergesNaturalJoin() {
+        return false;
+    }
+
+    /** {@code x op ANY | ALL (query)}, {@code x IN (query)}: each row's comparison is IQ's ({@link #compared}: its
+     *  conversions, its blank padding). */
+    @Override
+    public Tx quantifiedTest(SqlAst.BinaryOp op, SqlAst.Expr left, Tx each, SqlAst.Pos pos, SqlToPure.At at) {
+        return comparison(op, at.tx(left), each, false, false, null, pos);
+    }
+
+    /**
+     * A set operation's column takes one type by IQ's unification ({@link #unify}: the research's TYPING §8, which
+     * UNION shares), where the island proves it: integers the smallest type holding both (measured: SMALLINT with
+     * BIGINT is BIGINT), strings, dates, timestamps, doubles alike; an untyped NULL with an integer (its NULL is a
+     * SMALLINT's). Refused by name: a NUMERIC (the research's D-N1, and a scale the two sides share), a NULL with any
+     * other type, and every mix of kinds (IQ converts one to the other, a string to a number by its rules).
+     */
+    @Override
+    public SqlToPure.ColumnType setColumn(SqlAst.SetOperation s, int i, SqlToPure.ColumnType left,
+            SqlToPure.ColumnType right) {
+        String op = s.op().name();
+        boolean leftNull = left.kind() == Kind.NULL;
+        boolean rightNull = right.kind() == Kind.NULL;
+        if ((leftNull || rightNull) && s.op() != SqlAst.SetOp.UNION) {
+            throw SqlTranslationException.unsupported(op + " over an untyped NULL in column " + (i + 1) + " is not"
+                    + " supported yet: lite's row match would not find it equal to a NULL", s.pos());
+        }
+        if (leftNull || rightNull) {
+            SqlToPure.ColumnType other = leftNull ? right : left;
+            if (other.kind() == Kind.NULL) {
+                return new SqlToPure.ColumnType(Kind.INTEGER, true, IqType.integer("SMALLINT", IqType.SMALLINT_MIN,
+                        IqType.SMALLINT_MAX, false));
+            }
+            if (other.kind() != Kind.INTEGER || !(other.detail() instanceof IqType t) || !t.isInteger()) {
+                throw SqlTranslationException.unsupported(op + " of a NULL and " + kindName(other.kind()) + " in"
+                        + " column " + (i + 1) + " is not supported yet: IQ types the NULL by its own rules", s.pos());
+            }
+            // the NULL's type is a SMALLINT's; its values are the other side's
+            return new SqlToPure.ColumnType(Kind.INTEGER, true, IqType.integer(IqTypes.unified("SMALLINT",
+                    t.family()), t.lo(), t.hi(), t.wide(), t.wider()));
+        }
+        if (left.kind() == Kind.DECIMAL || left.kind() == Kind.NUMBER || right.kind() == Kind.DECIMAL
+                || right.kind() == Kind.NUMBER) {
+            throw SqlTranslationException.unsupported(op + " of a NUMERIC in column " + (i + 1) + " is not supported"
+                    + " yet: IQ's NUMERIC result types are the research's D-N1, and lite's two sides would need one"
+                    + " scale", s.pos());
+        }
+        Tx l = Tx.value(new CString(""), left.kind(), left.nullable(), left.detail());
+        Tx r = Tx.value(new CString(""), right.kind(), right.nullable(), right.detail());
+        SqlToPure.Common common = unify(op, List.of(new SqlAst.NullLit(s.pos()), new SqlAst.NullLit(s.pos())),
+                List.of(l, r), s.pos());
+        if (common.kind() == Kind.STRING && !s.all() && !keys.own(s, i)) {
+            // IQ island, 2026-10-14 (the merge): IQ tells the rows apart by its collation and shows the first of each
+            // group of equal keys it meets ({@link IqKeys})
+            throw SqlTranslationException.unsupported(op + " over strings in column " + (i + 1) + " is supported only"
+                    + " where every value is its own collation key (RTRIM, TRIM, a constant" + (profile.caseSensitive()
+                    ? "" : ", LOWER") + "): IQ tells " + (profile.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
+                    + " apart as one value and shows the first it meets, which is its plan's choice", s.pos());
+        }
+        // IQ island, 2026-10-14 (review 4's m1): EXCEPT's values are the left's; UNION's and INTERSECT's may be NULL
+        // where either side's may (INTERSECT's are the left's rows, which lite's lowering reads as they are: typed as
+        // not NULL because the right's are not, an ORDER BY's collation key of RTRIM(vc) INTERSECT 'Hello' failed)
+        return new SqlToPure.ColumnType(common.kind(), s.op() == SqlAst.SetOp.EXCEPT ? left.nullable()
+                : left.nullable() || right.nullable(), common.detail());
     }
 
     // ------------------------------------------------------------------ one type for alternatives
@@ -1085,12 +3750,23 @@ public final class IqDialect implements InputDialect {
     @Override
     public SqlToPure.Common unify(String what, List<SqlAst.Expr> exprs, List<Tx> values, SqlAst.Pos pos) {
         values.forEach(v -> bounded(v, pos));
+        int branches = exprs.size();
+        if (what.equals("CASE") && branches >= 3 && IqParser.nullValue(exprs.get(branches - 1))
+                && IqParser.nullValue(exprs.get(branches - 2)) && !exprs.stream().allMatch(IqParser::nullValue)) {
+            // IQ island, 2026-10-14 (review 3's M5): the reader drops a last NULL branch whose condition cannot raise
+            // (IqParser.caseExpression); one it keeps would meet the compiler's wrong multiplicity stamp of a CASE whose
+            // last branches are all NULL (the compiler line's, recorded); (review 4's m2) a NULL of any type alike
+            throw SqlTranslationException.unsupported("a CASE whose last WHEN gives NULL after a condition that can"
+                    + " raise (a comparison, arithmetic, a call), or beside a NULL of another type, is not supported"
+                    + " yet: write it without that WHEN", exprs.get(branches - 2).pos());
+        }
         Kind kind = null;
         String family = null;
         List<Integer> charLengths = new ArrayList<>();
         BigInteger lo = null;
         BigInteger hi = null;
         boolean wide = true;
+        boolean loose = false;
         for (Tx v : values) {
             if (v.kind() == Kind.NULL) {
                 continue;
@@ -1115,6 +3791,7 @@ public final class IqDialect implements InputDialect {
                     lo = lo == null ? t.lo() : lo.min(t.lo());
                     hi = hi == null ? t.hi() : hi.max(t.hi());
                     wide &= t.wide();
+                    loose |= t.wider();
                 }
                 case STRING -> {
                     String f = t.family();
@@ -1160,7 +3837,15 @@ public final class IqDialect implements InputDialect {
             type = new IqType("CHAR(" + longest + ")");
         } else if (kind == Kind.INTEGER) {
             type = IqType.integer(java.util.Objects.requireNonNull(family), java.util.Objects.requireNonNull(lo),
-                    java.util.Objects.requireNonNull(hi), wide);
+                    java.util.Objects.requireNonNull(hi), wide, loose);
+        } else if (kind == Kind.DATE || kind == Kind.DATETIME) {
+            // IQ island, 2026-10-14 (review 4's M2): the latest year of any of them (IqFunctions.latestYear)
+            Integer latest = 1;
+            for (Tx v : values) {
+                Integer y = v.kind() == Kind.NULL ? Integer.valueOf(1) : IqFunctions.latestYear(v);
+                latest = latest == null || y == null ? null : Math.max(latest, y);
+            }
+            type = IqFunctions.dated(java.util.Objects.requireNonNull(family), latest);
         } else {
             type = new IqType(java.util.Objects.requireNonNull(family));
         }
@@ -1203,7 +3888,8 @@ public final class IqDialect implements InputDialect {
     public InputDialect.@com.legend.base.Nullable FunctionRule function(String name) {
         Catalog fn = Catalog.named(name);
         if (fn == null) {
-            return null;
+            // IQ island, 2026-10-14 (M1d): the rest of the catalog
+            return IqFunctions.rule(this, name);
         }
         return switch (fn) {
             case ISNULL -> (f, args, at) -> bounded(coalesce("ISNULL", f, args), f.pos());
@@ -1324,28 +4010,109 @@ public final class IqDialect implements InputDialect {
         return Tx.value(vs, a.kind(), true, a.detail());
     }
 
+    /** CAST and a style-less CONVERT: IqFunctions' (M1d). */
     @Override
     public Tx cast(SqlAst.Cast c, SqlToPure.At at) {
-        throw SqlTranslationException.unsupported("CAST is not supported yet", c.pos());
+        return new IqFunctions(this).cast(c, at);
+    }
+
+    /** Whether {@code e} is in the select list or ORDER BY of a statement with a row limit (IqFunctions' refusals of
+     *  what can raise there). */
+    boolean limited(SqlAst.Expr e) {
+        return limited.contains(e);
+    }
+
+    // ------------------------------------------------------------------ grouping (M1c)
+
+    /** IQ reads a select-list alias in GROUP BY and HAVING before a column of its name
+     *  ({@link IqAggregates#grouping}). */
+    @Override
+    public SqlAst.Select grouping(SqlAst.Select s) {
+        return IqAggregates.grouping(s);
+    }
+
+    /** An integer constant in GROUP BY is a constant to IQ, never a select-list position (measured: -149). */
+    @Override
+    public boolean groupsByPosition() {
+        return false;
+    }
+
+    /** IQ's aggregates the island reads: COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST ({@link IqAggregates}). */
+    @Override
+    public boolean isAggregate(String name) {
+        return IqAggregates.isAggregate(name);
     }
 
     @Override
-    public Tx like(SqlAst.Like l, SqlToPure.At at) {
-        throw SqlTranslationException.unsupported("LIKE is not supported yet", l.pos());
+    public SqlToPure.Aggregation aggregate(SqlAst.FunctionCall f, SqlToPure.Grouping at) {
+        return IqAggregates.aggregate(f, at, this);
     }
 
-    /** Strings are no key yet: IQ orders and tells them apart ignoring trailing blanks (and, in a {@code sqla17}
-     *  profile, case), which needs the natives not built yet. */
+    /**
+     * A key over strings, by IQ's collation ({@link #collated}; IQ island, 2026-10-14, the merge of M1c and the natives
+     * slice; measured on SQL Anywhere 17). ORDER BY sorts by the collation key (the order of rows whose keys tie is the
+     * plan's, in SQL Anywhere as in lite's databases); a GROUP BY key the query shows no value of groups by it. A
+     * DISTINCT, a set operation and a GROUP BY key the query shows show one value of each group of equal keys -- the
+     * first row SQL Anywhere meets, its plan's choice -- so they read strings only where no two different values share
+     * a key ({@link IqKeys}): there the values themselves are the keys. Anything else over strings is refused by name;
+     * a value of an unknown kind or JSON is no key.
+     */
     @Override
-    public void key(String clause, Kind kind, SqlAst.Pos pos) {
-        if (kind == Kind.STRING) {
-            throw SqlTranslationException.unsupported(clause + " over strings is not supported yet: IQ ignores trailing"
-                    + " blanks" + (profile.caseSensitive() ? "" : " and case") + " there, which needs natives not built"
-                    + " yet", pos);
-        }
+    public java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> key(String clause, Tx value,
+            SqlAst.@com.legend.base.Nullable Expr expr, SqlAst.Pos pos) {
+        Kind kind = value.kind();
         if (kind == Kind.OTHER || kind == Kind.JSON) {
             throw SqlTranslationException.unsupported(clause + " over a value of this type is not supported yet", pos);
         }
+        if (kind != Kind.STRING) {
+            return null;
+        }
+        switch (clause) {
+            case "ORDER BY" -> {
+                return expr != null && keys.own(expr) ? null : key(value.nullable());
+            }
+            case "GROUP BY" -> {
+                if (expr != null && keys.distinct(expr)) {
+                    return null;
+                }
+                if (expr == null || keys.shown(expr)) {
+                    throw SqlTranslationException.unsupported("GROUP BY over strings whose value the query shows is"
+                            + " supported only where every value is its own collation key (RTRIM, TRIM, a constant"
+                            + (profile.caseSensitive() ? "" : ", LOWER, UPPER") + "): IQ groups "
+                            + (profile.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'") + " as one and shows the"
+                            + " first it meets, which is its plan's choice", pos);
+                }
+                return key(value.nullable());
+            }
+            default -> {
+                if (expr != null && keys.distinct(expr) || !clause.equals("DISTINCT")) {
+                    // a set operation's columns are checked by setColumn
+                    return null;
+                }
+                throw SqlTranslationException.unsupported("DISTINCT over strings is supported only where every value"
+                        + " is its own collation key (RTRIM, TRIM, a constant" + (profile.caseSensitive() ? ""
+                        : ", LOWER, UPPER") + "): IQ tells " + (profile.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
+                        + " apart as one value and shows the first it meets, which is its plan's choice", pos);
+            }
+        }
+    }
+
+    /** The collation key of a string that may be NULL ({@code nullable}): NULL's is NULL. */
+    private java.util.function.UnaryOperator<ValueSpecification> key(boolean nullable) {
+        return x -> SqlToPure.valueOf(SqlToPure.strict(Kind.STRING, List.of(Tx.value(x, Kind.STRING, nullable)),
+                v -> collated(v.get(0))));
+    }
+
+    /** IQ island, 2026-10-14 (the merge): the statement's strings' keys, for the aggregates ({@link IqAggregates}). */
+    IqKeys keys() {
+        return keys;
+    }
+
+    /** IQ island, 2026-10-14 (the merge): whether {@code e} is shown as it is (a select item of a SELECT without
+     *  DISTINCT that nothing else in the statement reads: review 4's B2, {@link #shownOnly}): a NUMERIC quotient (an
+     *  AVG's) is rounded only there. */
+    boolean shownValue(SqlAst.Expr e) {
+        return shownValues.contains(e);
     }
 
     // ------------------------------------------------------------------ row limits

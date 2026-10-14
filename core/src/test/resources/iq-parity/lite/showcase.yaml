@@ -1,0 +1,16 @@
+# The showcase (docs/IQ_SQL_SHOWCASE.md; IQ island, 2026-10-14): one non-trivial IQ query -- bracketed identifiers,
+# T-SQL's alias forms, TOP n START AT m, IF ... ENDIF (NULL on an UNKNOWN condition), + concatenating strings with a
+# NULL as '', case-sensitive and blank-padded comparison, a join to a grouped derived table (COUNT, MAX, LIST),
+# DATENAME, ISNULL over LOCATE, Latin-1 text, an owner-qualified table (DBA.u) and a host variable (@skip, the
+# enclosing Pure query's) -- then the same select list over every row, and the derived table on its own with the SUM
+# the main query cannot hold (a checked SUM in a derived table is refused: review 4's B3). IqParityTest also pins the
+# SQL showcase_main plans for Snowflake and for DuckDB (iq-parity/showcase/*.sql). Judged by SQL Anywhere 17's answers
+# in iq-answers.jsonl. The SQL in YAML double quotes. tools/iq-oracle's README.md has the keys.
+tests:
+  - id: showcase_main
+    sql: "SELECT TOP 5 START AT 2 [Row Id] = t.id, LEFT(t.vc, 3) + ':' + a.labels AS [Tag], a.n 'Labels', a.last_u AS [Last u], 'Is x' = IF t.vc = 'x' THEN 'Y' ELSE 'N' ENDIF, ISNULL(LOCATE(t.vc, 'l'), -1) AS [First l], DATENAME(dw, t.dt) AS [Day] FROM t JOIN (SELECT t.id AS tid, COUNT(v.id) AS n, MAX(v.id) AS last_u, LIST(v.lbl, ',' ORDER BY v.lbl) AS labels FROM t LEFT JOIN (SELECT id, t_id, RTRIM(label) AS lbl FROM DBA.u) v ON v.t_id = t.id GROUP BY t.id) a ON a.tid = t.id WHERE t.vc <> @skip OR t.vc IS NULL ORDER BY [Row Id] DESC"
+    params: "skip = 'hello'"
+  - id: showcase_all_rows
+    sql: "SELECT [Row Id] = t.id, LEFT(t.vc, 3) + ':' + a.labels AS [Tag], a.n 'Labels', a.last_u AS [Last u], 'Is x' = IF t.vc = 'x' THEN 'Y' ELSE 'N' ENDIF, ISNULL(LOCATE(t.vc, 'l'), -1) AS [First l], DATENAME(dw, t.dt) AS [Day] FROM t JOIN (SELECT t.id AS tid, COUNT(v.id) AS n, MAX(v.id) AS last_u, LIST(v.lbl, ',' ORDER BY v.lbl) AS labels FROM t LEFT JOIN (SELECT id, t_id, RTRIM(label) AS lbl FROM DBA.u) v ON v.t_id = t.id GROUP BY t.id) a ON a.tid = t.id ORDER BY [Row Id] DESC"
+  - id: showcase_inner_aggregate
+    sql: "SELECT t.id AS tid, COUNT(v.id) AS n, MAX(v.id) AS last_u, SUM(v.id) AS su, LIST(v.lbl, ',' ORDER BY v.lbl) AS labels FROM t LEFT JOIN (SELECT id, t_id, RTRIM(label) AS lbl FROM DBA.u) v ON v.t_id = t.id GROUP BY t.id ORDER BY 1"

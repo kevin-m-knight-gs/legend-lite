@@ -15,9 +15,14 @@ import java.util.Set;
  * translation knows of its value: the range it lies in ({@code low}..{@code high}; a constant's is its value), and
  * whether the database already computes it in 64 bits ({@code widened}: a BIGINT's always is). The range is the type's
  * own until something narrows it. Opaque to the translator, which carries it in {@code Tx.detail()}.
+ *
+ * <p>IQ island, 2026-10-14 (review 5's B1): {@code loose}, a value the database may compute wider than 64 bits -- a host
+ * variable's (its value written as a literal, which lite's lowering widens near 2^63, a HUGEINT on DuckDB, a NUMERIC(38)
+ * on Postgres), and anything computed from one; a constant there is too ({@link #wider}) -- so that a BIGINT result
+ * over it is checked by the island, not left to the database's own 64-bit overflow, which never comes.
  */
 public record IqType(String spelling, boolean widened, @com.legend.base.Nullable BigInteger low,
-        @com.legend.base.Nullable BigInteger high) implements InputDialect.TypeDetail {
+        @com.legend.base.Nullable BigInteger high, boolean loose) implements InputDialect.TypeDetail {
 
     /** IQ's integer types this island computes with, narrowest first: BIT is an integer, 0 or 1, in IQ. TINYINT and
      *  the unsigned types are not among them (their arithmetic widens to unsigned types, refused by name). */
@@ -30,14 +35,36 @@ public record IqType(String spelling, boolean widened, @com.legend.base.Nullable
     static final BigInteger BIGINT_MIN = BigInteger.valueOf(Long.MIN_VALUE);
     static final BigInteger BIGINT_MAX = BigInteger.valueOf(Long.MAX_VALUE);
 
+    /** The magnitude past which lite's lowering writes an integer literal as a wider integer (its INT64-edge rule:
+     *  above {@code Long.MAX_VALUE >> 2}). */
+    static final BigInteger LITERAL_EDGE = BigInteger.valueOf(Long.MAX_VALUE >> 2);
+
     /** A type with nothing known of its values beyond it: a column's declared type. */
     public IqType(String spelling) {
-        this(spelling, false, null, null);
+        this(spelling, false, null, null, false);
+    }
+
+    /** A type of a value in {@code low..high}, never computed wider than 64 bits. */
+    public IqType(String spelling, boolean widened, @com.legend.base.Nullable BigInteger low,
+            @com.legend.base.Nullable BigInteger high) {
+        this(spelling, widened, low, high, false);
     }
 
     /** {@code family} of a value in {@code low..high}, computed in 64 bits by the database when {@code widened}. */
     static IqType integer(String family, BigInteger low, BigInteger high, boolean widened) {
-        return new IqType(family, widened, low, high);
+        return new IqType(family, widened, low, high, false);
+    }
+
+    /** {@code family} of a value in {@code low..high}, which the database may compute wider than 64 bits when
+     *  {@code loose}. */
+    static IqType integer(String family, BigInteger low, BigInteger high, boolean widened, boolean loose) {
+        return new IqType(family, widened, low, high, loose);
+    }
+
+    /** Whether the database may compute this value wider than 64 bits: {@code loose}, or a constant beyond
+     *  {@link #LITERAL_EDGE} (its literal widened). */
+    boolean wider() {
+        return loose || exact() && lo().abs().compareTo(LITERAL_EDGE) > 0;
     }
 
     /** The type's name without its size: {@code CHAR}, {@code NUMERIC}, ... */
