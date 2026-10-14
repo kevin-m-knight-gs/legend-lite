@@ -108,6 +108,17 @@ const asOption = (o: object): EChartsOption => o as EChartsOption;
 /** A clicked mark, as the column values it stands for. */
 export type MarkKey = Readonly<Record<string, Scalar>>;
 
+/** One area of ECharts' brush, as its event gives it: a range across (lineX / lineY) or a rectangle (rect). */
+export interface BrushArea {
+  readonly brushType?: string;
+  readonly coordRange?: readonly unknown[];
+}
+
+/** What a brush took: the categories in a range across, or a scatter's rectangle of values. */
+export type Brushed =
+  | { readonly kind: 'across'; readonly values: readonly Scalar[]; readonly upper?: Scalar }
+  | { readonly kind: 'rect'; readonly x: readonly [number, number]; readonly y: readonly [number, number] };
+
 export interface ChartDrawing {
   readonly option: EChartsOption;
   /**
@@ -120,6 +131,11 @@ export interface ChartDrawing {
    * to the bin's range; undefined for the last bin, or a chart that is not of bins.
    */
   upperAt?(dataIndex: number): Scalar | undefined;
+  /**
+   * What a brush took (batch 2 item 11), from ECharts' brush areas: the categories inside a range across (in order,
+   * with the edge after the last for a chart of bins), or a scatter's rectangle. Null when nothing was taken.
+   */
+  brushed?(areas: readonly BrushArea[]): Brushed | null;
   /** Anything the reader should know that the picture cannot say. */
   readonly notes: readonly string[];
   /** The chart in words, for a screen reader (the container's aria-label). */
@@ -221,9 +237,17 @@ export function chartOption(
         legend: legendOf(spec, series.length, theme),
         xAxis: { ...axisCommon, type: numericX ? 'value' : 'category', name: spec.x, nameTextStyle: text, scale: true },
         yAxis: { ...axisCommon, type: 'value', name: first.column, nameTextStyle: text, scale: true },
+        ...(spec.options.brush && numericX ? { brush: { xAxisIndex: 0, yAxisIndex: 0, brushType: 'rect', ...BRUSH_STYLE(theme) }, ...brushToolbox('rect') } : {}),
         series,
       }),
       keyAt: () => null,
+      // a rectangle of values: x from-to and y from-to
+      ...(spec.options.brush && numericX ? { brushed: (areas: readonly BrushArea[]) => {
+        const r = areas[0]?.coordRange as readonly (readonly number[])[] | undefined;
+        const [x, y] = r ?? [];
+        if (!x || !y || x.length < 2 || y.length < 2) return null;
+        return { kind: 'rect' as const, x: [x[0]!, x[1]!] as const, y: [y[0]!, y[1]!] as const };
+      } } : {}),
       notes,
       description: describe(spec, rows),
     };
@@ -546,6 +570,10 @@ export function chartOption(
       },
       legend: legendOf(spec, out.length, theme),
       ...zoomOf(spec, categories.length, horizontal),
+      ...(spec.options.brush ? {
+        brush: { ...(horizontal ? { yAxisIndex: 0 } : { xAxisIndex: 0 }), brushType: horizontal ? 'lineY' : 'lineX', ...BRUSH_STYLE(theme) },
+        ...brushToolbox(horizontal ? 'lineY' : 'lineX'),
+      } : {}),
       xAxis: horizontal ? valueAxes : categoryAxis,
       yAxis: horizontal ? { ...categoryAxis, inverse: true } : valueAxes,
       ...thresholdMap(spec, series, theme, horizontal),
@@ -559,9 +587,38 @@ export function chartOption(
       return key;
     },
     ...(spec.bins !== undefined ? { upperAt: (dataIndex: number) => nextEdge(categories, dataIndex, xCol.type) } : {}),
+    // a range across: on a category axis its first and last index, on a time axis its first and last time
+    ...(spec.options.brush ? { brushed: (areas: readonly BrushArea[]) => {
+      const r = areas[0]?.coordRange;
+      if (!r || r.length < 2) return null;
+      const [a, b] = [Number(r[0]), Number(r[1])];
+      const inside = categories.map((c, i) => [c, i] as const).filter(([c, i]) => {
+        if (!timeAxis) return i >= Math.min(a, b) && i <= Math.max(a, b);
+        const t = Date.parse(String(c));
+        return t >= Math.min(a, b) && t <= Math.max(a, b);
+      });
+      if (inside.length === 0) return null;
+      const lastIndex = inside[inside.length - 1]![1];
+      const upper = spec.bins !== undefined ? nextEdge(categories, lastIndex, xCol.type) : undefined;
+      return { kind: 'across' as const, values: inside.map(([c]) => c), ...(upper !== undefined ? { upper } : {}) };
+    } } : {}),
     notes,
     description: describe(spec, rows),
   };
+}
+
+/** The brush's look: the selection's own colours, faint. */
+const BRUSH_STYLE = (theme: ChartTheme) => ({
+  brushStyle: { color: 'rgba(42, 120, 214, 0.12)', borderColor: theme.series[0], borderWidth: 1 },
+  outOfBrush: { colorAlpha: 0.35 },
+  throttleType: 'debounce' as const,
+  throttleDelay: 300,
+  removeOnClick: true,
+});
+
+/** The brush's buttons (a range, and clearing it): ECharts' toolbox, which a brush needs to start from. */
+function brushToolbox(type: 'lineX' | 'lineY' | 'rect'): Record<string, unknown> {
+  return { toolbox: { show: true, right: 8, top: 0, itemSize: 14, feature: { brush: { type: [type, 'clear'] } } } };
 }
 
 /** A point's value as ECharts hands it back: a number, or on a time axis the [time, value] pair. */

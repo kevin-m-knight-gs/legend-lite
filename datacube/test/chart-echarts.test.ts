@@ -779,3 +779,58 @@ describe('drill-down in a chart (batch 2, step 10)', () => {
     assert.equal(followCube(down, { ...GROUPED, rows: ['desk'] }), down);
   });
 });
+
+describe('brush to filter (batch 2, step 11)', () => {
+  const ROWS = table([
+    { name: 'region', type: 'String', values: ['EMEA', 'AMER', 'APAC'] },
+    { name: 'sum_notional', type: 'Float', values: [3, 2, 1] },
+  ]);
+
+  it('a range across categories takes them, and filters the grid to those values', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const spec: ChartSpec = { ...BAR, options: { ...BAR.options, brush: true } };
+    const d = chartOption(spec, ROWS);
+    assert.equal((d.option as { brush?: { brushType: string } }).brush?.brushType, 'lineX');
+    const took = d.brushed!([{ brushType: 'lineX', coordRange: [0, 1] }])!;
+    assert.deepEqual(took, { kind: 'across', values: ['EMEA', 'AMER'] });
+    assert.deepEqual(brushConditions(spec, CUBE, took), [{ kind: 'condition', column: 'region', operator: 'in', value: ['EMEA', 'AMER'] }]);
+    chartSvg(d);
+  });
+
+  it('a range of time: from its first date to its last, a period to the next period\'s start', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const spec: ChartSpec = { ...BAR, mark: 'line', x: 'trade_date', grain: 'month', options: { ...BAR.options, brush: true } };
+    const d = chartOption(spec, table([
+      { name: 'trade_date__month', type: 'StrictDate', values: ['2024-01-01', '2024-02-01', '2024-03-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2, 3] },
+    ]));
+    const took = d.brushed!([{ coordRange: [Date.parse('2024-01-15'), Date.parse('2024-03-02')] }])!;
+    assert.deepEqual(took, { kind: 'across', values: ['2024-02-01', '2024-03-01'] });
+    assert.deepEqual(brushConditions(spec, CUBE, took), [
+      { kind: 'condition', column: 'trade_date', operator: 'greaterThanEqual', value: '2024-02-01' },
+      { kind: 'condition', column: 'trade_date', operator: 'lessThan', value: '2024-04-01' },
+    ]);
+  });
+
+  it('a scatter\'s rectangle is its two columns\' ranges', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const spec: ChartSpec = { ...BAR, mark: 'scatter', x: 'notional', y: [{ column: 'qty', fn: 'sum' }], options: { ...BAR.options, brush: true } };
+    const d = chartOption(spec, table([
+      { name: 'notional', type: 'Float', values: [1, 5, 9] },
+      { name: 'qty', type: 'Integer', values: [3, 6, 9] },
+    ]));
+    const took = d.brushed!([{ brushType: 'rect', coordRange: [[8, 2], [4, 7]] }])!;
+    assert.deepEqual(brushConditions(spec, CUBE, took), [
+      { kind: 'condition', column: 'notional', operator: 'greaterThanEqual', value: 2 },
+      { kind: 'condition', column: 'notional', operator: 'lessThanEqual', value: 8 },
+      { kind: 'condition', column: 'qty', operator: 'greaterThanEqual', value: 4 },
+      { kind: 'condition', column: 'qty', operator: 'lessThanEqual', value: 7 },
+    ]);
+  });
+
+  it('no brush unless asked: a click filters as before', () => {
+    const d = chartOption(BAR, ROWS);
+    assert.equal(d.brushed, undefined);
+    assert.equal((d.option as { brush?: unknown }).brush, undefined);
+  });
+});

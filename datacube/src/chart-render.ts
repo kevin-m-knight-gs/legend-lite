@@ -15,6 +15,7 @@ import * as echarts from 'echarts/core';
 import { BarChart, HeatmapChart, LineChart, PieChart, ScatterChart, TreemapChart } from 'echarts/charts';
 import {
   AriaComponent,
+  BrushComponent,
   DataZoomComponent,
   DatasetComponent,
   GridComponent,
@@ -23,13 +24,14 @@ import {
   MarkLineComponent,
   MarkPointComponent,
   TitleComponent,
+  ToolboxComponent,
   TooltipComponent,
   VisualMapComponent,
 } from 'echarts/components';
 import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
-import type { ChartDrawing, MarkKey } from './chart-option.ts';
+import type { BrushArea, Brushed, ChartDrawing, MarkKey } from './chart-option.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 
 echarts.use([
@@ -38,6 +40,8 @@ echarts.use([
   DatasetComponent, VisualMapComponent, AriaComponent,
   // version 2's layers: reference lines, bands, pinned extremes; and a value axis's breaks
   MarkLineComponent, MarkAreaComponent, MarkPointComponent, AxisBreak,
+  // brushing a range to filter (and the toolbox it starts from)
+  BrushComponent, ToolboxComponent,
   // a long series' slider, and zooming inside the chart
   DataZoomComponent,
   CanvasRenderer,
@@ -88,6 +92,8 @@ export function mountChart(
   more: {
     /** A mark double-clicked: drill into it (batch 2 item 10). */
     readonly onDrill?: (key: MarkKey) => void;
+    /** A brush took a range (or was cleared: null), batch 2 item 11. */
+    readonly onBrush?: (took: Brushed | null) => void;
   } = {},
 ): MountedChart {
   const chart = echarts.init(el, null, { renderer: 'canvas' });
@@ -105,6 +111,11 @@ export function mountChart(
   chart.on('dblclick', (params: unknown) => {
     const mark = markOf(params);
     if (mark) more.onDrill?.(mark.key);
+  });
+  chart.on('brushEnd', (params: unknown) => {
+    const areas = ((params as { areas?: BrushArea[] }).areas ?? []);
+    if (!drawing?.brushed) return;
+    more.onBrush?.(areas.length === 0 ? null : drawing.brushed(areas));
   });
   const view = el.ownerDocument.defaultView;
   const Observer = view?.ResizeObserver;
@@ -130,6 +141,11 @@ export function mountChart(
       drawing = d;
       el.setAttribute('aria-label', d.description);
       chart.setOption(d.option as EChartsOption, { notMerge: true });
+      // a chart that brushes starts brushing on a drag, without its button pressed first
+      const brush = (d.option as { brush?: { brushType?: string } }).brush;
+      if (brush?.brushType) {
+        chart.dispatchAction({ type: 'takeGlobalCursor', key: 'brush', brushOption: { brushType: brush.brushType, brushMode: 'single' } });
+      }
     },
     dispose() {
       observer?.disconnect();

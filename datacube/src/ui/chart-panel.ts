@@ -16,6 +16,7 @@ import {
   followCube,
   kpiQueries,
   markConditions,
+  brushConditions,
   drilledView,
   drillDown,
   drillLevels,
@@ -33,7 +34,7 @@ import {
   type ChartSpec,
 } from '../chart-spec.ts';
 // the drawing (chart-option.ts) comes with ECharts, the first time a chart draws: a grid alone fetches neither
-import type { GridShown, LabelOf, MarkKey, UnitOf } from '../chart-option.ts';
+import type { Brushed, GridShown, LabelOf, MarkKey, UnitOf } from '../chart-option.ts';
 // ECharts (about 218 KB gzipped) is loaded the first time a chart draws, never by a grid alone (plan F7)
 import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
@@ -572,7 +573,7 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key) });
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took) });
       }
       const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
       if (this.#disposed) return;
@@ -603,7 +604,7 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (abort.signal.aborted || this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key) });
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took) });
       }
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
@@ -703,6 +704,14 @@ export class ChartPanel {
       return;
     }
     this.#clickTimer = setTimeout(filter, DOUBLE_CLICK_MS);
+  }
+
+  /** A brush took a range across, or a scatter's rectangle: the grid filtered to it; cleared, the filter taken off. */
+  #brush(took: Brushed | null): void {
+    const spec = this.#spec;
+    if (!spec) return;
+    clearTimeout(this.#clickTimer);
+    this.#options.onPick(took === null ? [] : brushConditions(spec, this.#options.snapshot(), took));
   }
 
   /** A double-clicked mark: the chart one level down its grid's groupings (batch 2 item 10), if there is one. */

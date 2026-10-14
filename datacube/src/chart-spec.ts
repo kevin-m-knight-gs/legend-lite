@@ -355,6 +355,53 @@ export function axisName(spec: ChartSpec): string | undefined {
 }
 
 /**
+ * WHAT A BRUSH TOOK, as conditions on the cube's own columns (batch 2 item 11): a range across is from its first value
+ * to its last -- a period's to the next period's start, a bin's to the next bin's edge -- for a date or a number, and
+ * the values themselves (`in`) for anything else; a scatter's rectangle is its two columns' ranges. A drilled chart's
+ * path comes with it.
+ */
+export function brushConditions(
+  drilled: ChartSpec,
+  s: CubeSnapshot,
+  took: { readonly kind: 'across'; readonly values: readonly Scalar[]; readonly upper?: Scalar }
+    | { readonly kind: 'rect'; readonly x: readonly [number, number]; readonly y: readonly [number, number] },
+): FilterNode[] {
+  const { spec, conditions } = drilledView(drilled);
+  const plain = (v: Scalar): string | number | boolean | null => (typeof v === 'bigint' ? v.toString() : v);
+  if (took.kind === 'rect') {
+    const y = spec.y[0]?.column;
+    if (spec.x === undefined || y === undefined) return [];
+    const range = (column: string, [a, b]: readonly [number, number]): FilterNode[] => [
+      { kind: 'condition', column, operator: 'greaterThanEqual', value: Math.min(a, b) },
+      { kind: 'condition', column, operator: 'lessThanEqual', value: Math.max(a, b) },
+    ];
+    return [...conditions, ...range(spec.x, took.x), ...range(y, took.y)];
+  }
+  const column = spec.x;
+  const values = took.values.filter((v) => v !== null);
+  const lo = values[0];
+  const hi = values[values.length - 1];
+  if (column === undefined || lo === undefined || hi === undefined) return [...conditions];
+  const type = rowColumns(s).find((c) => c.name === column)?.type;
+  if (spec.grain !== undefined) {
+    const [from] = rangeConditions(column, type, plain(lo), { grain: spec.grain });
+    const [, to] = rangeConditions(column, type, plain(hi), { grain: spec.grain });
+    return [...conditions, from!, to!];
+  }
+  if (spec.bins !== undefined || isNumeric(type) || isTemporal(type)) {
+    const up = typeof took.upper === 'bigint' ? Number(took.upper) : took.upper;
+    return [
+      ...conditions,
+      { kind: 'condition', column, operator: 'greaterThanEqual', value: plain(lo)! },
+      spec.bins !== undefined && typeof up === 'number'
+        ? { kind: 'condition', column, operator: 'lessThan', value: up }
+        : { kind: 'condition', column, operator: 'lessThanEqual', value: plain(hi)! },
+    ];
+  }
+  return [...conditions, { kind: 'condition', column, operator: 'in', value: values.map((v) => plain(v)!) as string[] }];
+}
+
+/**
  * A DRILLED chart as it draws (batch 2 item 10): the level after the path across, and the path's values as conditions
  * on the chart's own query (never the cube's filter). The column across's grain or bins were chosen for the top level
  * and go with it. Undrilled, the spec itself and no conditions.
