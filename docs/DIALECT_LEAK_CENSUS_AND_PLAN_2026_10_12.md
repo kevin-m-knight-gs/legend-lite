@@ -2,8 +2,8 @@
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
 steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so are P1a (e64e7e8), P1c (9e6363e to
-074bd95), P1d with D8 (0470214 to 1447d42) and the capability matrix (`docs/dialect-capability/`); merging main and
-re-verifying remain before the review (D7).
+074bd95), P1d with D8 (0470214 to 1447d42) and the capability matrix (b563e84, 6ff3815). Main is merged in (beebe47)
+and every lane re-measured on it: **Phase 1 is complete and waits for the user's review (D7).**
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -637,6 +637,24 @@ sources.
 - **The limit.** "Spelled" and "emulated" are read from the source text, so they say what an arm writes, not whether
   it is right; the lanes prove that. The engine-text printers' list functions are an `if` chain, so they read as
   their helper.
+
+**Main merged in, Phase 1 re-measured (2026-10-14, beebe47).** origin/main's 91 commits (C5/D5, the Python line, the
+parity fix) merged with two conflicts:
+- `datacube/src/upload.ts`: main's host operation keeps this branch's rule that a copy's select list is written by
+  the copy's own database.
+- `docs/GATES.md`: both sides' sections kept.
+
+Main's `HostOperations` (DuckDB's and Postgres's) sits beside the dialects, "kept out of the dialects' own files while
+the dialect program restructures them"; folding it into each dialect is Phase 5's (the connector side).
+
+Measured on beebe47:
+- **All 102 lane targets pass.** 100 have the baseline's SQL by digest, and Postgres's grammar suite keeps D8's two.
+  Channel B is unchanged everywhere. One Trino target was killed for memory at JOBS=2 and passed alone with the
+  baseline's digest.
+- **The corpus** (`//spec:corpus_duckdb`, `//spec:corpus_h2`) passes 12 of 12, with no roster or register moved.
+- **The stress suites** both pass.
+- **`//gates:local`** is green under the root-container recipe (docs/GATES.md, the 2026-10-14 entry, with a fourth
+  item for the new browser guard behind a container's own proxy).
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
