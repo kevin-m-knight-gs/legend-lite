@@ -55,7 +55,8 @@ public final class DriverPkAppend {
         if (n instanceof TypedConcatenate c) {
             TypedSpec l = appendTo(c.left(), ctx);
             TypedSpec r = appendTo(c.right(), ctx);
-            return new TypedConcatenate(l, r, l.info());
+            // the rebuilt union's column stamps are both sides' (TypedConcatenate.unionInfo)
+            return new TypedConcatenate(l, r, TypedConcatenate.unionInfo(l, r, l.info().multiplicity()));
         }
         if (n instanceof TypedProject p) {
             return appendPk(p, ctx);

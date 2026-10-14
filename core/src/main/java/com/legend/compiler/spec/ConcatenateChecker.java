@@ -110,33 +110,10 @@ final class ConcatenateChecker {
                 renames.add(new TypedRename.ColRename(rc.name(), lc.name()));
             }
         }
-        ExprType one = new ExprType(unionType(left.info().type(), ls, rs), Multiplicity.Bounded.ONE);
+        // the union's column stamps are both sides' (TypedConcatenate.unionInfo, 2026-10-14)
+        ExprType one = TypedConcatenate.unionInfo(left, right, Multiplicity.Bounded.ONE);
         TypedSpec aligned = renames.isEmpty() ? right : new TypedRename(right, renames, one);
         return new TypedConcatenate(left, aligned, one);
-    }
-
-    /**
-     * The union's type: the left's carrier, names and types, and each common
-     * column's stamp the union of both sides' (a column beyond the common
-     * prefix keeps the left's). Until 2026-10-14 the left schema was taken
-     * whole, stamps included: a NULL-constant first branch ({@code []},
-     * [0..0]) stamped the united column always-empty, and an enclosing
-     * test of it folded away (the tenth line's find, from both islands).
-     */
-    static Type unionType(Type leftType, Type.RelationType ls, Type.RelationType rs) {
-        int common = Math.min(ls.columns().size(), rs.columns().size());
-        List<Type.Column> cols = new ArrayList<>();
-        for (int i = 0; i < ls.columns().size(); i++) {
-            Type.Column lc = ls.columns().get(i);
-            cols.add(i < common
-                    ? new Type.Column(lc.name(), lc.type(),
-                            Multiplicity.union(lc.multiplicity(), rs.columns().get(i).multiplicity()))
-                    : lc);
-        }
-        Type.RelationType schema = new Type.RelationType(cols, ls.dynamicColumns());
-        return leftType instanceof Type.GenericType g
-                ? new Type.GenericType(g.rawFqn(), List.of(schema), g.multArguments())
-                : leftType;
     }
 
     /** Same type, or two numerics (the database widens the union slot). */
