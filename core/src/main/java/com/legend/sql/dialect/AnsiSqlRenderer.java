@@ -1565,6 +1565,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return declaredQuoted ? '"' + name + '"' : ident(name);
     }
 
+    /** {@inheritDoc} The DDL's column rule ({@link #ddlIdentifier}). */
+    @Override
+    public String insertColumnName(String name, boolean declaredQuoted) {
+        return ddlIdentifier(name, declaredQuoted);
+    }
+
     /** A key-list identifier ({@code PRIMARY KEY(...)}): the column rule. */
     protected String ddlKeyIdentifier(String name, boolean declaredQuoted) {
         return ddlIdentifier(name, declaredQuoted);

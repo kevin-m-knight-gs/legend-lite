@@ -173,6 +173,20 @@ public final class DuckDb extends AnsiSqlRenderer {
         return CATALOG_RULES.typeOf(column);
     }
 
+    /** {@inheritDoc} DuckDB's star modifier, {@code * REPLACE (<conversion> AS "<column>", ...)}: every copy of a
+     *  table whose catalog converts is a DuckDB table (an upload's rewrite, a Snap into the tab, a Python frame). */
+    @Override
+    public String copySelectList(List<CatalogModel.Conversion> conversions) {
+        if (conversions.isEmpty()) {
+            return "*";
+        }
+        List<String> items = new java.util.ArrayList<>();
+        for (CatalogModel.Conversion c : conversions) {
+            items.add(c.sql() + " AS " + CatalogModel.sqlIdent(c.column()));
+        }
+        return "* REPLACE (" + String.join(", ", items) + ")";
+    }
+
     /**
      * Every canonical DuckDB type ({@code duckdb_types().logical_type}) a Database declares, and how.
      * DECIMAL is declared from its precision and scale ({@link #catalogType}). A canonical type is

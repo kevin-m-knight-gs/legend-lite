@@ -153,7 +153,7 @@ public final class Ddl {
             i += 3;
             while (i < lines.length && !lines[i].strip().isEmpty()
                     && !lines[i].strip().matches("-+")) {
-                out.add(insertText(schema, table, def, header,
+                out.add(insertText(engineText, schema, table, def, header,
                         csvCells(lines[i])));
                 i++;
             }
@@ -194,7 +194,7 @@ public final class Ddl {
                     findTable(db, schema, table);
             i += 3;
             while (i < records.size() && !blankRecord(records.get(i))) {
-                out.add(insertText(schema, table, def, header,
+                out.add(insertText(engineText, schema, table, def, header,
                         records.get(i)));
                 i++;
             }
@@ -256,7 +256,7 @@ public final class Ddl {
         return cells;
     }
 
-    private static String insertText(String schema, String table,
+    private static String insertText(com.legend.sql.dialect.SqlDialect engineText, String schema, String table,
             DatabaseDefinition.@com.legend.base.Nullable TableDefinition def,
             java.util.List<String> header, java.util.List<String> cells) {
         java.util.List<String> colNames = new java.util.ArrayList<>();
@@ -275,9 +275,7 @@ public final class Ddl {
             // SAME identifier rule as the create (batch A): a reserved
             // or space-bearing column quotes in BOTH or the pair breaks
             // on a case-sensitive session
-            colNames.add(col != null && col.quoted()
-                    ? '"' + col.name() + '"'
-                    : com.legend.sql.dialect.DdlSpelling.h2ExecIdentifier(col != null ? col.name() : h));
+            colNames.add(engineText.insertColumnName(col != null ? col.name() : h, col != null && col.quoted()));
             String cell = cells.get(c);
             boolean numeric = col != null && isNumericType(col.dataType());
             values.add(numeric ? cell.strip()

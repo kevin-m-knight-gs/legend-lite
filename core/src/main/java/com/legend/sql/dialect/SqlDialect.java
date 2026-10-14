@@ -110,6 +110,11 @@ public interface SqlDialect {
      *  rule and literal spelling. */
     String render(com.legend.sql.SqlDml dml);
 
+    /** A store column's name in the column list of a row this dialect writes as TEXT (a seed's insert, the engine
+     *  text's {@code setUpDataSQLs}): the rule its DDL names the column by, so the statement that fills a table names
+     *  the columns the one that created it declared; a declared-quoted name keeps its quotes. */
+    String insertColumnName(String name, boolean declaredQuoted);
+
     /** A column as this database's CATALOG describes it (structured: its canonical type, a
      *  decimal's precision and scale), read into what a Pure Database declares and the
      *  conversion it needs at the source (T2: a store's model comes from the database's own
@@ -118,6 +123,18 @@ public interface SqlDialect {
     default CatalogType catalogType(CatalogModel.Column column) {
         throw new DialectCapability("reading this database's catalog type '" + column.dataType()
                 + "' is not implemented for " + getClass().getSimpleName());
+    }
+
+    /** The select list a COPY of a table in this database applies so that it holds the declared types: each of
+     *  {@code conversions} (this dialect's own, from {@link #catalogType}) under its column's name, every other column
+     *  as it is; {@code *} when no column converts. Refused where this database cannot replace a column in a star
+     *  select, which only the dialects whose catalog converts at the source need ({@link DuckDb#copySelectList}). */
+    default String copySelectList(java.util.List<CatalogModel.Conversion> conversions) {
+        if (conversions.isEmpty()) {
+            return "*";
+        }
+        throw new DialectCapability("a copy that converts columns in its star select is not implemented for "
+                + getClass().getSimpleName());
     }
 
 }

@@ -381,7 +381,40 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      *  pre-quoted or space-bearing names quote; everything else bare. */
     @Override
     protected String ddlIdentifier(String name, boolean declaredQuoted) {
-        return declaredQuoted ? '"' + name + '"' : DdlSpelling.engineColumnName(name);
+        return declaredQuoted ? '"' + name + '"' : engineColumnName(name);
+    }
+
+    /** The engine's rule plus the execution necessity: a name that is not a plain identifier quotes, so the insert
+     *  runs on a case-sensitive session (moved here from the shared DdlSpelling, the dialect program's Phase 1d). */
+    @Override
+    public String insertColumnName(String name, boolean declaredQuoted) {
+        if (declaredQuoted) {
+            return '"' + name + '"';
+        }
+        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            return '"' + name.replace("\"", "") + '"';
+        }
+        return engineColumnName(name);
+    }
+
+    /** The ENGINE's column-name rule for H2 DDL TEXT — processColumnName
+     * = columnNameToIdentifier THEN processIdentifierWithQuoteChar
+     * (dbExtension.pure:611-614, extensionDefaults.pure:557-563). H2
+     * leaves columnNameToIdentifier UNSET, and the DbConfig accessor
+     * defaults it to IDENTITY (dbExtension.pure:155-158) — the
+     * kerberos/date/first uppercase trio belongs to the dialects that
+     * opt in (redshift, sqlserver, ...), NOT H2; testDDL.pure's goldens
+     * pin bare {@code date}. F3.5 (audit A16): the engine's THREE quote
+     * triggers — reserved word, pre-quoted, SPACE-BEARING. Reserved words
+     * come from the dialect lexicon — the ONE H2 list. */
+    private static String engineColumnName(String name) {
+        if (name.startsWith("\"")
+                || H2.ENGINE_LEXICON.reservedWords()
+                        .contains(name.toLowerCase(java.util.Locale.ROOT))
+                || name.contains(" ")) {
+            return '"' + name.replace("\"", "") + '"';
+        }
+        return name;
     }
 
     /** The engine joins the metamodel NAMES raw in {@code PRIMARY KEY(...)};

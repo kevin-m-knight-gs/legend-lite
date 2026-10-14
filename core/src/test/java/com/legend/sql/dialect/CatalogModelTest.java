@@ -149,8 +149,18 @@ class CatalogModelTest {
         CatalogModel.Database db = CatalogModel.database("t::DB", null, "orders",
                 catalog("id BIGINT, \"at\" TIMESTAMP WITH TIME ZONE, big UBIGINT"), new DuckDb(), true);
         assertEquals("* REPLACE (CAST(timezone('UTC', \"at\") AS TIMESTAMP) AS \"at\", CAST(\"big\" AS DECIMAL(20,0)) AS \"big\")",
-                db.copySelectList());
-        assertEquals("*", CatalogModel.database("t::DB", null, "t", catalog("id BIGINT"), new DuckDb(), true).copySelectList());
+                new DuckDb().copySelectList(db.conversions()));
+        assertEquals("*", new DuckDb().copySelectList(
+                CatalogModel.database("t::DB", null, "t", catalog("id BIGINT"), new DuckDb(), true).conversions()));
+    }
+
+    /** A database that cannot replace a column in a star select copies a table whole, and refuses a conversion by name
+     *  (only DuckDB's catalog converts at the source). */
+    @Test
+    void aCopyWithAConversionIsDuckDbsOwn() {
+        assertEquals("*", new Postgres().copySelectList(List.of()));
+        assertThrows(DialectCapability.class, () -> new Postgres().copySelectList(
+                List.of(new CatalogModel.Conversion("big", "CAST(\"big\" AS DECIMAL(20,0))"))));
     }
 
     @Test

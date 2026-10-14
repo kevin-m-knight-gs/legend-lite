@@ -44,27 +44,11 @@ public final class CatalogModel {
     /**
      * The Database element's text; the relation accessor that reads the table
      * ({@code #>{db.schema.table}#}); the conversions a COPY of the table applies so it holds
-     * the declared types (an upload's rewrite at ingest, a Snap into the tab); and the columns
+     * the declared types (an upload's rewrite at ingest, a Snap into the tab; the dialect that wrote
+     * them writes the copy's select list, {@link SqlDialect#copySelectList}); and the columns
      * left out, because their source cannot convert them or no Database type holds them.
      */
     public record Database(String text, String accessor, List<Conversion> conversions, List<String> excluded) {
-
-        /**
-         * The select list a COPY of the table applies so that it holds the declared types:
-         * {@code * REPLACE (<conversion> AS "<column>", ...)}, or {@code *} when no column converts. In
-         * DuckDB's spelling (its star modifier), because every copy is a DuckDB table: an upload's
-         * rewrite, a Snap into the tab, a Python frame. The one place this list is written.
-         */
-        public String copySelectList() {
-            if (conversions.isEmpty()) {
-                return "*";
-            }
-            List<String> items = new ArrayList<>();
-            for (Conversion c : conversions) {
-                items.add(c.sql() + " AS " + sqlIdent(c.column()));
-            }
-            return "* REPLACE (" + String.join(", ", items) + ")";
-        }
     }
 
     /**
@@ -157,8 +141,9 @@ public final class CatalogModel {
         return "\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
-    /** A name as a SQL identifier, always quoted, for a conversion's column reference. */
-    private static String sqlIdent(String name) {
+    /** A name as a SQL identifier, always quoted, for a conversion's column reference (and the name a copy's
+     *  select list gives the converted column, {@link DuckDb#copySelectList}). */
+    static String sqlIdent(String name) {
         return "\"" + name.replace("\"", "\"\"") + "\"";
     }
 }

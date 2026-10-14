@@ -278,7 +278,7 @@ public final class Boundary {
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        out.put("copySelectList", db.copySelectList());
+        out.put("copySelectList", dialect.copySelectList(db.conversions()));
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);

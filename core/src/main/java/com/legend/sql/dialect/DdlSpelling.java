@@ -6,10 +6,10 @@ package com.legend.sql.dialect;
 import com.legend.sql.SqlDdl.ColumnType;
 
 /**
- * THE DDL SPELLINGS a dialect composes from: the store's declared column
- * type as SQL text, and the identifier rules the engine's own H2 DDL uses.
- * A dialect's {@link SqlDialect#ddlType} / {@link SqlDialect#ddlIdentifier}
- * pick from here and override only what its target spells differently —
+ * THE DDL TYPE SPELLINGS a dialect composes from: the store's declared column
+ * type as SQL text (the engine text's identifier rules are its own,
+ * {@link EngineStyleH2}). A dialect's {@code ddlType} picks from here and
+ * overrides only what its target spells differently —
  * the same shape as its query rendering (one compiler, dialect strategies;
  * no target is decided by a flag outside the dialect).
  */
@@ -57,34 +57,5 @@ public final class DdlSpelling {
             return "OTHER";
         }
         return h2Type(t);
-    }
-
-    /** The ENGINE's column-name rule for H2 DDL TEXT — processColumnName
-     * = columnNameToIdentifier THEN processIdentifierWithQuoteChar
-     * (dbExtension.pure:611-614, extensionDefaults.pure:557-563). H2
-     * leaves columnNameToIdentifier UNSET, and the DbConfig accessor
-     * defaults it to IDENTITY (dbExtension.pure:155-158) — the
-     * kerberos/date/first uppercase trio belongs to the dialects that
-     * opt in (redshift, sqlserver, ...), NOT H2; testDDL.pure's goldens
-     * pin bare {@code date}. F3.5 (audit A16): the engine's THREE quote
-     * triggers — reserved word, pre-quoted, SPACE-BEARING. Reserved words
-     * come from the dialect lexicon — the ONE H2 list. */
-    public static String engineColumnName(String name) {
-        if (name.startsWith("\"")
-                || H2.ENGINE_LEXICON.reservedWords()
-                        .contains(name.toLowerCase(java.util.Locale.ROOT))
-                || name.contains(" ")) {
-            return '"' + name.replace("\"", "") + '"';
-        }
-        return name;
-    }
-
-    /** The H2 EXECUTION identifier: the engine's rule plus the execution
-     *  necessity — a name that is not a plain identifier quotes. */
-    public static String h2ExecIdentifier(String name) {
-        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
-            return '"' + name.replace("\"", "") + '"';
-        }
-        return engineColumnName(name);
     }
 }

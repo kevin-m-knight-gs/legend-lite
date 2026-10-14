@@ -242,7 +242,7 @@ export async function readFileInto(
   const inferred = await models.tableModel(await catalogColumns(engine, models, table),
     { table, convertible: true, databaseType: engine.databaseType });
   if (inferred.conversions.length > 0) {
-    // the writer's own select list: each conversion under its column's name (CatalogModel.copySelectList)
+    // the writer's own select list: each conversion under its column's name (SqlDialect.copySelectList)
     await engine.run(`CREATE OR REPLACE TABLE ${qt} AS SELECT ${inferred.copySelectList} FROM ${qt}`, 0);
   }
 
