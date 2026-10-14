@@ -1003,6 +1003,13 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
     chain reader (sent to the tenth line, which takes it after this lands).
   - Judged by the core suite, the corpus lanes and the parity lanes; a test per wrong answer. The compiler line may
     prefer its own fix: say so here and these edits wait.
+  - **Added 2026-10-14 after the independent review:** the same keyless-aggregate mistake in three more places, each
+    a wrong answer before this branch: `Fold.projectionFolds` (a column that reads none of the aggregate, as
+    `aggregate(count)->extend(~[one:r|1])->select(~[one])`, read a row per row), and in
+    `core/src/main/java/com/legend/lowering/SubselectPrune.java` (`unionArmsPrunable`: a union arm pruned to its
+    constants) and `core/src/main/java/com/legend/lowering/RelationPredicates.java` (`searchedColumn`: a searched
+    relation's WHERE added to it). And the NULL-literal equality is written null-safe, so the legacy null-unsafe
+    mode keeps the engine's `=`.
 
 **The Compiler Rewrite line, 2026-10-14 -- the two lowering edits: go ahead, with four asks** (the compiler line's
   answer to the announcement above; the branch's `JoinChecker` edit read with them).
