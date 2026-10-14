@@ -23,6 +23,12 @@ public interface InputDialect {
      *  the reader accepts (its {@code unsupported()} when the syntax may be fine but is not read yet). */
     SqlAst.Statement parse(String sql);
 
+    /** The dialect {@code statement}, as {@link #parse} read it, is translated in: this one, unless the dialect's rules
+     *  depend on the statement as a whole (IQ's engine, chosen by the statement's FROM clause). */
+    default InputDialect reading(SqlAst.Statement statement) {
+        return this;
+    }
+
     // ------------------------------------------------------------------ names
 
     /** The name an unquoted identifier declares ({@code AS x}, a WITH query's name): Postgres folds it to lower
@@ -45,11 +51,31 @@ public interface InputDialect {
     /** The output name of a select item written without an alias. */
     String defaultName(SqlAst.SelectExpr item);
 
+    /** The output name of a select item that is a column reference written without an alias: {@code written} is the
+     *  reference's last part as written, {@code label} the name the column has where it is read (Postgres's). */
+    default String columnName(SqlAst.Ident written, String label) {
+        return label;
+    }
+
     // ------------------------------------------------------------------ types
 
     /** What the translator knows of a FROM source column's type, from its Pure type's name ({@code Integer},
-     *  {@code Decimal(10,2)}, an enumeration's path, ...). */
-    SqlToPure.Kind kindOf(String pureType);
+     *  {@code Decimal(10,2)}, an enumeration's path, ...) and its declared store type when the source has one
+     *  ({@link SqlToPure.Column}). */
+    SqlToPure.Kind kindOf(String pureType, @com.legend.base.Nullable String storeType);
+
+    /** What the dialect knows of a FROM source column's type beyond its kind, carried in {@link SqlToPure.Tx#detail()}
+     *  wherever the column is read: none in Postgres's. */
+    default @com.legend.base.Nullable TypeDetail detailOf(String pureType, @com.legend.base.Nullable String storeType) {
+        return null;
+    }
+
+    /** A FROM source column's value as the dialect reads it, from {@code stored}, its value as the source holds it:
+     *  null when it is read as stored (Postgres's always are). The translator computes it in the column's place, so
+     *  every reference reads it so. */
+    default SqlToPure.@com.legend.base.Nullable Tx read(String column, SqlToPure.Tx stored, SqlAst.Pos pos) {
+        return null;
+    }
 
     /** A constant's translation: an {@link SqlAst.IntegerLit}, {@link SqlAst.NumericLit}, {@link SqlAst.StringLit},
      *  {@link SqlAst.BooleanLit}, {@link SqlAst.NullLit} or {@link SqlAst.TypedLit}. */
@@ -74,6 +100,12 @@ public interface InputDialect {
 
     /** {@code x [NOT] LIKE pattern}'s translation. */
     SqlToPure.Tx like(SqlAst.Like l, SqlToPure.At at);
+
+    /** A value of {@code kind} used as a key of {@code clause} ({@code ORDER BY}, {@code DISTINCT}): nothing when the
+     *  translation's ordering and equality are the dialect's for it (Postgres's always are), else the dialect's
+     *  refusal. */
+    default void key(String clause, SqlToPure.Kind kind, SqlAst.Pos pos) {
+    }
 
     // ------------------------------------------------------------------ the dialect's own refusals
 

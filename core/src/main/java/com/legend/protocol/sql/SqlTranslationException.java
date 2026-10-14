@@ -31,11 +31,11 @@ public final class SqlTranslationException extends RuntimeException {
         this.column = column;
     }
 
-    static SqlTranslationException unsupported(String message, SqlAst.Pos pos) {
+    public static SqlTranslationException unsupported(String message, SqlAst.Pos pos) {
         return new SqlTranslationException(Kind.UNSUPPORTED, message, pos.line(), pos.column());
     }
 
-    static SqlTranslationException invalid(String message, SqlAst.Pos pos) {
+    public static SqlTranslationException invalid(String message, SqlAst.Pos pos) {
         return new SqlTranslationException(Kind.INVALID, message, pos.line(), pos.column());
     }
 

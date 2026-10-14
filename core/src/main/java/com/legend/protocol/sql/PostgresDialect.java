@@ -115,8 +115,9 @@ public final class PostgresDialect implements InputDialect {
 
     // ------------------------------------------------------------------ types
 
+    /** A column's kind is its Pure type's: Postgres's translation reads no store type. */
     @Override
-    public Kind kindOf(String pureType) {
+    public Kind kindOf(String pureType, @com.legend.base.Nullable String storeType) {
         int paren = pureType.indexOf('(');
         String base = paren < 0 ? pureType : pureType.substring(0, paren);
         return switch (base) {

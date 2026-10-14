@@ -63,11 +63,18 @@ public final class SqlToPure {
     }
 
     /** One source column: its name as the model spells it, its Pure type's name ({@code Integer},
-     *  {@code Decimal(10,2)}, {@code String}, {@code StrictDate}, an enumeration's path, ...), and whether it may hold
-     *  no value (SQL's NULL; Pure's {@code [0..1]}). */
+     *  {@code Decimal(10,2)}, {@code String}, {@code StrictDate}, an enumeration's path, ...), whether it may hold
+     *  no value (SQL's NULL; Pure's {@code [0..1]}), and its declared store type as the store spells it
+     *  ({@code SMALLINT}, {@code CHAR(5)}, {@code NUMERIC(10,2)}), or null when the source has none (a relation that
+     *  is no table). A dialect reads it where the Pure type does not say enough ({@link InputDialect#detailOf}). */
     @FunctionalInterface
     public interface Column {
-        void column(String name, String type, boolean nullable);
+        void column(String name, String type, boolean nullable, @com.legend.base.Nullable String storeType);
+
+        /** A column of no declared store type. */
+        default void column(String name, String type, boolean nullable) {
+            column(name, type, nullable, null);
+        }
     }
 
     /** The one table function this step reads: {@code tb('pkg::Database.schema.table')}, upstream's dynamic source. */
@@ -122,8 +129,14 @@ public final class SqlToPure {
     private record Rel(ValueSpecification vs, List<OutCol> columns) {
     }
 
-    /** An output column: the name the query shows, what is known of its type, whether it may be NULL. */
-    private record OutCol(String name, Kind kind, boolean nullable) {
+    /** An output column: the name the query shows, what is known of its type, whether it may be NULL, and what the
+     *  dialect knows of its type beyond its kind (a source column's; none once computed). */
+    private record OutCol(String name, Kind kind, boolean nullable,
+            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+
+        OutCol(String name, Kind kind, boolean nullable) {
+            this(name, kind, nullable, null);
+        }
     }
 
     /** The Pure relation expression {@code sql} means; {@link SqlTranslationException} when it has none (its kind
@@ -142,7 +155,8 @@ public final class SqlToPure {
             throw new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
                     : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
         }
-        return new SqlToPure(sources, dialect, new Env(Map.of(), null, null, 0)).statement(statement).vs();
+        return new SqlToPure(sources, dialect.reading(statement), new Env(Map.of(), null, null, 0))
+                .statement(statement).vs();
     }
 
     private Rel statement(SqlAst.Statement statement) {
@@ -224,21 +238,29 @@ public final class SqlToPure {
 
         /** A translation of no {@code detail}: what a dialect knows of its type beyond its kind
          *  ({@link InputDialect.TypeDetail}) is nothing, as it always is in Postgres's. */
-        Tx(ValueSpecification vs, Kind kind, boolean nullable, @com.legend.base.Nullable ValueSpecification whenFalse) {
+        public Tx(ValueSpecification vs, Kind kind, boolean nullable,
+                @com.legend.base.Nullable ValueSpecification whenFalse) {
             this(vs, kind, nullable, whenFalse, null);
         }
 
         /** A value that is not a condition. */
-        static Tx value(ValueSpecification vs, Kind kind, boolean nullable) {
+        public static Tx value(ValueSpecification vs, Kind kind, boolean nullable) {
             return new Tx(vs, kind, nullable, null);
         }
 
+        /** A value that is not a condition, with what the dialect knows of its type beyond its kind. */
+        public static Tx value(ValueSpecification vs, Kind kind, boolean nullable,
+                InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            return new Tx(vs, kind, nullable, null, detail);
+        }
+
         /** A condition: when it is TRUE, when it is FALSE. */
-        static Tx condition(ValueSpecification whenTrue, ValueSpecification whenFalse, boolean nullable) {
+        public static Tx condition(ValueSpecification whenTrue, ValueSpecification whenFalse, boolean nullable) {
             return new Tx(whenTrue, Kind.BOOLEAN, nullable, whenFalse);
         }
 
-        ValueSpecification falseWhen() {
+        /** A condition's FALSE case. */
+        public ValueSpecification falseWhen() {
             return java.util.Objects.requireNonNull(whenFalse, "a condition has its FALSE case");
         }
     }
@@ -246,18 +268,33 @@ public final class SqlToPure {
     /** A column of the relation in hand: {@code name} is the column the relation holds it in, {@code label} the name
      *  the query sees it by, and {@code var} the lambda parameter that reaches it when it is not this level's row
      *  (a join side's, or an enclosing query's for a correlated reference). */
-    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label) {
+    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label,
+            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+
+        /** A column of no {@link InputDialect.TypeDetail}. */
+        Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label) {
+            this(name, kind, nullable, var, label, null);
+        }
 
         static Col of(String name, Kind kind, boolean nullable) {
             return new Col(name, kind, nullable, null, name);
         }
 
+        static Col of(String name, Kind kind, boolean nullable,
+                InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            return new Col(name, kind, nullable, null, name, detail);
+        }
+
         Col via(@com.legend.base.Nullable String parameter) {
-            return new Col(name, kind, nullable, parameter, label);
+            return new Col(name, kind, nullable, parameter, label, detail);
         }
 
         Col asNullable() {
-            return new Col(name, kind, true, var, label);
+            return new Col(name, kind, true, var, label, detail);
+        }
+
+        Col named(String to) {
+            return new Col(to, kind, nullable, var, label, detail);
         }
     }
 
@@ -769,11 +806,11 @@ public final class SqlToPure {
             case SqlAst.TableFunction f -> {
                 ValueSpecification relation = tableFunction(f);
                 List<OutCol> columns = new ArrayList<>();
-                sources.columns(relation, (name, type, nullable) -> columns.add(new OutCol(name,
-                        dialect.kindOf(type), nullable)));
+                sources.columns(relation, (name, type, nullable, storeType) -> columns.add(new OutCol(name,
+                        dialect.kindOf(type, storeType), nullable, dialect.detailOf(type, storeType))));
                 SqlAst.Ident alias = f.alias();
-                yield bound(new Rel(relation, columns), alias != null ? alias : f.name().get(f.name().size() - 1),
-                        f.columnAliases(), f.pos());
+                yield bound(read(new Rel(relation, columns), f.pos()),
+                        alias != null ? alias : f.name().get(f.name().size() - 1), f.columnAliases(), f.pos());
             }
             case SqlAst.SubqueryFrom q -> {
                 // not LATERAL: the subquery sees the WITH queries, never this query's other FROM items
@@ -785,6 +822,40 @@ public final class SqlToPure {
             case SqlAst.Join j -> join(from(j.left()), from(j.right()), j.type(), j.on(), j.using(), j.natural(),
                     j.pos());
         };
+    }
+
+    /** A source's columns as the dialect reads them ({@link InputDialect#read}): the relation itself when every
+     *  column reads as stored (Postgres's always do), else each column read otherwise computed in its place. */
+    private Rel read(Rel source, SqlAst.Pos pos) {
+        Set<String> present = new HashSet<>();
+        source.columns().forEach(c -> present.add(c.name()));
+        List<ColSpec> computed = new ArrayList<>();
+        List<ColSpec> selection = new ArrayList<>();
+        Map<String, String> renames = new LinkedHashMap<>();
+        List<OutCol> columns = new ArrayList<>();
+        for (OutCol c : source.columns()) {
+            Tx stored = columnValue(row, Col.of(c.name(), c.kind(), c.nullable(), c.detail()));
+            Tx read = dialect.read(c.name(), stored, pos);
+            if (read == null) {
+                selection.add(colSpec(c.name()));
+                columns.add(c);
+                continue;
+            }
+            String computedName = fresh(present);
+            computed.add(new ColSpec(computedName, lambda(row, valueOf(read)), null, null));
+            selection.add(colSpec(computedName));
+            renames.put(computedName, c.name());
+            columns.add(new OutCol(c.name(), read.kind(), read.nullable(), read.detail()));
+        }
+        if (computed.isEmpty()) {
+            return source;
+        }
+        ValueSpecification vs = call("select", call("extend", source.vs(), new ColSpecArray(computed)),
+                new ColSpecArray(selection));
+        for (Map.Entry<String, String> r : renames.entrySet()) {
+            vs = call("rename", vs, colSpec(r.getKey()), colSpec(r.getValue()));
+        }
+        return new Rel(vs, columns);
     }
 
     /** The WITH query a one-part table name names, or null. */
@@ -800,7 +871,7 @@ public final class SqlToPure {
         List<BCol> cols = new ArrayList<>();
         List<Col> star = new ArrayList<>();
         for (OutCol c : renamed.columns()) {
-            Col col = Col.of(c.name(), c.kind(), c.nullable());
+            Col col = Col.of(c.name(), c.kind(), c.nullable(), c.detail());
             cols.add(new BCol(col, true));
             star.add(col);
         }
@@ -843,7 +914,7 @@ public final class SqlToPure {
                 changed.add(i);
                 swaps |= rel.columns().stream().anyMatch(o -> o.name().equals(target));
             }
-            cols.add(new OutCol(to.get(i), c.kind(), c.nullable()));
+            cols.add(new OutCol(to.get(i), c.kind(), c.nullable(), c.detail()));
         }
         // a new name that another column holds now: every change goes through a fresh name first
         ValueSpecification vs = rel.vs();
@@ -913,15 +984,14 @@ public final class SqlToPure {
             for (BCol c : b.columns()) {
                 Col col = c.col();
                 String to = renames.get(col.name());
-                cols.add(new BCol(to == null ? col : new Col(to, col.kind(), col.nullable(), col.var(), col.label()),
-                        c.bare()));
+                cols.add(new BCol(to == null ? col : col.named(to), c.bare()));
             }
             rights.add(new Binding(b.qualifier(), cols, b.scalar()));
         }
         List<Col> rightStar = new ArrayList<>();
         for (Col c : right.star()) {
             String to = renames.get(c.name());
-            rightStar.add(to == null ? c : new Col(to, c.kind(), c.nullable(), c.var(), c.label()));
+            rightStar.add(to == null ? c : c.named(to));
         }
         return new Source(rightRel, rights, rightStar);
     }
@@ -1289,9 +1359,9 @@ public final class SqlToPure {
                             property(row, r.name()))), null, null));
                     col = new Col(name, l.kind(), l.nullable() && r.nullable(), null, l.label());
                 } else if (type == SqlAst.JoinType.RIGHT) {
-                    col = new Col(r.name(), r.kind(), r.nullable(), null, l.label());
+                    col = new Col(r.name(), r.kind(), r.nullable(), null, l.label(), r.detail());
                 } else {
-                    col = new Col(l.name(), l.kind(), l.nullable(), null, l.label());
+                    col = new Col(l.name(), l.kind(), l.nullable(), null, l.label(), l.detail());
                 }
                 mergedCols.add(new BCol(col, true));
                 star.add(col);
@@ -2404,9 +2474,12 @@ public final class SqlToPure {
         Col g = scope.grouped(x.expr());
         Col col = g != null ? g : x.expr() instanceof SqlAst.ColumnRef ref ? scope.column(ref) : null;
         if (col != null && col.var() == null) {
-            // a function's name read as its value shows as that name (Postgres's FigureColname), a column as itself
+            // a function's name read as its value shows as that name (Postgres's FigureColname), a column as the
+            // dialect names it (Postgres: as the source spells it)
             String name = alias != null ? alias.text() : x.expr() instanceof SqlAst.ColumnRef ref
-                    && scope.columnOrNull(ref) != null ? col.label() : dialect.defaultName(x);
+                    && scope.columnOrNull(ref) != null
+                    ? dialect.columnName(ref.parts().get(ref.parts().size() - 1), col.label())
+                    : dialect.defaultName(x);
             Output o = passthrough(col, name, passed, present, scope);
             return new Output(o.name(), o.internal(), o.value(), x.expr(), o.kind(), o.nullable());
         }
@@ -2477,6 +2550,7 @@ public final class SqlToPure {
         if (s.distinct()) {
             for (Output o : outputs) {
                 notJsonKey(o.kind(), "DISTINCT", s.pos());
+                dialect.key("DISTINCT", o.kind(), s.pos());
             }
             relation = call("distinct", call("select", relation, new ColSpecArray(selection)));
             if (!sortInfos.isEmpty()) {
@@ -2518,6 +2592,7 @@ public final class SqlToPure {
                         n.pos());
             }
             notJsonKey(outputs.get(n.value().intValue() - 1).kind(), "ORDER BY", n.pos());
+            dialect.key("ORDER BY", outputs.get(n.value().intValue() - 1).kind(), n.pos());
             return outputs.get(n.value().intValue() - 1).internal();
         }
         if (e instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
@@ -2527,6 +2602,7 @@ public final class SqlToPure {
                 for (Output o : outputs) {
                     if (o.name().equals(found)) {
                         notJsonKey(o.kind(), "ORDER BY", e.pos());
+                        dialect.key("ORDER BY", o.kind(), e.pos());
                         return o.internal();
                     }
                 }
@@ -2539,6 +2615,7 @@ public final class SqlToPure {
                 SqlAst.Expr oe = o.expr();
                 if (oe != null && canon(oe, inputScope(inputs)).equals(canon)) {
                     notJsonKey(o.kind(), "ORDER BY", e.pos());
+                    dialect.key("ORDER BY", o.kind(), e.pos());
                     return o.internal();
                 }
             }
@@ -2548,14 +2625,17 @@ public final class SqlToPure {
         Col g = scope.grouped(e);
         if (g != null) {
             notJsonKey(g.kind(), "ORDER BY", e.pos());
+            dialect.key("ORDER BY", g.kind(), e.pos());
             return g.name();
         }
         if (e instanceof SqlAst.ColumnRef ref) {
             notJsonKey(scope.column(ref).kind(), "ORDER BY", e.pos());
+            dialect.key("ORDER BY", scope.column(ref).kind(), e.pos());
             return scope.column(ref).name();
         }
         Tx t = tx(e, scope, row);
         notJsonKey(t.kind(), "ORDER BY", e.pos());
+        dialect.key("ORDER BY", t.kind(), e.pos());
         String name = fresh(present);
         computed.add(new ColSpec(name, lambda(row, valueOf(t)), null, null));
         return name;
@@ -2569,7 +2649,7 @@ public final class SqlToPure {
     }
 
     /** An integer constant as the Pure parser spells one: a long when it fits, else the big integer. */
-    static CInteger integer(java.math.BigInteger value) {
+    public static CInteger integer(java.math.BigInteger value) {
         return value.bitLength() < Long.SIZE ? new CInteger(value.longValue()) : new CInteger(value);
     }
 
@@ -3190,7 +3270,7 @@ public final class SqlToPure {
 
     /** A boolean operand ({@code clause}'s). A NULL constant is Postgres's unknown truth value: neither true nor
      *  false. */
-    private static Tx truth(Tx t, String clause, SqlAst.Pos pos) {
+    public static Tx truth(Tx t, String clause, SqlAst.Pos pos) {
         if (t.kind() == Kind.NULL) {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
         }
@@ -3204,13 +3284,14 @@ public final class SqlToPure {
     private static Tx columnValue(String row, Col c) {
         String var = c.var();
         ValueSpecification v = property(var != null ? var : row, c.name());
-        return c.kind() == Kind.BOOLEAN ? booleanValue(v, c.nullable()) : Tx.value(v, c.kind(), c.nullable());
+        return c.kind() == Kind.BOOLEAN ? booleanValue(v, c.nullable()) : Tx.value(v, c.kind(), c.nullable(),
+                c.detail());
     }
 
     /** A boolean VALUE (a column, a CASE, a coalesce) as a condition. A nullable one's tests say "known and true",
      *  "known and false" outright: {@code $v == true} would be compared in SQL, NULL for a NULL, where the test must
      *  be false (Postgres: NULL IS TRUE is false). */
-    static Tx booleanValue(ValueSpecification v, boolean nullable) {
+    public static Tx booleanValue(ValueSpecification v, boolean nullable) {
         if (!nullable) {
             return Tx.condition(v, call("not", v), false);
         }
@@ -3220,7 +3301,7 @@ public final class SqlToPure {
     }
 
     /** An expression's Pure value: a condition becomes true, false, or (when neither holds) no value. */
-    private static ValueSpecification valueOf(Tx t) {
+    public static ValueSpecification valueOf(Tx t) {
         if (t.kind() != Kind.BOOLEAN || !t.nullable()) {
             return t.vs();
         }
@@ -3229,7 +3310,7 @@ public final class SqlToPure {
     }
 
     /** Postgres's strict functions and operators: NULL when any argument is NULL, else {@code build} of the values. */
-    private static Tx strict(Kind kind, List<Tx> args, java.util.function.Function<List<ValueSpecification>,
+    public static Tx strict(Kind kind, List<Tx> args, java.util.function.Function<List<ValueSpecification>,
             ValueSpecification> build) {
         for (Tx a : args) {
             if (isNullConstant(a)) {
@@ -3256,7 +3337,7 @@ public final class SqlToPure {
     }
 
     /** A strict predicate (a comparison, IN, BETWEEN, LIKE): NULL when an operand is NULL, else {@code test}. */
-    private static Tx strictTest(List<Tx> operands, java.util.function.Function<List<ValueSpecification>,
+    public static Tx strictTest(List<Tx> operands, java.util.function.Function<List<ValueSpecification>,
             ValueSpecification> test) {
         for (Tx a : operands) {
             if (isNullConstant(a)) {
@@ -3284,7 +3365,7 @@ public final class SqlToPure {
     /** A NULL of a kind, as Postgres types a NULL constant by its context: Pure's empty collection cast to the kind's
      *  type (SQL's typed NULL); for a boolean, a condition that is neither TRUE nor FALSE. A NULL constant in no
      *  context of a type is text (Postgres's unknown resolves to text). */
-    private static Tx nullOf(Kind kind) {
+    public static Tx nullOf(Kind kind) {
         if (kind == Kind.BOOLEAN) {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
         }
@@ -3305,7 +3386,7 @@ public final class SqlToPure {
     }
 
     /** Whether a value is a NULL constant: untyped ({@code NULL}) or typed ({@link #nullOf}). */
-    private static boolean isNullConstant(Tx t) {
+    public static boolean isNullConstant(Tx t) {
         return t.kind() == Kind.NULL || t.whenFalse() == null && t.vs().equals(nullOf(t.kind()).vs());
     }
 
@@ -3324,7 +3405,7 @@ public final class SqlToPure {
         return List.of(l, r);
     }
 
-    private static Tx not(Tx t) {
+    public static Tx not(Tx t) {
         return Tx.condition(t.falseWhen(), t.vs(), t.nullable());
     }
 
@@ -3520,7 +3601,7 @@ public final class SqlToPure {
     }
 
     /** {@code l op r} for a comparison {@code op}: NULL when either side is (Postgres's comparisons are strict). */
-    private static Tx compare(SqlAst.BinaryOp op, Tx l, Tx r) {
+    public static Tx compare(SqlAst.BinaryOp op, Tx l, Tx r) {
         String fn = switch (op) {
             case EQ, NE -> "equal";
             case LT -> "lessThan";
@@ -3832,7 +3913,7 @@ public final class SqlToPure {
                     + " columns", pos);
         }
         OutCol c = rel.columns().get(0);
-        Tx each = columnValue(sub, Col.of(c.name(), c.kind(), c.nullable()));
+        Tx each = columnValue(sub, Col.of(c.name(), c.kind(), c.nullable(), c.detail()));
         Tx value = left instanceof SqlAst.StringLit s && readsStrings(each.kind()) ? fromString(s, each.kind())
                 : tx(left, scope, row);
         comparableKinds(value, each, pos);
@@ -6180,7 +6261,7 @@ public final class SqlToPure {
         return id.quoted() ? id.text() : fold(id.text());
     }
 
-    private static AppliedFunction call(String fn, ValueSpecification... args) {
+    public static AppliedFunction call(String fn, ValueSpecification... args) {
         return call(fn, List.of(args));
     }
 
@@ -6206,7 +6287,7 @@ public final class SqlToPure {
     }
 
     /** No value: Pure's {@code []}, SQL's NULL. */
-    static ValueSpecification empty() {
+    public static ValueSpecification empty() {
         return new PureCollection(List.of());
     }
 

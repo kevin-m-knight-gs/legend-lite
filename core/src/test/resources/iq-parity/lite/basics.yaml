@@ -2,9 +2,16 @@
 # three identifier quotes), each judged by SQL Anywhere 17's answer in iq-answers.jsonl, keyed lite/basics/<id> and
 # the profile. A case runs under iq16-default unless it names its profiles (a comma-separated list); tools/iq-oracle's
 # README.md has the keys a case may carry.
+#
+# A case that reads a CHAR(n) column's value under the IQ engine is judged by the research's D-S1 (IQ pads a CHAR(n)
+# value with blanks to n; SQL Anywhere does not): its expect is SQL Anywhere's rows with those values padded. A case
+# whose construct the island refuses by name stays here, its refusal pinned by the ledger.
 tests:
+  # D-S1: ch is CHAR(5), padded to five under the IQ engine
   - id: select_every_column
     sql: "SELECT id, sm, it, bg, nm, dbl, ch, vc, dt, ts, bt FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","32767","2147483647","9223372036854775807","12345678.99","1.5","ab   ","Hello","2026-03-04","2026-03-04 05:06:07.123456","1"],["2","-32768","-2147483648","-9223372036854775808","-99999999.99","-0.1","abc  ","hello","1999-12-31","1999-12-31 23:59:59.999999","0"],["3","0","0","0","0.00","0.0","A    ","Résumé","2000-02-29","2000-02-29 00:00:00.000000","0"],["4","1","-1","1",".01","3.141592653589793","zz   ","ÉCOLE","1900-01-01","1900-01-01 12:00:00.000001","1"],["5",null,null,null,null,null,null,null,null,null,null],["6","100","100","100","100.50","1e+300","     ","x  ","2026-12-31","2026-12-31 23:59:59.500000","1"],["7","-1","7","-7","-.50","-2.5"," b   ","apple","2026-03-04","2026-03-04 05:06:07.123457","0"]]'
   - id: select_star_of_u
     sql: "SELECT * FROM u ORDER BY id"
   - id: where_integer_comparison
@@ -13,9 +20,15 @@ tests:
   - id: where_string_equality_and_case
     sql: "SELECT id, vc FROM t WHERE vc = 'hello' ORDER BY id"
     profile: iq16-default, sqla17-default
+  # blank padding: 'abc  ' = 'abc' in the IQ-like database; the value read is CHAR(5) (D-S1: already five long here)
   - id: where_char_with_trailing_blanks
     sql: "SELECT id, ch FROM t WHERE ch = 'abc' ORDER BY id"
-    profile: iq16-default, sqla17-default
+    decision: D-S1
+    expect: '[["2","abc  "]]'
+  # the same at SQL Anywhere's defaults: no blank padding, and case-insensitive (refused: no ASCII case fold yet)
+  - id: where_char_with_trailing_blanks_sa_defaults
+    sql: "SELECT id FROM t WHERE ch = 'abc' ORDER BY id"
+    profile: sqla17-default
   # the collation orders the strings: binary Latin-1 against binary UTF-8
   - id: order_by_varchar_collation
     sql: "SELECT id, vc FROM t ORDER BY vc, id"
@@ -42,3 +55,147 @@ tests:
     profile: iq16-default, iq16-tds
   - id: unknown_column_is_an_error
     sql: "SELECT nope FROM t"
+
+  # ---- names: IQ's identifiers match without regard to case, quoted or not; a column shows as written
+  - id: names_match_without_case
+    sql: "SELECT ID, T.VC, [Nm], \"Bt\" FROM T WHERE Id = 2"
+    engine: iq
+  - id: aliases_plain_quoted_and_bare
+    sql: "SELECT id x, vc AS \"the value\", nm AS [n] FROM t a WHERE a.id = 2"
+  - id: alias_of_its_own_column
+    sql: "SELECT id AS ID FROM t WHERE id = 1"
+  # IQ reads a select-list alias in WHERE before a column of its name: refused until the alias is read
+  - id: alias_read_in_where
+    sql: "SELECT id AS x FROM t WHERE x = 1"
+  - id: qualified_star_of_u
+    sql: "SELECT u.* FROM u WHERE u.id > 3 ORDER BY id"
+  - id: bit_values
+    sql: "SELECT id, bt FROM t WHERE id < 3 ORDER BY id"
+  # an unaliased constant is named by IQ's rendering of it
+  - id: names_of_numbers
+    sql: "SELECT 1, 1.5, -1, .5, 1e3, 1.50E1, 0.0, 1e20, 12345678901., 00012, -0 FROM t WHERE id = 1"
+  - id: names_of_strings
+    sql: "SELECT 'a', 'a\\nb', 'x\\x41y', 'q\\q', '\\\\', '', 'it''s' FROM t WHERE id = 1"
+    profile: iq16-default, iq16-tds
+  - id: glued_number_and_alias
+    sql: "SELECT 1abc FROM t WHERE id = 1"
+  - id: comments_nested_and_to_the_end_of_the_line
+    sql: "SELECT id /* a /* nested */ b */ FROM t -- to the end\n WHERE id < 3 // also\n ORDER BY id"
+
+  # ---- without FROM: SQL Anywhere's front end (engine=sa)
+  - id: constants_without_from
+    sql: "SELECT 1, 'abc' AS s, NULL, 2.5"
+    engine: sa
+  - id: where_without_from
+    sql: "SELECT 1 AS one WHERE 1 = 1"
+    engine: sa
+  - id: null_equals_null_without_from
+    sql: "SELECT 1 AS one WHERE NULL = NULL"
+    profile: iq16-default, iq16-tds
+    engine: sa
+
+  # ---- comparisons and three-valued logic
+  - id: not_less_and_not_greater
+    sql: "SELECT id FROM t WHERE it !< 100 OR it !> -1 ORDER BY id"
+  - id: not_equal_spellings
+    sql: "SELECT id FROM t WHERE sm <> 0 AND sm != 1 ORDER BY id"
+  - id: numbers_of_different_types
+    sql: "SELECT id FROM t WHERE dbl > nm OR sm = it ORDER BY id"
+  - id: numeric_constants_in_where
+    sql: "SELECT id FROM t WHERE nm = 0.01 OR dbl = 1.5 OR bg > 9223372036854775806 OR it > 99999999999999999999 ORDER BY id"
+  - id: dates_and_timestamps_compared
+    sql: "SELECT id FROM t WHERE ts > ts OR dt = dt ORDER BY id"
+  - id: is_null_and_not
+    sql: "SELECT id FROM t WHERE sm IS NULL OR NOT vc IS NOT NULL ORDER BY id"
+  - id: parenthesized_conditions
+    sql: "SELECT id FROM t WHERE (id = 1) OR ((id) = 2) ORDER BY id"
+  - id: equals_null_inside_not
+    sql: "SELECT id FROM t WHERE NOT (sm = NULL) ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: null_comparisons_by_profile
+    sql: "SELECT id FROM t WHERE NULL = sm OR vc <> NULL AND id > 5 ORDER BY id"
+    profile: iq16-default, iq16-tds
+  - id: ordering_against_null_stays_unknown
+    sql: "SELECT id FROM t WHERE sm < NULL OR NULL = NULL ORDER BY id"
+    profile: iq16-default, iq16-tds
+
+  # ---- strings: case-sensitive, trailing blanks ignored by = (BLANK PADDING ON)
+  - id: varchar_equals_with_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = 'x' ORDER BY id"
+  - id: varchar_not_equal_with_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc <> 'x' ORDER BY id"
+  - id: empty_string_equals_a_blank
+    sql: "SELECT id FROM t WHERE '' = ' ' ORDER BY id"
+  - id: no_break_space_is_no_blank
+    sql: "SELECT id FROM t WHERE 'a' = 'a\\xA0' ORDER BY id"
+  - id: char_equals_ignoring_its_padding
+    sql: "SELECT id FROM t WHERE ch = 'ab' OR ch = 'A' OR 'zz   ' = ch ORDER BY id"
+  - id: char_and_varchar_compared
+    sql: "SELECT id FROM t WHERE ch = vc OR ch <> 'ab' AND ch = ch ORDER BY id"
+  - id: double_quoted_string_under_tds
+    sql: "SELECT id FROM t WHERE vc = \"hello\" ORDER BY id"
+    profile: iq16-tds
+  # ordering strings needs an ASCII-only right trim (IQ ignores trailing blanks before comparing): refused
+  - id: string_less_than
+    sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
+
+  # ---- ORDER BY and DISTINCT: NULL is the lowest value
+  - id: order_by_ordinal_descending
+    sql: "SELECT id, nm FROM t ORDER BY 2 DESC, 1"
+  - id: order_by_a_column_not_selected
+    sql: "SELECT id FROM t ORDER BY sm DESC"
+  - id: order_by_nulls_lowest
+    sql: "SELECT id, sm FROM t ORDER BY sm ASC, id DESC"
+  - id: order_by_dates_descending
+    sql: "SELECT id, dt FROM t ORDER BY dt DESC, id"
+  - id: order_by_doubles
+    sql: "SELECT id, dbl FROM t ORDER BY dbl"
+  - id: order_by_bit
+    sql: "SELECT id, bt FROM t ORDER BY bt, id"
+  - id: order_by_qualified_column
+    sql: "SELECT id FROM t ORDER BY t.sm, id"
+  - id: order_by_alias
+    sql: "SELECT id AS k, sm AS s FROM t ORDER BY s DESC, k"
+  - id: distinct_bit
+    sql: "SELECT DISTINCT bt FROM t ORDER BY bt"
+  - id: distinct_dates
+    sql: "SELECT DISTINCT dt FROM t ORDER BY dt"
+  # DISTINCT over strings treats 'x' and 'x  ' alike in IQ: refused until the ASCII right trim
+  - id: distinct_strings
+    sql: "SELECT DISTINCT vc FROM t"
+
+  # ---- IQ's errors, and the island's
+  - id: order_by_position_out_of_range
+    sql: "SELECT id FROM t ORDER BY 3"
+  - id: distinct_ordered_by_a_column_not_selected
+    sql: "SELECT DISTINCT id FROM t ORDER BY sm"
+  - id: nulls_first_is_no_iq
+    sql: "SELECT id FROM t ORDER BY nm NULLS FIRST"
+  - id: comparisons_do_not_chain
+    sql: "SELECT id FROM t WHERE id = 1 = 1"
+  - id: not_not_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE NOT NOT id = 1"
+  - id: where_needs_a_condition
+    sql: "SELECT id FROM t WHERE id"
+  - id: a_condition_is_no_value
+    sql: "SELECT (id = 1) FROM t"
+  - id: reserved_word_as_alias
+    sql: "SELECT id AS from FROM t"
+  - id: unknown_correlation_name
+    sql: "SELECT x.id FROM t"
+  - id: unknown_qualified_column
+    sql: "SELECT t.nope FROM t"
+  - id: true_is_a_name
+    sql: "SELECT TRUE FROM t"
+
+  # ---- refused by name, not read yet (later slices)
+  - id: top_is_not_read_yet
+    sql: "SELECT TOP 2 id FROM t ORDER BY id"
+  - id: comma_join_is_not_read_yet
+    sql: "SELECT t.id FROM t, u WHERE u.t_id = t.id ORDER BY 1"
+  - id: arithmetic_is_not_read_yet
+    sql: "SELECT id + 1 AS n FROM t WHERE id = 1"
+  - id: like_is_not_read_yet
+    sql: "SELECT id FROM t WHERE vc LIKE 'h%' ORDER BY id"
+  - id: tsql_alias_is_not_read_yet
+    sql: "SELECT n = id FROM t WHERE id = 1"

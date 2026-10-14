@@ -388,6 +388,9 @@ legend_java_library(
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
+            # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's
+            "src/test/java/com/legend/integration/IqParityTest.java",
+            "src/test/java/com/legend/server/IqParityPostgresTest.java",
             # the shared test cases are :test_cases's
             "src/test/java/com/legend/testcases/*.java",
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
@@ -405,6 +408,9 @@ legend_java_library(
             # upstream's Postgres parity corpus's answers and ledger: :sql_parity_test's and :sql_parity_postgres_test's
             # data, read as files
             "src/test/resources/sql-parity/**",
+            # the #IQ{...}# island's cases, schema, snapped answers and ledger: :iq_parity_test's and
+            # :iq_parity_postgres_test's data, read as files
+            "src/test/resources/iq-parity/**",
             "src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe",
             # the toy section grammar's binding is :toy_grammar's, so no other core test loads it (P3-04)
             "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
@@ -716,6 +722,65 @@ junit_test(
     ],
     jvm_flags = _SQL_PARITY_FLAGS + ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
     select = ["--select-class=com.legend.server.SqlParityPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE #IQ{...}# ISLAND'S PARITY CASES (docs/IQ_SQL_STUDY_2026_10_13.md §6): legend-lite's own cases in
+# iq-parity/lite, each run under each of its profiles as an #IQ{...}# island, judged against SQL Anywhere 17's answers
+# snapped by tools/iq-oracle (CI never runs SQL Anywhere) or the case's provisional decision, each run's status held
+# by iq-parity/ledger.tsv (testcases/IqParity.java). On DuckDB here; on the embedded Postgres below (no drift step:
+# the oracle is SQL Anywhere).
+_IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/*.yaml"]) + [
+    "src/test/resources/iq-parity/iq-answers.jsonl",
+    "src/test/resources/iq-parity/ledger.tsv",
+    "src/test/resources/iq-parity/schema.yaml",
+]
+
+_IQ_PARITY_FLAGS = [
+    "-Diq.parity.schema=$(rlocationpath src/test/resources/iq-parity/schema.yaml)",
+    "-Diq.parity.answers=$(rlocationpath src/test/resources/iq-parity/iq-answers.jsonl)",
+    "-Diq.parity.ledger=$(rlocationpath src/test/resources/iq-parity/ledger.tsv)",
+    # the case files: the directory of this file
+    "-Diq.parity.lite=$(rlocationpath src/test/resources/iq-parity/lite/basics.yaml)",
+]
+
+junit_test(
+    name = "iq_parity_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/IqParityTest.java"],
+    data = _IQ_PARITY_DATA,
+    jvm_flags = _IQ_PARITY_FLAGS,
+    select = ["--select-class=com.legend.integration.IqParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "iq_parity_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/server/IqParityPostgresTest.java"],
+    data = _IQ_PARITY_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _IQ_PARITY_FLAGS + ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.server.IqParityPostgresTest"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [

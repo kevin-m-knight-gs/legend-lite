@@ -38,6 +38,10 @@ test_suite(
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
         "//core:sql_parity_postgres_test",
+        # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
+        # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
+        "//core:iq_parity_test",
+        "//core:iq_parity_postgres_test",
         "//spec:spec_tests",
         "//json:tests",
         # TeaVM's corrected number conversions and unmodifiable wrappers against the JDK, on the JVM (seconds)

@@ -522,7 +522,13 @@ public final class SqlParity {
      *  database's, not the query's; then the rows must agree as a set and the keys in sequence. */
     public static List<String> compare(Case c, Grid expected, Grid actual) {
         boolean ordered = c.sql().toUpperCase(Locale.ROOT).contains("ORDER BY");
-        List<Integer> keys = ordered ? orderKeys(c.sql(), expected.columns()) : null;
+        return compare(ordered, ordered ? orderKeys(c.sql(), expected.columns()) : null, expected, actual);
+    }
+
+    /** {@link #compare(Case, Grid, Grid)} for a query read by another reader (the {@code #IQ{...}#} island's harness,
+     *  IqParity): whether it is {@code ordered}, and its ORDER BY's output columns when each key is one (else null). */
+    public static List<String> compare(boolean ordered, @com.legend.base.Nullable List<Integer> keys, Grid expected,
+            Grid actual) {
         if (keys != null) {
             List<String> diffs = compare(sorted(expected), sorted(actual));
             for (int r = 0; r < Math.min(expected.rows().size(), actual.rows().size()) && diffs.isEmpty(); r++) {
@@ -947,6 +953,15 @@ public final class SqlParity {
      *  go to standard out and, under Bazel, to the test's undeclared outputs. */
     public static List<String> ratchet(List<Case> cases, Map<String, Outcome> outcomes, Path ledgerFile,
             String lane, @com.legend.base.Nullable Path update) throws IOException {
+        return ratchet("upstream's Postgres parity corpus", "sql-parity", LEDGER_HEADER, cases, outcomes, ledgerFile,
+                lane, update);
+    }
+
+    /** {@link #ratchet(List, Map, Path, String, Path)} for another corpus held by a ledger of the same shape (the
+     *  {@code #IQ{...}#} island's, IqParity): its name in the summary, its report's file name, its ledger's header. */
+    public static List<String> ratchet(String corpus, String reportName, String ledgerHeader, List<Case> cases,
+            Map<String, Outcome> outcomes, Path ledgerFile, String lane, @com.legend.base.Nullable Path update)
+            throws IOException {
         int column = LANES.indexOf(lane);
         Map<String, String[]> ledger = readLedger(ledgerFile);
         Map<Status, Integer> counts = new java.util.EnumMap<>(Status.class);
@@ -975,13 +990,12 @@ public final class SqlParity {
                 problems.add("GONE: " + pinnedKey + " is in the ledger and not in the corpus");
             }
         }
-        StringBuilder summary = new StringBuilder("upstream's Postgres parity corpus, " + lane + " lane: "
-                + cases.size() + " cases");
+        StringBuilder summary = new StringBuilder(corpus + ", " + lane + " lane: " + cases.size() + " cases");
         counts.forEach((s, n) -> summary.append(", ").append(s).append(' ').append(n));
         System.out.println(summary);
         String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (outputs != null) {
-            Files.writeString(Path.of(outputs, "sql-parity-" + lane + ".tsv"), report.toString(),
+            Files.writeString(Path.of(outputs, reportName + "-" + lane + ".tsv"), report.toString(),
                     StandardCharsets.UTF_8);
         }
         if (update != null) {
@@ -991,7 +1005,7 @@ public final class SqlParity {
                 String[] lanes = written.computeIfAbsent(key(c), k -> new String[LANES.size()]);
                 lanes[column] = outcomes.get(key(c)).status().name();
             }
-            writeLedger(update, cases, written);
+            writeLedger(update, ledgerHeader, cases, written);
             System.out.println("wrote " + update);
             return List.of();
         }
@@ -1020,10 +1034,19 @@ public final class SqlParity {
         return ledger;
     }
 
+    /** The sql-parity ledger's header: what it is, and which tests hold it. */
+    private static final String LEDGER_HEADER = "# upstream's Postgres parity corpus (legend-engine 4.145.0), each case's"
+            + " status per lane: the ratchet SqlParityTest and\n# SqlParityPostgresTest hold (core/src/test/java/"
+            + "com/legend/testcases/SqlParity.java says each status)\n";
+
     public static void writeLedger(Path file, List<Case> cases, Map<String, String[]> ledger) throws IOException {
-        StringBuilder out = new StringBuilder("# upstream's Postgres parity corpus (legend-engine 4.145.0), each case's"
-                + " status per lane: the ratchet SqlParityTest and\n# SqlParityPostgresTest hold (core/src/test/java/"
-                + "com/legend/testcases/SqlParity.java says each status)\ncase\t" + String.join("\t", LANES) + "\n");
+        writeLedger(file, LEDGER_HEADER, cases, ledger);
+    }
+
+    /** The ledger, its comment lines {@code header} (each line starting with {@code #}). */
+    public static void writeLedger(Path file, String header, List<Case> cases, Map<String, String[]> ledger)
+            throws IOException {
+        StringBuilder out = new StringBuilder(header + "case\t" + String.join("\t", LANES) + "\n");
         for (Case c : cases) {
             String[] lanes = ledger.get(key(c));
             out.append(key(c));
