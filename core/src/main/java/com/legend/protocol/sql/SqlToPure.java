@@ -5521,13 +5521,16 @@ public final class SqlToPure {
             }
             return x;
         }
+        // an integer an enclosed cast already holds to this range needs no second test (nested casts tested at every
+        // level wrote the value three times a level: the stress corpus's ten casts were 9 MB of SQL)
+        boolean held = range != null && within(provenRange(c.operand()), range);
         if (x.kind() == target || target == Kind.DECIMAL && x.kind() == Kind.NUMBER) {
-            return range == null ? x : inRange(x, range, type);
+            return range == null || held ? x : inRange(x, range, type);
         }
         if (x.kind() == Kind.WHOLE && target == Kind.INTEGER) {
-            // a sum of integers as a bigint (or narrower): its width now known
-            Tx whole = Tx.value(x.vs(), Kind.INTEGER, x.nullable());
-            return range == null ? whole : inRange(whole, range, type);
+            // a sum of integers as a bigint (or narrower): its width now known; a strict value keeps its guard
+            Tx whole = new Tx(x.vs(), Kind.INTEGER, x.nullable(), null, null, x.guard(), x.body());
+            return range == null || held ? whole : inRange(whole, range, type);
         }
         if (x.kind() == Kind.INEXACT) {
             if (target == Kind.DECIMAL || target == Kind.FLOAT) {
@@ -5571,6 +5574,30 @@ public final class SqlToPure {
 
     /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value
      *  read as one ({@code []->cast(@Integer)->toOne()} raises, typed as the integer it stands for). */
+    /** The range {@code e}'s value is already held to by a cast to a narrow integer ({@link #NARROW_INTEGERS},
+     *  {@link #SMALL_INTEGERS}: Postgres raised past it), seen through casts to other integers, which keep an
+     *  integer's value; the narrowest such range, or null when no cast holds it. */
+    private static long @com.legend.base.Nullable [] provenRange(SqlAst.Expr e) {
+        long[] proven = null;
+        SqlAst.Expr at = e;
+        while (at instanceof SqlAst.Cast c && c.type().modifiers().isEmpty()
+                && CAST_TYPES.get(c.type().name()) == Kind.INTEGER) {
+            String type = c.type().name();
+            long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
+                    : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
+            if (range != null && (proven == null || within(range, proven))) {
+                proven = range;
+            }
+            at = c.operand();
+        }
+        return proven;
+    }
+
+    /** Whether {@code inner} is a range and lies within {@code outer}. */
+    private static boolean within(long @com.legend.base.Nullable [] inner, long[] outer) {
+        return inner != null && inner[0] >= outer[0] && inner[1] <= outer[1];
+    }
+
     private static Tx inRange(Tx x, long[] range, String type) {
         return strict(Kind.INTEGER, List.of(x), v -> call("if", call("or", call("lessThan", v.get(0),
                 new CInteger(range[0])), call("greaterThan", v.get(0), new CInteger(range[1]))),

@@ -296,6 +296,29 @@ class SqlToPureTest {
     }
 
     @Test
+    void anIntegerCastOfAValueACastAlreadyHoldsIsNotTestedAgain() {
+        // nested casts to integer tested the range at every level, writing the value three times a level (the stress
+        // corpus's ten casts were 9 MB of SQL): the innermost cast's test holds for the casts around it, through a
+        // bigint, and a smallint is within an integer; an integer cast to smallint is tested again
+        String once = "#>{s::DB.T}#->extend(~[_sql_1:r|if($r.age->isEmpty(), |[], |if(($r.age->toOne() < -2147483648)"
+                + " || ($r.age->toOne() > 2147483647), |[]->cast(@Integer)->toOne(), |$r.age->toOne()))])"
+                + "->select(~[_sql_1])->rename(~_sql_1, ~age)";
+        assertEquals(once, pure("select cast(cast(cast(age as integer) as integer) as integer) from tb('s::DB.T')"));
+        assertEquals(once, pure("select cast(cast(cast(age as integer) as bigint) as int4) from tb('s::DB.T')"));
+        assertEquals("#>{s::DB.T}#->extend(~[_sql_1:r|if($r.age->isEmpty(), |[], |if(($r.age->toOne() < -32768)"
+                        + " || ($r.age->toOne() > 32767), |[]->cast(@Integer)->toOne(), |$r.age->toOne()))])"
+                        + "->select(~[_sql_1])->rename(~_sql_1, ~age)",
+                pure("select cast(cast(age as smallint) as integer) from tb('s::DB.T')"));
+        assertTrue(pure("select cast(cast(age as integer) as smallint) from tb('s::DB.T')").contains("< -32768"));
+        // and the default name, read once a level (twice was 2^n): forty casts name the column age
+        String forty = "age";
+        for (int i = 0; i < 40; i++) {
+            forty = "cast(" + forty + " as integer)";
+        }
+        assertTrue(pure("select " + forty + " from tb('s::DB.T')").endsWith("->rename(~_sql_1, ~age)"));
+    }
+
+    @Test
     void nullifAndGreatestSpellPostgresNullsOut() {
         // greatest ignores a NULL: age's NULL gives ID
         assertEquals("#>{s::DB.T}#->extend(~[d:r|if($r.dept == 'eng', |[], |$r.dept), g:r|if($r.age->isEmpty(), |$r.ID,"

@@ -25,3 +25,11 @@ tests:
     sql: "SELECT count(DISTINCT dept_id ORDER BY age) AS c FROM persons"
   - id: max_of_a_boolean_is_an_error
     sql: "SELECT dept_id, max(active) AS m FROM persons GROUP BY dept_id ORDER BY dept_id"
+  # an aggregate with no GROUP BY is one row: HAVING filters that row, and an aggregate over it counts one row (the
+  # tenth line's find, 2026-10-14: a constant HAVING was merged into WHERE, and a second aggregate into the first)
+  - id: having_false_without_group_by
+    sql: "SELECT count(*) AS n FROM persons HAVING 1 = 0"
+  - id: having_true_without_group_by
+    sql: "SELECT count(*) AS n FROM persons HAVING 1 = 1"
+  - id: count_of_an_aggregate_without_group_by
+    sql: "SELECT count(*) AS c FROM (SELECT count(*) AS n FROM persons) t"

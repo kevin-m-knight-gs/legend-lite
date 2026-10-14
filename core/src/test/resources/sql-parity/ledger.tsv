@@ -1714,6 +1714,9 @@ lite/aggregates/order_by_inside_aggregates	PASS	PASS
 lite/aggregates/distinct_ordered_by_its_argument	PASS	PASS
 lite/aggregates/distinct_ordered_by_another_value_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/aggregates/max_of_a_boolean_is_an_error	BOTH_ERROR	BOTH_ERROR
+lite/aggregates/having_false_without_group_by	PASS	PASS
+lite/aggregates/having_true_without_group_by	PASS	PASS
+lite/aggregates/count_of_an_aggregate_without_group_by	PASS	PASS
 lite/dates/date_plus_and_minus_days	PASS	PASS
 lite/dates/days_between_dates	PASS	PASS
 lite/dates/date_minus_date_in_a_filter	PASS	PASS
@@ -1860,6 +1863,8 @@ lite/functions/round_of_an_average_of_doubles	PASS	PASS
 lite/functions/floor_of_a_quotient_of_numerics_is_refused	REFUSED	REFUSED
 lite/functions/ceil_of_an_average_of_integers_is_refused	REFUSED	REFUSED
 lite/functions/cast_of_a_quotient_of_numerics_to_integer_is_refused	REFUSED	REFUSED
+lite/functions/nested_integer_casts	PASS	PASS
+lite/functions/nested_integer_cast_narrowing_overflows	BOTH_ERROR	BOTH_ERROR
 lite/functions/round_of_a_quotient_of_numerics_is_refused	REFUSED	REFUSED
 lite/functions/trunc_of_a_square_root_of_a_numeric_is_refused	REFUSED	REFUSED
 lite/functions/text_of_a_quotient_of_numerics_is_refused	REFUSED	REFUSED
@@ -2090,6 +2095,8 @@ lite/subqueries/except	PASS	PASS
 lite/subqueries/except_keeps_a_null_row	PASS	PASS
 lite/subqueries/except_removes_duplicates	PASS	PASS
 lite/subqueries/intersect_all	REFUSED	REFUSED
+lite/subqueries/intersect_of_two_null_constants	PASS	PASS
+lite/subqueries/except_of_two_null_constants	PASS	PASS
 lite/text/concat_ws_skips_nulls	PASS	PASS
 lite/text/concat_ws_of_a_null_separator	PASS	PASS
 lite/text/concat_ws_of_numbers_dates_and_booleans	PASS	PASS

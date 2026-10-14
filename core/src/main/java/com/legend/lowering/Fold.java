@@ -260,10 +260,11 @@ final class Fold {
      * with sorting, so ORDER BY does not force isolation &mdash; but LIMIT/OFFSET
      * truncate, and filtering does not commute with truncation). DISTINCT is
      * also a boundary: filtering after dedup can only be expressed after the
-     * dedup happened.
+     * dedup happened; so is an aggregate with no GROUP BY
+     * ({@link #aggregatesWithoutKeys}).
      */
     static FilterSlot filterSlot(SqlSelect s, boolean referencesWindowColumn) {
-        if (s.limit() != null || s.offset() != null || s.distinct()) {
+        if (s.limit() != null || s.offset() != null || s.distinct() || aggregatesWithoutKeys(s)) {
             return FilterSlot.ISOLATE;
         }
         if (referencesWindowColumn) {
@@ -276,6 +277,37 @@ final class Fold {
     }
 
     enum FilterSlot { WHERE, HAVING, QUALIFY, ISOLATE }
+
+    /**
+     * Whether {@code s} aggregates with no GROUP BY: an aggregate in a
+     * projection (not a window's, not a subquery's). Its one row is the
+     * aggregate of every row it reads, so a filter of that row is not a
+     * filter of those rows ({@code aggregate(...)->filter(r|false)} merged
+     * into WHERE answered one row, not none), nor is an aggregate of it an
+     * aggregate of them ({@code aggregate(count)->aggregate(count)} counted
+     * the rows read, not 1): both are isolated, as over a GROUP BY.
+     */
+    static boolean aggregatesWithoutKeys(SqlSelect s) {
+        return s.groupBy().isEmpty()
+                && s.projections().stream().anyMatch(p -> aggregates(p.expr()));
+    }
+
+    private static boolean aggregates(SqlExpr e) {
+        if (e instanceof com.legend.sql.SqlAgg.Reducer
+                || e instanceof SqlExpr.OrderedListAgg
+                || e instanceof SqlExpr.JsonArrayAgg) {
+            return true;
+        }
+        if (e instanceof SqlExpr.WindowCall) {
+            return false;
+        }
+        for (SqlExpr c : e.children()) {
+            if (aggregates(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /** Window containment at EXPRESSION depth ({@code rank() + 1} in a
      * projection is as window-carrying as a bare call); children() stops
@@ -358,7 +390,7 @@ final class Fold {
     }
 
     static boolean groupByFolds(SqlSelect s) {
-        return s.groupBy().isEmpty() && !s.distinct() && s.orderBy().isEmpty()
+        return s.groupBy().isEmpty() && !aggregatesWithoutKeys(s) && !s.distinct() && s.orderBy().isEmpty()
                 && s.limit() == null && s.offset() == null && s.qualify() == null
                 && s.projections().stream()
                         .noneMatch(p -> p.expr() instanceof SqlExpr.WindowCall);

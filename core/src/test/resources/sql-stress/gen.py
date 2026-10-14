@@ -194,6 +194,15 @@ for w in [10, 100, 500, 2000]:
 for w in [10, 100]:
     inl = ', '.join(str(i) for i in range(w))
     add(f'in_list_{w}', f'SELECT id FROM persons WHERE id IN ({inl}) AND age NOT IN ({inl}) ORDER BY id')
+# nested casts, unaliased (the default name reads through each), integer within bigint within integer: added
+# 2026-10-14 after the tenth line's find (ten casts were 9 MB of SQL)
+def casts(n):
+    e = 'age'
+    for i in range(n):
+        e = f'CAST({e} AS {"INTEGER" if i % 3 else "BIGINT"})'
+    return e
+for n in [10, 30, 100]:
+    add(f'cast_nest_{n}', f'SELECT id, {casts(n)} FROM persons ORDER BY id')
 
 
 # ---- H. many window functions over a join

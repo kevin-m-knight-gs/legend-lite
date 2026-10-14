@@ -107,10 +107,15 @@ public final class PostgresDialect implements InputDialect {
             // a subscripted value keeps its name (Postgres's FigureColname reads through the indirection)
             case SqlAst.Subscript sub -> defaultName(sub.base());
             case SqlAst.ArrayConstructor a -> "array";
-            case SqlAst.Cast c -> defaultName(c.operand()).equals("?column?") ? c.type().name()
-                    : defaultName(c.operand());
+            // the operand's name once: twice a level was 2^n for n nested casts
+            case SqlAst.Cast c -> castName(defaultName(c.operand()), c.type().name());
             default -> "?column?";
         };
+    }
+
+    /** A cast's default name: its operand's, or its type's when the operand has none. */
+    private static String castName(String operand, String type) {
+        return operand.equals("?column?") ? type : operand;
     }
 
     // ------------------------------------------------------------------ types
