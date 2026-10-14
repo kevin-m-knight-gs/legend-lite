@@ -343,6 +343,9 @@ core/src/test/java/com/legend/lowering/BurnLaneTest.java	product-name	5
 core/src/test/java/com/legend/lowering/ComparatorConventionTest.java	database-type	1
 core/src/test/java/com/legend/lowering/ComparatorConventionTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/ComparatorConventionTest.java	product-name	1
+# 2026-10-14, the merge of main's 9bc695885 (a computed column reads the enclosing row, the compiler line) into this branch: its test judges the island against DuckDB as the oracle, so it names DuckDB and its JDBC URL; pinned as measured (main carries no ratchet yet, this branch's Phase 0 adds it).
+core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	jdbc-url	1
+core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	product-name	11
 core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	database-type	1
 core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	product-name	1
