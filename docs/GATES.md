@@ -9501,3 +9501,56 @@ what reads, what is refused and why, the reviews' findings and the numbers below
    ASCII-only case fold and right trim, exact decimal division, a range check that takes its operand once, a raise
    that carries IQ's code); the syntax ratchet pinning PARSED ids; `SELECT id, ID … ORDER BY id`'s false ambiguity;
    Postgres's default name of nested casts, 2^n in their depth (the seventh line's, older than the seam).
+
+## 2026-10-14 — `#IQ{...}#`: the second landing — M1, IQ's collation and exact NUMERIC, host variables, the showcase (the tenth line)
+
+Announced in `docs/IN_FLIGHT.md` (de0484e96, the cross-area edits listed). Branch `claude/iq-island-2` over main
+de0484e96: one squashed commit of the M1 work (32930c8f6) and review 6's fixes (b4e93c209). The intermediate commits
+stay unpublished. The study's §9.3 to §9.15 hold what reads, what is refused and why, and each review's findings.
+
+1. **What lands.**
+   - M1a to M1e: predicates, joins, subqueries, set operations, grouping and the aggregates in SQL Anywhere's types,
+     about 60 functions, owner-qualified tables, host variables (`@x`, `:x`) bound to the enclosing query's
+     variables, date strings read by DATE_ORDER and NEAREST_CENTURY, and dates written in each profile's format.
+   - IQ's ASCII-only case fold, blank padding and exact NUMERIC division, composed from existing Pure natives (no
+     new native); IQ's collation as the key of ORDER BY, DISTINCT, GROUP BY, set operations, COUNT(DISTINCT), MIN,
+     MAX and LIST.
+   - The showcase, `docs/IQ_SQL_SHOWCASE.md`: one IQ query end to end. Its cases are `iq-parity/lite/showcase.yaml`;
+     its Snowflake and DuckDB SQL are pinned by `IqParityTest.theShowcasePlansItsPinnedSql`.
+   - The oracle binds real SQL Anywhere variables for a case's params (`CREATE VARIABLE`/`SET`), not text.
+   - Declared: `docs/SEMANTICS_REGISTER.md` S51 to S54 extended, S55 and S56 new.
+2. **The seam's judge.** The generated Pure of every Postgres case (2,394 with the probes), byte-identical before and
+   after: sha256 36aa7f14dff4e1ba443739c518f6fc72da11f3831b562ea44894af98e9256f26. Both `sql-parity` ledgers
+   unchanged in both lanes: 2,180 cases, PASS 1,527, REFUSED 449, BOTH_ERROR 136, SKIP 68.
+3. **The IQ parity corpus,** identical in both lanes (`//core:iq_parity_test`, `//core:iq_parity_postgres_test`):
+
+   | file | runs | PASS | REFUSED | BOTH_ERROR | SKIP |
+   |---|---|---|---|---|---|
+   | basics, m0 (the first landing's) | 332 | 217 | 35 | 77 | 3 |
+   | m1a, m1b, m1c, m1d, m1e | 1,497 | 1,067 | 200 | 229 | 1 |
+   | natives, collation | 432 | 346 | 80 | 6 | 0 |
+   | rules | 499 | 125 | 336 | 38 | 0 |
+   | m1review, review4, review5, review6 | 332 | 155 | 138 | 39 | 0 |
+   | showcase | 3 | 3 | 0 | 0 | 0 |
+   | **all** | **3,095** | **1,913** | **789** | **389** | **4** |
+
+   FAIL, BUG and ERROR are 0 in both lanes. The answers: `tools/iq-oracle/snap.sh --write`, then `--check`: 2,705
+   cases, 3,091 answers, clean. The syntax ratchet, `//core:iq_syntax_cases_test`: 6,983 cases; accept PARSED 2,674,
+   REFUSED 2,274; none crashed.
+4. **Judges.**
+   - The battery on the final tree: both IQ lanes, `//core:iq_syntax_cases_test`, both `sql-parity` lanes,
+     `//core:core_tests`, `//gates:checks`, `//parser-equivalence:diagnostics`: 166 pass, 2 skipped (platform-gated);
+     `//sdlc-server:page` and `//wasm:planner` build (TeaVM).
+   - Guard entries: `syntax-pins.tsv` only, with dated notes.
+   - Four independent reviews (read-only agents that wrote none of it; each claim run on lite and on SQL Anywhere):
+     review 3 (M1a to M1d) 4 BLOCKER, 5 MAJOR, 5 MINOR; review 4 (the merge and review 3's fixes) 3, 2, 4; review 5
+     (M1e) 3, 5, 6; review 6 (the whole landing, the last audit) 1, 2, 3. Every blocker and major is fixed or
+     refused by name, each pinned by a case or test that fails without it. Review 6's fixes were measured on SQL
+     Anywhere (138 runs) and pinned, not reviewed again.
+   - Hygiene: no SAP manual text, TPC material or GitHub-corpus query (the literal and n-gram filters over the whole
+     diff); no private paths.
+   - CI: run <pending> on the PR.
+5. **Not done, recorded in the study** (§9.14, §9.15 and earlier "Recorded, not fixed"): date and `[0..1]` host
+   variables refused (Postgres's year-below-100 rendering and its fold of `toOne`'s raise, the ninth line's and the
+   planner's); `TOP @n`; the IqDialect edits the seventh line's stress fixes enable (an AND/OR chain read without
+   recursion, a checked integer keeping its merged guard), taken after that line lands; M2, M3, the catalog.
