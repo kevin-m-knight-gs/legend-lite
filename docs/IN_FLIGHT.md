@@ -982,6 +982,11 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
 - **Not in this step:** CTE chains that reuse earlier CTEs grow their SQL as the copies multiply (a CTE is copied into
   every reference; sharing one needs a relation-valued `let` to lower to a `WITH`, a lowering and typer change, to be
   proposed separately), and `greatest`/`least` nested deep (each level writes its operands three or four times).
+- **Landed 2026-10-14, a doc and a script, no build or source edit:** `docs/CLOUD_SESSIONS.md` and
+  `tools/cloud-distdir.sh` (the user: "write this up and check it in somewhere that another session can do the same"):
+  how a cloud session runs Bazel when its proxy refuses GitHub's archive downloads (a `--distdir` seeded from Bazel's
+  mirror or a git clone, every pinned checksum still checked), and the container's other traps. Pointed to from
+  AGENTS.md's standing documents and START_HERE.md §6. The Bazel line owns `tools/`: move or fold it as it likes.
 
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
@@ -1214,6 +1219,47 @@ pause for the user's review after Phase 1.
      Query (its warehouse fixture loaded by its test, as the owner), `python/`. Not touched: `DuckDb.java`,
      `SqlDialect.java`, `exec/Sessions.java`, `server/`. Reviews: the Compiler Rewrite line, Plan Gen (the `snap`
      question, the table model's answer), the Studio line, an audit.
+
+## A tenth line, 2026-10-13: SAP IQ SQL in Pure, the `#IQ{...}#` island (the user's ask, rule 5)
+
+The user asked for the `#SQL{...}#` island's counterpart for SAP IQ / SQL Anywhere. A query written for SAP IQ 16.2
+becomes an ordinary Relation expression and returns IQ's answer on any backend.
+- **Branch:** `claude/iq-island`.
+- **Study and plan:** `docs/IQ_SQL_STUDY_2026_10_13.md`, on the branch, landing with it.
+- **Oracle:** SQL Anywhere 17.0.11, IQ's own front end and catalog store. It is snapped by a local script, since no
+  JVM driver exists for it on this host, and judged in CI from the committed answers, as `sql-parity` is.
+- **Research:** the spec research behind it (grammar, semantics, options, typing, 11,304 syntax cases) is the user's
+  private repository. Nothing from SAP's manuals is copied into this repository.
+- **Owned for the line's length:**
+  - `core/src/main/java/com/legend/protocol/sql/iq/`
+  - `core/src/test/resources/iq-parity/`
+  - `tools/iq-oracle/`
+  - the tests `testcases/Iq*`, `integration/Iq*`, `server/Iq*` and `protocol/sql/iq/*Test`
+- **Announced 2026-10-13, before landing: the cross-area edits of the first landing.** One merge of the branch, after
+  one full CI run on it.
+  - **The seventh line's files: the translator's seam.**
+    - New: `protocol/sql/InputDialect.java` and `PostgresDialect.java`.
+    - `SqlToPure.java` takes a dialect for identifiers, null order, output names, literal and operator typing, the
+      function catalog, casts and messages. Postgres's behaviour moves into `PostgresDialect` unchanged.
+    - Judged by:
+      - both `sql-parity` ledgers unchanged;
+      - the generated Pure of every parity case identical before and after.
+    - Rebased after the stress corpus's fixes (`claude/loving-euler-gjta59`) land. If that line prefers to carry the
+      seam itself, say so here.
+  - **The island.**
+    - `protocol/spec/SqlIsland.java` gains the island's language and profile.
+    - `parser/SpecParser.java` gains the `IQ` arm, and `IQ:<profile>` for the named profiles. The LEGEND_ENGINE
+      surface keeps its refusal.
+    - The wire and the printers: `SpecIslandReader.java`, `ProtocolEmitter.java`, `PureComposer.java`.
+    - `compiler/spec/SqlIslands.java`: the seam picks the dialect and passes the store's column types.
+  - **Build:** `core/BUILD.bazel` (the `iq-parity` resources and two test targets) and `gates/BUILD.bazel` (both in
+    `//gates:core`).
+  - **Guards:** dated entries only, if the new lexer's cursor fields or the parser's keyword arms need them:
+    `CodeShapeGuardrailTest`, `PlatformNamesGuardrailTest`.
+  - **Docs:** `docs/OWN_CORPUS_DECISIONS.md`, `docs/SEMANTICS_REGISTER.md`.
+- **Not touched:**
+  - `sql/dialect/` (the ninth line's). New natives the island needs are announced there one by one.
+  - `lowering/`, `compiler/spec/Typer.java`, `NameResolver.java`.
 
 ## Rules between sessions
 
