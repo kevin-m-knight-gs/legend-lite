@@ -1292,6 +1292,25 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     variables, dates by DATE_ORDER;
   - IQ's ASCII-only case fold, blank-padding comparison and exact NUMERIC division, each composed from existing Pure
     natives, so no new native.
+- **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
+  PR and one CI run, after reviews 3 to 6 and their fixes.
+  - **The compiler's files** (one call site, and the island's read of the model and the scope):
+    - `compiler/spec/Typer.java`: passes the model and the scope to `SqlIslands.desugar` (one call site).
+    - `compiler/spec/Env.java`: a new `names()` lists the variables in scope.
+    - `compiler/spec/SqlIslands.java`: the IQ dispatch reads the model's tables (an IQ owner's), types host variables
+      from the scope, and refuses a variable that a lambda parameter of the translation would hide.
+  - **The seventh line's files (the seam).** Postgres's behaviour moves behind each new hook, unchanged. Judged by both
+    `sql-parity` ledgers unchanged and the generated-Pure dump of every case byte-identical.
+    - `protocol/sql/InputDialect.java`: new hooks with Postgres's behaviour as their defaults: `between`, `inList`,
+      `isDistinct`, `quantifiedTest`, `source`, `tableSource`, `table`, `parameter` (Postgres keeps its refusal),
+      `setColumn`, `mergesNaturalJoin`, `key`, `grouping`, `defaultName` over tables, `functionName`.
+    - `protocol/sql/SqlAst.java`: `Param` gains a name, for `@x` and `:x`. The positional constructor is kept.
+    - `protocol/sql/SqlToPure.java`: the `Sources` seam (tables, variables), `CatalogTable` and `Relation`, and the
+      FROM names bound through `tableSource`/`table`. The stress fixes rebase over these.
+  - **Build:** `core/BUILD.bazel`: `iq_parity_test` reads the showcase's two pinned SQL files.
+  - **Docs:** `docs/IQ_SQL_SHOWCASE.md` (new: one IQ query end to end), the study's §9.5 onward, and
+    `docs/SEMANTICS_REGISTER.md` (S51 to S54 extended; S55 and S56 new).
+  - **Not touched:** `sql/dialect/`, `lowering/`, `NameResolver.java`.
 
 **Found by this line in other lines' code.** Each is refused or worked around in the IQ island, not fixed here; the
 repros will be in the study's §9.
@@ -1303,7 +1322,10 @@ repros will be in the study's §9.
     lowered to `WHERE FALSE`. This may be the planner's.
 - **The ninth line (dialects and lowering):**
   - A constant GROUP BY key is written `GROUP BY <integer>`, which DuckDB and Postgres read as a position.
-  - Date constants before the year 100 are written without leading zeros, and Postgres reads them as 20xx.
+  - Date constants before the year 100 are written without leading zeros, and Postgres reads them as 20xx. A
+    StrictDate or DateTime variable's value reaches the SQL the same way, so the IQ island refuses date variables.
+  - Postgres folds `toOne`'s raise while estimating a comparison: `sm = $x`, with `$x` a `[0..1]` value computed in
+    SQL, raises "Cannot cast a collection of size 0" even when `$x` holds a value.
   - Postgres's substr/left/right/repeat/lpad/rpad and DuckDB's chr take a 32-bit integer and are passed a BIGINT
     uncast.
   - Postgres folds every branch of a CASE over constants, so an untaken branch that would raise (a DOUBLE underflow
@@ -1311,6 +1333,9 @@ repros will be in the study's §9.
   - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
     intermediate overflow and underflow.
 - **The compiler and stamp program:**
+  - The planner folds a comparison of two Integer constants wrongly beyond `Long.MAX_VALUE`:
+    `99999999999999999999 > 9223372036854775807` folds to false (as does `$x > 9223372036854775807` with `$x` bound
+    to it). `$x - 9223372036854775807 > 0`, left to the database, is right.
   - An all-NULL CASE (`CASE WHEN b THEN NULL ELSE NULL END`, reached from both islands) trips `StampCensus`.
     `lowering/StampCensus.java:143-147` counts an all-NULL CASE as list-shaped, while `:68` exempts a bare NULL.
   - A `concatenate` whose first branch is a NULL constant is stamped always-empty. An enclosing test of the column
