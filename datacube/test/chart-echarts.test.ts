@@ -737,3 +737,45 @@ describe('a time series asks for its points', () => {
     assert.equal(followCube({ ...live, options: { ...live.options, limit: 12 } }, dated).options.limit, 12);
   });
 });
+
+describe('drill-down in a chart (batch 2, step 10)', () => {
+  const GROUPED: CubeSnapshot = { ...CUBE, rows: ['region', 'desk'], pivotOn: [] };
+  const BY_REGION: ChartSpec = { ...BAR, x: 'region', frozen: true };
+
+  it('drills through the grid\'s own groupings, from the column across down', async () => {
+    const { drillLevels, drillDown, drillUp, drilledView } = await import('../src/chart-spec.ts');
+    assert.deepEqual(drillLevels(BY_REGION, GROUPED), ['region', 'desk']);
+    assert.equal(drillLevels(BY_REGION, { ...GROUPED, rows: ['region'] }), null, 'nothing below: no drill');
+    const down = drillDown(BY_REGION, GROUPED, 'EMEA')!;
+    assert.deepEqual(down.drill, { levels: ['region', 'desk'], path: ['EMEA'] });
+    assert.equal(drillDown(down, GROUPED, 'FX'), null, 'the bottom');
+    // drawn: desk across, its query narrowed to EMEA -- the chart's own conditions, not the cube's filter
+    assert.equal(drilledView(down).spec.x, 'desk');
+    const s = chartSnapshot(GROUPED, down);
+    assert.deepEqual(s.rows, ['desk']);
+    assert.deepEqual(s.filter, { kind: 'and', children: [CUBE.filter, { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }] });
+    assert.deepEqual(drillUp(down, 0).drill, undefined);
+  });
+
+  it('a click on a drilled mark narrows the grid to its path and its own value', async () => {
+    const { drillDown } = await import('../src/chart-spec.ts');
+    const down = drillDown(BY_REGION, GROUPED, 'EMEA')!;
+    const d = chartOption(down, table([
+      { name: 'desk', type: 'String', values: ['FX', 'Rates'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2] },
+    ]));
+    const key = d.keyAt(0, 1)!;
+    assert.deepEqual(key, { desk: 'Rates' });
+    assert.deepEqual(markConditions(down, GROUPED, key), [
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+      { kind: 'condition', column: 'desk', operator: 'equal', value: 'Rates' },
+    ]);
+  });
+
+  it('a drilled live chart stays where it was taken while the grid changes', async () => {
+    const { drillDown } = await import('../src/chart-spec.ts');
+    const live: ChartSpec = { ...BAR, x: 'region' };
+    const down = drillDown(live, GROUPED, 'EMEA')!;
+    assert.equal(followCube(down, { ...GROUPED, rows: ['desk'] }), down);
+  });
+});

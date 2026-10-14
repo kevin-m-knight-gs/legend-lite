@@ -3031,6 +3031,11 @@
 }
 .dc-chartpanel-measure > .dc-btn { align-self: flex-end; }
 .dc-chartpanel-add { align-self: flex-start; margin: var(--dc-pad-1) 0; }
+/* a drilled chart's path (batch 2 item 10): each step a way back up */
+.dc-chartpanel-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 var(--dc-pad-2); font-size: var(--dc-text-sm-size); color: var(--dc-muted); }
+.dc-chartpanel-crumb { border: 0; background: none; padding: 0; color: var(--dc-active); cursor: pointer; text-decoration: underline; font: inherit; }
+.dc-chartpanel-crumb-here { color: var(--dc-muted-strong); }
+.dc-chartpanel-crumbs-hint .dc-chartpanel-crumb-here { color: var(--dc-muted); }
 .dc-chartpanel-heading {
   margin: var(--dc-pad-2) 0 var(--dc-pad-1); padding-top: var(--dc-pad-2); border-top: 1px solid var(--dc-line);
   color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;

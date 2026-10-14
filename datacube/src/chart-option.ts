@@ -16,7 +16,7 @@
 // and ONE value axis (never two).
 
 import type { EChartsOption } from 'echarts';
-import { axisName, KPI_TREND_LIMIT, measureName, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
+import { axisName, drilledView, KPI_TREND_LIMIT, measureName, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
 import { isRatio, SHOW_AS_LABELS, statName } from './calc-presets.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
@@ -76,7 +76,8 @@ export function themeOf(el: Element): ChartTheme {
     axis: read('--dc-chart-axis', LIGHT_THEME.axis),
     series: list('--dc-chart-series', LIGHT_THEME.series),
     sequential: list('--dc-chart-sequential', LIGHT_THEME.sequential),
-    bad: read('--dc-chart-bad', LIGHT_THEME.bad!),
+    // the KPI's own bad colour, the page's one word for a value on the wrong side
+    bad: read('--dc-chart-bad', read('--dc-kpi-bad', LIGHT_THEME.bad!)),
   };
 }
 
@@ -150,12 +151,14 @@ function keyText(v: Scalar): string {
 }
 
 export function chartOption(
-  spec: ChartSpec,
+  drilled: ChartSpec,
   rows: ResultTable,
   theme: ChartTheme = LIGHT_THEME,
   label: LabelOf = defaultLabel,
   unit?: UnitOf,
 ): ChartDrawing {
+  // drilled, the chart draws the level after its path (its query asked for that level)
+  const spec = drilledView(drilled).spec;
   const notes: string[] = [];
   const text = { color: theme.inkSecondary, fontFamily: 'inherit' };
   const axisCommon = {

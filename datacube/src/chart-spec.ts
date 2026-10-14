@@ -354,6 +354,54 @@ export function axisName(spec: ChartSpec): string | undefined {
   return spec.x;
 }
 
+/**
+ * A DRILLED chart as it draws (batch 2 item 10): the level after the path across, and the path's values as conditions
+ * on the chart's own query (never the cube's filter). The column across's grain or bins were chosen for the top level
+ * and go with it. Undrilled, the spec itself and no conditions.
+ */
+export function drilledView(spec: ChartSpec): { readonly spec: ChartSpec; readonly conditions: readonly FilterNode[] } {
+  const drill = spec.drill;
+  if (!drill || drill.path.length === 0) return { spec, conditions: [] };
+  const x = drill.levels[drill.path.length];
+  if (x === undefined) return { spec, conditions: [] };
+  const { grain: _g, bins: _b, drill: _d, ...rest } = spec;
+  return {
+    spec: { ...rest, x },
+    conditions: drill.path.map((v, i): FilterNode => (v === null
+      ? { kind: 'condition', column: drill.levels[i]!, operator: 'isEmpty' }
+      : { kind: 'condition', column: drill.levels[i]!, operator: 'equal', value: v })),
+  };
+}
+
+/**
+ * The levels a chart drills through: the grid's own row groupings from the column across down (region, then desk) --
+ * or, a column across that is not one of them, that column then the groupings -- never the split. Null when there is
+ * nothing below.
+ */
+export function drillLevels(spec: ChartSpec, s: CubeSnapshot): readonly string[] | null {
+  if (spec.drill) return spec.drill.levels;
+  if (spec.x === undefined || spec.mark === 'scatter' || spec.mark === 'kpi' || spec.mark === 'treemap') return null;
+  const at = s.rows.indexOf(spec.x);
+  const levels = (at >= 0 ? s.rows.slice(at) : [spec.x, ...s.rows]).filter((c) => c !== spec.split);
+  return levels.length > 1 ? levels : null;
+}
+
+/** The chart one level down from a clicked mark's value across, or null at the bottom. */
+export function drillDown(spec: ChartSpec, s: CubeSnapshot, value: Scalar): ChartSpec | null {
+  const levels = drillLevels(spec, s);
+  const path = spec.drill?.path ?? [];
+  if (!levels || path.length + 1 >= levels.length) return null;
+  const v = typeof value === 'bigint' ? value.toString() : value;
+  return { ...spec, drill: { levels, path: [...path, v] } };
+}
+
+/** The chart back up to `depth` values of its path (0: the top, undrilled). */
+export function drillUp(spec: ChartSpec, depth: number): ChartSpec {
+  if (!spec.drill) return spec;
+  const { drill, ...rest } = spec;
+  return depth <= 0 ? rest : { ...rest, drill: { ...drill, path: drill.path.slice(0, depth) } };
+}
+
 /** The row-stage columns the chart's axis needs: a grain's, or its bins'. */
 function axisCalcs(spec: ChartSpec): DerivedColumn[] {
   if (spec.x === undefined || spec.mark === 'scatter') return [];
@@ -373,7 +421,10 @@ export function markConditions(
   upper?: Scalar,
 ): FilterNode[] {
   const typeOf = new Map(rowColumns(s).map((c) => [c.name, c.type]));
-  return Object.entries(key).flatMap(([column, raw]): FilterNode[] => {
+  // a drilled chart's mark is its path and its own value: the grid narrows to both
+  const { spec: view, conditions } = drilledView(spec);
+  spec = view;
+  return [...conditions, ...Object.entries(key).flatMap(([column, raw]): FilterNode[] => {
     // a big integer as its digits, as the context menu's value filters do
     const value = typeof raw === 'bigint' ? raw.toString() : raw;
     if (column === spec.x && (spec.grain !== undefined || spec.bins !== undefined)) {
@@ -386,7 +437,7 @@ export function markConditions(
     return value === null
       ? [{ kind: 'condition', column, operator: 'isEmpty' }]
       : [{ kind: 'condition', column, operator: 'equal', value }];
-  });
+  })];
 }
 
 /**
@@ -495,7 +546,8 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
  * are left as they are.
  */
 export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
-  if (spec.frozen || spec.mark === 'scatter') return spec;
+  // a drilled chart stays where it was taken until it is taken back up
+  if (spec.frozen || spec.mark === 'scatter' || (spec.drill?.path.length ?? 0) > 0) return spec;
   // a KPI follows the cube's measure; its trend's column is its own
   if (spec.mark === 'kpi') {
     const measure = s.measures.find((m) => m.fn !== 'wavg');
@@ -579,7 +631,11 @@ export function chartProblems(spec: ChartSpec, s: CubeSnapshot): string[] {
  * reads are kept, so a grouped query does not carry every other column
  * along as a "unique value".
  */
-export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
+export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot {
+  // drilled, the level after the path across and the path as the chart's own conditions
+  const { spec, conditions } = drilledView(drilled);
+  const filter: FilterNode | undefined = conditions.length === 0 ? s.filter
+    : { kind: 'and', children: [...(s.filter ? [s.filter] : []), ...conditions] };
   const scatter = spec.mark === 'scatter';
   const across = axisName(spec);
   const keys = [scatter ? spec.x : across, spec.split].filter((c): c is string => c !== undefined);
@@ -655,7 +711,7 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
     ...(spec.x !== undefined ? [spec.x] : []),
     ...keptMeasures.flatMap((m) => [m.column, ...(m.weight !== undefined ? [m.weight] : [])]),
     ...rowCalcs.flatMap(columnsRead),
-    ...filterColumns(s.filter),
+    ...filterColumns(filter),
   ]);
   const first = spec.y[0];
   const sorts = scatter ? [] : spec.options.sort.by === 'y' && first
@@ -683,6 +739,7 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
     ...(rest as CubeSnapshot),
     columns: s.columns.filter((c) => reads.has(c.name)),
     derived: [...s.derived, ...rowCalcs, ...copies],
+    ...(filter ? { filter } : {}),
     rows: scatter ? [] : keys,
     pivotOn: [],
     measures: allMeasures,

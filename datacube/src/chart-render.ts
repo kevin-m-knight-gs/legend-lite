@@ -82,14 +82,29 @@ function bytesOf(dataUrl: string): Uint8Array {
  * a slice, a heatmap cell); a mark that is not a group (a scatter point)
  * picks nothing.
  */
-export function mountChart(el: HTMLElement, onPick?: (key: MarkKey, upper?: Scalar) => void): MountedChart {
+export function mountChart(
+  el: HTMLElement,
+  onPick?: (key: MarkKey, upper?: Scalar) => void,
+  more: {
+    /** A mark double-clicked: drill into it (batch 2 item 10). */
+    readonly onDrill?: (key: MarkKey) => void;
+  } = {},
+): MountedChart {
   const chart = echarts.init(el, null, { renderer: 'canvas' });
   let drawing: ChartDrawing | null = null;
-  chart.on('click', (params: unknown) => {
+  const markOf = (params: unknown): { key: MarkKey; dataIndex: number } | null => {
     const p = params as { seriesIndex?: number; dataIndex?: number; data?: unknown };
-    if (!drawing || !onPick || p.seriesIndex === undefined || p.dataIndex === undefined) return;
+    if (!drawing || p.seriesIndex === undefined || p.dataIndex === undefined) return null;
     const key = drawing.keyAt(p.seriesIndex, p.dataIndex, p.data);
-    if (key) onPick(key, drawing.upperAt?.(p.dataIndex));
+    return key ? { key, dataIndex: p.dataIndex } : null;
+  };
+  chart.on('click', (params: unknown) => {
+    const mark = markOf(params);
+    if (mark && onPick) onPick(mark.key, drawing?.upperAt?.(mark.dataIndex));
+  });
+  chart.on('dblclick', (params: unknown) => {
+    const mark = markOf(params);
+    if (mark) more.onDrill?.(mark.key);
   });
   const view = el.ownerDocument.defaultView;
   const Observer = view?.ResizeObserver;

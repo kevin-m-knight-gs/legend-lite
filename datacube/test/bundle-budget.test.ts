@@ -100,8 +100,12 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  out), main before it 394,429.
  *  397,000 -> 399,000 (2026-10-14, DataCube charts batch 2, steps 5-8): the charts' panel's new fields at startup, as the
  *  panel is -- more values on one chart (each its mark and axis), reference lines, a hover's and a label's measures.
- *  Measured 398,519, step 4 before it 395,616. */
-const BUDGET = 399_000;
+ *  Measured 398,519, step 4 before it 395,616.
+ *  399,000 -> 401,000 (2026-10-14, batch 2 step 10): drilling a chart down the grid's groupings (chart-spec.ts
+ *  drilledView, drillDown; the panel's path above the chart). Measured 399,861. The charts' panel loads with the board
+ *  at startup, so every field it gains is here: loading it with a page's first chart instead (cube-page.ts openChart,
+ *  synchronous today) is a follow-up of its own. */
+const BUDGET = 401_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -115,8 +119,9 @@ const BUDGET = 399_000;
  *  380,000 -> 381,000 (2026-10-14, DataCube charts batch 2): the grid's budget's note of the same date -- the chart
  *  spec's version 2 reader and its presets at startup, the drawing moved out. Measured 380,118.
  *  381,000 -> 384,000 (2026-10-14, DataCube charts batch 2, steps 5-8): the grid's budget's note of the same date.
- *  Measured 383,019. */
-const ENGINE_BUDGET = 384_000;
+ *  Measured 383,019.
+ *  384,000 -> 386,000 (2026-10-14, batch 2 step 10): as the grid's. Measured 384,369. */
+const ENGINE_BUDGET = 386_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

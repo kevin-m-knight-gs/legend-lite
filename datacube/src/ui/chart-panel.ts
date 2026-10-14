@@ -16,6 +16,10 @@ import {
   followCube,
   kpiQueries,
   markConditions,
+  drilledView,
+  drillDown,
+  drillLevels,
+  drillUp,
   LAYER_STATS,
   SHOW_AS_KINDS,
   TIME_GRAINS,
@@ -39,6 +43,9 @@ import { checkbox, dropdown, field, numberInput } from './form.ts';
 import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
+
+/** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
+const DOUBLE_CLICK_MS = 250;
 
 /** The most values one chart plots side by side (bars, lines). */
 const MAX_MEASURES = 6;
@@ -76,6 +83,9 @@ export class ChartPanel {
   #form!: HTMLElement;
   #canvas!: HTMLElement;
   #status!: HTMLElement;
+  /** A drilled chart's path, above it (batch 2 item 10). */
+  #crumbs!: HTMLElement;
+  #clickTimer: ReturnType<typeof setTimeout> | undefined;
   #chart: MountedChart | null = null;
   /** A KPI's trend line, mounted under its number (the number is the canvas's own, not a chart). */
   #trend: MountedChart | null = null;
@@ -144,6 +154,7 @@ export class ChartPanel {
   dispose(): void {
     this.#disposed = true;
     clearTimeout(this.#timer);
+    clearTimeout(this.#clickTimer);
     this.#inflight?.abort();
     this.#chart?.dispose();
     this.#chart = null;
@@ -167,7 +178,11 @@ export class ChartPanel {
     this.#status = doc.createElement('div');
     this.#status.className = 'dc-chartpanel-status';
     this.#status.setAttribute('role', 'status');
-    right.append(this.#canvas, this.#status);
+    this.#crumbs = doc.createElement('nav');
+    this.#crumbs.className = 'dc-chartpanel-crumbs';
+    this.#crumbs.setAttribute('aria-label', 'Drill path');
+    this.#crumbs.hidden = true;
+    right.append(this.#crumbs, this.#canvas, this.#status);
     this.#root.append(this.#form, right);
     this.#form.hidden = this.#options.formOpen === false;
     this.#paintForm();
@@ -192,6 +207,7 @@ export class ChartPanel {
   }
 
   #paintForm(): void {
+    this.#paintCrumbs();
     const doc = this.#doc;
     const form = this.#form;
     form.replaceChildren();
@@ -556,7 +572,7 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper));
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key) });
       }
       const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
       if (this.#disposed) return;
@@ -587,7 +603,7 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (abort.signal.aborted || this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper));
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key) });
       }
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
@@ -673,11 +689,78 @@ export class ChartPanel {
     this.#canvas.classList.remove('dc-chartpanel-kpi');
   }
 
-  /** A clicked mark, as conditions on the cube's own columns (chart-spec.ts `markConditions`). */
+  /**
+   * A clicked mark, as conditions on the cube's own columns (chart-spec.ts `markConditions`). On a chart that drills, a
+   * click waits a moment: a second click makes it a double-click, which drills instead of filtering.
+   */
   #pick(key: MarkKey, upper?: Scalar): void {
     const spec = this.#spec;
     if (!spec) return;
-    this.#options.onPick(markConditions(spec, this.#options.snapshot(), key, upper));
+    clearTimeout(this.#clickTimer);
+    const filter = (): void => this.#options.onPick(markConditions(spec, this.#options.snapshot(), key, upper));
+    if (drillLevels(spec, this.#options.snapshot()) === null) {
+      filter();
+      return;
+    }
+    this.#clickTimer = setTimeout(filter, DOUBLE_CLICK_MS);
+  }
+
+  /** A double-clicked mark: the chart one level down its grid's groupings (batch 2 item 10), if there is one. */
+  #drill(key: MarkKey): void {
+    clearTimeout(this.#clickTimer);
+    const spec = this.#spec;
+    if (!spec) return;
+    const across = drilledView(spec).spec.x;
+    if (across === undefined || !(across in key)) return;
+    const next = drillDown(spec, this.#options.snapshot(), key[across] ?? null);
+    if (!next) return;
+    this.#spec = next;
+    this.#options.onSpec?.();
+    this.#paintCrumbs();
+    this.refresh(0);
+  }
+
+  /**
+   * Where a drilled chart is: its top level, then each value drilled into, each a way back up to it; the level shown
+   * last. Hidden for a chart that does not drill; a chart that could says how.
+   */
+  #paintCrumbs(): void {
+    const doc = this.#doc;
+    const crumbs = this.#crumbs;
+    crumbs.replaceChildren();
+    const spec = this.#spec;
+    const levels = spec ? drillLevels(spec, this.#options.snapshot()) : null;
+    crumbs.hidden = !spec || levels === null;
+    if (!spec || levels === null) return;
+    const path = spec.drill?.path ?? [];
+    const label = this.#options.label;
+    const step = (text: string, depth: number | null): void => {
+      const el = doc.createElement(depth === null ? 'span' : 'button');
+      el.className = depth === null ? 'dc-chartpanel-crumb-here' : 'dc-chartpanel-crumb';
+      el.textContent = text;
+      if (depth !== null) {
+        (el as HTMLButtonElement).type = 'button';
+        el.title = 'Back up to here';
+        el.addEventListener('click', () => {
+          if (!this.#spec) return;
+          this.#spec = drillUp(this.#spec, depth!);
+          this.#options.onSpec?.();
+          this.#paintCrumbs();
+          this.refresh(0);
+        });
+      }
+      if (crumbs.childElementCount > 0) crumbs.append(doc.createTextNode(' \u203a '));
+      crumbs.append(el);
+    };
+    if (path.length === 0) {
+      step(`Double-click a mark to drill into ${levels[1] ?? ''}`, null);
+      crumbs.classList.add('dc-chartpanel-crumbs-hint');
+      return;
+    }
+    crumbs.classList.remove('dc-chartpanel-crumbs-hint');
+    step(`All ${levels[0]}`, 0);
+    path.forEach((v, i) => step(label(v, levels[i]!, undefined), i + 1 < path.length ? i + 1 : null));
+    step(`by ${levels[path.length]}`, null);
   }
 
   #say(text: string, bad = false): void {
