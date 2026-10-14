@@ -9501,7 +9501,10 @@ what reads, what is refused and why, the reviews' findings and the numbers below
 
      All blockers and majors are fixed, each pinned by a case or a test that fails without its fix; the minors are
      fixed or recorded in the study's §9.1.
-   - CI: run <pending> on the PR.
+   - CI: run 38527337203 on PR neema2/legend-lite#37, green on every job at e6a2813ec over main 941f8382d. Merged by
+     the owner as 75183d68e on 2026-10-14. The PR's head before the merge, 9bcc65d77, added only main's docs commit
+     0086b72f3 (`docs/IN_FLIGHT.md`); its run was cancelled as redundant, so the PR shows that run's `gates green` as
+     red. Main's own push run on 75183d68e is the post-merge verdict.
 5. **Not done, recorded in the study** (§9.1, "Recorded, not fixed" and "Next steps"): M1a to M1e; the natives (an
    ASCII-only case fold and right trim, exact decimal division, a range check that takes its operand once, a raise
    that carries IQ's code); the syntax ratchet pinning PARSED ids; `SELECT id, ID … ORDER BY id`'s false ambiguity;

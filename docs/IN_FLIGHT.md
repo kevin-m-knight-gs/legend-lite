@@ -1276,12 +1276,12 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     (`docs/OWN_CORPUS_DECISIONS.md` §14), each pinned at 1 with a dated entry.
 
 **Status 2026-10-14.**
-- **The first landing** is PR neema2/legend-lite#37, branch `claude/iq-island-1`: the seam, the oracle tool, the
-  island and M0, with two independent reviews.
-  - CI run 38527337203 is green on every job, with the branch up to date with main 941f8382d.
-  - It waits only on the user's merge. The repo's review rule cannot be met by its author's own account.
-  - It lands on current main. It does not wait for the stress fixes: the seam leaves them one small overlap, the `Tx`
-    record header in `SqlToPure.java`.
+- **The first landing: LANDED 2026-10-14 as 75183d68e** (PR neema2/legend-lite#37, branch `claude/iq-island-1`): the
+  seam, the oracle tool, the island and M0, with two independent reviews.
+  - CI run 38527337203 is green on every job, at e6a2813ec over main 941f8382d. The only later change on the branch
+    was main's docs commit 0086b72f3; that run was cancelled as redundant (`docs/GATES.md`, the IQ entry).
+  - The seventh line's stress fixes now rebase over the seam: its one overlap is the `Tx` record header in
+    `SqlToPure.java`.
   - It replaces `claude/iq-island`, which was deleted: one intermediate commit there carried documentation-derived
     syntax cases.
 - **The landing order** (the dialect program's question, answered here because its session is out of this session's
