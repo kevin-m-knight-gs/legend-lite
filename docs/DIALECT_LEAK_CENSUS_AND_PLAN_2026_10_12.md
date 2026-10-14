@@ -528,8 +528,9 @@ recipe, the root-only pair as root, `//tools/guards:classpath_test` skipped as b
 Measured on 074bd95 in the six-container layout: all 102 of the baseline's targets, on all eleven databases, pass
 with SQL identical to the baseline's, by digest. D2 changes which text is translated, but no lane's dumped statement
 moved: no PCT lane sends the engine's H2 text to a database that is not H2, DuckDB or Postgres. One Databricks failure,
-in the batch only: `pct_databricks_essential` stopped before sending one statement (`'fAlse'->parseBoolean()`). The
-batch's log was not kept. The target passed alone, 345 of 345, with the baseline's digest. `//spec:corpus_duckdb` and
+in the first batch only: `pct_databricks_essential` stopped before sending one statement (`'fAlse'->parseBoolean()`);
+that batch's log was not kept. The target then passed alone, 345 of 345, and a second full batch passed all ten with
+every digest the baseline's: a transient warehouse or connection error. `//spec:corpus_duckdb` and
 `//spec:corpus_h2` pass (12 of 12, no roster or register moved; here on 9e6363e and in sibling 1a on 074bd95), as do
 `//core:stress_suites` and `//core:stress_suites_h2`. `//gates:local` is green (347 under the root-container recipe, the
 root-only pair as root, `//tools/guards:classpath_test` skipped as before).
