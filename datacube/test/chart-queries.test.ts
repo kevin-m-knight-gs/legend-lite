@@ -15,6 +15,7 @@ import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { row } from './lite-compiler.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
+import { from } from '../../pure-protocol/src/index.ts';
 
 // Six sales: two regions, three months -- small enough to check every number by hand.
 const CSV = [
@@ -208,5 +209,31 @@ describe('reference lines, planned and run: the database\'s statistics over the 
     assert.deepEqual(values(t, 'sum_revenue'), [600, 600]);
     assert.deepEqual(values(t, 'max_revenue'), [400, 300]);
     assert.deepEqual(values(t, 'sum_cost'), [230, 410]);
+  });
+});
+
+describe('the example page\'s charts, planned and run on its own sample (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3)', () => {
+  it('the sample reads as the page declares it, and every chart\'s query plans and answers', async () => {
+    const { chartsDashboardPage, EXAMPLE_CUBE, EXAMPLE_ROWS, SALES_SPECS } = await import('../src/examples/charts-dashboard.ts');
+    const { salesCsv } = await import('../src/samples.ts');
+    const db = await openDatabase();
+    const local = new DuckDbEngine(db.connection);
+    try {
+      const r = await ingestFile(local, db.files, new File([salesCsv(EXAMPLE_ROWS)], 'sample-sales.csv'), writer);
+      const sales = plannerFor(r.model, r.runtime);
+      // the page's column types are the compiler's reading of the file
+      const all = await local.execute(await sales.plan(from(r.source).limit(1).lambda()), 0);
+      assert.deepEqual(all.columns.map((c) => `${c.name}:${c.type}`), SALES_SPECS.map((c) => `${c.name}:${c.type}`));
+      const cube: CubeSnapshot = { ...EXAMPLE_CUBE, source: { query: r.source } };
+      const page = await chartsDashboardPage();
+      for (const v of page.views) {
+        if (v.kind !== 'chart') continue;
+        const { query } = chartQuery(cube, v.spec);
+        const t = await local.execute(await sales.plan(query), 0);
+        assert.ok(t.rowCount > 0, `${v.title}: rows`);
+      }
+    } finally {
+      await local.close();
+    }
   });
 });

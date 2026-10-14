@@ -25,7 +25,7 @@ import {
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import type { Bins, LayerStat, ShowAs, ShowAsKind, TimeGrain } from './chart-spec.ts';
-import type { DerivedColumn, FilterNode, SortSpec } from './snapshot.ts';
+import type { DerivedColumn, FilterNode, SortSpec, WindowSpec } from './snapshot.ts';
 
 const x = (): ValueSpecification => variable('x');
 const col = (name: string): ValueSpecification => property(x(), name);
@@ -162,7 +162,7 @@ export function showAsColumns(
     case 'percentOfTotal': {
       const total = `${name}__total`;
       return [
-        { name: total, window: { fn: 'sum', column: base, partition: [], order: [], frame: 'partition' } },
+        { name: total, window: wholeOf('sum', base) },
         { name, lambda: row(divide(one(base), one(total))) },
       ];
     }
@@ -188,7 +188,16 @@ export function statName(stat: LayerStat, measure: string): string {
 
 /** A measure's average, minimum or maximum over every row of the chart: a group-level window over all of them. */
 export function statColumn(stat: LayerStat, measure: string): DerivedColumn {
-  return { name: statName(stat, measure), window: { fn: stat, column: measure, partition: [], order: [], frame: 'partition' } };
+  return { name: statName(stat, measure), window: wholeOf(stat, measure) };
+}
+
+/**
+ * A figure over EVERY row of the chart -- a total, an average -- as a window: the whole partition, in the order of the
+ * column it reads. That order is said, not left out: a group-level window with no order takes the level's (query.ts
+ * extendDerived), which may be the very column being computed (a chart sorted by its share of the total).
+ */
+function wholeOf(fn: 'sum' | LayerStat, column: string): WindowSpec {
+  return { fn, column, partition: [], order: [{ column, direction: 'asc' }], frame: 'partition' };
 }
 
 // ---------------------------------------------------------------- a clicked period or bin

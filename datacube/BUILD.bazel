@@ -371,6 +371,7 @@ _HEADLESS_TESTS = [
     "engine-remote",
     "epoch",
     "escaping",
+    "examples",
     "export",
     "export-doc",
     "export-model",

@@ -4051,3 +4051,15 @@
 .sharenote { flex: 1; opacity: .8; }
 .sharenote.warn { color: #b45309; opacity: 1; }
 .sharenote.bad { color: crimson; opacity: 1; }
+
+/* the Open window's example pages (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3) */
+.dc-open-examples { display: flex; flex-direction: column; gap: var(--dc-pad-1); padding: var(--dc-pad-2); border-top: 1px solid var(--dc-line); }
+.dc-open-examples-title { margin: 0; font-size: var(--dc-text-sm-size); font-weight: 600; color: var(--dc-muted-strong); }
+.dc-open-example {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  padding: var(--dc-pad-1) var(--dc-pad-2); border: 1px solid var(--dc-line); border-radius: var(--dc-radius-sm);
+  background: var(--dc-bg); color: inherit; font: inherit; cursor: pointer;
+}
+.dc-open-example:hover { background: var(--dc-hover); }
+.dc-open-example-name { font-weight: 600; }
+.dc-open-example-about { color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
