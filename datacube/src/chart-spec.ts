@@ -63,6 +63,9 @@ const UNSPLIT: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar', 'gauge',
 ]);
 
+/** The kinds that plot several values of their own: following the cube, they keep them. */
+const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel']);
+
 /** The kinds that need a second grouping (the split): a heatmap's rows, a flow's target, a stream's layers. */
 const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
   heatmap: 'A heatmap needs a second column, for its rows.',
@@ -332,6 +335,9 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     ?? word('legend', ['top', 'bottom', 'right', 'none']) ?? word('labelPosition', ['inside', 'outside'])
     ?? word('better', ['higher', 'lower']);
   if (optionProblem) return optionProblem;
+  for (const flag of ['half', 'ring'] as const) {
+    if (o[flag] !== undefined && typeof o[flag] !== 'boolean') return `its ${flag} ${JSON.stringify(o[flag])} is not true or false`;
+  }
   const sort = o['sort'];
   if (sort !== undefined && (!isRecord(sort) || (sort['by'] !== 'x' && sort['by'] !== 'y')
     || (sort['direction'] !== 'asc' && sort['direction'] !== 'desc'))) {
@@ -716,9 +722,12 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   }
   const x = s.rows[0] ?? s.pivotOn[0];
   if (x === undefined) return spec;
-  const split = s.rows[0] !== undefined ? (s.rows[1] ?? s.pivotOn[0]) : s.pivotOn[1];
+  // a kind of one series takes no split from the cube; a kind of several values (a dumbbell's two ends, a radar's
+  // spokes) keeps its own, as the cube's one measure would leave it refused
+  const split = UNSPLIT.has(spec.mark) ? undefined
+    : s.rows[0] !== undefined ? (s.rows[1] ?? s.pivotOn[0]) : s.pivotOn[1];
   const configured = s.measures.find((m) => m.fn !== 'wavg');
-  const y = configured ? [{ column: configured.column, fn: configured.fn }] : spec.y;
+  const y = configured && !SEVERAL_VALUES.has(spec.mark) ? [{ column: configured.column, fn: configured.fn }] : spec.y;
   // a grain or bins belong to the column they were chosen for: a new column across starts without them
   const { split: _old, grain: _g, bins: _b, ...rest } = spec;
   const kept = x === spec.x ? {
@@ -811,6 +820,10 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   }
   if (spec.mark === 'calendar' && spec.grain !== undefined && spec.grain !== 'day') {
     out.push('A calendar has a cell per day: its grain is the day.');
+  }
+  // a date-time's rows are instants: a cell per day needs them taken to their day first
+  if (spec.mark === 'calendar' && spec.grain === undefined && xType !== undefined && xType !== 'StrictDate') {
+    out.push(`A calendar has a cell per day: '${spec.x}' is a date-time, so give it the day grain.`);
   }
   // A SLOT NOTHING DRAWS IS REFUSED, never ignored (AGENTS.md invariant 4): small multiples are drawn by bars, lines
   // and areas; a mark's size by a scatter (a bubble); a layer reads a value the chart plots, on a kind that draws

@@ -389,3 +389,55 @@ describe('a scatter matrix: each pair of the values, row by row', () => {
   });
 });
 
+
+describe('the audit of batch 3: what each fix pins', () => {
+  it('a live chart of one series takes no split from the cube; one of several values keeps its own', () => {
+    // the cube groups by region then channel: a live bar would take channel as its split
+    const waterfall = followCube(of('waterfall', { x: 'channel' }), CUBE);
+    assert.equal(waterfall.split, undefined);
+    assert.deepEqual(chartProblems(waterfall, CUBE), []);
+    const two = [{ column: 'cost', fn: 'sum' as const }, { column: 'revenue', fn: 'sum' as const }];
+    const dumbbell = followCube(of('dumbbell', { x: 'channel', y: two }), CUBE);
+    assert.deepEqual(dumbbell.y, two);
+    assert.deepEqual(chartProblems(dumbbell, CUBE), []);
+  });
+  it('a split polar bar\'s hover says its own series\' value', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'EMEA'] },
+      { name: 'channel', type: 'String', values: ['Online', 'Retail'] },
+      { name: 'sum_revenue', type: 'Float', values: [100, 7] },
+    ]);
+    const d = kindOption(of('polar', { split: 'channel' }), rows, undefined, (v) => String(v));
+    const f = (d.option as { tooltip: { formatter: (p: unknown) => string } }).tooltip.formatter;
+    assert.match(f({ dataIndex: 0, seriesIndex: 1, seriesName: 'Retail', value: 7 }), /<b>7<\/b>/);
+  });
+  it('a matrix of small multiples keeps each panel in its own row\'s and column\'s cell, an empty pair empty', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC', 'APAC'] },
+      { name: 'channel', type: 'String', values: ['Online', 'Online', 'Retail'] },
+      { name: 'day', type: 'StrictDate', values: ['2024-01-01', '2024-01-01', '2024-01-01'] },
+      { name: 'sum_revenue', type: 'Float', values: [1, 2, 3] },
+    ]);
+    // EMEA has no Retail: APAC's two panels stay in the Online and Retail columns of the second row
+    const d = facetOption(of('bar', { x: 'day', facet: { row: 'region', column: 'channel' } }), rows);
+    const grids = (d.option as { grid: { left: string; top: string }[] }).grid;
+    assert.equal(grids.length, 3);
+    assert.equal(grids[1]!.left, grids[0]!.left, 'APAC Online under EMEA Online');
+    assert.notEqual(grids[2]!.left, grids[1]!.left, 'APAC Retail in the Retail column');
+  });
+  it('a calendar of a date-time needs the day grain; a cut waterfall\'s last bar says it is of what is shown', () => {
+    const s: CubeSnapshot = { ...CUBE, columns: [...CUBE.columns, { name: 'at', type: 'DateTime' }] };
+    assert.match(chartProblems(of('calendar', { x: 'at' }), s).join(), /day grain/);
+    assert.deepEqual(chartProblems(of('calendar', { x: 'at', grain: 'day' }), s), []);
+    const { start, end } = waterfallNames('sum_revenue');
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'APAC'] },
+      { name: 'sum_revenue', type: 'Float', values: [4, 3] },
+      { name: start, type: 'Float', values: [0, 4] },
+      { name: end, type: 'Float', values: [4, 7] },
+    ]);
+    const cut = kindOption(of('waterfall', { options: { ...OPTIONS, limit: 2 } }), rows);
+    assert.ok(svg(cut).includes('Total shown'));
+    assert.ok(svg(kindOption(of('waterfall'), rows)).includes('>Total<'));
+  });
+});

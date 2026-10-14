@@ -252,7 +252,8 @@ export function chartOption(
     }));
     if (sizeCol) {
       const sized = series.reduce((n, s) => n + s.data.length, 0);
-      const all = xCol.values.filter((_, i) => numberOf(yCol?.values[i] ?? null, yCol?.type) !== null).length;
+      // the points that would be drawn but for their size: an x and a y, and no size
+      const all = xCol.values.filter((xv, i) => xv !== null && numberOf(yCol?.values[i] ?? null, yCol?.type) !== null).length;
       if (sized < all && groups.length <= MAX_SCATTER_SERIES) notes.push(`${all - sized} ${all - sized === 1 ? 'point' : 'points'} not shown: no ${spec.size!.column} to size by.`);
     }
     const bubbleMap = sizeCol && Number.isFinite(least) ? {

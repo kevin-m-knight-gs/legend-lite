@@ -250,7 +250,17 @@ on another kind, with a brush or a slider, or coloured by value.
 **Step 3, built 2026-10-14**: the scatter matrix (`matrix`): two to five values, each pair plotted against each other
 from the cube's rows (as a scatter, not groups), each value's name on the diagonal, a colour per value of the split.
 
-Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt). Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
+Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt).
+
+**Its audit (2026-10-14)** found and fixed: a live chart of one series (a waterfall, a lollipop) took the cube's
+second grouping as its split and was refused with no way to take it off -- following the cube, such a kind takes no
+split, and a kind of several values (a dumbbell, a radar) keeps its own; a split polar bar's hover read the first
+series' row; a matrix of small multiples shifted its panels after an empty pair; a calendar of a date-time without the
+day grain; a waterfall cut by "At most" called its last bar the total ("Total shown" now); Python's refusals caught up
+with DataCube's; the notebook's loader asks the next open cube's channel when one does not answer in 30 seconds.
+**A saved pie with a split changes look**: it was drawn as one ring from each category's first row (a split silently
+dropped); it is now two rings, the split outside. `options.half` and `options.ring` are checked words (true or false);
+a DataCube from before batch 3 draws a full pie or a dial for them, as it reads version 2. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
 design so the page does not compute), Gantt (a start and an end per row: dates as measures).
 
 ### Batch 4: new aggregates, and the kinds they unlock

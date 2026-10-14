@@ -102,8 +102,8 @@ export function kindOption(
   const keyOf = (ci: number): MarkKey | null => (categories[ci] === undefined ? null : { [spec.x!]: categories[ci]! });
   const horizontal = spec.options.orientation === 'horizontal';
   // a hover: the category, the values drawn, and the further measures asked for, as the grid writes each
-  const hover = (ci: number, drawn: readonly ChartMeasure[]): string => {
-    const r = at(ci);
+  const hover = (ci: number, drawn: readonly ChartMeasure[], row = at(ci)): string => {
+    const r = row;
     return [
       `<b>${escapeHtml(catLabels[ci] ?? '')}</b>`,
       ...drawn.map((m) => `${escapeHtml(measureTitle(m))}: <b>${escapeHtml(write(m, num(m, r)))}</b>`),
@@ -210,7 +210,10 @@ export function kindOption(
       });
       // the total is where the last bar ends: the database's running total, read, not added up here
       const last = bars[bars.length - 1]?.[1] ?? null;
-      const labels = [...catLabels, 'Total'];
+      // the last bar is the whole only when every category came; cut by "At most", it is the total of those shown
+      const whole = rows.rowCount < spec.options.limit;
+      const totalName = whole ? 'Total' : 'Total shown';
+      const labels = [...catLabels, totalName];
       const good = theme.series[0]!;
       const bad = theme.bad ?? theme.series[1]!;
       const total = theme.series[2] ?? theme.series[0]!;
@@ -223,7 +226,7 @@ export function kindOption(
         tooltip: {
           ...tooltip, trigger: 'item',
           formatter: (p: { data?: { ci?: number } }) => (p.data?.ci === -1
-            ? `<b>Total</b><br>${escapeHtml(write(first, last))}` : hover(p.data?.ci ?? 0, [first])),
+            ? `<b>${totalName}</b><br>${escapeHtml(write(first, last))}` : hover(p.data?.ci ?? 0, [first])),
         },
         xAxis: { ...categoryAxis, data: labels },
         yAxis: valueAxis(first),
@@ -326,12 +329,13 @@ export function kindOption(
       const groups = splitCol ? distinct(splitCol.values).slice(0, MAX_SERIES) : [null];
       if (splitCol && distinct(splitCol.values).length > MAX_SERIES) notes.push(`Showing the first ${MAX_SERIES} series.`);
       const plotted = splitCol ? [first] : spec.y.slice(0, MAX_SERIES);
+      // each series' own row per category: a split's bar and its hover read the same row
+      const rowsOf: number[][] = [];
       const series = (splitCol ? groups : plotted).map((g, k) => {
         const m = splitCol ? first : plotted[k]!;
-        const values = categories.map((c) => {
-          const r = xCol.values.findIndex((v, i) => keyText(v) === keyText(c) && (!splitCol || keyText(splitCol.values[i] ?? null) === keyText(g as Scalar)));
-          return r < 0 ? null : num(m, r);
-        });
+        const own = categories.map((c) => xCol.values.findIndex((v, i) => keyText(v) === keyText(c) && (!splitCol || keyText(splitCol.values[i] ?? null) === keyText(g as Scalar))));
+        rowsOf.push(own);
+        const values = own.map((r) => (r < 0 ? null : num(m, r)));
         return {
           type: 'bar', coordinateSystem: 'polar', name: splitCol ? label(g as Scalar, spec.split!, splitCol.type) : measureTitle(m),
           data: values, ...(spec.options.stack !== 'none' ? { stack: 'total' } : {}),
@@ -347,7 +351,7 @@ export function kindOption(
       const valueRing = { type: 'value', axisLabel: { color: theme.muted, formatter: (v: number) => write(first, v) }, splitLine: { lineStyle: { color: theme.grid } } };
       return done({
         ...base,
-        tooltip: { ...tooltip, trigger: 'item', formatter: (p: { dataIndex: number; seriesName: string; value: number | null }) => `${escapeHtml(p.seriesName)}<br>${hover(p.dataIndex, plotted)}` },
+        tooltip: { ...tooltip, trigger: 'item', formatter: (p: { dataIndex: number; seriesIndex: number; seriesName: string; value: number | null }) => `${escapeHtml(p.seriesName)}<br>${hover(p.dataIndex, plotted, splitCol ? rowsOf[p.seriesIndex]?.[p.dataIndex] ?? -1 : at(p.dataIndex))}` },
         legend: legendOf(spec, series.length, theme),
         polar: { radius: [24, '78%'] },
         // radial (horizontal): each category a ring, its value an arc; else each category an angle, its value a radius
@@ -423,19 +427,21 @@ export function kindOption(
       };
       const links: { source: string; target: string; value: number; key: MarkKey; row: number }[] = [];
       let dropped = 0;
+      let capped = 0;
       for (let i = 0; i < rows.rowCount; i++) {
         const v = num(first, i);
         const from = xCol.values[i] ?? null;
         const to = splitCol.values[i] ?? null;
         // a flow has a width: none, or a negative one, is not drawn (and counted)
         if (v === null || v <= 0) { dropped += 1; continue; }
-        if (links.length >= MAX_FLOWS) { notes.push(`Showing the first ${MAX_FLOWS} flows.`); break; }
+        if (links.length >= MAX_FLOWS) { capped += 1; continue; }
         links.push({
           source: node('from', from, spec.x!, xCol.type), target: node('to', to, spec.split!, splitCol.type), value: v,
           key: { [spec.x!]: from, [spec.split!]: to }, row: i,
         });
       }
       if (dropped > 0) notes.push(`${dropped} ${dropped === 1 ? 'flow' : 'flows'} not shown: zero, negative or empty has no width.`);
+      if (capped > 0) notes.push(`Showing the first ${MAX_FLOWS} flows of ${MAX_FLOWS + capped}.`);
       const nodeList = [...nodes.values()];
       const textOf = new Map(nodeList.map((n) => [n.name, n.text]));
       const formatter = (p: { dataType?: string; data?: { source?: string; target?: string; value?: number; name?: string; row?: number } }) => {
@@ -751,23 +757,27 @@ export function facetOption(
   const rowValues = rowCol ? distinct(rowCol.values) : [null];
   const colValues = colCol ? distinct(colCol.values) : [null];
   // the panels that have rows, row by row
-  const panels: { r: Scalar; c: Scalar; at: number[] }[] = [];
-  for (const r of rowValues) {
-    for (const c of colValues) {
+  const panels: { r: Scalar; c: Scalar; at: number[]; ri: number; cj: number }[] = [];
+  for (const [ri, r] of rowValues.entries()) {
+    for (const [cj, c] of colValues.entries()) {
       const at: number[] = [];
       for (let i = 0; i < rows.rowCount; i++) {
         if (rowCol && keyText(rowCol.values[i] ?? null) !== keyText(r)) continue;
         if (colCol && keyText(colCol.values[i] ?? null) !== keyText(c)) continue;
         at.push(i);
       }
-      if (at.length > 0) panels.push({ r, c, at });
+      if (at.length > 0) panels.push({ r, c, at, ri, cj });
     }
   }
   if (panels.length > MAX_FACETS) notes.push(`Showing the first ${MAX_FACETS} of ${panels.length} charts.`);
   const drawn = panels.slice(0, MAX_FACETS);
   // a matrix keeps its columns; a facet of columns alone wraps; of rows alone, one under another
   const across = colCol && rowCol ? colValues.length : colCol ? Math.ceil(Math.sqrt(drawn.length)) : 1;
-  const down = Math.ceil(drawn.length / across);
+  // a matrix keeps each panel in its own row's and column's cell, an empty pair an empty cell; else they flow
+  const matrixed = rowCol !== undefined && colCol !== undefined;
+  const down = matrixed ? Math.max(1, ...drawn.map((p) => p.ri + 1)) : Math.ceil(drawn.length / across);
+  const cellOf = (k: number): { col: number; row: number } => (matrixed
+    ? { col: drawn[k]!.cj, row: drawn[k]!.ri } : { col: k % across, row: Math.floor(k / across) });
   const { facet: _f, ...single } = spec;
   const subs = drawn.map((p, k) => {
     const sub: ResultTable = {
@@ -828,8 +838,7 @@ export function facetOption(
   const perms: number[][] = [];
   subs.forEach((s, k) => {
     const o = s.option as Record<string, unknown>;
-    const col = k % across;
-    const row = Math.floor(k / across);
+    const { col, row } = cellOf(k);
     const left = col * cellW;
     const y0 = top + row * (100 - top) / down;
     grids.push({ left: `${left + 1}%`, width: `${cellW - 3}%`, top: `${y0 + 4}%`, height: `${(100 - top) / down - 9}%`, containLabel: true });

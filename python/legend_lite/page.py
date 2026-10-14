@@ -743,12 +743,19 @@ def _drawable(grid: Grid | None, spec: Mapping[str, Any]) -> None:
         raise ValueError(f'a {mark} writes no other measure on its marks')
     if spec.get('tooltip') and mark not in _HOVER_EXTRAS:
         raise ValueError(f'a {mark}\'s hover lists no further measures')
+    measures = [*spec['y'], *([spec['size']] if 'size' in spec else [])]
+    if mark in ('scatter', 'matrix') and any(m.get('fn') == 'value' for m in measures):
+        raise ValueError(f'a {mark} plots rows, not groups: a group-level column (fn=\'value\') has no place on it')
+    if mark in ('scatter', 'matrix', 'waterfall', 'pareto', 'gauge') and any('showAs' in m for m in spec['y']):
+        raise ValueError(f'a {mark} has no value shown as something else (showAs)')
     if 'size' in spec and mark != 'scatter':
         raise ValueError('only a scatter sizes its marks (a bubble)')
     facet = spec.get('facet')
     if facet is not None:
         if mark not in ('bar', 'line', 'area'):
             raise ValueError(f'a {mark} is not drawn as small multiples: bars, lines and areas are')
+        if facet.get('row') is not None and facet.get('row') == facet.get('column'):
+            raise ValueError('a facet\'s row and column are two columns')
         for column in facet.values():
             if column in (x, spec.get('split')):
                 raise ValueError(f'{column!r} is across or split already: a facet is another column')

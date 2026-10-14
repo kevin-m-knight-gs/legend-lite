@@ -267,7 +267,10 @@ class Document(Paged):
                                  ('bar', {'x': 'region', 'facet': {'column': 'region'}}, 'across or split already'),
                                  ('bar', {'x': 'region', 'facet': {'side': 'desk'}}, 'a facet is'),
                                  ('bar', {'x': 'region', 'facet': {'column': 'desk'}, 'options': {'brush': True}}, 'no brush'),
-                                 ('bar', {'x': 'region', 'size': ('pnl', 'sum')}, 'only a scatter')]:
+                                 ('bar', {'x': 'region', 'size': ('pnl', 'sum')}, 'only a scatter'),
+                                 ('bar', {'x': 'region', 'facet': {'row': 'desk', 'column': 'desk'}}, 'two columns'),
+                                 ('waterfall', {'x': 'region', 'y': [{'column': 'pnl', 'fn': 'sum', 'showAs': {'kind': 'rank'}}]}, 'showAs'),
+                                 ('matrix', {'y': [{'column': 'pnl', 'fn': 'sum', 'showAs': {'kind': 'rank'}}, ('notional', 'sum')]}, 'showAs')]:
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
                 grid.chart(mark, **given)
         # and a chart written fine cannot be changed into one DataCube refuses: by plot or by options

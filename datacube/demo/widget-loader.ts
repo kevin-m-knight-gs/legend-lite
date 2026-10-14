@@ -166,19 +166,38 @@ async function file(fetch: typeof globalThis.fetch, name: string): Promise<strin
   return answer.text();
 }
 
-/** A file over a channel still open: one closed while it answered is passed for the next. */
+/** How long a channel has to answer for a file before the next open one is asked: a cube of another notebook on the
+ *  page may be open over a kernel that no longer answers (stopped, restarted). */
+const ANSWER_MS = 30_000;
+
+/** A file over a channel still open: one closed while it answered is passed for the next, and so is one that does not
+ *  answer in time; every open channel is asked once, newest first (the cube asking is the newest open, most often). */
 async function fetched(page: Page, name: string): Promise<string> {
+  const tried = new Set<typeof globalThis.fetch>();
   for (;;) {
-    const fetch = page.channels.values().next().value;
-    if (fetch === undefined) throw new ChannelClosed();
+    const fetch = [...page.channels].reverse().find((f) => !tried.has(f));
+    if (fetch === undefined) {
+      if (tried.size === 0) throw new ChannelClosed();
+      throw new Error(`no cube open on this page answered for DataCube's ${name}`);
+    }
+    tried.add(fetch);
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await file(fetch, name);
+      return await Promise.race([
+        file(fetch, name),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new TimeoutError()), ANSWER_MS); }),
+      ]);
     } catch (e) {
-      if (!(e instanceof ChannelClosed)) throw e;
-      page.channels.delete(fetch);
+      if (e instanceof ChannelClosed) page.channels.delete(fetch);
+      else if (!(e instanceof TimeoutError)) throw e;
+    } finally {
+      clearTimeout(timer);
     }
   }
 }
+
+/** A channel that did not answer in time. */
+class TimeoutError extends Error {}
 
 /** A module's specifiers, as esbuild writes them: a static import (`from"./x.js"`, `import"./x.js"`), a dynamic one
  *  (`import("./x.js")`). Only those naming a chunk are touched. */
