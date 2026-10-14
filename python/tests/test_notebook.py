@@ -91,7 +91,8 @@ class Calls(Widget):
         render = next(f.name for f in chunks.iterdir() if f.name.startswith('chart-render-'))
         status, given, _, body = self.call(cube, 'GET', '/widget-chunks/' + render)
         self.assertEqual((status, given), (200, 'text/javascript; charset=utf-8'), render)
-        self.assertIn(b'echarts', body)
+        # the chart's drawing, ECharts' charts among it (ECharts' core is a chunk it shares with the rarer kinds')
+        self.assertGreater(len(body), 50_000, render)
 
     def test_execute_answers_upstream_s_arrow_with_its_header(self):
         cube = self.cube(name='trades')
