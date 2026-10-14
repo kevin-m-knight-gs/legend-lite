@@ -987,6 +987,22 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   how a cloud session runs Bazel when its proxy refuses GitHub's archive downloads (a `--distdir` seeded from Bazel's
   mirror or a git clone, every pinned checksum still checked), and the container's other traps. Pointed to from
   AGENTS.md's standing documents and START_HERE.md §6. The Bazel line owns `tools/`: move or fold it as it likes.
+- **Announced 2026-10-14: two more cross-area edits, the compiler's lowering, on the same branch** (the user: "fix
+  the bugs here too"). The tenth line found three #SQL wrong answers (its notes above); two are the planner's, and they
+  are wrong for plain Pure too:
+  - `core/src/main/java/com/legend/lowering/Fold.java`: an aggregate with no GROUP BY is a boundary, like DISTINCT.
+    `filterSlot` merged a filter that reads no column into the aggregate's WHERE, so
+    `aggregate(~[n:x|1:y|$y->count()])->filter(r|false)` answered one row (#SQL's `HAVING 1 = 0`). `groupByFolds`
+    merged a second aggregate into the first, so `aggregate(count)->aggregate(count)` counted the rows read, not 1.
+    Both now isolate (`aggregatesWithoutKeys`).
+  - `core/src/main/java/com/legend/lowering/NullSemantics.java`: `equalNullArms` gains the NULL-literal arms
+    `notEqualNullArms` has. `[] == []` is TRUE and `x == []` is `x IS NULL`; two NULL constant columns compared
+    by #SQL's `SELECT NULL INTERSECT SELECT NULL` were `NULL = NULL`, and answered no row.
+  - Also on the branch, in this line's own files: nested casts test an integer's range once (ten casts were 9 MB of
+    SQL), the default name of a cast is read once a level, and `SqlToPure.At.logical` lets a dialect use the AND/OR
+    chain reader (sent to the tenth line, which takes it after this lands).
+  - Judged by the core suite, the corpus lanes and the parity lanes; a test per wrong answer. The compiler line may
+    prefer its own fix: say so here and these edits wait.
 
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
