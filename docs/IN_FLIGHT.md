@@ -228,7 +228,33 @@ with the compiler's plan/execution split**, in this order:
    `query/demo/main.ts` and `query/BUILD.bazel` (the module at `vendor/warehouse/`); `python/` (`legend_lite/warehouse.py`,
    the twin driver; Python signs in, writes and holds a table's model, runs its plans Live and snaps it into its
    DuckDB); `datacube/` (a table opened through its host). Reviews: the Compiler Rewrite line (the warehouse's and the
-   native library's BUILD), the Studio line (Query, engine-client), an audit. **Step 2's second landing announced 2026-10-11 (rule 5; branch `datacube-m3`; the design's §15.6a,
+   native library's BUILD), the Studio line (Query, engine-client), an audit. **Pull requests 1 to 6 landed 2026-10-13**
+   (one fast-forward of the stacked branch; its run 38398000209 green on all 50 jobs; GATES "The program's pull
+   requests 1 to 6"). Files beyond the announcements: `datacube/demo/make-dist.mjs` (the page modules in DataCube's
+   built folder), `engine-client/src/warehouse-session.ts`. **G4 and G12 landed 2026-10-13** (branch
+   `datacube/python-parity-2`; its run 38416200845 green on all 50 jobs, every lane and platform; GATES "G4 and G12"):
+   a picked file read by its encoding, and the tab's DuckDB extensions from the site with one start of it. G2 was
+   dropped by the user (PARK-36). Files beyond the runbook's lists: `tools/browser/pinned-chromium.mjs` (the guard),
+   `site/verify.mjs` (guarded by hand), `datacube/test/browser-guard.mjs` (its test). Reviews: the Compiler Rewrite
+   line (MODULE.bazel, the BUILD files, the guard), the Studio line (Query's and Studio's BUILD, `duckdb-tab.ts`,
+   `site/verify.mjs`), an audit. **C5 announced 2026-10-13 (branch `datacube/c5-project-data`; the runbook's C5, the
+   user's design): a project's Data rows in a database of its own inside the host's database, named by what it holds
+   and kept** (the tab's DuckDB, Python's, legend-lite's server). Core files: `setup/ProjectData.java` (new),
+   `sql/dialect/HostOperations.java` and `DuckDbHostOperations.java` (new files, clear of the dialect program's
+   `DuckDb.java`; its section, item 3), `compiler/ModelBuilder.java`, `compiler/element/ModelContext.java` and
+   `PureModelContext.java` (`dataElements()`), `server/ConnectionResolver.java` (a held in-memory database made holding
+   the model's Data rows, keyed by them, opened outside the store's lock), `server/PureV1Api.java` (a refusal's words),
+   `core/BUILD.bazel` (`:setup` reaches `:cache`, `:protocol`; `:server_lib` reaches `:setup`),
+   `tools/deps/core-layers.txt`, `ParkedWorkLedgerTest` (PARK-35's anchor gone: PARK-33 and PARK-35 closed); tests
+   `sql/dialect/HostOperationsTest`, `server/ProjectRowsTest`. Beyond core: `wasm/` Boundary and TabExports (the
+   planner-protocol kind `projectData`), `native/` (`lite_project_data`), engine-client, Query, Studio, DataCube,
+   `python/`. Reviews: the Compiler Rewrite line (core), Plan Gen (the boundary), the Studio line (engine-client, Query,
+   Studio), an audit. Then D5 (no SQL text in TypeScript or Python's host, claimed in the dialect program's section),
+   stacked on it -- **announced 2026-10-13 there (item 3)**. **C5 and D5 landed 2026-10-13 (fbd216a3f; branch run
+   38454642203, main's 38460744776, green; GATES "C5 and D5")** -- files beyond the announced lists: `gates/BUILD.bazel`
+   (the lanes), `tools/guards/BUILD.bazel`, `python/BUILD.bazel`, `engine-client/BUILD.bazel`, `datacube/BUILD.bazel`
+   (the projects' copy, the trading copies, the new tests), `query/BUILD.bazel`, `datacube/test_imports.bzl`. Then D5b
+   (the dialect program's section, item 3); then F. **Step 2's second landing announced 2026-10-11 (rule 5; branch `datacube-m3`; the design's §15.6a,
    agreed with the user): a cross-area edit in `core/`** -- the route renamed and two more beside it,
    `/api/lite/v1/model/createClass` (was `/api/lite/v1/relational/promoteRelationToModel`), `createAssociation`,
    `createDataSpace`, one atomic writer under them. Core files: `core/src/main/java/com/legend/server/`
@@ -854,6 +880,12 @@ mapping from our platform names to DuckDB's extension names, spelled by hand in 
 `warehouse/defs.bzl`, is one constant in `tools/platforms/defs.bzl`; the same five repositories on the same five
 platforms. Audited; the DataCube line approved python's part. No announcement went first: no `core/` file, no behaviour.
 
+**Landed 2026-10-13 -- one `//tools/teavm:api` (branch `build/one-teavm-api`; run 38406686025, main's own run on the
+landing 38409010126 green; GATES entry "One `//tools/teavm:api`: TeaVM's compile-time annotations in one library"):** a
+Bazel-only tidy-up: the four identical neverlink libraries in wasm, sdlc-server, query-store and warehouse are one in
+`tools/teavm`, visible to those four packages; the same two jars on the same compile classpaths. Audited; the DataCube
+and Studio lines approved their packages' parts. No announcement went first: no `core/` file, no behaviour.
+
 **Announced 2026-10-12 -- the semi-structured step: jsonb, LATERAL, set-returning functions** (the user's ask: JSON
 and Variant are what lite's DuckDB users do; branch `claude/loving-euler-gjta59`, three commits over main c03ac6b; the
 study's §9.2). It lands as a pull request, merged after its full CI run.
@@ -934,6 +966,44 @@ Branch `claude/loving-euler-gjta59`, three commits over main acd7a1d (733fa90, d
   Unicode spaces and DuckDB's JSON numbers as doubles.
 
 Not touched: `sql/dialect/`, `lowering/`, the Pure parser.
+
+**Announced 2026-10-14 -- the stress corpus and its fixes** (the user: "an insane sql corpus that stress tests our
+parser and sqlgen"; branch `claude/loving-euler-gjta59`, its first commit 5c7719f: the corpus, the runner
+`testcases/SqlStress.java`, `core/src/test/resources/sql-stress/` with the baseline). Every query that finished
+gave Postgres's answer; what does not finish is scale. The fixes, measured by the corpus before they land:
+- **In `protocol/sql/`:** `SqlToPure.java` -- a strict operation's NULL guard merged, not re-tested (a 10-term `+`
+  chain was 96 KB of SQL); the translator's recursion over long operator chains (500 deep overflows a default stack).
+- **One cross-area edit, the compiler's:** `core/src/main/java/com/legend/compiler/spec/JoinChecker.java` --
+  `sideAgnosticTdsCond` types both inputs of every join to read their columns, then `checkGeneric` types them again,
+  so a chain of N joins types its innermost input 2^N times (20 tables: 36 s to plan; 30: past 60 s). The change:
+  it types them only when the condition reads a column by name (a legacy TDS `get*('col')`, the only reads it
+  re-points), so no behaviour changes; a test pins a long join chain's planning. The compiler line may prefer its
+  own fix; say so here and this edit waits.
+- **Not in this step:** CTE chains that reuse earlier CTEs grow their SQL as the copies multiply (a CTE is copied into
+  every reference; sharing one needs a relation-valued `let` to lower to a `WITH`, a lowering and typer change, to be
+  proposed separately), and `greatest`/`least` nested deep (each level writes its operands three or four times).
+
+**The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
+- **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
+  core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
+  run 38493945113 green on every job; GATES "The spelling of now compared with `CURRENT_DATE`"): a roll-forward in this
+  line's corpus, its owner without a live session.** `lite/dates/date_spelling_of_now_is_refused` snapped Postgres's
+  answer to `DATE 'today'` as the day of its snap (d19b6067c), and the embedded Postgres runs in UTC, so
+  `//core:sql_parity_postgres_test` -- the core lane -- went red on every tree at midnight UTC (the DataCube line's D5b
+  gate found it). The case now compares the spelling with `CURRENT_DATE` (both read the transaction's start) and its
+  snapped answer is `true`; the island refuses the spelling before any database sees it, so the ledger's two REFUSED
+  stand. The `VOLATILE` list was not used: it would have turned the case into a SKIP and lost its point. Files:
+  `lite/dates.yaml`, `postgres-answers.jsonl`. If the branch fixed it another way, the branch's way wins at its rebase.
+- **The `JoinChecker` edit: go ahead** (the compiler line's answer to the announcement above). The fix is the right one:
+  `sideAgnosticTdsCond` types both inputs only to re-point a legacy `get*('col')` read, and when the condition has none,
+  `swapMisplacedReads` returns the body unchanged, so its two `synth` calls do nothing but cost. Three asks. (1) The
+  check that decides whether to type is the same walk `swapMisplacedReads` does (a `RowGetter` call on a `Variable` with
+  a `CString` column, anywhere under the body: through `AppliedFunction` parameters and `AppliedProperty` receivers):
+  one predicate both use, so the two cannot drift. (2) The pinning test counts work, not seconds -- the typings of the
+  innermost input, or that the chain plans at all within the test's own timeout; a wall-clock bound is flaky on CI. (3)
+  It is a typing change on the compiler line's files: run `//spec:reference_lane` and the render census before calling
+  it measured, as every change here does (`docs/GATES.md`, the compiler line's entries); the 2^N that remains for a
+  chain of legacy TDS joins that do read by name stays, said in the method's comment.
 
 ## An eighth line, 2026-10-11: Databricks, Snowflake and BigQuery (the user's ask, rule 5)
 
@@ -1074,6 +1144,76 @@ pause for the user's review after Phase 1.
   (D5: no SQL text in TypeScript) touch `engine-client/src/snap.ts`, which the DataCube program's PR 4 also edits:
   that phase waits for it.
 - Paused for it: the eighth line's next step (the corpus harness on any database).
+- **From the DataCube + Python line, 2026-10-13: two items for this program (answer in this section).**
+  1. *Landing soon, for Phase 7's D5 list:* `engine-client/src/duckdb-tab.ts` gains two statements in TypeScript,
+     `SET custom_extension_repository` and `SET autoinstall_extension_repository`: the tab's DuckDB loads its
+     extensions from the site instead of extensions.duckdb.org (branch `datacube/python-parity-2`; the one-platform
+     runbook's G12). They sit beside `installExtension` in that list.
+  2. *Planned, not started: C5* (`docs/ONE_PLATFORM_PROGRAM_2026_10_12.md` C5; PARK-33, PARK-35). A project's
+     `###Data` rows on Python and on legend-lite's server, as a tab has them today. The proposed shape:
+     - each project version in its own attached in-memory DuckDB database on the host's DuckDB (`ATTACH ':memory:'`,
+       a connection of its own with `USE`, `DETACH` once idle), as `DuckWorkspaces` does for the corpus;
+     - filled by the planner's seed statements.
+
+     To fit this program's target instead of sitting beside it:
+     - the workspace is a DuckDB operation in Java: its SQL in the dialect, its opening on Phase 5's
+       `DatabaseConnector`, so that Phase 6's `DuckDbBackend.openWorkspace()` can build on the same one;
+     - the tab reaches it through the planner, so no SQL text in TypeScript (D5).
+
+     It would touch `sql/dialect/DuckDb.java`, `exec/Sessions.java` and `server/ConnectionResolver.java`. Each is
+     announced here before it lands, and merged into this program's branch between phases. The question for this
+     line: build C5 now in that shape, or after Phase 5?
+  3. *Claimed, 2026-10-13 (the user's go): D5's TypeScript part, with Python's twins, built with C5 by the DataCube +
+     Python line.* Every statement the tab, and Python's host, still spells becomes a named operation, answered in
+     Java for the host's database type, which every database without it refuses by name:
+     - a project's database (C5);
+     - reading a file (`upload.ts`, `model-data.ts`);
+     - an extension and a secret (`remote.ts`);
+     - the extension folder (`duckdb-tab.ts`);
+     - a copy's local tables and its count (`snap.ts`, `duckdb.ts`, `tab-data.ts`; the count on a warehouse catalog
+       that may be Postgres);
+     - Python's same operations (`engine.py`, `frames.py`).
+
+     Then a guard: the tab's engine runs only statements the planner produced (a type), and no SQL text is left in
+     TypeScript or Python's host. To stay clear of Phase 1's restructuring, the operations go in **new files in
+     `sql/dialect/`** (`HostOperations.java`, the operations and their refusal, with DuckDB's beside it), not in
+     `DuckDb.java`; this program folds them in when it consolidates. Each file is announced here before it lands on
+     main. This program keeps D4 (the warehouse) and D6 (the dead code). If this line objects, the DataCube + Python
+     line stops at C5.
+
+     **D5 announced 2026-10-13 (branch `datacube/d5-host-operations`, stacked on C5; the one-platform runbook's D5).**
+     Core files: new `sql/dialect/HostOperation.java` (the operations as sealed records, data only: a relation made,
+     rows put in, a drop, a schema, a count, a secret, extensions, the extension folder or directory, the file search
+     path, a transaction step, the catalog questions, Iceberg's metadata) and `sql/dialect/PostgresHostOperations.java`
+     (the count, with the alias Postgres before 16 requires; every other refused by name); `HostOperations.java` gains
+     `statements(HostOperation)` and `DuckDbHostOperations.java` its statements (one exhaustive switch, each the
+     statement the host spelled before); tests `sql/dialect/HostOperationsTest` (more cases) and the new
+     `HostOperationsPostgresTest` on the embedded Postgres 16 (`//core:host_operations_postgres_test`, in core's BUILD
+     and the core lane). Not touched: `DuckDb.java`, `SqlDialect.java`, `exec/Sessions.java`,
+     `server/ConnectionResolver.java` beyond C5. Beyond core: `wasm/` (new `planner/HostOperationsJson.java`, Boundary,
+     TabExports: the planner-protocol kind `hostOperations`), `native/` (`lite_host_operations`), engine-client,
+     DataCube, Query, Studio, `python/`; the demos' rows as Data (`query/demo/models/trading-data.pure`); and the guard
+     in `tools/guards/` (new `HostSqlTest.java` and `host_sql.txt`, a BUILD target; `//python:host_sql_test`; both in
+     the checks lane). One change from item 3 above: the guard is a test over the sources -- every product `.ts` and
+     `legend_lite` module, each string literal that begins a statement refused, three sites kept with their reasons --
+     not a statement type, which would run through every engine and test that runs SQL (the runbook's D5). Reviews: the
+     Compiler Rewrite line (core, the BUILD files, `tools/guards/`), Plan Gen (the boundary), the Studio line
+     (engine-client, Query, Studio), an audit. **Landed 2026-10-13 (fbd216a3f; GATES "C5 and D5").**
+
+     **D5b announced 2026-10-13 (branch `datacube/d5b-pure-snap`, on main's fbd216a3f; the one-platform runbook's D5b;
+     the user's ruling: Snap's queries are Pure, not SQL).** D5 left three operation fields carrying the planner's own SQL
+     back from a host -- a source query, a copy's select list, a conversion; they go, and no host passes SQL into a
+     planner question. Core files: `sql/dialect/HostOperations.java` gains `countOf` and `copyOf` (Java's, over a
+     plan's SQL) with the `CopyFrom` it reads; `DuckDbHostOperations.java` and `PostgresHostOperations.java` write them
+     (Postgres the count only); `HostOperation.java` loses `Source.Query`, `MakeRelation`'s `selectList` and
+     `replacing`, and `Conversion`; `CatalogModel.java` loses `Database.copySelectList`; tests `HostOperationsTest`
+     (`noOperationHasAFieldThatHoldsSql`), `CatalogModelTest`, `HostOperationsPostgresTest`. Beyond core: `wasm/`
+     (`Boundary.snapHeld`, the planner-protocol kind `snap`; the table model's `rebuild` in place of its `conversions`
+     and `copySelectList`; `HostOperationsJson` refusing a field an operation does not read; the test-data answer's
+     dead `table`, `drop` and column `sql`), `native/` (`lite_snap_held`), engine-client (`snap.ts`), DataCube,
+     Query (its warehouse fixture loaded by its test, as the owner), `python/`. Not touched: `DuckDb.java`,
+     `SqlDialect.java`, `exec/Sessions.java`, `server/`. Reviews: the Compiler Rewrite line, Plan Gen (the `snap`
+     question, the table model's answer), the Studio line, an audit.
 
 ## Rules between sessions
 

@@ -30,7 +30,7 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, MIN_PASS_H2; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
 | `warehouse` (also Linux arm64) | — | `//warehouse:tests`, `//warehouse:sqlapi_wasm_build_test`, `//warehouse:tests_native`, `//warehouse:postgres_live`, `//warehouse:postgres_live_native` | the warehouse's suite on the JVM, and its SQL API compiled to WebAssembly (P3-24); the suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the launchers and their test went with the build rebuild's L1c (2026-10-07: the server runs as built, nothing of Bazel in it; the app as a plain folder is `//datacube:verify_app_test`'s, in `datacube`); the two tests against a live Postgres, in a lane for the first time on 2026-10-07. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03; the warehouse's reference session) |
 | `datacube` | — | `//datacube:tests`, `//datacube:verify_app_test`, `//datacube:package_test`, `//datacube:verify_smoke_test`, `//wasm:differential_test`, `//wasm:zone_test` | DataCube's suite and typecheck, with every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (`live_snap_test`, plus receipts, sign-in again, token refresh); the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); the smoke harness as a test on the pinned Chromium (since 2026-10-04, P1-14); the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database. The other harnesses (features, page, charts, cubes, real data, upload, remote, wasm-browser, stress) join as tests in the next landing (L1b); until then the transitional `browser` suite and the workflow's `bazel run` loop run them, Linux only |
-| `ui` | — | `//studio:tests`, `//query:tests`, `//query-store:local_test`, `//query-store:share_test`, `//query-store:lite_test` | Studio's and Query's suites and typechecks; the saved-query store's one suite against the page's own store and against legend-lite's server (started by the test), and a saved query's share link round trip. Their browser harnesses (`//studio:verify_test`, `//query:verify`, `//site:verify`) join in L1b |
+| `ui` | — | `//studio:tests`, `//query:tests`, `//query-store:wasm_test`, `//query-store:share_test`, `//query-store:lite_test` | Studio's and Query's suites and typechecks; the saved-query store's one suite against the page's own store and against legend-lite's server (started by the test), and a saved query's share link round trip. Their browser harnesses (`//studio:verify_test`, `//query:verify`, `//site:verify`) join in L1b |
 | `sdlc` | — | `//sdlc-server:git_repository_test`, `//sdlc-client:tests`, `//depot-client:tests` | the model home (`docs/STUDIO_DESIGN_2026_10_02.md`): the SDLC and Depot suites, each run on the page's WebAssembly module and on the server over git |
 | `heavy` (manual; no per-push lane) | — | `//spec:reference_lane`, `//spec:update_reference_lane_test`, `//spec:corpus_warehouse_verdict`, `//spec:manifest_world_census`, `//parser-equivalence:diagnostics`, `//pct:update_ratchets_test`, `//tools/python:requirements.test` | the reference lane (about 8 GB), the warehouse corpus passes (they build the GraalVM server), the manifest-world census, the parser-equivalence diagnostics battery, PCT's ratchet re-measure, the Python requirements test: a landing runs the ones it needs by hand (`docs/build-inventory/program/START_HERE.md` §5); a scheduled run is PHASE_8.md Test-11 |
 
@@ -9257,6 +9257,173 @@ green (51 checks). `//gates:local` green on 96e49c0, run in a root cloud contain
 4. **Known, and where it goes:** the classpath guard's skip is main's (a suggested task); `%0Nd` zero padding cuts on
    every database, Postgres's Levenshtein is slow on long text, a Postgres struct's date-time and map fields stay raw
    (each a suggested task); the dialect consolidation program starts from this commit (§0 of the plan).
+
+## 2026-10-13 — The program's pull requests 1 to 6: Python parity, twin model libraries, the stores and the engine path on one implementation, the warehouse and Studio and Query from Python (the DataCube + Python line)
+
+The program is `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md` (§6, pull requests 1 to 6). It was built stacked on branch
+`datacube/python-parity` and pushed to main as one fast-forward, at the user's go ("yes push to main if green and up to
+date").
+- **CI:** run 38398000209 (a dispatch, every lane) on 861f36390. All 50 jobs green on every platform; the summary job
+  skips on a dispatch.
+- **Local:** `//gates:local` and `//gates:warehouse` on the stack merged with main. 369 of 375 passed and 2 were
+  skipped (`//tools/guards:classpath_test` and `markdown_inputs_test`, incompatible with macOS). The 4 that failed were
+  fixed before the CI run:
+  - the grid page's bundle budget (the warehouse driver now fetched at the first sign-in);
+  - DataCube's built folder, which lacked `vendor/queries`, `sdlc` and `warehouse` (`verify_app_test`,
+    `live_snap_test`);
+  - `:planner_worker` in DataCube's `:bundles` (`//tools/guards:compile_only_test`).
+
+  Each re-ran green, with its neighbours. The lane query is empty. Main's commits since are docs only.
+
+1. **What it is** (each pull request's Built notes in the runbook):
+   - **1, G1 + G5:** Python plans through legend-lite's server or legend-engine (`ll.planner`), still running the SQL
+     on its own DuckDB. Iceberg tables on Python, every file they name remote.
+   - **2, B4 + D:** a class, an association or a data space in any project, as twin TypeScript and Python libraries
+     (`model-changes/`, `legend_lite/model.py`). A grid's export as one core, and `page.save()`.
+   - **3, B5 + B6:** saved queries and DataCube's saved pages, each one set of Java rules (`//core:saved_queries`) in
+     the browser (WebAssembly), Python's native library and legend-lite's server.
+   - **4, C1 + C2 + C4:** the tab answers legend-engine's execute API with the server's Java. One planner protocol for
+     every app and Python. One table of the site's file types, and one saved-query context reader.
+   - **5, C3:** the warehouse's SQL API as one binding (`SqlApiCalls`) in the tab's module, the native library and the
+     JVM, both drivers held to one recorded corpus. A warehouse table on Python's page, Live there and snapped into
+     Python's DuckDB.
+   - **6, G11 + E:** the model home's lock in the repository, across processes. Query and Studio served by Python
+     (`ll.query()`, `ll.studio()`), the link's token traded for a cookie that admits only the page's own calls. Studio's
+     link from DataCube on Python.
+2. **What proves it:**
+   - Unit tests:
+     - the warehouse corpus, three ways (`SqlApiCallsTest`, `//engine-client:warehouse_corpus_test`,
+       `python/tests/test_warehouse.py`);
+     - `python/tests/test_engine.py`: `AppsServed`, `WarehouseOnPython`, and the routes;
+     - the saved stores' one conformance suite on each store;
+     - `datacube/test/plane.test.ts` (a host's snap).
+   - `//datacube:python_engine_test`, in Chromium against a native warehouse, on Python's page:
+     - sign-in;
+     - Live rows and their receipt;
+     - the plane button's Snap and back;
+     - Create a Class… opened in Studio.
+   - `//query:verify_test`, its warehouse suite over the binding. `//python:wheel_test`, both apps from the installed
+     wheel.
+   - Each pull request was reviewed by its owners (the Compiler Rewrite line, the Studio line, the Plan Gen line) and
+     audited; the last fixes were re-checked.
+3. **Known, and where it goes:**
+   - **PARK-35 and PARK-33:** a project's queries run only in a tab, so a saved query does not open as a grid on
+     Python's page. This is the runbook's C5, pull request 7, after the user's design answers.
+   - **PARK-34:** a Variant column's relational spelling is unprobed.
+   - **Ruling 7** (`docs/SERVER_PROGRAM_2026_09_26.md`): the binding is its own page module, not the planner's. Marked
+     there, for the user to confirm.
+   - **The wheel** carries the apps' shared modules more than once (52 MB): one shared `vendor/` is a small design.
+   - **G2 and G4** (rows streamed back from Python; a picked file read by its encoding) are built on
+     `datacube/python-parity-2`, next.
+
+## 2026-10-13 — One `//tools/teavm:api`: TeaVM's compile-time annotations in one library (the Compiler Rewrite line)
+
+A Bazel-only tidy-up: the four identical neverlink libraries (`//wasm:teavm_api`, `//sdlc-server:teavm_api`,
+`//query-store:teavm_api`, `//warehouse:teavm_api`; TeaVM's `core` and `jso` exported, nothing linked) are one,
+`//tools/teavm:api`, beside the TeaVM compile they all use (`docs/build-inventory/area7_report.md`, wiring cleanup 7);
+each module's entry library (`//wasm:tab`, `//wasm:conformance`, `//sdlc-server:page_boundary`,
+`//query-store:page_entry`, `//warehouse:sqlapi_page_entry`) depends on it instead. Visible to exactly those four
+packages, the `maven_teavm` pool's users that build a module (`tools/deps/pools.bzl`; the roster unchanged, its
+sdlc-server comment no longer naming a `:teavm_api`), so the annotations reach no package the roster does not name. No
+behaviour change: the same two jars on the same compile classpaths, nothing on a runtime classpath (neverlink). Branch
+`build/one-teavm-api`, one commit over main 24e15866f, 248e1f5ab on the branch (the run's commit), landed as the same
+change over this docs commit; no announcement went first (no `core/` file, no behaviour). The audit
+(`docs/build-inventory/program/evidence/one-teavm-api/AUDIT.md`): ready, no blocker, no should-fix; four wording nits
+taken, two into the files and two into the commit message, the commit amended to 248e1f5ab. The DataCube line
+(query-store's and warehouse's owner) and the Studio line (sdlc-server's) approved their parts. The library, its five
+dependents and the five modules (`//wasm:planner`, `//wasm:conformance_module`, `//sdlc-server:page`,
+`//query-store:page`, `//warehouse:sqlapi_page`) build; `//gates:local` 353 pass, 2 skipped (the two guards incompatible
+on this Mac), after a first run on 482019f7c in which the 19 Chromium verify tests failed on DuckDB-WASM's fetch of the
+ICU extension from the public CDN (the tab's own run-time fetch since 73d717ee4, reported to the DataCube line) and a
+rerun of those 19 passed; the lane query empty; CI: run 38406686025 on the lanes the change reaches (`core`, `checks`,
+`parser_equivalence`, `warehouse`, `datacube`, `ui`, `sdlc`: the lanes holding a test in the library's reverse
+dependencies, by `bazel query`), every platform, green first time on all 26 jobs (the summary job a dispatched run
+skips); main's own push run on the landing, 38409010126, green on all 51.
+
+## 2026-10-13 — G4 and G12: a picked file read by its encoding; the tab's DuckDB extensions from the site, and one start of it (the DataCube + Python line)
+
+The runbook is `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md` (§5 G, items 4 and 12). It was built on branch
+`datacube/python-parity-2` and pushed to main as one fast-forward, at the user's go ("yes push").
+- **CI:** run 38416200845 (a dispatch, every lane, every platform: MODULE.bazel changed) on 97618be92. All 50 jobs
+  green; the summary job skips on a dispatch. Main's commits since are docs only.
+- **Local:** `//gates:datacube`, `//gates:ui` and `//gates:sdlc`, plus the warehouse lane's browser tests: 186 tests,
+  19 of them in a browser, all passing under the guard. After the reviews' fixes, `//datacube:browser_guard_test`,
+  `//site:verify_test`, `//query:verify_test`, `//studio:verify_test`, `//datacube:verify_page_test`,
+  `//datacube:verify_upload_test`, `//datacube:typecheck_test` and `//engine-client:tests`. The lane query is empty.
+
+1. **What it is:**
+   - **G4:** a file picked from disk is read by its encoding: gzip (`.csv.gz` and the rest, through
+     `DecompressionStream`), UTF-16 by its byte-order mark, and windows-1252 when its first 64 KB hold no valid UTF-8
+     beside a stray byte. A UTF-8 file with one stray byte stays UTF-8 (the audit's fix). Every file chooser takes
+     `.gz`.
+   - **G12:** the tab's DuckDB-WASM had been downloading ICU (the session's time zone, since C1), JSON, Parquet and
+     httpfs from extensions.duckdb.org. They are pinned in MODULE.bazel by content for both browser builds, laid out by
+     `//engine-client:duckdb_extensions`, and served by DataCube's, Query's and Studio's sites and DataCube's built
+     folder. engine-client's `startDuckDbInTab` points the tab's DuckDB at them, and is now the one start of a tab's
+     DuckDB: DataCube's boot and three test pages called copies of their own.
+   - **The guard:** every browser test makes extensions.duckdb.org unresolvable (a Chromium flag added to every
+     Playwright launch by `tools/browser/pinned-chromium.mjs`).
+2. **What proves it:**
+   - With the tab's `ownExtensions` taken out, `//studio:verify_test` failed on "Failed to load
+     'https://extensions.duckdb.org/v1.5.4/wasm_eh/icu.duckdb_extension.wasm'", and `//query:verify_test` failed every
+     step.
+   - `//datacube:browser_guard_test` fails when a launch stops being guarded. Proven red with the guard's wrap taken
+     out ("Download is starting").
+   - `datacube/test/upload.test.ts`: the encodings, `.gz` names, a stray byte.
+3. **Reviews:**
+   - The Compiler Rewrite line: MODULE.bazel (each of the eight integrity values checked against a download), the BUILD
+     files and the guard.
+   - The Studio line: Query's and Studio's BUILD, `duckdb-tab.ts`, `site/verify.mjs`.
+   - An audit: its S1, `//site:verify_test` unguarded, was fixed by `hermetic`.
+4. **For the dialect program:** `duckdb-tab.ts`'s two `SET ..._extension_repository` statements are TypeScript SQL
+   for its Phase 7 (D5) list, as its IN_FLIGHT section is told.
+
+## 2026-10-13 — C5 and D5: a project's Data rows in a database of its own on every host; no SQL spelled by the tab or Python's host (the DataCube + Python line)
+
+The runbook is `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md` (C5, D5). It was built on branches
+`datacube/c5-project-data` and `datacube/d5-host-operations` (stacked), rebased onto main's head and pushed as one
+fast-forward to fbd216a3f, the code commit at its head, at the user's go ("well then merge it").
+- **CI:** branch run 38454642203 (a dispatch, every lane, every platform) on cbd8a3956: 50 jobs green, the summary job
+  skipped as on a dispatch; the pushed tree differs from it by one rewrapped comment and main's IN_FLIGHT. Main's own
+  run 38460744776 on fbd216a3f: all 51 jobs green. C5's own run before D5, 38445822104, green.
+- **Local:** `//gates:local`, `//gates:warehouse` and `//gates:parser_equivalence` on the reviews' fixes: 382 tests
+  passing, 2 skipped. The lane query is empty.
+
+1. **What it is:**
+   - **C5:** a project's `###Data` rows in a database of its own inside the host's own -- the tab's DuckDB, Python's,
+     legend-lite's server -- each version its own in-memory database (ATTACH), named by what it holds, kept for the
+     page's or the process's life; Studio's tables drop and make again their one workspace database when what fills
+     it changes. A saved query opens on every host over its project's own rows. PARK-33 and PARK-35 closed.
+   - **D5:** every statement the tab and Python's host spelled is a named operation (`sql/dialect/HostOperation.java`)
+     the planner answers by the database's type (`DuckDbHostOperations`; `PostgresHostOperations`, the count); the
+     demos' rows are their models' Data (`query/demo/models/trading-data.pure`); DataCube's sample trades are made as
+     Arrow data. The guard: `//tools/guards:host_sql_test` and `//python:host_sql_test` (one rule,
+     `tools/guards/host_sql.txt`).
+2. **What proves it:** `HostOperationsTest` and the embedded-Postgres `//core:host_operations_postgres_test`;
+   `ProjectRowsTest`; engine-client's `model_data_test` (two versions at once, each its own rows); the guard, red on the
+   code before D5 in each language; `//datacube:saved_queries_test` (the trading rows' three copies equal, row for row);
+   `//datacube:sample_trades_test` (the 200,000 trades as the old statement made them); `//datacube:python_engine_test`
+   (Studio, Query and DataCube on Python over a project's own rows); every app's browser tests.
+3. **Reviews:** the Compiler Rewrite line (core, the BUILD files, `tools/guards`), Plan Gen (the boundary's
+   `projectData` and `hostOperations`), the Studio line (engine-client, Query, Studio), and an audit for each; every
+   finding taken.
+4. **Next:** D5b (the user's ruling: Snap's queries are Pure) -- the three operation fields that still carried the
+   planner's SQL back from a host go; see IN_FLIGHT.
+
+## 2026-10-13 — The spelling of now compared with `CURRENT_DATE`: a snapped Postgres answer that changed at midnight (the Compiler Rewrite line, in the `#SQL{...}#` island's corpus)
+
+`//core:sql_parity_postgres_test` (the core lane) went red on every tree at midnight UTC:
+`lite/dates/date_spelling_of_now_is_refused` had snapped Postgres's answer to `SELECT DATE 'today' AS a` as the day of
+the snap (5ac5dddcc, `s2026-10-13`), and the embedded Postgres runs in UTC. The DataCube line's D5b gate found it; the
+corpus's owner, the island line, had no live session, so this line landed the roll-forward: the case compares the
+spelling with `CURRENT_DATE` -- both read the transaction's start, so Postgres answers `true` on any day -- and the
+island refuses the spelling before any database sees it, so the ledger's two REFUSED stand. Not the harness's `VOLATILE`
+list: it turns a case into a SKIP, and this case's point is the refusal. Branch `core/parity-today`, one commit
+(4a8ff29ad on main, over fc4609eeb); the audit (`docs/build-inventory/program/evidence/parity-today/AUDIT.md`): no
+blocker. Both parity tests run fresh locally (`--nocache_test_results`: the Postgres one red on the one DRIFT before,
+both green after); `//gates:local` 359 pass, 2 skipped (the two guards incompatible on this Mac); the lane query empty;
+CI run 38492848369 on the core lane, every platform, green on the core lane's three platform jobs and the linux-arm
+warehouse job; main's own run on the landing, 38493945113, green on every job.
 
 ## 2026-10-13 — The dialect program's D1: the base renderer spells no function (the ninth line, on its branch)
 

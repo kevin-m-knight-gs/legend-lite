@@ -29,6 +29,7 @@
 // because duckdb-wasm has it compiled in and registerFileBuffer
 // makes it no harder.
 
+import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 
 /** One column, as its database's catalog describes it (the catalog question's row). */
@@ -131,4 +132,6 @@ export interface TableModels {
    * (services/browser.ts `setUpSession`; Python's Frames, from the same function).
    */
   sessionSetup(databaseType: string): Promise<readonly string[]>;
+  /** A host's named operations on its own database (D5, engine-client's host-operations.ts): each one's statements. */
+  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]>;
 }

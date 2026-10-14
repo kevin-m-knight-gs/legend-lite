@@ -20,23 +20,26 @@
 // - ITS MODEL HOME (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B3): the SDLC and the Depot Python serves (`/sdlc/api`,
 //   `/depot/api`), the same rules the browser's in-page SDLC runs, over a git repository in this user's folder; the
 //   model actions write through Python's native library (ModelWriting), so Create a Class… and the rest are offered.
+// - ITS SAVED QUERIES (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5): the store Python keeps (`/api/pure/v1/query`, B5),
+//   a query read by Python's native library and opened as a grid planned over its project's mapping, its rows the
+//   project's own Data rows in that project's database inside Python's DuckDB.
 //
 // What Python does not answer yet is a service it does not give, and the app does not offer what reads it (§3.4): the
-// other planes (2c), saved queries (B5), a warehouse (C3), Studio (E). A share link needs an address others can open;
-// Python's is this machine's loopback.
+// other planes (2c). A share link needs an address others can open; Python's is this machine's loopback.
 
 import { arrowIpcAnswer } from '../../../engine-client/src/arrow-ipc.ts';
 import { toRawTable } from '../../../engine-client/src/duckdb.ts';
 import { typedByPlan } from '../../../engine-client/src/engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
-import { hostOf } from '../../../engine-client/src/receipt.ts';
+import { hostOf, type Receipt } from '../../../engine-client/src/receipt.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import type { Lambda } from '../../../pure-protocol/src/index.ts';
+import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { LitePlanner } from '../lite-planner.ts';
-import type { PlannerWorker, Request, Response } from '../planner-protocol.ts';
+import { readServerPlan, UpstreamPlanner, type ModelOptions } from '../planner.ts';
+import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { ExactNumber, fromJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
-import { HostRecords, RuleStore, type HostRecordsCall } from '../cube-store.ts';
+import { CubeStoreClient } from '../cube-store.ts';
 import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
 import { PlanAndRun, QueryFailure } from '../runner.ts';
 import type { InferredModel } from '../infer.ts';
@@ -44,8 +47,11 @@ import type { S3Credentials } from '../remote.ts';
 import { fileParts, type UploadResult } from '../upload.ts';
 import type {
   BrowserService, DatabaseService, FrameModel, LivePage, ModelHomeService, PageService, Plane, PlaneService, PlaneWord,
-  Services, Versions,
+  QueryService, Services, Versions, WarehouseService,
 } from '../app/services.ts';
+import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
+import type { QueryReader } from '../../../query-store/src/index.ts';
+import { SessionExpired } from '../../../engine-client/src/warehouse-session.ts';
 
 /** How the page reaches Python's engine. */
 export interface PythonLink {
@@ -67,7 +73,7 @@ export interface PythonPlane {
 }
 
 /** What Python's host offers beside its frames (`services.json`): whether it reads a page's file, the plane it plans on
- *  (chosen once, in Python: R3), and every plane it offers (today only that one: another is step 2c's). */
+ *  (chosen once, in Python: R3), and every plane it offers (that one: a page on Python chooses none of its own). */
 export interface PythonOffers {
   readonly files: boolean;
   /** Whether it reads a page's remote file (the httpfs extension it carries). */
@@ -76,6 +82,10 @@ export interface PythonOffers {
   readonly pages: { readonly where: string; readonly user: string };
   /** Where its model home keeps the projects (B3: the native library's SDLC over a git repository), when it has one. */
   readonly modelHome?: { readonly where: string };
+  /** Whether it reads a warehouse's tables (C3: Python signs in as this user; the token never reaches the page). */
+  readonly warehouse?: boolean;
+  /** The apps it serves beside DataCube (E: `query`, `studio`), when it has their sites. */
+  readonly apps?: readonly string[];
   readonly plane: PythonPlane;
   readonly planes: readonly PythonPlane[];
 }
@@ -114,14 +124,14 @@ function planeOf(said: unknown): PythonPlane {
 
 /**
  * WHERE THE PAGE PLANS, as Python says (§4.1, R3): the plane Python plans on, chosen once in Python, and the planes it
- * offers, which the planner menu lists (the one the page is on disabled). Another plane is chosen in Python
- * (`ll.show(..., planner=...)`, step 2c), so a page asks for none: Python offers only its own until then.
+ * offers, which the planner menu lists (the one the page is on disabled). A plane is chosen in Python, before its first
+ * cube is shown (`ll.show(..., planner=..., server=...)`), so a page asks for none: Python offers only the one it plans on.
  */
 function pythonPlanes(offers: PythonOffers): PlaneService {
   // a plane offered here would be one the page could choose, which it cannot yet: refused, never a menu entry that
   // asks to reload and then fails
   const other = offers.planes.find((p) => p.word !== offers.plane.word);
-  if (other) throw new Error(`the engine offers ${other.label}, and this page chooses no plane on Python yet (step 2c)`);
+  if (other) throw new Error(`the engine offers ${other.label}, and a page on Python chooses no plane: Python chooses it`);
   const asPlane = (p: PythonPlane): Plane => ({ id: `host.plane.${p.word}`, word: p.word, label: p.label });
   return {
     word: offers.plane.word,
@@ -212,11 +222,12 @@ function pythonWorker(link: PythonLink): PlannerWorker {
  * metadata; the page reads the plan as its planner reads its own, and the rows typed by it as the tab's executor types
  * the tab's (engine.ts typedByPlan, §15.3a).
  */
-export function pythonRunner(link: PythonLink, model: string, runtime: string): PlanAndRun {
-  const planner = new LitePlanner({ model, runtime, worker: () => pythonWorker(link) });
+export function pythonRunner(link: PythonLink, model: string, runtime: string, plane: PlaneWord = 'local',
+  how: ModelOptions = {}): PlanAndRun {
+  const { planner, request, read } = planning(link, model, runtime, plane, how);
   const readPlan = (answer: string, query: Lambda): Plan => {
     try {
-      return planner.readPlan(answer, query);
+      return read(answer, query);
     } catch (e) {
       throw new QueryFailure(e, query);
     }
@@ -226,7 +237,7 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string): 
     const answer = await link.fetch(`${link.baseUrl}/plan-and-run.json`, {
       method: 'POST',
       headers: { ...headers(link), 'Content-Type': 'application/json' },
-      body: JSON.stringify(planner.planRequest(query)),
+      body: JSON.stringify(request(query)),
       ...(signal ? { signal } : {}),
     }).catch((e: unknown) => {
       if (signal?.aborted) throw e;
@@ -235,10 +246,19 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string): 
     if (!answer.ok || (answer.headers.get('Content-Type') ?? '').startsWith('application/json')) {
       // no rows: the planner refused (its own answer, read as it reads every refusal), or its SQL did (and why)
       const text = await answer.text();
-      const said = (() => { try { return JSON.parse(text) as { plan?: string; error?: string }; } catch { return {}; } })();
+      const said = (() => {
+        try {
+          return JSON.parse(text) as { plan?: string; error?: string; expired?: { baseUrl: string; principal: string } };
+        } catch {
+          return {};
+        }
+      })();
       if (said.plan === undefined) throw new QueryFailure(new Error(`the engine answered ${answer.status}: ${text}`), query);
       const plan = readPlan(said.plan, query);
-      throw new QueryFailure(new Error(said.error ?? `the engine answered ${answer.status}`), query, plan.sql);
+      // a warehouse's session ended (a table Python reads, C3): the tab's own error, so the cube offers to sign in again
+      const cause = said.expired ? new SessionExpired(said.expired.baseUrl, said.expired.principal)
+        : new Error(said.error ?? `the engine answered ${answer.status}`);
+      throw new QueryFailure(cause, query, plan.sql);
     }
     // a body cut short or not Arrow: said as every other failure here is, never thrown raw at the cube
     const { table, metadata } = await answer.arrayBuffer().then((bytes) => arrowIpcAnswer(new Uint8Array(bytes))).catch((e: unknown) => {
@@ -248,9 +268,13 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string): 
     const said = metadata.get('legend.plan');
     if (said === undefined) throw new QueryFailure(new Error('the engine answered rows without the plan they are of'), query);
     const plan = readPlan(said, query);
+    // where the rows were read, as Python says it: a warehouse table's on the warehouse, its statement its own (C3)
+    const theirs = metadata.get('legend.receipt');
+    const receipt: Receipt = theirs !== undefined ? JSON.parse(theirs) as Receipt
+      : { plane: 'engine', where: `the engine at ${hostOf(link.baseUrl)}` };
     try {
       const rows = typedByPlan(toRawTable(table, epoch, performance.now() - started), plan);
-      return { plan, rows: { ...rows, receipt: { plane: 'engine', where: `the engine at ${hostOf(link.baseUrl)}` } } };
+      return { plan, rows: { ...rows, receipt } };
     } catch (e) {
       throw new QueryFailure(e, query, plan.sql);
     }
@@ -262,6 +286,40 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string): 
     // the whole result as one chunk: streamed back in chunks is a follow-up (§15.7, 3)
     stream: async (query, epoch, onChunk, signal) => { onChunk((await planAndRun(query, epoch, signal)).rows); },
   });
+}
+
+/**
+ * HOW A PAGE ON PYTHON PLANS, by the plane Python plans on (chosen in Python, R3): the planner the page asks for a
+ * query's types, a parse and a print, the plan request Python's plan-and-run takes, and the reading of the plan it
+ * answers with the rows. On the local plane, Python's own planner, over its planner protocol, read as the tab reads its
+ * module's. On a server's (legend-lite's, legend-engine's: the program's G1), the tab's planner on a server, but at
+ * Python's address -- Python sends each call on to the server, plans there, and runs the SQL itself, so the page sends
+ * Pure to Python alone (R4) -- its plan read as the tab reads a server's (planner.ts `readServerPlan`).
+ */
+function planning(link: PythonLink, model: string, runtime: string, plane: PlaneWord, how: ModelOptions): {
+  readonly planner: LitePlanner | UpstreamPlanner;
+  readonly request: (query: Lambda) => { readonly lambda: string; readonly model: string; readonly runtime: string };
+  readonly read: (answer: string, query: Lambda) => Plan;
+} {
+  if (plane === 'local') {
+    // over a mapping (a saved query's project, C5), the query is planned as `->from(mapping, runtime)`, as Query sends it
+    const planner = new LitePlanner({
+      model, runtime, worker: () => pythonWorker(link),
+      ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
+      ...(how.enumerations === undefined ? {} : { enumerations: how.enumerations }),
+    });
+    return { planner, request: (query) => planner.planRequest(query), read: (answer, query) => planner.readPlan(answer, query) };
+  }
+  const planner = new UpstreamPlanner({
+    baseUrl: link.baseUrl, model, runtime, fetch: link.fetch, ...(link.authorization ? { authorization: link.authorization } : {}),
+  });
+  planner.useModel(model, runtime, how);
+  const bits = new Set(how.bitColumns ?? []);
+  return {
+    planner,
+    request: (query) => ({ lambda: toJson(query), model, runtime }),
+    read: (answer, query) => readServerPlan(answer, query, bits),
+  };
 }
 
 /** A frame as Python says it is now (`cube.json`): the model Python wrote for it, and its version. */
@@ -300,7 +358,7 @@ function pythonBrowser(link: PythonLink, browser: BrowserService, kept: Record<s
 export async function askedOffers(link: PythonLink): Promise<PythonOffers> {
   const said = JSON.parse(await asked(link, 'services.json')) as {
     files?: unknown; remote?: unknown; pages?: { where?: unknown; user?: unknown }; modelHome?: { where?: unknown };
-    plane?: unknown; planes?: unknown;
+    warehouse?: unknown; apps?: unknown; plane?: unknown; planes?: unknown;
   };
   if (typeof said.files !== 'boolean' || typeof said.remote !== 'boolean') {
     throw new Error(`the engine did not say which of a page's files it reads: ${JSON.stringify(said)}`);
@@ -312,6 +370,8 @@ export async function askedOffers(link: PythonLink): Promise<PythonOffers> {
   return {
     files: said.files, remote: said.remote, pages: { where: said.pages.where, user: said.pages.user },
     ...(typeof said.modelHome?.where === 'string' ? { modelHome: { where: said.modelHome.where } } : {}),
+    ...(said.warehouse === true ? { warehouse: true } : {}),
+    ...(Array.isArray(said.apps) ? { apps: said.apps.filter((a): a is string => typeof a === 'string') } : {}),
     plane: planeOf(said.plane), planes: said.planes.map(planeOf),
   };
 }
@@ -319,14 +379,21 @@ export async function askedOffers(link: PythonLink): Promise<PythonOffers> {
 /**
  * PYTHON'S MODEL HOME (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B3): the SDLC and its Depot Python serves
  * (`/sdlc/api`, `/depot/api`), the very rules the browser's in-page SDLC runs, over a git repository in this user's
- * folder; reached by the same clients, each call carrying the engine's token. No Studio link until Python serves Studio
- * (the program's E).
+ * folder; reached by the same clients, each call carrying the engine's token; and Studio's link to a project, where
+ * Python serves Studio (the program's E).
  */
-function pythonModelHome(link: PythonLink, where: string): ModelHomeService {
-  const withToken: typeof fetch = (input, init) =>
-    link.fetch(input, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...headers(link) } });
+function pythonModelHome(link: PythonLink, where: string, apps: readonly string[]): ModelHomeService {
+  const withToken = tokened(link);
   let home: ReturnType<ModelHomeService['connect']> | undefined;
+  // Studio's editor on a project of this model home, where Python serves Studio (E) and the page holds the engine's
+  // token (a tab's; a notebook's channel carries none): the link's first load trades the token for Studio's cookie
+  const token = link.authorization?.startsWith('Bearer ') ? link.authorization.slice('Bearer '.length) : undefined;
+  const studio = apps.includes('studio') && token !== undefined
+    ? (project: string, workspace: string): string => `${link.baseUrl}/studio/demo/index.html?token=${encodeURIComponent(token)}`
+      + `#/edit/${encodeURIComponent(project)}/${encodeURIComponent(workspace)}`
+    : undefined;
   return {
+    ...(studio ? { studio } : {}),
     // the clients fetched the first time a model action asks, as the tab's model home's are: the page's startup carries
     // neither
     connect: () => (home ??= Promise.all([
@@ -360,7 +427,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
     frame: (name) => frameOf(link, name),
     ...(offers.files ? {
       ingestFile: async (file: File, options: { readonly table: string }) => {
-        // the bytes the tab's DuckDB is given (upload.ts fileParts: a text file decoded as the tab always has), sent a
+        // the bytes the tab's DuckDB is given (upload.ts fileParts: a text file decoded by its encoding, G4), sent a
         // part at a time as they are read (file-part.json, each saying where it starts), so no file is too big to send
         // and none is ever whole in the page; then read there, as one file (file.json)
         let upload: string | undefined;
@@ -388,29 +455,64 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
 }
 
 /**
- * THE SAVED PAGES, in this user's folder (step 2d): the store's rules the page's own (RuleStore), over the records
- * Python keeps -- the browser's IndexedDB, in Python's terms (§6, Q1). Kept on disk, so nothing more to ask for to keep
- * them.
+ * A WAREHOUSE ON PYTHON (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): Python signs in as the person running it (who is
+ * the person at this page) and lists what they may read; a table opened, Python writes its model with the tab's own
+ * writer and holds it, and the grid's queries are planned and run by Python (PlanAndRun, R4), Live on the warehouse.
+ * The session the page holds names the warehouse and the person, never a token: Python keeps that.
+ */
+function pythonWarehouse(link: PythonLink): WarehouseService {
+  return {
+    // the address is typed each time: what this page offered last is kept by the tab's own warehouse service only
+    offered: () => '',
+    remember: () => undefined,
+    connect: async (url, user, password) => JSON.parse(await posted(link, 'warehouse.json', { op: 'connect', url, user, password })) as
+      { session: WarehouseSession; objects: CatalogObject[] },
+    signInWithKey: () => Promise.reject(new Error('a page on Python signs in to a warehouse by its user and password')),
+    place: 'Python',
+    table: async (session, object) => JSON.parse(await posted(link, 'warehouse.json', {
+      op: 'table', url: session.baseUrl, catalog: object.catalog, schema: object.schema, name: object.name,
+    })) as InferredModel & { readonly snapRuntime: string },
+    // the pull sent as Pure (R4), as a plan-and-run's query is; Python plans it where the rows are and keeps the copy
+    snap: async (model, pull) => JSON.parse(await posted(link, 'warehouse.json', { op: 'snap', model, pull: toJson(pull) })) as
+      { readonly rowCount: number; readonly pulledBy?: Receipt },
+    release: async (model) => { await posted(link, 'warehouse.json', { op: 'release', model }); },
+  };
+}
+
+/** A fetch of Python's that carries the engine's token, for the clients of what it serves. */
+function tokened(link: PythonLink): typeof fetch {
+  return (input, init) =>
+    link.fetch(input, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...headers(link) } });
+}
+
+/**
+ * THE SAVED PAGES, in this user's folder (step 2d, B6): upstream's routes Python serves
+ * (`/api/pure/v1/query/dataCube`), answered by legend-lite's own rules in its native library -- the ones the browser's
+ * page runs compiled to WebAssembly -- over `ll.home()/pages`, through the one client. Kept on disk, so nothing more to
+ * ask for to keep them.
  */
 function pythonPages(link: PythonLink, offers: PythonOffers): PageService {
-  const carry = async (call: HostRecordsCall): Promise<unknown> => {
-    const answer = await link.fetch(`${link.baseUrl}/saved-pages.json`, {
-      method: 'POST',
-      headers: { ...headers(link), 'Content-Type': 'application/json' },
-      body: JSON.stringify(call),
-    }).catch((e: unknown) => { throw new Error(`the engine did not answer: ${String(e)}`); });
-    // every answer read whole, an empty one too: a response left unread is cancelled by the browser (it reported the
-    // put as aborted, though Python had kept the record)
-    const text = await answer.text();
-    if (!answer.ok) throw new Error(`the engine refused the saved pages' ${call.call}: ${answer.status} ${text}`);
-    // a record, the records, or -- none found, or put and removed -- nothing
-    return text === '' ? undefined : (JSON.parse(text) as unknown) ?? undefined;
-  };
   return {
-    store: new RuleStore(new HostRecords(carry), offers.pages.user),
+    store: new CubeStoreClient(`${link.baseUrl}/api`, tokened(link), offers.pages.user),
     where: `in ${offers.pages.where}`,
     memoryOnly: false,
     persist: async () => true,
+  };
+}
+
+/**
+ * Saved queries on Python's page (C5): the store Python keeps (`ll.home()/queries`, its `/api/pure/v1/query`, B5),
+ * read as the tab reads its own -- its code fetched the first time it is asked for. A query's project opens by name
+ * from Python's Depot; Python has no deployment projects of its own.
+ */
+function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
+  let store: Promise<QueryReader> | undefined;
+  return {
+    store: () => (store ??= import('../../../query-store/src/index.ts')
+      .then((m) => new m.QueryStoreClient(`${link.baseUrl}/api`, tokened(link)))),
+    where: `in ${offers.pages.where}`,
+    projects: [],
+    fetchText: (url) => Promise.reject(new Error(`${url}: a page on Python reads no deployment's files`)),
   };
 }
 
@@ -452,6 +554,9 @@ export async function askedVersions(link: PythonLink, shows: PythonShows): Promi
 /** Python's services, over its link. */
 export function pythonServices(o: PythonServicesOptions): Services {
   const { link } = o;
+  // Python's native library over the planner protocol (planner.json): it writes a model, and reads a query's text and
+  // a model's elements
+  const compiler = new LitePlanner({ model: '', runtime: '', worker: () => pythonWorker(link) });
   return {
     engine: {
       plane: pythonPlanes(o.offers),
@@ -460,22 +565,29 @@ export function pythonServices(o: PythonServicesOptions): Services {
       // change the plan, and Python plans over the model it wrote: refused rather than dropped. Bit columns are a
       // reading of legend-engine's types (relation-type.ts, S23), not of legend-lite's, which Python plans with
       rows: (model, runtime, how) => {
-        if (how?.mapping !== undefined || (how?.enumerations?.length ?? 0) > 0) {
-          throw new Error('Python plans a source over the model it wrote: it takes no mapping or enumerations from the page');
+        // a mapping is a project's (a saved query's, C5): Python plans over a model it wrote, or a project's model
+        // with Data rows in that project's own database (C5), and refuses any other; a server's planner takes none yet
+        if (how?.mapping !== undefined && o.offers.plane.word !== 'local') {
+          throw new Error(`a saved query opens on Python with Python's own planner: the ${o.offers.plane.word} planner takes no mapping from the page here`);
         }
-        // PlanAndRun on Python (§15): planned against the model Python holds and run on its DuckDB, in one call
-        return { runner: pythonRunner(link, model, runtime) };
+        // PlanAndRun on Python (§15): planned against the model Python holds, by the planner Python chose (its own,
+        // or a server's), and run on its DuckDB, in one call
+        return { runner: pythonRunner(link, model, runtime, o.offers.plane.word, how ?? {}) };
       },
       database: pythonDatabase(link, o.offers),
       // the model actions: Python's native library writes, a project's facts planned and run in Python (PlanAndRun)
       modelWriting: {
         place: 'Python',
-        writer: new LitePlanner({ model: '', runtime: '', worker: () => pythonWorker(link) }),
+        writer: compiler,
         rows: (model, runtime) => pythonRunner(link, model, runtime),
       },
+      // Python's native library reads a saved query and its project's model (C5)
+      reading: { parse: (text) => compiler.parse(text), elements: (text) => compiler.modelElements(text) },
     },
     pages: Promise.resolve(pythonPages(link, o.offers)),
-    ...(o.offers.modelHome ? { modelHome: pythonModelHome(link, o.offers.modelHome.where) } : {}),
+    queries: pythonQueries(link, o.offers),
+    ...(o.offers.modelHome ? { modelHome: pythonModelHome(link, o.offers.modelHome.where, o.offers.apps ?? []) } : {}),
+    ...(o.offers.warehouse ? { warehouse: pythonWarehouse(link) } : {}),
     live: {
       watch: o.watch,
       ...('page' in o.shows ? { page: livePage(link, o.shows.page) } : {}),
