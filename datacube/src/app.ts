@@ -2580,10 +2580,15 @@ export class CubeApp {
       label: (column) => labelFor(this.#config, column),
       shown: () => {
         const view = this.#view;
+        const figures = new Set([...(view?.snapshot.measures ?? []).map((m) => m.name), ...(view?.snapshot.groupDerived ?? []).map((d) => d.name)]);
         return view ? {
           rows: view.rows,
           tree: view.treeRows,
-          leaves: view.columns.leaves.map((l) => ({ name: l.name, type: l.type, ...(l.label !== undefined ? { label: l.label } : {}) })),
+          leaves: view.columns.leaves.map((l) => ({
+            name: l.name, type: l.type, ...(l.label !== undefined ? { label: l.label } : {}),
+            // a measure's leaf is named by its path's last part (a pivot's value before it)
+            measure: figures.has(l.path[l.path.length - 1] ?? l.name),
+          })),
           levels: view.snapshot.rows,
         } : null;
       },

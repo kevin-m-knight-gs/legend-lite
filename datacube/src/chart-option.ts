@@ -18,7 +18,7 @@
 
 import type { EChartsOption } from 'echarts';
 import { AXIS_UPPER, axisName, drilledView, KPI_TREND_LIMIT, measureName, rangesAcross, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
-import { isRatio, SHOW_AS_LABELS, statName } from './calc-presets.ts';
+import { isRatio, ringTotalName, SHOW_AS_LABELS, statName } from './calc-presets.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
@@ -97,14 +97,14 @@ export type LabelOf = (value: Scalar, column: string, type: string | undefined) 
  */
 export type UnitOf = (column: string) => string | undefined;
 
-const defaultLabel: LabelOf = (v) => (v === null ? '(empty)' : String(v));
+export const defaultLabel: LabelOf = (v) => (v === null ? '(empty)' : String(v));
 
 /**
  * An option built here, as ECharts' type. Its declared types are stricter than
  * `exactOptionalPropertyTypes` can satisfy for unions of series; what the
  * options DRAW is pinned by the SVG render tests instead.
  */
-const asOption = (o: object): EChartsOption => o as EChartsOption;
+export const asOption = (o: object): EChartsOption => o as EChartsOption;
 
 /** A clicked mark, as the column values it stands for. */
 export type MarkKey = Readonly<Record<string, Scalar>>;
@@ -150,13 +150,13 @@ export interface ChartDrawing {
 }
 
 /** One column of the result, with its type. */
-function column(t: ResultTable, name: string): { values: readonly Scalar[]; type: string | undefined } | undefined {
+export function column(t: ResultTable, name: string): { values: readonly Scalar[]; type: string | undefined } | undefined {
   const c = t.columns.find((x) => x.name === name);
   return c ? { values: c.values as readonly Scalar[], type: c.type } : undefined;
 }
 
 /** Distinct values in first-seen order, with the value itself kept (not its text). */
-function distinct(values: readonly Scalar[]): Scalar[] {
+export function distinct(values: readonly Scalar[]): Scalar[] {
   const seen = new Set<string>();
   const out: Scalar[] = [];
   for (const v of values) {
@@ -169,7 +169,7 @@ function distinct(values: readonly Scalar[]): Scalar[] {
   return out;
 }
 
-function keyText(v: Scalar): string {
+export function keyText(v: Scalar): string {
   return v === null ? '\u0000null' : `${typeof v}:${String(v)}`;
 }
 
@@ -266,8 +266,10 @@ export function chartOption(
   // A DATE ACROSS IS A TIME SCALE (batch 2 item 9) on a bar, line or area chart: its points in time order whatever
   // the chart's order, spaced by time, so a missing period is a gap, not a neighbour
   // Bars by month, quarter or year are a few periods side by side: categories, named by their period ("2024 Q1")
+  // A line or an area by year is a few points too (a slope chart): its years named, not placed on a time scale of months
   const fewPeriods = spec.grain === 'month' || spec.grain === 'quarter' || spec.grain === 'year';
-  const timeAxis = isTemporal(xCol.type) && (spec.mark === 'line' || spec.mark === 'area' || (spec.mark === 'bar' && !fewPeriods))
+  const timeAxis = isTemporal(xCol.type) && spec.grain !== 'year'
+    && (spec.mark === 'line' || spec.mark === 'area' || (spec.mark === 'bar' && !fewPeriods))
     && !(spec.mark === 'bar' && spec.options.orientation === 'horizontal');
   const firstSeen = distinct(xCol.values);
   const categories = timeAxis ? [...firstSeen].sort((a, b) => keyText(a).localeCompare(keyText(b))) : firstSeen;
@@ -275,7 +277,9 @@ export function chartOption(
   const catLabels = categories.map((c) => (spec.grain !== undefined && c !== null ? periodText(String(c), spec.grain) : label(c, spec.x!, xCol.type)));
   const indexOf = new Map(categories.map((c, i) => [keyText(c), i]));
 
-  // -- pie: one category per slice ---------------------------------------
+  // -- pie: one category per slice; split, two rings -- the categories inside (each its total, the database's), their
+  // split's values outside; half, a half ring --------------------------------------------------------------------
+  if (spec.mark === 'pie' && spec.split !== undefined) return twoRings(spec, rows, xCol, categories, catLabels, base, tooltip, theme, label, notes);
   if (spec.mark === 'pie') {
     const m = measure(first);
     const data = categories.map((c, i) => {
@@ -294,6 +298,7 @@ export function chartOption(
         series: [{
           type: 'pie',
           radius: ['45%', '72%'],
+          ...(spec.options.half ? { center: ['50%', '72%'], radius: ['60%', '100%'], startAngle: 180, endAngle: 360 } : {}),
           itemStyle: { borderColor: theme.surface, borderWidth: 2, borderRadius: 4 },
           label: { show: spec.options.labels, color: theme.inkSecondary },
           data,
@@ -465,17 +470,21 @@ export function chartOption(
     type: 'category' as const,
     data: catLabels,
     splitLine: { show: false },
-    // a bar's category is a band; a line's points sit on the categories
-    boundaryGap: series.some((s) => s.mark === 'bar'),
+    // a bar's category is a band; a line's points sit on the categories -- but two or three (a slope chart) sit inside
+    // their bands, so their labels clear the axis
+    boundaryGap: series.some((s) => s.mark === 'bar') || categories.length <= 3,
     axisLabel: { ...axisCommon.axisLabel, ...(spec.options.labelRotate !== undefined ? { rotate: spec.options.labelRotate } : {}) },
   };
   const valueAxis = (index: 0 | 1) => {
     const on = series.find((s) => axisOf(s.measure) === index);
     const colour = twoAxes && on ? theme.series[series.indexOf(on) % theme.series.length]! : undefined;
     const fmt = on ? formatOf(on.measure) : (v: number | null) => String(v);
+    // a rank's axis runs from the first at the top (a bump chart), whole ranks only
+    const ranks = series.filter((x) => axisOf(x.measure) === index).every((x) => x.measure.showAs?.kind === 'rank');
     return {
       ...axisCommon,
       type: spec.options.logAxis && !percent ? 'log' as const : 'value' as const,
+      ...(ranks ? { inverse: !horizontal, min: 1, minInterval: 1 } : {}),
       ...(index === 1 ? { splitLine: { show: false } } : {}),
       ...(percent ? { max: 100 } : {}),
       ...(twoAxes && on ? { name: on.name, nameTextStyle: { ...text, color: colour } } : {}),
@@ -645,6 +654,56 @@ export function chartOption(
   };
 }
 
+/**
+ * A PIE IN TWO RINGS: the categories across inside, each its total over the split (the database's: chart-spec.ts adds
+ * the inner ring's column), and outside each category's slices by the split's values, beside their category.
+ */
+function twoRings(
+  spec: ChartSpec,
+  rows: ResultTable,
+  xCol: { values: readonly Scalar[]; type: string | undefined },
+  categories: readonly Scalar[],
+  catLabels: readonly string[],
+  base: EChartsOption,
+  tooltip: object,
+  theme: ChartTheme,
+  label: LabelOf,
+  notes: string[],
+): ChartDrawing {
+  const first = spec.y[0]!;
+  const m = column(rows, measureName(first));
+  const totals = column(rows, ringTotalName(measureName(first)));
+  const splitCol = column(rows, spec.split!);
+  const inner = categories.map((c, i) => {
+    const at = xCol.values.findIndex((v) => keyText(v) === keyText(c));
+    return { name: catLabels[i]!, value: numberOf(totals?.values[at] ?? null, totals?.type), key: { [spec.x!]: c } as MarkKey };
+  });
+  // the outer ring in the inner ring's order: each category's slices together, beside it
+  const outer = categories.flatMap((c, ci) => xCol.values.flatMap((v, i) => (keyText(v) !== keyText(c) ? [] : [{
+    name: `${catLabels[ci]} \u00B7 ${label(splitCol?.values[i] ?? null, spec.split!, splitCol?.type)}`,
+    value: numberOf(m?.values[i] ?? null, m?.type),
+    key: { [spec.x!]: c, [spec.split!]: splitCol?.values[i] ?? null } as MarkKey,
+    itemStyle: { color: theme.series[ci % theme.series.length], opacity: 0.7 },
+  }])));
+  if (inner.length > MAX_SERIES) notes.push(`${inner.length} categories inside: a bar reads more than ${MAX_SERIES} better.`);
+  const fmt = (v: unknown): string => measureText(first, typeof v === 'number' ? v : null, rows, label);
+  const half = spec.options.half ? { center: ['50%', '72%'], startAngle: 180, endAngle: 360 } : {};
+  return {
+    option: asOption({
+      ...base,
+      tooltip: { ...tooltip, trigger: 'item', formatter: (p: { name: string; value: unknown }) => `${escapeHtml(p.name)}: <b>${escapeHtml(fmt(p.value))}</b>` },
+      ...toolboxOf(spec, rows, theme),
+      series: [
+        { type: 'pie', radius: spec.options.half ? ['24%', '58%'] : ['20%', '46%'], ...half, data: inner, itemStyle: { borderColor: theme.surface, borderWidth: 2 }, label: { show: true, position: 'inner', color: '#ffffff' } },
+        { type: 'pie', radius: spec.options.half ? ['62%', '100%'] : ['50%', '72%'], ...half, data: outer, itemStyle: { borderColor: theme.surface, borderWidth: 1 }, label: { show: spec.options.labels, color: theme.inkSecondary } },
+      ],
+    }),
+    keyAt: (_s, _i, datum) => (datum as { key?: MarkKey } | undefined)?.key ?? null,
+    notes,
+    description: describe(spec, rows),
+  };
+}
+
 /** The brush's look: the selection's own colours, faint. */
 const BRUSH_STYLE = (theme: ChartTheme) => ({
   brushStyle: { color: 'rgba(42, 120, 214, 0.12)', borderColor: theme.series[0], borderWidth: 1 },
@@ -659,7 +718,7 @@ const BRUSH_STYLE = (theme: ChartTheme) => ({
  * on a bar or line chart -- draw it the other way, in place (the panel keeps the choice: the renderer's `onKind`). And
  * a brush's buttons (a range, and clearing it), which a brush starts from.
  */
-function toolboxOf(
+export function toolboxOf(
   spec: ChartSpec,
   rows: ResultTable,
   theme: ChartTheme,
@@ -723,7 +782,7 @@ export function periodText(day: string, grain: NonNullable<ChartSpec['grain']>):
 }
 
 /** A point's value as ECharts hands it back: a number, or on a time axis the [time, value] pair. */
-function valueOf(v: unknown): number | null {
+export function valueOf(v: unknown): number | null {
   if (typeof v === 'number') return v;
   if (Array.isArray(v) && typeof v[1] === 'number') return v[1];
   return null;
@@ -900,7 +959,7 @@ function thresholdMap(
 }
 
 /** Two values of one column in order: numbers by number, anything else (a day, a timestamp) by its text. */
-function compareScalars(a: Scalar, b: Scalar, type: string | undefined): number {
+export function compareScalars(a: Scalar, b: Scalar, type: string | undefined): number {
   const x = numberOf(a, type);
   const y = numberOf(b, type);
   return x !== null && y !== null ? x - y : String(a).localeCompare(String(b));
@@ -921,6 +980,10 @@ export function localTime(text: string): number {
 const MARK_WORDS: Record<ChartSpec['mark'], string> = {
   bar: 'Bar chart', line: 'Line chart', area: 'Area chart', scatter: 'Scatter plot',
   pie: 'Pie chart', heatmap: 'Heatmap', treemap: 'Treemap', kpi: 'KPI',
+  lollipop: 'Lollipop chart', dumbbell: 'Dumbbell chart', range: 'Range chart', waterfall: 'Waterfall chart',
+  pareto: 'Pareto chart', funnel: 'Funnel', rose: 'Rose chart', polar: 'Polar bar chart', radar: 'Radar chart',
+  parallel: 'Parallel coordinates', sankey: 'Sankey diagram', chord: 'Chord diagram', stream: 'Streamgraph',
+  calendar: 'Calendar heatmap', gauge: 'Gauge', sunburst: 'Sunburst', tree: 'Tree',
 };
 
 /** A KPI as drawn: its number as the grid writes it, how it stands against its target, and its trend's line. */
@@ -1023,7 +1086,7 @@ export function describe(spec: ChartSpec, rows: ResultTable): string {
   return `${MARK_WORDS[spec.mark]} of ${what}${split}: ${rows.rowCount} rows.`;
 }
 
-function legendOf(spec: ChartSpec, count: number, theme: ChartTheme): EChartsOption['legend'] {
+export function legendOf(spec: ChartSpec, count: number, theme: ChartTheme): EChartsOption['legend'] {
   // one series is named by the chart's title; a legend box is for two or more
   if (count < 2 || spec.options.legend === 'none') return { show: false };
   const at = spec.options.legend;
@@ -1049,7 +1112,13 @@ export interface GridShown {
     readonly isTotal: boolean;
     readonly isDetail?: boolean;
   }[];
-  readonly leaves: readonly { readonly name: string; readonly type: string; readonly label?: string }[];
+  readonly leaves: readonly {
+    readonly name: string;
+    readonly type: string;
+    readonly label?: string;
+    /** One of the grid's measures (or its group-level columns): a figure on every group's row. */
+    readonly measure?: boolean;
+  }[];
   readonly levels: readonly string[];
 }
 
@@ -1066,11 +1135,35 @@ const TREE = TREE_COLUMN;
  * negative area does not exist -- drawing a zero-size box would hide the row silently, and its
  * absolute value would say the opposite of the truth. How many went is said.
  */
-export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME, label: LabelOf = defaultLabel): ChartDrawing {
-  const notes: string[] = [];
+/** A node of the grid's rows as shown: its name, its value (the grid's, as a number and as the grid writes it), the
+ *  row's path as a key, and its visible children. */
+export interface GridNode {
+  readonly name: string;
+  readonly value?: number;
+  readonly text?: string;
+  readonly key: MarkKey;
+  readonly children?: GridNode[];
+  readonly level: number;
+}
+
+/**
+ * THE GRID'S ROWS AS SHOWN, as a tree: a collapsed group a leaf, an expanded one a node around its visible children;
+ * each valued by the first numeric column the grid shows -- an expanded group too when `groupsValued` (a sunburst's
+ * ring and a tree's node say their own total, the database's, never a sum of what is drawn). The grand total is the
+ * whole, not a node. Non-positive values are DROPPED, never clamped (an area or an angle cannot be negative), and
+ * counted; a node whose children all went goes too.
+ */
+export function gridTree(shown: GridShown, label: LabelOf, groupsValued = false): {
+  readonly data: GridNode[];
+  readonly dropped: number;
+  readonly value: GridShown['leaves'][number] | undefined;
+} {
   const rows = shown.rows;
   const tree = shown.tree;
-  const value = shown.leaves.find((l) => l.name !== TREE && isNumeric(l.type));
+  // a grouped grid is valued by its first measure -- a number column of its rows (an id, a latitude) is empty on a
+  // group's row; a flat grid by its first number column
+  const grouped = shown.levels.length > 0;
+  const value = shown.leaves.find((l) => l.name !== TREE && isNumeric(l.type) && (!grouped || l.measure === true));
   const valueCol = value ? column(rows, value.name) : undefined;
   const treeCol = column(rows, TREE);
   // a flat cube's label: the first visible column that is not a number
@@ -1082,7 +1175,7 @@ export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME,
   let dropped = 0;
   for (let i = 0; i < rows.rowCount; i++) {
     const t = tree[i];
-    // the grand total is the whole treemap, not a block of it
+    // the grand total is the whole, not a node of it
     if (t && t.isTotal && t.level === 0) continue;
     const level = t ? t.level : 1;
     const path = t?.path ?? [];
@@ -1096,31 +1189,46 @@ export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME,
     while (open.length > 0 && open[open.length - 1]!.level >= level) open.pop();
     const parent = open[open.length - 1];
     const into = (n: Node): void => { if (parent) (parent.children ??= []).push(n); else top.push(n); };
+    const v = numberOf(valueCol?.values[i] ?? null, valueCol?.type);
+    const text = label(valueCol?.values[i] ?? null, value?.name ?? '', value?.type);
     if (t && t.isGroup && t.expanded) {
-      const box: Node = { name, key, level, children: [] };
+      if (groupsValued && (v === null || v <= 0)) {
+        dropped += 1;
+        // its children are not drawn either: they would sit in no ring
+        open.push({ name, key, level, children: [] });
+        continue;
+      }
+      const box: Node = { name, key, level, children: [], ...(groupsValued ? { value: v!, text } : {}) };
       into(box);
       open.push(box);
       continue;
     }
-    const v = numberOf(valueCol?.values[i] ?? null, valueCol?.type);
     if (v === null || v <= 0) {
       dropped += 1;
       continue;
     }
-    into({ name, value: v, text: label(valueCol?.values[i] ?? null, value?.name ?? '', value?.type), key, level });
+    into({ name, value: v, text, key, level });
   }
-  // a box whose children were all dropped is not a box
+  // a node whose children were all dropped is not a node (but a valued group keeps its own value)
   const prune = (nodes: Node[]): Node[] => nodes.flatMap((n) => {
     if (!n.children) return [n];
     const kids = prune(n.children);
-    return kids.length > 0 ? [{ ...n, children: kids }] : [];
+    if (kids.length > 0) return [{ ...n, children: kids }];
+    if (!groupsValued) return [];
+    const { children: _c, ...leaf } = n;
+    return [leaf];
   });
-  const data = prune(top);
+  return { data: prune(top), dropped, value };
+}
+
+export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME, label: LabelOf = defaultLabel): ChartDrawing {
+  const notes: string[] = [];
+  const { data, dropped, value } = gridTree(shown, label);
   if (dropped > 0) {
     notes.push(`${dropped} ${dropped === 1 ? 'row' : 'rows'} not shown: zero or negative cannot have an area.`);
   }
   if (!value) notes.push('The grid shows no numeric column to size the blocks by.');
-  const depth = (nodes: Node[]): number => nodes.reduce((m, n) => Math.max(m, n.children ? 1 + depth(n.children) : 1), 0);
+  const depth = (nodes: readonly GridNode[]): number => nodes.reduce((m, n) => Math.max(m, n.children ? 1 + depth(n.children) : 1), 0);
   const levels = Math.max(1, depth(data));
   const text = { fontFamily: 'Roboto, ui-sans-serif, system-ui, sans-serif', fontSize: 11, color: theme.ink };
   return {

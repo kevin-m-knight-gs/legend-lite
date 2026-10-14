@@ -223,6 +223,24 @@ of their own, fetched with their first chart:
 - **Layout**: small multiples on shared axes (`facet`), and the matrix (a chart per cell).
 - **Its example page**: a sheet per family.
 
+**Step 1, built 2026-10-14** (stacked on batch 2, to land with it): seventeen kinds -- lollipop, dumbbell, range,
+waterfall, Pareto, funnel, rose, polar bar and radial bars, radar, parallel coordinates, Sankey, chord, streamgraph,
+calendar, gauge and progress ring, sunburst and tree (the grid as shown, as the treemap) -- and the pie in two rings
+(its split outside) and as half a ring; a line of ranks is a bump chart (its axis runs from the first), a line by year a
+slope chart. The database computes each kind's own figures: a waterfall's starts and ends (a running total along the
+chart's own order, which now breaks ties by the category so the window and the rows agree), a Pareto's cumulative share,
+a two-ring pie's inner totals (calc-presets.ts); the page only places them. Every kind refuses by name what it cannot
+draw (chart-spec.ts chartProblems; Python's `_drawable` the same). The drawing (chart-kinds.ts) and the rarer ECharts
+charts (chart-render-kinds.ts) are chunks of their own, fetched with the first such chart: ECharts is now registered a
+chart at a time (`echarts/lib/...`), since the `echarts/charts` index imported by both chunks put every chart in the
+first chart's download. Its example page, "Charts: more kinds", has a sheet per family; each chart's query is planned
+and run on DuckDB (chart-queries.test.ts) and every sheet drawn in a browser (verify_charts). A grid's tree (treemap,
+sunburst, tree) is now valued by its first MEASURE, not its first number column (an id is empty on a group's row).
+
+Still to come in batch 3: the bubble (a scatter's `size`), small multiples (`facet`) and the sparkline grid they make,
+the scatter matrix. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
+design so the page does not compute), Gantt (a start and an end per row: dates as measures).
+
 ### Batch 4: new aggregates, and the kinds they unlock
 
 The rule holds -- the database computes, the chart draws. The aggregates (§3.2 item 6) join `AggregateFn` and Python's

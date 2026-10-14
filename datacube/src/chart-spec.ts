@@ -13,7 +13,7 @@
 // no functions (a stored formatter would need eval to come back).
 
 import { levelLambda, type LevelScope } from './query.ts';
-import { binColumns, binName, grainColumn, grainEndColumn, grainName, rangeConditions, showAsColumns, showAsName, statColumn, upperName } from './calc-presets.ts';
+import { binColumns, binName, grainColumn, grainEndColumn, grainName, paretoColumns, rangeConditions, ringTotalColumn, showAsColumns, showAsName, statColumn, upperName, waterfallColumns } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
@@ -24,11 +24,54 @@ import {
   type FilterNode,
   type Measure,
   type RowColumn,
+  type SortSpec,
 } from './snapshot.ts';
 import { defaultKind, isFractional, isNumeric, isTemporal } from '../../engine-client/src/types.ts';
 import { lambda, property, variable, type Lambda } from '../../pure-protocol/src/index.ts';
 
-export type ChartMark = 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap' | 'kpi';
+export type ChartMark =
+  | 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap' | 'kpi'
+  // batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): drawn by chart-kinds.ts, a chunk of its own
+  | 'lollipop' | 'dumbbell' | 'range' | 'waterfall' | 'pareto' | 'funnel' | 'rose' | 'polar' | 'radar' | 'parallel'
+  | 'sankey' | 'chord' | 'stream' | 'calendar' | 'gauge' | 'sunburst' | 'tree';
+
+/** The kinds that draw the GRID'S rows as shown, with no query of their own: a treemap, a sunburst, a tree. */
+export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst', 'tree']);
+
+/** Batch 3's kinds: drawn by chart-kinds.ts, fetched with the first of them (the rarer ECharts charts with it). */
+export const KIND_MARKS: ReadonlySet<ChartMark> = new Set([
+  'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar', 'parallel',
+  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree',
+]);
+
+/** The kinds whose marks are the categories across, one per value: a click drills down from one. */
+const DRILLABLE: ReadonlySet<ChartMark> = new Set([
+  'bar', 'line', 'area', 'pie', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose',
+  'polar',
+]);
+
+/** The kinds that draw one series of categories: no split (a colour per value) has a place on them. */
+const UNSPLIT: ReadonlySet<ChartMark> = new Set([
+  'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar', 'gauge',
+]);
+
+/** The kinds that need a second grouping (the split): a heatmap's rows, a flow's target, a stream's layers. */
+const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
+  heatmap: 'A heatmap needs a second column, for its rows.',
+  sankey: 'A Sankey needs a second column, where each flow goes (Split by).',
+  chord: 'A chord diagram needs a second column, where each flow goes (Split by).',
+  stream: 'A streamgraph needs a second column, for its layers (Split by).',
+};
+
+/** The kinds that need a date across. */
+const DATE_ACROSS: ReadonlySet<ChartMark> = new Set(['stream', 'calendar']);
+
+/** The kinds whose reference layers, label slot and hover measures are drawn: the rest refuse them by name. */
+const LAYERED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area']);
+const LABELLED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area']);
+const HOVER_EXTRAS: ReadonlySet<ChartMark> = new Set([
+  'bar', 'line', 'area', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'calendar',
+]);
 
 /**
  * The spec's version (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1). 2: a slot per role -- every field it adds is
@@ -196,6 +239,10 @@ export interface ChartOptions {
   readonly dim?: boolean;
   /** The toolbox: save as a picture, see the chart's data, download it. */
   readonly toolbox?: boolean;
+  /** A pie as half a ring (a half donut). */
+  readonly half?: boolean;
+  /** A gauge drawn as a progress ring rather than a dial. */
+  readonly ring?: boolean;
 }
 
 // The words a saved spec may use, each list exhaustive by construction (a Record over its union): a page's reader
@@ -325,7 +372,30 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
   { value: 'heatmap', label: 'Heatmap' },
   { value: 'treemap', label: 'Treemap' },
   { value: 'kpi', label: 'KPI' },
+  { value: 'lollipop', label: 'Lollipop' },
+  { value: 'dumbbell', label: 'Dumbbell' },
+  { value: 'range', label: 'Range' },
+  { value: 'waterfall', label: 'Waterfall' },
+  { value: 'pareto', label: 'Pareto' },
+  { value: 'funnel', label: 'Funnel' },
+  { value: 'rose', label: 'Rose' },
+  { value: 'polar', label: 'Polar bar' },
+  { value: 'radar', label: 'Radar' },
+  { value: 'parallel', label: 'Parallel' },
+  { value: 'sankey', label: 'Sankey' },
+  { value: 'chord', label: 'Chord' },
+  { value: 'stream', label: 'Streamgraph' },
+  { value: 'calendar', label: 'Calendar' },
+  { value: 'gauge', label: 'Gauge' },
+  { value: 'sunburst', label: 'Sunburst' },
+  { value: 'tree', label: 'Tree' },
 ];
+
+/** A kind's name, as a sentence says it ("a Pareto", "a polar bar"). */
+export function markLabel(mark: ChartMark): string {
+  const l = CHART_MARKS.find((m) => m.value === mark)?.label ?? mark;
+  return l === 'KPI' || l === 'Sankey' || l === 'Pareto' ? l : l.toLowerCase();
+}
 
 export const DEFAULT_CHART_LIMIT = 50;
 /** A date across asks for this many points: a time series is long, and its slider and point thinning keep it quick. */
@@ -442,7 +512,7 @@ export function drilledView(spec: ChartSpec): { readonly spec: ChartSpec; readon
  */
 export function drillLevels(spec: ChartSpec, s: CubeSnapshot): readonly string[] | null {
   if (spec.drill) return spec.drill.levels;
-  if (spec.x === undefined || spec.mark === 'scatter' || spec.mark === 'kpi' || spec.mark === 'treemap') return null;
+  if (spec.x === undefined || !DRILLABLE.has(spec.mark)) return null;
   // a period or a bin is not a level of the grid's groupings: there is nowhere "down" from a month
   if (spec.grain !== undefined || spec.bins !== undefined) return null;
   const at = s.rows.indexOf(spec.x);
@@ -469,7 +539,7 @@ export function drillUp(spec: ChartSpec, depth: number): ChartSpec {
 
 /** The row-stage columns the chart's axis needs: a grain's (its period and the period's end), or its bins'. */
 function axisCalcs(spec: ChartSpec): DerivedColumn[] {
-  if (spec.x === undefined || spec.mark === 'scatter') return [];
+  if (spec.x === undefined || spec.mark === 'scatter' || spec.mark === 'gauge') return [];
   if (spec.grain !== undefined) {
     const name = grainName(spec.x, spec.grain);
     return [grainColumn(spec.x, spec.grain, name), grainEndColumn(spec.x, spec.grain, name)];
@@ -487,7 +557,8 @@ export const AXIS_UPPER = '__axis_upper';
 
 /** Whether a chart's categories are periods or bins: ranges of the cube's column, each with its database end. */
 export function rangesAcross(spec: ChartSpec): boolean {
-  return spec.mark !== 'scatter' && spec.x !== undefined && (spec.grain !== undefined || spec.bins !== undefined);
+  return spec.mark !== 'scatter' && spec.mark !== 'gauge' && spec.x !== undefined
+    && (spec.grain !== undefined || spec.bins !== undefined);
 }
 
 /**
@@ -625,10 +696,10 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
  * are left as they are.
  */
 export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
-  // a drilled chart stays where it was taken until it is taken back up
-  if (spec.frozen || spec.mark === 'scatter' || (spec.drill?.path.length ?? 0) > 0) return spec;
-  // a KPI follows the cube's measure; its trend's column is its own
-  if (spec.mark === 'kpi') {
+  // a drilled chart stays where it was taken until it is taken back up; a chart of the grid as shown draws it as it is
+  if (spec.frozen || spec.mark === 'scatter' || GRID_MARKS.has(spec.mark) || (spec.drill?.path.length ?? 0) > 0) return spec;
+  // a KPI or a gauge follows the cube's measure; a KPI's trend's column is its own
+  if (spec.mark === 'kpi' || spec.mark === 'gauge') {
     const measure = s.measures.find((m) => m.fn !== 'wavg');
     if (!measure) return spec;
     const y = [{ column: measure.column, fn: measure.fn }];
@@ -670,8 +741,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   const known = new Set([...rowColumns(s), ...chartRowCalcs(spec)].map((c) => c.name));
   const groupLevel = new Set(groupLevelColumns(s, spec).map((d) => d.name));
   const out: string[] = [];
-  // a KPI's column across is its trend, and it may have none
-  if (spec.x === undefined && spec.mark !== 'kpi') out.push('Pick a column across.');
+  // a KPI's column across is its trend, and it may have none; a gauge is one value, with nothing across
+  if (spec.x === undefined && spec.mark !== 'kpi' && spec.mark !== 'gauge') out.push('Pick a column across.');
   else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
   if (spec.y.length === 0) out.push('Pick something to plot.');
   for (const m of [...spec.y, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
@@ -685,8 +756,31 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if (spec.split !== undefined && !known.has(spec.split)) {
     out.push(`The cube has no column '${spec.split}'.`);
   }
-  if (spec.mark === 'heatmap' && spec.split === undefined) {
-    out.push('A heatmap needs a second column, for its rows.');
+  const needs = SPLIT_NEEDED[spec.mark];
+  if (needs !== undefined && spec.split === undefined) out.push(needs);
+  const kind = markLabel(spec.mark);
+  const article = /^[aeiou]/i.test(kind) ? 'An' : 'A';
+  if (UNSPLIT.has(spec.mark) && spec.split !== undefined) out.push(`${article} ${kind} draws one series: it has no split.`);
+  if (spec.mark === 'gauge' && spec.x !== undefined) out.push('A gauge is one value: it has no column across.');
+  if ((spec.mark === 'dumbbell' || spec.mark === 'range') && spec.y.length !== 2) {
+    out.push(`${article} ${kind} plots two values per category: its low and its high (pick two).`);
+  }
+  if (spec.mark === 'radar' && spec.y.length < 3) out.push('A radar needs three values or more, one per spoke.');
+  if (spec.mark === 'parallel' && spec.y.length < 2) out.push('Parallel coordinates need two values or more, one per axis.');
+  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge' || spec.mark === 'calendar'
+    || spec.mark === 'funnel' || spec.mark === 'rose' || spec.mark === 'stream' || spec.mark === 'sankey'
+    || spec.mark === 'chord') && spec.y.length > 1) {
+    out.push(`${article} ${kind} plots one value.`);
+  }
+  // a Pareto runs from the largest: its cumulative share is along that order, so the chart's order is it
+  if (spec.mark === 'pareto' && (spec.options.sort.by !== 'y' || spec.options.sort.direction !== 'desc')) {
+    out.push('A Pareto runs from the largest value: order by value, largest first.');
+  }
+  if (spec.mark === 'gauge' && spec.options.target === undefined) {
+    out.push('A gauge needs a target: its scale runs from zero to it.');
+  }
+  if ((spec.mark === 'waterfall' || spec.mark === 'pareto' || spec.mark === 'gauge') && spec.y.some((m) => m.showAs)) {
+    out.push(`${article} ${kind} computes its own figures: a value shown as something else has no place on it.`);
   }
   // a grain takes a date to its period, bins a number to its bin: on any other column they mean nothing
   const xType = [...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === spec.x)?.type;
@@ -703,16 +797,26 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   for (const level of drilled.drill?.levels ?? []) {
     if (!known.has(level)) out.push(`The cube has no column '${level}' to drill into.`);
   }
-  // A SLOT NOTHING DRAWS IS REFUSED, never ignored (AGENTS.md invariant 4): small multiples and a mark's size are
-  // batch 3's; a layer reads a value the chart plots; a scatter plots rows (no show-as, no layers over groups); a 100%
-  // stack's axis is shares, which a layer of figures would be drawn against
+  if (DATE_ACROSS.has(spec.mark) && spec.x !== undefined && known.has(spec.x) && !isTemporal(xType)) {
+    out.push(`${article} ${kind} runs along dates: '${spec.x}' is not one.`);
+  }
+  if (spec.mark === 'calendar' && spec.grain !== undefined && spec.grain !== 'day') {
+    out.push('A calendar has a cell per day: its grain is the day.');
+  }
+  // A SLOT NOTHING DRAWS IS REFUSED, never ignored (AGENTS.md invariant 4): small multiples are drawn by bars, lines
+  // and areas; a mark's size by a scatter (a bubble); a layer reads a value the chart plots, on a kind that draws
+  // layers; a scatter plots rows (no show-as); a 100% stack's axis is shares, which a layer of figures would be drawn
+  // against
   if (spec.facet !== undefined) out.push('Small multiples (a facet) are not drawn yet.');
-  if (spec.size !== undefined && spec.mark !== 'scatter') out.push('Only a scatter sizes its marks.');
-  if (spec.size !== undefined && spec.mark === 'scatter') out.push('A scatter\'s size (a bubble) is not drawn yet.');
+  if (spec.size !== undefined && spec.mark !== 'scatter') out.push('Only a scatter sizes its marks (a bubble).');
   for (const l of spec.layers ?? []) {
     if (l.kind !== 'band' && (l.measure ?? 0) >= spec.y.length) out.push(`A ${l.kind} layer reads value ${(l.measure ?? 0) + 1}, which the chart does not plot.`);
   }
-  if (spec.mark === 'scatter' && (spec.layers ?? []).length > 0) out.push('A scatter draws no reference lines yet.');
+  if (!LAYERED.has(spec.mark) && (spec.layers ?? []).length > 0) out.push(`${article} ${kind} draws no reference lines yet.`);
+  if (!LABELLED.has(spec.mark) && spec.label !== undefined) out.push(`${article} ${kind} writes no other measure on its marks.`);
+  if (!HOVER_EXTRAS.has(spec.mark) && (spec.tooltip ?? []).length > 0 && spec.mark !== 'scatter') {
+    out.push(`${article} ${kind}'s hover lists no further measures.`);
+  }
   if (spec.mark === 'scatter' && spec.y.some((m) => m.showAs)) out.push('A scatter plots rows: a value shown as a running total, a share or a rank needs groups.');
   if (spec.options.stack === 'percent' && (spec.layers ?? []).some((l) => l.kind !== 'band')) {
     out.push('A 100% stack shows shares: a reference line, a threshold or a pinned extreme of figures has no place on it.');
@@ -746,7 +850,11 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
  */
 export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot {
   // drilled, the level after the path across and the path as the chart's own conditions
-  const { spec, conditions } = drilledView(drilled);
+  const view = drilledView(drilled);
+  const conditions = view.conditions;
+  // a gauge is one value: its query groups by nothing, as a KPI's total does
+  const { x: _gx, split: _gs, ...ungrouped } = view.spec;
+  const spec: ChartSpec = view.spec.mark === 'gauge' ? ungrouped : view.spec;
   const filter: FilterNode | undefined = conditions.length === 0 ? s.filter
     : { kind: 'and', children: [...(s.filter ? [s.filter] : []), ...conditions] };
   const scatter = spec.mark === 'scatter';
@@ -813,6 +921,15 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
       }
     }
   }
+  // A KIND'S OWN FIGURES, the database's: a waterfall's bars' starts and ends along the chart's order, a Pareto's
+  // cumulative share, a two-ring pie's inner ring (calc-presets.ts)
+  const lead = spec.y[0];
+  if (!scatter && lead && across !== undefined) {
+    const base = measureName(lead);
+    if (spec.mark === 'waterfall') shown.push(...waterfallColumns(base, chartOrder(spec, across, base)));
+    if (spec.mark === 'pareto') shown.push(...paretoColumns(base, across));
+    if (spec.mark === 'pie' && spec.split !== undefined) shown.push(ringTotalColumn(base, across));
+  }
   const rowCalcs = [...axisCalcs(spec), ...(spec.calcs ?? []).filter((c) => c.stage === 'row').map((c) => c.column)];
   // what the chart reads, and what the cube's filter reads (its literals are
   // written by their columns' types, so those columns must stay typed)
@@ -827,8 +944,10 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
     ...filterColumns(filter),
   ]);
   const first = spec.y[0];
+  // the chart's order, ties broken by the category: a waterfall's running total runs along this very order
   const sorts = scatter ? [] : spec.options.sort.by === 'y' && first
-    ? [{ column: measureName(first), direction: spec.options.sort.direction }]
+    ? [{ column: measureName(first), direction: spec.options.sort.direction },
+      ...(across !== undefined ? [{ column: across, direction: 'asc' as const }] : [])]
     : across !== undefined ? [{ column: across, direction: spec.options.sort.direction }] : [];
   const {
     pivotValues: _pv, pivotTotal: _pt, groupDerived: _gd, window: _w,
@@ -863,6 +982,12 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
     ...(keptGroup.length + shown.length > 0 ? { groupDerived: [...keptGroup, ...shown] } : {}),
     sorts,
   };
+}
+
+/** The chart's order as a window's: by the category, or by the value with ties broken by the category. */
+function chartOrder(spec: ChartSpec, across: string, value: string): SortSpec[] {
+  const { by, direction } = spec.options.sort;
+  return by === 'x' ? [{ column: across, direction }] : [{ column: value, direction }, { column: across, direction: 'asc' }];
 }
 
 /** Every column a filter tree names. */

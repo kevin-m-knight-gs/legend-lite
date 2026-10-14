@@ -104,7 +104,7 @@ describe('the chart\'s query', () => {
   });
 
   it('orders by the value for a top N, or by the category', () => {
-    assert.deepEqual(chartSnapshot(CUBE, BAR).sorts, [{ column: 'sum_notional', direction: 'desc' }]);
+    assert.deepEqual(chartSnapshot(CUBE, BAR).sorts, [{ column: 'sum_notional', direction: 'desc' }, { column: 'region', direction: 'asc' }], 'ties by the category');
     const byX = { ...BAR, options: { ...BAR.options, sort: { by: 'x', direction: 'asc' } } } as ChartSpec;
     assert.deepEqual(chartSnapshot(CUBE, byX).sorts, [{ column: 'region', direction: 'asc' }]);
   });
@@ -151,7 +151,7 @@ describe('a group-level column, plotted as it is (version 2: fn \'value\')', () 
     assert.deepEqual(s.groupDerived?.map((d) => d.name), ['margin']);
     assert.deepEqual(s.measures.map((m) => m.name), ['pnl_sum', 'total']);
     assert.deepEqual(s.columns.map((c) => c.name).sort(), ['desk', 'notional', 'pnl', 'region']);
-    assert.deepEqual(s.sorts, [{ column: 'margin', direction: 'desc' }]);
+    assert.deepEqual(s.sorts, [{ column: 'margin', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
     // grouped, then extended: the ratio is of the groups' sums, never an average of the rows' ratios
     const { query } = chartQuery(GROUPED, MARGIN);
     const text = toJson(query as never);
@@ -344,7 +344,7 @@ describe('the drawing', () => {
       { path: ['AMER'], level: 1, isGroup: true, expanded: false, isTotal: false },
     ],
     // what the grid shows: hidden_qty is not on screen
-    leaves: [{ name: '__tree', type: 'String' }, { name: 'sum_notional', type: 'Float' }],
+    leaves: [{ name: '__tree', type: 'String' }, { name: 'sum_notional', type: 'Float', measure: true }],
     levels: ['region', 'desk'],
   });
   type Node = { name: string; value?: number; key: Record<string, unknown>; children?: Node[] };

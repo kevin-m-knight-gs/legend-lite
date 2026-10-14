@@ -7,6 +7,7 @@
 import {
   CHART_MARKS,
   chartColumns,
+  GRID_MARKS,
   LAYER_STATS,
   SHOW_AS_KINDS,
   TIME_GRAINS,
@@ -24,6 +25,16 @@ import { checkbox, dropdown, field, numberInput } from './form.ts';
 import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
+
+/** The kinds that draw one series, and so offer no split. */
+const UNSPLIT_MARKS: ReadonlySet<ChartMark> = new Set([
+  'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar',
+]);
+/** The kinds that need their split, and what each calls it. */
+const SPLIT_REQUIRED: ReadonlySet<ChartMark> = new Set(['heatmap', 'sankey', 'chord', 'stream']);
+const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
+  heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:',
+};
 
 /** The most values one chart plots side by side (bars, lines). */
 const MAX_MEASURES = 6;
@@ -97,7 +108,19 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   };
 
   const markField = field(doc, 'Chart:', dropdown<ChartMark>(doc, spec.mark, CHART_MARKS, (v) => {
-    if (v) h.set({ mark: v }, true);
+    if (!v || !h.spec()) return;
+    // a kind takes what it needs and leaves what it has no place for: a gauge has nothing across and no split, a kind
+    // of one series no split; a Pareto runs from the largest
+    const { x, split, ...rest } = current(h);
+    const keepX = v !== 'gauge' && x !== undefined;
+    const keepSplit = v !== 'gauge' && !UNSPLIT_MARKS.has(v) && split !== undefined;
+    h.replace({
+      ...rest,
+      ...(keepX ? { x } : {}),
+      ...(keepSplit ? { split } : {}),
+      ...(v === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
+    });
+    h.set({ mark: v }, true);
   }));
   if (spec.mark === 'kpi') {
     // a number, what it measures, its trend by a column (or none), and a target with which way is good
@@ -128,11 +151,38 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     );
     return;
   }
-  if (spec.mark === 'treemap') {
+  if (spec.mark === 'gauge') {
+    // one value against its target, the scale's end: a dial, or a progress ring
+    form.append(
+      markField,
+      field(doc, 'Value:', dropdown<string>(doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
+        (v) => { if (v) h.set({ y: [{ column: v, fn: currentFn() ?? 'sum' }] }, true); })),
+      field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, currentFn(), fns, (v) => {
+        const now = h.spec()?.y[0];
+        if (v && now) h.set({ y: [{ column: now.column, fn: v }] });
+      })),
+      field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => {
+        if (!h.spec()) return;
+        const { target: _old, ...rest } = current(h).options;
+        h.set({ options: v === undefined ? rest : { ...rest, target: v } });
+      }, { width: 110 })),
+      field(doc, 'Good when:', dropdown(doc, spec.options.better ?? 'higher', [
+        { value: 'higher', label: 'At or above target' },
+        { value: 'lower', label: 'At or below target' },
+      ] as const, (v) => { if (v) h.setOption('better', v); })),
+      checkbox(doc, 'As a progress ring', spec.options.ring === true, (v) => setFlag(h, 'ring', v)),
+    );
+    return;
+  }
+  if (GRID_MARKS.has(spec.mark)) {
     // what is on screen decides the rest: nothing else to choose
     const note = doc.createElement('p');
     note.className = 'dc-chartpanel-note';
-    note.textContent = 'Draws the grid\'s rows as shown: each a block, sized by the first number column the grid shows. Expand a group to see inside it.';
+    note.textContent = spec.mark === 'treemap'
+      ? 'Draws the grid\'s rows as shown: each a block, sized by the first number column the grid shows. Expand a group to see inside it.'
+      : spec.mark === 'sunburst'
+        ? 'Draws the grid\'s rows as shown: each group a ring, its rows outside it, sized by the first number column the grid shows. Expand a group to see its ring.'
+        : 'Draws the grid\'s rows as shown: each group a node, its rows its branches, valued by the first number column the grid shows. Expand a group to grow its branch.';
     form.append(markField, note);
     return;
   }
@@ -160,7 +210,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         if (v && now) h.set({ y: [{ ...now, fn: v }] });
       },
     ))]),
-    field(doc, spec.mark === 'heatmap' ? 'Rows:' : 'Split by:', dropdown<string>(
+    ...(UNSPLIT_MARKS.has(spec.mark) ? [] : [field(doc, SPLIT_LABELS[spec.mark] ?? 'Split by:', dropdown<string>(
       doc, spec.split, dims,
       (v) => {
         if (!h.spec()) return;
@@ -171,19 +221,27 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         h.onSpec();
         h.refresh();
       },
-      { allowNone: spec.mark !== 'heatmap' },
-    )),
+      { allowNone: !SPLIT_REQUIRED.has(spec.mark) },
+    ))]),
   );
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
     form.append(...measureRows(h, spec, plotted, typeOf), ...layerFields(h, spec, plotted));
   }
-  if (spec.mark === 'bar') {
-    form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, [
+  // the kinds of several values, none drawn as another mark: a dumbbell's two ends, a radar's spokes
+  if (spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'radar' || spec.mark === 'parallel' || spec.mark === 'polar') {
+    form.append(...measureRows(h, spec, plotted, typeOf, false));
+  }
+  if (spec.mark === 'bar' || spec.mark === 'lollipop' || spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'polar') {
+    form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, spec.mark === 'polar' ? [
+      { value: 'vertical', label: 'Around (a polar bar)' },
+      { value: 'horizontal', label: 'Radial bars' },
+    ] as const : [
       { value: 'vertical', label: 'Vertical' },
       { value: 'horizontal', label: 'Horizontal' },
     ] as const, (v) => { if (v) h.setOption('orientation', v); })));
   }
-  if (spec.mark === 'bar' || spec.mark === 'area') {
+  if (spec.mark === 'pie') form.append(checkbox(doc, 'Half a ring', spec.options.half === true, (v) => setFlag(h, 'half', v)));
+  if (spec.mark === 'bar' || spec.mark === 'area' || spec.mark === 'polar') {
     form.append(field(doc, 'Stack:', dropdown(doc, spec.options.stack, [
       { value: 'none', label: 'None' },
       { value: 'stacked', label: 'Stacked' },
@@ -207,7 +265,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       }, { min: 1, max: 5000, step: 10, width: 80 })),
     );
   }
-  if (spec.mark !== 'pie' && spec.mark !== 'heatmap') form.append(...lookFields(h, spec));
+  if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter') form.append(...lookFields(h, spec));
   form.append(
     field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
       { value: 'top', label: 'Top' },
@@ -230,7 +288,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
  * its own kind of mark and its value axis (by unit unless told), shown as it says; one added or taken away. A split
  * draws the first measure once per value, so the others wait until it is taken off.
  */
-function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>): HTMLElement[] {
+function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>, combination = true): HTMLElement[] {
   const doc = h.doc;
   const GROUP = 'group:';
   const out: HTMLElement[] = [];
@@ -260,7 +318,7 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
       ...(m.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, m.fn, fns, (v) => {
         if (v) replace(i, { ...now(), fn: v });
       }))]),
-      field(doc, 'Drawn as:', dropdown<MeasureMark>(doc, m.mark ?? (spec.mark === 'bar' ? 'bar' : spec.mark as MeasureMark), [
+      ...(!combination ? [] : [field(doc, 'Drawn as:', dropdown<MeasureMark>(doc, m.mark ?? (spec.mark === 'bar' ? 'bar' : spec.mark as MeasureMark), [
         { value: 'bar', label: 'Bars' }, { value: 'line', label: 'Line' }, { value: 'area', label: 'Area' },
       ], (v) => { if (v) replace(i, { ...now(), mark: v }); })),
       field(doc, 'Axis:', dropdown<string>(doc, m.axis ?? 'auto', [
@@ -268,7 +326,7 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
       ], (v) => {
         const { axis: _old, ...rest } = now();
         replace(i, v === 'left' || v === 'right' ? { ...rest, axis: v } : rest);
-      })),
+      }))]),
     );
     const remove = doc.createElement('button');
     remove.type = 'button';
@@ -294,7 +352,7 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     if (!now || !first) return;
     const next = plotted.find((p) => !p.value.startsWith(GROUP) && p.value !== first.column) ?? plotted[0];
     if (!next) return;
-    h.set({ y: [...now.y, { column: next.value, fn: 'sum', mark: 'line' }] }, true);
+    h.set({ y: [...now.y, { column: next.value, fn: 'sum', ...(combination ? { mark: 'line' as const } : {}) }] }, true);
   });
   out.push(add);
   return out;
@@ -449,7 +507,7 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
 }
 
 /** An on/off option: on is said, off is left out (the spec stays as small as what it means). */
-function setFlag(h: FormHost, key: 'smooth' | 'step' | 'logAxis' | 'decal' | 'brush' | 'toolbox', on: boolean): void {
+function setFlag(h: FormHost, key: 'smooth' | 'step' | 'logAxis' | 'decal' | 'brush' | 'toolbox' | 'half' | 'ring', on: boolean): void {
   if (!h.spec()) return;
   const { [key]: _old, ...rest } = current(h).options;
   h.set({ options: on ? { ...rest, [key]: true } : rest });

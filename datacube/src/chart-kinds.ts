@@ -1,0 +1,638 @@
+// BATCH 3'S KINDS (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): a chart spec and its rows as the ECharts option of
+// a kind the first seven do not draw -- lollipop, dumbbell, range, waterfall, Pareto, funnel, rose, polar bar, radar,
+// parallel coordinates, Sankey, chord, streamgraph, calendar, gauge -- and the grid's rows as a sunburst or a tree.
+//
+// Its own module, fetched with the first chart of one of these kinds (ui/chart-panel.ts), as is the registration of the
+// rarer ECharts charts it draws with (chart-render-kinds.ts): a page of bars never downloads either. PURE and
+// library-free, as chart-option.ts is: a plain object, tested in node as SVG.
+//
+// THE DATABASE COMPUTES, THIS LAYS OUT (Java orchestrates, the database executes): every figure drawn is a column of
+// the chart's query -- a waterfall's starts and ends, a Pareto's cumulative share (chart-spec.ts chartSnapshot,
+// calc-presets.ts) -- or the grid's own row (a sunburst's rings). What happens here is placement: a category's index,
+// a value's position, a calendar's years, all by comparing what the rows say.
+
+import { axisName, drilledView, markLabel, measureName, type ChartMeasure, type ChartSpec } from './chart-spec.ts';
+import { paretoName, waterfallNames } from './calc-presets.ts';
+import {
+  asOption,
+  column,
+  defaultLabel,
+  describe,
+  distinct,
+  escapeHtml,
+  gridTree,
+  keyText,
+  legendOf,
+  LIGHT_THEME,
+  MAX_SERIES,
+  measureText,
+  measureTitle,
+  periodText,
+  toolboxOf,
+  type ChartDrawing,
+  type ChartTheme,
+  type GridNode,
+  type GridShown,
+  type LabelOf,
+  type MarkKey,
+} from './chart-option.ts';
+import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
+import { numberOf } from '../../engine-client/src/values.ts';
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
+import { isTemporal } from '../../engine-client/src/types.ts';
+
+/** The most years a calendar draws, one under another. */
+export const MAX_CALENDAR_YEARS = 3;
+
+/** The most flows a Sankey or a chord draws: past it, a knot. */
+export const MAX_FLOWS = 200;
+
+/** A kind of batch 3's, drawn from its query's rows. */
+export function kindOption(
+  drilled: ChartSpec,
+  rows: ResultTable,
+  theme: ChartTheme = LIGHT_THEME,
+  label: LabelOf = defaultLabel,
+): ChartDrawing {
+  const spec = drilledView(drilled).spec;
+  const notes: string[] = [];
+  const text = { color: theme.inkSecondary, fontFamily: 'inherit' };
+  const axisCommon = {
+    axisLine: { lineStyle: { color: theme.axis } },
+    axisTick: { show: false },
+    axisLabel: { color: theme.muted, hideOverlap: true },
+    splitLine: { lineStyle: { color: theme.grid, width: 1, type: 'solid' as const } },
+  };
+  const tooltip = { backgroundColor: theme.surface, borderColor: theme.axis, textStyle: { color: theme.ink }, confine: true };
+  const base = {
+    backgroundColor: 'transparent',
+    textStyle: text,
+    color: [...theme.series],
+    aria: { enabled: true, label: { enabled: false }, decal: { show: spec.options.decal === true } },
+    grid: { left: 8, right: 16, top: 40, bottom: 8, containLabel: true },
+    ...toolboxOf(spec, rows, theme),
+  };
+  const first = spec.y[0];
+  const empty = (why: string): ChartDrawing => ({ option: asOption(base), keyAt: () => null, notes: [why], description: why });
+  if (!first) return empty('Nothing to draw.');
+  const valueCol = (m: ChartMeasure) => column(rows, measureName(m));
+  const num = (m: ChartMeasure, i: number): number | null => {
+    const c = valueCol(m);
+    return numberOf(c?.values[i] ?? null, c?.type);
+  };
+  const write = (m: ChartMeasure, v: number | null): string => measureText(m, v, rows, label);
+
+  // -- one value: a gauge ------------------------------------------------------------------------------------------
+  if (spec.mark === 'gauge') return gauge(spec, rows, theme, label, base, tooltip);
+
+  const across = axisName(spec);
+  const xCol = across !== undefined ? column(rows, across) : undefined;
+  if (!xCol) return empty('Nothing to draw.');
+  // the rows arrive in the chart's order (its query's sort): the categories keep it
+  const categories = distinct(xCol.values);
+  const catLabels = categories.map((c) => (spec.grain !== undefined && c !== null ? periodText(String(c), spec.grain) : label(c, spec.x!, xCol.type)));
+  const rowOf = new Map<string, number>();
+  xCol.values.forEach((v, i) => { if (!rowOf.has(keyText(v))) rowOf.set(keyText(v), i); });
+  const at = (ci: number): number => rowOf.get(keyText(categories[ci]!)) ?? -1;
+  const keyOf = (ci: number): MarkKey | null => (categories[ci] === undefined ? null : { [spec.x!]: categories[ci]! });
+  const horizontal = spec.options.orientation === 'horizontal';
+  // a hover: the category, the values drawn, and the further measures asked for, as the grid writes each
+  const hover = (ci: number, drawn: readonly ChartMeasure[]): string => {
+    const r = at(ci);
+    return [
+      `<b>${escapeHtml(catLabels[ci] ?? '')}</b>`,
+      ...drawn.map((m) => `${escapeHtml(measureTitle(m))}: <b>${escapeHtml(write(m, num(m, r)))}</b>`),
+      ...(spec.tooltip ?? []).map((m) => `&nbsp;&nbsp;${escapeHtml(measureTitle(m))}: ${escapeHtml(write(m, num(m, r)))}`),
+    ].join('<br>');
+  };
+  const categoryAxis = { ...axisCommon, type: 'category' as const, data: catLabels, splitLine: { show: false } };
+  const valueAxis = (m: ChartMeasure) => ({
+    ...axisCommon, type: 'value' as const, scale: spec.mark === 'dumbbell' || spec.mark === 'range',
+    axisLabel: { ...axisCommon.axisLabel, formatter: (v: number) => write(m, v) },
+  });
+  const axes = (m: ChartMeasure) => (horizontal
+    ? { xAxis: valueAxis(m), yAxis: { ...categoryAxis, inverse: true } }
+    : { xAxis: categoryAxis, yAxis: valueAxis(m) });
+  const itemTooltip = (drawn: readonly ChartMeasure[]) => ({
+    ...tooltip, trigger: 'item' as const,
+    formatter: (p: { dataIndex: number; data?: { ci?: number } }) => hover(p.data?.ci ?? p.dataIndex, drawn),
+  });
+  const done = (option: object, keyAt: ChartDrawing['keyAt'] = (_s, i) => keyOf(i)): ChartDrawing => ({
+    option: asOption(option), keyAt, notes, description: describe(spec, rows),
+  });
+  // a point on a category: [category, value] -- or [value, category] across a horizontal chart
+  const pointAt = (ci: number, v: number | null): (number | null)[] => (horizontal ? [v, ci] : [ci, v]);
+
+  switch (spec.mark) {
+    // -- a stem and a dot per category ------------------------------------------------------------------------------
+    case 'lollipop': {
+      const values = categories.map((_, ci) => num(first, at(ci)));
+      const colour = theme.series[0]!;
+      return done({
+        ...base,
+        tooltip: itemTooltip([first]),
+        ...axes(first),
+        series: [
+          { type: 'bar', name: measureTitle(first), data: values, barWidth: 2, itemStyle: { color: colour }, silent: true, tooltip: { show: false } },
+          {
+            type: 'scatter', name: measureTitle(first), symbolSize: 14, itemStyle: { color: colour, borderColor: theme.surface, borderWidth: 2 },
+            data: values.map((v, ci) => pointAt(ci, v)),
+            label: { show: spec.options.labels, position: horizontal ? 'right' : 'top', color: theme.inkSecondary, formatter: (p: { dataIndex: number }) => write(first, values[p.dataIndex] ?? null) },
+          },
+        ],
+      });
+    }
+
+    // -- two values per category: a dot each and the line between them (dumbbell), or the bar from one to the other --
+    case 'dumbbell':
+    case 'range': {
+      const [lo, hi] = [spec.y[0]!, spec.y[1]!];
+      const pairs = categories.map((_, ci) => [num(lo, at(ci)), num(hi, at(ci))] as const);
+      const dumbbell = spec.mark === 'dumbbell';
+      const span = {
+        type: 'custom',
+        name: `${measureTitle(lo)} to ${measureTitle(hi)}`,
+        // [category, one value, the other]: drawn between the two places on the value axis -- placed, not computed
+        data: pairs.map(([a, b], ci) => ({ value: [ci, a, b], ci })),
+        encode: horizontal ? { y: 0, x: [1, 2] } : { x: 0, y: [1, 2] },
+        renderItem: (_params: unknown, api: CustomApi) => {
+          const ci = api.value(0) as number;
+          const a = api.value(1) as number | null;
+          const b = api.value(2) as number | null;
+          if (a === null || b === null || Number.isNaN(a) || Number.isNaN(b)) return null;
+          const from = api.coord(horizontal ? [a, ci] : [ci, a]);
+          const to = api.coord(horizontal ? [b, ci] : [ci, b]);
+          if (dumbbell) {
+            return { type: 'line', shape: { x1: from[0], y1: from[1], x2: to[0], y2: to[1] }, style: { stroke: theme.axis, lineWidth: 3 } };
+          }
+          const band = api.size(horizontal ? [0, 1] : [1, 0]) as number[];
+          const width = Math.min(24, (horizontal ? band[1]! : band[0]!) * 0.6);
+          const rect = horizontal
+            ? { x: Math.min(from[0]!, to[0]!), y: from[1]! - width / 2, width: Math.abs(to[0]! - from[0]!), height: width }
+            : { x: from[0]! - width / 2, y: Math.min(from[1]!, to[1]!), width, height: Math.abs(to[1]! - from[1]!) };
+          return { type: 'rect', shape: { ...rect, r: 3 }, style: { fill: theme.series[0], stroke: theme.surface, lineWidth: 1 } };
+        },
+        z: 1,
+      };
+      const dots = [lo, hi].map((m, k) => ({
+        type: 'scatter', name: measureTitle(m), symbolSize: dumbbell ? 14 : 0, z: 2,
+        itemStyle: { color: theme.series[k]!, borderColor: theme.surface, borderWidth: 2 },
+        data: pairs.map((p, ci) => ({ value: pointAt(ci, p[k]!), ci })),
+        label: {
+          show: spec.options.labels, position: horizontal ? (k === 0 ? 'left' : 'right') : (k === 0 ? 'bottom' : 'top'),
+          color: theme.inkSecondary, formatter: (p: { dataIndex: number }) => write(m, pairs[p.dataIndex]?.[k] ?? null),
+        },
+      }));
+      return done({
+        ...base,
+        tooltip: itemTooltip([lo, hi]),
+        // the legend names the two ends, not the line between them
+        legend: { ...legendOf(spec, dumbbell ? 2 : 0, theme), data: [lo, hi].map(measureTitle) },
+        ...axes(lo),
+        series: [span, ...dots],
+      }, (_s, i) => keyOf(i));
+    }
+
+    // -- a bridge: each bar from where the one before ended, then the total ------------------------------------------
+    case 'waterfall': {
+      const base0 = measureName(first);
+      const { start, end } = waterfallNames(base0);
+      const starts = column(rows, start);
+      const ends = column(rows, end);
+      const bars = categories.map((_, ci) => {
+        const r = at(ci);
+        return [numberOf(starts?.values[r] ?? null, starts?.type), numberOf(ends?.values[r] ?? null, ends?.type)] as const;
+      });
+      // the total is where the last bar ends: the database's running total, read, not added up here
+      const last = bars[bars.length - 1]?.[1] ?? null;
+      const labels = [...catLabels, 'Total'];
+      const good = theme.series[0]!;
+      const bad = theme.bad ?? theme.series[1]!;
+      const total = theme.series[2] ?? theme.series[0]!;
+      const data = [
+        ...bars.map(([a, b], ci) => ({ value: [ci, a, b], ci })),
+        { value: [bars.length, 0, last], ci: -1 },
+      ];
+      return done({
+        ...base,
+        tooltip: {
+          ...tooltip, trigger: 'item',
+          formatter: (p: { data?: { ci?: number } }) => (p.data?.ci === -1
+            ? `<b>Total</b><br>${escapeHtml(write(first, last))}` : hover(p.data?.ci ?? 0, [first])),
+        },
+        xAxis: { ...categoryAxis, data: labels },
+        yAxis: valueAxis(first),
+        series: [{
+          type: 'custom', name: measureTitle(first), data,
+          encode: { x: 0, y: [1, 2] },
+          renderItem: (_params: unknown, api: CustomApi) => {
+            const ci = api.value(0) as number;
+            const a = api.value(1) as number | null;
+            const b = api.value(2) as number | null;
+            if (a === null || b === null || Number.isNaN(a) || Number.isNaN(b)) return null;
+            const from = api.coord([ci, a]);
+            const to = api.coord([ci, b]);
+            const band = api.size([1, 0]) as number[];
+            const width = Math.min(32, band[0]! * 0.6);
+            // a rise in the first colour, a fall in the bad one, the total in its own: which is compared, not computed
+            const fill = ci === bars.length ? total : b >= a ? good : bad;
+            const top = Math.min(from[1]!, to[1]!);
+            const rect = {
+              type: 'rect',
+              shape: { x: from[0]! - width / 2, y: top, width, height: Math.max(1, Math.abs(to[1]! - from[1]!)), r: 2 },
+              style: { fill, stroke: theme.surface, lineWidth: 1 },
+            };
+            if (!spec.options.labels) return rect;
+            // its own value written above it: the category's, or the total's
+            const own = ci === bars.length ? last : num(first, at(ci));
+            return {
+              type: 'group',
+              children: [rect, {
+                type: 'text', silent: true,
+                style: { text: write(first, own), x: from[0]!, y: top - 4, align: 'center', verticalAlign: 'bottom', fill: theme.inkSecondary, fontSize: 11 },
+              }],
+            };
+          },
+        }],
+      }, (_s, i) => keyOf(i));
+    }
+
+    // -- the vital few: bars from the largest, and their cumulative share --------------------------------------------
+    case 'pareto': {
+      const shareCol = column(rows, paretoName(measureName(first)));
+      const values = categories.map((_, ci) => num(first, at(ci)));
+      const shares = categories.map((_, ci) => numberOf(shareCol?.values[at(ci)] ?? null, shareCol?.type));
+      const percent = (v: number | null): string => (v === null ? '' : new Intl.NumberFormat(UI_LOCALE, { style: 'percent', maximumFractionDigits: 1 }).format(v));
+      return done({
+        ...base,
+        tooltip: {
+          ...tooltip, trigger: 'axis', axisPointer: { type: 'shadow' },
+          formatter: (ps: { dataIndex: number }[]) => {
+            const ci = ps[0]?.dataIndex ?? 0;
+            return `${hover(ci, [first])}<br>Cumulative share: <b>${escapeHtml(percent(shares[ci] ?? null))}</b>`;
+          },
+        },
+        legend: legendOf(spec, 2, theme),
+        xAxis: categoryAxis,
+        yAxis: [
+          valueAxis(first),
+          { ...axisCommon, type: 'value', min: 0, max: 1, splitLine: { show: false }, axisLabel: { ...axisCommon.axisLabel, formatter: (v: number) => percent(v) } },
+        ],
+        series: [
+          {
+            type: 'bar', name: measureTitle(first), data: values, barMaxWidth: 24, itemStyle: { borderRadius: [4, 4, 0, 0] },
+            label: { show: spec.options.labels, position: 'top', color: theme.inkSecondary, formatter: (p: { dataIndex: number }) => write(first, values[p.dataIndex] ?? null) },
+          },
+          {
+            type: 'line', name: 'Cumulative share', yAxisIndex: 1, data: shares, symbol: 'circle', symbolSize: 6,
+            lineStyle: { width: 2 },
+            // the 80% line: where the vital few end
+            markLine: { silent: true, symbol: 'none', lineStyle: { color: theme.muted, type: 'dashed' }, label: { formatter: '80%', color: theme.muted }, data: [{ yAxis: 0.8 }] },
+          },
+        ],
+      });
+    }
+
+    // -- stages, narrowing; petals --------------------------------------------------------------------------------------
+    case 'funnel':
+    case 'rose': {
+      const data = categories.map((_, ci) => ({ name: catLabels[ci]!, value: num(first, at(ci)), ci }));
+      if (data.length > MAX_SERIES * 2) notes.push(`${data.length} ${spec.mark === 'funnel' ? 'stages' : 'petals'}: a bar reads this many better.`);
+      const series = spec.mark === 'funnel' ? {
+        type: 'funnel', name: measureTitle(first), data, sort: 'none', gap: 2, left: '10%', width: '80%', top: 40, bottom: 8,
+        minSize: '8%', itemStyle: { borderColor: theme.surface, borderWidth: 1 },
+        label: { show: true, position: 'inside', color: '#ffffff', formatter: (p: { name: string; dataIndex: number }) => (spec.options.labels ? `${p.name}: ${write(first, data[p.dataIndex]?.value ?? null)}` : p.name) },
+      } : {
+        type: 'pie', name: measureTitle(first), data, roseType: 'area', radius: ['12%', '72%'],
+        itemStyle: { borderColor: theme.surface, borderWidth: 2, borderRadius: 4 },
+        label: { show: true, color: theme.inkSecondary, formatter: (p: { name: string; dataIndex: number }) => (spec.options.labels ? `${p.name}: ${write(first, data[p.dataIndex]?.value ?? null)}` : p.name) },
+      };
+      return done({
+        ...base,
+        tooltip: itemTooltip([first]),
+        legend: legendOf(spec, data.length, theme),
+        series: [series],
+      });
+    }
+
+    // -- bars around a circle: a polar bar (each category an angle), or radial bars (each a ring) ---------------------
+    case 'polar': {
+      const splitCol = spec.split !== undefined ? column(rows, spec.split) : undefined;
+      const groups = splitCol ? distinct(splitCol.values).slice(0, MAX_SERIES) : [null];
+      if (splitCol && distinct(splitCol.values).length > MAX_SERIES) notes.push(`Showing the first ${MAX_SERIES} series.`);
+      const plotted = splitCol ? [first] : spec.y.slice(0, MAX_SERIES);
+      const series = (splitCol ? groups : plotted).map((g, k) => {
+        const m = splitCol ? first : plotted[k]!;
+        const values = categories.map((c) => {
+          const r = xCol.values.findIndex((v, i) => keyText(v) === keyText(c) && (!splitCol || keyText(splitCol.values[i] ?? null) === keyText(g as Scalar)));
+          return r < 0 ? null : num(m, r);
+        });
+        return {
+          type: 'bar', coordinateSystem: 'polar', name: splitCol ? label(g as Scalar, spec.split!, splitCol.type) : measureTitle(m),
+          data: values, ...(spec.options.stack !== 'none' ? { stack: 'total' } : {}),
+          itemStyle: { borderColor: theme.surface, borderWidth: 1 },
+          emphasis: { focus: 'series' },
+        };
+      });
+      // a ring's name sits where its bar starts: on the surface's colour, so a bar under it does not hide it
+      const categoryRing = {
+        type: 'category', data: catLabels, z: 10, axisLine: { lineStyle: { color: theme.axis } },
+        axisLabel: { color: theme.inkSecondary, ...(horizontal ? { backgroundColor: theme.surface, padding: [1, 4], borderRadius: 2 } : {}) },
+      };
+      const valueRing = { type: 'value', axisLabel: { color: theme.muted, formatter: (v: number) => write(first, v) }, splitLine: { lineStyle: { color: theme.grid } } };
+      return done({
+        ...base,
+        tooltip: { ...tooltip, trigger: 'item', formatter: (p: { dataIndex: number; seriesName: string; value: number | null }) => `${escapeHtml(p.seriesName)}<br>${hover(p.dataIndex, plotted)}` },
+        legend: legendOf(spec, series.length, theme),
+        polar: { radius: [24, '78%'] },
+        // radial (horizontal): each category a ring, its value an arc; else each category an angle, its value a radius
+        ...(horizontal ? { radiusAxis: categoryRing, angleAxis: { ...valueRing, startAngle: 90 } } : { angleAxis: { ...categoryRing, startAngle: 90 }, radiusAxis: valueRing }),
+        series,
+      }, (s, i) => {
+        const key = keyOf(i);
+        if (!key || !splitCol) return key;
+        return { ...key, [spec.split!]: groups[s] ?? null };
+      });
+    }
+
+    // -- a shape per category, a spoke per value -----------------------------------------------------------------------
+    case 'radar': {
+      const shown = categories.slice(0, MAX_SERIES);
+      if (categories.length > MAX_SERIES) notes.push(`Showing the first ${MAX_SERIES} of ${categories.length} shapes: more cannot be told apart.`);
+      return done({
+        ...base,
+        tooltip: { ...tooltip, trigger: 'item', formatter: (p: { dataIndex: number }) => hover(p.dataIndex, spec.y) },
+        legend: legendOf(spec, shown.length, theme),
+        radar: {
+          indicator: spec.y.map((m) => ({ name: measureTitle(m) })),
+          radius: '68%',
+          axisName: { color: theme.inkSecondary },
+          splitLine: { lineStyle: { color: theme.grid } },
+          splitArea: { show: false },
+          axisLine: { lineStyle: { color: theme.axis } },
+        },
+        series: [{
+          type: 'radar',
+          data: shown.map((_, ci) => ({ name: catLabels[ci]!, value: spec.y.map((m) => num(m, at(ci))) })),
+          symbolSize: 6,
+          lineStyle: { width: 2 },
+          areaStyle: { opacity: 0.12 },
+          emphasis: { focus: 'self' },
+        }],
+      }, (_s, i) => keyOf(i));
+    }
+
+    // -- a line per category through an axis per value -------------------------------------------------------------
+    case 'parallel': {
+      const dims = spec.y.map((m, k) => ({
+        dim: k + 1, name: measureTitle(m), nameTextStyle: text,
+        axisLabel: { color: theme.muted, formatter: (v: number) => write(m, v) },
+        axisLine: { lineStyle: { color: theme.axis } },
+      }));
+      return done({
+        ...base,
+        tooltip: { ...tooltip, trigger: 'item', formatter: (p: { dataIndex: number }) => hover(p.dataIndex, spec.y) },
+        parallel: { left: 80, right: 60, top: 48, bottom: 24 },
+        parallelAxis: [
+          { dim: 0, name: spec.x, type: 'category', data: catLabels, nameTextStyle: text, axisLabel: { color: theme.muted }, axisLine: { lineStyle: { color: theme.axis } } },
+          ...dims,
+        ],
+        series: [{
+          type: 'parallel', lineStyle: { width: 2, opacity: 0.6 }, emphasis: { lineStyle: { width: 3, opacity: 1 } },
+          data: categories.map((_, ci) => [ci, ...spec.y.map((m) => num(m, at(ci)))]),
+        }],
+      }, (_s, i) => keyOf(i));
+    }
+
+    // -- flows: from the column across to the split -------------------------------------------------------------------
+    case 'sankey':
+    case 'chord': {
+      const splitCol = column(rows, spec.split!);
+      if (!splitCol) return empty('Nothing to draw.');
+      // a node per value on each side, named by side so a value on both (a desk that is a source and a target) is two
+      const nodes = new Map<string, { name: string; text: string; key: MarkKey }>();
+      const node = (side: 'from' | 'to', v: Scalar, column: string, type: string | undefined): string => {
+        const id = `${side}:${keyText(v)}`;
+        if (!nodes.has(id)) nodes.set(id, { name: id, text: label(v, column, type), key: { [column]: v } });
+        return id;
+      };
+      const links: { source: string; target: string; value: number; key: MarkKey; row: number }[] = [];
+      let dropped = 0;
+      for (let i = 0; i < rows.rowCount; i++) {
+        const v = num(first, i);
+        const from = xCol.values[i] ?? null;
+        const to = splitCol.values[i] ?? null;
+        // a flow has a width: none, or a negative one, is not drawn (and counted)
+        if (v === null || v <= 0) { dropped += 1; continue; }
+        if (links.length >= MAX_FLOWS) { notes.push(`Showing the first ${MAX_FLOWS} flows.`); break; }
+        links.push({
+          source: node('from', from, spec.x!, xCol.type), target: node('to', to, spec.split!, splitCol.type), value: v,
+          key: { [spec.x!]: from, [spec.split!]: to }, row: i,
+        });
+      }
+      if (dropped > 0) notes.push(`${dropped} ${dropped === 1 ? 'flow' : 'flows'} not shown: zero, negative or empty has no width.`);
+      const nodeList = [...nodes.values()];
+      const textOf = new Map(nodeList.map((n) => [n.name, n.text]));
+      const formatter = (p: { dataType?: string; data?: { source?: string; target?: string; value?: number; name?: string; row?: number } }) => {
+        if (p.dataType === 'edge' && p.data) {
+          return `${escapeHtml(textOf.get(p.data.source ?? '') ?? '')} → ${escapeHtml(textOf.get(p.data.target ?? '') ?? '')}: <b>${escapeHtml(write(first, num(first, p.data.row ?? -1)))}</b>`;
+        }
+        return escapeHtml(textOf.get(p.data?.name ?? '') ?? '');
+      };
+      const common = {
+        data: nodeList.map((n) => ({ name: n.name, key: n.key })),
+        links: links.map((l) => ({ source: l.source, target: l.target, value: l.value, key: l.key, row: l.row })),
+        label: { color: theme.ink, formatter: (p: { name: string }) => textOf.get(p.name) ?? '' },
+        emphasis: { focus: 'adjacency' },
+      };
+      const series = spec.mark === 'sankey'
+        ? { type: 'sankey', ...common, left: 8, right: 96, top: 16, bottom: 16, nodeGap: 10, lineStyle: { color: 'gradient', opacity: 0.35 }, itemStyle: { borderColor: theme.surface } }
+        : { type: 'chord', ...common, radius: ['62%', '68%'], center: ['50%', '52%'], lineStyle: { color: 'source', opacity: 0.35 }, label: { ...common.label, show: true } };
+      return done({ ...base, tooltip: { ...tooltip, trigger: 'item', formatter }, series: [series] },
+        (_s, _i, datum) => (datum as { key?: MarkKey } | undefined)?.key ?? null);
+    }
+
+    // -- layers flowing along time ------------------------------------------------------------------------------------
+    case 'stream': {
+      const splitCol = column(rows, spec.split!);
+      if (!splitCol) return empty('Nothing to draw.');
+      const groups = distinct(splitCol.values);
+      if (groups.length > MAX_SERIES) notes.push(`Showing the first ${MAX_SERIES} of ${groups.length} layers.`);
+      const shown = new Set(groups.slice(0, MAX_SERIES).map(keyText));
+      const data: [string, number, string][] = [];
+      for (let i = 0; i < rows.rowCount; i++) {
+        const g = splitCol.values[i] ?? null;
+        const v = num(first, i);
+        const t = xCol.values[i] ?? null;
+        if (!shown.has(keyText(g)) || v === null || t === null) continue;
+        data.push([String(t), v, label(g, spec.split!, splitCol.type)]);
+      }
+      return done({
+        ...base,
+        tooltip: { ...tooltip, trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: theme.axis } } },
+        legend: legendOf(spec, shown.size, theme),
+        singleAxis: { type: 'time', top: 40, bottom: 32, axisLabel: { color: theme.muted }, axisLine: { lineStyle: { color: theme.axis } }, splitLine: { show: false } },
+        series: [{ type: 'themeRiver', data, label: { show: false }, emphasis: { focus: 'series' } }],
+      }, () => null);
+    }
+
+    // -- a cell per day ----------------------------------------------------------------------------------------------
+    case 'calendar': {
+      if (!isTemporal(xCol.type)) return empty(`'${spec.x}' is not a date.`);
+      const cells: { value: [string, number | null]; ci: number }[] = categories.flatMap((c, ci) =>
+        (c === null ? [] : [{ value: [String(c).slice(0, 10), num(first, at(ci))] as [string, number | null], ci }]));
+      // the years the days fall in, in order: compared as text, each a calendar under the one before
+      const years = [...new Set(cells.map((d) => d.value[0].slice(0, 4)))].sort();
+      if (years.length > MAX_CALENDAR_YEARS) notes.push(`Showing the latest ${MAX_CALENDAR_YEARS} of ${years.length} years.`);
+      const drawn = years.slice(-MAX_CALENDAR_YEARS);
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const d of cells) {
+        const v = d.value[1];
+        if (v === null) continue;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      // the calendars share the box above the colour scale, one under another
+      const height = 78 / drawn.length;
+      return done({
+        ...base,
+        tooltip: { ...tooltip, trigger: 'item', formatter: (p: { data?: { ci?: number } }) => hover(p.data?.ci ?? 0, [first]) },
+        visualMap: {
+          min: Number.isFinite(lo) ? lo : 0, max: Number.isFinite(hi) ? hi : 1, calculable: true, orient: 'horizontal',
+          left: 'center', bottom: 0, inRange: { color: [...theme.sequential] }, textStyle: { color: theme.muted },
+          formatter: (v: number) => write(first, v),
+        },
+        calendar: drawn.map((y, k) => ({
+          range: y, top: `${k * height + 8}%`, left: 56, right: 16, height: `${height - 8}%`, cellSize: ['auto', 'auto'],
+          itemStyle: { borderColor: theme.surface, borderWidth: 2, color: theme.grid },
+          splitLine: { lineStyle: { color: theme.axis } },
+          yearLabel: { color: theme.inkSecondary, fontSize: 12, fontWeight: 'normal', margin: 28 },
+          monthLabel: { color: theme.muted, fontSize: 11, fontWeight: 'normal' },
+          dayLabel: { color: theme.muted, fontSize: 10, fontWeight: 'normal', firstDay: 1, nameMap: ['S', 'M', 'T', 'W', 'T', 'F', 'S'] },
+        })),
+        series: drawn.map((y, k) => ({
+          type: 'heatmap', coordinateSystem: 'calendar', calendarIndex: k, name: measureTitle(first),
+          data: cells.filter((d) => d.value[0].startsWith(y)),
+        })),
+      }, (_s, _i, datum) => {
+        const ci = (datum as { ci?: number } | undefined)?.ci;
+        return ci === undefined ? null : keyOf(ci);
+      });
+    }
+  }
+  throw new Error(`a ${markLabel(spec.mark)} is not drawn by kindOption`);
+}
+
+/** The part of ECharts' custom series' API a span uses. */
+interface CustomApi {
+  value(dim: number): unknown;
+  coord(point: readonly (number | null)[]): number[];
+  size(delta: readonly number[]): number[] | number;
+}
+
+/** A GAUGE: the measure over every row (one row, as a KPI's total), against its target, the scale's end. */
+function gauge(
+  spec: ChartSpec,
+  rows: ResultTable,
+  theme: ChartTheme,
+  label: LabelOf,
+  base: object,
+  tooltip: object,
+): ChartDrawing {
+  const first = spec.y[0]!;
+  const c = column(rows, measureName(first));
+  const raw = c?.values[0] ?? null;
+  const v = numberOf(raw, c?.type);
+  const target = spec.options.target!;
+  const written = measureText(first, v, rows, label);
+  const goal = label(target, first.column, c?.type);
+  const notes: string[] = [];
+  // past the scale's end the needle stops there: said, not hidden
+  if (v !== null && v > target) notes.push(`${written} is past the target (${goal}), the gauge's end.`);
+  if (v !== null && v < 0) notes.push(`${written} is below zero, the gauge's start.`);
+  const higher = spec.options.better !== 'lower';
+  const good = v !== null && (higher ? v >= target : v <= target);
+  const colour = good ? theme.series[2] ?? theme.series[0]! : theme.series[0]!;
+  const ring = spec.options.ring === true;
+  const series = ring ? {
+    type: 'gauge', startAngle: 90, endAngle: -270, min: 0, max: target, radius: '86%',
+    pointer: { show: false },
+    progress: { show: true, roundCap: true, width: 16, itemStyle: { color: colour } },
+    axisLine: { lineStyle: { width: 16, color: [[1, theme.grid]] } },
+    splitLine: { show: false }, axisTick: { show: false }, axisLabel: { show: false },
+    title: { offsetCenter: [0, '28%'], color: theme.muted, fontSize: 12 },
+    detail: { offsetCenter: [0, '-4%'], color: theme.ink, fontSize: 24, formatter: () => written },
+    data: [{ value: v, name: `of ${goal}` }],
+  } : {
+    type: 'gauge', min: 0, max: target, radius: '92%', center: ['50%', '60%'], startAngle: 200, endAngle: -20, splitNumber: 4,
+    progress: { show: true, width: 12, itemStyle: { color: colour } },
+    axisLine: { lineStyle: { width: 12, color: [[1, theme.grid]] } },
+    pointer: { length: '60%', width: 4, itemStyle: { color: theme.ink } },
+    anchor: { show: true, size: 10, itemStyle: { color: theme.ink } },
+    splitLine: { length: 8, lineStyle: { color: theme.axis } }, axisTick: { show: false },
+    axisLabel: { color: theme.muted, distance: 18, formatter: (n: number) => label(n, first.column, c?.type) },
+    title: { offsetCenter: [0, '32%'], color: theme.muted, fontSize: 12 },
+    detail: { offsetCenter: [0, '62%'], color: theme.ink, fontSize: 22, formatter: () => written },
+    data: [{ value: v, name: measureTitle(first) }],
+  };
+  return {
+    option: asOption({ ...base, tooltip: { ...tooltip, trigger: 'item', formatter: () => `${escapeHtml(measureTitle(first))}: <b>${escapeHtml(written)}</b> of ${escapeHtml(goal)}` }, series: [series] }),
+    keyAt: () => null,
+    notes,
+    description: `Gauge: ${measureTitle(first)} is ${written}, against a target of ${goal}.`,
+  };
+}
+
+/**
+ * THE GRID'S ROWS AS SHOWN as a sunburst (rings, outermost the deepest level shown) or a tree (each group a node, its
+ * visible rows its children): what the treemap draws, every node valued by the grid's own row -- a group's ring says
+ * its total, the database's, never a sum of the rings outside it.
+ */
+export function gridKindOption(
+  mark: 'sunburst' | 'tree',
+  shown: GridShown,
+  theme: ChartTheme = LIGHT_THEME,
+  label: LabelOf = defaultLabel,
+): ChartDrawing {
+  const notes: string[] = [];
+  const { data, dropped, value } = gridTree(shown, label, true);
+  if (dropped > 0) notes.push(`${dropped} ${dropped === 1 ? 'row' : 'rows'} not shown: zero or negative has no ${mark === 'sunburst' ? 'angle' : 'size'}.`);
+  if (!value) notes.push('The grid shows no numeric column to value the nodes by.');
+  const tooltip = {
+    backgroundColor: theme.surface, borderColor: theme.axis, textStyle: { color: theme.ink }, confine: true, trigger: 'item',
+    formatter: (p: { name?: string; data?: { text?: string } }) =>
+      (p.data?.text !== undefined ? `${escapeHtml(p.name ?? '')}: ${escapeHtml(p.data.text)}` : escapeHtml(p.name ?? '')),
+  };
+  const base = {
+    backgroundColor: 'transparent',
+    textStyle: { fontFamily: 'inherit', color: theme.ink },
+    color: [...theme.series],
+    aria: { enabled: true, label: { enabled: false } },
+    tooltip,
+  };
+  const series = mark === 'sunburst' ? {
+    type: 'sunburst', data, radius: ['12%', '92%'], sort: undefined, nodeClick: false,
+    // a ring's value is its own (the grid's group row): the rings outside it need not fill it
+    itemStyle: { borderColor: theme.surface, borderWidth: 2 },
+    label: { color: '#ffffff', minAngle: 8, overflow: 'truncate' },
+    emphasis: { focus: 'ancestor' },
+  } : {
+    type: 'tree',
+    data: [{ name: value?.label ?? value?.name ?? 'All', children: data, key: {} }],
+    top: 16, left: 80, bottom: 16, right: 160, orient: 'LR', symbolSize: 8, expandAndCollapse: false, initialTreeDepth: -1,
+    label: { position: 'left', verticalAlign: 'middle', align: 'right', color: theme.ink, formatter: (p: { name: string; data?: { text?: string } }) => (p.data?.text ? `${p.name}  ${p.data.text}` : p.name) },
+    leaves: { label: { position: 'right', verticalAlign: 'middle', align: 'left' } },
+    lineStyle: { color: theme.axis, width: 1.5 },
+    itemStyle: { color: theme.series[0], borderColor: theme.series[0] },
+  };
+  return {
+    option: asOption({ ...base, series: [series] }),
+    keyAt: (_s, _i, datum) => {
+      const key = (datum as Pick<GridNode, 'key'> | undefined)?.key;
+      return key && Object.keys(key).length > 0 ? key : null;
+    },
+    notes,
+    description: `${mark === 'sunburst' ? 'Sunburst' : 'Tree'} of ${value?.label ?? value?.name ?? 'nothing'} by the grid's rows as shown.`,
+  };
+}

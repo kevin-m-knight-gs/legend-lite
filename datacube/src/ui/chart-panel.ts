@@ -18,8 +18,11 @@ import {
   drillLevels,
   drillUp,
   followCube,
+  GRID_MARKS,
+  KIND_MARKS,
   kpiQueries,
   markConditions,
+  type ChartMark,
   type ChartSpec,
 } from '../chart-spec.ts';
 import type { FormHost } from './chart-form.ts';
@@ -30,6 +33,9 @@ import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
+
+/** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
+const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
 
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
@@ -241,15 +247,16 @@ export class ChartPanel {
     const cube = this.#options.snapshot();
     if (!spec) return;
     // A TREEMAP DRAWS THE GRID AS SHOWN, with no query of its own (the old treemap's way, the user
-    // 2026-09-30): following, the rows on screen now; frozen, the rows it last drew.
-    if (spec.mark === 'treemap') {
-      // a query of another kind still answering would draw over the treemap: it is let go
+    // 2026-09-30): following, the rows on screen now; frozen, the rows it last drew. So do a sunburst and a tree.
+    if (GRID_MARKS.has(spec.mark)) {
+      // a query of another kind still answering would draw over it: it is let go
       this.#inflight?.abort();
       this.#inflight = null;
       this.#clearKpi();
       const now = this.frozen && this.#shownKept ? this.#shownKept : this.#options.shown?.() ?? this.#shownKept;
       if (!now) {
-        this.#say('A treemap draws the grid\'s rows; the grid has none to draw yet.', true);
+        // a wait, not a problem: the chart draws when the grid's rows come (a view landing refreshes it)
+        this.#say(`A ${spec.mark} draws the grid's rows; the grid has none to draw yet.`);
         return;
       }
       this.#shownKept = now;
@@ -260,7 +267,15 @@ export class ChartPanel {
       }
       const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
       if (this.#disposed) return;
-      const drawing = treemapOfGrid(now, themeOf(this.#canvas), this.#options.label);
+      const mark = spec.mark;
+      let drawing;
+      if (mark === 'sunburst' || mark === 'tree') {
+        const [{ gridKindOption }] = await Promise.all([import('../chart-kinds.ts'), import('../chart-render-kinds.ts')]);
+        if (this.#disposed) return;
+        drawing = gridKindOption(mark, now, themeOf(this.#canvas), this.#options.label);
+      } else {
+        drawing = treemapOfGrid(now, themeOf(this.#canvas), this.#options.label);
+      }
       this.#chart.show(drawing);
       this.#say(drawing.notes.join(' '));
       return;
@@ -291,11 +306,20 @@ export class ChartPanel {
       }
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
-      const drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
+      let drawing;
+      if (KIND_MARKS.has(spec.mark)) {
+        // batch 3's kinds: their drawing and the rarer ECharts charts, fetched with the first of them
+        const [{ kindOption }] = await Promise.all([import('../chart-kinds.ts'), import('../chart-render-kinds.ts')]);
+        if (abort.signal.aborted || this.#disposed) return;
+        drawing = kindOption(spec, rows, themeOf(this.#canvas), this.#options.label);
+      } else {
+        drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
+      }
       this.#chart.show(drawing);
-      // the page's charts with the same column across (at the same grain) share a crosshair
+      // the page's charts with the same column across (at the same grain) share a crosshair: those with an axis of
+      // categories or time
       const across = axisName(drilledView(spec).spec);
-      this.#chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && spec.mark !== 'pie'
+      this.#chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && CROSSHAIRED.has(spec.mark)
         ? `${this.#options.crosshair}|${across}` : undefined);
       const capped = rows.rowCount >= (spec.mark === 'scatter' ? Infinity : spec.options.limit);
       this.#say([

@@ -57,7 +57,10 @@ AGGREGATES = frozenset({
     'sum', 'count', 'average', 'min', 'max', 'median', 'stdDevSample', 'stdDevPopulation', 'varianceSample',
     'variancePopulation', 'joinStrings', 'wavg', 'unique',
 })
-MARKS = frozenset({'bar', 'line', 'area', 'scatter', 'pie', 'heatmap', 'treemap', 'kpi'})
+MARKS = frozenset({'bar', 'line', 'area', 'scatter', 'pie', 'heatmap', 'treemap', 'kpi',
+                   # batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3)
+                   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar',
+                   'parallel', 'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree'})
 # the chart spec's version 2 slots (chart-spec.ts, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1): a measure's own mark
 # and axis, what it is shown as, a date's grain, a layer's kind and statistic
 CHART_VERSION = 2
@@ -671,6 +674,16 @@ def _measure(grid: Grid, plotted: Any, what: str) -> dict[str, Any]:
     return {**_copied(plotted), 'column': column}
 
 
+# batch 3's kinds, as chart-spec.ts groups them: those that need a split (and what it is), those of one series, those
+# of one value, those whose hover lists further measures
+_SPLIT_NEEDED = {'heatmap': 'its rows', 'sankey': 'where each flow goes', 'chord': 'where each flow goes',
+                 'stream': 'its layers'}
+_UNSPLIT = frozenset({'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel',
+                      'calendar', 'gauge'})
+_ONE_VALUE = frozenset({'waterfall', 'pareto', 'gauge', 'calendar', 'funnel', 'rose', 'stream', 'sankey', 'chord'})
+_HOVER_EXTRAS = frozenset({'bar', 'line', 'area', 'scatter', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto',
+                           'funnel', 'rose', 'polar', 'calendar'})
+
 # a frame column's compiler type, a date or a number (chart-spec.ts chartProblems asks the same of DataCube's)
 _DATES = frozenset({'StrictDate', 'DateTime', 'Date'})
 _NUMBERS = frozenset({'Integer', 'Float', 'Decimal', 'Number'})
@@ -688,12 +701,42 @@ def _drawable(grid: Grid | None, spec: Mapping[str, Any]) -> None:
         raise ValueError(f'{x!r} is not a date ({types[x]}): it has no {spec["grain"]}')
     if 'bins' in spec and x in types and types[x] not in _NUMBERS:
         raise ValueError(f'{x!r} is not a number ({types[x]}): it has no bins')
+    mark = spec['mark']
+    # batch 3's kinds (chart-spec.ts chartProblems): what each needs and what it has no place for
+    if mark in _SPLIT_NEEDED and 'split' not in spec:
+        raise ValueError(f'a {mark} needs a split: {_SPLIT_NEEDED[mark]}')
+    if mark in _UNSPLIT and 'split' in spec:
+        raise ValueError(f'a {mark} draws one series: it has no split')
+    if mark == 'gauge' and x is not None:
+        raise ValueError('a gauge is one value: it has no x')
+    if mark == 'gauge' and 'target' not in spec.get('options', {}):
+        raise ValueError('a gauge needs a target (options={\'target\': ...}): its scale runs from zero to it')
+    count = len(spec['y'])
+    if mark in ('dumbbell', 'range') and count != 2:
+        raise ValueError(f'a {mark} plots two values per category, its low and its high: give y two measures')
+    if mark == 'radar' and count < 3:
+        raise ValueError('a radar needs three values or more, one per spoke')
+    if mark == 'parallel' and count < 2:
+        raise ValueError('parallel coordinates need two values or more, one per axis')
+    if mark in _ONE_VALUE and count > 1:
+        raise ValueError(f'a {mark} plots one value')
+    sort = spec.get('options', {}).get('sort')
+    if mark == 'pareto' and sort is not None and sort != {'by': 'y', 'direction': 'desc'}:
+        raise ValueError('a Pareto runs from the largest value: its order is by value, largest first')
+    if mark in ('stream', 'calendar') and x in types and types[x] not in _DATES:
+        raise ValueError(f'a {mark} runs along dates: {x!r} is not one ({types[x]})')
+    if mark == 'calendar' and spec.get('grain', 'day') != 'day':
+        raise ValueError('a calendar has a cell per day: its grain is the day')
     layers = spec.get('layers', [])
     for layer in layers:
         if layer['kind'] != 'band' and layer.get('measure', 0) >= len(spec['y']):
             raise ValueError(f'a {layer["kind"]} layer reads value {layer.get("measure", 0) + 1}, which the chart does not plot')
-    if layers and spec['mark'] == 'scatter':
-        raise ValueError('a scatter draws no reference lines yet')
+    if layers and mark not in ('bar', 'line', 'area'):
+        raise ValueError(f'a {mark} draws no reference lines yet')
+    if 'label' in spec and mark not in ('bar', 'line', 'area'):
+        raise ValueError(f'a {mark} writes no other measure on its marks')
+    if spec.get('tooltip') and mark not in _HOVER_EXTRAS:
+        raise ValueError(f'a {mark}\'s hover lists no further measures')
     if spec.get('options', {}).get('stack') == 'percent' and any(layer['kind'] != 'band' for layer in layers):
         raise ValueError('a 100% stack shows shares: a reference line, a threshold or a pinned extreme has no place on it')
 

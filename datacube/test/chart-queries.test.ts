@@ -9,7 +9,8 @@ import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { chartQuery, DEFAULT_OPTIONS, measureName, type ChartSpec } from '../src/chart-spec.ts';
+import { chartQuery, DEFAULT_OPTIONS, GRID_MARKS, measureName, type ChartSpec } from '../src/chart-spec.ts';
+import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -212,9 +213,10 @@ describe('reference lines, planned and run: the database\'s statistics over the 
   });
 });
 
-describe('the example page\'s charts, planned and run on its own sample (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3)', () => {
+describe('the example pages\' charts, planned and run on their own sample (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3)', () => {
   it('the sample reads as the page declares it, and every chart\'s query plans and answers', async () => {
     const { chartsDashboardPage, EXAMPLE_CUBE, EXAMPLE_ROWS, SALES_SPECS } = await import('../src/examples/charts-dashboard.ts');
+    const { chartsKindsPage } = await import('../src/examples/charts-kinds.ts');
     const { salesCsv } = await import('../src/samples.ts');
     const db = await openDatabase();
     const local = new DuckDbEngine(db.connection);
@@ -225,9 +227,10 @@ describe('the example page\'s charts, planned and run on its own sample (docs/DA
       const all = await local.execute(await sales.plan(from(r.source).limit(1).lambda()), 0);
       assert.deepEqual(all.columns.map((c) => `${c.name}:${c.type}`), SALES_SPECS.map((c) => `${c.name}:${c.type}`));
       const cube: CubeSnapshot = { ...EXAMPLE_CUBE, source: { query: r.source } };
-      const page = await chartsDashboardPage();
-      for (const v of page.views) {
-        if (v.kind !== 'chart') continue;
+      // batch 2's page and batch 3's; a chart of the grid as shown (a sunburst, a tree) has no query of its own
+      const views = [...(await chartsDashboardPage()).views, ...(await chartsKindsPage()).views];
+      for (const v of views) {
+        if (v.kind !== 'chart' || GRID_MARKS.has(v.spec.mark)) continue;
         const { query } = chartQuery(cube, v.spec);
         const t = await local.execute(await sales.plan(query), 0);
         assert.ok(t.rowCount > 0, `${v.title}: rows`);
@@ -316,5 +319,33 @@ describe('a bin and its filter agree by construction (the DataCube + Python line
     } finally {
       await local.close();
     }
+  });
+});
+
+describe('batch 3\'s kinds, planned and run: the database computes each kind\'s own figures', () => {
+  it('a waterfall by month: each bar\'s end the running total in the chart\'s order, its start that end less its value', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'waterfall', x: 'sold', grain: 'month', options: { ...DEFAULT_OPTIONS, sort: { by: 'x', direction: 'asc' } } });
+    const { start, end } = waterfallNames('sum_revenue');
+    assert.deepEqual(values(t, 'sum_revenue'), [500, 250, 450]);
+    assert.deepEqual(values(t, end).map(Number), [500, 750, 1200]);
+    assert.deepEqual(values(t, start).map(Number), [0, 500, 750]);
+  });
+  it('a Pareto: the running share from the largest, ties in the category\'s order -- the rows in that same order', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'pareto', options: { ...DEFAULT_OPTIONS, sort: { by: 'y', direction: 'desc' } } });
+    // EMEA and AMER both sold 600: AMER first, by name, in the share and in the rows alike
+    assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
+    assert.deepEqual(values(t, paretoName('sum_revenue')).map(Number), [0.5, 1]);
+  });
+  it('a pie in two rings: the inner ring each region\'s total over its split\'s values', async () => {
+    const t = await rows({ ...BY_REGION, mark: 'pie', split: 'sold' });
+    const regions = values(t, 'region');
+    const totals = values(t, ringTotalName('sum_revenue')).map(Number);
+    regions.forEach((r, i) => assert.equal(totals[i], 600, `${String(r)}'s inner ring`));
+    assert.equal(t.rowCount, 6);
+  });
+  it('a gauge: one row, the measure over every row', async () => {
+    const { x: _x, ...spec } = BY_REGION;
+    const t = await rows({ ...spec, mark: 'gauge', options: { ...DEFAULT_OPTIONS, target: 2000 } });
+    assert.deepEqual(values(t, 'sum_revenue').map(Number), [1200]);
   });
 });

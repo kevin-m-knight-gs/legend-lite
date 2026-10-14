@@ -270,6 +270,65 @@ function wholeOf(fn: 'sum' | LayerStat, column: string): WindowSpec {
   return { fn, column, partition: [], order: [{ column, direction: 'asc' }], frame: 'partition' };
 }
 
+// ---------------------------------------------------------------- the kinds' own figures (batch 3)
+
+/** A waterfall's columns: each bar runs from where the one before ended (`start`) to where it ends (`end`). */
+export function waterfallNames(measure: string): { readonly start: string; readonly end: string } {
+  return { start: `waterfall_start_${measure}`, end: `waterfall_end_${measure}` };
+}
+
+/**
+ * A WATERFALL'S BARS, the database's: each category's end is the running total of `measure` along the chart's own
+ * order (`order`, which names every column it needs to be total: ties broken by the category), its start that end
+ * less its own value. The chart draws each bar from its start to its end; nothing is added up in the page.
+ */
+export function waterfallColumns(measure: string, order: readonly SortSpec[]): DerivedColumn[] {
+  const { start, end } = waterfallNames(measure);
+  return [
+    { name: end, window: { fn: 'sum', column: measure, partition: [], order: [...order], frame: 'running' } },
+    { name: start, lambda: row(minus(one(end), one(measure))) },
+  ];
+}
+
+/** A Pareto's cumulative share's column. */
+export function paretoName(measure: string): string {
+  return `pareto_share_${measure}`;
+}
+
+/**
+ * A PARETO'S LINE, the database's: the running total of `measure` from the largest down (ties by the category
+ * `across`), as a share of the whole.
+ */
+export function paretoColumns(measure: string, across: string): DerivedColumn[] {
+  const name = paretoName(measure);
+  const running = `${name}__running`;
+  const total = `${name}__total`;
+  return [
+    {
+      name: running,
+      window: {
+        fn: 'sum', column: measure, partition: [], frame: 'running',
+        order: [{ column: measure, direction: 'desc' }, { column: across, direction: 'asc' }],
+      },
+    },
+    { name: total, window: wholeOf('sum', measure) },
+    { name, lambda: row(divide(one(running), one(total))) },
+  ];
+}
+
+/** A two-ring pie's inner ring: each category's total over its split's values. */
+export function ringTotalName(measure: string): string {
+  return `ring_total_${measure}`;
+}
+
+/** THE INNER RING of a pie split in two rings, the database's: `measure` summed over each value of `across`. */
+export function ringTotalColumn(measure: string, across: string): DerivedColumn {
+  return {
+    name: ringTotalName(measure),
+    window: { fn: 'sum', column: measure, partition: [across], order: [{ column: measure, direction: 'asc' }], frame: 'partition' },
+  };
+}
+
 // ---------------------------------------------------------------- a clicked period or bin
 
 /**

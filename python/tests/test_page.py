@@ -272,6 +272,31 @@ class Document(Paged):
             lined.options({'stack': 'percent'})
         self.assertEqual(page.to_dict()['views'][-1]['spec'], kept, 'a refused change leaves the chart as it was')
 
+    def test_batch_3_kinds_are_written_and_refused_as_datacube_draws_them(self):
+        page, grid, _ = self.built()
+        # each new kind, written with what it needs
+        grid.chart('waterfall', x='desk')
+        grid.chart('dumbbell', x='region', y=[('pnl', 'sum'), ('notional', 'sum')])
+        grid.chart('sankey', x='region', split='desk')
+        grid.chart('radar', x='desk', y=[('notional', 'sum'), ('pnl', 'sum'), ('notional', 'max')])
+        grid.chart('gauge', options={'target': 1000})
+        grid.chart('sunburst')
+        marks = [v['spec']['mark'] for v in page.to_dict()['views'] if v['kind'] == 'chart']
+        self.assertEqual(marks[-6:], ['waterfall', 'dumbbell', 'sankey', 'radar', 'gauge', 'sunburst'])
+        # and what DataCube would refuse to draw, refused at the line that writes it
+        for mark, given, why in [('sankey', {'x': 'region'}, 'needs a split'),
+                                 ('funnel', {'x': 'region', 'split': 'desk'}, 'one series'),
+                                 ('dumbbell', {'x': 'region'}, 'two values'),
+                                 ('radar', {'x': 'region'}, 'three values'),
+                                 ('gauge', {}, 'needs a target'),
+                                 ('gauge', {'x': 'region', 'options': {'target': 1}}, 'one value'),
+                                 ('pareto', {'x': 'region', 'options': {'sort': {'by': 'x', 'direction': 'asc'}}}, 'largest'),
+                                 ('calendar', {'x': 'region'}, 'runs along dates'),
+                                 ('rose', {'x': 'region', 'layers': [{'kind': 'line', 'value': 1}]}, 'no reference lines'),
+                                 ('chord', {'x': 'region', 'split': 'desk', 'tooltip': [('pnl', 'sum')]}, 'no further measures')]:
+            with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
+                grid.chart(mark, **given)
+
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()
         chart.plot('line', split='desk')
@@ -336,7 +361,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'a measure named'):
             grid.measure('notional', 'average')
         with self.assertRaisesRegex(ValueError, "not one of DataCube's charts"):
-            grid.chart('radar', x='region')
+            grid.chart('violin', x='region')
         with self.assertRaisesRegex(ValueError, 'not a column'):
             grid.group('nope')
         with self.assertRaisesRegex(ValueError, 'is a name'):

@@ -12,40 +12,40 @@
 // and turns a click on a mark into the values behind it.
 
 import * as echarts from 'echarts/core';
-import { BarChart, HeatmapChart, LineChart, PieChart, ScatterChart, TreemapChart } from 'echarts/charts';
-import {
-  AriaComponent,
-  BrushComponent,
-  DataZoomComponent,
-  DatasetComponent,
-  GridComponent,
-  LegendComponent,
-  MarkAreaComponent,
-  MarkLineComponent,
-  MarkPointComponent,
-  TitleComponent,
-  ToolboxComponent,
-  TooltipComponent,
-  VisualMapComponent,
-} from 'echarts/components';
+// Each chart and component by its own module, which registers it as it loads (ECharts' `lib/<kind>.js`:
+// `use(install)`), never through the `echarts/charts` or `echarts/components` index: chart-render-kinds.ts registers
+// batch 3's rarer charts the same way, and an index both imported would be code the two chunks share -- the bundler
+// would put every chart in it, and a page's first bar chart would download the Sankey (test/bundle-budget.test.ts).
+import 'echarts/lib/chart/bar.js';
+import 'echarts/lib/chart/line.js';
+import 'echarts/lib/chart/scatter.js';
+import 'echarts/lib/chart/pie.js';
+import 'echarts/lib/chart/heatmap.js';
+import 'echarts/lib/chart/treemap.js';
+import 'echarts/lib/component/grid.js';
+import 'echarts/lib/component/tooltip.js';
+import 'echarts/lib/component/legend.js';
+import 'echarts/lib/component/title.js';
+import 'echarts/lib/component/dataset.js';
+import 'echarts/lib/component/visualMap.js';
+import 'echarts/lib/component/aria.js';
+// version 2's layers: reference lines, bands, pinned extremes
+import 'echarts/lib/component/markLine.js';
+import 'echarts/lib/component/markArea.js';
+import 'echarts/lib/component/markPoint.js';
+// brushing a range to filter (and the toolbox it starts from)
+import 'echarts/lib/component/brush.js';
+import 'echarts/lib/component/toolbox.js';
+// a long series' slider, and zooming inside the chart
+import 'echarts/lib/component/dataZoom.js';
 import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
 import type { BrushArea, Brushed, ChartDrawing, MarkKey } from './chart-option.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 
-echarts.use([
-  BarChart, LineChart, ScatterChart, PieChart, HeatmapChart, TreemapChart,
-  GridComponent, TooltipComponent, LegendComponent, TitleComponent,
-  DatasetComponent, VisualMapComponent, AriaComponent,
-  // version 2's layers: reference lines, bands, pinned extremes; and a value axis's breaks
-  MarkLineComponent, MarkAreaComponent, MarkPointComponent, AxisBreak,
-  // brushing a range to filter (and the toolbox it starts from)
-  BrushComponent, ToolboxComponent,
-  // a long series' slider, and zooming inside the chart
-  DataZoomComponent,
-  CanvasRenderer,
-]);
+// a value axis's breaks, and the canvas the page draws on
+echarts.use([AxisBreak, CanvasRenderer]);
 
 /**
  * A chart as a picture, for an export of the page: the live chart's own pixels at `ratio`

@@ -28,7 +28,7 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
 import { type Bands, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { followCube, measureName } from '../chart-spec.ts';
+import { followCube, GRID_MARKS, measureName } from '../chart-spec.ts';
 import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import { FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews } from '../page-document.ts';
@@ -777,7 +777,7 @@ export class CubePage {
     body.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       const spec = panel.spec;
-      const editable = panel.frozen && spec?.mark !== 'scatter' && spec?.mark !== 'treemap';
+      const editable = panel.frozen && spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark);
       this.#menuFor = (item) => {
         if (item.id === 'tile.options') panel.toggleForm();
         if (item.id === 'tile.edit') this.#openEditor(id);
@@ -1114,7 +1114,7 @@ export class CubePage {
       return;
     }
     const spec = chart.panel.spec;
-    if (!spec || spec.mark === 'scatter' || spec.mark === 'treemap' || spec.x === undefined) return;
+    if (!spec || spec.mark === 'scatter' || GRID_MARKS.has(spec.mark) || spec.x === undefined) return;
     const source = this.#sourceOf(chart.link);
     const tile = `edit-${chartId}`;
     const host = this.#doc.createElement('div');

@@ -77,7 +77,7 @@ const CONFIGURATION: CubeConfiguration = {
 const CUBE = 'cube';
 
 /** A frozen chart of the cube (it keeps its own grouping as the grid changes), its options over the defaults. */
-function chart(id: string, title: string, spec: Partial<Omit<ChartSpec, 'options'>> & { options?: Partial<ChartOptions> }): PageView {
+export function chart(id: string, title: string, spec: Partial<Omit<ChartSpec, 'options'>> & { options?: Partial<ChartOptions> }): PageView {
   const { options, ...rest } = spec;
   return {
     id,
@@ -95,12 +95,17 @@ function chart(id: string, title: string, spec: Partial<Omit<ChartSpec, 'options
   };
 }
 
-const REVENUE = { column: 'revenue', fn: 'sum' } as const;
-const PROFIT = { column: 'profit', fn: 'sum' } as const;
-const BY_TIME = { sort: { by: 'x', direction: 'asc' }, limit: 2000 } as const;
+export const REVENUE = { column: 'revenue', fn: 'sum' } as const;
+export const PROFIT = { column: 'profit', fn: 'sum' } as const;
+export const BY_TIME = { sort: { by: 'x', direction: 'asc' }, limit: 2000 } as const;
 
 /** Each sheet: its name, and its tiles two to a band, simplest first. */
-const SHEETS: readonly { readonly name: string; readonly views: readonly PageView[] }[] = [
+export interface ExampleSheet {
+  readonly name: string;
+  readonly views: readonly PageView[];
+}
+
+const SHEETS: readonly ExampleSheet[] = [
   {
     name: 'Bar and line',
     views: [
@@ -231,6 +236,14 @@ function bandsOf(tiles: readonly string[]): Band[] {
 
 /** The page: its sheets of charts, and a last sheet of the grid they are views of. */
 export async function chartsDashboardPage(): Promise<PageDocument> {
+  return salesPage('Chart examples', SHEETS);
+}
+
+/**
+ * A page of examples over the sales sample: `sheets` of charts, two to a band, and a last sheet of the grid they are
+ * views of -- its groups open at `expanded` (a sunburst or a tree draws the grid's rows as shown).
+ */
+export async function salesPage(name: string, sheets: readonly ExampleSheet[], expanded: readonly (readonly string[])[] = []): Promise<PageDocument> {
   const sample = sampleById(EXAMPLE_SAMPLE);
   if (!sample) throw new Error(`no sample '${EXAMPLE_SAMPLE}'`);
   const bytes = new TextEncoder().encode(sample.build(EXAMPLE_ROWS));
@@ -241,22 +254,22 @@ export async function chartsDashboardPage(): Promise<PageDocument> {
     { id: EXAMPLE_SAMPLE, rows: EXAMPLE_ROWS },
   );
   const cube = writeCube({
-    name: 'Chart examples',
+    name,
     source,
     snapshot: EXAMPLE_CUBE,
     configuration: CONFIGURATION,
-    tree: TreeState.fromPaths([], false),
+    tree: TreeState.fromPaths(expanded.map((p) => [...p]), false),
   });
   const grid: PageView = { id: 'grid', kind: 'grid', cube: CUBE, title: 'The sales' };
-  const sheets: PageSheet[] = SHEETS.map((s, i) => ({
+  const placed: PageSheet[] = sheets.map((s, i) => ({
     id: `sheet-${i + 1}`,
     name: s.name,
     layout: { kind: 'bands', fit: false, bands: bandsOf(s.views.map((v) => v.id)) },
   }));
-  sheets.push({ id: `sheet-${SHEETS.length + 1}`, name: 'The data', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] } });
+  placed.push({ id: `sheet-${sheets.length + 1}`, name: 'The data', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] } });
   return writePageOf({
-    name: 'Chart examples',
+    name,
     cubes: [{ id: CUBE, cube }],
-    views: { views: [grid, ...SHEETS.flatMap((s) => s.views)], sheets },
+    views: { views: [grid, ...sheets.flatMap((s) => s.views)], sheets: placed },
   });
 }

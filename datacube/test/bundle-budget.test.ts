@@ -110,8 +110,11 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  every later batch adds grow that chunk. Measured 398,792 with step 12's options in it, 401,306 before the move.
  *  401,000 -> 403,000 (2026-10-14, batch 2 step 14): the sales sample (samples.ts salesCsv: the picker's samples are at
  *  startup) and the Open window's Examples list (examples/catalog.ts: names only -- each example page is a chunk of its
- *  own, built when picked). Measured 401,224. */
-const BUDGET = 403_000;
+ *  own, built when picked). Measured 401,224.
+ *  403,000 -> 406,000 (2026-10-14, batch 3 step 1): the spec's seventeen new kinds -- their words, what each refuses by
+ *  name, and the figures the database computes for a waterfall, a Pareto and a pie's inner ring (chart-spec.ts,
+ *  calc-presets.ts), at startup as the spec's reader is; their drawing is a chunk. Measured 404,401. */
+const BUDGET = 406_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -128,8 +131,9 @@ const BUDGET = 403_000;
  *  Measured 383,019.
  *  384,000 -> 386,000 (2026-10-14, batch 2 step 10): as the grid's. Measured 384,369.
  *  386,000 -> 388,000 (2026-10-14, batch 2 steps 12-14 and its audit): the sales sample and the Examples list (the
- *  grid's note of step 14), and the reader's checks of a chart's option words. Measured 387,083. */
-const ENGINE_BUDGET = 388_000;
+ *  grid's note of step 14), and the reader's checks of a chart's option words. Measured 387,083.
+ *  388,000 -> 391,000 (2026-10-14, batch 3 step 1): as the grid's. Measured 389,154. */
+const ENGINE_BUDGET = 391_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -145,8 +149,20 @@ const ENGINE_BUDGET = 388_000;
  *  buttons use it too). Measured 431,396.
  *  433,000 -> 436,000 (2026-10-14, batch 2's audit): the brush taking its range by value and the database's edges
  *  (chart-spec.ts AXIS_UPPER), and a crosshair that relays only the tooltip (chart-render.ts, in place of ECharts'
- *  connect). Measured 433,874. */
-const CHART_BUDGET = 436_000;
+ *  connect). Measured 433,874.
+ *  436,000 -> 447,000 (2026-10-14, batch 3 step 1, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): ECharts' charts and
+ *  components registered each by its own module (chart-render.ts), not through the index, so batch 3's rarer charts are
+ *  a chunk of their own -- what the first chart and the kinds' chunk both use is a third chunk, and three files
+ *  compress less well than one; and a pie in two rings or half a ring (chart-option.ts). Measured 445,666. */
+const CHART_BUDGET = 447_000;
+
+/** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
+ *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
+ *  own. */
+const isKinds = (file: string): boolean => /\/chart-(?:render-)?kinds-[^/]+\.js$/.test(file);
+/** Set 2026-10-14 at its first measure (batch 3 step 1), 92,574: the drawing 7,823 and the charts 84,751, with room for
+ *  batch 3's later kinds (small multiples, a bubble). */
+const KINDS_BUDGET = 100_000;
 
 /** The charts' options form (ui/chart-form.ts), fetched the first time a chart's options are shown: set 2026-10-14 at
  *  its first measure, 4,872, with room for batch 3's fields. */
@@ -196,7 +212,7 @@ describe('the page loads ECharts only when a chart draws', () => {
 
   it('ECharts is in a chunk beside the bundle, reached by a dynamic import', () => {
     const chunks = readdirSync(CHUNKS).map((f) => join(CHUNKS, f));
-    const lazy = chunks.filter((f) => readFileSync(f, 'utf8').includes('node_modules/echarts/'));
+    const lazy = chunks.filter((f) => readFileSync(f, 'utf8').includes('src/chart-render.ts'));
     assert.equal(lazy.length, 1, 'one chunk holds the chart renderer');
     const name = lazy[0]!.slice(CHUNKS.length + 1).replace('.', '\\.');
     // from the page's own chunk (page/cube-page.ts, itself fetched when a cube first gets a page), or the bundle
@@ -217,11 +233,21 @@ describe('the page loads ECharts only when a chart draws', () => {
     // what a chart adds to the page, beside the grid's own budget (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5)
     const chart = readdirSync(CHUNKS).map((f) => join(CHUNKS, f)).filter((f) => {
       const text = readFileSync(f, 'utf8');
-      return text.includes('node_modules/echarts/') || text.includes('src/chart-option.ts');
+      return (text.includes('node_modules/echarts/') || text.includes('src/chart-option.ts')) && !isKinds(f);
     });
     assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
     const size = chart.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= CHART_BUDGET, `a first chart fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${CHART_BUDGET.toLocaleString()}`);
+  });
+
+  it(`batch 3's kinds are chunks of their own, fetched with the first of them: at most ${KINDS_BUDGET.toLocaleString()} bytes more`, () => {
+    const chunks = readdirSync(CHUNKS).map((f) => join(CHUNKS, f));
+    for (const f of startup()) assert.ok(!isKinds(f) && !readFileSync(f, 'utf8').includes('src/chart-kinds.ts'), `${f} carries batch 3's kinds`);
+    const kinds = chunks.filter(isKinds);
+    assert.equal(kinds.length, 2, 'the kinds\' drawing and their ECharts charts, a chunk each');
+    assert.ok(kinds.length >= 1, 'the kinds\' chunks are found');
+    const size = kinds.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= KINDS_BUDGET, `batch 3's kinds fetch ${size.toLocaleString()} bytes gzipped, over their budget of ${KINDS_BUDGET.toLocaleString()}`);
   });
 
   it(`the options form and an example page are chunks of their own, each within its budget`, () => {

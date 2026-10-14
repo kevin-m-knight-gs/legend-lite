@@ -198,7 +198,7 @@ describe('a saved page', () => {
     assert.throws(bad({ cubes: [] }), /no cube/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'map', cube: 'cube' }] }), /unknown kind "map"/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'grid', cube: 'elsewhere' }] }), /shows no cube of this page/);
-    assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 1, mark: 'radar', y: [], options: {} } }] }),
+    assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 1, mark: 'violin', y: [], options: {} } }] }),
       /no chart it can draw/);
     // version 2's slots (chart-spec.ts §3.1): a word this DataCube does not know is refused by name, never drawn as
     // something else
