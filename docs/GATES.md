@@ -9549,7 +9549,11 @@ stay unpublished. The study's §9.3 to §9.15 hold what reads, what is refused a
      Anywhere (138 runs) and pinned, not reviewed again.
    - Hygiene: no SAP manual text, TPC material or GitHub-corpus query (the literal and n-gram filters over the whole
      diff); no private paths.
-   - CI: run <pending> on the PR.
+   - CI: run 38592862950 on PR neema2/legend-lite#40, green on every job at 0412c7244 over main de0484e96. Main then
+     gained the compiler line's three stamp and fold fixes (0d294f432, 198e2e582, d619c5cd6), so the merge was first
+     judged locally on the combined tree: both IQ lanes, `//core:iq_syntax_cases_test`, both `sql-parity` lanes,
+     `//core:core_tests` and `//gates:checks`, 165 pass, 2 platform-skipped. Merged by the owner as f2e7b553d on
+     2026-10-14, without `[skip ci]`: main's push run 38614117947 on f2e7b553d is the verdict on the combination.
 5. **Not done, recorded in the study** (§9.14, §9.15 and earlier "Recorded, not fixed"): date and `[0..1]` host
    variables refused (Postgres's year-below-100 rendering and its fold of `toOne`'s raise, the ninth line's and the
    planner's); `TOP @n`; the IqDialect edits the seventh line's stress fixes enable (an AND/OR chain read without

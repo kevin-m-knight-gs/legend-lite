@@ -1345,6 +1345,12 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     variables, dates by DATE_ORDER;
   - IQ's ASCII-only case fold, blank-padding comparison and exact NUMERIC division, each composed from existing Pure
     natives, so no new native.
+- **The second landing: LANDED 2026-10-14 as f2e7b553d** (PR neema2/legend-lite#40; GATES "`#IQ{...}#`: the second
+  landing"). The seventh line's stress fixes rebase over its seam edits, listed below.
+- **Next, on `claude/iq-island-3` (the user, 2026-10-14: SELECT statements first; the catalog, server-state procedures
+  and procedural wrappers stay refused by name):** the M1 gaps, then a general way to set IQ's options (a settings
+  vector of database, login and statement layers, the five profiles as presets, set in the island header or by IQ's
+  own `SET OPTION`). Cross-area edits will be announced here before they land.
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):
