@@ -18,6 +18,28 @@ write_source_files(
     visibility = ["//visibility:public"],
 )
 
+# THE CAPABILITY MATRIX (//core:capability_matrix): what every dialect does with every function and aggregate,
+# generated from the dialects' own sources. Its measured reach (reach.tsv, //core:capability_reach) is its input.
+exports_files(
+    ["dialect-capability/reach.tsv"],
+    visibility = ["//core:__pkg__"],
+)
+
+write_source_files(
+    name = "update_dialect_capability",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe capability matrix is generated from the dialects' own tables -- a dialect's table moved: regenerate with bazel run //docs:update_dialect_capability, and read the diff",
+    files = {
+        "dialect-capability/%s.md" % f: "//core:dialect-capability/%s.md" % f
+        for f in [
+            "README",
+            "functions",
+            "aggregates",
+        ]
+    },
+    visibility = ["//visibility:public"],
+)
+
 # NOT a generated file: the own-corpus protocol ledger's reasons are written by a
 # person. This writes a DRAFT (current diffs, surviving reasons kept, new rows
 # "TODO: adjudicate") for that person to finish; OwnCorpusParityTest is the check.

@@ -2,7 +2,8 @@
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
 steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so are P1a (e64e7e8), P1c (9e6363e to
-074bd95) and P1d with D8 (0470214 to 1447d42); the capability matrix remains before the review (D7).
+074bd95), P1d with D8 (0470214 to 1447d42) and the capability matrix (`docs/dialect-capability/`); merging main and
+re-verifying remain before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -589,6 +590,50 @@ the shared setup, `relation "addresstable" does not exist`); the 24 left are Pos
 `//gates:local` is green (347 under the root-container recipe, the root-only pair as root,
 `//tools/guards:classpath_test` skipped as before), and so are `//core:stress_suites` and `//core:stress_suites_h2`.
 `//spec:corpus_duckdb` and `//spec:corpus_h2` pass (12 of 12, no roster or register moved).
+
+**The capability matrix done 2026-10-14** (1b's last item): `docs/dialect-capability/` holds, for each of the 15
+concrete dialects, what it does with each of the IR's functions and aggregates, generated from the dialects' own
+sources.
+- **How it is read.** `CapabilityMatrix` (core's test sources, run as `//core:capability_matrix`) reads each dialect's
+  arm for each function in its `call` and `reducer` switches. It follows an arm into the parent where the arm hands the
+  function on (`super.call`), and into a helper that decides by the same function, as Java finds that helper (the
+  dialect's own class first, so an override wins). Every arm is one expression (step 3), so one arm says everything:
+  - **spelled**: it writes one SQL name or operator;
+  - **emulated**: it composes, or calls a helper that builds the SQL;
+  - **refused**: it throws `DialectCapability`, the reason quoted;
+  - **not here**: it throws the renderer's "a caller's bug" (`IllegalStateException`). These are an aggregate table's
+    window functions (written by `windowCall`) and lowering markers. They are no decision of the dialect's and are
+    counted apart.
+- **Fixed files, no registry.** The matrix is three fixed files: the overview with two S/E/R grids, then
+  `functions.md` and `aggregates.md`, each with a section per dialect. Its dialects are read from the source
+  directory, so a new dialect adds no line to any BUILD file (§4's acceptance test).
+- **Diff test.** `//docs:update_dialect_capability` writes the files. Its diff test is in `//:generated`, so a moved
+  arm fails the build until the matrix is regenerated.
+- **The reach is measured, not built.** `//core:capability_reach` plans each case the five DuckDB PCT suites record
+  (`-Dlegend.diagnostics=pct-cases`; 2,398 distinct, 2,383 planned), as the lane plans it up to the dialect:
+  - the storeless runtime;
+  - `TypedQuery.lower`;
+  - the PCT wire wrap for a relation.
+
+  It then runs each database's own passes over the result. A function is reached on a database when it is still in
+  the IR there. Not applied: the lane's feature flags and its database probes. `reach.tsv` beside the matrix is the
+  measurement, with its recipe in the overview.
+- **What it shows.**
+  - DuckDB refuses nothing; H2 refuses 48 (its lists and DuckDB-only functions, decision D1); the cloud dialects
+    refuse 2 to 9 each.
+  - On each database, 21 to 34 arms that write SQL are reached by no PCT case. 30 functions DuckDB writes are
+    reached on no database at all. Among them:
+    - `TODAY` and `NOW`;
+    - `DATE_TRUNC` and `ADD_INTERVAL_TEMPORAL`;
+    - the epoch, day-name and month-name functions;
+    - eight list functions (`LIST_ZIP`, `LIST_DISTINCT`, `LIST_PRODUCT`, ...);
+    - `TYPEOF` and `STRPTIME`;
+    - the aggregates `ANY_VALUE`, `BOOL_AND`, `BOOL_OR`, `VARIANCE` and `STDDEV`.
+
+    These are the arms whose spelling no test proves on any database.
+- **The limit.** "Spelled" and "emulated" are read from the source text, so they say what an arm writes, not whether
+  it is right; the lanes prove that. The engine-text printers' list functions are an `if` chain, so they read as
+  their helper.
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
