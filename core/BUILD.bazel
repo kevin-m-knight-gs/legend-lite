@@ -1026,16 +1026,17 @@ write_source_files(
 
 # THE CAPABILITY MATRIX (the dialect program's Phase 1b, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): what every
 # concrete dialect does with every function and aggregate, read from the dialects' own sources (CapabilityMatrix),
-# with the PCT reach measured into docs/dialect-capability/reach.tsv (:capability_reach). Its three files are fixed
-# and its dialects are read from the source directory, so a new dialect adds no line here.
-# //docs:update_dialect_capability writes them into docs/dialect-capability/ and diff-tests them.
+# with the PCT reach measured into docs/dialect-capability/reach.tsv (:capability_reach). Its files are fixed (the
+# matrix as data, matrix.tsv, and three pages made from it) and its dialects are read from the source directory, so a
+# new dialect adds no line here. //docs:update_dialect_capability writes them into docs/dialect-capability/ and
+# diff-tests the data (no test reads Markdown: G17).
 _DIALECT_SOURCES = glob(["src/main/java/com/legend/sql/dialect/*.java"])
 
 java_run(
     name = "capability_matrix",
     testonly = True,
     srcs = _DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
-    outs = ["dialect-capability/%s.md" % f for f in [
+    outs = ["dialect-capability/matrix.tsv"] + ["dialect-capability/%s.md" % f for f in [
         "README",
         "functions",
         "aggregates",

@@ -604,11 +604,14 @@ sources.
   - **not here**: it throws the renderer's "a caller's bug" (`IllegalStateException`). These are an aggregate table's
     window functions (written by `windowCall`) and lowering markers. They are no decision of the dialect's and are
     counted apart.
-- **Fixed files, no registry.** The matrix is three fixed files: the overview with two S/E/R grids, then
-  `functions.md` and `aggregates.md`, each with a section per dialect. Its dialects are read from the source
-  directory, so a new dialect adds no line to any BUILD file (§4's acceptance test).
-- **Diff test.** `//docs:update_dialect_capability` writes the files. Its diff test is in `//:generated`, so a moved
-  arm fails the build until the matrix is regenerated.
+- **Fixed files, no registry.** The matrix is fixed files: `matrix.tsv` (the matrix as data), and three pages made
+  from it: the overview with two S/E/R grids, then `functions.md` and `aggregates.md`, each with a section per
+  dialect. Its dialects are read from the source directory, so a new dialect adds no line to any BUILD file (§4's
+  acceptance test).
+- **Diff test.** `//docs:update_dialect_capability` writes all four files. The diff test is the data's, in
+  `//:generated`, so a moved arm fails the build until the matrix is regenerated. The pages carry no test of their
+  own: the first gate run found that a diff test on them breaks G17 (`//tools/guards:markdown_inputs_test`: prose is
+  never a test input). The data holds every row the pages show.
 - **The reach is measured, not built.** `//core:capability_reach` plans each case the five DuckDB PCT suites record
   (`-Dlegend.diagnostics=pct-cases`; 2,398 distinct, 2,383 planned), as the lane plans it up to the dialect:
   - the storeless runtime;

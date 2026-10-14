@@ -29,8 +29,10 @@ the lane's feature flags and its database-side probes (a dynamically pivoting re
 A reached function may still be one its lane pins as failing. Re-measure when the lowering, the passes
 or the suites move:
 `bazel run //core:capability_reach -- docs/dialect-capability/reach.tsv <pct-cases.tsv>...`, then
-`bazel run //docs:update_dialect_capability`. The decisions need no measuring: the diff test fails
-when a dialect's table moves and this was not regenerated.
+`bazel run //docs:update_dialect_capability`. The decisions need no measuring. Every row of these
+pages is in `matrix.tsv`, the matrix as data, written with them: its diff test fails when a dialect's
+table moves and this was not regenerated (the data is tested, never these pages: prose is no test
+input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
