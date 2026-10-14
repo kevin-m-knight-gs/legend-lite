@@ -1393,6 +1393,16 @@ repros will be in the study's §9.
     `lowering/StampCensus.java:143-147` counts an all-NULL CASE as list-shaped, while `:68` exempts a bare NULL.
   - A `concatenate` whose first branch is a NULL constant is stamped always-empty. An enclosing test of the column
     is then folded away: no row is found, a "size 0" error is raised, or a sort key goes random.
+  - **Found 2026-10-14, compiling real-world queries; both also reproduce through `#SQL{... tb(...)}#`:**
+    - **The lowering throws** `IllegalStateException` at `Lowerer.computedColumns` ("… unresolvable even after
+      isolation") when a correlated scalar subquery reads the outer row in its own select list:
+      `SELECT (SELECT t.a FROM u WHERE u.k = 1) AS s FROM t`, `SELECT t.a, (SELECT MAX(u.b) + t.a FROM u) AS s FROM t`.
+      It does not throw when the outer column appears only in the subquery's WHERE.
+    - **Planning time doubles with each join.** Repro: `SELECT a.x FROM t a LEFT JOIN u b1 ON b1.k = a.k … LEFT
+      JOIN u bn ON bn.k = a.k`, or the same with comma or INNER joins.
+      - Timings: 12 joins 0.7 s, 14 joins 2.1 s, 17 joins 14 s, 18 joins 28 s.
+      - `Compiler.query` takes about 10 ms; the time is in `plan` (G½ through the lowering). At a timeout the
+        stack was in `Overloads.functionValuedHelperCall`.
 
 ## Rules between sessions
 
