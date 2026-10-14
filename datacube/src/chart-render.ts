@@ -15,6 +15,7 @@ import * as echarts from 'echarts/core';
 import { BarChart, HeatmapChart, LineChart, PieChart, ScatterChart, TreemapChart } from 'echarts/charts';
 import {
   AriaComponent,
+  DataZoomComponent,
   DatasetComponent,
   GridComponent,
   LegendComponent,
@@ -37,6 +38,8 @@ echarts.use([
   DatasetComponent, VisualMapComponent, AriaComponent,
   // version 2's layers: reference lines, bands, pinned extremes; and a value axis's breaks
   MarkLineComponent, MarkAreaComponent, MarkPointComponent, AxisBreak,
+  // a long series' slider, and zooming inside the chart
+  DataZoomComponent,
   CanvasRenderer,
 ]);
 

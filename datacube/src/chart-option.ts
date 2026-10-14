@@ -21,7 +21,7 @@ import { isRatio, SHOW_AS_LABELS, statName } from './calc-presets.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
-import { isNumeric } from '../../engine-client/src/types.ts';
+import { isNumeric, isTemporal } from '../../engine-client/src/types.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
 /** The colours a chart is drawn in, read from CSS tokens by the renderer. */
@@ -227,7 +227,12 @@ export function chartOption(
   }
 
   const measure = (m: ChartSpec['y'][number]) => column(rows, measureName(m));
-  const categories = distinct(xCol.values);
+  // A DATE ACROSS IS A TIME SCALE (batch 2 item 9) on a bar, line or area chart: its points in time order whatever
+  // the chart's order, spaced by time, so a missing period is a gap, not a neighbour
+  const timeAxis = isTemporal(xCol.type) && (spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'bar')
+    && !(spec.mark === 'bar' && spec.options.orientation === 'horizontal');
+  const firstSeen = distinct(xCol.values);
+  const categories = timeAxis ? [...firstSeen].sort((a, b) => keyText(a).localeCompare(keyText(b))) : firstSeen;
   const catLabels = categories.map((c) => label(c, spec.x!, xCol.type));
   const indexOf = new Map(categories.map((c, i) => [keyText(c), i]));
 
@@ -407,7 +412,14 @@ export function chartOption(
     && series.every((s) => s.mark === 'bar');
   const stacked = spec.options.stack !== 'none';
   const twoAxes = series.some((s) => axisOf(s.measure) === 1);
-  const categoryAxis = {
+  // a time axis takes each point's own time; a category axis its label
+  const at = (i: number): string | number => (timeAxis ? String(categories[i]) : catLabels[i]!);
+  const categoryAxis = timeAxis ? {
+    ...axisCommon,
+    type: 'time' as const,
+    splitLine: { show: false },
+    axisLabel: { ...axisCommon.axisLabel, ...(spec.options.labelRotate !== undefined ? { rotate: spec.options.labelRotate } : {}) },
+  } : {
     ...axisCommon,
     type: 'category' as const,
     data: catLabels,
@@ -443,9 +455,10 @@ export function chartOption(
   const out = series.map((s, si) => {
     const fmt = formatOf(s.measure);
     const axisIndex = axisOf(s.measure);
+    const long = categories.length;
     const common = {
       name: s.name,
-      data: s.values,
+      data: timeAxis ? s.values.map((v, i) => [at(i), v]) : s.values,
       ...(stacked && s.mark !== 'line' ? { stack: `total-${axisIndex}` } : {}),
       ...(axisIndex === 1 ? (horizontal ? { xAxisIndex: 1 } : { yAxisIndex: 1 }) : {}),
       label: {
@@ -459,18 +472,20 @@ export function chartOption(
             return row === null || row === undefined ? '' : measureText(labelMeasure,
               numberOf(labelCol.values[row] ?? null, labelCol.type), rows, label);
           }
-          return fmt(typeof p.value === 'number' ? p.value : null);
+          return fmt(valueOf(p.value));
         },
       },
-      tooltip: { valueFormatter: (v: unknown) => fmt(typeof v === 'number' ? v : null) },
+      tooltip: { valueFormatter: (v: unknown) => fmt(valueOf(v)) },
       emphasis: { focus: dim ? 'series' as const : 'none' as const },
-      ...layersOf(spec, s, si, series, categories, catLabels, rows, theme, fmt, xCol.type, horizontal),
+      ...layersOf(spec, s, si, series, categories, at, rows, theme, fmt, xCol.type, horizontal),
     };
     if (s.mark === 'bar') {
       return {
         ...common,
         type: 'bar' as const,
         barMaxWidth: 24,
+        // many bars drawn as one shape: a long series stays quick
+        ...(long > 2000 ? { large: true } : {}),
         itemStyle: {
           // the data-end rounded, the baseline square; a stack's inner
           // segments are separated by the surface gap instead
@@ -487,6 +502,8 @@ export function chartOption(
       symbol: 'circle',
       symbolSize: 8,
       showSymbol: categories.length <= 40,
+      // point thinning (largest-triangle-three-buckets): a long series stays quick and keeps its shape
+      ...(long > 500 ? { sampling: 'lttb' as const } : {}),
       ...(spec.options.smooth ? { smooth: true } : {}),
       ...(spec.options.step ? { step: 'middle' as const } : {}),
       ...(s.mark === 'area' ? { areaStyle: { opacity: 0.2 } } : {}),
@@ -502,7 +519,7 @@ export function chartOption(
     for (const p of list) {
       const s = series[p.seriesIndex];
       if (!s) continue;
-      lines.push(`${p.marker ?? ''}${escapeHtml(s.name)}: <b>${escapeHtml(formatOf(s.measure)(typeof p.value === 'number' ? p.value : null))}</b>`);
+      lines.push(`${p.marker ?? ''}${escapeHtml(s.name)}: <b>${escapeHtml(formatOf(s.measure)(valueOf(p.value)))}</b>`);
       const row = s.at[p.dataIndex];
       if (row === null || row === undefined) continue;
       // with a split each series has its own row; without one, every series reads the category's one row
@@ -525,6 +542,7 @@ export function chartOption(
         formatter: tooltipFormatter,
       },
       legend: legendOf(spec, out.length, theme),
+      ...zoomOf(spec, categories.length, horizontal),
       xAxis: horizontal ? valueAxes : categoryAxis,
       yAxis: horizontal ? { ...categoryAxis, inverse: true } : valueAxes,
       ...thresholdMap(spec, series, theme, horizontal),
@@ -540,6 +558,33 @@ export function chartOption(
     ...(spec.bins !== undefined ? { upperAt: (dataIndex: number) => nextEdge(categories, dataIndex, xCol.type) } : {}),
     notes,
     description: describe(spec, rows),
+  };
+}
+
+/** A point's value as ECharts hands it back: a number, or on a time axis the [time, value] pair. */
+function valueOf(v: unknown): number | null {
+  if (typeof v === 'number') return v;
+  if (Array.isArray(v) && typeof v[1] === 'number') return v[1];
+  return null;
+}
+
+/** Points beyond which a chart starts with a slider to zoom and pan across (unless it says otherwise). */
+export const ZOOM_FROM = 60;
+
+/**
+ * Zoom and pan across (batch 2 item 9): a slider under the chart and the wheel or a drag inside it, when the chart asks
+ * for it -- or, asking nothing, when it has more than ZOOM_FROM points.
+ */
+function zoomOf(spec: ChartSpec, points: number, horizontal: boolean): Record<string, unknown> {
+  const on = spec.options.zoom ?? points > ZOOM_FROM;
+  if (!on) return {};
+  const axis = horizontal ? { yAxisIndex: 0 } : { xAxisIndex: 0 };
+  return {
+    dataZoom: [
+      { type: 'inside', ...axis },
+      { type: 'slider', ...axis, height: 18, bottom: 6, ...(horizontal ? { right: 6, width: 18, height: undefined, bottom: undefined, orient: 'vertical' } : {}) },
+    ],
+    grid: { left: 8, right: horizontal ? 36 : 16, top: 40, bottom: horizontal ? 8 : 36, containLabel: true },
   };
 }
 
@@ -580,7 +625,7 @@ function layersOf(
   index: number,
   all: readonly { measure: ChartMeasure }[],
   categories: readonly Scalar[],
-  catLabels: readonly string[],
+  xAt: (i: number) => string | number,
   rows: ResultTable,
   theme: ChartTheme,
   fmt: (v: number | null) => string,
@@ -621,7 +666,7 @@ function layersOf(
         const lo = inside[0];
         const hi = inside[inside.length - 1];
         if (lo && hi) {
-          areas.push([{ ...band, [categoryKey]: catLabels[lo[1]], label: { show: l.label !== undefined, color: theme.inkSecondary } }, { [categoryKey]: catLabels[hi[1]] }]);
+          areas.push([{ ...band, [categoryKey]: xAt(lo[1]), label: { show: l.label !== undefined, color: theme.inkSecondary } }, { [categoryKey]: xAt(hi[1]) }]);
         }
       }
       continue;
@@ -644,7 +689,7 @@ function layersOf(
         // the marks equal to the database's maximum (minimum): compared, never computed
         s.values.forEach((x, i) => {
           if (x !== null && x === v) {
-            points.push({ coord: horizontal ? [x, catLabels[i]] : [catLabels[i], x], value: fmt(x), name: words[st], symbol: 'pin', symbolSize: 36,
+            points.push({ coord: horizontal ? [x, xAt(i)] : [xAt(i), x], value: fmt(x), name: words[st], symbol: 'pin', symbolSize: 36,
               itemStyle: { color: st === 'max' ? theme.series[2] : theme.bad ?? theme.series[7] } });
           }
         });

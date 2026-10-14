@@ -125,8 +125,10 @@ const ENGINE_BUDGET = 384_000;
  *  chart-render.ts) and the drawing's.
  *  369,000 -> 392,000 (2026-10-14, batch 2 steps 5-8): ECharts' mark lines, areas and points (a chart's reference
  *  lines, bands and pinned extremes) and axis breaks registered, and the drawing of a value per mark and axis, the
- *  grid's formats and the layers. Measured 390,828. */
-const CHART_BUDGET = 392_000;
+ *  grid's formats and the layers. Measured 390,828.
+ *  392,000 -> 408,000 (2026-10-14, batch 2 step 9): ECharts' data zoom (a long series' slider, zooming inside the chart)
+ *  and the time axis's drawing. Measured 406,575. */
+const CHART_BUDGET = 408_000;
 
 /** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
  *  gzipped, which the widget's loader fetches over the kernel's channel once per notebook page. Set 2026-10-08 at its
@@ -143,8 +145,9 @@ const CHART_BUDGET = 392_000;
  *  560,000 -> 568,000 (2026-10-14, DataCube charts batch 2, steps 5-8): ECharts' markers and axis breaks and the charts'
  *  new drawing, in the one file (a chart chunk in the tab). Fetching chart code lazily over the channel is batch 2's
  *  item 13 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3), measured and asked of the user before it is built. Measured
- *  566,503. */
-const WIDGET_BUDGET = 568_000;
+ *  566,503.
+ *  568,000 -> 579,000 (2026-10-14, batch 2 step 9): the data zoom, as in the chart's chunk. Measured 577,285. */
+const WIDGET_BUDGET = 579_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

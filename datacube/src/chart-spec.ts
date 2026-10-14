@@ -315,6 +315,8 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
 ];
 
 export const DEFAULT_CHART_LIMIT = 50;
+/** A date across asks for this many points: a time series is long, and its slider and point thinning keep it quick. */
+export const TIME_LIMIT = 2000;
 /** A scatter plots rows, not groups, so it may ask for more of them. */
 export const SCATTER_LIMIT = 2000;
 
@@ -476,8 +478,9 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
     ...(split !== undefined ? { split } : {}),
     options: {
       ...DEFAULT_OPTIONS,
-      // time runs left to right; categories lead with the largest
+      // time runs left to right, and long; categories lead with the largest
       sort: temporal ? { by: 'x', direction: 'asc' } : DEFAULT_OPTIONS.sort,
+      ...(temporal ? { limit: TIME_LIMIT } : {}),
     },
   };
 }
@@ -515,13 +518,16 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
     : isTemporal(rowColumns(s).find((c) => c.name === x)?.type)
       ? { by: 'x' as const, direction: 'asc' as const }
       : { by: 'y' as const, direction: 'desc' as const };
+  // a date newly across asks for a time series' points, unless the chart was told how many
+  const toTime = x !== spec.x && sort.by === 'x' && isTemporal(rowColumns(s).find((c) => c.name === x)?.type)
+    && spec.options.limit === DEFAULT_CHART_LIMIT;
   const next: ChartSpec = {
     ...rest,
     x,
     ...kept,
     y,
     ...(split !== undefined ? { split } : {}),
-    options: { ...spec.options, sort },
+    options: { ...spec.options, sort, ...(toTime ? { limit: TIME_LIMIT } : {}) },
   };
   return JSON.stringify(next) === JSON.stringify(spec) ? spec : next;
 }

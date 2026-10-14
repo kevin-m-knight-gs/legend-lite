@@ -18,6 +18,7 @@ import {
   chartColumns,
   axisName,
   markConditions,
+  TIME_LIMIT,
   type ChartSpec,
 } from '../src/chart-spec.ts';
 import { chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
@@ -676,5 +677,63 @@ describe('the query of a dashboard-grade chart', () => {
     });
     assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional', 'max_qty', 'sum_qty']);
     assert.deepEqual(s.groupDerived?.map((d) => d.name), ['average_of_sum_notional', 'max_of_sum_notional', 'min_of_sum_notional']);
+  });
+});
+
+describe('a real time axis, zoom and pan (batch 2, step 9)', () => {
+  const days = (n: number) => Array.from({ length: n }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toISOString().slice(0, 10));
+  const LINE: ChartSpec = { ...BAR, mark: 'line', x: 'trade_date' };
+  type Opt = { xAxis: Record<string, any>; series: Record<string, any>[]; dataZoom?: Record<string, any>[] };
+
+  it('a date across is a time scale: each point at its own time, in time order whatever the chart\'s order', () => {
+    const rows = table([
+      { name: 'trade_date', type: 'StrictDate', values: ['2024-03-01', '2024-01-01', '2024-02-01'] },
+      { name: 'sum_notional', type: 'Float', values: [3, 1, 2] },
+    ]);
+    const d = chartOption(LINE, rows);
+    const o = d.option as unknown as Opt;
+    assert.equal(o.xAxis.type, 'time');
+    assert.deepEqual(o.series[0]!.data, [['2024-01-01', 1], ['2024-02-01', 2], ['2024-03-01', 3]]);
+    // a click still names the point's own date
+    assert.deepEqual(d.keyAt(0, 2), { trade_date: '2024-03-01' });
+    assert.match(chartSvg(d), /<path/);
+  });
+
+  it('a gap in time is a gap: a missing month is spaced as a month, not drawn as a neighbour', () => {
+    const rows = table([
+      { name: 'trade_date', type: 'StrictDate', values: ['2024-01-01', '2024-02-01', '2024-06-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2, 3] },
+    ]);
+    const o = chartOption(LINE, rows).option as unknown as Opt;
+    assert.equal(o.xAxis.type, 'time', 'the axis measures time, so June sits four months on');
+  });
+
+  it('a long series gets a slider and point thinning; a short one neither, unless asked', () => {
+    const many = table([
+      { name: 'trade_date', type: 'StrictDate', values: days(600) },
+      { name: 'sum_notional', type: 'Float', values: days(600).map((_, i) => i) },
+    ]);
+    const long = chartOption(LINE, many).option as unknown as Opt;
+    assert.deepEqual(long.dataZoom?.map((z) => z['type']), ['inside', 'slider']);
+    assert.equal(long.series[0]!.sampling, 'lttb');
+    const few = table([
+      { name: 'trade_date', type: 'StrictDate', values: days(10) },
+      { name: 'sum_notional', type: 'Float', values: days(10).map((_, i) => i) },
+    ]);
+    assert.equal((chartOption(LINE, few).option as unknown as Opt).dataZoom, undefined);
+    assert.ok((chartOption({ ...LINE, options: { ...LINE.options, zoom: true } }, few).option as unknown as Opt).dataZoom);
+    assert.equal((chartOption({ ...LINE, options: { ...LINE.options, zoom: false } }, many).option as unknown as Opt).dataZoom, undefined);
+    chartSvg(chartOption(LINE, many));
+  });
+});
+
+describe('a time series asks for its points', () => {
+  it('a first chart of a date asks for a time series\' points, not a top 50; so does a live chart moving onto one', () => {
+    const dated: CubeSnapshot = { ...CUBE, rows: ['trade_date'], pivotOn: [] };
+    assert.equal(defaultChart(dated)?.options.limit, TIME_LIMIT);
+    const live: ChartSpec = { ...BAR, x: 'region' };
+    assert.equal(followCube(live, dated).options.limit, TIME_LIMIT);
+    // told how many, it keeps what it was told
+    assert.equal(followCube({ ...live, options: { ...live.options, limit: 12 } }, dated).options.limit, 12);
   });
 });
