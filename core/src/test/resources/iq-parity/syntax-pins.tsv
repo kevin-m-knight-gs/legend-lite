@@ -6,16 +6,90 @@
 # 752 sharing a run of six words with the manuals' text, 12 holding a two-word name the manuals print, 11 a demo
 # database name, 189 a 12-character string the manuals print). Shrinkage only: every kept case is unchanged and keeps
 # its verdict; the reject-parsed and accept-rejected lists lose 5 and 2 ids and gain none.
-accept	parsed	659
-accept	refused	4465
+# IQ island, 2026-10-14 (M1a): the reader now reads BETWEEN, IN lists, LIKE, IS [NOT] DISTINCT FROM and the truth tests
+# (IS [NOT] TRUE, FALSE, UNKNOWN), and sa_rowgenerator in FROM: accept PARSED 659 -> 765 (REFUSED 4,465 -> 4,359); reject
+# REJECTED 587 -> 592 (BETWEEN without AND, an empty IN list, IN without a list, a truth test in the select list, IN in a
+# call: IQ's syntax errors), REFUSED 1,197 -> 1,192; reject PARSED stays 31, its list unchanged (a constant LIKE escape or
+# pattern IQ raises an error for is refused before translation). Every parsed case was snapped on SQL Anywhere 17 and run
+# on the DuckDB lane: none answers otherwise.
+# IQ island, 2026-10-14 (M1b): the reader now reads joins (comma, [INNER], LEFT, RIGHT, FULL, CROSS, NATURAL),
+# derived tables, parenthesized joins and queries, subqueries (scalar, EXISTS, IN, ANY/SOME/ALL) and UNION, EXCEPT and
+# INTERSECT, with the errors IQ raises before running that the cases agree on (-131 USING, a second ON, CROSS JOIN ON, a
+# derived table without a name; -139, -151, -152, -163 for an unnamed expression, -812, -824): accept PARSED 765 -> 1,490
+# (REFUSED 4,359 -> 3,634), flag PARSED 8 -> 28, reject REJECTED 592 -> 642 (REFUSED 1,192 -> 1,147). Reject PARSED
+# 31 -> 26: five names no FROM item has (a1_sa_lang-850 and -1745, a6_sa_query-198 and -199, s1_lexical-578) are refused
+# before translation now. Where the cases call one form accept in one case and reject in another, each measured as an
+# error on SQL Anywhere 17 (a set operation's branches of different widths, -153; a name in a set operation's ORDER BY
+# its first branch does not show, -854; a derived table's short column list, -163; a name no derived table has, -142,
+# -143, -144; a correlation name over 128 bytes, -250), the reader refuses by name, naming IQ's error, rather than give
+# either verdict: no accept case is rejected and no reject case parses that did not before. Every parsed case (1,537
+# snapped on SQL Anywhere 17; 7 holding control characters or a statement separator, 1 outside Latin-1, left out) was run
+# on the DuckDB lane: PASS 1,279, BOTH_ERROR 49, REFUSED 209, none otherwise.
+# IQ island, 2026-10-14 (M1c): the reader now reads GROUP BY, HAVING and the aggregates COUNT, SUM, AVG, MIN, MAX,
+# MEDIAN and LIST: accept PARSED 1,490 -> 1,901 (REFUSED 3,634 -> 3,223), flag PARSED 28 -> 48, reject REJECTED 642 -> 723
+# (-150 an aggregate in WHERE, ON or GROUP BY; -149 and -854 a column no GROUP BY item reads, where the FROM items'
+# columns are known; -861 an aggregate over an enclosing query's column and its own; -154, -949, -152, -904; GROUP BY
+# ALL), REFUSED 1,147 -> 1,068. Reject PARSED 26 -> 24: s1_lexical-1622 (an owner-qualified table, now refused by name as
+# the study's open O2 says) and s2_query-74 (sa_rowgenerator without its parentheses, refused by name) leave the list.
+# The owner-qualified refusal moves 11 accept cases from PARSED to REFUSED (dba.t, mydb.SYS.DUMMY, ...: the island refused
+# each when translating already). Where the cases call a form accept in one case and reject in another, each measured as
+# an error on SQL Anywhere 17, the reader refuses by name with IQ's code rather than give either verdict, as M1b did:
+# NOT NOT (-131: s1_lexical-1015 accept, a1_sa_lang-690 reject), an ON naming an item before the comma (-824:
+# z2_redteam-836 accept, a6_sa_query-431 and s2_query-147 reject), two correlation names alike but for case (-139:
+# z2_redteam-866, -867 accept). No accept case is rejected and no reject case parses that did not before. Every parsed
+# case (1,964 snapped on SQL Anywhere 17; 9 holding control characters, a statement separator or a character outside
+# Latin-1 left out) was run on the DuckDB lane: PASS 1,552, BOTH_ERROR 46, REFUSED 366, none otherwise.
+# IQ island, 2026-10-14 (M1d): the reader now reads CAST and a CONVERT without a style (a style, a type of which the
+# island reads no value, and a constant IQ cannot convert are refused by name), CURRENT DATE, CURRENT TIMESTAMP, f(*),
+# the date-part keyword of DATEPART, DATENAME, DATEADD and DATEDIFF (a string or an unknown part is IQ's -131), and the
+# function catalog's argument counts (IQ's -154): accept PARSED 765 -> 1,315 (REFUSED 4,359 -> 3,809); flag PARSED 8 ->
+# 10 (DATEADD of a weekday and of a calendar week), REFUSED 128 -> 126; reject REJECTED 592 -> 697 (counts, date parts,
+# type sizes), REFUSED 1,192 -> 1,087; reject PARSED stays 31 and accept-rejected 2, both lists unchanged (other
+# dialects' CHARINDEX, ROUND and LOG forms and a constant negative SUBSTRING length are refused before translation). The
+# 535 newly parsed cases without options, each select item aliased, were snapped on SQL Anywhere 17 and run on both
+# lanes: none answers otherwise but the seven that show the clock itself (CURRENT TIMESTAMP, NOW(), GETDATE(*)).
+# IQ island, 2026-10-14 (the merge of M1b/M1c with M1d and the natives slice): the pins re-written from the merged
+# reader, and only improved on both parents' (M1c's above, and M1d's: accept PARSED 1,315, flag PARSED 10, reject
+# REJECTED 697, reject PARSED 31): accept PARSED 2,689 (REFUSED 2,435, REJECTED 1), flag PARSED 50 (REFUSED 86), reject
+# REJECTED 838 (REFUSED 953, PARSED 24); reject-parsed 24 and accept-rejected 2, each a subset of both parents' lists.
+# Per case, against M1c: 788 accept, 2 flag REFUSED -> PARSED and 114 reject REFUSED -> REJECTED, none worse; against
+# M1d: 1,385 accept and 40 flag REFUSED -> PARSED, 140 reject REFUSED -> REJECTED, 7 reject PARSED -> REFUSED, and the
+# 11 owner-qualified accept cases M1c's note above moves to REFUSED. Two forms CAST newly lets the reader see through
+# were closed in the code, not here: MEDIAN of a CAST to BIT or a date is IQ's -156 before translating (a4_sa_fn2-569),
+# and GROUP BY of an integer constant beside a column it does not group is refused naming IQ's -149 where the cases
+# call it accepted (z2_redteam-333, -334; IQ groups by the constant, other dialects by the position). Every parsed case
+# (2,718 snapped on SQL Anywhere 17; 45 holding control characters, a statement separator or a character outside
+# Latin-1 left out) was run on the DuckDB lane: PASS 1,926, BOTH_ERROR 50, REFUSED 733, and nine that show the clock
+# itself (CURRENT TIMESTAMP, NOW(), GETDATE(): SQL Anywhere's local time against lite's UTC), none otherwise.
+# IQ island, 2026-10-14 (review 4's m3): syntax-cases.jsonl re-checked with the literal filter run over every iq-parity
+# file (a string the manuals print quoted anywhere -- four or more characters, three letters among them, or eight or
+# more -- unless it is one English word, a date or a number; or one printed quoted on a manual line that calls the
+# probe's function, a word too; or a run of six words of the manuals' text other than SQL's own words): 186 of the
+# 7,169 cases dropped (176 accept, 2 accept-with-option, 2 flag, 6 reject). Shrinkage only: every kept case is unchanged
+# and keeps its verdict; accept PARSED 2,689 -> 2,658 and REFUSED 2,435 -> 2,290, accept-with-option REFUSED 92 -> 90,
+# flag REFUSED 86 -> 84, reject REFUSED 953 -> 947; the reject-parsed and accept-rejected lists are unchanged.
+# IQ island, 2026-10-14 (M1e): an owner-qualified table name parses now and is bound to the model's tables when
+# translated (the study's O2: an owner is a schema; IQ's own users' tables, its catalog, stay refused by name), and so
+# do T-SQL's db..t and SQL Anywhere's DUMMY through its database and server qualifiers; a constant date string is read
+# by the profile's DATE_ORDER (IqDateTime): accept PARSED 2,689 -> 2,705 (REFUSED 2,435 -> 2,419): thirteen names
+# (s1_lexical-1579, -1580, -1581; z2_redteam-96, -98 .. -103, -890, -892, -893) and three date constants
+# (z2_redteam-38, -911, -913). Flag, reject and the two lists unchanged (reject PARSED stays 24: the catalog's
+# dbo.sys... names stay refused). The sixteen were snapped on SQL Anywhere 17 and run on both lanes: PASS 8,
+# BOTH_ERROR 2, REFUSED 6 (three owner-qualified column references, three unaliased CASTs), none otherwise.
+# IQ island, 2026-10-14 (the merge of M1e with review 4's fixes): the pins re-written from the merged reader over
+# review 4's case file (its 186 dropped cases stay dropped; none of M1e's sixteen is among them): accept PARSED
+# 2,658 -> 2,674 (REFUSED 2,290 -> 2,274), every other count and both lists unchanged. Per case over this file, against
+# review 4's reader only M1e's sixteen move (REFUSED -> PARSED), and against M1e's reader none moves.
+accept	parsed	2674
+accept	refused	2274
 accept	rejected	1
-accept-with-option	refused	92
+accept-with-option	refused	90
 accept-with-option	rejected	1
-flag	parsed	8
-flag	refused	128
-reject	parsed	31
-reject	refused	1197
-reject	rejected	587
+flag	parsed	50
+flag	refused	84
+reject	parsed	24
+reject	refused	947
+reject	rejected	838
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609
@@ -24,10 +98,8 @@ reject-parsed	a1_sa_lang-1619
 reject-parsed	a1_sa_lang-1623
 reject-parsed	a1_sa_lang-1634
 reject-parsed	a1_sa_lang-1643
-reject-parsed	a1_sa_lang-1745
 reject-parsed	a1_sa_lang-633
 reject-parsed	a1_sa_lang-634
-reject-parsed	a1_sa_lang-850
 reject-parsed	a4_sa_fn2-255
 reject-parsed	a4_sa_fn2-40
 reject-parsed	a4_sa_fn2-44
@@ -38,14 +110,9 @@ reject-parsed	a4_sa_fn2-60
 reject-parsed	a4_sa_fn2-645
 reject-parsed	a4_sa_fn2-702
 reject-parsed	a5_sa_fn3-482
-reject-parsed	a6_sa_query-198
-reject-parsed	a6_sa_query-199
 reject-parsed	a6_sa_query-695
 reject-parsed	s1_lexical-1164
-reject-parsed	s1_lexical-1622
-reject-parsed	s1_lexical-578
 reject-parsed	s1_lexical-614
 reject-parsed	s1_lexical-683
-reject-parsed	s2_query-74
 accept-rejected	a1_sa_lang-24
 accept-rejected	z2_redteam-382

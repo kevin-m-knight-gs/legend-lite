@@ -754,13 +754,24 @@ _IQ_PARITY_FLAGS = [
     "-Diq.parity.lite=$(rlocationpath src/test/resources/iq-parity/lite/basics.yaml)",
 ]
 
+# the showcase's SQL (docs/IQ_SQL_SHOWCASE.md; IQ island, 2026-10-14): lite/showcase.yaml's main case planned for
+# Snowflake (rendered only) and DuckDB, pinned byte for byte by IqParityTest;
+# -Diq.showcase.update=<core/src/test/resources/iq-parity/showcase in the workspace> rewrites them
+_IQ_SHOWCASE_DATA = [
+    "src/test/resources/iq-parity/showcase/duckdb.sql",
+    "src/test/resources/iq-parity/showcase/snowflake.sql",
+]
+
 junit_test(
     name = "iq_parity_test",
     memory_mb = 768,
     size = "medium",
     srcs = ["src/test/java/com/legend/integration/IqParityTest.java"],
-    data = _IQ_PARITY_DATA,
-    jvm_flags = _IQ_PARITY_FLAGS,
+    data = _IQ_PARITY_DATA + _IQ_SHOWCASE_DATA,
+    jvm_flags = _IQ_PARITY_FLAGS + [
+        # the showcase's files: the directory of this file
+        "-Diq.parity.showcase=$(rlocationpath src/test/resources/iq-parity/showcase/snowflake.sql)",
+    ],
     select = ["--select-class=com.legend.integration.IqParityTest"],
     runtime_deps = [":drivers"],
     deps = [

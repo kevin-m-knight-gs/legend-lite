@@ -1,0 +1,436 @@
+# The collation keys for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.9; IQ island, 2026-10-14, the merge
+# of M1c and the natives slice): ORDER BY, SELECT DISTINCT, GROUP BY, UNION, INTERSECT and EXCEPT, COUNT(DISTINCT), MIN,
+# MAX and LIST over strings, by IQ's collation -- an IQ database (iq16 profiles) without trailing spaces, a sqla17
+# profile's database with the ASCII letters folded -- and AVG of a NUMERIC by SQL Anywhere's quotient. Where a clause
+# shows one value of a group of equal keys (DISTINCT, a GROUP BY key shown, a set operation, MIN, MAX, LIST's order),
+# SQL Anywhere shows the first row it meets, its plan's choice: such a clause reads strings only where each value is its
+# own key (RTRIM, TRIM, a constant, a derived table's column defined so; LOWER in a sqla17 profile), else it is refused
+# by name. Every case is judged by SQL Anywhere 17's answer in iq-answers.jsonl; rows whose string sort keys tie under the
+# collation are in the plan's order (the harness compares string sort keys by the collation). The tables are g, whose s
+# holds 'a', 'b', 'a', 'c', NULL, 'A', NULL, 'a ', 'b', 'e' and '', t, whose vc holds 'Hello', 'hello', 'Résumé', 'ÉCOLE',
+# NULL, 'x  ' and 'apple', and u, whose label is read; tabs and control characters come from derived tables of constants (SQL Anywhere's front end). A case
+# without FROM, or over derived tables of constants or sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa); one
+# over tables in the IQ engine, unless its profile is a sqla17 one. No case reads the CHAR columns (their padding under
+# the IQ engine is the research's D-S1). The SQL in YAML double quotes: a backslash in the SQL is written \\.
+# tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- ORDER BY a string column: by the collation key; ties (here 'a', 'a', 'a ', and 'A' in sqla17) in the plan's order
+  - id: order_by_a_string_column
+    sql: "SELECT s FROM g ORDER BY s"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_column_then_a_unique_one
+    sql: "SELECT id, s FROM g ORDER BY s, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_column_descending
+    sql: "SELECT id, s FROM g ORDER BY s DESC, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_position
+    sql: "SELECT s, id FROM g ORDER BY 1, 2 DESC"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_alias
+    sql: "SELECT s AS x, id FROM g ORDER BY x, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_column_not_shown
+    sql: "SELECT id FROM g ORDER BY s, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_expression
+    sql: "SELECT id FROM g ORDER BY s || 'x', id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_upper_of_a_string
+    sql: "SELECT id, UPPER(s) AS us FROM g ORDER BY UPPER(s), id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_lower_of_a_string_descending
+    sql: "SELECT id FROM g ORDER BY LOWER(s) DESC, id DESC"
+    profile: iq16-default, sqla17-default
+  - id: order_by_rtrim_of_a_string
+    sql: "SELECT RTRIM(s) AS r, id FROM g ORDER BY r, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_accented_strings
+    sql: "SELECT id, vc FROM t ORDER BY vc, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_accented_strings_descending
+    sql: "SELECT vc, id FROM t ORDER BY vc DESC, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_with_its_trailing_blanks_shown
+    sql: "SELECT vc, LENGTH(vc) AS n FROM t ORDER BY vc, n"
+    profile: iq16-default, sqla17-default
+  - id: order_by_two_string_columns
+    sql: "SELECT t.vc, u.label FROM t JOIN u ON t.id = u.t_id ORDER BY u.label, t.vc"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_in_the_tds_profile
+    sql: "SELECT id, s FROM g ORDER BY s, id"
+    profile: iq16-tds
+  - id: order_by_a_string_with_a_row_limit
+    sql: "SELECT TOP 4 id, s FROM g ORDER BY s, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_string_with_start_at
+    sql: "SELECT TOP 3 START AT 3 id, s FROM g ORDER BY s DESC, id"
+    profile: iq16-default, sqla17-default
+  - id: order_by_trailing_blanks_tabs_and_control_characters
+    sql: "SELECT x FROM (SELECT 'a' AS x UNION ALL SELECT 'a\\x09' UNION ALL SELECT 'a ' UNION ALL SELECT 'a\\x01' UNION ALL SELECT 'b' UNION ALL SELECT '' UNION ALL SELECT 'a  ' UNION ALL SELECT ' ') d ORDER BY x"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: order_by_trailing_blanks_tabs_and_control_characters_descending
+    sql: "SELECT x, LENGTH(x) AS n FROM (SELECT 'a' AS x UNION ALL SELECT 'a\\x09' UNION ALL SELECT 'a ' UNION ALL SELECT 'a\\x01' UNION ALL SELECT 'b ') d ORDER BY x DESC, n"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: order_by_case_variants_and_the_characters_between_the_cases
+    sql: "SELECT x FROM (SELECT 'B' AS x UNION ALL SELECT '_' UNION ALL SELECT 'a' UNION ALL SELECT 'A' UNION ALL SELECT '[' UNION ALL SELECT 'b' UNION ALL SELECT '`' UNION ALL SELECT 'Z') d ORDER BY x"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: order_by_case_variants_descending
+    sql: "SELECT x FROM (SELECT 'aB' AS x UNION ALL SELECT 'Ab' UNION ALL SELECT 'ab' UNION ALL SELECT 'AB' UNION ALL SELECT 'ac') d ORDER BY x DESC"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: order_by_latin1_letters_and_their_ascii_neighbours
+    sql: "SELECT x FROM (SELECT 'é' AS x UNION ALL SELECT 'É' UNION ALL SELECT 'e' UNION ALL SELECT 'E' UNION ALL SELECT 'z' UNION ALL SELECT 'ß') d ORDER BY x"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: order_by_nulls_and_empty_strings
+    sql: "SELECT x FROM (SELECT '' AS x UNION ALL SELECT CAST(NULL AS VARCHAR(3)) UNION ALL SELECT '  ' UNION ALL SELECT 'a' UNION ALL SELECT CAST(NULL AS VARCHAR(3))) d ORDER BY x"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: order_by_nulls_and_empty_strings_descending
+    sql: "SELECT x FROM (SELECT '' AS x UNION ALL SELECT CAST(NULL AS VARCHAR(3)) UNION ALL SELECT ' ' UNION ALL SELECT 'a') d ORDER BY x DESC"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: order_by_a_union_all_of_strings
+    sql: "SELECT s FROM g UNION ALL SELECT label FROM u ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_union_all_of_strings_descending
+    sql: "SELECT vc AS x FROM t UNION ALL SELECT s FROM g ORDER BY x DESC"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_grouped_string_key_not_shown
+    sql: "SELECT COUNT(*) AS n FROM g GROUP BY s ORDER BY s"
+    profile: iq16-default, sqla17-default
+  - id: order_by_a_grouped_string_key_descending_not_shown
+    sql: "SELECT COUNT(*) AS n, MIN(id) AS lo FROM g GROUP BY s ORDER BY s DESC"
+    profile: iq16-default, sqla17-default
+
+  # ---- GROUP BY a string key the query does not show: grouped by the collation key
+  - id: group_by_a_string_column_not_shown
+    sql: "SELECT COUNT(*) AS n FROM g GROUP BY s"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_string_column_with_aggregates
+    sql: "SELECT COUNT(*) AS n, MIN(id) AS lo, MAX(id) AS hi, SUM(v) AS sv FROM g GROUP BY s"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_string_column_having_a_count
+    sql: "SELECT MIN(id) AS lo, COUNT(*) AS n FROM g GROUP BY s HAVING COUNT(*) > 1"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_string_and_an_integer
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY s, k"
+    profile: iq16-default, sqla17-default
+  - id: group_by_upper_of_a_string_not_shown
+    sql: "SELECT COUNT(*) AS n, MIN(id) AS lo FROM g GROUP BY UPPER(s)"
+    profile: iq16-default, sqla17-default
+  - id: group_by_accented_strings_not_shown
+    sql: "SELECT COUNT(*) AS n, MIN(id) AS lo FROM t GROUP BY vc"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_joined_string_not_shown
+    sql: "SELECT COUNT(*) AS n FROM t JOIN u ON t.id = u.t_id GROUP BY u.label"
+    profile: iq16-default, sqla17-default
+  - id: group_by_tabs_and_trailing_blanks_not_shown
+    sql: "SELECT COUNT(*) AS n FROM (SELECT 'a' AS x UNION ALL SELECT 'a ' UNION ALL SELECT 'a\\x09' UNION ALL SELECT 'A' UNION ALL SELECT '' UNION ALL SELECT '  ' UNION ALL SELECT CAST(NULL AS VARCHAR(3))) d GROUP BY x"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: group_by_a_string_shown_is_refused
+    sql: "SELECT s, COUNT(*) AS n FROM g GROUP BY s"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_string_shown_qualified_is_refused
+    sql: "SELECT g.s, COUNT(*) AS n FROM g GROUP BY s"
+  - id: group_by_a_string_read_in_having_is_refused
+    sql: "SELECT COUNT(*) AS n FROM g GROUP BY s HAVING s <> 'b'"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_string_read_in_an_expression_is_refused
+    sql: "SELECT LENGTH(s) AS l, COUNT(*) AS n FROM g GROUP BY s"
+  - id: group_by_a_string_ordered_by_an_expression_of_it_is_refused
+    sql: "SELECT COUNT(*) AS n FROM g GROUP BY s ORDER BY LENGTH(s)"
+  - id: group_by_rtrim_of_a_string_shown
+    sql: "SELECT RTRIM(s) AS r, COUNT(*) AS n FROM g GROUP BY RTRIM(s)"
+    profile: iq16-default, sqla17-default
+  - id: group_by_rtrim_of_a_string_by_its_alias
+    sql: "SELECT RTRIM(s) AS r, COUNT(*) AS n FROM g GROUP BY r ORDER BY r"
+    profile: iq16-default, sqla17-default
+  - id: group_by_lower_rtrim_of_a_string_shown
+    sql: "SELECT LOWER(RTRIM(s)) AS r, COUNT(*) AS n, MIN(id) AS lo FROM g GROUP BY LOWER(RTRIM(s)) ORDER BY r"
+    profile: iq16-default, sqla17-default
+  - id: group_by_upper_trim_of_a_string_shown
+    sql: "SELECT UPPER(TRIM(s)) AS r, COUNT(*) AS n FROM g GROUP BY UPPER(TRIM(s)) ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_derived_rtrim_shown
+    sql: "SELECT x, COUNT(*) AS n FROM (SELECT RTRIM(s) AS x FROM g) d GROUP BY x ORDER BY x"
+    profile: iq16-default, sqla17-default
+  - id: group_by_a_constant_case_shown
+    sql: "SELECT IF k > 2 THEN 'big' ELSE 'low' ENDIF AS size, COUNT(*) AS n FROM g WHERE k IS NOT NULL GROUP BY size ORDER BY size"
+    profile: iq16-default, sqla17-default
+  - id: group_by_rtrim_of_a_column_in_a_sql_anywhere_database_is_refused
+    sql: "SELECT RTRIM(vc) AS r, COUNT(*) AS n FROM t GROUP BY RTRIM(vc)"
+    profile: sqla17-default
+
+  # ---- COUNT(DISTINCT strings): the distinct collation keys
+  - id: count_distinct_strings
+    sql: "SELECT COUNT(DISTINCT s) AS n, COUNT(s) AS m FROM g"
+    profile: iq16-default, sqla17-default
+  - id: count_distinct_strings_per_group
+    sql: "SELECT k, COUNT(DISTINCT s) AS n FROM g GROUP BY k"
+    profile: iq16-default, sqla17-default
+  - id: count_distinct_accented_strings
+    sql: "SELECT COUNT(DISTINCT vc) AS n FROM t"
+    profile: iq16-default, sqla17-default
+  - id: count_distinct_upper_of_accented_strings
+    sql: "SELECT COUNT(DISTINCT UPPER(vc)) AS u, COUNT(DISTINCT vc || '.') AS d FROM t"
+    profile: sqla17-default
+  - id: count_distinct_tabs_and_blanks
+    sql: "SELECT COUNT(DISTINCT x) AS n FROM (SELECT 'a' AS x UNION ALL SELECT 'a ' UNION ALL SELECT 'a\\x09' UNION ALL SELECT 'A' UNION ALL SELECT '' UNION ALL SELECT '   ' UNION ALL SELECT CAST(NULL AS VARCHAR(3))) d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: count_distinct_strings_with_a_string_kept_apart
+    sql: "SELECT COUNT(DISTINCT s || '.') AS n FROM g"
+    profile: iq16-default, sqla17-default
+  - id: count_distinct_strings_beside_a_grouped_string
+    sql: "SELECT COUNT(DISTINCT label) AS n, COUNT(*) AS m FROM u GROUP BY t_id"
+    profile: iq16-default, sqla17-default
+
+  # ---- SELECT DISTINCT: strings that are their own keys only
+  - id: distinct_rtrim_of_a_string
+    sql: "SELECT DISTINCT RTRIM(s) AS r FROM g"
+    profile: iq16-default, sqla17-default
+  - id: distinct_rtrim_of_a_string_ordered
+    sql: "SELECT DISTINCT RTRIM(s) AS r FROM g ORDER BY r"
+    profile: iq16-default, sqla17-default
+  - id: distinct_lower_rtrim_of_a_string
+    sql: "SELECT DISTINCT LOWER(RTRIM(s)) AS r FROM g ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: distinct_upper_trim_of_a_string_ordered
+    sql: "SELECT DISTINCT UPPER(TRIM(s)) AS r FROM g ORDER BY r DESC"
+    profile: iq16-default, sqla17-default
+  - id: distinct_upper_trim_of_accented_strings
+    sql: "SELECT DISTINCT UPPER(TRIM(vc)) AS r FROM t ORDER BY r"
+    profile: iq16-default, sqla17-default
+  - id: distinct_a_string_and_an_integer
+    sql: "SELECT DISTINCT k, RTRIM(s) AS r FROM g"
+    profile: iq16-default, sqla17-default
+  - id: distinct_a_derived_rtrim
+    sql: "SELECT DISTINCT x FROM (SELECT RTRIM(s) AS x FROM g) d ORDER BY x"
+    profile: iq16-default, sqla17-default
+  - id: distinct_a_derived_column_list
+    sql: "SELECT DISTINCT y FROM (SELECT id, LOWER(TRIM(vc)) FROM t) d (i, y) ORDER BY y"
+    profile: iq16-default, sqla17-default
+  - id: distinct_constants_of_a_case
+    sql: "SELECT DISTINCT IF k > 2 THEN 'big' ELSE 'low' ENDIF AS size FROM g WHERE k IS NOT NULL ORDER BY size"
+    profile: iq16-default, sqla17-default
+  - id: distinct_constants_without_from
+    sql: "SELECT DISTINCT x FROM (SELECT 'b' AS x UNION ALL SELECT 'a' UNION ALL SELECT 'b' UNION ALL SELECT 'a\\x09') d ORDER BY x"
+    profile: iq16-default
+    engine: sa
+  - id: distinct_a_string_column_is_refused
+    sql: "SELECT DISTINCT s FROM g"
+    profile: iq16-default, sqla17-default
+  - id: distinct_a_string_column_and_another_is_refused
+    sql: "SELECT DISTINCT k, s FROM g"
+  - id: distinct_rtrim_of_case_variants_in_a_sql_anywhere_database_is_refused
+    sql: "SELECT DISTINCT RTRIM(vc) AS r FROM t"
+    profile: sqla17-default
+  - id: distinct_a_constant_with_a_trailing_blank_is_refused
+    sql: "SELECT DISTINCT x FROM (SELECT 'a' AS x UNION ALL SELECT 'a ') d"
+    engine: sa
+  - id: distinct_star_over_strings_is_refused
+    sql: "SELECT DISTINCT * FROM u"
+
+  # ---- UNION, INTERSECT, EXCEPT: strings that are their own keys in every branch
+  - id: union_of_rtrimmed_strings
+    sql: "SELECT RTRIM(s) AS r FROM g UNION SELECT RTRIM(label) FROM u"
+    profile: iq16-default, sqla17-default
+  - id: union_of_lower_rtrimmed_strings_ordered
+    sql: "SELECT LOWER(RTRIM(s)) AS r FROM g UNION SELECT LOWER(RTRIM(vc)) FROM t ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: union_of_string_constants
+    sql: "SELECT 'b' AS x UNION SELECT 'a' UNION SELECT 'b' ORDER BY 1"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: union_of_a_constant_and_a_column_is_refused
+    sql: "SELECT 'a' AS x UNION SELECT s FROM g"
+  - id: union_of_constants_differing_in_trailing_blanks_is_refused
+    sql: "SELECT 'a' AS x UNION SELECT 'a '"
+    engine: sa
+  - id: union_of_constants_differing_in_case
+    sql: "SELECT 'A' AS x UNION SELECT 'a' ORDER BY 1"
+    profile: iq16-default
+    engine: sa
+  - id: union_of_constants_differing_in_case_in_a_sql_anywhere_database_is_refused
+    sql: "SELECT 'A' AS x UNION SELECT 'a'"
+    profile: sqla17-default
+    engine: sa
+  - id: union_of_strings_in_two_columns
+    sql: "SELECT k, RTRIM(s) AS r FROM g UNION SELECT t_id, RTRIM(label) FROM u"
+    profile: iq16-default, sqla17-default
+  - id: union_over_a_union_all
+    sql: "SELECT RTRIM(s) AS r FROM g UNION ALL SELECT 'z' UNION SELECT 'a' ORDER BY 1"
+    profile: iq16-default, sqla17-default
+  - id: intersect_of_rtrimmed_strings
+    sql: "SELECT RTRIM(s) AS r FROM g INTERSECT SELECT RTRIM(label) FROM u"
+    profile: iq16-default, sqla17-default
+  - id: intersect_of_lower_trimmed_strings
+    sql: "SELECT LOWER(TRIM(vc)) AS r FROM t INTERSECT SELECT LOWER(TRIM(vc)) FROM t WHERE id < 3"
+    profile: iq16-default, sqla17-default
+  - id: except_of_rtrimmed_strings
+    sql: "SELECT RTRIM(s) AS r FROM g EXCEPT SELECT 'a'"
+    profile: iq16-default, sqla17-default
+  - id: except_of_lower_rtrimmed_strings_ordered
+    sql: "SELECT LOWER(RTRIM(s)) AS r FROM g EXCEPT SELECT 'b' ORDER BY r DESC"
+    profile: iq16-default, sqla17-default
+  - id: intersect_of_string_columns_is_refused
+    sql: "SELECT s FROM g INTERSECT SELECT label FROM u"
+  - id: except_of_string_columns_is_refused
+    sql: "SELECT vc FROM t EXCEPT SELECT label FROM u"
+    profile: sqla17-default
+
+  # ---- MIN and MAX of strings that are their own keys
+  - id: min_and_max_of_rtrimmed_strings
+    sql: "SELECT MIN(RTRIM(s)) AS lo, MAX(RTRIM(s)) AS hi FROM g"
+    profile: iq16-default, sqla17-default
+  - id: min_and_max_of_lower_rtrimmed_strings
+    sql: "SELECT MIN(LOWER(RTRIM(s))) AS lo, MAX(LOWER(RTRIM(s))) AS hi FROM g"
+    profile: iq16-default, sqla17-default
+  - id: min_and_max_of_rtrimmed_strings_per_group
+    sql: "SELECT k, MIN(RTRIM(s)) AS lo, MAX(RTRIM(s)) AS hi FROM g GROUP BY k"
+    profile: iq16-default
+  - id: min_and_max_of_accented_strings
+    sql: "SELECT MIN(LOWER(TRIM(vc))) AS lo, MAX(LOWER(TRIM(vc))) AS hi FROM t"
+    profile: iq16-default, sqla17-default
+  - id: min_and_max_of_a_derived_rtrim
+    sql: "SELECT MIN(x) AS lo, MAX(x) AS hi FROM (SELECT RTRIM(label) AS x FROM u) d"
+    profile: iq16-default, sqla17-default
+  - id: min_and_max_of_tabs_and_empty_strings
+    sql: "SELECT MIN(x) AS lo, MAX(x) AS hi, COUNT(x) AS n FROM (SELECT 'a\\x09' AS x UNION ALL SELECT 'a' UNION ALL SELECT '' UNION ALL SELECT CAST(NULL AS VARCHAR(3)) UNION ALL SELECT 'b\\x01') d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: min_and_max_of_no_strings
+    sql: "SELECT MIN(RTRIM(s)) AS lo, MAX(RTRIM(s)) AS hi FROM g WHERE id > 100"
+    profile: iq16-default
+  - id: min_of_a_string_column_is_refused
+    sql: "SELECT MIN(s) AS lo FROM g"
+    profile: iq16-default, sqla17-default
+  - id: max_of_a_string_column_per_group_is_refused
+    sql: "SELECT k, MAX(s) AS hi FROM g GROUP BY k"
+  - id: min_of_rtrimmed_case_variants_in_a_sql_anywhere_database_is_refused
+    sql: "SELECT MIN(RTRIM(s)) AS lo FROM g"
+    profile: sqla17-default
+
+  # ---- LIST of strings that are their own keys, ordered by their value; '' and NULL skipped
+  - id: list_of_derived_rtrimmed_strings
+    sql: "SELECT LIST(x ORDER BY x) AS l FROM (SELECT RTRIM(s) AS x FROM g) d"
+    profile: iq16-default
+  - id: list_of_derived_lower_rtrimmed_strings_descending
+    sql: "SELECT LIST(x, '|' ORDER BY x DESC) AS l FROM (SELECT LOWER(RTRIM(s)) AS x FROM g) d"
+    profile: iq16-default, sqla17-default
+  - id: list_of_derived_strings_per_group
+    sql: "SELECT k, LIST(x, '' ORDER BY x) AS l FROM (SELECT k, LOWER(RTRIM(s)) AS x FROM g) d GROUP BY k"
+    profile: iq16-default, sqla17-default
+  - id: list_of_constants_with_blanks_and_empty_strings
+    sql: "SELECT LIST(x ORDER BY x) AS l FROM (SELECT 'b' AS x UNION ALL SELECT '' UNION ALL SELECT CAST(NULL AS VARCHAR(3)) UNION ALL SELECT 'a\\x09' UNION ALL SELECT 'a') d"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: list_of_blanks_in_a_sql_anywhere_database
+    sql: "SELECT LIST(x ORDER BY x) AS l FROM (SELECT 'b' AS x UNION ALL SELECT '' UNION ALL SELECT ' ' UNION ALL SELECT 'a') d"
+    profile: sqla17-default
+    engine: sa
+  - id: list_of_a_string_column_is_refused
+    sql: "SELECT LIST(s ORDER BY s) AS l FROM g"
+    profile: iq16-default, sqla17-default
+
+  # ---- AVG of a NUMERIC in SQL Anywhere's front end: NUMERIC(p+19, s+11), SUM / COUNT by SQL Anywhere's quotient
+  - id: avg_of_a_numeric
+    sql: "SELECT AVG(CAST(row_num AS NUMERIC(7,2))) AS a FROM sa_rowgenerator(1, 3)"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: avg_of_a_numeric_rounded_half_away_from_zero
+    sql: "SELECT AVG(row_num * 1.25) AS a, AVG(-row_num * 0.5) AS b FROM sa_rowgenerator(1, 6)"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: avg_of_a_numeric_per_group
+    sql: "SELECT MOD(row_num, 3) AS m, AVG(row_num * 0.01) AS a FROM sa_rowgenerator(1, 10) GROUP BY MOD(row_num, 3)"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: avg_of_distinct_numerics
+    sql: "SELECT AVG(DISTINCT MOD(row_num, 4) * 1.5) AS a FROM sa_rowgenerator(1, 12)"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: avg_of_a_numeric_column
+    sql: "SELECT AVG(n) AS a FROM g"
+    profile: sqla17-default
+  - id: avg_of_a_numeric_column_per_group
+    sql: "SELECT k, AVG(n) AS a FROM g GROUP BY k"
+    profile: sqla17-default
+  - id: avg_of_a_wider_numeric_column
+    sql: "SELECT AVG(nm) AS a FROM t"
+    profile: sqla17-default
+  - id: avg_of_a_numeric_column_with_one_place
+    sql: "SELECT t_id, AVG(qty) AS a FROM u GROUP BY t_id"
+    profile: sqla17-default
+  - id: avg_of_no_numerics
+    sql: "SELECT AVG(n) AS a, COUNT(n) AS c FROM g WHERE id > 100"
+    profile: sqla17-default
+  - id: avg_of_a_numeric_ordered_by_its_group
+    sql: "SELECT k, AVG(n) AS a FROM g GROUP BY k ORDER BY k"
+    profile: sqla17-default
+  - id: avg_of_a_numeric_in_arithmetic_is_refused
+    sql: "SELECT AVG(n) * 3 AS a FROM g"
+    profile: sqla17-default
+  - id: avg_of_a_numeric_in_a_derived_table_is_refused
+    sql: "SELECT a FROM (SELECT AVG(n) AS a FROM g) d"
+    profile: sqla17-default
+  - id: avg_of_a_numeric_under_the_iq_engine_is_refused
+    sql: "SELECT AVG(n) AS a FROM g"
+  - id: avg_of_an_integer_is_refused
+    sql: "SELECT AVG(row_num) AS a FROM sa_rowgenerator(1, 3)"
+    engine: sa
+
+  # ---- the merge's other pins: a quotient over a derived table's constant (SQL Anywhere folds it), names of M1d's forms
+  - id: quotient_by_a_derived_constant_is_refused
+    sql: "SELECT 1.5 / x AS q FROM (SELECT 2 + 3 AS x) d"
+    engine: sa
+  - id: quotient_of_a_derived_constant_is_refused
+    sql: "SELECT x / 1.5 AS q FROM (SELECT 5 AS x) d"
+    engine: sa
+  - id: quotient_by_a_derived_cast_constant_is_refused
+    sql: "SELECT 1.5 / x AS q FROM (SELECT CAST(5 AS INT) AS x) d"
+    engine: sa
+  - id: quotient_by_a_nested_derived_constant_is_refused
+    sql: "SELECT 1.5 / x AS q FROM (SELECT x FROM (SELECT 2 + 3 AS x) e) d"
+    engine: sa
+  - id: quotient_by_a_derived_set_operation_column
+    sql: "SELECT 1.5 / x AS q FROM (SELECT 2 + 3 AS x UNION ALL SELECT 4) d"
+    engine: sa
+  - id: quotient_by_a_derived_rowgenerator_column
+    sql: "SELECT 1.5 / x AS q FROM (SELECT row_num + 1 AS x FROM sa_rowgenerator(1, 2)) d"
+    engine: sa
+  - id: date_parts_are_named_as_written
+    sql: "SELECT DATEPART(mm, '2009-06-15'), DATEPART(Month, '2009-06-15'), DATENAME(dw, '2009-06-15'), DATEDIFF(dd, '2009-08-13', '2009-08-20')"
+    engine: sa
+  - id: current_date_and_timestamp_are_named_in_lower_case
+    sql: "SELECT IF CURRENT DATE IS NULL THEN 1 ELSE 0 ENDIF, IF CURRENT_TIMESTAMP IS NULL THEN 2 ELSE 0 ENDIF, IF Current Timestamp IS NULL THEN 3 ELSE 0 ENDIF"
+    engine: sa
+  - id: calls_a_reserved_word_heads_are_named_quoted
+    sql: "SELECT CHAR(65), left('abc', 1), RIGHT('abc', 2), DATE('2009-01-01')"
+    engine: sa
+  - id: star_calls_are_named_without_the_star
+    sql: "SELECT IF TODAY(*) IS NULL THEN 1 ELSE 0 ENDIF, PI(*)"
+    engine: sa
+  - id: a_null_first_branch_read_by_a_derived_table_is_refused
+    sql: "SELECT x FROM (SELECT CAST(NULL AS VARCHAR(3)) AS x UNION ALL SELECT 'a') d WHERE x = 'a'"
+    engine: sa
+  - id: an_integer_null_first_branch_read_by_a_derived_table_is_refused
+    sql: "SELECT x FROM (SELECT NULL AS x UNION ALL SELECT 1) d WHERE x = 1"
+    engine: sa
+  - id: a_null_first_branch_ordered_by_its_string_is_refused
+    sql: "SELECT CAST(NULL AS VARCHAR(3)) AS x UNION ALL SELECT 'a' ORDER BY 1"
+    engine: sa
+  - id: a_null_in_a_later_branch_read_by_a_derived_table
+    sql: "SELECT x FROM (SELECT 'a' AS x UNION ALL SELECT CAST(NULL AS VARCHAR(3)) UNION ALL SELECT 'b') d WHERE x <> 'b'"
+    profile: iq16-default, sqla17-default
+    engine: sa
+  - id: a_chain_of_unions_led_by_an_integer_null
+    sql: "SELECT NULL AS x UNION SELECT 3 UNION SELECT 2 ORDER BY 1 DESC"
+    engine: sa

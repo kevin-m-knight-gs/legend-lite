@@ -97,8 +97,10 @@ public final class NormalizeFolds {
                 && nc.args().size() == 2
                 && nc.args().get(0) instanceof TypedCInteger l
                 && nc.args().get(1) instanceof TypedCInteger r) {
+            // exact (TypedCInteger.big), as LiteralUnroll's compares:
+            // longValue() wraps a literal beyond long
             return new TypedCBoolean(
-                    l.value().longValue() == r.value().longValue(),
+                    l.big().equals(r.big()),
                     ExprType.one(Type.Primitive.BOOLEAN));
         }
         boolean isAnd = "meta::pure::functions::boolean::and".equals(fqn);

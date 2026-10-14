@@ -1,0 +1,1511 @@
+# The research's verified rule probes for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.3): each
+# case is one rule's probe, by the rule's id, a FROM-less query or one over sa_rowgenerator and DUMMY that
+# SQL Anywhere's front end runs (engine: sa), judged by SQL Anywhere 17's answer in iq-answers.jsonl. Generated
+# (M1a, 2026-10-14) from the private research's rule list, status "verified on SA (IQ-like db)" or "verified
+# after correction", keeping the probe only: no rule text. Dropped: a probe the research marks a documentation
+# example, one sharing a run of six words with the manuals, one holding a name or a literal they print, one with
+# options other than iq16-default's own, one SQL Anywhere answers differently from run to run. Most are refused
+# today; they are the ratchet later slices burn down. Do not edit by hand: regenerate, then re-snap.
+# IQ island, 2026-10-14 (review 3's m2): re-checked with a stricter literal filter -- a string literal of four or
+# more characters (three letters among them), or of eight or more, that the manuals print quoted anywhere or that an
+# example rule of the same section holds -- and the 95 probes it flags removed (among them the five the review named:
+# DIFFERENCE's two names, a sample word twice, MONTHS' date, SUBSTRING64's letters); no probe shares a run of six words
+# with the manuals. IQ island, 2026-10-14 (review 4's m3): this note no longer quotes the removed word.
+tests:
+  - id: c01_language-1
+    sql: "sELECT 'x' AS c FRoM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: c01_language-14
+    sql: "SELECT 'John''s database'"
+    engine: sa
+  - id: c01_language-22
+    sql: "SELECT 'it''s'"
+    engine: sa
+  - id: c01_language-32
+    sql: "SELECT 2 + 3 * 4, (2 + 3) * 4"
+    engine: sa
+  - id: c01_language-33
+    sql: "SELECT 'a' || 1 + 2"
+    engine: sa
+  - id: c01_language-34
+    sql: "SELECT CAST(NULL AS INT) + 1, 1 - CAST(NULL AS INT), -CAST(NULL AS INT), CAST(NULL AS INT) * 2"
+    engine: sa
+  - id: c01_language-35
+    sql: "SELECT CAST(NULL AS INT) / 2, 2 / CAST(NULL AS INT)"
+    engine: sa
+  - id: c01_language-38
+    sql: "SELECT 'abc' || CAST(NULL AS VARCHAR(10))"
+    engine: sa
+  - id: c01_language-40
+    sql: "SELECT CAST('ab' AS VARCHAR(10)) + CAST('cd' AS VARCHAR(10))"
+    engine: sa
+  - id: c01_language-45
+    sql: "SELECT 12 & 10, 12 | 10, 12 ^ 10"
+    engine: sa
+  - id: c01_language-46
+    sql: "SELECT 0 & 0, 0 & 1, 1 & 0, 1 & 1"
+    engine: sa
+  - id: c01_language-47
+    sql: "SELECT 0 | 0, 0 | 1, 1 | 0, 1 | 1"
+    engine: sa
+  - id: c01_language-48
+    sql: "SELECT 0 ^ 0, 0 ^ 1, 1 ^ 0, 1 ^ 1"
+    engine: sa
+  - id: c01_language-49
+    sql: "SELECT ~CAST(1 AS BIT), ~CAST(0 AS BIT)"
+    engine: sa
+  - id: c01_language-54
+    sql: "SELECT CAST(0x0102 AS VARBINARY(2)) + CAST(0x03 AS VARBINARY(1))"
+    engine: sa
+  - id: c01_language-57
+    sql: "SELECT IF 1 = 1 THEN 'yes' ELSE 'no' ENDIF"
+    engine: sa
+  - id: c01_language-58
+    sql: "SELECT IF 1 = 0 THEN 'yes' ELSE 'no' ENDIF"
+    engine: sa
+  - id: c01_language-59
+    sql: "SELECT IF 1 = 0 THEN 'yes' ENDIF"
+    engine: sa
+  - id: c01_language-60
+    sql: "SELECT IF CAST(NULL AS INT) = 1 THEN 'yes' ELSE 'no' ENDIF"
+    engine: sa
+  - id: c01_language-65
+    sql: "SELECT NULLIF(1, 1), NULLIF(1, 2)"
+    engine: sa
+  - id: c01_language-78
+    sql: "SELECT IF 1 != 2 THEN 'T' ELSE 'F' ENDIF, IF 1 <> 2 THEN 'T' ELSE 'F' ENDIF, IF 1 !> 1 THEN 'T' ELSE 'F' ENDIF, IF 2 !> 1 THEN 'T' ELSE 'F' ENDIF, IF 1 !< 1 THEN 'T' ELSE 'F' ENDIF, IF 0 !< 1 THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-79
+    sql: "SELECT IF 'abc' = 'ABC' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-80
+    sql: "SELECT IF 'abc' = 'abc   ' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-90
+    sql: "SELECT IF 2 IN (SELECT 1 UNION ALL SELECT 2) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-103
+    sql: "SELECT IF 2 BETWEEN 1 AND 3 THEN 'T' ELSE 'F' ENDIF, IF 2 BETWEEN 3 AND 1 THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-106
+    sql: "SELECT IF 2 BETWEEN (SELECT 1) AND (SELECT 3) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-114
+    sql: "SELECT IF 2 IN (1, 2, 3) THEN 'T' ELSE 'F' ENDIF, IF 5 IN (1, 2) THEN 'T' ELSE 'F' ENDIF, IF 5 NOT IN (1, 2) THEN 'T' ELSE 'F' ENDIF, IF 2 IN (2) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-120
+    sql: "SELECT IF CAST(NULL AS INT) IS NULL THEN 'T' ELSE 'F' ENDIF, IF 1 IS NULL THEN 'T' ELSE 'F' ENDIF, IF 1 IS NOT NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-123
+    sql: "SELECT IF 'abc' LIKE 'a_c' THEN 'T' ELSE 'F' ENDIF, IF 'ac' LIKE 'a_c' THEN 'T' ELSE 'F' ENDIF, IF 'ac' LIKE 'a%c' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-125
+    sql: "SELECT IF '10%' LIKE '10!%' ESCAPE '!' THEN 'T' ELSE 'F' ENDIF, IF '100' LIKE '10!%' ESCAPE '!' THEN 'T' ELSE 'F' ENDIF, IF 'a_b' LIKE 'a!_b' ESCAPE '!' THEN 'T' ELSE 'F' ENDIF, IF 'axb' LIKE 'a!_b' ESCAPE '!' THEN 'T' ELSE 'F' ENDIF, IF '[x' LIKE '![x' ESCAPE '!' THEN 'T' ELSE 'F' ENDIF, IF 'a!b' LIKE 'a!!b' ESCAPE '!' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-136
+    sql: "SELECT IF 'a' LIKE '[a]' THEN 'T' ELSE 'F' ENDIF, IF '^' LIKE '[^]' THEN 'T' ELSE 'F' ENDIF, IF '%' LIKE '[%]' THEN 'T' ELSE 'F' ENDIF, IF 'x' LIKE '[%]' THEN 'T' ELSE 'F' ENDIF, IF '_' LIKE '[_]' THEN 'T' ELSE 'F' ENDIF, IF 'x' LIKE '[_]' THEN 'T' ELSE 'F' ENDIF, IF '[' LIKE '[[]' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-137
+    sql: "SELECT IF 'a' LIKE '[a-]' THEN 'T' ELSE 'F' ENDIF, IF '-' LIKE '[a-]' THEN 'T' ELSE 'F' ENDIF, IF 'b' LIKE '[a-]' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-138
+    sql: "SELECT IF 'a' LIKE '[]' THEN 'T' ELSE 'F' ENDIF, IF '[]' LIKE '[]' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-141
+    sql: "SELECT IF 'a' LIKE '[a%b]' THEN 'T' ELSE 'F' ENDIF, IF '%' LIKE '[a%b]' THEN 'T' ELSE 'F' ENDIF, IF 'b' LIKE '[a%b]' THEN 'T' ELSE 'F' ENDIF, IF 'x' LIKE '[a%b]' THEN 'T' ELSE 'F' ENDIF, IF 'axb' LIKE '[a%b]' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-142
+    sql: "SELECT IF 'a' LIKE '[a^b]' THEN 'T' ELSE 'F' ENDIF, IF '^' LIKE '[a^b]' THEN 'T' ELSE 'F' ENDIF, IF 'b' LIKE '[a^b]' THEN 'T' ELSE 'F' ENDIF, IF 'c' LIKE '[a^b]' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-145
+    sql: "SELECT IF (CAST(NULL AS INT) = 1) IS NOT UNKNOWN THEN 'T' ELSE 'F' ENDIF, IF (CAST(NULL AS INT) = 1) IS NOT TRUE THEN 'T' ELSE 'F' ENDIF, IF (1 = 1) IS NOT FALSE THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-147
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(1, 10) WHERE (row_num < 5, 40)"
+    engine: sa
+  - id: c01_language-159
+    sql: "SELECT EXPRTYPE('SELECT CURRENT DATABASE', 1)"
+    engine: sa
+  - id: c01_language-166
+    sql: "SELECT IF CURRENT USER = USER THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-167
+    sql: "SELECT IF EXECUTING_USER = EXECUTING USER THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-168
+    sql: "SELECT IF INVOKING_USER = INVOKING USER THEN 'T' ELSE 'F' ENDIF, IF INVOKING USER = SESSION USER THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-170
+    sql: "SELECT IF PROCEDURE OWNER IS NULL AND PROCEDURE_OWNER IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-171
+    sql: "SELECT IF SESSION_USER = SESSION USER THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-173
+    sql: "SELECT EXPRTYPE('SELECT SQLSTATE', 1)"
+    engine: sa
+  - id: c01_language-177
+    sql: "SELECT IF USER = CURRENT USER THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c01_language-197
+    sql: "SELECT @@char_convert"
+    engine: sa
+  - id: c01_language-198
+    sql: "SELECT @@client_csname"
+    engine: sa
+  - id: c01_language-199
+    sql: "SELECT @@client_csid"
+    engine: sa
+  - id: c01_language-200
+    sql: "SELECT @@cpu_busy"
+    engine: sa
+  - id: c01_language-201
+    sql: "SELECT @@idle"
+    engine: sa
+  - id: c01_language-202
+    sql: "SELECT @@io_busy"
+    engine: sa
+  - id: c01_language-203
+    sql: "SELECT @@langid"
+    engine: sa
+  - id: c01_language-205
+    sql: "SELECT @@maxcharlen"
+    engine: sa
+  - id: c01_language-207
+    sql: "SELECT @@nestlevel"
+    engine: sa
+  - id: c01_language-208
+    sql: "SELECT @@pack_received"
+    engine: sa
+  - id: c01_language-209
+    sql: "SELECT @@pack_sent"
+    engine: sa
+  - id: c01_language-210
+    sql: "SELECT @@packet_errors"
+    engine: sa
+  - id: c01_language-211
+    sql: "SELECT @@thresh_hysteresis"
+    engine: sa
+  - id: c01_language-212
+    sql: "SELECT @@timeticks"
+    engine: sa
+  - id: c01_language-213
+    sql: "SELECT @@total_errors"
+    engine: sa
+  - id: c01_language-214
+    sql: "SELECT @@total_read"
+    engine: sa
+  - id: c01_language-215
+    sql: "SELECT @@total_write"
+    engine: sa
+  - id: c01_language-216
+    sql: "SELECT @@transtate"
+    engine: sa
+  - id: c01_language-218
+    sql: "SELECT 1 -- + 100\n + 1"
+    engine: sa
+  - id: c01_language-219
+    sql: "SELECT 1 // + 100\n + 1"
+    engine: sa
+  - id: c01_language-220
+    sql: "SELECT 1 /* + 100 /* nested */ + 200 */ + 1"
+    engine: sa
+  - id: c01_language-226
+    sql: "SELECT CAST(NULL AS INT) + 5, ISNULL(CAST(NULL AS INT), 0) + 5"
+    engine: sa
+  - id: c02_types-1
+    sql: "SELECT EXPRTYPE('SELECT CAST(''a'' AS CHAR(32767))', 1)"
+    engine: sa
+  - id: c02_types-4
+    sql: "SELECT EXPRTYPE('SELECT CAST(''a'' AS CHARACTER(5))', 1), EXPRTYPE('SELECT CAST(''a'' AS CHARACTER VARYING(5))', 1)"
+    engine: sa
+  - id: c02_types-5
+    sql: "SELECT EXPRTYPE('SELECT CAST(''a'' AS TEXT)', 1)"
+    engine: sa
+  - id: c02_types-6
+    sql: "SELECT CHAR_LENGTH(CAST('ab' AS VARCHAR(5)))"
+    engine: sa
+  - id: c02_types-7
+    sql: "SELECT EXPRTYPE('SELECT CAST(''a'' AS UNIQUEIDENTIFIERSTR)', 1)"
+    engine: sa
+  - id: c02_types-9
+    sql: "SELECT EXPRTYPE('SELECT CAST(''a'' AS VARCHAR(32767))', 1)"
+    engine: sa
+  - id: c02_types-17
+    sql: "SELECT SIMILAR(REPEAT('a',255) || 'b', REPEAT('a',255) || 'c')"
+    engine: sa
+  - id: c02_types-20
+    sql: "SELECT LENGTH(REPEAT('a',300) || 'b')"
+    engine: sa
+  - id: c02_types-21
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS UNSIGNED BIGINT)', 1), EXPRTYPE('SELECT CAST(1 AS UNSIGNED INT)', 1)"
+    engine: sa
+  - id: c02_types-23
+    sql: "SELECT CAST('1.5' AS NUMERIC(5,2))"
+    engine: sa
+  - id: c02_types-24
+    sql: "SELECT CAST('-9223372036854775808' AS BIGINT), CAST('9223372036854775807' AS BIGINT), CAST('18446744073709551615' AS UNSIGNED BIGINT)"
+    engine: sa
+  - id: c02_types-25
+    sql: "SELECT CAST(-2147483648 AS INT), CAST(2147483647 AS INT), CAST(4294967295 AS UNSIGNED INT)"
+    engine: sa
+  - id: c02_types-26
+    sql: "SELECT CAST(-32768 AS SMALLINT), CAST(32767 AS SMALLINT)"
+    engine: sa
+  - id: c02_types-27
+    sql: "SELECT CAST(0 AS TINYINT), CAST(255 AS TINYINT)"
+    engine: sa
+  - id: c02_types-28
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS DECIMAL)', 1)"
+    engine: sa
+  - id: c02_types-29
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS NUMERIC)', 1)"
+    engine: sa
+  - id: c02_types-31
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS DOUBLE)', 1)"
+    engine: sa
+  - id: c02_types-32
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS FLOAT)', 1)"
+    engine: sa
+  - id: c02_types-33
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS FLOAT(22))', 1), EXPRTYPE('SELECT CAST(1 AS FLOAT(53))', 1)"
+    engine: sa
+  - id: c02_types-34
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS REAL)', 1)"
+    engine: sa
+  - id: c02_types-39
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS FLOAT(16))', 1)"
+    engine: sa
+  - id: c02_types-40
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS MONEY)', 1), EXPRTYPE('SELECT CAST(1 AS SMALLMONEY)', 1)"
+    engine: sa
+  - id: c02_types-41
+    sql: "SELECT EXPRTYPE('SELECT CAST(0x01 AS BINARY(4))', 1), EXPRTYPE('SELECT CAST(0x01 AS VARBINARY(4))', 1)"
+    engine: sa
+  - id: c02_types-42
+    sql: "SELECT IF 0XAB = 0xab THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c02_types-69
+    sql: "SELECT EXPRTYPE('SELECT CAST(''2010-04-01 10:00:00'' AS DATETIME)', 1)"
+    engine: sa
+  - id: c02_types-87
+    sql: "SELECT DATEFORMAT(CAST('1999-05-23' AS DATE), 'yy') + '?'"
+    engine: sa
+  - id: c02_types-90
+    sql: "SELECT CONNECTION_PROPERTY('date_order')"
+    engine: sa
+  - id: c02_types-146
+    sql: "SELECT EXPRTYPE('SELECT CAST(1 AS MoNeY)', 1)"
+    engine: sa
+  - id: c02_types-152
+    sql: "SELECT '5' + 3, ABS('-5')"
+    engine: sa
+  - id: c02_types-153
+    sql: "SELECT LENGTH(12345), 12 || 'a'"
+    engine: sa
+  - id: c02_types-156
+    sql: "SELECT IF 'a' > 0 THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c02_types-160
+    sql: "SELECT CAST(12345 AS CHAR(3))"
+    engine: sa
+  - id: c02_types-175
+    sql: "SELECT IF CAST(1 AS BIT) = '1' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-2
+    sql: "SELECT IF DATE('2024-03-15') = '2024/03/15' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-3
+    sql: "SELECT IF DATE('2024-03-15') + 10 = DATE('2024-03-25') THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-4
+    sql: "SELECT IF DATE('2024-03-15') - 20 = DATE('2024-02-24') THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-5
+    sql: "SELECT DATE('2024-03-15') - DATE('2024-02-01')"
+    engine: sa
+  - id: c03_compat-6
+    sql: "SELECT IF DATE('2024-03-15') + CAST('13:45:30' AS TIME) = CAST('2024-03-15 13:45:30' AS TIMESTAMP) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-7
+    sql: "SELECT EXPRTYPE('SELECT DATE(''2024-03-15'') + CAST(''13:45:30'' AS TIME)', 1)"
+    engine: sa
+  - id: c03_compat-33
+    sql: "SELECT CAST(5 AS BIT)"
+    engine: sa
+  - id: c03_compat-35
+    sql: "SELECT LENGTH(CAST('ab' AS CHAR(10)))"
+    engine: sa
+  - id: c03_compat-37
+    sql: "SELECT EXPRTYPE('SELECT CAST(''ab'' AS CHARACTER(5))', 1)"
+    engine: sa
+  - id: c03_compat-40
+    sql: "SELECT EXPRTYPE('SELECT CAST(''a'' AS VARCHAR(32767))', 1)"
+    engine: sa
+  - id: c03_compat-41
+    sql: "SELECT CAST('a' AS VARCHAR(32768))"
+    engine: sa
+  - id: c03_compat-42
+    sql: "SELECT EXPRTYPE('SELECT CAST(''a'' AS TEXT)', 1)"
+    engine: sa
+  - id: c03_compat-45
+    sql: "SELECT EXPRTYPE('SELECT CAST(0x41 AS BINARY(32767))', 1)"
+    engine: sa
+  - id: c03_compat-46
+    sql: "SELECT CAST(CAST('123' AS BINARY(3)) AS VARCHAR(10))"
+    engine: sa
+  - id: c03_compat-47
+    sql: "SELECT EXPRTYPE('SELECT CAST(''2024-01-02 03:04:05'' AS DATETIME)', 1)"
+    engine: sa
+  - id: c03_compat-49
+    sql: "SELECT CAST(DATE('2024-03-05') AS VARCHAR(20))"
+    engine: sa
+  - id: c03_compat-50
+    sql: "SELECT IF CAST('10:37:22:1' AS TIME) = CAST('10:37:22.1' AS TIME) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-52
+    sql: "SELECT IF DATE(CAST(CAST('10:37:22' AS TIME) AS DATETIME)) = CURRENT DATE THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-57
+    sql: "SELECT EXPRTYPE('SELECT CAST(1.5 AS NUMERIC)', 1)"
+    engine: sa
+  - id: c03_compat-58
+    sql: "SELECT EXPRTYPE('SELECT CAST(1.5 AS NUMERIC)', 1)"
+    engine: sa
+  - id: c03_compat-63
+    sql: "SELECT IF 'abc' = 'ABC' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-120
+    sql: "SELECT IF '' IS NULL THEN 'T' ELSE 'F' ENDIF, LENGTH('')"
+    engine: sa
+  - id: c03_compat-123
+    sql: "SELECT PATINDEX('%b%', 'abc' USING CHARACTERS)"
+    engine: sa
+  - id: c03_compat-130
+    sql: "SELECT CONVERT(INT, '30') + CAST('12' AS INT)"
+    engine: sa
+  - id: c03_compat-131
+    sql: "SELECT LCASE('AbC') || UCASE('AbC')"
+    engine: sa
+  - id: c03_compat-142
+    sql: "SELECT IF DATE('2024-03-15') + 10 = DATEADD(day, 10, DATE('2024-03-15')) AND DATE('2024-03-15') - 10 = DATEADD(day, -10, DATE('2024-03-15')) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-143
+    sql: "SELECT IF DATE('2024-03-15') - DATE('2024-02-01') = DATEDIFF(day, DATE('2024-02-01'), DATE('2024-03-15')) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-174
+    sql: "SELECT IF 'abc' = 'ABC' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c03_compat-186
+    sql: "SELECT IF LENGTH(CAST(NULL AS VARCHAR(10))) IS NULL AND ABS(CAST(NULL AS INT)) IS NULL AND SUBSTRING(CAST(NULL AS VARCHAR(10)), 1, 2) IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c04_fn_a-3
+    sql: "SELECT DATENAME(MONTH, '2009-06-15')"
+    engine: sa
+  - id: c04_fn_a-4
+    sql: "SELECT DOW('2003-08-03'), DOW('2003-08-04')"
+    engine: sa
+  - id: c04_fn_a-7
+    sql: "SELECT IF NOW() = CURRENT TIMESTAMP AND TODAY() = CURRENT DATE THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c04_fn_a-8
+    sql: "SELECT IF RAND() >= 0 AND RAND() < 1 THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c04_fn_a-9
+    sql: "SELECT EXPRTYPE('SELECT RAND()', 1)"
+    engine: sa
+  - id: c04_fn_a-10
+    sql: "SELECT EXPRTYPE('SELECT SQUARE(3)', 1)"
+    engine: sa
+  - id: c04_fn_a-11
+    sql: "SELECT EXPRTYPE('SELECT STDDEV_POP(x), STDDEV_SAMP(x), VAR_POP(x), VAR_SAMP(x) FROM (SELECT CAST(1 AS INT) x) t', 1) || ',' || EXPRTYPE('SELECT STDDEV_POP(x), STDDEV_SAMP(x), VAR_POP(x), VAR_SAMP(x) FROM (SELECT CAST(1 AS INT) x) t', 2) || ',' || EXPRTYPE('SELECT STDDEV_POP(x), STDDEV_SAMP(x), VAR_POP(x), VAR_SAMP(x) FROM (SELECT CAST(1 AS INT) x) t', 3) || ',' || EXPRTYPE('SELECT STDDEV_POP(x), STDDEV_SAMP(x), VAR_POP(x), VAR_SAMP(x) FROM (SELECT CAST(1 AS INT) x) t', 4)"
+    engine: sa
+  - id: c04_fn_a-14
+    sql: "SELECT EXPRTYPE('SELECT ABS(CAST(-5 AS FLOAT))', 1)"
+    engine: sa
+  - id: c04_fn_a-15
+    sql: "SELECT EXPRTYPE('SELECT ABS(CAST(-5 AS DOUBLE))', 1)"
+    engine: sa
+  - id: c04_fn_a-16
+    sql: "SELECT EXPRTYPE('SELECT ABS(CAST(-5.25 AS NUMERIC(10,2)))', 1)"
+    engine: sa
+  - id: c04_fn_a-18
+    sql: "SELECT ABS(-2.5)"
+    engine: sa
+  - id: c04_fn_a-19
+    sql: "SELECT EXPRTYPE('SELECT ACOS(0.52)', 1)"
+    engine: sa
+  - id: c04_fn_a-21
+    sql: "SELECT ACOS(1)"
+    engine: sa
+  - id: c04_fn_a-34
+    sql: "SELECT ARGN(0, 'a', 'b')"
+    engine: sa
+  - id: c04_fn_a-35
+    sql: "SELECT ARGN(3, 'a', 'b')"
+    engine: sa
+  - id: c04_fn_a-36
+    sql: "SELECT ARGN(-1, 'a', 'b')"
+    engine: sa
+  - id: c04_fn_a-37
+    sql: "SELECT ARGN(1, 'a')"
+    engine: sa
+  - id: c04_fn_a-38
+    sql: "SELECT EXPRTYPE('SELECT ASCII(''Z'')', 1)"
+    engine: sa
+  - id: c04_fn_a-39
+    sql: "SELECT ASCII('Zebra')"
+    engine: sa
+  - id: c04_fn_a-40
+    sql: "SELECT ASCII('')"
+    engine: sa
+  - id: c04_fn_a-43
+    sql: "SELECT ASCII('a')"
+    engine: sa
+  - id: c04_fn_a-44
+    sql: "SELECT EXPRTYPE('SELECT ASIN(0.52)', 1)"
+    engine: sa
+  - id: c04_fn_a-46
+    sql: "SELECT ASIN(0)"
+    engine: sa
+  - id: c04_fn_a-47
+    sql: "SELECT EXPRTYPE('SELECT ATAN(0.52)', 1)"
+    engine: sa
+  - id: c04_fn_a-49
+    sql: "SELECT ATAN(0)"
+    engine: sa
+  - id: c04_fn_a-50
+    sql: "SELECT EXPRTYPE('SELECT ATAN2(0.52, 60)', 1)"
+    engine: sa
+  - id: c04_fn_a-52
+    sql: "SELECT ATAN2(0, 1)"
+    engine: sa
+  - id: c04_fn_a-56
+    sql: "SELECT EXPRTYPE('SELECT AVG(x) FROM (SELECT CAST(1.5 AS DOUBLE) x) t', 1)"
+    engine: sa
+  - id: c04_fn_a-57
+    sql: "SELECT EXPRTYPE('SELECT AVG(x) FROM (SELECT CAST(1 AS INT) x) t', 1)"
+    engine: sa
+  - id: c04_fn_a-71
+    sql: "SELECT BIGINTTOHEX(9.5)"
+    engine: sa
+  - id: c04_fn_a-75
+    sql: "SELECT EXPRTYPE('SELECT BIT_LENGTH(x) FROM (SELECT CAST(''abc'' AS VARCHAR(10)) x) t', 1)"
+    engine: sa
+  - id: c04_fn_a-79
+    sql: "SELECT BYTE_INSERTSTR(1, 'ab', 'X')"
+    engine: sa
+  - id: c04_fn_a-80
+    sql: "SELECT BYTE_INSERTSTR(0, 0x0102, 0xff)"
+    engine: sa
+  - id: c04_fn_a-83
+    sql: "SELECT BYTE_LENGTH('abc')"
+    engine: sa
+  - id: c04_fn_a-85
+    sql: "SELECT BYTE_LENGTH('ab  ')"
+    engine: sa
+  - id: c04_fn_a-86
+    sql: "SELECT BYTE_LENGTH(CAST(NULL AS VARCHAR(10)))"
+    engine: sa
+  - id: c04_fn_a-91
+    sql: "SELECT BYTE_LOCATE('abcabc', 'bc')"
+    engine: sa
+  - id: c04_fn_a-92
+    sql: "SELECT EXPRTYPE('SELECT BYTE_LOCATE(''abc'', ''b'')', 1)"
+    engine: sa
+  - id: c04_fn_a-93
+    sql: "SELECT BYTE_LOCATE('abcabc', 'bc', -1)"
+    engine: sa
+  - id: c04_fn_a-101
+    sql: "SELECT BYTE_REPLACE('aXbXc', 'X', 'YY')"
+    engine: sa
+  - id: c04_fn_a-103
+    sql: "SELECT BYTE_REPLACE('abc', '', 'x')"
+    engine: sa
+  - id: c04_fn_a-104
+    sql: "SELECT BYTE_REPLACE('abcabc', 'b', '')"
+    engine: sa
+  - id: c04_fn_a-106
+    sql: "SELECT BYTE_STUFF(0x0102030405, 2, 2, 0xff)"
+    engine: sa
+  - id: c04_fn_a-107
+    sql: "SELECT EXPRTYPE('SELECT BYTE_STUFF(0x0102, 1, 1, 0xff)', 1)"
+    engine: sa
+  - id: c04_fn_a-108
+    sql: "SELECT BYTE_STUFF(0x0102030405, 2, 2, NULL)"
+    engine: sa
+  - id: c04_fn_a-117
+    sql: "SELECT BYTE_SUBSTR('abc', 2, 10)"
+    engine: sa
+  - id: c04_fn_a-125
+    sql: "SELECT CAST('42' AS INT)"
+    engine: sa
+  - id: c04_fn_a-131
+    sql: "SELECT CEIL(1.2), CEILING(1.2)"
+    engine: sa
+  - id: c04_fn_a-133
+    sql: "SELECT CEIL('abc')"
+    engine: sa
+  - id: c04_fn_a-136
+    sql: "SELECT CEILING(-0.5)"
+    engine: sa
+  - id: c04_fn_a-142
+    sql: "SELECT CHAR(65)"
+    engine: sa
+  - id: c04_fn_a-143
+    sql: "SELECT EXPRTYPE('SELECT CHAR(89)', 1)"
+    engine: sa
+  - id: c04_fn_a-144
+    sql: "SELECT CHAR(256)"
+    engine: sa
+  - id: c04_fn_a-145
+    sql: "SELECT CHAR(-1)"
+    engine: sa
+  - id: c04_fn_a-148
+    sql: "SELECT CHAR_LENGTH('abc')"
+    engine: sa
+  - id: c04_fn_a-150
+    sql: "SELECT CHAR_LENGTH('ab  ')"
+    engine: sa
+  - id: c04_fn_a-151
+    sql: "SELECT CHAR_LENGTH(CAST(NULL AS VARCHAR(10)))"
+    engine: sa
+  - id: c04_fn_a-159
+    sql: "SELECT CHARINDEX('c', 'abc')"
+    engine: sa
+  - id: c04_fn_a-160
+    sql: "SELECT CHARINDEX('bc', 'abcabc')"
+    engine: sa
+  - id: c04_fn_a-161
+    sql: "SELECT CHARINDEX('z', 'abc')"
+    engine: sa
+  - id: c04_fn_a-162
+    sql: "SELECT CHARINDEX('', 'abc')"
+    engine: sa
+  - id: c04_fn_a-163
+    sql: "SELECT IF CHARINDEX(NULL, 'abc') IS NULL AND CHARINDEX('a', NULL) IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c04_fn_a-164
+    sql: "SELECT EXPRTYPE('SELECT CHARINDEX(''a'', ''abc'')', 1)"
+    engine: sa
+  - id: c04_fn_a-167
+    sql: "SELECT CHARINDEX('c', CAST('abc' AS LONG VARCHAR))"
+    engine: sa
+  - id: c04_fn_a-169
+    sql: "SELECT CHARINDEX(REPEAT('a', 256), CAST(REPEAT('a', 300) AS LONG VARCHAR))"
+    engine: sa
+  - id: c04_fn_a-170
+    sql: "SELECT CHARINDEX('', CAST('abc' AS LONG VARCHAR))"
+    engine: sa
+  - id: c04_fn_a-171
+    sql: "SELECT COALESCE(NULL, 'x')"
+    engine: sa
+  - id: c04_fn_a-183
+    sql: "SELECT CONVERT(INT, '42')"
+    engine: sa
+  - id: c04_fn_a-186
+    sql: "SELECT CONVERT(DATE, '16.03.1993', 104)"
+    engine: sa
+  - id: c04_fn_a-225
+    sql: "SELECT EXPRTYPE('SELECT CORR(y, x) FROM (SELECT 2 y, 1 x) t', 1)"
+    engine: sa
+  - id: c04_fn_a-231
+    sql: "SELECT COS(0)"
+    engine: sa
+  - id: c04_fn_a-232
+    sql: "SELECT EXPRTYPE('SELECT COS(0.52)', 1)"
+    engine: sa
+  - id: c04_fn_a-233
+    sql: "SELECT COS(NULL)"
+    engine: sa
+  - id: c04_fn_a-235
+    sql: "SELECT IF ABS(COT(0.785398163397448) - 1) < 0.000001 THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c04_fn_a-236
+    sql: "SELECT EXPRTYPE('SELECT COT(0.52)', 1)"
+    engine: sa
+  - id: c04_fn_a-237
+    sql: "SELECT COT(NULL)"
+    engine: sa
+  - id: c04_fn_a-244
+    sql: "SELECT EXPRTYPE('SELECT COVAR_POP(y, x) FROM (SELECT 2 y, 1 x) t', 1)"
+    engine: sa
+  - id: c04_fn_a-252
+    sql: "SELECT EXPRTYPE('SELECT COVAR_SAMP(y, x) FROM (SELECT 2 y, 1 x) t', 1)"
+    engine: sa
+  - id: c04_fn_a-264
+    sql: "SELECT EXPRTYPE('SELECT CUME_DIST() OVER (ORDER BY x) FROM (SELECT 1 x) t', 1)"
+    engine: sa
+  - id: c04_fn_a-270
+    sql: "SELECT DATALENGTH('abc')"
+    engine: sa
+  - id: c04_fn_a-271
+    sql: "SELECT EXPRTYPE('SELECT DATALENGTH(''abc'')', 1)"
+    engine: sa
+  - id: c04_fn_a-272
+    sql: "SELECT DATALENGTH(CAST(1 AS SMALLINT))"
+    engine: sa
+  - id: c04_fn_a-273
+    sql: "SELECT DATALENGTH(CAST(1 AS INTEGER))"
+    engine: sa
+  - id: c04_fn_a-274
+    sql: "SELECT DATALENGTH(CAST(1 AS DOUBLE))"
+    engine: sa
+  - id: c04_fn_a-276
+    sql: "SELECT DATALENGTH(0x010203)"
+    engine: sa
+  - id: c04_fn_a-282
+    sql: "SELECT DATE(CAST('2020-02-29 23:59:59.999999' AS TIMESTAMP))"
+    engine: sa
+  - id: c04_fn_a-285
+    sql: "SELECT EXPRTYPE('SELECT DATEADD(DAY, 1, CAST(''2000-01-01 10:00:00'' AS TIMESTAMP))', 1)"
+    engine: sa
+  - id: c04_fn_a-289
+    sql: "SELECT DATEADD(MICROSECOND, 2147483647, CAST('2000-01-01 00:00:00' AS TIMESTAMP))"
+    engine: sa
+  - id: c04_fn_a-344
+    sql: "SELECT DATEDIFF(MINUTE, CAST('11:14:59' AS TIME), CAST('11:15:02' AS TIME))"
+    engine: sa
+  - id: c05_fn_b-1
+    sql: "SELECT EXPRTYPE('SELECT DATENAME(DAY, ''1987/05/23'')', 1)"
+    engine: sa
+  - id: c05_fn_b-2
+    sql: "SELECT DATENAME(DAY, '1987/05/23')"
+    engine: sa
+  - id: c05_fn_b-57
+    sql: "SELECT DATEROUND(DAYOFYEAR, CAST('2009-08-13' AS DATE), 1)"
+    engine: sa
+  - id: c05_fn_b-90
+    sql: "SELECT DAY(CAST('2001-09-12 23:00:00' AS TIMESTAMP))"
+    engine: sa
+  - id: c05_fn_b-97
+    sql: "SELECT DAYS('1998-07-13 23:59:59', '1998-07-14 00:00:01')"
+    engine: sa
+  - id: c05_fn_b-105
+    sql: "SELECT IF DB_ID() = DB_ID(DB_NAME()) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c05_fn_b-109
+    sql: "SELECT IF DB_NAME() = DB_NAME(DB_ID()) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c05_fn_b-110
+    sql: "SELECT EXPRTYPE('SELECT DB_NAME()', 1)"
+    engine: sa
+  - id: c05_fn_b-119
+    sql: "SELECT EXPRTYPE('SELECT DECRYPT(ENCRYPT(''abc'', ''k''), ''k'')', 1)"
+    engine: sa
+  - id: c05_fn_b-126
+    sql: "SELECT DECRYPT(ENCRYPT('abc', 'Key1'), 'key1')"
+    engine: sa
+  - id: c05_fn_b-136
+    sql: "SELECT DEGREES(0)"
+    engine: sa
+  - id: c05_fn_b-137
+    sql: "SELECT EXPRTYPE('SELECT DEGREES(0.52)', 1)"
+    engine: sa
+  - id: c05_fn_b-145
+    sql: "SELECT DENSE_RANK() OVER () FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: c05_fn_b-161
+    sql: "SELECT DOW('1998-07-12')"
+    engine: sa
+  - id: c05_fn_b-166
+    sql: "SELECT EXPRTYPE('SELECT ENCRYPT(''abc'', ''k'')', 1)"
+    engine: sa
+  - id: c05_fn_b-197
+    sql: "SELECT EXPRTYPE('SELECT ERRORMSG(-813)', 1)"
+    engine: sa
+  - id: c05_fn_b-204
+    sql: "SELECT EXPRTYPE('SELECT EVENT_CONDITION_NAME(0)', 1)"
+    engine: sa
+  - id: c05_fn_b-205
+    sql: "SELECT EVENT_CONDITION_NAME(10000)"
+    engine: sa
+  - id: c05_fn_b-208
+    sql: "SELECT EXPRTYPE('SELECT EVENT_PARAMETER(''EventName'')', 1)"
+    engine: sa
+  - id: c05_fn_b-209
+    sql: "SELECT EXP(0)"
+    engine: sa
+  - id: c05_fn_b-210
+    sql: "SELECT EXPRTYPE('SELECT EXP(15)', 1)"
+    engine: sa
+  - id: c05_fn_b-249
+    sql: "SELECT FLOOR(-0.5)"
+    engine: sa
+  - id: c05_fn_b-255
+    sql: "SELECT IF GETDATE() IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c05_fn_b-256
+    sql: "SELECT EXPRTYPE('SELECT GETDATE()', 1)"
+    engine: sa
+  - id: c05_fn_b-263
+    sql: "SELECT EXPRTYPE('SELECT GRAPHICAL_PLAN(''SELECT 1'')', 1)"
+    engine: sa
+  - id: c05_fn_b-275
+    sql: "SELECT IF HASH('abc') = HASH('abc', 'MD5') THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c05_fn_b-288
+    sql: "SELECT IF HASH('ABC') = HASH('abc') THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c05_fn_b-289
+    sql: "SELECT LENGTH(HEXTOBIN(HASH('abc')))"
+    engine: sa
+  - id: c05_fn_b-297
+    sql: "SELECT HEXTOBIGINT('0xZZ')"
+    engine: sa
+  - id: c05_fn_b-299
+    sql: "SELECT HEXTOBIGINT('11111111111111111')"
+    engine: sa
+  - id: c05_fn_b-307
+    sql: "SELECT EXPRTYPE('SELECT HEXTOINT(''1A4'')', 1)"
+    engine: sa
+  - id: c05_fn_b-310
+    sql: "SELECT HEXTOINT('0xZZ')"
+    engine: sa
+  - id: c05_fn_b-317
+    sql: "SELECT HOUR('1998-07-09 00:12:13')"
+    engine: sa
+  - id: c05_fn_b-332
+    sql: "SELECT EXPRTYPE('SELECT HTML_DECODE(''a'')', 1)"
+    engine: sa
+  - id: c05_fn_b-333
+    sql: "SELECT HTML_DECODE('&quot' || CHAR(59) || '&#39' || CHAR(59) || '&amp' || CHAR(59) || '&lt' || CHAR(59) || '&gt' || CHAR(59) || '')"
+    engine: sa
+  - id: c05_fn_b-336
+    sql: "SELECT HTML_DECODE('&copy' || CHAR(59) || '')"
+    engine: sa
+  - id: c05_fn_b-339
+    sql: "SELECT EXPRTYPE('SELECT HTML_ENCODE(''<a>'')', 1)"
+    engine: sa
+  - id: c05_fn_b-340
+    sql: "SELECT HTML_ENCODE('\"''&<>')"
+    engine: sa
+  - id: c05_fn_b-348
+    sql: "SELECT EXPRTYPE('SELECT HTTP_DECODE(''a%20b'')', 1)"
+    engine: sa
+  - id: c05_fn_b-349
+    sql: "SELECT HTTP_DECODE('a+b%20c')"
+    engine: sa
+  - id: c05_fn_b-351
+    sql: "SELECT EXPRTYPE('SELECT HTTP_ENCODE(''a b'')', 1)"
+    engine: sa
+  - id: c05_fn_b-352
+    sql: "SELECT HTTP_ENCODE(' \"#%&,+' || CHAR(59) || '<>[\\\\]^`{|}')"
+    engine: sa
+  - id: c05_fn_b-353
+    sql: "SELECT HTTP_ENCODE(CHAR(127))"
+    engine: sa
+  - id: c05_fn_b-363
+    sql: "SELECT EXPRTYPE('SELECT HTTP_RESPONSE_HEADER(''Server'')', 1)"
+    engine: sa
+  - id: c05_fn_b-367
+    sql: "SELECT EXPRTYPE('SELECT HTTP_VARIABLE(''x'')', 1)"
+    engine: sa
+  - id: c05_fn_b-369
+    sql: "SELECT IFNULL(1, 2, 3)"
+    engine: sa
+  - id: c05_fn_b-370
+    sql: "SELECT IFNULL(NULL, 2, 3)"
+    engine: sa
+  - id: c05_fn_b-377
+    sql: "SELECT EXPRTYPE('SELECT INSERTSTR(0, CAST(''ab'' AS VARBINARY(2)), CAST(''c'' AS VARBINARY(1)))', 1)"
+    engine: sa
+  - id: c05_fn_b-382
+    sql: "SELECT EXPRTYPE('SELECT INTTOHEX(1000000000)', 1)"
+    engine: sa
+  - id: c05_fn_b-383
+    sql: "SELECT INTTOHEX('abc')"
+    engine: sa
+  - id: c05_fn_b-393
+    sql: "SELECT ISDATE(NULL)"
+    engine: sa
+  - id: c05_fn_b-398
+    sql: "SELECT ISNULL(NULL, 1)"
+    engine: sa
+  - id: c05_fn_b-399
+    sql: "SELECT ISNULL(1)"
+    engine: sa
+  - id: c05_fn_b-403
+    sql: "SELECT ISNUMERIC('180')"
+    engine: sa
+  - id: c05_fn_b-404
+    sql: "SELECT ISNUMERIC(NULL)"
+    engine: sa
+  - id: c05_fn_b-414
+    sql: "SELECT LAG(row_num) OVER () FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: c05_fn_b-446
+    sql: "SELECT LEAD(row_num) OVER () FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: c05_fn_b-458
+    sql: "SELECT LEN(CAST('abc  ' AS VARBINARY(5)))"
+    engine: sa
+  - id: c05_fn_b-464
+    sql: "SELECT LENGTH(CAST('abc' AS VARBINARY(10)))"
+    engine: sa
+  - id: c06_fn_c-9
+    sql: "SELECT EXPRTYPE('SELECT LIST(x) FROM (SELECT ''a'' x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-26
+    sql: "SELECT EXPRTYPE('SELECT LN(20)', 1)"
+    engine: sa
+  - id: c06_fn_c-28
+    sql: "SELECT IF LN(50) = LOG(50) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c06_fn_c-29
+    sql: "SELECT LN(1)"
+    engine: sa
+  - id: c06_fn_c-30
+    sql: "SELECT LN(2, 3)"
+    engine: sa
+  - id: c06_fn_c-31
+    sql: "SELECT EXPRTYPE('SELECT LOCATE(''abc'', ''b'')', 1)"
+    engine: sa
+  - id: c06_fn_c-32
+    sql: "SELECT LOCATE('abcabc', 'bc')"
+    engine: sa
+  - id: c06_fn_c-33
+    sql: "SELECT LOCATE('abcabc', 'bc', 3)"
+    engine: sa
+  - id: c06_fn_c-34
+    sql: "SELECT LOCATE('abcabc', 'bc', -1)"
+    engine: sa
+  - id: c06_fn_c-35
+    sql: "SELECT LOCATE('abcabc', 'bc', -2)"
+    engine: sa
+  - id: c06_fn_c-40
+    sql: "SELECT LOCATE('abc', '')"
+    engine: sa
+  - id: c06_fn_c-41
+    sql: "SELECT LOCATE('abc', 'z')"
+    engine: sa
+  - id: c06_fn_c-45
+    sql: "SELECT LOCATE('abc', 'c')"
+    engine: sa
+  - id: c06_fn_c-46
+    sql: "SELECT LOCATE('abcabc', 'c', 4)"
+    engine: sa
+  - id: c06_fn_c-48
+    sql: "SELECT LOCATE(CAST('abcabc' AS LONG VARCHAR), 'bc', -2)"
+    engine: sa
+  - id: c06_fn_c-50
+    sql: "SELECT LOCATE(CAST('abc' AS LONG VARCHAR), '')"
+    engine: sa
+  - id: c06_fn_c-53
+    sql: "SELECT LOCATE(CAST('abcabc' AS LONG VARCHAR), 'c', 4)"
+    engine: sa
+  - id: c06_fn_c-54
+    sql: "SELECT EXPRTYPE('SELECT LOG(50)', 1)"
+    engine: sa
+  - id: c06_fn_c-57
+    sql: "SELECT LOG(1)"
+    engine: sa
+  - id: c06_fn_c-61
+    sql: "SELECT LOG10(100)"
+    engine: sa
+  - id: c06_fn_c-64
+    sql: "SELECT LOWER('ABC')"
+    engine: sa
+  - id: c06_fn_c-73
+    sql: "SELECT LTRIM('   abc')"
+    engine: sa
+  - id: c06_fn_c-75
+    sql: "SELECT LTRIM('  x')"
+    engine: sa
+  - id: c06_fn_c-76
+    sql: "SELECT LTRIM('xxyz', 'x')"
+    engine: sa
+  - id: c06_fn_c-78
+    sql: "SELECT EXPRTYPE('SELECT MAX(x) FROM (SELECT CAST(1.5 AS NUMERIC(10,3)) x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-97
+    sql: "SELECT EXPRTYPE('SELECT MIN(x) FROM (SELECT CAST(1.5 AS NUMERIC(10,3)) x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-118
+    sql: "SELECT MOD(-5, 3)"
+    engine: sa
+  - id: c06_fn_c-119
+    sql: "SELECT MOD(5, -3)"
+    engine: sa
+  - id: c06_fn_c-120
+    sql: "SELECT MOD(-6, 3)"
+    engine: sa
+  - id: c06_fn_c-122
+    sql: "SELECT MOD(5.5, 2)"
+    engine: sa
+  - id: c06_fn_c-128
+    sql: "SELECT MONTHNAME(CAST('1998-01-05' AS DATE))"
+    engine: sa
+  - id: c06_fn_c-132
+    sql: "SELECT IF MONTHS('1999-07-01') = MONTHS('1999-07-31') AND MONTHS('1999-07-15') <> MONTHS('2000-07-15') THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c06_fn_c-134
+    sql: "SELECT MONTHS('1999-07-31', '1999-08-01')"
+    engine: sa
+  - id: c06_fn_c-135
+    sql: "SELECT MONTHS('1999-07-01', '1999-07-31')"
+    engine: sa
+  - id: c06_fn_c-146
+    sql: "SELECT IF NEWID() <> NEWID() THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c06_fn_c-149
+    sql: "SELECT IF NEWID() IS NOT NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c06_fn_c-150
+    sql: "SELECT EXPRTYPE('SELECT NEXT_CONNECTION(NULL)', 1)"
+    engine: sa
+  - id: c06_fn_c-152
+    sql: "SELECT IF NEXT_CONNECTION(NULL, NULL) IS NOT NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c06_fn_c-153
+    sql: "SELECT IF NEXT_CONNECTION(NULL, DB_ID()) IS NOT NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c06_fn_c-154
+    sql: "SELECT EXPRTYPE('SELECT NEXT_DATABASE(NULL)', 1)"
+    engine: sa
+  - id: c06_fn_c-158
+    sql: "SELECT EXPRTYPE('SELECT NEXT_HTTP_HEADER(NULL)', 1)"
+    engine: sa
+  - id: c06_fn_c-161
+    sql: "SELECT EXPRTYPE('SELECT NEXT_HTTP_VARIABLE(NULL)', 1)"
+    engine: sa
+  - id: c06_fn_c-179
+    sql: "SELECT EXPRTYPE('SELECT NULLIF(CAST(1 AS SMALLINT), 2)', 1)"
+    engine: sa
+  - id: c06_fn_c-182
+    sql: "SELECT NULLIF('a', NULL)"
+    engine: sa
+  - id: c06_fn_c-187
+    sql: "SELECT EXPRTYPE('SELECT NUMBER(*) FROM sa_rowgenerator(1, 3)', 1)"
+    engine: sa
+  - id: c06_fn_c-192
+    sql: "SELECT DISTINCT NUMBER(*) FROM sa_rowgenerator(1, 3)"
+    engine: sa
+  - id: c06_fn_c-193
+    sql: "SELECT NUMBER(*) FROM sa_rowgenerator(1, 2) UNION ALL SELECT 0"
+    engine: sa
+  - id: c06_fn_c-198
+    sql: "SELECT row_num, NUMBER(*) FROM sa_rowgenerator(5, 7)"
+    engine: sa
+  - id: c06_fn_c-217
+    sql: "SELECT PATINDEX('%[0-9]%', 'ab3d')"
+    engine: sa
+  - id: c06_fn_c-220
+    sql: "SELECT PATINDEX('%z%', 'abc')"
+    engine: sa
+  - id: c06_fn_c-222
+    sql: "SELECT PATINDEX('%a%', NULL)"
+    engine: sa
+  - id: c06_fn_c-223
+    sql: "SELECT PATINDEX(NULL, 'abc')"
+    engine: sa
+  - id: c06_fn_c-229
+    sql: "SELECT PATINDEX('%ab', CAST('abcab' AS LONG VARCHAR))"
+    engine: sa
+  - id: c06_fn_c-230
+    sql: "SELECT PATINDEX('%ab', CAST('abc' AS LONG VARCHAR))"
+    engine: sa
+  - id: c06_fn_c-231
+    sql: "SELECT PATINDEX('%a%', CAST(NULL AS LONG VARCHAR))"
+    engine: sa
+  - id: c06_fn_c-233
+    sql: "SELECT PATINDEX('%cab%', CAST('abcab' AS LONG VARCHAR))"
+    engine: sa
+  - id: c06_fn_c-234
+    sql: "SELECT EXPRTYPE('SELECT PERCENT_RANK() OVER (ORDER BY x) FROM (SELECT 1 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-274
+    sql: "SELECT EXPRTYPE('SELECT PI(*)', 1)"
+    engine: sa
+  - id: c06_fn_c-278
+    sql: "SELECT EXPRTYPE('SELECT POWER(2, 6)', 1)"
+    engine: sa
+  - id: c06_fn_c-280
+    sql: "SELECT POWER(2, -1)"
+    engine: sa
+  - id: c06_fn_c-292
+    sql: "SELECT STRING(QUARTER('1987-03-31'), QUARTER('1987-04-01'), QUARTER('1987-06-30'), QUARTER('1987-07-01'), QUARTER('1987-09-30'), QUARTER('1987-10-01'), QUARTER('1987-12-31'), QUARTER('1987-01-01'))"
+    engine: sa
+  - id: c06_fn_c-294
+    sql: "SELECT QUARTER(CAST('1987-11-02' AS DATE))"
+    engine: sa
+  - id: c06_fn_c-299
+    sql: "SELECT EXPRTYPE('SELECT RADIANS(30)', 1)"
+    engine: sa
+  - id: c06_fn_c-301
+    sql: "SELECT ROUND(RADIANS(180), 6)"
+    engine: sa
+  - id: c06_fn_c-302
+    sql: "SELECT EXPRTYPE('SELECT RAND()', 1)"
+    engine: sa
+  - id: c06_fn_c-307
+    sql: "SELECT IF RAND(2 + 2) IS NOT NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c06_fn_c-308
+    sql: "SELECT EXPRTYPE('SELECT RANK() OVER (ORDER BY x) FROM (SELECT 1 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-322
+    sql: "SELECT EXPRTYPE('SELECT REGR_AVGX(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-329
+    sql: "SELECT EXPRTYPE('SELECT REGR_AVGY(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-341
+    sql: "SELECT EXPRTYPE('SELECT REGR_INTERCEPT(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-348
+    sql: "SELECT EXPRTYPE('SELECT REGR_R2(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-356
+    sql: "SELECT EXPRTYPE('SELECT REGR_SLOPE(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-363
+    sql: "SELECT EXPRTYPE('SELECT REGR_SXX(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-369
+    sql: "SELECT EXPRTYPE('SELECT REGR_SXY(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c06_fn_c-375
+    sql: "SELECT EXPRTYPE('SELECT REGR_SYY(y, x) FROM (SELECT 1 y, 2 x) t', 1)"
+    engine: sa
+  - id: c07_fn_d-1
+    sql: "SELECT REMAINDER( 7, 2 )"
+    engine: sa
+  - id: c07_fn_d-3
+    sql: "SELECT IF REMAINDER( -7, 3 ) = MOD( -7, 3 ) AND REMAINDER( 7, -3 ) = MOD( 7, -3 ) AND REMAINDER( 7.5, 2 ) = MOD( 7.5, 2 ) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-4
+    sql: "SELECT 5 % 3"
+    engine: sa
+  - id: c07_fn_d-6
+    sql: "SELECT REPEAT( 'ab', 2 )"
+    engine: sa
+  - id: c07_fn_d-8
+    sql: "SELECT LENGTH( REPEAT( 'abc', -1 ) )"
+    engine: sa
+  - id: c07_fn_d-11
+    sql: "SELECT REPLACE( 'aXbXc', 'X', '-' )"
+    engine: sa
+  - id: c07_fn_d-14
+    sql: "SELECT REPLACE( 'abc', '', 'x' )"
+    engine: sa
+  - id: c07_fn_d-15
+    sql: "SELECT REPLACE( 'abcabc', 'b', '' )"
+    engine: sa
+  - id: c07_fn_d-16
+    sql: "SELECT EXPRTYPE('SELECT REPLACE( ''abc'', ''b'', ''x'' )', 1)"
+    engine: sa
+  - id: c07_fn_d-22
+    sql: "SELECT REPLICATE( 'ab', 2 )"
+    engine: sa
+  - id: c07_fn_d-24
+    sql: "SELECT IF REPLICATE( 'ab', 3 ) = REPEAT( 'ab', 3 ) THEN 'T' ELSE 'F' ENDIF, LENGTH( REPLICATE( 'abc', -1 ) )"
+    engine: sa
+  - id: c07_fn_d-27
+    sql: "SELECT REVERSE( N'xyz' )"
+    engine: sa
+  - id: c07_fn_d-29
+    sql: "SELECT IF REVERSE( CAST( NULL AS VARCHAR(10) ) ) IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-33
+    sql: "SELECT RIGHT( 'abcdef', 2 )"
+    engine: sa
+  - id: c07_fn_d-35
+    sql: "SELECT RIGHT( N'abcé', 1 )"
+    engine: sa
+  - id: c07_fn_d-37
+    sql: "SELECT ROUND( 123.4567, 2 ), ROUND( 123.4567, -2 )"
+    engine: sa
+  - id: c07_fn_d-49
+    sql: "SELECT ROW_NUMBER() OVER () FROM sa_rowgenerator( 1, 3 )"
+    engine: sa
+  - id: c07_fn_d-53
+    sql: "SELECT EXPRTYPE('SELECT ROWID( dummy ) FROM dummy', 1)"
+    engine: sa
+  - id: c07_fn_d-65
+    sql: "SELECT RTRIM( 'ab  ' ) || '|', RTRIM( 'abxyx', 'xy' )"
+    engine: sa
+  - id: c07_fn_d-66
+    sql: "SELECT RTRIM( '  ab  ' ) || '|'"
+    engine: sa
+  - id: c07_fn_d-68
+    sql: "SELECT SECOND( CAST( '2000-01-01 10:20:59.999' AS TIMESTAMP ) )"
+    engine: sa
+  - id: c07_fn_d-71
+    sql: "SELECT IF SECONDS( '2000-01-01 00:00:10' ) - SECONDS( '2000-01-01 00:00:00' ) = 10 THEN 'T' ELSE 'F' ENDIF, SECONDS( '2000-01-01 00:00:00', '2000-01-01 00:01:00' ), SECONDS( CAST( '2000-01-01 00:00:00' AS TIMESTAMP ), 30 )"
+    engine: sa
+  - id: c07_fn_d-81
+    sql: "SELECT SIGN( 3 )"
+    engine: sa
+  - id: c07_fn_d-83
+    sql: "SELECT SIGN( -2.5 ), SIGN( 0 ), SIGN( 7.25 )"
+    engine: sa
+  - id: c07_fn_d-85
+    sql: "SELECT SIMILAR( 'abc', 'abc' )"
+    engine: sa
+  - id: c07_fn_d-87
+    sql: "SELECT SIMILAR( 'abcdef', 'abcdef' )"
+    engine: sa
+  - id: c07_fn_d-89
+    sql: "SELECT SIN( 0 )"
+    engine: sa
+  - id: c07_fn_d-93
+    sql: "SELECT IF SORTKEY( CAST( NULL AS VARCHAR(10) ) ) IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-94
+    sql: "SELECT IF SORTKEY( '' ) IS NOT NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-95
+    sql: "SELECT LENGTH( SORTKEY( REPEAT( 'abcdefghij', 500 ) ) )"
+    engine: sa
+  - id: c07_fn_d-100
+    sql: "SELECT IF SORTKEY( 'abc' ) = SORTKEY( 'abc', 'default' ) AND SORTKEY( 'abc' ) = SORTKEY( 'abc', 0 ) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-118
+    sql: "SELECT '|' || SPACE( 3 ) || '|'"
+    engine: sa
+  - id: c07_fn_d-125
+    sql: "SELECT SQRT( 16 )"
+    engine: sa
+  - id: c07_fn_d-128
+    sql: "SELECT SQUARE( 3 )"
+    engine: sa
+  - id: c07_fn_d-129
+    sql: "SELECT EXPRTYPE('SELECT SQUARE( 12.01 )', 1)"
+    engine: sa
+  - id: c07_fn_d-130
+    sql: "SELECT SQUARE( 'abc' )"
+    engine: sa
+  - id: c07_fn_d-133
+    sql: "SELECT EXPRTYPE('SELECT STACK_TRACE()', 1)"
+    engine: sa
+  - id: c07_fn_d-143
+    sql: "SELECT EXPRTYPE('SELECT STDDEV_POP( x ) FROM ( SELECT 1.5 x ) t', 1)"
+    engine: sa
+  - id: c07_fn_d-148
+    sql: "SELECT EXPRTYPE('SELECT STDDEV_SAMP( x ) FROM ( SELECT 1.5 x ) t', 1)"
+    engine: sa
+  - id: c07_fn_d-152
+    sql: "SELECT '|' || STR( 2.0E0, 5 ) || '|', '|' || STR( 2.25E0, 6, 2 ) || '|'"
+    engine: sa
+  - id: c07_fn_d-164
+    sql: "SELECT STRING( 'a' ), STRING( 'a', 'b', 'c' )"
+    engine: sa
+  - id: c07_fn_d-165
+    sql: "SELECT STRING( 'a', NULL, 'b' ), IF STRING( NULL, NULL ) IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-166
+    sql: "SELECT STRING( 12, 34 )"
+    engine: sa
+  - id: c07_fn_d-173
+    sql: "SELECT STUFF( 'abcdef', 2, 3, 'XY' )"
+    engine: sa
+  - id: c07_fn_d-175
+    sql: "SELECT STUFF( 'abcdef', 2, 3, NULL )"
+    engine: sa
+  - id: c07_fn_d-176
+    sql: "SELECT STUFF( 'abcdef', 3, 0, 'XY' )"
+    engine: sa
+  - id: c07_fn_d-177
+    sql: "SELECT STUFF( NULL, 1, 1, 'x' ), STUFF( 'abc', NULL, 1, 'x' ), STUFF( 'abc', 1, NULL, 'x' )"
+    engine: sa
+  - id: c07_fn_d-178
+    sql: "SELECT STUFF( 'abc', -1, 1, 'x' ), STUFF( 'abc', 1, -1, 'x' )"
+    engine: sa
+  - id: c07_fn_d-191
+    sql: "SELECT SUBSTRING( CAST( NULL AS LONG VARCHAR ), 1, 2 ), SUBSTRING( CAST( 'abc' AS LONG VARCHAR ), NULL, 2 ), SUBSTRING( CAST( 'abc' AS LONG VARCHAR ), 1, NULL )"
+    engine: sa
+  - id: c07_fn_d-217
+    sql: "SELECT TAN( 0 )"
+    engine: sa
+  - id: c07_fn_d-220
+    sql: "SELECT IF TODAY( * ) = CURRENT DATE THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-230
+    sql: "SELECT '|' || TRIM( '  ab  ' ) || '|', TRIM( 'xxabyx', 'xy' )"
+    engine: sa
+  - id: c07_fn_d-233
+    sql: "SELECT TRUNCNUM( 1.999, 1 )"
+    engine: sa
+  - id: c07_fn_d-238
+    sql: "SELECT UCASE( 'abc' )"
+    engine: sa
+  - id: c07_fn_d-242
+    sql: "SELECT UPPER( 'abc' )"
+    engine: sa
+  - id: c07_fn_d-255
+    sql: "SELECT EXPRTYPE('SELECT UUIDTOSTR( 0x12345678123456789012123456789012 )', 1)"
+    engine: sa
+  - id: c07_fn_d-259
+    sql: "SELECT EXPRTYPE('SELECT VAR_POP( x ) FROM ( SELECT 1.5 x ) t', 1)"
+    engine: sa
+  - id: c07_fn_d-263
+    sql: "SELECT EXPRTYPE('SELECT VAR_SAMP( x ) FROM ( SELECT 1.5 x ) t', 1)"
+    engine: sa
+  - id: c07_fn_d-267
+    sql: "SELECT VAREXISTS( 'no_such_variable_xyz' ), VAREXISTS( 'no_such_variable_xyz', 'DBA' )"
+    engine: sa
+  - id: c07_fn_d-268
+    sql: "SELECT EXPRTYPE('SELECT VAREXISTS( ''x'' )', 1)"
+    engine: sa
+  - id: c07_fn_d-271
+    sql: "SELECT EXPRTYPE('SELECT VARIANCE( x ) FROM ( SELECT 1.5 x UNION ALL SELECT 2.5 ) t', 1)"
+    engine: sa
+  - id: c07_fn_d-276
+    sql: "SELECT IF WEEKS( '2024-01-14' ) - WEEKS( '2024-01-07' ) = 1 THEN 'T' ELSE 'F' ENDIF, WEEKS( '2024-01-07', '2024-01-21' ), WEEKS( CAST( '2024-01-07 00:00:00' AS TIMESTAMP ), 1 )"
+    engine: sa
+  - id: c07_fn_d-280
+    sql: "SELECT IF WEEKS( '2024-01-07 00:00:00' ) = WEEKS( '2024-01-13 23:59:59' ) AND WEEKS( '2024-01-06 12:00:00' ) <> WEEKS( '2024-01-07 12:00:00' ) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-297
+    sql: "SELECT WIDTH_BUCKET( 5, CAST( NULL AS INTEGER ), 10, 5 )"
+    engine: sa
+  - id: c07_fn_d-298
+    sql: "SELECT WIDTH_BUCKET( 5, 0, CAST( NULL AS INTEGER ), 5 )"
+    engine: sa
+  - id: c07_fn_d-299
+    sql: "SELECT WIDTH_BUCKET( 5, 0, 10, 0 )"
+    engine: sa
+  - id: c07_fn_d-300
+    sql: "SELECT WIDTH_BUCKET( 5, 0, 10, -1 )"
+    engine: sa
+  - id: c07_fn_d-301
+    sql: "SELECT WIDTH_BUCKET( 5, 0, 10, CAST( NULL AS INTEGER ) )"
+    engine: sa
+  - id: c07_fn_d-302
+    sql: "SELECT WIDTH_BUCKET( 5, CAST( '2020-01-01' AS DATE ), 10, 2 )"
+    engine: sa
+  - id: c07_fn_d-310
+    sql: "SELECT YEAR( CAST( '2005-01-01' AS DATE ) )"
+    engine: sa
+  - id: c07_fn_d-318
+    sql: "SELECT IF YEAR( YEARS( CAST( '10:00:00' AS TIME ), 1 ) ) = YEAR( CURRENT DATE ) + 1 THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c07_fn_d-325
+    sql: "SELECT YMD( 2000, 1, 2 )"
+    engine: sa
+  - id: c07_fn_d-326
+    sql: "SELECT EXPRTYPE('SELECT YMD( 1998, 6, 12 )', 1)"
+    engine: sa
+  - id: c07_fn_d-327
+    sql: "SELECT YMD( 2000, 13, 1 ), YMD( 2000, 1, 32 )"
+    engine: sa
+  - id: c08_fn_groups-105
+    sql: "SELECT DATEPART(yy, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(year, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-106
+    sql: "SELECT DATEPART(qq, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(quarter, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-107
+    sql: "SELECT DATEPART(mm, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(month, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-109
+    sql: "SELECT DATEPART(dd, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(day, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-110
+    sql: "SELECT DATEPART(dy, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(dayofyear, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(dy, CAST('2024-12-31' AS DATE))"
+    engine: sa
+  - id: c08_fn_groups-111
+    sql: "SELECT DATEPART(dw, CAST('2024-03-10' AS DATE)), DATEPART(weekday, CAST('2024-03-16' AS DATE)), DATEPART(dw, CAST('2024-03-15' AS DATE))"
+    engine: sa
+  - id: c08_fn_groups-112
+    sql: "SELECT DATEPART(hh, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(hour, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-113
+    sql: "SELECT DATEPART(mi, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(minute, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-114
+    sql: "SELECT DATEPART(ss, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(second, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-115
+    sql: "SELECT DATEPART(ms, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(millisecond, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-116
+    sql: "SELECT DATEPART(mcs, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(us, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP)), DATEPART(microsecond, CAST('2024-03-15 10:20:30.123456' AS TIMESTAMP))"
+    engine: sa
+  - id: c08_fn_groups-117
+    sql: "SELECT DATEPART(cyr, CAST('2020-01-01' AS DATE)), DATEPART(calyearofweek, CAST('2020-01-01' AS DATE))"
+    engine: sa
+  - id: c08_fn_groups-118
+    sql: "SELECT DATEPART(cyr, CAST('2021-01-01' AS DATE))"
+    engine: sa
+  - id: c08_fn_groups-134
+    sql: "SELECT proc_role('sa_role')"
+    engine: sa
+  - id: c08_fn_groups-135
+    sql: "SELECT show_role()"
+    engine: sa
+  - id: c08_fn_groups-137
+    sql: "SELECT valid_name('abc')"
+    engine: sa
+  - id: c08_fn_groups-138
+    sql: "SELECT IF CONNECTION_PROPERTY('ANSINULL') = CONNECTION_PROPERTY('ansinull') THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c08_fn_groups-148
+    sql: "SELECT 1/0"
+    engine: sa
+  - id: c09_statements-4
+    sql: "SELECT IF 'ONE' = 'oNe' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c09_statements-5
+    sql: "SELECT LOCATE('ABC', 'b')"
+    engine: sa
+  - id: c09_statements-10
+    sql: "SELECT IF 'abc' = 'abc   ' THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c09_statements-17
+    sql: "SELECT CAST('7' AS iNtEgEr) + 1"
+    engine: sa
+  - id: c09_statements-36
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(1, 2) a CROSS JOIN sa_rowgenerator(1, 3) b"
+    engine: sa
+  - id: c09_statements-43
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(1, 5)"
+    engine: sa
+  - id: c09_statements-48
+    sql: "SELECT COUNT(*) FROM DUMMY"
+    engine: sa
+  - id: c09_statements-55
+    sql: "SELECT IF 1 = 2 THEN 'x' ENDIF"
+    engine: sa
+  - id: c09_statements-81
+    sql: "SELECT row_num * 10 AS x FROM sa_rowgenerator(1, 3) WHERE x > 15 ORDER BY x"
+    engine: sa
+  - id: c09_statements-85
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(1, 5) WHERE row_num IN ( SELECT 1 FROM DUMMY ) OR EXISTS ( SELECT 1 FROM DUMMY WHERE row_num = 5 )"
+    engine: sa
+  - id: c09_statements-94
+    sql: "SELECT COUNT(*) FROM sa_rowgenerator(1, 3) HAVING COUNT(*) > 2"
+    engine: sa
+  - id: c09_statements-134
+    sql: "SELECT 1 UNION SELECT 2 ORDER BY 1 DESC"
+    engine: sa
+  - id: c09_statements-135
+    sql: "SELECT 1, 2 UNION SELECT 3"
+    engine: sa
+  - id: c09_statements-147
+    sql: "SELECT CASE WHEN NULL = 1 THEN 'T' WHEN NOT ( NULL = 1 ) THEN 'F' ELSE 'U' END"
+    engine: sa
+  - id: c09_statements-148
+    sql: "SELECT COUNT(*) FROM sYs.DuMmY"
+    engine: sa
+  - id: c10_opt_a-211
+    sql: "SELECT UPPER(CONNECTION_PROPERTY('ansinull'))"
+    engine: sa
+  - id: c10_opt_a-274
+    sql: "SELECT DATEPART(weekday, CAST('2011-05-22' AS DATE))"
+    engine: sa
+  - id: c10_opt_a-289
+    sql: "SELECT UPPER(CONNECTION_PROPERTY('date_order'))"
+    engine: sa
+  - id: c11_opt_b-38
+    sql: "SELECT UPPER(CONNECTION_PROPERTY('login_mode'))"
+    engine: sa
+  - id: c11_opt_b-87
+    sql: "SELECT YEAR(CAST('49-06-15' AS DATE))"
+    engine: sa
+  - id: c11_opt_b-88
+    sql: "SELECT YEAR(CAST('50-06-15' AS DATE))"
+    engine: sa
+  - id: c11_opt_b-89
+    sql: "SELECT YEAR(CAST('49-06-15 10:00:00' AS TIMESTAMP))"
+    engine: sa
+  - id: c11_opt_b-111
+    sql: "SELECT CONNECTION_PROPERTY('precision')"
+    engine: sa
+  - id: c12_opt_c-63
+    sql: "SELECT IF '' IS NULL THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c12_opt_c-108
+    sql: "SELECT CAST(CAST('09:05:03.123' AS TIME) AS VARCHAR(30))"
+    engine: sa
+  - id: c12_opt_c-112
+    sql: "SELECT CAST(CAST('2024-03-05 13:07:02.123456' AS TIMESTAMP) AS VARCHAR(40))"
+    engine: sa
+  - id: c12_opt_c-158
+    sql: "SELECT CAST(CAST('2024-03-05' AS DATE) AS VARCHAR(20))"
+    engine: sa
+  - id: c12_opt_c-164
+    sql: "SELECT CAST(CAST('09:05:03.123' AS TIME) AS VARCHAR(30))"
+    engine: sa
+  - id: c12_opt_c-165
+    sql: "SELECT CAST(CAST('2024-03-05 13:07:02.123456' AS TIMESTAMP) AS VARCHAR(40))"
+    engine: sa
+  - id: c13_olap-95
+    sql: "SELECT EXPRTYPE('SELECT RANK() OVER (ORDER BY v) FROM (SELECT 1 AS v) t', 1)"
+    engine: sa
+  - id: c13_olap-109
+    sql: "SELECT EXPRTYPE('SELECT DENSE_RANK() OVER (ORDER BY v) FROM (SELECT 1 AS v) t', 1)"
+    engine: sa
+  - id: c13_olap-115
+    sql: "SELECT row_num, PERCENT_RANK() OVER (ORDER BY row_num) AS pr FROM sa_rowgenerator(1, 10) ORDER BY row_num"
+    engine: sa
+  - id: c13_olap-117
+    sql: "SELECT EXPRTYPE('SELECT PERCENT_RANK() OVER (ORDER BY v) FROM (SELECT 1 AS v) t', 1)"
+    engine: sa
+  - id: c13_olap-140
+    sql: "SELECT EXPRTYPE('SELECT VAR_POP(CAST(v AS NUMERIC(10,2))) FROM (SELECT 1 AS v) t', 1)"
+    engine: sa
+  - id: c13_olap-148
+    sql: "SELECT EXPRTYPE('SELECT REGR_COUNT(y, x) FROM (SELECT 1 AS x, 2 AS y) t', 1)"
+    engine: sa
+  - id: c13_olap-188
+    sql: "SELECT LN(1), LOG(1), CEIL(1.5), CEILING(1.5)"
+    engine: sa
+  - id: c13_olap-191
+    sql: "SELECT EXP(0), EXP(1)"
+    engine: sa
+  - id: c13_olap-192
+    sql: "SELECT POWER(0, 0), POWER(0, 3)"
+    engine: sa
+  - id: c13_olap-196
+    sql: "SELECT FLOOR(-1.5), CEILING(-1.5), FLOOR(1.5), CEIL(1.5)"
+    engine: sa
+  - id: c13_olap-201
+    sql: "SELECT EXPRTYPE('SELECT BIT_LENGTH(c) FROM (SELECT ''abc'' AS c) t', 1)"
+    engine: sa
+  - id: c13_olap-204
+    sql: "SELECT CEIL(-123.45), CEIL(123.45)"
+    engine: sa
+  - id: c13_olap-206
+    sql: "SELECT CEIL('abc')"
+    engine: sa
+  - id: c13_olap-208
+    sql: "SELECT EXPRTYPE('SELECT CEILING(1.5)', 1)"
+    engine: sa
+  - id: c13_olap-213
+    sql: "SELECT EXPRTYPE('SELECT EXP(1)', 1)"
+    engine: sa
+  - id: c13_olap-215
+    sql: "SELECT EXPRTYPE('SELECT FLOOR(1.5)', 1)"
+    engine: sa
+  - id: c13_olap-219
+    sql: "SELECT EXPRTYPE('SELECT LN(20)', 1)"
+    engine: sa
+  - id: c13_olap-221
+    sql: "SELECT IF LN(20) = LOG(20) THEN 'T' ELSE 'F' ENDIF"
+    engine: sa
+  - id: c13_olap-223
+    sql: "SELECT EXPRTYPE('SELECT POWER(2, 6)', 1)"
+    engine: sa
+  - id: c13_olap-225
+    sql: "SELECT EXPRTYPE('SELECT SQRT(9)', 1)"
+    engine: sa
+  - id: c13_olap-228
+    sql: "SELECT WIDTH_BUCKET(5, NULL, 10, 5)"
+    engine: sa
+  - id: c13_olap-229
+    sql: "SELECT WIDTH_BUCKET(5, 0, NULL, 5)"
+    engine: sa
+  - id: c13_olap-230
+    sql: "SELECT WIDTH_BUCKET(5, 0, 10, 0)"
+    engine: sa
+  - id: c13_olap-231
+    sql: "SELECT WIDTH_BUCKET(5, 0, 10, NULL)"
+    engine: sa
+  - id: c13_olap-232
+    sql: "SELECT WIDTH_BUCKET(5, 0, 10, -2)"
+    engine: sa
+  - id: c13_olap-234
+    sql: "SELECT WIDTH_BUCKET(CAST('2000-06-01' AS DATE), 0, 10, 4)"
+    engine: sa

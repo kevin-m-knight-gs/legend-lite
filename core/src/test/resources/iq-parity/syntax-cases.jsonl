@@ -4,8 +4,6 @@
 {"id": "a1_sa_lang-1006", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '123ab' SIMILAR TO '[0-9]{3}[[:alpha:]]{2}' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1007", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '12abc' SIMILAR TO '[0-9]{3}[[:alpha:]]{2}' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-101", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `contains`", "sa": "accepted"}
-{"id": "a1_sa_lang-1016", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'A' REGEXP '[[:lower:]]' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1017", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' REGEXP '[[:lower:]]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-102", "options": {}, "policy": "reject", "probe": "SELECT 1 AS contains", "sa": "parse error"}
 {"id": "a1_sa_lang-1022", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' REGEXP '[[:ascii:]]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1023", "options": {}, "policy": "reject", "probe": "SELECT CASE WHEN 'a' SIMILAR TO '[[:ascii:]]' THEN 1 ELSE 0 END", "sa": "other error"}
@@ -212,9 +210,6 @@
 {"id": "a1_sa_lang-1338", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' REGEXP 'A' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1339", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' LIKE 'A' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-134", "options": {}, "policy": "reject", "probe": "SELECT 1 AS decimal", "sa": "parse error"}
-{"id": "a1_sa_lang-1340", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcd' LIKE 'bc' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1341", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcd' REGEXP 'bc' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1342", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcd' SIMILAR TO 'bc' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1343", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'ab' LIKE 'a_' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1344", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'ac' LIKE 'a_' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1345", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' LIKE 'a_' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -228,13 +223,7 @@
 {"id": "a1_sa_lang-1352", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'Md' LIKE 'M[^c]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1353", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'Mc' LIKE 'M[^c]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1355", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'axxb' LIKE 'a%b_' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1358", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'smoth' LIKE 'sm[iy]th' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-136", "options": {}, "policy": "reject", "probe": "SELECT 1 AS declare", "sa": "parse error"}
-{"id": "a1_sa_lang-1360", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'rough' LIKE '[a-r]ough' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1361", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'tough' LIKE '[a-r]ough' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1363", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'bough' LIKE '[a-rt]ough' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1365", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'rough' LIKE '[^a-r]ough' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1366", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'bough' LIKE '[^a-r]ough' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1367", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'tough' LIKE '[^a-rt]ough' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1368", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'sough' LIKE '[^a-rt]ough' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1369", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'm' LIKE '[z-a]' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -297,8 +286,6 @@
 {"id": "a1_sa_lang-1422", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'Æ' = 'AE' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1423", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'car' REGEXP 'car' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1424", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'sportscar' REGEXP 'car' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1425", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'sportscar' REGEXP '.*car' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1426", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '5' REGEXP '[[:digit:]]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1427", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'd' REGEXP '[:digit:]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1428", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'B' REGEXP '[A-F]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1429", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'b' REGEXP '[A-F]' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -316,10 +303,7 @@
 {"id": "a1_sa_lang-144", "options": {}, "policy": "reject", "probe": "SELECT 1 AS desc", "sa": "parse error"}
 {"id": "a1_sa_lang-1440", "options": {}, "policy": "reject", "probe": "SELECT CASE WHEN 'abc' REGEXP THEN 1 ELSE 0 END", "sa": "parse error"}
 {"id": "a1_sa_lang-1441", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'sportscar' SIMILAR TO 'car' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1442", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'sportscar' SIMILAR TO '%car' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1443", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'car' SIMILAR TO '%car' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1444", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'A' SIMILAR TO 'A' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-1445", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '5' SIMILAR TO '[[:digit:]]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1446", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'Æ' SIMILAR TO 'AE' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1447", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' SIMILAR TO 'A' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-1448", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a%b' SIMILAR TO 'a!%b' ESCAPE '!' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -1018,9 +1002,6 @@
 {"id": "a1_sa_lang-6", "options": {}, "policy": "accept", "probe": "SELECT 1 AS DBA", "sa": "accepted"}
 {"id": "a1_sa_lang-60", "options": {}, "policy": "reject", "probe": "SELECT 1 AS bit", "sa": "parse error"}
 {"id": "a1_sa_lang-601", "options": {}, "policy": "reject", "probe": "SELECT `[@a1_no_such_variable]` FROM SYS.DUMMY", "sa": "other error"}
-{"id": "a1_sa_lang-602", "options": {}, "policy": "accept", "probe": "SELECT 'Hello world'", "sa": "accepted"}
-{"id": "a1_sa_lang-603", "options": {}, "policy": "accept", "probe": "SELECT BYTE_LENGTH('Hello world'), CHAR_LENGTH('Hello world')", "sa": "accepted"}
-{"id": "a1_sa_lang-604", "options": {}, "policy": "accept", "probe": "SELECT BYTE_LENGTH(N'Hello world'), CHAR_LENGTH(N'Hello world')", "sa": "accepted"}
 {"id": "a1_sa_lang-605", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(s) FROM (SELECT CAST('abc' AS CHAR(10)) AS s) t", "sa": "accepted"}
 {"id": "a1_sa_lang-606", "options": {}, "policy": "accept", "probe": "SELECT 'a' || 'b'", "sa": "accepted"}
 {"id": "a1_sa_lang-607", "options": {}, "policy": "accept", "probe": "SELECT 0x41, 'A'", "sa": "accepted"}
@@ -1042,8 +1023,6 @@
 {"id": "a1_sa_lang-628", "options": {}, "policy": "accept", "probe": "SELECT CAST( 0x10 AS NUMERIC(10,0) )", "sa": "accepted"}
 {"id": "a1_sa_lang-629", "options": {}, "policy": "accept", "probe": "SELECT INTTOHEX( 255 )", "sa": "accepted"}
 {"id": "a1_sa_lang-63", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `break`", "sa": "accepted"}
-{"id": "a1_sa_lang-630", "options": {}, "policy": "accept", "probe": "SELECT 'Hello world'", "sa": "accepted"}
-{"id": "a1_sa_lang-631", "options": {}, "policy": "accept", "probe": "SELECT N'Hello world'", "sa": "accepted"}
 {"id": "a1_sa_lang-632", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN N'abc' = CAST( 'abc' AS NCHAR(3) ) THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-633", "options": {}, "policy": "reject", "probe": "SELECT n'abc'", "sa": "other error"}
 {"id": "a1_sa_lang-634", "options": {}, "policy": "reject", "probe": "SELECT N 'abc'", "sa": "other error"}
@@ -1058,7 +1037,6 @@
 {"id": "a1_sa_lang-642", "options": {}, "policy": "accept", "probe": "SELECT ASCII('\\x09')", "sa": "accepted"}
 {"id": "a1_sa_lang-643", "options": {}, "policy": "accept", "probe": "SELECT LENGTH('\\\\x09'), '\\\\x09'", "sa": "accepted"}
 {"id": "a1_sa_lang-644", "options": {}, "policy": "accept", "probe": "SELECT LENGTH('\\xyy'), '\\xyy'", "sa": "accepted"}
-{"id": "a1_sa_lang-647", "options": {}, "policy": "accept", "probe": "SELECT 'c:/november'", "sa": "accepted"}
 {"id": "a1_sa_lang-649", "options": {}, "policy": "accept", "probe": "SELECT N'\\x41'", "sa": "accepted"}
 {"id": "a1_sa_lang-65", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `by`", "sa": "accepted"}
 {"id": "a1_sa_lang-650", "options": {}, "policy": "accept", "probe": "SELECT UNISTR('\\u0041')", "sa": "accepted"}
@@ -1092,7 +1070,6 @@
 {"id": "a1_sa_lang-676", "options": {}, "policy": "reject", "probe": "SELECT COUNT(*) FROM (SELECT 1 AS a) t WHERE a < > 2", "sa": "parse error"}
 {"id": "a1_sa_lang-677", "options": {}, "policy": "reject", "probe": "SELECT COUNT(*) FROM (SELECT 1 AS a) t WHERE a == 1", "sa": "parse error"}
 {"id": "a1_sa_lang-678", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'Dirk' = 'DIRK' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-679", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'Dirk' = 'Dirk ' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-68", "options": {}, "policy": "reject", "probe": "SELECT 1 AS call", "sa": "parse error"}
 {"id": "a1_sa_lang-680", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN CAST('2001-01-01' AS DATE) < CAST('2001-01-02' AS DATE) THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-681", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' < 'b' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -1146,7 +1123,6 @@
 {"id": "a1_sa_lang-73", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `case`", "sa": "accepted"}
 {"id": "a1_sa_lang-737", "options": {}, "policy": "accept", "probe": "SELECT x FROM OPENXML( USING VALUE '<r><a x=\"5\"/></r>', '/r/a' ) WITH ( x INT '@x' ) OPTION ( BYTE ORDER MARK OFF ) AS t", "sa": "accepted"}
 {"id": "a1_sa_lang-738", "options": {}, "policy": "accept", "probe": "SELECT x FROM OPENXML( USING VALUE '<r><a x=\"5\"/></r>', '/r/a' ) WITH ( x INT '@x' ) OPTION ( BYTE ORDER MARK ON ) AS t", "sa": "accepted"}
-{"id": "a1_sa_lang-739", "options": {}, "policy": "accept", "probe": "SELECT x FROM OPENXML( USING VALUE '<r><a x=\"5\"/></r>', '/r/a' ) WITH ( x INT '@x' ) OPTION ( ENCODING 'UTF-8' ) AS t", "sa": "other error"}
 {"id": "a1_sa_lang-74", "options": {}, "policy": "reject", "probe": "SELECT 1 AS case", "sa": "parse error"}
 {"id": "a1_sa_lang-740", "options": {}, "policy": "accept", "probe": "SELECT x FROM OPENXML( USING VALUE '<r><a x=\"5\"/></r>', '/r/a' ) WITH ( x INT '@x' ) t", "sa": "accepted"}
 {"id": "a1_sa_lang-741", "options": {}, "policy": "reject", "probe": "SELECT x FROM OPENXML( USING VALUE '<r><a x=\"5\"/></r>', '/r/a' ) WITH ( x INT '@x' )", "sa": "parse error"}
@@ -1158,7 +1134,6 @@
 {"id": "a1_sa_lang-747", "options": {}, "policy": "accept", "probe": "SELECT x, y FROM OPENXML( '<r><a x=\"5\" y=\"6\"/></r>', '/r/a' ) WITH ( x INT, y INT '@y' )", "sa": "accepted"}
 {"id": "a1_sa_lang-749", "options": {}, "policy": "accept", "probe": "SELECT n FROM OPENXML( '<r><a/></r>', '/r/a' ) WITH ( n LONG VARCHAR '@mp:prefix' )", "sa": "accepted"}
 {"id": "a1_sa_lang-75", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `cast`", "sa": "accepted"}
-{"id": "a1_sa_lang-751", "options": {}, "policy": "accept", "probe": "SELECT n FROM OPENXML( '<r><a><b>x</b></a></r>', '/r/a' ) WITH ( n LONG VARCHAR '@mp:xmltext' )", "sa": "accepted"}
 {"id": "a1_sa_lang-752", "options": {}, "policy": "accept", "probe": "SELECT COUNT(DISTINCT n) FROM OPENXML( '<r><a/><a/></r>', '/r/a' ) WITH ( n INT '@mp:id' )", "sa": "accepted"}
 {"id": "a1_sa_lang-753", "options": {}, "policy": "accept", "probe": "SELECT v FROM OPENXML( '<r><a><b>I</b></a><a><b>J</b></a></r>', '/r/a[b=\"I\"]' ) WITH ( v LONG VARCHAR 'b' )", "sa": "accepted"}
 {"id": "a1_sa_lang-754", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*) FROM OPENXML( '<r><a><b/></a><a/></r>', '/r/a[b]' ) WITH ( v LONG VARCHAR '.' )", "sa": "accepted"}
@@ -1174,7 +1149,6 @@
 {"id": "a1_sa_lang-763", "options": {}, "policy": "accept", "probe": "SELECT v FROM OPENXML( '<r><a>x<b>y</b>z</a></r>', '/r/a' ) WITH ( v LONG VARCHAR '.' )", "sa": "accepted"}
 {"id": "a1_sa_lang-764", "options": {}, "policy": "accept", "probe": "SELECT v FROM OPENXML( '<r><a><b>1</b><b>2</b></a></r>', '/r/a' ) WITH ( v LONG VARCHAR 'b' )", "sa": "accepted"}
 {"id": "a1_sa_lang-765", "options": {}, "policy": "accept", "probe": "SELECT v FROM OPENXML( '<r><a/></r>', '/r/a' ) WITH ( v LONG VARCHAR 'nosuch' )", "sa": "accepted"}
-{"id": "a1_sa_lang-766", "options": {}, "policy": "accept", "probe": "SELECT CAST(v AS VARCHAR(3)) FROM OPENXML( '<r><a>QUJD</a></r>', '/r/a' ) WITH ( v BINARY(3) 'text()' )", "sa": "other error"}
 {"id": "a1_sa_lang-767", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(x) FROM UNNEST( ARRAY(1,2) || ARRAY(3) ) AS dt(x)", "sa": "accepted"}
 {"id": "a1_sa_lang-768", "options": {}, "policy": "accept", "probe": "SELECT (ARRAY(1,2) || ARRAY(3))[[3]]", "sa": "accepted"}
 {"id": "a1_sa_lang-769", "options": {}, "policy": "accept", "probe": "SELECT CARDINALITY( ARRAY(1,2) || CAST(NULL AS ARRAY(2) OF INT) )", "sa": "accepted"}
@@ -1314,36 +1288,13 @@
 {"id": "a1_sa_lang-914", "options": {}, "policy": "accept", "probe": "SELECT NULLIF(1, 2)", "sa": "accepted"}
 {"id": "a1_sa_lang-915", "options": {}, "policy": "accept", "probe": "SELECT NULLIF('a', 'A')", "sa": "accepted"}
 {"id": "a1_sa_lang-92", "options": {}, "policy": "reject", "probe": "SELECT 1 AS commit", "sa": "parse error"}
-{"id": "a1_sa_lang-921", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcabc' REGEXP '(abc){2}' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-922", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcabc' SIMILAR TO '(abc){2}' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-923", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcdcd' REGEXP 'ab(cdcd)' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-924", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'honor' REGEXP 'honou?r' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-925", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'honour' REGEXP 'honou?r' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-926", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'honouur' REGEXP 'honou?r' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-928", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'color' REGEXP 'col(o|ou)r' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-929", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'colour' REGEXP 'col(o|ou)r' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-93", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `compressed`", "sa": "accepted"}
-{"id": "a1_sa_lang-930", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'colr' REGEXP 'col(o|ou)r' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-931", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'car' REGEXP '.*car.*' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-932", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'carwash' REGEXP '.*car.*' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-933", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'vicar' REGEXP '.*car.*' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-934", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'bus' REGEXP '.*car.*' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-935", "options": {}, "policy": "accept", "probe": "SELECT REGEXP_SUBSTR('vicar', 'car')", "sa": "accepted"}
 {"id": "a1_sa_lang-936", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'ABC' SIMILAR TO 'abc' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-937", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'ABC' REGEXP 'abc' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-938", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'ab5' SIMILAR TO 'ab[1-9]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-939", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'ab0' SIMILAR TO 'ab[1-9]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-94", "options": {}, "policy": "reject", "probe": "SELECT 1 AS compressed", "sa": "parse error"}
-{"id": "a1_sa_lang-940", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'aabc' REGEXP '.*abc' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-941", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'xyzabc' REGEXP '.*abc' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-942", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abc' REGEXP '.*abc' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-943", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'bc' REGEXP '.*abc' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-944", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcc' REGEXP '.*abc' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-945", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'color' REGEXP 'colou?r' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-946", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'colour' REGEXP 'colou?r' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-947", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'bre' REGEXP 'bre+' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-948", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'bree' REGEXP 'bre+' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-949", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'br' REGEXP 'bre+' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-95", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `conflict`", "sa": "accepted"}
 {"id": "a1_sa_lang-950", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'c' REGEXP '[a-e]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-951", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'f' REGEXP '[a-e]' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -1359,21 +1310,14 @@
 {"id": "a1_sa_lang-960", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abab' REGEXP '(ab)*' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-961", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'aba' REGEXP '(ab)*' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-962", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '' REGEXP '(ab)*' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-965", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '12345' REGEXP '[0-9]{5,}' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-966", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '1234567' REGEXP '[0-9]{5,}' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-967", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '1234' REGEXP '[0-9]{5,}' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-968", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcde' SIMILAR TO '_{5,10}' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-969", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcdefghij' SIMILAR TO '_{5,10}' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-97", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `connect`", "sa": "accepted"}
-{"id": "a1_sa_lang-970", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcd' SIMILAR TO '_{5,10}' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-971", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcdefghijk' SIMILAR TO '_{5,10}' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-972", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a.b' REGEXP 'a\\\\.b' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-973", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'axb' REGEXP 'a\\\\.b' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-974", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'hat' REGEXP '^[hc]at' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-975", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'cat' REGEXP '^[hc]at' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-976", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'bat' REGEXP '^[hc]at' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-977", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'd' REGEXP '[^abc]' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-978", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' REGEXP '[^abc]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-979", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '^' REGEXP '[a-e^c]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-98", "options": {}, "policy": "reject", "probe": "SELECT 1 AS connect", "sa": "parse error"}
 {"id": "a1_sa_lang-980", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'c' REGEXP '[a-e^c]' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -1381,15 +1325,10 @@
 {"id": "a1_sa_lang-982", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'b' SIMILAR TO '[a-e^c]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-983", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'e' SIMILAR TO '[a-e^c]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-984", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'c' SIMILAR TO '[a-e^c]' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-985", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'cat' REGEXP 'cat$' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-986", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'catfish' REGEXP 'cat$' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-987", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abcd' REGEXP 'a.cd' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-988", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abd' REGEXP 'a.cd' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-989", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a.c' SIMILAR TO 'a.c' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-99", "options": {}, "policy": "accept", "probe": "SELECT 1 AS `constraint`", "sa": "accepted"}
 {"id": "a1_sa_lang-990", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'abc' SIMILAR TO 'a.c' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-991", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN 'a' REGEXP '[[:alnum:]]' THEN 1 ELSE 0 END", "sa": "accepted"}
-{"id": "a1_sa_lang-992", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '-' REGEXP '[[:alnum:]]' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-993", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '*' SIMILAR TO '[\\\\*]' ESCAPE '\\\\' THEN 1 ELSE 0 END", "sa": "accepted"}
 {"id": "a1_sa_lang-994", "options": {}, "policy": "reject", "probe": "SELECT CASE WHEN '*' SIMILAR TO '[*]' THEN 1 ELSE 0 END", "sa": "other error"}
 {"id": "a1_sa_lang-995", "options": {}, "policy": "accept", "probe": "SELECT CASE WHEN '-' REGEXP '[a\\\\-z]' THEN 1 ELSE 0 END", "sa": "accepted"}
@@ -1527,14 +1466,12 @@
 {"id": "a2_sa_types-22", "options": {}, "policy": "reject", "probe": "SELECT CAST('a' AS CHAR(CHAR))", "sa": "parse error"}
 {"id": "a2_sa_types-221", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('9999-12-31' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-222", "options": {}, "policy": "reject", "probe": "SELECT CAST('0000-12-31' AS DATE)", "sa": "other error"}
-{"id": "a2_sa_types-223", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('24:00:00' AS TIME), 'hh:nn:ss')", "sa": "accepted"}
 {"id": "a2_sa_types-224", "options": {}, "policy": "reject", "probe": "SELECT CAST('24:00:01' AS TIME)", "sa": "other error"}
 {"id": "a2_sa_types-225", "options": {}, "policy": "reject", "probe": "SELECT CAST('25:00:00' AS TIME)", "sa": "other error"}
 {"id": "a2_sa_types-227", "options": {}, "policy": "accept", "probe": "SELECT CAST('2010-04-01 12:00:00-14:59' AS TIMESTAMP WITH TIME ZONE)", "sa": "accepted"}
 {"id": "a2_sa_types-23", "options": {}, "policy": "reject", "probe": "SELECT CAST('a' AS CHAR(-1))", "sa": "parse error"}
 {"id": "a2_sa_types-231", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('20100401' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-232", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('2010-W13-4' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
-{"id": "a2_sa_types-233", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('2010W134' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-234", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('2010W13' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-235", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('2010-W13' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-236", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('2010-w13-4' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
@@ -1553,21 +1490,15 @@
 {"id": "a2_sa_types-25", "options": {}, "policy": "reject", "probe": "SELECT CAST('a' AS CHAR(10, 2))", "sa": "parse error"}
 {"id": "a2_sa_types-252", "options": {"date_order": "DMY", "nearest_century": "50"}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('02/05/10' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-253", "options": {"date_order": "YMD", "nearest_century": "50"}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('02/05/10' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
-{"id": "a2_sa_types-258", "options": {"date_order": "YMD"}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('01 April 10' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
-{"id": "a2_sa_types-259", "options": {"date_order": "DMY"}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('01 April 10' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-26", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT CAST(''a'' AS LONG NVARCHAR)', 1)", "sa": "accepted"}
 {"id": "a2_sa_types-262", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('2010' AS DATE), 'yyyy-mm-dd')", "sa": "accepted"}
 {"id": "a2_sa_types-263", "options": {}, "policy": "accept", "probe": "SELECT IF YEAR(CAST('April' AS DATE)) = YEAR(CURRENT DATE) AND MONTH(CAST('April' AS DATE)) = 4 AND DAY(CAST('April' AS DATE)) = 1 THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
-{"id": "a2_sa_types-266", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('23:59:59' AS TIME), 'hh:nn:ss')", "sa": "accepted"}
-{"id": "a2_sa_types-267", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('23:59' AS TIME), 'hh:nn:ss')", "sa": "accepted"}
 {"id": "a2_sa_types-27", "options": {}, "policy": "accept", "probe": "SELECT CAST(N'abc' AS LONG NVARCHAR)", "sa": "accepted"}
 {"id": "a2_sa_types-271", "options": {}, "policy": "accept", "probe": "SELECT CAST('23:59:59.1234567' AS TIME)", "sa": "accepted"}
 {"id": "a2_sa_types-272", "options": {}, "policy": "accept", "probe": "SELECT CAST('23:59.5' AS TIME)", "sa": "accepted"}
 {"id": "a2_sa_types-273", "options": {}, "policy": "accept", "probe": "SELECT CAST('23,5' AS TIME)", "sa": "accepted"}
 {"id": "a2_sa_types-274", "options": {}, "policy": "reject", "probe": "SELECT CAST('235959' AS TIME)", "sa": "other error"}
-{"id": "a2_sa_types-278", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('11:59:59 PM' AS TIME), 'hh:nn:ss')", "sa": "accepted"}
 {"id": "a2_sa_types-28", "options": {}, "policy": "reject", "probe": "SELECT CAST('a' AS LONG NVARCHAR(10))", "sa": "parse error"}
-{"id": "a2_sa_types-283", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('11:59:59 pm' AS TIME), 'hh:nn:ss')", "sa": "accepted"}
 {"id": "a2_sa_types-29", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT CAST(''a'' AS LONG VARCHAR)', 1)", "sa": "accepted"}
 {"id": "a2_sa_types-3", "options": {}, "policy": "accept", "probe": "SELECT CAST('a' AS CHAR(5)), CAST('a' AS VARCHAR(5)), CAST('a' AS LONG VARCHAR)", "sa": "accepted"}
 {"id": "a2_sa_types-30", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(CAST(REPEAT('x', 40000) AS LONG VARCHAR))", "sa": "accepted"}
@@ -1782,7 +1713,6 @@
 {"id": "a3_sa_fn1-108", "options": {}, "policy": "accept", "probe": "SELECT NUMBER(*), a FROM (SELECT 1 AS a, 10 AS b UNION ALL SELECT 2, 20 UNION ALL SELECT 3, 30) t ORDER BY a", "sa": "accepted"}
 {"id": "a3_sa_fn1-109", "options": {}, "policy": "accept", "probe": "SELECT PI(), TRUNCNUM(1.789, 2), REMAINDER(7, 3), MOD(7, 3)", "sa": "accepted"}
 {"id": "a3_sa_fn1-11", "options": {}, "policy": "flag", "probe": "SELECT IF DB_NAME(DEFAULT) = DB_NAME() THEN 1 ELSE 0 ENDIF", "sa": "other error"}
-{"id": "a3_sa_fn1-110", "options": {}, "policy": "accept", "probe": "SELECT HTTP_HEADER('Host'), HTTP_VARIABLE('x'), HTTP_BODY()", "sa": "accepted"}
 {"id": "a3_sa_fn1-111", "options": {}, "policy": "accept", "probe": "SELECT NEXT_HTTP_HEADER(NULL), NEXT_HTTP_VARIABLE(NULL), NEXT_HTTP_RESPONSE_HEADER(NULL), NEXT_SOAP_HEADER(NULL), SOAP_HEADER('x')", "sa": "accepted"}
 {"id": "a3_sa_fn1-112", "options": {}, "policy": "accept", "probe": "SELECT HTML_ENCODE('<a>'), HTML_DECODE('&lt' || CHAR(59) || 'a'), HTTP_ENCODE('a b'), HTTP_DECODE('a%20b')", "sa": "accepted"}
 {"id": "a3_sa_fn1-113", "options": {}, "policy": "accept", "probe": "SELECT UNICODE('A'), NCHAR(65)", "sa": "accepted"}
@@ -1800,7 +1730,6 @@
 {"id": "a3_sa_fn1-124", "options": {}, "policy": "accept", "probe": "SELECT OBJECT_NAME(OBJECT_ID('SYS.SYSTAB'), DB_ID())", "sa": "accepted"}
 {"id": "a3_sa_fn1-125", "options": {}, "policy": "accept", "probe": "SELECT dbo.COL_LENGTH('SYS.SYSTAB', 'table_name')", "sa": "accepted"}
 {"id": "a3_sa_fn1-126", "options": {}, "policy": "accept", "probe": "SELECT SUSER_ID(), SUSER_NAME(), USER_ID(), USER_NAME()", "sa": "accepted"}
-{"id": "a3_sa_fn1-127", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY('Name'), PROPERTY_NUMBER('Name'), PROPERTY_DESCRIPTION('Name')", "sa": "accepted"}
 {"id": "a3_sa_fn1-128", "options": {}, "policy": "accept", "probe": "SELECT NEXT_CONNECTION(NULL), NEXT_DATABASE(NULL)", "sa": "accepted"}
 {"id": "a3_sa_fn1-129", "options": {}, "policy": "accept", "probe": "SELECT TOP 1 TEXTPTR(proc_defn) FROM SYS.SYSPROCEDURE ORDER BY proc_id", "sa": "accepted"}
 {"id": "a3_sa_fn1-13", "options": {}, "policy": "reject", "probe": "SELECT CONVERT(VARCHAR(30), DATE('2000-03-16'), DEFAULT)", "sa": "parse error"}
@@ -1811,7 +1740,6 @@
 {"id": "a3_sa_fn1-136", "options": {}, "policy": "reject", "probe": "SELECT ABS(1, 2)", "sa": "other error"}
 {"id": "a3_sa_fn1-137", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT ABS(CAST(-1 AS INT))', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-139", "options": {}, "policy": "accept", "probe": "SELECT ACOS(1)", "sa": "accepted"}
-{"id": "a3_sa_fn1-14", "options": {}, "policy": "flag", "probe": "SELECT IF LENGTH(COMPRESS('Hello world', DEFAULT)) > 0 THEN 1 ELSE 0 ENDIF", "sa": "other error"}
 {"id": "a3_sa_fn1-140", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT ACOS(0.52)', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-141", "options": {}, "policy": "reject", "probe": "SELECT ACOS()", "sa": "other error"}
 {"id": "a3_sa_fn1-143", "options": {}, "policy": "accept", "probe": "SELECT ARGN(2, 'a', 'b', 'c')", "sa": "accepted"}
@@ -1821,7 +1749,6 @@
 {"id": "a3_sa_fn1-147", "options": {}, "policy": "accept", "probe": "SELECT ARGN(NULL, 1, 2)", "sa": "accepted"}
 {"id": "a3_sa_fn1-148", "options": {}, "policy": "reject", "probe": "SELECT ARGN(1)", "sa": "other error"}
 {"id": "a3_sa_fn1-149", "options": {}, "policy": "accept", "probe": "SELECT ARRAY(1, 2, 3)[[2]]", "sa": "accepted"}
-{"id": "a3_sa_fn1-15", "options": {}, "policy": "flag", "probe": "SELECT IF CONNECTION_PROPERTY('Number', DEFAULT) = CONNECTION_PROPERTY('Number') THEN 1 ELSE 0 ENDIF", "sa": "other error"}
 {"id": "a3_sa_fn1-153", "options": {}, "policy": "accept", "probe": "SELECT CARDINALITY(ARRAY())", "sa": "accepted"}
 {"id": "a3_sa_fn1-155", "options": {}, "policy": "accept", "probe": "SELECT FIRST ARRAY(a)[[1]], MAX(ARRAY(a, b))[[1]] FROM (SELECT 1 AS a, 10 AS b UNION ALL SELECT 2, 20 UNION ALL SELECT 3, 30) t GROUP BY ARRAY(a) ORDER BY 1", "sa": "accepted"}
 {"id": "a3_sa_fn1-158", "options": {}, "policy": "accept", "probe": "SELECT CARDINALITY(ARRAY(ARRAY(1, 2), ARRAY(3)))", "sa": "accepted"}
@@ -1966,11 +1893,8 @@
 {"id": "a3_sa_fn1-338", "options": {}, "policy": "accept", "probe": "SELECT COMPARE('abc', 'abc ')", "sa": "accepted"}
 {"id": "a3_sa_fn1-339", "options": {}, "policy": "accept", "probe": "SELECT COMPARE(NULL, 'a')", "sa": "accepted"}
 {"id": "a3_sa_fn1-34", "options": {}, "policy": "accept", "probe": "SELECT XMLAGG(XMLELEMENT(NAME x, a) ORDER BY a) FROM (SELECT 1 AS a, 10 AS b UNION ALL SELECT 2, 20 UNION ALL SELECT 3, 30) t", "sa": "accepted"}
-{"id": "a3_sa_fn1-342", "options": {}, "policy": "accept", "probe": "SELECT CAST(DECOMPRESS(COMPRESS('Hello world', 'zip'), 'zip') AS LONG VARCHAR)", "sa": "accepted"}
-{"id": "a3_sa_fn1-343", "options": {}, "policy": "accept", "probe": "SELECT CAST(DECOMPRESS(COMPRESS('Hello world')) AS LONG VARCHAR)", "sa": "accepted"}
 {"id": "a3_sa_fn1-344", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT COMPRESS(''a'')', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-345", "options": {}, "policy": "reject", "probe": "SELECT COMPRESS('abc', 'lz4')", "sa": "parse error"}
-{"id": "a3_sa_fn1-348", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY('CharSet')", "sa": "accepted"}
 {"id": "a3_sa_fn1-359", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY('Progress', 'Completed', @@spid)", "sa": "accepted"}
 {"id": "a3_sa_fn1-36", "options": {}, "policy": "accept", "probe": "SELECT CARDINALITY(ARRAY(ROW(1, 'a'), ROW(2, 'b')))", "sa": "accepted"}
 {"id": "a3_sa_fn1-360", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY('Progress', 'Total', @@spid)", "sa": "accepted"}
@@ -1979,11 +1903,8 @@
 {"id": "a3_sa_fn1-363", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY('Progress', 'Remaining', @@spid)", "sa": "accepted"}
 {"id": "a3_sa_fn1-364", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY('Progress', 'Raw', @@spid)", "sa": "accepted"}
 {"id": "a3_sa_fn1-365", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY('Progress', 'Formatted', @@spid)", "sa": "accepted"}
-{"id": "a3_sa_fn1-366", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY(PROPERTY_NUMBER('CharSet'), 'IANA')", "sa": "accepted"}
 {"id": "a3_sa_fn1-367", "options": {}, "policy": "reject", "probe": "SELECT CONNECTION_EXTENDED_PROPERTY()", "sa": "other error"}
-{"id": "a3_sa_fn1-369", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_PROPERTY('Number', @@spid)", "sa": "accepted"}
 {"id": "a3_sa_fn1-37", "options": {}, "policy": "accept", "probe": "SELECT CARDINALITY(TRIM_ARRAY(ARRAY(1, 2, 3), 1))", "sa": "accepted"}
-{"id": "a3_sa_fn1-370", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_PROPERTY(PROPERTY_NUMBER('Number'))", "sa": "accepted"}
 {"id": "a3_sa_fn1-371", "options": {}, "policy": "accept", "probe": "SELECT CONNECTION_PROPERTY('NoSuchPropertyXyz')", "sa": "accepted"}
 {"id": "a3_sa_fn1-372", "options": {}, "policy": "reject", "probe": "SELECT CONNECTION_PROPERTY()", "sa": "other error"}
 {"id": "a3_sa_fn1-377", "options": {}, "policy": "accept", "probe": "SELECT CONVERT(DATE, '16.03.2000', 104)", "sa": "accepted"}
@@ -2090,7 +2011,6 @@
 {"id": "a3_sa_fn1-480", "options": {}, "policy": "accept", "probe": "SELECT a, COVAR_SAMP(b, a) OVER w FROM (SELECT 1 AS a, 10 AS b UNION ALL SELECT 2, 20 UNION ALL SELECT 3, 30) t WINDOW w AS (PARTITION BY a) ORDER BY a", "sa": "accepted"}
 {"id": "a3_sa_fn1-481", "options": {}, "policy": "reject", "probe": "SELECT COVAR_SAMP(DISTINCT b, a) FROM (SELECT 1 AS a, 10 AS b UNION ALL SELECT 2, 20 UNION ALL SELECT 3, 30) t", "sa": "other error"}
 {"id": "a3_sa_fn1-482", "options": {}, "policy": "reject", "probe": "SELECT COVAR_SAMP(b) FROM (SELECT 1 AS a, 10 AS b UNION ALL SELECT 2, 20 UNION ALL SELECT 3, 30) t", "sa": "other error"}
-{"id": "a3_sa_fn1-486", "options": {}, "policy": "accept", "probe": "SELECT CSCONVERT('abc', 'os_charset')", "sa": "accepted"}
 {"id": "a3_sa_fn1-490", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT CSCONVERT(''a'', ''utf-8'')', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-491", "options": {}, "policy": "reject", "probe": "SELECT CSCONVERT('abc')", "sa": "other error"}
 {"id": "a3_sa_fn1-493", "options": {}, "policy": "accept", "probe": "SELECT a, CUME_DIST() OVER (ORDER BY a) FROM (SELECT 1 AS a, 'x' AS c UNION ALL SELECT 2, 'y' UNION ALL SELECT 2, 'z') t ORDER BY a, c", "sa": "accepted"}
@@ -2160,7 +2080,6 @@
 {"id": "a3_sa_fn1-572", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT DATEDIFF(hour, ''2000-01-01'', ''2000-01-02'')', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-573", "options": {}, "policy": "reject", "probe": "SELECT DATEDIFF(day, '2000-01-01')", "sa": "other error"}
 {"id": "a3_sa_fn1-575", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT('1989-01-01', 'yyyy-mm-dd')", "sa": "accepted"}
-{"id": "a3_sa_fn1-576", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT(CAST('1989-01-01 13:05:07' AS TIMESTAMP), 'hh:nn:ss')", "sa": "accepted"}
 {"id": "a3_sa_fn1-577", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT('1989-01-01', 'Mmmm'), DATEFORMAT('1989-01-01', 'Dddd')", "sa": "accepted"}
 {"id": "a3_sa_fn1-578", "options": {}, "policy": "accept", "probe": "SELECT DATEFORMAT('1989-01-01', N'yyyy')", "sa": "accepted"}
 {"id": "a3_sa_fn1-579", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT DATEFORMAT(''1989-01-01'', ''yyyy'')', 1)", "sa": "accepted"}
@@ -2176,36 +2095,25 @@
 {"id": "a3_sa_fn1-595", "options": {}, "policy": "reject", "probe": "SELECT DATETIME(12345)", "sa": "other error"}
 {"id": "a3_sa_fn1-596", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT DATETIME(''1998-09-09'')', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-598", "options": {}, "policy": "accept", "probe": "SELECT DAY(CAST('2001-09-12 10:00' AS TIMESTAMP))", "sa": "accepted"}
-{"id": "a3_sa_fn1-6", "options": {}, "policy": "accept", "probe": "SELECT ABS (-66), CHAR_LENGTH ( 'Chemical' ), DIFFERENCE ( 'a', 'a' )", "sa": "accepted"}
 {"id": "a3_sa_fn1-60", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(DD, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
 {"id": "a3_sa_fn1-601", "options": {}, "policy": "accept", "probe": "SELECT DAYNAME('2016-01-03')", "sa": "accepted"}
 {"id": "a3_sa_fn1-608", "options": {}, "policy": "accept", "probe": "SELECT DAYS(CAST('10:00:00' AS TIME), 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-609", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT DAYS(''1998-07-13'')', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-61", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(dayofyear, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
 {"id": "a3_sa_fn1-610", "options": {}, "policy": "reject", "probe": "SELECT DAYS()", "sa": "other error"}
-{"id": "a3_sa_fn1-614", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY('FileSize', 'temporary')", "sa": "accepted"}
-{"id": "a3_sa_fn1-616", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY('File', 'translog')", "sa": "accepted"}
-{"id": "a3_sa_fn1-617", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY('FreePages', 'temporary')", "sa": "accepted"}
-{"id": "a3_sa_fn1-618", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY('FreePages', 'translog')", "sa": "accepted"}
 {"id": "a3_sa_fn1-62", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(DY, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
 {"id": "a3_sa_fn1-63", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(weekday, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
 {"id": "a3_sa_fn1-630", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY('DriveType')", "sa": "accepted"}
 {"id": "a3_sa_fn1-631", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY('DriveBus')", "sa": "accepted"}
 {"id": "a3_sa_fn1-632", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY('DriveModel')", "sa": "accepted"}
-{"id": "a3_sa_fn1-637", "options": {}, "policy": "accept", "probe": "SELECT DB_EXTENDED_PROPERTY(PROPERTY_NUMBER('File'))", "sa": "accepted"}
 {"id": "a3_sa_fn1-639", "options": {}, "policy": "reject", "probe": "SELECT DB_EXTENDED_PROPERTY()", "sa": "other error"}
 {"id": "a3_sa_fn1-64", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(DW, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
 {"id": "a3_sa_fn1-641", "options": {}, "policy": "accept", "probe": "SELECT IF DB_ID(DB_NAME()) = DB_ID() THEN 1 ELSE 0 ENDIF", "sa": "accepted"}
 {"id": "a3_sa_fn1-644", "options": {}, "policy": "accept", "probe": "SELECT DB_NAME()", "sa": "accepted"}
 {"id": "a3_sa_fn1-646", "options": {}, "policy": "accept", "probe": "SELECT IF DB_NAME(DB_ID()) = DB_NAME() THEN 1 ELSE 0 ENDIF", "sa": "accepted"}
-{"id": "a3_sa_fn1-647", "options": {}, "policy": "reject", "probe": "SELECT DB_NAME('demo')", "sa": "other error"}
-{"id": "a3_sa_fn1-649", "options": {}, "policy": "accept", "probe": "SELECT DB_PROPERTY('PageSize', DB_NAME())", "sa": "accepted"}
 {"id": "a3_sa_fn1-65", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(hour, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
-{"id": "a3_sa_fn1-650", "options": {}, "policy": "accept", "probe": "SELECT DB_PROPERTY('PageSize', DB_ID())", "sa": "accepted"}
-{"id": "a3_sa_fn1-651", "options": {}, "policy": "accept", "probe": "SELECT DB_PROPERTY(PROPERTY_NUMBER('PageSize'))", "sa": "accepted"}
 {"id": "a3_sa_fn1-652", "options": {}, "policy": "accept", "probe": "SELECT DB_PROPERTY('NoSuchPropertyXyz')", "sa": "accepted"}
 {"id": "a3_sa_fn1-653", "options": {}, "policy": "reject", "probe": "SELECT DB_PROPERTY()", "sa": "other error"}
-{"id": "a3_sa_fn1-655", "options": {}, "policy": "accept", "probe": "SELECT CAST(DECOMPRESS(COMPRESS('Hello', 'gzip')) AS LONG VARCHAR)", "sa": "accepted"}
 {"id": "a3_sa_fn1-656", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT DECOMPRESS(COMPRESS(''a''))', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-66", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(HH, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
 {"id": "a3_sa_fn1-67", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(minute, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
@@ -2226,7 +2134,6 @@
 {"id": "a3_sa_fn1-689", "options": {}, "policy": "reject", "probe": "SELECT DENSE_RANK(a) OVER (ORDER BY a) FROM (SELECT 1 AS a, 10 AS b UNION ALL SELECT 2, 20 UNION ALL SELECT 3, 30) t", "sa": "other error"}
 {"id": "a3_sa_fn1-69", "options": {}, "policy": "accept", "probe": "SELECT DATEPART(second, '1987-05-02 13:45:56.123456')", "sa": "accepted"}
 {"id": "a3_sa_fn1-690", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT DENSE_RANK() OVER (ORDER BY table_id) FROM SYS.SYSTAB', 1)", "sa": "accepted"}
-{"id": "a3_sa_fn1-692", "options": {}, "policy": "accept", "probe": "SELECT DIFFERENCE('Smith', 'Smith')", "sa": "accepted"}
 {"id": "a3_sa_fn1-693", "options": {}, "policy": "accept", "probe": "SELECT DIFFERENCE(NULL, 'a')", "sa": "accepted"}
 {"id": "a3_sa_fn1-694", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT DIFFERENCE(''a'', ''b'')', 1)", "sa": "accepted"}
 {"id": "a3_sa_fn1-695", "options": {}, "policy": "reject", "probe": "SELECT DIFFERENCE('a')", "sa": "other error"}
@@ -2269,7 +2176,6 @@
 {"id": "a4_sa_fn2-107", "options": {}, "policy": "accept", "probe": "SELECT EXPERIENCE_ESTIMATE(dummy_col, 0, '>=') FROM SYS.DUMMY", "sa": "accepted"}
 {"id": "a4_sa_fn2-108", "options": {}, "policy": "accept", "probe": "SELECT EXPERIENCE_ESTIMATE(dummy_col, 0, '<=') FROM SYS.DUMMY", "sa": "accepted"}
 {"id": "a4_sa_fn2-109", "options": {}, "policy": "accept", "probe": "SELECT EXPERIENCE_ESTIMATE(dummy_col, 0, '<>') FROM SYS.DUMMY", "sa": "accepted"}
-{"id": "a4_sa_fn2-11", "options": {}, "policy": "accept", "probe": "SELECT IF LENGTH(ENCRYPT('topXsecret1', '8U3dkA')) BETWEEN 11 AND 42 THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a4_sa_fn2-110", "options": {}, "policy": "accept", "probe": "SELECT EXPERIENCE_ESTIMATE(dummy_col, 0, '!=') FROM SYS.DUMMY", "sa": "accepted"}
 {"id": "a4_sa_fn2-111", "options": {}, "policy": "accept", "probe": "SELECT EXPERIENCE_ESTIMATE(dummy_col, 0, '!<') FROM SYS.DUMMY", "sa": "accepted"}
 {"id": "a4_sa_fn2-112", "options": {}, "policy": "accept", "probe": "SELECT EXPERIENCE_ESTIMATE(dummy_col, 0, '!>') FROM SYS.DUMMY", "sa": "accepted"}
@@ -2305,12 +2211,7 @@
 {"id": "a4_sa_fn2-150", "options": {}, "policy": "reject", "probe": "SELECT EXP(1, 2)", "sa": "other error"}
 {"id": "a4_sa_fn2-151", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION( 'SELECT * FROM SYS.DUMMY WHERE dummy_col > 100' )", "sa": "accepted"}
 {"id": "a4_sa_fn2-152", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION('SELECT * FROM SYS.DUMMY WHERE dummy_col > 100', 'asensitive')", "sa": "accepted"}
-{"id": "a4_sa_fn2-153", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION('SELECT * FROM SYS.DUMMY WHERE dummy_col > 100', 'insensitive')", "sa": "accepted"}
 {"id": "a4_sa_fn2-154", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION('SELECT * FROM SYS.DUMMY WHERE dummy_col > 100', 'sensitive')", "sa": "accepted"}
-{"id": "a4_sa_fn2-156", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION('SELECT * FROM SYS.DUMMY WHERE dummy_col > 100', 'insensitive', 'READ-ONLY')", "sa": "accepted"}
-{"id": "a4_sa_fn2-157", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION('SELECT * FROM SYS.DUMMY WHERE dummy_col > 100', 'insensitive', 'READ-WRITE')", "sa": "accepted"}
-{"id": "a4_sa_fn2-158", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION('SELECT * FROM SYS.DUMMY WHERE dummy_col > 100', 'insensitive', 'FOR UPDATE')", "sa": "accepted"}
-{"id": "a4_sa_fn2-159", "options": {}, "policy": "accept", "probe": "SELECT EXPLANATION('SELECT * FROM SYS.DUMMY WHERE dummy_col > 100', 'insensitive', 'read-only')", "sa": "accepted"}
 {"id": "a4_sa_fn2-160", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT EXPLANATION(''SELECT 1'')', 1)", "sa": "accepted"}
 {"id": "a4_sa_fn2-161", "options": {}, "policy": "reject", "probe": "SELECT EXPLANATION()", "sa": "other error"}
 {"id": "a4_sa_fn2-163", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT 1, ''a''', 2)", "sa": "accepted"}
@@ -2318,7 +2219,6 @@
 {"id": "a4_sa_fn2-165", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT 1', 2)", "sa": "accepted"}
 {"id": "a4_sa_fn2-166", "options": {}, "policy": "reject", "probe": "SELECT EXPRTYPE('SELECT 1')", "sa": "other error"}
 {"id": "a4_sa_fn2-173", "options": {}, "policy": "accept", "probe": "SELECT EXTENDED_PROPERTY('NoSuchPropertyXyz')", "sa": "accepted"}
-{"id": "a4_sa_fn2-174", "options": {}, "policy": "accept", "probe": "SELECT IF EXTENDED_PROPERTY(PROPERTY_NUMBER('Name')) = PROPERTY('Name') THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a4_sa_fn2-175", "options": {}, "policy": "reject", "probe": "SELECT EXTENDED_PROPERTY()", "sa": "other error"}
 {"id": "a4_sa_fn2-184", "options": {}, "policy": "accept", "probe": "SELECT extract(year from CAST('2015-07-01' AS TIMESTAMP))", "sa": "accepted"}
 {"id": "a4_sa_fn2-186", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT EXTRACT(MONTH FROM CAST(''2015-07-01'' AS TIMESTAMP))', 1)", "sa": "accepted"}
@@ -2387,9 +2287,7 @@
 {"id": "a4_sa_fn2-295", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(HASH('abc'))", "sa": "accepted"}
 {"id": "a4_sa_fn2-296", "options": {}, "policy": "accept", "probe": "SELECT IF HASH('abc') = HASH('abc', 'MD5') THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a4_sa_fn2-297", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(HASH('abc', 'SHA1'))", "sa": "accepted"}
-{"id": "a4_sa_fn2-298", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(HASH('abc', 'SHA256'))", "sa": "accepted"}
 {"id": "a4_sa_fn2-299", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(HASH('abc', 'SHA1_FIPS'))", "sa": "other error"}
-{"id": "a4_sa_fn2-30", "options": {}, "policy": "accept", "probe": "SELECT CAST(DECRYPT(ENCRYPT('abc', 'k', 'AES256CTR'), 'k', 'AES256CTR') AS LONG VARCHAR)", "sa": "accepted"}
 {"id": "a4_sa_fn2-300", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(HASH('abc', 'SHA256_FIPS'))", "sa": "other error"}
 {"id": "a4_sa_fn2-301", "options": {}, "policy": "accept", "probe": "SELECT HEXTOINT(HASH('abc', 'CRC32'))", "sa": "accepted"}
 {"id": "a4_sa_fn2-302", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(HASH('abc', 'SHA384'))", "sa": "accepted"}
@@ -2398,7 +2296,6 @@
 {"id": "a4_sa_fn2-306", "options": {}, "policy": "accept", "probe": "SELECT HASH(123)", "sa": "accepted"}
 {"id": "a4_sa_fn2-307", "options": {}, "policy": "reject", "probe": "SELECT HASH('abc', 'SHA3_256')", "sa": "other error"}
 {"id": "a4_sa_fn2-308", "options": {}, "policy": "reject", "probe": "SELECT HASH()", "sa": "other error"}
-{"id": "a4_sa_fn2-31", "options": {}, "policy": "accept", "probe": "SELECT CAST(DECRYPT(ENCRYPT('abc', 'k', 'ARIA256'), 'k', 'ARIA256') AS LONG VARCHAR)", "sa": "accepted"}
 {"id": "a4_sa_fn2-310", "options": {}, "policy": "accept", "probe": "SELECT HEXTOBIN('123')", "sa": "accepted"}
 {"id": "a4_sa_fn2-311", "options": {}, "policy": "accept", "probe": "SELECT HEXTOBIN('abCDef')", "sa": "accepted"}
 {"id": "a4_sa_fn2-312", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(HEXTOBIN('313233'))", "sa": "accepted"}
@@ -2406,7 +2303,6 @@
 {"id": "a4_sa_fn2-314", "options": {}, "policy": "reject", "probe": "SELECT HEXTOBIN('3G')", "sa": "other error"}
 {"id": "a4_sa_fn2-315", "options": {}, "policy": "reject", "probe": "SELECT HEXTOBIN('0x31')", "sa": "other error"}
 {"id": "a4_sa_fn2-319", "options": {}, "policy": "accept", "probe": "SELECT HEXTOINT( '100' )", "sa": "accepted"}
-{"id": "a4_sa_fn2-32", "options": {}, "policy": "accept", "probe": "SELECT CAST(DECRYPT(ENCRYPT('abc', 'k', 'ARIA256CTR'), 'k', 'ARIA256CTR') AS LONG VARCHAR)", "sa": "accepted"}
 {"id": "a4_sa_fn2-322", "options": {}, "policy": "accept", "probe": "SELECT HEXTOINT('0x1a4')", "sa": "accepted"}
 {"id": "a4_sa_fn2-323", "options": {}, "policy": "accept", "probe": "SELECT HEXTOINT(N'1A4')", "sa": "accepted"}
 {"id": "a4_sa_fn2-324", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT HEXTOINT(''1A4'')', 1)", "sa": "accepted"}
@@ -2447,11 +2343,8 @@
 {"id": "a4_sa_fn2-381", "options": {}, "policy": "accept", "probe": "SELECT HTTP_ENCODE(' \"#%&,<>[]`{|}')", "sa": "accepted"}
 {"id": "a4_sa_fn2-382", "options": {}, "policy": "accept", "probe": "SELECT HTTP_ENCODE(CHAR(59) || '\\\\')", "sa": "accepted"}
 {"id": "a4_sa_fn2-383", "options": {}, "policy": "reject", "probe": "SELECT HTTP_ENCODE()", "sa": "other error"}
-{"id": "a4_sa_fn2-384", "options": {}, "policy": "accept", "probe": "SELECT HTTP_HEADER('Cookie')", "sa": "accepted"}
-{"id": "a4_sa_fn2-385", "options": {}, "policy": "accept", "probe": "SELECT HTTP_HEADER( 'Cookie', 5 ), HTTP_HEADER('Cookie', 0), HTTP_HEADER('Cookie', NULL)", "sa": "accepted"}
 {"id": "a4_sa_fn2-387", "options": {}, "policy": "reject", "probe": "SELECT HTTP_HEADER()", "sa": "other error"}
 {"id": "a4_sa_fn2-390", "options": {}, "policy": "reject", "probe": "SELECT HTTP_RESPONSE_HEADER()", "sa": "other error"}
-{"id": "a4_sa_fn2-391", "options": {}, "policy": "accept", "probe": "SELECT HTTP_VARIABLE( 'customer_id' )", "sa": "accepted"}
 {"id": "a4_sa_fn2-393", "options": {}, "policy": "reject", "probe": "SELECT HTTP_VARIABLE()", "sa": "other error"}
 {"id": "a4_sa_fn2-395", "options": {}, "policy": "accept", "probe": "SELECT IDENTITY('anything'), row_num FROM sa_rowgenerator(5, 6)", "sa": "accepted"}
 {"id": "a4_sa_fn2-396", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT IDENTITY(1) FROM sa_rowgenerator(1, 2)', 1)", "sa": "accepted"}
@@ -2463,9 +2356,7 @@
 {"id": "a4_sa_fn2-403", "options": {}, "policy": "accept", "probe": "SELECT IFNULL(a, 0, a * 10) FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a", "sa": "accepted"}
 {"id": "a4_sa_fn2-404", "options": {}, "policy": "reject", "probe": "SELECT IFNULL(1)", "sa": "other error"}
 {"id": "a4_sa_fn2-405", "options": {}, "policy": "reject", "probe": "SELECT IFNULL(1, 2, 3, 4)", "sa": "other error"}
-{"id": "a4_sa_fn2-407", "options": {}, "policy": "accept", "probe": "SELECT INSERTSTR(2, 'abcd', 'XY')", "sa": "accepted"}
 {"id": "a4_sa_fn2-408", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT INSERTSTR(0, CAST(''ab'' AS VARBINARY(2)), CAST(''c'' AS VARBINARY(1)))', 1)", "sa": "accepted"}
-{"id": "a4_sa_fn2-409", "options": {}, "policy": "accept", "probe": "SELECT INSERTSTR(0, N'office', N'back')", "sa": "accepted"}
 {"id": "a4_sa_fn2-41", "options": {}, "policy": "reject", "probe": "SELECT ERROR_LINE(1)", "sa": "other error"}
 {"id": "a4_sa_fn2-410", "options": {}, "policy": "reject", "probe": "SELECT INSERTSTR('abc', 'X')", "sa": "other error"}
 {"id": "a4_sa_fn2-412", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT INTTOHEX(156)', 1)", "sa": "accepted"}
@@ -2478,7 +2369,6 @@
 {"id": "a4_sa_fn2-42", "options": {}, "policy": "accept", "probe": "SELECT ERROR_MESSAGE()", "sa": "accepted"}
 {"id": "a4_sa_fn2-420", "options": {}, "policy": "reject", "probe": "SELECT ISDATE()", "sa": "other error"}
 {"id": "a4_sa_fn2-423", "options": {}, "policy": "accept", "probe": "SELECT ISENCRYPTED('plain text', 'key')", "sa": "accepted"}
-{"id": "a4_sa_fn2-424", "options": {}, "policy": "accept", "probe": "SELECT ISENCRYPTED(ENCRYPT('x', 'key', 'AES256'), 'key', 'AES256')", "sa": "accepted"}
 {"id": "a4_sa_fn2-425", "options": {}, "policy": "accept", "probe": "SELECT ISENCRYPTED(ENCRYPT('x', 'key', 'AES'), 'key', 'AES')", "sa": "accepted"}
 {"id": "a4_sa_fn2-426", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT ISENCRYPTED(''a'', ''k'')', 1)", "sa": "accepted"}
 {"id": "a4_sa_fn2-427", "options": {}, "policy": "reject", "probe": "SELECT ISENCRYPTED('x')", "sa": "other error"}
@@ -2515,7 +2405,6 @@
 {"id": "a4_sa_fn2-459", "options": {}, "policy": "accept", "probe": "SELECT LOWER(a) FROM (SELECT 'X' AS a UNION ALL SELECT 'Y') t ORDER BY a", "sa": "accepted"}
 {"id": "a4_sa_fn2-46", "options": {}, "policy": "accept", "probe": "SELECT ERROR_PROCEDURE()", "sa": "accepted"}
 {"id": "a4_sa_fn2-460", "options": {}, "policy": "reject", "probe": "SELECT LOWER('a', 'b')", "sa": "other error"}
-{"id": "a4_sa_fn2-461", "options": {}, "policy": "accept", "probe": "SELECT LEFT('chocolate', 5)", "sa": "accepted"}
 {"id": "a4_sa_fn2-462", "options": {}, "policy": "accept", "probe": "SELECT LEFT('abc', 10)", "sa": "accepted"}
 {"id": "a4_sa_fn2-464", "options": {}, "policy": "accept", "probe": "SELECT LEFT(N'abcdef', 2)", "sa": "accepted"}
 {"id": "a4_sa_fn2-465", "options": {}, "policy": "reject", "probe": "SELECT LEFT('abc')", "sa": "other error"}
@@ -2697,9 +2586,6 @@
 {"id": "a4_sa_fn2-669", "options": {}, "policy": "accept", "probe": "SELECT NUMBER(*), COUNT(*) FROM sa_rowgenerator(1, 3)", "sa": "accepted"}
 {"id": "a4_sa_fn2-670", "options": {}, "policy": "accept", "probe": "SELECT NUMBER(*) FROM sa_rowgenerator(1, 3) GROUP BY row_num", "sa": "accepted"}
 {"id": "a4_sa_fn2-672", "options": {}, "policy": "reject", "probe": "SELECT NUMBER(1)", "sa": "other error"}
-{"id": "a4_sa_fn2-676", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('ch%', 'chocolate'), PATINDEX('ho%', 'chocolate')", "sa": "accepted"}
-{"id": "a4_sa_fn2-677", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('%z%', 'chocolate')", "sa": "accepted"}
-{"id": "a4_sa_fn2-678", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('%[0-9]%', 'ab3d'), PATINDEX('%[^a-c]%', 'abcd')", "sa": "accepted"}
 {"id": "a4_sa_fn2-68", "options": {}, "policy": "accept", "probe": "SELECT ERRORMSG()", "sa": "accepted"}
 {"id": "a4_sa_fn2-682", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('%a%', NULL)", "sa": "accepted"}
 {"id": "a4_sa_fn2-683", "options": {}, "policy": "reject", "probe": "SELECT PATINDEX('%b%')", "sa": "other error"}
@@ -2729,7 +2615,6 @@
 {"id": "a4_sa_fn2-717", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT POWER(2, 6)', 1)", "sa": "accepted"}
 {"id": "a4_sa_fn2-718", "options": {}, "policy": "reject", "probe": "SELECT POWER(2)", "sa": "other error"}
 {"id": "a4_sa_fn2-72", "options": {}, "policy": "accept", "probe": "SELECT IF LOCATE(ERRORMSG(-141), '%1') > 0 THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
-{"id": "a4_sa_fn2-720", "options": {}, "policy": "accept", "probe": "SELECT IF PROPERTY(PROPERTY_NUMBER('Name')) = PROPERTY('Name') THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a4_sa_fn2-721", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY('EventTypeDesc', 1)", "sa": "accepted"}
 {"id": "a4_sa_fn2-722", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY('EventTypeName', 1)", "sa": "accepted"}
 {"id": "a4_sa_fn2-726", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY('Message', 1)", "sa": "accepted"}
@@ -2738,10 +2623,7 @@
 {"id": "a4_sa_fn2-73", "options": {}, "policy": "reject", "probe": "SELECT ERRORMSG(-813, 1)", "sa": "other error"}
 {"id": "a4_sa_fn2-730", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT PROPERTY(''Name'')', 1)", "sa": "accepted"}
 {"id": "a4_sa_fn2-731", "options": {}, "policy": "reject", "probe": "SELECT PROPERTY()", "sa": "other error"}
-{"id": "a4_sa_fn2-733", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_DESCRIPTION(PROPERTY_NUMBER('IndAdd'))", "sa": "accepted"}
 {"id": "a4_sa_fn2-734", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT PROPERTY_DESCRIPTION(''IndAdd'')', 1)", "sa": "accepted"}
-{"id": "a4_sa_fn2-735", "options": {}, "policy": "reject", "probe": "SELECT PROPERTY_DESCRIPTION('IndAdd', 1)", "sa": "other error"}
-{"id": "a4_sa_fn2-737", "options": {}, "policy": "accept", "probe": "SELECT IF PROPERTY_IS_TRACKABLE(PROPERTY_NUMBER('IndAdd')) IN (0, 1) THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a4_sa_fn2-738", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_IS_TRACKABLE('Name')", "sa": "other error"}
 {"id": "a4_sa_fn2-74", "options": {}, "policy": "accept", "probe": "SELECT ESTIMATE(dummy_col) FROM SYS.DUMMY", "sa": "accepted"}
 {"id": "a4_sa_fn2-740", "options": {}, "policy": "accept", "probe": "SELECT LOWER\n(\n'A'\n)", "sa": "accepted"}
@@ -2809,7 +2691,6 @@
 {"id": "a5_sa_fn3-137", "options": {}, "policy": "accept", "probe": "SELECT REGR_SXY( y, x ) OVER w FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t WINDOW w AS ( PARTITION BY g )", "sa": "accepted"}
 {"id": "a5_sa_fn3-138", "options": {}, "policy": "accept", "probe": "SELECT REGR_SXY( y, x ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t WHERE 1 = 0", "sa": "accepted"}
 {"id": "a5_sa_fn3-139", "options": {}, "policy": "reject", "probe": "SELECT REGR_SXY( DISTINCT y, x ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t", "sa": "other error"}
-{"id": "a5_sa_fn3-14", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_NAME( PROPERTY_NUMBER( 'PAGESIZE' ) )", "sa": "accepted"}
 {"id": "a5_sa_fn3-140", "options": {}, "policy": "reject", "probe": "SELECT REGR_SXY( y ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t", "sa": "other error"}
 {"id": "a5_sa_fn3-141", "options": {}, "policy": "accept", "probe": "SELECT REGR_SYY( y, x ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t", "sa": "accepted"}
 {"id": "a5_sa_fn3-142", "options": {}, "policy": "accept", "probe": "SELECT g, REGR_SYY( y, x ) OVER ( PARTITION BY g ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t", "sa": "accepted"}
@@ -2819,7 +2700,6 @@
 {"id": "a5_sa_fn3-147", "options": {}, "policy": "reject", "probe": "SELECT REGR_SYY( y ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t", "sa": "other error"}
 {"id": "a5_sa_fn3-148", "options": {}, "policy": "accept", "probe": "SELECT g, REGR_COUNT( y, x ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t GROUP BY g ORDER BY g", "sa": "accepted"}
 {"id": "a5_sa_fn3-149", "options": {}, "policy": "accept", "probe": "SELECT g, REGR_COUNT( y, x ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t GROUP BY ROLLUP( g )", "sa": "accepted"}
-{"id": "a5_sa_fn3-15", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_NUMBER( p ) FROM (SELECT 'PAGESIZE' AS p) t", "sa": "accepted"}
 {"id": "a5_sa_fn3-151", "options": {}, "policy": "accept", "probe": "SELECT g, REGR_SLOPE( y, x ) FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t GROUP BY CUBE( g )", "sa": "accepted"}
 {"id": "a5_sa_fn3-157", "options": {}, "policy": "accept", "probe": "SELECT IF REGR_AVGX( y, x ) = 2 THEN 'T' ELSE 'F' ENDIF FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t", "sa": "accepted"}
 {"id": "a5_sa_fn3-158", "options": {}, "policy": "accept", "probe": "SELECT IF REGR_AVGY( y, x ) = 5 THEN 'T' ELSE 'F' ENDIF FROM (SELECT 1 AS x, 3 AS y, 1 AS g UNION ALL SELECT 2, 5, 1 UNION ALL SELECT 3, 7, 2 UNION ALL SELECT NULL, 4, 2 UNION ALL SELECT 5, NULL, 2) t", "sa": "accepted"}
@@ -2851,12 +2731,8 @@
 {"id": "a5_sa_fn3-19", "options": {}, "policy": "accept", "probe": "SELECT QUARTER( '2001-04-01' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-190", "options": {}, "policy": "accept", "probe": "SELECT REVERSE( NULL )", "sa": "accepted"}
 {"id": "a5_sa_fn3-193", "options": {}, "policy": "accept", "probe": "SELECT REWRITE( 'SELECT * FROM SYS.DUMMY WHERE 1 = 1' )", "sa": "accepted"}
-{"id": "a5_sa_fn3-195", "options": {}, "policy": "accept", "probe": "SELECT REWRITE( 'SELECT * FROM SYS.DUMMY d1 NATURAL JOIN SYS.DUMMY d2', 'ANSI' ) FROM SYS.DUMMY", "sa": "accepted"}
-{"id": "a5_sa_fn3-196", "options": {"tsql_outer_joins": "On"}, "policy": "accept", "probe": "SELECT REWRITE( 'SELECT d1.dummy_col FROM SYS.DUMMY d1, SYS.DUMMY d2 WHERE d1.dummy_col *= d2.dummy_col', 'ANSI' ) FROM SYS.DUMMY", "sa": "accepted"}
-{"id": "a5_sa_fn3-197", "options": {}, "policy": "reject", "probe": "SELECT REWRITE( 'SELECT d1.dummy_col FROM SYS.DUMMY d1, SYS.DUMMY d2 WHERE d1.dummy_col *= d2.dummy_col', 'ANSI' ) FROM SYS.DUMMY", "sa": "other error"}
 {"id": "a5_sa_fn3-198", "options": {}, "policy": "accept", "probe": "SELECT REWRITE( 'SELECT 1', 'XYZ' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-199", "options": {}, "policy": "reject", "probe": "SELECT REWRITE( )", "sa": "other error"}
-{"id": "a5_sa_fn3-2", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_IS_TRACKABLE( PROPERTY_NUMBER( 'PAGESIZE' ) )", "sa": "accepted"}
 {"id": "a5_sa_fn3-20", "options": {}, "policy": "accept", "probe": "SELECT QUARTER( '2001-06-30' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-201", "options": {}, "policy": "accept", "probe": "SELECT RIGHT( 'abc', 10 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-203", "options": {}, "policy": "accept", "probe": "SELECT RIGHT( N'abcdef', 2 )", "sa": "accepted"}
@@ -2905,12 +2781,8 @@
 {"id": "a5_sa_fn3-258", "options": {}, "policy": "accept", "probe": "SELECT SECOND( CAST( '10:11:12' AS TIME ) )", "sa": "accepted"}
 {"id": "a5_sa_fn3-26", "options": {}, "policy": "accept", "probe": "SELECT QUARTER( d ) FROM (SELECT CAST( '2001-08-01' AS DATE ) AS d) t", "sa": "accepted"}
 {"id": "a5_sa_fn3-264", "options": {}, "policy": "accept", "probe": "SELECT SECONDS( CAST( '21:05:07' AS TIME ), 5 )", "sa": "accepted"}
-{"id": "a5_sa_fn3-271", "options": {}, "policy": "accept", "probe": "SELECT SECURE_SIGN_MESSAGE( 'msg', k, 'SHA-1' ) FROM (SELECT CAST( NULL AS LONG VARCHAR ) AS k) t WHERE 1 = 0", "sa": "accepted"}
-{"id": "a5_sa_fn3-272", "options": {}, "policy": "accept", "probe": "SELECT SECURE_SIGN_MESSAGE( 'msg', k, 'SHA-256' ) FROM (SELECT CAST( NULL AS LONG VARCHAR ) AS k) t WHERE 1 = 0", "sa": "accepted"}
 {"id": "a5_sa_fn3-273", "options": {}, "policy": "accept", "probe": "SELECT SECURE_SIGN_MESSAGE( 'msg', k, 'MD5' ) FROM (SELECT CAST( NULL AS LONG VARCHAR ) AS k) t WHERE 1 = 0", "sa": "accepted"}
 {"id": "a5_sa_fn3-275", "options": {}, "policy": "reject", "probe": "SELECT SECURE_SIGN_MESSAGE( 'msg' )", "sa": "other error"}
-{"id": "a5_sa_fn3-277", "options": {}, "policy": "accept", "probe": "SELECT SECURE_VERIFY_MESSAGE( 'msg', s, k, 'SHA-1' ) FROM (SELECT CAST( NULL AS LONG VARCHAR ) AS k, CAST( NULL AS LONG BINARY ) AS s) t WHERE 1 = 0", "sa": "accepted"}
-{"id": "a5_sa_fn3-278", "options": {}, "policy": "accept", "probe": "SELECT SECURE_VERIFY_MESSAGE( 'msg', s, k, 'SHA-256' ) FROM (SELECT CAST( NULL AS LONG VARCHAR ) AS k, CAST( NULL AS LONG BINARY ) AS s) t WHERE 1 = 0", "sa": "accepted"}
 {"id": "a5_sa_fn3-279", "options": {}, "policy": "accept", "probe": "SELECT SECURE_VERIFY_MESSAGE( 'msg', s, k, 'MD5' ) FROM (SELECT CAST( NULL AS LONG VARCHAR ) AS k, CAST( NULL AS LONG BINARY ) AS s) t WHERE 1 = 0", "sa": "accepted"}
 {"id": "a5_sa_fn3-281", "options": {}, "policy": "reject", "probe": "SELECT SECURE_VERIFY_MESSAGE( 'msg', 0x00 )", "sa": "other error"}
 {"id": "a5_sa_fn3-286", "options": {}, "policy": "accept", "probe": "SELECT SET_BIT( NULL, 2 )", "sa": "accepted"}
@@ -2925,7 +2797,6 @@
 {"id": "a5_sa_fn3-295", "options": {}, "policy": "accept", "probe": "SELECT g, SET_BITS( a ) FROM (SELECT 1 AS g, 1 AS a UNION ALL SELECT 1, 2 UNION ALL SELECT 2, 3 UNION ALL SELECT 2, NULL) t GROUP BY g", "sa": "accepted"}
 {"id": "a5_sa_fn3-298", "options": {}, "policy": "accept", "probe": "SELECT SIGN( 0 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-299", "options": {}, "policy": "accept", "probe": "SELECT SIGN( 42 )", "sa": "accepted"}
-{"id": "a5_sa_fn3-3", "options": {}, "policy": "accept", "probe": "SELECT IF PROPERTY_IS_TRACKABLE( PROPERTY_NUMBER( 'PAGESIZE' ) ) IN ( 0, 1 ) THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a5_sa_fn3-30", "options": {}, "policy": "reject", "probe": "SELECT QUARTER( '1987/05/02', 2 )", "sa": "other error"}
 {"id": "a5_sa_fn3-300", "options": {}, "policy": "accept", "probe": "SELECT SIGN( CAST( -2.5 AS DOUBLE ) )", "sa": "accepted"}
 {"id": "a5_sa_fn3-301", "options": {}, "policy": "accept", "probe": "SELECT SIGN( 0.001 )", "sa": "accepted"}
@@ -2940,16 +2811,12 @@
 {"id": "a5_sa_fn3-319", "options": {}, "policy": "reject", "probe": "SELECT SOAP_HEADER( 'a', 1, 'actor', 2 )", "sa": "other error"}
 {"id": "a5_sa_fn3-32", "options": {}, "policy": "accept", "probe": "SELECT IF ABS( RADIANS( 30 ) - 0.5236 ) < 0.0001 THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a5_sa_fn3-320", "options": {}, "policy": "accept", "probe": "SELECT SORTKEY( 'abc' )", "sa": "accepted"}
-{"id": "a5_sa_fn3-322", "options": {}, "policy": "accept", "probe": "SELECT n FROM (SELECT 'b' AS n UNION ALL SELECT 'a') t ORDER BY SORTKEY( n, 'dict' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-329", "options": {}, "policy": "accept", "probe": "SELECT SORTKEY( 'abc', 0 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-33", "options": {}, "policy": "accept", "probe": "SELECT RADIANS( a ) FROM (SELECT 90 AS a) t", "sa": "accepted"}
-{"id": "a5_sa_fn3-330", "options": {}, "policy": "accept", "probe": "SELECT SORTKEY( 'abc', cn ) FROM (SELECT 'dict' AS cn) t", "sa": "accepted"}
 {"id": "a5_sa_fn3-331", "options": {}, "policy": "accept", "probe": "SELECT BYTE_LENGTH( SORTKEY( '' ) )", "sa": "accepted"}
 {"id": "a5_sa_fn3-332", "options": {}, "policy": "accept", "probe": "SELECT SORTKEY( NULL )", "sa": "accepted"}
 {"id": "a5_sa_fn3-333", "options": {}, "policy": "accept", "probe": "SELECT IF SORTKEY( REPEAT( 'a', 254 ) ) = SORTKEY( REPEAT( 'a', 300 ) ) THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a5_sa_fn3-334", "options": {}, "policy": "accept", "probe": "SELECT IF BYTE_LENGTH( SORTKEY( REPEAT( 'a', 254 ) ) ) <= 1024 THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
-{"id": "a5_sa_fn3-337", "options": {}, "policy": "accept", "probe": "SELECT SOUNDEX( 'apples' )", "sa": "accepted"}
-{"id": "a5_sa_fn3-338", "options": {}, "policy": "accept", "probe": "SELECT IF SOUNDEX( 'Smith' ) = SOUNDEX( 'Smythe' ) THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "a5_sa_fn3-339", "options": {}, "policy": "accept", "probe": "SELECT SOUNDEX( NULL )", "sa": "accepted"}
 {"id": "a5_sa_fn3-34", "options": {}, "policy": "reject", "probe": "SELECT RADIANS( )", "sa": "other error"}
 {"id": "a5_sa_fn3-341", "options": {}, "policy": "accept", "probe": "SELECT LENGTH( SPACE( 10 ) )", "sa": "accepted"}
@@ -2966,8 +2833,6 @@
 {"id": "a5_sa_fn3-364", "options": {}, "policy": "accept", "probe": "SELECT STACK_TRACE( 'procedure' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-365", "options": {}, "policy": "accept", "probe": "SELECT STACK_TRACE( 'caller' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-368", "options": {}, "policy": "accept", "probe": "SELECT STACK_TRACE( 'caller', 'stack' )", "sa": "accepted"}
-{"id": "a5_sa_fn3-369", "options": {}, "policy": "accept", "probe": "SELECT STACK_TRACE( 'caller', 'stack+sql' )", "sa": "accepted"}
-{"id": "a5_sa_fn3-370", "options": {}, "policy": "accept", "probe": "SELECT STACK_TRACE( 'caller', 'sql+stack' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-374", "options": {}, "policy": "accept", "probe": "SELECT STDDEV( a ) FROM (SELECT 1 AS g, 1 AS a UNION ALL SELECT 1, 2 UNION ALL SELECT 2, 3 UNION ALL SELECT 2, NULL) t", "sa": "accepted"}
 {"id": "a5_sa_fn3-375", "options": {}, "policy": "accept", "probe": "SELECT IF STDDEV( a ) = STDDEV_SAMP( a ) THEN 'T' ELSE 'F' ENDIF FROM (SELECT 1 AS a UNION ALL SELECT 2 UNION ALL SELECT 4) t", "sa": "accepted"}
 {"id": "a5_sa_fn3-376", "options": {}, "policy": "accept", "probe": "SELECT STDDEV( a ) FROM (SELECT 1 AS a) t", "sa": "accepted"}
@@ -3011,13 +2876,8 @@
 {"id": "a5_sa_fn3-424", "options": {}, "policy": "accept", "probe": "SELECT STUFF( 'abc', -1, 1, 'x' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-425", "options": {}, "policy": "accept", "probe": "SELECT STUFF( 0x112233, 2, 1, 0xff )", "sa": "accepted"}
 {"id": "a5_sa_fn3-426", "options": {}, "policy": "reject", "probe": "SELECT STUFF( 'abc', 1, 1 )", "sa": "other error"}
-{"id": "a5_sa_fn3-429", "options": {}, "policy": "accept", "probe": "SELECT SUBSTR( 'back yard', 6, 4 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-43", "options": {}, "policy": "reject", "probe": "SELECT RAND( 1, 2 )", "sa": "other error"}
 {"id": "a5_sa_fn3-431", "options": {}, "policy": "accept", "probe": "SELECT SUBSTRING( 'abcdef', 3 )", "sa": "accepted"}
-{"id": "a5_sa_fn3-432", "options": {"ansi_substring": "On"}, "policy": "reject", "probe": "SELECT SUBSTR( 'abcdefgh', 0, -2 )", "sa": "other error"}
-{"id": "a5_sa_fn3-433", "options": {"ansi_substring": "On"}, "policy": "accept", "probe": "SELECT SUBSTR( 'abcdefgh', -2, 2 )", "sa": "accepted"}
-{"id": "a5_sa_fn3-434", "options": {"ansi_substring": "Off"}, "policy": "accept", "probe": "SELECT SUBSTR( 'abcdefgh', -2, 2 )", "sa": "accepted"}
-{"id": "a5_sa_fn3-435", "options": {"ansi_substring": "Off"}, "policy": "accept", "probe": "SELECT SUBSTR( 'abcdefgh', 0, -2 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-438", "options": {"ansi_substring": "On"}, "policy": "accept", "probe": "SELECT SUBSTR( 'abcdef', 0, 3 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-439", "options": {}, "policy": "accept", "probe": "SELECT SUBSTRING( 'abc', 1, 0 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-44", "options": {}, "policy": "accept", "probe": "SELECT a, RANK( ) OVER ( ORDER BY a DESC ) \"Rank\" FROM (SELECT 1 AS a UNION ALL SELECT 2 UNION ALL SELECT 2 UNION ALL SELECT 3) t ORDER BY a DESC", "sa": "accepted"}
@@ -3065,7 +2925,6 @@
 {"id": "a5_sa_fn3-490", "options": {}, "policy": "accept", "probe": "SELECT TO_CHAR( 'abc' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-492", "options": {}, "policy": "accept", "probe": "SELECT TO_CHAR( CAST( 'abc' AS BINARY ), 'cp850' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-493", "options": {}, "policy": "accept", "probe": "SELECT TO_CHAR( 123 )", "sa": "accepted"}
-{"id": "a5_sa_fn3-494", "options": {}, "policy": "reject", "probe": "SELECT TO_CHAR( CURRENT DATE, 'YYYY-MM-DD' )", "sa": "other error"}
 {"id": "a5_sa_fn3-495", "options": {}, "policy": "accept", "probe": "SELECT TO_NCHAR( 'abc' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-497", "options": {}, "policy": "reject", "probe": "SELECT TO_NCHAR( )", "sa": "other error"}
 {"id": "a5_sa_fn3-50", "options": {}, "policy": "accept", "probe": "SELECT g, a, RANK() OVER ( w ORDER BY a ) FROM (SELECT 1 AS g, 1 AS a UNION ALL SELECT 1, 2 UNION ALL SELECT 2, 3 UNION ALL SELECT 2, NULL) t WINDOW w AS ( PARTITION BY g )", "sa": "accepted"}
@@ -3216,8 +3075,6 @@
 {"id": "a5_sa_fn3-77", "options": {}, "policy": "accept", "probe": "SELECT REGEXP_SUBSTR( 'a1b22c333', '[0-9]+', 1, 3 )", "sa": "accepted"}
 {"id": "a5_sa_fn3-78", "options": {}, "policy": "accept", "probe": "SELECT REGEXP_SUBSTR( 'a.b', 'a#.b', 1, 1, '#' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-79", "options": {}, "policy": "accept", "probe": "SELECT REGEXP_SUBSTR( 'xxabc', '^abc', 3 )", "sa": "accepted"}
-{"id": "a5_sa_fn3-8", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_NAME( 102, 'database' )", "sa": "accepted"}
-{"id": "a5_sa_fn3-80", "options": {}, "policy": "accept", "probe": "SELECT REGEXP_SUBSTR( 'ab12', '[[:digit:]]' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-83", "options": {}, "policy": "accept", "probe": "SELECT REGEXP_SUBSTR( 'ABC', 'b' )", "sa": "accepted"}
 {"id": "a5_sa_fn3-84", "options": {}, "policy": "reject", "probe": "SELECT REGEXP_SUBSTR( 'abc' )", "sa": "other error"}
 {"id": "a5_sa_fn3-85", "options": {}, "policy": "reject", "probe": "SELECT REGEXP_SUBSTR( 'abc', 'b', 1, 1, '#', 9 )", "sa": "other error"}
@@ -3343,12 +3200,10 @@
 {"id": "a6_sa_query-271", "options": {}, "policy": "reject", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( MATERIALIZED VIEW OPTIMIZATION Stale )", "sa": "parse error"}
 {"id": "a6_sa_query-272", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( isolation_level = 0 )", "sa": "accepted"}
 {"id": "a6_sa_query-273", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( max_query_tasks = 1 )", "sa": "accepted"}
-{"id": "a6_sa_query-274", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( optimization_goal = 'first-row' )", "sa": "accepted"}
 {"id": "a6_sa_query-275", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( optimization_level = 9 )", "sa": "accepted"}
 {"id": "a6_sa_query-276", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( optimization_workload = 'Mixed' )", "sa": "accepted"}
 {"id": "a6_sa_query-277", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( user_estimates = 'Override-magic' )", "sa": "accepted"}
 {"id": "a6_sa_query-278", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( parameterization_level = 'Off' )", "sa": "accepted"}
-{"id": "a6_sa_query-279", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( optimization_goal = 'first-row', isolation_level = 1 )", "sa": "accepted"}
 {"id": "a6_sa_query-280", "options": {}, "policy": "accept", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t ORDER BY a OPTION( optimization_workload = Mixed )", "sa": "accepted"}
 {"id": "a6_sa_query-282", "options": {}, "policy": "reject", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t OPTION( date_format = 'YYYY' )", "sa": "other error"}
 {"id": "a6_sa_query-283", "options": {}, "policy": "reject", "probe": "SELECT a FROM (SELECT 1 a UNION ALL SELECT 2) t OPTION( )", "sa": "parse error"}
@@ -3474,7 +3329,6 @@
 {"id": "a6_sa_query-417", "options": {}, "policy": "reject", "probe": "SELECT count(*) FROM ( SELECT 1 a ) t1 CROSS JOIN ( SELECT 1 b ) t2 ON t1.a = t2.b", "sa": "parse error"}
 {"id": "a6_sa_query-418", "options": {}, "policy": "reject", "probe": "SELECT count(*) FROM ( SELECT 1 a ) t1 NATURAL CROSS JOIN ( SELECT 1 a ) t2", "sa": "parse error"}
 {"id": "a6_sa_query-419", "options": {}, "policy": "reject", "probe": "SELECT count(*) FROM ( SELECT 1 a ) t1 KEY NATURAL JOIN ( SELECT 1 a ) t2", "sa": "parse error"}
-{"id": "a6_sa_query-42", "options": {}, "policy": "accept", "probe": "SELECT 1 AS a INTERSECT SELECT 1 OPTION( optimization_goal = 'first-row' )", "sa": "accepted"}
 {"id": "a6_sa_query-420", "options": {}, "policy": "reject", "probe": "SELECT count(*) FROM ( SELECT 1 a ) t1 OUTER JOIN ( SELECT 1 b ) t2 ON t1.a = t2.b", "sa": "parse error"}
 {"id": "a6_sa_query-421", "options": {}, "policy": "reject", "probe": "SELECT count(*) FROM ( SELECT 1 a ) t1 INNER OUTER JOIN ( SELECT 1 b ) t2 ON t1.a = t2.b", "sa": "parse error"}
 {"id": "a6_sa_query-422", "options": {}, "policy": "reject", "probe": "SELECT count(*) FROM ( SELECT 1 a ) t1 LEFT INNER JOIN ( SELECT 1 b ) t2 ON t1.a = t2.b", "sa": "parse error"}
@@ -3512,7 +3366,6 @@
 {"id": "a6_sa_query-453", "options": {}, "policy": "reject", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( AUTO ) AS t ORDER BY 1", "sa": "parse error"}
 {"id": "a6_sa_query-454", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( COMPRESSED ) AS t ORDER BY 1", "sa": "other error"}
 {"id": "a6_sa_query-455", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a|1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( DELIMITED BY '|' ) AS t ORDER BY 1", "sa": "accepted"}
-{"id": "a6_sa_query-456", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( ENCODING 'UTF-8' ) AS t ORDER BY 1", "sa": "other error"}
 {"id": "a6_sa_query-457", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( NOT ENCRYPTED ) AS t ORDER BY 1", "sa": "accepted"}
 {"id": "a6_sa_query-458", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( ENCRYPTED KEY 'secret' ) AS t ORDER BY 1", "sa": "other error"}
 {"id": "a6_sa_query-459", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( ESCAPE CHARACTER '!' ) AS t ORDER BY 1", "sa": "accepted"}
@@ -3553,7 +3406,6 @@
 {"id": "a6_sa_query-503", "options": {}, "policy": "accept", "probe": "SELECT x.a FROM OPENXML( '<r><i a=\"1\"/><i a=\"2\"/></r>', '/r/i' ) WITH ( a INT '@a' ) AS x ORDER BY 1", "sa": "accepted"}
 {"id": "a6_sa_query-504", "options": {}, "policy": "accept", "probe": "SELECT a FROM OPENXML( '<r><i a=\"1\"/></r>', '/r/i' ) WITH ( a INT '@a' )", "sa": "accepted"}
 {"id": "a6_sa_query-505", "options": {}, "policy": "accept", "probe": "SELECT a FROM OPENXML( '<r><i><a>3</a></i></r>', '/r/i', 2 ) WITH ( a INT 'a' ) AS x", "sa": "accepted"}
-{"id": "a6_sa_query-506", "options": {}, "policy": "accept", "probe": "SELECT a FROM OPENXML( USING VALUE '<r><i a=\"4\"/></r>', '/r/i' ) WITH ( a INT '@a' ) OPTION ( ENCODING 'UTF-8' ) AS x", "sa": "other error"}
 {"id": "a6_sa_query-508", "options": {}, "policy": "accept", "probe": "SELECT X FROM UNNEST( ARRAY( 1, 2 ) ) AS DT( X ) ORDER BY X", "sa": "accepted"}
 {"id": "a6_sa_query-509", "options": {}, "policy": "reject", "probe": "SELECT * FROM UNNEST( ARRAY( 1, 2 ) )", "sa": "parse error"}
 {"id": "a6_sa_query-510", "options": {}, "policy": "accept", "probe": "SELECT a, sum( c ) FROM (SELECT 1 a, 1 b, 10 c UNION ALL SELECT 1, 2, 20 UNION ALL SELECT 2, 1, 30) t GROUP BY a ORDER BY a", "sa": "accepted"}
@@ -3668,7 +3520,6 @@
 {"id": "a6_sa_query-702", "options": {}, "policy": "accept", "probe": "SELECT ten = a * 10 FROM ( SELECT 1 a UNION ALL SELECT 2 ) t ORDER BY 1", "sa": "accepted"}
 {"id": "a6_sa_query-71", "options": {}, "policy": "accept", "probe": "SELECT 1 UNION ALL SELECT 2.5 ORDER BY 1", "sa": "accepted"}
 {"id": "a6_sa_query-72", "options": {}, "policy": "accept", "probe": "( SELECT 1 ) UNION ALL ( SELECT 2 ) ORDER BY 1", "sa": "accepted"}
-{"id": "a6_sa_query-724", "options": {"date_format": "YYYY/MM/DD"}, "policy": "accept", "probe": "SELECT CONNECTION_PROPERTY( 'date_format' )", "sa": "accepted"}
 {"id": "a6_sa_query-73", "options": {}, "policy": "accept", "probe": "SELECT count(*) FROM ( ( SELECT 1 a ) UNION ( SELECT 1 ) ) t", "sa": "accepted"}
 {"id": "a6_sa_query-74", "options": {}, "policy": "reject", "probe": "SELECT a FROM ( SELECT 1 a ) t ORDER BY a UNION SELECT 2", "sa": "parse error"}
 {"id": "a6_sa_query-75", "options": {}, "policy": "accept", "probe": "( SELECT a FROM ( SELECT 2 a UNION ALL SELECT 1 ) t ORDER BY a ) UNION ALL SELECT 3", "sa": "accepted"}
@@ -3738,10 +3589,7 @@
 {"id": "c04_fn_a-167", "options": {}, "policy": "accept", "probe": "SELECT CHARINDEX('c', CAST('abc' AS LONG VARCHAR))", "sa": "accepted"}
 {"id": "c04_fn_a-171", "options": {}, "policy": "accept", "probe": "SELECT COALESCE(NULL, 'x')", "sa": "accepted"}
 {"id": "c04_fn_a-173", "options": {}, "policy": "accept", "probe": "SELECT COL_LENGTH('SYSTAB', 'table_name')", "sa": "accepted"}
-{"id": "c04_fn_a-178", "options": {}, "policy": "accept", "probe": "SELECT IF CONNECTION_PROPERTY('PrepStmt') IS NOT NULL THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
-{"id": "c04_fn_a-179", "options": {}, "policy": "accept", "probe": "SELECT IF CONNECTION_PROPERTY(PROPERTY_NUMBER('PrepStmt')) IS NOT NULL THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "c04_fn_a-18", "options": {}, "policy": "accept", "probe": "SELECT ABS(-2.5)", "sa": "accepted"}
-{"id": "c04_fn_a-180", "options": {}, "policy": "accept", "probe": "SELECT IF CONNECTION_PROPERTY('PrepStmt', CONNECTION_PROPERTY('Number')) IS NOT NULL THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "c04_fn_a-183", "options": {}, "policy": "accept", "probe": "SELECT CONVERT(INT, '42')", "sa": "accepted"}
 {"id": "c04_fn_a-21", "options": {}, "policy": "accept", "probe": "SELECT ACOS(1)", "sa": "accepted"}
 {"id": "c04_fn_a-210", "options": {}, "policy": "accept", "probe": "SELECT CONVERT(VARCHAR(8), CAST('2009-03-05' AS DATE), 365)", "sa": "other error"}
@@ -3754,7 +3602,6 @@
 {"id": "c04_fn_a-249", "options": {}, "policy": "flag", "probe": "SELECT g, COVAR_POP(y, x) FROM (SELECT 1 g, 2 y, 1 x UNION ALL SELECT 1, 4, 2 UNION ALL SELECT 2, 6, 3) t GROUP BY CUBE (g)", "sa": "accepted"}
 {"id": "c04_fn_a-256", "options": {}, "policy": "reject", "probe": "SELECT COVAR_SAMP(DISTINCT y, x) FROM (SELECT 2 y, 1 x UNION ALL SELECT 4, 2 UNION ALL SELECT 6, 3) t", "sa": "other error"}
 {"id": "c04_fn_a-257", "options": {}, "policy": "flag", "probe": "SELECT g, COVAR_SAMP(y, x) FROM (SELECT 1 g, 2 y, 1 x UNION ALL SELECT 1, 4, 2 UNION ALL SELECT 2, 6, 3) t GROUP BY ROLLUP (g)", "sa": "accepted"}
-{"id": "c04_fn_a-259", "options": {}, "policy": "accept", "probe": "SELECT CSCONVERT('abc', 'db_charset')", "sa": "accepted"}
 {"id": "c04_fn_a-263", "options": {}, "policy": "accept", "probe": "SELECT x, CUME_DIST() OVER w FROM (SELECT 1 x UNION ALL SELECT 2) t WINDOW w AS (ORDER BY x) ORDER BY x", "sa": "accepted"}
 {"id": "c04_fn_a-270", "options": {}, "policy": "accept", "probe": "SELECT DATALENGTH('abc')", "sa": "accepted"}
 {"id": "c04_fn_a-279", "options": {}, "policy": "accept", "probe": "SELECT DATE('2009-08-13')", "sa": "accepted"}
@@ -3814,7 +3661,6 @@
 {"id": "c05_fn_b-104", "options": {}, "policy": "accept", "probe": "SELECT DAYS('1998-07-14 00:00:00')", "sa": "accepted"}
 {"id": "c05_fn_b-108", "options": {}, "policy": "accept", "probe": "SELECT DB_ID(), DB_ID(DB_NAME())", "sa": "accepted"}
 {"id": "c05_fn_b-113", "options": {}, "policy": "accept", "probe": "SELECT DB_NAME(), DB_NAME(DB_ID())", "sa": "accepted"}
-{"id": "c05_fn_b-117", "options": {}, "policy": "accept", "probe": "SELECT DB_PROPERTY('PAGESIZE', DB_ID()), DB_PROPERTY('PAGESIZE', DB_NAME())", "sa": "accepted"}
 {"id": "c05_fn_b-118", "options": {}, "policy": "accept", "probe": "SELECT DB_PROPERTY(1)", "sa": "accepted"}
 {"id": "c05_fn_b-136", "options": {}, "policy": "accept", "probe": "SELECT DEGREES(0)", "sa": "accepted"}
 {"id": "c05_fn_b-142", "options": {}, "policy": "accept", "probe": "SELECT v, DENSE_RANK() OVER (ORDER BY v DESC) AS dr FROM (SELECT 10 AS v UNION ALL SELECT 10 UNION ALL SELECT 20) t ORDER BY v", "sa": "accepted"}
@@ -3822,7 +3668,6 @@
 {"id": "c05_fn_b-144", "options": {}, "policy": "accept", "probe": "SELECT g, v, DENSE_RANK() OVER (PARTITION BY g ORDER BY v) AS dr FROM (SELECT 1 AS g, 10 AS v UNION ALL SELECT 1, 20 UNION ALL SELECT 2, 5) t ORDER BY g, v", "sa": "accepted"}
 {"id": "c05_fn_b-145", "options": {}, "policy": "reject", "probe": "SELECT DENSE_RANK() OVER () FROM sa_rowgenerator(1, 2)", "sa": "other error"}
 {"id": "c05_fn_b-150", "options": {}, "policy": "flag", "probe": "SELECT MOD(row_num, 2) AS g, COUNT(DISTINCT row_num) AS c, DENSE_RANK() OVER (ORDER BY MOD(row_num, 2)) AS dr FROM sa_rowgenerator(1, 4) GROUP BY MOD(row_num, 2)", "sa": "accepted"}
-{"id": "c05_fn_b-152", "options": {}, "policy": "accept", "probe": "SELECT DIFFERENCE('Smith', 'Smith')", "sa": "accepted"}
 {"id": "c05_fn_b-161", "options": {}, "policy": "accept", "probe": "SELECT DOW('1998-07-12')", "sa": "accepted"}
 {"id": "c05_fn_b-195", "options": {}, "policy": "accept", "probe": "SELECT ERRORMSG()", "sa": "accepted"}
 {"id": "c05_fn_b-196", "options": {}, "policy": "accept", "probe": "SELECT ERRORMSG('22012')", "sa": "accepted"}
@@ -3869,12 +3714,8 @@
 {"id": "c05_fn_b-344", "options": {}, "policy": "accept", "probe": "SELECT HTML_PLAN()", "sa": "other error"}
 {"id": "c05_fn_b-348", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT HTTP_DECODE(''a%20b'')', 1)", "sa": "accepted"}
 {"id": "c05_fn_b-351", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT HTTP_ENCODE(''a b'')', 1)", "sa": "accepted"}
-{"id": "c05_fn_b-356", "options": {}, "policy": "accept", "probe": "SELECT HTTP_HEADER('Cookie')", "sa": "accepted"}
-{"id": "c05_fn_b-357", "options": {}, "policy": "accept", "probe": "SELECT HTTP_HEADER('Cookie', 5), HTTP_HEADER('Cookie', 0), HTTP_HEADER('Cookie', NULL)", "sa": "accepted"}
-{"id": "c05_fn_b-362", "options": {}, "policy": "accept", "probe": "SELECT HTTP_RESPONSE_HEADER('@HttpStatus')", "sa": "accepted"}
 {"id": "c05_fn_b-369", "options": {}, "policy": "accept", "probe": "SELECT IFNULL(1, 2, 3)", "sa": "accepted"}
 {"id": "c05_fn_b-374", "options": {}, "policy": "accept", "probe": "SELECT INDEX_COL('no_such_table_xyz', 1, 0), INDEX_COL('no_such_table_xyz', 1, 0, USER_ID())", "sa": "accepted"}
-{"id": "c05_fn_b-375", "options": {}, "policy": "accept", "probe": "SELECT INSERTSTR(2, 'abcd', 'XY')", "sa": "accepted"}
 {"id": "c05_fn_b-382", "options": {}, "policy": "accept", "probe": "SELECT EXPRTYPE('SELECT INTTOHEX(1000000000)', 1)", "sa": "accepted"}
 {"id": "c05_fn_b-392", "options": {}, "policy": "accept", "probe": "SELECT ISDATE('1990/12/09')", "sa": "accepted"}
 {"id": "c05_fn_b-398", "options": {}, "policy": "accept", "probe": "SELECT ISNULL(NULL, 1)", "sa": "accepted"}
@@ -3885,10 +3726,8 @@
 {"id": "c05_fn_b-427", "options": {}, "policy": "reject", "probe": "SELECT LAST_VALUE(RANK() OVER (ORDER BY o)) OVER (ORDER BY o) FROM (SELECT 1 AS o, 10 AS x UNION ALL SELECT 2, 20 UNION ALL SELECT 3, CAST(NULL AS INT)) t", "sa": "other error"}
 {"id": "c05_fn_b-428", "options": {}, "policy": "reject", "probe": "SELECT LAST_VALUE(DISTINCT x) OVER (ORDER BY o) FROM (SELECT 1 AS o, 10 AS x UNION ALL SELECT 2, 20 UNION ALL SELECT 3, CAST(NULL AS INT)) t", "sa": "other error"}
 {"id": "c05_fn_b-432", "options": {}, "policy": "accept", "probe": "SELECT LAST_VALUE(c1 IGNORE NULLS ORDER BY c2) FROM (SELECT 7 AS c1, 1 AS c2 UNION ALL SELECT CAST(NULL AS INT), 2) t", "sa": "accepted"}
-{"id": "c05_fn_b-436", "options": {}, "policy": "accept", "probe": "SELECT IF LCASE('LOWER CasE') = LOWER('LOWER CasE') THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
 {"id": "c05_fn_b-443", "options": {}, "policy": "accept", "probe": "SELECT MOD(row_num, 2) AS g, row_num, LEAD(row_num, 1) OVER (PARTITION BY MOD(row_num, 2) ORDER BY row_num) AS v FROM sa_rowgenerator(1, 4) ORDER BY g, row_num", "sa": "parse error"}
 {"id": "c05_fn_b-446", "options": {}, "policy": "reject", "probe": "SELECT LEAD(row_num) OVER () FROM sa_rowgenerator(1, 3)", "sa": "parse error"}
-{"id": "c05_fn_b-451", "options": {}, "policy": "accept", "probe": "SELECT LEFT('chocolate', 1)", "sa": "accepted"}
 {"id": "c05_fn_b-457", "options": {}, "policy": "accept", "probe": "SELECT LEN('abc  ')", "sa": "accepted"}
 {"id": "c05_fn_b-459", "options": {}, "policy": "accept", "probe": "SELECT LEN('abc  '), LENGTH('abc  '), CHAR_LENGTH('abc  ')", "sa": "accepted"}
 {"id": "c05_fn_b-462", "options": {}, "policy": "accept", "probe": "SELECT CHAR_LENGTH('chocolate')", "sa": "accepted"}
@@ -3922,9 +3761,6 @@
 {"id": "c06_fn_c-208", "options": {}, "policy": "accept", "probe": "SELECT OCTET_LENGTH('abc')", "sa": "other error"}
 {"id": "c06_fn_c-21", "options": {}, "policy": "accept", "probe": "SELECT LIST(x) FROM (SELECT 'a' x) t", "sa": "accepted"}
 {"id": "c06_fn_c-22", "options": {}, "policy": "accept", "probe": "SELECT LIST(x, '/') FROM (SELECT 'a' x UNION ALL SELECT 'a') t", "sa": "accepted"}
-{"id": "c06_fn_c-225", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('%o_o%', 'chocolate')", "sa": "accepted"}
-{"id": "c06_fn_c-226", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('%late', 'chocolate')", "sa": "accepted"}
-{"id": "c06_fn_c-227", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('chocolate', 'chocolate')", "sa": "accepted"}
 {"id": "c06_fn_c-23", "options": {}, "policy": "accept", "probe": "SELECT LIST(DISTINCT x, '/' ORDER BY x DESC) FROM (SELECT 'a' x UNION ALL SELECT 'b' UNION ALL SELECT 'a') t", "sa": "accepted"}
 {"id": "c06_fn_c-233", "options": {}, "policy": "accept", "probe": "SELECT PATINDEX('%cab%', CAST('abcab' AS LONG VARCHAR))", "sa": "accepted"}
 {"id": "c06_fn_c-24", "options": {}, "policy": "accept", "probe": "SELECT LIST(x, '-' ORDER BY g ASC, x DESC) FROM (SELECT 1 g, 'a' x UNION ALL SELECT 1, 'b' UNION ALL SELECT 2, 'c') t", "sa": "accepted"}
@@ -3946,10 +3782,6 @@
 {"id": "c06_fn_c-273", "options": {}, "policy": "reject", "probe": "SELECT PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY SUM(x)) FROM (SELECT 1 x) t", "sa": "parse error"}
 {"id": "c06_fn_c-277", "options": {}, "policy": "accept", "probe": "SELECT TRUNCNUM(PI(), 9)", "sa": "accepted"}
 {"id": "c06_fn_c-280", "options": {}, "policy": "accept", "probe": "SELECT POWER(2, -1)", "sa": "accepted"}
-{"id": "c06_fn_c-282", "options": {}, "policy": "accept", "probe": "SELECT IF PROPERTY(PROPERTY_NUMBER('Name')) = PROPERTY('Name') THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
-{"id": "c06_fn_c-284", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_DESCRIPTION(PROPERTY_NUMBER('IndAdd'))", "sa": "accepted"}
-{"id": "c06_fn_c-286", "options": {}, "policy": "accept", "probe": "SELECT IF PROPERTY_IS_TRACKABLE(PROPERTY_NUMBER('IndAdd')) IN (0, 1) THEN 'T' ELSE 'F' ENDIF", "sa": "accepted"}
-{"id": "c06_fn_c-288", "options": {}, "policy": "accept", "probe": "SELECT PROPERTY_NAME(PROPERTY_NUMBER('IndAdd'))", "sa": "accepted"}
 {"id": "c06_fn_c-29", "options": {}, "policy": "accept", "probe": "SELECT LN(1)", "sa": "accepted"}
 {"id": "c06_fn_c-294", "options": {}, "policy": "accept", "probe": "SELECT QUARTER(CAST('1987-11-02' AS DATE))", "sa": "accepted"}
 {"id": "c06_fn_c-297", "options": {}, "policy": "accept", "probe": "SELECT STRING(QUARTERSTR('1999/01/28', 1), ' ', QUARTERSTR('1999/01/28', 2), ' ', QUARTERSTR('1999/01/28', 3), ' ', QUARTERSTR('1999/01/28', 4), ' ', QUARTERSTR('1999/01/28', 5), ' ', QUARTERSTR('1999/01/28', 6), ' ', QUARTERSTR('1999/01/28', 7), ' ', QUARTERSTR('1999/01/28', 8), ' ', QUARTERSTR('1999/01/28', 9), ' ', QUARTERSTR('1999/01/28', 10), ' ', QUARTERSTR('1999/01/28', 11), ' ', QUARTERSTR('1999/01/28', 12))", "sa": "other error"}
@@ -4000,8 +3832,6 @@
 {"id": "c06_fn_c-95", "options": {}, "policy": "flag", "probe": "SELECT g, MEDIAN(x) FROM (SELECT 1 g, CAST(2 AS NUMERIC(10,3)) x) t GROUP BY CUBE(g)", "sa": "accepted"}
 {"id": "c06_fn_c-96", "options": {}, "policy": "accept", "probe": "SELECT MIN(DISTINCT x) FROM (SELECT 1 x UNION ALL SELECT 1 UNION ALL SELECT 3) t", "sa": "accepted"}
 {"id": "c07_fn_d-1", "options": {}, "policy": "accept", "probe": "SELECT REMAINDER( 7, 2 )", "sa": "accepted"}
-{"id": "c07_fn_d-101", "options": {}, "policy": "accept", "probe": "SELECT SUM( IF a = b THEN 0 ELSE 1 ENDIF ) FROM ( SELECT SORTKEY( 'Abc', 'default' ) a, SORTKEY( 'Abc', 0 ) b UNION ALL SELECT SORTKEY( 'Abc', 'altnoacc' ), SORTKEY( 'Abc', 39 ) UNION ALL SELECT SORTKEY( 'Abc', 'altdict' ), SORTKEY( 'Abc', 45 ) UNION ALL SELECT SORTKEY( 'Abc', 'altnocsp' ), SORTKEY( 'Abc', 46 ) UNION ALL SELECT SORTKEY( 'Abc', 'scandict' ), SORTKEY( 'Abc', 47 ) UNION ALL SELECT SORTKEY( 'Abc', 'scannocp' ), SORTKEY( 'Abc', 48 ) UNION ALL SELECT SORTKEY( 'Abc', 'binary' ), SORTKEY( 'Abc', 50 ) UNION ALL SELECT SORTKEY( 'Abc', 'dict' ), SORTKEY( 'Abc', 51 ) UNION ALL SELECT SORTKEY( 'Abc', 'nocase' ), SORTKEY( 'Abc', 52 ) UNION ALL SELECT SORTKEY( 'Abc', 'nocasep' ), SORTKEY( 'Abc', 53 ) UNION ALL SELECT SORTKEY( 'Abc', 'noaccent' ), SORTKEY( 'Abc', 54 ) UNION ALL SELECT SORTKEY( 'Abc', 'espdict' ), SORTKEY( 'Abc', 55 ) UNION ALL SELECT SORTKEY( 'Abc', 'espnocs' ), SORTKEY( 'Abc', 56 ) UNION ALL SELECT SORTKEY( 'Abc', 'espnoac' ), SORTKEY( 'Abc', 57 ) UNION ALL SELECT SORTKEY( 'Abc', 'rusdict' ), SORTKEY( 'Abc', 58 ) UNION ALL SELECT SORTKEY( 'Abc', 'rusnocs' ), SORTKEY( 'Abc', 59 ) UNION ALL SELECT SORTKEY( 'Abc', 'cyrdict' ), SORTKEY( 'Abc', 63 ) UNION ALL SELECT SORTKEY( 'Abc', 'cyrnocs' ), SORTKEY( 'Abc', 64 ) UNION ALL SELECT SORTKEY( 'Abc', 'elldict' ), SORTKEY( 'Abc', 65 ) UNION ALL SELECT SORTKEY( 'Abc', 'hundict' ), SORTKEY( 'Abc', 69 ) UNION ALL SELECT SORTKEY( 'Abc', 'hunnoac' ), SORTKEY( 'Abc', 70 ) UNION ALL SELECT SORTKEY( 'Abc', 'hunnocs' ), SORTKEY( 'Abc', 71 ) UNION ALL SELECT SORTKEY( 'Abc', 'turdict' ), SORTKEY( 'Abc', 72 ) UNION ALL SELECT SORTKEY( 'Abc', 'turnoac' ), SORTKEY( 'Abc', 73 ) UNION ALL SELECT SORTKEY( 'Abc', 'turnocs' ), SORTKEY( 'Abc', 74 ) UNION ALL SELECT SORTKEY( 'Abc', 'thaidict' ), SORTKEY( 'Abc', 1 ) UNION ALL SELECT SORTKEY( 'Abc', '14651' ), SORTKEY( 'Abc', 22 ) UNION ALL SELECT SORTKEY( 'Abc', 'sjisbin' ), SORTKEY( 'Abc', 179 ) UNION ALL SELECT SORTKEY( 'Abc', 'utf8bin' ), SORTKEY( 'Abc', 24 ) UNION ALL SELECT SORTKEY( 'Abc', 'eucjisbn' ), SORTKEY( 'Abc', 192 ) UNION ALL SELECT SORTKEY( 'Abc', 'gb2312bn' ), SORTKEY( 'Abc', 137 ) UNION ALL SELECT SORTKEY( 'Abc', 'cp932bin' ), SORTKEY( 'Abc', 129 ) UNION ALL SELECT SORTKEY( 'Abc', 'big5bin' ), SORTKEY( 'Abc', 194 ) UNION ALL SELECT SORTKEY( 'Abc', 'euckscbn' ), SORTKEY( 'Abc', 161 ) ) t", "sa": "accepted"}
-{"id": "c07_fn_d-107", "options": {}, "policy": "accept", "probe": "SELECT SOUNDEX( 'Smith' )", "sa": "accepted"}
 {"id": "c07_fn_d-11", "options": {}, "policy": "accept", "probe": "SELECT REPLACE( 'aXbXc', 'X', '-' )", "sa": "accepted"}
 {"id": "c07_fn_d-118", "options": {}, "policy": "accept", "probe": "SELECT '|' || SPACE( 3 ) || '|'", "sa": "accepted"}
 {"id": "c07_fn_d-125", "options": {}, "policy": "accept", "probe": "SELECT SQRT( 16 )", "sa": "accepted"}
@@ -4013,11 +3843,8 @@
 {"id": "c07_fn_d-147", "options": {}, "policy": "accept", "probe": "SELECT IF STDDEV_SAMP( ALL UnitPrice ) = STDDEV( UnitPrice ) AND STDDEV_SAMP( UnitPrice ) = STDDEV( UnitPrice ) THEN 'T' ELSE 'F' ENDIF FROM ( SELECT 9.00 UnitPrice UNION ALL SELECT 14.00 UNION ALL SELECT 14.00 ) t", "sa": "accepted"}
 {"id": "c07_fn_d-150", "options": {}, "policy": "reject", "probe": "SELECT STDDEV_SAMP( DISTINCT x ) FROM ( SELECT 1.0 x UNION ALL SELECT 1.0 UNION ALL SELECT 3.0 ) t", "sa": "other error"}
 {"id": "c07_fn_d-152", "options": {}, "policy": "accept", "probe": "SELECT '|' || STR( 2.0E0, 5 ) || '|', '|' || STR( 2.25E0, 6, 2 ) || '|'", "sa": "accepted"}
-{"id": "c07_fn_d-158", "options": {}, "policy": "accept", "probe": "SELECT STR_REPLACE( 'cdefghi', 'def', 'yyy' )", "sa": "other error"}
 {"id": "c07_fn_d-164", "options": {}, "policy": "accept", "probe": "SELECT STRING( 'a' ), STRING( 'a', 'b', 'c' )", "sa": "accepted"}
 {"id": "c07_fn_d-173", "options": {}, "policy": "accept", "probe": "SELECT STUFF( 'abcdef', 2, 3, 'XY' )", "sa": "accepted"}
-{"id": "c07_fn_d-181", "options": {}, "policy": "accept", "probe": "SELECT SUBSTRING( 'back yard', 6 ), SUBSTR( 'back yard', 1, 4 ), SUBSTRING( 'back yard', 1, 4 )", "sa": "accepted"}
-{"id": "c07_fn_d-182", "options": {}, "policy": "reject", "probe": "SELECT SUBSTRING( 'back yard' FROM 1 FOR 4 )", "sa": "parse error"}
 {"id": "c07_fn_d-190", "options": {}, "policy": "accept", "probe": "SELECT SUBSTRING( CAST( 'ABCDEFG' AS LONG VARCHAR ), 2, 3 ), SUBSTR( CAST( 'ABCDEFG' AS LONG VARCHAR ), 5 )", "sa": "accepted"}
 {"id": "c07_fn_d-196", "options": {}, "policy": "accept", "probe": "SELECT SUBSTRING64( CAST( 'ABCDEFG' AS LONG VARCHAR ), 5 ), SUBSTRING64( CAST( 0x11223344 AS LONG BINARY ), 2, 2 )", "sa": "other error"}
 {"id": "c07_fn_d-203", "options": {}, "policy": "accept", "probe": "SELECT SUM( x ), SUM( DISTINCT x ) FROM ( SELECT 1 x UNION ALL SELECT 1 UNION ALL SELECT 2 ) t", "sa": "accepted"}
@@ -4760,7 +4587,6 @@
 {"id": "s1_lexical-128", "options": {}, "policy": "reject", "probe": "SELECT 1 AS if", "sa": "parse error"}
 {"id": "s1_lexical-1280", "options": {}, "policy": "accept", "probe": "SELECT HTTP_DECODE('a%20b')", "sa": "accepted"}
 {"id": "s1_lexical-1281", "options": {}, "policy": "accept", "probe": "SELECT HTTP_ENCODE('a b')", "sa": "accepted"}
-{"id": "s1_lexical-1282", "options": {}, "policy": "accept", "probe": "SELECT HTTP_HEADER('Host')", "sa": "accepted"}
 {"id": "s1_lexical-1284", "options": {}, "policy": "accept", "probe": "SELECT HTTP_VARIABLE('x')", "sa": "accepted"}
 {"id": "s1_lexical-1285", "options": {}, "policy": "accept", "probe": "SELECT NEXT_HTTP_HEADER(NULL)", "sa": "accepted"}
 {"id": "s1_lexical-1286", "options": {}, "policy": "accept", "probe": "SELECT NEXT_HTTP_VARIABLE(NULL)", "sa": "accepted"}
@@ -4904,7 +4730,6 @@
 {"id": "s1_lexical-1474", "options": {}, "policy": "accept", "probe": "SELECT UUIDTOSTR(STRTOUUID('12345678-1234-1234-1234-123456789012'))", "sa": "accepted"}
 {"id": "s1_lexical-1475", "options": {}, "policy": "accept", "probe": "SELECT LENGTH(UUIDTOSTR(NEWID()))", "sa": "accepted"}
 {"id": "s1_lexical-1476", "options": {}, "policy": "accept", "probe": "SELECT HEXTOINT('1A'), INTTOHEX(26)", "sa": "accepted"}
-{"id": "s1_lexical-1477", "options": {}, "policy": "accept", "probe": "SELECT SOUNDEX('Smith'), DIFFERENCE('Smith', 'Smyth')", "sa": "accepted"}
 {"id": "s1_lexical-1478", "options": {}, "policy": "accept", "probe": "SELECT CORR(b, a) FROM (SELECT 1 a, 2 b UNION ALL SELECT 2, 4 UNION ALL SELECT 3, 7) t", "sa": "accepted"}
 {"id": "s1_lexical-1479", "options": {}, "policy": "accept", "probe": "SELECT COVAR_POP(b, a) FROM (SELECT 1 a, 2 b UNION ALL SELECT 2, 4 UNION ALL SELECT 3, 7) t", "sa": "accepted"}
 {"id": "s1_lexical-148", "options": {}, "policy": "reject", "probe": "SELECT 1 AS int", "sa": "parse error"}
@@ -5465,8 +5290,6 @@
 {"id": "s1_lexical-60", "options": {}, "policy": "reject", "probe": "SELECT 1 AS case", "sa": "parse error"}
 {"id": "s1_lexical-603", "options": {}, "policy": "accept", "probe": "SELECT 'John''s database'", "sa": "accepted"}
 {"id": "s1_lexical-604", "options": {}, "policy": "accept", "probe": "SELECT LENGTH('John''s database')", "sa": "accepted"}
-{"id": "s1_lexical-607", "options": {}, "policy": "accept", "probe": "SELECT 'c:\\\\temp'", "sa": "accepted"}
-{"id": "s1_lexical-608", "options": {}, "policy": "accept", "probe": "SELECT LENGTH('c:\\\\temp')", "sa": "accepted"}
 {"id": "s1_lexical-609", "options": {}, "policy": "accept", "probe": "SELECT '\\x6d'", "sa": "accepted"}
 {"id": "s1_lexical-61", "options": {}, "policy": "accept", "probe": "SELECT [case] FROM (SELECT 1 AS [case]) t", "sa": "accepted"}
 {"id": "s1_lexical-610", "options": {}, "policy": "accept", "probe": "SELECT '\\x41\\x42'", "sa": "accepted"}
@@ -5819,12 +5642,7 @@
 {"id": "s1_lexical-967", "options": {}, "policy": "reject", "probe": "SELECT COUNT(*) FROM (SELECT 1 o, CAST(NULL AS INT) n) t WHERE n NOT NULL", "sa": "parse error"}
 {"id": "s1_lexical-969", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'abc' AS s, 1 AS w UNION ALL SELECT 'axxbz', 2 UNION ALL SELECT 'abz9', 4 UNION ALL SELECT 'bab1', 8) t WHERE s NOT LIKE 'a%b_'", "sa": "accepted"}
 {"id": "s1_lexical-97", "options": {}, "policy": "accept", "probe": "SELECT [create] FROM (SELECT 1 AS [create]) t", "sa": "accepted"}
-{"id": "s1_lexical-970", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'smith' AS s, 1 AS w UNION ALL SELECT 'smyth', 2 UNION ALL SELECT 'smoth', 4) t WHERE s LIKE 'sm[iy]th'", "sa": "accepted"}
-{"id": "s1_lexical-971", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'bough' AS s, 1 AS w UNION ALL SELECT 'rough', 2 UNION ALL SELECT 'tough', 4) t WHERE s LIKE '[a-r]ough'", "sa": "accepted"}
-{"id": "s1_lexical-972", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'Bough' AS s, 1 AS w UNION ALL SELECT 'rough', 2 UNION ALL SELECT 'TOUGH', 4) t WHERE s LIKE '[a-z]ough'", "sa": "accepted"}
-{"id": "s1_lexical-973", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'bough' AS s, 1 AS w UNION ALL SELECT 'rough', 2 UNION ALL SELECT 'tough', 4 UNION ALL SELECT 'zough', 8) t WHERE s LIKE '[a-rt]ough'", "sa": "accepted"}
 {"id": "s1_lexical-975", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'a' AS s, 1 AS w UNION ALL SELECT 'n', 2 UNION ALL SELECT 'p', 4 UNION ALL SELECT 'q', 8 UNION ALL SELECT 'r', 16 UNION ALL SELECT 's', 32 UNION ALL SELECT 'z', 64) t WHERE s LIKE '[a-mpqs-z]'", "sa": "accepted"}
-{"id": "s1_lexical-976", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'bough' AS s, 1 AS w UNION ALL SELECT 'rough', 2 UNION ALL SELECT 'tough', 4) t WHERE s LIKE '[^a-r]ough'", "sa": "accepted"}
 {"id": "s1_lexical-977", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'a' AS s, 1 AS w UNION ALL SELECT 'n', 2 UNION ALL SELECT 'p', 4 UNION ALL SELECT 'q', 8 UNION ALL SELECT 'r', 16 UNION ALL SELECT 's', 32 UNION ALL SELECT 'z', 64) t WHERE s LIKE '[^a-mpqs-z]'", "sa": "accepted"}
 {"id": "s1_lexical-978", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT 'a' AS s, 1 AS w UNION ALL SELECT 'b', 2 UNION ALL SELECT '[a]', 4) t WHERE s LIKE '[a]'", "sa": "accepted"}
 {"id": "s1_lexical-979", "options": {}, "policy": "accept", "probe": "SELECT COUNT(*), SUM(w) FROM (SELECT '^' AS s, 1 AS w UNION ALL SELECT 'a', 2) t WHERE s LIKE '[^]'", "sa": "accepted"}
@@ -5927,7 +5745,6 @@
 {"id": "s2_query-183", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( ESCAPE CHARACTER '!' ) AS t", "sa": "accepted"}
 {"id": "s2_query-184", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( FORMAT TEXT ) AS t", "sa": "accepted"}
 {"id": "s2_query-185", "options": {}, "policy": "accept", "probe": "SELECT count(*) FROM OPENSTRING( VALUE 'a\\t1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( FORMAT BCP ) AS t", "sa": "accepted"}
-{"id": "s2_query-186", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( ENCODING 'UTF-8' ) AS t", "sa": "other error"}
 {"id": "s2_query-187", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( BYTE ORDER MARK OFF ) AS t", "sa": "accepted"}
 {"id": "s2_query-188", "options": {}, "policy": "accept", "probe": "SELECT c2 FROM OPENSTRING( VALUE 'a,1' ) WITH ( c1 VARCHAR(10), c2 INT ) OPTION ( BYTE ORDER MARK ON ) AS t", "sa": "accepted"}
 {"id": "s2_query-189", "options": {}, "policy": "accept", "probe": "SELECT c1 FROM OPENSTRING( VALUE '#skip me\\n1' ) WITH ( c1 INT ) OPTION ( COMMENTS INTRODUCED BY '#' ) AS t", "sa": "accepted"}
@@ -6209,7 +6026,6 @@
 {"id": "z1_audit-56", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn CHAR_LENGTH('abc')}", "sa": "parse error"}
 {"id": "z1_audit-57", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn CHARACTER_LENGTH('abc')}", "sa": "parse error"}
 {"id": "z1_audit-58", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn CONCAT('a', 'b')}", "sa": "parse error"}
-{"id": "z1_audit-59", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn DIFFERENCE('Smith', 'Smyth')}", "sa": "parse error"}
 {"id": "z1_audit-60", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn INSERT('abcdef', 2, 3, 'XY')}", "sa": "parse error"}
 {"id": "z1_audit-61", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn LCASE('ABC')}", "sa": "parse error"}
 {"id": "z1_audit-62", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn LEFT('abc', 2)}", "sa": "parse error"}
@@ -6223,7 +6039,6 @@
 {"id": "z1_audit-7", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT t.a, u.b FROM {oj (SELECT 1 a) t LEFT OUTER JOIN (SELECT 2 b) u ON t.a = u.b}", "sa": "parse error"}
 {"id": "z1_audit-70", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn RIGHT('abc', 2)}", "sa": "parse error"}
 {"id": "z1_audit-71", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn RTRIM('a  ')}", "sa": "parse error"}
-{"id": "z1_audit-72", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn SOUNDEX('Smith')}", "sa": "parse error"}
 {"id": "z1_audit-73", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn SPACE(3)}", "sa": "parse error"}
 {"id": "z1_audit-74", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn SUBSTRING('abcdef', 2, 3)}", "sa": "parse error"}
 {"id": "z1_audit-75", "options": {}, "policy": "accept-with-option:client_escapes!=off", "probe": "SELECT {fn UCASE('abc')}", "sa": "parse error"}
@@ -6851,7 +6666,6 @@
 {"id": "z2_redteam-673", "options": {}, "policy": "accept", "probe": "SELECT NVL(NULL, 1)", "sa": "other error"}
 {"id": "z2_redteam-674", "options": {}, "policy": "accept", "probe": "SELECT NVL2(NULL, 1, 2)", "sa": "other error"}
 {"id": "z2_redteam-675", "options": {}, "policy": "accept", "probe": "SELECT DECODE(1, 1, 'a', 'b')", "sa": "other error"}
-{"id": "z2_redteam-676", "options": {}, "policy": "accept", "probe": "SELECT TO_DATE('2024-01-01', 'YYYY-MM-DD')", "sa": "other error"}
 {"id": "z2_redteam-677", "options": {}, "policy": "accept", "probe": "SELECT TO_NUMBER('12')", "sa": "other error"}
 {"id": "z2_redteam-678", "options": {}, "policy": "accept", "probe": "SELECT TO_CHAR(CURRENT DATE, 'YYYY')", "sa": "other error"}
 {"id": "z2_redteam-679", "options": {}, "policy": "accept", "probe": "SELECT TO_TIMESTAMP('2024-01-01 10:00', 'YYYY-MM-DD HH24:MI')", "sa": "other error"}

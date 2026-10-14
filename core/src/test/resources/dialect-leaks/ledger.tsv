@@ -86,12 +86,14 @@ core/src/main/java/com/legend/protocol/ServiceReader.java	product-name	2
 core/src/main/java/com/legend/protocol/TailEmitter.java	product-name	6
 core/src/main/java/com/legend/protocol/TailReader.java	product-name	13
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	1
+# 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
+core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	6
 core/src/main/java/com/legend/protocol/sql/PostgresDateTime.java	product-name	2
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
 core/src/main/java/com/legend/protocol/sql/PostgresDialect.java	product-name	7
 # 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
-core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	42
+# 2026-10-14, the merge of neema2/legend-lite#40 (the tenth line's second landing, f2e7b553d) into this branch: the SQL front end's input dialects grew (the Postgres input language's own constructs, routed by name); pinned as measured, the reason above SqlIslands.java.
+core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	47
 core/src/main/java/com/legend/resolver/GraphEmission.java	product-name	2
 core/src/main/java/com/legend/resolver/RawGridSchema.java	product-name	12
 core/src/main/java/com/legend/setup/CsvSeed.java	product-name	5

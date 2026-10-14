@@ -1,0 +1,1028 @@
+# M1d for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.6): IQ's string, number and date functions and
+# CAST and CONVERT, as far as each is exact with Pure's natives (IqFunctions), the rest refused by name. Each is
+# judged by SQL Anywhere 17's answer in iq-answers.jsonl unless it names a decision (D-S1: a CHAR(n) value padded
+# under the IQ engine; D-F5: ABS of an integer keeps its type under the IQ engine; D-F9: the IQ engine raises outside
+# a function's domain), whose expect is the decided rows (SQL Anywhere's rows, padded where D-S1 pads). A case without
+# FROM, or over sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa); one over tables in the IQ engine,
+# unless its profile is a sqla17 one. tools/iq-oracle's README.md has the keys.
+# IQ island, 2026-10-14 (review 4's m3): the substring, LTRIM, LOCATE and STUFF cases read the island's own strings
+# ('mnopqrst', 'xyyxXwxy', 'xyz', 'wxyz') and positions, none a manual's example.
+tests:
+
+  # ---- LENGTH, CHAR_LENGTH and LEN: characters, trailing blanks counted (LEN is LENGTH: D-S6); an integer's digits
+  - id: length_of_constants
+    sql: "SELECT LENGTH('abc  ') AS a, LEN('abc  ') AS b, CHAR_LENGTH('') AS c, LENGTH(NULL) AS d, LENGTH(12345) AS e, LENGTH(-12) AS f"
+    engine: sa
+  - id: length_of_latin1_text
+    sql: "SELECT LENGTH('Résumé') AS a, CHAR_LENGTH('ÿ') AS b, LEN(' ') AS c"
+    engine: sa
+  - id: length_of_a_varchar
+    sql: "SELECT id, LENGTH(vc) AS n FROM t ORDER BY id"
+  - id: len_counts_trailing_blanks
+    sql: "SELECT id, LEN(vc) AS n, CHAR_LENGTH(vc) AS c FROM t WHERE id = 6"
+  - id: length_of_a_char_is_its_padded_length
+    sql: "SELECT id, LENGTH(ch) AS n, LEN(ch) AS l FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","5","5"],["2","5","5"],["3","5","5"],["4","5","5"],["5",null,null],["6","5","5"],["7","5","5"]]'
+  - id: length_of_a_char_in_sql_anywhere
+    sql: "SELECT id, LENGTH(ch) AS n FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: length_of_integers
+    sql: "SELECT id, LENGTH(sm) AS a, CHAR_LENGTH(it) AS b, LEN(bg) AS c, LENGTH(bt) AS d FROM t ORDER BY id"
+  - id: length_of_repeats_and_spaces
+    sql: "SELECT id, LENGTH(REPEAT('ab', id)) AS n, LENGTH(SPACE(sm)) AS s FROM t WHERE id <> 1 ORDER BY id"
+  - id: length_in_where
+    sql: "SELECT id FROM t WHERE LENGTH(vc) = 5 ORDER BY id"
+  - id: length_of_a_numeric_is_refused
+    sql: "SELECT LENGTH(nm) AS n FROM t WHERE id = 1"
+  - id: length_of_a_double_is_refused
+    sql: "SELECT LENGTH(dbl) AS n FROM t WHERE id = 1"
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from length_of_a_date_is_refused
+  - id: length_of_a_date
+    sql: "SELECT LENGTH(dt) AS n FROM t WHERE id = 1"
+  - id: length_of_two_arguments
+    sql: "SELECT LENGTH('a', 'b') AS n"
+    engine: sa
+  - id: length_of_no_argument
+    sql: "SELECT LEN() AS n"
+    engine: sa
+
+  # ---- SUBSTRING and SUBSTR under ANSI_SUBSTRING On: positions below 1 are virtual, a negative length is -1090
+  - id: substring_virtual_positions
+    sql: "SELECT SUBSTRING('mnopqrst', 0, 5) AS a, SUBSTRING('mnopqrst', -3, 5) AS b, SUBSTRING('mnopqrst', 1, 3) AS c, SUBSTRING('mnopqrst', 5, 10) AS d, SUBSTRING('mnopqrst', 9, 2) AS e, SUBSTRING('mnopqrst', 100, 1) AS f"
+    engine: sa
+  - id: substring_lengths
+    sql: "SELECT SUBSTRING('mnopqrst', 1, 0) AS a, SUBSTRING('mnopqrst', -5, 3) AS b, SUBSTRING('mnopqrst', -10, 20) AS c, SUBSTRING('mnopqrst', 0, 0) AS d, SUBSTRING('mnopqrst', 0, 1) AS e, SUBSTRING('mnopqrst', 2, 100) AS f"
+    engine: sa
+  - id: substr_is_substring
+    sql: "SELECT SUBSTR('mnopqrst', 0, 3) AS a, SUBSTR('mnopqrst', -1, 4) AS b, SUBSTR('mnopqrst', 3, 2) AS c"
+    engine: sa
+  - id: substring_without_a_length
+    sql: "SELECT SUBSTRING('mnopqrst', 0) AS a, SUBSTRING('mnopqrst', -3) AS b, SUBSTRING('mnopqrst', 1) AS c, SUBSTR('mnopqrst', 3) AS d, SUBSTRING('mnopqrst', 8) AS e, SUBSTRING('mnopqrst', 9) AS f, SUBSTRING('mnopqrst', -100) AS g"
+    engine: sa
+  - id: substring_positions_of_columns
+    sql: "SELECT id, SUBSTRING('mnopqrst', sm, id) AS a, SUBSTRING('mnopqrst', it, id) AS b, SUBSTRING('mnopqrst', id, 3) AS c FROM t ORDER BY id"
+  - id: substring_lengths_of_columns
+    sql: "SELECT id, SUBSTRING('mnopqrst', -1, id) AS a, SUBSTRING('mnopqrst', 3, id) AS b, SUBSTRING('mnopqrst', 0, id) AS c FROM t ORDER BY id"
+  - id: substring_without_length_of_columns
+    sql: "SELECT id, SUBSTR('abcdef', id) AS a, SUBSTR('abcdef', sm) AS b, SUBSTRING('abcdef', it) AS c FROM t ORDER BY id"
+  - id: substring_negative_length
+    sql: "SELECT SUBSTRING('mnopqrst', 3, -1) AS s"
+    engine: sa
+  - id: substring_negative_length_of_null
+    sql: "SELECT SUBSTRING(NULL, 2, -1) AS s"
+    engine: sa
+  - id: substring_null_arguments
+    sql: "SELECT SUBSTRING('abc', NULL, 1) AS a, SUBSTRING('abc', 1, NULL) AS b, SUBSTRING(NULL, 1, 1) AS c, SUBSTRING('abc', NULL) AS d"
+    engine: sa
+  - id: substring_of_an_integer
+    sql: "SELECT SUBSTRING(12345, 2, 2) AS a, SUBSTR(-9876, 1, 2) AS b"
+    engine: sa
+  - id: substring_of_latin1_text
+    sql: "SELECT SUBSTRING('Résumé', 2, 3) AS a, SUBSTR('ÉCOLE', 1, 1) AS b"
+    engine: sa
+  - id: substring_of_a_varchar
+    sql: "SELECT id, SUBSTRING(vc, 2, 3) AS s FROM t ORDER BY id"
+  - id: substring_of_a_char_is_of_its_padded_value
+    sql: "SELECT id, SUBSTRING(ch, 2, 3) || '|' AS s FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","b  |"],["2","bc |"],["3","   |"],["4","z  |"],["5","|"],["6","   |"],["7","b  |"]]'
+  - id: substring_by_a_smallint
+    sql: "SELECT id, SUBSTRING(vc, 1, sm) AS s FROM t WHERE sm >= 0 ORDER BY id"
+  - id: substring_from_an_integer_column
+    sql: "SELECT id, SUBSTRING(vc, it, 2) AS s FROM t ORDER BY id"
+  - id: substring_from_an_integer_column_without_length
+    sql: "SELECT id, SUBSTRING(vc, it) AS s FROM t ORDER BY id"
+  - id: substring_negative_length_of_a_column
+    sql: "SELECT id, SUBSTRING(vc, 1, sm) AS s FROM t ORDER BY id"
+  - id: substring_in_where
+    sql: "SELECT id FROM t WHERE SUBSTRING(vc, 1, 1) = 'h' ORDER BY id"
+  - id: substring_in_sql_anywhere
+    sql: "SELECT id, SUBSTRING(vc, -1, 4) AS s FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: substring_by_a_bigint_is_refused
+    sql: "SELECT SUBSTRING(vc, bg, 1) AS s FROM t WHERE id = 3"
+  - id: substring_by_a_rowgenerator_value_is_refused
+    sql: "SELECT row_num, LEFT('mnopqrst', row_num) AS s FROM sa_rowgenerator(0, 3)"
+    engine: sa
+  - id: substring_by_computed_position_is_refused
+    sql: "SELECT row_num, SUBSTRING('mnopqrst', row_num - 3, 4) AS s FROM sa_rowgenerator(0, 3)"
+    engine: sa
+  - id: substring_by_a_numeric_is_refused
+    sql: "SELECT SUBSTRING('abcdef', 1, 2.5) AS s"
+    engine: sa
+  - id: substring_of_a_double_is_refused
+    sql: "SELECT SUBSTRING(dbl, 1, 2) AS s FROM t WHERE id = 1"
+  - id: substring_of_one_argument
+    sql: "SELECT SUBSTRING('abc') AS s"
+    engine: sa
+  - id: substring_of_four_arguments
+    sql: "SELECT SUBSTR('abc', 1, 1, 1) AS s"
+    engine: sa
+  - id: substring_ansi_from_for_is_rejected
+    sql: "SELECT SUBSTRING('abc' FROM 1 FOR 2) AS s"
+    engine: sa
+  - id: substring_under_a_row_limit
+    sql: "SELECT TOP 2 id, SUBSTRING(vc, 1, 2) AS s FROM t ORDER BY id"
+  - id: substring_of_a_negative_length_under_a_row_limit_is_refused
+    sql: "SELECT TOP 2 id, SUBSTRING(vc, 1, sm) AS s FROM t ORDER BY id"
+
+  # ---- LEFT and RIGHT: a negative count is '', a count past the end the whole string
+  - id: left_right_counts
+    sql: "SELECT LEFT('mnopqrst', -1) AS a, RIGHT('mnopqrst', -1) AS b, LEFT('mnopqrst', 0) AS c, RIGHT('mnopqrst', 2) AS d, LEFT('mnopqrst', 100) AS e, RIGHT('mnopqrst', 100) AS f"
+    engine: sa
+  - id: left_right_of_column_counts
+    sql: "SELECT id, LEFT('abcdef', sm) AS l, RIGHT('abcdef', it) AS r, LEFT('abcdef', id) AS m, RIGHT('abcdef', id) AS n FROM t ORDER BY id"
+  - id: left_right_of_a_varchar
+    sql: "SELECT id, LEFT(vc, 2) AS l, RIGHT(vc, 2) AS r FROM t ORDER BY id"
+  - id: left_right_of_integers
+    sql: "SELECT LEFT(12345, 2) AS a, RIGHT(12345, 2) AS b, LEFT(-123, 2) AS c, RIGHT(-123, 4) AS d"
+    engine: sa
+  - id: left_right_of_null
+    sql: "SELECT LEFT(NULL, 2) AS a, LEFT('abc', NULL) AS b, RIGHT(NULL, 1) AS c, RIGHT('abc', NULL) AS d"
+    engine: sa
+  - id: left_by_a_smallint
+    sql: "SELECT id, LEFT(vc, sm) AS l, RIGHT(vc, sm) AS r FROM t ORDER BY id"
+  - id: right_of_a_char_is_of_its_pad
+    sql: "SELECT id, RIGHT(ch, 2) || '|' AS r, LEFT(ch, 1) AS l FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","  |","a"],["2","  |","a"],["3","  |","A"],["4","  |","z"],["5","|",null],["6","  |"," "],["7","  |"," "]]'
+  - id: left_of_latin1_text
+    sql: "SELECT LEFT('Résumé', 2) AS a, RIGHT('Résumé', 2) AS b"
+    engine: sa
+  - id: left_by_a_numeric_is_refused
+    sql: "SELECT LEFT('abcdef', 2.9) AS l"
+    engine: sa
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from left_of_a_date_is_refused
+  - id: left_of_a_date
+    sql: "SELECT LEFT(dt, 4) AS l FROM t WHERE id = 1"
+  - id: left_in_sql_anywhere
+    sql: "SELECT id, LEFT(vc, 3) AS l FROM t ORDER BY id"
+    profile: sqla17-default
+
+  # ---- TRIM, LTRIM and RTRIM: the space, tab, line feed, vertical tab, form feed and carriage return (no other); a set
+  - id: trim_spaces
+    sql: "SELECT '[' || TRIM('  a b  ') || ']' AS a, '[' || LTRIM('  a  ') || ']' AS b, '[' || RTRIM('  a  ') || ']' AS c, '[' || TRIM('') || ']' AS d, '[' || TRIM('   ') || ']' AS e, TRIM(NULL) AS f"
+    engine: sa
+  - id: trim_control_characters
+    sql: "SELECT '[' || TRIM('\\x09a\\x09') || ']' AS a, '[' || TRIM('\\x0aa\\x0a') || ']' AS b, '[' || TRIM('\\x0ba\\x0c') || ']' AS c, '[' || TRIM('\\x0da\\x0d') || ']' AS d, '[' || TRIM(' \\x09 \\x0a a \\x0d ') || ']' AS e"
+    engine: sa
+  - id: trim_keeps_other_characters
+    sql: "SELECT '[' || TRIM('\\xa0a\\xa0') || ']' AS a, '[' || TRIM('\\x1fa\\x1c') || ']' AS c, '[' || LTRIM('\\x7fa') || ']' AS d, '[' || RTRIM('a\\x01') || ']' AS e"
+    engine: sa
+  - id: ltrim_rtrim_controls
+    sql: "SELECT '[' || LTRIM(' \\x09x\\x09 ') || ']' AS a, '[' || RTRIM(' \\x09x\\x0a\\x0b ') || ']' AS b"
+    engine: sa
+  - id: trim_of_a_set
+    sql: "SELECT TRIM('abcab', 'ab') AS a, LTRIM('xyyxXwxy', 'xy') AS b, RTRIM('xxaxx', 'x') AS c, TRIM('aa', '') AS d, TRIM('  a  ', NULL) AS e, TRIM('[a]', '[]') AS f, LTRIM('-^-x', '^-') AS g"
+    engine: sa
+  - id: trim_of_a_set_of_controls
+    sql: "SELECT '[' || TRIM('\\x0a\\x0ax\\x09\\x0a', '\\x0a') || ']' AS a, '[' || TRIM('\\x5cx\\x5c', '\\x5c') || ']' AS b"
+    engine: sa
+  - id: trim_of_a_varchar
+    sql: "SELECT id, '[' || TRIM(vc) || ']' AS t, '[' || LTRIM(vc) || ']' AS l, '[' || RTRIM(vc) || ']' AS r FROM t ORDER BY id"
+  - id: trim_of_a_char_drops_its_pad
+    sql: "SELECT id, '[' || RTRIM(ch) || ']' AS r, '[' || TRIM(ch) || ']' AS t FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","[ab]","[ab]"],["2","[abc]","[abc]"],["3","[A]","[A]"],["4","[zz]","[zz]"],["5","[]","[]"],["6","[]","[]"],["7","[ b]","[b]"]]'
+  - id: ltrim_of_a_char_keeps_its_pad
+    sql: "SELECT id, '[' || LTRIM(ch) || ']' AS l FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","[ab   ]"],["2","[abc  ]"],["3","[A    ]"],["4","[zz   ]"],["5","[]"],["6","[]"],["7","[b   ]"]]'
+  - id: trim_of_spaces_of_columns
+    sql: "SELECT id, '[' || TRIM(SPACE(id) || 'x' || SPACE(id)) || ']' AS t, LENGTH(LTRIM(SPACE(id) || 'x')) AS l FROM t ORDER BY id"
+  - id: trim_of_integers
+    sql: "SELECT TRIM(123) AS a, LTRIM(-5) AS b"
+    engine: sa
+  - id: trim_of_a_set_of_a_column
+    sql: "SELECT id, TRIM(vc, 'eH') AS s FROM t ORDER BY id"
+  # IQ island, 2026-10-14 (natives): answers now (was trim_in_sql_anywhere_is_refused)
+  - id: trim_in_sql_anywhere
+    sql: "SELECT TRIM(vc) AS s FROM t WHERE id = 1"
+    profile: sqla17-default
+  - id: trim_of_a_set_not_constant_is_refused
+    sql: "SELECT TRIM(vc, vc) AS s FROM t WHERE id = 1"
+  - id: trim_ansi_form_is_rejected
+    sql: "SELECT TRIM(BOTH ' ' FROM ' a ') AS s"
+    engine: sa
+  - id: trim_of_three_arguments
+    sql: "SELECT TRIM('a', 'b', 'c') AS s"
+    engine: sa
+
+  # ---- REPLACE: every occurrence, left to right, case-sensitively; '' searched is no change; a search of 255 or more NULL
+  - id: replace_constants
+    sql: "SELECT REPLACE('abcABCabc', 'b', 'X') AS a, REPLACE('abc', '', 'X') AS b, REPLACE('abcabc', 'b', '') AS c, REPLACE('aaa', 'aa', 'b') AS d, REPLACE('a.b', '.', '..') AS e, REPLACE('Résumé', 'é', 'e') AS f"
+    engine: sa
+  - id: replace_is_case_sensitive
+    sql: "SELECT REPLACE('abc', 'B', 'X') AS a, REPLACE('ABC', 'b', 'X') AS b"
+    engine: sa
+  - id: replace_of_null
+    sql: "SELECT REPLACE(NULL, 'a', 'b') AS a, REPLACE('a', NULL, 'b') AS b, REPLACE('a', 'a', NULL) AS c"
+    engine: sa
+  - id: replace_of_integers
+    sql: "SELECT REPLACE(123123, 2, 9) AS a, REPLACE('a1b1', 1, '-') AS b"
+    engine: sa
+  - id: replace_search_of_254
+    sql: "SELECT LENGTH(REPLACE(REPEAT('a', 300), REPEAT('a', 254), 'X')) AS a"
+    engine: sa
+  - id: replace_search_of_255_is_null
+    sql: "SELECT REPLACE(REPEAT('a', 300), REPEAT('a', 255), 'X') AS a, REPLACE('abc', REPEAT('a', 256), 'X') AS b"
+    engine: sa
+  - id: replace_of_repeats
+    sql: "SELECT id, REPLACE(REPEAT('ab', id), 'ba', '-') AS r FROM t ORDER BY id"
+  - id: replace_of_a_varchar
+    sql: "SELECT id, REPLACE(vc, 'l', 'L') AS r, REPLACE(vc, ' ', '_') AS s FROM t ORDER BY id"
+  - id: replace_of_a_char_shows_its_pad
+    sql: "SELECT id, REPLACE(ch, ' ', '_') AS r FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","ab___"],["2","abc__"],["3","A____"],["4","zz___"],["5",null],["6","_____"],["7","_b___"]]'
+  - id: replace_with_a_column_search
+    sql: "SELECT id, REPLACE('Hello hello', vc, '*') AS r FROM t ORDER BY id"
+  # IQ island, 2026-10-14 (natives): answers now (was replace_in_sql_anywhere_is_refused)
+  - id: replace_without_case_in_sql_anywhere
+    sql: "SELECT REPLACE(vc, 'l', 'L') AS r FROM t WHERE id = 1"
+    profile: sqla17-default
+  - id: replace_of_two_arguments
+    sql: "SELECT REPLACE('abc', 'b') AS r"
+    engine: sa
+
+  # ---- REPEAT, REPLICATE and SPACE: n copies, '' for n of 0 or less
+  - id: repeat_counts
+    sql: "SELECT REPEAT('ab', 3) AS a, REPEAT('ab', 0) AS b, REPEAT('ab', -1) AS c, REPEAT('', 5) AS d, REPEAT(NULL, 2) AS e, REPEAT('a', NULL) AS f, REPLICATE('xy', 2) AS g"
+    engine: sa
+  - id: space_counts
+    sql: "SELECT '[' || SPACE(3) || ']' AS a, '[' || SPACE(-1) || ']' AS b, '[' || SPACE(0) || ']' AS c, SPACE(NULL) AS d"
+    engine: sa
+  - id: repeat_of_column_counts
+    sql: "SELECT id, REPEAT('ab', sm) AS r, '[' || SPACE(id) || ']' AS s FROM t WHERE id <> 1 ORDER BY id"
+  - id: repeat_of_an_integer
+    sql: "SELECT REPEAT(12, 2) AS a, REPLICATE(-1, 3) AS b"
+    engine: sa
+  - id: repeat_of_columns
+    sql: "SELECT id, REPEAT(vc, 2) AS r FROM t WHERE id IN (1, 6) ORDER BY id"
+  - id: repeat_by_a_smallint
+    sql: "SELECT id, LENGTH(REPEAT('x', sm)) AS n FROM t WHERE id <> 1 ORDER BY id"
+  - id: repeat_by_a_numeric_is_refused
+    sql: "SELECT REPEAT('ab', 1.7) AS r"
+    engine: sa
+
+  # ---- CHARINDEX and LOCATE: from 1, 0 when not found, '' found at 1; LOCATE's start (negative: the last occurrence)
+  - id: charindex_constants
+    sql: "SELECT CHARINDEX('b', 'abcb') AS a, CHARINDEX('', 'abc') AS b, CHARINDEX('x', 'abc') AS c, CHARINDEX('', '') AS d, CHARINDEX('abc', 'ab') AS e, CHARINDEX('é', 'Résumé') AS f"
+    engine: sa
+  - id: charindex_is_case_sensitive
+    sql: "SELECT CHARINDEX('B', 'abc') AS a, CHARINDEX('b', 'ABC') AS b"
+    engine: sa
+  - id: charindex_of_null
+    sql: "SELECT CHARINDEX(NULL, 'abc') AS a, CHARINDEX('b', NULL) AS b"
+    engine: sa
+  - id: charindex_of_integers
+    sql: "SELECT CHARINDEX(2, 12345) AS a, CHARINDEX('-', -5) AS b"
+    engine: sa
+  - id: charindex_search_of_254_and_255
+    sql: "SELECT CHARINDEX(REPEAT('a', 254), REPEAT('a', 300)) AS a, CHARINDEX(REPEAT('a', 255), REPEAT('a', 300)) AS b, CHARINDEX(REPEAT('a', 256), 'a') AS c"
+    engine: sa
+  - id: charindex_of_three_arguments
+    sql: "SELECT CHARINDEX('b', 'abc', 1) AS c"
+    engine: sa
+  - id: charindex_over_columns
+    sql: "SELECT id, CHARINDEX('l', vc) AS a, CHARINDEX(vc, 'Hello hello') AS b FROM t ORDER BY id"
+  - id: locate_two_arguments
+    sql: "SELECT LOCATE('abcabc', 'b') AS a, LOCATE('abcabc', 'x') AS b, LOCATE('abcabc', '') AS c, LOCATE(NULL, 'b') AS d, LOCATE('abc', NULL) AS e"
+    engine: sa
+  - id: locate_from_column_starts
+    sql: "SELECT id, LOCATE('abcabc', 'b', sm) AS a, LOCATE('abcabc', 'bc', it) AS b, LOCATE('abcabc', '', sm) AS c, LOCATE('abcabc', 'c', id) AS d FROM t ORDER BY id"
+  - id: locate_negative_starts
+    sql: "SELECT LOCATE('abcabc', 'b', -2) AS a, LOCATE('abcabc', 'bc', -2) AS b, LOCATE('abcabc', 'b', -3) AS c, LOCATE('abcabc', 'b', -4) AS d, LOCATE('abcabc', 'b', -6) AS e, LOCATE('abcabc', 'b', -7) AS f, LOCATE('abcabc', 'b', -100) AS g, LOCATE('abcabc', 'b', 0) AS h"
+    engine: sa
+  - id: locate_last_occurrences
+    sql: "SELECT LOCATE('xyz', 'z', -1) AS a, LOCATE('xyz', 'xyz', -1) AS b, LOCATE('xyz', 'xyzw', -1) AS c, LOCATE('', 'a', 1) AS d, LOCATE('', '', -1) AS e, LOCATE('aaa', 'aa', -1) AS f, LOCATE('aaa', 'aa', 2) AS g"
+    engine: sa
+  - id: locate_of_a_null_start
+    sql: "SELECT LOCATE('abc', 'b', NULL) AS a"
+    engine: sa
+  - id: locate_search_of_255
+    sql: "SELECT LOCATE(REPEAT('a', 300), REPEAT('a', 254)) AS a, LOCATE(REPEAT('a', 300), REPEAT('a', 255)) AS b, LOCATE(REPEAT('a', 300), REPEAT('a', 255), -1) AS c"
+    engine: sa
+  - id: locate_over_columns
+    sql: "SELECT id, LOCATE(vc, 'l') AS a, LOCATE(vc, 'l', -1) AS b, LOCATE(vc, 'l', 4) AS c FROM t ORDER BY id"
+  - id: locate_by_a_smallint_start
+    sql: "SELECT id, LOCATE('abcabcabc', 'c', sm) AS a FROM t ORDER BY id"
+  # IQ island, 2026-10-14 (natives): answers now (was locate_in_sql_anywhere_is_refused)
+  - id: locate_without_case_in_sql_anywhere
+    sql: "SELECT LOCATE(vc, 'l') AS a FROM t WHERE id = 1"
+    profile: sqla17-default
+
+  # ---- PATINDEX of a constant pattern of one literal run between %s: 0 for a NULL argument
+  - id: patindex_shapes
+    sql: "SELECT PATINDEX('%b%', 'abcb') AS a, PATINDEX('b%', 'abc') AS b, PATINDEX('a%', 'abc') AS c, PATINDEX('%c', 'abc') AS d, PATINDEX('%b', 'abc') AS e, PATINDEX('abc', 'abc') AS f, PATINDEX('%%b%', 'abc') AS g"
+    engine: sa
+  - id: patindex_blanks_count
+    sql: "SELECT PATINDEX('abc', 'abc  ') AS a, PATINDEX('%b', 'ab ') AS b, PATINDEX('ab%', 'ab') AS c, PATINDEX('%ab%', 'ab') AS d"
+    engine: sa
+  - id: patindex_of_null_is_zero
+    sql: "SELECT PATINDEX(NULL, 'abc') AS a, PATINDEX('%a%', NULL) AS b, PATINDEX('%x%', 'abc') AS c"
+    engine: sa
+  - id: patindex_of_percents_alone
+    sql: "SELECT PATINDEX('%', 'abc') AS a, PATINDEX('%%', 'abc') AS b, PATINDEX('', 'abc') AS c"
+    engine: sa
+  - id: patindex_of_an_integer
+    sql: "SELECT PATINDEX('%3%', 12345) AS a, PATINDEX('%c%', 12345) AS b"
+    engine: sa
+  - id: patindex_over_columns
+    sql: "SELECT id, PATINDEX('%l%', vc) AS a, PATINDEX('h%', vc) AS b, PATINDEX('%e', vc) AS c FROM t ORDER BY id"
+  - id: patindex_of_a_single_character_wildcard_is_refused
+    sql: "SELECT PATINDEX('%b_', 'abc') AS a"
+    engine: sa
+  - id: patindex_of_a_set_is_refused
+    sql: "SELECT PATINDEX('%[0-9]%', 'ab1') AS a"
+    engine: sa
+  - id: patindex_of_percents_alone_under_iq_is_refused
+    sql: "SELECT PATINDEX('%', vc) AS a FROM t WHERE id = 1"
+  - id: patindex_of_a_column_pattern_is_refused
+    sql: "SELECT PATINDEX(vc, 'abc') AS a FROM t WHERE id = 1"
+
+  # ---- STUFF in SQL Anywhere's front end (D-F3 under the IQ engine): NULL for a start out of 1 .. length + 1
+  - id: stuff_constants
+    sql: "SELECT STUFF('abcdef', 2, 3, 'XY') AS a, STUFF('abcdef', 1, 0, 'X') AS b, STUFF('abcdef', 7, 0, 'X') AS c, STUFF('abcdef', 8, 0, 'X') AS d, STUFF('abcdef', 2, 100, 'X') AS e, STUFF('abcdef', 2, 3, NULL) AS f, STUFF('abcdef', 0, 1, 'X') AS g"
+    engine: sa
+  - id: stuff_nulls_and_negatives
+    sql: "SELECT STUFF(NULL, 1, 1, 'X') AS a, STUFF('abc', NULL, 1, 'X') AS b, STUFF('abc', 1, NULL, 'X') AS c, STUFF('abc', -1, 1, 'X') AS d, STUFF('abc', 1, -1, 'X') AS e, STUFF('', 1, 0, 'X') AS f, STUFF('abc', 3, 1, '') AS g"
+    engine: sa
+  - id: stuff_of_column_starts
+    sql: "SELECT id, STUFF('wxyz', id, 1, '-') AS s, STUFF('wxyz', sm, 0, '+') AS u FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: stuff_in_sql_anywhere
+    sql: "SELECT id, STUFF(vc, 2, 1, '#') AS s FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: stuff_under_the_iq_engine_is_refused
+    sql: "SELECT STUFF(vc, 2, 1, '#') AS s FROM t WHERE id = 1"
+
+  # ---- ASCII and CHAR: an ISO-8859-1 database's codes
+  - id: ascii_constants
+    sql: "SELECT ASCII('A') AS a, ASCII('') AS b, ASCII(NULL) AS c, ASCII('é') AS d, ASCII(123) AS e, ASCII('abc') AS f, ASCII(' ') AS g"
+    engine: sa
+  - id: char_codes
+    sql: "SELECT CHAR(65) AS a, CHAR(255) AS b, CHAR(256) AS c, CHAR(-1) AS d, CHAR(NULL) AS e, CHAR(233) AS f"
+    engine: sa
+  - id: char_of_codes
+    sql: "SELECT CHAR(1) AS a, CHAR(9) AS b, CHAR(31) AS c, CHAR(127) AS d, CHAR(128) AS e, CHAR(159) AS f, CHAR(160) AS g, CHAR(200) AS h, ASCII(CHAR(254)) AS i"
+    engine: sa
+  - id: char_of_a_column_is_refused
+    sql: "SELECT id, ASCII(CHAR(id)) AS a FROM t ORDER BY id"
+  - id: char_of_a_computed_code_is_refused
+    sql: "SELECT CHAR(id + 64) AS c FROM t WHERE id = 1"
+  - id: ascii_of_columns
+    sql: "SELECT id, ASCII(vc) AS a, ASCII(sm) AS b FROM t ORDER BY id"
+  - id: char_of_zero_is_refused
+    sql: "SELECT CHAR(0) AS c"
+    engine: sa
+  - id: char_of_a_code_that_may_be_zero_is_refused
+    sql: "SELECT CHAR(sm) AS c FROM t WHERE id = 1"
+  - id: char_of_a_numeric_is_refused
+    sql: "SELECT CHAR(65.7) AS c"
+    engine: sa
+  - id: ascii_in_sql_anywhere_is_refused
+    sql: "SELECT ASCII(vc) AS a FROM t WHERE id = 1"
+    profile: sqla17-default
+  - id: char_below_128_in_sql_anywhere
+    sql: "SELECT CHAR(65) AS a, CHAR(127) AS b"
+    profile: sqla17-default
+    engine: sa
+
+  # ---- STRING: the values as text, joined; a NULL is '', all NULL is NULL
+  - id: string_of_constants
+    sql: "SELECT STRING('a', NULL, 'b') AS a, STRING(NULL, NULL) AS b, STRING(1, 'a') AS c, STRING('a') AS d, STRING(NULL) AS e, STRING('', NULL) AS f"
+    engine: sa
+  - id: string_of_columns
+    sql: "SELECT id, STRING(vc, '/', sm, '/', bt) AS s FROM t ORDER BY id"
+  - id: string_of_all_null_columns
+    sql: "SELECT id, STRING(vc, it) AS s FROM t WHERE id IN (5, 6) ORDER BY id"
+  - id: string_of_a_numeric_is_refused
+    sql: "SELECT STRING(nm, 'a') AS s FROM t WHERE id = 1"
+  - id: string_of_no_argument
+    sql: "SELECT STRING() AS s"
+    engine: sa
+
+  # ---- UPPER, LOWER, UCASE and LCASE fold the ASCII letters only (IQ island, 2026-10-14: composed of replace)
+  # IQ island, 2026-10-14 (natives): answers now (was upper_is_refused)
+  - id: upper_folds_the_ascii_letters
+    sql: "SELECT UPPER(vc) AS u FROM t WHERE id = 1"
+  # IQ island, 2026-10-14 (natives): answers now (was lcase_is_refused)
+  - id: lcase_folds_the_ascii_letters
+    sql: "SELECT LCASE('ABC') AS l"
+    engine: sa
+  - id: concat_is_no_iq_function
+    sql: "SELECT CONCAT('a', 'b') AS c"
+    engine: sa
+
+  # ---- ABS and SIGN: SQL Anywhere's unsigned and NUMERIC(20,0) results; the IQ engine's argument type (D-F5)
+  - id: abs_of_constants
+    sql: "SELECT ABS(-5) AS a, ABS(-2.50) AS b, ABS(NULL) AS c, ABS(0) AS d, ABS(-32768) AS e, ABS(-2147483648) AS f, ABS(1.5e2) AS g"
+    engine: sa
+  - id: abs_over_rowgenerator
+    sql: "SELECT row_num, ABS(row_num) AS a, ABS(row_num * 2) AS b FROM sa_rowgenerator(-3, 3) ORDER BY row_num"
+    engine: sa
+  - id: abs_of_columns_in_sql_anywhere
+    sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c, ABS(nm) AS d, ABS(dbl) AS e, ABS(bt) AS f FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: abs_of_columns_under_the_iq_engine
+    sql: "SELECT id, ABS(sm) AS a, ABS(it) AS b, ABS(bg) AS c FROM t WHERE id <> 2 ORDER BY id"
+    decision: D-F5
+    expect: '[["1","32767","2147483647","9223372036854775807"],["3","0","0","0"],["4","1","1","1"],["5",null,null,null],["6","100","100","100"],["7","1","7","7"]]'
+  - id: abs_of_a_numeric_and_a_double
+    sql: "SELECT id, ABS(nm) AS a, ABS(dbl) AS b FROM t ORDER BY id"
+  - id: abs_of_a_string_is_refused
+    sql: "SELECT ABS('-3') AS a"
+    engine: sa
+  - id: sign_of_constants
+    sql: "SELECT SIGN(-5) AS a, SIGN(0) AS b, SIGN(2.5) AS c, SIGN(NULL) AS d, SIGN(-0.0) AS e"
+    engine: sa
+  - id: sign_of_columns
+    sql: "SELECT id, SIGN(sm) AS a, SIGN(bg) AS b, SIGN(nm) AS c, SIGN(dbl) AS d FROM t ORDER BY id"
+  - id: sign_of_a_string_is_refused
+    sql: "SELECT SIGN('1') AS s"
+    engine: sa
+
+  # ---- CEILING, CEIL and FLOOR: the argument as a DOUBLE, a DOUBLE (SQL Anywhere's front end; D-F2 under the IQ engine)
+  - id: ceiling_floor_of_constants
+    sql: "SELECT CEILING(2.1) AS a, CEILING(-2.1) AS b, FLOOR(2.9) AS c, FLOOR(-2.1) AS d, CEIL(5) AS e, FLOOR(NULL) AS f"
+    engine: sa
+  - id: ceiling_floor_over_rowgenerator
+    sql: "SELECT row_num, CEILING(row_num * 0.4) AS c, FLOOR(row_num * 0.4) AS f FROM sa_rowgenerator(-3, 3) ORDER BY row_num"
+    engine: sa
+  - id: ceiling_floor_of_columns_in_sql_anywhere
+    sql: "SELECT id, CEILING(nm) AS a, FLOOR(nm) AS b, CEILING(dbl) AS c, FLOOR(dbl) AS d, FLOOR(bg) AS e, CEIL(sm) AS f FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: floor_of_15_digit_numerics
+    sql: "SELECT FLOOR(0.999999999999999) AS a, CEILING(-0.999999999999999) AS b, FLOOR(99999999999999.9) AS c"
+    engine: sa
+  - id: ceiling_under_the_iq_engine_is_refused
+    sql: "SELECT CEILING(nm) AS c FROM t WHERE id = 1"
+  - id: floor_of_a_numeric_of_more_than_15_digits_is_refused
+    sql: "SELECT FLOOR(0.99999999999999999999) AS a"
+    engine: sa
+
+  # ---- ROUND (half away from zero; D-F1 under the IQ engine) and TRUNCNUM (toward zero), keeping the scale
+  - id: round_of_constants
+    sql: "SELECT ROUND(2.5, 0) AS a, ROUND(-2.5, 0) AS b, ROUND(123.456, 1) AS c, ROUND(123.456, -1) AS d, ROUND(1234, -2) AS e, ROUND(1250, -2) AS f, ROUND(-1250, -2) AS g"
+    engine: sa
+  - id: round_of_null
+    sql: "SELECT ROUND(NULL, 1) AS a, ROUND(1.5, NULL) AS b"
+    engine: sa
+  - id: round_over_rowgenerator
+    sql: "SELECT row_num, ROUND(row_num * 0.25, 1) AS a, ROUND(row_num * 5, -1) AS b, TRUNCNUM(row_num * 0.25, 1) AS c FROM sa_rowgenerator(-4, 4) ORDER BY row_num"
+    engine: sa
+  - id: round_of_columns_in_sql_anywhere
+    sql: "SELECT id, ROUND(nm, 1) AS a, ROUND(nm, 0) AS b, ROUND(sm, -2) AS c, ROUND(bg, -3) AS d, ROUND(nm, 5) AS e FROM t WHERE id <> 2 ORDER BY id"
+    profile: sqla17-default
+  - id: round_past_its_precision
+    sql: "SELECT id, ROUND(nm, -2) AS r FROM t WHERE id = 2"
+    profile: sqla17-default
+  - id: round_of_a_cast_constant_past_its_precision
+    sql: "SELECT ROUND(CAST(9.99 AS NUMERIC(3,2)), 1) AS r"
+    engine: sa
+  - id: round_of_a_literal_has_a_digit_more
+    sql: "SELECT ROUND(9.99, 1) AS a, ROUND(-9.5, 0) AS b"
+    engine: sa
+  - id: round_of_a_double_is_refused
+    sql: "SELECT ROUND(dbl, 2) AS r FROM t WHERE id = 1"
+    profile: sqla17-default
+  - id: round_under_the_iq_engine_is_refused
+    sql: "SELECT ROUND(nm, 1) AS r FROM t WHERE id = 1"
+  - id: round_of_one_argument
+    sql: "SELECT ROUND(1.5) AS r"
+    engine: sa
+  - id: round_by_a_column_is_refused
+    sql: "SELECT row_num, ROUND(1.55, row_num) AS r FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: truncnum_of_constants
+    sql: "SELECT TRUNCNUM(2.59, 1) AS a, TRUNCNUM(-2.59, 1) AS b, TRUNCNUM(655.348, 2) AS c, TRUNCNUM(1259, -2) AS d, TRUNCNUM(-1259, -2) AS e, TRUNCNUM(NULL, 1) AS f"
+    engine: sa
+  - id: truncnum_of_columns
+    sql: "SELECT id, TRUNCNUM(nm, 1) AS a, TRUNCNUM(nm, -3) AS b, TRUNCNUM(sm, -2) AS c, TRUNCNUM(bg, -1) AS d, TRUNCNUM(it, 3) AS e FROM t ORDER BY id"
+  - id: truncnum_of_a_double_is_refused
+    sql: "SELECT TRUNCNUM(dbl, 1) AS t FROM t WHERE id = 1"
+
+  # ---- MOD and REMAINDER: IQ's %
+  - id: mod_of_constants
+    sql: "SELECT MOD(7, 2) AS a, MOD(-7, 2) AS b, MOD(7, -2) AS c, MOD(NULL, 2) AS d, REMAINDER(7, 3) AS e"
+    engine: sa
+  - id: mod_of_columns
+    sql: "SELECT id, MOD(it, 7) AS a, MOD(sm, -3) AS b, REMAINDER(it, sm) AS c FROM t WHERE sm <> 0 ORDER BY id"
+  - id: mod_by_zero
+    sql: "SELECT MOD(7, 0) AS m"
+    engine: sa
+  # IQ island, 2026-10-14 (natives): answers now (was mod_of_a_numeric_is_refused)
+  - id: mod_of_a_numeric
+    sql: "SELECT MOD(7.5, 2) AS m"
+    engine: sa
+  - id: mod_under_a_row_limit_is_refused
+    sql: "SELECT TOP 2 id, MOD(it, sm) AS m FROM t ORDER BY id"
+
+  # ---- SQRT, EXP, LN, LOG (natural) and LOG10: NULL outside the domain in SQL Anywhere's front end (D-F9 under IQ)
+  - id: sqrt_ln_log_of_constants
+    sql: "SELECT SQRT(4) AS a, SQRT(2) AS b, SQRT(-1) AS c, SQRT(NULL) AS d, LN(1) AS e, LN(0) AS f, LOG(10) AS g, LOG(-1) AS h, LOG10(100) AS i, LOG10(0) AS j"
+    engine: sa
+  - id: exp_of_constants
+    sql: "SELECT EXP(1) AS a, EXP(0) AS b, EXP(1000) AS c, EXP(-1000) AS d, EXP(709) AS e, EXP(710) AS f, EXP(NULL) AS g"
+    engine: sa
+  - id: exp_at_the_largest_and_the_smallest_doubles
+    sql: "SELECT EXP(709.782712893384e0) AS a, EXP(-745.133219101942e0) AS b, EXP(-746) AS c"
+    engine: sa
+  - id: math_over_rowgenerator
+    sql: "SELECT row_num, SQRT(row_num) AS s, LN(row_num) AS l, LOG10(row_num) AS g, EXP(row_num) AS e FROM sa_rowgenerator(-2, 4) ORDER BY row_num"
+    engine: sa
+  - id: math_of_columns_in_sql_anywhere
+    sql: "SELECT id, SQRT(dbl) AS s, LN(dbl) AS l, LOG10(sm) AS g, EXP(nm) AS e FROM t WHERE id <> 1 ORDER BY id"
+    profile: sqla17-default
+  - id: math_of_columns_under_the_iq_engine
+    sql: "SELECT id, SQRT(dbl) AS s, LN(dbl) AS l FROM t WHERE dbl > 0 ORDER BY id"
+    decision: D-F9
+    expect: '[["1","1.224744871391589","0.4054651081081644"],["4","1.7724538509055159","1.1447298858494002"],["6","1e+150","690.7755278982137"]]'
+  - id: log_of_two_arguments
+    sql: "SELECT LOG(10, 100) AS l"
+    engine: sa
+  - id: power_is_refused
+    sql: "SELECT POWER(2, 10) AS p"
+    engine: sa
+  - id: pi_with_and_without_star
+    sql: "SELECT PI() AS a, PI(*) AS b"
+    engine: sa
+
+  # ---- GETDATE, NOW, CURRENT TIMESTAMP, TODAY, CURRENT DATE: the statement's time (compared, so the answers stay)
+  # IQ island, 2026-10-14 (review 3's M3, D-T13): GETDATE() is a reading of the clock of its own in SQL Anywhere,
+  # refused beside another; its item moved to getdate_beside_current_timestamp_is_refused
+  - id: now_family_against_current_timestamp
+    sql: "SELECT IF NOW(*) = CURRENT TIMESTAMP THEN 1 ELSE 0 ENDIF AS b, IF NOW() = CURRENT_TIMESTAMP THEN 1 ELSE 0 ENDIF AS c, IF CURRENT TIMESTAMP >= CAST(CURRENT DATE AS TIMESTAMP) THEN 1 ELSE 0 ENDIF AS d"
+    engine: sa
+  - id: getdate_beside_current_timestamp_is_refused
+    sql: "SELECT IF GETDATE() <= CURRENT TIMESTAMP THEN 1 ELSE 0 ENDIF AS a"
+    engine: sa
+  # IQ island, 2026-10-14 (review 3's M3, D-T13): GETDATE(*) beside TODAY() is refused; its item moved to
+  # getdate_against_a_constant
+  - id: today_against_current_date
+    sql: "SELECT IF TODAY() = CURRENT DATE THEN 1 ELSE 0 ENDIF AS a, IF TODAY(*) = CURRENT DATE THEN 1 ELSE 0 ENDIF AS b"
+    engine: sa
+  - id: getdate_against_a_constant
+    sql: "SELECT IF GETDATE(*) > '2026-01-01' THEN 1 ELSE 0 ENDIF AS c"
+    engine: sa
+  - id: now_is_one_value_per_statement
+    sql: "SELECT row_num, IF NOW() = CURRENT TIMESTAMP THEN 1 ELSE 0 ENDIF AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: now_against_a_table
+    sql: "SELECT id FROM t WHERE ts < GETDATE() AND id <> 6 ORDER BY id"
+  # IQ island, 2026-10-14 (review 3's M3, D-T13): GETDATE() beside NOW() is refused; its item moved to year_of_getdate
+  - id: year_of_now
+    sql: "SELECT IF YEAR(NOW()) = YEAR(CURRENT TIMESTAMP) THEN 1 ELSE 0 ENDIF AS b"
+    engine: sa
+  - id: year_of_getdate
+    sql: "SELECT IF YEAR(GETDATE()) >= 2026 THEN 1 ELSE 0 ENDIF AS a"
+    engine: sa
+  - id: current_date_with_an_underscore_is_a_column
+    sql: "SELECT CURRENT_DATE AS d"
+    engine: sa
+  - id: current_timestamp_with_parentheses
+    sql: "SELECT CURRENT_TIMESTAMP() AS d"
+    engine: sa
+  - id: current_time_is_refused
+    sql: "SELECT IF CURRENT TIME IS NULL THEN 0 ELSE 1 ENDIF AS a"
+    engine: sa
+
+  # ---- YEAR .. SECOND, QUARTER, DOW, DATE: of a date, a timestamp, an ISO string
+  - id: year_to_second_of_columns
+    sql: "SELECT id, YEAR(ts) AS y, MONTH(dt) AS m, DAY(dt) AS d, HOUR(ts) AS h, MINUTE(ts) AS n, SECOND(ts) AS s FROM t ORDER BY id"
+  - id: hour_of_a_date_is_zero
+    sql: "SELECT id, HOUR(dt) AS h, MINUTE(dt) AS n, SECOND(dt) AS s FROM t ORDER BY id"
+  - id: quarter_and_dow_of_columns
+    sql: "SELECT id, QUARTER(dt) AS q, DOW(dt) AS w, DOW(ts) AS v FROM t ORDER BY id"
+  - id: year_of_strings
+    sql: "SELECT YEAR('2026-03-04') AS a, MONTH('2026-03-04 10:11:12') AS b, SECOND('2026-03-04 10:11:12.9') AS c, DAY(NULL) AS d"
+    engine: sa
+  - id: date_of_columns
+    sql: "SELECT id, DATE(ts) AS d, DATE(dt) AS e FROM t ORDER BY id"
+  - id: date_of_strings
+    sql: "SELECT DATE('2026-03-04 10:00') AS a, DATE(NULL) AS b, DATE('2026-03-04') AS c"
+    engine: sa
+  - id: date_of_a_timestamp_compared
+    sql: "SELECT id FROM t WHERE DATE(ts) = dt ORDER BY id"
+  - id: year_of_an_integer_is_refused
+    sql: "SELECT DAY(20260304) AS d"
+    engine: sa
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from year_of_a_non_iso_string_is_refused
+  - id: year_of_a_non_iso_string
+    sql: "SELECT YEAR('2026/03/04') AS y"
+    engine: sa
+  - id: year_of_a_column_string_is_refused
+    sql: "SELECT YEAR(vc) AS y FROM t WHERE id = 1"
+
+  # ---- DATEPART and DATENAME: SQL Anywhere's Sunday-based week and weekday; the ISO parts in its front end only (D-T10)
+  - id: datepart_of_columns
+    sql: "SELECT id, DATEPART(yy, ts) AS a, DATEPART(qq, ts) AS b, DATEPART(mm, ts) AS c, DATEPART(wk, dt) AS d, DATEPART(dd, ts) AS e, DATEPART(dy, dt) AS f, DATEPART(dw, dt) AS g FROM t ORDER BY id"
+  - id: datepart_of_times
+    sql: "SELECT id, DATEPART(hh, ts) AS a, DATEPART(mi, ts) AS b, DATEPART(ss, ts) AS c, DATEPART(ms, ts) AS d, DATEPART(mcs, ts) AS e, DATEPART(us, dt) AS f FROM t ORDER BY id"
+  - id: datepart_full_names
+    sql: "SELECT DATEPART(year, '2026-03-04') AS a, DATEPART(quarter, '2026-08-01') AS b, DATEPART(month, '2026-03-04') AS c, DATEPART(week, '2026-03-08') AS d, DATEPART(day, '2026-03-04') AS e, DATEPART(dayofyear, '2026-12-31') AS f, DATEPART(weekday, '2026-03-07') AS g, DATEPART(hour, '2026-03-04 23:00') AS h, DATEPART(millisecond, '2026-03-04 00:00:00.999999') AS i, DATEPART(microsecond, '2026-03-04 00:00:00.000045') AS j"
+    engine: sa
+  - id: datepart_weeks_around_new_year
+    sql: "SELECT row_num, DATEPART(wk, DATEADD(day, row_num, '2025-12-25')) AS w, DATEPART(dw, DATEADD(day, row_num, '2025-12-25')) AS d FROM sa_rowgenerator(0, 14) ORDER BY row_num"
+    engine: sa
+  - id: datepart_week_54
+    sql: "SELECT DATEPART(wk, '2000-12-31') AS a, DATEPART(wk, '2026-01-03') AS b, DATEPART(wk, '2026-01-04') AS c, DATEPART(wk, '2027-01-01') AS d"
+    engine: sa
+  - id: datepart_iso_parts
+    sql: "SELECT DATEPART(cdw, '2021-01-01') AS a, DATEPART(cwk, '2021-01-01') AS b, DATEPART(cyr, '2021-01-01') AS c, DATEPART(cyr, '2024-12-30') AS d, DATEPART(cwk, '2024-12-30') AS e, DATEPART(cdw, '2026-03-08') AS f"
+    engine: sa
+  - id: datepart_iso_parts_over_rowgenerator
+    sql: "SELECT row_num, DATEPART(caldayofweek, DATEADD(day, row_num, '2026-12-26')) AS a, DATEPART(calweekofyear, DATEADD(day, row_num, '2026-12-26')) AS b, DATEPART(calyearofweek, DATEADD(day, row_num, '2026-12-26')) AS c FROM sa_rowgenerator(0, 10) ORDER BY row_num"
+    engine: sa
+  - id: datepart_iso_parts_in_sql_anywhere
+    sql: "SELECT id, DATEPART(cdw, dt) AS a, DATEPART(cwk, dt) AS b, DATEPART(cyr, dt) AS c FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: datepart_iso_parts_under_the_iq_engine_are_refused
+    sql: "SELECT DATEPART(cdw, dt) AS a FROM t WHERE id = 1"
+  - id: datepart_delimited_parts
+    sql: "SELECT DATEPART(\"dd\", '2026-03-04') AS a, DATEPART([month], '2026-03-04') AS b, DATEPART(`yy`, '2026-03-04') AS c"
+    engine: sa
+  - id: datepart_of_null
+    sql: "SELECT DATEPART(dd, NULL) AS a, DATENAME(month, NULL) AS b"
+    engine: sa
+  - id: datepart_with_a_string_part
+    sql: "SELECT DATEPART('dd', '2026-03-04') AS a"
+    engine: sa
+  - id: datepart_with_a_sql_server_part
+    sql: "SELECT DATEPART(yyyy, '2026-03-04') AS a"
+    engine: sa
+  - id: datepart_with_no_part
+    sql: "SELECT DATEPART(fortnight, '2026-03-04') AS a"
+    engine: sa
+  - id: datepart_of_one_argument
+    sql: "SELECT DATEPART(dd) AS a"
+    engine: sa
+  - id: datename_of_columns
+    sql: "SELECT id, DATENAME(month, dt) AS a, DATENAME(dw, dt) AS b, DATENAME(yy, ts) AS c, DATENAME(ms, ts) AS d FROM t ORDER BY id"
+  - id: datename_of_every_month_and_weekday
+    sql: "SELECT row_num, DATENAME(mm, DATEADD(month, row_num, '2026-01-15')) AS m, DATENAME(weekday, DATEADD(day, row_num, '2026-03-01')) AS d FROM sa_rowgenerator(0, 11) ORDER BY row_num"
+    engine: sa
+  - id: datename_of_numbers
+    sql: "SELECT DATENAME(quarter, '2026-08-01') AS a, DATENAME(dy, '2026-08-01') AS b, DATENAME(cdw, '2026-03-08') AS c, DATENAME(mcs, '2026-03-08 01:02:03.000045') AS d, DATENAME(wk, '2026-03-08') AS e"
+    engine: sa
+  - id: datepart_of_tzoffset_is_refused
+    sql: "SELECT DATEPART(tz, '2026-03-04') AS a"
+    engine: sa
+
+  # ---- DATEADD and DATEDIFF in SQL Anywhere's front end (D-T2, D-T12, D-T11 under the IQ engine)
+  - id: dateadd_parts
+    sql: "SELECT DATEADD(year, 1, '2024-02-29') AS a, DATEADD(qq, 1, '2026-01-31') AS b, DATEADD(month, 1, '2026-01-31') AS c, DATEADD(wk, -1, '2026-03-04') AS d, DATEADD(day, 1, '2026-03-04') AS e, DATEADD(hour, -1, '2026-03-04 05:06:07.123456') AS f, DATEADD(mi, 90, '2026-03-04') AS g, DATEADD(ss, 61, '2026-03-04 23:59:59') AS h, DATEADD(mcs, 1, '2026-03-04 23:59:59.999999') AS i"
+    engine: sa
+  - id: dateadd_over_rowgenerator
+    sql: "SELECT row_num, DATEADD(month, row_num, '2026-01-31') AS m, DATEADD(day, row_num, '2026-02-27') AS d FROM sa_rowgenerator(-2, 3) ORDER BY row_num"
+    engine: sa
+  - id: dateadd_of_columns_in_sql_anywhere
+    sql: "SELECT id, DATEADD(day, sm, dt) AS a, DATEADD(month, 1, ts) AS b FROM t WHERE id <> 1 AND id <> 2 ORDER BY id"
+    profile: sqla17-default
+  - id: dateadd_of_null
+    sql: "SELECT DATEADD(day, NULL, '2026-03-04') AS a, DATEADD(day, 1, NULL) AS b"
+    engine: sa
+  - id: dateadd_dayofyear_and_weekday
+    sql: "SELECT DATEADD(dy, 1, '2026-03-04') AS a, DATEADD(dw, 2, '2026-03-04') AS b"
+    engine: sa
+  - id: dateadd_under_the_iq_engine_is_refused
+    sql: "SELECT DATEADD(day, 1, dt) AS d FROM t WHERE id = 1"
+  - id: dateadd_millisecond_is_refused
+    sql: "SELECT DATEADD(ms, 1, '2026-03-04 00:00:00.123456') AS d"
+    engine: sa
+  - id: dateadd_by_a_numeric_is_refused
+    sql: "SELECT DATEADD(dd, 1.9, '2026-03-04') AS d"
+    engine: sa
+  - id: datediff_boundaries
+    sql: "SELECT DATEDIFF(day, '2026-03-04 23:00', '2026-03-05 01:00') AS a, DATEDIFF(month, '2026-01-31', '2026-02-01') AS b, DATEDIFF(year, '2025-12-31', '2026-01-01') AS c, DATEDIFF(minute, '2026-03-04 11:14:59', '2026-03-04 11:15:02') AS d, DATEDIFF(hour, '2026-03-04 06:07:12', '2026-03-04 10:07:11') AS e, DATEDIFF(second, '2026-03-04 00:00:00.9', '2026-03-04 00:00:01.1') AS f, DATEDIFF(week, '2026-03-07', '2026-03-08') AS g"
+    engine: sa
+  - id: datediff_backwards
+    sql: "SELECT DATEDIFF(hour, '2026-03-04 10:07:11', '2026-03-04 06:07:12') AS a, DATEDIFF(minute, '1960-01-01 00:00:30', '1959-12-31 23:59:59') AS b, DATEDIFF(second, '1960-01-01 00:00:00.1', '1959-12-31 23:59:59.9') AS c, DATEDIFF(day, '2026-03-05', '2026-03-04 23:59') AS d, DATEDIFF(qq, '2026-04-01', '2025-12-31') AS e"
+    engine: sa
+  - id: datediff_small_units
+    sql: "SELECT DATEDIFF(millisecond, '1969-12-31 23:59:59.9995', '1970-01-01 00:00:00.0004') AS a, DATEDIFF(microsecond, '2026-03-04 00:00:00', '2026-03-04 00:00:01.000001') AS b, DATEDIFF(ms, '2026-03-04', '2026-03-05') AS c, DATEDIFF(mcs, '1000-01-01', '7910-12-31 23:59:59.999999') AS d"
+    engine: sa
+  - id: datediff_weeks_over_rowgenerator
+    sql: "SELECT row_num, DATEDIFF(week, '2026-03-01', DATEADD(day, row_num, '2026-03-01')) AS w, DATEDIFF(week, DATEADD(day, row_num, '2026-03-01'), '2026-03-01') AS v FROM sa_rowgenerator(-9, 9) ORDER BY row_num"
+    engine: sa
+  - id: datediff_hours_over_rowgenerator
+    sql: "SELECT row_num, DATEDIFF(hour, '2026-03-04 00:59:59', DATEADD(minute, row_num * 30, '2026-03-04 00:30:00')) AS h, DATEDIFF(second, '2026-03-04 00:00:00.5', DATEADD(mcs, row_num * 250000, '2026-03-04 00:00:00')) AS s FROM sa_rowgenerator(-6, 6) ORDER BY row_num"
+    engine: sa
+  - id: datediff_of_columns_in_sql_anywhere
+    sql: "SELECT id, DATEDIFF(day, dt, ts) AS a, DATEDIFF(month, dt, '2027-01-01') AS b, DATEDIFF(hour, ts, '2026-03-04 00:00:00') AS c, DATEDIFF(year, ts, dt) AS d FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: datediff_of_null
+    sql: "SELECT DATEDIFF(day, NULL, '2026-03-04') AS a, DATEDIFF(day, '2026-03-04', NULL) AS b"
+    engine: sa
+  - id: datediff_under_the_iq_engine_is_refused
+    sql: "SELECT DATEDIFF(day, dt, ts) AS d FROM t WHERE id = 1"
+  - id: datediff_weekday_is_refused
+    sql: "SELECT DATEDIFF(dw, '2026-03-01', '2026-03-09') AS d"
+    engine: sa
+  - id: datediff_of_two_arguments
+    sql: "SELECT DATEDIFF(day, '2026-03-01') AS d"
+    engine: sa
+
+  # ---- CAST to integers: truncated toward zero; a string by IQ's strict reading; out of range -158
+  - id: cast_numbers_to_int
+    sql: "SELECT CAST(2.5 AS INT) AS a, CAST(-2.5 AS INT) AS b, CAST(-2.7e0 AS INT) AS c, CAST(NULL AS INT) AS d, CAST(32767 AS SMALLINT) AS e, CAST(1 AS BIGINT) AS f, CAST(1.9 AS SMALLINT) AS g, CAST(-32768 AS SMALLINT) AS h"
+    engine: sa
+  - id: cast_numeric_column_to_int
+    sql: "SELECT id, CAST(nm AS INT) AS a, CAST(nm AS BIGINT) AS b FROM t ORDER BY id"
+  - id: cast_double_column_to_int
+    sql: "SELECT id, CAST(dbl AS INT) AS a, CAST(dbl AS SMALLINT) AS b FROM t WHERE id <> 6 ORDER BY id"
+  - id: cast_double_past_bigint
+    sql: "SELECT id, CAST(dbl AS BIGINT) AS a FROM t WHERE id = 6"
+  - id: cast_integer_columns
+    sql: "SELECT id, CAST(sm AS INT) AS a, CAST(it AS BIGINT) AS b, CAST(bt AS SMALLINT) AS c FROM t ORDER BY id"
+  - id: cast_integer_column_narrower
+    sql: "SELECT id, CAST(it AS SMALLINT) AS a FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+  - id: cast_integer_column_out_of_range
+    sql: "SELECT id, CAST(it AS SMALLINT) AS a FROM t ORDER BY id"
+  - id: cast_numeric_out_of_range
+    sql: "SELECT CAST(2147483648.5 AS INT) AS a"
+    engine: sa
+  - id: cast_numeric_just_in_range
+    sql: "SELECT CAST(2147483647.5 AS INT) AS a, CAST(-32768.9 AS SMALLINT) AS b, CAST(-9223372036854775808.9 AS BIGINT) AS c"
+    engine: sa
+  - id: cast_strings_to_int
+    sql: "SELECT CAST('42' AS INT) AS a, CAST(' 42 ' AS INT) AS b, CAST('' AS INT) AS c, CAST('+5' AS INT) AS d, CAST('-0' AS INT) AS e, CAST('007' AS SMALLINT) AS f, CAST('   ' AS INT) AS g"
+    engine: sa
+  - id: cast_string_with_a_fraction
+    sql: "SELECT CAST('2.5' AS INT) AS a"
+    engine: sa
+  - id: cast_string_with_an_exponent
+    sql: "SELECT CAST('1e2' AS INT) AS a"
+    engine: sa
+  - id: cast_string_not_a_number
+    sql: "SELECT CAST('abc' AS INT) AS a"
+    engine: sa
+  - id: cast_string_not_a_number_of_no_row
+    sql: "SELECT CAST('abc' AS INT) AS a FROM sa_rowgenerator(1, 0)"
+    engine: sa
+  - id: cast_string_out_of_smallint
+    sql: "SELECT CAST('40000' AS SMALLINT) AS a"
+    engine: sa
+  - id: cast_string_values_to_int
+    sql: "SELECT row_num, CAST(IF row_num = 1 THEN ' 12 ' ELSE IF row_num = 2 THEN '' ELSE '-0042' ENDIF ENDIF AS INT) AS a FROM sa_rowgenerator(1, 3) ORDER BY row_num"
+    engine: sa
+  - id: cast_string_values_with_a_tab
+    sql: "SELECT CAST(CAST(IF row_num > 0 THEN '\\x091' ENDIF AS VARCHAR(10)) AS INT) AS a FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: cast_string_values_with_inner_blank
+    sql: "SELECT CAST(CAST(IF row_num > 0 THEN '4 2' ENDIF AS VARCHAR(10)) AS INT) AS a FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: cast_string_values_out_of_smallint
+    sql: "SELECT CAST(CAST(IF row_num > 0 THEN '40000' ENDIF AS VARCHAR(10)) AS SMALLINT) AS a FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: cast_varchar_column_to_int
+    sql: "SELECT id, CAST(vc AS INT) AS a FROM t WHERE id = 6"
+  - id: cast_date_to_int_is_refused
+    sql: "SELECT CAST(dt AS INT) AS a FROM t WHERE id = 1"
+  - id: cast_to_int_in_where
+    sql: "SELECT id FROM t WHERE CAST(nm AS INT) = 0 ORDER BY id"
+  - id: cast_to_int_under_a_row_limit_is_refused
+    sql: "SELECT TOP 1 id, CAST(nm AS INT) AS a FROM t ORDER BY id"
+
+  # ---- CAST to NUMERIC(p, s): rounded half away from zero; more whole digits than p - s is -158
+  - id: cast_to_numeric_constants
+    sql: "SELECT CAST(2.675 AS NUMERIC(5,2)) AS a, CAST(-2.675 AS NUMERIC(5,2)) AS b, CAST(2.5 AS NUMERIC(1,0)) AS c, CAST(1 AS NUMERIC(5,2)) AS d, CAST(NULL AS NUMERIC(5,2)) AS e, CAST(1.5 AS DECIMAL(10,4)) AS f"
+    engine: sa
+  - id: cast_strings_to_numeric
+    sql: "SELECT CAST('1.5' AS NUMERIC(5,2)) AS a, CAST('1e2' AS NUMERIC(5,1)) AS b, CAST(' -1.25 ' AS NUMERIC(5,1)) AS c, CAST('' AS NUMERIC(5,2)) AS d, CAST('.5' AS NUMERIC(3,2)) AS e"
+    engine: sa
+  - id: cast_numeric_column_to_numeric
+    sql: "SELECT id, CAST(nm AS NUMERIC(12,1)) AS a, CAST(nm AS NUMERIC(15,4)) AS b, CAST(nm AS DECIMAL(10)) AS c FROM t ORDER BY id"
+  - id: cast_integer_column_to_numeric
+    sql: "SELECT id, CAST(sm AS NUMERIC(7,2)) AS a, CAST(it AS NUMERIC) AS b, CAST(bg AS DECIMAL(20,0)) AS c FROM t ORDER BY id"
+  - id: cast_to_numeric_out_of_range
+    sql: "SELECT id, CAST(nm AS NUMERIC(5,1)) AS a FROM t ORDER BY id"
+  - id: cast_to_numeric_rounding_up_out_of_range
+    sql: "SELECT CAST(999.5 AS NUMERIC(3,0)) AS a"
+    engine: sa
+  - id: cast_to_numeric_over_rowgenerator
+    sql: "SELECT row_num, CAST(row_num * 0.125 AS NUMERIC(5,2)) AS a, CAST(row_num AS NUMERIC(4,1)) AS b FROM sa_rowgenerator(-4, 4) ORDER BY row_num"
+    engine: sa
+  - id: cast_string_to_numeric_without_precision_in_sql_anywhere
+    sql: "SELECT CAST('1' AS DECIMAL) AS a, CAST(' 2.5 ' AS NUMERIC) AS b"
+    profile: sqla17-default
+    engine: sa
+  - id: cast_string_to_numeric_without_precision_is_refused
+    sql: "SELECT CAST('1' AS DECIMAL) AS a"
+    engine: sa
+  - id: cast_double_to_numeric_is_refused
+    sql: "SELECT CAST(dbl AS NUMERIC(10,2)) AS a FROM t WHERE id = 1"
+  - id: cast_string_column_to_numeric_is_refused
+    sql: "SELECT CAST(vc AS NUMERIC(10,2)) AS a FROM t WHERE id = 1"
+  - id: cast_to_numeric_of_precision_0
+    sql: "SELECT CAST(1 AS NUMERIC(0,0)) AS a"
+    engine: sa
+  - id: cast_to_numeric_of_a_scale_past_precision
+    sql: "SELECT CAST(1 AS NUMERIC(2,3)) AS a"
+    engine: sa
+
+  # ---- CAST to DOUBLE
+  - id: cast_to_double
+    sql: "SELECT CAST(1 AS DOUBLE) AS a, CAST(1.5 AS DOUBLE) AS b, CAST('1.5' AS DOUBLE) AS c, CAST(NULL AS DOUBLE) AS d, CAST(' 2.5e1 ' AS DOUBLE) AS e, CAST('' AS DOUBLE) AS f, CAST(1 AS DOUBLE PRECISION) AS g, CAST(1 AS FLOAT(53)) AS h"
+    engine: sa
+  - id: cast_columns_to_double
+    sql: "SELECT id, CAST(sm AS DOUBLE) AS a, CAST(bg AS DOUBLE) AS b, CAST(nm AS DOUBLE) AS c, CAST(dbl AS DOUBLE) AS d FROM t ORDER BY id"
+  - id: cast_to_real_is_refused
+    sql: "SELECT CAST(1 AS REAL) AS a"
+    engine: sa
+  - id: cast_to_float_is_refused
+    sql: "SELECT CAST(1 AS FLOAT) AS a"
+    engine: sa
+
+  # ---- CAST to CHAR, VARCHAR, LONG VARCHAR: a longer string -638 (but trailing blanks); CHAR(n) padded under IQ (D-S1)
+  - id: cast_to_text_constants
+    sql: "SELECT CAST(12345 AS VARCHAR(10)) AS a, CAST(-12 AS CHAR(3)) AS b, CAST('abc' AS VARCHAR(10)) AS c, CAST(NULL AS VARCHAR(10)) AS d, CAST(1.50 AS VARCHAR(10)) AS e, CAST('abc' AS VARCHAR) AS f, CAST(123 AS CHAR) AS g, CAST('ab' AS LONG VARCHAR) AS h"
+    engine: sa
+  - id: cast_to_char_in_sql_anywhere_is_not_padded
+    sql: "SELECT CAST('ab' AS CHAR(8)) || '|' AS a, LENGTH(CAST('ab' AS CHAR(8))) AS b"
+    engine: sa
+  - id: cast_string_too_long
+    sql: "SELECT CAST('abcdef' AS VARCHAR(3)) AS a"
+    engine: sa
+  - id: cast_string_too_long_but_blanks
+    sql: "SELECT CAST('abc   ' AS VARCHAR(3)) || '|' AS a, CAST('  ' AS VARCHAR(2)) || '|' AS b, CAST('abc   ' AS CHAR(3)) || '|' AS c"
+    engine: sa
+  - id: cast_string_too_long_by_a_tab
+    sql: "SELECT CAST(CAST(IF row_num > 0 THEN 'abc\\x09' ENDIF AS VARCHAR(10)) AS VARCHAR(3)) AS a FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: cast_string_values_too_long
+    sql: "SELECT row_num, CAST(IF row_num = 1 THEN 'ab' ELSE 'abcd  ' ENDIF AS VARCHAR(4)) || '|' AS a, CAST(IF row_num = 1 THEN 'ab' ELSE 'abcdef' ENDIF AS VARCHAR(4)) AS b FROM sa_rowgenerator(1, 2) ORDER BY row_num"
+    engine: sa
+  - id: cast_string_values_too_long_of_no_row
+    sql: "SELECT CAST(IF row_num = 1 THEN 'ab' ELSE 'abcdef' ENDIF AS VARCHAR(4)) AS a FROM sa_rowgenerator(3, 2)"
+    engine: sa
+  - id: cast_varchar_column_to_a_longer_varchar
+    sql: "SELECT id, CAST(vc AS VARCHAR(30)) AS a, CAST(vc AS LONG VARCHAR) AS b, CAST(vc AS TEXT) AS c FROM t ORDER BY id"
+  - id: cast_varchar_column_to_char_is_padded
+    sql: "SELECT id, CAST(vc AS CHAR(22)) || '|' AS a FROM t ORDER BY id"
+    decision: D-S1
+    expect: '[["1","Hello                 |"],["2","hello                 |"],["3","Résumé                |"],["4","ÉCOLE                 |"],["5","|"],["6","x                     |"],["7","apple                 |"]]'
+  - id: cast_varchar_column_to_char_in_sql_anywhere
+    sql: "SELECT id, CAST(vc AS CHAR(22)) || '|' AS a FROM t ORDER BY id"
+    profile: sqla17-default
+  - id: cast_varchar_column_to_a_shorter_varchar_is_refused
+    sql: "SELECT CAST(vc AS VARCHAR(3)) AS a FROM t WHERE id = 1"
+  - id: cast_varchar_column_to_a_shorter_varchar_in_sql_anywhere_is_refused
+    sql: "SELECT CAST(vc AS VARCHAR(3)) AS a FROM t WHERE id = 1"
+    profile: sqla17-default
+  - id: cast_integers_to_text
+    sql: "SELECT id, CAST(sm AS VARCHAR(6)) AS a, CAST(it AS VARCHAR(11)) AS b, CAST(bg AS VARCHAR(20)) AS c, CAST(bt AS VARCHAR(1)) AS d FROM t ORDER BY id"
+  - id: cast_integer_too_long
+    sql: "SELECT CAST(12345 AS CHAR(3)) AS a"
+    engine: sa
+  - id: cast_integer_values_too_long
+    sql: "SELECT id, CAST(it AS VARCHAR(3)) AS a FROM t ORDER BY id"
+  - id: cast_integer_values_short_enough
+    sql: "SELECT id, CAST(sm AS VARCHAR(3)) AS a FROM t WHERE id IN (3, 4, 6, 7) ORDER BY id"
+  - id: cast_numeric_to_text
+    sql: "SELECT id, CAST(nm AS VARCHAR(20)) AS a, CAST(nm AS LONG VARCHAR) AS b FROM t ORDER BY id"
+  - id: cast_numeric_constants_to_text
+    sql: "SELECT CAST(-0.50 AS VARCHAR(10)) AS a, CAST(0.01 AS VARCHAR(10)) AS b, CAST(10.5 AS VARCHAR(10)) AS c, CAST(-3 AS VARCHAR(5)) AS d"
+    engine: sa
+  - id: cast_numeric_to_short_text_is_refused
+    sql: "SELECT CAST(nm AS VARCHAR(4)) AS a FROM t WHERE id = 1"
+  - id: cast_date_to_text
+    sql: "SELECT id, CAST(dt AS VARCHAR(20)) AS a, CAST(dt AS VARCHAR(10)) AS b FROM t ORDER BY id"
+  - id: cast_date_to_short_text_is_refused
+    sql: "SELECT CAST(dt AS VARCHAR(5)) AS a FROM t WHERE id = 1"
+  - id: cast_double_to_text_is_refused
+    sql: "SELECT CAST(dbl AS VARCHAR(30)) AS a FROM t WHERE id = 1"
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from cast_timestamp_to_text_is_refused
+  - id: cast_timestamp_to_text
+    sql: "SELECT CAST(ts AS VARCHAR(30)) AS a FROM t WHERE id = 1"
+  - id: cast_to_varchar_of_length_0
+    sql: "SELECT CAST('a' AS VARCHAR(0)) AS a"
+    engine: sa
+  - id: cast_to_varchar_of_length_32768
+    sql: "SELECT CAST('a' AS VARCHAR(32768)) AS a"
+    engine: sa
+  - id: cast_to_a_char_length_in_characters
+    sql: "SELECT CAST('abc' AS VARCHAR(5 CHAR)) AS a, CAST('abc' AS CHAR(3 BYTE)) AS b"
+    engine: sa
+
+  # ---- CAST to DATE and TIMESTAMP: a date, a timestamp, an ISO string constant
+  - id: cast_strings_to_dates
+    sql: "SELECT CAST('2026-03-04' AS DATE) AS a, CAST('2026-03-04 05:06:07' AS TIMESTAMP) AS b, CAST('2026-03-04' AS TIMESTAMP) AS c, CAST(NULL AS DATE) AS d, CAST('2026-03-04 23:59' AS DATE) AS e, CAST('2026-03-04 05:06:07.123456' AS DATETIME) AS f"
+    engine: sa
+  - id: cast_columns_to_dates
+    sql: "SELECT id, CAST(ts AS DATE) AS a, CAST(dt AS TIMESTAMP) AS b, CAST(dt AS DATE) AS c, CAST(ts AS DATETIME) AS d FROM t ORDER BY id"
+  - id: cast_invalid_date_string
+    sql: "SELECT CAST('2026-02-30' AS DATE) AS a"
+    engine: sa
+  - id: cast_empty_string_to_date
+    sql: "SELECT CAST('' AS DATE) AS a"
+    engine: sa
+  - id: cast_invalid_date_string_of_no_row
+    sql: "SELECT CAST('2026-02-30' AS DATE) AS a FROM sa_rowgenerator(1, 0)"
+    engine: sa
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from cast_non_iso_string_to_date_is_refused
+  - id: cast_non_iso_string_to_date
+    sql: "SELECT CAST('2026/03/04' AS DATE) AS a"
+    engine: sa
+  - id: cast_integer_to_date_is_refused
+    sql: "SELECT CAST(20260304 AS DATE) AS a"
+    engine: sa
+  - id: cast_date_compared
+    sql: "SELECT id FROM t WHERE CAST(ts AS DATE) = CAST('2026-03-04' AS DATE) ORDER BY id"
+
+  # ---- CAST to BIT: 0 or 1, anything else -158 (any nonzero is 1 under the IQ engine: refused there)
+  - id: cast_to_bit
+    sql: "SELECT CAST(1 AS BIT) AS a, CAST(0 AS BIT) AS b, CAST(NULL AS BIT) AS c"
+    engine: sa
+  - id: cast_to_bit_out_of_range
+    sql: "SELECT CAST(5 AS BIT) AS a"
+    engine: sa
+  - id: cast_values_to_bit
+    sql: "SELECT row_num, CAST(row_num AS BIT) AS b FROM sa_rowgenerator(0, 1) ORDER BY row_num"
+    engine: sa
+  - id: cast_value_2_to_bit
+    sql: "SELECT row_num, CAST(row_num AS BIT) AS b FROM sa_rowgenerator(0, 2) ORDER BY row_num"
+    engine: sa
+  - id: cast_bit_column_to_bit
+    sql: "SELECT id, CAST(bt AS BIT) AS b FROM t ORDER BY id"
+  - id: cast_integer_column_to_bit_under_iq_is_refused
+    sql: "SELECT CAST(sm AS BIT) AS b FROM t WHERE id = 3"
+  - id: cast_numeric_to_bit_is_refused
+    sql: "SELECT CAST(1.5 AS BIT) AS b"
+    engine: sa
+
+  # ---- CAST to the types the island does not read, and CAST's syntax
+  - id: cast_to_tinyint_is_refused
+    sql: "SELECT CAST(1 AS TINYINT) AS a"
+    engine: sa
+  - id: cast_to_unsigned_is_refused
+    sql: "SELECT CAST(1 AS UNSIGNED INT) AS a"
+    engine: sa
+  - id: cast_to_time_is_refused
+    sql: "SELECT CAST('10:00:00' AS TIME) AS a"
+    engine: sa
+  - id: cast_to_binary_is_refused
+    sql: "SELECT CAST('ab' AS BINARY(2)) AS a"
+    engine: sa
+  - id: cast_to_a_domain_is_refused
+    sql: "SELECT CAST(1 AS foo_domain) AS a"
+    engine: sa
+  - id: cast_to_int_with_a_display_width
+    sql: "SELECT CAST(1 AS INT(11)) AS a"
+    engine: sa
+  - id: cast_without_as
+    sql: "SELECT CAST(1 INT) AS a"
+    engine: sa
+  - id: cast_of_a_condition
+    sql: "SELECT CAST(1 = 1 AS INT) AS a"
+    engine: sa
+  - id: cast_nested
+    sql: "SELECT CAST(CAST(' 7 ' AS INT) AS VARCHAR(3)) || '|' AS a, CAST(CAST(2.5 AS NUMERIC(3,1)) AS INT) AS b"
+    engine: sa
+  - id: cast_null_in_arithmetic
+    sql: "SELECT CAST(NULL AS INT) + 1 AS a, CAST(NULL AS INT) * 2 AS b, 'abc' || CAST(NULL AS VARCHAR(10)) AS c"
+    engine: sa
+  - id: cast_in_order_by
+    sql: "SELECT id, nm FROM t WHERE id <> 5 ORDER BY CAST(nm AS INT), id"
+
+  # ---- CONVERT without a style is CAST but where a date becomes text (style 0; D-C6 under the IQ engine); styles later
+  - id: convert_without_a_style
+    sql: "SELECT CONVERT(INT, '30') AS a, CONVERT(VARCHAR(10), 123) AS b, CONVERT(NUMERIC(5,2), 1.234) AS c, CONVERT(DATE, '2026-03-04') AS d, CONVERT(CHAR(5), 'ab') || '|' AS e"
+    engine: sa
+  - id: convert_plus_cast
+    sql: "SELECT CONVERT(INT, '30') + CAST('12' AS INT) AS a"
+    engine: sa
+  - id: convert_of_columns
+    sql: "SELECT id, CONVERT(INT, nm) AS a, CONVERT(VARCHAR(20), it) AS b, CONVERT(DATE, ts) AS c FROM t ORDER BY id"
+  - id: convert_date_to_text_is_refused
+    sql: "SELECT CONVERT(VARCHAR(30), dt) AS a FROM t WHERE id = 1"
+  - id: convert_date_to_text_in_sql_anywhere_is_refused
+    sql: "SELECT CONVERT(VARCHAR(30), CAST('2026-03-04' AS DATE)) AS a"
+    engine: sa
+  - id: convert_with_a_style_is_refused
+    sql: "SELECT CONVERT(VARCHAR(30), dt, 112) AS a FROM t WHERE id = 1"
+  - id: convert_with_a_default_style
+    sql: "SELECT CONVERT(VARCHAR(30), 1, DEFAULT) AS a"
+    engine: sa
+  - id: convert_without_a_value
+    sql: "SELECT CONVERT(INT) AS a"
+    engine: sa
+
+  # ---- functions together, and in the other profiles
+  - id: functions_nested
+    sql: "SELECT id, LEFT(TRIM(vc), 3) || '|' || RIGHT(STRING(sm), 2) AS a, LENGTH(REPLACE(vc, 'l', '')) AS b FROM t ORDER BY id"
+  - id: functions_in_case_and_isnull
+    sql: "SELECT id, ISNULL(LEFT(vc, 1), '-') AS a, CASE WHEN LENGTH(vc) > 4 THEN SUBSTRING(vc, 2, 2) ELSE 'short' END AS b FROM t ORDER BY id"
+  - id: functions_under_tds
+    sql: "SELECT id, LENGTH(vc) AS a, SUBSTRING(vc, 2, 2) AS b, CAST(nm AS INT) AS c FROM t ORDER BY id"
+    profile: iq16-tds
+  - id: functions_under_odbc
+    sql: "SELECT id, LOCATE(vc, 'l') AS a, DATEPART(dw, dt) AS b FROM t ORDER BY id"
+    profile: iq16-odbc
+  - id: functions_in_sqla17_tds
+    sql: "SELECT id, LENGTH(vc) AS a, CAST(it AS VARCHAR(11)) AS b FROM t ORDER BY id"
+    profile: sqla17-tds
+  - id: functions_order_by_a_function
+    sql: "SELECT id, vc FROM t WHERE id <> 5 ORDER BY LENGTH(vc), id"

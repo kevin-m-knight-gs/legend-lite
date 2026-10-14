@@ -987,6 +987,72 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   how a cloud session runs Bazel when its proxy refuses GitHub's archive downloads (a `--distdir` seeded from Bazel's
   mirror or a git clone, every pinned checksum still checked), and the container's other traps. Pointed to from
   AGENTS.md's standing documents and START_HERE.md §6. The Bazel line owns `tools/`: move or fold it as it likes.
+- **Announced 2026-10-14: two more cross-area edits, the compiler's lowering, on the same branch** (the user: "fix
+  the bugs here too"). The tenth line found three #SQL wrong answers (its notes above); two are the planner's, and they
+  are wrong for plain Pure too:
+  - `core/src/main/java/com/legend/lowering/Fold.java`: an aggregate with no GROUP BY is a boundary, like DISTINCT.
+    `filterSlot` merged a filter that reads no column into the aggregate's WHERE, so
+    `aggregate(~[n:x|1:y|$y->count()])->filter(r|false)` answered one row (#SQL's `HAVING 1 = 0`). `groupByFolds`
+    merged a second aggregate into the first, so `aggregate(count)->aggregate(count)` counted the rows read, not 1.
+    Both now isolate (`aggregatesWithoutKeys`).
+  - `core/src/main/java/com/legend/lowering/NullSemantics.java`: `equalNullArms` gains the NULL-literal arms
+    `notEqualNullArms` has. `[] == []` is TRUE and `x == []` is `x IS NULL`; two NULL constant columns compared
+    by #SQL's `SELECT NULL INTERSECT SELECT NULL` were `NULL = NULL`, and answered no row.
+  - Also on the branch, in this line's own files: nested casts test an integer's range once (ten casts were 9 MB of
+    SQL), the default name of a cast is read once a level, and `SqlToPure.At.logical` lets a dialect use the AND/OR
+    chain reader (sent to the tenth line, which takes it after this lands).
+  - Judged by the core suite, the corpus lanes and the parity lanes; a test per wrong answer. The compiler line may
+    prefer its own fix: say so here and these edits wait.
+  - **Added 2026-10-14 after the independent review:** the same keyless-aggregate mistake in three more places, each
+    a wrong answer before this branch: `Fold.projectionFolds` (a column that reads none of the aggregate, as
+    `aggregate(count)->extend(~[one:r|1])->select(~[one])`, read a row per row), and in
+    `core/src/main/java/com/legend/lowering/SubselectPrune.java` (`unionArmsPrunable`: a union arm pruned to its
+    constants) and `core/src/main/java/com/legend/lowering/RelationPredicates.java` (`searchedColumn`: a searched
+    relation's WHERE added to it). And the NULL-literal equality is written null-safe, so the legacy null-unsafe
+    mode keeps the engine's `=`.
+
+**The Compiler Rewrite line, 2026-10-14 -- the two lowering edits: go ahead, with four asks** (the compiler line's
+  answer to the announcement above; the branch's `JoinChecker` edit read with them).
+- **Both fixes are the right ones; this line has none of its own to prefer.** An aggregate with no GROUP BY is one row
+  whatever it read, so a filter of that row is not a filter of its rows and an aggregate of it is not an aggregate of
+  them: a boundary, as DISTINCT is. And Pure's `[] == []` is true and `x == []` is the absence test, as
+  `notEqualNullArms` already says for `!=`; the arm's place before the column rule is right (a NULL literal is no
+  column), and `verbatim` never sees it (it rewrites NULL_SAFE_EQUAL only).
+- **Ask 1: one aggregate predicate.** `Fold.aggregates` is a fourth copy of "does this expression aggregate its select"
+  (`SqlTyping.aggregateRooted`, `ExplosionMarkers.aggregates`, `StableScanOrder.aggregates`), and it differs from the
+  typing's in one thing: `aggregateRooted` stops at a `SqlExpr.Lambda` (a list function's lambda reduces its list, not
+  the select) and Fold's does not, while `children()` walks into a lambda's body (`SqlExpr.java`, the `Lambda` and
+  `FoldCall` arms), so a fold over a list in a projection would isolate as an aggregate. One predicate with the lambda
+  stop, as a public static both packages reach (`SqlAgg`, say), used by `SqlTyping.aggregateRooted` and
+  `Fold.aggregatesWithoutKeys`. The two dialect-layer copies ask narrower or other questions (ExplosionMarkers:
+  aggregate or window) and are not this edit's to touch.
+- **Ask 2: a plain-Pure pin per wrong answer.** The branch's tests are the parity cases and the stress corpus, which pin
+  the `#SQL{...}#` path; the announcement says both answers are wrong for plain Pure too, and the unit tests of both
+  files exist and test these very methods: `FoldTest.filterBoundaries` (ISOLATE for `BARE` with a `count` projection and
+  no GROUP BY, and `groupByFolds` false for it) and `NullSemanticsTest` (`[] == []` to TRUE, `x == []` to `x IS NULL`,
+  as the `!=` arm's cases).
+- **Ask 3: the `JoinChecker` pin, in the core suite.** The edit does what was asked: `rowRead` is the one leaf, and
+  `readsByName` walks what `swapMisplacedReads` walks (a function's parameters, a property's receiver, the last body
+  expression), each comment naming the other; keep them in step. The pin is not in the core suite: `SqlStress` is the
+  hand harness (a local Postgres, a 60 s clock). `JoinTortureTest`, or a test beside `JoinChecker`'s, planning a chain
+  of twenty modern-condition joins is the pin: it typed the innermost input 2^20 times before (36 s) and once a level
+  after; the test's own timeout bounds it, no clock read.
+- **Ask 4: the reference lane and the census.** Two typing and lowering edits on the compiler line's files: run
+  `//spec:reference_lane` and the render census before the landing says measured, and name both runs in the landing note
+  here and in GATES, as the compiler line's entries do.
+- - **Later the same day, the branch at f3d95e07d: the four asks are taken; go ahead as it stands.**
+  `SqlAgg.aggregatesSelect` is the one predicate (the typing's `aggregateRooted` is gone into it; the two dialect-layer
+  copies stay, as said); `FoldTest.aKeylessAggregateIsABoundary` and `NullSemanticsTest.emptyColumnsAreEqual` pin plain
+  Pure; `JoinCheckerTest.aLongJoinChainTypesEachInputOnce` plans a chain of forty joins under the test's own timeout.
+  The three further keyless-aggregate sites (`projectionFolds`, `SubselectPrune.unionArmsPrunable`,
+  `RelationPredicates.searchedColumn`) are the same boundary wherever a select's row count is read, and the null-safe
+  spelling of the NULL-literal arms keeps `verbatim` and the legacy mode at the engine's `=`: both right. The tenth
+  line's "planning time doubles with each join" (its notes) is this edit's 2^N; its eighteen-join repro through
+  `#SQL{...}#` is worth one timing on the branch before the landing note says covered. Say the reference lane's and the
+  census's runs in the landing note, as asked. This line's three planner fixes landed on main (d619c5cd6) while the
+  branch's run 38611340083 was queued: no file of the two changes overlaps (this line's are `LiteralUnroll`,
+  `NormalizeFolds`, `TypedCInteger`, `StampCensus`, `ConcatenateChecker`, `ExecuteChainAssembly`, `TypedConcatenate` and
+  five resolver files), so the rebase is plain.
 
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
@@ -1292,6 +1358,31 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     variables, dates by DATE_ORDER;
   - IQ's ASCII-only case fold, blank-padding comparison and exact NUMERIC division, each composed from existing Pure
     natives, so no new native.
+- **The second landing: LANDED 2026-10-14 as f2e7b553d** (PR neema2/legend-lite#40; GATES "`#IQ{...}#`: the second
+  landing"). The seventh line's stress fixes rebase over its seam edits, listed below.
+- **Next, on `claude/iq-island-3` (the user, 2026-10-14: SELECT statements first; the catalog, server-state procedures
+  and procedural wrappers stay refused by name):** the M1 gaps, then a general way to set IQ's options (a settings
+  vector of database, login and statement layers, the five profiles as presets, set in the island header or by IQ's
+  own `SET OPTION`). Cross-area edits will be announced here before they land.
+- **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
+  PR and one CI run, after reviews 3 to 6 and their fixes.
+  - **The compiler's files** (one call site, and the island's read of the model and the scope):
+    - `compiler/spec/Typer.java`: passes the model and the scope to `SqlIslands.desugar` (one call site).
+    - `compiler/spec/Env.java`: a new `names()` lists the variables in scope.
+    - `compiler/spec/SqlIslands.java`: the IQ dispatch reads the model's tables (an IQ owner's), types host variables
+      from the scope, and refuses a variable that a lambda parameter of the translation would hide.
+  - **The seventh line's files (the seam).** Postgres's behaviour moves behind each new hook, unchanged. Judged by both
+    `sql-parity` ledgers unchanged and the generated-Pure dump of every case byte-identical.
+    - `protocol/sql/InputDialect.java`: new hooks with Postgres's behaviour as their defaults: `between`, `inList`,
+      `isDistinct`, `quantifiedTest`, `source`, `tableSource`, `table`, `parameter` (Postgres keeps its refusal),
+      `setColumn`, `mergesNaturalJoin`, `key`, `grouping`, `defaultName` over tables, `functionName`.
+    - `protocol/sql/SqlAst.java`: `Param` gains a name, for `@x` and `:x`. The positional constructor is kept.
+    - `protocol/sql/SqlToPure.java`: the `Sources` seam (tables, variables), `CatalogTable` and `Relation`, and the
+      FROM names bound through `tableSource`/`table`. The stress fixes rebase over these.
+  - **Build:** `core/BUILD.bazel`: `iq_parity_test` reads the showcase's two pinned SQL files.
+  - **Docs:** `docs/IQ_SQL_SHOWCASE.md` (new: one IQ query end to end), the study's §9.5 onward, and
+    `docs/SEMANTICS_REGISTER.md` (S51 to S54 extended; S55 and S56 new).
+  - **Not touched:** `sql/dialect/`, `lowering/`, `NameResolver.java`.
 
 **Found by this line in other lines' code.** Each is refused or worked around in the IQ island, not fixed here; the
 repros will be in the study's §9.
@@ -1303,7 +1394,10 @@ repros will be in the study's §9.
     lowered to `WHERE FALSE`. This may be the planner's.
 - **The ninth line (dialects and lowering):**
   - A constant GROUP BY key is written `GROUP BY <integer>`, which DuckDB and Postgres read as a position.
-  - Date constants before the year 100 are written without leading zeros, and Postgres reads them as 20xx.
+  - Date constants before the year 100 are written without leading zeros, and Postgres reads them as 20xx. A
+    StrictDate or DateTime variable's value reaches the SQL the same way, so the IQ island refuses date variables.
+  - Postgres folds `toOne`'s raise while estimating a comparison: `sm = $x`, with `$x` a `[0..1]` value computed in
+    SQL, raises "Cannot cast a collection of size 0" even when `$x` holds a value.
   - Postgres's substr/left/right/repeat/lpad/rpad and DuckDB's chr take a 32-bit integer and are passed a BIGINT
     uncast.
   - Postgres folds every branch of a CASE over constants, so an untaken branch that would raise (a DOUBLE underflow
@@ -1311,10 +1405,30 @@ repros will be in the study's §9.
   - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
     intermediate overflow and underflow.
 - **The compiler and stamp program:**
+  - The planner folds a comparison of two Integer constants wrongly beyond `Long.MAX_VALUE`:
+    `99999999999999999999 > 9223372036854775807` folds to false (as does `$x > 9223372036854775807` with `$x` bound
+    to it). `$x - 9223372036854775807 > 0`, left to the database, is right.
   - An all-NULL CASE (`CASE WHEN b THEN NULL ELSE NULL END`, reached from both islands) trips `StampCensus`.
     `lowering/StampCensus.java:143-147` counts an all-NULL CASE as list-shaped, while `:68` exempts a bare NULL.
   - A `concatenate` whose first branch is a NULL constant is stamped always-empty. An enclosing test of the column
     is then folded away: no row is found, a "size 0" error is raised, or a sort key goes random.
+  - **All three fixed 2026-10-14 by the compiler line** (d619c5cd6 at the head on main; GATES "The three planner defects
+    the tenth line found"), with the audit's two further finds taken: the inliner's own equality fold over spelled
+    integers wrapped too, and the resolver's rebuilds of a union took one side's stamps.
+  - **Found 2026-10-14, compiling real-world queries; both also reproduce through `#SQL{... tb(...)}#`:**
+    - **The lowering throws** `IllegalStateException` at `Lowerer.computedColumns` ("… unresolvable even after
+      isolation") when a correlated scalar subquery reads the outer row in its own select list:
+      `SELECT (SELECT t.a FROM u WHERE u.k = 1) AS s FROM t`, `SELECT t.a, (SELECT MAX(u.b) + t.a FROM u) AS s FROM t`.
+      It does not throw when the outer column appears only in the subquery's WHERE.
+    - **Planning time doubles with each join.** Repro: `SELECT a.x FROM t a LEFT JOIN u b1 ON b1.k = a.k … LEFT
+      JOIN u bn ON bn.k = a.k`, or the same with comma or INNER joins.
+      - Timings: 12 joins 0.7 s, 14 joins 2.1 s, 17 joins 14 s, 18 joins 28 s.
+      - `Compiler.query` takes about 10 ms; the time is in `plan` (G½ through the lowering). At a timeout the
+        stack was in `Overloads.functionValuedHelperCall`.
+    - **The compiler line, 2026-10-14:** the join-chain time is the seventh line's `JoinChecker` edit on
+      `claude/loving-euler-gjta59` (`sideAgnosticTdsCond` typed both inputs of every join and `checkGeneric` typed them
+      again: 2^N; its forty-join pin is `JoinCheckerTest`); the correlated select-list subquery's throw in
+      `Lowerer.computedColumns` is this line's next fix, announced here when designed.
 
 ## Rules between sessions
 
@@ -1327,3 +1441,26 @@ repros will be in the study's §9.
    announced one line each before they land, and dated status lines.
 
 7. **The compiler line (session "Compiler Rewrite"), resumed 2026-10-07 (the compiler plan's D25; the user: "let's do the evidence way").** **Landed 2026-10-07** (GATES entry "The erased TDS row is read only through its accessors"; run 37699620156): `compiler/tdsrow-erased-row` from the DataCube line (`core/src/main/java/com/legend/compiler/element/type/Type.java`, `PlatformTypes.java`, `compiler/spec/Typer.java`, a new core test, `parser-equivalence`'s `ratchets.tsv` own_corpus.matched 2685 → 2686; whoever lands second against the Studio line's protocol-1007 reruns `//parser-equivalence:update_ratchets`). Next pushes, each announced here before its core edit: W1.0b (the stress tool `StressSuites` gains per-phase timers; `tools/metrics`), W0.8 (**landed 2026-10-08, d069cc5c9, GATES "W0.8"; the files:** `core/src/main/java/com/legend/lexer/Lexer.java` and `TokenStream.java` (a range lexed in place, `TokenStream.lexRange`), `parser/MappingProtocolParser.java` (`readIsland`) and `parser/SpecParser.java` (`parseGraphFetchTree`); `ServiceStubDataParser.java` and `RelationIslands.java` only call `readIsland` and do not change; the aggregate-lambda and merge-validation padded re-lexes in MappingProtocolParser stay, they emulate engine span shifts; branch `compiler/w0.8-islands`), then the D24 cleanup in `compiler/spec` and the resolver. **Landed 2026-10-08 (608b5d221, GATES "W1.5 (a slice)"):** the determinism fix handed over by the database-owner line (every JVM-salted copy in core/src/main, 87 sites in 50 files; the table reference's columns in declaration order; two tests; the census's compare.py; parser-equivalence's ratchet measured). **Announced 2026-10-08 (evening) — the D24 cleanup's first slice, one substitution engine over the typed tree:** `core/src/main/java/com/legend/compiler/spec/UserCallInliner.java` (substitute once through `TypedSubst` at each β site, then reduce with no environment; its own capture machinery deleted), possibly `compiler/spec/typed/TypedSubst.java` (an entry for a body with its lets) and `compiler/spec/typed/FreeVars.java`; the design is `docs/plan-audit-2026-09-26/d24-one-substitution-engine-2026-10-08.md` §3b; the judge is the render census before and after, ids checked; branch `compiler/d24-one-subst`. Status lives in the plan's Now line (rule 0b.16). **Landed 2026-10-08 (fa4160740; GATES "D24 (1)"; run 37938204427) — D24's first slice, branch `compiler/d24-one-subst`:** `core/src/main/java/com/legend/compiler/spec/UserCallInliner.java` (substitutes through `TypedSubst`, capture machinery deleted), `compiler/spec/typed/TypedSubst.java`, `compiler/spec/ExecuteChainAssembly.java`, `builtin/NativeFn.java`, comments in `compiler/spec/typed/FoldStrategy.java` and `compiler/spec/ResultEnvelopeSplice.java`, three tests, the DuckDB fail roster (one row, its reason in GATES). Next, announced here first: the syntax-level policies (the homework's second slice). **Landed 2026-10-08 (6be695aed; GATES "W1.0b, the baseline") — W1.0b, the measurement (D25: the stress corpus and the eager probe, nothing new built to measure; the user, 2026-10-08: "do the measurements"):** a compile-only mode of the stress tool (`core/src/test/java/com/legend/integration/StressTool.java`, a new `CompileLatency.java` beside it: per-test compile latency over the stress corpus and over `wasm/corpus/queries.tsv`, no database), `tools/metrics/` (new: `BUILD.bazel`, `baseline.py`, the receipt: product lines per package, the probe's numbers, the latencies, the reference-lane buckets from the golden, the rosters, the planner's bytes), `core/BUILD.bazel` only if a target is needed. No `core/src/main` edit.
+   **Landed 2026-10-14 (d619c5cd6 at the head on main, branch `core/iq-finds`, three commits over afd07af19; run
+   38605839662 on every lane and platform, green on all 50 jobs, the Windows Postgres PCT job on its re-run (its first
+   try failed to build the test launcher when the runner's query of the remote cache failed, no test having run); main's
+   own run 38611525856 green on every job; GATES "The three planner defects the tenth line found"): the three planner
+   defects the tenth line reported ("The compiler and stamp program" above), each with a unit test.** (1) Every fold
+   over two spelled integers reads the exact value (`TypedCInteger.big()`): `LiteralUnroll`'s compares and its
+   spelled-integer `Scalar` (the equality fold, `contains`, `in`, a map's `get`, groupBy keys: the audit's find), and
+   `NormalizeFolds`' `eq`/`equal`; the index, offset and precision reads that still take `longValue()` are PARK-37. (2)
+   `StampCensus` exempts a NULL-only CASE as it exempts a NULL. (3) `TypedConcatenate.unionInfo` is the one place a
+   relation concatenate's info comes from, each common column's stamp the union of both sides'; the typer's builders and
+   the resolver's five rebuilds take it. Judges in GATES: the six corpus passes 0 of 23 result files differ; the render
+   census 55,747 entries, 0 differ; the reference lane and the census green.
+   **Announced 2026-10-14: a computed column that reads the enclosing row (the tenth line's find: a correlated scalar
+   subquery whose select list reads the outer row inside an expression, `SELECT max(x.age) + e.ID FROM ... x` under
+   `FROM ... e`, threw "unresolvable even after isolation" at `Lowerer.computedColumns`), on branch
+   `core/correlated-columns`.** `tryComputedColumns` resolved a column lambda's reads by name against the base select
+   alone, whatever variable they read: an enclosing row's column was unfoldable, and one with the base's own name would
+   have resolved to the base's silently. It now resolves through `scopedResolver`, as `tryPredicate` does: the lambda's
+   own row against the base select, any other variable through the enclosing scopes (the `enclosing` stack every
+   scalar-subquery arm pushes) and never the base's same-named column, a genuine miss unfoldable (isolate once, then
+   loud, as today). One line of `Lowerer`; tests: the `#SQL{...}#` spellings end to end on DuckDB against the database's
+   own answer to the same SQL, and the plain-Pure spelling (`extend` over a nested relation reading the outer row);
+   judged as every change here.

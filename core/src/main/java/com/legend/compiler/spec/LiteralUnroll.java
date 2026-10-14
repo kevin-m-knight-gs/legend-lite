@@ -81,8 +81,9 @@ final class LiteralUnroll {
             case TypedCopyInstance cp -> literalStructure(cp.source())
                     ? Optional.of(new Instance(cp.classFqn(), cp)) : Optional.empty();
             case TypedCString c -> Optional.of(new Scalar(Type.Primitive.STRING.qualifiedName(), c.value()));
-            case TypedCInteger i -> Optional.of(new Scalar(Type.Primitive.INTEGER.qualifiedName(),
-                    i.value().longValue()));
+            // exact (TypedCInteger.big): every spelled integer is a BigInteger here, so two of them compare
+            // by value (longValue() wrapped a literal beyond long: two different ones folded equal)
+            case TypedCInteger i -> Optional.of(new Scalar(Type.Primitive.INTEGER.qualifiedName(), i.big()));
             case TypedCBoolean b -> Optional.of(new Scalar(Type.Primitive.BOOLEAN.qualifiedName(), b.value()));
             case TypedCFloat f -> Optional.of(new Scalar(Type.Primitive.FLOAT.qualifiedName(), f.value()));
             case TypedEnumValue ev -> Optional.of(new Scalar(ev.enumFqn(), ev.enumFqn() + "." + ev.value()));
@@ -433,10 +434,11 @@ final class LiteralUnroll {
         if ((is(c, Pure.AT_BOOLEAN_GREATER_THAN) || is(c, Pure.AT_BOOLEAN_LESS_THAN) || is(c, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)
                 || is(c, Pure.AT_BOOLEAN_LESS_THAN_EQUAL)) && a.size() == 2
                 && a.get(0) instanceof TypedCInteger l && a.get(1) instanceof TypedCInteger r) {
-            long x = l.value().longValue();
-            long y = r.value().longValue();
-            return bool(is(c, Pure.AT_BOOLEAN_GREATER_THAN) ? x > y : is(c, Pure.AT_BOOLEAN_LESS_THAN) ? x < y
-                    : is(c, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL) ? x >= y : x <= y);
+            // exact (TypedCInteger.big): longValue() wraps a literal beyond long, and 2026-10-14 the tenth line
+            // found 99999999999999999999 > 9223372036854775807 folded to false
+            int cmp = l.big().compareTo(r.big());
+            return bool(is(c, Pure.AT_BOOLEAN_GREATER_THAN) ? cmp > 0 : is(c, Pure.AT_BOOLEAN_LESS_THAN) ? cmp < 0
+                    : is(c, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL) ? cmp >= 0 : cmp <= 0);
         }
         // LIST SHAPE over a spelled collection (WORLD_MAP §4): its size, and
         // membership of a spelled scalar (same-kind identity, as `in`)

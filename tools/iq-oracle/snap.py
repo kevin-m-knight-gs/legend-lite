@@ -65,7 +65,7 @@ TDS = [
     ("isolation_level", "1"), ("date_format", "YYYY-MM-DD"), ("timestamp_format", "YYYY-MM-DD HH:NN:SS.SSS"),
     ("time_format", "HH:NN:SS.SSS"), ("date_order", "MDY"), ("escape_character", "Off"),
 ]
-# the options the IQ ODBC driver sets at connect (the private spec's OPTIONS.md section 5); the isolation level it
+# the options the IQ ODBC driver sets at connect (as the private research records them); the isolation level it
 # also sets is the application's own choice, so it stays at the database's default here
 ODBC = [
     ("date_order", "ymd"), ("date_format", "yyyy-mm-dd"), ("time_format", "hh:nn:ss"),
@@ -81,7 +81,7 @@ PROFILES = {
 }
 DEFAULT_PROFILE = "iq16-default"
 ENGINES = {"iq", "sa", "auto"}
-CASE_KEYS = {"id", "sql", "profile", "engine", "skip", "sa_defect", "decision", "expect"}
+CASE_KEYS = {"id", "sql", "profile", "engine", "skip", "sa_defect", "decision", "expect", "params"}
 
 REQUEST_TIMEOUT = "15"  # seconds, per statement, on every case connection
 TS6 = "YYYY-MM-DD HH:NN:SS.SSSSSS"  # how a TIMESTAMP column's cells are snapped, whatever the profile's format
@@ -318,10 +318,231 @@ def read_cases(lite_dir):
             if m.get("expect") is not None:
                 check_expect(m["expect"], where)
             skip = m.get("skip") or (("sa_defect: " + str(m["sa_defect"])) if m.get("sa_defect") else None)
+            params = m.get("params")
+            if params is not None and not isinstance(params, str):
+                raise Bad("%s: params is one line of text, name = value; ..." % where)
+            if skip is None:
+                shadowed(m["sql"], read_params(params, where), profiles, where)
             cases.append({"key": key, "id": m["id"], "sql": m["sql"], "profiles": profiles,
                           "skip": None if skip is None else str(skip),
-                          "decision": str(m.get("decision") or ""), "expect": str(m.get("expect") or "")})
+                          "decision": str(m.get("decision") or ""), "expect": str(m.get("expect") or ""),
+                          "params": params, "bound": read_params(params, where),
+                          "run": with_params(m["sql"], read_params(params, where), where)})
     return cases
+
+
+# ------------------------------------------------------------------ a case's variables (params)
+# A case may bind host variables (@name, :name) to values, as the island reads the enclosing Pure query's variables:
+# `params: "x = 5; s = 'abc'; d = %2026-03-04; n = null:Integer"`. The Java harness lets each before the island; here
+# each is a real SQL Anywhere variable of the value's type on the case's connection (CREATE VARIABLE, then SET to SQL
+# Anywhere's constant of that type; a NULL is left unset), and the case's SQL runs as written, its :name read as the
+# variable @name. IQ island, 2026-10-14 (review 5's M5): until then each value was written into the SQL as a constant,
+# which SQL Anywhere reads otherwise in measured places (a host variable's two-valued comparisons under ansinull Off,
+# names matched without case, a select-list alias before a variable, TOP @n).
+
+_PARAM = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)")
+_P_INT = re.compile(r"-?[0-9]+")
+_P_FLOAT = re.compile(r"-?[0-9]+\.[0-9]+")
+_P_DEC = re.compile(r"(-?[0-9]+\.([0-9]+))D")
+_P_DATE = re.compile(r"%([0-9]{4}-[0-9]{2}-[0-9]{2})")
+_P_TS = re.compile(r"%([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?)")
+_P_NULL = re.compile(r"null:(Integer|Float|String|StrictDate|DateTime|Decimal\(38,([0-9]+)\))")
+_NULL_TYPES = {"Integer": "BIGINT", "Float": "DOUBLE", "String": "LONG VARCHAR", "StrictDate": "DATE",
+               "DateTime": "TIMESTAMP"}
+
+
+def read_params(params, where):
+    """A case's params, in order, as (name, SQL Anywhere's type, its constant of that type or None for a NULL)."""
+    out, seen = [], set()
+    for entry in (params or "").split(";"):
+        entry = entry.strip()
+        if not entry:
+            continue
+        m = _PARAM.fullmatch(entry)
+        if not m:
+            raise Bad("%s: a param is name = value, not %r" % (where, entry))
+        name, v = m.group(1), m.group(2).strip()
+        if name.lower() in seen:
+            raise Bad("%s: the param %s twice (SQL Anywhere's variable names ignore case)" % (where, name))
+        seen.add(name.lower())
+        if _P_INT.fullmatch(v):
+            out.append((name, "BIGINT", v))
+        elif _P_FLOAT.fullmatch(v):
+            out.append((name, "DOUBLE", "CAST(%s AS DOUBLE)" % v))
+        elif _P_DEC.fullmatch(v):
+            d = _P_DEC.fullmatch(v)
+            out.append((name, "NUMERIC(38,%d)" % len(d.group(2)), d.group(1)))
+        elif len(v) >= 2 and v[0] == "'" and v[-1] == "'" and "'" not in v[1:-1]:
+            if "\\" in v:
+                # SQL Anywhere reads \xHH, \n and \\ in a string under escape_character On, Pure's let does not
+                raise Bad("%s: a string param holds no backslash (the two readers would read it otherwise)" % where)
+            out.append((name, "LONG VARCHAR", v))
+        elif _P_DATE.fullmatch(v):
+            out.append((name, "DATE", "CAST('%s' AS DATE)" % _P_DATE.fullmatch(v).group(1)))
+        elif _P_TS.fullmatch(v):
+            t = _P_TS.fullmatch(v)
+            out.append((name, "TIMESTAMP", "CAST('%s %s' AS TIMESTAMP)" % (t.group(1), t.group(2))))
+        elif _P_NULL.fullmatch(v):
+            n = _P_NULL.fullmatch(v)
+            sa = "NUMERIC(38,%s)" % n.group(2) if n.group(2) is not None else _NULL_TYPES[n.group(1)]
+            out.append((name, sa, None))
+        else:
+            raise Bad("%s: a param's value is an integer, a float, a decimal (1.5D), a 'string', a %%date, a"
+                      " %%date-time or null:<type>, not %r" % (where, v))
+    return out
+
+
+_NAME_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@#$")
+
+
+def with_params(sql, params, where):
+    """sql with each :name a param names (outside strings, delimited names and comments) written @name, the variable
+    the case's connection holds (a client's typed host variable, which SQL Anywhere's dynamic SQL reads only as a
+    bound placeholder); sql itself when the case binds none."""
+    if not params:
+        return sql
+    names = {p[0].lower() for p in params}
+    out, i, n = [], 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c == "'" or c == '"' or c == "`" or c == "[":
+            close = "]" if c == "[" else c
+            j = i + 1
+            while j < n:
+                if sql[j] == close:
+                    if close in "'\"" and j + 1 < n and sql[j + 1] == close:
+                        j += 2
+                        continue
+                    break
+                j += 1
+            out.append(sql[i:j + 1])
+            i = j + 1
+            continue
+        if sql.startswith("--", i) or sql.startswith("//", i):
+            j = sql.find("\n", i)
+            j = n if j < 0 else j
+            out.append(sql[i:j])
+            i = j
+            continue
+        if sql.startswith("/*", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if sql.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif sql.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            out.append(sql[i:j])
+            i = j
+            continue
+        if c == ":" and (i == 0 or sql[i - 1] not in _NAME_CHARS and sql[i - 1] != ":") \
+                and i + 1 < n and sql[i + 1] not in "@:":
+            j = i + 1
+            while j < n and sql[j] in _NAME_CHARS:
+                j += 1
+            if sql[i + 1:j].lower() in names:
+                out.append("@" + sql[i + 1:j])
+                i = j
+                continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def shadowed(sql, params, profiles, where):
+    """Refuses a case whose SQL also names a column or alias spelled like one of its variables (@name) where the oracle
+    would read that name otherwise than the island's client: a :name, which this tool writes @name, read as a
+    connection's variable reads such a column or alias first, where a bound :name never does; and under a TDS profile
+    (tsql_variables On) a client binds @name as a placeholder, which reads the bound value even where such a column is
+    in scope, where this tool's variable (tsql_variables Off) reads the column (IQ island, 2026-10-14, review 6's m1
+    and M1, measured on SQL Anywhere 17). Such a case is skipped by its own skip: key, or rewritten."""
+    if not params:
+        return
+    names = {p[0].lower() for p in params}
+    spelled = {t[1:].lower() for t in _quoted(sql) if t.startswith("@")} & names
+    if not spelled:
+        return
+    colon = {n for n in spelled if re.search(r"(?<![A-Za-z0-9_@#$:]):%s(?![A-Za-z0-9_@#$])" % re.escape(n), sql,
+                                              re.IGNORECASE)}
+    tds = [p for p in profiles if tsql_variables(p)]
+    if colon or tds:
+        n = sorted(colon or spelled)[0]
+        raise Bad("%s: its SQL names a column or alias spelled @%s, which this tool's variable @%s would read in place"
+                  " of %s; rename it, or skip the case (skip:)" % (where, n, n, ":" + n if colon else
+                                                                   "a TDS client's bound @" + n + " (" + tds[0] + ")"))
+
+
+def _quoted(sql):
+    """The texts of sql's quoted tokens ('...', "...", `...`, [...]), outside comments."""
+    out, i, n = [], 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c in "'\"`[":
+            close = "]" if c == "[" else c
+            j = i + 1
+            while j < n:
+                if sql[j] == close:
+                    if close in "'\"" and j + 1 < n and sql[j + 1] == close:
+                        j += 2
+                        continue
+                    break
+                j += 1
+            out.append(sql[i + 1:j].replace(close * 2, close) if close in "'\"" else sql[i + 1:j])
+            i = j + 1
+            continue
+        if sql.startswith("--", i) or sql.startswith("//", i):
+            j = sql.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if sql.startswith("/*", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if sql.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif sql.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            i = j
+            continue
+        i += 1
+    return out
+
+
+def bind_params(conn, params, profile):
+    """Creates and sets the case's variables on conn: None, or SQL Anywhere's error for the first that fails (a value
+    its type cannot hold), the variables made so far dropped. Under a TDS profile (tsql_variables On, where @name is a
+    placeholder a client binds, measured: -188 with no value bound) the case runs with tsql_variables Off, its @name
+    reading the connection's variable: a variable and a bound value read alike where measured (review 5: values,
+    types, two-valued comparisons under ansinull Off)."""
+    if not params:
+        return None
+    if tsql_variables(profile):
+        conn.execute("SET TEMPORARY OPTION tsql_variables = 'Off'")
+    made = []
+    for name, sa_type, value in params:
+        e = conn.run("CREATE VARIABLE @%s %s" % (name, sa_type))
+        if e is None:
+            made.append(name)
+            if value is not None:
+                e = conn.run("SET @%s = %s" % (name, value))
+        if e is not None:
+            drop_params(conn, made, profile)
+            return e
+    return None
+
+
+def drop_params(conn, names, profile):
+    """Drops the variables bind_params made (names, all of a case's params) and restores tsql_variables."""
+    for name in names:
+        conn.run("DROP VARIABLE @%s" % name)
+    if tsql_variables(profile):
+        conn.execute("SET TEMPORARY OPTION tsql_variables = 'On'")
+
+
+def tsql_variables(profile):
+    return dict(PROFILES[profile][1]).get("tsql_variables", "Off") == "On"
 
 
 def check_expect(expect, where):
@@ -352,6 +573,9 @@ def sql_sha(case, profile, schema_bytes):
     """What an answer is snapped for: the case's SQL, the profile, the decision and decided rows that judge it instead
     (empty when SQL Anywhere judges it), and schema.yaml -- so editing any of them makes the answer STALE."""
     parts = [case["sql"], profile, case["decision"], case["expect"]]
+    if case.get("params") is not None:
+        # a case that binds variables: its params too (one more part; a case without them keeps its sha)
+        parts.append(case["params"])
     return hashlib.sha256(b"".join(p.encode("utf-8") + b"\0" for p in parts) + schema_bytes).hexdigest()
 
 
@@ -446,6 +670,15 @@ class Connection:
             if e["sqlcode"] in LOST:
                 raise Lost(e["message"])
             raise Bad("%s: %s (SQLCODE %d)" % (sql, e["message"], e["sqlcode"]))
+
+    def run(self, sql):
+        """A statement with no result set: None, or SQL Anywhere's error (raises when the server is gone)."""
+        if self.api.sqlany_execute_immediate(self.conn, sql.encode(self.codec)):
+            return None
+        e = self.error()
+        if e["sqlcode"] in LOST:
+            raise Lost(e["message"])
+        return e
 
     def value(self, sql):
         r = self.query(sql)
@@ -728,7 +961,16 @@ def run_cases(oracle, cases, schema_bytes, report):
                 while True:
                     tries += 1
                     try:
-                        a = answer(conn, profile, c["sql"])
+                        # IQ island, 2026-10-14 (review 5's M5): the case's variables, real ones on its connection
+                        failed = bind_params(conn, c["bound"], profile)
+                        if failed is not None:
+                            a = {"error": failed}
+                        else:
+                            try:
+                                a = answer(conn, profile, c["run"])
+                            finally:
+                                if c["bound"]:
+                                    drop_params(conn, [p[0] for p in c["bound"]], profile)
                         if "error" in a and not oracle.alive():
                             raise Lost(a["error"]["message"])
                         conn.execute("ROLLBACK")
@@ -770,6 +1012,10 @@ def meta(oracle):
         "session": {"request_timeout": REQUEST_TIMEOUT, "charset": "the database's own"},
         "profiles": {p: {"db": db, "options": dict(opts)} for p, (db, opts) in PROFILES.items()},
         "timestamps": TS6,
+        "params": "a case's params (name = value; ...) are SQL Anywhere variables on its connection, made before it"
+                  " runs (CREATE VARIABLE @name of BIGINT, DOUBLE, NUMERIC(38,s), LONG VARCHAR, DATE or TIMESTAMP,"
+                  " then SET to the value, left NULL for null:<type>) and dropped after; its :name reads @name; under a TDS"
+                  " profile it runs with tsql_variables Off (On, @name is a placeholder a client binds)",
     }}
 
 
@@ -839,7 +1085,7 @@ def main(argv):
     for c in cases:
         if c["skip"] is None and c["key"] in crashers:
             c["skip"] = "known to crash SQL Anywhere 17 (known_crashers.txt)"
-        if c["skip"] is None and not single_select(c["sql"]):
+        if c["skip"] is None and not single_select(c["run"]):
             raise Bad("%s: not a single SELECT or WITH without ';'" % c["key"])
         (skipped if c["skip"] is not None else live).append(c)
     expected = {(c["key"], p): c for c in live for p in c["profiles"]}

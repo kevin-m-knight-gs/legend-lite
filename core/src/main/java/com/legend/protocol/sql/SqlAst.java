@@ -195,8 +195,14 @@ public final class SqlAst {
     public record TypedLit(TypeName type, String value, Pos pos) implements Expr {
     }
 
-    /** A positional parameter: {@code $1}. */
-    public record Param(int index, Pos pos) implements Expr {
+    /** A positional parameter: {@code $1}. IQ island, 2026-10-14 (M1e): or a named one, {@code name} as written with
+     *  its marker ({@code @x}, {@code :x}; null for a positional one), {@code index} then one per name. */
+    public record Param(int index, @com.legend.base.Nullable String name, Pos pos) implements Expr {
+
+        /** A positional parameter. */
+        public Param(int index, Pos pos) {
+            this(index, null, pos);
+        }
     }
 
     /** A prefix operator. */

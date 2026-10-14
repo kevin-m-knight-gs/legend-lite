@@ -102,32 +102,48 @@ class IqParserTest {
     void valuesAndConditionsStayApart_asInIq() {
         // syntax errors in IQ too (SQLCODE -131), measured on SQL Anywhere 17
         for (String sql : new String[] {"SELECT id FROM t WHERE id", "SELECT (id = 1) FROM t",
-                "SELECT id FROM t WHERE id = 1 = 1", "SELECT id FROM t WHERE NOT NOT id = 1",
+                "SELECT id FROM t WHERE id = 1 = 1",
                 "SELECT id FROM t ORDER BY id NULLS FIRST", "SELECT id AS from FROM t", "SELECT t.from FROM t"}) {
             SqlSyntaxException e = error(sql);
             assertFalse(e.unsupported(), sql + ": " + e.reason());
             assertTrue(e.reason().contains("SQLCODE -131"), e.reason());
         }
+        // IQ island, 2026-10-14 (M1c): NOT NOT is IQ's syntax error, refused by name (the research's syntax cases are
+        // split on it)
+        SqlSyntaxException notNot = error("SELECT id FROM t WHERE NOT NOT id = 1");
+        assertTrue(notNot.unsupported() && notNot.reason().contains("SQLCODE -131"), notNot.reason());
         assertInstanceOf(SqlAst.Unary.class, select("SELECT id FROM t WHERE NOT (NOT id = 1)").where());
     }
 
     @Test
     void formsNotReadYetAreRefusedByName() {
         String[][] refused = {
-                {"SELECT id FROM t, u", "comma join"},
-                {"SELECT id FROM t JOIN u ON a = b", "joins"},
-                {"SELECT id FROM t GROUP BY id", "GROUP BY"},
-                {"SELECT id FROM t UNION SELECT id FROM u", "UNION"},
-                {"SELECT count(*) FROM t", "aggregate"},
-                {"SELECT sum(id) FROM t", "aggregate"},
+                // IQ island, 2026-10-14 (M1b): comma joins, JOIN ... ON and UNION are read now (below)
+                // IQ island, 2026-10-14 (M1c): GROUP BY, HAVING and COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST are read
+                // now (below); ROLLUP, CUBE, the statistics and the other aggregates are not
+                {"SELECT id FROM t GROUP BY ROLLUP(id)", "ROLLUP"},
+                {"SELECT id FROM t GROUP BY id WITH CUBE", "CUBE"},
+                {"SELECT id FROM t GROUP BY GROUPING SETS ((id))", "GROUPING SETS"},
+                {"SELECT id FROM t GROUP BY ()", "empty grouping"},
+                {"SELECT id FROM t GROUP BY (id, vc)", "composite"},
+                {"SELECT stddev(id) FROM t", "loses precision"},
+                {"SELECT corr(id, id) FROM t", "aggregate"},
+                {"SELECT count(*) OVER () FROM t", "OVER"},
                 {"SELECT dba.f(id) FROM t", "owner-qualified"},
-                {"SELECT id FROM t WHERE vc LIKE 'a%'", "LIKE"},
-                {"SELECT id FROM t WHERE id IN (1, 2)", "IN"},
-                {"SELECT id FROM t WHERE (id = 1) IS TRUE", "is not supported"},
+                // IQ island, 2026-10-14 (M1a): LIKE, IN lists and the truth tests are read now; these are not
+                {"SELECT id FROM t WHERE vc SIMILAR TO 'a%'", "SIMILAR"},
+                // IQ island, 2026-10-14 (M1b): IN (subquery) and scalar subqueries are read now (below); KEY JOIN and
+                // APPLY stay refused
+                {"SELECT a.id FROM t a KEY JOIN u b", "KEY JOIN"},
+                {"SELECT a.id FROM t a CROSS APPLY u b", "APPLY"},
+                {"SELECT id FROM t WHERE id IS OF (INT)", "is not supported"},
                 {"SELECT id & 1 FROM t", "bitwise"},
-                {"SELECT ? FROM t", "parameters"},
+                // IQ island, 2026-10-14 (M1e): :name and @name are host variables now (below); ? names none
+                {"SELECT ? FROM t", "positional parameter"},
+                {"SELECT :? FROM t", "positional parameter"},
+                {"SELECT :a.b FROM t", "part of a host variable"},
+                {"SELECT dba.t.* FROM dba.t", "owner-qualified star"},
                 {"SELECT @@version", "global variables"},
-                {"SELECT (SELECT 1) FROM t", "subqueries"},
                 {"WITH q AS (SELECT 1) SELECT * FROM q", "WITH"},
                 {"SELECT id INTO x FROM t", "INTO"},
                 {"SELECT id FROM t;", "separator"},
@@ -135,7 +151,8 @@ class IqParserTest {
                 {"SELECT TOP @n id FROM t", "variable"},
                 {"SELECT @v = id FROM t", "assignment"},
                 {"SELECT id '' FROM t", "empty"},
-                {"SELECT CAST(id AS INT) FROM t", "special form"},
+                // IQ island, 2026-10-14 (M1d): CAST reads now; EXTRACT is a special form still refused
+                {"SELECT EXTRACT(year FROM dt) FROM t", "special form"},
                 {"SELECT 0.000000000000000000000000000000000000001234 FROM t", "38"},
                 {"SELECT 1e-50 FROM t", "38"},
                 {"SELECT id FROM t ORDER BY +(1)", "position"},
@@ -145,6 +162,70 @@ class IqParserTest {
             assertTrue(e.unsupported(), r[0] + ": " + e.reason());
             assertTrue(e.reason().contains(r[1]), r[0] + ": " + e.reason());
         }
+    }
+
+    // ------------------------------------------------------------------ M1a: predicates
+
+    @Test
+    void predicatesAreConditions_eachWithItsOperands() {
+        SqlAst.Between b = (SqlAst.Between) select("SELECT id FROM t WHERE id NOT BETWEEN 1 AND 2 + 1").where();
+        assertTrue(b.negated());
+        assertInstanceOf(SqlAst.Binary.class, b.high());
+        // BETWEEN's AND binds first: the condition after it is the outer AND's
+        SqlAst.Binary and = (SqlAst.Binary) select("SELECT id FROM t WHERE id BETWEEN 1 AND 3 AND id > 0").where();
+        assertEquals(SqlAst.BinaryOp.AND, and.op());
+        assertInstanceOf(SqlAst.Between.class, and.left());
+        SqlAst.InList in = (SqlAst.InList) select("SELECT id FROM t WHERE id IN (1, NULL, (3))").where();
+        assertEquals(3, in.values().size());
+        assertFalse(in.negated());
+        SqlAst.Like l = (SqlAst.Like) select("SELECT id FROM t WHERE vc NOT LIKE 'a!%' ESCAPE '!'").where();
+        assertTrue(l.negated());
+        assertEquals("!", ((SqlAst.StringLit) l.escape()).value());
+        SqlAst.IsDistinct d = (SqlAst.IsDistinct) select("SELECT id FROM t WHERE id IS NOT DISTINCT FROM 1").where();
+        assertTrue(d.negated());
+    }
+
+    @Test
+    void aTruthTestFollowsAPredicateOrAParenthesizedCondition() {
+        SqlAst.IsTruth t = (SqlAst.IsTruth) select("SELECT id FROM t WHERE (id = 1) IS NOT UNKNOWN").where();
+        assertEquals(SqlAst.Truth.UNKNOWN, t.truth());
+        assertTrue(t.negated());
+        // IS binds tighter than NOT and AND, to the predicate before it
+        SqlAst.Unary not = (SqlAst.Unary) select("SELECT id FROM t WHERE NOT id > 0 IS TRUE").where();
+        assertInstanceOf(SqlAst.IsTruth.class, not.operand());
+        SqlAst.Binary and = (SqlAst.Binary) select("SELECT id FROM t WHERE id > 0 AND id > 1 IS TRUE").where();
+        assertInstanceOf(SqlAst.Binary.class, and.left());
+        assertInstanceOf(SqlAst.IsTruth.class, and.right());
+        assertInstanceOf(SqlAst.IsTruth.class, select("SELECT id FROM t WHERE id IS NULL IS FALSE").where());
+        assertInstanceOf(SqlAst.IsTruth.class, select("SELECT id FROM t WHERE (id > 0 IS TRUE) IS TRUE").where());
+        // TRUE is a name elsewhere
+        assertInstanceOf(SqlAst.ColumnRef.class, ((SqlAst.SelectExpr) select("SELECT true FROM t").items().get(0))
+                .expr());
+    }
+
+    @Test
+    void predicatesIqRejects() {
+        // syntax errors in IQ too (SQLCODE -131), measured on SQL Anywhere 17
+        for (String sql : new String[] {"SELECT id FROM t WHERE id IS TRUE", "SELECT id FROM t WHERE (id > 0) IS NULL",
+                "SELECT id FROM t WHERE id > 0 IS TRUE IS TRUE", "SELECT id FROM t WHERE id IN ()",
+                "SELECT id FROM t WHERE id IN 1", "SELECT id FROM t WHERE id BETWEEN 1, 3",
+                "SELECT id FROM t WHERE id BETWEEN SYMMETRIC 1 AND 3", "SELECT id FROM t WHERE id IS DISTINCT 1",
+                "SELECT id BETWEEN 1 AND 2 FROM t", "SELECT vc LIKE 'a' AS x FROM t", "SELECT (1 = 1) IS TRUE",
+                "SELECT id FROM t WHERE id IN (1 = 1)", "SELECT id FROM t WHERE id BETWEEN 1 AND 2 = 1"}) {
+            SqlSyntaxException e = error(sql);
+            assertFalse(e.unsupported(), sql + ": " + e.reason());
+            assertTrue(e.reason().contains("SQLCODE -131"), e.reason());
+        }
+    }
+
+    @Test
+    void sqlAnywheresOwnRelationsAreFromItems() {
+        SqlAst.TableFunction g = (SqlAst.TableFunction) select("SELECT row_num FROM sa_rowgenerator(1, 5) AS g")
+                .from().get(0);
+        assertEquals(2, g.args().size());
+        assertEquals("g", g.alias().text());
+        assertEquals(List.of("SYS", "DUMMY"), select("SELECT * FROM SYS.DUMMY").from().get(0) instanceof
+                SqlAst.TableName n ? n.name().stream().map(SqlAst.Ident::text).toList() : List.of());
     }
 
     // ------------------------------------------------------------------ M0's rest: row limits, aliases, IF, CASE
@@ -257,5 +338,194 @@ class IqParserTest {
         SqlSyntaxException e = error("SELECT id\nFROM t WHERE NOT NOT id = 1");
         assertEquals(2, e.line());
         assertEquals(18, e.column());
+    }
+
+    // ------------------------------------------------------------------ M1b: relations
+
+    private static SqlAst.Statement statement(String sql) {
+        return IqParser.parse(sql, IqProfile.IQ16_DEFAULT);
+    }
+
+    @Test
+    void joinsAssociateLeftAndACommaBindsLoosest() {
+        SqlAst.Select s = select("SELECT a.id FROM t a JOIN u b ON a.id = b.t_id LEFT OUTER JOIN v c ON c.x = a.id, w");
+        assertEquals(2, s.from().size());
+        SqlAst.Join outer = (SqlAst.Join) s.from().get(0);
+        assertEquals(SqlAst.JoinType.LEFT, outer.type());
+        SqlAst.Join inner = (SqlAst.Join) outer.left();
+        assertEquals(SqlAst.JoinType.INNER, inner.type());
+        assertInstanceOf(SqlAst.Binary.class, inner.on());
+        assertEquals("w", ((SqlAst.TableName) s.from().get(1)).name().get(0).text());
+        SqlAst.Join natural = (SqlAst.Join) select("SELECT 1 FROM t NATURAL RIGHT JOIN u").from().get(0);
+        assertTrue(natural.natural());
+        assertEquals(SqlAst.JoinType.RIGHT, natural.type());
+        assertNull(natural.on());
+        assertEquals(SqlAst.JoinType.CROSS, ((SqlAst.Join) select("SELECT 1 FROM t CROSS JOIN u").from().get(0)).type());
+        // a join without ON reads (IQ's KEY JOIN): the dialect refuses it by name
+        assertNull(((SqlAst.Join) select("SELECT 1 FROM t JOIN u").from().get(0)).on());
+        // parenthesized joins and tables, a comma inside the parentheses a cross join
+        SqlAst.Join p = (SqlAst.Join) select("SELECT 1 FROM t JOIN (u JOIN v ON 1 = 1) ON 1 = 1").from().get(0);
+        assertInstanceOf(SqlAst.Join.class, p.right());
+        assertInstanceOf(SqlAst.TableName.class, select("SELECT 1 FROM ((t))").from().get(0));
+        assertEquals(SqlAst.JoinType.CROSS, ((SqlAst.Join) select("SELECT 1 FROM (t, u)").from().get(0)).type());
+    }
+
+    @Test
+    void joinSyntaxErrorsAreIqs() {
+        for (String sql : new String[] {"SELECT 1 FROM t JOIN u USING (id)", "SELECT 1 FROM t JOIN u JOIN v ON 1 = 1 ON"
+                + " 2 = 2", "SELECT 1 FROM t CROSS JOIN u ON 1 = 1", "SELECT 1 FROM t OUTER JOIN u ON 1 = 1",
+                "SELECT 1 FROM t LEFT INNER JOIN u ON 1 = 1", "SELECT 1 FROM t NATURAL CROSS JOIN u",
+                "SELECT 1 FROM (t JOIN u ON 1 = 1) AS x", "SELECT 1 FROM (SELECT 1 a)",
+                "SELECT 1 UNION ALL DISTINCT SELECT 2", "SELECT 1 ORDER BY 1 UNION SELECT 2",
+                "SELECT 1 UNION (WITH x AS (SELECT 1 a) SELECT a FROM x)", "SELECT EXISTS (SELECT 1)",
+                "SELECT 1 FROM t WHERE 1 = ANY (1, 2)"}) {
+            assertFalse(error(sql).unsupported(), sql);
+        }
+    }
+
+    @Test
+    void aDerivedTableNeedsItsNameAndMayNameItsColumns() {
+        SqlAst.SubqueryFrom d = (SqlAst.SubqueryFrom) select("SELECT x FROM (SELECT 1 a, 2 b) AS d (x, y)").from()
+                .get(0);
+        assertEquals("d", d.alias().text());
+        assertEquals(List.of("x", "y"), d.columnAliases().stream().map(SqlAst.Ident::text).toList());
+        assertInstanceOf(SqlAst.Select.class, d.query());
+        // a derived table in parentheses of its own, and one of a set operation of parenthesized queries
+        assertInstanceOf(SqlAst.SubqueryFrom.class, select("SELECT 1 FROM ((SELECT 1 a) d)").from().get(0));
+        SqlAst.SubqueryFrom u = (SqlAst.SubqueryFrom) select("SELECT 1 FROM ((SELECT 1 a) UNION (SELECT 2)) d")
+                .from().get(0);
+        assertInstanceOf(SqlAst.SetOperation.class, u.query());
+    }
+
+    @Test
+    void setOperationsBindAsIqsDoAndTakeTheOrderBy() {
+        SqlAst.SetOperation u = (SqlAst.SetOperation) statement("SELECT 1 UNION SELECT 2 INTERSECT SELECT 3 EXCEPT ALL"
+                + " SELECT 4 ORDER BY 1 DESC");
+        // INTERSECT binds tighter; UNION and EXCEPT associate left; the ORDER BY is the whole query's
+        assertEquals(SqlAst.SetOp.EXCEPT, u.op());
+        assertTrue(u.all());
+        assertEquals(1, u.orderBy().size());
+        SqlAst.SetOperation union = (SqlAst.SetOperation) u.left();
+        assertEquals(SqlAst.SetOp.UNION, union.op());
+        assertFalse(union.all());
+        assertEquals(SqlAst.SetOp.INTERSECT, ((SqlAst.SetOperation) union.right()).op());
+        assertFalse(((SqlAst.SetOperation) statement("SELECT 1 UNION DISTINCT SELECT 2")).all());
+        // after a set operation, (1) is an expression (IQ's error -152, the dialect's to raise), +1 a position
+        SqlAst.SetOperation p = (SqlAst.SetOperation) statement("SELECT 1 UNION SELECT 2 ORDER BY (1), +1");
+        assertInstanceOf(SqlAst.Unary.class, p.orderBy().get(0).expr());
+        assertInstanceOf(SqlAst.IntegerLit.class, p.orderBy().get(1).expr());
+        // parenthesized branches, and a whole parenthesized query
+        assertInstanceOf(SqlAst.SetOperation.class, statement("(SELECT 1) UNION ((SELECT 2))"));
+        assertEquals(1, ((SqlAst.Select) statement("(SELECT a FROM t ORDER BY a)")).orderBy().size());
+        assertTrue(error("(SELECT a FROM t ORDER BY a) UNION SELECT 1").unsupported());
+    }
+
+    @Test
+    void subqueriesAreValuesOrPredicates() {
+        SqlAst.SelectExpr item = (SqlAst.SelectExpr) select("SELECT (SELECT 1), ((SELECT 1) + 1) FROM t").items()
+                .get(0);
+        assertInstanceOf(SqlAst.ScalarSubquery.class, item.expr());
+        SqlAst.Binary sum = (SqlAst.Binary) ((SqlAst.SelectExpr) select("SELECT ((SELECT 1) + 1) FROM t").items()
+                .get(0)).expr();
+        assertInstanceOf(SqlAst.ScalarSubquery.class, sum.left());
+        assertInstanceOf(SqlAst.Exists.class, select("SELECT 1 FROM t WHERE NOT EXISTS (SELECT 1)").where() instanceof
+                SqlAst.Unary n ? n.operand() : null);
+        SqlAst.InSubquery in = (SqlAst.InSubquery) select("SELECT 1 FROM t WHERE a NOT IN (SELECT b FROM u)").where();
+        assertTrue(in.negated());
+        assertInstanceOf(SqlAst.SetOperation.class, ((SqlAst.InSubquery) select("SELECT 1 FROM t WHERE a IN"
+                + " ((SELECT 1) UNION (SELECT 2))").where()).query());
+        assertEquals(2, ((SqlAst.InList) select("SELECT 1 FROM t WHERE a IN ((SELECT 1), 2)").where()).values().size());
+        SqlAst.Quantified q = (SqlAst.Quantified) select("SELECT 1 FROM t WHERE a >= SOME (SELECT b FROM u)").where();
+        assertFalse(q.all());
+        assertEquals(SqlAst.BinaryOp.GE, q.op());
+        assertTrue(((SqlAst.Quantified) select("SELECT 1 FROM t WHERE a <> ALL (SELECT b FROM u)").where()).all());
+    }
+
+    @Test
+    void groupByAndHavingAndTheAggregatesForms() {
+        // IQ island, 2026-10-14 (M1c)
+        SqlAst.Select s = select("SELECT k, COUNT(*) FROM t GROUP BY k, k + 1, 1 HAVING COUNT(DISTINCT v) > 1");
+        assertEquals(3, s.groupBy().size());
+        assertInstanceOf(SqlAst.IntegerLit.class, s.groupBy().get(2));
+        SqlAst.FunctionCall count = (SqlAst.FunctionCall) ((SqlAst.SelectExpr) s.items().get(1)).expr();
+        assertTrue(count.star());
+        SqlAst.FunctionCall distinct = (SqlAst.FunctionCall) ((SqlAst.Binary) s.having()).left();
+        assertTrue(distinct.distinct());
+        assertTrue(((SqlAst.FunctionCall) ((SqlAst.SelectExpr) select("SELECT COUNT() FROM t").items().get(0)).expr())
+                .star());
+        SqlAst.FunctionCall list = (SqlAst.FunctionCall) ((SqlAst.SelectExpr) select("SELECT LIST(id, '-' ORDER BY"
+                + " id DESC, k) FROM t").items().get(0)).expr();
+        assertEquals(2, list.args().size());
+        assertEquals(2, list.orderBy().size());
+        assertTrue(list.orderBy().get(0).descending());
+        // the texts kept for IQ's names of a grouped query's items
+        IqParser.Parsed p = IqParser.parsed("SELECT SUM( v ) FROM t GROUP BY (k) + 1", IqProfile.IQ16_DEFAULT);
+        SqlAst.Select q = (SqlAst.Select) p.statement();
+        assertEquals("(k) + 1", p.spans().get(q.groupBy().get(0)));
+        assertEquals("SUM( v )", p.spans().get(((SqlAst.SelectExpr) q.items().get(0)).expr()));
+        // IQ's syntax errors (SQLCODE -131)
+        for (String sql : new String[] {"SELECT k FROM t GROUP BY ALL", "SELECT k FROM t GROUP BY",
+                "SELECT k FROM t HAVING COUNT(*) > 1 GROUP BY k", "SELECT COUNT(DISTINCT *) FROM t",
+                "SELECT LIST(id ORDER BY id NULLS LAST) FROM t", "SELECT COUNT(k > 1) FROM t"}) {
+            SqlSyntaxException e = error(sql);
+            assertFalse(e.unsupported(), sql + ": " + e.reason());
+            assertTrue(e.reason().contains("SQLCODE -131"), e.reason());
+        }
+    }
+
+    @Test
+    void anItemIsReadAgainAsWritten() {
+        IqParser.Written w = IqParser.written("((a + 1)) * CASE b WHEN 1 THEN 2 END + IF c = 1 THEN 1 ENDIF",
+                IqProfile.IQ16_DEFAULT);
+        SqlAst.Binary plus = (SqlAst.Binary) w.expr();
+        SqlAst.Binary times = (SqlAst.Binary) plus.left();
+        assertEquals(2, w.parensOf(times.left()));
+        assertTrue(w.simpleCases().contains(times.right()));
+        assertTrue(w.ifs().contains(plus.right()));
+        assertFalse(w.commented());
+        assertTrue(IqParser.written("a /* x */ + 1", IqProfile.IQ16_DEFAULT).commented());
+    }
+
+    // ------------------------------------------------------------------ M1e: names and host variables
+
+    /** IQ island, 2026-10-14 (M1e): a table's server, database and owner qualifiers, T-SQL's db..t (its owner omitted:
+     *  an empty part), and IQ's syntax errors around them (measured on SQL Anywhere 17). */
+    @Test
+    void ownerQualifiedTableNames() {
+        SqlAst.TableName four = (SqlAst.TableName) select("SELECT id FROM srv.db.DBA.t").from().get(0);
+        assertEquals(List.of("srv", "db", "DBA", "t"), four.name().stream().map(SqlAst.Ident::text).toList());
+        SqlAst.TableName omitted = (SqlAst.TableName) select("SELECT id FROM db..t x").from().get(0);
+        assertEquals(List.of("db", "", "t"), omitted.name().stream().map(SqlAst.Ident::text).toList());
+        assertEquals("x", java.util.Objects.requireNonNull(omitted.alias()).text());
+        SqlAst.ColumnRef ref = (SqlAst.ColumnRef) ((SqlAst.SelectExpr) select("SELECT db..DUMMY.dummy_col FROM db..DUMMY")
+                .items().get(0)).expr();
+        assertEquals(4, ref.parts().size());
+        for (String sql : new String[] {"SELECT id FROM a.b.c.d.e", "SELECT id FROM srv.db..t", "SELECT id FROM srv..o.t",
+                "SELECT id FROM db..t.x"}) {
+            SqlSyntaxException e = error(sql);
+            assertFalse(e.unsupported(), sql + ": " + e.reason());
+            assertTrue(e.reason().contains("SQLCODE -131"), e.reason());
+        }
+    }
+
+    /** IQ island, 2026-10-14 (M1e): {@code @name} and {@code :name} are named parameters, one index per name as IQ
+     *  matches names; {@code @@name} is a global, refused; IQ's syntax errors (measured: a space after the colon,
+     *  {@code ::a}, {@code :1}, an indicator variable). */
+    @Test
+    void hostVariablesAreNamedParameters() {
+        SqlAst.Select s = select("SELECT @x AS a, :y AS b, @X AS c FROM t WHERE id > :y");
+        SqlAst.Param x = (SqlAst.Param) ((SqlAst.SelectExpr) s.items().get(0)).expr();
+        SqlAst.Param y = (SqlAst.Param) ((SqlAst.SelectExpr) s.items().get(1)).expr();
+        SqlAst.Param bigX = (SqlAst.Param) ((SqlAst.SelectExpr) s.items().get(2)).expr();
+        assertEquals("@x", x.name());
+        assertEquals(":y", y.name());
+        assertEquals(x.index(), bigX.index());
+        assertEquals(y.index(), ((SqlAst.Param) ((SqlAst.Binary) java.util.Objects.requireNonNull(s.where())).right())
+                .index());
+        for (String sql : new String[] {"SELECT : a", "SELECT ::a", "SELECT :1", "SELECT :a:b"}) {
+            SqlSyntaxException e = error(sql);
+            assertFalse(e.unsupported(), sql + ": " + e.reason());
+            assertTrue(e.reason().contains("SQLCODE -131"), e.reason());
+        }
     }
 }

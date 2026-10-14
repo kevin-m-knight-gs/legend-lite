@@ -9566,3 +9566,100 @@ Branch `claude/great-wright-p6t5s1` at beebe47, not landed (Phase 1 waits for th
   - The lane dumps hold query statements only, so the seed and DDL spelling changes show in no digest: the targets
     passing are their proof there.
   - `//spec:corpus_duckdb` and `//spec:corpus_h2`: 12 of 12, no roster or register moved.
+
+## 2026-10-14 — `#IQ{...}#`: the second landing — M1, IQ's collation and exact NUMERIC, host variables, the showcase (the tenth line)
+
+Announced in `docs/IN_FLIGHT.md` (de0484e96, the cross-area edits listed). Branch `claude/iq-island-2` over main
+de0484e96: one squashed commit of the M1 work (32930c8f6) and review 6's fixes (b4e93c209). The intermediate commits
+stay unpublished. The study's §9.3 to §9.15 hold what reads, what is refused and why, and each review's findings.
+
+1. **What lands.**
+   - M1a to M1e: predicates, joins, subqueries, set operations, grouping and the aggregates in SQL Anywhere's types,
+     about 60 functions, owner-qualified tables, host variables (`@x`, `:x`) bound to the enclosing query's
+     variables, date strings read by DATE_ORDER and NEAREST_CENTURY, and dates written in each profile's format.
+   - IQ's ASCII-only case fold, blank padding and exact NUMERIC division, composed from existing Pure natives (no
+     new native); IQ's collation as the key of ORDER BY, DISTINCT, GROUP BY, set operations, COUNT(DISTINCT), MIN,
+     MAX and LIST.
+   - The showcase, `docs/IQ_SQL_SHOWCASE.md`: one IQ query end to end. Its cases are `iq-parity/lite/showcase.yaml`;
+     its Snowflake and DuckDB SQL are pinned by `IqParityTest.theShowcasePlansItsPinnedSql`.
+   - The oracle binds real SQL Anywhere variables for a case's params (`CREATE VARIABLE`/`SET`), not text.
+   - Declared: `docs/SEMANTICS_REGISTER.md` S51 to S54 extended, S55 and S56 new.
+2. **The seam's judge.** The generated Pure of every Postgres case (2,394 with the probes), byte-identical before and
+   after: sha256 36aa7f14dff4e1ba443739c518f6fc72da11f3831b562ea44894af98e9256f26. Both `sql-parity` ledgers
+   unchanged in both lanes: 2,180 cases, PASS 1,527, REFUSED 449, BOTH_ERROR 136, SKIP 68.
+3. **The IQ parity corpus,** identical in both lanes (`//core:iq_parity_test`, `//core:iq_parity_postgres_test`):
+
+   | file | runs | PASS | REFUSED | BOTH_ERROR | SKIP |
+   |---|---|---|---|---|---|
+   | basics, m0 (the first landing's) | 332 | 217 | 35 | 77 | 3 |
+   | m1a, m1b, m1c, m1d, m1e | 1,497 | 1,067 | 200 | 229 | 1 |
+   | natives, collation | 432 | 346 | 80 | 6 | 0 |
+   | rules | 499 | 125 | 336 | 38 | 0 |
+   | m1review, review4, review5, review6 | 332 | 155 | 138 | 39 | 0 |
+   | showcase | 3 | 3 | 0 | 0 | 0 |
+   | **all** | **3,095** | **1,913** | **789** | **389** | **4** |
+
+   FAIL, BUG and ERROR are 0 in both lanes. The answers: `tools/iq-oracle/snap.sh --write`, then `--check`: 2,705
+   cases, 3,091 answers, clean. The syntax ratchet, `//core:iq_syntax_cases_test`: 6,983 cases; accept PARSED 2,674,
+   REFUSED 2,274; none crashed.
+4. **Judges.**
+   - The battery on the final tree: both IQ lanes, `//core:iq_syntax_cases_test`, both `sql-parity` lanes,
+     `//core:core_tests`, `//gates:checks`, `//parser-equivalence:diagnostics`: 166 pass, 2 skipped (platform-gated);
+     `//sdlc-server:page` and `//wasm:planner` build (TeaVM).
+   - Guard entries: `syntax-pins.tsv` only, with dated notes.
+   - Four independent reviews (read-only agents that wrote none of it; each claim run on lite and on SQL Anywhere):
+     review 3 (M1a to M1d) 4 BLOCKER, 5 MAJOR, 5 MINOR; review 4 (the merge and review 3's fixes) 3, 2, 4; review 5
+     (M1e) 3, 5, 6; review 6 (the whole landing, the last audit) 1, 2, 3. Every blocker and major is fixed or
+     refused by name, each pinned by a case or test that fails without it. Review 6's fixes were measured on SQL
+     Anywhere (138 runs) and pinned, not reviewed again.
+   - Hygiene: no SAP manual text, TPC material or GitHub-corpus query (the literal and n-gram filters over the whole
+     diff); no private paths.
+   - CI: run 38592862950 on PR neema2/legend-lite#40, green on every job at 0412c7244 over main de0484e96. Main then
+     gained the compiler line's three stamp and fold fixes (0d294f432, 198e2e582, d619c5cd6), so the merge was first
+     judged locally on the combined tree: both IQ lanes, `//core:iq_syntax_cases_test`, both `sql-parity` lanes,
+     `//core:core_tests` and `//gates:checks`, 165 pass, 2 platform-skipped. Merged by the owner as f2e7b553d on
+     2026-10-14, without `[skip ci]`: main's push run 38614117947 on f2e7b553d is the verdict on the combination.
+5. **Not done, recorded in the study** (§9.14, §9.15 and earlier "Recorded, not fixed"): date and `[0..1]` host
+   variables refused (Postgres's year-below-100 rendering and its fold of `toOne`'s raise, the ninth line's and the
+   planner's); `TOP @n`; the IqDialect edits the seventh line's stress fixes enable (an AND/OR chain read without
+   recursion, a checked integer keeping its merged guard), taken after that line lands; M2, M3, the catalog.
+## 2026-10-14 — The three planner defects the tenth line found: integer folds beyond long, an all-NULL CASE in the stamp census, a union's column stamps (the Compiler Rewrite line)
+
+The tenth line (the `#IQ{...}#` island) reported three planner defects to this line in IN_FLIGHT ("The compiler and
+stamp program"). Branch `core/iq-finds`, three commits over afd07af19 (d619c5cd6 at the head on main); the audit
+(`docs/build-inventory/program/evidence/iq-finds/AUDIT.md`): no blocker, two should-fixes and four nits, all taken
+before the commits were rewritten.
+
+1. **Integer folds beyond long.** The parser keeps a literal beyond long a `BigInteger`, and every fold over two spelled
+integers read `longValue()`, which wraps it: `LiteralUnroll.nativeFold`'s `<`, `>`, `<=`, `>=` (`99999999999999999999 >
+9223372036854775807` folded to false, and `$x > ...` with `$x` let-bound to it is the same fold after inlining),
+`NormalizeFolds`' `eq`/`equal` on inlined bodies, and -- the audit's find, the main path -- `LiteralUnroll.literal`,
+whose spelled-integer `Scalar` drives the inliner's equality fold, `contains`, `in`, a map's `get` and groupBy keys (two
+different literals beyond long folded equal, two groupBy keys merged). All read `TypedCInteger.big()`, the exact value.
+`ExactIntegerFoldTest` pins the compares and both equality paths through the typer's own overloads. The remaining
+`longValue()` reads of a spelled integer (an index, an offset, a precision: `at(2^64)` picks element 0) are PARK-37 in
+the ledger, anchored on the `at()` read.
+
+2. **An all-NULL CASE in the stamp census.** `StampCensus.check` exempted a bare NULL as shape-ambiguous (SQL NULL
+carries pure's EMPTY in scalar and list positions), but `listShaped` counted a CASE whose every branch is NULL as a
+list, so such a CASE under a scalar stamp fired the invariant. The exemption is `nullOnly`: a NULL, or a CASE of
+NULL-only branches (no ELSE being SQL's NULL); a CASE with a real list branch still fires (`StampCensusTest`). The
+auditor's older gap stays as placed: a no-ELSE CASE of list branches never fired and still does not.
+
+3. **A union's column stamps.** `ConcatenateChecker.positional` carried the left operand's schema as the union's, stamps
+included, so a NULL-constant first branch (`[]->cast(@String)`, the islands' spelling, [0..0]) stamped the united column
+always-empty and an enclosing test of it folded away (no row found, a size-0 error, a random sort key).
+`TypedConcatenate.unionInfo(left, right, m)` is the one place a relation concatenate's info comes from: the left's
+carrier, names and types, each common column's stamp `Multiplicity.union` of the two sides'. The typer's two builders
+and the resolver's five rebuilds (`ImportDataFlowAppend`, `DriverPkAppend`, `StoreResolver`, `StackBuilder`,
+`SyntheticHeads`: the audit's second find, each took one side's info) take it; `ClassConcatenates` keeps its
+schema-equal union and the class-collection overload's own info. `TypeCheckerTest` pins [0..1] on either side, [0..0]
+for two empty branches, [1] for two value branches.
+
+**Judges.** The six corpus passes against baselines built from main afd07af19 the same day: 0 of 23 result files differ
+(`docs/build-inventory/program/evidence/iq-finds/judges_compare.txt`); the render census, main's tree against the
+branch: 55,747 entries, 0 differ (`render_census_compare.txt` beside it); `//spec:reference_lane` and `//core:census`
+green; `//gates:local` 363 pass, 2 skipped (the two guards incompatible on this Mac); the lane query empty. CI: run
+38605839662 on the branch, every lane, every platform, green on all 50 jobs, the Windows Postgres PCT job on its re-run
+(its first try failed to build the test launcher when the runner's query of the remote cache failed, no test having
+run); main's own run on the landing, 38611525856, green on every job.
