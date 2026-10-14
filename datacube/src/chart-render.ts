@@ -2,7 +2,8 @@
 //
 // Only what DataCube uses is registered (`echarts/core`), never the whole
 // library: bar, line, scatter, pie and heatmap, with the grid, tooltip,
-// legend, visual map, dataset and aria components, drawn on canvas. (The
+// legend, visual map, dataset and aria components, the mark lines, areas and
+// points of a chart's layers and an axis's breaks, drawn on canvas. (The
 // tests draw the same options as SVG in node, registering the SVG renderer
 // themselves, so the page does not ship it.)
 //
@@ -17,10 +18,14 @@ import {
   DatasetComponent,
   GridComponent,
   LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  MarkPointComponent,
   TitleComponent,
   TooltipComponent,
   VisualMapComponent,
 } from 'echarts/components';
+import { AxisBreak } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
 import type { ChartDrawing, MarkKey } from './chart-option.ts';
@@ -30,6 +35,8 @@ echarts.use([
   BarChart, LineChart, ScatterChart, PieChart, HeatmapChart, TreemapChart,
   GridComponent, TooltipComponent, LegendComponent, TitleComponent,
   DatasetComponent, VisualMapComponent, AriaComponent,
+  // version 2's layers: reference lines, bands, pinned extremes; and a value axis's breaks
+  MarkLineComponent, MarkAreaComponent, MarkPointComponent, AxisBreak,
   CanvasRenderer,
 ]);
 

@@ -565,7 +565,8 @@ class Grid(Tile):
               split: str | None = None, title: str | None = None, frozen: bool = False,
               options: Mapping[str, Any] | None = None, grain: str | None = None,
               bins: Mapping[str, float] | None = None, size: Any = None, tooltip: Sequence[Any] | None = None,
-              facet: Mapping[str, str] | None = None, layers: Sequence[Mapping[str, Any]] | None = None) -> Chart:
+              facet: Mapping[str, str] | None = None, layers: Sequence[Mapping[str, Any]] | None = None,
+              label: Any = None) -> Chart:
         """A chart of this grid, beside it: ``mark`` (one of MARKS), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the grid's first measure unless given -- and a ``split`` (one series per value);
         ``frozen`` keeps its own grouping rather than following the grid's (and stays when the grid is removed, as in
@@ -575,11 +576,12 @@ class Grid(Tile):
         aggregate, or ``'value'``: a group-level column of the grid, plotted as it is), its own ``mark`` (MEASURE_MARKS),
         ``axis`` (AXES) and ``showAs`` (``{'kind': one of SHOW_AS}``); ``grain`` takes a date across to its period
         (GRAINS); ``bins`` a number across to its bins (``{'width': w}`` or ``{'count': n}``); ``size`` a measure sizing
-        each mark; ``tooltip`` further measures a hover lists; ``facet`` small multiples (``{'row': c}``,
+        each mark; ``label`` a measure written on each mark instead of its own value; ``tooltip`` further measures a
+        hover lists; ``facet`` small multiples (``{'row': c}``,
         ``{'column': c}``); ``layers`` reference lines, bands, thresholds and pinned extremes (each a dict, its
         ``kind`` one of LAYERS)."""
         spec = {**_spec(self, mark, x, y, split, frozen), 'options': _copied(options or {}),
-                **_slots(self, grain, bins, size, tooltip, facet, layers)}
+                **_slots(self, grain, bins, size, tooltip, facet, layers, label)}
         named = _named(title, 'a title')
         id = self._page._next('chart')
         self._page._doc['views'].append({'id': id, 'kind': 'chart', 'cube': self._view['cube'],
@@ -672,7 +674,7 @@ def _measure(grid: Grid, plotted: Any, what: str) -> dict[str, Any]:
 
 def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, size: Any,
            tooltip: Sequence[Any] | None, facet: Mapping[str, str] | None,
-           layers: Sequence[Mapping[str, Any]] | None) -> dict[str, Any]:
+           layers: Sequence[Mapping[str, Any]] | None, label: Any = None) -> dict[str, Any]:
     """The spec's version 2 slots a chart was given, checked word by word as DataCube's reader checks them."""
     out: dict[str, Any] = {}
     if grain is not None:
@@ -685,6 +687,8 @@ def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, size
         out['bins'] = _copied(bins)
     if size is not None:
         out['size'] = _measure(grid, size, 'a chart\'s size')
+    if label is not None:
+        out['label'] = _measure(grid, label, 'a chart\'s label')
     if tooltip is not None:
         out['tooltip'] = [_measure(grid, m, 'a chart\'s tooltip') for m in tooltip]
     if facet is not None:

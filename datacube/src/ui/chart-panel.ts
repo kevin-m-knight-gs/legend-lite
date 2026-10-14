@@ -16,15 +16,20 @@ import {
   followCube,
   kpiQueries,
   markConditions,
+  LAYER_STATS,
   SHOW_AS_KINDS,
   TIME_GRAINS,
+  type ChartLayer,
+  type ChartLayerKind,
   type ChartMark,
+  type ChartMeasure,
+  type MeasureMark,
   type ShowAsKind,
   type TimeGrain,
   type ChartSpec,
 } from '../chart-spec.ts';
 // the drawing (chart-option.ts) comes with ECharts, the first time a chart draws: a grid alone fetches neither
-import type { GridShown, LabelOf, MarkKey } from '../chart-option.ts';
+import type { GridShown, LabelOf, MarkKey, UnitOf } from '../chart-option.ts';
 // ECharts (about 218 KB gzipped) is loaded the first time a chart draws, never by a grid alone (plan F7)
 import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
@@ -35,6 +40,9 @@ import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 
+/** The most values one chart plots side by side (bars, lines). */
+const MAX_MEASURES = 6;
+
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
   readonly snapshot: () => CubeSnapshot;
@@ -42,6 +50,8 @@ export interface ChartPanelOptions {
   readonly run: (query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal) => Promise<ResultTable>;
   /** How a value is written: the grid's formatter. */
   readonly label: LabelOf;
+  /** A column's unit as the grid formats it: two units, two value axes. */
+  readonly unit?: UnitOf;
   /** A mark was clicked: filter the cube to these conditions (its values; a period's or a bin's range). */
   readonly onPick: (conditions: FilterNode[]) => void;
   /** Where to start; the cube's own grouping suggests one otherwise. */
@@ -299,6 +309,9 @@ export class ChartPanel {
         { allowNone: spec.mark !== 'heatmap' },
       )),
     );
+    if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
+      form.append(...this.#measureRows(spec, plotted, typeOf), ...this.#layerFields(spec, plotted));
+    }
     if (spec.mark === 'bar') {
       form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, [
         { value: 'vertical', label: 'Vertical' },
@@ -344,6 +357,131 @@ export class ChartPanel {
       hint.textContent = 'Click a mark on the chart to filter the cube to it.';
       form.append(hint);
     }
+  }
+
+  /**
+   * THE MEASURES AFTER THE FIRST (version 2): each its own column and aggregate -- or a group-level column as it is --,
+   * its own kind of mark and its value axis (by unit unless told), shown as it says; one added or taken away. A split
+   * draws the first measure once per value, so the others wait until it is taken off.
+   */
+  #measureRows(spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>): HTMLElement[] {
+    const doc = this.#doc;
+    const GROUP = 'group:';
+    const out: HTMLElement[] = [];
+    const replace = (i: number, m: ChartMeasure | null): void => {
+      if (!this.#spec) return;
+      const y = [...this.#spec.y];
+      if (m === null) y.splice(i, 1);
+      else y[i] = m;
+      this.#set({ y }, true);
+    };
+    spec.y.forEach((m, i) => {
+      if (i === 0) return;
+      const row = doc.createElement('div');
+      row.className = 'dc-chartpanel-measure';
+      const value = m.fn === 'value' ? `${GROUP}${m.column}` : m.column;
+      const fns = (m.fn === 'value' ? [] : aggregatesFor(typeOf.get(m.column)))
+        .filter((a) => a.value !== 'wavg').map((a) => ({ value: a.value, label: a.label }));
+      row.append(
+        field(doc, `Value ${i + 1}:`, dropdown<string>(doc, value, plotted, (v) => {
+          if (!v) return;
+          replace(i, v.startsWith(GROUP) ? { ...m, column: v.slice(GROUP.length), fn: 'value' }
+            : { ...m, column: v, fn: m.fn === 'value' ? 'sum' : m.fn });
+        })),
+        ...(m.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, m.fn, fns, (v) => {
+          if (v) replace(i, { ...m, fn: v });
+        }))]),
+        field(doc, 'Drawn as:', dropdown<MeasureMark>(doc, m.mark ?? (spec.mark === 'bar' ? 'bar' : spec.mark as MeasureMark), [
+          { value: 'bar', label: 'Bars' }, { value: 'line', label: 'Line' }, { value: 'area', label: 'Area' },
+        ], (v) => { if (v) replace(i, { ...m, mark: v }); })),
+        field(doc, 'Axis:', dropdown<string>(doc, m.axis ?? 'auto', [
+          { value: 'auto', label: 'By its unit' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' },
+        ], (v) => {
+          const { axis: _old, ...rest } = m;
+          replace(i, v === 'left' || v === 'right' ? { ...rest, axis: v } : rest);
+        })),
+      );
+      const remove = doc.createElement('button');
+      remove.type = 'button';
+      remove.className = 'dc-btn dc-btn-small';
+      remove.textContent = '\u00d7';
+      remove.title = `Take value ${i + 1} off the chart`;
+      remove.setAttribute('aria-label', remove.title);
+      remove.addEventListener('click', () => replace(i, null));
+      row.append(remove);
+      out.push(row);
+    });
+    const add = doc.createElement('button');
+    add.type = 'button';
+    add.className = 'dc-btn dc-btn-small dc-chartpanel-add';
+    add.textContent = '+ Add a value';
+    add.disabled = spec.split !== undefined || spec.y.length >= MAX_MEASURES;
+    add.title = spec.split !== undefined
+      ? 'A split draws one value per series: take the split off to plot more values.'
+      : 'Another value on the chart: as a line, say, beside the bars.';
+    add.addEventListener('click', () => {
+      const now = this.#spec;
+      const first = now?.y[0];
+      if (!now || !first) return;
+      const next = plotted.find((p) => !p.value.startsWith(GROUP) && p.value !== first.column) ?? plotted[0];
+      if (!next) return;
+      this.#set({ y: [...now.y, { column: next.value, fn: 'sum', mark: 'line' }] }, true);
+    });
+    out.push(add);
+    return out;
+  }
+
+  /**
+   * REFERENCE LINES AND COLOUR BY VALUE (version 2's layers, over the first value): a target where it is told, the
+   * average where the database says, the highest and lowest pinned, the marks below a threshold in the bad colour; and
+   * what a hover lists besides, and what a mark's label says.
+   */
+  #layerFields(spec: ChartSpec, plotted: readonly { value: string; label: string }[]): HTMLElement[] {
+    const doc = this.#doc;
+    const layers = spec.layers ?? [];
+    const own = (kind: ChartLayerKind): ChartLayer | undefined => layers.find((l) => l.kind === kind && (l.kind === 'band' || (l.measure ?? 0) === 0));
+    const setLayer = (kind: ChartLayerKind, layer: ChartLayer | null): void => {
+      if (!this.#spec) return;
+      const rest = (this.#spec.layers ?? []).filter((l) => l !== own(kind));
+      const next = layer ? [...rest, layer] : rest;
+      const { layers: _old, ...spec2 } = this.#spec;
+      this.#spec = spec2;
+      this.#set(next.length > 0 ? { layers: next } : {});
+    };
+    const target = own('line');
+    const threshold = own('threshold');
+    const stat = own('stat');
+    const heading = doc.createElement('div');
+    heading.className = 'dc-chartpanel-heading';
+    heading.textContent = 'Reference lines';
+    const measures = plotted.filter((p) => !p.value.startsWith('group:'));
+    const extraOf = (m: ChartMeasure | undefined): string | undefined => m?.column;
+    return [
+      heading,
+      field(doc, 'Target:', numberInput(doc, target?.kind === 'line' ? target.value : undefined, (v) => {
+        setLayer('line', v === undefined ? null : { kind: 'line', value: v, label: 'Target' });
+      }, { width: 110 })),
+      field(doc, 'Line at:', dropdown<string>(doc, stat?.kind === 'stat' ? stat.stat : undefined,
+        LAYER_STATS.map((st) => ({ value: st, label: { average: 'The average', min: 'The minimum', max: 'The maximum' }[st] })), (v) => {
+          setLayer('stat', v === 'average' || v === 'min' || v === 'max' ? { kind: 'stat', stat: v } : null);
+        }, { allowNone: true })),
+      checkbox(doc, 'Pin the highest and lowest', own('extremes') !== undefined, (on) => setLayer('extremes', on ? { kind: 'extremes' } : null)),
+      field(doc, 'Bad below:', numberInput(doc, threshold?.kind === 'threshold' ? threshold.value : undefined, (v) => {
+        setLayer('threshold', v === undefined ? null : { kind: 'threshold', value: v });
+      }, { width: 110 })),
+      field(doc, 'Also in hover:', dropdown<string>(doc, extraOf(spec.tooltip?.[0]), measures, (v) => {
+        if (!this.#spec) return;
+        const { tooltip: _old, ...rest } = this.#spec;
+        this.#spec = rest;
+        this.#set(v ? { tooltip: [{ column: v, fn: 'sum' }] } : {});
+      }, { allowNone: true })),
+      field(doc, 'Label with:', dropdown<string>(doc, extraOf(spec.label), measures, (v) => {
+        if (!this.#spec) return;
+        const { label: _old, ...rest } = this.#spec;
+        this.#spec = rest;
+        this.#set(v ? { label: { column: v, fn: 'sum' } } : {});
+      }, { allowNone: true })),
+    ];
   }
 
   /**
@@ -453,7 +591,7 @@ export class ChartPanel {
       }
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
-      const drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label);
+      const drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
       this.#chart.show(drawing);
       const capped = rows.rowCount >= (spec.mark === 'scatter' ? Infinity : spec.options.limit);
       this.#say([

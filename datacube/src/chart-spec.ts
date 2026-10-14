@@ -13,7 +13,7 @@
 // no functions (a stored formatter would need eval to come back).
 
 import { levelLambda, type LevelScope } from './query.ts';
-import { binColumns, binName, grainColumn, grainName, rangeConditions, showAsColumns, showAsName } from './calc-presets.ts';
+import { binColumns, binName, grainColumn, grainName, rangeConditions, showAsColumns, showAsName, statColumn } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
@@ -141,6 +141,8 @@ export interface ChartSpec {
   readonly split?: string;
   /** A measure sizing each mark (a bubble). */
   readonly size?: ChartMeasure;
+  /** A measure written on each mark instead of its own value (revenue's bars labelled with their margin). */
+  readonly label?: ChartMeasure;
   /** Further measures a hover lists, beside the plotted ones. */
   readonly tooltip?: readonly ChartMeasure[];
   /** Small multiples: a chart per value. */
@@ -248,8 +250,9 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     const p = measureProblem(m, `measure ${i + 1}`);
     if (p) return p;
   }
-  if (spec['size'] !== undefined) {
-    const p = measureProblem(spec['size'], 'its size');
+  for (const slot of ['size', 'label'] as const) {
+    if (spec[slot] === undefined) continue;
+    const p = measureProblem(spec[slot], `its ${slot}`);
     if (p) return p;
   }
   if (spec['tooltip'] !== undefined) {
@@ -532,7 +535,7 @@ export function chartProblems(spec: ChartSpec, s: CubeSnapshot): string[] {
   if (spec.x === undefined && spec.mark !== 'kpi') out.push('Pick a column across.');
   else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
   if (spec.y.length === 0) out.push('Pick something to plot.');
-  for (const m of spec.y) {
+  for (const m of [...spec.y, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
     if (m.fn === 'value') {
       if (spec.mark === 'scatter') out.push(`A scatter plots rows, not groups: '${m.column}' is a group-level column.`);
       else if (!groupLevel.has(m.column)) out.push(`The cube has no group-level column '${m.column}'.`);
@@ -574,7 +577,10 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
   const scatter = spec.mark === 'scatter';
   const across = axisName(spec);
   const keys = [scatter ? spec.x : across, spec.split].filter((c): c is string => c !== undefined);
-  const aggregated = spec.y.filter((m): m is ChartMeasure & { fn: AggregateFn } => m.fn !== 'value');
+  // what the chart plots, and the measures a hover lists, a mark's size reads and its label says
+  const extras = [...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])];
+  const plotted = [...spec.y, ...extras];
+  const aggregated = plotted.filter((m): m is ChartMeasure & { fn: AggregateFn } => m.fn !== 'value');
   // a measure's name before any show-as: two measures shown two ways of one aggregate share it
   const measures: Measure[] = scatter ? [] : [...new Map(aggregated.map((m) => [baseName(m), {
     name: baseName(m),
@@ -601,16 +607,35 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
     const m = cubeMeasures.get(name);
     if (m) keptMeasures.push(m);
   };
-  if (!scatter) spec.y.filter((m) => m.fn === 'value').forEach((m) => need(m.column));
+  if (!scatter) plotted.filter((m) => m.fn === 'value').forEach((m) => need(m.column));
   // A SHOW-AS: group-level columns over the chart's rows, after what they read -- along the axis, restarting per series
   const shown: DerivedColumn[] = [];
   if (!scatter) {
     const named = new Set<string>();
-    for (const m of spec.y) {
+    for (const m of plotted) {
       if (!m.showAs || named.has(measureName(m))) continue;
       named.add(measureName(m));
       shown.push(...showAsColumns(m.showAs, baseName(m), across !== undefined ? [across] : [],
         spec.split !== undefined ? [spec.split] : []));
+    }
+  }
+  // A REFERENCE LINE'S VALUE is the database's: a measure's average, minimum or maximum over every row of the chart,
+  // a group-level window over them all (calc-presets.ts statColumn); pinned extremes are the maximum and the minimum
+  if (!scatter) {
+    const named = new Set(shown.map((d) => d.name));
+    const stat = (st: LayerStat, m: ChartMeasure | undefined): void => {
+      if (!m) return;
+      const d = statColumn(st, measureName(m));
+      if (named.has(d.name)) return;
+      named.add(d.name);
+      shown.push(d);
+    };
+    for (const l of spec.layers ?? []) {
+      if (l.kind === 'stat') stat(l.stat, spec.y[l.measure ?? 0]);
+      if (l.kind === 'extremes') {
+        stat('max', spec.y[l.measure ?? 0]);
+        stat('min', spec.y[l.measure ?? 0]);
+      }
     }
   }
   const rowCalcs = [...axisCalcs(spec), ...(spec.calcs ?? []).filter((c) => c.stage === 'row').map((c) => c.column)];
@@ -619,7 +644,8 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
   const reads = new Set([
     ...keys,
     ...aggregated.map((m) => m.column),
-    ...(scatter ? spec.y.map((m) => m.column) : []),
+    // a scatter plots rows: its columns as they are, a bubble's size and a hover's measures among them
+    ...(scatter ? plotted.map((m) => m.column) : []),
     ...(spec.x !== undefined ? [spec.x] : []),
     ...keptMeasures.flatMap((m) => [m.column, ...(m.weight !== undefined ? [m.weight] : [])]),
     ...rowCalcs.flatMap(columnsRead),

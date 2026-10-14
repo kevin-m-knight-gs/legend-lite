@@ -193,3 +193,20 @@ describe('the presets in the grid, planned and run: along its own rows', () => {
     assert.deepEqual(values(t, 'revenue'), [1200]);
   });
 });
+
+describe('reference lines, planned and run: the database\'s statistics over the chart\'s rows', () => {
+  it('the average, maximum and minimum of a measure over every row the chart draws', async () => {
+    const t = await rows({ ...BY_REGION, x: 'sold', grain: 'month', layers: [{ kind: 'stat', stat: 'average' }, { kind: 'extremes' }] });
+    // the months' sums 500, 250, 450: average 400, max 500, min 250 -- the same on every row
+    assert.deepEqual(values(t, 'average_of_sum_revenue').map(Number), [400, 400, 400]);
+    assert.deepEqual(values(t, 'max_of_sum_revenue').map(Number), [500, 500, 500]);
+    assert.deepEqual(values(t, 'min_of_sum_revenue').map(Number), [250, 250, 250]);
+  });
+
+  it('a hover\'s and a label\'s measures beside the plotted one, each its own aggregate of one column', async () => {
+    const t = await rows({ ...BY_REGION, tooltip: [{ column: 'revenue', fn: 'max' }], label: { column: 'cost', fn: 'sum' } });
+    assert.deepEqual(values(t, 'sum_revenue'), [600, 600]);
+    assert.deepEqual(values(t, 'max_revenue'), [400, 300]);
+    assert.deepEqual(values(t, 'sum_cost'), [230, 410]);
+  });
+});

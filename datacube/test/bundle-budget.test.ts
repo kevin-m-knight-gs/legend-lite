@@ -97,8 +97,11 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  the presets the chart's query expands (calc-presets.ts) and their fields in the charts' panel. The drawing itself
  *  (chart-option.ts) moved OUT of startup in the same step -- it comes with ECharts the first time a chart draws -- so
  *  the rest of batch 2's drawing grows the chart's chunk, not this. Measured 395,616 (399,865 before the drawing moved
- *  out), main before it 394,429. */
-const BUDGET = 397_000;
+ *  out), main before it 394,429.
+ *  397,000 -> 399,000 (2026-10-14, DataCube charts batch 2, steps 5-8): the charts' panel's new fields at startup, as the
+ *  panel is -- more values on one chart (each its mark and axis), reference lines, a hover's and a label's measures.
+ *  Measured 398,519, step 4 before it 395,616. */
+const BUDGET = 399_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -110,15 +113,20 @@ const BUDGET = 397_000;
  *  not survive R1: the page itself is what grew. What the tab's startup carries, less the planner's and DuckDB's
  *  clients. Measured 366,792; its first measure, one cube's tab, 288,876 (2026-10-08).
  *  380,000 -> 381,000 (2026-10-14, DataCube charts batch 2): the grid's budget's note of the same date -- the chart
- *  spec's version 2 reader and its presets at startup, the drawing moved out. Measured 380,118. */
-const ENGINE_BUDGET = 381_000;
+ *  spec's version 2 reader and its presets at startup, the drawing moved out. Measured 380,118.
+ *  381,000 -> 384,000 (2026-10-14, DataCube charts batch 2, steps 5-8): the grid's budget's note of the same date.
+ *  Measured 383,019. */
+const ENGINE_BUDGET = 384_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
  *  chart chunk gets a budget of its own beside the grid's"), raised with each batch on purpose. Measured 368,423: the
  *  ECharts chunk 361,342 (bar, line, scatter, pie, heatmap and treemap with their components, as registered in
- *  chart-render.ts) and the drawing's. */
-const CHART_BUDGET = 369_000;
+ *  chart-render.ts) and the drawing's.
+ *  369,000 -> 392,000 (2026-10-14, batch 2 steps 5-8): ECharts' mark lines, areas and points (a chart's reference
+ *  lines, bands and pinned extremes) and axis breaks registered, and the drawing of a value per mark and axis, the
+ *  grid's formats and the layers. Measured 390,828. */
+const CHART_BUDGET = 392_000;
 
 /** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
  *  gzipped, which the widget's loader fetches over the kernel's channel once per notebook page. Set 2026-10-08 at its
@@ -131,8 +139,12 @@ const CHART_BUDGET = 369_000;
  *  is DataCube's app over Python's services, every window the app has inside the one file -- what are chunks in the
  *  tab (the saved pages' windows, the model actions, the saved queries' client) are not lazy here. As the design said
  *  it would be, measured and raised with its reason; a loader that fetches chunks over the channel is its own piece,
- *  on a measurement. Measured 536,970 (widget.js 519,659, widget.css 17,311). */
-const WIDGET_BUDGET = 560_000;
+ *  on a measurement. Measured 536,970 (widget.js 519,659, widget.css 17,311).
+ *  560,000 -> 568,000 (2026-10-14, DataCube charts batch 2, steps 5-8): ECharts' markers and axis breaks and the charts'
+ *  new drawing, in the one file (a chart chunk in the tab). Fetching chart code lazily over the channel is batch 2's
+ *  item 13 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3), measured and asked of the user before it is built. Measured
+ *  566,503. */
+const WIDGET_BUDGET = 568_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

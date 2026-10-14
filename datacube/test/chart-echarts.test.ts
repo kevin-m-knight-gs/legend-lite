@@ -20,7 +20,7 @@ import {
   markConditions,
   type ChartSpec,
 } from '../src/chart-spec.ts';
-import { chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown } from '../src/chart-option.ts';
+import { chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
 import '../src/chart-render.ts';   // registers the charts and components the page uses
@@ -284,7 +284,7 @@ describe('the drawing', () => {
     const spec: ChartSpec = { ...BAR, split: 'desk', options: { ...BAR.options, stack: 'percent' } };
     const o = chartOption(spec, rows).option as { series: { data: number[]; stack: string }[] };
     assert.deepEqual(o.series.map((s) => s.data[0]), [25, 75]);
-    assert.ok(o.series.every((s) => s.stack === 'total'));
+    assert.ok(o.series.every((s) => s.stack === 'total-0'), 'one stack per value axis');
   });
 
   it('shows at most eight series and says so', () => {
@@ -566,5 +566,115 @@ describe('presets in the spec: kept as words, expanded when the query is built (
     const cube: CubeSnapshot = { ...CUBE, rows: ['trade_date'], pivotOn: [] };
     assert.equal(followCube(live, cube).grain, 'month');
     assert.equal(followCube(live, { ...CUBE, rows: ['region'], pivotOn: [] }).grain, undefined);
+  });
+});
+
+describe('dashboard-grade drawing: bar and line together, the grid\'s formats, layers, labels (batch 2, steps 5-8)', () => {
+  const ROWS = table([
+    { name: 'region', type: 'String', values: ['EMEA', 'AMER', 'APAC'] },
+    { name: 'sum_notional', type: 'Float', values: [1500000, 900000, 300000] },
+    { name: 'average_qty', type: 'Float', values: [12.5, 7, 3] },
+    { name: 'percentOfTotal_sum_notional', type: 'Float', values: [0.5555, 0.3333, 0.1111] },
+    { name: 'average_of_sum_notional', type: 'Float', values: [900000, 900000, 900000] },
+    { name: 'max_of_sum_notional', type: 'Float', values: [1500000, 1500000, 1500000] },
+    { name: 'min_of_sum_notional', type: 'Float', values: [300000, 300000, 300000] },
+  ]);
+  // the grid's formats: notional in dollars, millions; qty plain
+  const money: LabelOf = (v, column) => (v === null ? '' : column === 'notional' ? `$${(Number(v) / 1e6).toFixed(1)}M` : String(v));
+  const units = (column: string) => (column === 'notional' ? 'currency|USD|' : undefined);
+  type Opt = { series: Record<string, any>[]; yAxis: Record<string, any> | Record<string, any>[]; visualMap?: Record<string, any>[]; tooltip: Record<string, any> };
+  const COMBO: ChartSpec = { ...BAR, y: [{ column: 'notional', fn: 'sum' }, { column: 'qty', fn: 'average', mark: 'line' }] };
+
+  it('a bar and a line: each its own mark, on two value axes when their units differ, each in its series\' colour', () => {
+    const d = chartOption(COMBO, ROWS, undefined, money, units);
+    const o = d.option as unknown as Opt;
+    assert.deepEqual(o.series.map((s) => s.type), ['bar', 'line']);
+    assert.ok(Array.isArray(o.yAxis) && o.yAxis.length === 2, 'two value axes');
+    const axes = o.yAxis as Record<string, any>[];
+    assert.equal(o.series[1]!.yAxisIndex, 1);
+    assert.equal(axes[0]!.axisLabel.color, '#2a78d6');
+    assert.equal(axes[1]!.axisLabel.color, '#eb6834');
+    assert.match(chartSvg(d), /\$1\.5M/);
+  });
+
+  it('one value axis when they share a unit, or a measure says its own axis', () => {
+    const same = chartOption(COMBO, ROWS, undefined, money, () => undefined).option as unknown as Opt;
+    assert.ok(!Array.isArray(same.yAxis), 'one axis');
+    const told = chartOption({ ...COMBO, y: [COMBO.y[0]!, { ...COMBO.y[1]!, axis: 'right' }] }, ROWS, undefined, money, () => undefined).option as unknown as Opt;
+    assert.ok(Array.isArray(told.yAxis));
+  });
+
+  it('every value as the grid writes it: the axis, the label, the hover', () => {
+    const d = chartOption({ ...BAR, options: { ...BAR.options, labels: true } }, ROWS, undefined, money);
+    const o = d.option as unknown as Opt;
+    assert.equal((o.yAxis as Record<string, any>).axisLabel.formatter(2000000), '$2.0M');
+    assert.equal(o.series[0]!.label.formatter({ dataIndex: 0, value: 1500000 }), '$1.5M');
+    assert.equal(o.series[0]!.tooltip.valueFormatter(900000), '$0.9M');
+    // a share as a percentage, whatever the column's format
+    const share = chartOption({ ...BAR, y: [{ column: 'notional', fn: 'sum', showAs: { kind: 'percentOfTotal' } }] }, ROWS, undefined, money);
+    assert.match(String((share.option as unknown as Opt).series[0]!.tooltip.valueFormatter(0.5555)), /^55\.6\s?%$/);
+  });
+
+  it('a hover lists the further measures asked for, and writes data as text, never markup', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['<img src=x onerror=alert(1)>'] },
+      { name: 'sum_notional', type: 'Float', values: [1] },
+      { name: 'average_qty', type: 'Float', values: [7] },
+    ]);
+    const d = chartOption({ ...BAR, tooltip: [{ column: 'qty', fn: 'average' }] }, rows, undefined, (v) => String(v));
+    const html = (d.option as unknown as Opt).tooltip.formatter([{ seriesIndex: 0, dataIndex: 0, value: 1, marker: '' }]) as string;
+    assert.ok(!html.includes('<img'), html);
+    assert.match(html, /&lt;img/);
+    assert.match(html, /average of qty: 7/);
+  });
+
+  it('the label slot writes another measure on each mark', () => {
+    const d = chartOption({ ...BAR, label: { column: 'qty', fn: 'average' }, options: { ...BAR.options, labels: true } }, ROWS, undefined, money);
+    assert.equal((d.option as unknown as Opt).series[0]!.label.formatter({ dataIndex: 1, value: 900000 }), '7');
+  });
+
+  it('reference lines: a target where it is told, the average where the database says; a band; extremes pinned', () => {
+    const spec: ChartSpec = { ...BAR, layers: [
+      { kind: 'line', value: 1000000, label: 'Target' },
+      { kind: 'stat', stat: 'average' },
+      { kind: 'band', axis: 'x', from: 'AMER', to: 'APAC', label: 'Growth' },
+      { kind: 'extremes' },
+    ] };
+    const d = chartOption(spec, ROWS, undefined, money);
+    const s = (d.option as unknown as Opt).series[0]!;
+    assert.deepEqual(s.markLine.data.map((l: Record<string, unknown>) => l['yAxis']), [1000000, 900000]);
+    assert.match(s.markLine.data[1].label.formatter, /Average: \$0\.9M/);
+    assert.equal(s.markArea.data.length, 1);
+    assert.deepEqual(s.markPoint.data.map((p: Record<string, unknown>) => p['name']), ['Maximum', 'Minimum']);
+    assert.match(chartSvg(d), /Target/);
+  });
+
+  it('a threshold colours its measure\'s marks below it in the bad colour', () => {
+    const d = chartOption({ ...BAR, layers: [{ kind: 'threshold', value: 1000000 }] }, ROWS);
+    const vm = (d.option as unknown as Opt).visualMap!;
+    assert.equal(vm.length, 1);
+    assert.deepEqual(vm[0]!.pieces[0], { lt: 1000000, color: '#e34948' });
+    chartSvg(d);
+  });
+
+  it('the cheaper options: smooth, step, log axis, labels inside and turned, no dimming', () => {
+    const line = chartOption({ ...BAR, mark: 'line', options: { ...BAR.options, smooth: true, logAxis: true, labelRotate: 45, dim: false } }, ROWS);
+    const o = line.option as unknown as Opt & { xAxis: Record<string, any> };
+    assert.equal(o.series[0]!.smooth, true);
+    assert.equal((o.yAxis as Record<string, any>).type, 'log');
+    assert.equal(o.xAxis.axisLabel.rotate, 45);
+    assert.equal(o.series[0]!.emphasis.focus, 'none');
+    chartSvg(line);
+  });
+});
+
+describe('the query of a dashboard-grade chart', () => {
+  it('asks for the measures a hover, a size and a label read, and the statistics its reference lines draw', () => {
+    const s = chartSnapshot(CUBE, {
+      ...BAR, tooltip: [{ column: 'qty', fn: 'max' }], label: { column: 'qty', fn: 'sum' },
+      layers: [{ kind: 'stat', stat: 'average' }, { kind: 'extremes' }],
+    });
+    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional', 'max_qty', 'sum_qty']);
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['average_of_sum_notional', 'max_of_sum_notional', 'min_of_sum_notional']);
   });
 });

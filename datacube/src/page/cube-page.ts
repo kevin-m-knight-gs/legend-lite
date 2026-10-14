@@ -51,6 +51,8 @@ export interface ChartSource {
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
   /** A value as the grid writes it. */
   format(value: Scalar, column: string, type: string | undefined): string;
+  /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
+  unit?(column: string): string | undefined;
   /** A column as the grid names it. */
   label(column: string): string;
   /** What the grid shows now (its rows, their tree, its visible columns): a treemap draws it. */
@@ -755,6 +757,7 @@ export class CubePage {
       snapshot: () => source().snapshot,
       run: (query, snapshot, signal) => source().run(query, snapshot, signal),
       label: (value, column, type) => source().format(value, column, type),
+      unit: (column) => source().unit?.(column),
       shown: () => source().shown(),
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
@@ -995,6 +998,7 @@ export class CubePage {
       snapshot: detached.snapshot,
       run: (query, s, signal) => runs.run(query, s, signal),
       format: (value, column, type) => runs.format(value, column, type),
+      unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
       // detached, a treemap keeps the rows it last drew
       shown: () => null,

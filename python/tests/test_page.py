@@ -222,7 +222,7 @@ class Document(Paged):
         chart = grid.chart('bar', x='region', grain='month', y=[
             ('notional', 'sum'),
             {'column': 'qty', 'fn': 'average', 'mark': 'line', 'axis': 'right', 'showAs': {'kind': 'movingAverage', 'rows': 3}},
-        ], size=('qty', 'sum'), tooltip=[('notional', 'max')], facet={'column': 'desk'},
+        ], size=('qty', 'sum'), label=('qty', 'max'), tooltip=[('notional', 'max')], facet={'column': 'desk'},
             layers=[{'kind': 'line', 'value': 100, 'label': 'Target'}, {'kind': 'stat', 'stat': 'average'},
                     {'kind': 'band', 'axis': 'y', 'from': 0, 'to': 50}])
         spec = page.to_dict()['views'][-1]['spec']
@@ -231,6 +231,7 @@ class Document(Paged):
         self.assertEqual(spec['y'][1], {'column': 'qty', 'fn': 'average', 'mark': 'line', 'axis': 'right',
                                         'showAs': {'kind': 'movingAverage', 'rows': 3}})
         self.assertEqual(spec['size'], {'column': 'qty', 'fn': 'sum'})
+        self.assertEqual(spec['label'], {'column': 'qty', 'fn': 'max'})
         self.assertEqual(spec['facet'], {'column': 'desk'})
         self.assertEqual([layer['kind'] for layer in spec['layers']], ['line', 'stat', 'band'])
         # re-plotted, the slots it was not told about stay; a measure's own words survive a re-plot

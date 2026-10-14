@@ -16,7 +16,8 @@
 // and ONE value axis (never two).
 
 import type { EChartsOption } from 'echarts';
-import { axisName, KPI_TREND_LIMIT, measureName, type ChartSpec } from './chart-spec.ts';
+import { axisName, KPI_TREND_LIMIT, measureName, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
+import { isRatio, SHOW_AS_LABELS, statName } from './calc-presets.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
@@ -35,6 +36,8 @@ export interface ChartTheme {
   readonly series: readonly string[];
   /** One hue, light to dark, for a heatmap's magnitude. */
   readonly sequential: readonly string[];
+  /** The colour of a value on the wrong side of a threshold (and a pinned minimum). */
+  readonly bad?: string;
 }
 
 /** The reference palette's light mode (dataviz references/palette.md). */
@@ -47,6 +50,7 @@ export const LIGHT_THEME: ChartTheme = {
   axis: '#c3c2b7',
   series: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'],
   sequential: ['#cde2fb', '#86b6ef', '#3987e5', '#256abf', '#184f95', '#0d366b'],
+  bad: '#e34948',
 };
 
 /**
@@ -72,6 +76,7 @@ export function themeOf(el: Element): ChartTheme {
     axis: read('--dc-chart-axis', LIGHT_THEME.axis),
     series: list('--dc-chart-series', LIGHT_THEME.series),
     sequential: list('--dc-chart-sequential', LIGHT_THEME.sequential),
+    bad: read('--dc-chart-bad', LIGHT_THEME.bad!),
   };
 }
 
@@ -82,6 +87,13 @@ export const MAX_SCATTER_SERIES = 3;
 
 /** How a value is written where the reader sees it (the grid's own formatter). */
 export type LabelOf = (value: Scalar, column: string, type: string | undefined) => string;
+
+/**
+ * A column's unit as the grid formats it (its kind, currency and unit: `currency|USD|`), or undefined when the grid
+ * gives it no format: two measures of different units take two value axes (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md
+ * §6).
+ */
+export type UnitOf = (column: string) => string | undefined;
 
 const defaultLabel: LabelOf = (v) => (v === null ? '(empty)' : String(v));
 
@@ -142,6 +154,7 @@ export function chartOption(
   rows: ResultTable,
   theme: ChartTheme = LIGHT_THEME,
   label: LabelOf = defaultLabel,
+  unit?: UnitOf,
 ): ChartDrawing {
   const notes: string[] = [];
   const text = { color: theme.inkSecondary, fontFamily: 'inherit' };
@@ -311,33 +324,54 @@ export function chartOption(
     };
   }
 
-  // -- bar, line, area: categories across, one series per measure or split value
+  // -- bar, line, area: categories across, one series per measure or split value ------------------
+  //
+  // Each measure its own kind of mark (bar and line together, version 2's `mark`), on one value axis -- or two, when
+  // the measures' units differ (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §6: each axis then labelled in its series'
+  // colour). Every value is written as the grid writes it: an axis, a label, a hover.
   const splitCol = spec.split !== undefined ? column(rows, spec.split) : undefined;
-  type Series = { key: Scalar | undefined; name: string; values: (number | null)[] };
+  const chartMark: MeasureMark = spec.mark === 'line' || spec.mark === 'area' ? spec.mark : 'bar';
+  type Series = {
+    key: Scalar | undefined;
+    name: string;
+    values: (number | null)[];
+    /** The row each value came from, for a hover's further measures and a label's own measure. */
+    at: (number | null)[];
+    measure: ChartMeasure;
+    mark: MeasureMark;
+  };
+  const point = (): { values: (number | null)[]; at: (number | null)[] } => ({
+    values: categories.map(() => null), at: categories.map(() => null),
+  });
   let series: Series[];
   if (splitCol) {
-    const m = measure(first);
+    const m = first;
+    const c = measure(m);
     const groups = distinct(splitCol.values);
     series = groups.map((g) => ({
-      key: g,
-      name: label(g, spec.split!, splitCol.type),
-      values: categories.map(() => null),
+      key: g, name: label(g, spec.split!, splitCol.type), ...point(), measure: m, mark: m.mark ?? chartMark,
     }));
     const byGroup = new Map(groups.map((g, i) => [keyText(g), i]));
     xCol.values.forEach((xv, i) => {
       const s = series[byGroup.get(keyText(splitCol.values[i] ?? null)) ?? -1];
       const xi = indexOf.get(keyText(xv));
-      if (s && xi !== undefined) s.values[xi] = numberOf(m?.values[i] ?? null, m?.type);
+      if (s && xi !== undefined) {
+        s.values[xi] = numberOf(c?.values[i] ?? null, c?.type);
+        s.at[xi] = i;
+      }
     });
   } else {
     series = spec.y.map((m) => {
       const c = measure(m);
-      const values: (number | null)[] = categories.map(() => null);
+      const s: Series = { key: undefined, name: measureTitle(m), ...point(), measure: m, mark: m.mark ?? chartMark };
       xCol.values.forEach((xv, i) => {
         const xi = indexOf.get(keyText(xv));
-        if (xi !== undefined) values[xi] = numberOf(c?.values[i] ?? null, c?.type);
+        if (xi !== undefined) {
+          s.values[xi] = numberOf(c?.values[i] ?? null, c?.type);
+          s.at[xi] = i;
+        }
       });
-      return { key: undefined, name: measureName(m), values };
+      return s;
     });
   }
   if (series.length > MAX_SERIES) {
@@ -352,23 +386,87 @@ export function chartOption(
     }));
   }
 
-  const horizontal = spec.mark === 'bar' && spec.options.orientation === 'horizontal';
-  const stacked = spec.options.stack !== 'none';
-  const categoryAxis = { ...axisCommon, type: 'category' as const, data: catLabels, splitLine: { show: false } };
-  const valueAxis = {
-    ...axisCommon,
-    type: 'value' as const,
-    ...(spec.options.stack === 'percent' ? { max: 100, axisLabel: { ...axisCommon.axisLabel, formatter: '{value}%' } } : {}),
+  // THE VALUE AXES: one, or two when the measures' units differ -- the first measure's unit on the first axis, a
+  // measure of another unit on the second. A measure may say its axis itself.
+  const unitKey = (m: ChartMeasure): string => {
+    if (m.showAs && isRatio(m.showAs.kind)) return 'ratio';
+    if (m.showAs?.kind === 'rank') return 'rank';
+    if (m.fn === 'count') return 'count';
+    return unit?.(m.column) ?? 'number';
   };
-  const out = series.map((s) => {
+  const firstUnit = unitKey(spec.y[0]!);
+  const axisOf = (m: ChartMeasure): 0 | 1 => {
+    if (m.axis) return m.axis === 'right' ? 1 : 0;
+    return splitCol || unitKey(m) === firstUnit ? 0 : 1;
+  };
+  const units = new Set(spec.y.filter((m) => axisOf(m) === 1).map(unitKey));
+  if (units.size > 1) notes.push('Two value axes at most: the measures of a third unit share the second.');
+  const percent = spec.options.stack === 'percent';
+  const formatOf = (m: ChartMeasure) => (v: number | null): string => (percent ? `${v === null ? '' : round1(v)}%` : measureText(m, v, rows, label));
+  const horizontal = spec.mark === 'bar' && spec.options.orientation === 'horizontal'
+    && series.every((s) => s.mark === 'bar');
+  const stacked = spec.options.stack !== 'none';
+  const twoAxes = series.some((s) => axisOf(s.measure) === 1);
+  const categoryAxis = {
+    ...axisCommon,
+    type: 'category' as const,
+    data: catLabels,
+    splitLine: { show: false },
+    // a bar's category is a band; a line's points sit on the categories
+    boundaryGap: series.some((s) => s.mark === 'bar'),
+    axisLabel: { ...axisCommon.axisLabel, ...(spec.options.labelRotate !== undefined ? { rotate: spec.options.labelRotate } : {}) },
+  };
+  const valueAxis = (index: 0 | 1) => {
+    const on = series.find((s) => axisOf(s.measure) === index);
+    const colour = twoAxes && on ? theme.series[series.indexOf(on) % theme.series.length]! : undefined;
+    const fmt = on ? formatOf(on.measure) : (v: number | null) => String(v);
+    return {
+      ...axisCommon,
+      type: spec.options.logAxis && !percent ? 'log' as const : 'value' as const,
+      ...(index === 1 ? { splitLine: { show: false } } : {}),
+      ...(percent ? { max: 100 } : {}),
+      ...(twoAxes && on ? { name: on.name, nameTextStyle: { ...text, color: colour } } : {}),
+      axisLabel: {
+        ...axisCommon.axisLabel,
+        ...(colour ? { color: colour } : {}),
+        formatter: (v: number) => fmt(v),
+      },
+      ...(spec.options.breaks && spec.options.breaks.length > 0 && index === 0
+        ? { breaks: spec.options.breaks.map((b) => ({ start: b.from, end: b.to, gap: '1.5%' })) }
+        : {}),
+    };
+  };
+  const valueAxes = twoAxes ? [valueAxis(0), valueAxis(1)] : valueAxis(0);
+  const labelMeasure = spec.label;
+  const labelCol = labelMeasure ? measure(labelMeasure) : undefined;
+  const dim = spec.options.dim !== false;
+  const out = series.map((s, si) => {
+    const fmt = formatOf(s.measure);
+    const axisIndex = axisOf(s.measure);
     const common = {
       name: s.name,
       data: s.values,
-      ...(stacked ? { stack: 'total' } : {}),
-      label: { show: spec.options.labels, color: theme.inkSecondary, position: horizontal ? 'right' : 'top' },
-      emphasis: { focus: 'series' as const },
+      ...(stacked && s.mark !== 'line' ? { stack: `total-${axisIndex}` } : {}),
+      ...(axisIndex === 1 ? (horizontal ? { xAxisIndex: 1 } : { yAxisIndex: 1 }) : {}),
+      label: {
+        show: spec.options.labels,
+        color: spec.options.labelPosition === 'inside' ? theme.surface : theme.inkSecondary,
+        position: spec.options.labelPosition === 'inside' ? 'inside' : horizontal ? 'right' : 'top',
+        // the label slot's measure, as the grid writes it, else the mark's own value
+        formatter: (p: { dataIndex: number; value: unknown }) => {
+          if (labelMeasure && labelCol) {
+            const row = s.at[p.dataIndex];
+            return row === null || row === undefined ? '' : measureText(labelMeasure,
+              numberOf(labelCol.values[row] ?? null, labelCol.type), rows, label);
+          }
+          return fmt(typeof p.value === 'number' ? p.value : null);
+        },
+      },
+      tooltip: { valueFormatter: (v: unknown) => fmt(typeof v === 'number' ? v : null) },
+      emphasis: { focus: dim ? 'series' as const : 'none' as const },
+      ...layersOf(spec, s, si, series, categories, catLabels, rows, theme, fmt, xCol.type, horizontal),
     };
-    if (spec.mark === 'bar') {
+    if (s.mark === 'bar') {
       return {
         ...common,
         type: 'bar' as const,
@@ -389,20 +487,47 @@ export function chartOption(
       symbol: 'circle',
       symbolSize: 8,
       showSymbol: categories.length <= 40,
-      ...(spec.mark === 'area' ? { areaStyle: { opacity: 0.2 } } : {}),
+      ...(spec.options.smooth ? { smooth: true } : {}),
+      ...(spec.options.step ? { step: 'middle' as const } : {}),
+      ...(s.mark === 'area' ? { areaStyle: { opacity: 0.2 } } : {}),
     };
   });
+  // a hover: the category, each series' value as the grid writes it, and the further measures asked for
+  const extras = spec.tooltip ?? [];
+  const tooltipFormatter = (params: unknown): string => {
+    const list = (Array.isArray(params) ? params : [params]) as { seriesIndex: number; dataIndex: number; marker?: string; seriesName?: string; value?: unknown }[];
+    const head = list[0];
+    if (!head) return '';
+    const lines = [`<b>${escapeHtml(catLabels[head.dataIndex] ?? '')}</b>`];
+    for (const p of list) {
+      const s = series[p.seriesIndex];
+      if (!s) continue;
+      lines.push(`${p.marker ?? ''}${escapeHtml(s.name)}: <b>${escapeHtml(formatOf(s.measure)(typeof p.value === 'number' ? p.value : null))}</b>`);
+      const row = s.at[p.dataIndex];
+      if (row === null || row === undefined) continue;
+      // with a split each series has its own row; without one, every series reads the category's one row
+      if (!splitCol && p !== head) continue;
+      for (const m of extras) {
+        const c = measure(m);
+        if (!c) continue;
+        lines.push(`&nbsp;&nbsp;${escapeHtml(measureTitle(m))}: ${escapeHtml(measureText(m, numberOf(c.values[row] ?? null, c.type), rows, label))}`);
+      }
+    }
+    return lines.join('<br>');
+  };
   return {
     option: asOption({
       ...base,
       tooltip: {
         ...tooltip,
         trigger: 'axis',
-        axisPointer: { type: spec.mark === 'bar' ? 'shadow' : 'line' },
+        axisPointer: { type: series.every((s) => s.mark === 'bar') ? 'shadow' : 'line' },
+        formatter: tooltipFormatter,
       },
       legend: legendOf(spec, out.length, theme),
-      xAxis: horizontal ? valueAxis : categoryAxis,
-      yAxis: horizontal ? { ...categoryAxis, inverse: true } : valueAxis,
+      xAxis: horizontal ? valueAxes : categoryAxis,
+      yAxis: horizontal ? { ...categoryAxis, inverse: true } : valueAxes,
+      ...thresholdMap(spec, series, theme, horizontal),
       series: out,
     }),
     keyAt: (seriesIndex, dataIndex) => {
@@ -416,6 +541,155 @@ export function chartOption(
     notes,
     description: describe(spec, rows),
   };
+}
+
+/** A measure as a legend and a hover name it: its column and aggregate, and what it is shown as. */
+export function measureTitle(m: ChartMeasure): string {
+  const base = m.fn === 'value' ? m.column : m.fn === 'count' ? 'count' : `${m.fn} of ${m.column}`;
+  return m.showAs ? `${base} (${SHOW_AS_LABELS[m.showAs.kind].toLowerCase()})` : base;
+}
+
+const round1 = (v: number): string => (Math.round(v * 10) / 10).toLocaleString(UI_LOCALE);
+
+/**
+ * A measure's value as the reader sees it: a share or a change as a percentage, a rank and a count as whole numbers,
+ * anything else as the grid writes the measure's column (its currency, its scale, its decimals).
+ */
+export function measureText(m: ChartMeasure, v: number | null, rows: ResultTable, label: LabelOf): string {
+  if (v === null) return label(null, m.column, undefined);
+  if (m.showAs && isRatio(m.showAs.kind)) {
+    return new Intl.NumberFormat(UI_LOCALE, { style: 'percent', maximumFractionDigits: 1 }).format(v);
+  }
+  if (m.showAs?.kind === 'rank' || m.fn === 'count') return Math.round(v).toLocaleString(UI_LOCALE);
+  return label(v, m.column, column(rows, measureName(m))?.type);
+}
+
+/** Text put into a hover's HTML: a value or a name from the data is never markup. */
+export function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}
+
+/**
+ * A series' reference lines, bands and pinned extremes (version 2's layers), each drawn on the first series of the
+ * measure it reads. A statistic's value is the database's (chart-spec.ts adds it to the chart's query), never summed
+ * here; a band across is placed on the categories it spans, compared, never computed.
+ */
+function layersOf(
+  spec: ChartSpec,
+  s: { measure: ChartMeasure; values: readonly (number | null)[]; at: readonly (number | null)[] },
+  index: number,
+  all: readonly { measure: ChartMeasure }[],
+  categories: readonly Scalar[],
+  catLabels: readonly string[],
+  rows: ResultTable,
+  theme: ChartTheme,
+  fmt: (v: number | null) => string,
+  xType: string | undefined,
+  horizontal: boolean,
+): Record<string, unknown> {
+  // on a horizontal bar the values run across and the categories down
+  const valueKey = horizontal ? 'xAxis' : 'yAxis';
+  const categoryKey = horizontal ? 'yAxis' : 'xAxis';
+  const layers = spec.layers ?? [];
+  if (layers.length === 0) return {};
+  const lines: Record<string, unknown>[] = [];
+  const areas: Record<string, unknown>[][] = [];
+  const points: Record<string, unknown>[] = [];
+  const firstOf = (measureIndex: number): boolean => {
+    const m = spec.y[measureIndex];
+    return m !== undefined && all.findIndex((x) => x.measure === m) === index;
+  };
+  const statValue = (st: LayerStat, m: ChartMeasure): number | null => {
+    const c = column(rows, statName(st, measureName(m)));
+    return c ? numberOf(c.values[0] ?? null, c.type) : null;
+  };
+  const words = { average: 'Average', min: 'Minimum', max: 'Maximum' } as const;
+  const lineStyle = { color: theme.inkSecondary, type: 'dashed' as const, width: 1 };
+  for (const l of layers) {
+    if (l.kind === 'band') {
+      if (index !== 0) continue;
+      const band = { itemStyle: { color: theme.grid, opacity: 0.5 }, ...(l.label ? { name: l.label } : {}) };
+      if (l.axis === 'y') {
+        areas.push([{ ...band, [valueKey]: l.from, label: { show: l.label !== undefined, color: theme.inkSecondary } }, { [valueKey]: l.to }]);
+      } else {
+        // the categories inside the band: from the first at or after `from` to the last at or before `to`
+        const cmp = (c: Scalar, v: string | number): number => {
+          const a = numberOf(c, xType);
+          return a !== null && typeof v === 'number' ? a - v : String(c).localeCompare(String(v));
+        };
+        const inside = categories.map((c, i) => [c, i] as const).filter(([c]) => c !== null && cmp(c, l.from) >= 0 && cmp(c, l.to) <= 0);
+        const lo = inside[0];
+        const hi = inside[inside.length - 1];
+        if (lo && hi) {
+          areas.push([{ ...band, [categoryKey]: catLabels[lo[1]], label: { show: l.label !== undefined, color: theme.inkSecondary } }, { [categoryKey]: catLabels[hi[1]] }]);
+        }
+      }
+      continue;
+    }
+    if (l.kind === 'threshold') continue;
+    const at = l.measure ?? 0;
+    if (!firstOf(at)) continue;
+    const m = spec.y[at]!;
+    if (l.kind === 'line') {
+      lines.push({ [valueKey]: l.value, name: l.label ?? fmt(l.value), lineStyle, label: { formatter: `${escapeLabel(l.label ?? '')}${l.label ? ': ' : ''}${escapeLabel(fmt(l.value))}`, color: theme.inkSecondary } });
+    } else if (l.kind === 'stat') {
+      const v = statValue(l.stat, m);
+      if (v === null) continue;
+      const name = l.label ?? words[l.stat];
+      lines.push({ [valueKey]: v, name, lineStyle, label: { formatter: `${escapeLabel(name)}: ${escapeLabel(fmt(v))}`, color: theme.inkSecondary } });
+    } else if (l.kind === 'extremes') {
+      for (const st of ['max', 'min'] as const) {
+        const v = statValue(st, m);
+        if (v === null) continue;
+        // the marks equal to the database's maximum (minimum): compared, never computed
+        s.values.forEach((x, i) => {
+          if (x !== null && x === v) {
+            points.push({ coord: horizontal ? [x, catLabels[i]] : [catLabels[i], x], value: fmt(x), name: words[st], symbol: 'pin', symbolSize: 36,
+              itemStyle: { color: st === 'max' ? theme.series[2] : theme.bad ?? theme.series[7] } });
+          }
+        });
+      }
+    }
+  }
+  return {
+    ...(lines.length > 0 ? { markLine: { silent: true, symbol: 'none', data: lines } } : {}),
+    ...(areas.length > 0 ? { markArea: { silent: true, data: areas } } : {}),
+    ...(points.length > 0 ? { markPoint: { data: points, label: { color: theme.surface, fontSize: 10 } } } : {}),
+  };
+}
+
+/** ECharts reads `{a}`-style templates in a label's formatter string: a value's braces are text. */
+function escapeLabel(s: string): string {
+  return s.replace(/[{}]/g, '');
+}
+
+/**
+ * A threshold layer: its measure's series coloured by value -- below the threshold in the bad colour (a piecewise
+ * visual map over that series, hidden: the legend says the series, the colour says the side).
+ */
+function thresholdMap(
+  spec: ChartSpec,
+  series: readonly { measure: ChartMeasure }[],
+  theme: ChartTheme,
+  horizontal: boolean,
+): Record<string, unknown> {
+  const maps = (spec.layers ?? []).flatMap((l) => {
+    if (l.kind !== 'threshold') return [];
+    const m = spec.y[l.measure ?? 0];
+    const indices = series.map((s, i) => [s, i] as const).filter(([s]) => s.measure === m).map(([, i]) => i);
+    return indices.map((i) => ({
+      type: 'piecewise' as const,
+      show: false,
+      seriesIndex: i,
+      // the value's dimension: across on a horizontal bar, up otherwise
+      dimension: horizontal ? 0 : 1,
+      pieces: [
+        { lt: l.value, color: theme.bad ?? theme.series[7] },
+        { gte: l.value, color: theme.series[i % theme.series.length] },
+      ],
+    }));
+  });
+  return maps.length > 0 ? { visualMap: maps } : {};
 }
 
 /** The least category above the one at `i` (a bin's next edge): compared, never computed. */

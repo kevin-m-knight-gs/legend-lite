@@ -2566,6 +2566,10 @@ export class CubeApp {
       run: async (query, snapshot, signal) =>
         (await this.#controller.runQuery(query, snapshot, undefined, signal)).rows,
       format: (value, column, type) => this.#formatters.format(value, this.#formats[column], type),
+      unit: (column) => {
+        const f = this.#formats[column];
+        return f ? `${f.kind}|${f.currency ?? ''}|${f.unit ?? ''}` : undefined;
+      },
       label: (column) => labelFor(this.#config, column),
       shown: () => {
         const view = this.#view;

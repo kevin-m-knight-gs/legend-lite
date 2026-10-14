@@ -3024,6 +3024,17 @@
 
 .dc-chartpanel-status[hidden] { display: none; }
 .dc-chartpanel-hint { margin: var(--dc-pad-2) 0 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+/* batch 2: a value after the first (its own mark and axis), the add button, a section's heading */
+.dc-chartpanel-measure {
+  display: flex; flex-direction: column; gap: var(--dc-pad-1);
+  padding: var(--dc-pad-2) 0; border-top: 1px solid var(--dc-line);
+}
+.dc-chartpanel-measure > .dc-btn { align-self: flex-end; }
+.dc-chartpanel-add { align-self: flex-start; margin: var(--dc-pad-1) 0; }
+.dc-chartpanel-heading {
+  margin: var(--dc-pad-2) 0 var(--dc-pad-1); padding-top: var(--dc-pad-2); border-top: 1px solid var(--dc-line);
+  color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;
+}
 
 /* In a tile the options float over the chart, from its left edge, rather
    than taking width from it: a small tile keeps its chart whole. */
