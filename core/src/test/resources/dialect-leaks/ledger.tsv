@@ -17,6 +17,8 @@ core/src/main/java/com/legend/StatementExecutor.java	product-name	20
 core/src/main/java/com/legend/builtin/DynaFn.java	product-name	175
 core/src/main/java/com/legend/compiler/NameResolver.java	product-name	1
 core/src/main/java/com/legend/compiler/element/RelationalTypeInference.java	product-name	6
+# 2026-10-14, the merge of neema2/legend-lite#37 (#IQ{...}#, the tenth line) into this branch at 1a36a71: the SQL front end's input dialects (InputDialect, PostgresDialect, SqlToPure, SqlIslands) and the iq-parity tests name the language of the SQL text a user writes (Postgres, SAP IQ / SQL Anywhere), not a database the platform executes on; pinned as measured. Whether protocol/sql/'s input dialects are owners is the user's question (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 1, 'after #37').
+core/src/main/java/com/legend/compiler/spec/SqlIslands.java	product-name	2
 core/src/main/java/com/legend/exec/PlanSessions.java	product-call	1
 core/src/main/java/com/legend/exec/Sessions.java	database-type	3
 core/src/main/java/com/legend/exec/Sessions.java	jdbc-url	10
@@ -64,8 +66,13 @@ core/src/main/java/com/legend/protocol/RelationalConnectionComposer.java	product
 core/src/main/java/com/legend/protocol/ServiceReader.java	product-name	2
 core/src/main/java/com/legend/protocol/TailEmitter.java	product-name	6
 core/src/main/java/com/legend/protocol/TailReader.java	product-name	13
+# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
+core/src/main/java/com/legend/protocol/sql/InputDialect.java	product-name	1
 core/src/main/java/com/legend/protocol/sql/PostgresDateTime.java	product-name	2
-core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	34
+# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
+core/src/main/java/com/legend/protocol/sql/PostgresDialect.java	product-name	7
+# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
+core/src/main/java/com/legend/protocol/sql/SqlToPure.java	product-name	42
 core/src/main/java/com/legend/resolver/GraphEmission.java	product-name	2
 core/src/main/java/com/legend/resolver/RawGridSchema.java	product-name	12
 core/src/main/java/com/legend/setup/CsvSeed.java	product-name	5
@@ -199,6 +206,10 @@ core/src/test/java/com/legend/integration/GetCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/GraphFetchCheckedIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/GroupByCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/InheritanceIntegrationTest.java	jdbc-url	1
+# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
+core/src/test/java/com/legend/integration/IqParityTest.java	jdbc-url	1
+# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
+core/src/test/java/com/legend/integration/IqParityTest.java	product-name	5
 core/src/test/java/com/legend/integration/IsDistinctByTreeIntegrationTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/JoinCheckerTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/JsonM2MChainIntegrationTest.java	jdbc-url	1
@@ -419,6 +430,8 @@ core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java	product-name	2
 core/src/test/java/com/legend/server/CreateClassTest.java	database-type	1
 core/src/test/java/com/legend/server/CreateClassTest.java	jdbc-url	1
 core/src/test/java/com/legend/server/CreateClassTest.java	product-name	1
+# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
+core/src/test/java/com/legend/server/IqParityPostgresTest.java	product-name	4
 core/src/test/java/com/legend/server/PostgresArmTest.java	dialect-class	3
 core/src/test/java/com/legend/server/PostgresArmTest.java	jdbc-url	1
 core/src/test/java/com/legend/server/PostgresArmTest.java	product-name	9
@@ -439,6 +452,8 @@ core/src/test/java/com/legend/sql/DuckDbValidityTest.java	product-name	3
 core/src/test/java/com/legend/test/PureTestRunnerTest.java	database-type	1
 core/src/test/java/com/legend/test/PureTestRunnerTest.java	jdbc-url	1
 core/src/test/java/com/legend/test/PureTestRunnerTest.java	product-name	1
+# 2026-10-14, the merge of neema2/legend-lite#37 (1a36a71): an input language's name, pinned as measured (the reason above SqlIslands.java).
+core/src/test/java/com/legend/testcases/IqParity.java	product-name	4
 core/src/test/java/com/legend/testcases/SqlIslandCases.java	product-name	3
 core/src/test/java/com/legend/testcases/SqlParity.java	product-name	7
 parser-equivalence/src/test/java/com/legend/equivalence/ComparatorSelfTest.java	product-name	3

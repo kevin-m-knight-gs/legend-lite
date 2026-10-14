@@ -656,6 +656,29 @@ Measured on beebe47:
 - **`//gates:local`** is green under the root-container recipe (docs/GATES.md, the 2026-10-14 entry, with a fourth
   item for the new browser guard behind a container's own proxy).
 
+**After #37 (2026-10-14, 1a36a71).** neema2/legend-lite#37 (`#IQ{...}#`, the tenth line) merged into the branch with
+one docs conflict (`docs/GATES.md`). On the merge, these pass:
+- the iq-parity lanes, on DuckDB and on Postgres through this branch's Postgres dialect;
+- the sql-parity lanes;
+- the guards and `//:generated`.
+
+`DialectLeakRatchetTest` met #37's new code, which names its input languages outside this program's owners:
+- `InputDialect`, `PostgresDialect`, `SqlToPure` (34 -> 42) and `SqlIslands`;
+- the iq-parity tests.
+
+These name the language of the SQL text a user writes, not a database the platform executes on, so the pins rose as
+measured, with that reason. **Open (the user's):** are the SQL front end's input dialects (`protocol/sql/`) owners, as
+the dialect package is for execution? If so, the guard gains that owner, and SqlToPure's 34 starting lines leave the
+count with it.
+
+The IQ line also reported five defects in this program's area. All are pre-existing: each code path is unchanged from
+fca0aef, or was copied verbatim with the digests unchanged. They are recorded for later phases:
+- a constant GROUP BY key written as a position;
+- a date before year 100 written without leading zeros;
+- Postgres's and DuckDB's int-argument string functions given a BIGINT;
+- Postgres folding an untaken constant CASE branch;
+- nested `times` lowered as one chain.
+
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
 - `Join.Kind.sql` becomes `joinKeyword(Kind)` on the renderer.
