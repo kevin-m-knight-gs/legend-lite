@@ -9558,3 +9558,43 @@ stay unpublished. The study's §9.3 to §9.15 hold what reads, what is refused a
    variables refused (Postgres's year-below-100 rendering and its fold of `toOne`'s raise, the ninth line's and the
    planner's); `TOP @n`; the IqDialect edits the seventh line's stress fixes enable (an AND/OR chain read without
    recursion, a checked integer keeping its merged guard), taken after that line lands; M2, M3, the catalog.
+## 2026-10-14 — The three planner defects the tenth line found: integer folds beyond long, an all-NULL CASE in the stamp census, a union's column stamps (the Compiler Rewrite line)
+
+The tenth line (the `#IQ{...}#` island) reported three planner defects to this line in IN_FLIGHT ("The compiler and
+stamp program"). Branch `core/iq-finds`, three commits over afd07af19 (d619c5cd6 at the head on main); the audit
+(`docs/build-inventory/program/evidence/iq-finds/AUDIT.md`): no blocker, two should-fixes and four nits, all taken
+before the commits were rewritten.
+
+1. **Integer folds beyond long.** The parser keeps a literal beyond long a `BigInteger`, and every fold over two spelled
+integers read `longValue()`, which wraps it: `LiteralUnroll.nativeFold`'s `<`, `>`, `<=`, `>=` (`99999999999999999999 >
+9223372036854775807` folded to false, and `$x > ...` with `$x` let-bound to it is the same fold after inlining),
+`NormalizeFolds`' `eq`/`equal` on inlined bodies, and -- the audit's find, the main path -- `LiteralUnroll.literal`,
+whose spelled-integer `Scalar` drives the inliner's equality fold, `contains`, `in`, a map's `get` and groupBy keys (two
+different literals beyond long folded equal, two groupBy keys merged). All read `TypedCInteger.big()`, the exact value.
+`ExactIntegerFoldTest` pins the compares and both equality paths through the typer's own overloads. The remaining
+`longValue()` reads of a spelled integer (an index, an offset, a precision: `at(2^64)` picks element 0) are PARK-37 in
+the ledger, anchored on the `at()` read.
+
+2. **An all-NULL CASE in the stamp census.** `StampCensus.check` exempted a bare NULL as shape-ambiguous (SQL NULL
+carries pure's EMPTY in scalar and list positions), but `listShaped` counted a CASE whose every branch is NULL as a
+list, so such a CASE under a scalar stamp fired the invariant. The exemption is `nullOnly`: a NULL, or a CASE of
+NULL-only branches (no ELSE being SQL's NULL); a CASE with a real list branch still fires (`StampCensusTest`). The
+auditor's older gap stays as placed: a no-ELSE CASE of list branches never fired and still does not.
+
+3. **A union's column stamps.** `ConcatenateChecker.positional` carried the left operand's schema as the union's, stamps
+included, so a NULL-constant first branch (`[]->cast(@String)`, the islands' spelling, [0..0]) stamped the united column
+always-empty and an enclosing test of it folded away (no row found, a size-0 error, a random sort key).
+`TypedConcatenate.unionInfo(left, right, m)` is the one place a relation concatenate's info comes from: the left's
+carrier, names and types, each common column's stamp `Multiplicity.union` of the two sides'. The typer's two builders
+and the resolver's five rebuilds (`ImportDataFlowAppend`, `DriverPkAppend`, `StoreResolver`, `StackBuilder`,
+`SyntheticHeads`: the audit's second find, each took one side's info) take it; `ClassConcatenates` keeps its
+schema-equal union and the class-collection overload's own info. `TypeCheckerTest` pins [0..1] on either side, [0..0]
+for two empty branches, [1] for two value branches.
+
+**Judges.** The six corpus passes against baselines built from main afd07af19 the same day: 0 of 23 result files differ
+(`docs/build-inventory/program/evidence/iq-finds/judges_compare.txt`); the render census, main's tree against the
+branch: 55,747 entries, 0 differ (`render_census_compare.txt` beside it); `//spec:reference_lane` and `//core:census`
+green; `//gates:local` 363 pass, 2 skipped (the two guards incompatible on this Mac); the lane query empty. CI: run
+38605839662 on the branch, every lane, every platform, green on all 50 jobs, the Windows Postgres PCT job on its re-run
+(its first try failed to build the test launcher when the runner's query of the remote cache failed, no test having
+run); main's own run on the landing, 38611525856, green on every job.

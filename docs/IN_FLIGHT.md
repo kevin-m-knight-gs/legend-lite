@@ -1040,6 +1040,19 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
 - **Ask 4: the reference lane and the census.** Two typing and lowering edits on the compiler line's files: run
   `//spec:reference_lane` and the render census before the landing says measured, and name both runs in the landing note
   here and in GATES, as the compiler line's entries do.
+- - **Later the same day, the branch at f3d95e07d: the four asks are taken; go ahead as it stands.**
+  `SqlAgg.aggregatesSelect` is the one predicate (the typing's `aggregateRooted` is gone into it; the two dialect-layer
+  copies stay, as said); `FoldTest.aKeylessAggregateIsABoundary` and `NullSemanticsTest.emptyColumnsAreEqual` pin plain
+  Pure; `JoinCheckerTest.aLongJoinChainTypesEachInputOnce` plans a chain of forty joins under the test's own timeout.
+  The three further keyless-aggregate sites (`projectionFolds`, `SubselectPrune.unionArmsPrunable`,
+  `RelationPredicates.searchedColumn`) are the same boundary wherever a select's row count is read, and the null-safe
+  spelling of the NULL-literal arms keeps `verbatim` and the legacy mode at the engine's `=`: both right. The tenth
+  line's "planning time doubles with each join" (its notes) is this edit's 2^N; its eighteen-join repro through
+  `#SQL{...}#` is worth one timing on the branch before the landing note says covered. Say the reference lane's and the
+  census's runs in the landing note, as asked. This line's three planner fixes landed on main (d619c5cd6) while the
+  branch's run 38611340083 was queued: no file of the two changes overlaps (this line's are `LiteralUnroll`,
+  `NormalizeFolds`, `TypedCInteger`, `StampCensus`, `ConcatenateChecker`, `ExecuteChainAssembly`, `TypedConcatenate` and
+  five resolver files), so the rebase is plain.
 
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
@@ -1399,6 +1412,9 @@ repros will be in the study's §9.
     `lowering/StampCensus.java:143-147` counts an all-NULL CASE as list-shaped, while `:68` exempts a bare NULL.
   - A `concatenate` whose first branch is a NULL constant is stamped always-empty. An enclosing test of the column
     is then folded away: no row is found, a "size 0" error is raised, or a sort key goes random.
+  - **All three fixed 2026-10-14 by the compiler line** (d619c5cd6 at the head on main; GATES "The three planner defects
+    the tenth line found"), with the audit's two further finds taken: the inliner's own equality fold over spelled
+    integers wrapped too, and the resolver's rebuilds of a union took one side's stamps.
   - **Found 2026-10-14, compiling real-world queries; both also reproduce through `#SQL{... tb(...)}#`:**
     - **The lowering throws** `IllegalStateException` at `Lowerer.computedColumns` ("… unresolvable even after
       isolation") when a correlated scalar subquery reads the outer row in its own select list:
@@ -1409,6 +1425,10 @@ repros will be in the study's §9.
       - Timings: 12 joins 0.7 s, 14 joins 2.1 s, 17 joins 14 s, 18 joins 28 s.
       - `Compiler.query` takes about 10 ms; the time is in `plan` (G½ through the lowering). At a timeout the
         stack was in `Overloads.functionValuedHelperCall`.
+    - **The compiler line, 2026-10-14:** the join-chain time is the seventh line's `JoinChecker` edit on
+      `claude/loving-euler-gjta59` (`sideAgnosticTdsCond` typed both inputs of every join and `checkGeneric` typed them
+      again: 2^N; its forty-join pin is `JoinCheckerTest`); the correlated select-list subquery's throw in
+      `Lowerer.computedColumns` is this line's next fix, announced here when designed.
 
 ## Rules between sessions
 
@@ -1421,18 +1441,15 @@ repros will be in the study's §9.
    announced one line each before they land, and dated status lines.
 
 7. **The compiler line (session "Compiler Rewrite"), resumed 2026-10-07 (the compiler plan's D25; the user: "let's do the evidence way").** **Landed 2026-10-07** (GATES entry "The erased TDS row is read only through its accessors"; run 37699620156): `compiler/tdsrow-erased-row` from the DataCube line (`core/src/main/java/com/legend/compiler/element/type/Type.java`, `PlatformTypes.java`, `compiler/spec/Typer.java`, a new core test, `parser-equivalence`'s `ratchets.tsv` own_corpus.matched 2685 → 2686; whoever lands second against the Studio line's protocol-1007 reruns `//parser-equivalence:update_ratchets`). Next pushes, each announced here before its core edit: W1.0b (the stress tool `StressSuites` gains per-phase timers; `tools/metrics`), W0.8 (**landed 2026-10-08, d069cc5c9, GATES "W0.8"; the files:** `core/src/main/java/com/legend/lexer/Lexer.java` and `TokenStream.java` (a range lexed in place, `TokenStream.lexRange`), `parser/MappingProtocolParser.java` (`readIsland`) and `parser/SpecParser.java` (`parseGraphFetchTree`); `ServiceStubDataParser.java` and `RelationIslands.java` only call `readIsland` and do not change; the aggregate-lambda and merge-validation padded re-lexes in MappingProtocolParser stay, they emulate engine span shifts; branch `compiler/w0.8-islands`), then the D24 cleanup in `compiler/spec` and the resolver. **Landed 2026-10-08 (608b5d221, GATES "W1.5 (a slice)"):** the determinism fix handed over by the database-owner line (every JVM-salted copy in core/src/main, 87 sites in 50 files; the table reference's columns in declaration order; two tests; the census's compare.py; parser-equivalence's ratchet measured). **Announced 2026-10-08 (evening) — the D24 cleanup's first slice, one substitution engine over the typed tree:** `core/src/main/java/com/legend/compiler/spec/UserCallInliner.java` (substitute once through `TypedSubst` at each β site, then reduce with no environment; its own capture machinery deleted), possibly `compiler/spec/typed/TypedSubst.java` (an entry for a body with its lets) and `compiler/spec/typed/FreeVars.java`; the design is `docs/plan-audit-2026-09-26/d24-one-substitution-engine-2026-10-08.md` §3b; the judge is the render census before and after, ids checked; branch `compiler/d24-one-subst`. Status lives in the plan's Now line (rule 0b.16). **Landed 2026-10-08 (fa4160740; GATES "D24 (1)"; run 37938204427) — D24's first slice, branch `compiler/d24-one-subst`:** `core/src/main/java/com/legend/compiler/spec/UserCallInliner.java` (substitutes through `TypedSubst`, capture machinery deleted), `compiler/spec/typed/TypedSubst.java`, `compiler/spec/ExecuteChainAssembly.java`, `builtin/NativeFn.java`, comments in `compiler/spec/typed/FoldStrategy.java` and `compiler/spec/ResultEnvelopeSplice.java`, three tests, the DuckDB fail roster (one row, its reason in GATES). Next, announced here first: the syntax-level policies (the homework's second slice). **Landed 2026-10-08 (6be695aed; GATES "W1.0b, the baseline") — W1.0b, the measurement (D25: the stress corpus and the eager probe, nothing new built to measure; the user, 2026-10-08: "do the measurements"):** a compile-only mode of the stress tool (`core/src/test/java/com/legend/integration/StressTool.java`, a new `CompileLatency.java` beside it: per-test compile latency over the stress corpus and over `wasm/corpus/queries.tsv`, no database), `tools/metrics/` (new: `BUILD.bazel`, `baseline.py`, the receipt: product lines per package, the probe's numbers, the latencies, the reference-lane buckets from the golden, the rosters, the planner's bytes), `core/BUILD.bazel` only if a target is needed. No `core/src/main` edit.
-   **Announced 2026-10-14: the three planner defects the tenth line found (its "The compiler and stamp program" notes
-   above), fixed on branch `core/iq-finds`, one commit each with a unit test, judged as every change here (the core
-   suite, `//spec:reference_lane`, the render census), audited, one CI run, then main.** (1) Two folds compare integer
-   constants as `long`: `LiteralUnroll.nativeFold` (`<`, `>`, `<=`, `>=`) and `NormalizeFolds` (`eq`, `equal`) read
-   `longValue()`, which wraps a literal beyond long (the parser keeps it a `BigInteger`; the Lowerer renders it exact),
-   so `99999999999999999999 > 9223372036854775807` folded to false, and `$x > ...` with `$x` let-bound to it is the same
-   fold after inlining. Both compare as `BigInteger` through one helper on `TypedCInteger`. (2) `StampCensus.check`
-   exempts a bare NULL as shape-ambiguous, but `listShaped` counts a CASE whose every branch is NULL as a list, so an
-   all-NULL CASE under a scalar stamp fires the invariant: the exemption becomes NULL-only (a NULL, or a CASE of
-   NULL-only branches); the CASE rule stays for real list branches. (3) `ConcatenateChecker.positional` carries the left
-   operand's schema as the union's, column stamps included, so a NULL-constant first branch stamps the column `[0..0]`
-   and an enclosing test of it folds away: each common column's stamp becomes `Multiplicity.union` of the two sides'
-   (the left's names and types stay), through one helper that `ExecuteChainAssembly`'s temporal chain takes too. Files:
-   `compiler/spec/{LiteralUnroll,NormalizeFolds,ConcatenateChecker,ExecuteChainAssembly}.java`,
-   `compiler/spec/typed/TypedCInteger.java`, `lowering/StampCensus.java`, the tests beside them.
+   **Landed 2026-10-14 (d619c5cd6 at the head on main, branch `core/iq-finds`, three commits over afd07af19; run
+   38605839662 on every lane and platform, green on all 50 jobs, the Windows Postgres PCT job on its re-run (its first
+   try failed to build the test launcher when the runner's query of the remote cache failed, no test having run); main's
+   own run 38611525856 green on every job; GATES "The three planner defects the tenth line found"): the three planner
+   defects the tenth line reported ("The compiler and stamp program" above), each with a unit test.** (1) Every fold
+   over two spelled integers reads the exact value (`TypedCInteger.big()`): `LiteralUnroll`'s compares and its
+   spelled-integer `Scalar` (the equality fold, `contains`, `in`, a map's `get`, groupBy keys: the audit's find), and
+   `NormalizeFolds`' `eq`/`equal`; the index, offset and precision reads that still take `longValue()` are PARK-37. (2)
+   `StampCensus` exempts a NULL-only CASE as it exempts a NULL. (3) `TypedConcatenate.unionInfo` is the one place a
+   relation concatenate's info comes from, each common column's stamp the union of both sides'; the typer's builders and
+   the resolver's five rebuilds take it. Judges in GATES: the six corpus passes 0 of 23 result files differ; the render
+   census 55,747 entries, 0 differ; the reference lane and the census green.
