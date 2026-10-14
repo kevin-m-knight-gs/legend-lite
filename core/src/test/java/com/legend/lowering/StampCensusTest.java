@@ -33,7 +33,7 @@ class StampCensusTest {
     void anAllNullCaseUnderAScalarStampIsNoLie() {
         assertDoesNotThrow(() -> StampCensus.check(ONE_OR_NONE, caseOf(new SqlExpr.NullLit(), new SqlExpr.NullLit())));
         assertDoesNotThrow(() -> StampCensus.check(ONE_OR_NONE, caseOf(new SqlExpr.NullLit(), null)),
-                "no ELSE is SQL's NULL");
+                "no ELSE is SQL's NULL (pins what held before too: listShaped asks for an ELSE)");
         assertDoesNotThrow(() -> StampCensus.check(ONE_OR_NONE,
                 caseOf(caseOf(new SqlExpr.NullLit(), new SqlExpr.NullLit()), new SqlExpr.NullLit())), "nested");
     }
