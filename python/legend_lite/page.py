@@ -733,6 +733,8 @@ def _drawable(grid: Grid | None, spec: Mapping[str, Any]) -> None:
         raise ValueError(f'a {mark} runs along dates: {x!r} is not one ({types[x]})')
     if mark == 'calendar' and spec.get('grain', 'day') != 'day':
         raise ValueError('a calendar has a cell per day: its grain is the day')
+    if mark == 'calendar' and 'grain' not in spec and x in types and types[x] != 'StrictDate':
+        raise ValueError(f'a calendar has a cell per day: {x!r} is a date-time ({types[x]}), so give it the day grain')
     layers = spec.get('layers', [])
     for layer in layers:
         if layer['kind'] != 'band' and layer.get('measure', 0) >= len(spec['y']):

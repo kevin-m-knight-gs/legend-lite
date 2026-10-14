@@ -1,0 +1,959 @@
+{
+ "about": "DataCube's chart rules, one description: each case a chart over the columns below, refused or not. datacube/test/chart-rules.test.ts holds chart-spec.ts chartProblems to it, python/tests/test_page.py holds page.py _drawable to it (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, the DataCube + Python line's review of batch 3). A rule added on one side and not the other fails one of them.",
+ "columns": [
+  {
+   "name": "region",
+   "type": "String"
+  },
+  {
+   "name": "channel",
+   "type": "String"
+  },
+  {
+   "name": "revenue",
+   "type": "Float"
+  },
+  {
+   "name": "cost",
+   "type": "Float"
+  },
+  {
+   "name": "profit",
+   "type": "Float"
+  },
+  {
+   "name": "day",
+   "type": "StrictDate"
+  },
+  {
+   "name": "at",
+   "type": "DateTime"
+  }
+ ],
+ "cases": [
+  {
+   "case": "a bar by region",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a line by month",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "line",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "day",
+    "grain": "month"
+   }
+  },
+  {
+   "case": "a bar by bins of revenue",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "revenue",
+    "bins": {
+     "width": 100
+    }
+   }
+  },
+  {
+   "case": "a waterfall",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "waterfall",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a dumbbell of two values",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "dumbbell",
+    "y": [
+     {
+      "column": "cost",
+      "fn": "sum"
+     },
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a radar of three values",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "radar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     },
+     {
+      "column": "cost",
+      "fn": "sum"
+     },
+     {
+      "column": "profit",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "parallel coordinates of two values",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "parallel",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     },
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a Sankey with its split",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "sankey",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "split": "channel"
+   }
+  },
+  {
+   "case": "a streamgraph along days with its split",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "stream",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "day",
+    "split": "channel"
+   }
+  },
+  {
+   "case": "a calendar of days",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "day"
+   }
+  },
+  {
+   "case": "a calendar of a date-time by day",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "at",
+    "grain": "day"
+   }
+  },
+  {
+   "case": "a gauge with a target",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "gauge",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "target": 100
+    }
+   }
+  },
+  {
+   "case": "a scatter matrix of two values",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "matrix",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     },
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ],
+    "options": {}
+   }
+  },
+  {
+   "case": "a bubble",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "scatter",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "cost",
+    "size": {
+     "column": "profit",
+     "fn": "sum"
+    }
+   }
+  },
+  {
+   "case": "small multiples of bars",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "facet": {
+     "column": "channel"
+    }
+   }
+  },
+  {
+   "case": "a bar with an average line",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "layers": [
+     {
+      "kind": "stat",
+      "stat": "average"
+     }
+    ]
+   }
+  },
+  {
+   "case": "a funnel with a hover measure",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "funnel",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "tooltip": [
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ]
+   }
+  },
+  {
+   "case": "a grain on a column that is not a date",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "grain": "month"
+   }
+  },
+  {
+   "case": "bins on a column that is not a number",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "bins": {
+     "width": 10
+    }
+   }
+  },
+  {
+   "case": "a Sankey with no split",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "sankey",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a heatmap with no split",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "heatmap",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a funnel with a split",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "funnel",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "split": "channel"
+   }
+  },
+  {
+   "case": "a gauge with a column across",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "gauge",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "target": 1
+    },
+    "x": "region"
+   }
+  },
+  {
+   "case": "a gauge with no target",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "gauge",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {}
+   }
+  },
+  {
+   "case": "a dumbbell of one value",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "dumbbell",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a radar of two values",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "radar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     },
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a scatter matrix of one value",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "matrix",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {}
+   }
+  },
+  {
+   "case": "a scatter matrix with a column across",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "matrix",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     },
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "parallel coordinates of one value",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "parallel",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a waterfall of two values",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "waterfall",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     },
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a Pareto ordered by its category",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "pareto",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "sort": {
+      "by": "x",
+      "direction": "asc"
+     }
+    },
+    "x": "region"
+   }
+  },
+  {
+   "case": "a streamgraph along a text column",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "stream",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "split": "channel"
+   }
+  },
+  {
+   "case": "a calendar along a text column",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a calendar by month",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "day",
+    "grain": "month"
+   }
+  },
+  {
+   "case": "a calendar of a date-time with no grain",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "at"
+   }
+  },
+  {
+   "case": "a layer reading a value the chart does not plot",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "layers": [
+     {
+      "kind": "stat",
+      "stat": "average",
+      "measure": 1
+     }
+    ]
+   }
+  },
+  {
+   "case": "a reference line on a funnel",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "funnel",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "layers": [
+     {
+      "kind": "line",
+      "value": 1
+     }
+    ]
+   }
+  },
+  {
+   "case": "a label measure on a rose",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "rose",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "label": {
+     "column": "cost",
+     "fn": "sum"
+    }
+   }
+  },
+  {
+   "case": "a hover measure on a Sankey",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "sankey",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "split": "channel",
+    "tooltip": [
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ]
+   }
+  },
+  {
+   "case": "a group-level value on a scatter",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "scatter",
+    "y": [
+     {
+      "column": "margin",
+      "fn": "value"
+     }
+    ],
+    "options": {},
+    "x": "cost"
+   }
+  },
+  {
+   "case": "a show-as on a waterfall",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "waterfall",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum",
+      "showAs": {
+       "kind": "rank"
+      }
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a show-as on a scatter matrix",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "matrix",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum",
+      "showAs": {
+       "kind": "rank"
+      }
+     },
+     {
+      "column": "cost",
+      "fn": "sum"
+     }
+    ],
+    "options": {}
+   }
+  },
+  {
+   "case": "a size on a bar",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "size": {
+     "column": "cost",
+     "fn": "sum"
+    }
+   }
+  },
+  {
+   "case": "small multiples of a pie",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "pie",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "facet": {
+     "column": "channel"
+    }
+   }
+  },
+  {
+   "case": "small multiples by the column across",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "facet": {
+     "column": "region"
+    }
+   }
+  },
+  {
+   "case": "small multiples whose row is its column",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "facet": {
+     "row": "channel",
+     "column": "channel"
+    }
+   }
+  },
+  {
+   "case": "small multiples with a brush",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "brush": true
+    },
+    "x": "region",
+    "facet": {
+     "column": "channel"
+    }
+   }
+  },
+  {
+   "case": "small multiples coloured by value",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "facet": {
+     "column": "channel"
+    },
+    "layers": [
+     {
+      "kind": "threshold",
+      "value": 1
+     }
+    ]
+   }
+  },
+  {
+   "case": "a 100% stack with an average line",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "stack": "percent"
+    },
+    "x": "region",
+    "split": "channel",
+    "layers": [
+     {
+      "kind": "stat",
+      "stat": "average"
+     }
+    ]
+   }
+  }
+ ]
+}

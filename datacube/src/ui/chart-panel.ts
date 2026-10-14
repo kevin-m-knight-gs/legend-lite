@@ -39,6 +39,9 @@ import type { Lambda } from '../../../pure-protocol/src/index.ts';
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
 
+/** Whether batch 3's rarer ECharts charts are registered on this page (chart-render-kinds.ts, fetched once). */
+let kindsRegistered = false;
+
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
 
@@ -96,6 +99,8 @@ export class ChartPanel {
     snapshot: () => this.#options.snapshot(),
   }))(this);
   #chart: MountedChart | null = null;
+  /** Whether the chart was made after batch 3's rarer ECharts charts were registered (`#mount`). */
+  #chartKnowsKinds = false;
   /** A KPI's trend line, mounted under its number (the number is the canvas's own, not a chart). */
   #trend: MountedChart | null = null;
   #timer: ReturnType<typeof setTimeout> | undefined;
@@ -262,23 +267,20 @@ export class ChartPanel {
         return;
       }
       this.#shownKept = now;
-      if (!this.#chart) {
-        const { mountChart } = await import('../chart-render.ts');
-        if (this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
-      }
+      const chart = await this.#mount(spec.mark !== 'treemap');
+      if (this.#disposed || !chart) return;
       const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
       if (this.#disposed) return;
       const mark = spec.mark;
       let drawing;
       if (mark === 'sunburst' || mark === 'tree') {
-        const [{ gridKindOption }] = await Promise.all([import('../chart-kinds.ts'), import('../chart-render-kinds.ts')]);
+        const { gridKindOption } = await import('../chart-kinds.ts');
         if (this.#disposed) return;
         drawing = gridKindOption(mark, now, themeOf(this.#canvas), this.#options.label);
       } else {
         drawing = treemapOfGrid(now, themeOf(this.#canvas), this.#options.label);
       }
-      this.#chart.show(drawing);
+      chart.show(drawing);
       this.#say(drawing.notes.join(' '));
       return;
     }
@@ -301,17 +303,15 @@ export class ChartPanel {
       const { query, snapshot } = chartQuery(cube, spec);
       const rows = await this.#options.run(query, snapshot, abort.signal);
       if (abort.signal.aborted || this.#disposed) return;
-      if (!this.#chart) {
-        const { mountChart } = await import('../chart-render.ts');
-        if (abort.signal.aborted || this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
-      }
+      const kinds = KIND_MARKS.has(spec.mark) || spec.facet !== undefined;
+      const chart = await this.#mount(kinds);
+      if (abort.signal.aborted || this.#disposed || !chart) return;
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
       let drawing;
-      if (KIND_MARKS.has(spec.mark) || spec.facet !== undefined) {
+      if (kinds) {
         // batch 3's kinds and small multiples: their drawing and the rarer ECharts charts, fetched with the first of them
-        const [{ kindOption, facetOption }] = await Promise.all([import('../chart-kinds.ts'), import('../chart-render-kinds.ts')]);
+        const { kindOption, facetOption } = await import('../chart-kinds.ts');
         if (abort.signal.aborted || this.#disposed) return;
         drawing = spec.facet !== undefined
           ? facetOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit)
@@ -319,11 +319,11 @@ export class ChartPanel {
       } else {
         drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
       }
-      this.#chart.show(drawing);
+      chart.show(drawing);
       // the page's charts with the same column across (at the same grain) share a crosshair: those with an axis of
       // categories or time
       const across = axisName(drilledView(spec).spec);
-      this.#chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && CROSSHAIRED.has(spec.mark) && spec.facet === undefined
+      chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && CROSSHAIRED.has(spec.mark) && spec.facet === undefined
         ? `${this.#options.crosshair}|${across}` : undefined);
       // small multiples ask for each panel's most, times the most panels (chart-spec.ts chartQuery)
       const asked = plotsRows(spec) ? Infinity : spec.options.limit * (spec.facet ? MAX_FACETS : 1);
@@ -340,6 +340,29 @@ export class ChartPanel {
     } finally {
       if (this.#inflight === abort) this.#canvas.removeAttribute('aria-busy');
     }
+  }
+
+  /**
+   * The chart's ECharts instance, made the first time it is needed. Given `kinds`, batch 3's rarer charts are
+   * registered first (chart-render-kinds.ts): ECharts builds an instance's layout stages when the instance is made, so
+   * one made before they were registered cannot lay a funnel out -- it is made again. Null when the panel went meanwhile.
+   */
+  async #mount(kinds: boolean): Promise<MountedChart | null> {
+    if (kinds) {
+      await import('../chart-render-kinds.ts');
+      kindsRegistered = true;
+      if (this.#chart && !this.#chartKnowsKinds) {
+        this.#chart.dispose();
+        this.#chart = null;
+      }
+    }
+    if (!this.#chart) {
+      const { mountChart } = await import('../chart-render.ts');
+      if (this.#disposed) return null;
+      this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
+      this.#chartKnowsKinds = kindsRegistered;
+    }
+    return this.#chart;
   }
 
   /**

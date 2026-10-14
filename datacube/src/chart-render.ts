@@ -16,6 +16,8 @@ import * as echarts from 'echarts/core';
 // `use(install)`), never through the `echarts/charts` or `echarts/components` index: chart-render-kinds.ts registers
 // batch 3's rarer charts the same way, and an index both imported would be code the two chunks share -- the bundler
 // would put every chart in it, and a page's first bar chart would download the Sankey (test/bundle-budget.test.ts).
+// These are ECharts' internal paths (its package exports them, `./*`, and lists them as side effects): an ECharts bump
+// checks them, here and in chart-render-kinds.ts -- the chart chunk's budget catches a size regression, not a rename.
 import 'echarts/lib/chart/bar.js';
 import 'echarts/lib/chart/line.js';
 import 'echarts/lib/chart/scatter.js';

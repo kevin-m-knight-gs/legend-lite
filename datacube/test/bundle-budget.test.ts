@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
+import { specifiersOf } from '../demo/widget-loader.ts';
 
 // the bundle and its chunk directory, side by side as esbuild wrote them (BUILD.bazel names bundle.js in BUNDLE)
 const DEMO = dirname(runfileFromEnv('BUNDLE'));
@@ -306,6 +307,25 @@ describe('a notebook\'s cube is one module and its lazy chunks, fetched over the
       for (const target of [...imports(file, false), ...imports(file, true)]) {
         assert.equal(dirname(target), chunks, `${file} imports ${target}, not a chunk`);
       }
+    }
+  });
+
+  it('the loader rewrites exactly the imports esbuild wrote, by kind, in every file of the module (its metafile)', () => {
+    // the loader reads each file's specifiers with a pattern over esbuild's minified output; esbuild's own record says
+    // what each output imports: a missed form would be a chunk that never loads in a notebook, a false match broken code
+    const demo = dirname(module);
+    const meta = JSON.parse(readFileSync(join(demo, 'widget-meta.json'), 'utf8')) as {
+      outputs: Record<string, { imports?: { path: string; kind: string }[] }>;
+    };
+    const outputs = Object.entries(meta.outputs).filter(([path]) => path.endsWith('.js'));
+    assert.ok(outputs.length > 10, 'the module and its chunks');
+    const local = (path: string): string => path.replace(/^demo\//, '');
+    for (const [path, out] of outputs) {
+      const name = local(path);
+      const expected = (out.imports ?? []).map((i) => `${i.kind === 'dynamic-import' ? 'dynamic' : 'static'} ${local(i.path)}`).sort();
+      const read = specifiersOf(readFileSync(join(demo, name), 'utf8'), name).map((s) => `${s.dynamic ? 'dynamic' : 'static'} ${s.target}`).sort();
+      assert.deepEqual([...new Set(read)], [...new Set(expected)], name);
+      for (const line of expected) assert.match(line, / widget-chunks\//, `${name} imports only chunks, which the loader rewrites`);
     }
   });
 

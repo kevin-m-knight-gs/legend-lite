@@ -374,11 +374,16 @@ py_test(
         "test_warehouse",
     ],
     data = [
+        "//datacube:test/fixtures/chart-rules.json",
         "//native:compiler",
         "//warehouse:sqlapi_corpus",
     ],
-    # the warehouse's driver (legend_lite/warehouse.py), held to the one corpus its binding is (C3)
-    env = _ENV | {"LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)"},
+    # the warehouse's driver (legend_lite/warehouse.py), held to the one corpus its binding is (C3); a page's charts to
+    # DataCube's chart rules, the cases chart-spec.ts is held to (test_page.py)
+    env = _ENV | {
+        "LEGEND_LITE_CHART_RULES": "$(rlocationpath //datacube:test/fixtures/chart-rules.json)",
+        "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
+    },
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
     deps = [

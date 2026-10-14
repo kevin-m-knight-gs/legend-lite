@@ -203,6 +203,16 @@ class TimeoutError extends Error {}
  *  (`import("./x.js")`). Only those naming a chunk are touched. */
 const SPECIFIER = /(\bimport\s*\(\s*|\bfrom\s*|\bimport\s*)(["'])(\.{1,2}\/[^"'\n]+?\.js)\2/g;
 
+/**
+ * What a file of the module imports, as the loader reads it: each relative specifier resolved against the file's own
+ * place, and whether it is a dynamic `import()`. test/bundle-budget.test.ts holds this to esbuild's own record of each
+ * output's imports (its metafile), so a form the pattern misses -- or a match that is not an import -- fails there, not
+ * in a notebook.
+ */
+export function specifiersOf(text: string, name: string): { readonly target: string; readonly dynamic: boolean }[] {
+  return [...text.matchAll(SPECIFIER)].map(([, how, , specifier]) => ({ target: resolved(name, specifier!), dynamic: how!.includes('(') }));
+}
+
 function resolved(from: string, specifier: string): string {
   const parts = from.split('/').slice(0, -1);
   for (const part of specifier.split('/')) {
@@ -220,9 +230,8 @@ function moduleUrl(page: Page, hash: string, name: string, importers: readonly s
     const made = (async () => {
       const text = await fetched(page, name);
       const statics = new Map<string, string>();
-      for (const [, how, , specifier] of text.matchAll(SPECIFIER)) {
-        const target = resolved(name, specifier!);
-        if (!target.startsWith(CHUNKS) || how!.includes('(') || statics.has(target)) continue;
+      for (const { target, dynamic } of specifiersOf(text, name)) {
+        if (!target.startsWith(CHUNKS) || dynamic || statics.has(target)) continue;
         if (importers.includes(target) || target === name) throw new Error(`DataCube's ${name} and ${target} import each other`);
         statics.set(target, await moduleUrl(page, hash, target, [...importers, name]));
       }

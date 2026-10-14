@@ -14,11 +14,13 @@ import unittest
 import urllib.error
 import urllib.request
 from decimal import Decimal
+from pathlib import Path
 
 import pandas as pd
 
 import legend_lite as ll
 from legend_lite import datacube
+from legend_lite import page as page_module
 
 
 def trades():
@@ -284,6 +286,24 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, '100% stack'):
             lined.options({'stack': 'percent'})
         self.assertEqual(page.to_dict()['views'][-1]['spec'], kept, 'a refused change leaves the chart as it was')
+
+    def test_charts_are_refused_exactly_where_datacube_refuses_them(self):
+        """DataCube's chart rules, one description (datacube/test/fixtures/chart-rules.json): chart-spec.ts chartProblems
+        is held to the same cases, so a rule on one side and not the other fails one of the two tests."""
+        rules = json.loads(Path(os.environ['LEGEND_LITE_CHART_RULES']).read_text('utf-8'))
+        made = {'String': ['EMEA', 'APAC'], 'Float': [1.5, 2.5], 'StrictDate': [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
+                'DateTime': [pd.Timestamp('2024-01-01 09:30'), pd.Timestamp('2024-01-01 10:30')]}
+        frame = pd.DataFrame({c['name']: made[c['type']] for c in rules['columns']})
+        grid = ll.Page('rules').grid(frame, name='rules')
+        types = {c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
+        self.assertEqual(types, {c['name']: c['type'] for c in rules['columns']}, 'the frame is typed as the cases say')
+        for case in rules['cases']:
+            with self.subTest(case=case['case']):
+                if case['refused']:
+                    with self.assertRaises(ValueError):
+                        page_module._drawable(grid, case['spec'])
+                else:
+                    page_module._drawable(grid, case['spec'])
 
     def test_batch_3_kinds_are_written_and_refused_as_datacube_draws_them(self):
         page, grid, _ = self.built()

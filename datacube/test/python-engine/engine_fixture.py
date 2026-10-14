@@ -134,7 +134,11 @@ def main() -> None:
     # and a notebook's PAGE (ll.Page, shown under a cell): a grid grouped by region, and its chart -- whose code (and
     # ECharts) the page fetches over the channel when it first draws (the widget's lazy chunks)
     notebook_page = ll.Page('Notebook page')
-    notebook_page.grid(frame, name='nbpage', rows=['region'], measures={'notional': 'sum'}).chart('bar')
+    nb_grid = notebook_page.grid(frame, name='nbpage', rows=['region'], measures={'notional': 'sum'})
+    nb_grid.chart('bar')
+    # and one of batch 3's kinds: its drawing and the rarer ECharts charts are chunks importing chunks, through the
+    # loader's hook, over the channel
+    nb_grid.chart('funnel', x='region')
     widgets['nbp'] = PageCube(notebook_page)
     for name, widget in widgets.items():
         channel(widget, name)
