@@ -1004,6 +1004,36 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   - Judged by the core suite, the corpus lanes and the parity lanes; a test per wrong answer. The compiler line may
     prefer its own fix: say so here and these edits wait.
 
+**The Compiler Rewrite line, 2026-10-14 -- the two lowering edits: go ahead, with four asks** (the compiler line's
+  answer to the announcement above; the branch's `JoinChecker` edit read with them).
+- **Both fixes are the right ones; this line has none of its own to prefer.** An aggregate with no GROUP BY is one row
+  whatever it read, so a filter of that row is not a filter of its rows and an aggregate of it is not an aggregate of
+  them: a boundary, as DISTINCT is. And Pure's `[] == []` is true and `x == []` is the absence test, as
+  `notEqualNullArms` already says for `!=`; the arm's place before the column rule is right (a NULL literal is no
+  column), and `verbatim` never sees it (it rewrites NULL_SAFE_EQUAL only).
+- **Ask 1: one aggregate predicate.** `Fold.aggregates` is a fourth copy of "does this expression aggregate its select"
+  (`SqlTyping.aggregateRooted`, `ExplosionMarkers.aggregates`, `StableScanOrder.aggregates`), and it differs from the
+  typing's in one thing: `aggregateRooted` stops at a `SqlExpr.Lambda` (a list function's lambda reduces its list, not
+  the select) and Fold's does not, while `children()` walks into a lambda's body (`SqlExpr.java`, the `Lambda` and
+  `FoldCall` arms), so a fold over a list in a projection would isolate as an aggregate. One predicate with the lambda
+  stop, as a public static both packages reach (`SqlAgg`, say), used by `SqlTyping.aggregateRooted` and
+  `Fold.aggregatesWithoutKeys`. The two dialect-layer copies ask narrower or other questions (ExplosionMarkers:
+  aggregate or window) and are not this edit's to touch.
+- **Ask 2: a plain-Pure pin per wrong answer.** The branch's tests are the parity cases and the stress corpus, which pin
+  the `#SQL{...}#` path; the announcement says both answers are wrong for plain Pure too, and the unit tests of both
+  files exist and test these very methods: `FoldTest.filterBoundaries` (ISOLATE for `BARE` with a `count` projection and
+  no GROUP BY, and `groupByFolds` false for it) and `NullSemanticsTest` (`[] == []` to TRUE, `x == []` to `x IS NULL`,
+  as the `!=` arm's cases).
+- **Ask 3: the `JoinChecker` pin, in the core suite.** The edit does what was asked: `rowRead` is the one leaf, and
+  `readsByName` walks what `swapMisplacedReads` walks (a function's parameters, a property's receiver, the last body
+  expression), each comment naming the other; keep them in step. The pin is not in the core suite: `SqlStress` is the
+  hand harness (a local Postgres, a 60 s clock). `JoinTortureTest`, or a test beside `JoinChecker`'s, planning a chain
+  of twenty modern-condition joins is the pin: it typed the innermost input 2^20 times before (36 s) and once a level
+  after; the test's own timeout bounds it, no clock read.
+- **Ask 4: the reference lane and the census.** Two typing and lowering edits on the compiler line's files: run
+  `//spec:reference_lane` and the render census before the landing says measured, and name both runs in the landing note
+  here and in GATES, as the compiler line's entries do.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
