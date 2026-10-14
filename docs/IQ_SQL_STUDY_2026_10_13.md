@@ -1,7 +1,7 @@
 # SAP IQ SQL in Pure: the `#IQ{...}#` island, the research behind it, and the plan
 
 **Status: study and plan (2026-10-13), with the user's decisions recorded in §4. The line is announced in
-`docs/IN_FLIGHT.md` ("A tenth line"), on the branch `claude/iq-island`. Nothing has landed yet; §9 records each slice
+`docs/IN_FLIGHT.md` ("A tenth line"), on the branch `claude/iq-island`. The first landing: §9.1; §9 records each slice
 as it lands.** This is the counterpart of `docs/LEGEND_SQL_STUDY_2026_10_11.md`, which did the same for Postgres and
 the `#SQL{...}#` island. Read that study's §3.4, §8 and §9 first: this line follows its method (the dialect is the
 spec, a refusal by name beats a possibly wrong answer, answers snapped from the real database and ratcheted per case)
@@ -29,8 +29,8 @@ the design; §7 is the plan; §8 the risks; §9 the record of landings.
    It returns **IQ's answer**: here `salary / 1000` truncates toward zero when `salary` is an integer column (D-N3),
    and a NULL sort key would sort as the lowest value.
    `#IQ:<profile>{...}#` names the connection profile the SQL was written for (§4, I2).
-2. **Status.** The research is done and the decisions are taken (§4). The first landing (§7, PR1 and PR2) is announced
-   in `IN_FLIGHT`, with its cross-area edits listed there. No code is on the branch yet.
+2. **Status.** The research is done and the decisions are taken (§4). The first landing (§7, PR1 to PR3) is announced
+   in `IN_FLIGHT`, with its cross-area edits listed there, and built on the branch (§9.1).
 3. **Where the research lives: the user's private repository `neema2/iq-sql-research`. None of it is copied here.**
    - Its rules quote SAP's manuals sentence by sentence. It also holds the TPC-H full disclosure reports run on Sybase
      IQ (their queries fall under the TPC EULA) and about 4,000 queries collected from public GitHub repositories,
@@ -583,13 +583,249 @@ landing: `//gates:local`, the TeaVM builds, CI, an independent review, a GATES e
 Each slice records here what works, how, its evidence (cases, ledgers in both lanes, the drift check), what is refused
 by name, what its review found, and the ledger after it, in the form of the Postgres study's §9.
 
-### 9.1 The first landing: the seam, the island and M0's pipeline (PR1, PR2)
+### 9.1 The first landing: the seam, the oracle, the island and M0 (PR1 to PR3, built 2026-10-13 to 14, on the branch)
 
-_Not landed._
+The plan's first three slices land together, as four commits on `claude/iq-island-1` over main 941f8382d: the study
+and the oracle (5c977f4bf), the seam (27e1e4dbf), the island end to end (9fb52c67e), and the rest of M0 with the two
+independent reviews' fixes (9ba06c4ad). They were built on `claude/iq-island` (e955977d1, 5cce1ec71, 670761332) and
+rebased; §9.2 is this section. Every case answers what SQL Anywhere 17 answers (or what an adopted decision says), is
+refused by name, or is an invalid query both reject.
+
+**The seam (PR1): Postgres moved, unchanged.**
+- `InputDialect` is the seam. `PostgresDialect` holds what was Postgres's own in `SqlToPure`: the reader, folding and
+  resolving names and the hint, the default null order, a select item's default name, type kinds and literal typing,
+  the binary, cast, LIKE and unification entries, the function catalog, and the ten name-resolution messages. `Tx`
+  gains an opaque type detail (null for Postgres); a select item keeps its source text. The rest of M0 added two
+  hooks whose defaults are Postgres's old code (`unary`, `rowCount`).
+- **The judge: the generated Pure, byte for byte.** A one-off dump (out of the tree) wrote each case's Pure text and
+  its protocol tree for 2,225 cases (the 2,180 `sql-parity` cases and the 45 island cases) before any edit and after:
+  byte-identical. 95 more queries reach every hook and every converted message: the 2,320 lines from HEAD's classes and
+  from the seam are byte-identical, and stayed so after the island, the rest of M0 and the second review's fixes. Both
+  `sql-parity` ledgers are unchanged.
+- Six expression shapes bisected for stack depth on a 512 KB thread: none got shallower.
+- Found, not changed (a pure move): an unaliased select item of n nested casts costs 2^n in Postgres's default name
+  (`PostgresDialect.defaultName` reads its operand twice per cast). It predates the seam; it is the seventh line's.
+
+**The oracle, `tools/iq-oracle/`** (§2 is its design).
+- `snap.py` (Python's standard library over SQL Anywhere's C client library, run isolated as x86_64 under Rosetta)
+  creates both databases afresh in a temporary directory, reads back their creation settings, seeds both from
+  `iq-parity/schema.yaml`, and runs each case under each of its profiles, the profile's options set as temporary
+  options and read back. Its own server listens on a free loopback port with every secured feature off.
+- `--write` snaps; `--check` reports DRIFT, UNSNAPPED, STALE, GONE, CRASH or FAILED. A lost connection rebuilds the
+  server and retries once; a second loss is a CRASH, and such a case is listed in `known_crashers.txt` and skipped. A
+  TIMESTAMP column is fetched a second time at six fractional digits.
+- The answers file's format 2: the `sqlSha` covers the SQL, the profile, a decided case's `decision` and `expect`, and
+  the schema, so editing any of them makes the answer STALE.
+- A manual Bazel target, and `//tools/iq-oracle:tools_build_test` in `//gates:checks`. CI never runs SQL Anywhere.
+
+**The island (PR2).** `#IQ{...}#`, and `#IQ:<profile>{...}#` for the five profiles (any other refused by name), on
+LEGEND_LITE and on LEGEND_PLATFORM, where it replaces legend-pure's legacy graph-fetch reading of the same spelling
+(nothing in the repository writes it). LEGEND_ENGINE keeps its refusal.
+- **The plumbing** (§5.3): `SqlIsland` gains its language and profile; `SpecParser`'s IQ arm; the wire (a
+  `classInstance` of type `IQ`) and the printers; `SqlIslands` picks the dialect and passes each column's store type.
+- **The reader,** `protocol/sql/iq/`: `IqLexer`, `IqParser` (to the shared `SqlAst`), `IqDialect`, `IqProfile`,
+  `IqType`, `IqTypes`. The engine is the statement's (I3): `iq` over `tb()` sources, `sa` without FROM. A `sqla17-*`
+  profile is a SQL Anywhere database, so always `sa`.
+- **Declared:** `docs/OWN_CORPUS_DECISIONS.md` §14 (LITE-DESIGN-iq-island: one own-corpus model whose function is an
+  island) and `docs/SEMANTICS_REGISTER.md` S50 to S54.
+
+**What the translator now reads** (`lite/basics.yaml`, `lite/m0.yaml`):
+- **Names** without regard to ASCII case, quoted or not: `[x]`, `` `x` ``, and `"x"` as `quoted_identifier` says (a
+  string under a TDS login). Two candidates are an ambiguity. A column shows as its reference is written, an unaliased
+  constant as SQL Anywhere renders it (`1.50` as `1.5`, measured).
+- **Text:** backslash escapes as `escape_character` says; nested comments. Strings compare case-sensitively in an IQ
+  database, and `=` and `<>` ignore trailing blanks (one value starts with the other, the rest spaces). Under the IQ
+  engine a CHAR(n) column the statement refers to is padded to n (D-S1).
+- **NULL** is the lowest value. Under `ansinull` Off, `= NULL` is `IS NULL` in every search condition, and in a CASE's
+  or an IF's condition under the IQ engine only (D-L1): SQL Anywhere's front end leaves it UNKNOWN there (measured).
+- **Without FROM:** one row, under SQL Anywhere's front end.
+- **Integers** as IQ types them: a constant SMALLINT, INTEGER or BIGINT by its value, a result by TYPING §3. Overflow
+  is IQ's error -158, checked with Pure natives only where the operands' ranges allow it, never for a BIGINT (the
+  database raises its own). `/` truncates toward zero, `%` keeps the dividend's sign, a zero divisor is an error
+  (D-N3). An operand narrower than 64 bits is widened with `floor`.
+- **BIT** is the integer 0 or 1 (the lead's decision): it compares, sorts and computes as one.
+- **`||` and `+` of strings:** one join of the run, a single NULL read as '', all NULL giving NULL (D-S3); an integer
+  joins as its digits.
+- **Row limits:** `TOP n`, `TOP ALL`, `FIRST`, `START AT m`, and parenthesized counts of `+ - *` over integers, each
+  typed, checked and folded by the planner. A literal `TOP 0`, a negative count and a START AT below 1 are -674 (D-Q1).
+- **T-SQL forms:** `alias = expression` (never a comparison), `'string'` aliases with and without AS.
+- **IF … ENDIF** as `CASE WHEN c THEN a WHEN NOT c THEN b END`, so UNKNOWN gives NULL, ELSE or not; searched and
+  simple CASE (the simple one through `=`, so padding applies). One result type by IQ's unification, shared by CASE,
+  IF, ISNULL, COALESCE and IFNULL.
+- **The catalog:** ISNULL, COALESCE, IFNULL (NULL when its first argument is not, typed as the second), NULLIF (its
+  second argument read as the first's type). A wrong argument count is -154.
+- **IQ's errors** found in translation carry IQ's SQLCODE and SQLSTATE beside our own words: -131, -139, -142, -143,
+  -144, -154, -158, -674, -830.
+
+**The decisions** (§4, I4). **Adopted:** D-S1 and D-L1 make the IQ engine's answer differ from SQL Anywhere's here, so
+their nine runs (seven D-S1, two D-L1) are judged by their `expect`, SQL Anywhere's rows as the decision changes them
+(the second review checked each by hand). D-N3, D-Q1 and D-S3 hold alike in both engines here, so SQL Anywhere judges
+them. **D-E2 is new** (the second review's B2; §4): an operand that can raise beside AND or OR in a WHERE is computed
+or not as the plan goes, in IQ and in lite's databases alike, so lite answers such a query and a parity case holding
+one is never judged; its three cases are skipped by name, and the harness fails a judged one. **Refused until the
+verification pack runs:** D-N1 is reached here, and its refusal names it (arithmetic and unification over NUMERIC).
+The constructs of D-N6, D-S5, D-C6, D-T2/D-T12 and D-F1 (a DOUBLE narrowed to NUMERIC, LIKE, CONVERT, DATEADD and a
+date ± n, ROUND) are not read yet and are refused by name before translation; each refusal will name its decision
+when its slice reaches the construct.
+
+**Refused by name, each because lite's answer would or could differ from IQ's:**
+- **Natives not built yet (O1):** ordering strings (`<`, ORDER BY, DISTINCT) needs an ASCII-only right trim (IQ drops
+  the trailing blanks before comparing, which no padding reproduces for characters below the space); every string
+  comparison in a `sqla17-*` database needs an ASCII-only case fold.
+- **Conversions IQ makes by its own rules:** a string met with a number or a date; `+` of a string and anything else,
+  an untyped NULL included (IQ's NUMERIC addition); a CHAR result of different lengths under the IQ engine (whether IQ
+  pads it is not decided).
+- **Types:** arithmetic on NUMERIC (D-N1), DOUBLE or dates; results IQ types NUMERIC or unsigned (BIGINT `%`, BIT `%`,
+  BIT + BIT, TINYINT); a table holding a REAL or FLOAT (DuckDB compares them in single precision), an unsized CHAR, a
+  BINARY or another type the island does not read.
+- **Constants lite cannot hold as the profile's database does:** more than 38 digits or 38 places (IQ's NUMERIC holds
+  126); more significant digits than a `sqla17-*` database keeps (30); a character outside ISO-8859-1 under an IQ
+  profile, `\xHH` above 0x7F under a UTF-8 one, a NUL.
+- **Other dialects' names:** a FROM function other than `tb`, and any call the IQ catalog lacks, refused before
+  translation, so no Postgres reading of a name (`generate_series`) applies.
+- **What IQ reads otherwise:** a select-list alias read in WHERE, in the select list or inside an ORDER BY expression
+  (IQ reads the alias before a column of its name; a bare ORDER BY alias and a position are read); an unaliased
+  computed item (SQL Anywhere names it from the expression's text).
+- **Row limits:** `TOP n PERCENT` (IQ has no such keyword); a row limit over a FROM clause without ORDER BY (the rows
+  kept are the plan's); an operation that can raise in the select list or ORDER BY of a row-limited statement (IQ
+  computes them only for the rows it keeps, lite's databases may compute them for every row).
+- **Size:** an expression whose checked operations would write out more than 20,000 Pure nodes (each check repeats
+  its operands: about fourfold per nested level, twentyfold per quotient). It is refused in about a millisecond.
+- **Not read yet (M1 onwards):** joins (a comma join too), subqueries, set operations, GROUP BY and aggregates,
+  BETWEEN, IN, LIKE, EXISTS, CAST and the other special forms, the bitwise operators, DUMMY and `sa_rowgenerator`,
+  parameters and variables.
+
+**The harness** (§6). `IqParity` and `IqAnswers` run each case and profile on DuckDB (`//core:iq_parity_test`) and on
+the embedded Postgres 16 (`//core:iq_parity_postgres_test`), both in `//gates:core`, against the snapped answers.
+- **Its own strict judge** (the first review's M1): integers exact, numerics exact by value and by SQL Anywhere's
+  scale, doubles within 1e-15 relative only where SQL Anywhere's cell is a double, text and column names exact, each
+  column's type family checked against SQL Anywhere's. A Java exception is ERROR, never BOTH_ERROR. A both-error whose
+  message names an IQ SQLCODE other than SQL Anywhere's is a FAIL (43 of the 77 name one; all agree).
+- **Guards:** UNSNAPPED, STALE, GONE; a pinned engine its island does not run in; engine neutrality (a case SQL
+  Anywhere judges translates alike under both engines' rules, or names its decision); an `engine: iq` pin needs a
+  decision; evaluation order (D-E2).
+- **The syntax ratchet,** `//core:iq_syntax_cases_test` (in `//gates:core`): 7,169 cases derived from the research
+  (probe SQL, options and policy only), each read under its options and counted per policy and verdict in
+  `syntax-pins.tsv`: accept PARSED 659, REFUSED 4,465, REJECTED 1; accept-with-option REFUSED 92, REJECTED 1; flag
+  PARSED 8, REFUSED 128; reject PARSED 31, REFUSED 1,197, REJECTED 587; none crashed. The 31 rejects that parse are
+  SQL Anywhere's post-parse errors the translation reaches; the 2 accepting cases rejected are a reserved word an
+  option frees and a byte-order mark. Both are lists by id that may only shrink. A fall in an accepting policy's PARSED
+  is a REGRESSION, a gain a FIX DETECTED until recorded. It caught one regression on the way: names of more than two
+  parts were refused, where IQ takes four.
+
+**The first independent review** (2026-10-14, of the seam and the island, by an agent that wrote none of it;
+read-only; each claim run on lite's DuckDB lane and on SQL Anywhere 17, its values typed through `sa_rowgenerator` so
+that SQL Anywhere cannot fold them): 6 BLOCKER, 4 MAJOR, 7 MINOR. The seam was clean. Each blocker was an accepted
+query answered otherwise than SQL Anywhere answers it; each is fixed in the rest of M0 and pinned by a case in
+`lite/m0.yaml` or a unit test:
+- A REAL or FLOAT column met an exact constant in single precision on DuckDB (a REAL 0.1 equal to `0.1`): its table
+  is refused.
+- `ORDER BY +1` sorted by a constant and `ORDER BY (1)` by a position, where SQL Anywhere reads `+1` as a position and
+  `(1)` as a constant: so read now, by the reader and by the harness's order check.
+- Postgres's set-returning functions were read in an IQ FROM (`generate_series`): refused before translation.
+- Two select-list aliases equal but for case were accepted: IQ's -830.
+- A constant of more than 38 places became a double (`1e-50` as 0): refused.
+- Under a `sqla17-*` profile, more than 30 significant digits were kept where the database cuts them: refused.
+- MAJOR: the reused cell comparison (absolute and relative tolerances, integers through a double, types never
+  compared, names without case) could hide such answers: the strict judge above. A decided case's rows could be edited
+  without a STALE, and the engine-neutrality guard was not built: both done. The island was not declared, and the
+  census's objection had been met by moving a test: the LITE-DESIGN family, the register rows and an own-corpus model
+  now. A `sqla17-*` profile took IQ-engine rules (CHAR padding) and read `\xE9` as U+00E9: it is SQL Anywhere's
+  engine now, and such an escape is refused.
+- MINOR: the platform surface recorded in IN_FLIGHT; long-scale comparisons and `\x00` refused; an unsized CHAR
+  refused, never a crash; TINYINT and unsigned never computed; the alias walk exhaustive; the profiles tied to the
+  answers file by a test. The strict judge then found two more defects: `%` gave a Pure Number (now an Integer), and
+  an all-NULL CASE crashed the lowering (now one typed NULL).
+
+**The second independent review** (2026-10-14, of the rest of M0, by another agent; read-only): 3 BLOCKER, 3 MAJOR,
+9 MINOR. Its 8,768 per-row arithmetic probes (every integer column pair, the boundary values, both lanes, both SQL
+Anywhere databases) found no wrong value, type family or overflow point. Each fix is pinned by a case or a test that
+fails on the reviewed translator over the same harness:
+- B1: an ORDER BY expression naming a select-list alias read the FROM column (`ORDER BY it + 0` after `sm AS it`),
+  where IQ reads the alias: refused (nine cases; a bare alias and a qualified column stay read).
+- B2: AND and OR skip an operand on DuckDB and Postgres where SQL Anywhere raised IQ's -158 or -628 for rows another
+  operand excluded, except when an equality filter ran first: plan-dependent, so D-E2 and its guard.
+- B3: the derived syntax cases held documentation examples, some with the manuals' sample-database values.
+  Re-derived from the research's own probe families, dropping every case whose note or rule marks an example, whose
+  probe shares a run of six words with the manuals' text, or that holds a name or a string of twelve characters or
+  more the manuals print: 1,601 of 8,770 dropped, every kept case unchanged and keeping its verdict. The pins were
+  re-seeded with a dated comment; a grep of the whole change for the manuals' sample names finds none.
+- M1: checked arithmetic grew the SQL about fourfold per nested operator; a twelve-term SMALLINT sum exhausted an 8 GB
+  heap. No check is emitted for a BIGINT result, and the size bound refuses the rest. A Pure `let` would not help: the
+  lowering substitutes lets.
+- M2: TOP, FIRST and START AT computed the select list for the rows they drop (DuckDB raised where SQL Anywhere
+  answers, and the two lanes disagreed): refused where an operation there can raise.
+- M3: a constant that may be NULL (`IF id = 1 THEN 32767 ENDIF + 1`) raised -158 at translation where IQ answers NULL.
+  Translation raises only when every operand is a constant IQ folds and none is NULL; otherwise each row is checked.
+- MINOR, fixed: the judge compares a NUMERIC column's scale (it found literals keeping their written trailing zeros:
+  `1.50E1` is now 15, at IQ's scale) and a both-error's SQLCODE; an `engine: iq` pin needs a decision; a row limit
+  over a FROM clause without ORDER BY is refused.
+
+**Recorded, not fixed:**
+- The syntax ratchet counts PARSED per policy rather than pinning ids, and CI runs none of the parsed probes (the
+  second review ran all 732 that parsed then: every lite answer it could compare agreed with SQL Anywhere's).
+- A decided case's `expect` is not derived from SQL Anywhere's rows mechanically; the second review checked all nine
+  by hand.
+- IQ's run-time errors reach the user in lite's words (an overflow as a failed read of one value, a zero divisor as
+  lite's division error), without IQ's SQLCODE: they need a raise native that carries a message.
+- `IqDialect.plus` translates a run's leaves again at each level: time, not size, and bounded by the size bound.
+- `SELECT id, ID … ORDER BY id` is a false ambiguity (the shared ORDER BY path); `rpad` cuts a stored CHAR value
+  longer than its length.
+- The own-corpus census classifies an `#IQ{` snippet before reading its error (its pin of 1 bounds the effect).
+
+**Evidence** (the GATES entry of 2026-10-14 holds the runs):
+- **The answers:** `tools/iq-oracle/snap.sh --write`, then `--check`: 312 cases, 329 answers (3 skipped), SQL
+  Anywhere 17.0.11.7254, clean.
+- **The lanes:** both give every run the same status; after the island alone they held 84 runs (PASS 59, REFUSED 13,
+  BOTH_ERROR 12), after the rest of M0 and the first review's fixes 300 (PASS 195, REFUSED 31, BOTH_ERROR 74). The
+  `sql-parity` ledgers are unchanged (2,180 cases: PASS 1,527, REFUSED 449, BOTH_ERROR 136, SKIP 68).
+- **Units:** `IqLexerTest` 11, `IqParserTest` 15, `IqToPureTest` 25, `IqIslandRoundTripTest` (text, wire and text
+  again; the profile set; the engine surface's refusal), and `IqParityTest` (the lane, and ten tests of the harness:
+  the judge, the guards, the FROM rewrite).
+- **The local gate:** `//gates:local` on 670761332, before the second review's fixes: 363 pass, 2 skipped. After the
+  fixes: both IQ lanes, the syntax ratchet, both `sql-parity` lanes, `//core:core_tests`, `//gates:checks` and
+  `//parser-equivalence:diagnostics` (166 pass, 2 skipped); `//sdlc-server:page` and `//wasm:planner` build (TeaVM).
+- **Guards** moved only with a dated entry: `CodeShapeGuardrailTest` (the reader's cursors); `OwnDialectCensusTest`,
+  `OwnCorpusConformanceTest` and `FixtureAdjudicationTest` (the island as a declared extension); `syntax-pins.tsv`
+  (re-seeded). The other guards that objected on the way were met in the code: `SqlTextRatchetTest`,
+  `ParserBoundaryArchTest`, `ErrorShapeGuardrailTest`, `IdentityGuardrailTest`.
+
+**The ledger after this landing,** identical in both lanes (`iq-parity/ledger.tsv`):
+
+  | | `lite/basics.yaml` (73 cases) | `lite/m0.yaml` (242 cases) | all |
+  |---|---|---|---|
+  | runs (case × profile) | 84 | 248 | 332 |
+  | PASS: SQL Anywhere's rows, or the decision's | 62 | 143 | 205 |
+  | FAIL: a wrong answer | **0** | **0** | **0** |
+  | BUG: answers what SQL Anywhere rejects | **0** | **0** | **0** |
+  | ERROR: errs where SQL Anywhere answers | **0** | **0** | **0** |
+  | REFUSED: not supported yet, by name | 10 | 37 | 47 |
+  | BOTH_ERROR: SQL Anywhere rejects it, and so does legend-lite | 12 | 65 | 77 |
+  | SKIP: plan-dependent (D-E2) | 0 | 3 | 3 |
+
+  By profile: `iq16-default` 307 runs, `iq16-tds` 17, `sqla17-default` 7, `iq16-odbc` 1.
+
+**Next steps** (§7's slices, each with its own cases, review and record here):
+1. **M1a, predicates and constants:** comparisons with IQ's conversions (a string with a number as NUMERIC, with a
+   date as a TIMESTAMP); BETWEEN, IN, IS TRUE/FALSE/UNKNOWN, LIKE without `[set]` (D-S5 over padded CHAR), EXISTS;
+   DUMMY and `sa_rowgenerator` (engine `sa`, a range flattened); the research's rule probes as `lite/rules.yaml`.
+2. **M1b, relations:** comma, outer and cross joins, derived tables, subqueries, IN (subquery), UNION with IQ's union
+   typing, NATURAL JOIN without merging; the store type through a derived table (§5.4).
+3. **M1c, grouping:** GROUP BY (names and positions), HAVING, DISTINCT; COUNT, SUM, AVG, MIN and MAX in IQ's types.
+4. **M1d, functions:** CAST, CONVERT without a style (D-C6), SUBSTRING, the TRIM family, LEFT and RIGHT, LENGTH, CHAR
+   and ASCII, REPLACE, UPPER and LOWER after their native, GETDATE and NOW; a single-pass `+`.
+5. **M1e, names and profiles:** owner-qualified tables (O2), `@var`, `:host` and `?` (O3), the `iq16-odbc` and
+   `iq16-tds` profiles in full, `IqDateTime`.
+6. **The natives** (O1, each announced to the ninth line): an ASCII-only case fold, an ASCII-only right trim, exact
+   decimal division; and, from the reviews, a range check that takes its operand once (it would lift the size bound)
+   and a raise that carries IQ's code and message.
+
+Open for the user: whether the IQ engine pads a CHAR(n) result of CASE, IF or ISNULL; how a string meets a number in
+`+`, comparisons and unification (NUMERIC, D-N1). The review carry-overs above go with the slice whose path they touch.
 
 ### 9.2 The rest of M0: T-SQL forms, row limits, IF … ENDIF, concatenation, integer arithmetic (PR3)
 
-_Not landed._
+_Landed with the first landing: §9.1._
 
 ### 9.3 M1a: predicates and constants (PR4)
 
