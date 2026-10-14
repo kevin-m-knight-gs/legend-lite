@@ -13,10 +13,11 @@
 // rounded data-end, 2px lines, 8px markers, a 2px surface gap between
 // touching fills, hairline recessive grid, ink-coloured text, a legend
 // only when there are two series or more, a hover tooltip on every mark,
-// and ONE value axis (never two).
+// and one value axis -- two only for values of different units, each in its
+// series' colour (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §6).
 
 import type { EChartsOption } from 'echarts';
-import { axisName, drilledView, KPI_TREND_LIMIT, measureName, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
+import { AXIS_UPPER, axisName, drilledView, KPI_TREND_LIMIT, measureName, rangesAcross, type ChartMeasure, type ChartSpec, type LayerStat, type MeasureMark } from './chart-spec.ts';
 import { isRatio, SHOW_AS_LABELS, statName } from './calc-presets.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
@@ -135,7 +136,13 @@ export interface ChartDrawing {
    * What a brush took (batch 2 item 11), from ECharts' brush areas: the categories inside a range across (in order,
    * with the edge after the last for a chart of bins), or a scatter's rectangle. Null when nothing was taken.
    */
-  brushed?(areas: readonly BrushArea[]): Brushed | null;
+  brushed?(areas: readonly BrushArea[], timeOf?: (text: string) => number): Brushed | null;
+  /**
+   * For a crosshair shared across charts (batch 2 item 12): the category a pointer's axis value stands for, as a key
+   * another chart can find -- a category axis's index, a time axis's time -- and the index a key has in this chart.
+   */
+  pointerKey?(axisValue: number, timeOf?: (text: string) => number): string | undefined;
+  indexOfKey?(key: string): number | undefined;
   /** Anything the reader should know that the picture cannot say. */
   readonly notes: readonly string[];
   /** The chart in words, for a screen reader (the container's aria-label). */
@@ -493,7 +500,8 @@ export function chartOption(
     const common = {
       name: s.name,
       data: timeAxis ? s.values.map((v, i) => [at(i), v]) : s.values,
-      ...(stacked && s.mark !== 'line' ? { stack: `total-${axisIndex}` } : {}),
+      // a stack is the chart's: a line chart's lines stack; a line drawn beside a stack's bars (a value of its own) does not
+      ...(stacked && (s.mark !== 'line' || chartMark === 'line') ? { stack: `total-${axisIndex}` } : {}),
       ...(axisIndex === 1 ? (horizontal ? { xAxisIndex: 1 } : { yAxisIndex: 1 }) : {}),
       label: {
         show: spec.options.labels,
@@ -543,6 +551,22 @@ export function chartOption(
       ...(s.mark === 'area' ? { areaStyle: { opacity: 0.2 } } : {}),
     };
   });
+  // A PERIOD'S OR A BIN'S END (chart-spec.ts AXIS_UPPER), the database's: the greatest its categories' rows say --
+  // compared, never computed
+  const ranges = rangesAcross(spec);
+  const upperCol = ranges ? column(rows, AXIS_UPPER) : undefined;
+  const upperOf = (indices: readonly number[]): Scalar | undefined => {
+    if (!upperCol) return undefined;
+    const want = new Set(indices);
+    let best: Scalar | undefined;
+    xCol.values.forEach((xv, i) => {
+      const at = indexOf.get(keyText(xv));
+      const u = upperCol.values[i] ?? null;
+      if (at === undefined || !want.has(at) || u === null) return;
+      if (best === undefined || best === null || compareScalars(u, best, upperCol.type) > 0) best = u;
+    });
+    return best;
+  };
   // a hover: the category, each series' value as the grid writes it, and the further measures asked for
   const extras = spec.tooltip ?? [];
   const tooltipFormatter = (params: unknown): string => {
@@ -593,20 +617,27 @@ export function chartOption(
       if (spec.split !== undefined && s && s.key !== undefined) key[spec.split] = s.key;
       return key;
     },
-    ...(spec.bins !== undefined ? { upperAt: (dataIndex: number) => nextEdge(categories, dataIndex, xCol.type) } : {}),
-    // a range across: on a category axis its first and last index, on a time axis its first and last time
-    ...(spec.options.brush ? { brushed: (areas: readonly BrushArea[]) => {
+    pointerKey: (axisValue: number, timeOf?: (text: string) => number) => {
+      if (!timeAxis) return categories[Math.round(axisValue)] === undefined ? undefined : keyText(categories[Math.round(axisValue)]!);
+      const hit = categories.find((c) => (timeOf ? timeOf(String(c)) : localTime(String(c))) === axisValue);
+      return hit === undefined ? undefined : keyText(hit);
+    },
+    indexOfKey: (key: string) => indexOf.get(key),
+    // a period's or a bin's end, the database's: the most its rows say (chart-spec.ts AXIS_UPPER)
+    ...(ranges ? { upperAt: (dataIndex: number) => upperOf([dataIndex]) } : {}),
+    // a range across: on a category axis its first and last index, on a time axis its first and last time (parsed as
+    // ECharts parses a date: chart-render.ts's own parser, handed in as `timeOf`)
+    ...(spec.options.brush ? { brushed: (areas: readonly BrushArea[], timeOf?: (v: string) => number) => {
       const r = areas[0]?.coordRange;
       if (!r || r.length < 2) return null;
       const [a, b] = [Number(r[0]), Number(r[1])];
       const inside = categories.map((c, i) => [c, i] as const).filter(([c, i]) => {
         if (!timeAxis) return i >= Math.min(a, b) && i <= Math.max(a, b);
-        const t = Date.parse(String(c));
+        const t = timeOf ? timeOf(String(c)) : localTime(String(c));
         return t >= Math.min(a, b) && t <= Math.max(a, b);
       });
       if (inside.length === 0) return null;
-      const lastIndex = inside[inside.length - 1]![1];
-      const upper = spec.bins !== undefined ? nextEdge(categories, lastIndex, xCol.type) : undefined;
+      const upper = ranges ? upperOf(inside.map(([, i]) => i)) : undefined;
       return { kind: 'across' as const, values: inside.map(([c]) => c), ...(upper !== undefined ? { upper } : {}) };
     } } : {}),
     notes,
@@ -868,20 +899,23 @@ function thresholdMap(
   return maps.length > 0 ? { visualMap: maps } : {};
 }
 
-/** The least category above the one at `i` (a bin's next edge): compared, never computed. */
-function nextEdge(categories: readonly Scalar[], i: number, type: string | undefined): Scalar | undefined {
-  const at = numberOf(categories[i] ?? null, type);
-  if (at === null) return undefined;
-  let best: Scalar | undefined;
-  let bestN = Infinity;
-  for (const c of categories) {
-    const n = numberOf(c, type);
-    if (n !== null && n > at && n < bestN) {
-      best = c;
-      bestN = n;
-    }
-  }
-  return best;
+/** Two values of one column in order: numbers by number, anything else (a day, a timestamp) by its text. */
+function compareScalars(a: Scalar, b: Scalar, type: string | undefined): number {
+  const x = numberOf(a, type);
+  const y = numberOf(b, type);
+  return x !== null && y !== null ? x - y : String(a).localeCompare(String(b));
+}
+
+/**
+ * A date or a timestamp with no zone, as ECharts places it on a time axis: in the page's local time (its parser reads
+ * `2024-01-05` as local midnight, not UTC's). The renderer hands in ECharts' own parser; this is the same reading,
+ * for a drawing tested without it.
+ */
+export function localTime(text: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/.exec(text);
+  if (!m) return Date.parse(text);
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0),
+    Number((m[7] ?? '0').padEnd(3, '0'))).getTime();
 }
 
 const MARK_WORDS: Record<ChartSpec['mark'], string> = {
@@ -1102,8 +1136,9 @@ export function treemapOfGrid(shown: GridShown, theme: ChartTheme = LIGHT_THEME,
         confine: true,
         trigger: 'item',
         // the value as the grid writes it
+        // a group's name and value from the data, written as text, never markup
         formatter: (p: { name?: string; data?: { text?: string } }) =>
-          (p.data?.text !== undefined ? `${p.name ?? ''}: ${p.data.text}` : (p.name ?? '')),
+          (p.data?.text !== undefined ? `${escapeHtml(p.name ?? '')}: ${escapeHtml(p.data.text)}` : escapeHtml(p.name ?? '')),
       },
       series: [{
         type: 'treemap',

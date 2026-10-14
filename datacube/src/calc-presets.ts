@@ -12,7 +12,9 @@
 //   stats      a measure's average, minimum or maximum over the chart's rows: a reference line's value
 
 import {
+  collection,
   divide,
+  enumValue,
   fn,
   lambda,
   lit,
@@ -63,19 +65,29 @@ export function grainColumn(column: string, grain: TimeGrain, name = grainName(c
   return { name, lambda: row(fn(GRAIN_FUNCTION[grain], one(column))), kind: 'dimension' };
 }
 
-/** A day, `YYYY-MM-DD`, moved on by one period of `grain` (the end of the period it starts, exclusive). */
-export function nextPeriod(day: string, grain: TimeGrain): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(day);
-  if (!m) throw new Error(`not a day: ${day}`);
-  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  switch (grain) {
-    case 'day': d.setUTCDate(d.getUTCDate() + 1); break;
-    case 'week': d.setUTCDate(d.getUTCDate() + 7); break;
-    case 'month': d.setUTCMonth(d.getUTCMonth() + 1); break;
-    case 'quarter': d.setUTCMonth(d.getUTCMonth() + 3); break;
-    case 'year': d.setUTCFullYear(d.getUTCFullYear() + 1); break;
-  }
-  return d.toISOString().slice(0, 10);
+/** One period of each grain, as the compiler's `adjust` takes it: how many of which DurationUnit. */
+const GRAIN_STEP: Readonly<Record<TimeGrain, readonly [number, string]>> = {
+  day: [1, 'DAYS'], week: [7, 'DAYS'], month: [1, 'MONTHS'], quarter: [3, 'MONTHS'], year: [1, 'YEARS'],
+};
+
+/** The column that names each row's period's END: its name. */
+export function upperName(axis: string): string {
+  return `${axis}__upper`;
+}
+
+/**
+ * The end of each row's period, exclusive -- the next period's first day: `adjust(<its first day>, 1, MONTHS)`. The
+ * DATABASE's date arithmetic, so a click on a month filters to the month the database meant (the browser compares
+ * with it, never computes it).
+ */
+export function grainEndColumn(column: string, grain: TimeGrain, name: string): DerivedColumn {
+  const [n, unit] = GRAIN_STEP[grain];
+  const start = fn(GRAIN_FUNCTION[grain], one(column));
+  return {
+    name: upperName(name),
+    lambda: row(fn('adjust', start, lit.integer(n), enumValue('meta::pure::functions::date::DurationUnit', unit))),
+    kind: 'measure',
+  };
 }
 
 // ---------------------------------------------------------------- bins
@@ -97,7 +109,12 @@ export function binColumns(column: string, bins: Bins): DerivedColumn[] {
   if (bins.width !== undefined) {
     if (!(bins.width > 0)) throw new Error('a bin is wider than nothing');
     const w = number(bins.width);
-    return [{ name, lambda: row(times(floorOf(divide(one(column), w)), w)), kind: 'dimension' }];
+    const edge = times(floorOf(divide(one(column), w)), w);
+    return [
+      { name, lambda: row(edge), kind: 'dimension' },
+      // the bin's upper edge, exclusive: the database's, so a click or a brush filters to the bin it meant
+      { name: upperName(name), lambda: row(plus(edge, w)), kind: 'measure' },
+    ];
   }
   const count = Math.floor(bins.count ?? 0);
   if (!(count >= 1)) throw new Error('bins: a width, or a count of at least one');
@@ -109,10 +126,15 @@ export function binColumns(column: string, bins: Bins): DerivedColumn[] {
   const clamped = fn('if', fn('greaterThanEqual', index, lit.integer(count)),
     lambda([], lit.integer(count - 1)), lambda([], index));
   const edge = fn('if', fn('equal', one(hi), one(lo)), lambda([], one(lo)), lambda([], plus(one(lo), times(clamped, width))));
+  // the upper edge, exclusive: the next bin's edge -- for the maximum (in the last bin, unclamped) one bin past it, so
+  // `< upper` keeps it; a bin's rows agree on it but for that one, and the chart takes their maximum
+  const upper = fn('if', fn('equal', one(hi), one(lo)), lambda([], plus(one(lo), lit.integer(1))),
+    lambda([], plus(one(lo), times(plus(index, lit.integer(1)), width))));
   return [
     { name: lo, window: { ...whole, fn: 'min', column }, kind: 'measure' },
     { name: hi, window: { ...whole, fn: 'max', column }, kind: 'measure' },
     { name, lambda: row(edge), kind: 'dimension' },
+    { name: upperName(name), lambda: row(upper), kind: 'measure' },
   ];
 }
 
@@ -179,11 +201,14 @@ export function showAsColumns(
     case 'difference':
     case 'percentChange': {
       const before = `${name}__previous`;
-      // the first row has no row before: its change is empty (SQL's NULL through toOne), never a guess
+      // the first row has no row before: its change is empty (SQL's NULL through toOne), never a guess; and a change
+      // from nothing has no ratio -- empty too, where a database would refuse a division by zero
       const change = minus(one(base), one(before));
+      const ratio = fn('if', fn('equal', one(before), lit.integer(0)), lambda([], collection([])),
+        lambda([], divide(change, one(before))));
       return [
         { name: before, window: { fn: 'lag', column: base, partition, order } },
-        { name, lambda: row(show.kind === 'difference' ? change : divide(change, one(before))) },
+        { name, lambda: row(show.kind === 'difference' ? change : ratio) },
       ];
     }
   }
@@ -213,30 +238,24 @@ function wholeOf(fn: 'sum' | LayerStat, column: string): WindowSpec {
 // ---------------------------------------------------------------- a clicked period or bin
 
 /**
- * A mark's value across, as conditions on the cube's own column: a period (a grain) is from its first day to the
- * next's; a bin from its edge to `upper`, the next bin's edge (the last bin has none: from its edge up); anything else
- * is the value itself.
+ * A period or a bin as conditions on the cube's own column: from its start to `upper`, the database's end of it
+ * (exclusive: the next period's first day, the next bin's edge). A literal is written by the column's type: a day for
+ * a StrictDate, a timestamp for a DateTime, the number for a number -- another type has no range here, and is refused.
  */
 export function rangeConditions(
   column: string,
   type: string | undefined,
-  value: string | number | boolean | null,
-  how: { readonly grain?: TimeGrain; readonly bin?: boolean; readonly upper?: number },
+  from: string | number | boolean,
+  upper: string | number | boolean,
 ): FilterNode[] {
-  if (value === null) return [{ kind: 'condition', column, operator: 'isEmpty' }];
-  if (how.grain !== undefined) {
-    const day = String(value).slice(0, 10);
-    const literal = (d: string): string => (type !== undefined && /StrictDate$/.test(type) ? d : `${d}T00:00:00`);
-    return [
-      { kind: 'condition', column, operator: 'greaterThanEqual', value: literal(day) },
-      { kind: 'condition', column, operator: 'lessThan', value: literal(nextPeriod(day, how.grain)) },
-    ];
-  }
-  if (how.bin === true && typeof value === 'number') {
-    return [
-      { kind: 'condition', column, operator: 'greaterThanEqual', value },
-      ...(how.upper !== undefined ? [{ kind: 'condition', column, operator: 'lessThan', value: how.upper } as const] : []),
-    ];
-  }
-  return [{ kind: 'condition', column, operator: 'equal', value }];
+  const literal = (v: string | number | boolean): string | number | boolean => {
+    if (typeof v !== 'string') return v;
+    if (type !== undefined && /StrictDate$/.test(type)) return v.slice(0, 10);
+    if (type !== undefined && /(DateTime|Timestamp)$/.test(type)) return v.length <= 10 ? `${v}T00:00:00` : v;
+    throw new Error(`a range of '${column}' (${type ?? 'untyped'}) has no literal for ${JSON.stringify(v)}`);
+  };
+  return [
+    { kind: 'condition', column, operator: 'greaterThanEqual', value: literal(from) },
+    { kind: 'condition', column, operator: 'lessThan', value: literal(upper) },
+  ];
 }

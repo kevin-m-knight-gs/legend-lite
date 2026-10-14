@@ -126,8 +126,10 @@ const BUDGET = 403_000;
  *  spec's version 2 reader and its presets at startup, the drawing moved out. Measured 380,118.
  *  381,000 -> 384,000 (2026-10-14, DataCube charts batch 2, steps 5-8): the grid's budget's note of the same date.
  *  Measured 383,019.
- *  384,000 -> 386,000 (2026-10-14, batch 2 step 10): as the grid's. Measured 384,369. */
-const ENGINE_BUDGET = 386_000;
+ *  384,000 -> 386,000 (2026-10-14, batch 2 step 10): as the grid's. Measured 384,369.
+ *  386,000 -> 388,000 (2026-10-14, batch 2 steps 12-14 and its audit): the sales sample and the Examples list (the
+ *  grid's note of step 14), and the reader's checks of a chart's option words. Measured 387,083. */
+const ENGINE_BUDGET = 388_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -140,8 +142,19 @@ const ENGINE_BUDGET = 386_000;
  *  392,000 -> 408,000 (2026-10-14, batch 2 step 9): ECharts' data zoom (a long series' slider, zooming inside the chart)
  *  and the time axis's drawing. Measured 406,575.
  *  408,000 -> 433,000 (2026-10-14, batch 2 step 11): ECharts' brush and the toolbox it starts from (step 12's toolbox
- *  buttons use it too). Measured 431,396. */
-const CHART_BUDGET = 433_000;
+ *  buttons use it too). Measured 431,396.
+ *  433,000 -> 436,000 (2026-10-14, batch 2's audit): the brush taking its range by value and the database's edges
+ *  (chart-spec.ts AXIS_UPPER), and a crosshair that relays only the tooltip (chart-render.ts, in place of ECharts'
+ *  connect). Measured 433,874. */
+const CHART_BUDGET = 436_000;
+
+/** The charts' options form (ui/chart-form.ts), fetched the first time a chart's options are shown: set 2026-10-14 at
+ *  its first measure, 4,872, with room for batch 3's fields. */
+const FORM_BUDGET = 8_000;
+
+/** An example page's builder (src/examples/charts-dashboard.ts), fetched when it is picked: set 2026-10-14 at its first
+ *  measure, 3,264. */
+const EXAMPLE_BUDGET = 6_000;
 
 /** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
  *  gzipped, which the widget's loader fetches over the kernel's channel once per notebook page. Set 2026-10-08 at its
@@ -163,8 +176,9 @@ const CHART_BUDGET = 433_000;
  *  579,000 -> 598,000 (2026-10-14, batch 2 step 11): the brush and the toolbox, as in the chart's chunk. Measured
  *  596,247.
  *  598,000 -> 604,000 (2026-10-14, batch 2 steps 12-14): the options form, the toolbox's CSV, the example page and the
- *  sales sample -- chunks in the tab, one file here. Measured 602,438. */
-const WIDGET_BUDGET = 604_000;
+ *  sales sample -- chunks in the tab, one file here. Measured 602,438.
+ *  604,000 -> 606,000 (2026-10-14, batch 2's audit): the chart chunk's note of the same date. Measured 604,278. */
+const WIDGET_BUDGET = 606_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
@@ -203,6 +217,20 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
     const size = chart.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= CHART_BUDGET, `a first chart fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${CHART_BUDGET.toLocaleString()}`);
+  });
+
+  it(`the options form and an example page are chunks of their own, each within its budget`, () => {
+    const chunks = readdirSync(CHUNKS).map((f) => join(CHUNKS, f));
+    const sized = (needle: string): number => chunks.filter((f) => readFileSync(f, 'utf8').includes(needle))
+      .reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    for (const f of startup()) {
+      const text = readFileSync(f, 'utf8');
+      assert.ok(!text.includes('src/ui/chart-form.ts') && !text.includes('src/examples/charts-dashboard.ts'), `${f} carries the form or an example`);
+    }
+    const form = sized('src/ui/chart-form.ts');
+    const example = sized('src/examples/charts-dashboard.ts');
+    assert.ok(form > 0 && form <= FORM_BUDGET, `the options form is ${form.toLocaleString()} bytes gzipped (budget ${FORM_BUDGET.toLocaleString()})`);
+    assert.ok(example > 0 && example <= EXAMPLE_BUDGET, `the example page is ${example.toLocaleString()} bytes gzipped (budget ${EXAMPLE_BUDGET.toLocaleString()})`);
   });
 
   it(`a grid-only page downloads at most ${BUDGET.toLocaleString()} bytes of script, gzipped`, () => {

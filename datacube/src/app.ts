@@ -2000,15 +2000,22 @@ export class CubeApp {
         // compiler), a width of 10 to change
         if (column) {
           const seed = binColumns(column, { width: 10 })[0]?.lambda;
-          if (seed) void this.#controller.print(seed).then((text) => this.openColumnEditor({ expression: text, level: 'dimension' }));
+          if (seed) {
+            void this.#controller.print(seed).then(
+              (text) => this.openColumnEditor({ expression: text, level: 'dimension' }),
+              (e: unknown) => this.#status(`Could not open the bins' column: ${e instanceof Error ? e.message : String(e)}`, 'error'),
+            );
+          }
         }
         return;
       case 'calc.showAs':
         if (column && item.showAs) {
-          // along the grid's own rows (an empty order is the order a level shows, query.ts), from the top
+          // along the grid's own groupings, in order: said, not left to the level's sort -- which may be this very
+          // column, were the grid sorted by it
           const show = { kind: item.showAs };
+          const along = [...this.#snapshot.rows];
           void this.#addPreset('group', `${column}_${item.showAs}`, `${column} as ${SHOW_AS_LABELS[item.showAs].toLowerCase()}`,
-            (n) => showAsColumns(show, column, [], [], n));
+            (n) => showAsColumns(show, column, along, [], n));
         }
         return;
       case 'calc.edit':

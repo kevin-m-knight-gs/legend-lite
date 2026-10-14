@@ -13,7 +13,7 @@
 // no functions (a stored formatter would need eval to come back).
 
 import { levelLambda, type LevelScope } from './query.ts';
-import { binColumns, binName, grainColumn, grainName, rangeConditions, showAsColumns, showAsName, statColumn } from './calc-presets.ts';
+import { binColumns, binName, grainColumn, grainEndColumn, grainName, rangeConditions, showAsColumns, showAsName, statColumn, upperName } from './calc-presets.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
@@ -269,6 +269,19 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (bins !== undefined && (!isRecord(bins) || (typeof bins['width'] !== 'number' && typeof bins['count'] !== 'number'))) {
     return 'its bins have neither a width nor a count';
   }
+  // the options' words: a newer DataCube's stack or position is refused by name, never drawn as another
+  const o = spec['options'];
+  const word = (key: string, words: readonly string[]): string | null =>
+    o[key] === undefined || words.includes(o[key] as string) ? null : `its ${key} ${JSON.stringify(o[key])} is not one of ${words.join(', ')}`;
+  const optionProblem = word('orientation', ['vertical', 'horizontal']) ?? word('stack', ['none', 'stacked', 'percent'])
+    ?? word('legend', ['top', 'bottom', 'right', 'none']) ?? word('labelPosition', ['inside', 'outside'])
+    ?? word('better', ['higher', 'lower']);
+  if (optionProblem) return optionProblem;
+  const sort = o['sort'];
+  if (sort !== undefined && (!isRecord(sort) || (sort['by'] !== 'x' && sort['by'] !== 'y')
+    || (sort['direction'] !== 'asc' && sort['direction'] !== 'desc'))) {
+    return `its order ${JSON.stringify(sort)} is not by x or y, asc or desc`;
+  }
   const facet = spec['facet'];
   if (facet !== undefined && (!isRecord(facet) || (typeof facet['row'] !== 'string' && typeof facet['column'] !== 'string'))) {
     return 'its facet names neither a row nor a column';
@@ -378,24 +391,26 @@ export function brushConditions(
     return [...conditions, ...range(spec.x, took.x), ...range(y, took.y)];
   }
   const column = spec.x;
-  const values = took.values.filter((v) => v !== null);
-  const lo = values[0];
-  const hi = values[values.length - 1];
-  if (column === undefined || lo === undefined || hi === undefined) return [...conditions];
+  const values = took.values.filter((v): v is Exclude<Scalar, null> => v !== null);
+  if (column === undefined || values.length === 0) return [...conditions];
   const type = rowColumns(s).find((c) => c.name === column)?.type;
-  if (spec.grain !== undefined) {
-    const [from] = rangeConditions(column, type, plain(lo), { grain: spec.grain });
-    const [, to] = rangeConditions(column, type, plain(hi), { grain: spec.grain });
-    return [...conditions, from!, to!];
+  // the range is from the least value taken to the greatest -- by VALUE, whatever order the chart draws them in
+  const ordered = isNumeric(type) || spec.bins !== undefined
+    ? [...values].sort((a, b) => Number(a) - Number(b))
+    : [...values].sort((a, b) => String(a).localeCompare(String(b)));
+  const lo = ordered[0]!;
+  const hi = ordered[ordered.length - 1]!;
+  if (rangesAcross(spec)) {
+    // a run of periods or bins: from the first's start to the last's end, the database's
+    const up = typeof took.upper === 'bigint' ? took.upper.toString() : took.upper;
+    if (up === undefined || up === null) throw new Error(`the end of ${column}'s last ${spec.grain ?? 'bin'} was not answered`);
+    return [...conditions, ...rangeConditions(column, type, plain(lo)!, up)];
   }
-  if (spec.bins !== undefined || isNumeric(type) || isTemporal(type)) {
-    const up = typeof took.upper === 'bigint' ? Number(took.upper) : took.upper;
+  if (isNumeric(type) || isTemporal(type)) {
     return [
       ...conditions,
       { kind: 'condition', column, operator: 'greaterThanEqual', value: plain(lo)! },
-      spec.bins !== undefined && typeof up === 'number'
-        ? { kind: 'condition', column, operator: 'lessThan', value: up }
-        : { kind: 'condition', column, operator: 'lessThanEqual', value: plain(hi)! },
+      { kind: 'condition', column, operator: 'lessThanEqual', value: plain(hi)! },
     ];
   }
   return [...conditions, { kind: 'condition', column, operator: 'in', value: values.map((v) => plain(v)!) as string[] }];
@@ -452,12 +467,27 @@ export function drillUp(spec: ChartSpec, depth: number): ChartSpec {
   return depth <= 0 ? rest : { ...rest, drill: { ...drill, path: drill.path.slice(0, depth) } };
 }
 
-/** The row-stage columns the chart's axis needs: a grain's, or its bins'. */
+/** The row-stage columns the chart's axis needs: a grain's (its period and the period's end), or its bins'. */
 function axisCalcs(spec: ChartSpec): DerivedColumn[] {
   if (spec.x === undefined || spec.mark === 'scatter') return [];
-  if (spec.grain !== undefined) return [grainColumn(spec.x, spec.grain)];
+  if (spec.grain !== undefined) {
+    const name = grainName(spec.x, spec.grain);
+    return [grainColumn(spec.x, spec.grain, name), grainEndColumn(spec.x, spec.grain, name)];
+  }
   if (spec.bins !== undefined) return binColumns(spec.x, spec.bins);
   return [];
+}
+
+/**
+ * The measure a chart of periods or bins carries for each category: the END of its period or bin, the database's
+ * (exclusive: the next period's first day, the next bin's edge), the most of its rows' -- what a click or a brush
+ * filters up to.
+ */
+export const AXIS_UPPER = '__axis_upper';
+
+/** Whether a chart's categories are periods or bins: ranges of the cube's column, each with its database end. */
+export function rangesAcross(spec: ChartSpec): boolean {
+  return spec.mark !== 'scatter' && spec.x !== undefined && (spec.grain !== undefined || spec.bins !== undefined);
 }
 
 /**
@@ -477,12 +507,11 @@ export function markConditions(
   return [...conditions, ...Object.entries(key).flatMap(([column, raw]): FilterNode[] => {
     // a big integer as its digits, as the context menu's value filters do
     const value = typeof raw === 'bigint' ? raw.toString() : raw;
-    if (column === spec.x && (spec.grain !== undefined || spec.bins !== undefined)) {
-      const up = typeof upper === 'bigint' ? Number(upper) : upper;
-      return rangeConditions(column, typeOf.get(column), value, {
-        ...(spec.grain !== undefined ? { grain: spec.grain } : { bin: true }),
-        ...(typeof up === 'number' ? { upper: up } : {}),
-      });
+    if (column === spec.x && rangesAcross(spec) && value !== null) {
+      // a period or a bin: from its start to its end, the database's
+      const up = typeof upper === 'bigint' ? upper.toString() : upper;
+      if (up === undefined || up === null) throw new Error(`the end of ${column}'s ${spec.grain ?? 'bin'} was not answered`);
+      return rangeConditions(column, typeOf.get(column), value, up);
     }
     return value === null
       ? [{ kind: 'condition', column, operator: 'isEmpty' }]
@@ -635,7 +664,9 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
 }
 
 /** What stops a spec from being drawn, in words; empty when it can be. */
-export function chartProblems(spec: ChartSpec, s: CubeSnapshot): string[] {
+export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
+  // a drilled chart is checked as it draws: the level after its path across (the levels themselves are checked too)
+  const spec = drilledView(drilled).spec;
   const known = new Set([...rowColumns(s), ...chartRowCalcs(spec)].map((c) => c.name));
   const groupLevel = new Set(groupLevelColumns(s, spec).map((d) => d.name));
   const out: string[] = [];
@@ -668,6 +699,38 @@ export function chartProblems(spec: ChartSpec, s: CubeSnapshot): string[] {
   if (spec.grain !== undefined && spec.bins !== undefined) out.push('A column across has a grain or bins, not both.');
   if (spec.split !== undefined && spec.split === spec.x) {
     out.push('Split by a different column than the one across.');
+  }
+  for (const level of drilled.drill?.levels ?? []) {
+    if (!known.has(level)) out.push(`The cube has no column '${level}' to drill into.`);
+  }
+  // A SLOT NOTHING DRAWS IS REFUSED, never ignored (AGENTS.md invariant 4): small multiples and a mark's size are
+  // batch 3's; a layer reads a value the chart plots; a scatter plots rows (no show-as, no layers over groups); a 100%
+  // stack's axis is shares, which a layer of figures would be drawn against
+  if (spec.facet !== undefined) out.push('Small multiples (a facet) are not drawn yet.');
+  if (spec.size !== undefined && spec.mark !== 'scatter') out.push('Only a scatter sizes its marks.');
+  if (spec.size !== undefined && spec.mark === 'scatter') out.push('A scatter\'s size (a bubble) is not drawn yet.');
+  for (const l of spec.layers ?? []) {
+    if (l.kind !== 'band' && (l.measure ?? 0) >= spec.y.length) out.push(`A ${l.kind} layer reads value ${(l.measure ?? 0) + 1}, which the chart does not plot.`);
+  }
+  if (spec.mark === 'scatter' && (spec.layers ?? []).length > 0) out.push('A scatter draws no reference lines yet.');
+  if (spec.mark === 'scatter' && spec.y.some((m) => m.showAs)) out.push('A scatter plots rows: a value shown as a running total, a share or a rank needs groups.');
+  if (spec.options.stack === 'percent' && (spec.layers ?? []).some((l) => l.kind !== 'band')) {
+    out.push('A 100% stack shows shares: a reference line, a threshold or a pinned extreme of figures has no place on it.');
+  }
+  // a group-level column of the cube's that reads a column of the grid's grouping the chart does not group by would be
+  // computed over the chart's rows as if that column were there: refused, not answered wrongly
+  const keys = new Set([spec.x, spec.split, axisName(spec)].filter((c): c is string => c !== undefined));
+  const dimensions = new Set(rowColumns(s).filter((c) => c.kind === 'dimension').map((c) => c.name));
+  const byName = new Map(groupLevelColumns(s, spec).map((d) => [d.name, d]));
+  const reads = (name: string, seen = new Set<string>()): string[] => {
+    if (seen.has(name)) return [];
+    seen.add(name);
+    const d = byName.get(name);
+    return d ? columnsRead(d).flatMap((c) => [c, ...reads(c, seen)]) : [];
+  };
+  for (const m of spec.y.filter((x) => x.fn === 'value')) {
+    const missing = [...new Set(reads(m.column))].filter((c) => dimensions.has(c) && !keys.has(c));
+    if (missing.length > 0) out.push(`'${m.column}' reads ${missing.map((c) => `'${c}'`).join(', ')}, which the chart does not group by.`);
   }
   return out;
 }
@@ -771,6 +834,10 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
     pivotValues: _pv, pivotTotal: _pt, groupDerived: _gd, window: _w,
     leafCount: _lc, childCount: _cc, ...rest
   } = s as CubeSnapshot & Record<string, unknown>;
+  // a chart of periods or bins carries each category's end: the most of its rows' (AXIS_UPPER)
+  if (!scatter && rangesAcross(spec) && across !== undefined) {
+    measures.push({ name: AXIS_UPPER, column: upperName(across), fn: 'max' });
+  }
   // THE GRID AGGREGATES A COLUMN ONCE (query.ts `groupedAggs` keys its measures by column): a second measure of the
   // same column -- the chart's max beside the sum a margin reads -- reads a copy of it, `$x.<column>`, as a child
   // aggregate does

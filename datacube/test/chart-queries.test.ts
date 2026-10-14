@@ -242,3 +242,36 @@ describe('the example page\'s charts, planned and run on its own sample (docs/DA
     }
   });
 });
+
+describe('the database\'s edges: a period\'s end, a bin\'s upper edge (the audit, batch 2)', () => {
+  it('each month ends where the next begins: the database\'s adjust()', async () => {
+    const { AXIS_UPPER } = await import('../src/chart-spec.ts');
+    const t = await rows({ ...BY_REGION, x: 'sold', grain: 'month' });
+    assert.deepEqual(values(t, AXIS_UPPER).map((v) => String(v).slice(0, 10)), ['2024-02-01', '2024-03-01', '2024-04-01']);
+  });
+
+  it('a bin\'s upper edge is the next edge; the maximum\'s, one bin past it, so the last bin keeps it', async () => {
+    const { AXIS_UPPER } = await import('../src/chart-spec.ts');
+    const byWidth = await rows({ ...BY_REGION, x: 'revenue', bins: { width: 200 }, y: [{ column: 'cost', fn: 'count' }] });
+    assert.deepEqual(values(byWidth, AXIS_UPPER).map(Number), [200, 400, 600]);
+    const byCount = await rows({ ...BY_REGION, x: 'revenue', bins: { count: 2 }, y: [{ column: 'cost', fn: 'count' }] });
+    // range 50..400, 175 wide: the first bin ends at 225; the last holds 400 itself, so it ends past it
+    assert.deepEqual(values(byCount, AXIS_UPPER).map(Number), [225, 575]);
+  });
+
+  it('a % change from nothing is empty, not a division by zero', async () => {
+    const db = await openDatabase();
+    const local = new DuckDbEngine(db.connection);
+    try {
+      const csv = 'region,sold,revenue,cost\nEMEA,2024-01-15,0,0\nEMEA,2024-02-10,200,100\n';
+      const r = await ingestFile(local, db.files, new File([csv], 'zero.csv'), writer);
+      const zero = plannerFor(r.model, r.runtime);
+      const { query } = chartQuery({ ...cube, source: { query: r.source } },
+        { ...BY_REGION, x: 'sold', grain: 'month', y: [{ column: 'revenue', fn: 'sum', showAs: { kind: 'percentChange' } }] });
+      const t = await local.execute(await zero.plan(query), 0);
+      assert.deepEqual(values(t, 'percentChange_sum_revenue'), [null, null]);
+    } finally {
+      await local.close();
+    }
+  });
+});

@@ -812,8 +812,9 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `claude/epic-rubin-ay7upl`, from main; built by its own session and reviewed by this line before it lands. Batch 2's
   files, all in `datacube/` and `python/`: `src/chart-spec.ts`, `src/chart-option.ts`, `src/chart-render.ts`,
   `src/calc-presets.ts` (new), `src/calc.ts` (the date functions), `src/examples/` (new: the example pages),
-  `src/samples.ts` (the `sales` sample), `src/ui/chart-panel.ts`, `src/ui/menu.ts` and `src/app.ts` (the grid's presets),
-  `src/ui/column-editor.ts` (start from a preset), `src/page-document.ts` (version 2 read), `src/page/cube-page.ts`
+  `src/samples.ts` (the `sales` sample), `src/ui/chart-panel.ts`, `src/ui/chart-form.ts` (new: the options form, its own
+  chunk), `src/ui/menu.ts` and `src/app.ts` (the grid's presets; a column starts from the bins preset in the column
+  editor, which is not changed), `src/page-document.ts` (version 2 read), `src/page/cube-page.ts`
   (drill, brush), `src/app/datacube-app.ts` (Examples in the Open window), `src/app.css`, `demo/verify-charts.mjs`,
   their tests, `test/bundle-budget.test.ts` (the chart chunk's budget, raised on purpose with a measured note),
   `test_imports.bzl`, `datacube/BUILD.bazel` (new sources and tests: to the Compiler Rewrite session),

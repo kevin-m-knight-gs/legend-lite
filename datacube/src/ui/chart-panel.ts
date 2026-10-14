@@ -243,6 +243,9 @@ export class ChartPanel {
     // A TREEMAP DRAWS THE GRID AS SHOWN, with no query of its own (the old treemap's way, the user
     // 2026-09-30): following, the rows on screen now; frozen, the rows it last drew.
     if (spec.mark === 'treemap') {
+      // a query of another kind still answering would draw over the treemap: it is let go
+      this.#inflight?.abort();
+      this.#inflight = null;
       this.#clearKpi();
       const now = this.frozen && this.#shownKept ? this.#shownKept : this.#options.shown?.() ?? this.#shownKept;
       if (!now) {

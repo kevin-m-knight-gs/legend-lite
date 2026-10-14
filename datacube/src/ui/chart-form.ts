@@ -241,8 +241,11 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     else y[i] = m;
     h.set({ y }, true);
   };
-  spec.y.forEach((m, i) => {
+  spec.y.forEach((painted, i) => {
     if (i === 0) return;
+    // a handler changes the value as it is AT THE EVENT, never as it was painted
+    const m = painted;
+    const now = (): ChartMeasure => current(h).y[i] ?? painted;
     const row = doc.createElement('div');
     row.className = 'dc-chartpanel-measure';
     const value = m.fn === 'value' ? `${GROUP}${m.column}` : m.column;
@@ -251,19 +254,19 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     row.append(
       field(doc, `Value ${i + 1}:`, dropdown<string>(doc, value, plotted, (v) => {
         if (!v) return;
-        replace(i, v.startsWith(GROUP) ? { ...m, column: v.slice(GROUP.length), fn: 'value' }
-          : { ...m, column: v, fn: m.fn === 'value' ? 'sum' : m.fn });
+        replace(i, v.startsWith(GROUP) ? { ...now(), column: v.slice(GROUP.length), fn: 'value' }
+          : { ...now(), column: v, fn: now().fn === 'value' ? 'sum' : now().fn });
       })),
       ...(m.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, m.fn, fns, (v) => {
-        if (v) replace(i, { ...m, fn: v });
+        if (v) replace(i, { ...now(), fn: v });
       }))]),
       field(doc, 'Drawn as:', dropdown<MeasureMark>(doc, m.mark ?? (spec.mark === 'bar' ? 'bar' : spec.mark as MeasureMark), [
         { value: 'bar', label: 'Bars' }, { value: 'line', label: 'Line' }, { value: 'area', label: 'Area' },
-      ], (v) => { if (v) replace(i, { ...m, mark: v }); })),
+      ], (v) => { if (v) replace(i, { ...now(), mark: v }); })),
       field(doc, 'Axis:', dropdown<string>(doc, m.axis ?? 'auto', [
         { value: 'auto', label: 'By its unit' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' },
       ], (v) => {
-        const { axis: _old, ...rest } = m;
+        const { axis: _old, ...rest } = now();
         replace(i, v === 'left' || v === 'right' ? { ...rest, axis: v } : rest);
       })),
     );
@@ -304,11 +307,14 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
  */
 function layerFields(h: FormHost, spec: ChartSpec, plotted: readonly { value: string; label: string }[]): HTMLElement[] {
   const doc = h.doc;
-  const layers = spec.layers ?? [];
-  const own = (kind: ChartLayerKind): ChartLayer | undefined => layers.find((l) => l.kind === kind && (l.kind === 'band' || (l.measure ?? 0) === 0));
+  // the first value's layer of a kind, in the spec as it is AT THE EVENT (a target set twice replaces itself)
+  const ownIn = (layers: readonly ChartLayer[] | undefined, kind: ChartLayerKind): ChartLayer | undefined =>
+    (layers ?? []).find((l) => l.kind === kind && (l.kind === 'band' || (l.measure ?? 0) === 0));
+  const own = (kind: ChartLayerKind): ChartLayer | undefined => ownIn(spec.layers, kind);
   const setLayer = (kind: ChartLayerKind, layer: ChartLayer | null): void => {
     if (!h.spec()) return;
-    const rest = (current(h).layers ?? []).filter((l) => l !== own(kind));
+    const was = ownIn(current(h).layers, kind);
+    const rest = (current(h).layers ?? []).filter((l) => l !== was);
     const next = layer ? [...rest, layer] : rest;
     const { layers: _old, ...spec2 } = current(h);
     h.replace(spec2);

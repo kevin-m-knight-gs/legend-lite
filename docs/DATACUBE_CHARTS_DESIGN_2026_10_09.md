@@ -92,7 +92,7 @@ chart drawn today draws the same:
 | `label` | what a mark says on it: its value, the category, another measure | data labels |
 | `tooltip[]` | further measures a hover lists, beside the plotted ones | every kind |
 | `facet` | a column per small chart (rows, or columns, or both): small multiples on shared axes | small multiples, the matrix |
-| `layers[]` | reference lines (a constant, a target, the average, median, min, max of a measure -- the database's figure, one extra query as the KPI's total is), bands (between two values, or a date range), thresholds (colour by value: below a target red) and pinned extremes | the analytics layer |
+| `layers[]` | reference lines (a constant, a target, the average, min or max of a measure -- the database's figure, a group-level window over every row of the chart, before its top N; the median comes with batch 4's percentile), bands (between two values, or a date range), thresholds (colour by value: below a target red) and pinned extremes | the analytics layer |
 | `drill[]` | the path drilled so far (the grid's row groupings, one level per click) | drill-down |
 | `calcs[]` | the chart's own calculated columns, written in Pure as the grid's are (the column editor's own types, `DerivedColumn`) | anything a preset does not say |
 | `options` | grows: smooth, step, log axis, axis breaks, label position and rotation, zoom (slider), brush, sampling, hover dimming, decal fills, the toolbox | §3 batch 2 item 12 |
@@ -163,20 +163,27 @@ Each step a commit of its own, in this order:
    each labelled in its series' colour (§6, decided).
 6. **The grid's own number formats** on every axis, label and tooltip (currency, percent, thousands and millions), from
    the column's format in the grid, so a chart never says 15054092 where the grid says $15.1M.
-7. **Reference lines and colour by value**: a constant, a target, the average, median, minimum or maximum as a line (the
-   database's figure, one more query); a shaded band or period; the highest and lowest pinned; a series coloured by
-   thresholds (red below target).
+7. **Reference lines and colour by value**: a constant, a target, the average, minimum or maximum as a line (the
+   database's figure: a group-level window over every row of the chart -- before its top N, across every series); a
+   shaded band or period; the highest and lowest pinned; a series coloured by thresholds (red below target). Not on a
+   100% stack (its axis is shares), refused by name. The median comes with batch 4's percentile.
 8. **Label and tooltip**: a hover lists every measure asked for; a label from any column.
 9. **A real time axis, zoom and pan**: a date across is a time scale (gaps are gaps), a slider under a long series, and
    point thinning (ECharts' sampling) so a long series stays quick.
-10. **Drill-down and drill-through**: a click on a bar goes one level down the grid's own row groupings (region, then
-    desk), with the path shown and a way back up; drill-through shows the rows behind a mark in the grid.
+10. **Drill-down and drill-through**: a double-click on a bar goes one level down the grid's own row groupings (region,
+    then desk), with the path shown and a way back up -- only from a column the grid groups by, never from a period or
+    a bin; drill-through is a click, which filters the grid to the rows behind the mark.
 11. **Brush to filter**: drag across a date range, or around a region of a scatter, to filter the chart's own grid --
-    today's click-to-filter for a range (two conditions, from and to; four on a scatter's two columns).
+    today's click-to-filter for a range (two conditions, from and to; four on a scatter's two columns), taken by value
+    whatever order the chart draws in. A period's or a bin's end is the DATABASE's (its `adjust()`, its next edge:
+    chart-spec.ts AXIS_UPPER), compared, never computed in the browser.
 12. **The cheaper options**: smooth and step lines, a log axis, axis breaks, label position and rotation, dimming the
-    rest on hover, hiding a series from its legend, pattern fills for readers who cannot tell colours apart (ECharts'
-    decal), switching a chart's kind in place, the toolbox (save as PNG or SVG, the chart's data, its CSV), and a
-    crosshair shared across a page's charts.
+    rest on hover, hiding a series from its legend (ECharts' own: a click on its legend entry), pattern fills for
+    readers who cannot tell colours apart (ECharts' decal), switching a chart's kind in place (the toolbox's bars or
+    line, kept), the toolbox (save as a picture, the chart's data, its CSV), and a crosshair shared across a page's
+    charts of one column across -- the tooltip relayed, nothing else (ECharts' `connect` would pass on a brush or a zoom
+    too). The options form leaves startup: a chunk of its own (ui/chart-form.ts), fetched when a chart's options are
+    first shown.
 13. **The notebook widget fetches its chart code lazily** (today ECharts is inside its one module, budget 461,746 bytes
     gzipped, and grows with every piece registered): measured before and after, and asked of the user before it is
     built, since it changes the widget's build.

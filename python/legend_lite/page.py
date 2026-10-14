@@ -682,8 +682,9 @@ def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, size
             raise ValueError(f'a grain is one of {", ".join(sorted(GRAINS))}, not {grain!r}')
         out['grain'] = grain
     if bins is not None:
-        if not isinstance(bins, Mapping) or not ({'width', 'count'} & set(bins)):
-            raise ValueError(f'bins are {{\'width\': w}} or {{\'count\': n}}, not {bins!r}')
+        if (not isinstance(bins, Mapping) or not ({'width', 'count'} & set(bins)) or set(bins) - {'width', 'count'}
+                or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 for v in bins.values())):
+            raise ValueError(f'bins are {{\'width\': w}} or {{\'count\': n}}, each a positive number, not {bins!r}')
         out['bins'] = _copied(bins)
     if size is not None:
         out['size'] = _measure(grid, size, 'a chart\'s size')
@@ -780,8 +781,12 @@ class Chart(Tile):
         spec = _spec(grid, mark if mark is not None else was['mark'], was.get('x') if x is _KEEP else x,
                      list(was['y']) if y is _KEEP else y,
                      was.get('split') if split is _KEEP else split, bool(was.get('frozen')) if frozen is None else frozen)
-        # what the spec holds besides (its options, a newer writer's fields) stays
-        view['spec'] = {**{k: v for k, v in was.items() if k not in ('mark', 'x', 'y', 'split', 'frozen')}, **spec}
+        # what the spec holds besides (its options, a newer writer's fields) stays -- but a grain or bins belong to the
+        # column they were chosen for, and go with it, as DataCube's form drops them
+        moved = x is not _KEEP and x != was.get('x')
+        view['spec'] = {**{k: v for k, v in was.items()
+                           if k not in ('mark', 'x', 'y', 'split', 'frozen') and not (moved and k in ('grain', 'bins'))},
+                        **spec}
         self._page._changed()
         return self
 

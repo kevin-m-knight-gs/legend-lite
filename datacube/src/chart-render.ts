@@ -76,8 +76,14 @@ export interface MountedChart {
   dispose(): void;
 }
 
-/** The crosshair groups connected so far: ECharts connects a group once, and every chart in it follows. */
-const CONNECTED = new Set<string>();
+/** A chart in a crosshair group: shows the category another chart points at, or hides its tooltip. */
+interface Peer {
+  show(key: string): void;
+  hide(): void;
+}
+
+/** The crosshair groups: each page's charts with one column across. */
+const GROUPS = new Map<string, Set<Peer>>();
 
 /** A data: URL's bytes. */
 function bytesOf(dataUrl: string): Uint8Array {
@@ -129,7 +135,45 @@ export function mountChart(
   chart.on('brushEnd', (params: unknown) => {
     const areas = ((params as { areas?: BrushArea[] }).areas ?? []);
     if (!drawing?.brushed) return;
-    more.onBrush?.(areas.length === 0 ? null : drawing.brushed(areas));
+    // dates read as the time axis reads them: ECharts' own parser (local time for a date with no zone)
+    more.onBrush?.(areas.length === 0 ? null : drawing.brushed(areas, (t) => echarts.number.parseDate(t).getTime()));
+  });
+  // A CROSSHAIR SHARED with the page's charts of the same column across (setGroup): the pointer's category, and only
+  // that, shown on each -- ECharts' own `connect` would pass on every action (a brush, a zoom, a legend), and a brush
+  // on one chart would filter the others' grids
+  let group: string | undefined;
+  let relaying = false;
+  const timeOf = (t: string): number => echarts.number.parseDate(t).getTime();
+  const peer: Peer = {
+    show: (key) => {
+      const i = drawing?.indexOfKey?.(key);
+      relaying = true;
+      try {
+        if (i === undefined) chart.dispatchAction({ type: 'hideTip' });
+        else chart.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: i });
+      } finally {
+        relaying = false;
+      }
+    },
+    hide: () => {
+      relaying = true;
+      try { chart.dispatchAction({ type: 'hideTip' }); } finally { relaying = false; }
+    },
+  };
+  chart.on('updateAxisPointer', (params: unknown) => {
+    if (relaying || group === undefined || !drawing?.pointerKey) return;
+    const info = (params as { axesInfo?: { axisDim?: string; value?: number }[] }).axesInfo ?? [];
+    const across = info.find((a) => a.axisDim === 'x') ?? info[0];
+    const key = across?.value === undefined ? undefined : drawing.pointerKey(across.value, timeOf);
+    for (const other of GROUPS.get(group) ?? []) {
+      if (other === peer) continue;
+      if (key === undefined) other.hide();
+      else other.show(key);
+    }
+  });
+  chart.getZr().on('globalout', () => {
+    if (group === undefined) return;
+    for (const other of GROUPS.get(group) ?? []) if (other !== peer) other.hide();
   });
   const view = el.ownerDocument.defaultView;
   const Observer = view?.ResizeObserver;
@@ -161,15 +205,18 @@ export function mountChart(
         chart.dispatchAction({ type: 'takeGlobalCursor', key: 'brush', brushOption: { brushType: brush.brushType, brushMode: 'single' } });
       }
     },
-    setGroup(group) {
-      if ((chart.group || undefined) === group) return;
-      chart.group = group ?? '';
-      if (group !== undefined && !CONNECTED.has(group)) {
-        CONNECTED.add(group);
-        echarts.connect(group);
+    setGroup(next) {
+      if (group === next) return;
+      if (group !== undefined) GROUPS.get(group)?.delete(peer);
+      group = next;
+      if (group !== undefined) {
+        const peers = GROUPS.get(group) ?? new Set<Peer>();
+        peers.add(peer);
+        GROUPS.set(group, peers);
       }
     },
     dispose() {
+      if (group !== undefined) GROUPS.get(group)?.delete(peer);
       observer?.disconnect();
       chart.dispose();
     },

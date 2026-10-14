@@ -238,6 +238,9 @@ class Document(Paged):
         chart.plot('line')
         self.assertEqual(page.to_dict()['views'][-1]['spec']['y'][1]['mark'], 'line')
         self.assertEqual(page.to_dict()['views'][-1]['spec']['grain'], 'month')
+        # a new column across goes without the grain chosen for the last
+        chart.plot(x='desk')
+        self.assertNotIn('grain', page.to_dict()['views'][-1]['spec'])
         # every word one of DataCube's, refused at the line that names it
         for bad, why in [({'grain': 'decade'}, 'a grain is one of'),
                          ({'y': [{'column': 'notional', 'fn': 'sum', 'mark': 'pie'}]}, "a measure's mark"),
@@ -247,7 +250,8 @@ class Document(Paged):
                          ({'layers': [{'kind': 'sparkle'}]}, "a layer's kind"),
                          ({'layers': [{'kind': 'stat', 'stat': 'mode'}]}, "a stat layer's stat"),
                          ({'facet': {'column': 'nope'}}, 'not a column'),
-                         ({'bins': {'size': 3}}, 'bins are')]:
+                         ({'bins': {'size': 3}}, 'bins are'),
+                         ({'bins': {'width': '10'}}, 'bins are')]:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, why):
                 grid.chart('bar', x='region', **{'y': [('notional', 'sum')], **bad})
 
