@@ -218,6 +218,8 @@ _EXTRA_DATA = {
         ":bundle_bundle",
         ":bundle_bundle_engine",
         ":demo/bundle-engine.js",
+        # a notebook cube's module and its lazy chunks (widget-chunks/)
+        ":widget",
         ":demo/bundle.js",
         ":demo/widget-loader.js",
         ":demo/widget.css",
@@ -1282,8 +1284,10 @@ copy_file(
 
 # A NOTEBOOK'S CUBE (legend_lite.notebook.DataCube; docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md, "In a notebook"):
 # anywidget's script, a small loader (widget-loader.js), and DataCube's module, which the loader fetches over the
-# widget's channel once per notebook page: widget.js, one file with no lazy chunks (a module imported from a blob URL
-# loads none beside it), minified with its names kept, and widget.css, DataCube's styles (in the notebook's own type).
+# widget's channel once per notebook page: widget.js, minified with its names kept, its lazy chunks beside it in
+# widget-chunks/ (a chart's code, fetched over the channel the first time a chart draws: the loader rewrites a chunk's
+# import, for a module imported from a blob URL resolves none), and widget.css, DataCube's styles (in the notebook's own
+# type).
 esbuild_bundle(
     name = "widget_loader",
     srcs = ["demo/widget-loader.ts"],
@@ -1315,6 +1319,7 @@ esbuild_bundle(
         "demo/widget.css",
         "demo/widget.js",
     ],
+    out_dirs = ["demo/widget-chunks"],
     args = [
         # two entry points, both named widget: the module (widget.js) and its styles (widget.css). The styles are their
         # own entry ON PURPOSE: widget.ts imports no CSS, for esbuild would write a JS entry's imported CSS to a sibling
@@ -1327,6 +1332,8 @@ esbuild_bundle(
         "--minify",
         "--keep-names",
         "--log-level=warning",
+        "--splitting",
+        "--chunk-names=widget-chunks/[name]-[hash]",
         "--outdir=demo",
     ],
 )

@@ -197,7 +197,11 @@ Each step a commit of its own, in this order:
     first shown.
 13. **The notebook widget fetches its chart code lazily** (today ECharts is inside its one module, budget 461,746 bytes
     gzipped, and grows with every piece registered): measured before and after, and asked of the user before it is
-    built, since it changes the widget's build.
+    built, since it changes the widget's build. **Done** (the user said yes, 2026-10-14): the module is built with lazy
+    chunks (`widget-chunks/`); the loader fetches each over the kernel's channel the first time the cube needs it and
+    imports it from a blob URL with its chunk specifiers rewritten (a static import to the chunk's own URL, a dynamic
+    one to the loader's fetch). What a cube fetches before it shows went from 604,278 bytes gzipped to 281,797; the
+    chart's code and ECharts come with the first chart. Python's hash of the module covers the chunks.
 14. **Its example page** (§3.3): sheets for combinations, reference lines and thresholds, time and zoom, drill and brush,
     formats and labels, the options.
 
@@ -316,4 +320,4 @@ Batch 2 is built on the session branch `claude/epic-rubin-ay7upl`, from main.
    cover most countries, and a user's own shapes cover the rest.
 2. **The map-preparation tool**: a pinned Python tool run at build time, or files prepared once and committed with how
    they were made. To be chosen when batch 5 starts, with the measured sizes.
-3. **The notebook widget's chart code fetched lazily** (batch 2 item 13): measured, then asked.
+3. **The notebook widget's chart code fetched lazily** (batch 2 item 13): measured, asked, built (2026-10-14).

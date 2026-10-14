@@ -13,6 +13,7 @@ import sys
 import threading
 import types
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import IPython
@@ -85,6 +86,12 @@ class Calls(Widget):
             status, given, _, body = self.call(cube, 'GET', '/' + name)
             self.assertEqual((status, given), (200, kind), name)
             self.assertGreater(len(body), 50_000, name)
+        # and its lazy chunks, as the loader fetches one the first time the cube needs it (a chart's code)
+        chunks = Path(os.environ['LEGEND_LITE_SITE']) / 'widget-chunks'
+        render = next(f.name for f in chunks.iterdir() if f.name.startswith('chart-render-'))
+        status, given, _, body = self.call(cube, 'GET', '/widget-chunks/' + render)
+        self.assertEqual((status, given), (200, 'text/javascript; charset=utf-8'), render)
+        self.assertIn(b'echarts', body)
 
     def test_execute_answers_upstream_s_arrow_with_its_header(self):
         cube = self.cube(name='trades')

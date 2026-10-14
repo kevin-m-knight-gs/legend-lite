@@ -12,8 +12,9 @@ works wherever the notebook does -- this machine, a remote JupyterHub, VS Code, 
 widget's ``version``, which Python sets when the frame changes; the cube reads it again when it moves.
 
 The widget's script is a small loader (DataCube's ``widget-loader.js``): DataCube's module (``widget.js`` and its styles,
-``widget.css``, about 1.3 MB) is fetched over the same channel once per notebook page, keyed by its hash (``_module``),
-not sent with every widget as anywidget would.
+``widget.css``, about 0.6 MB) is fetched over the same channel once per notebook page, keyed by its hash (``_module``),
+not sent with every widget as anywidget would; its lazy chunks (``widget-chunks/``: a chart's code, ECharts) when the cube
+first needs each.
 """
 
 from __future__ import annotations
@@ -41,17 +42,23 @@ from .frames import LIVE
 # DataCube's files for a notebook, in its built site (datacube/BUILD.bazel)
 _LOADER = 'widget-loader.js'
 _MODULE = ('widget.js', 'widget.css')
+_CHUNKS = 'widget-chunks'
 
 
 @cache
 def _loader(site: Path) -> tuple[str, str]:
     """The widget's script (the loader) and the hash its page keeps DataCube's module by."""
     missing = [name for name in (_LOADER, *_MODULE) if not (site / name).is_file()]
+    if not (site / _CHUNKS).is_dir():
+        missing.append(_CHUNKS + '/')
     if missing:
         raise FileNotFoundError(f"DataCube's notebook files {missing} are not in its site {site}")
     digest = hashlib.sha256()
-    for name in _MODULE:
-        digest.update((site / name).read_bytes())
+    # the module, its styles and its lazy chunks (fetched over the channel when the cube first needs each): a page keeps
+    # them all by this hash
+    chunks = site / _CHUNKS
+    for file in [site / name for name in _MODULE] + sorted(chunks.iterdir()):
+        digest.update(file.name.encode() + b'\0' + file.read_bytes())
     return (site / _LOADER).read_text('utf-8'), digest.hexdigest()
 
 

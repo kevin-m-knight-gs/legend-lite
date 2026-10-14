@@ -177,8 +177,13 @@ const EXAMPLE_BUDGET = 6_000;
  *  596,247.
  *  598,000 -> 604,000 (2026-10-14, batch 2 steps 12-14): the options form, the toolbox's CSV, the example page and the
  *  sales sample -- chunks in the tab, one file here. Measured 602,438.
- *  604,000 -> 606,000 (2026-10-14, batch 2's audit): the chart chunk's note of the same date. Measured 604,278. */
-const WIDGET_BUDGET = 606_000;
+ *  604,000 -> 606,000 (2026-10-14, batch 2's audit): the chart chunk's note of the same date. Measured 604,278.
+ *  606,000 -> 290,000 (2026-10-14, batch 2 step 13, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): the module has lazy
+ *  chunks (widget-chunks/), which the loader fetches over the channel when the cube first needs each and imports with
+ *  their specifiers rewritten -- ECharts and the chart code, the page's sheets, the saved pages' windows, the model
+ *  actions. What a cube fetches before it shows: the module, the chunks it imports statically and its styles, measured
+ *  281,797 (all the chunks 410,466). */
+const WIDGET_BUDGET = 290_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
@@ -249,22 +254,48 @@ describe('the page loads ECharts only when a chart draws', () => {
   });
 });
 
-describe('a notebook\'s cube is one module, fetched once, and its loader small', () => {
+describe('a notebook\'s cube is one module and its lazy chunks, fetched over the channel, and its loader small', () => {
   const module = runfileFromEnv('WIDGET');
   const styles = join(dirname(module), 'widget.css');
+  const chunks = join(dirname(module), 'widget-chunks');
+  /** What a minified file imports statically (`from"./x.js"`, `import"./x.js"`), resolved; and what it imports
+   *  dynamically (`import("./x.js")`). */
+  const imports = (file: string, dynamic: boolean): string[] =>
+    [...readFileSync(file, 'utf8').matchAll(dynamic ? /\bimport\s*\(\s*"(\.[^"]+)"/g : /\bfrom\s*"(\.[^"]+)"|\bimport\s*"(\.[^"]+)"/g)]
+      .map((m) => join(dirname(file), (m[1] ?? m[2])!));
+  /** The module and what it imports statically, transitively: what the loader fetches before a cube shows. */
+  const atStart = (): string[] => {
+    const seen = new Set<string>();
+    const walk = (file: string): void => {
+      if (seen.has(file)) return;
+      seen.add(file);
+      imports(file, false).forEach(walk);
+    };
+    walk(module);
+    return [...seen];
+  };
 
-  it('the module imports nothing beside itself: a module imported from a blob URL can load no chunk', () => {
-    const text = readFileSync(module, 'utf8');
-    assert.deepEqual([...text.matchAll(/\bimport\s*\(\s*["'`]\.|\bfrom\s*["']\.|\bimport\s*["']\./g)].map((m) => m[0]), []);
+  it('the module imports only its chunks: the loader rewrites those, a module from a blob URL resolving none', () => {
+    for (const file of [module, ...readdirSync(chunks).map((f) => join(chunks, f))]) {
+      for (const target of [...imports(file, false), ...imports(file, true)]) {
+        assert.equal(dirname(target), chunks, `${file} imports ${target}, not a chunk`);
+      }
+    }
   });
 
-  it(`the module and its styles are at most ${WIDGET_BUDGET.toLocaleString()} bytes gzipped, with no DuckDB-WASM`, () => {
-    const text = readFileSync(module, 'utf8');
+  it('ECharts is not fetched before a chart draws: in a chunk the module imports dynamically', () => {
+    for (const f of atStart()) assert.ok(!readFileSync(f, 'utf8').includes('echarts'), `${f} carries ECharts`);
+    const lazy = readdirSync(chunks).map((f) => join(chunks, f)).filter((f) => readFileSync(f, 'utf8').includes('echarts'));
+    assert.ok(lazy.length > 0, 'a chunk holds ECharts');
+  });
+
+  it(`the module, what it imports at start and its styles are at most ${WIDGET_BUDGET.toLocaleString()} bytes gzipped, with no DuckDB-WASM`, () => {
+    const text = [module, ...readdirSync(chunks).map((f) => join(chunks, f))].map((f) => readFileSync(f, 'utf8')).join('\n');
     // DuckDB-WASM's code, by what a page that can start it must name: its package, its workers and its modules
     // (duckdb-browser-*.worker.js, duckdb-eh.wasm), its client. Not the word: since 2026-10-12 (DataCube one app, step
     // 2a) the module is the app, whose examples and Remote section say in words what DuckDB does with a file
     assert.ok(!/duckdb-wasm|duckdb-(?:browser|eh|mvp|coi)\b|AsyncDuckDB/i.test(text), 'the notebook cube runs nothing in the page: no DuckDB-WASM');
-    const size = gzipSync(readFileSync(module)).length + gzipSync(readFileSync(styles)).length;
+    const size = atStart().reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0) + gzipSync(readFileSync(styles)).length;
     assert.ok(size <= WIDGET_BUDGET,
       `a notebook cube's module is ${size.toLocaleString()} bytes gzipped, over its budget of ${WIDGET_BUDGET.toLocaleString()}`);
   });

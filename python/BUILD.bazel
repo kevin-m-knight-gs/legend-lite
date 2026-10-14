@@ -486,7 +486,9 @@ copy_to_directory(
         "engine.html",
         "fonts.css",
         "vendor/fonts/**",
-        # a notebook's cube (legend_lite/notebook.py): anywidget's script, and DataCube's module it fetches
+        # a notebook's cube (legend_lite/notebook.py): anywidget's script, and DataCube's module it fetches, its lazy
+        # chunks too
+        "widget-chunks/**",
         "widget-loader.js",
         "widget.css",
         "widget.js",

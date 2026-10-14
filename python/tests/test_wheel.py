@@ -47,7 +47,9 @@ cube.close()
 widget = ll.DataCube(pd.DataFrame({"desk": ["FX"], "qty": [1.0]}), name="nb")
 sent = []
 widget.send = lambda content, buffers=None: sent.append((content, buffers))
-for name in ("widget.js", "widget.css"):
+# and a lazy chunk of it, the chart's code, as the loader asks for it the first time a chart draws
+chunks = __import__("pathlib").Path(ll.__file__).parent / "_site" / "widget-chunks"
+for name in ("widget.js", "widget.css", "widget-chunks/" + next(f.name for f in chunks.iterdir() if f.name.startswith("chart-render-"))):
     widget._answer({"kind": "call", "id": name, "method": "GET", "path": "/" + name, "query": "", "body": None})
 notebook = {"loader": " as default" in widget._esm, "answers": [(c["status"], len(b[0])) for c, b in sent]}
 widget.close()
@@ -345,7 +347,7 @@ class Installed(unittest.TestCase):
         self.assertEqual(out['rows'], [{'desk': 'EQ', 'q': 2.5}, {'desk': 'FX', 'q': 5.5}])
         # the notebook extra installed: the cube's loader, and DataCube's module (about 1.3 MB) and styles, from the wheel
         self.assertTrue(out['notebook']['loader'], out['notebook'])
-        self.assertEqual([status for status, _ in out['notebook']['answers']], [200, 200], out['notebook'])
+        self.assertEqual([status for status, _ in out['notebook']['answers']], [200, 200, 200], out['notebook'])
         self.assertGreater(out['notebook']['answers'][0][1], 500_000, out['notebook'])
         # the datacube extra installed: a grid viewed by DataCube's own code, its bundle the wheel's
         self.assertEqual(out['headless']['groups'], [['EQ', 2.5], ['FX', 5.5]], out['headless'])

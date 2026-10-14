@@ -131,9 +131,10 @@ def main() -> None:
                                   [[('Atlas', 5), ('Borealis', 7)], [('Cygnus', 9)]])
     # two notebook cubes, as ll.DataCube(df) makes them: the page shows both and fetches DataCube's module once
     widgets = {'nb': DataCube(frame, name='nb'), 'nb2': DataCube(frame.slice(0, 3), name='nb2')}
-    # and a notebook's PAGE (ll.Page, shown under a cell): a grid grouped by region
+    # and a notebook's PAGE (ll.Page, shown under a cell): a grid grouped by region, and its chart -- whose code (and
+    # ECharts) the page fetches over the channel when it first draws (the widget's lazy chunks)
     notebook_page = ll.Page('Notebook page')
-    notebook_page.grid(frame, name='nbpage', rows=['region'], measures={'notional': 'sum'})
+    notebook_page.grid(frame, name='nbpage', rows=['region'], measures={'notional': 'sum'}).chart('bar')
     widgets['nbp'] = PageCube(notebook_page)
     for name, widget in widgets.items():
         channel(widget, name)

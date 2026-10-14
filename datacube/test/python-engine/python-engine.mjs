@@ -732,6 +732,13 @@ try {
     .map((t) => t.textContent).join('|');
   await check('a notebook\'s page shows its sheet and its grid over its frame, over the widget\'s channel',
     `(${String(pageTabs)})() === 'nbpage' && document.getElementById('nbp').innerText.includes('EMEA')`);
+  // its chart draws: the chart's code fetched over the channel, once for the page, when it first drew
+  await check('a notebook page\'s chart draws, its code fetched over the widget\'s channel',
+    () => document.getElementById('nbp').querySelector('.dc-chartpanel canvas') !== null);
+  const charts = [...fetched.entries()].filter(([p]) => /^\/widget-chunks\/chart-render-[^/]+\.js$/.test(p));
+  const chartOnce = charts.length === 1 && charts[0][1] === 1;
+  console.log(`${chartOnce ? 'ok  ' : 'FAIL'} the chart's code came once, as a chunk (${JSON.stringify(charts)})`);
+  if (!chartOnce) failed = true;
   engine.stdin.write('widget-page-sheet\n');
   if ((await nextLine()) !== 'done widget-page-sheet') throw new Error('the engine did not do widget-page-sheet');
   await check('a sheet added to the notebook\'s page in Python shows by itself (its versions followed)',
