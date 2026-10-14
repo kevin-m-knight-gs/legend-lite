@@ -980,7 +980,7 @@ final class IqAggregates {
         /** What the parts of {@code item} render as ({@link IqNames.Substitutes}), its columns rendered by
          *  {@code columns} and found in the FROM clause by {@code tables}; {@link IqNames#NONE} when its query does not
          *  group. */
-        IqNames.Substitutes substitutes(SqlAst.SelectExpr item, IqProfile profile, IqNames.Columns columns,
+        IqNames.Substitutes substitutes(SqlAst.SelectExpr item, IqSettings settings, IqNames.Columns columns,
                 com.legend.protocol.sql.InputDialect.Tables tables) {
             Item it = items.get(item);
             if (it == null) {
@@ -1005,7 +1005,7 @@ final class IqAggregates {
                             return IqNames.UNKNOWN;
                         }
                         String text = text(c);
-                        String r = text == null ? null : IqNames.name(text, profile, columns);
+                        String r = text == null ? null : IqNames.name(text, settings, columns);
                         return new IqNames.Part(r);
                     }
                     return null;
@@ -1015,7 +1015,7 @@ final class IqAggregates {
                         continue;
                     }
                     String text = text(k);
-                    return new IqNames.Part(text == null ? null : IqNames.name(text, profile, columns));
+                    return new IqNames.Part(text == null ? null : IqNames.name(text, settings, columns));
                 }
                 if (e instanceof SqlAst.ColumnRef r) {
                     SqlAst.ColumnRef key = bareKey(s, r);
@@ -1042,7 +1042,7 @@ final class IqAggregates {
      *  profile (the class's rules). */
     static SqlToPure.Aggregation aggregate(SqlAst.FunctionCall f, SqlToPure.Grouping at, IqDialect dialect) {
         IqDialect.Engine engine = java.util.Objects.requireNonNull(dialect.engine(), "the statement's engine");
-        IqProfile profile = dialect.profile();
+        IqSettings settings = dialect.settings();
         String fn = IqLexer.lower(f.name().get(0).text());
         String upper = fn.toUpperCase(java.util.Locale.ROOT);
         if (f.star()) {
@@ -1090,8 +1090,8 @@ final class IqAggregates {
                     // IQ island, 2026-10-14 (the merge): IQ shows the first value of the least (greatest) key it meets
                     if (!dialect.keys().own(argument)) {
                         throw SqlTranslationException.unsupported(upper + " of strings is supported only where every"
-                                + " value is its own collation key (RTRIM, TRIM, a constant" + (profile.caseSensitive()
-                                ? "" : ", LOWER") + "): IQ compares " + (profile.caseSensitive() ? "'a' and 'a '"
+                                + " value is its own collation key (RTRIM, TRIM, a constant" + (settings.caseSensitive()
+                                ? "" : ", LOWER") + "): IQ compares " + (settings.caseSensitive() ? "'a' and 'a '"
                                 : "'A' and 'a'") + " as one value and shows the first it meets, which is its plan's"
                                 + " choice", f.pos());
                     }
@@ -1142,7 +1142,7 @@ final class IqAggregates {
     private static SqlToPure.Aggregation sum(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
             @com.legend.base.Nullable IqType type, ValueSpecification values, IqDialect dialect, boolean average) {
         IqDialect.Engine engine = java.util.Objects.requireNonNull(dialect.engine(), "the statement's engine");
-        IqProfile profile = dialect.profile();
+        IqSettings settings = dialect.settings();
         String what = average ? "AVG" : "SUM";
         Kind kind = x.kind();
         if (kind == Kind.NULL) {
@@ -1185,7 +1185,7 @@ final class IqAggregates {
             }
             int[] ps = numeric(type);
             int p = ps[0] + 8;
-            if (p > 38 || p > profile.precision()) {
+            if (p > 38 || p > settings.precision()) {
                 throw SqlTranslationException.unsupported("SUM of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not"
                         + " supported: its type, NUMERIC(" + p + "," + ps[1] + "), is capped by the profile or needs"
                         + " more than lite's 38 digits", f.pos());
@@ -1213,7 +1213,7 @@ final class IqAggregates {
      */
     private static SqlToPure.Aggregation average(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
             ValueSpecification values, IqDialect dialect, int p, int s) {
-        IqProfile profile = dialect.profile();
+        IqSettings settings = dialect.settings();
         int pAvg = p + 19;
         int sAvg = s + 11;
         if (!dialect.shownValue(f)) {
@@ -1222,10 +1222,10 @@ final class IqAggregates {
                     + " same AVG written again): SQL Anywhere rounds the quotient to its scale only where it shows it,"
                     + " and an operand, a comparison or a key reads it with more digits", f.pos());
         }
-        if (pAvg > profile.precision()) {
+        if (pAvg > settings.precision()) {
             throw SqlTranslationException.unsupported("AVG of a NUMERIC(" + p + "," + s + ") is not supported under"
-                    + " profile " + profile.spelling() + ": its NUMERIC(" + pAvg + "," + sAvg + ") is cut to the"
-                    + " profile's PRECISION (" + profile.precision() + ")", f.pos());
+                    + " profile " + settings.spelling() + ": its NUMERIC(" + pAvg + "," + sAvg + ") is cut to the"
+                    + " profile's PRECISION (" + settings.precision() + ")", f.pos());
         }
         int sumWhole = p + 8 - s;
         if (!IqFunctions.quotientFits(s, sumWhole, 0, COUNT_DIGITS, pAvg, sAvg)) {
@@ -1378,8 +1378,8 @@ final class IqAggregates {
         if (strings && !dialect.keys().own(value)) {
             // IQ island, 2026-10-14 (the merge): the order of values of one collation key is the plan's
             throw SqlTranslationException.unsupported("LIST of strings is supported only where every value is its own"
-                    + " collation key (a derived table's RTRIM, TRIM or constant" + (dialect.profile().caseSensitive()
-                    ? "" : ", LOWER") + "): IQ orders " + (dialect.profile().caseSensitive() ? "'a' and 'a '"
+                    + " collation key (a derived table's RTRIM, TRIM or constant" + (dialect.settings().caseSensitive()
+                    ? "" : ", LOWER") + "): IQ orders " + (dialect.settings().caseSensitive() ? "'a' and 'a '"
                     : "'A' and 'a'") + " as one value, in its plan's order", value.pos());
         }
         if (!strings && (x.kind() != Kind.INTEGER || type == null || !(type.isInteger()

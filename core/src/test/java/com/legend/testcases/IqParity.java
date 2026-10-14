@@ -390,7 +390,7 @@ public final class IqParity {
     public static String rewrite(String sql, Set<String> tables, IqProfile profile) {
         List<IqLexer.Token> tokens;
         try {
-            tokens = IqLexer.tokenize(sql, profile);
+            tokens = IqLexer.tokenize(sql, profile.settings());
         } catch (SqlSyntaxException e) {
             return sql;
         }
@@ -471,11 +471,11 @@ public final class IqParity {
         }
         SqlAst.Statement statement;
         try {
-            statement = IqParser.parse(rewrite(run.c().sql(), tables, run.profile()), run.profile());
+            statement = IqParser.parse(rewrite(run.c().sql(), tables, run.profile()), run.profile().settings());
         } catch (SqlSyntaxException e) {
             return null;
         }
-        String engine = IqDialect.engineOf(statement, run.profile()).name().toLowerCase(Locale.ROOT);
+        String engine = IqDialect.engineOf(statement, run.profile().settings()).name().toLowerCase(Locale.ROOT);
         return engine.equals(pinned) ? null : "ENGINE: " + run.key() + " pins engine=" + pinned + ", and its island"
                 + " runs in engine=" + engine;
     }
@@ -500,19 +500,19 @@ public final class IqParity {
         String sql = rewrite(c.sql(), names, run.profile());
         SqlAst.Statement statement;
         try {
-            statement = IqParser.parse(sql, run.profile());
+            statement = IqParser.parse(sql, run.profile().settings());
         } catch (SqlSyntaxException e) {
             return null;
         }
-        if (IqDialect.engineOf(statement, run.profile()) != IqDialect.Engine.IQ) {
+        if (IqDialect.engineOf(statement, run.profile().settings()) != IqDialect.Engine.IQ) {
             return null;
         }
         List<Param> params = params(c.params());
-        String iq = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.IQ), params);
+        String iq = pureOf(sql, tables, IqDialect.of(run.profile().settings(), IqDialect.Engine.IQ), params);
         if (iq == null) {
             return null;
         }
-        String sa = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.SA), params);
+        String sa = pureOf(sql, tables, IqDialect.of(run.profile().settings(), IqDialect.Engine.SA), params);
         return iq.equals(sa) ? null : "ENGINE NEUTRALITY: " + run.key() + " translates otherwise under the IQ engine's"
                 + " rules than under SQL Anywhere's, which judges it: name its decision, or pin engine: sa";
     }
@@ -531,7 +531,7 @@ public final class IqParity {
         }
         SqlAst.Statement statement;
         try {
-            statement = IqParser.parse(run.c().sql(), run.profile());
+            statement = IqParser.parse(run.c().sql(), run.profile().settings());
         } catch (SqlSyntaxException e) {
             return null;
         }
@@ -834,7 +834,7 @@ public final class IqParity {
         List<SqlAst.SortItem> orderBy;
         SqlAst.Statement st;
         try {
-            st = IqParser.parse(run.c().sql(), run.profile());
+            st = IqParser.parse(run.c().sql(), run.profile().settings());
             // IQ island, 2026-10-14 (M1b): a set operation's ORDER BY is its own
             orderBy = st instanceof SqlAst.Select s ? s.orderBy() : st instanceof SqlAst.SetOperation o ? o.orderBy()
                     : List.of();
@@ -942,10 +942,10 @@ public final class IqParity {
         StringBuilder b = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            b.append(!profile.caseSensitive() && c >= 'A' && c <= 'Z' ? (char) (c + ('a' - 'A')) : c);
+            b.append(!profile.settings().caseSensitive() && c >= 'A' && c <= 'Z' ? (char) (c + ('a' - 'A')) : c);
         }
         int end = b.length();
-        while (profile.blankPadding() && end > 0 && b.charAt(end - 1) == ' ') {
+        while (profile.settings().blankPadding() && end > 0 && b.charAt(end - 1) == ' ') {
             end--;
         }
         return b.substring(0, end);

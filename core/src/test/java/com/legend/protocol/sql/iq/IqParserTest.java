@@ -25,11 +25,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IqParserTest {
 
     private static SqlAst.Select select(String sql) {
-        return (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT);
+        return (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
     private static SqlSyntaxException error(String sql) {
-        return assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT));
+        return assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings()));
     }
 
     @Test
@@ -273,7 +273,7 @@ class IqParserTest {
                 .map(i -> ((SqlAst.SelectExpr) i).alias().text()).toList());
         assertInstanceOf(SqlAst.Binary.class, ((SqlAst.SelectExpr) s.items().get(0)).expr());
         // under a TDS login "q" is a string: still an alias
-        SqlAst.Select tds = (SqlAst.Select) IqParser.parse("SELECT \"q\" = id, id \"r\" FROM t", IqProfile.IQ16_TDS);
+        SqlAst.Select tds = (SqlAst.Select) IqParser.parse("SELECT \"q\" = id, id \"r\" FROM t", IqProfile.IQ16_TDS.settings());
         assertEquals("q", ((SqlAst.SelectExpr) tds.items().get(0)).alias().text());
         assertEquals("r", ((SqlAst.SelectExpr) tds.items().get(1)).alias().text());
         for (String sql : new String[] {"SELECT n = id = 1 FROM t", "SELECT n = id AS m FROM t",
@@ -343,7 +343,7 @@ class IqParserTest {
     // ------------------------------------------------------------------ M1b: relations
 
     private static SqlAst.Statement statement(String sql) {
-        return IqParser.parse(sql, IqProfile.IQ16_DEFAULT);
+        return IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
     @Test
@@ -459,7 +459,7 @@ class IqParserTest {
         assertEquals(2, list.orderBy().size());
         assertTrue(list.orderBy().get(0).descending());
         // the texts kept for IQ's names of a grouped query's items
-        IqParser.Parsed p = IqParser.parsed("SELECT SUM( v ) FROM t GROUP BY (k) + 1", IqProfile.IQ16_DEFAULT);
+        IqParser.Parsed p = IqParser.parsed("SELECT SUM( v ) FROM t GROUP BY (k) + 1", IqProfile.IQ16_DEFAULT.settings());
         SqlAst.Select q = (SqlAst.Select) p.statement();
         assertEquals("(k) + 1", p.spans().get(q.groupBy().get(0)));
         assertEquals("SUM( v )", p.spans().get(((SqlAst.SelectExpr) q.items().get(0)).expr()));
@@ -476,14 +476,14 @@ class IqParserTest {
     @Test
     void anItemIsReadAgainAsWritten() {
         IqParser.Written w = IqParser.written("((a + 1)) * CASE b WHEN 1 THEN 2 END + IF c = 1 THEN 1 ENDIF",
-                IqProfile.IQ16_DEFAULT);
+                IqProfile.IQ16_DEFAULT.settings());
         SqlAst.Binary plus = (SqlAst.Binary) w.expr();
         SqlAst.Binary times = (SqlAst.Binary) plus.left();
         assertEquals(2, w.parensOf(times.left()));
         assertTrue(w.simpleCases().contains(times.right()));
         assertTrue(w.ifs().contains(plus.right()));
         assertFalse(w.commented());
-        assertTrue(IqParser.written("a /* x */ + 1", IqProfile.IQ16_DEFAULT).commented());
+        assertTrue(IqParser.written("a /* x */ + 1", IqProfile.IQ16_DEFAULT.settings()).commented());
     }
 
     // ------------------------------------------------------------------ M1e: names and host variables

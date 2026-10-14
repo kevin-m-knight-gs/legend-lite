@@ -73,12 +73,12 @@ import java.util.function.Function;
 final class IqFunctions {
 
     private final IqDialect dialect;
-    private final IqProfile profile;
+    private final IqSettings settings;
     private final IqDialect.@com.legend.base.Nullable Engine engine;
 
     IqFunctions(IqDialect dialect) {
         this.dialect = dialect;
-        this.profile = dialect.profile();
+        this.settings = dialect.settings();
         this.engine = dialect.engine();
     }
 
@@ -158,7 +158,7 @@ final class IqFunctions {
      * to DATE or TIMESTAMP (-157, or IQ's other spellings, not read); an integer longer than a CHAR or VARCHAR (-157), a
      * string longer than it but for blanks (-638).
      */
-    static void constantCast(SqlAst.Expr operand, SqlAst.TypeName type, String what, IqProfile profile) {
+    static void constantCast(SqlAst.Expr operand, SqlAst.TypeName type, String what, IqSettings settings) {
         String target = type.name();
         List<Integer> sizes = type.modifiers();
         String text = operand instanceof SqlAst.StringLit lit ? lit.value() : null;
@@ -201,7 +201,7 @@ final class IqFunctions {
                     // before the year 100 refused here as the reader's
                     String[] parts;
                     try {
-                        parts = IqDateTime.read(text, profile, operand.pos());
+                        parts = IqDateTime.read(text, settings, operand.pos());
                     } catch (SqlTranslationException e) {
                         throw com.legend.protocol.sql.SqlSyntaxException.unsupported(String.valueOf(e.getMessage()), operand.pos());
                     }
@@ -430,7 +430,7 @@ final class IqFunctions {
             if (set.value().isEmpty()) {
                 return strict(Kind.STRING, varchar(), List.of(s), v -> v.get(0));
             }
-            chars = setClass(set.value(), !profile.caseSensitive());
+            chars = setClass(set.value(), !settings.caseSensitive());
         } else {
             chars = BLANKS;
         }
@@ -493,16 +493,16 @@ final class IqFunctions {
         Tx s = text(args.get(0), f.args().get(0), name);
         Tx search = text(args.get(1), f.args().get(1), name);
         Tx replacement = text(args.get(2), f.args().get(2), name);
-        if (!profile.caseSensitive() && !caseFree(f.args().get(1)) && search.kind() != Kind.NULL
+        if (!settings.caseSensitive() && !caseFree(f.args().get(1)) && search.kind() != Kind.NULL
                 && replacement.kind() != Kind.NULL) {
             if (!(f.args().get(1) instanceof SqlAst.StringLit sought) || sought.value().length() > LONGEST_SEARCH) {
-                throw SqlTranslationException.unsupported(name + " in profile " + profile.spelling() + "'s"
+                throw SqlTranslationException.unsupported(name + " in profile " + settings.spelling() + "'s"
                         + " case-insensitive database with a search that is no constant string (of at most "
                         + LONGEST_SEARCH + " characters) is not supported yet", f.args().get(1).pos());
             }
             String with = constantText(f.args().get(2));
             if (with == null) {
-                throw SqlTranslationException.unsupported(name + " in profile " + profile.spelling() + "'s"
+                throw SqlTranslationException.unsupported(name + " in profile " + settings.spelling() + "'s"
                         + " case-insensitive database with a replacement that is no constant is not supported yet",
                         f.args().get(2).pos());
             }
@@ -602,7 +602,7 @@ final class IqFunctions {
         }
         // IQ island, 2026-10-14 (natives): a sqla17 profile's database finds the search without regard to the ASCII
         // letters' case (measured: LOCATE('xAbc', 'abc') is 2): both folded, which moves no position
-        boolean fold = !profile.caseSensitive();
+        boolean fold = !settings.caseSensitive();
         Tx r = strict(Kind.INTEGER, nonNegative(), operands, v -> {
             ValueSpecification str = fold ? asciiFold(v.get(0), false) : v.get(0);
             ValueSpecification find = fold ? asciiFold(v.get(1), false) : v.get(1);
@@ -692,7 +692,7 @@ final class IqFunctions {
         ValueSpecification value = SqlToPure.valueOf(str);
         ValueSpecification x = str.nullable() ? SqlToPure.call("toOne", value) : value;
         ValueSpecification literal = new CString(run);
-        if (!profile.caseSensitive()) {
+        if (!settings.caseSensitive()) {
             // IQ island, 2026-10-14 (natives): without regard to the ASCII letters' case in a sqla17 profile's
             // database (measured: PATINDEX('%BC%', 'abc') is 2), both folded
             x = asciiFold(x, false);
@@ -758,8 +758,8 @@ final class IqFunctions {
     /** {@code ASCII(s)}: its first character's code (an ISO-8859-1 database's byte), 0 for '', a SMALLINT. In a
      *  {@code sqla17} profile's UTF-8 database a character above 127 is NULL (measured), refused by name. */
     private Tx ascii(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (!profile.latin1()) {
-            throw SqlTranslationException.unsupported(name + " in profile " + profile.spelling() + "'s UTF-8 database"
+        if (!settings.latin1()) {
+            throw SqlTranslationException.unsupported(name + " in profile " + settings.spelling() + "'s UTF-8 database"
                     + " is not supported yet: a character above 127 is NULL there", f.pos());
         }
         Tx s = text(args.get(0), f.args().get(0), name);
@@ -786,9 +786,9 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(name + " of a code that may be 0 is not supported: CHAR(0) is a"
                     + " NUL character, which lite's databases cannot hold", f.pos());
         }
-        if (!profile.latin1() && t.hi().compareTo(BigInteger.valueOf(127)) > 0) {
+        if (!settings.latin1() && t.hi().compareTo(BigInteger.valueOf(127)) > 0) {
             throw SqlTranslationException.unsupported(name + " of a code above 127 is not supported in profile "
-                    + profile.spelling() + "'s UTF-8 database: SQL Anywhere answers a lone byte there", f.pos());
+                    + settings.spelling() + "'s UTF-8 database: SQL Anywhere answers a lone byte there", f.pos());
         }
         boolean outside = t.lo().signum() < 0 || t.hi().compareTo(BigInteger.valueOf(255)) > 0;
         Tx r = strict(Kind.STRING, varchar(), List.of(n), v -> outside ? ifThen(SqlToPure.call("or", lt(v.get(0),
@@ -1895,8 +1895,8 @@ final class IqFunctions {
         // without a precision: an integer's NUMERIC(10,0) or (20,0), a NUMERIC's own, a string's the profile's
         // PRECISION and SCALE (measured: CAST('1' AS DECIMAL) is a NUMERIC(126,38) in an IQ database)
         boolean fromString = x.kind() == Kind.STRING;
-        int p = sizes.isEmpty() ? fromString ? profile.precision() : sp : sizes.get(0);
-        int s = sizes.isEmpty() ? fromString ? profile.scale() : ss : sizes.size() > 1 ? sizes.get(1) : 0;
+        int p = sizes.isEmpty() ? fromString ? settings.precision() : sp : sizes.get(0);
+        int s = sizes.isEmpty() ? fromString ? settings.scale() : ss : sizes.size() > 1 ? sizes.get(1) : 0;
         if (p > 38) {
             throw SqlTranslationException.unsupported(what + " to a NUMERIC of more than 38 digits is not supported:"
                     + " lite's decimals hold 38", c.pos());
@@ -1962,7 +1962,7 @@ final class IqFunctions {
         switch (x.kind()) {
             case STRING -> {
                 // a UTF-8 database's lengths are bytes (unless the type counts characters: CHAR(n CHAR))
-                boolean bytes = !profile.latin1() && sizes.size() < 2;
+                boolean bytes = !settings.latin1() && sizes.size() < 2;
                 int longest = bytes && c.operand() instanceof SqlAst.StringLit lit
                         ? lit.value().getBytes(java.nio.charset.StandardCharsets.UTF_8).length : longest(x, c.operand());
                 if (n < 0 || longest >= 0 && longest <= n) {
@@ -1974,9 +1974,9 @@ final class IqFunctions {
                                 + " IQ's manual cuts it, SQL Anywhere raises -638 (the research's D-C2, not yet"
                                 + " verified)", c.pos());
                     }
-                    if (!profile.latin1()) {
+                    if (!settings.latin1()) {
                         throw SqlTranslationException.unsupported(what + " of a string that may be longer than " + n
-                                + " to " + target + "(" + n + ") is not supported in profile " + profile.spelling()
+                                + " to " + target + "(" + n + ") is not supported in profile " + settings.spelling()
                                 + "'s UTF-8 database yet: its lengths are bytes", c.pos());
                     }
                     raisesHere(c, "-638 (right truncation)");
@@ -2032,7 +2032,7 @@ final class IqFunctions {
                 }
                 // IQ island, 2026-10-14 (review 5's M4): in the profile's DATE_FORMAT, each part with its zeros (a year
                 // below 1000 too), as || and STRING write it (IqDateTime, measured)
-                text = IqDateTime.text(x, profile, what, c.pos());
+                text = IqDateTime.text(x, settings, what, c.pos());
             }
             // IQ island, 2026-10-14 (M1e): a timestamp in the profile's TIMESTAMP_FORMAT (IqDateTime, measured)
             case DATETIME -> {
@@ -2042,13 +2042,13 @@ final class IqFunctions {
                             + " TIMESTAMP_FORMAT option's form (the research's D-C6, not yet verified)" : "SQL Anywhere"
                             + " writes style 0 (Mar 04 2026 05:06AM), a format not read yet"), c.pos());
                 }
-                int length = IqDateTime.length(true, profile);
+                int length = IqDateTime.length(true, settings);
                 if (n >= 0 && n < length) {
                     throw SqlTranslationException.unsupported(what + " of a TIMESTAMP to " + target + "(" + n + ") is not"
                             + " supported yet: SQL Anywhere cuts its text, the IQ engine raises (the research's D-C1)",
                             c.pos());
                 }
-                text = IqDateTime.text(x, profile, what, c.pos());
+                text = IqDateTime.text(x, settings, what, c.pos());
             }
             default -> throw SqlTranslationException.unsupported(what + " of " + kindName(x.kind()) + " to text is not"
                     + " supported yet: IQ writes it by its own format", c.pos());
@@ -2122,7 +2122,7 @@ final class IqFunctions {
     /** A constant's date and time as IQ reads it ({@link IqDateTime#read}: a year below 100 refused by name; IQ
      *  island, 2026-10-14: one helper with M1a's comparisons, review 3's B3; M1e: by the profile's DATE_ORDER). */
     private String @com.legend.base.Nullable [] isoParts(String text, SqlAst.Expr e) {
-        return IqDateTime.read(text, profile, e.pos());
+        return IqDateTime.read(text, settings, e.pos());
     }
 
     /** Whether {@code s} is spelled yyyy-mm-dd... (digits and dashes where ISO has them), whatever its values. */
@@ -2181,7 +2181,7 @@ final class IqFunctions {
         }
         // IQ island, 2026-10-14 (M1e): a date or a timestamp in the profile's DATE_FORMAT or TIMESTAMP_FORMAT
         if (t.kind() == Kind.DATE || t.kind() == Kind.DATETIME) {
-            return IqDateTime.text(t, profile, fn, e.pos());
+            return IqDateTime.text(t, settings, fn, e.pos());
         }
         throw SqlTranslationException.unsupported(fn + " of " + kindName(t.kind()) + " is not supported yet: IQ writes"
                 + " it as text by its own format", e.pos());

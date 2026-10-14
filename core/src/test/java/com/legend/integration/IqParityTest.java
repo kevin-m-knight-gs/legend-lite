@@ -165,18 +165,19 @@ class IqParityTest {
             com.legend.json.Json.Obj pub = (com.legend.json.Json.Obj) database.get("public");
             com.legend.json.Json.Obj options = (com.legend.json.Json.Obj) profile.get("options");
             String where = p.spelling() + ": ";
-            assertEquals(db.equals("lite_iq"), p.iqDatabase(), where + "database");
-            assertEquals(text(props, "CaseSensitive", "").equals("On"), p.caseSensitive(), where + "case");
-            assertEquals(text(props, "BlankPadding", "").equals("On"), p.blankPadding(), where + "blank padding");
-            assertEquals(text(props, "CharSet", "").startsWith("ISO_8859-1"), p.latin1(), where + "charset");
-            assertEquals(Integer.parseInt(text(pub, "precision", "30")), p.precision(), where + "precision");
-            assertEquals(Integer.parseInt(text(pub, "scale", "6")), p.scale(), where + "scale");
-            assertEquals(!text(options, "ansinull", "On").equalsIgnoreCase("Off"), p.ansinull(), where + "ansinull");
-            assertEquals(!text(options, "quoted_identifier", "On").equalsIgnoreCase("Off"), p.quotedIdentifier(),
+            var s = p.settings();
+            assertEquals(db.equals("lite_iq"), s.iqDatabase(), where + "database");
+            assertEquals(text(props, "CaseSensitive", "").equals("On"), s.caseSensitive(), where + "case");
+            assertEquals(text(props, "BlankPadding", "").equals("On"), s.blankPadding(), where + "blank padding");
+            assertEquals(text(props, "CharSet", "").startsWith("ISO_8859-1"), s.latin1(), where + "charset");
+            assertEquals(Integer.parseInt(text(pub, "precision", "30")), s.precision(), where + "precision");
+            assertEquals(Integer.parseInt(text(pub, "scale", "6")), s.scale(), where + "scale");
+            assertEquals(!text(options, "ansinull", "On").equalsIgnoreCase("Off"), s.ansinull(), where + "ansinull");
+            assertEquals(!text(options, "quoted_identifier", "On").equalsIgnoreCase("Off"), s.quotedIdentifier(),
                     where + "quoted_identifier");
-            assertEquals(!text(options, "escape_character", "On").equalsIgnoreCase("Off"), p.escapeCharacter(),
+            assertEquals(!text(options, "escape_character", "On").equalsIgnoreCase("Off"), s.escapeCharacter(),
                     where + "escape_character");
-            assertTrue(text(options, "date_order", "YMD").equalsIgnoreCase(p.dateOrder()), where + "date_order");
+            assertTrue(text(options, "date_order", "YMD").equalsIgnoreCase(s.dateOrder()), where + "date_order");
         }
     }
 

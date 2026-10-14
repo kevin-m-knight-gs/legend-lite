@@ -56,24 +56,24 @@ class IqToPureTest {
     private static final String T = "tb('s::DB.T')";
 
     private static String pure(String sql) {
-        return pure(sql, IqProfile.IQ16_DEFAULT, COLUMNS);
+        return pure(sql, IqProfile.IQ16_DEFAULT.settings(), COLUMNS);
     }
 
-    private static String pure(String sql, IqProfile profile) {
+    private static String pure(String sql, IqSettings profile) {
         return pure(sql, profile, COLUMNS);
     }
 
-    private static String pure(String sql, IqProfile profile, List<Col> columns) {
+    private static String pure(String sql, IqSettings profile, List<Col> columns) {
         ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> columns.forEach(
                 c -> column.column(c.name(), c.type(), c.nullable(), c.store())), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
     private static SqlTranslationException refusal(String sql) {
-        return refusal(sql, IqProfile.IQ16_DEFAULT, COLUMNS);
+        return refusal(sql, IqProfile.IQ16_DEFAULT.settings(), COLUMNS);
     }
 
-    private static SqlTranslationException refusal(String sql, IqProfile profile, List<Col> columns) {
+    private static SqlTranslationException refusal(String sql, IqSettings profile, List<Col> columns) {
         return assertThrows(SqlTranslationException.class, () -> pure(sql, profile, columns));
     }
 
@@ -96,7 +96,7 @@ class IqToPureTest {
         // two names a reference matches without regard to case are an ambiguity, quoted or not
         List<Col> twins = List.of(new Col("id", "Integer", false, "INTEGER"), new Col("ID", "Integer", false,
                 "INTEGER"));
-        SqlTranslationException e = refusal("SELECT [id] FROM " + T, IqProfile.IQ16_DEFAULT, twins);
+        SqlTranslationException e = refusal("SELECT [id] FROM " + T, IqProfile.IQ16_DEFAULT.settings(), twins);
         assertEquals(SqlTranslationException.Kind.INVALID, e.kind());
     }
 
@@ -157,12 +157,12 @@ class IqToPureTest {
     void equalsNullIsUnknown_orIsNullUnderATdsLogin() {
         assertEquals("#>{s::DB.T}#->filter(r|false)->select(~[id])", pure("SELECT id FROM " + T + " WHERE sm = NULL"));
         assertEquals("#>{s::DB.T}#->filter(r|$r.sm->isEmpty())->select(~[id])",
-                pure("SELECT id FROM " + T + " WHERE sm = NULL", IqProfile.IQ16_TDS));
+                pure("SELECT id FROM " + T + " WHERE sm = NULL", IqProfile.IQ16_TDS.settings()));
         assertEquals("#>{s::DB.T}#->filter(r|$r.sm->isNotEmpty())->select(~[id])",
-                pure("SELECT id FROM " + T + " WHERE NULL != sm", IqProfile.IQ16_TDS));
+                pure("SELECT id FROM " + T + " WHERE NULL != sm", IqProfile.IQ16_TDS.settings()));
         // only = and != are rewritten
         assertEquals("#>{s::DB.T}#->filter(r|false)->select(~[id])",
-                pure("SELECT id FROM " + T + " WHERE sm < NULL", IqProfile.IQ16_TDS));
+                pure("SELECT id FROM " + T + " WHERE sm < NULL", IqProfile.IQ16_TDS.settings()));
     }
 
     // ------------------------------------------------------------------ strings
@@ -179,7 +179,7 @@ class IqToPureTest {
     void aCharColumnIsPaddedToItsLengthUnderTheIqEngine() {
         assertEquals("#>{s::DB.T}#->extend(~[_sql_1:r|if($r.ch->isEmpty(), |[], |$r.ch->toOne()->rpad(5, ' '))])"
                         + "->select(~[id, _sql_1, vc])->rename(~_sql_1, ~ch)->select(~[ch])",
-                pure("SELECT ch FROM " + T, IqProfile.IQ16_DEFAULT, WITH_CHAR));
+                pure("SELECT ch FROM " + T, IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR));
     }
 
     @Test
@@ -194,7 +194,7 @@ class IqToPureTest {
         assertTrue(ordered.contains("regexpReplace(' +$', '', false))])->sort("), ordered);
         assertTrue(refusal("SELECT DISTINCT vc FROM " + T).getMessage().contains("DISTINCT over strings"));
         assertFalse(pure("SELECT DISTINCT RTRIM(vc) AS r FROM " + T).contains("regexpReplace(' +$'"));
-        String eq = pure("SELECT id FROM " + T + " WHERE vc = 'x'", IqProfile.SQLA17_DEFAULT);
+        String eq = pure("SELECT id FROM " + T + " WHERE vc = 'x'", IqProfile.SQLA17_DEFAULT.settings());
         assertTrue(eq.contains("replace('A', 'a')") && eq.contains("replace('Z', 'z')") && !eq.contains("toLower"),
                 eq);
         assertFalse(eq.contains("regexpReplace"), eq);
@@ -214,11 +214,11 @@ class IqToPureTest {
     // ------------------------------------------------------------------ M0's rest
 
     private static String numbers(String sql) {
-        return pure(sql, IqProfile.IQ16_DEFAULT, NUMBERS);
+        return pure(sql, IqProfile.IQ16_DEFAULT.settings(), NUMBERS);
     }
 
     private static SqlTranslationException numbersRefusal(String sql) {
-        return refusal(sql, IqProfile.IQ16_DEFAULT, NUMBERS);
+        return refusal(sql, IqProfile.IQ16_DEFAULT.settings(), NUMBERS);
     }
 
     @Test
@@ -350,9 +350,9 @@ class IqToPureTest {
 
     @Test
     void equalsNullInACaseConditionIsRewrittenByTheIqEngineOnly() {
-        String iq = pure("SELECT IF sm = NULL THEN 1 ELSE 0 ENDIF AS s FROM " + T, IqProfile.IQ16_TDS);
+        String iq = pure("SELECT IF sm = NULL THEN 1 ELSE 0 ENDIF AS s FROM " + T, IqProfile.IQ16_TDS.settings());
         assertTrue(iq.contains("$r.sm->isEmpty()"), iq);
-        String sa = pure("SELECT IF NULL = NULL THEN 1 ELSE 0 ENDIF AS s", IqProfile.IQ16_TDS);
+        String sa = pure("SELECT IF NULL = NULL THEN 1 ELSE 0 ENDIF AS s", IqProfile.IQ16_TDS.settings());
         assertFalse(sa.contains("isEmpty"), sa);
     }
 
@@ -398,15 +398,15 @@ class IqToPureTest {
         assertTrue(dup.getMessage().contains("-830"), dup.getMessage());
         // B6: more digits than a sqla17 database keeps
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1234567890123456789012345678901 AS v"
-                + " FROM " + T, IqProfile.SQLA17_DEFAULT, COLUMNS).kind());
+                + " FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).kind());
         // B1: a REAL column refuses its table
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T, IqProfile.IQ16_DEFAULT,
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T, IqProfile.IQ16_DEFAULT.settings(),
                 List.of(new Col("id", "Integer", false, "INTEGER"), new Col("r", "Float", true, "REAL"))).kind());
         // m4: a CHAR of no length read is refused by name, never a crash
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT c FROM " + T, IqProfile.IQ16_DEFAULT,
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT c FROM " + T, IqProfile.IQ16_DEFAULT.settings(),
                 List.of(new Col("c", "String", true, "CHAR"))).kind());
         // M4: a sqla17 profile has no IQ engine: no CHAR padding
-        assertEquals("#>{s::DB.T}#->select(~[ch])", pure("SELECT ch FROM " + T, IqProfile.SQLA17_DEFAULT,
+        assertEquals("#>{s::DB.T}#->select(~[ch])", pure("SELECT ch FROM " + T, IqProfile.SQLA17_DEFAULT.settings(),
                 WITH_CHAR));
     }
 
@@ -414,7 +414,7 @@ class IqToPureTest {
     void aStoreTypeTheIslandDoesNotReadRefusesItsSource() {
         List<Col> binary = List.of(new Col("id", "Integer", false, "INTEGER"), new Col("b", "String", true,
                 "BINARY(16)"));
-        SqlTranslationException e = refusal("SELECT id FROM " + T, IqProfile.IQ16_DEFAULT, binary);
+        SqlTranslationException e = refusal("SELECT id FROM " + T, IqProfile.IQ16_DEFAULT.settings(), binary);
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind());
         assertTrue(e.getMessage().contains("BINARY(16)"), e.getMessage());
     }
@@ -429,13 +429,13 @@ class IqToPureTest {
     @Test
     void theEngineIsTheStatements_iqOverATable_saWithoutFrom() {
         assertEquals(IqDialect.Engine.IQ, IqDialect.engineOf(IqParser.parse("SELECT id FROM " + T,
-                IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT));
-        assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse("SELECT 1", IqProfile.IQ16_DEFAULT),
-                IqProfile.IQ16_DEFAULT));
+                IqProfile.IQ16_DEFAULT.settings()), IqProfile.IQ16_DEFAULT.settings()));
+        assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse("SELECT 1", IqProfile.IQ16_DEFAULT.settings()),
+                IqProfile.IQ16_DEFAULT.settings()));
         // a CHAR read under SQL Anywhere's rules is not padded
         assertEquals("#>{s::DB.T}#->select(~[ch])", PureComposer.valueSpecification(SqlToPure.translate(
                 "SELECT ch FROM " + T, (source, column) -> WITH_CHAR.forEach(c -> column.column(c.name(), c.type(),
-                        c.nullable(), c.store())), IqDialect.of(IqProfile.IQ16_DEFAULT, IqDialect.Engine.SA)),
+                        c.nullable(), c.store())), IqDialect.of(IqProfile.IQ16_DEFAULT.settings(), IqDialect.Engine.SA)),
                 PureComposer.Style.STANDARD));
     }
 
@@ -451,11 +451,11 @@ class IqToPureTest {
         for (String from : new String[] {"DUMMY", "sys.dummy", "\"DUMMY\"", "sa_rowgenerator(1, 2)",
                 "dbo.sa_rowgenerator(1, 2) g", "SA_ROWGENERATOR()"}) {
             assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse("SELECT * FROM " + from,
-                    IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT), from);
+                    IqProfile.IQ16_DEFAULT.settings()), IqProfile.IQ16_DEFAULT.settings()), from);
         }
         for (String from : new String[] {"dbo.dummy", "iq_dummy", "sys.sa_rowgenerator(1, 2)", T}) {
             assertEquals(IqDialect.Engine.IQ, IqDialect.engineOf(IqParser.parse("SELECT * FROM " + from,
-                    IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT), from);
+                    IqProfile.IQ16_DEFAULT.settings()), IqProfile.IQ16_DEFAULT.settings()), from);
         }
     }
 
@@ -506,12 +506,12 @@ class IqToPureTest {
                     .kind(), s);
         }
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 AS x WHERE '0.1234567' = 1",
-                IqProfile.SQLA17_DEFAULT, COLUMNS).kind());
+                IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).kind());
         pure("SELECT 1 AS x WHERE '0.1234567' = 1");
         // under a SQL Anywhere profile, over a table too; a DOUBLE's NUMERIC is not read
-        assertTrue(pure("SELECT id FROM " + T + " WHERE id = '3'", IqProfile.SQLA17_DEFAULT).contains("3D"));
+        assertTrue(pure("SELECT id FROM " + T + " WHERE id = '3'", IqProfile.SQLA17_DEFAULT.settings()).contains("3D"));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT i FROM " + T + " WHERE d = '1'",
-                IqProfile.SQLA17_DEFAULT, NUMBERS).kind());
+                IqProfile.SQLA17_DEFAULT.settings(), NUMBERS).kind());
     }
 
     @Test
@@ -529,10 +529,10 @@ class IqToPureTest {
         }
         SqlAst.Pos at = new SqlAst.Pos(1, 1);
         assertEquals(java.util.Arrays.asList("2026-03-04", "05:06:07.100000"), java.util.Arrays.asList(
-                IqDateTime.read("2026-03-04 05:06:07.1", IqProfile.IQ16_DEFAULT, at)));
+                IqDateTime.read("2026-03-04 05:06:07.1", IqProfile.IQ16_DEFAULT.settings(), at)));
         assertEquals(java.util.Arrays.asList("2000-02-29", "23:59:00"), java.util.Arrays.asList(
-                IqDateTime.read("2000-02-29 23:59", IqProfile.IQ16_DEFAULT, at)));
-        assertEquals(null, IqDateTime.read("1900-02-29", IqProfile.IQ16_DEFAULT, at));
+                IqDateTime.read("2000-02-29 23:59", IqProfile.IQ16_DEFAULT.settings(), at)));
+        assertEquals(null, IqDateTime.read("1900-02-29", IqProfile.IQ16_DEFAULT.settings(), at));
     }
 
     @Test
@@ -553,10 +553,10 @@ class IqToPureTest {
         String between = pure("SELECT id FROM " + T + " WHERE sm BETWEEN 1 AND 5");
         assertTrue(between.contains("$r.sm->toOne() >= 1") && between.contains("$r.sm->toOne() <= 5"), between);
         // a NULL bound is UNKNOWN, never FALSE, whatever ansinull says
-        assertTrue(pure("SELECT id FROM " + T + " WHERE sm NOT BETWEEN NULL AND 5", IqProfile.IQ16_TDS)
+        assertTrue(pure("SELECT id FROM " + T + " WHERE sm NOT BETWEEN NULL AND 5", IqProfile.IQ16_TDS.settings())
                 .contains("false"));
         // strings compare ignoring trailing blanks; a NULL in the list is UNKNOWN even under ansinull Off
-        String in = pure("SELECT id FROM " + T + " WHERE vc IN ('a', NULL)", IqProfile.IQ16_TDS);
+        String in = pure("SELECT id FROM " + T + " WHERE vc IN ('a', NULL)", IqProfile.IQ16_TDS.settings());
         assertTrue(in.contains("startsWith") && !in.contains("isEmpty($r.vc)"), in);
         assertTrue(pure("SELECT id FROM " + T + " WHERE dt IN ('2026-03-04')").contains("%2026-03-04"));
         // IQ island, 2026-10-14 (natives): ordering strings drops their trailing spaces first
@@ -595,11 +595,11 @@ class IqToPureTest {
     @Test
     void likeRefusals() {
         // IQ island, 2026-10-14 (natives): a sqla17 profile's LIKE is read now, each letter a class of its two cases
-        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a'", IqProfile.SQLA17_DEFAULT, COLUMNS)
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a'", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
                 .contains("matches('(?s)^[aA]$')"));
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch LIKE 'a%'", IqProfile.IQ16_DEFAULT, WITH_CHAR)
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR)
                 .getMessage().contains("D-S5"));
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch || '' LIKE 'a%'", IqProfile.IQ16_DEFAULT, WITH_CHAR)
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch || '' LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR)
                 .getMessage().contains("D-S5"));
         for (String like : new String[] {"vc LIKE 'a[b]'", "vc LIKE vc ESCAPE '!'", "vc LIKE 'a' ESCAPE '!!'",
                 "vc LIKE 'a' ESCAPE ''", "vc LIKE '!a' ESCAPE '!'", "vc LIKE 'a!' ESCAPE '!'",
@@ -614,9 +614,9 @@ class IqToPureTest {
         assertTrue(computed.contains("matches('(?s)' + ") && computed.contains(", '[')")
                 && computed.contains(") > 126"), computed);
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE vc LIKE vc",
-                IqProfile.SQLA17_DEFAULT, COLUMNS).kind());
+                IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).kind());
         // a pattern's errors are refused before translation, as the syntax-case ratchet reads them
-        assertThrows(SqlTranslationException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT).parse(
+        assertThrows(SqlTranslationException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT.settings()).parse(
                 "SELECT 1 AS x WHERE 'a' LIKE 'a' ESCAPE '!!'"));
         pure("SELECT id FROM " + T + " WHERE vc LIKE '" + "a".repeat(126) + "'");
         // IQ island, 2026-10-14 (M1e): a date is matched as its text in the profile's DATE_FORMAT (IqDateTime,
@@ -647,12 +647,12 @@ class IqToPureTest {
         }
         pure("SELECT row_num / 1.5 AS a, row_num % 1.5 AS b FROM sa_rowgenerator(1, 2)");
         assertTrue(refusal("SELECT (row_num * 1.5) * (row_num * 1.25) * (row_num * 0.5) AS a FROM sa_rowgenerator(1,"
-                + " 2)", IqProfile.SQLA17_DEFAULT, COLUMNS).getMessage().contains("PRECISION"));
+                + " 2)", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).getMessage().contains("PRECISION"));
         pure("SELECT (row_num * 1.5) * (row_num * 1.25) * (row_num * 0.5) AS a FROM sa_rowgenerator(1, 2)");
     }
 
     private static String numbersSa(String sql) {
-        return pure(sql, IqProfile.SQLA17_DEFAULT, NUMBERS);
+        return pure(sql, IqProfile.SQLA17_DEFAULT.settings(), NUMBERS);
     }
 
     @Test
@@ -732,7 +732,7 @@ class IqToPureTest {
                 "SELECT a.id FROM " + T + " a JOIN " + T + " b ON EXISTS (SELECT 1 FROM DUMMY)",
                 "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)"}) {
             assertTrue(refusal(sql).getMessage().contains("IQ's engine"), sql);
-            pure(sql, IqProfile.SQLA17_DEFAULT);
+            pure(sql, IqProfile.SQLA17_DEFAULT.settings());
         }
         // one column where one is read (IQ's -151); a row limit in a subquery is refused
         assertTrue(refusal("SELECT id FROM " + T + " WHERE id IN (SELECT 1, 2 FROM DUMMY)").getMessage().contains(
@@ -741,9 +741,9 @@ class IqToPureTest {
                 + " TOP 1 row_num FROM sa_rowgenerator(1, 2) ORDER BY 1)").kind());
         // the engine: a subquery reading a table makes the statement the IQ engine's
         assertEquals(IqDialect.Engine.IQ, IqDialect.engineOf(IqParser.parse("SELECT (SELECT id FROM " + T + ") AS x",
-                IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT));
+                IqProfile.IQ16_DEFAULT.settings()), IqProfile.IQ16_DEFAULT.settings()));
         assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse("SELECT (SELECT 1 FROM DUMMY) AS x UNION"
-                + " SELECT row_num FROM sa_rowgenerator(1, 2)", IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT));
+                + " SELECT row_num FROM sa_rowgenerator(1, 2)", IqProfile.IQ16_DEFAULT.settings()), IqProfile.IQ16_DEFAULT.settings()));
     }
 
     @Test
@@ -839,7 +839,7 @@ class IqToPureTest {
             numbers(sql);
         }
         // a NUMERIC's SUM has no check to miss
-        pure("SELECT SUM(nm) AS s FROM " + T + " HAVING COUNT(*) > 2 AND SUM(nm) > 0", IqProfile.SQLA17_DEFAULT,
+        pure("SELECT SUM(nm) AS s FROM " + T + " HAVING COUNT(*) > 2 AND SUM(nm) > 0", IqProfile.SQLA17_DEFAULT.settings(),
                 NUMBERS);
     }
 
@@ -848,10 +848,10 @@ class IqToPureTest {
         // IQ island, 2026-10-14 (review 4's B1): after a *, item i is some later column, so each name of the column
         // list from i on may be the folded constant's (a quotient over it is refused, IqDialect.folded)
         SqlAst.Statement s = IqParser.parse("SELECT c FROM (SELECT *, 2 + 3 FROM t) d(a, b, c)",
-                IqProfile.IQ16_DEFAULT);
+                IqProfile.IQ16_DEFAULT.settings());
         assertTrue(IqDialect.folded(s).containsAll(List.of("b", "c")), IqDialect.folded(s).toString());
         SqlAst.Statement plain = IqParser.parse("SELECT c FROM (SELECT id, 2 + 3 FROM t) d(a, c)",
-                IqProfile.IQ16_DEFAULT);
+                IqProfile.IQ16_DEFAULT.settings());
         assertEquals(java.util.Set.of("c"), IqDialect.folded(plain));
     }
 
@@ -870,9 +870,9 @@ class IqToPureTest {
         assertTrue(refusal("SELECT vc FROM " + T + " UNION SELECT 'a'").getMessage().contains("UNION over strings"));
         pure("SELECT RTRIM(vc) AS r FROM " + T + " UNION SELECT 'a'");
         // a sqla17 profile folds the ASCII letters: LOWER is its own key there, RTRIM is not
-        assertTrue(refusal("SELECT DISTINCT RTRIM(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT, COLUMNS)
+        assertTrue(refusal("SELECT DISTINCT RTRIM(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
                 .getMessage().contains("'A' and 'a'"));
-        pure("SELECT DISTINCT LOWER(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT, COLUMNS);
+        pure("SELECT DISTINCT LOWER(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS);
         // a derived table's column is what its definition is
         pure("SELECT DISTINCT x FROM (SELECT RTRIM(vc) AS x FROM " + T + ") d");
         assertTrue(refusal("SELECT DISTINCT x FROM (SELECT vc AS x FROM " + T + ") d").getMessage().contains(

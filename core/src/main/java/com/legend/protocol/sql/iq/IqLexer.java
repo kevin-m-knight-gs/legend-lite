@@ -107,19 +107,19 @@ public final class IqLexer {
             "<", ">", "+", "-", "*", "/", "%", "&", "|", "^", "~", "(", ")", ",", ".", ";", "?", ":", "{", "}");
 
     private final String text;
-    private final IqProfile profile;
+    private final IqSettings settings;
     private int at;
     private int line = 1;
     private int column = 1;
 
-    private IqLexer(String text, IqProfile profile) {
+    private IqLexer(String text, IqSettings settings) {
         this.text = text;
-        this.profile = profile;
+        this.settings = settings;
     }
 
-    /** Every token of {@code text} under {@code profile}'s options, ending with one {@link Kind#EOF}. */
-    public static List<Token> tokenize(String text, IqProfile profile) {
-        return new IqLexer(text, profile).all();
+    /** Every token of {@code text} under {@code settings}'s options, ending with one {@link Kind#EOF}. */
+    public static List<Token> tokenize(String text, IqSettings settings) {
+        return new IqLexer(text, settings).all();
     }
 
     /** Whether IQ reserves {@code word} (in any case). */
@@ -147,7 +147,7 @@ public final class IqLexer {
             return new Token(Kind.STRING, string(pos), pos, start, at);
         }
         if (c == '"') {
-            if (profile.quotedIdentifier()) {
+            if (settings.quotedIdentifier()) {
                 return new Token(Kind.QUOTED, delimited('"', pos), pos, start, at);
             }
             return new Token(Kind.STRING, doubleQuotedString(pos), pos, start, at);
@@ -241,7 +241,7 @@ public final class IqLexer {
                 advance(1);
                 return charset(value.toString(), pos);
             }
-            if (c == '\\' && profile.escapeCharacter()) {
+            if (c == '\\' && settings.escapeCharacter()) {
                 char e = peek(1);
                 if (e == 'n') {
                     value.append('\n');
@@ -259,10 +259,10 @@ public final class IqLexer {
                         throw SqlSyntaxException.unsupported("a NUL character (\\x00) in a string is not supported: not"
                                 + " every database lite runs on can hold one", pos);
                     }
-                    if (code > 0x7F && !profile.latin1()) {
+                    if (code > 0x7F && !settings.latin1()) {
                         // a UTF-8 database stores the escape's byte as it is, which is no character of its own
                         throw SqlSyntaxException.unsupported("the escape \\x" + text.substring(at + 2, at + 4)
-                                + " of a byte above 0x7F is not supported in profile " + profile.spelling()
+                                + " of a byte above 0x7F is not supported in profile " + settings.spelling()
                                 + "'s UTF-8 database", pos);
                     }
                     value.append((char) code);
@@ -358,11 +358,11 @@ public final class IqLexer {
     /** {@code value}, refused by name when the profile's database cannot hold one of its characters (IQ's ISO-8859-1
      *  turns any other into something else). */
     private String charset(String value, SqlAst.Pos pos) {
-        if (profile.latin1()) {
+        if (settings.latin1()) {
             for (int i = 0; i < value.length(); i++) {
                 if (value.charAt(i) > 0xFF) {
                     throw SqlSyntaxException.unsupported("the character U+" + hex4(value.charAt(i)) + " is not in"
-                            + " ISO-8859-1, the charset of profile " + profile.spelling() + "'s database", pos);
+                            + " ISO-8859-1, the charset of profile " + settings.spelling() + "'s database", pos);
                 }
             }
         }
@@ -371,7 +371,7 @@ public final class IqLexer {
 
     private boolean isIdentifierStart(char c) {
         return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' || c == '@' || c == '#' || c == '$'
-                || c > 0x7F && Character.isLetter(c) && (c <= 0xFF || !profile.latin1());
+                || c > 0x7F && Character.isLetter(c) && (c <= 0xFF || !settings.latin1());
     }
 
     private boolean isIdentifierPart(char c) {

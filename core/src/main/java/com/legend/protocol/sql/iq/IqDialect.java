@@ -31,7 +31,7 @@ import java.util.Set;
 
 /**
  * SAP IQ 16.2 as {@code SqlToPure} reads it: the {@code #IQ{...}#} island's dialect (docs/IQ_SQL_STUDY_2026_10_13.md
- * §4-§5), under one of the closed set of {@link IqProfile}s and one of IQ's two {@link Engine}s. Its reader is
+ * §4-§5), under a vector of IQ's settings ({@link IqSettings}) and one of IQ's two {@link Engine}s. Its reader is
  * {@link IqParser}, its types {@link IqType} and {@link IqTypes}; its rules, so far (M0):
  * <ul>
  *   <li><b>Names</b> match without regard to ASCII case, quoted or not (IQ's identifiers are case-insensitive, and fold
@@ -119,7 +119,7 @@ public final class IqDialect implements InputDialect {
     private static final Set<String> READ_AS_STORED = Set.of("SMALLINT", "INTEGER", "BIGINT", "TINYINT", "DECIMAL",
             "NUMERIC", "DOUBLE", "VARCHAR", "DATE", "TIMESTAMP");
 
-    private final IqProfile profile;
+    private final IqSettings settings;
     private final @com.legend.base.Nullable Engine engine;
     /** The comparisons that are (part of) a CASE's or an IF's condition, in the statement being read: SQL Anywhere's
      *  front end does not rewrite {@code = NULL} there under ansinull Off. */
@@ -201,13 +201,13 @@ public final class IqDialect implements InputDialect {
      *  {@link #twoValuedPlaces} placed in a HAVING are the ones translated. */
     private final Map<SqlAst.Select, SqlAst.Select> grouped;
 
-    private IqDialect(IqProfile profile, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
+    private IqDialect(IqSettings settings, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
             @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.Expr> limited, Set<SqlAst.SelectExpr> shown,
             Set<String> derived, Set<SqlAst.Pos> starred,
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
             @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
             Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped) {
-        this.profile = profile;
+        this.settings = settings;
         this.twoValued = twoValued;
         this.grouped = grouped;
         this.naming = naming;
@@ -221,28 +221,28 @@ public final class IqDialect implements InputDialect {
         this.derived = derived;
         this.shownValues = shownValues;
         this.folded = folded;
-        this.keys = keys != null ? keys : IqKeys.none(profile);
+        this.keys = keys != null ? keys : IqKeys.none(settings);
         this.lazy = lazy;
         this.chains = chains;
     }
 
-    /** The dialect of an island written for {@code profile}: each statement's engine chosen by its FROM clause
+    /** The dialect of an island written for {@code settings}: each statement's engine chosen by its FROM clause
      *  ({@link #engineOf}, the study's I3: {@code engine=auto}). */
-    public static IqDialect of(IqProfile profile) {
-        return new IqDialect(profile, null, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
+    public static IqDialect of(IqSettings settings) {
+        return new IqDialect(settings, null, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of());
     }
 
-    /** The dialect under {@code profile} with {@code engine}'s rules whatever the statement. */
-    public static IqDialect of(IqProfile profile, Engine engine) {
-        return new IqDialect(profile, engine, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
+    /** The dialect under {@code settings} with {@code engine}'s rules whatever the statement. */
+    public static IqDialect of(IqSettings settings, Engine engine) {
+        return new IqDialect(settings, engine, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
                 Map.of());
     }
 
-    public IqProfile profile() {
-        return profile;
+    public IqSettings settings() {
+        return settings;
     }
 
     /** The engine this dialect reads by; null while it is chosen per statement. */
@@ -250,12 +250,12 @@ public final class IqDialect implements InputDialect {
         return engine;
     }
 
-    /** The engine IQ runs {@code statement} in under {@code profile}: SQL Anywhere's front end when no query of it
+    /** The engine IQ runs {@code statement} in under {@code settings}: SQL Anywhere's front end when no query of it
      *  (a set operation's branch, a derived table, a subquery) reads a table, IQ's otherwise (a table of the island's
      *  is an IQ table; the research's D-E1 gives a mix to IQ). A {@code sqla17-*} profile is a SQL Anywhere database:
      *  no IQ engine there, whatever the FROM. */
-    public static Engine engineOf(SqlAst.Statement statement, IqProfile profile) {
-        if (!profile.iqDatabase()) {
+    public static Engine engineOf(SqlAst.Statement statement, IqSettings settings) {
+        if (!settings.iqDatabase()) {
             return Engine.SA;
         }
         for (SqlAst.Statement q : queries(statement)) {
@@ -320,7 +320,7 @@ public final class IqDialect implements InputDialect {
      *  limit anywhere but on the statement's own SELECT. */
     @Override
     public SqlAst.Statement parse(String sql) {
-        IqParser.Parsed read = IqParser.parsed(sql, profile);
+        IqParser.Parsed read = IqParser.parsed(sql, settings);
         SqlAst.Statement statement = read.statement();
         // IQ island, 2026-10-14 (the third landing): two aliases of one name are IQ's error, and an alias spelled like
         // a host variable is refused, as written; then every alias is read where IQ reads it (IqAliases)
@@ -331,8 +331,8 @@ public final class IqDialect implements InputDialect {
             }
         }
         spans.putAll(read.spans());
-        IqAliases.Read aliased = IqAliases.resolve(statement, spans, profile,
-                (engine != null ? engine : engineOf(statement, profile)) == Engine.SA);
+        IqAliases.Read aliased = IqAliases.resolve(statement, spans, settings,
+                (engine != null ? engine : engineOf(statement, settings)) == Engine.SA);
         statement = aliased.statement();
         outerReads.addAll(aliased.outerReads());
         aliasesRead.putAll(aliased.aliasesRead());
@@ -626,7 +626,7 @@ public final class IqDialect implements InputDialect {
         }
         refs.forEach(r -> names.addAll(r.parts().subList(0, r.parts().size() - 1)));
         for (SqlAst.Ident name : names) {
-            int bytes = profile.iqDatabase() ? name.text().length() : utf8Length(name.text());
+            int bytes = settings.iqDatabase() ? name.text().length() : utf8Length(name.text());
             if (bytes > LONGEST_NAME) {
                 throw split("the name '" + name.text().substring(0, 20) + "...' is longer than " + LONGEST_NAME
                         + " bytes" + code(-250, "54003"), name.pos());
@@ -693,7 +693,7 @@ public final class IqDialect implements InputDialect {
             return false;
         }
         try {
-            IqParser.Written w = IqParser.written(java.util.Objects.requireNonNull(x.text()), profile);
+            IqParser.Written w = IqParser.written(java.util.Objects.requireNonNull(x.text()), settings);
             for (SqlAst.Expr p = w.expr(); ; p = ((SqlAst.Unary) p).operand()) {
                 if (w.parensOf(p) > 0) {
                     return false;
@@ -1070,7 +1070,7 @@ public final class IqDialect implements InputDialect {
             }
             s.orderBy().forEach(o -> within(o.expr(), limitedHere));
         }
-        Engine chosen = engine != null ? engine : engineOf(statement, profile);
+        Engine chosen = engine != null ? engine : engineOf(statement, settings);
         if (chosen == Engine.IQ) {
             subqueryPlaces(statement);
         }
@@ -1125,8 +1125,8 @@ public final class IqDialect implements InputDialect {
                 groupedHere.put(s, IqAggregates.grouping(s));
             }
         }
-        IqDialect read = new IqDialect(profile, chosen, inCase, names, limitedHere, shownHere, derivedHere,
-                starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, profile),
+        IqDialect read = new IqDialect(settings, chosen, inCase, names, limitedHere, shownHere, derivedHere,
+                starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, settings),
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere);
         read.outerReads.addAll(outerReads);
         read.aliasesRead.putAll(aliasesRead);
@@ -1223,7 +1223,7 @@ public final class IqDialect implements InputDialect {
     private Map<SqlAst.Expr, Reading> twoValuedPlaces(SqlAst.Statement statement,
             Map<SqlAst.Select, SqlAst.Select> grouped) {
         Map<SqlAst.Expr, Reading> out = new IdentityHashMap<>();
-        if (profile.ansinull()) {
+        if (settings.ansinull()) {
             return out;
         }
         twoValuedIn(statement, List.of(), grouped, out);
@@ -1604,7 +1604,7 @@ public final class IqDialect implements InputDialect {
         Reading read = twoValued.get(b);
         if (read == null) {
             // IQ island, 2026-10-14 (review 6's B1): no comparison is read three-valued by default
-            throw SqlTranslationException.unsupported("under ansinull Off (the " + profile.spelling() + " profile)"
+            throw SqlTranslationException.unsupported("under ansinull Off (the " + settings.spelling() + " profile)"
                     + " this comparison with " + p.name() + " was not placed before translating (a search condition's"
                     + " reads it two-valued, another three-valued): not supported", p.pos());
         }
@@ -1613,7 +1613,7 @@ public final class IqDialect implements InputDialect {
             case TWO_VALUED -> Tx.condition(test.vs(), SqlToPure.call("not", test.vs()), false);
             case REFUSED_PLACE -> throw twoValuedRefused(p);
             case REFUSED_OPERAND -> throw SqlTranslationException.unsupported("under ansinull Off (the "
-                    + profile.spelling() + " profile) SQL Anywhere compares a host variable with a column, a constant,"
+                    + settings.spelling() + " profile) SQL Anywhere compares a host variable with a column, a constant,"
                     + " or arithmetic or a CAST over them two-valued in a search condition (NOT (x = " + p.name() + ")"
                     + " keeps the rows where x is NULL), but with a function's, an aggregate's or a subquery's value"
                     + " three-valued, and with a CASE's, an IF's or a derived table's computed column as its plan has"
@@ -1628,7 +1628,7 @@ public final class IqDialect implements InputDialect {
     }
 
     private SqlTranslationException twoValuedRefused(SqlAst.Param p) {
-        return SqlTranslationException.unsupported("under ansinull Off (the " + profile.spelling() + " profile) SQL"
+        return SqlTranslationException.unsupported("under ansinull Off (the " + settings.spelling() + " profile) SQL"
                 + " Anywhere compares a host variable two-valued in a search condition (NOT (x = " + p.name() + ")"
                 + " keeps the rows where x is NULL), and inside an IF's or a CASE's condition, a function's argument,"
                 + " a truth test or a subquery's IN there, as its own rewriting of the condition has it: not supported"
@@ -2477,7 +2477,7 @@ public final class IqDialect implements InputDialect {
         String key = e instanceof SqlAst.ColumnRef ref ? naming.keyName(ref.parts().get(ref.parts().size() - 1))
                 : null;
         String name = key != null ? key : e instanceof SqlAst.ScalarSubquery q ? subqueryName(q.query())
-                : IqNames.name(item.text(), profile, columns, naming.substitutes(item, profile, columns, tables),
+                : IqNames.name(item.text(), settings, columns, naming.substitutes(item, settings, columns, tables),
                         chains.getOrDefault(item, IqNames.Chains.UNKNOWN));
         // IQ island, 2026-10-14 (M1e): an item over a host variable read as a Pure variable is not named
         name = readsVariable(e) ? null : name;
@@ -2617,10 +2617,10 @@ public final class IqDialect implements InputDialect {
     public Tx literal(SqlAst.Expr constant) {
         BigDecimal number = constant instanceof SqlAst.IntegerLit n ? new BigDecimal(n.value())
                 : constant instanceof SqlAst.NumericLit n ? n.value() : null;
-        if (number != null && number.signum() != 0 && number.stripTrailingZeros().precision() > profile.precision()) {
+        if (number != null && number.signum() != 0 && number.stripTrailingZeros().precision() > settings.precision()) {
             // the profile's database keeps only its PRECISION's leading digits of such a constant (measured)
-            throw SqlTranslationException.unsupported("a number of more than " + profile.precision() + " significant"
-                    + " digits is not supported under profile " + profile.spelling() + ": its database keeps only the"
+            throw SqlTranslationException.unsupported("a number of more than " + settings.precision() + " significant"
+                    + " digits is not supported under profile " + settings.spelling() + ": its database keeps only the"
                     + " leading ones", constant.pos());
         }
         return switch (constant) {
@@ -2766,7 +2766,7 @@ public final class IqDialect implements InputDialect {
             }
             // IQ island, 2026-10-14 (M1e): a date or a timestamp in the profile's DATE_FORMAT or TIMESTAMP_FORMAT
             Tx p = part.kind() == Kind.DATE || part.kind() == Kind.DATETIME
-                    ? IqDateTime.text(part, profile, operator, b.pos()) : part;
+                    ? IqDateTime.text(part, settings, operator, b.pos()) : part;
             boolean integer = p.kind() == Kind.INTEGER && p.detail() instanceof IqType t && t.isInteger();
             if (p.kind() != Kind.STRING && !integer) {
                 throw SqlTranslationException.unsupported(operator + " of " + kindName(p.kind()) + " (IQ writes it as"
@@ -2924,9 +2924,9 @@ public final class IqDialect implements InputDialect {
             s = Math.max(lt[1], rt[1]);
             p = Math.max(lt[0] - lt[1], rt[0] - rt[1]) + s + 1;
         }
-        if (p > profile.precision()) {
+        if (p > settings.precision()) {
             throw SqlTranslationException.unsupported("this " + operator + " is a NUMERIC(" + p + "," + s + "), more"
-                    + " digits than profile " + profile.spelling() + "'s PRECISION (" + profile.precision() + "): its"
+                    + " digits than profile " + settings.spelling() + "'s PRECISION (" + settings.precision() + "): its"
                     + " database cuts it to a smaller scale, which is not supported", b.pos());
         }
         if (p > 38) {
@@ -2985,23 +2985,23 @@ public final class IqDialect implements InputDialect {
         if (divide) {
             p = lt[0] + rt[0] + 1;
             s = lt[1] + rt[0] - rt[1] + 1;
-            if (p > profile.precision()) {
-                int cut = s - (p - profile.precision());
-                if (Math.min(s, profile.scale()) > cut) {
+            if (p > settings.precision()) {
+                int cut = s - (p - settings.precision());
+                if (Math.min(s, settings.scale()) > cut) {
                     throw SqlTranslationException.unsupported("this / is a NUMERIC(" + p + "," + s + ") cut to"
-                            + " profile " + profile.spelling() + "'s PRECISION (" + profile.precision() + ") at a"
+                            + " profile " + settings.spelling() + "'s PRECISION (" + settings.precision() + ") at a"
                             + " scale that may not hold the quotient (SQL Anywhere then shows '?'), which is not"
                             + " supported", b.pos());
                 }
                 s = cut;
-                p = profile.precision();
+                p = settings.precision();
             }
         } else {
             s = Math.max(lt[1], rt[1]);
             p = rt[0] - rt[1] + s;
-            if (p > profile.precision() || lt[0] - lt[1] + s > profile.precision()) {
+            if (p > settings.precision() || lt[0] - lt[1] + s > settings.precision()) {
                 throw SqlTranslationException.unsupported("this % needs more digits than profile "
-                        + profile.spelling() + "'s PRECISION (" + profile.precision() + "): its database computes"
+                        + settings.spelling() + "'s PRECISION (" + settings.precision() + "): its database computes"
                         + " it in fewer, which is not supported", b.pos());
             }
         }
@@ -3518,7 +3518,7 @@ public final class IqDialect implements InputDialect {
     private Tx comparison(SqlAst.BinaryOp op, Tx l, Tx r, boolean leftNull, boolean rightNull,
             SqlAst.@com.legend.base.Nullable Expr at, SqlAst.Pos pos) {
         if (leftNull || rightNull) {
-            boolean rewritten = !profile.ansinull() && (op == SqlAst.BinaryOp.EQ || op == SqlAst.BinaryOp.NE)
+            boolean rewritten = !settings.ansinull() && (op == SqlAst.BinaryOp.EQ || op == SqlAst.BinaryOp.NE)
                     && !(engine == Engine.SA && at != null && caseConditions.contains(at));
             if (rewritten) {
                 ValueSpecification v = SqlToPure.valueOf(leftNull ? r : l);
@@ -3598,7 +3598,7 @@ public final class IqDialect implements InputDialect {
      *  any comparison in a case-insensitive database, compares the two by IQ's collation ({@link #collated}). */
     private Tx strings(SqlAst.BinaryOp op, Tx l, Tx r, SqlAst.Pos pos) {
         boolean equality = op == SqlAst.BinaryOp.EQ || op == SqlAst.BinaryOp.NE;
-        if (!equality || !profile.caseSensitive() || !profile.blankPadding()) {
+        if (!equality || !settings.caseSensitive() || !settings.blankPadding()) {
             // IQ island, 2026-10-14 (natives): orderings and a sqla17 profile's comparisons, by IQ's collation
             String fn = switch (op) {
                 case EQ, NE -> "equal";
@@ -3636,8 +3636,8 @@ public final class IqDialect implements InputDialect {
      * and among rows of one key IQ shows the first it meets (measured), the plan's choice.
      */
     ValueSpecification collated(ValueSpecification s) {
-        ValueSpecification x = profile.caseSensitive() ? s : IqFunctions.asciiFold(s, false);
-        return profile.blankPadding() ? IqFunctions.trailingSpacesDropped(x) : x;
+        ValueSpecification x = settings.caseSensitive() ? s : IqFunctions.asciiFold(s, false);
+        return settings.blankPadding() ? IqFunctions.trailingSpacesDropped(x) : x;
     }
 
     /**
@@ -3670,10 +3670,10 @@ public final class IqDialect implements InputDialect {
         BigDecimal d = IqTypes.atScale(v);
         int places = d.scale();
         int whole = Math.max(d.precision() - d.scale(), 0);
-        if (places > profile.scale() || whole > profile.precision() - profile.scale() || whole + places > 38) {
+        if (places > settings.scale() || whole > settings.precision() - settings.scale() || whole + places > 38) {
             throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with a number is not"
-                    + " supported under profile " + profile.spelling() + ": as its NUMERIC(" + profile.precision()
-                    + "," + profile.scale() + ") it would be rounded or out of range, or need more than lite's 38"
+                    + " supported under profile " + settings.spelling() + ": as its NUMERIC(" + settings.precision()
+                    + "," + settings.scale() + ") it would be rounded or out of range, or need more than lite's 38"
                     + " digits", pos);
         }
         return Tx.value(new CDecimal(d), Kind.DECIMAL, false, IqTypes.ofNumericConstant(d));
@@ -3748,7 +3748,7 @@ public final class IqDialect implements InputDialect {
                     + " supported yet: IQ converts the string to TIMESTAMP", pos);
         }
         // IQ island, 2026-10-14 (M1e): IQ's spellings by the profile's DATE_ORDER (IqDateTime)
-        String[] parts = IqDateTime.read(s.value(), profile, pos);
+        String[] parts = IqDateTime.read(s.value(), settings, pos);
         if (parts == null) {
             throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with a date is not"
                     + " supported: it is no date spelling the island reads yet (IqDateTime)", pos);
@@ -3879,7 +3879,7 @@ public final class IqDialect implements InputDialect {
         Tx operand = at.tx(l.operand());
         // IQ island, 2026-10-14 (M1e): a date or a timestamp is matched as its text in the profile's format (measured)
         if (operand.kind() == Kind.DATE || operand.kind() == Kind.DATETIME) {
-            operand = IqDateTime.text(operand, profile, "LIKE", l.operand().pos());
+            operand = IqDateTime.text(operand, settings, "LIKE", l.operand().pos());
         }
         if (engine == Engine.IQ) {
             List<SqlAst.ColumnRef> refs = new ArrayList<>();
@@ -3907,7 +3907,7 @@ public final class IqDialect implements InputDialect {
             return l.negated() ? SqlToPure.not(result) : result;
         }
         List<String> parts = likeParts(pattern, l.escape(), true);
-        boolean caseless = !profile.caseSensitive();
+        boolean caseless = !settings.caseSensitive();
         java.util.function.Function<List<ValueSpecification>, ValueSpecification> test = v -> {
             ValueSpecification value = integer ? SqlToPure.call("toString", v.get(0)) : v.get(0);
             return likeTest(value, parts, caseless);
@@ -3923,8 +3923,8 @@ public final class IqDialect implements InputDialect {
      * under the IQ engine (D-S5). Refused by name otherwise.
      */
     private Tx runtimePattern(SqlAst.Like l, SqlToPure.At at) {
-        String why = l.escape() != null ? "with ESCAPE" : !profile.caseSensitive()
-                ? "in a database that matches without regard to case (profile " + profile.spelling() + ": its"
+        String why = l.escape() != null ? "with ESCAPE" : !settings.caseSensitive()
+                ? "in a database that matches without regard to case (profile " + settings.spelling() + ": its"
                 + " letters' cases are ASCII's only)" : null;
         if (why != null) {
             throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is not"
@@ -4119,9 +4119,9 @@ public final class IqDialect implements InputDialect {
      *  {@link #variableAliases}). */
     @Override
     public Tx parameter(SqlAst.Param p, SqlToPure.At at, SqlToPure.Sources sources) {
-        if (profile.tsqlVariables() && IqBindings.readsColumn(p, at)) {
+        if (settings.tsqlVariables() && IqBindings.readsColumn(p, at)) {
             throw SqlTranslationException.unsupported("'" + p.name() + "' names a column in scope: under the "
-                    + profile.spelling() + " profile (a TDS login, tsql_variables On) a client binds " + p.name()
+                    + settings.spelling() + " profile (a TDS login, tsql_variables On) a client binds " + p.name()
                     + " as a placeholder, which reads the bound value, while a connection's variable of that name"
                     + " reads the column first; which one is meant is not decided: rename the column, or write :"
                     + java.util.Objects.requireNonNull(p.name()).substring(1) + " for the variable", p.pos());
@@ -4272,8 +4272,8 @@ public final class IqDialect implements InputDialect {
             // IQ island, 2026-10-14 (the merge): IQ tells the rows apart by its collation and shows the first of each
             // group of equal keys it meets ({@link IqKeys})
             throw SqlTranslationException.unsupported(op + " over strings in column " + (i + 1) + " is supported only"
-                    + " where every value is its own collation key (RTRIM, TRIM, a constant" + (profile.caseSensitive()
-                    ? "" : ", LOWER") + "): IQ tells " + (profile.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
+                    + " where every value is its own collation key (RTRIM, TRIM, a constant" + (settings.caseSensitive()
+                    ? "" : ", LOWER") + "): IQ tells " + (settings.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
                     + " apart as one value and shows the first it meets, which is its plan's choice", s.pos());
         }
         // IQ island, 2026-10-14 (review 4's m1): EXCEPT's values are the left's; UNION's and INTERSECT's may be NULL
@@ -4626,8 +4626,8 @@ public final class IqDialect implements InputDialect {
                 if (expr == null || keys.shown(expr)) {
                     throw SqlTranslationException.unsupported("GROUP BY over strings whose value the query shows is"
                             + " supported only where every value is its own collation key (RTRIM, TRIM, a constant"
-                            + (profile.caseSensitive() ? "" : ", LOWER, UPPER") + "): IQ groups "
-                            + (profile.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'") + " as one and shows the"
+                            + (settings.caseSensitive() ? "" : ", LOWER, UPPER") + "): IQ groups "
+                            + (settings.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'") + " as one and shows the"
                             + " first it meets, which is its plan's choice", pos);
                 }
                 return key(value.nullable());
@@ -4638,8 +4638,8 @@ public final class IqDialect implements InputDialect {
                     return null;
                 }
                 throw SqlTranslationException.unsupported("DISTINCT over strings is supported only where every value"
-                        + " is its own collation key (RTRIM, TRIM, a constant" + (profile.caseSensitive() ? ""
-                        : ", LOWER, UPPER") + "): IQ tells " + (profile.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
+                        + " is its own collation key (RTRIM, TRIM, a constant" + (settings.caseSensitive() ? ""
+                        : ", LOWER, UPPER") + "): IQ tells " + (settings.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
                         + " apart as one value and shows the first it meets, which is its plan's choice", pos);
             }
         }

@@ -162,7 +162,7 @@ final class SqlIslands {
         if (profile == null) {
             throw new TypeInferenceException(IqProfile.unknown(java.util.Objects.requireNonNull(named)));
         }
-        return IqDialect.of(profile);
+        return IqDialect.of(profile.settings());
     }
 
     /** A FROM source's columns, as the translator reads them: each column's name, its type's name, whether it may hold

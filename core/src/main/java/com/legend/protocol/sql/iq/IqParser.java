@@ -132,18 +132,18 @@ public final class IqParser {
     private final Map<SqlAst.Expr, String> spans = new IdentityHashMap<>();
     /** IQ island, 2026-10-14 (M1e): the profile the text is read under (a constant's date order), and the index of
      *  each named parameter read so far, one per name ({@link #parameter}). */
-    private final IqProfile profile;
+    private final IqSettings settings;
     private final Map<String, Integer> parameters = new java.util.HashMap<>();
 
-    private IqParser(String text, List<IqLexer.Token> tokens, IqProfile profile) {
+    private IqParser(String text, List<IqLexer.Token> tokens, IqSettings settings) {
         this.text = text;
         this.tokens = tokens;
-        this.profile = profile;
+        this.settings = settings;
     }
 
-    /** The query {@code sql} is, read under {@code profile}'s options. */
-    public static SqlAst.Statement parse(String sql, IqProfile profile) {
-        return parsed(sql, profile).statement();
+    /** The query {@code sql} is, read under {@code settings}'s options. */
+    public static SqlAst.Statement parse(String sql, IqSettings settings) {
+        return parsed(sql, settings).statement();
     }
 
     /** A statement as read ({@link #parsed}): its tree, and the text of each GROUP BY item and each aggregate's call
@@ -151,9 +151,9 @@ public final class IqParser {
     public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans) {
     }
 
-    /** The query {@code sql} is, read under {@code profile}'s options, with the texts the tree does not keep. */
-    public static Parsed parsed(String sql, IqProfile profile) {
-        IqParser p = new IqParser(sql, IqLexer.tokenize(sql, profile), profile);
+    /** The query {@code sql} is, read under {@code settings}'s options, with the texts the tree does not keep. */
+    public static Parsed parsed(String sql, IqSettings settings) {
+        IqParser p = new IqParser(sql, IqLexer.tokenize(sql, settings), settings);
         if (p.peek().kind() == IqLexer.Kind.EOF) {
             throw new SqlSyntaxException("no statement" + IqDialect.syntaxCode(), p.peek().pos());
         }
@@ -186,11 +186,11 @@ public final class IqParser {
     }
 
     /** {@code text}, one expression (a select item's, as {@link SqlAst.SelectExpr#text} keeps it), read under
-     *  {@code profile}'s options with what its tree does not keep ({@link Written}); {@link SqlSyntaxException} when it
+     *  {@code settings}'s options with what its tree does not keep ({@link Written}); {@link SqlSyntaxException} when it
      *  is no expression. */
-    public static Written written(String text, IqProfile profile) {
-        List<IqLexer.Token> tokens = IqLexer.tokenize(text, profile);
-        IqParser p = new IqParser(text, tokens, profile);
+    public static Written written(String text, IqSettings settings) {
+        List<IqLexer.Token> tokens = IqLexer.tokenize(text, settings);
+        IqParser p = new IqParser(text, tokens, settings);
         SqlAst.Expr e = p.expression();
         if (p.peek().kind() != IqLexer.Kind.EOF) {
             throw p.unexpected(p.peek());
@@ -1836,7 +1836,7 @@ public final class IqParser {
         expectSyntax("as", "CAST needs AS");
         SqlAst.TypeName type = dataType();
         expectOp(")");
-        IqFunctions.constantCast(operand, type, "CAST", profile);
+        IqFunctions.constantCast(operand, type, "CAST", settings);
         return new SqlAst.Cast(operand, type, t.pos());
     }
 
@@ -1865,7 +1865,7 @@ public final class IqParser {
                     + " later slice's", style.pos());
         }
         expectOp(")");
-        IqFunctions.constantCast(operand, type, "CONVERT", profile);
+        IqFunctions.constantCast(operand, type, "CONVERT", settings);
         return new SqlAst.Cast(operand, new SqlAst.TypeName(CONVERT + type.name(), type.modifiers(), type.pos()),
                 t.pos());
     }

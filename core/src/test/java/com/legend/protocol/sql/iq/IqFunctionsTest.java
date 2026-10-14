@@ -48,27 +48,27 @@ class IqFunctionsTest {
     private static final String T = "tb('s::DB.T')";
 
     private static String pure(String sql) {
-        return pure(sql, IqProfile.IQ16_DEFAULT);
+        return pure(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
-    private static String pure(String sql, IqProfile profile) {
+    private static String pure(String sql, IqSettings profile) {
         ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> COLUMNS.forEach(
                 c -> column.column(c.name(), c.type(), c.nullable(), c.store())), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
     private static SqlTranslationException refusal(String sql) {
-        return refusal(sql, IqProfile.IQ16_DEFAULT);
+        return refusal(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
-    private static SqlTranslationException refusal(String sql, IqProfile profile) {
+    private static SqlTranslationException refusal(String sql, IqSettings profile) {
         SqlTranslationException e = assertThrows(SqlTranslationException.class, () -> pure(sql, profile));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql + ": " + e.getMessage());
         return e;
     }
 
     private static SqlAst.Expr item(String sql) {
-        SqlAst.Select s = (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT);
+        SqlAst.Select s = (SqlAst.Select) IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings());
         return ((SqlAst.SelectExpr) s.items().get(0)).expr();
     }
 
@@ -105,7 +105,7 @@ class IqFunctionsTest {
                 "SELECT DATEPART('dd', dt) AS x", "SELECT DATEPART(yyyy, dt) AS x",
                 "SELECT DATEADD(tz, 1, dt) AS x", "SELECT CAST('a' AS NCHAR(10 CHAR)) AS x")) {
             SqlSyntaxException e = assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql,
-                    IqProfile.IQ16_DEFAULT), sql);
+                    IqProfile.IQ16_DEFAULT.settings()), sql);
             assertFalse(e.unsupported(), sql);
             assertTrue(e.reason().contains("SQLCODE -131"), sql + ": " + e.reason());
         }
@@ -119,7 +119,7 @@ class IqFunctionsTest {
                 "SELECT CAST('40000' AS SMALLINT) AS x", "SELECT CAST(2 AS BIT) AS x",
                 "SELECT CAST('2026-02-30' AS DATE) AS x", "SELECT CAST(12345 AS CHAR(3)) AS x",
                 "SELECT CAST(999.5 AS NUMERIC(3, 0)) AS x", "SELECT CONVERT(DATE, 'not a date') AS x")) {
-            assertTrue(assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT))
+            assertTrue(assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings()))
                     .unsupported(), sql);
         }
     }
@@ -129,12 +129,12 @@ class IqFunctionsTest {
         for (String sql : List.of("SELECT CHARINDEX('b', vc, 2) AS x FROM " + T, "SELECT ROUND(nm, 1, 1) AS x FROM "
                 + T, "SELECT LOG(2, 8) AS x", "SELECT SUBSTRING('abc', 1, -1) AS x")) {
             SqlTranslationException e = assertThrows(SqlTranslationException.class, () -> IqDialect.of(
-                    IqProfile.IQ16_DEFAULT).parse(sql), sql);
+                    IqProfile.IQ16_DEFAULT.settings()).parse(sql), sql);
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
         }
         // a wrong count of arguments is IQ's -154 before translation
         assertEquals(SqlTranslationException.Kind.INVALID, assertThrows(SqlTranslationException.class,
-                () -> IqDialect.of(IqProfile.IQ16_DEFAULT).parse("SELECT LEFT('abc') AS x")).kind());
+                () -> IqDialect.of(IqProfile.IQ16_DEFAULT.settings()).parse("SELECT LEFT('abc') AS x")).kind());
     }
 
     // ------------------------------------------------------------------ strings
@@ -173,23 +173,23 @@ class IqFunctionsTest {
         assertFalse(p.contains("trim("), p);
         assertTrue(pure("SELECT TRIM(vc, ']-^') AS t FROM " + T).contains("[\\\\]\\\\-\\\\^]"));
         // IQ island, 2026-10-14 (natives): a UTF-8 database trims the same six (measured), a set without case
-        assertEquals(p, pure("SELECT TRIM(vc) AS t FROM " + T, IqProfile.SQLA17_DEFAULT));
-        assertTrue(pure("SELECT LTRIM(vc, 'ab') AS t FROM " + T, IqProfile.SQLA17_DEFAULT).contains("^([aAbB])+"));
+        assertEquals(p, pure("SELECT TRIM(vc) AS t FROM " + T, IqProfile.SQLA17_DEFAULT.settings()));
+        assertTrue(pure("SELECT LTRIM(vc, 'ab') AS t FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("^([aAbB])+"));
     }
 
     @Test
     void matchingIsCaseSensitiveInAnIqDatabaseAndAsciiCaselessInSqlAnywheres() {
         assertTrue(pure("SELECT REPLACE(vc, 'a', 'b') AS r FROM " + T).contains("replace('a', 'b')"));
         // IQ island, 2026-10-14 (natives): a sqla17 profile's matching ignores the ASCII letters' case, composed
-        String replace = pure("SELECT REPLACE(vc, 'a.b', 'x\\\\y') AS r FROM " + T, IqProfile.SQLA17_DEFAULT);
+        String replace = pure("SELECT REPLACE(vc, 'a.b', 'x\\\\y') AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertTrue(replace.contains("regexpReplace('[aA]\\\\.[bB]', 'x\\\\\\\\y', true)"), replace);
-        assertTrue(pure("SELECT REPLACE(vc, '1.', 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT)
+        assertTrue(pure("SELECT REPLACE(vc, '1.', 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings())
                 .contains("replace('1.', 'x')"));
-        assertTrue(refusal("SELECT REPLACE(vc, vc, 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT).getMessage()
+        assertTrue(refusal("SELECT REPLACE(vc, vc, 'x') AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
                 .contains("no constant"));
         for (String sql : List.of("SELECT CHARINDEX('a', vc) AS r FROM " + T,
                 "SELECT LOCATE(vc, 'a', -1) AS r FROM " + T, "SELECT PATINDEX('%a%', vc) AS r FROM " + T)) {
-            String p = pure(sql, IqProfile.SQLA17_DEFAULT);
+            String p = pure(sql, IqProfile.SQLA17_DEFAULT.settings());
             assertTrue(p.contains("replace('A', 'a')") && !p.contains("toLower"), p);
             assertFalse(pure(sql).contains("replace('A', 'a')"), sql);
         }
@@ -221,7 +221,7 @@ class IqFunctionsTest {
         assertTrue(refusal("SELECT NULL % 1.5 AS q").getMessage().contains("untyped NULL"));
         assertTrue(refusal("SELECT nm / 2 AS q FROM " + T).getMessage().contains("D-N1"));
         assertTrue(refusal("SELECT CAST(1 AS NUMERIC(30,10)) / CAST(1 AS NUMERIC(30,10)) AS q",
-                IqProfile.SQLA17_DEFAULT).getMessage().contains("'?'"));
+                IqProfile.SQLA17_DEFAULT.settings()).getMessage().contains("'?'"));
         assertTrue(IqFunctions.quotientFits(2, 8, 2, 8, 21, 11));
         assertFalse(IqFunctions.quotientFits(10, 20, 0, 10, 31, 11));
     }
@@ -240,7 +240,7 @@ class IqFunctionsTest {
         // D-F5: the smallest SMALLINT's absolute value is IQ's -158 under the IQ engine
         assertTrue(pure("SELECT ABS(sm) AS a FROM " + T).contains("> 32767"));
         // SQL Anywhere's front end: an unsigned SMALLINT, a BIGINT's NUMERIC(20,0)
-        String sa = pure("SELECT ABS(sm) AS a, ABS(bg) AS b FROM " + T, IqProfile.SQLA17_DEFAULT);
+        String sa = pure("SELECT ABS(sm) AS a, ABS(bg) AS b FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertFalse(sa.contains("32767"), sa);
         assertTrue(sa.contains("toDecimal()->abs()"), sa);
     }
@@ -265,15 +265,15 @@ class IqFunctionsTest {
         }
         // the IQ engine raises outside a function's domain (D-F9), SQL Anywhere's front end answers NULL
         assertTrue(pure("SELECT LN(d) AS l FROM " + T).contains("cast(@Float)->toOne()"));
-        assertFalse(pure("SELECT LN(d) AS l FROM " + T, IqProfile.SQLA17_DEFAULT).contains("cast(@Float)->toOne()"));
-        assertTrue(refusal("SELECT ROUND(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT).getMessage()
+        assertFalse(pure("SELECT LN(d) AS l FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("cast(@Float)->toOne()"));
+        assertTrue(refusal("SELECT ROUND(d, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).getMessage()
                 .contains("decimal digits"));
         assertTrue(refusal("SELECT POWER(2, 3) AS p").getMessage().contains("Infinity"));
     }
 
     @Test
     void roundOfAColumnChecksItsPrecisionAndOfAConstantNot() {
-        String column = pure("SELECT ROUND(nm, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT);
+        String column = pure("SELECT ROUND(nm, 1) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
         assertTrue(column.contains("cast(@Decimal)->toOne()"), column);
         String constant = pure("SELECT ROUND(CAST(9.99 AS NUMERIC(3, 2)), 1) AS r");
         assertFalse(constant.contains("cast(@Decimal)->toOne()"), constant);
@@ -284,7 +284,7 @@ class IqFunctionsTest {
     @Test
     void castToCharPadsUnderTheIqEngineAndLikeOverItIsRefused() {
         assertTrue(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T).contains("rpad(22, ' ')"));
-        assertFalse(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T, IqProfile.SQLA17_DEFAULT).contains("rpad"));
+        assertFalse(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("rpad"));
         // D-S5: whether IQ matches the pad in LIKE is not verified
         assertTrue(refusal("SELECT id FROM " + T + " WHERE CAST(vc AS CHAR(22)) LIKE 'a%'").getMessage()
                 .contains("D-S5"));

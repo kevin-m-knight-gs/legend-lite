@@ -108,18 +108,18 @@ final class IqNames {
         this.depth = depth;
     }
 
-    /** The name IQ gives the unaliased item written {@code text} (its expression's text) under {@code profile}; null
+    /** The name IQ gives the unaliased item written {@code text} (its expression's text) under {@code settings}; null
      *  when it is not known (a parenthesized query's is its one item's: the dialect's to give). */
-    static @com.legend.base.Nullable String name(@com.legend.base.Nullable String text, IqProfile profile,
+    static @com.legend.base.Nullable String name(@com.legend.base.Nullable String text, IqSettings settings,
             Columns columns) {
-        return name(text, profile, columns, NONE);
+        return name(text, settings, columns, NONE);
     }
 
-    /** The name IQ gives the unaliased item written {@code text} under {@code profile}, its parts replaced as
+    /** The name IQ gives the unaliased item written {@code text} under {@code settings}, its parts replaced as
      *  {@code substitutes} says (M1c: an item of a grouped query); null when it is not known. */
-    static @com.legend.base.Nullable String name(@com.legend.base.Nullable String text, IqProfile profile,
+    static @com.legend.base.Nullable String name(@com.legend.base.Nullable String text, IqSettings settings,
             Columns columns, Substitutes substitutes) {
-        return name(text, profile, columns, substitutes, Chains.KEPT);
+        return name(text, settings, columns, substitutes, Chains.KEPT);
     }
 
     /**
@@ -134,14 +134,14 @@ final class IqNames {
     enum Chains { KEPT, DROPPED, UNKNOWN }
 
     /** {@link #name(String, IqProfile, Columns, Substitutes)}, with the item's query's {@link Chains}. */
-    static @com.legend.base.Nullable String name(@com.legend.base.Nullable String text, IqProfile profile,
+    static @com.legend.base.Nullable String name(@com.legend.base.Nullable String text, IqSettings settings,
             Columns columns, Substitutes substitutes, Chains chains) {
         if (text == null) {
             return null;
         }
         IqParser.Written w;
         try {
-            w = IqParser.written(text, profile);
+            w = IqParser.written(text, settings);
         } catch (SqlSyntaxException e) {
             return null;
         }
@@ -175,7 +175,7 @@ final class IqNames {
             return null;
         }
         if (name.length() > LONGEST) {
-            for (int i = 0; i < LONGEST && !profile.iqDatabase(); i++) {
+            for (int i = 0; i < LONGEST && !settings.iqDatabase(); i++) {
                 if (name.charAt(i) > 0x7F) {
                     // a UTF-8 database cuts at 255 bytes, maybe inside a character
                     return null;

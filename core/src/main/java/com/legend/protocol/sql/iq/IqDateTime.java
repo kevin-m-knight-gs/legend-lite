@@ -79,13 +79,13 @@ final class IqDateTime {
     // ------------------------------------------------------------------ reading
 
     /**
-     * {@code text}, a constant string, as IQ reads it as a date or a timestamp under {@code profile} (see the class
+     * {@code text}, a constant string, as IQ reads it as a date or a timestamp under {@code settings} (see the class
      * doc): its date ({@code yyyy-mm-dd}) and its time ({@code hh:nn:ss}, then {@code .ffffff} when the second has a
      * fraction); null when it is no spelling the island reads, or no valid date. A date before the year 100, or a
      * timestamp after 7910 with hours or minutes, is refused by name ({@code pos}).
      */
-    static String @com.legend.base.Nullable [] read(String text, IqProfile profile, SqlAst.Pos pos) {
-        int[] v = fields(text, profile.dateOrder());
+    static String @com.legend.base.Nullable [] read(String text, IqSettings settings, SqlAst.Pos pos) {
+        int[] v = fields(text, settings.dateOrder());
         if (v == null) {
             return null;
         }
@@ -432,32 +432,32 @@ final class IqDateTime {
 
     // ------------------------------------------------------------------ writing
 
-    /** The places of a second a TIMESTAMP written as text shows under {@code profile}'s TIMESTAMP_FORMAT: 3 (cut) at
+    /** The places of a second a TIMESTAMP written as text shows under {@code settings}'s TIMESTAMP_FORMAT: 3 (cut) at
      *  the defaults and on a TDS login, 6 through IQ's ODBC driver (measured); -1 for a format not read. */
-    static int places(IqProfile profile) {
-        String f = profile.timestampFormat().toUpperCase(java.util.Locale.ROOT);
+    static int places(IqSettings settings) {
+        String f = settings.timestampFormat().toUpperCase(java.util.Locale.ROOT);
         return f.equals("YYYY-MM-DD HH:NN:SS.SSS") ? 3 : f.equals("YYYY-MM-DD HH:NN:SS.SSSSSS") ? 6 : -1;
     }
 
-    /** The length of a DATE's (or a TIMESTAMP's) text under {@code profile}: 10 (or 20 and the second's places). */
-    static int length(boolean timestamp, IqProfile profile) {
-        return timestamp ? 20 + places(profile) : 10;
+    /** The length of a DATE's (or a TIMESTAMP's) text under {@code settings}: 10 (or 20 and the second's places). */
+    static int length(boolean timestamp, IqSettings settings) {
+        return timestamp ? 20 + places(settings) : 10;
     }
 
     /**
-     * {@code x}, a DATE or a TIMESTAMP, as text in {@code profile}'s DATE_FORMAT or TIMESTAMP_FORMAT (a VARCHAR; NULL
+     * {@code x}, a DATE or a TIMESTAMP, as text in {@code settings}'s DATE_FORMAT or TIMESTAMP_FORMAT (a VARCHAR; NULL
      * for NULL): each part of the date written with its zeros ({@code lpad} of its digits), a timestamp's second cut to
      * the format's places -- composed of Pure's natives, so the database computes it for each value. A format the
      * island does not read is refused by name ({@code what} names the conversion, {@code pos} its place).
      */
-    static Tx text(Tx x, IqProfile profile, String what, SqlAst.Pos pos) {
+    static Tx text(Tx x, IqSettings settings, String what, SqlAst.Pos pos) {
         boolean timestamp = x.kind() == Kind.DATETIME;
-        if (!profile.dateFormat().equalsIgnoreCase("YYYY-MM-DD") || timestamp && places(profile) < 0) {
+        if (!settings.dateFormat().equalsIgnoreCase("YYYY-MM-DD") || timestamp && places(settings) < 0) {
             throw SqlTranslationException.unsupported(what + " of a " + (timestamp ? "timestamp" : "date") + " to text"
-                    + " under " + (timestamp ? "TIMESTAMP_FORMAT " + profile.timestampFormat() : "DATE_FORMAT "
-                    + profile.dateFormat()) + " is not supported yet", pos);
+                    + " under " + (timestamp ? "TIMESTAMP_FORMAT " + settings.timestampFormat() : "DATE_FORMAT "
+                    + settings.dateFormat()) + " is not supported yet", pos);
         }
-        int places = places(profile);
+        int places = places(settings);
         Tx r = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
             ValueSpecification d = v.get(0);
             List<ValueSpecification> parts = new ArrayList<>(List.of(digits(SqlToPure.call("year", d), 4),

@@ -65,9 +65,9 @@ final class IqAliases {
 
     /** {@code statement} with its aliases read where IQ reads them; {@code spans} (the texts the reader keeps by
      *  identity) gains each copy's. {@code frontEnd}: the statement runs in SQL Anywhere's front end. */
-    static Read resolve(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans, IqProfile profile,
+    static Read resolve(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans, IqSettings settings,
             boolean frontEnd) {
-        IqAliases r = new IqAliases(spans, profile.ansinull(), frontEnd);
+        IqAliases r = new IqAliases(spans, settings.ansinull(), frontEnd);
         SqlAst.Statement out = r.statement(statement, List.of());
         return new Read(out, r.outerReads, r.aliasesRead);
     }

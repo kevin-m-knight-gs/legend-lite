@@ -20,10 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class IqLexerTest {
 
     private static List<IqLexer.Token> lex(String sql) {
-        return IqLexer.tokenize(sql, IqProfile.IQ16_DEFAULT);
+        return IqLexer.tokenize(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
-    private static String kinds(String sql, IqProfile profile) {
+    private static String kinds(String sql, IqSettings profile) {
         StringBuilder b = new StringBuilder();
         for (IqLexer.Token t : IqLexer.tokenize(sql, profile)) {
             if (t.kind() != IqLexer.Kind.EOF) {
@@ -34,7 +34,7 @@ class IqLexerTest {
     }
 
     private static String kinds(String sql) {
-        return kinds(sql, IqProfile.IQ16_DEFAULT);
+        return kinds(sql, IqProfile.IQ16_DEFAULT.settings());
     }
 
     @Test
@@ -45,7 +45,7 @@ class IqLexerTest {
 
     @Test
     void doubleQuotesAreAStringUnderATdsLogin_aDoubledQuoteStandingForOne() {
-        assertEquals("STRING:vc STRING:a\"b", kinds("\"vc\" \"a\"\"b\"", IqProfile.IQ16_TDS));
+        assertEquals("STRING:vc STRING:a\"b", kinds("\"vc\" \"a\"\"b\"", IqProfile.IQ16_TDS.settings()));
         // a delimited identifier has no doubling escape
         assertThrows(SqlSyntaxException.class, () -> lex("\"a\"\"b\""));
         assertThrows(SqlSyntaxException.class, () -> lex("[]"));
@@ -56,7 +56,7 @@ class IqLexerTest {
     void stringsDoubleTheirQuote_andReadBackslashEscapesOnlyUnderEscapeCharacterOn() {
         assertEquals("STRING:it's", kinds("'it''s'"));
         assertEquals("STRING:a\nb STRING:xAy STRING:q\\q STRING:\\", kinds("'a\\nb' 'x\\x41y' 'q\\q' '\\\\'"));
-        assertEquals("STRING:a\\nb STRING:x\\x41y", kinds("'a\\nb' 'x\\x41y'", IqProfile.IQ16_TDS));
+        assertEquals("STRING:a\\nb STRING:x\\x41y", kinds("'a\\nb' 'x\\x41y'", IqProfile.IQ16_TDS.settings()));
         // a backslash never escapes the quote: '\'' is unterminated
         SqlSyntaxException open = assertThrows(SqlSyntaxException.class, () -> lex("'\\''"));
         assertFalse(open.unsupported());
@@ -96,7 +96,7 @@ class IqLexerTest {
     @Test
     void aCharacterOutsideTheProfilesCharsetIsRefusedByName() {
         assertTrue(assertThrows(SqlSyntaxException.class, () -> lex("'€'")).unsupported());
-        assertEquals("STRING:€", kinds("'€'", IqProfile.SQLA17_DEFAULT));
+        assertEquals("STRING:€", kinds("'€'", IqProfile.SQLA17_DEFAULT.settings()));
         // a no-break space is no IQ space
         assertFalse(assertThrows(SqlSyntaxException.class, () -> lex("1 2")).unsupported());
     }
@@ -106,9 +106,9 @@ class IqLexerTest {
         // a UTF-8 database (sqla17-*) stores the escape's raw byte, no character: refused; ISO-8859-1 reads it
         assertEquals("STRING:caf\u00e9", kinds("'caf\\xE9'"));
         SqlSyntaxException high = assertThrows(SqlSyntaxException.class,
-                () -> IqLexer.tokenize("'caf\\xE9'", IqProfile.SQLA17_DEFAULT));
+                () -> IqLexer.tokenize("'caf\\xE9'", IqProfile.SQLA17_DEFAULT.settings()));
         assertTrue(high.unsupported() && high.reason().contains("UTF-8"), high.reason());
-        assertEquals("STRING:a\u007Fb", kinds("'a\\x7Fb'", IqProfile.SQLA17_DEFAULT));
+        assertEquals("STRING:a\u007Fb", kinds("'a\\x7Fb'", IqProfile.SQLA17_DEFAULT.settings()));
         SqlSyntaxException nul = assertThrows(SqlSyntaxException.class, () -> lex("'a\\x00b'"));
         assertTrue(nul.unsupported(), nul.reason());
     }
