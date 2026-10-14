@@ -21,7 +21,9 @@ public final class SqlIslandCases {
     /** The island's source table, as {@code tb(...)} names it. */
     public static final String SOURCE = "tb('store::HR.EMP')";
 
-    /** The model: the table, a connection of the given {@code type}/{@code specification} lines, and a runtime. */
+    /** The model: the table, a connection of the given {@code type}/{@code specification} lines, and a runtime. Its
+     *  mixed-case columns are declared QUOTED, as the Postgres table spells them: a name declared bare is folded on
+     *  Postgres (decision D8, as legend-engine does), and reaches only a column a bare declaration made. */
     public static String model(String connection) {
         return """
                 ###Relational
@@ -29,9 +31,9 @@ public final class SqlIslandCases {
                 (
                     Table EMP
                     (
-                        ID INTEGER PRIMARY KEY,
-                        firstName VARCHAR(100),
-                        LAST_NAME VARCHAR(100),
+                        "ID" INTEGER PRIMARY KEY,
+                        "firstName" VARCHAR(100),
+                        "LAST_NAME" VARCHAR(100),
                         dept VARCHAR(20),
                         salary DOUBLE,
                         bonus DECIMAL(10,2),
@@ -68,8 +70,9 @@ public final class SqlIslandCases {
     public static final String DUCKDB_TABLE = "CREATE TABLE EMP (ID INTEGER PRIMARY KEY, firstName VARCHAR(100),"
             + " LAST_NAME VARCHAR(100), dept VARCHAR(20), salary DOUBLE, bonus DECIMAL(10,2), age INTEGER, hired DATE)";
 
-    /** The table on Postgres: the model's mixed-case names quoted, so Postgres keeps them as the model spells them. */
-    public static final String POSTGRES_TABLE = "CREATE TABLE \"EMP\" (\"ID\" INTEGER PRIMARY KEY, \"firstName\""
+    /** The table on Postgres: made bare (Postgres folds it to {@code emp}, as it folds the model's bare table name), its
+     *  mixed-case columns quoted, so Postgres keeps them as the model's quoted declarations spell them. */
+    public static final String POSTGRES_TABLE = "CREATE TABLE EMP (\"ID\" INTEGER PRIMARY KEY, \"firstName\""
             + " VARCHAR(100), \"LAST_NAME\" VARCHAR(100), dept VARCHAR(20), salary DOUBLE PRECISION,"
             + " bonus DECIMAL(10,2), age INTEGER, hired DATE)";
 
@@ -84,7 +87,7 @@ public final class SqlIslandCases {
 
         /** The query as plain Postgres SQL over the Postgres table. */
         public String postgres() {
-            return sql.replace(SOURCE, "\"EMP\"");
+            return sql.replace(SOURCE, "EMP");
         }
     }
 

@@ -125,6 +125,15 @@ public interface SqlDialect {
                 + "' is not implemented for " + getClass().getSimpleName());
     }
 
+    /** Whether a store that declares the catalog's name {@code catalogName} BARE reaches the object the catalog
+     *  names (CatalogModel declares the name quoted where it does not): a database that matches names
+     *  case-insensitively always does; one that folds a bare name (Postgres, decision D8) only when the name is its
+     *  own fold. Refused where the catalog is not read ({@link #catalogType}). */
+    default boolean bareNameReaches(String catalogName) {
+        throw new DialectCapability("reading this database's catalog names is not implemented for "
+                + getClass().getSimpleName());
+    }
+
     /** The select list a COPY of a table applies when the copy is made IN this database, so that it holds the
      *  declared types: each of {@code conversions} (the source catalog's, {@link #catalogType}, written for where
      *  copies run) under its column's name, every other column as it is; {@code *} when no column converts. Refused

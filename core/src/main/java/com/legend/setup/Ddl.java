@@ -51,6 +51,30 @@ public final class Ddl {
         return new com.legend.sql.SqlDdl.DropTable(schema, table);
     }
 
+    /** {@link #dropTable(String, String)} of a declared table: its names spelled as the store declared them
+     *  ({@link #spelledTable}, {@link #spelledSchema}). */
+    public static com.legend.sql.SqlDdl.DropTable dropDeclaredTable(DatabaseDefinition.TableDefinition def,
+            @com.legend.base.Nullable String schema) {
+        return new com.legend.sql.SqlDdl.DropTable(spelledSchema(schema, def), spelledTable(def));
+    }
+
+    /** A table's name as its SQL spells it: carrying its double quotes when the store declared it quoted
+     *  ({@code Table "Orders"}), which the dialect delimits, its case kept; bare otherwise. */
+    public static String spelledTable(DatabaseDefinition.TableDefinition def) {
+        return def.quoted() ? quoted(def.name()) : def.name();
+    }
+
+    /** {@link #spelledTable} for the table's schema {@code schema} (null, or {@code default}, for none). */
+    public static @com.legend.base.Nullable String spelledSchema(@com.legend.base.Nullable String schema,
+            DatabaseDefinition.TableDefinition def) {
+        return schema != null && !schema.isEmpty() && !"default".equals(schema) && def.schemaQuoted()
+                ? quoted(schema) : schema;
+    }
+
+    private static String quoted(String name) {
+        return '"' + name.replace("\"", "\"\"") + '"';
+    }
+
 
     /** {@code constraints}: emit the engine's {@code NULL}/{@code NOT NULL}
      * and trailing {@code PRIMARY KEY(...)} in an EXECUTION flavor too —
@@ -71,7 +95,7 @@ public final class Ddl {
             cols.add(new com.legend.sql.SqlDdl.Column(col.name(), col.quoted(), com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()),
                     col.notNull(), col.primaryKey()));
         }
-        return new com.legend.sql.SqlDdl.CreateTable(schema, def.name(), cols);
+        return new com.legend.sql.SqlDdl.CreateTable(spelledSchema(schema, def), spelledTable(def), cols);
     }
 
 
@@ -117,7 +141,7 @@ public final class Ddl {
         out.add(engineText.render(new com.legend.sql.SqlDdl.CreateSchema("default")));
         for (var sc : named.entrySet()) {
             for (var t : sc.getValue().values()) {
-                out.add(engineText.render(dropTable(sc.getKey(), t.name())));
+                out.add(engineText.render(dropDeclaredTable(t, sc.getKey())));
                 out.add(engineText.render(createTable(t, sc.getKey())));
             }
         }
@@ -131,7 +155,7 @@ public final class Ddl {
         }
         for (var t : defaults.values()) {
             if (!inSchemas.contains(t.name())) {
-                out.add(engineText.render(dropTable("default", t.name())));
+                out.add(engineText.render(dropDeclaredTable(t, "default")));
                 out.add(engineText.render(createTable(t, "default")));
             }
         }

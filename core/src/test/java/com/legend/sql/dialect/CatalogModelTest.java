@@ -227,8 +227,9 @@ class CatalogModelTest {
                 + "->filter(r|$r.ordered_at >= %2025-01-01T00:00:00)"
                 + "->extend(~[y: r|$r.ordered_at->year(), m: r|$r.ordered_at->monthNumber()])"
                 + "->groupBy(~[y, m], ~n: r|$r.id: c|$c->count())").plan("t::RT").sql();
-        assertTrue(sql.contains("FROM \"sales\".\"orders\""), sql);
-        assertTrue(sql.contains("\"ordered_at\" >= "), sql);
+        // the store's bare names folded to lower case (Postgres.physicalName)
+        assertTrue(sql.contains("FROM sales.orders"), sql);
+        assertTrue(sql.contains(".ordered_at >= "), sql);
         assertTrue(!sql.contains("timezone("), sql);
     }
 
@@ -286,8 +287,17 @@ class CatalogModelTest {
 
     @Test
     void aNameThatIsNotAnIdentifierIsQuoted_withTheLexersEscapes() {
-        assertEquals("\"total pnl\"", CatalogModel.ident("total pnl"));
-        assertEquals("\"a\\\"b\"", CatalogModel.ident("a\"b"));
-        assertEquals("region", CatalogModel.ident("region"));
+        assertEquals("\"total pnl\"", CatalogModel.ident("total pnl", new DuckDb()));
+        assertEquals("\"a\\\"b\"", CatalogModel.ident("a\"b", new DuckDb()));
+        assertEquals("region", CatalogModel.ident("region", new DuckDb()));
+    }
+
+    /** A name a bare declaration would not reach is quoted: on a database that folds a bare name (Postgres, D8), a
+     *  name that is not its own fold; DuckDB matches every name case-insensitively. */
+    @Test
+    void aNameABareDeclarationWouldNotReachIsQuoted() {
+        assertEquals("\"Orders\"", CatalogModel.ident("Orders", new Postgres()));
+        assertEquals("orders", CatalogModel.ident("orders", new Postgres()));
+        assertEquals("Orders", CatalogModel.ident("Orders", new DuckDb()));
     }
 }

@@ -164,7 +164,8 @@ describe('the model for a table', () => {
     const copy = (await plannerFor(m.model, m.snapRuntime).plan(query)).sql;
     assert.match(live, /GROUP BY CAST\('\[ROOT\]' AS VARCHAR\)/);
     assert.match(copy, /GROUP BY '\[ROOT\]'/);
-    assert.match(live, /FROM "sales"\."orders"/);
+    // Postgres folds the store's bare names (decision D8), as the bare CREATE TABLE that made them did
+    assert.match(live, /FROM sales\.orders/);
     assert.match(copy, /FROM sales\.orders|FROM "sales"\."orders"/);
   });
 

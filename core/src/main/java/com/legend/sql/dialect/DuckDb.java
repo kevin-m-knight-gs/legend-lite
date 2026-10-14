@@ -173,6 +173,12 @@ public final class DuckDb extends AnsiSqlRenderer {
         return CATALOG_RULES.typeOf(column);
     }
 
+    /** {@inheritDoc} DuckDB matches a name case-insensitively, so a bare declaration reaches every catalog name. */
+    @Override
+    public boolean bareNameReaches(String catalogName) {
+        return true;
+    }
+
     /** {@inheritDoc} DuckDB's star modifier, {@code * REPLACE (<conversion> AS "<column>", ...)}: an upload's
      *  rewrite, a Snap into the tab, a Python frame. */
     @Override

@@ -51,10 +51,10 @@ class SqlIslandPostgresTest {
                 }
             }
             try (Statement s = admin.createStatement()) {
-                s.execute("DROP TABLE IF EXISTS \"EMP\"");
+                s.execute("DROP TABLE IF EXISTS EMP");
                 s.execute(SqlIslandCases.POSTGRES_TABLE);
-                s.execute("INSERT INTO \"EMP\" VALUES " + SqlIslandCases.ROWS);
-                s.execute("GRANT SELECT ON \"EMP\" TO " + account);
+                s.execute("INSERT INTO EMP VALUES " + SqlIslandCases.ROWS);
+                s.execute("GRANT SELECT ON EMP TO " + account);
             }
         }
         model = SqlIslandCases.model(String.format(Locale.ROOT, "type: Postgres;\n specification: Static {"

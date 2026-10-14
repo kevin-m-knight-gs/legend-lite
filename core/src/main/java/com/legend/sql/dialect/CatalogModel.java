@@ -98,7 +98,7 @@ public final class CatalogModel {
                 excluded.add(c.name());
                 continue;
             }
-            lines.add(ident(c.name()) + " " + t.declared() + (c.notNull() ? " NOT NULL" : ""));
+            lines.add(ident(c.name(), dialect) + " " + t.declared() + (c.notNull() ? " NOT NULL" : ""));
             // what a copy applies: every declared column's conversion (on a read-only source only the
             // COPY_CONVERTED ones are declared; the source itself reads them as stored)
             if (t.conversion() != null) {
@@ -109,12 +109,13 @@ public final class CatalogModel {
             throw new IllegalArgumentException("no column of '" + table
                     + "' can be read from its source: " + String.join(", ", excluded));
         }
-        String tableBlock = "Table " + ident(table) + "\n    (\n        "
+        String tableBlock = "Table " + ident(table, dialect) + "\n    (\n        "
                 + String.join(",\n        ", lines) + "\n    )";
         String body = schema == null ? "    " + tableBlock
-                : "    Schema " + ident(schema) + "\n    (\n        "
+                : "    Schema " + ident(schema, dialect) + "\n    (\n        "
                         + tableBlock.replace("\n", "\n    ") + "\n    )";
-        String accessor = "#>{" + path + "." + (schema == null ? "" : ident(schema) + ".") + ident(table) + "}#";
+        String accessor = "#>{" + path + "." + (schema == null ? "" : ident(schema, dialect) + ".")
+                + ident(table, dialect) + "}#";
         return new Database("###Relational\nDatabase " + path + "\n(\n" + body + "\n)\n", accessor,
                 List.copyOf(conversions), List.copyOf(excluded));
     }
@@ -132,10 +133,12 @@ public final class CatalogModel {
         }
     }
 
-    /** A name as a Pure Database identifier: bare when it is one, else quoted with the
-     *  lexer's backslash escapes (a doubled quote would end the token). */
-    static String ident(String name) {
-        if (name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+    /** A catalog name as a Pure Database identifier: bare when it is one and a bare declaration reaches it on
+     *  {@code dialect}'s database ({@link SqlDialect#bareNameReaches}: Postgres folds a bare name, so its
+     *  {@code "Orders"} is declared quoted), else quoted with the lexer's backslash escapes (a doubled quote would end
+     *  the token). */
+    static String ident(String name, SqlDialect dialect) {
+        if (name.matches("[A-Za-z_][A-Za-z0-9_]*") && dialect.bareNameReaches(name)) {
             return name;
         }
         return "\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";

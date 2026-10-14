@@ -2996,12 +2996,25 @@ public final class SQLite extends AnsiSqlRenderer {
      *  once per table (measured: "database metamodel is already in use"). */
     @Override
     protected String tableName(String name) {
-        return name.indexOf('.') <= 0 ? ident(name) : delimited(name);
+        int dot = name.indexOf('.');
+        if (dot <= 0) {
+            return super.tableName(name);
+        }
+        return delimited(text(name.substring(0, dot)) + "." + text(name.substring(dot + 1)));
     }
 
     private String qualified(@com.legend.base.Nullable String schema, String table) {
-        return schema == null || schema.isEmpty() || "default".equals(schema) ? physicalName(table)
-                : delimited(schema + "." + table);
+        if (schema == null || schema.isEmpty() || "default".equals(schema)) {
+            String quoted = declaredQuoted(table);
+            return quoted != null ? delimited(quoted) : physicalName(table);
+        }
+        return delimited(text(schema) + "." + text(table));
+    }
+
+    /** A name part's text: a declared-quoted one's inner text, a bare one as it is. */
+    private static String text(String part) {
+        String quoted = declaredQuoted(part);
+        return quoted != null ? quoted : part;
     }
 
     /** A schema names no object of its own ({@link #tableName}): its creation and its drop are no statement. */

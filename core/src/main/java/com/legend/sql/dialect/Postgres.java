@@ -1174,8 +1174,9 @@ public final class Postgres extends AnsiSqlRenderer {
         return super.projection(writer, p);
     }
 
-    /** Every identifier quoted (Postgres folds a bare one to lowercase); a
-     * quote-bearing declaration ({@code "date"}) is already its own spelling. */
+    /** A name the query itself writes (an alias, a derived label) quoted, so it keeps the case it is written in
+     * (Postgres folds a bare one to lower case); a quote-bearing declaration ({@code "date"}) is already its own
+     * spelling. A STORE's name is spelled by {@link #physicalName}. */
     @Override
     protected String ident(String name) {
         if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
@@ -1183,6 +1184,57 @@ public final class Postgres extends AnsiSqlRenderer {
             return name;
         }
         return delimited(name);
+    }
+
+    /**
+     * A STORE's name as Postgres folds it (decision D8, the user's, 2026-10-13: fold, as legend-engine does). A name a
+     * store declares bare is case-insensitive -- the engine's convention, H2's -- and Postgres folds a bare name to
+     * lower case, so it is spelled in lower case: bare where it may be, delimited where it must be (a keyword). It then
+     * names the table this dialect's own DDL made, the table a bare {@code CREATE TABLE} made (the engine's unquoted
+     * SQL, the corpus's setup text), and a catalog's lower-case name. A name the store declared quoted
+     * ({@code "firstName"}) keeps its case, as does a catalog name that is not its own fold: CatalogModel declares it
+     * quoted ({@link #bareNameReaches}). Until 2026-10-14 every name was delimited as declared, which reached only a
+     * table made with that exact case.
+     */
+    @Override
+    public String physicalName(String name) {
+        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
+                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
+            return name;
+        }
+        String folded = name.toLowerCase(java.util.Locale.ROOT);
+        return BARE.matcher(folded).matches() && !reservedWords().contains(folded) ? folded : delimited(folded);
+    }
+
+    private static final java.util.regex.Pattern BARE = java.util.regex.Pattern.compile("[a-z_][a-z0-9_]*");
+
+    /** A catalog name a bare declaration reaches: one that is its own fold (a table made bare, or quoted in lower
+     *  case); {@code "Orders"} is not, and is declared quoted. */
+    @Override
+    public boolean bareNameReaches(String catalogName) {
+        return catalogName.equals(catalogName.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** A DDL column the store declared bare is a {@link #physicalName} (the queries' spelling of it). */
+    @Override
+    protected String ddlIdentifier(String name, boolean declaredQuoted) {
+        return declaredQuoted ? super.ddlIdentifier(name, true) : physicalName(name);
+    }
+
+    /** A stored table, each part a {@link #physicalName}. */
+    @Override
+    protected String tableName(String name) {
+        int dot = name.indexOf('.');
+        return dot <= 0 ? physicalName(name)
+                : physicalName(name.substring(0, dot)) + "." + physicalName(name.substring(dot + 1));
+    }
+
+    /** A stored column the store declared bare is a {@link #physicalName}; a derived one (the query's own label) and one
+     *  declared quoted keep their spelling. A stored column read with no declared output is labelled as it is
+     *  referenced (the base's implicit label), so an outer query's reference to it names the same column. */
+    @Override
+    protected String columnName(SqlExpr.Column c) {
+        return c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL ? physicalName(c.name()) : super.columnName(c);
     }
 
     @Override

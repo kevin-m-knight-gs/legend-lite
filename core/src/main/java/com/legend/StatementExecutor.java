@@ -2991,8 +2991,8 @@ final class StatementExecutor {
         // session (Phase 0.6): the H2 lane's fresh replays inserted into
         // tables nobody created because this recording was gated on the
         // DuckDB session (17 `ADDRESSTABLE not found` declines)
-        sendEffect(env, env.dialect().render(Ddl.dropTable(schema, table)),
-                H2_DDL.render(Ddl.dropTable(schema, table)), com.legend.exec.StatementOrigin.RAW, true);
+        sendEffect(env, env.dialect().render(Ddl.dropDeclaredTable(def, schema)),
+                H2_DDL.render(Ddl.dropDeclaredTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
         // engine parity (batch 71 experiment): the native's DDL carries the
         // declared key and nullability, exactly like the engine's
         // dropAndCreateTableInDb (applyConstraints defaults true)

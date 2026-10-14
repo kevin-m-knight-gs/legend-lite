@@ -110,14 +110,15 @@ public final class CsvSeed {
             // IF NOT EXISTS: idempotent on both engines and on mirrors
             // that already carry the schema.
             if (!defaultSchema) {
-                out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(schema)), null));
+                out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDdl.CreateSchema(
+                        java.util.Objects.requireNonNull(Ddl.spelledSchema(schema, def.get())))), null));
             }
             // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
             // engine's own target) has no OR REPLACE for tables — this was
             // the recorded root cause of ~39 'Table already exists' H2
             // replay declines (H2_BACKEND.md §12 step 2); DuckDB accepts
             // the two-statement form identically
-            out.add(new Step.Sql(dialect.render(Ddl.dropTable(defaultSchema ? null : schema, table)), null));
+            out.add(new Step.Sql(dialect.render(Ddl.dropDeclaredTable(def.get(), defaultSchema ? null : schema)), null));
             // THE ONE DDL PRODUCER: the store's declared column types,
             // spelled for the target (the engine creates what the store
             // declares — its setUpDataSQLs reads the metamodel's types)
@@ -135,7 +136,9 @@ public final class CsvSeed {
                 rows.add(cells(lines[i]));
             }
         }
-        RowLoad load = rowLoad(dialect, defaultSchema ? null : schema, table, cols, rows);
+        // a declared table's names as the store spells them (quoted ones keep their case)
+        RowLoad load = rowLoad(dialect, defaultSchema ? null : def.map(d -> Ddl.spelledSchema(schema, d)).orElse(schema),
+                def.map(Ddl::spelledTable).orElse(table), cols, rows);
         if (load != null) {
             out.add(new Step.Rows(load));
         }

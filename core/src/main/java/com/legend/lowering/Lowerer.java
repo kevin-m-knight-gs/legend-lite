@@ -569,7 +569,7 @@ public final class Lowerer {
                             com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())))
                     : SqlSelect.starOf(
-                    new SqlSource.Table(t.table(), nextAlias(),
+                    new SqlSource.Table(t.sqlName(), nextAlias(),
                             OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
                             t.storedTypes()));
 
