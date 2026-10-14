@@ -24,6 +24,7 @@ import {
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
 import type { ChartDrawing, MarkKey } from './chart-option.ts';
+import type { Scalar } from '../../engine-client/src/result.ts';
 
 echarts.use([
   BarChart, LineChart, ScatterChart, PieChart, HeatmapChart, TreemapChart,
@@ -71,14 +72,14 @@ function bytesOf(dataUrl: string): Uint8Array {
  * a slice, a heatmap cell); a mark that is not a group (a scatter point)
  * picks nothing.
  */
-export function mountChart(el: HTMLElement, onPick?: (key: MarkKey) => void): MountedChart {
+export function mountChart(el: HTMLElement, onPick?: (key: MarkKey, upper?: Scalar) => void): MountedChart {
   const chart = echarts.init(el, null, { renderer: 'canvas' });
   let drawing: ChartDrawing | null = null;
   chart.on('click', (params: unknown) => {
     const p = params as { seriesIndex?: number; dataIndex?: number; data?: unknown };
     if (!drawing || !onPick || p.seriesIndex === undefined || p.dataIndex === undefined) return;
     const key = drawing.keyAt(p.seriesIndex, p.dataIndex, p.data);
-    if (key) onPick(key);
+    if (key) onPick(key, drawing.upperAt?.(p.dataIndex));
   });
   const view = el.ownerDocument.defaultView;
   const Observer = view?.ResizeObserver;

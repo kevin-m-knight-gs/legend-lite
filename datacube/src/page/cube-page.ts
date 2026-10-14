@@ -29,7 +29,7 @@ import { BandBoard, type BandTile } from '../layout/band-board.ts';
 import { type Bands, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { followCube, measureName } from '../chart-spec.ts';
-import type { GridShown, MarkKey } from '../chart-option.ts';
+import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import { FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews } from '../page-document.ts';
 import { withoutConditions, type AggregateFn, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
@@ -1177,16 +1177,11 @@ export class CubePage {
    * or the chip naming it in the chart's title bar, takes them off. Each is ONE change -- one undo
    * step, refused as a whole.
    */
-  #select(id: string, mark: MarkKey | null): void {
+  #select(id: string, conditions: readonly FilterNode[] | null): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
-    const next: FilterNode[] = mark === null ? [] : Object.entries(mark).map(([column, raw]) => {
-      // a big integer as its digits, as the context menu's value filters do
-      const value = typeof raw === 'bigint' ? raw.toString() : raw;
-      return value === null
-        ? { kind: 'condition', column, operator: 'isEmpty' }
-        : { kind: 'condition', column, operator: 'equal', value };
-    });
+    // the chart said the mark as conditions (chart-spec.ts `markConditions`): a value, a period's or a bin's range
+    const next: FilterNode[] = conditions === null ? [] : [...conditions];
     const key = JSON.stringify(next);
     const add = key === chart.key ? [] : next;
     const old = chart.conditions;
@@ -1202,8 +1197,12 @@ export class CubePage {
     const chart = this.#charts.get(id);
     if (!chart) return;
     const source = this.#sourceOf(chart.link);
+    // a value as `region: EMEA`; a range's ends (a period, a bin, a brush) as `sold ≥ 2024-03-01`
+    const sign: Partial<Record<string, string>> = { greaterThanEqual: '\u2265', greaterThan: '>', lessThan: '<', lessThanEqual: '\u2264' };
     const words = chart.conditions.map((c) => c.kind === 'condition'
-      ? `${source.label(c.column)}: ${c.operator === 'isEmpty' ? '(empty)' : String(c.value)}`
+      ? (c.operator === 'isEmpty' ? `${source.label(c.column)}: (empty)`
+        : sign[c.operator] !== undefined ? `${source.label(c.column)} ${sign[c.operator]} ${String(c.value)}`
+          : `${source.label(c.column)}: ${String(c.value)}`)
       : '');
     chart.chip.hidden = words.length === 0;
     chart.chip.textContent = `${words.join(', ')} ×`;

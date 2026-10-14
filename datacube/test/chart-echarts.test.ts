@@ -16,6 +16,8 @@ import {
   kpiQueries,
   measureName,
   chartColumns,
+  axisName,
+  markConditions,
   type ChartSpec,
 } from '../src/chart-spec.ts';
 import { chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown } from '../src/chart-option.ts';
@@ -493,5 +495,76 @@ describe('a KPI (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () => {
     assert.equal(data.length, KPI_TREND_LIMIT);
     assert.deepEqual([data[0], data.at(-1)], [2, n], 'the oldest one left out');
     assert.deepEqual(drawn.notes, [`The trend shows the latest ${KPI_TREND_LIMIT} values of day.`]);
+  });
+});
+
+describe('presets in the spec: kept as words, expanded when the query is built (§3.2)', () => {
+  const BY_MONTH: ChartSpec = { ...BAR, x: 'trade_date', grain: 'month' };
+
+  it('a grain groups by its own column, sorted and drawn from it; the cube\'s column stays its source', () => {
+    assert.equal(axisName(BY_MONTH), 'trade_date__month');
+    const s = chartSnapshot(CUBE, { ...BY_MONTH, options: { ...BAR.options, sort: { by: 'x', direction: 'asc' } } });
+    assert.deepEqual(s.rows, ['trade_date__month']);
+    assert.deepEqual(s.derived.map((d) => d.name), ['trade_date__month']);
+    assert.deepEqual(s.sorts, [{ column: 'trade_date__month', direction: 'asc' }]);
+    assert.ok(s.columns.some((c) => c.name === 'trade_date'));
+    // the drawing reads its categories from the grain's column
+    const d = chartOption(BY_MONTH, table([
+      { name: 'trade_date__month', type: 'StrictDate', values: ['2024-01-01', '2024-02-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2] },
+    ]));
+    assert.deepEqual(d.keyAt(0, 1), { trade_date: '2024-02-01' });
+  });
+
+  it('a click on a period filters the cube\'s column to the period: from its first day to the next\'s', () => {
+    assert.deepEqual(markConditions(BY_MONTH, CUBE, { trade_date: '2024-12-01' }), [
+      { kind: 'condition', column: 'trade_date', operator: 'greaterThanEqual', value: '2024-12-01' },
+      { kind: 'condition', column: 'trade_date', operator: 'lessThan', value: '2025-01-01' },
+    ]);
+    assert.deepEqual(markConditions({ ...BY_MONTH, grain: 'quarter' }, CUBE, { trade_date: '2024-10-01', region: 'EMEA' }), [
+      { kind: 'condition', column: 'trade_date', operator: 'greaterThanEqual', value: '2024-10-01' },
+      { kind: 'condition', column: 'trade_date', operator: 'lessThan', value: '2025-01-01' },
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+    ]);
+  });
+
+  it('a click on a bin filters to its range: to the next bin\'s edge, the last from its edge up', () => {
+    const BINS: ChartSpec = { ...BAR, x: 'notional', bins: { width: 100 }, y: [{ column: 'qty', fn: 'count' }] };
+    const d = chartOption(BINS, table([
+      { name: 'notional__bin', type: 'Float', values: [200, 0, 100] },
+      { name: 'count', type: 'Integer', values: [1, 2, 3] },
+    ]));
+    assert.equal(d.upperAt?.(1), 100);
+    assert.equal(d.upperAt?.(0), undefined);
+    assert.deepEqual(markConditions(BINS, CUBE, { notional: 0 }, 100), [
+      { kind: 'condition', column: 'notional', operator: 'greaterThanEqual', value: 0 },
+      { kind: 'condition', column: 'notional', operator: 'lessThan', value: 100 },
+    ]);
+    assert.deepEqual(markConditions(BINS, CUBE, { notional: 200 }), [
+      { kind: 'condition', column: 'notional', operator: 'greaterThanEqual', value: 200 },
+    ]);
+  });
+
+  it('a show-as plots its own column, over the measure it reads, along the axis, restarting per series', () => {
+    const spec: ChartSpec = { ...BAR, split: 'desk', y: [{ column: 'notional', fn: 'sum', showAs: { kind: 'runningTotal' } }] };
+    assert.equal(measureName(spec.y[0]!), 'runningTotal_sum_notional');
+    const s = chartSnapshot(CUBE, spec);
+    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional']);
+    assert.deepEqual(s.groupDerived, [{ name: 'runningTotal_sum_notional', window: {
+      fn: 'sum', column: 'sum_notional', partition: ['desk'], order: [{ column: 'region', direction: 'asc' }], frame: 'running',
+    } }]);
+  });
+
+  it('what stops one: a grain on what is not a date, bins on what is not a number', () => {
+    assert.match(chartProblems({ ...BAR, grain: 'month' }, CUBE).join(' '), /'region' is not a date/);
+    assert.match(chartProblems({ ...BAR, bins: { width: 3 } }, CUBE).join(' '), /'region' is not a number/);
+    assert.deepEqual(chartProblems(BY_MONTH, CUBE), []);
+  });
+
+  it('a live chart keeps its grain while its column stays across, and drops it when the column changes', () => {
+    const live = BY_MONTH;
+    const cube: CubeSnapshot = { ...CUBE, rows: ['trade_date'], pivotOn: [] };
+    assert.equal(followCube(live, cube).grain, 'month');
+    assert.equal(followCube(live, { ...CUBE, rows: ['region'], pivotOn: [] }).grain, undefined);
   });
 });

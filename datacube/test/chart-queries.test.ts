@@ -80,6 +80,7 @@ const BY_REGION: ChartSpec = {
   mark: 'bar',
   x: 'region',
   y: [{ column: 'revenue', fn: 'sum' }],
+  // in the order across, so each answer is read in a known order
   options: { ...DEFAULT_OPTIONS, sort: { by: 'x', direction: 'asc' } },
 };
 
@@ -100,5 +101,61 @@ describe('a group-level column, planned and run', () => {
     const t = await rows(spec, s);
     assert.deepEqual(values(t, measureName(spec.y[0]!)), [400, 300]);
     assert.deepEqual(values(t, 'profit'), [370, 190]);
+  });
+});
+
+describe('presets, planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)', () => {
+  const BY_MONTH: ChartSpec = { ...BY_REGION, x: 'sold', grain: 'month' };
+
+  it('a date by month: the compiler\'s firstDayOfMonth, one row per month', async () => {
+    const t = await rows(BY_MONTH);
+    assert.deepEqual(values(t, 'sold__month').map((v) => String(v).slice(0, 10)), ['2024-01-01', '2024-02-01', '2024-03-01']);
+    assert.deepEqual(values(t, 'sum_revenue'), [500, 250, 450]);
+  });
+
+  it('by quarter and by year: one row each here', async () => {
+    for (const grain of ['quarter', 'year'] as const) {
+      const t = await rows({ ...BY_MONTH, grain });
+      assert.deepEqual(values(t, `sold__${grain}`).map((v) => String(v).slice(0, 10)), ['2024-01-01'], grain);
+      assert.deepEqual(values(t, 'sum_revenue'), [1200], grain);
+    }
+  });
+
+  it('a number by bins of a width: floor(v / w) * w', async () => {
+    const t = await rows({ ...BY_REGION, x: 'revenue', bins: { width: 200 }, y: [{ column: 'cost', fn: 'count' }] });
+    // 50, 100, 150 -> 0; 200, 300 -> 200; 400 -> 400
+    assert.deepEqual(values(t, 'revenue__bin'), [0, 200, 400]);
+    assert.deepEqual(values(t, 'count'), [3, 2, 1]);
+  });
+
+  it('a number by a count of bins over its range: the database finds the range and each edge', async () => {
+    const t = await rows({ ...BY_REGION, x: 'revenue', bins: { count: 2 }, y: [{ column: 'cost', fn: 'count' }] });
+    // the range 50..400, two bins 175 wide: [50, 225) holds 50, 100, 150, 200; [225, 400] holds 300, 400 (the maximum
+    // in the last bin, not one of its own)
+    assert.deepEqual(values(t, 'revenue__bin').map(Number), [50, 225]);
+    assert.deepEqual(values(t, 'count'), [4, 2]);
+  });
+
+  it('a running total along the months, restarting per region', async () => {
+    const t = await rows({ ...BY_MONTH, split: 'region', y: [{ column: 'revenue', fn: 'sum', showAs: { kind: 'runningTotal' } }],
+      options: { ...BY_MONTH.options, sort: { by: 'x', direction: 'asc' } } });
+    const got = values(t, 'region').map((r, i) => `${String(r)} ${String(values(t, 'sold__month')[i]).slice(0, 7)} ${String(values(t, 'runningTotal_sum_revenue')[i])}`);
+    assert.deepEqual(got.sort(), [
+      'AMER 2024-01 400', 'AMER 2024-02 450', 'AMER 2024-03 600',
+      'EMEA 2024-01 100', 'EMEA 2024-02 300', 'EMEA 2024-03 600',
+    ]);
+  });
+
+  it('% of total, the change from the month before (absolute and as a ratio), a moving average, a rank', async () => {
+    const shown = async (kind: 'percentOfTotal' | 'difference' | 'percentChange' | 'movingAverage' | 'rank') => {
+      const t = await rows({ ...BY_MONTH, y: [{ column: 'revenue', fn: 'sum', showAs: kind === 'movingAverage' ? { kind, rows: 2 } : { kind } }] });
+      return values(t, `${kind}_sum_revenue`).map((v) => (v === null ? null : Number(Number(v).toFixed(4))));
+    };
+    // the months' sums: 500, 250, 450 of 1200
+    assert.deepEqual(await shown('percentOfTotal'), [500 / 1200, 250 / 1200, 450 / 1200].map((v) => Number(v.toFixed(4))));
+    assert.deepEqual(await shown('difference'), [null, -250, 200]);
+    assert.deepEqual(await shown('percentChange'), [null, -0.5, 0.8]);
+    assert.deepEqual(await shown('movingAverage'), [500, 375, 350]);
+    assert.deepEqual(await shown('rank'), [1, 3, 2]);
   });
 });

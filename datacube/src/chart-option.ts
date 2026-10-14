@@ -16,7 +16,7 @@
 // and ONE value axis (never two).
 
 import type { EChartsOption } from 'echarts';
-import { KPI_TREND_LIMIT, measureName, type ChartSpec } from './chart-spec.ts';
+import { axisName, KPI_TREND_LIMIT, measureName, type ChartSpec } from './chart-spec.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import { numberOf } from '../../engine-client/src/values.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
@@ -102,6 +102,11 @@ export interface ChartDrawing {
    * `datum` is the clicked item itself, for a mark whose index is not enough (a treemap's node).
    */
   keyAt(seriesIndex: number, dataIndex: number, datum?: unknown): MarkKey | null;
+  /**
+   * For a chart of bins: the edge of the bin after the clicked one (the least category above it), so a click filters
+   * to the bin's range; undefined for the last bin, or a chart that is not of bins.
+   */
+  upperAt?(dataIndex: number): Scalar | undefined;
   /** Anything the reader should know that the picture cannot say. */
   readonly notes: readonly string[];
   /** The chart in words, for a screen reader (the container's aria-label). */
@@ -163,7 +168,9 @@ export function chartOption(
     grid: { left: 8, right: 16, top: 40, bottom: 8, containLabel: true },
   };
 
-  const xCol = spec.x !== undefined ? column(rows, spec.x) : undefined;
+  // the categories come from the axis's own column (a date's month, a number's bin); a click is said back on `x`
+  const across = spec.mark === 'scatter' ? spec.x : axisName(spec);
+  const xCol = across !== undefined ? column(rows, across) : undefined;
   const first = spec.y[0];
   if (!xCol || !first) {
     return { option: base, keyAt: () => null, notes: ['Nothing to draw.'], description: 'An empty chart.' };
@@ -405,9 +412,26 @@ export function chartOption(
       if (spec.split !== undefined && s && s.key !== undefined) key[spec.split] = s.key;
       return key;
     },
+    ...(spec.bins !== undefined ? { upperAt: (dataIndex: number) => nextEdge(categories, dataIndex, xCol.type) } : {}),
     notes,
     description: describe(spec, rows),
   };
+}
+
+/** The least category above the one at `i` (a bin's next edge): compared, never computed. */
+function nextEdge(categories: readonly Scalar[], i: number, type: string | undefined): Scalar | undefined {
+  const at = numberOf(categories[i] ?? null, type);
+  if (at === null) return undefined;
+  let best: Scalar | undefined;
+  let bestN = Infinity;
+  for (const c of categories) {
+    const n = numberOf(c, type);
+    if (n !== null && n > at && n < bestN) {
+      best = c;
+      bestN = n;
+    }
+  }
+  return best;
 }
 
 const MARK_WORDS: Record<ChartSpec['mark'], string> = {

@@ -91,8 +91,14 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  394,000 -> 395,000 (2026-10-13, the program's D5: the page spells no SQL): the demo's trades made in the tab as
  *  Arrow data and put in by DuckDB's Arrow reader, where a SQL statement generated them (demo/boot.ts generateTrades;
  *  engine-client's arrow-ipc.ts arrowIpcStream -- Arrow's table and vector makers; its writer was already here,
- *  DuckDB-WASM's). Measured 394,429, D5's step 5 before it 393,598 (+831). */
-const BUDGET = 395_000;
+ *  DuckDB-WASM's). Measured 394,429, D5's step 5 before it 393,598 (+831).
+ *  395,000 -> 397,000 (2026-10-14, DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1-§3.2): the
+ *  chart spec's version 2 and its reader (chart-spec.ts specProblem: a saved page's every chart is read at startup),
+ *  the presets the chart's query expands (calc-presets.ts) and their fields in the charts' panel. The drawing itself
+ *  (chart-option.ts) moved OUT of startup in the same step -- it comes with ECharts the first time a chart draws -- so
+ *  the rest of batch 2's drawing grows the chart's chunk, not this. Measured 395,616 (399,865 before the drawing moved
+ *  out), main before it 394,429. */
+const BUDGET = 397_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -102,8 +108,17 @@ const BUDGET = 395_000;
  *  app (its sources, the source picker, the saved pages' windows) are at startup, where one cube's tab loaded the
  *  grid alone and fetched the page's code only for a page. The design's "the engine page's startup holds" (§10) did
  *  not survive R1: the page itself is what grew. What the tab's startup carries, less the planner's and DuckDB's
- *  clients. Measured 366,792; its first measure, one cube's tab, 288,876 (2026-10-08). */
-const ENGINE_BUDGET = 380_000;
+ *  clients. Measured 366,792; its first measure, one cube's tab, 288,876 (2026-10-08).
+ *  380,000 -> 381,000 (2026-10-14, DataCube charts batch 2): the grid's budget's note of the same date -- the chart
+ *  spec's version 2 reader and its presets at startup, the drawing moved out. Measured 380,118. */
+const ENGINE_BUDGET = 381_000;
+
+/** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
+ *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
+ *  chart chunk gets a budget of its own beside the grid's"), raised with each batch on purpose. Measured 368,423: the
+ *  ECharts chunk 361,342 (bar, line, scatter, pie, heatmap and treemap with their components, as registered in
+ *  chart-render.ts) and the drawing's. */
+const CHART_BUDGET = 369_000;
 
 /** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
  *  gzipped, which the widget's loader fetches over the kernel's channel once per notebook page. Set 2026-10-08 at its
@@ -145,6 +160,17 @@ describe('the page loads ECharts only when a chart draws', () => {
     }
     const lazy = readdirSync(CHUNKS).filter((f) => readFileSync(join(CHUNKS, f), 'utf8').includes('src/ui/layout-picker.ts'));
     assert.equal(lazy.length, 1, 'one chunk holds the layout picker');
+  });
+
+  it(`the first chart fetches at most ${CHART_BUDGET.toLocaleString()} bytes more, gzipped: ECharts and the drawing`, () => {
+    // what a chart adds to the page, beside the grid's own budget (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5)
+    const chart = readdirSync(CHUNKS).map((f) => join(CHUNKS, f)).filter((f) => {
+      const text = readFileSync(f, 'utf8');
+      return text.includes('node_modules/echarts/') || text.includes('src/chart-option.ts');
+    });
+    assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
+    const size = chart.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= CHART_BUDGET, `a first chart fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${CHART_BUDGET.toLocaleString()}`);
   });
 
   it(`a grid-only page downloads at most ${BUDGET.toLocaleString()} bytes of script, gzipped`, () => {

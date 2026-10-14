@@ -433,6 +433,8 @@ _HEADLESS_LEFT_OUT = {
     # a picked File read as a stream (Blob, TextDecoderStream: upload.ts fileParts) is the page's: headless reads a file
     # by its path (readFileInto, run by //python:headless_test's Files)
     "upload": "a picked File, read as the page's stream",
+    # its rows read in from a picked File, as upload's are (the queries themselves run headless in every chart's page)
+    "chart-queries": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",

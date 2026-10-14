@@ -94,6 +94,17 @@ export const CALC_FUNCTIONS: readonly CalcFunction[] = [
   { name: 'log', example: '$x.qty->toOne()->log()' },
   { name: 'mod', example: '$x.qty->toOne()->mod(2)' },
 
+  // -- dates: a period's first day, and a date's parts (over a day: the demo's TRADES has no date column)
+  { name: 'firstDayOfWeek', example: '%2024-03-15->firstDayOfWeek()' },
+  { name: 'firstDayOfMonth', example: '%2024-03-15->firstDayOfMonth()' },
+  { name: 'firstDayOfQuarter', example: '%2024-03-15->firstDayOfQuarter()' },
+  { name: 'firstDayOfYear', example: '%2024-03-15->firstDayOfYear()' },
+  { name: 'datePart', example: '%2024-03-15->datePart()' },
+  { name: 'year', example: '%2024-03-15->year()' },
+  { name: 'monthNumber', example: '%2024-03-15->monthNumber()' },
+  { name: 'quarterNumber', example: '%2024-03-15->quarterNumber()' },
+  { name: 'dayOfWeekNumber', example: '%2024-03-15->dayOfWeekNumber()' },
+
   // -- logic ---------------------------------------------------------
   { name: 'if', example: "if($x.pnl->toOne() > 0, |'up', |'down')" },
   { name: 'isEmpty', example: '$x.desk->isEmpty()' },

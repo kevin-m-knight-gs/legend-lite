@@ -13,6 +13,8 @@
 // no functions (a stored formatter would need eval to come back).
 
 import { levelLambda, type LevelScope } from './query.ts';
+import { binColumns, binName, grainColumn, grainName, rangeConditions, showAsColumns, showAsName } from './calc-presets.ts';
+import type { Scalar } from '../../engine-client/src/result.ts';
 import {
   AGGREGATE_FNS,
   rowColumns,
@@ -325,9 +327,61 @@ export const DEFAULT_OPTIONS: ChartOptions = {
 
 /** The name a measure's column has in the chart's result. */
 export function measureName(m: ChartMeasure): string {
+  const base = baseName(m);
+  return m.showAs ? showAsName(m.showAs.kind, base) : base;
+}
+
+/** The name a measure has before any show-as: its aggregate's column, or a group-level column's own name. */
+export function baseName(m: ChartMeasure): string {
   // a group-level column is already one figure per group: it keeps its name
   if (m.fn === 'value') return m.column;
   return m.fn === 'count' ? 'count' : `${m.fn}_${m.column}`;
+}
+
+/**
+ * The column the chart groups by across: its grain's column (a date by month), its bins' column, or `x` itself. The
+ * drawing reads the categories from it; a click is said back on `x` (`markConditions`).
+ */
+export function axisName(spec: ChartSpec): string | undefined {
+  if (spec.x === undefined) return undefined;
+  if (spec.grain !== undefined) return grainName(spec.x, spec.grain);
+  if (spec.bins !== undefined) return binName(spec.x);
+  return spec.x;
+}
+
+/** The row-stage columns the chart's axis needs: a grain's, or its bins'. */
+function axisCalcs(spec: ChartSpec): DerivedColumn[] {
+  if (spec.x === undefined || spec.mark === 'scatter') return [];
+  if (spec.grain !== undefined) return [grainColumn(spec.x, spec.grain)];
+  if (spec.bins !== undefined) return binColumns(spec.x, spec.bins);
+  return [];
+}
+
+/**
+ * A clicked mark as conditions on the cube's own columns: a period of a grain from its first day to the next's, a bin
+ * from its edge to the next bin's (`upper`, the next category's edge, when there is one), anything else its value.
+ */
+export function markConditions(
+  spec: ChartSpec,
+  s: CubeSnapshot,
+  key: Readonly<Record<string, Scalar>>,
+  upper?: Scalar,
+): FilterNode[] {
+  const typeOf = new Map(rowColumns(s).map((c) => [c.name, c.type]));
+  return Object.entries(key).flatMap(([column, raw]): FilterNode[] => {
+    // a big integer as its digits, as the context menu's value filters do
+    const value = typeof raw === 'bigint' ? raw.toString() : raw;
+    if (column === spec.x && (spec.grain !== undefined || spec.bins !== undefined)) {
+      const up = typeof upper === 'bigint' ? Number(upper) : upper;
+      return rangeConditions(column, typeOf.get(column), value, {
+        ...(spec.grain !== undefined ? { grain: spec.grain } : { bin: true }),
+        ...(typeof up === 'number' ? { upper: up } : {}),
+      });
+    }
+    return value === null
+      ? [{ kind: 'condition', column, operator: 'isEmpty' }]
+      : [{ kind: 'condition', column, operator: 'equal', value }];
+  });
 }
 
 /**
@@ -448,7 +502,12 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   const split = s.rows[0] !== undefined ? (s.rows[1] ?? s.pivotOn[0]) : s.pivotOn[1];
   const configured = s.measures.find((m) => m.fn !== 'wavg');
   const y = configured ? [{ column: configured.column, fn: configured.fn }] : spec.y;
-  const { split: _old, ...rest } = spec;
+  // a grain or bins belong to the column they were chosen for: a new column across starts without them
+  const { split: _old, grain: _g, bins: _b, ...rest } = spec;
+  const kept = x === spec.x ? {
+    ...(spec.grain !== undefined ? { grain: spec.grain } : {}),
+    ...(spec.bins !== undefined ? { bins: spec.bins } : {}),
+  } : {};
   const sort = x === spec.x ? spec.options.sort
     : isTemporal(rowColumns(s).find((c) => c.name === x)?.type)
       ? { by: 'x' as const, direction: 'asc' as const }
@@ -456,6 +515,7 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   const next: ChartSpec = {
     ...rest,
     x,
+    ...kept,
     y,
     ...(split !== undefined ? { split } : {}),
     options: { ...spec.options, sort },
@@ -486,6 +546,15 @@ export function chartProblems(spec: ChartSpec, s: CubeSnapshot): string[] {
   if (spec.mark === 'heatmap' && spec.split === undefined) {
     out.push('A heatmap needs a second column, for its rows.');
   }
+  // a grain takes a date to its period, bins a number to its bin: on any other column they mean nothing
+  const xType = [...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === spec.x)?.type;
+  if (spec.grain !== undefined && spec.x !== undefined && known.has(spec.x) && !isTemporal(xType)) {
+    out.push(`'${spec.x}' is not a date: it has no ${spec.grain}.`);
+  }
+  if (spec.bins !== undefined && spec.x !== undefined && known.has(spec.x) && !isNumeric(xType)) {
+    out.push(`'${spec.x}' is not a number: it has no bins.`);
+  }
+  if (spec.grain !== undefined && spec.bins !== undefined) out.push('A column across has a grain or bins, not both.');
   if (spec.split !== undefined && spec.split === spec.x) {
     out.push('Split by a different column than the one across.');
   }
@@ -503,13 +572,15 @@ export function chartProblems(spec: ChartSpec, s: CubeSnapshot): string[] {
  */
 export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
   const scatter = spec.mark === 'scatter';
-  const keys = [spec.x, spec.split].filter((c): c is string => c !== undefined);
+  const across = axisName(spec);
+  const keys = [scatter ? spec.x : across, spec.split].filter((c): c is string => c !== undefined);
   const aggregated = spec.y.filter((m): m is ChartMeasure & { fn: AggregateFn } => m.fn !== 'value');
-  const measures: Measure[] = scatter ? [] : aggregated.map((m) => ({
-    name: measureName(m),
+  // a measure's name before any show-as: two measures shown two ways of one aggregate share it
+  const measures: Measure[] = scatter ? [] : [...new Map(aggregated.map((m) => [baseName(m), {
+    name: baseName(m),
     column: m.column,
     fn: m.fn,
-  }));
+  }] as const)).values()];
   // A GROUP-LEVEL COLUMN plotted as it is: kept, with every group-level column it reads (a share reads a window, a
   // window a measure) and every measure of the cube's they read, under the names they read them by -- the expression
   // was written against those names.
@@ -531,13 +602,25 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
     if (m) keptMeasures.push(m);
   };
   if (!scatter) spec.y.filter((m) => m.fn === 'value').forEach((m) => need(m.column));
-  const rowCalcs = (spec.calcs ?? []).filter((c) => c.stage === 'row').map((c) => c.column);
+  // A SHOW-AS: group-level columns over the chart's rows, after what they read -- along the axis, restarting per series
+  const shown: DerivedColumn[] = [];
+  if (!scatter) {
+    const named = new Set<string>();
+    for (const m of spec.y) {
+      if (!m.showAs || named.has(measureName(m))) continue;
+      named.add(measureName(m));
+      shown.push(...showAsColumns(m.showAs, baseName(m), across !== undefined ? [across] : [],
+        spec.split !== undefined ? [spec.split] : []));
+    }
+  }
+  const rowCalcs = [...axisCalcs(spec), ...(spec.calcs ?? []).filter((c) => c.stage === 'row').map((c) => c.column)];
   // what the chart reads, and what the cube's filter reads (its literals are
   // written by their columns' types, so those columns must stay typed)
   const reads = new Set([
     ...keys,
     ...aggregated.map((m) => m.column),
     ...(scatter ? spec.y.map((m) => m.column) : []),
+    ...(spec.x !== undefined ? [spec.x] : []),
     ...keptMeasures.flatMap((m) => [m.column, ...(m.weight !== undefined ? [m.weight] : [])]),
     ...rowCalcs.flatMap(columnsRead),
     ...filterColumns(s.filter),
@@ -545,7 +628,7 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
   const first = spec.y[0];
   const sorts = scatter ? [] : spec.options.sort.by === 'y' && first
     ? [{ column: measureName(first), direction: spec.options.sort.direction }]
-    : spec.x !== undefined ? [{ column: spec.x, direction: spec.options.sort.direction }] : [];
+    : across !== undefined ? [{ column: across, direction: spec.options.sort.direction }] : [];
   const {
     pivotValues: _pv, pivotTotal: _pt, groupDerived: _gd, window: _w,
     leafCount: _lc, childCount: _cc, ...rest
@@ -571,7 +654,7 @@ export function chartSnapshot(s: CubeSnapshot, spec: ChartSpec): CubeSnapshot {
     rows: scatter ? [] : keys,
     pivotOn: [],
     measures: allMeasures,
-    ...(keptGroup.length > 0 ? { groupDerived: keptGroup } : {}),
+    ...(keptGroup.length + shown.length > 0 ? { groupDerived: [...keptGroup, ...shown] } : {}),
     sorts,
   };
 }

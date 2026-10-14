@@ -15,17 +15,25 @@ import {
   defaultChart,
   followCube,
   kpiQueries,
+  markConditions,
+  SHOW_AS_KINDS,
+  TIME_GRAINS,
   type ChartMark,
+  type ShowAsKind,
+  type TimeGrain,
   type ChartSpec,
 } from '../chart-spec.ts';
-import { chartOption, kpiDrawing, themeOf, treemapOfGrid, type GridShown, type LabelOf, type MarkKey } from '../chart-option.ts';
+// the drawing (chart-option.ts) comes with ECharts, the first time a chart draws: a grid alone fetches neither
+import type { GridShown, LabelOf, MarkKey } from '../chart-option.ts';
 // ECharts (about 218 KB gzipped) is loaded the first time a chart draws, never by a grid alone (plan F7)
 import type { ChartPicture, MountedChart } from '../chart-render.ts';
-import type { ResultTable } from '../../../engine-client/src/result.ts';
-import type { AggregateFn, CubeSnapshot } from '../snapshot.ts';
+import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
+import type { AggregateFn, CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { checkbox, dropdown, field, numberInput } from './form.ts';
 import { aggregatesFor } from './panel-column.ts';
+import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
+import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
@@ -34,8 +42,8 @@ export interface ChartPanelOptions {
   readonly run: (query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal) => Promise<ResultTable>;
   /** How a value is written: the grid's formatter. */
   readonly label: LabelOf;
-  /** A mark was clicked: filter the cube to its values. */
-  readonly onPick: (key: MarkKey) => void;
+  /** A mark was clicked: filter the cube to these conditions (its values; a period's or a bin's range). */
+  readonly onPick: (conditions: FilterNode[]) => void;
   /** Where to start; the cube's own grouping suggests one otherwise. */
   readonly initial?: ChartSpec;
   /** Upstream-style debounce between an edit and the query; a test passes 0. */
@@ -256,8 +264,13 @@ export class ChartPanel {
     form.append(
       markField,
       field(doc, scatter ? 'X:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
-        if (v) this.#set({ x: v });
+        if (!v || !this.#spec) return;
+        // a grain or bins belong to the column they were chosen for
+        const { grain: _g, bins: _b, ...rest } = this.#spec;
+        this.#spec = rest;
+        this.#set({ x: v }, true);
       })),
+      ...this.#presetFields(spec, typeOf.get(spec.x ?? '')),
       // every handler reads the spec as it is AT THE EVENT, never the one
       // this form was painted from: a stale copy undid the edit before it
       field(doc, scatter ? 'Y:' : 'Value:', dropdown<string>(
@@ -333,6 +346,53 @@ export class ChartPanel {
     }
   }
 
+  /**
+   * The presets across and up (calc-presets.ts, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2): a date across by its
+   * period, a number across by its bins, the measure shown as a running total, a share, a change, a moving average or
+   * a rank -- each kept in the spec as its words, expanded to calculated columns when the query is built.
+   */
+  #presetFields(spec: ChartSpec, xType: string | undefined): HTMLElement[] {
+    const doc = this.#doc;
+    if (spec.mark === 'scatter' || spec.mark === 'pie' && spec.x === undefined) return [];
+    const out: HTMLElement[] = [];
+    const without = <K extends 'grain' | 'bins'>(key: K): ChartSpec => {
+      const { [key]: _gone, ...rest } = this.#spec!;
+      return rest as ChartSpec;
+    };
+    if (isTemporal(xType)) {
+      out.push(field(doc, 'By:', dropdown<TimeGrain>(doc, spec.grain,
+        TIME_GRAINS.map((g) => ({ value: g, label: GRAIN_LABELS[g] })), (v) => {
+          if (!this.#spec) return;
+          this.#spec = without('grain');
+          this.#set(v ? { grain: v } : {});
+        }, { allowNone: true })));
+    } else if (isNumeric(xType)) {
+      out.push(field(doc, 'Bin width:', numberInput(doc, spec.bins?.width, (v) => {
+        if (!this.#spec) return;
+        this.#spec = without('bins');
+        this.#set(v !== undefined && v > 0 ? { bins: { width: v } } : {});
+      }, { min: 0, width: 90 })));
+    }
+    const first = spec.y[0];
+    if (first && spec.mark !== 'pie' && spec.mark !== 'heatmap') {
+      out.push(field(doc, 'Show as:', dropdown<ShowAsKind>(doc, first.showAs?.kind,
+        SHOW_AS_KINDS.map((k) => ({ value: k, label: SHOW_AS_LABELS[k] })), (v) => {
+          const now = this.#spec?.y[0];
+          if (!now || !this.#spec) return;
+          const { showAs: _old, ...measure } = now;
+          this.#set({ y: [v ? { ...measure, showAs: { kind: v } } : measure, ...this.#spec.y.slice(1)] }, true);
+        }, { allowNone: true })));
+      if (first.showAs?.kind === 'movingAverage') {
+        out.push(field(doc, 'Over rows:', numberInput(doc, first.showAs.rows ?? 3, (v) => {
+          const now = this.#spec?.y[0];
+          if (!now || !this.#spec || v === undefined || v < 1) return;
+          this.#set({ y: [{ ...now, showAs: { kind: 'movingAverage', rows: Math.floor(v) } }, ...this.#spec.y.slice(1)] });
+        }, { min: 1, max: 365, step: 1, width: 70 })));
+      }
+    }
+    return out;
+  }
+
   // -- drawing ----------------------------------------------------------------
 
   /** The chart as drawn now, as a picture, for an export of the page; null before it has drawn. */
@@ -358,8 +418,10 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key) => this.#options.onPick(key));
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper));
       }
+      const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
+      if (this.#disposed) return;
       const drawing = treemapOfGrid(now, themeOf(this.#canvas), this.#options.label);
       this.#chart.show(drawing);
       this.#say(drawing.notes.join(' '));
@@ -387,8 +449,10 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (abort.signal.aborted || this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key) => this.#options.onPick(key));
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper));
       }
+      const { chartOption, themeOf } = await import('../chart-option.ts');
+      if (abort.signal.aborted || this.#disposed) return;
       const drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label);
       this.#chart.show(drawing);
       const capped = rows.rowCount >= (spec.mark === 'scatter' ? Infinity : spec.options.limit);
@@ -419,6 +483,8 @@ export class ChartPanel {
         this.#options.run(total.query, total.snapshot, abort.signal),
         trend ? this.#options.run(trend.query, trend.snapshot, abort.signal) : Promise.resolve(null),
       ]);
+      if (abort.signal.aborted || this.#disposed) return;
+      const { kpiDrawing, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
       const drawing = kpiDrawing(spec, rows, line, themeOf(this.#canvas), this.#options.label);
       // a chart drawn before (another kind) gives way to the number
@@ -467,6 +533,13 @@ export class ChartPanel {
     this.#trend = null;
     this.#canvas.replaceChildren();
     this.#canvas.classList.remove('dc-chartpanel-kpi');
+  }
+
+  /** A clicked mark, as conditions on the cube's own columns (chart-spec.ts `markConditions`). */
+  #pick(key: MarkKey, upper?: Scalar): void {
+    const spec = this.#spec;
+    if (!spec) return;
+    this.#options.onPick(markConditions(spec, this.#options.snapshot(), key, upper));
   }
 
   #say(text: string, bad = false): void {

@@ -72,7 +72,7 @@ function page(n: number, o: { inList?: number; title?: string } = {}): PageDocum
   return writePage({ name: cube.name, cube, views: {
     views: [
       { id: 'grid', kind: 'grid', cube: 'cube' },
-      { id: 'pnl-by-desk', kind: 'chart', cube: 'cube', title: 'PnL by desk', spec: { version: 1, mark: 'bar', x: 'desk',
+      { id: 'pnl-by-desk', kind: 'chart', cube: 'cube', title: 'PnL by desk', spec: { version: 2, mark: 'bar', x: 'desk',
         y: [{ column: 'pnl', fn: 'sum' }], options: { orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' },
           limit: 20, labels: false, legend: 'none' } } },
     ],
