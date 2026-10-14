@@ -3115,6 +3115,30 @@ public final class SpecParser implements TokenStreamCursor {
         return true;
     }
 
+    /**
+     * {@code #IQ{ select ... }#} and {@code #IQ:<profile>{ select ... }#}: legend-lite's SAP IQ island
+     * (docs/IQ_SQL_STUDY_2026_10_13.md §4, I1-I2), carried like the SQL island, its text UNTRIMMED. A profile is one
+     * of a closed set ({@code IqProfile}); any other is refused by name. Upstream has no such island: the
+     * LEGEND_ENGINE surface refuses it as it refuses any unknown island type. On the LEGEND_PLATFORM surface the
+     * island takes the place of legend-pure's legacy graph-fetch reading of the same spelling (a tree rooted at a class
+     * named {@code IQ}, which nothing here writes), so the own-corpus census sees it as the lite extension it is.
+     */
+    private ValueSpecification iqIsland(String dslType, String sql, int islandStart) {
+        if (dialect().refusesLiteExtensions()) {
+            throw error("unknown DSL island type: '#" + dslType + "{'");
+        }
+        String profile = null;
+        if (dslType.startsWith("IQ:")) {
+            profile = dslType.substring("IQ:".length());
+            if (com.legend.protocol.sql.iq.IqProfile.named(profile) == null) {
+                throw TokenStreamCursor.throwAt(tokens, islandStart,
+                        com.legend.protocol.sql.iq.IqProfile.unknown(profile));
+            }
+        }
+        return new com.legend.protocol.spec.SqlIsland(sql, spanOf(islandStart, pos - 1),
+                com.legend.protocol.spec.SqlIsland.IQ, profile);
+    }
+
     private ValueSpecification parseDsl() {
         int islandStart = pos;
         String islandOpen = text();
@@ -3150,6 +3174,9 @@ public final class SpecParser implements TokenStreamCursor {
         }
         String contentText = content.toString().trim();
 
+        if (dslType.equals("IQ") || dslType.startsWith("IQ:")) {
+            return iqIsland(dslType, content.toString(), islandStart);
+        }
         ValueSpecification result = switch (dslType) {
             // the tree is the source between the opener '#{' and the closer '}#'
             case "" -> parseGraphFetchTree(tokens.end(islandStart), tokens.start(pos - 1),

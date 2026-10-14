@@ -58,6 +58,7 @@ final class SpecIslandReader {
                         Wire w = Wire.of(value, "SQL island");
                         return w.done(new SqlIsland(w.str("sql"), pos));
                     },
+                    "IQ", SpecIslandReader::iqIsland,
                     "GQL", (value, pos) -> new GqlIsland(GqlReader.document(value), pos),
                     "TDS", (value, pos) -> {
                         Wire w = Wire.of(value, "TDS island");
@@ -70,6 +71,18 @@ final class SpecIslandReader {
         Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> all = new java.util.LinkedHashMap<>(islands);
         all.putAll(OlderSpecReader.KINDS);
         return java.util.Collections.unmodifiableMap(all);
+    }
+
+    /** {@code #IQ{...}#}: {@code {"sql": ..., "profile": ...}}, the profile only when the island names one, and one of
+     *  the closed set ({@code IqProfile}). */
+    private static ValueSpecification iqIsland(Json.Node value, @com.legend.base.Nullable SourceInfo pos) {
+        Wire w = Wire.of(value, "IQ island");
+        String sql = w.str("sql");
+        String profile = w.optStr("profile");
+        if (profile != null && com.legend.protocol.sql.iq.IqProfile.named(profile) == null) {
+            throw Wire.refuse(com.legend.protocol.sql.iq.IqProfile.unknown(profile));
+        }
+        return w.done(new SqlIsland(sql, pos, SqlIsland.IQ, profile));
     }
 
     static ValueSpecification classInstance(Wire w) {

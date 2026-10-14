@@ -99,6 +99,10 @@ class CodeShapeGuardrailTest {
             // parser-cursor family, scoped to one parse -- and SqlToPure's fresh-name counter, scoped to one
             // translation (the StoreResolver.freshVarCounter shape)
             "SqlLexer.at", "SqlLexer.line", "SqlLexer.column", "SqlParser.at", "SqlToPure.fresh",
+            // IQ island, 2026-10-13 (docs/IQ_SQL_STUDY_2026_10_13.md §5.2): the #IQ{...}# island's reader --
+            // IqLexer's scanner cursor and its line/column tracking, IqParser's token cursor: the SqlLexer/SqlParser
+            // parser-cursor family above, scoped to one parse
+            "IqLexer.at", "IqLexer.line", "IqLexer.column", "IqParser.at",
             // the island's reader of a date's or a timestamp's text (2026-10-13, Postgres's date spellings,
             // docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4): PostgresDateTime.Decoder is datetime.c's DecodeDateTime,
             // these its struct pg_tm and the field mask it fills field by field -- scoped to one constant's read,

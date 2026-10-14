@@ -146,7 +146,11 @@ class FixtureAdjudicationTest {
                     // the SQLite backend (2): a declared lite extension,
                     // spelled like the engine's DuckDB extension
                     // (OWN_CORPUS_DECISIONS §9)
-                    "Unknown database type 'X'");
+                    "Unknown database type 'X'",
+                    // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}#
+                    // island (1), a declared lite extension upstream has no
+                    // parser for (OWN_CORPUS_DECISIONS §14)
+                    "Can'X'IQ' available ones: [GQL,SQL,>,TDS]");
 
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */

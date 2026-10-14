@@ -1,0 +1,55 @@
+# The #IQ{...}# island's parity schema: the tables every case in lite/ reads by bare name, typed in IQ's own type names
+# and seeded with edge values (each type's bounds, a CHAR(n) with trailing and leading blanks, mixed case and Latin-1
+# accents, a date in a leap year, timestamps to the microsecond, a row of NULLs).
+# tools/iq-oracle (README.md) creates and seeds them in two private SQL Anywhere 17 databases to snap the answers in
+# iq-answers.jsonl; the IQ parity harness seeds the same rows into each lite backend. Changing a byte here makes every
+# answer STALE (the sqlSha covers this file), so re-snap after an edit.
+#
+# The YAML is the subset SqlParity.Yaml reads: one-line flow maps for columns, one-line flow lists for rows. A type
+# with a comma is quoted. Every value that is not an integer is quoted text, which the column's type reads (so a
+# decimal or a double keeps exactly the digits written); a bit is 0 or 1; null is NULL. Every column allows NULL.
+# Text stays inside ISO-8859-1, the charset of the IQ-like database.
+tables:
+  - name: t
+    columns:
+      - {name: id, type: integer}
+      - {name: sm, type: smallint}
+      - {name: it, type: integer}
+      - {name: bg, type: bigint}
+      - {name: nm, type: 'numeric(10,2)'}
+      - {name: dbl, type: double}
+      - {name: ch, type: 'char(5)'}
+      - {name: vc, type: 'varchar(20)'}
+      - {name: dt, type: date}
+      - {name: ts, type: timestamp}
+      - {name: bt, type: bit}
+    rows:
+      - [1, 32767, 2147483647, 9223372036854775807, '12345678.99', '1.5', 'ab', 'Hello', '2026-03-04', '2026-03-04 05:06:07.123456', 1]
+      - [2, -32768, -2147483648, -9223372036854775808, '-99999999.99', '-0.1', 'abc  ', 'hello', '1999-12-31', '1999-12-31 23:59:59.999999', 0]
+      - [3, 0, 0, 0, '0.00', '0', 'A', 'Résumé', '2000-02-29', '2000-02-29 00:00:00', 0]
+      - [4, 1, -1, 1, '0.01', '3.141592653589793', 'zz', 'ÉCOLE', '1900-01-01', '1900-01-01 12:00:00.000001', 1]
+      - [5, null, null, null, null, null, null, null, null, null, null]
+      - [6, 100, 100, 100, '100.50', '1e300', '', 'x  ', '2026-12-31', '2026-12-31 23:59:59.5', 1]
+      - [7, -1, 7, -7, '-0.50', '-2.5', ' b', 'apple', '2026-03-04', '2026-03-04 05:06:07.123457', 0]
+  - name: u
+    columns:
+      - {name: id, type: integer}
+      - {name: t_id, type: integer}
+      - {name: label, type: 'varchar(10)'}
+      - {name: qty, type: 'numeric(5,1)'}
+    rows:
+      - [1, 1, 'one', '1.5']
+      - [2, 1, 'uno', '2.0']
+      - [3, 3, 'three', null]
+      - [4, 99, 'orphan', '-4.5']
+      - [5, null, 'none', '0.0']
+  # REAL and FLOAT (a REAL without its precision): SQL Anywhere compares an exact number with one in double precision;
+  # a table holding either is refused by the island (single precision on DuckDB is no IQ comparison)
+  - name: r
+    columns:
+      - {name: id, type: integer}
+      - {name: rl, type: real}
+      - {name: fl, type: float}
+    rows:
+      - [1, '0.1', '0.1']
+      - [2, '16777217', '16777217']

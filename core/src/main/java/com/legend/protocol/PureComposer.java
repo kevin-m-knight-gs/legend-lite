@@ -243,7 +243,7 @@ public final class PureComposer {
             case GraphFetchLiteral gf -> rootGraphFetchTree(gf);
             // the embedded-language islands extensions print verbatim (SQLExpressionGrammarComposerExtension,
             // TDSRelationAccessorGrammarComposerExtension)
-            case SqlIsland si -> "#SQL{" + si.sql() + "}#";
+            case SqlIsland si -> si.opening() + si.sql() + "}#";
             case TdsLiteral tl -> "#TDS{" + tl.tdsString() + "}#";
             case GqlIsland gi -> throw refused("no composer rule for classInstance type 'GQL' -- add the rule, do not"
                     + " drop it");

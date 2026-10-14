@@ -19,6 +19,7 @@ import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
+import com.legend.protocol.sql.InputDialect.Problem;
 import com.legend.values.PureDateLiteral;
 
 import java.math.BigDecimal;
@@ -46,6 +47,11 @@ import java.util.Set;
  * names are an ambiguity to quote. Every query Postgres accepts resolves as Postgres resolves it; a camelCase model
  * name resolves unquoted too. Output names keep the case they are written in.
  *
+ * <p><b>Dialects</b>: what a SQL dialect's reader and rules differ on -- its parse, its names, where NULLs sort, an
+ * unnamed column's name, constants' and columns' types, operators, CASE's one type, its functions, casts, LIKE, the
+ * wording of its own refusals -- is its {@link InputDialect}'s. Postgres's is {@link PostgresDialect}, the one
+ * {@link #translate(String, Sources)} reads.
+ *
  * <p>Step 1 of the study's phase 1: one FROM source, {@code tb('pkg::Database.schema.table')}.
  */
 public final class SqlToPure {
@@ -57,11 +63,18 @@ public final class SqlToPure {
     }
 
     /** One source column: its name as the model spells it, its Pure type's name ({@code Integer},
-     *  {@code Decimal(10,2)}, {@code String}, {@code StrictDate}, an enumeration's path, ...), and whether it may hold
-     *  no value (SQL's NULL; Pure's {@code [0..1]}). */
+     *  {@code Decimal(10,2)}, {@code String}, {@code StrictDate}, an enumeration's path, ...), whether it may hold
+     *  no value (SQL's NULL; Pure's {@code [0..1]}), and its declared store type as the store spells it
+     *  ({@code SMALLINT}, {@code CHAR(5)}, {@code NUMERIC(10,2)}), or null when the source has none (a relation that
+     *  is no table). A dialect reads it where the Pure type does not say enough ({@link InputDialect#detailOf}). */
     @FunctionalInterface
     public interface Column {
-        void column(String name, String type, boolean nullable);
+        void column(String name, String type, boolean nullable, @com.legend.base.Nullable String storeType);
+
+        /** A column of no declared store type. */
+        default void column(String name, String type, boolean nullable) {
+            column(name, type, nullable, null);
+        }
     }
 
     /** The one table function this step reads: {@code tb('pkg::Database.schema.table')}, upstream's dynamic source. */
@@ -72,6 +85,7 @@ public final class SqlToPure {
     private static final String SYNTHETIC = "_sql_";
 
     private final Sources sources;
+    private final InputDialect dialect;
     private final Env env;
     /** This query level's lambda parameters: a row, a group, a join's two sides, a subquery's row. Each level has
      *  its own, so a correlated subquery's lambdas can reach the enclosing query's row. */
@@ -86,8 +100,9 @@ public final class SqlToPure {
     private final String window;
     private int fresh;
 
-    private SqlToPure(Sources sources, Env env) {
+    private SqlToPure(Sources sources, InputDialect dialect, Env env) {
         this.sources = sources;
+        this.dialect = dialect;
         this.env = env;
         String level = env.level() == 0 ? "" : Integer.toString(env.level());
         this.row = "r" + level;
@@ -114,21 +129,34 @@ public final class SqlToPure {
     private record Rel(ValueSpecification vs, List<OutCol> columns) {
     }
 
-    /** An output column: the name the query shows, what is known of its type, whether it may be NULL. */
-    private record OutCol(String name, Kind kind, boolean nullable) {
+    /** An output column: the name the query shows, what is known of its type, whether it may be NULL, and what the
+     *  dialect knows of its type beyond its kind (a source column's; none once computed). */
+    private record OutCol(String name, Kind kind, boolean nullable,
+            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+
+        OutCol(String name, Kind kind, boolean nullable) {
+            this(name, kind, nullable, null);
+        }
     }
 
     /** The Pure relation expression {@code sql} means; {@link SqlTranslationException} when it has none (its kind
      *  says whether the text is not SQL, the translation is not built yet, or Postgres rejects the query too). */
     public static ValueSpecification translate(String sql, Sources sources) {
+        return translate(sql, sources, PostgresDialect.INSTANCE);
+    }
+
+    /** The Pure relation expression {@code sql}, a query in {@code dialect}, means: read by the dialect's parse and
+     *  its rules ({@link #translate(String, Sources)} is Postgres's). */
+    public static ValueSpecification translate(String sql, Sources sources, InputDialect dialect) {
         SqlAst.Statement statement;
         try {
-            statement = SqlParser.parse(sql);
+            statement = dialect.parse(sql);
         } catch (SqlSyntaxException e) {
             throw new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
                     : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
         }
-        return new SqlToPure(sources, new Env(Map.of(), null, null, 0)).statement(statement).vs();
+        return new SqlToPure(sources, dialect.reading(statement), new Env(Map.of(), null, null, 0))
+                .statement(statement).vs();
     }
 
     private Rel statement(SqlAst.Statement statement) {
@@ -151,30 +179,13 @@ public final class SqlToPure {
      * whole number, but the one's division by an integer truncates and the other's does not, and the translator does
      * not know a column's width. Dividing it by an integer is refused.
      */
-    enum Kind { INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, JSON, NULL, OTHER;
+    public enum Kind {
+        INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, JSON, NULL, OTHER;
 
-        boolean numeric() {
+        public boolean numeric() {
             return this == INTEGER || this == WHOLE || this == FLOAT || this == DECIMAL || this == NUMBER
                     || this == INEXACT;
         }
-    }
-
-    private static Kind kindOf(String pureType) {
-        int paren = pureType.indexOf('(');
-        String base = paren < 0 ? pureType : pureType.substring(0, paren);
-        return switch (base) {
-            case "Integer" -> Kind.INTEGER;
-            case "Float" -> Kind.FLOAT;
-            case "Decimal" -> Kind.DECIMAL;
-            case "Number" -> Kind.NUMBER;
-            case "String" -> Kind.STRING;
-            case "Boolean" -> Kind.BOOLEAN;
-            case "StrictDate" -> Kind.DATE;
-            case "DateTime" -> Kind.DATETIME;
-            // a Variant is Postgres's jsonb (register S49)
-            case "Variant", VARIANT -> Kind.JSON;
-            default -> Kind.OTHER;
-        };
     }
 
     /** Postgres's integer division, truncating toward zero, exact for every bigint. With the remainder taken off
@@ -182,7 +193,7 @@ public final class SqlToPure {
      *  divide computes it in double precision, within 2^-52 of it; shrunk by 2^-50 and truncated, the estimate is never
      *  beyond the quotient, so {@code A - q0 * b} (exact integer arithmetic, never beyond A) is a small multiple of the
      *  divisor, divided once more and added. A divisor of zero is Postgres's error and rem's. */
-    private static ValueSpecification integerQuotient(ValueSpecification a, ValueSpecification b) {
+    public static ValueSpecification integerQuotient(ValueSpecification a, ValueSpecification b) {
         ValueSpecification whole = AppliedFunction.infixRun("minus", List.of(a, call("rem", a, b)));
         ValueSpecification shrunk = AppliedFunction.infixRun("times", List.of(call("divide", whole, b),
                 new com.legend.protocol.spec.CFloat(1.0 - Math.pow(2, -50))));
@@ -221,20 +232,35 @@ public final class SqlToPure {
      * exactly when it is FALSE; when it is NULL, neither holds. Both are two-valued Pure ({@code Boolean[1]}), so
      * {@code NOT}, {@code AND} and {@code OR} keep Postgres's meaning (NOT NULL is NULL, not TRUE).
      */
-    record Tx(ValueSpecification vs, Kind kind, boolean nullable,
-            @com.legend.base.Nullable ValueSpecification whenFalse) {
+    public record Tx(ValueSpecification vs, Kind kind, boolean nullable,
+            @com.legend.base.Nullable ValueSpecification whenFalse,
+            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+
+        /** A translation of no {@code detail}: what a dialect knows of its type beyond its kind
+         *  ({@link InputDialect.TypeDetail}) is nothing, as it always is in Postgres's. */
+        public Tx(ValueSpecification vs, Kind kind, boolean nullable,
+                @com.legend.base.Nullable ValueSpecification whenFalse) {
+            this(vs, kind, nullable, whenFalse, null);
+        }
 
         /** A value that is not a condition. */
-        static Tx value(ValueSpecification vs, Kind kind, boolean nullable) {
+        public static Tx value(ValueSpecification vs, Kind kind, boolean nullable) {
             return new Tx(vs, kind, nullable, null);
         }
 
+        /** A value that is not a condition, with what the dialect knows of its type beyond its kind. */
+        public static Tx value(ValueSpecification vs, Kind kind, boolean nullable,
+                InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            return new Tx(vs, kind, nullable, null, detail);
+        }
+
         /** A condition: when it is TRUE, when it is FALSE. */
-        static Tx condition(ValueSpecification whenTrue, ValueSpecification whenFalse, boolean nullable) {
+        public static Tx condition(ValueSpecification whenTrue, ValueSpecification whenFalse, boolean nullable) {
             return new Tx(whenTrue, Kind.BOOLEAN, nullable, whenFalse);
         }
 
-        ValueSpecification falseWhen() {
+        /** A condition's FALSE case. */
+        public ValueSpecification falseWhen() {
             return java.util.Objects.requireNonNull(whenFalse, "a condition has its FALSE case");
         }
     }
@@ -242,25 +268,42 @@ public final class SqlToPure {
     /** A column of the relation in hand: {@code name} is the column the relation holds it in, {@code label} the name
      *  the query sees it by, and {@code var} the lambda parameter that reaches it when it is not this level's row
      *  (a join side's, or an enclosing query's for a correlated reference). */
-    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label) {
+    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label,
+            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+
+        /** A column of no {@link InputDialect.TypeDetail}. */
+        Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable String var, String label) {
+            this(name, kind, nullable, var, label, null);
+        }
 
         static Col of(String name, Kind kind, boolean nullable) {
             return new Col(name, kind, nullable, null, name);
         }
 
+        static Col of(String name, Kind kind, boolean nullable,
+                InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            return new Col(name, kind, nullable, null, name, detail);
+        }
+
         Col via(@com.legend.base.Nullable String parameter) {
-            return new Col(name, kind, nullable, parameter, label);
+            return new Col(name, kind, nullable, parameter, label, detail);
         }
 
         Col asNullable() {
-            return new Col(name, kind, true, var, label);
+            return new Col(name, kind, true, var, label, detail);
+        }
+
+        Col named(String to) {
+            return new Col(to, kind, nullable, var, label, detail);
         }
     }
 
     // ------------------------------------------------------------------ names
 
-    /** Postgres's folding of an unquoted identifier: ASCII letters to lower case, nothing else. */
-    private static String fold(String text) {
+    /** Postgres's folding of an unquoted identifier: ASCII letters to lower case, nothing else. A function's name is
+     *  read so in every dialect (the catalogs' keys, {@link #functionName}); a dialect's identifiers, by its
+     *  {@link InputDialect#fold} and {@link InputDialect#resolve} (Postgres's: {@link PostgresDialect}). */
+    static String fold(String text) {
         char[] chars = text.toCharArray();
         for (int i = 0; i < chars.length; i++) {
             if (chars[i] >= 'A' && chars[i] <= 'Z') {
@@ -268,46 +311,6 @@ public final class SqlToPure {
             }
         }
         return new String(chars);
-    }
-
-    /** THE identifier rule (class comment): the name of {@code names} that {@code id} means, or null for none. */
-    private static @com.legend.base.Nullable String resolve(SqlAst.Ident id, Iterable<String> names, String what) {
-        if (id.quoted()) {
-            for (String n : names) {
-                if (n.equals(id.text())) {
-                    return n;
-                }
-            }
-            return null;
-        }
-        String folded = fold(id.text());
-        List<String> loose = new ArrayList<>();
-        for (String n : names) {
-            if (n.equals(folded)) {
-                return n;
-            }
-            if (fold(n).equals(folded) && !loose.contains(n)) {
-                loose.add(n);
-            }
-        }
-        if (loose.size() > 1) {
-            throw SqlTranslationException.invalid(what + " reference \"" + id.text() + "\" is ambiguous: it matches "
-                    + String.join(", ", loose.stream().map(n -> "\"" + n + "\"").toList())
-                    + "; quote the name to choose one", id.pos());
-        }
-        return loose.isEmpty() ? null : loose.get(0);
-    }
-
-    /** Postgres's hint for a quoted name that differs only in case from a real one. */
-    private static String hint(SqlAst.Ident name, List<String> names) {
-        if (name.quoted()) {
-            for (String n : names) {
-                if (fold(n).equals(fold(name.text()))) {
-                    return "; perhaps you meant \"" + n + "\"";
-                }
-            }
-        }
-        return "";
     }
 
     // ------------------------------------------------------------------ scopes
@@ -331,6 +334,46 @@ public final class SqlToPure {
 
         /** The clause an aggregate would be refused in, or null where aggregates have been collected. */
         @com.legend.base.Nullable String noAggregatesIn();
+    }
+
+    /** Where an expression is translated: the scope its names are read in, and the lambda parameter its row is in. A
+     *  dialect's rule for an expression ({@link InputDialect#binary}, a function of its catalog, ...) translates the
+     *  expression's parts here. */
+    public final class At {
+        private final Scope scope;
+        private final String row;
+
+        private At(Scope scope, String row) {
+            this.scope = scope;
+            this.row = row;
+        }
+
+        /** {@code e}'s translation here. */
+        public Tx tx(SqlAst.Expr e) {
+            return SqlToPure.this.tx(e, scope, row);
+        }
+
+        // Postgres's rules here, for PostgresDialect: kept in this class, which they read throughout
+
+        Tx postgresBinary(SqlAst.Binary b) {
+            return binary(b, scope, row);
+        }
+
+        Tx postgresUnary(SqlAst.Unary u) {
+            return unary(u, scope, row);
+        }
+
+        Tx postgresCast(SqlAst.Cast c) {
+            return cast(c, scope, row);
+        }
+
+        Tx postgresLike(SqlAst.Like l) {
+            return like(l, scope, row);
+        }
+
+        Tx postgresFunction(Translation translation, SqlAst.FunctionCall f, List<Tx> args) {
+            return translation.apply(SqlToPure.this, f, args, scope, row);
+        }
     }
 
     /** A FROM item's columns as the query names them: its qualifier (an alias, a table's or function's name; none
@@ -408,7 +451,7 @@ public final class SqlToPure {
         /** True iff an unqualified {@code name} is a column here (Postgres reads a GROUP BY name as one first). */
         boolean has(SqlAst.Ident name) {
             for (Binding b : bindings) {
-                if (resolve(name, b.names(true), "column") != null) {
+                if (dialect.resolve(name, b.names(true), "column") != null) {
                     return true;
                 }
             }
@@ -471,19 +514,19 @@ public final class SqlToPure {
                 if (b == null) {
                     return null;
                 }
-                String label = resolve(name, b.names(false), "column");
+                String label = dialect.resolve(name, b.names(false), "column");
                 if (label == null) {
-                    throw SqlTranslationException.invalid("column " + parts.get(0).text() + "." + name.text()
-                            + " does not exist" + hint(name, b.names(false)), name.pos());
+                    throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_QUALIFIED_COLUMN,
+                            parts.get(0).text(), name.text(), dialect.hint(name, b.names(false))), name.pos());
                 }
                 return column(b, label, false);
             }
             Col match = null;
             for (Binding b : bindings) {
-                String label = resolve(name, b.names(true), "column");
+                String label = dialect.resolve(name, b.names(true), "column");
                 if (label != null) {
                     if (match != null) {
-                        throw SqlTranslationException.invalid("column reference \"" + name.text() + "\" is ambiguous",
+                        throw SqlTranslationException.invalid(dialect.message(Problem.AMBIGUOUS_COLUMN, name.text()),
                                 name.pos());
                     }
                     match = column(b, label, true);
@@ -506,11 +549,11 @@ public final class SqlToPure {
             Binding found = null;
             for (Binding b : bindings) {
                 SqlAst.Ident q = b.qualifier();
-                if (q != null && resolve(qualifier, List.of(q.quoted() ? q.text() : fold(q.text())), "table")
-                        != null) {
+                if (q != null && dialect.resolve(qualifier, List.of(q.quoted() ? q.text() : dialect.fold(q.text())),
+                        "table") != null) {
                     if (found != null) {
-                        throw SqlTranslationException.invalid("table reference \"" + qualifier.text()
-                                + "\" is ambiguous", qualifier.pos());
+                        throw SqlTranslationException.invalid(dialect.message(Problem.AMBIGUOUS_TABLE,
+                                qualifier.text()), qualifier.pos());
                     }
                     found = b;
                 }
@@ -527,8 +570,8 @@ public final class SqlToPure {
             List<SqlAst.Ident> parts = ref.parts();
             SqlAst.Ident name = parts.get(parts.size() - 1);
             if (parts.size() == 2) {
-                throw SqlTranslationException.invalid("missing FROM-clause entry for table \"" + parts.get(0).text()
-                        + "\"", parts.get(0).pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_TABLE, parts.get(0).text()),
+                        parts.get(0).pos());
             }
             Binding named = binding(name);
             if (named != null || env.outer() != null && env.outer().hasTable(name)) {
@@ -540,8 +583,8 @@ public final class SqlToPure {
             for (Binding b : bindings) {
                 all.addAll(b.names(false));
             }
-            throw SqlTranslationException.invalid("column \"" + name.text() + "\" does not exist" + hint(name, all),
-                    name.pos());
+            throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_COLUMN, name.text(),
+                    dialect.hint(name, all)), name.pos());
         }
 
         @Override
@@ -596,8 +639,7 @@ public final class SqlToPure {
             }
             Col key = keyBySource.get(source.name());
             if (key == null) {
-                throw SqlTranslationException.invalid("column \"" + text(ref) + "\" must appear in the GROUP BY"
-                        + " clause or be used in an aggregate function", ref.pos());
+                throw SqlTranslationException.invalid(dialect.message(Problem.NOT_GROUPED, text(ref)), ref.pos());
             }
             return key;
         }
@@ -631,7 +673,7 @@ public final class SqlToPure {
     private record SelectListSet(SqlAst.Select select, SqlAst.@com.legend.base.Nullable TableFunction function) {
     }
 
-    private static SelectListSet selectListSetReturning(SqlAst.Select s) {
+    private SelectListSet selectListSetReturning(SqlAst.Select s) {
         int found = -1;
         for (int i = 0; i < s.items().size(); i++) {
             if (s.items().get(i) instanceof SqlAst.SelectExpr x) {
@@ -663,8 +705,8 @@ public final class SqlToPure {
             throw SqlTranslationException.invalid(functionName(f.name().get(f.name().size() - 1)) + " is not an"
                     + " aggregate", f.pos());
         }
-        String name = item.alias() != null ? item.alias().quoted() ? item.alias().text() : fold(item.alias().text())
-                : functionName(f.name().get(f.name().size() - 1));
+        String name = item.alias() != null ? item.alias().quoted() ? item.alias().text()
+                : dialect.fold(item.alias().text()) : functionName(f.name().get(f.name().size() - 1));
         // its column's name is no name the query can write: WHERE cannot read it, nor * list it
         SqlAst.Ident table = new SqlAst.Ident(SYNTHETIC + "set", true, f.pos());
         SqlAst.Ident column = new SqlAst.Ident(SYNTHETIC + "value", true, f.pos());
@@ -768,15 +810,15 @@ public final class SqlToPure {
             case SqlAst.TableFunction f -> {
                 ValueSpecification relation = tableFunction(f);
                 List<OutCol> columns = new ArrayList<>();
-                sources.columns(relation, (name, type, nullable) -> columns.add(new OutCol(name, kindOf(type),
-                        nullable)));
+                sources.columns(relation, (name, type, nullable, storeType) -> columns.add(new OutCol(name,
+                        dialect.kindOf(type, storeType), nullable, dialect.detailOf(type, storeType))));
                 SqlAst.Ident alias = f.alias();
-                yield bound(new Rel(relation, columns), alias != null ? alias : f.name().get(f.name().size() - 1),
-                        f.columnAliases(), f.pos());
+                yield bound(read(new Rel(relation, columns), f.pos()),
+                        alias != null ? alias : f.name().get(f.name().size() - 1), f.columnAliases(), f.pos());
             }
             case SqlAst.SubqueryFrom q -> {
                 // not LATERAL: the subquery sees the WITH queries, never this query's other FROM items
-                Rel rel = new SqlToPure(sources, env.with(env.ctes())).statement(q.query());
+                Rel rel = new SqlToPure(sources, dialect, env.with(env.ctes())).statement(q.query());
                 yield bound(rel, q.alias(), q.columnAliases(), q.pos());
             }
             case SqlAst.Join j when lateral(j.right()) && j.using().isEmpty() && !j.natural() ->
@@ -786,9 +828,43 @@ public final class SqlToPure {
         };
     }
 
+    /** A source's columns as the dialect reads them ({@link InputDialect#read}): the relation itself when every
+     *  column reads as stored (Postgres's always do), else each column read otherwise computed in its place. */
+    private Rel read(Rel source, SqlAst.Pos pos) {
+        Set<String> present = new HashSet<>();
+        source.columns().forEach(c -> present.add(c.name()));
+        List<ColSpec> computed = new ArrayList<>();
+        List<ColSpec> selection = new ArrayList<>();
+        Map<String, String> renames = new LinkedHashMap<>();
+        List<OutCol> columns = new ArrayList<>();
+        for (OutCol c : source.columns()) {
+            Tx stored = columnValue(row, Col.of(c.name(), c.kind(), c.nullable(), c.detail()));
+            Tx read = dialect.read(c.name(), stored, pos);
+            if (read == null) {
+                selection.add(colSpec(c.name()));
+                columns.add(c);
+                continue;
+            }
+            String computedName = fresh(present);
+            computed.add(new ColSpec(computedName, lambda(row, valueOf(read)), null, null));
+            selection.add(colSpec(computedName));
+            renames.put(computedName, c.name());
+            columns.add(new OutCol(c.name(), read.kind(), read.nullable(), read.detail()));
+        }
+        if (computed.isEmpty()) {
+            return source;
+        }
+        ValueSpecification vs = call("select", call("extend", source.vs(), new ColSpecArray(computed)),
+                new ColSpecArray(selection));
+        for (Map.Entry<String, String> r : renames.entrySet()) {
+            vs = call("rename", vs, colSpec(r.getKey()), colSpec(r.getValue()));
+        }
+        return new Rel(vs, columns);
+    }
+
     /** The WITH query a one-part table name names, or null. */
     private @com.legend.base.Nullable Rel cte(SqlAst.Ident name) {
-        String found = resolve(name, env.ctes().keySet(), "table");
+        String found = dialect.resolve(name, env.ctes().keySet(), "table");
         return found == null ? null : env.ctes().get(found);
     }
 
@@ -799,7 +875,7 @@ public final class SqlToPure {
         List<BCol> cols = new ArrayList<>();
         List<Col> star = new ArrayList<>();
         for (OutCol c : renamed.columns()) {
-            Col col = Col.of(c.name(), c.kind(), c.nullable());
+            Col col = Col.of(c.name(), c.kind(), c.nullable(), c.detail());
             cols.add(new BCol(col, true));
             star.add(col);
         }
@@ -815,7 +891,7 @@ public final class SqlToPure {
         }
         List<String> to = new ArrayList<>();
         for (int i = 0; i < rel.columns().size(); i++) {
-            to.add(i < names.size() ? names.get(i).quoted() ? names.get(i).text() : fold(names.get(i).text())
+            to.add(i < names.size() ? names.get(i).quoted() ? names.get(i).text() : dialect.fold(names.get(i).text())
                     : rel.columns().get(i).name());
         }
         return renamed(rel, to, pos);
@@ -842,7 +918,7 @@ public final class SqlToPure {
                 changed.add(i);
                 swaps |= rel.columns().stream().anyMatch(o -> o.name().equals(target));
             }
-            cols.add(new OutCol(to.get(i), c.kind(), c.nullable()));
+            cols.add(new OutCol(to.get(i), c.kind(), c.nullable(), c.detail()));
         }
         // a new name that another column holds now: every change goes through a fresh name first
         ValueSpecification vs = rel.vs();
@@ -898,7 +974,7 @@ public final class SqlToPure {
                 String name = c.col().name();
                 if (leftNames.contains(name)) {
                     SqlAst.Ident q = b.qualifier();
-                    String want = (q == null ? "t" : fold(q.text())) + "_" + name;
+                    String want = (q == null ? "t" : dialect.fold(q.text())) + "_" + name;
                     String to = taken.contains(want) ? fresh(taken) : want;
                     taken.add(to);
                     renames.put(name, to);
@@ -912,15 +988,14 @@ public final class SqlToPure {
             for (BCol c : b.columns()) {
                 Col col = c.col();
                 String to = renames.get(col.name());
-                cols.add(new BCol(to == null ? col : new Col(to, col.kind(), col.nullable(), col.var(), col.label()),
-                        c.bare()));
+                cols.add(new BCol(to == null ? col : col.named(to), c.bare()));
             }
             rights.add(new Binding(b.qualifier(), cols, b.scalar()));
         }
         List<Col> rightStar = new ArrayList<>();
         for (Col c : right.star()) {
             String to = renames.get(c.name());
-            rightStar.add(to == null ? c : new Col(to, c.kind(), c.nullable(), c.var(), c.label()));
+            rightStar.add(to == null ? c : c.named(to));
         }
         return new Source(rightRel, rights, rightStar);
     }
@@ -938,8 +1013,8 @@ public final class SqlToPure {
         Input outer = new Input(left.bindings(), left.star(), "a LATERAL item");
         Source right = switch (item) {
             case SqlAst.TableFunction f -> functionSource(f, outer);
-            case SqlAst.SubqueryFrom q -> bound(new SqlToPure(sources, new Env(env.ctes(), outer, row, env.level() + 1))
-                    .statement(q.query()), q.alias(), q.columnAliases(), q.pos());
+            case SqlAst.SubqueryFrom q -> bound(new SqlToPure(sources, dialect, new Env(env.ctes(), outer, row,
+                    env.level() + 1)).statement(q.query()), q.alias(), q.columnAliases(), q.pos());
             default -> throw new IllegalStateException("not a lateral item: " + item);
         };
         Source apart = apart(left, right);
@@ -975,7 +1050,7 @@ public final class SqlToPure {
         // plain type by the table alias, else itself
         SetReturning kind = SET_RETURNING.get(fn);
         String column = kind != null && kind.outValue ? "value"
-                : alias != null ? alias.quoted() ? alias.text() : fold(alias.text()) : fn;
+                : alias != null ? alias.quoted() ? alias.text() : dialect.fold(alias.text()) : fn;
         Rel rel = setReturning(f, fn, column, scope);
         Source source = bound(rel, alias != null ? alias : f.name().get(f.name().size() - 1), f.columnAliases(),
                 f.pos());
@@ -1194,9 +1269,9 @@ public final class SqlToPure {
             for (Binding r : right.bindings()) {
                 SqlAst.Ident lq = l.qualifier();
                 SqlAst.Ident rq = r.qualifier();
-                if (lq != null && rq != null && (lq.quoted() ? lq.text() : fold(lq.text())).equals(
-                        rq.quoted() ? rq.text() : fold(rq.text()))) {
-                    throw SqlTranslationException.invalid("table name \"" + rq.text() + "\" specified more than once",
+                if (lq != null && rq != null && (lq.quoted() ? lq.text() : dialect.fold(lq.text())).equals(
+                        rq.quoted() ? rq.text() : dialect.fold(rq.text()))) {
+                    throw SqlTranslationException.invalid(dialect.message(Problem.DUPLICATE_TABLE, rq.text()),
                             rq.pos());
                 }
             }
@@ -1288,9 +1363,9 @@ public final class SqlToPure {
                             property(row, r.name()))), null, null));
                     col = new Col(name, l.kind(), l.nullable() && r.nullable(), null, l.label());
                 } else if (type == SqlAst.JoinType.RIGHT) {
-                    col = new Col(r.name(), r.kind(), r.nullable(), null, l.label());
+                    col = new Col(r.name(), r.kind(), r.nullable(), null, l.label(), r.detail());
                 } else {
-                    col = new Col(l.name(), l.kind(), l.nullable(), null, l.label());
+                    col = new Col(l.name(), l.kind(), l.nullable(), null, l.label(), l.detail());
                 }
                 mergedCols.add(new BCol(col, true));
                 star.add(col);
@@ -1314,14 +1389,14 @@ public final class SqlToPure {
     }
 
     /** A USING column on one side of a join: the one column there of that name. */
-    private static Col sharedColumn(List<Binding> side, SqlAst.Ident name, String which) {
+    private Col sharedColumn(List<Binding> side, SqlAst.Ident name, String which) {
         Col found = null;
         for (Binding b : side) {
-            String label = resolve(name, b.names(true), "column");
+            String label = dialect.resolve(name, b.names(true), "column");
             if (label != null) {
                 if (found != null) {
-                    throw SqlTranslationException.invalid("common column name \"" + name.text() + "\" appears more"
-                            + " than once in " + which + " table", name.pos());
+                    throw SqlTranslationException.invalid(dialect.message(Problem.DUPLICATE_USING_COLUMN, name.text(),
+                            which), name.pos());
                 }
                 for (BCol c : b.columns()) {
                     if (c.col().label().equals(label) && c.bare()) {
@@ -1331,8 +1406,8 @@ public final class SqlToPure {
             }
         }
         if (found == null) {
-            throw SqlTranslationException.invalid("column \"" + name.text() + "\" specified in USING clause does not"
-                    + " exist in " + which + " table", name.pos());
+            throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_USING_COLUMN, name.text(), which),
+                    name.pos());
         }
         return found;
     }
@@ -1394,7 +1469,7 @@ public final class SqlToPure {
             String key = outputKey(item.expr(), names);
             notJsonKey(columns.get(names.indexOf(key)).kind(), "ORDER BY", item.expr().pos());
             boolean nullsFirst = item.nullsFirst() != null ? java.util.Objects.requireNonNull(item.nullsFirst())
-                    : item.descending();
+                    : dialect.nullsFirst(item.descending());
             sortInfos.add(call(item.descending() ? "descending" : "ascending", colSpec(key),
                     new EnumValue(NULL_ORDER, nullsFirst ? "FIRST" : "LAST")));
         }
@@ -1403,11 +1478,11 @@ public final class SqlToPure {
         }
         SqlAst.Expr offset = s.offset();
         if (offset != null) {
-            vs = call("drop", vs, count(offset, "OFFSET"));
+            vs = call("drop", vs, dialect.rowCount(offset, "OFFSET"));
         }
         SqlAst.Expr limit = s.limit();
         if (limit != null) {
-            vs = call("limit", vs, count(limit, "LIMIT"));
+            vs = call("limit", vs, dialect.rowCount(limit, "LIMIT"));
         }
         return new Rel(vs, columns);
     }
@@ -1435,7 +1510,7 @@ public final class SqlToPure {
     }
 
     /** A set operation's ORDER BY key: an output column's name or position. */
-    private static String outputKey(SqlAst.Expr e, List<String> names) {
+    private String outputKey(SqlAst.Expr e, List<String> names) {
         if (e instanceof SqlAst.IntegerLit n) {
             if (n.value().signum() <= 0 || n.value().compareTo(java.math.BigInteger.valueOf(names.size())) > 0) {
                 throw SqlTranslationException.invalid("ORDER BY position " + n.value() + " is not in select list",
@@ -1444,12 +1519,12 @@ public final class SqlToPure {
             return names.get(n.value().intValue() - 1);
         }
         if (e instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
-            String found = resolve(ref.parts().get(0), names, "column");
+            String found = dialect.resolve(ref.parts().get(0), names, "column");
             if (found != null) {
                 return found;
             }
-            throw SqlTranslationException.invalid("column \"" + ref.parts().get(0).text() + "\" does not exist",
-                    ref.pos());
+            throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_COLUMN, ref.parts().get(0).text(),
+                    ""), ref.pos());
         }
         throw SqlTranslationException.invalid("invalid UNION/INTERSECT/EXCEPT ORDER BY clause: only result column"
                 + " names can be used", e.pos());
@@ -1463,14 +1538,14 @@ public final class SqlToPure {
         }
         Map<String, Rel> ctes = new LinkedHashMap<>(env.ctes());
         for (SqlAst.Cte cte : w.ctes()) {
-            String name = cte.name().quoted() ? cte.name().text() : fold(cte.name().text());
-            Rel rel = new SqlToPure(sources, env.with(ctes)).statement(cte.query());
+            String name = cte.name().quoted() ? cte.name().text() : dialect.fold(cte.name().text());
+            Rel rel = new SqlToPure(sources, dialect, env.with(ctes)).statement(cte.query());
             if (!cte.columns().isEmpty()) {
                 rel = aliased(rel, cte.columns(), cte.name(), cte.pos());
             }
             ctes.put(name, rel);
         }
-        return new SqlToPure(sources, env.with(ctes)).statement(w.body());
+        return new SqlToPure(sources, dialect, env.with(ctes)).statement(w.body());
     }
 
     /** A query with no grouping: filter, computed columns, sort, the select list, then the slice. */
@@ -1495,8 +1570,8 @@ public final class SqlToPure {
                     } else {
                         Binding b = in.binding(q);
                         if (b == null) {
-                            throw SqlTranslationException.invalid("missing FROM-clause entry for table \"" + q.text()
-                                    + "\"", q.pos());
+                            throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_TABLE, q.text()),
+                                    q.pos());
                         }
                         b.columns().forEach(c -> cols.add(c.col()));
                     }
@@ -1564,7 +1639,7 @@ public final class SqlToPure {
         for (SqlAst.SelectItem item : s.items()) {
             if (item instanceof SqlAst.SelectExpr x && x.expr() instanceof SqlAst.FunctionCall f && isAggregate(f)) {
                 SqlAst.Ident alias = x.alias();
-                preferred.putIfAbsent(canon(f, in), alias != null ? alias.text() : defaultName(f));
+                preferred.putIfAbsent(canon(f, in), alias != null ? alias.text() : dialect.defaultName(x));
             }
         }
         for (SqlAst.Expr e : scanned) {
@@ -1665,7 +1740,7 @@ public final class SqlToPure {
                 windowCalls(x.expr(), calls);
                 if (x.expr() instanceof SqlAst.Window w) {
                     SqlAst.Ident alias = x.alias();
-                    named.put(w, alias != null ? alias.text() : defaultName(w));
+                    named.put(w, alias != null ? alias.text() : dialect.defaultName(x));
                 }
             }
         }
@@ -1695,7 +1770,7 @@ public final class SqlToPure {
                 sortKind = sortKind == null ? key.kind() : sortKind;
                 sortKeys.add(key.name());
                 boolean nullsFirst = o.nullsFirst() != null ? java.util.Objects.requireNonNull(o.nullsFirst())
-                        : o.descending();
+                        : dialect.nullsFirst(o.descending());
                 sorts.add(call(o.descending() ? "descending" : "ascending", colSpec(key.name()),
                         new EnumValue(NULL_ORDER, nullsFirst ? "FIRST" : "LAST")));
             }
@@ -1772,7 +1847,7 @@ public final class SqlToPure {
     /** A window with its named base's clauses: a reference may add an ORDER BY (when the base has none) and a frame
      *  (when the base has none), never a PARTITION BY (Postgres's rules). A named window builds only on one named
      *  before it. */
-    private static SqlAst.WindowSpec windowSpec(SqlAst.WindowSpec spec, List<SqlAst.NamedWindow> windows) {
+    private SqlAst.WindowSpec windowSpec(SqlAst.WindowSpec spec, List<SqlAst.NamedWindow> windows) {
         SqlAst.Ident base = spec.base();
         if (base == null) {
             return spec;
@@ -1780,12 +1855,12 @@ public final class SqlToPure {
         SqlAst.WindowSpec named = null;
         for (int i = 0; i < windows.size() && named == null; i++) {
             SqlAst.Ident n = windows.get(i).name();
-            if (resolve(base, List.of(n.quoted() ? n.text() : fold(n.text())), "window") != null) {
+            if (dialect.resolve(base, List.of(n.quoted() ? n.text() : dialect.fold(n.text())), "window") != null) {
                 named = windowSpec(windows.get(i).spec(), windows.subList(0, i));
             }
         }
         if (named == null) {
-            throw SqlTranslationException.invalid("window \"" + base.text() + "\" does not exist", base.pos());
+            throw SqlTranslationException.invalid(dialect.message(Problem.NO_SUCH_WINDOW, base.text()), base.pos());
         }
         if (!spec.partitionBy().isEmpty()) {
             throw SqlTranslationException.invalid("cannot override PARTITION BY clause of window \"" + base.text()
@@ -2364,7 +2439,7 @@ public final class SqlToPure {
                     outputNames.add(java.util.Objects.requireNonNull(x.alias()).text());
                 }
             }
-            String found = resolve(ref.parts().get(0), outputNames, "column");
+            String found = dialect.resolve(ref.parts().get(0), outputNames, "column");
             if (found != null) {
                 for (SqlAst.SelectItem item : s.items()) {
                     if (item instanceof SqlAst.SelectExpr x && x.alias() != null
@@ -2403,14 +2478,17 @@ public final class SqlToPure {
         Col g = scope.grouped(x.expr());
         Col col = g != null ? g : x.expr() instanceof SqlAst.ColumnRef ref ? scope.column(ref) : null;
         if (col != null && col.var() == null) {
-            // a function's name read as its value shows as that name (Postgres's FigureColname), a column as itself
+            // a function's name read as its value shows as that name (Postgres's FigureColname), a column as the
+            // dialect names it (Postgres: as the source spells it)
             String name = alias != null ? alias.text() : x.expr() instanceof SqlAst.ColumnRef ref
-                    && scope.columnOrNull(ref) != null ? col.label() : defaultName(x.expr());
+                    && scope.columnOrNull(ref) != null
+                    ? dialect.columnName(ref.parts().get(ref.parts().size() - 1), col.label())
+                    : dialect.defaultName(x);
             Output o = passthrough(col, name, passed, present, scope);
             return new Output(o.name(), o.internal(), o.value(), x.expr(), o.kind(), o.nullable());
         }
         Tx t = tx(x.expr(), scope, row);
-        String name = alias != null ? alias.text() : defaultName(x.expr());
+        String name = alias != null ? alias.text() : dialect.defaultName(x);
         return new Output(name, internalFor(name, present), valueOf(t), x.expr(), t.kind(), t.nullable());
     }
 
@@ -2440,23 +2518,6 @@ public final class SqlToPure {
         return name;
     }
 
-    /** Postgres's name for an unnamed select item (its FigureColname): a column's name, a function's name,
-     *  {@code case} for CASE, else {@code ?column?}. */
-    private static String defaultName(SqlAst.Expr e) {
-        return switch (e) {
-            case SqlAst.ColumnRef ref -> ref.parts().get(ref.parts().size() - 1).text();
-            case SqlAst.FunctionCall f -> functionName(f.name().get(f.name().size() - 1));
-            case SqlAst.Window w -> functionName(w.call().name().get(w.call().name().size() - 1));
-            case SqlAst.Case c -> "case";
-            // a subscripted value keeps its name (Postgres's FigureColname reads through the indirection)
-            case SqlAst.Subscript sub -> defaultName(sub.base());
-            case SqlAst.ArrayConstructor a -> "array";
-            case SqlAst.Cast c -> defaultName(c.operand()).equals("?column?") ? c.type().name()
-                    : defaultName(c.operand());
-            default -> "?column?";
-        };
-    }
-
     /** The computed outputs, the sort, the select list, the renames and the slice, in Postgres's order. */
     private Rel assemble(SqlAst.Select s, Scope scope, ValueSpecification relation, Set<String> present,
             List<Output> outputs) {
@@ -2479,7 +2540,7 @@ public final class SqlToPure {
         for (SqlAst.SortItem item : s.orderBy()) {
             String key = sortKey(item, s, scope, outputs, computed, present);
             boolean nullsFirst = item.nullsFirst() != null ? java.util.Objects.requireNonNull(item.nullsFirst())
-                    : item.descending();
+                    : dialect.nullsFirst(item.descending());
             sortInfos.add(call(item.descending() ? "descending" : "ascending", colSpec(key),
                     new EnumValue(NULL_ORDER, nullsFirst ? "FIRST" : "LAST")));
         }
@@ -2493,6 +2554,7 @@ public final class SqlToPure {
         if (s.distinct()) {
             for (Output o : outputs) {
                 notJsonKey(o.kind(), "DISTINCT", s.pos());
+                dialect.key("DISTINCT", o.kind(), s.pos());
             }
             relation = call("distinct", call("select", relation, new ColSpecArray(selection)));
             if (!sortInfos.isEmpty()) {
@@ -2511,11 +2573,11 @@ public final class SqlToPure {
         }
         SqlAst.Expr offset = s.offset();
         if (offset != null) {
-            relation = call("drop", relation, count(offset, "OFFSET"));
+            relation = call("drop", relation, dialect.rowCount(offset, "OFFSET"));
         }
         SqlAst.Expr limit = s.limit();
         if (limit != null) {
-            relation = call("limit", relation, count(limit, "LIMIT"));
+            relation = call("limit", relation, dialect.rowCount(limit, "LIMIT"));
         }
         List<OutCol> columns = new ArrayList<>();
         for (Output o : outputs) {
@@ -2534,14 +2596,17 @@ public final class SqlToPure {
                         n.pos());
             }
             notJsonKey(outputs.get(n.value().intValue() - 1).kind(), "ORDER BY", n.pos());
+            dialect.key("ORDER BY", outputs.get(n.value().intValue() - 1).kind(), n.pos());
             return outputs.get(n.value().intValue() - 1).internal();
         }
         if (e instanceof SqlAst.ColumnRef ref && ref.parts().size() == 1) {
-            String found = resolve(ref.parts().get(0), outputs.stream().map(Output::name).toList(), "column");
+            String found = dialect.resolve(ref.parts().get(0), outputs.stream().map(Output::name).toList(),
+                    "column");
             if (found != null) {
                 for (Output o : outputs) {
                     if (o.name().equals(found)) {
                         notJsonKey(o.kind(), "ORDER BY", e.pos());
+                        dialect.key("ORDER BY", o.kind(), e.pos());
                         return o.internal();
                     }
                 }
@@ -2554,6 +2619,7 @@ public final class SqlToPure {
                 SqlAst.Expr oe = o.expr();
                 if (oe != null && canon(oe, inputScope(inputs)).equals(canon)) {
                     notJsonKey(o.kind(), "ORDER BY", e.pos());
+                    dialect.key("ORDER BY", o.kind(), e.pos());
                     return o.internal();
                 }
             }
@@ -2563,14 +2629,17 @@ public final class SqlToPure {
         Col g = scope.grouped(e);
         if (g != null) {
             notJsonKey(g.kind(), "ORDER BY", e.pos());
+            dialect.key("ORDER BY", g.kind(), e.pos());
             return g.name();
         }
         if (e instanceof SqlAst.ColumnRef ref) {
             notJsonKey(scope.column(ref).kind(), "ORDER BY", e.pos());
+            dialect.key("ORDER BY", scope.column(ref).kind(), e.pos());
             return scope.column(ref).name();
         }
         Tx t = tx(e, scope, row);
         notJsonKey(t.kind(), "ORDER BY", e.pos());
+        dialect.key("ORDER BY", t.kind(), e.pos());
         String name = fresh(present);
         computed.add(new ColSpec(name, lambda(row, valueOf(t)), null, null));
         return name;
@@ -2584,11 +2653,11 @@ public final class SqlToPure {
     }
 
     /** An integer constant as the Pure parser spells one: a long when it fits, else the big integer. */
-    private static CInteger integer(java.math.BigInteger value) {
+    public static CInteger integer(java.math.BigInteger value) {
         return value.bitLength() < Long.SIZE ? new CInteger(value.longValue()) : new CInteger(value);
     }
 
-    private static CInteger count(SqlAst.Expr e, String clause) {
+    static CInteger count(SqlAst.Expr e, String clause) {
         if (e instanceof SqlAst.IntegerLit n && n.value().signum() >= 0) {
             return integer(n.value());
         }
@@ -3205,7 +3274,7 @@ public final class SqlToPure {
 
     /** A boolean operand ({@code clause}'s). A NULL constant is Postgres's unknown truth value: neither true nor
      *  false. */
-    private static Tx truth(Tx t, String clause, SqlAst.Pos pos) {
+    public static Tx truth(Tx t, String clause, SqlAst.Pos pos) {
         if (t.kind() == Kind.NULL) {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
         }
@@ -3215,17 +3284,22 @@ public final class SqlToPure {
         return t;
     }
 
-    /** A column's value; a boolean column is a condition (TRUE when it holds true, FALSE when it holds false). */
+    /** A column's value; a boolean column is a condition (TRUE when it holds true, FALSE when it holds false). Either
+     *  carries what the dialect knows of the column's type ({@link InputDialect#read} reads it). */
     private static Tx columnValue(String row, Col c) {
         String var = c.var();
         ValueSpecification v = property(var != null ? var : row, c.name());
-        return c.kind() == Kind.BOOLEAN ? booleanValue(v, c.nullable()) : Tx.value(v, c.kind(), c.nullable());
+        if (c.kind() == Kind.BOOLEAN) {
+            Tx b = booleanValue(v, c.nullable());
+            return c.detail() == null ? b : new Tx(b.vs(), b.kind(), b.nullable(), b.whenFalse(), c.detail());
+        }
+        return Tx.value(v, c.kind(), c.nullable(), c.detail());
     }
 
     /** A boolean VALUE (a column, a CASE, a coalesce) as a condition. A nullable one's tests say "known and true",
      *  "known and false" outright: {@code $v == true} would be compared in SQL, NULL for a NULL, where the test must
      *  be false (Postgres: NULL IS TRUE is false). */
-    private static Tx booleanValue(ValueSpecification v, boolean nullable) {
+    public static Tx booleanValue(ValueSpecification v, boolean nullable) {
         if (!nullable) {
             return Tx.condition(v, call("not", v), false);
         }
@@ -3235,7 +3309,7 @@ public final class SqlToPure {
     }
 
     /** An expression's Pure value: a condition becomes true, false, or (when neither holds) no value. */
-    private static ValueSpecification valueOf(Tx t) {
+    public static ValueSpecification valueOf(Tx t) {
         if (t.kind() != Kind.BOOLEAN || !t.nullable()) {
             return t.vs();
         }
@@ -3244,7 +3318,7 @@ public final class SqlToPure {
     }
 
     /** Postgres's strict functions and operators: NULL when any argument is NULL, else {@code build} of the values. */
-    private static Tx strict(Kind kind, List<Tx> args, java.util.function.Function<List<ValueSpecification>,
+    public static Tx strict(Kind kind, List<Tx> args, java.util.function.Function<List<ValueSpecification>,
             ValueSpecification> build) {
         for (Tx a : args) {
             if (isNullConstant(a)) {
@@ -3271,7 +3345,7 @@ public final class SqlToPure {
     }
 
     /** A strict predicate (a comparison, IN, BETWEEN, LIKE): NULL when an operand is NULL, else {@code test}. */
-    private static Tx strictTest(List<Tx> operands, java.util.function.Function<List<ValueSpecification>,
+    public static Tx strictTest(List<Tx> operands, java.util.function.Function<List<ValueSpecification>,
             ValueSpecification> test) {
         for (Tx a : operands) {
             if (isNullConstant(a)) {
@@ -3299,7 +3373,7 @@ public final class SqlToPure {
     /** A NULL of a kind, as Postgres types a NULL constant by its context: Pure's empty collection cast to the kind's
      *  type (SQL's typed NULL); for a boolean, a condition that is neither TRUE nor FALSE. A NULL constant in no
      *  context of a type is text (Postgres's unknown resolves to text). */
-    private static Tx nullOf(Kind kind) {
+    public static Tx nullOf(Kind kind) {
         if (kind == Kind.BOOLEAN) {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
         }
@@ -3320,7 +3394,7 @@ public final class SqlToPure {
     }
 
     /** Whether a value is a NULL constant: untyped ({@code NULL}) or typed ({@link #nullOf}). */
-    private static boolean isNullConstant(Tx t) {
+    public static boolean isNullConstant(Tx t) {
         return t.kind() == Kind.NULL || t.whenFalse() == null && t.vs().equals(nullOf(t.kind()).vs());
     }
 
@@ -3339,7 +3413,7 @@ public final class SqlToPure {
         return List.of(l, r);
     }
 
-    private static Tx not(Tx t) {
+    public static Tx not(Tx t) {
         return Tx.condition(t.falseWhen(), t.vs(), t.nullable());
     }
 
@@ -3350,16 +3424,16 @@ public final class SqlToPure {
         }
         return switch (e) {
             case SqlAst.ColumnRef ref -> columnValue(row, scope.column(ref));
-            case SqlAst.IntegerLit n -> Tx.value(integer(n.value()), Kind.INTEGER, false);
-            case SqlAst.NumericLit n -> Tx.value(new CDecimal(n.value()), Kind.DECIMAL, false);
-            case SqlAst.StringLit str -> Tx.value(new CString(str.value()), Kind.STRING, false);
-            case SqlAst.BooleanLit b -> booleanValue(new CBoolean(b.value()), false);
-            case SqlAst.NullLit n -> Tx.value(empty(), Kind.NULL, true);
-            case SqlAst.TypedLit lit -> typedLiteral(lit);
+            case SqlAst.IntegerLit n -> dialect.literal(n);
+            case SqlAst.NumericLit n -> dialect.literal(n);
+            case SqlAst.StringLit str -> dialect.literal(str);
+            case SqlAst.BooleanLit b -> dialect.literal(b);
+            case SqlAst.NullLit n -> dialect.literal(n);
+            case SqlAst.TypedLit lit -> dialect.literal(lit);
             case SqlAst.Param p -> throw SqlTranslationException.unsupported("parameters ($" + p.index() + ") are not"
                     + " supported yet", p.pos());
-            case SqlAst.Unary u -> unary(u, scope, row);
-            case SqlAst.Binary b -> binary(b, scope, row);
+            case SqlAst.Unary u -> dialect.unary(u, new At(scope, row));
+            case SqlAst.Binary b -> dialect.binary(b, new At(scope, row));
             case SqlAst.Operator o when o.left() != null && JSON_OPERATORS.contains(o.operator()) ->
                     jsonOperator(o, scope, row);
             case SqlAst.Subscript sub -> subscript(sub, scope, row);
@@ -3377,10 +3451,10 @@ public final class SqlToPure {
             case SqlAst.IsDistinct d -> isDistinct(d, scope, row);
             case SqlAst.InList in -> inList(in, scope, row);
             case SqlAst.Between b -> between(b, scope, row);
-            case SqlAst.Like l -> like(l, scope, row);
+            case SqlAst.Like l -> dialect.like(l, new At(scope, row));
             case SqlAst.Case c -> caseExpr(c, scope, row);
             case SqlAst.FunctionCall f -> function(f, scope, row);
-            case SqlAst.Cast c -> cast(c, scope, row);
+            case SqlAst.Cast c -> dialect.cast(c, new At(scope, row));
             case SqlAst.ScalarSubquery q -> scalarSubquery(q, scope);
             case SqlAst.Exists q -> {
                 // never NULL: a row or none
@@ -3535,7 +3609,7 @@ public final class SqlToPure {
     }
 
     /** {@code l op r} for a comparison {@code op}: NULL when either side is (Postgres's comparisons are strict). */
-    private static Tx compare(SqlAst.BinaryOp op, Tx l, Tx r) {
+    public static Tx compare(SqlAst.BinaryOp op, Tx l, Tx r) {
         String fn = switch (op) {
             case EQ, NE -> "equal";
             case LT -> "lessThan";
@@ -3634,15 +3708,21 @@ public final class SqlToPure {
         return k == Kind.DATE || k == Kind.DATETIME;
     }
 
-    /** Values resolved to one type, and that type's kind. */
-    private record Common(List<Tx> values, Kind kind) {
+    /** Values resolved to one type, that type's kind, and what the dialect knows of the type beyond its kind (none in
+     *  Postgres's). */
+    public record Common(List<Tx> values, Kind kind, InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+
+        /** Values resolved to one type of no {@link InputDialect.TypeDetail}. */
+        public Common(List<Tx> values, Kind kind) {
+            this(values, kind, null);
+        }
     }
 
     /** The results of a CASE, or the arguments of COALESCE, GREATEST or LEAST, as one type, by Postgres's resolution
      *  ("UNION, CASE, and Related Constructs"): an untyped string constant takes the others' type, read by that
      *  type's input rules (all untyped: text); the others must share a category, numbers widening to the widest;
      *  else Postgres's error. */
-    private static Common common(String what, List<SqlAst.Expr> exprs, List<Tx> txs, SqlAst.Pos pos) {
+    static Common common(String what, List<SqlAst.Expr> exprs, List<Tx> txs, SqlAst.Pos pos) {
         Kind target = null;
         boolean untyped = false;
         for (int i = 0; i < txs.size(); i++) {
@@ -3814,7 +3894,7 @@ public final class SqlToPure {
     /** A subquery in an expression: a query one level down, which sees {@code scope}'s columns beyond its own FROM
      *  (a correlated reference reads them from this level's row). */
     private Rel subquery(SqlAst.Statement query, Scope scope) {
-        return new SqlToPure(sources, new Env(env.ctes(), scope, row, env.level() + 1)).statement(query);
+        return new SqlToPure(sources, dialect, new Env(env.ctes(), scope, row, env.level() + 1)).statement(query);
     }
 
     /** {@code (query)} as a value: its one column in its one row, NULL when it has no row. The subquery stays a
@@ -3847,7 +3927,7 @@ public final class SqlToPure {
                     + " columns", pos);
         }
         OutCol c = rel.columns().get(0);
-        Tx each = columnValue(sub, Col.of(c.name(), c.kind(), c.nullable()));
+        Tx each = columnValue(sub, Col.of(c.name(), c.kind(), c.nullable(), c.detail()));
         Tx value = left instanceof SqlAst.StringLit s && readsStrings(each.kind()) ? fromString(s, each.kind())
                 : tx(left, scope, row);
         comparableKinds(value, each, pos);
@@ -4047,7 +4127,7 @@ public final class SqlToPure {
         exprs.add(otherwise != null ? otherwise : new SqlAst.NullLit(c.pos()));
         List<Tx> all = new ArrayList<>(thens);
         all.add(last);
-        Common results = common("CASE", exprs, all, c.pos());
+        Common results = dialect.unify("CASE", exprs, all, c.pos());
         List<Tx> values = results.values();
         Tx otherwiseValue = values.get(values.size() - 1);
         boolean nullable = otherwiseValue.nullable();
@@ -4062,7 +4142,11 @@ public final class SqlToPure {
             // every result a NULL: Postgres resolves the CASE as text (ceil of it is Postgres's error)
             return nullOf(Kind.NULL);
         }
-        return kind == Kind.BOOLEAN ? booleanValue(vs, nullable) : Tx.value(vs, kind, nullable);
+        if (results.detail() != null && values.stream().allMatch(SqlToPure::isNullConstant)) {
+            // every result a NULL of the type the dialect resolved (none in Postgres's): that NULL
+            return Tx.value(nullOf(kind).vs(), kind, true, results.detail());
+        }
+        return kind == Kind.BOOLEAN ? booleanValue(vs, nullable) : Tx.value(vs, kind, nullable, results.detail());
     }
 
     private Tx function(SqlAst.FunctionCall f, Scope scope, String row) {
@@ -4085,7 +4169,7 @@ public final class SqlToPure {
         if (!f.withinGroup().isEmpty()) {
             throw SqlTranslationException.unsupported("WITHIN GROUP is not supported yet", f.pos());
         }
-        if ((f.filter() != null || !f.orderBy().isEmpty()) && FUNCTIONS.containsKey(fn)) {
+        if ((f.filter() != null || !f.orderBy().isEmpty()) && dialect.function(fn) != null) {
             throw SqlTranslationException.invalid((f.filter() != null ? "FILTER" : "ORDER BY") + " specified, but "
                     + fn + " is not an aggregate function", f.pos());
         }
@@ -4093,17 +4177,24 @@ public final class SqlToPure {
         for (SqlAst.Expr a : f.args()) {
             args.add(tx(a, scope, row));
         }
-        Translation translation = FUNCTIONS.get(fn);
+        InputDialect.FunctionRule translation = dialect.function(fn);
         if (translation == null) {
             throw SqlTranslationException.unsupported("function " + fn + "(...) is not supported yet", f.pos());
         }
-        return translation.apply(this, f, args, scope, row);
+        return translation.apply(f, args, new At(scope, row));
     }
 
     /** A Postgres function's translation: from its call, its arguments' translations, and the scope it is in. */
     @FunctionalInterface
     private interface Translation {
         Tx apply(SqlToPure t, SqlAst.FunctionCall f, List<Tx> args, Scope scope, String row);
+    }
+
+    /** Postgres's catalog's function {@code name} ({@link #FUNCTIONS}), as {@link PostgresDialect} supplies it; null
+     *  for none. */
+    static InputDialect.@com.legend.base.Nullable FunctionRule postgresFunction(String name) {
+        Translation translation = FUNCTIONS.get(name);
+        return translation == null ? null : (f, args, at) -> at.postgresFunction(translation, f, args);
     }
 
     /** The catalog: Postgres's scalar functions this step reads, by their names in Postgres, each with its
@@ -5603,7 +5694,7 @@ public final class SqlToPure {
 
     /** {@code DATE '...'} and {@code TIMESTAMP '...'} in ISO 8601 spelling: Pure date constants; {@code JSONB '...'}
      *  and {@code JSON '...'}: a Variant constant. */
-    private static Tx typedLiteral(SqlAst.TypedLit lit) {
+    static Tx typedLiteral(SqlAst.TypedLit lit) {
         if (JSON_TYPES.contains(lit.type().name())) {
             return jsonConstant(new SqlAst.StringLit(lit.value(), lit.pos()));
         }
@@ -5643,7 +5734,7 @@ public final class SqlToPure {
     // ------------------------------------------------------------------ jsonb
 
     /** Pure's semi-structured value: Postgres's jsonb here (register S49). */
-    private static final String VARIANT = "meta::pure::metamodel::variant::Variant";
+    static final String VARIANT = "meta::pure::metamodel::variant::Variant";
     private static final String FROM_JSON = "fromJson";
 
     /** jsonb's navigation operators: {@code ->} a member or an element, {@code ->>} its text, {@code #>} and
@@ -6016,7 +6107,7 @@ public final class SqlToPure {
     }
 
     /** {@code @Name}: a type as a value, as {@code to(@String)} takes it. */
-    private static ValueSpecification typeArg(String name) {
+    public static ValueSpecification typeArg(String name) {
         return new TypeAnnotation.Named(new TypeExpression.NameRef(name));
     }
 
@@ -6184,11 +6275,11 @@ public final class SqlToPure {
     // ------------------------------------------------------------------ building Pure
 
     /** A function name as Postgres reads it: folded when unquoted, exact when quoted. */
-    private static String functionName(SqlAst.Ident id) {
+    static String functionName(SqlAst.Ident id) {
         return id.quoted() ? id.text() : fold(id.text());
     }
 
-    private static AppliedFunction call(String fn, ValueSpecification... args) {
+    public static AppliedFunction call(String fn, ValueSpecification... args) {
         return call(fn, List.of(args));
     }
 
@@ -6209,12 +6300,12 @@ public final class SqlToPure {
         return new LambdaFunction(List.of(new Variable(first), new Variable(second)), List.of(body));
     }
 
-    private static LambdaFunction thunk(ValueSpecification body) {
+    public static LambdaFunction thunk(ValueSpecification body) {
         return new LambdaFunction(List.of(), List.of(body));
     }
 
     /** No value: Pure's {@code []}, SQL's NULL. */
-    private static ValueSpecification empty() {
+    public static ValueSpecification empty() {
         return new PureCollection(List.of());
     }
 
