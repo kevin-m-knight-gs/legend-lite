@@ -168,7 +168,10 @@ function placed(
 
 /**
  * A width as a whole number over a power of ten, from its own decimals: 0.05 is [5, 100], 250 is [250, 1]. The build
- * reads the number the spec says (model text, not a value the query computes).
+ * reads the number the spec says (model text, not a value the query computes). The edge's product `k * whole` is a
+ * 64-bit integer in the database: it holds while |value| * 10^decimals stays under 9.2e18 -- values to 9.2e6 at 12
+ * decimals, to 9.2e16 at 2. A width finer than its values can carry is refused by the database (an overflow), never
+ * drawn wrong.
  */
 export function exactly(width: number): readonly [number, number] {
   const text = String(width);

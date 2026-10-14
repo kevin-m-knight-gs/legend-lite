@@ -260,6 +260,17 @@ class Document(Paged):
             grid.chart('scatter', x='notional', y=[('pnl', 'sum')], layers=[{'kind': 'line', 'value': 1}])
         with self.assertRaises(TypeError):
             grid.chart('bar', x='region', facet={'column': 'desk'})
+        # and a chart written fine cannot be changed into one DataCube refuses: by plot or by options
+        lined = grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')],
+                           layers=[{'kind': 'stat', 'stat': 'average'}, {'kind': 'line', 'value': 1, 'measure': 1}])
+        kept = page.to_dict()['views'][-1]['spec']
+        with self.assertRaisesRegex(ValueError, 'no reference lines'):
+            lined.plot('scatter', x='notional')
+        with self.assertRaisesRegex(ValueError, 'reads value 2'):
+            lined.plot('bar', y=[('notional', 'sum')])
+        with self.assertRaisesRegex(ValueError, '100% stack'):
+            lined.options({'stack': 'percent'})
+        self.assertEqual(page.to_dict()['views'][-1]['spec'], kept, 'a refused change leaves the chart as it was')
 
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()

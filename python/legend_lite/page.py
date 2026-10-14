@@ -676,12 +676,13 @@ _DATES = frozenset({'StrictDate', 'DateTime', 'Date'})
 _NUMBERS = frozenset({'Integer', 'Float', 'Decimal', 'Number'})
 
 
-def _drawable(grid: Grid, spec: Mapping[str, Any]) -> None:
+def _drawable(grid: Grid | None, spec: Mapping[str, Any]) -> None:
     """Refused at the line that writes it, what DataCube would refuse to draw and Python can know from the frame: a
     grain on a column that is not a date, bins on one that is not a number, a layer reading a value the chart does not
     plot, a layer on a scatter or on a 100% stack. (A calculated column's type is the compiler's, known only when
     DataCube plans it: its grain or bins are DataCube's to refuse.)"""
-    types = {c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
+    types = ({c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
+             if grid is not None else {})
     x = spec.get('x')
     if 'grain' in spec and x in types and types[x] not in _DATES:
         raise ValueError(f'{x!r} is not a date ({types[x]}): it has no {spec["grain"]}')
@@ -802,16 +803,23 @@ class Chart(Tile):
         # what the spec holds besides (its options, a newer writer's fields) stays -- but a grain or bins belong to the
         # column they were chosen for, and go with it, as DataCube's form drops them
         moved = x is not _KEEP and x != was.get('x')
-        view['spec'] = {**{k: v for k, v in was.items()
-                           if k not in ('mark', 'x', 'y', 'split', 'frozen') and not (moved and k in ('grain', 'bins'))},
-                        **spec}
+        changed = {**{k: v for k, v in was.items()
+                      if k not in ('mark', 'x', 'y', 'split', 'frozen') and not (moved and k in ('grain', 'bins'))},
+                   **spec}
+        # what DataCube would refuse to draw is refused here, before it is kept
+        _drawable(grid, changed)
+        view['spec'] = changed
         self._page._changed()
         return self
 
     def options(self, settings: Mapping[str, Any]) -> Chart:
         """The chart's Options (``orientation``, ``stack``, ``sort``, ``limit``, ``labels``, ``legend``), in its spec's own
         keys; one left out is the chart's default."""
-        self._view['spec'].setdefault('options', {}).update(_copied(settings))
+        spec = self._view['spec']
+        changed = {**spec, 'options': {**spec.get('options', {}), **_copied(settings)}}
+        # what DataCube would refuse to draw is refused here, before it is kept (a detached chart has no grid's types)
+        _drawable(self.grid, changed)
+        self._view['spec'] = changed
         self._page._changed()
         return self
 
