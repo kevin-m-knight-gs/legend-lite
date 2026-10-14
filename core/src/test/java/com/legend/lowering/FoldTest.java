@@ -77,6 +77,33 @@ class FoldTest {
     }
 
     @Test
+    @DisplayName("an aggregate with no GROUP BY is a boundary: its one row is not the rows it read")
+    void aKeylessAggregateIsABoundary() {
+        // aggregate(~[n:x|1:y|$y->count()])->filter(r|false) merged into WHERE answered one row (#SQL's HAVING 1 = 0);
+        // a second aggregate merged into it counted the rows read, not 1; a constant column read a row per row
+        com.legend.sql.SqlAgg.Reducer count = new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.COUNT,
+                List.of(col("A")), false, List.of());
+        SqlSelect counted = BARE.withProjections(List.of(new SqlSelect.Projection(count, "n", null)));
+        assertTrue(Fold.aggregatesWithoutKeys(counted));
+        assertEquals(Fold.FilterSlot.ISOLATE, Fold.filterSlot(counted, false));
+        assertFalse(Fold.groupByFolds(counted));
+        assertFalse(Fold.projectionFolds(counted));
+        // an aggregate under an expression aggregates the select too
+        assertTrue(Fold.aggregatesWithoutKeys(BARE.withProjections(List.of(new SqlSelect.Projection(
+                SqlExpr.Call.of(SqlFn.PLUS, count, new SqlExpr.IntLit(1)), "m", null)))));
+        // not a window's (each row keeps its row) nor a lambda's (a list function reduces its list)
+        SqlExpr windowed = new SqlExpr.WindowCall(count, List.of(), List.of(), null);
+        assertFalse(Fold.aggregatesWithoutKeys(BARE.withProjections(List.of(
+                new SqlSelect.Projection(windowed, "w", null)))));
+        assertEquals(Fold.FilterSlot.WHERE, Fold.filterSlot(BARE.withProjections(List.of(
+                new SqlSelect.Projection(windowed, "w", null))), false));
+        assertFalse(Fold.aggregatesWithoutKeys(BARE.withProjections(List.of(new SqlSelect.Projection(
+                new SqlExpr.Lambda(List.of("x"), count), "l", null)))));
+        // with keys it is a GROUP BY's: HAVING, as before
+        assertEquals(Fold.FilterSlot.HAVING, Fold.filterSlot(counted.withGroupBy(List.of(col("B"))), false));
+    }
+
+    @Test
     @DisplayName("projection folds until DISTINCT or truncation")
     void projectionRules() {
         assertTrue(Fold.projectionFolds(BARE));

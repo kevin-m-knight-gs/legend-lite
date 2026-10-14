@@ -280,7 +280,8 @@ final class Fold {
 
     /**
      * Whether {@code s} aggregates with no GROUP BY: an aggregate in a
-     * projection (not a window's, not a subquery's). Its one row is the
+     * projection ({@link com.legend.sql.SqlAgg#aggregatesSelect}: not a
+     * window's, a lambda's or a subquery's). Its one row is the
      * aggregate of every row it reads, so a filter of that row is not a
      * filter of those rows ({@code aggregate(...)->filter(r|false)} merged
      * into WHERE answered one row, not none), nor is an aggregate of it an
@@ -289,24 +290,7 @@ final class Fold {
      */
     static boolean aggregatesWithoutKeys(SqlSelect s) {
         return s.groupBy().isEmpty()
-                && s.projections().stream().anyMatch(p -> aggregates(p.expr()));
-    }
-
-    private static boolean aggregates(SqlExpr e) {
-        if (e instanceof com.legend.sql.SqlAgg.Reducer
-                || e instanceof SqlExpr.OrderedListAgg
-                || e instanceof SqlExpr.JsonArrayAgg) {
-            return true;
-        }
-        if (e instanceof SqlExpr.WindowCall) {
-            return false;
-        }
-        for (SqlExpr c : e.children()) {
-            if (aggregates(c)) {
-                return true;
-            }
-        }
-        return false;
+                && s.projections().stream().anyMatch(p -> com.legend.sql.SqlAgg.aggregatesSelect(p.expr()));
     }
 
     /** Window containment at EXPRESSION depth ({@code rank() + 1} in a
