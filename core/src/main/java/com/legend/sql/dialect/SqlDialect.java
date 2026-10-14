@@ -125,10 +125,11 @@ public interface SqlDialect {
                 + "' is not implemented for " + getClass().getSimpleName());
     }
 
-    /** The select list a COPY of a table in this database applies so that it holds the declared types: each of
-     *  {@code conversions} (this dialect's own, from {@link #catalogType}) under its column's name, every other column
-     *  as it is; {@code *} when no column converts. Refused where this database cannot replace a column in a star
-     *  select, which only the dialects whose catalog converts at the source need ({@link DuckDb#copySelectList}). */
+    /** The select list a COPY of a table applies when the copy is made IN this database, so that it holds the
+     *  declared types: each of {@code conversions} (the source catalog's, {@link #catalogType}, written for where
+     *  copies run) under its column's name, every other column as it is; {@code *} when no column converts. Refused
+     *  where this database cannot replace a column in a star select ({@link DuckDb#copySelectList} can: every host
+     *  copies into its own DuckDB, the tab's or Python's). */
     default String copySelectList(java.util.List<CatalogModel.Conversion> conversions) {
         if (conversions.isEmpty()) {
             return "*";

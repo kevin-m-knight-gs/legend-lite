@@ -173,8 +173,8 @@ public final class DuckDb extends AnsiSqlRenderer {
         return CATALOG_RULES.typeOf(column);
     }
 
-    /** {@inheritDoc} DuckDB's star modifier, {@code * REPLACE (<conversion> AS "<column>", ...)}: every copy of a
-     *  table whose catalog converts is a DuckDB table (an upload's rewrite, a Snap into the tab, a Python frame). */
+    /** {@inheritDoc} DuckDB's star modifier, {@code * REPLACE (<conversion> AS "<column>", ...)}: an upload's
+     *  rewrite, a Snap into the tab, a Python frame. */
     @Override
     public String copySelectList(List<CatalogModel.Conversion> conversions) {
         if (conversions.isEmpty()) {

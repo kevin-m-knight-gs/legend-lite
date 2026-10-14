@@ -242,8 +242,11 @@ export async function readFileInto(
   const inferred = await models.tableModel(await catalogColumns(engine, models, table),
     { table, convertible: true, databaseType: engine.databaseType });
   if (inferred.conversions.length > 0) {
-    // the writer's own select list: each conversion under its column's name (SqlDialect.copySelectList)
-    await engine.run(`CREATE OR REPLACE TABLE ${qt} AS SELECT ${inferred.copySelectList} FROM ${qt}`, 0);
+    // the writer's own select list: each conversion under its column's name (SqlDialect.copySelectList); an upload
+    // is rewritten in place, so the writer always writes one
+    const select = inferred.copySelectList;
+    if (select === undefined) throw new Error(`the model of ${table} came back with no copy select list`);
+    await engine.run(`CREATE OR REPLACE TABLE ${qt} AS SELECT ${select} FROM ${qt}`, 0);
   }
 
   const counted = await engine.run(

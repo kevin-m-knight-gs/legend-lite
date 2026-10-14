@@ -44,8 +44,8 @@ public final class CatalogModel {
     /**
      * The Database element's text; the relation accessor that reads the table
      * ({@code #>{db.schema.table}#}); the conversions a COPY of the table applies so it holds
-     * the declared types (an upload's rewrite at ingest, a Snap into the tab; the dialect that wrote
-     * them writes the copy's select list, {@link SqlDialect#copySelectList}); and the columns
+     * the declared types (an upload's rewrite at ingest, a Snap into the tab; the database the copy is
+     * made in writes its select list, {@link SqlDialect#copySelectList}); and the columns
      * left out, because their source cannot convert them or no Database type holds them.
      */
     public record Database(String text, String accessor, List<Conversion> conversions, List<String> excluded) {

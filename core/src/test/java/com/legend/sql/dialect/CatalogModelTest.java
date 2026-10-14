@@ -154,8 +154,8 @@ class CatalogModelTest {
                 CatalogModel.database("t::DB", null, "t", catalog("id BIGINT"), new DuckDb(), true).conversions()));
     }
 
-    /** A database that cannot replace a column in a star select copies a table whole, and refuses a conversion by name
-     *  (only DuckDB's catalog converts at the source). */
+    /** A database that cannot replace a column in a star select copies a table whole, and refuses a conversion by
+     *  name: the copy's own database writes its select list (every host copies into a DuckDB). */
     @Test
     void aCopyWithAConversionIsDuckDbsOwn() {
         assertEquals("*", new Postgres().copySelectList(List.of()));

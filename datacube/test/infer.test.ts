@@ -143,6 +143,16 @@ describe('the model for a table', () => {
     assert.equal((await writer.tableModel([col_('id', 'BIGINT')], { table: 't', convertible: true, databaseType: 'DuckDB' })).snapRuntime, undefined);
   });
 
+  it('writes a copy\'s select list in the copy\'s own database: a Postgres zoned timestamp snapped into DuckDB', async () => {
+    const at = col_('at', 'timestamptz', 'timestamp with time zone');
+    const snapped = await writer.tableModel([at],
+      { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres', snapDatabaseType: 'DuckDB' });
+    assert.equal(snapped.copySelectList, '* REPLACE (CAST(timezone(\'UTC\', "at") AS TIMESTAMP) AS "at")');
+    // a read-only source with no snap is never copied: no select list, and no refusal
+    const read = await writer.tableModel([at], { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres' });
+    assert.equal(read.copySelectList, undefined);
+  });
+
   it('plans the SAME query in each runtime\'s SQL: Postgres live, DuckDB on the copy', async () => {
     // a Postgres table, as its own catalog describes it
     const m = await writer.tableModel([col_('region', 'text'), col_('n', 'int8', 'bigint')],
