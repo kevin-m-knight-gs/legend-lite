@@ -291,13 +291,16 @@ class Document(Paged):
         grid.chart('radar', x='desk', y=[('notional', 'sum'), ('pnl', 'sum'), ('notional', 'max')])
         grid.chart('gauge', options={'target': 1000})
         grid.chart('sunburst')
+        grid.chart('matrix', y=[('notional', 'sum'), ('pnl', 'sum')])
         marks = [v['spec']['mark'] for v in page.to_dict()['views'] if v['kind'] == 'chart']
-        self.assertEqual(marks[-6:], ['waterfall', 'dumbbell', 'sankey', 'radar', 'gauge', 'sunburst'])
+        self.assertEqual(marks[-7:], ['waterfall', 'dumbbell', 'sankey', 'radar', 'gauge', 'sunburst', 'matrix'])
         # and what DataCube would refuse to draw, refused at the line that writes it
         for mark, given, why in [('sankey', {'x': 'region'}, 'needs a split'),
                                  ('funnel', {'x': 'region', 'split': 'desk'}, 'one series'),
                                  ('dumbbell', {'x': 'region'}, 'two values'),
                                  ('radar', {'x': 'region'}, 'three values'),
+                                 ('matrix', {'x': 'region', 'y': [('pnl', 'sum'), ('notional', 'sum')]}, 'has no x'),
+                                 ('matrix', {'y': [('pnl', 'sum')]}, 'two to five'),
                                  ('gauge', {}, 'needs a target'),
                                  ('gauge', {'x': 'region', 'options': {'target': 1}}, 'one value'),
                                  ('pareto', {'x': 'region', 'options': {'sort': {'by': 'x', 'direction': 'asc'}}}, 'largest'),

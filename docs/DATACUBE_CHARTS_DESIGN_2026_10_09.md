@@ -247,7 +247,10 @@ most any panel shows, found by comparing; a stack's panels keep their own scale,
 in the same place in every panel, one legend, one hover, a click saying the panel's facet values too. Refused: a facet
 on another kind, with a brush or a slider, or coloured by value.
 
-Still to come in batch 3: the scatter matrix. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
+**Step 3, built 2026-10-14**: the scatter matrix (`matrix`): two to five values, each pair plotted against each other
+from the cube's rows (as a scatter, not groups), each value's name on the diagonal, a colour per value of the split.
+
+Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt). Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
 design so the page does not compute), Gantt (a start and an end per row: dates as measures).
 
 ### Batch 4: new aggregates, and the kinds they unlock

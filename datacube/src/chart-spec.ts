@@ -33,7 +33,7 @@ export type ChartMark =
   | 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap' | 'kpi'
   // batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): drawn by chart-kinds.ts, a chunk of its own
   | 'lollipop' | 'dumbbell' | 'range' | 'waterfall' | 'pareto' | 'funnel' | 'rose' | 'polar' | 'radar' | 'parallel'
-  | 'sankey' | 'chord' | 'stream' | 'calendar' | 'gauge' | 'sunburst' | 'tree';
+  | 'sankey' | 'chord' | 'stream' | 'calendar' | 'gauge' | 'sunburst' | 'tree' | 'matrix';
 
 /** The kinds that draw the GRID'S rows as shown, with no query of their own: a treemap, a sunburst, a tree. */
 export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst', 'tree']);
@@ -41,8 +41,16 @@ export const GRID_MARKS: ReadonlySet<ChartMark> = new Set(['treemap', 'sunburst'
 /** Batch 3's kinds: drawn by chart-kinds.ts, fetched with the first of them (the rarer ECharts charts with it). */
 export const KIND_MARKS: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar', 'parallel',
-  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree',
+  'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix',
 ]);
+
+/** The kinds that plot ROWS, not groups: a scatter, and a scatter matrix (every pair of its values). */
+export function plotsRows(spec: Pick<ChartSpec, 'mark'>): boolean {
+  return spec.mark === 'scatter' || spec.mark === 'matrix';
+}
+
+/** The most values a scatter matrix compares: five make twenty scatters. */
+export const MAX_MATRIX = 5;
 
 /** The kinds whose marks are the categories across, one per value: a click drills down from one. */
 const DRILLABLE: ReadonlySet<ChartMark> = new Set([
@@ -389,6 +397,7 @@ export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
   { value: 'gauge', label: 'Gauge' },
   { value: 'sunburst', label: 'Sunburst' },
   { value: 'tree', label: 'Tree' },
+  { value: 'matrix', label: 'Scatter matrix' },
 ];
 
 /** A kind's name, as a sentence says it ("a Pareto", "a polar bar"). */
@@ -539,7 +548,7 @@ export function drillUp(spec: ChartSpec, depth: number): ChartSpec {
 
 /** The row-stage columns the chart's axis needs: a grain's (its period and the period's end), or its bins'. */
 function axisCalcs(spec: ChartSpec): DerivedColumn[] {
-  if (spec.x === undefined || spec.mark === 'scatter' || spec.mark === 'gauge') return [];
+  if (spec.x === undefined || plotsRows(spec) || spec.mark === 'gauge') return [];
   if (spec.grain !== undefined) {
     const name = grainName(spec.x, spec.grain);
     return [grainColumn(spec.x, spec.grain, name), grainEndColumn(spec.x, spec.grain, name)];
@@ -697,7 +706,7 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
  */
 export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   // a drilled chart stays where it was taken until it is taken back up; a chart of the grid as shown draws it as it is
-  if (spec.frozen || spec.mark === 'scatter' || GRID_MARKS.has(spec.mark) || (spec.drill?.path.length ?? 0) > 0) return spec;
+  if (spec.frozen || plotsRows(spec) || GRID_MARKS.has(spec.mark) || (spec.drill?.path.length ?? 0) > 0) return spec;
   // a KPI or a gauge follows the cube's measure; a KPI's trend's column is its own
   if (spec.mark === 'kpi' || spec.mark === 'gauge') {
     const measure = s.measures.find((m) => m.fn !== 'wavg');
@@ -742,12 +751,12 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   const groupLevel = new Set(groupLevelColumns(s, spec).map((d) => d.name));
   const out: string[] = [];
   // a KPI's column across is its trend, and it may have none; a gauge is one value, with nothing across
-  if (spec.x === undefined && spec.mark !== 'kpi' && spec.mark !== 'gauge') out.push('Pick a column across.');
+  if (spec.x === undefined && spec.mark !== 'kpi' && spec.mark !== 'gauge' && spec.mark !== 'matrix') out.push('Pick a column across.');
   else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
   if (spec.y.length === 0) out.push('Pick something to plot.');
   for (const m of [...spec.y, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
     if (m.fn === 'value') {
-      if (spec.mark === 'scatter') out.push(`A scatter plots rows, not groups: '${m.column}' is a group-level column.`);
+      if (plotsRows(spec)) out.push(`A ${markLabel(spec.mark)} plots rows, not groups: '${m.column}' is a group-level column.`);
       else if (!groupLevel.has(m.column)) out.push(`The cube has no group-level column '${m.column}'.`);
     } else if (m.fn !== 'count' && !known.has(m.column)) {
       out.push(`The cube has no column '${m.column}'.`);
@@ -829,7 +838,11 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if (!HOVER_EXTRAS.has(spec.mark) && (spec.tooltip ?? []).length > 0 && spec.mark !== 'scatter') {
     out.push(`${article} ${kind}'s hover lists no further measures.`);
   }
-  if (spec.mark === 'scatter' && spec.y.some((m) => m.showAs)) out.push('A scatter plots rows: a value shown as a running total, a share or a rank needs groups.');
+  if (plotsRows(spec) && spec.y.some((m) => m.showAs)) out.push(`A ${markLabel(spec.mark)} plots rows: a value shown as a running total, a share or a rank needs groups.`);
+  if (spec.mark === 'matrix') {
+    if (spec.y.length < 2 || spec.y.length > MAX_MATRIX) out.push(`A scatter matrix plots each pair of two to ${MAX_MATRIX} values.`);
+    if (spec.x !== undefined) out.push('A scatter matrix has no column across: it plots its values against each other.');
+  }
   if (spec.options.stack === 'percent' && (spec.layers ?? []).some((l) => l.kind !== 'band')) {
     out.push('A 100% stack shows shares: a reference line, a threshold or a pinned extreme of figures has no place on it.');
   }
@@ -869,7 +882,8 @@ export function chartSnapshot(s: CubeSnapshot, drilled: ChartSpec): CubeSnapshot
   const spec: ChartSpec = view.spec.mark === 'gauge' ? ungrouped : view.spec;
   const filter: FilterNode | undefined = conditions.length === 0 ? s.filter
     : { kind: 'and', children: [...(s.filter ? [s.filter] : []), ...conditions] };
-  const scatter = spec.mark === 'scatter';
+  // a scatter, or a scatter matrix: rows as they are, not groups
+  const scatter = plotsRows(spec);
   const across = axisName(spec);
   // SMALL MULTIPLES: a chart per value of the facet's columns -- grouped by them too, each panel a whole of its own
   const panels = facetColumns(spec);
@@ -1051,7 +1065,7 @@ export function kpiQueries(s: CubeSnapshot, spec: ChartSpec): {
 export function chartQuery(s: CubeSnapshot, spec: ChartSpec): { query: Lambda; snapshot: CubeSnapshot; scope: LevelScope } {
   const snapshot = chartSnapshot(s, spec);
   // small multiples ask for each panel's rows: the most per panel, times the most panels drawn
-  const limit = spec.mark === 'scatter' ? SCATTER_LIMIT : spec.options.limit * (spec.facet ? MAX_FACETS : 1);
+  const limit = plotsRows(spec) ? SCATTER_LIMIT : spec.options.limit * (spec.facet ? MAX_FACETS : 1);
   const scope: LevelScope = { level: snapshot.rows.length, parent: [], limit };
   return { query: levelLambda(snapshot, scope), snapshot, scope };
 }

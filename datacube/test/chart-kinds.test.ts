@@ -358,3 +358,34 @@ describe('small multiples: a chart per value, on shared axes', () => {
     });
   });
 });
+
+describe('a scatter matrix: each pair of the values, row by row', () => {
+  const three = [{ column: 'revenue', fn: 'sum' as const }, { column: 'cost', fn: 'sum' as const }, { column: 'profit', fn: 'sum' as const }];
+  it('plots rows, has nothing across, and two to five values', () => {
+    const { x: _x, ...spec } = of('matrix', { y: three });
+    assert.deepEqual(chartProblems(spec, CUBE), []);
+    assert.match(chartProblems(of('matrix', { y: three }), CUBE).join(), /no column across/);
+    assert.match(chartProblems({ ...spec, y: three.slice(0, 1) }, CUBE).join(), /two to 5 values/);
+    const s = chartSnapshot(CUBE, spec);
+    assert.deepEqual([s.rows, s.measures], [[], []], 'rows as they are, not groups');
+    assert.deepEqual(s.columns.map((c) => c.name).sort(), ['cost', 'profit', 'revenue']);
+  });
+  it('a scatter in each cell off the diagonal, each value\'s name on it; a colour per group', () => {
+    const rows = table([
+      { name: 'revenue', type: 'Float', values: [10, 20, 30] },
+      { name: 'cost', type: 'Float', values: [5, 8, 20] },
+      { name: 'profit', type: 'Float', values: [5, 12, 10] },
+      { name: 'channel', type: 'String', values: ['Online', 'Retail', 'Online'] },
+    ]);
+    const { x: _x, ...spec } = of('matrix', { y: three, split: 'channel' });
+    const d = kindOption(spec, rows);
+    const o = d.option as { grid: unknown[]; series: { data: number[][]; name: string; xAxisIndex: number }[]; title: { text: string }[] };
+    assert.equal(o.grid.length, 9);
+    assert.equal(o.series.length, 6 * 2, 'six cells off the diagonal, a series per group in each');
+    assert.deepEqual(o.title.map((t) => t.text), ['revenue', 'cost', 'profit'], 'each column by its name: rows are not aggregated');
+    // the first row's second cell: cost across, revenue up, Online's rows
+    assert.deepEqual(o.series[0]!.data, [[5, 10], [20, 30]]);
+    assert.ok(svg(d, 700, 700).includes('Retail'));
+  });
+});
+

@@ -25,6 +25,7 @@ import {
   keyText,
   legendOf,
   LIGHT_THEME,
+  MAX_SCATTER_SERIES,
   MAX_SERIES,
   measureText,
   measureTitle,
@@ -86,6 +87,8 @@ export function kindOption(
 
   // -- one value: a gauge ------------------------------------------------------------------------------------------
   if (spec.mark === 'gauge') return gauge(spec, rows, theme, label, base, tooltip);
+  // -- rows, every pair of their values: a scatter matrix --------------------------------------------------------
+  if (spec.mark === 'matrix') return matrix(spec, rows, theme, label, base, tooltip, axisCommon);
 
   const across = axisName(spec);
   const xCol = across !== undefined ? column(rows, across) : undefined;
@@ -524,6 +527,93 @@ export function kindOption(
     }
   }
   throw new Error(`a ${markLabel(spec.mark)} is not drawn by kindOption`);
+}
+
+/**
+ * A SCATTER MATRIX: each pair of the values plotted against each other, row by row -- a scatter in each cell off the
+ * diagonal (the column's value across, the row's up), each value's name on the diagonal; a colour per value of the
+ * split, as a scatter's. Its rows are the cube's rows, not groups.
+ */
+function matrix(
+  spec: ChartSpec,
+  rows: ResultTable,
+  theme: ChartTheme,
+  label: LabelOf,
+  base: object,
+  tooltip: object,
+  axisCommon: Record<string, unknown>,
+): ChartDrawing {
+  const notes: string[] = [];
+  const n = spec.y.length;
+  const cols = spec.y.map((m) => column(rows, m.column));
+  const splitCol = spec.split !== undefined ? column(rows, spec.split) : undefined;
+  const groups = splitCol ? distinct(splitCol.values) : [null];
+  if (groups.length > MAX_SCATTER_SERIES) notes.push(`Showing the first ${MAX_SCATTER_SERIES} of ${groups.length} groups: more cannot be told apart.`);
+  const shown = groups.slice(0, MAX_SCATTER_SERIES);
+  const inGroup = (i: number, g: Scalar): boolean => !splitCol || keyText(splitCol.values[i] ?? null) === keyText(g);
+  const value = (k: number, i: number): number | null => numberOf(cols[k]?.values[i] ?? null, cols[k]?.type);
+  // the cells share the box under the legend, room left below for the bottom row's labels
+  const size = 88 / n;
+  const grids: object[] = [];
+  const xAxes: object[] = [];
+  const yAxes: object[] = [];
+  const series: object[] = [];
+  const titles: object[] = [];
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const g = grids.length;
+      grids.push({ left: `${c * (100 / n) + 5}%`, top: `${r * size + 7}%`, width: `${100 / n - 6}%`, height: `${size - 4}%` });
+      // the left column's cells say their row's values, the bottom row's their column's
+      xAxes.push({ ...axisCommon, gridIndex: g, type: 'value', scale: true, axisLabel: { ...(axisCommon['axisLabel'] as object), show: r === n - 1, fontSize: 9 }, splitNumber: 3 });
+      yAxes.push({ ...axisCommon, gridIndex: g, type: 'value', scale: true, axisLabel: { ...(axisCommon['axisLabel'] as object), show: c === 0, fontSize: 9 }, splitNumber: 3 });
+      if (r === c) {
+        // a row's value as it is: its column's name (a scatter's rows are not aggregated)
+        titles.push({ text: spec.y[r]!.column, left: `${c * (100 / n) + 5 + (100 / n - 6) / 2}%`, top: `${r * size + 7 + (size - 4) / 2 - 2}%`, textAlign: 'center', textStyle: { fontSize: 12, fontWeight: 'normal', color: theme.ink } });
+        continue;
+      }
+      shown.forEach((grp, k) => {
+        const data: [number, number][] = [];
+        for (let i = 0; i < rows.rowCount; i++) {
+          if (!inGroup(i, grp)) continue;
+          const xv = value(c, i);
+          const yv = value(r, i);
+          if (xv !== null && yv !== null) data.push([xv, yv]);
+        }
+        series.push({
+          type: 'scatter', xAxisIndex: g, yAxisIndex: g, symbolSize: 4, data,
+          name: splitCol ? label(grp, spec.split!, splitCol.type) : 'rows',
+          itemStyle: { color: theme.series[k % theme.series.length], opacity: 0.6 },
+          // which pair this cell is, for its hover
+          pair: [c, r],
+        });
+      });
+    }
+  }
+  const write = (k: number, v: number): string => label(v, spec.y[k]!.column, cols[k]?.type);
+  return {
+    option: asOption({
+      ...base,
+      grid: grids,
+      xAxis: xAxes,
+      yAxis: yAxes,
+      title: titles,
+      legend: legendOf(spec, splitCol ? shown.length : 0, theme),
+      tooltip: {
+        ...tooltip, trigger: 'item',
+        formatter: (p: { seriesIndex: number; seriesName?: string; value?: [number, number] }) => {
+          const pair = (series[p.seriesIndex] as { pair?: [number, number] } | undefined)?.pair;
+          if (!pair || !p.value) return '';
+          return [...(splitCol ? [`<b>${escapeHtml(p.seriesName ?? '')}</b>`] : []),
+            `${escapeHtml(spec.y[pair[0]]!.column)}: ${escapeHtml(write(pair[0], p.value[0]))}`,
+            `${escapeHtml(spec.y[pair[1]]!.column)}: ${escapeHtml(write(pair[1], p.value[1]))}`].join('<br>');
+        },
+      },
+      series,
+    }),
+    keyAt: () => null,
+    notes,
+    description: describe(spec, rows),
+  };
 }
 
 /** The part of ECharts' custom series' API a span uses. */

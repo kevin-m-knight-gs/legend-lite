@@ -112,7 +112,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     // a kind takes what it needs and leaves what it has no place for: a gauge has nothing across and no split, a kind
     // of one series no split; a Pareto runs from the largest
     const { x, split, ...rest } = current(h);
-    const keepX = v !== 'gauge' && x !== undefined;
+    const keepX = v !== 'gauge' && v !== 'matrix' && x !== undefined;
     const keepSplit = v !== 'gauge' && !UNSPLIT_MARKS.has(v) && split !== undefined;
     h.replace({
       ...rest,
@@ -171,6 +171,26 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         { value: 'lower', label: 'At or below target' },
       ] as const, (v) => { if (v) h.setOption('better', v); })),
       checkbox(doc, 'As a progress ring', spec.options.ring === true, (v) => setFlag(h, 'ring', v)),
+    );
+    return;
+  }
+  if (spec.mark === 'matrix') {
+    // rows' values against each other: what they are, and a colour per value of the split
+    const numbers = measures.map((c) => ({ value: c.name, label: c.name }));
+    form.append(
+      markField,
+      field(doc, 'Value 1:', dropdown<string>(doc, first?.column, numbers, (v) => {
+        if (!v || !h.spec()) return;
+        h.set({ y: [{ column: v, fn: 'sum' }, ...current(h).y.slice(1)] }, true);
+      })),
+      ...measureRows(h, spec, numbers, typeOf, false),
+      field(doc, 'Colour by:', dropdown<string>(doc, spec.split, dims, (v) => {
+        if (!h.spec()) return;
+        const { split: _old, ...rest } = current(h);
+        h.replace(v ? { ...rest, split: v } : rest);
+        h.onSpec();
+        h.refresh();
+      }, { allowNone: true })),
     );
     return;
   }

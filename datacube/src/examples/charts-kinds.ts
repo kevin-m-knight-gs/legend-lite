@@ -77,6 +77,9 @@ const SHEETS: readonly ExampleSheet[] = [
       chart('k-parallel', 'Each product through its revenue, cost, profit and units: parallel coordinates', {
         mark: 'parallel', x: 'product', y: [REVENUE, COST, PROFIT, UNITS],
       }),
+      chart('k-matrix', 'Each sale\'s revenue, cost, profit and discount against each other: a scatter matrix', {
+        mark: 'matrix', y: [REVENUE, COST, PROFIT, { column: 'discount', fn: 'sum' }], split: 'channel',
+      }),
     ],
   },
   {

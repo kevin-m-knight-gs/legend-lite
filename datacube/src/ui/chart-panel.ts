@@ -23,6 +23,7 @@ import {
   kpiQueries,
   markConditions,
   MAX_FACETS,
+  plotsRows,
   type ChartMark,
   type ChartSpec,
 } from '../chart-spec.ts';
@@ -202,7 +203,7 @@ export class ChartPanel {
     // a hand on the grouping of a live chart freezes it: the next pivot
     // change would otherwise undo the choice
     const grouping = 'x' in change || 'y' in change || 'split' in change;
-    const freeze = grouping && !this.frozen && this.#spec.mark !== 'scatter';
+    const freeze = grouping && !this.frozen && !plotsRows(this.#spec);
     this.#spec = { ...this.#spec, ...change, ...(freeze ? { frozen: true } : {}) };
     if (freeze) this.#options.onFrozen?.(true);
     this.#options.onSpec?.();
@@ -325,7 +326,7 @@ export class ChartPanel {
       this.#chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && CROSSHAIRED.has(spec.mark) && spec.facet === undefined
         ? `${this.#options.crosshair}|${across}` : undefined);
       // small multiples ask for each panel's most, times the most panels (chart-spec.ts chartQuery)
-      const asked = spec.mark === 'scatter' ? Infinity : spec.options.limit * (spec.facet ? MAX_FACETS : 1);
+      const asked = plotsRows(spec) ? Infinity : spec.options.limit * (spec.facet ? MAX_FACETS : 1);
       const capped = rows.rowCount >= asked;
       this.#say([
         ...drawing.notes,

@@ -60,7 +60,7 @@ AGGREGATES = frozenset({
 MARKS = frozenset({'bar', 'line', 'area', 'scatter', 'pie', 'heatmap', 'treemap', 'kpi',
                    # batch 3 (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3)
                    'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'polar', 'radar',
-                   'parallel', 'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree'})
+                   'parallel', 'sankey', 'chord', 'stream', 'calendar', 'gauge', 'sunburst', 'tree', 'matrix'})
 # the chart spec's version 2 slots (chart-spec.ts, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.1): a measure's own mark
 # and axis, what it is shown as, a date's grain, a layer's kind and statistic
 CHART_VERSION = 2
@@ -718,6 +718,10 @@ def _drawable(grid: Grid | None, spec: Mapping[str, Any]) -> None:
         raise ValueError(f'a {mark} plots two values per category, its low and its high: give y two measures')
     if mark == 'radar' and count < 3:
         raise ValueError('a radar needs three values or more, one per spoke')
+    if mark == 'matrix' and not 2 <= count <= 5:
+        raise ValueError('a scatter matrix plots each pair of two to five values')
+    if mark == 'matrix' and x is not None:
+        raise ValueError('a scatter matrix has no x: it plots its values against each other')
     if mark == 'parallel' and count < 2:
         raise ValueError('parallel coordinates need two values or more, one per axis')
     if mark in _ONE_VALUE and count > 1:
