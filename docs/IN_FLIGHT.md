@@ -1453,3 +1453,14 @@ repros will be in the study's §9.
    relation concatenate's info comes from, each common column's stamp the union of both sides'; the typer's builders and
    the resolver's five rebuilds take it. Judges in GATES: the six corpus passes 0 of 23 result files differ; the render
    census 55,747 entries, 0 differ; the reference lane and the census green.
+   **Announced 2026-10-14: a computed column that reads the enclosing row (the tenth line's find: a correlated scalar
+   subquery whose select list reads the outer row inside an expression, `SELECT max(x.age) + e.ID FROM ... x` under
+   `FROM ... e`, threw "unresolvable even after isolation" at `Lowerer.computedColumns`), on branch
+   `core/correlated-columns`.** `tryComputedColumns` resolved a column lambda's reads by name against the base select
+   alone, whatever variable they read: an enclosing row's column was unfoldable, and one with the base's own name would
+   have resolved to the base's silently. It now resolves through `scopedResolver`, as `tryPredicate` does: the lambda's
+   own row against the base select, any other variable through the enclosing scopes (the `enclosing` stack every
+   scalar-subquery arm pushes) and never the base's same-named column, a genuine miss unfoldable (isolate once, then
+   loud, as today). One line of `Lowerer`; tests: the `#SQL{...}#` spellings end to end on DuckDB against the database's
+   own answer to the same SQL, and the plain-Pure spelling (`extend` over a nested relation reading the outer row);
+   judged as every change here.
