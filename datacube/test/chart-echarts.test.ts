@@ -21,7 +21,7 @@ import {
   TIME_LIMIT,
   type ChartSpec,
 } from '../src/chart-spec.ts';
-import { chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
+import { chartCsv, chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
 import '../src/chart-render.ts';   // registers the charts and components the page uses
@@ -832,5 +832,33 @@ describe('brush to filter (batch 2, step 11)', () => {
     const d = chartOption(BAR, ROWS);
     assert.equal(d.brushed, undefined);
     assert.equal((d.option as { brush?: unknown }).brush, undefined);
+  });
+});
+
+describe('the cheaper options (batch 2, step 12)', () => {
+  const ROWS = table([
+    { name: 'region', type: 'String', values: ['EMEA', 'AMER, "the Americas"'] },
+    { name: 'sum_notional', type: 'Float', values: [3, 2] },
+  ]);
+  type Opt = { aria: { decal: { show: boolean } }; toolbox?: { feature: Record<string, unknown> } };
+
+  it('pattern fills as well as colours, one option away', () => {
+    assert.equal((chartOption(BAR, ROWS).option as unknown as Opt).aria.decal.show, false);
+    const d = chartOption({ ...BAR, options: { ...BAR.options, decal: true } }, ROWS);
+    assert.equal((d.option as unknown as Opt).aria.decal.show, true);
+    chartSvg(d);
+  });
+
+  it('the toolbox: a picture, the data, the CSV, and bars or a line in place; none unless asked', () => {
+    assert.equal((chartOption(BAR, ROWS).option as unknown as Opt).toolbox, undefined);
+    const d = chartOption({ ...BAR, options: { ...BAR.options, toolbox: true } }, ROWS);
+    assert.deepEqual(Object.keys((d.option as unknown as Opt).toolbox!.feature), ['saveAsImage', 'dataView', 'myCsv', 'magicType']);
+    const pie = chartOption({ ...BAR, mark: 'pie', options: { ...BAR.options, toolbox: true } }, ROWS);
+    assert.deepEqual(Object.keys((pie.option as unknown as Opt).toolbox!.feature), ['saveAsImage', 'dataView', 'myCsv']);
+    chartSvg(d);
+  });
+
+  it('the CSV is the chart\'s rows, a value with a comma or a quote quoted', () => {
+    assert.equal(chartCsv(ROWS), 'region,sum_notional\r\nEMEA,3\r\n"AMER, ""the Americas""",2\r\n');
   });
 });

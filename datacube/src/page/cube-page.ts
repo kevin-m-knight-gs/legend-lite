@@ -225,6 +225,8 @@ export class CubePage {
   /** Each added grid's first open (its first view), for `opened`. */
   readonly #opening = new Map<string, Promise<void>>();
   #chartCount = 0;
+  /** This page's crosshair group (chart-render.ts setGroup): its own, so two pages on one screen do not share. */
+  readonly #crosshair = `page-${(crosshairs += 1)}`;
   #gridCount = 0;
   /** A chart's right-click menu: its Options, Open in grid, Remove. */
   readonly #menu: MenuView;
@@ -758,6 +760,8 @@ export class CubePage {
       run: (query, snapshot, signal) => source().run(query, snapshot, signal),
       label: (value, column, type) => source().format(value, column, type),
       unit: (column) => source().unit?.(column),
+      // the page's charts with the same column across share a crosshair
+      crosshair: this.#crosshair,
       shown: () => source().shown(),
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
@@ -1214,6 +1218,9 @@ export class CubePage {
     chart.chip.setAttribute('aria-label', `Clear the filter to ${words.join(', ')}`);
   }
 }
+
+/** Pages made so far: each its own crosshair group. */
+let crosshairs = 0;
 
 /** `layout` without the tiles `leave` names: each one's place closed by its neighbours, as a removal closes it. */
 function without(layout: Bands, leave: (id: string) => boolean): Bands {

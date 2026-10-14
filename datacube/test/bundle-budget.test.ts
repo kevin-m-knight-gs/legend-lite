@@ -104,7 +104,10 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  399,000 -> 401,000 (2026-10-14, batch 2 step 10): drilling a chart down the grid's groupings (chart-spec.ts
  *  drilledView, drillDown; the panel's path above the chart). Measured 399,861. The charts' panel loads with the board
  *  at startup, so every field it gains is here: loading it with a page's first chart instead (cube-page.ts openChart,
- *  synchronous today) is a follow-up of its own. */
+ *  synchronous today) is a follow-up of its own.
+ *  Kept at 401,000 (2026-10-14, batch 2 step 12): the charts' options form moved out of startup into its own chunk
+ *  (ui/chart-form.ts, 4,822 bytes, fetched the first time a chart's options are shown), so the fields batch 2 added and
+ *  every later batch adds grow that chunk. Measured 398,792 with step 12's options in it, 401,306 before the move. */
 const BUDGET = 401_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,

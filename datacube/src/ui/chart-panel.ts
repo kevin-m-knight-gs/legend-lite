@@ -8,48 +8,31 @@
 // that mark's values to the cube's filter.
 
 import {
-  CHART_MARKS,
-  chartColumns,
+  axisName,
+  brushConditions,
   chartProblems,
   chartQuery,
   defaultChart,
-  followCube,
-  kpiQueries,
-  markConditions,
-  brushConditions,
   drilledView,
   drillDown,
   drillLevels,
   drillUp,
-  LAYER_STATS,
-  SHOW_AS_KINDS,
-  TIME_GRAINS,
-  type ChartLayer,
-  type ChartLayerKind,
-  type ChartMark,
-  type ChartMeasure,
-  type MeasureMark,
-  type ShowAsKind,
-  type TimeGrain,
+  followCube,
+  kpiQueries,
+  markConditions,
   type ChartSpec,
 } from '../chart-spec.ts';
+import type { FormHost } from './chart-form.ts';
 // the drawing (chart-option.ts) comes with ECharts, the first time a chart draws: a grid alone fetches neither
 import type { Brushed, GridShown, LabelOf, MarkKey, UnitOf } from '../chart-option.ts';
 // ECharts (about 218 KB gzipped) is loaded the first time a chart draws, never by a grid alone (plan F7)
 import type { ChartPicture, MountedChart } from '../chart-render.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
-import type { AggregateFn, CubeSnapshot, FilterNode } from '../snapshot.ts';
+import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
-import { checkbox, dropdown, field, numberInput } from './form.ts';
-import { aggregatesFor } from './panel-column.ts';
-import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
-import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
-
-/** The most values one chart plots side by side (bars, lines). */
-const MAX_MEASURES = 6;
 
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
@@ -64,6 +47,8 @@ export interface ChartPanelOptions {
   readonly onPick: (conditions: FilterNode[]) => void;
   /** Where to start; the cube's own grouping suggests one otherwise. */
   readonly initial?: ChartSpec;
+  /** The page's crosshair group: the page's charts with the same column across share a crosshair. */
+  readonly crosshair?: string;
   /** Upstream-style debounce between an edit and the query; a test passes 0. */
   readonly debounceMs?: number;
   /** Whether the options start open (a chart tile starts with the chart alone). */
@@ -87,6 +72,21 @@ export class ChartPanel {
   /** A drilled chart's path, above it (batch 2 item 10). */
   #crumbs!: HTMLElement;
   #clickTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The spec changed while the form was closed: painted when it is next shown. */
+  #formStale = false;
+  /** What the options form (ui/chart-form.ts) reads and changes. */
+  readonly #formHost: FormHost = ((panel: ChartPanel): FormHost => ({
+    get doc() { return panel.#doc; },
+    spec: () => this.#spec,
+    replace: (spec) => { this.#spec = spec; },
+    set: (change, redraw) => this.#set(change, redraw),
+    setOption: (key, value) => this.#setOption(key, value),
+    frozen: () => this.frozen,
+    froze: () => this.#options.onFrozen?.(true),
+    onSpec: () => this.#options.onSpec?.(),
+    refresh: () => this.refresh(),
+    snapshot: () => this.#options.snapshot(),
+  }))(this);
   #chart: MountedChart | null = null;
   /** A KPI's trend line, mounted under its number (the number is the canvas's own, not a chart). */
   #trend: MountedChart | null = null;
@@ -149,6 +149,7 @@ export class ChartPanel {
   /** Show or hide the options; answers whether they are now shown. */
   toggleForm(): boolean {
     this.#form.hidden = !this.#form.hidden;
+    if (!this.#form.hidden && this.#formStale) this.#paintForm();
     return !this.#form.hidden;
   }
 
@@ -207,346 +208,25 @@ export class ChartPanel {
     this.#set({ options: { ...this.#spec.options, [key]: value } });
   }
 
+  /**
+   * The options form (ui/chart-form.ts): fetched the first time it is shown -- a grid alone, or a chart whose options
+   * stay closed, never downloads it -- and painted again whenever the spec changes while it is shown.
+   */
   #paintForm(): void {
     this.#paintCrumbs();
-    const doc = this.#doc;
-    const form = this.#form;
-    form.replaceChildren();
-    const s = this.#options.snapshot();
-    const spec = this.#spec;
-    if (!spec) {
-      form.textContent = 'This cube has no column to chart.';
+    if (this.#form.hidden) {
+      this.#formStale = true;
       return;
     }
-    const { dimensions, measures, groupLevel } = chartColumns(s, spec ?? undefined);
-    const dims = dimensions.map((c) => ({ value: c.name, label: c.name }));
-    const scatter = spec.mark === 'scatter';
-    const across = scatter
-      ? [...measures, ...dimensions].map((c) => ({ value: c.name, label: c.name }))
-      : dims;
-    const first = spec.y[0];
-    const typeOf = new Map([...dimensions, ...measures].map((c) => [c.name, c.type]));
-    const fns = (first && first.fn !== 'value' ? aggregatesFor(typeOf.get(first.column)) : [])
-      .filter((a) => a.value !== 'wavg')
-      .map((a) => ({ value: a.value, label: a.label }));
-    // what a measure can be: a number column, aggregated; or a group-level column, plotted as it is (`fn: 'value'`)
-    const GROUP = 'group:';
-    const plotted = [
-      ...measures.map((c) => ({ value: c.name, label: c.name })),
-      ...groupLevel.map((d) => ({ value: `${GROUP}${d.name}`, label: `${d.name} (group level)` })),
-    ];
-    const plottedValue = first ? (first.fn === 'value' ? `${GROUP}${first.column}` : first.column) : undefined;
-    const pick = (v: string | undefined, fn: AggregateFn | undefined): void => {
-      if (!v) return;
-      const y = v.startsWith(GROUP)
-        ? { column: v.slice(GROUP.length), fn: 'value' as const }
-        : { column: v, fn: fn ?? 'sum' };
-      this.#set({ y: [y] }, true);
-    };
-    const currentFn = (): AggregateFn | undefined => {
-      const f = this.#spec?.y[0]?.fn;
-      return f === 'value' ? undefined : f;
-    };
-
-    const markField = field(doc, 'Chart:', dropdown<ChartMark>(doc, spec.mark, CHART_MARKS, (v) => {
-      if (v) this.#set({ mark: v }, true);
-    }));
-    if (spec.mark === 'kpi') {
-      // a number, what it measures, its trend by a column (or none), and a target with which way is good
-      form.append(
-        markField,
-        field(doc, 'Value:', dropdown<string>(doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
-          (v) => { if (v) this.#set({ y: [{ column: v, fn: currentFn() ?? 'sum' }] }, true); })),
-        field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, currentFn(), fns, (v) => {
-          const now = this.#spec?.y[0];
-          if (v && now) this.#set({ y: [{ column: now.column, fn: v }] });
-        })),
-        field(doc, 'Trend by:', dropdown<string>(doc, spec.x, dims, (v) => {
-          if (!this.#spec) return;
-          const { x: _old, ...rest } = this.#spec;
-          this.#spec = v ? { ...rest, x: v } : rest;
-          this.#options.onSpec?.();
-          this.refresh();
-        }, { allowNone: true })),
-        field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => {
-          if (!this.#spec) return;
-          const { target: _old, ...rest } = this.#spec.options;
-          this.#set({ options: v === undefined ? rest : { ...rest, target: v } });
-        }, { width: 110 })),
-        field(doc, 'Good when:', dropdown(doc, spec.options.better ?? 'higher', [
-          { value: 'higher', label: 'Above target' },
-          { value: 'lower', label: 'Below target' },
-        ] as const, (v) => { if (v) this.#setOption('better', v); })),
-      );
-      return;
-    }
-    if (spec.mark === 'treemap') {
-      // what is on screen decides the rest: nothing else to choose
-      const note = doc.createElement('p');
-      note.className = 'dc-chartpanel-note';
-      note.textContent = 'Draws the grid\'s rows as shown: each a block, sized by the first number column the grid shows. Expand a group to see inside it.';
-      form.append(markField, note);
-      return;
-    }
-    form.append(
-      markField,
-      field(doc, scatter ? 'X:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
-        if (!v || !this.#spec) return;
-        // a grain or bins belong to the column they were chosen for
-        const { grain: _g, bins: _b, ...rest } = this.#spec;
-        this.#spec = rest;
-        this.#set({ x: v }, true);
-      })),
-      ...this.#presetFields(spec, typeOf.get(spec.x ?? '')),
-      // every handler reads the spec as it is AT THE EVENT, never the one
-      // this form was painted from: a stale copy undid the edit before it
-      field(doc, scatter ? 'Y:' : 'Value:', dropdown<string>(
-        doc, scatter ? first?.column : plottedValue,
-        scatter ? measures.map((c) => ({ value: c.name, label: c.name })) : plotted,
-        (v) => pick(v, currentFn()),
-      )),
-      ...(scatter || first?.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(
-        doc, currentFn(), fns,
-        (v) => {
-          const now = this.#spec?.y[0];
-          if (v && now) this.#set({ y: [{ ...now, fn: v }] });
-        },
-      ))]),
-      field(doc, spec.mark === 'heatmap' ? 'Rows:' : 'Split by:', dropdown<string>(
-        doc, spec.split, dims,
-        (v) => {
-          if (!this.#spec) return;
-          const { split: _old, ...rest } = this.#spec;
-          const freeze = !this.frozen && this.#spec.mark !== 'scatter';
-          this.#spec = { ...(v ? { ...rest, split: v } : rest), ...(freeze ? { frozen: true } : {}) };
-          if (freeze) this.#options.onFrozen?.(true);
-          this.#options.onSpec?.();
-          this.refresh();
-        },
-        { allowNone: spec.mark !== 'heatmap' },
-      )),
-    );
-    if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
-      form.append(...this.#measureRows(spec, plotted, typeOf), ...this.#layerFields(spec, plotted));
-    }
-    if (spec.mark === 'bar') {
-      form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, [
-        { value: 'vertical', label: 'Vertical' },
-        { value: 'horizontal', label: 'Horizontal' },
-      ] as const, (v) => { if (v) this.#setOption('orientation', v); })));
-    }
-    if (spec.mark === 'bar' || spec.mark === 'area') {
-      form.append(field(doc, 'Stack:', dropdown(doc, spec.options.stack, [
-        { value: 'none', label: 'None' },
-        { value: 'stacked', label: 'Stacked' },
-        { value: 'percent', label: '100%' },
-      ] as const, (v) => { if (v) this.#setOption('stack', v); })));
-    }
-    if (!scatter) {
-      form.append(
-        field(doc, 'Order by:', dropdown(doc, `${spec.options.sort.by}:${spec.options.sort.direction}`, [
-          { value: 'y:desc', label: 'Value, largest first' },
-          { value: 'y:asc', label: 'Value, smallest first' },
-          { value: 'x:asc', label: 'Category, A to Z' },
-          { value: 'x:desc', label: 'Category, Z to A' },
-        ] as const, (v) => {
-          if (!v) return;
-          const [by, direction] = v.split(':') as ['x' | 'y', 'asc' | 'desc'];
-          this.#setOption('sort', { by, direction });
-        })),
-        field(doc, 'At most:', numberInput(doc, spec.options.limit, (v) => {
-          if (v !== undefined && v >= 1) this.#setOption('limit', Math.floor(v));
-        }, { min: 1, max: 5000, step: 10, width: 80 })),
-      );
-    }
-    form.append(
-      field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
-        { value: 'top', label: 'Top' },
-        { value: 'bottom', label: 'Bottom' },
-        { value: 'right', label: 'Right' },
-        { value: 'none', label: 'None' },
-      ] as const, (v) => { if (v) this.#setOption('legend', v); })),
-      checkbox(doc, 'Show values', spec.options.labels, (v) => this.#setOption('labels', v)),
-    );
-    if (!scatter) {
-      const hint = doc.createElement('p');
-      hint.className = 'dc-chartpanel-hint';
-      hint.textContent = 'Click a mark on the chart to filter the cube to it.';
-      form.append(hint);
-    }
-  }
-
-  /**
-   * THE MEASURES AFTER THE FIRST (version 2): each its own column and aggregate -- or a group-level column as it is --,
-   * its own kind of mark and its value axis (by unit unless told), shown as it says; one added or taken away. A split
-   * draws the first measure once per value, so the others wait until it is taken off.
-   */
-  #measureRows(spec: ChartSpec, plotted: readonly { value: string; label: string }[], typeOf: ReadonlyMap<string, string | undefined>): HTMLElement[] {
-    const doc = this.#doc;
-    const GROUP = 'group:';
-    const out: HTMLElement[] = [];
-    const replace = (i: number, m: ChartMeasure | null): void => {
-      if (!this.#spec) return;
-      const y = [...this.#spec.y];
-      if (m === null) y.splice(i, 1);
-      else y[i] = m;
-      this.#set({ y }, true);
-    };
-    spec.y.forEach((m, i) => {
-      if (i === 0) return;
-      const row = doc.createElement('div');
-      row.className = 'dc-chartpanel-measure';
-      const value = m.fn === 'value' ? `${GROUP}${m.column}` : m.column;
-      const fns = (m.fn === 'value' ? [] : aggregatesFor(typeOf.get(m.column)))
-        .filter((a) => a.value !== 'wavg').map((a) => ({ value: a.value, label: a.label }));
-      row.append(
-        field(doc, `Value ${i + 1}:`, dropdown<string>(doc, value, plotted, (v) => {
-          if (!v) return;
-          replace(i, v.startsWith(GROUP) ? { ...m, column: v.slice(GROUP.length), fn: 'value' }
-            : { ...m, column: v, fn: m.fn === 'value' ? 'sum' : m.fn });
-        })),
-        ...(m.fn === 'value' ? [] : [field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, m.fn, fns, (v) => {
-          if (v) replace(i, { ...m, fn: v });
-        }))]),
-        field(doc, 'Drawn as:', dropdown<MeasureMark>(doc, m.mark ?? (spec.mark === 'bar' ? 'bar' : spec.mark as MeasureMark), [
-          { value: 'bar', label: 'Bars' }, { value: 'line', label: 'Line' }, { value: 'area', label: 'Area' },
-        ], (v) => { if (v) replace(i, { ...m, mark: v }); })),
-        field(doc, 'Axis:', dropdown<string>(doc, m.axis ?? 'auto', [
-          { value: 'auto', label: 'By its unit' }, { value: 'left', label: 'Left' }, { value: 'right', label: 'Right' },
-        ], (v) => {
-          const { axis: _old, ...rest } = m;
-          replace(i, v === 'left' || v === 'right' ? { ...rest, axis: v } : rest);
-        })),
-      );
-      const remove = doc.createElement('button');
-      remove.type = 'button';
-      remove.className = 'dc-btn dc-btn-small';
-      remove.textContent = '\u00d7';
-      remove.title = `Take value ${i + 1} off the chart`;
-      remove.setAttribute('aria-label', remove.title);
-      remove.addEventListener('click', () => replace(i, null));
-      row.append(remove);
-      out.push(row);
+    this.#formStale = false;
+    void import('./chart-form.ts').then(({ paintChartForm }) => {
+      if (this.#disposed || this.#form.hidden) return;
+      paintChartForm(this.#formHost, this.#form);
     });
-    const add = doc.createElement('button');
-    add.type = 'button';
-    add.className = 'dc-btn dc-btn-small dc-chartpanel-add';
-    add.textContent = '+ Add a value';
-    add.disabled = spec.split !== undefined || spec.y.length >= MAX_MEASURES;
-    add.title = spec.split !== undefined
-      ? 'A split draws one value per series: take the split off to plot more values.'
-      : 'Another value on the chart: as a line, say, beside the bars.';
-    add.addEventListener('click', () => {
-      const now = this.#spec;
-      const first = now?.y[0];
-      if (!now || !first) return;
-      const next = plotted.find((p) => !p.value.startsWith(GROUP) && p.value !== first.column) ?? plotted[0];
-      if (!next) return;
-      this.#set({ y: [...now.y, { column: next.value, fn: 'sum', mark: 'line' }] }, true);
-    });
-    out.push(add);
-    return out;
   }
 
-  /**
-   * REFERENCE LINES AND COLOUR BY VALUE (version 2's layers, over the first value): a target where it is told, the
-   * average where the database says, the highest and lowest pinned, the marks below a threshold in the bad colour; and
-   * what a hover lists besides, and what a mark's label says.
-   */
-  #layerFields(spec: ChartSpec, plotted: readonly { value: string; label: string }[]): HTMLElement[] {
-    const doc = this.#doc;
-    const layers = spec.layers ?? [];
-    const own = (kind: ChartLayerKind): ChartLayer | undefined => layers.find((l) => l.kind === kind && (l.kind === 'band' || (l.measure ?? 0) === 0));
-    const setLayer = (kind: ChartLayerKind, layer: ChartLayer | null): void => {
-      if (!this.#spec) return;
-      const rest = (this.#spec.layers ?? []).filter((l) => l !== own(kind));
-      const next = layer ? [...rest, layer] : rest;
-      const { layers: _old, ...spec2 } = this.#spec;
-      this.#spec = spec2;
-      this.#set(next.length > 0 ? { layers: next } : {});
-    };
-    const target = own('line');
-    const threshold = own('threshold');
-    const stat = own('stat');
-    const heading = doc.createElement('div');
-    heading.className = 'dc-chartpanel-heading';
-    heading.textContent = 'Reference lines';
-    const measures = plotted.filter((p) => !p.value.startsWith('group:'));
-    const extraOf = (m: ChartMeasure | undefined): string | undefined => m?.column;
-    return [
-      heading,
-      field(doc, 'Target:', numberInput(doc, target?.kind === 'line' ? target.value : undefined, (v) => {
-        setLayer('line', v === undefined ? null : { kind: 'line', value: v, label: 'Target' });
-      }, { width: 110 })),
-      field(doc, 'Line at:', dropdown<string>(doc, stat?.kind === 'stat' ? stat.stat : undefined,
-        LAYER_STATS.map((st) => ({ value: st, label: { average: 'The average', min: 'The minimum', max: 'The maximum' }[st] })), (v) => {
-          setLayer('stat', v === 'average' || v === 'min' || v === 'max' ? { kind: 'stat', stat: v } : null);
-        }, { allowNone: true })),
-      checkbox(doc, 'Pin the highest and lowest', own('extremes') !== undefined, (on) => setLayer('extremes', on ? { kind: 'extremes' } : null)),
-      field(doc, 'Bad below:', numberInput(doc, threshold?.kind === 'threshold' ? threshold.value : undefined, (v) => {
-        setLayer('threshold', v === undefined ? null : { kind: 'threshold', value: v });
-      }, { width: 110 })),
-      field(doc, 'Also in hover:', dropdown<string>(doc, extraOf(spec.tooltip?.[0]), measures, (v) => {
-        if (!this.#spec) return;
-        const { tooltip: _old, ...rest } = this.#spec;
-        this.#spec = rest;
-        this.#set(v ? { tooltip: [{ column: v, fn: 'sum' }] } : {});
-      }, { allowNone: true })),
-      field(doc, 'Label with:', dropdown<string>(doc, extraOf(spec.label), measures, (v) => {
-        if (!this.#spec) return;
-        const { label: _old, ...rest } = this.#spec;
-        this.#spec = rest;
-        this.#set(v ? { label: { column: v, fn: 'sum' } } : {});
-      }, { allowNone: true })),
-    ];
-  }
 
-  /**
-   * The presets across and up (calc-presets.ts, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2): a date across by its
-   * period, a number across by its bins, the measure shown as a running total, a share, a change, a moving average or
-   * a rank -- each kept in the spec as its words, expanded to calculated columns when the query is built.
-   */
-  #presetFields(spec: ChartSpec, xType: string | undefined): HTMLElement[] {
-    const doc = this.#doc;
-    if (spec.mark === 'scatter' || spec.mark === 'pie' && spec.x === undefined) return [];
-    const out: HTMLElement[] = [];
-    const without = <K extends 'grain' | 'bins'>(key: K): ChartSpec => {
-      const { [key]: _gone, ...rest } = this.#spec!;
-      return rest as ChartSpec;
-    };
-    if (isTemporal(xType)) {
-      out.push(field(doc, 'By:', dropdown<TimeGrain>(doc, spec.grain,
-        TIME_GRAINS.map((g) => ({ value: g, label: GRAIN_LABELS[g] })), (v) => {
-          if (!this.#spec) return;
-          this.#spec = without('grain');
-          this.#set(v ? { grain: v } : {});
-        }, { allowNone: true })));
-    } else if (isNumeric(xType)) {
-      out.push(field(doc, 'Bin width:', numberInput(doc, spec.bins?.width, (v) => {
-        if (!this.#spec) return;
-        this.#spec = without('bins');
-        this.#set(v !== undefined && v > 0 ? { bins: { width: v } } : {});
-      }, { min: 0, width: 90 })));
-    }
-    const first = spec.y[0];
-    if (first && spec.mark !== 'pie' && spec.mark !== 'heatmap') {
-      out.push(field(doc, 'Show as:', dropdown<ShowAsKind>(doc, first.showAs?.kind,
-        SHOW_AS_KINDS.map((k) => ({ value: k, label: SHOW_AS_LABELS[k] })), (v) => {
-          const now = this.#spec?.y[0];
-          if (!now || !this.#spec) return;
-          const { showAs: _old, ...measure } = now;
-          this.#set({ y: [v ? { ...measure, showAs: { kind: v } } : measure, ...this.#spec.y.slice(1)] }, true);
-        }, { allowNone: true })));
-      if (first.showAs?.kind === 'movingAverage') {
-        out.push(field(doc, 'Over rows:', numberInput(doc, first.showAs.rows ?? 3, (v) => {
-          const now = this.#spec?.y[0];
-          if (!now || !this.#spec || v === undefined || v < 1) return;
-          this.#set({ y: [{ ...now, showAs: { kind: 'movingAverage', rows: Math.floor(v) } }, ...this.#spec.y.slice(1)] });
-        }, { min: 1, max: 365, step: 1, width: 70 })));
-      }
-    }
-    return out;
-  }
+
 
   // -- drawing ----------------------------------------------------------------
 
@@ -573,7 +253,7 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took) });
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
       }
       const { treemapOfGrid, themeOf } = await import('../chart-option.ts');
       if (this.#disposed) return;
@@ -604,12 +284,16 @@ export class ChartPanel {
       if (!this.#chart) {
         const { mountChart } = await import('../chart-render.ts');
         if (abort.signal.aborted || this.#disposed) return;
-        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took) });
+        this.#chart ??= mountChart(this.#canvas, (key, upper) => this.#pick(key, upper), { onDrill: (key) => this.#drill(key), onBrush: (took) => this.#brush(took), onKind: (mark) => this.#kind(mark) });
       }
       const { chartOption, themeOf } = await import('../chart-option.ts');
       if (abort.signal.aborted || this.#disposed) return;
       const drawing = chartOption(spec, rows, themeOf(this.#canvas), this.#options.label, this.#options.unit);
       this.#chart.show(drawing);
+      // the page's charts with the same column across (at the same grain) share a crosshair
+      const across = axisName(drilledView(spec).spec);
+      this.#chart.setGroup(this.#options.crosshair !== undefined && across !== undefined && spec.mark !== 'pie'
+        ? `${this.#options.crosshair}|${across}` : undefined);
       const capped = rows.rowCount >= (spec.mark === 'scatter' ? Infinity : spec.options.limit);
       this.#say([
         ...drawing.notes,
@@ -704,6 +388,14 @@ export class ChartPanel {
       return;
     }
     this.#clickTimer = setTimeout(filter, DOUBLE_CLICK_MS);
+  }
+
+
+
+  /** The toolbox drew the chart the other way: bars or a line, kept as the chart's kind. */
+  #kind(mark: 'bar' | 'line'): void {
+    if (!this.#spec || this.#spec.mark === mark) return;
+    this.#set({ mark }, true);
   }
 
   /** A brush took a range across, or a scatter's rectangle: the grid filtered to it; cleared, the filter taken off. */

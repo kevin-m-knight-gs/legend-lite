@@ -66,10 +66,18 @@ export interface ChartPicture {
 export interface MountedChart {
   /** Draw (or redraw) a drawing. */
   show(drawing: ChartDrawing): void;
+  /**
+   * A crosshair shared with the other charts of `group` (batch 2 item 12): hovering one points at the same place on
+   * each -- the page's charts with the same column across. Undefined: its own alone.
+   */
+  setGroup(group: string | undefined): void;
   /** The chart as drawn now, as a picture; null before it has drawn or where there is no canvas. */
   picture(ratio?: number): ChartPicture | null;
   dispose(): void;
 }
+
+/** The crosshair groups connected so far: ECharts connects a group once, and every chart in it follows. */
+const CONNECTED = new Set<string>();
 
 /** A data: URL's bytes. */
 function bytesOf(dataUrl: string): Uint8Array {
@@ -94,6 +102,8 @@ export function mountChart(
     readonly onDrill?: (key: MarkKey) => void;
     /** A brush took a range (or was cleared: null), batch 2 item 11. */
     readonly onBrush?: (took: Brushed | null) => void;
+    /** The toolbox drew the chart the other way, bars or a line: keep it (batch 2 item 12). */
+    readonly onKind?: (mark: 'bar' | 'line') => void;
   } = {},
 ): MountedChart {
   const chart = echarts.init(el, null, { renderer: 'canvas' });
@@ -111,6 +121,10 @@ export function mountChart(
   chart.on('dblclick', (params: unknown) => {
     const mark = markOf(params);
     if (mark) more.onDrill?.(mark.key);
+  });
+  chart.on('magictypechanged', (params: unknown) => {
+    const kind = (params as { currentType?: string }).currentType;
+    if (kind === 'bar' || kind === 'line') more.onKind?.(kind);
   });
   chart.on('brushEnd', (params: unknown) => {
     const areas = ((params as { areas?: BrushArea[] }).areas ?? []);
@@ -145,6 +159,14 @@ export function mountChart(
       const brush = (d.option as { brush?: { brushType?: string } }).brush;
       if (brush?.brushType) {
         chart.dispatchAction({ type: 'takeGlobalCursor', key: 'brush', brushOption: { brushType: brush.brushType, brushMode: 'single' } });
+      }
+    },
+    setGroup(group) {
+      if ((chart.group || undefined) === group) return;
+      chart.group = group ?? '';
+      if (group !== undefined && !CONNECTED.has(group)) {
+        CONNECTED.add(group);
+        echarts.connect(group);
       }
     },
     dispose() {

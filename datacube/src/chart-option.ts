@@ -196,7 +196,8 @@ export function chartOption(
     // ECharts' decal patterns stay available, but its own generated
     // description ("the data for EMEA is 0, 15054092") is off: the
     // container carries ours (`description`).
-    aria: { enabled: true, label: { enabled: false } },
+    // pattern fills as well as colours, for readers who cannot tell colours apart (batch 2 item 12)
+    aria: { enabled: true, label: { enabled: false }, decal: { show: spec.options.decal === true } },
     grid: { left: 8, right: 16, top: 40, bottom: 8, containLabel: true },
   };
 
@@ -237,7 +238,8 @@ export function chartOption(
         legend: legendOf(spec, series.length, theme),
         xAxis: { ...axisCommon, type: numericX ? 'value' : 'category', name: spec.x, nameTextStyle: text, scale: true },
         yAxis: { ...axisCommon, type: 'value', name: first.column, nameTextStyle: text, scale: true },
-        ...(spec.options.brush && numericX ? { brush: { xAxisIndex: 0, yAxisIndex: 0, brushType: 'rect', ...BRUSH_STYLE(theme) }, ...brushToolbox('rect') } : {}),
+        ...(spec.options.brush && numericX ? { brush: { xAxisIndex: 0, yAxisIndex: 0, brushType: 'rect', ...BRUSH_STYLE(theme) } } : {}),
+        ...toolboxOf(spec, rows, theme, spec.options.brush && numericX ? 'rect' : undefined),
         series,
       }),
       keyAt: () => null,
@@ -278,6 +280,7 @@ export function chartOption(
         ...base,
         tooltip: { ...tooltip, trigger: 'item' },
         legend: legendOf(spec, data.length, theme),
+        ...toolboxOf(spec, rows, theme),
         series: [{
           type: 'pie',
           radius: ['45%', '72%'],
@@ -328,6 +331,7 @@ export function chartOption(
           type: 'category',
           data: rowsCats.map((c) => label(c, spec.split!, splitCol?.type)),
         },
+        ...toolboxOf(spec, rows, theme),
         visualMap: {
           min: Number.isFinite(lo) ? lo : 0,
           max: Number.isFinite(hi) ? hi : 1,
@@ -572,8 +576,8 @@ export function chartOption(
       ...zoomOf(spec, categories.length, horizontal),
       ...(spec.options.brush ? {
         brush: { ...(horizontal ? { yAxisIndex: 0 } : { xAxisIndex: 0 }), brushType: horizontal ? 'lineY' : 'lineX', ...BRUSH_STYLE(theme) },
-        ...brushToolbox(horizontal ? 'lineY' : 'lineX'),
       } : {}),
+      ...toolboxOf(spec, rows, theme, spec.options.brush ? (horizontal ? 'lineY' : 'lineX') : undefined, !horizontal),
       xAxis: horizontal ? valueAxes : categoryAxis,
       yAxis: horizontal ? { ...categoryAxis, inverse: true } : valueAxes,
       ...thresholdMap(spec, series, theme, horizontal),
@@ -616,9 +620,58 @@ const BRUSH_STYLE = (theme: ChartTheme) => ({
   removeOnClick: true,
 });
 
-/** The brush's buttons (a range, and clearing it): ECharts' toolbox, which a brush needs to start from. */
-function brushToolbox(type: 'lineX' | 'lineY' | 'rect'): Record<string, unknown> {
-  return { toolbox: { show: true, right: 8, top: 0, itemSize: 14, feature: { brush: { type: [type, 'clear'] } } } };
+/**
+ * THE TOOLBOX (batch 2 item 12), asked for: save the chart as a picture, see its data, download its rows as CSV, and --
+ * on a bar or line chart -- draw it the other way, in place (the panel keeps the choice: the renderer's `onKind`). And
+ * a brush's buttons (a range, and clearing it), which a brush starts from.
+ */
+function toolboxOf(
+  spec: ChartSpec,
+  rows: ResultTable,
+  theme: ChartTheme,
+  brush?: 'lineX' | 'lineY' | 'rect',
+  kinds = false,
+): Record<string, unknown> {
+  const feature: Record<string, unknown> = {};
+  if (spec.options.toolbox) {
+    feature['saveAsImage'] = { title: 'Save as picture', name: 'chart', backgroundColor: '#ffffff', pixelRatio: 2 };
+    feature['dataView'] = { title: 'Data', readOnly: true, lang: ['Data', 'Close', 'Refresh'] };
+    feature['myCsv'] = {
+      show: true,
+      title: 'Download CSV',
+      icon: 'path://M6 2h9l5 5v15H6z M14 2v6h6 M9 13h8 M9 17h8',
+      onclick: () => downloadText('chart.csv', 'text/csv', chartCsv(rows)),
+    };
+    if (kinds && (spec.mark === 'bar' || spec.mark === 'line')) {
+      feature['magicType'] = { type: ['line', 'bar'], title: { line: 'As a line', bar: 'As bars' } };
+    }
+  }
+  if (brush) feature['brush'] = { type: [brush, 'clear'], title: { lineX: 'Brush a range', lineY: 'Brush a range', rect: 'Brush an area', clear: 'Clear the brush' } };
+  if (Object.keys(feature).length === 0) return {};
+  return { toolbox: { show: true, right: 8, top: 0, itemSize: 14, iconStyle: { borderColor: theme.muted }, feature } };
+}
+
+/** A chart's rows as CSV (RFC 4180: a value holding a comma, a quote or a line break is quoted, its quotes doubled). */
+export function chartCsv(rows: ResultTable): string {
+  const cell = (v: Scalar | undefined): string => {
+    const t = v === null || v === undefined ? '' : String(v);
+    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const lines = [rows.columns.map((c) => cell(c.name)).join(',')];
+  for (let i = 0; i < rows.rowCount; i++) lines.push(rows.columns.map((c) => cell(c.values[i] as Scalar | undefined)).join(','));
+  return `${lines.join('\r\n')}\r\n`;
+}
+
+/** Hand the reader a file (the toolbox's CSV): in a page with a document, never in node. */
+function downloadText(name: string, type: string, text: string): void {
+  const doc = (globalThis as { document?: Document }).document;
+  if (!doc) return;
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = doc.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /** A point's value as ECharts hands it back: a number, or on a time axis the [time, value] pair. */
