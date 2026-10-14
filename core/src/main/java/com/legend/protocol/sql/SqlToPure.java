@@ -372,6 +372,13 @@ public final class SqlToPure {
             return SqlToPure.this.tx(e, scope, row);
         }
 
+        /** {@code b}, an AND or an OR, as Kleene's: a chain of one of them read as its operands left to right, each a
+         *  condition ({@link SqlToPure#truth}), with no recursion per operator, and combined as a balanced tree (a
+         *  dialect's rule for AND and OR, so that a 2,000-term OR translates on a default thread stack). */
+        public Tx logical(SqlAst.Binary b) {
+            return SqlToPure.this.logical(b, scope, row);
+        }
+
         // Postgres's rules here, for PostgresDialect: kept in this class, which they read throughout
 
         Tx postgresBinary(SqlAst.Binary b) {
@@ -3540,31 +3547,36 @@ public final class SqlToPure {
                 : Tx.condition(call("or", l.vs(), r.vs()), call("and", l.falseWhen(), r.falseWhen()), nullable);
     }
 
+    /** {@code b}, an AND or an OR, as Kleene's ({@link At#logical}). */
+    private Tx logical(SqlAst.Binary b, Scope scope, String row) {
+        // a chain of one of them is read as the list of its operands, left to right, each under the position
+        // of the operator that holds it: no recursion per operator (the stress corpus's 500-term OR overflowed
+        // a default thread stack here), and the conditions are combined as a balanced tree, of depth log n for
+        // the typer and the lowering (Kleene's AND and OR are associative, so the grouping changes nothing)
+        List<Tx> operands = new ArrayList<>();
+        java.util.ArrayDeque<SqlAst.Expr> pending = new java.util.ArrayDeque<>();
+        java.util.ArrayDeque<SqlAst.Pos> holders = new java.util.ArrayDeque<>();
+        pending.push(b);
+        holders.push(b.pos());
+        while (!pending.isEmpty()) {
+            SqlAst.Expr e = pending.pop();
+            SqlAst.Pos holder = holders.pop();
+            if (e instanceof SqlAst.Binary x && x.op() == b.op()) {
+                pending.push(x.right());
+                holders.push(x.pos());
+                pending.push(x.left());
+                holders.push(x.pos());
+            } else {
+                operands.add(truth(tx(e, scope, row), b.op().name(), holder));
+            }
+        }
+        return kleene(b.op() == SqlAst.BinaryOp.AND, operands, 0, operands.size());
+    }
+
     private Tx binary(SqlAst.Binary b, Scope scope, String row) {
         switch (b.op()) {
             case AND, OR -> {
-                // a chain of one of them is read as the list of its operands, left to right, each under the position
-                // of the operator that holds it: no recursion per operator (the stress corpus's 500-term OR overflowed
-                // a default thread stack here), and the conditions are combined as a balanced tree, of depth log n for
-                // the typer and the lowering (Kleene's AND and OR are associative, so the grouping changes nothing)
-                List<Tx> operands = new ArrayList<>();
-                java.util.ArrayDeque<SqlAst.Expr> pending = new java.util.ArrayDeque<>();
-                java.util.ArrayDeque<SqlAst.Pos> holders = new java.util.ArrayDeque<>();
-                pending.push(b);
-                holders.push(b.pos());
-                while (!pending.isEmpty()) {
-                    SqlAst.Expr e = pending.pop();
-                    SqlAst.Pos holder = holders.pop();
-                    if (e instanceof SqlAst.Binary x && x.op() == b.op()) {
-                        pending.push(x.right());
-                        holders.push(x.pos());
-                        pending.push(x.left());
-                        holders.push(x.pos());
-                    } else {
-                        operands.add(truth(tx(e, scope, row), b.op().name(), holder));
-                    }
-                }
-                return kleene(b.op() == SqlAst.BinaryOp.AND, operands, 0, operands.size());
+                return logical(b, scope, row);
             }
             case EQ, NE, LT, LE, GT, GE -> {
                 List<Tx> sides = comparable(b.left(), b.right(), scope, row, b.pos());
