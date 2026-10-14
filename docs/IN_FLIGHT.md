@@ -1261,6 +1261,47 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
   - `sql/dialect/` (the ninth line's). New natives the island needs are announced there one by one.
   - `lowering/`, `compiler/spec/Typer.java`, `NameResolver.java`.
 
+**Status 2026-10-14.**
+- **The first landing** is PR neema2/legend-lite#37, branch `claude/iq-island-1`: the seam, the oracle tool, the
+  island and M0, with two independent reviews.
+  - CI run 38527337203 is green on every job, with the branch up to date with main 941f8382d.
+  - It waits only on the user's merge. The repo's review rule cannot be met by its author's own account.
+  - It lands on current main. It does not wait for the stress fixes: the seam leaves them one small overlap, the `Tx`
+    record header in `SqlToPure.java`.
+  - It replaces `claude/iq-island`, which was deleted: one intermediate commit there carried documentation-derived
+    syntax cases.
+- **The landing order** (the dialect program's question, answered here because its session is out of this session's
+  reach): no objection to D5b, then #37, then Dialect Phase 1, then the stress fixes. If D5b lands first, this line
+  merges main into #37 and re-runs CI.
+- **The second landing** (M1) is being reviewed on `claude/iq-m1` and stays out of `sql/dialect/`. Its contents:
+  - predicates, joins, subqueries, set operations, grouping, about 60 functions, owner-qualified names, host
+    variables, dates by DATE_ORDER;
+  - IQ's ASCII-only case fold, blank-padding comparison and exact NUMERIC division, each composed from existing Pure
+    natives, so no new native.
+
+**Found by this line in other lines' code.** Each is refused or worked around in the IQ island, not fixed here; the
+repros will be in the study's §9.
+- **The seventh line (`protocol/sql`):**
+  - `PostgresDialect.defaultName` (formerly `SqlToPure:2454`) reads `defaultName(c.operand())` twice per CAST, so an
+    unaliased item with n nested casts takes 2^n time; about 30 casts never finish.
+  - `SELECT NULL INTERSECT SELECT NULL` gives 0 rows where Postgres gives 1.
+  - `SELECT count(*) FROM tb(...) HAVING 1 = 0` gives one row where Postgres gives none, because the condition is
+    lowered to `WHERE FALSE`. This may be the planner's.
+- **The ninth line (dialects and lowering):**
+  - A constant GROUP BY key is written `GROUP BY <integer>`, which DuckDB and Postgres read as a position.
+  - Date constants before the year 100 are written without leading zeros, and Postgres reads them as 20xx.
+  - Postgres's substr/left/right/repeat/lpad/rpad and DuckDB's chr take a 32-bit integer and are passed a BIGINT
+    uncast.
+  - Postgres folds every branch of a CASE over constants, so an untaken branch that would raise (a DOUBLE underflow
+    guard, or an overflow check over an outer column in a correlated subquery's comparison) raises at plan time.
+  - `times(times(x,a),times(y,b))` lowers as one left-to-right chain, `x*a*y*b`, which changes a DOUBLE's
+    intermediate overflow and underflow.
+- **The compiler and stamp program:**
+  - An all-NULL CASE (`CASE WHEN b THEN NULL ELSE NULL END`, reached from both islands) trips `StampCensus`.
+    `lowering/StampCensus.java:143-147` counts an all-NULL CASE as list-shaped, while `:68` exempts a bare NULL.
+  - A `concatenate` whose first branch is a NULL constant is stamped always-empty. An enclosing test of the column
+    is then folded away: no row is found, a "size 0" error is raised, or a sort key goes random.
+
 ## Rules between sessions
 
 1. Never force-push; never bare `git stash` (the stash stack is shared by every worktree).
