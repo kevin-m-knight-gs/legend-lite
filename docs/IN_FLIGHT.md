@@ -804,6 +804,23 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `datacube/BUILD.bazel` (the widget's sources: one file added; to the Bazel program session first),
   `python/legend_lite/engine.py` (`page.json`), their tests and the Python engine's browser test. Step 2:
   `python/legend_lite/page.py` (new), `datacube.py`, `notebook.py`, `python/tests/test_page.py`.
+- **DataCube charts, batches 2-5 (announced 2026-10-14, before the first edit; the design, widened with the user the
+  same day: `docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md` §3).** Every chart we can realistically draw: the chart spec's
+  version 2 (a slot per role), the calculated columns DataCube already has packaged as presets (grain, bins, show as)
+  for the chart and the grid, batch 2's dashboard-grade charts, then batch 3's new kinds, batch 4's aggregates and the
+  kinds they unlock, batch 5's maps -- each batch landing on its own with an example page (a sheet per family). Branch
+  `claude/epic-rubin-ay7upl`, from main; built by its own session and reviewed by this line before it lands. Batch 2's
+  files, all in `datacube/` and `python/`: `src/chart-spec.ts`, `src/chart-option.ts`, `src/chart-render.ts`,
+  `src/calc-presets.ts` (new), `src/calc.ts` (the date functions), `src/examples/` (new: the example pages),
+  `src/samples.ts` (the `sales` sample), `src/ui/chart-panel.ts`, `src/ui/menu.ts` and `src/app.ts` (the grid's presets),
+  `src/ui/column-editor.ts` (start from a preset), `src/page-document.ts` (version 2 read), `src/page/cube-page.ts`
+  (drill, brush), `src/app/datacube-app.ts` (Examples in the Open window), `src/app.css`, `demo/verify-charts.mjs`,
+  their tests, `test/bundle-budget.test.ts` (the chart chunk's budget, raised on purpose with a measured note),
+  `test_imports.bzl`, `datacube/BUILD.bazel` (new sources and tests: to the Compiler Rewrite session),
+  `python/legend_lite/page.py` and `python/tests/test_page.py` (Python's words). Not touched: D5b's files
+  (`engine-client/src/snap.ts`, `duckdb.ts`; `datacube/src/cube.ts`, `app/sources.ts`, `upload.ts`, `infer.ts`,
+  `lite-planner.ts`), core. Batch 4 adds aggregates to `src/snapshot.ts` and `src/query.ts`, announced here before it
+  starts.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
