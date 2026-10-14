@@ -31,8 +31,8 @@ import java.util.function.Function;
  * CONVERT, as {@link IqDialect} reads them: each translated exactly with Pure's existing natives, or refused by name --
  * with the native it would need, or the research's decision it waits for. Java never computes a value here: a rule
  * reads its arguments' types and constants' spellings, and writes Pure the database computes. Measured on SQL
- * Anywhere 17 (the oracle of the island's {@code engine=sa}; the scratchpad's m1d probes), and per engine where IQ's
- * documentation differs (the research's SEMANTICS §2.2, §5):
+ * Anywhere 17 (the oracle of the island's {@code engine=sa}; M1d's probes, kept with the private research), and per
+ * engine where IQ's documentation differs (the research's SEMANTICS §2.2, §5):
  * <ul>
  *   <li><b>Strings.</b> {@code LENGTH}, {@code CHAR_LENGTH} and {@code LEN} count characters, trailing blanks too (a
  *       CHAR(n) column under the IQ engine is padded already: D-S1, D-S6); {@code SUBSTRING} and {@code SUBSTR} by

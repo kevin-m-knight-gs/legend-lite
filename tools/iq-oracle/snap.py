@@ -65,7 +65,7 @@ TDS = [
     ("isolation_level", "1"), ("date_format", "YYYY-MM-DD"), ("timestamp_format", "YYYY-MM-DD HH:NN:SS.SSS"),
     ("time_format", "HH:NN:SS.SSS"), ("date_order", "MDY"), ("escape_character", "Off"),
 ]
-# the options the IQ ODBC driver sets at connect (the private spec's OPTIONS.md section 5); the isolation level it
+# the options the IQ ODBC driver sets at connect (as the private research records them); the isolation level it
 # also sets is the application's own choice, so it stays at the database's default here
 ODBC = [
     ("date_order", "ymd"), ("date_format", "yyyy-mm-dd"), ("time_format", "hh:nn:ss"),
@@ -321,6 +321,8 @@ def read_cases(lite_dir):
             params = m.get("params")
             if params is not None and not isinstance(params, str):
                 raise Bad("%s: params is one line of text, name = value; ..." % where)
+            if skip is None:
+                shadowed(m["sql"], read_params(params, where), profiles, where)
             cases.append({"key": key, "id": m["id"], "sql": m["sql"], "profiles": profiles,
                           "skip": None if skip is None else str(skip),
                           "decision": str(m.get("decision") or ""), "expect": str(m.get("expect") or ""),
@@ -446,6 +448,66 @@ def with_params(sql, params, where):
         out.append(c)
         i += 1
     return "".join(out)
+
+
+def shadowed(sql, params, profiles, where):
+    """Refuses a case whose SQL also names a column or alias spelled like one of its variables (@name) where the oracle
+    would read that name otherwise than the island's client: a :name, which this tool writes @name, read as a
+    connection's variable reads such a column or alias first, where a bound :name never does; and under a TDS profile
+    (tsql_variables On) a client binds @name as a placeholder, which reads the bound value even where such a column is
+    in scope, where this tool's variable (tsql_variables Off) reads the column (IQ island, 2026-10-14, review 6's m1
+    and M1, measured on SQL Anywhere 17). Such a case is skipped by its own skip: key, or rewritten."""
+    if not params:
+        return
+    names = {p[0].lower() for p in params}
+    spelled = {t[1:].lower() for t in _quoted(sql) if t.startswith("@")} & names
+    if not spelled:
+        return
+    colon = {n for n in spelled if re.search(r"(?<![A-Za-z0-9_@#$:]):%s(?![A-Za-z0-9_@#$])" % re.escape(n), sql,
+                                              re.IGNORECASE)}
+    tds = [p for p in profiles if tsql_variables(p)]
+    if colon or tds:
+        n = sorted(colon or spelled)[0]
+        raise Bad("%s: its SQL names a column or alias spelled @%s, which this tool's variable @%s would read in place"
+                  " of %s; rename it, or skip the case (skip:)" % (where, n, n, ":" + n if colon else
+                                                                   "a TDS client's bound @" + n + " (" + tds[0] + ")"))
+
+
+def _quoted(sql):
+    """The texts of sql's quoted tokens ('...', "...", `...`, [...]), outside comments."""
+    out, i, n = [], 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if c in "'\"`[":
+            close = "]" if c == "[" else c
+            j = i + 1
+            while j < n:
+                if sql[j] == close:
+                    if close in "'\"" and j + 1 < n and sql[j + 1] == close:
+                        j += 2
+                        continue
+                    break
+                j += 1
+            out.append(sql[i + 1:j].replace(close * 2, close) if close in "'\"" else sql[i + 1:j])
+            i = j + 1
+            continue
+        if sql.startswith("--", i) or sql.startswith("//", i):
+            j = sql.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if sql.startswith("/*", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if sql.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif sql.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            i = j
+            continue
+        i += 1
+    return out
 
 
 def bind_params(conn, params, profile):

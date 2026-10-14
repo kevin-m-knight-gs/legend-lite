@@ -121,6 +121,13 @@ public enum IqProfile {
         return ansinull;
     }
 
+    /** {@code tsql_variables}: On (a TDS login, as its login procedure sets it), {@code @name} is a placeholder whose
+     *  value the client binds (IQ island, 2026-10-14, review 6's M1, measured on SQL Anywhere 17: it reads the bound
+     *  value even where a column of its name is in scope); Off, a connection's variable, read after such a column. */
+    public boolean tsqlVariables() {
+        return this == IQ16_TDS || this == SQLA17_TDS;
+    }
+
     /** {@code quoted_identifier}: On, {@code "x"} is an identifier; Off (a TDS login), a string. */
     public boolean quotedIdentifier() {
         return quotedIdentifier;

@@ -43,7 +43,8 @@ class IqBindingsTest {
             "ok", new SqlToPure.VariableType("Boolean", false, false),
             "ids", new SqlToPure.VariableType("Integer", false, true),
             "Twin", new SqlToPure.VariableType("Integer", false, false),
-            "TWIN", new SqlToPure.VariableType("Integer", false, false));
+            "TWIN", new SqlToPure.VariableType("Integer", false, false),
+            "s", new SqlToPure.VariableType("String", false, false));
 
     private static SqlToPure.Sources sources(List<SqlToPure.CatalogTable> catalog) {
         return new SqlToPure.Sources() {
@@ -79,7 +80,11 @@ class IqBindingsTest {
     }
 
     private static String pure(String sql, List<SqlToPure.CatalogTable> catalog) {
-        ValueSpecification vs = SqlToPure.translate(sql, sources(catalog), IqDialect.of(IqProfile.IQ16_DEFAULT));
+        return pure(sql, catalog, IqProfile.IQ16_DEFAULT);
+    }
+
+    private static String pure(String sql, List<SqlToPure.CatalogTable> catalog, IqProfile profile) {
+        ValueSpecification vs = SqlToPure.translate(sql, sources(catalog), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
@@ -177,6 +182,52 @@ class IqBindingsTest {
         // one variable of that name but for case: read
         assertEquals(pure("SELECT @lo AS v"), pure("SELECT @LO AS v"));
         assertEquals(pure("SELECT :lo AS v"), pure("SELECT :Lo AS v"));
+    }
+
+    /** IQ island, 2026-10-14 (review 6's M1, measured on SQL Anywhere 17): under a TDS profile (tsql_variables On) a
+     *  client binds {@code @name} as a placeholder, which reads the bound value even where a column of its name is in
+     *  scope; a connection's variable reads the column. Which one the island means there is not decided: refused by
+     *  name. {@code :name} never reads a column. */
+    @Test
+    void underATdsProfileAColumnNamedLikeAVariableIsRefused() {
+        String sql = "SELECT @lo AS v FROM (SELECT 1 AS @lo) d";
+        for (IqProfile tds : new IqProfile[] {IqProfile.IQ16_TDS, IqProfile.SQLA17_TDS}) {
+            SqlTranslationException e = assertThrows(SqlTranslationException.class,
+                    () -> pure(sql, CATALOG.subList(0, 4), tds));
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), e.getMessage());
+            assertTrue(e.getMessage().contains("names a column in scope"), e.getMessage());
+            assertTrue(pure("SELECT :lo AS v FROM (SELECT 1 AS @lo) d", CATALOG.subList(0, 4), tds).contains("$lo"));
+        }
+        assertTrue(pure(sql).contains("'@lo'"), pure(sql));
+    }
+
+    /** IQ island, 2026-10-14 (review 6's B1, measured on SQL Anywhere 17): under ansinull Off {@code x = @v} is
+     *  two-valued in a search condition for a column (and arithmetic or a CAST over columns), three-valued for a
+     *  function's value: such a comparison under a NOT is refused where it may be NULL, and read three-valued through
+     *  AND and OR alone (FALSE and UNKNOWN filter alike). A HAVING reads a select-list alias as IQ reads it. */
+    @Test
+    void underAnsinullOffAVariableIsComparedTwoValuedWithAColumnOnly() {
+        List<SqlToPure.CatalogTable> catalog = CATALOG.subList(0, 4);
+        String column = "SELECT id FROM DBA.t WHERE NOT (vc = @s)";
+        assertTrue(!pure(column, catalog, IqProfile.IQ16_TDS).equals(pure(column, catalog, IqProfile.IQ16_DEFAULT)));
+        assertEquals(pure("SELECT id FROM DBA.t WHERE NOT (vc || '' = @s)", catalog, IqProfile.IQ16_TDS),
+                pure("SELECT id FROM DBA.t WHERE NOT (vc || '' = @s)", catalog, IqProfile.IQ16_DEFAULT));
+        for (String sql : new String[] {"SELECT id FROM DBA.t WHERE NOT (UPPER(vc) = @s)",
+            "SELECT id FROM DBA.t WHERE NOT (@s = NULLIF(vc, 'x'))",
+            "SELECT id FROM (SELECT id, UPPER(vc) AS z FROM DBA.t) d WHERE NOT (z = @s)",
+            "SELECT id FROM DBA.t WHERE NOT ((SELECT u.vc FROM DBA.u u WHERE u.id = t.id) = @s)"}) {
+            SqlTranslationException e = assertThrows(SqlTranslationException.class,
+                    () -> pure(sql, catalog, IqProfile.SQLA17_TDS));
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql + ": " + e.getMessage());
+            assertTrue(e.getMessage().contains("with this operand"), sql + ": " + e.getMessage());
+        }
+        String positive = "SELECT id FROM DBA.t WHERE UPPER(vc) = @s OR id = 1";
+        assertEquals(pure(positive, catalog, IqProfile.IQ16_DEFAULT), pure(positive, catalog, IqProfile.IQ16_TDS));
+        // HAVING's alias is its expression (read three-valued before review 6's fix, which placed HAVING as written)
+        String having = "SELECT RTRIM(vc) AS z FROM DBA.t GROUP BY RTRIM(vc) HAVING NOT (z = @s)";
+        SqlTranslationException alias = assertThrows(SqlTranslationException.class,
+                () -> pure(having, catalog, IqProfile.IQ16_TDS));
+        assertTrue(alias.getMessage().contains("with this operand"), alias.getMessage());
     }
 
     /** IQ island, 2026-10-14 (review 5's M3, measured on SQL Anywhere 17): an unqualified DUMMY, and db..DUMMY, read the

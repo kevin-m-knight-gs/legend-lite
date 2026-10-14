@@ -179,18 +179,23 @@ public final class IqDialect implements InputDialect {
      *  column of their name), by identity: an unaliased item over one is not named (IQ's name of it, measured with
      *  the value written in, is the value's). */
     private final Set<SqlAst.Param> variables = Collections.newSetFromMap(new IdentityHashMap<>());
-    /** IQ island, 2026-10-14 (review 5's B2): under ansinull Off, the comparisons with a host variable in a search
-     *  condition: true for one SQL Anywhere reads two-valued, false for one refused ({@link #twoValuedPlaces}). */
-    private final Map<SqlAst.Expr, Boolean> twoValued;
+    /** IQ island, 2026-10-14 (review 5's B2; review 6's B1): under ansinull Off, how each comparison of the statement
+     *  with a host variable operand reads ({@link #twoValuedPlaces}), by identity. */
+    private final Map<SqlAst.Expr, Reading> twoValued;
+    /** IQ island, 2026-10-14 (review 6's B1): each SELECT of the statement as {@link IqAggregates#grouping} reads it
+     *  (its GROUP BY and HAVING with their aliases' expressions in place), made once, so that the comparisons
+     *  {@link #twoValuedPlaces} placed in a HAVING are the ones translated. */
+    private final Map<SqlAst.Select, SqlAst.Select> grouped;
 
     private IqDialect(IqProfile profile, @com.legend.base.Nullable Engine engine, Set<SqlAst.Expr> caseConditions,
             @com.legend.base.Nullable Set<String> referenced, Set<SqlAst.Expr> limited, boolean unordered,
             boolean counted, Set<SqlAst.SelectExpr> shown, Set<String> derived, Set<SqlAst.Pos> starred,
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
             @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
-            Map<SqlAst.Expr, Boolean> twoValued) {
+            Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped) {
         this.profile = profile;
         this.twoValued = twoValued;
+        this.grouped = grouped;
         this.naming = naming;
         this.setDerived = setDerived;
         this.starred = starred;
@@ -213,13 +218,15 @@ public final class IqDialect implements InputDialect {
      *  ({@link #engineOf}, the study's I3: {@code engine=auto}). */
     public static IqDialect of(IqProfile profile) {
         return new IqDialect(profile, null, Set.of(), null, Set.of(), false, false, Set.of(), Set.of(), Set.of(),
-                IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of());
+                IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
+                Map.of());
     }
 
     /** The dialect under {@code profile} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqProfile profile, Engine engine) {
         return new IqDialect(profile, engine, Set.of(), null, Set.of(), false, false, Set.of(), Set.of(), Set.of(),
-                IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of());
+                IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
+                Map.of());
     }
 
     public IqProfile profile() {
@@ -1043,72 +1050,191 @@ public final class IqDialect implements InputDialect {
         IqAggregates.Naming groupedNames = IqAggregates.read(statement, chosen, spans);
         Set<SqlAst.Expr> valuesHere = statement instanceof SqlAst.Select s ? shownOnly(s)
                 : Collections.newSetFromMap(new IdentityHashMap<>());
+        Map<SqlAst.Select, SqlAst.Select> groupedHere = new IdentityHashMap<>();
+        for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                groupedHere.put(s, IqAggregates.grouping(s));
+            }
+        }
         return new IqDialect(profile, chosen, inCase, names, limitedHere, unorderedHere, countedHere, shownHere,
                 derivedHere, starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement),
                 IqKeys.of(statement, profile), lazyAggregates(statement), chains(statement),
-                twoValuedPlaces(statement));
+                twoValuedPlaces(statement, groupedHere), groupedHere);
     }
 
     /**
      * IQ island, 2026-10-14 (review 5's B2, measured on SQL Anywhere 17 with a real variable and with a value a client
      * binds): under ansinull Off (a TDS profile) SQL Anywhere reads {@code x = @v} and {@code x <> @v} (also
      * {@code !=}, either side, the variable itself an operand) two-valued in a search condition -- WHERE, HAVING, ON, a
-     * subquery's WHERE -- a NULL x making it FALSE, not UNKNOWN, so {@code NOT (x = @v)} keeps the rows where x is NULL.
-     * Three-valued, as lite reads them: the other comparisons ({@code <}, {@code <=}, {@code >}, {@code >=}), IN,
-     * BETWEEN, LIKE, a variable inside an expression ({@code x = @v + 0}), a constant, two columns, and every comparison
-     * outside a search condition (the select list's IF and CASE, ORDER BY). Where the search condition reaches the
-     * comparison through AND, OR and NOT alone it is read two-valued here ({@link #twoValued}); anywhere else inside one
-     * (an IF's or a CASE's condition, a function's argument, a truth test) SQL Anywhere's answer follows its own
-     * rewriting of the condition (measured both ways: {@code IF x = @v THEN 1 ELSE 0 ENDIF = 0} two-valued, inside a
-     * COALESCE three-valued), and such a comparison is refused when it may be UNKNOWN. An IN or a quantified comparison
-     * with a subquery over a variable is refused anywhere but through AND and OR, and a simple CASE comparing one
-     * anywhere in a search condition.
+     * subquery's WHERE -- for some operands {@code x} only: a NULL x makes it FALSE, not UNKNOWN, so
+     * {@code NOT (x = @v)} keeps the rows where x is NULL. Three-valued, as lite reads them: the other comparisons
+     * ({@code <}, {@code <=}, {@code >}, {@code >=}), IN, BETWEEN, LIKE, a variable inside an expression
+     * ({@code x = @v + 0}), a constant, two columns, and every comparison outside a search condition (the select
+     * list's IF and CASE, ORDER BY). Where the search condition reaches the comparison through AND, OR and NOT alone
+     * it is read two-valued here ({@link #twoValued}) when its other operand is one SQL Anywhere reads so
+     * ({@link #twoValuedOperand}, review 6's B1), and refused by name under a NOT when that operand may be NULL and is
+     * any other; anywhere else inside one (an IF's or a CASE's condition, a function's argument, a truth test) SQL
+     * Anywhere's answer follows its own rewriting of the condition (measured both ways:
+     * {@code IF x = @v THEN 1 ELSE 0 ENDIF = 0} two-valued, inside a COALESCE three-valued), and such a comparison is
+     * refused when it may be UNKNOWN. An IN or a quantified comparison with a subquery over a variable is refused
+     * anywhere but through AND and OR, and a simple CASE comparing one anywhere in a search condition. Every
+     * comparison of the statement with a host variable operand is placed here, a HAVING's as {@link #grouping} reads
+     * it; one the translation meets unplaced is refused ({@link #twoValued}), never read three-valued by default.
      */
-    private Map<SqlAst.Expr, Boolean> twoValuedPlaces(SqlAst.Statement statement) {
-        Map<SqlAst.Expr, Boolean> out = new IdentityHashMap<>();
+    private Map<SqlAst.Expr, Reading> twoValuedPlaces(SqlAst.Statement statement,
+            Map<SqlAst.Select, SqlAst.Select> grouped) {
+        Map<SqlAst.Expr, Reading> out = new IdentityHashMap<>();
         if (profile.ansinull()) {
             return out;
         }
-        for (SqlAst.Statement q : queries(statement)) {
-            if (!(q instanceof SqlAst.Select s)) {
-                continue;
-            }
-            List<SqlAst.Expr> conditions = new ArrayList<>();
-            if (s.where() != null) {
-                conditions.add(java.util.Objects.requireNonNull(s.where()));
-            }
-            if (s.having() != null) {
-                conditions.add(java.util.Objects.requireNonNull(s.having()));
-            }
-            for (SqlAst.FromItem f : s.from()) {
-                List<SqlAst.Join> joins = new ArrayList<>();
-                joins(f, joins);
-                for (SqlAst.Join j : joins) {
-                    if (j.on() != null) {
-                        conditions.add(java.util.Objects.requireNonNull(j.on()));
-                    }
-                }
-            }
-            conditions.forEach(c -> searchCondition(c, true, true, out));
-        }
+        twoValuedIn(statement, List.of(), grouped, out);
         return out;
     }
 
-    /** Marks {@code e}'s comparisons ({@link #twoValuedPlaces}): {@code positive} while reached through AND and OR
-     *  alone, {@code logical} through AND, OR and NOT. */
-    private void searchCondition(SqlAst.Expr e, boolean positive, boolean logical, Map<SqlAst.Expr, Boolean> out) {
+    /** IQ island, 2026-10-14 (review 6's B1): how a comparison with a host variable operand reads under ansinull Off
+     *  ({@link #twoValuedPlaces}). */
+    private enum Reading {
+        /** Three-valued: outside a search condition (measured: the select list's IF and CASE, ORDER BY's IF), or
+         *  reached through AND and OR alone with an operand not read two-valued (FALSE and UNKNOWN filter alike). */
+        THREE_VALUED,
+        /** Reached through AND, OR and NOT in a search condition, its other operand one SQL Anywhere reads two-valued
+         *  there ({@link #twoValuedOperand}). */
+        TWO_VALUED,
+        /** Inside an IF's or a CASE's condition, a function's argument or a truth test in a search condition: refused
+         *  where it may be UNKNOWN. */
+        REFUSED_PLACE,
+        /** Reached through a NOT in a search condition, its other operand one SQL Anywhere reads three-valued there,
+         *  or one not measured: refused where it may be NULL (through AND and OR alone, FALSE and UNKNOWN filter
+         *  alike, and it is read three-valued). */
+        REFUSED_OPERAND;
+
+        /** One comparison placed twice (an alias's expression read again): the same reading, else a refusal. */
+        Reading and(Reading other) {
+            if (this == other) {
+                return this;
+            }
+            if (this == REFUSED_PLACE || this == REFUSED_OPERAND) {
+                return this;
+            }
+            return other == REFUSED_OPERAND ? other : REFUSED_PLACE;
+        }
+    }
+
+    /** Places the comparisons of {@code q} and of its subqueries and derived tables, {@code outer} the SELECTs whose
+     *  names {@code q} may read (the innermost first). */
+    private void twoValuedIn(SqlAst.Statement q, List<SqlAst.Select> outer, Map<SqlAst.Select, SqlAst.Select> grouped,
+            Map<SqlAst.Expr, Reading> out) {
+        switch (q) {
+            case SqlAst.SetOperation o -> {
+                twoValuedIn(o.left(), outer, grouped, out);
+                twoValuedIn(o.right(), outer, grouped, out);
+            }
+            case SqlAst.Select s0 -> {
+                SqlAst.Select s = grouped.getOrDefault(s0, s0);
+                List<SqlAst.Select> scopes = new ArrayList<>();
+                scopes.add(s);
+                scopes.addAll(outer);
+                List<SqlAst.Expr> conditions = new ArrayList<>();
+                if (s.where() != null) {
+                    conditions.add(java.util.Objects.requireNonNull(s.where()));
+                }
+                if (s.having() != null) {
+                    conditions.add(java.util.Objects.requireNonNull(s.having()));
+                }
+                for (SqlAst.FromItem f : s.from()) {
+                    List<SqlAst.Join> joins = new ArrayList<>();
+                    joins(f, joins);
+                    for (SqlAst.Join j : joins) {
+                        if (j.on() != null) {
+                            conditions.add(java.util.Objects.requireNonNull(j.on()));
+                        }
+                    }
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d) {
+                            twoValuedIn(d.query(), outer, grouped, out);
+                        }
+                        if (leaf instanceof SqlAst.TableFunction fn) {
+                            for (SqlAst.Arg a : fn.args()) {
+                                List<SqlAst.Statement> inside = new ArrayList<>();
+                                directSubqueries(a.value(), inside);
+                                inside.forEach(sub -> twoValuedIn(sub, outer, grouped, out));
+                            }
+                        }
+                    }
+                }
+                conditions.forEach(c -> searchCondition(c, true, true, scopes, out));
+                List<SqlAst.Expr> values = new ArrayList<>();
+                for (SqlAst.SelectItem item : s.items()) {
+                    if (item instanceof SqlAst.SelectExpr x) {
+                        values.add(x.expr());
+                    }
+                }
+                values.addAll(s.groupBy());
+                s.orderBy().forEach(o -> values.add(o.expr()));
+                values.forEach(e -> outsideSearchConditions(e, out));
+                for (SqlAst.Expr e : expressions(s)) {
+                    List<SqlAst.Statement> inside = new ArrayList<>();
+                    directSubqueries(e, inside);
+                    inside.forEach(sub -> twoValuedIn(sub, scopes, grouped, out));
+                }
+            }
+            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+        }
+    }
+
+    /** The queries of the subqueries directly under {@code e} (not those inside them). */
+    private static void directSubqueries(SqlAst.Expr e, List<SqlAst.Statement> out) {
+        SqlAst.Statement q = subqueryOf(e);
+        if (q != null) {
+            out.add(q);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            directSubqueries(child, out);
+        }
+    }
+
+    /** Places the comparisons under {@code e}, a value outside the search conditions (a select item, a GROUP BY or an
+     *  ORDER BY item): three-valued; one a search condition reads too (an alias's expression) is refused. */
+    private static void outsideSearchConditions(SqlAst.Expr e, Map<SqlAst.Expr, Reading> out) {
+        if (comparesVariable(e)) {
+            place(e, Reading.THREE_VALUED, out);
+        }
+        for (SqlAst.Expr child : children(e)) {
+            outsideSearchConditions(child, out);
+        }
+    }
+
+    /** Whether {@code e} is {@code =}, {@code <>} or {@code !=} with a host variable operand. */
+    private static boolean comparesVariable(SqlAst.Expr e) {
+        return e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE)
+                && (b.left() instanceof SqlAst.Param || b.right() instanceof SqlAst.Param);
+    }
+
+    private static void place(SqlAst.Expr b, Reading reading, Map<SqlAst.Expr, Reading> out) {
+        Reading before = out.get(b);
+        out.put(b, before == null ? reading : before.and(reading));
+    }
+
+    /** Places {@code e}'s comparisons ({@link #twoValuedPlaces}): {@code positive} while reached through AND and OR
+     *  alone, {@code logical} through AND, OR and NOT; {@code scopes} the SELECTs whose names it reads. */
+    private void searchCondition(SqlAst.Expr e, boolean positive, boolean logical, List<SqlAst.Select> scopes,
+            Map<SqlAst.Expr, Reading> out) {
         if (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR)) {
-            searchCondition(b.left(), positive, logical, out);
-            searchCondition(b.right(), positive, logical, out);
+            searchCondition(b.left(), positive, logical, scopes, out);
+            searchCondition(b.right(), positive, logical, scopes, out);
             return;
         }
         if (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.NOT) {
-            searchCondition(u.operand(), false, logical, out);
+            searchCondition(u.operand(), false, logical, scopes, out);
             return;
         }
-        if (e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.EQ || b.op() == SqlAst.BinaryOp.NE)
-                && (b.left() instanceof SqlAst.Param || b.right() instanceof SqlAst.Param)) {
-            out.put(b, logical);
+        if (comparesVariable(e)) {
+            SqlAst.Binary b = (SqlAst.Binary) e;
+            SqlAst.Expr other = b.left() instanceof SqlAst.Param ? b.right() : b.left();
+            // reached through AND and OR alone, FALSE and UNKNOWN filter alike: either reading is SQL Anywhere's
+            place(b, !logical ? Reading.REFUSED_PLACE
+                    : other instanceof SqlAst.Param || twoValuedOperand(other, scopes) ? Reading.TWO_VALUED
+                    : positive ? Reading.THREE_VALUED : Reading.REFUSED_OPERAND, out);
         }
         if (e instanceof SqlAst.Case c && c.operand() != null) {
             // a simple CASE compares its operand with each WHEN's value: over a host variable, not measured there
@@ -1135,25 +1261,226 @@ public final class IqDialect implements InputDialect {
             }
         }
         for (SqlAst.Expr child : children(e)) {
-            searchCondition(child, false, false, out);
+            searchCondition(child, false, false, scopes, out);
+        }
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 6's B1, measured on SQL Anywhere 17 with real variables under iq16-tds and
+     * sqla17-tds): whether SQL Anywhere reads {@code x = @v} two-valued in a search condition for this {@code x} --
+     * a column (of a table, either side of a join, an outer join's NULL-supplying side, an enclosing query's, a GROUP
+     * BY key in HAVING, a select-list alias of one there), a constant, {@code + - * / % ||} and a sign over such
+     * operands (a column with a constant or with another column), a CAST or CONVERT of one, and a derived table's
+     * column (or a set operation's, every branch's) defined by one. It reads three-valued a function's value
+     * ({@code NULLIF}, {@code COALESCE}, {@code ISNULL}, {@code ABS}, {@code UPPER}, {@code TRIM}, {@code LENGTH}), an
+     * aggregate's in HAVING, a scalar subquery's, and a derived table's column defined by a function (it merges the
+     * derived table into the query); and two-valued a derived table's column it does not merge (a grouped one's
+     * aggregate, a set operation's NULLIF branch), a CASE's and an IF's. Those, and every other operand, are not
+     * {@code x} here: refused where they may be NULL. {@code scopes}: the SELECTs whose names {@code e} reads, the
+     * innermost first.
+     */
+    private static boolean twoValuedOperand(SqlAst.Expr e, List<SqlAst.Select> scopes) {
+        return switch (e) {
+            case SqlAst.ColumnRef r -> twoValuedColumn(r, scopes);
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.NumericLit n -> true;
+            case SqlAst.StringLit n -> true;
+            case SqlAst.NullLit n -> true;
+            case SqlAst.Unary u -> (u.op() == SqlAst.UnaryOp.MINUS || u.op() == SqlAst.UnaryOp.PLUS)
+                    && twoValuedOperand(u.operand(), scopes);
+            case SqlAst.Binary b -> switch (b.op()) {
+                case PLUS, MINUS, TIMES, DIVIDE, MODULO, CONCAT -> twoValuedOperand(b.left(), scopes)
+                        && twoValuedOperand(b.right(), scopes);
+                case AND, OR, EQ, NE, LT, LE, GT, GE, POWER -> false;
+            };
+            case SqlAst.Cast c -> twoValuedOperand(c.operand(), scopes);
+            default -> false;
+        };
+    }
+
+    /** What a FROM item holds under a column's name, for {@link #twoValuedOperand}. */
+    private enum Held {
+        /** No column of that name. */
+        NONE,
+        /** A column SQL Anywhere compares with a variable two-valued. */
+        TWO_VALUED,
+        /** A column of another definition, or one whose definition is not read here. */
+        OTHER,
+        /** A table's or a table function's column, if it has one of that name (its columns are the catalog's). */
+        TABLE
+    }
+
+    /** {@link #twoValuedOperand} of a column reference: of a table, or of a derived table whose definition of it is
+     *  such an operand. An unqualified name an inner FROM item may hold and an outer one defines otherwise is not. */
+    private static boolean twoValuedColumn(SqlAst.ColumnRef r, List<SqlAst.Select> scopes) {
+        List<SqlAst.Ident> parts = r.parts();
+        if (parts.size() > 2) {
+            return false;
+        }
+        String name = IqLexer.lower(parts.get(parts.size() - 1).text());
+        if (parts.size() == 2) {
+            String qualifier = IqLexer.lower(parts.get(0).text());
+            for (int i = 0; i < scopes.size(); i++) {
+                for (SqlAst.FromItem f : scopes.get(i).from()) {
+                    for (SqlAst.FromItem leaf : leaves(f)) {
+                        SqlAst.Ident known = correlation(leaf);
+                        if (known != null && IqLexer.lower(known.text()).equals(qualifier)) {
+                            Held held = held(leaf, name, scopes.subList(i + 1, scopes.size()));
+                            return held == Held.TWO_VALUED || held == Held.TABLE;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        boolean table = false;
+        for (int i = 0; i < scopes.size(); i++) {
+            boolean twoValued = false;
+            for (SqlAst.FromItem f : scopes.get(i).from()) {
+                for (SqlAst.FromItem leaf : leaves(f)) {
+                    switch (held(leaf, name, scopes.subList(i + 1, scopes.size()))) {
+                        case OTHER -> {
+                            return false;
+                        }
+                        case TWO_VALUED -> twoValued = true;
+                        case TABLE -> table = true;
+                        case NONE -> {
+                        }
+                    }
+                }
+            }
+            if (twoValued) {
+                return true;
+            }
+        }
+        return table;
+    }
+
+    /** What FROM item {@code leaf} holds under {@code name} (lower case); {@code outer} the SELECTs a derived table's
+     *  query may read names of. */
+    private static Held held(SqlAst.FromItem leaf, String name, List<SqlAst.Select> outer) {
+        return switch (leaf) {
+            case SqlAst.TableName t -> dummy(t.name()) ? (name.equals("dummy_col") ? Held.TWO_VALUED : Held.NONE)
+                    : Held.TABLE;
+            case SqlAst.TableFunction f -> rowGenerator(f.name()) ? (name.equals("row_num") ? Held.TWO_VALUED
+                    : Held.NONE) : Held.TABLE;
+            case SqlAst.SubqueryFrom d -> derivedColumn(d, name, outer);
+            case SqlAst.Join j -> throw new IllegalStateException("a join is no FROM leaf");
+        };
+    }
+
+    /** What derived table {@code d} holds under {@code name}: its definition in each branch (by its position), each
+     *  read as {@link #twoValuedOperand} reads it in its own query. A column a {@code *} brings is read in that
+     *  query's FROM; one of a set operation with a {@code *} is not read here. */
+    private static Held derivedColumn(SqlAst.SubqueryFrom d, String name, List<SqlAst.Select> outer) {
+        List<SqlAst.Select> branches = new ArrayList<>();
+        branches(d.query(), branches);
+        boolean star = false;
+        for (SqlAst.Select b : branches) {
+            star |= b.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns);
+        }
+        SqlAst.Select first = branches.get(0);
+        int index = -1;
+        if (!d.columnAliases().isEmpty()) {
+            for (int i = 0; i < d.columnAliases().size() && index < 0; i++) {
+                if (IqLexer.lower(d.columnAliases().get(i).text()).equals(name)) {
+                    index = i;
+                }
+            }
+            if (index < 0) {
+                return Held.NONE;
+            }
+            if (star) {
+                return Held.OTHER;
+            }
+        } else {
+            for (int i = 0; i < first.items().size() && index < 0; i++) {
+                if (first.items().get(i) instanceof SqlAst.SelectExpr x && name.equals(itemName(x))) {
+                    index = i;
+                }
+            }
+            if (index < 0) {
+                if (!star) {
+                    return Held.NONE;
+                }
+                if (branches.size() > 1) {
+                    return Held.OTHER;
+                }
+                // a column the derived query's * brings: its own FROM's
+                return twoValuedColumn(new SqlAst.ColumnRef(List.of(new SqlAst.Ident(name, true, d.pos())), d.pos()),
+                        List.of(first)) ? Held.TWO_VALUED : Held.OTHER;
+            }
+            if (star && branches.size() > 1) {
+                return Held.OTHER;
+            }
+        }
+        for (SqlAst.Select b : branches) {
+            if (index >= b.items().size() || !(b.items().get(index) instanceof SqlAst.SelectExpr x)) {
+                return Held.OTHER;
+            }
+            List<SqlAst.Select> scopes = new ArrayList<>();
+            scopes.add(b);
+            scopes.addAll(outer);
+            if (!twoValuedOperand(x.expr(), scopes)) {
+                return Held.OTHER;
+            }
+        }
+        return Held.TWO_VALUED;
+    }
+
+    /** The name (lower case) a select item shows: its alias, or a bare column's name; null for another. */
+    private static @com.legend.base.Nullable String itemName(SqlAst.SelectExpr x) {
+        if (x.alias() != null) {
+            return IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text());
+        }
+        SqlAst.Expr e = x.expr();
+        while (e instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.PLUS) {
+            e = u.operand();
+        }
+        return e instanceof SqlAst.ColumnRef r ? IqLexer.lower(r.parts().get(r.parts().size() - 1).text()) : null;
+    }
+
+    /** A query's SELECTs in order: itself, or its set operation's branches from the left. */
+    private static void branches(SqlAst.Statement q, List<SqlAst.Select> out) {
+        switch (q) {
+            case SqlAst.Select s -> out.add(s);
+            case SqlAst.SetOperation o -> {
+                branches(o.left(), out);
+                branches(o.right(), out);
+            }
+            case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
         }
     }
 
     /** {@code test}, the translation of comparison {@code b}: under ansinull Off, two-valued where SQL Anywhere reads it
      *  so (a host variable read as the enclosing query's variable, never NULL, an operand of it: FALSE where the other
-     *  side is NULL), refused where its reading is SQL Anywhere's rewriting's ({@link #twoValuedPlaces}). */
+     *  side is NULL), refused where its reading is SQL Anywhere's rewriting's or its operand's is not read here
+     *  ({@link #twoValuedPlaces}). */
     private Tx twoValued(SqlAst.Binary b, Tx test) {
-        if (twoValued.isEmpty() || !test.nullable() || !(variable(b.left()) || variable(b.right()))) {
+        if (twoValued.isEmpty() || !test.nullable() || !comparesVariable(b)
+                || !(variable(b.left()) || variable(b.right()))) {
             return test;
         }
-        Boolean read = twoValued.get(b);
-        if (Boolean.TRUE.equals(read)) {
-            return Tx.condition(test.vs(), SqlToPure.call("not", test.vs()), false);
+        SqlAst.Param p = (SqlAst.Param) (variable(b.left()) ? b.left() : b.right());
+        Reading read = twoValued.get(b);
+        if (read == null) {
+            // IQ island, 2026-10-14 (review 6's B1): no comparison is read three-valued by default
+            throw SqlTranslationException.unsupported("under ansinull Off (the " + profile.spelling() + " profile)"
+                    + " this comparison with " + p.name() + " was not placed before translating (a search condition's"
+                    + " reads it two-valued, another three-valued): not supported", p.pos());
         }
-        if (Boolean.FALSE.equals(read)) {
-            throw twoValuedRefused((SqlAst.Param) (variable(b.left()) ? b.left() : b.right()));
-        }
-        return test;
+        return switch (read) {
+            case THREE_VALUED -> test;
+            case TWO_VALUED -> Tx.condition(test.vs(), SqlToPure.call("not", test.vs()), false);
+            case REFUSED_PLACE -> throw twoValuedRefused(p);
+            case REFUSED_OPERAND -> throw SqlTranslationException.unsupported("under ansinull Off (the "
+                    + profile.spelling() + " profile) SQL Anywhere compares a host variable with a column, a constant,"
+                    + " or arithmetic or a CAST over them two-valued in a search condition (NOT (x = " + p.name() + ")"
+                    + " keeps the rows where x is NULL), but with a function's, an aggregate's or a subquery's value"
+                    + " three-valued, and with a CASE's, an IF's or a derived table's computed column as its plan has"
+                    + " it: comparing " + p.name() + " with this operand, which may be NULL, is not supported yet",
+                    p.pos());
+        };
     }
 
     /** Whether {@code e} is a host variable read as the enclosing query's variable. */
@@ -3576,9 +3903,21 @@ public final class IqDialect implements InputDialect {
     }
 
     /** IQ island, 2026-10-14 (M1e): a host variable, {@code @name} or {@code :name}, as the enclosing Pure query's
-     *  variable ({@link IqBindings}, the study's O3); {@code @name} as a column of its name in scope when there is one. */
+     *  variable ({@link IqBindings}, the study's O3); {@code @name} as a column of its name in scope when there is one.
+     *  IQ island, 2026-10-14 (review 6's M1, measured on SQL Anywhere 17): under a TDS profile (tsql_variables On) a
+     *  client binds {@code @name} as a placeholder, which reads the bound value even where a column of its name is in
+     *  scope, while a connection's variable reads the column: which one an island's {@code @name} is there is not
+     *  decided, so such an {@code @name} is refused by name (an alias of its name is refused under every profile,
+     *  {@link #noAliasRead}). */
     @Override
     public Tx parameter(SqlAst.Param p, SqlToPure.At at, SqlToPure.Sources sources) {
+        if (profile.tsqlVariables() && IqBindings.readsColumn(p, at)) {
+            throw SqlTranslationException.unsupported("'" + p.name() + "' names a column in scope: under the "
+                    + profile.spelling() + " profile (a TDS login, tsql_variables On) a client binds " + p.name()
+                    + " as a placeholder, which reads the bound value, while a connection's variable of that name"
+                    + " reads the column first; which one is meant is not decided: rename the column, or write :"
+                    + java.util.Objects.requireNonNull(p.name()).substring(1) + " for the variable", p.pos());
+        }
         Tx t = IqBindings.parameter(p, at, sources);
         if (!IqBindings.readsColumn(p, at)) {
             variables.add(p);
@@ -4028,7 +4367,8 @@ public final class IqDialect implements InputDialect {
      *  ({@link IqAggregates#grouping}). */
     @Override
     public SqlAst.Select grouping(SqlAst.Select s) {
-        return IqAggregates.grouping(s);
+        SqlAst.Select read = grouped.get(s);
+        return read != null ? read : IqAggregates.grouping(s);
     }
 
     /** An integer constant in GROUP BY is a constant to IQ, never a select-list position (measured: -149). */

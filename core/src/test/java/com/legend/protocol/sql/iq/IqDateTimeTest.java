@@ -17,7 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * IQ island, 2026-10-14 (M1e; docs/IQ_SQL_STUDY_2026_10_13.md §9.7): {@link IqDateTime}, IQ's reading of a constant
  * date or timestamp string by DATE_ORDER and NEAREST_CENTURY, and its writing of one as text. Every expected value
  * below was measured on SQL Anywhere 17 (CAST of the string to TIMESTAMP, in an IQ-like database and a default one,
- * under each DATE_ORDER; the scratchpad's m1e probes d1 and d2: 508 readings of this reader agree, none differs).
+ * under each DATE_ORDER; two of M1e's probes, kept with the private research: 508 readings of this reader agree, none
+ * differs).
  */
 class IqDateTimeTest {
 

@@ -1,7 +1,7 @@
 # The research's verified rule probes for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.3): each
 # case is one rule's probe, by the rule's id, a FROM-less query or one over sa_rowgenerator and DUMMY that
 # SQL Anywhere's front end runs (engine: sa), judged by SQL Anywhere 17's answer in iq-answers.jsonl. Generated
-# (M1a, 2026-10-14) from the private spec's iq_rules.jsonl, status "verified on SA (IQ-like db)" or "verified
+# (M1a, 2026-10-14) from the private research's rule list, status "verified on SA (IQ-like db)" or "verified
 # after correction", keeping the probe only: no rule text. Dropped: a probe the research marks a documentation
 # example, one sharing a run of six words with the manuals, one holding a name or a literal they print, one with
 # options other than iq16-default's own, one SQL Anywhere answers differently from run to run. Most are refused

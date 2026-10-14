@@ -383,7 +383,9 @@ source; there is nothing to port.
   §9.7):** `@name` and `:name` read the enclosing Pure query's variable `$name` in scope, its name as written (Pure's
   names are case-sensitive), typed by its Pure type (an Integer as IQ's BIGINT, a Float a DOUBLE, a `Decimal(p,s)` that
   NUMERIC, a String a VARCHAR, a StrictDate a DATE, a DateTime a TIMESTAMP; nullable when it may hold none); a column of
-  `@name`'s name in scope is read first (GRAMMAR L27); none is IQ's -143 (`@name`) or -188 (`:name`). A positional `?`
+  `@name`'s name in scope is read first (GRAMMAR L27; measured with `tsql_variables` Off, and refused by name under a
+  TDS profile, where a client binds `@name` as a placeholder that reads its value: §9.15); none is IQ's -143 (`@name`)
+  or -188 (`:name`). A positional `?`
   (and `:?`) names nothing in scope: refused by name. An unaliased item over a variable is refused (the oracle can only
   run the value written in, which SQL Anywhere names otherwise).
 - **O4. Error text.** Recommended: an error is judged by being an error, as in `sql-parity`; the snapped file keeps
@@ -919,7 +921,7 @@ calling the same function; also 48 with options other than `iq16-default`'s own 
 twice, no drift. Today PASS 3, BOTH_ERROR 74, REFUSED 517 (most need functions, CAST, or the name SQL Anywhere gives an
 unaliased expression): the ratchet later slices burn down.
 
-**Evidence** (the scratchpad's `iqbuild/m1a_evidence.md` holds the runs):
+**Evidence** (the runs are kept with the private research):
 - `tools/iq-oracle/snap.sh --write`, then `--check`: 1,134 cases, 1,174 answers (3 skipped), clean.
 - Both lanes give every run the same status (`iq-parity/ledger.tsv`):
 
@@ -1024,7 +1026,7 @@ have a name not rendered (comments and line breaks, a subquery inside an item, D
 arguments), 174 do not parse (CAST, CONVERT, `DATE(...)`, `CHAR(...)` and the other keyword-named forms, binary
 literals, the bitwise operators).
 
-**Evidence** (the scratchpad's `iqbuild/m1b_evidence.md` holds the runs):
+**Evidence** (the runs are kept with the private research):
 - `tools/iq-oracle/snap.sh --write`, then `--check`: 1,418 cases, 1,458 answers (3 skipped), clean.
 - Both lanes give every run the same status (`iq-parity/ledger.tsv`):
 
@@ -1141,7 +1143,7 @@ blocked (over `sa_rowgenerator`, DUMMY, a cross join, HAVING). None of the 485 s
 need a function the catalog lacks (the function slice's), 131 a special form, the rest literals, variables and operators
 of later slices.
 
-**Evidence** (the scratchpad's `iqbuild/m1c_evidence.md` holds the runs):
+**Evidence** (the runs are kept with the private research):
 - `tools/iq-oracle/snap.sh --write`, then `--check`: 1,703 cases, 1,743 answers (4 skipped), clean. The schema gains the
   tables `g` (keys with duplicates and NULL groups, each type's aggregate edge) and `o` (running totals past the largest
   value); every earlier answer is unchanged but for its `sqlSha`.
@@ -1259,7 +1261,7 @@ some 1,600 more probes on both lanes):
   CHARINDEX start, ROUND third argument and LOG base, a constant negative SUBSTRING length -- each IQ's error wherever
   computed, refused before translation.
 
-**Evidence** (the scratchpad's `iqbuild/m1d_evidence.md`):
+**Evidence** (the runs are kept with the private research):
 - `lite/m1d.yaml`, 344 cases: `snap.sh --write`, then `--check`, clean. Both lanes give every run the same status: PASS
   209, BOTH_ERROR 62, REFUSED 73; FAIL, BUG, ERROR 0. The earlier files' statuses are unchanged (1,177 runs).
 - The rule corpus as committed is unchanged (its unaliased items wait for M1b's default names); with every select item
@@ -1339,7 +1341,7 @@ read in an unaliased item; LIKE with a variable pattern; a time alone, a month a
 dates, weekday names, other month abbreviations (IQ matches any prefix: `Ma` is March), a zone offset, a tab or spaces
 inside a time; a date before the year 100 (review 3's B3).
 
-**Evidence** (the scratchpad's `iqbuild/m1e_evidence.md`):
+**Evidence** (the runs are kept with the private research):
 - `lite/m1e.yaml`, 212 cases, 329 runs over the five profiles: `snap.sh --write`, then `--check`, clean (2,499 cases,
   2,810 answers; every earlier answer identical). Both lanes give every run the same status: PASS 275, BOTH_ERROR 37,
   REFUSED 17; FAIL, BUG, ERROR 0. Eleven earlier runs answer now (eight `*_is_refused` cases renamed, with a dated
@@ -1366,7 +1368,7 @@ Built 2026-10-14 on `claude/iq-m1-fn`, over M1d (§9.6), beside M1b and M1c. The
 the database owner (§4, §5.5) each turned out to be composable exactly of Pure natives that exist, measured on SQL
 Anywhere 17 and run on both lanes: no file under `sql/dialect/` changed, and none under `protocol/sql/` outside `iq/`.
 
-**What the translator now reads** (`lite/natives.yaml`; the scratchpad's `iqbuild/natives_evidence.md` has the runs):
+**What the translator now reads** (`lite/natives.yaml`; the runs are kept with the private research):
 - **IQ's ASCII-only case fold.** `UPPER`, `LOWER`, `UCASE` and `LCASE` fold A-Z only, in an ISO-8859-1 and a UTF-8
   database alike (measured: é, ß, a Greek or a Cyrillic letter stays). Composed of 26 of Pure's `replace`, which both
   databases compute character for character (DuckDB's `upper` and `lower` fold every letter, the embedded Postgres's,
@@ -1431,7 +1433,7 @@ Anywhere 17 and run on both lanes: no file under `sql/dialect/` changed, and non
 
 **For the ninth line (optional):** a native for the exact whole quotient of two decimals would replace the estimates
 (a quotient of 38 digits writes some 9,000 characters of SQL): DuckDB `CAST(CAST(a * 10^S AS HUGEINT) // CAST(b * 10^S
-AS HUGEINT) AS DECIMAL(38,0))`, Postgres `div(a, b)`; the scratchpad's evidence has the design and the announcement.
+AS HUGEINT) AS DECIMAL(38,0))`, Postgres `div(a, b)`; the private research keeps the design and the announcement.
 
 ### 9.9 The merge: IQ's collation as a key, AVG of a NUMERIC
 
@@ -1558,8 +1560,8 @@ judge one) that failed, or answered where SQL Anywhere raises, before it.
   which needs a value below about 1e-162, is recorded, not guarded). `sa_rowgenerator`'s translation-time -158 over a range no row reaches answers since the merge
   (M1d's `row_num` typing): pinned.
 
-**Evidence:** both lanes identical; FAIL, BUG, ERROR 0. The scratchpad's `iqbuild/merge1_evidence.md` §9 has the
-counts.
+**Evidence:** both lanes identical; FAIL, BUG, ERROR 0. The counts are kept with the private
+research.
 
 ### 9.11 The fourth review's findings, fixed
 
@@ -1603,7 +1605,7 @@ failed, raised a Java error, or answered where SQL Anywhere raises, before it.
   dropped (the ratchet's pins moved with a dated note), and 0 hits after.
 
 **Evidence:** both lanes identical, 2,592 runs: PASS 1,529, REFUSED 718, BOTH_ERROR 341, SKIP 4; FAIL, BUG, ERROR 0.
-The scratchpad's `iqbuild/review4fix_evidence.md` has the measurements and the counts.
+The measurements and the counts are kept with the private research.
 
 ### 9.12 The merge: M1e with the fourth review's fixes
 
@@ -1626,7 +1628,7 @@ Pure byte-identical), and no run of either branch changed its status but M1e's o
   among them): accept PARSED 2,658 -> 2,674.
 
 **Evidence:** both lanes identical, 2,928 runs: PASS 1,817, REFUSED 729, BOTH_ERROR 378, SKIP 4; FAIL, BUG, ERROR 0.
-The scratchpad's `iqbuild/merge2_evidence.md` has the counts.
+The counts are kept with the private research.
 
 ### 9.13 The showcase
 
@@ -1655,17 +1657,20 @@ test, and each case failed, answered where SQL Anywhere raises, or raised a Java
     checked by the island, not left to the database's own overflow. That covers `+ - * / %`, the sign, ABS, NULLIF,
     CASE, the set operations and CAST.
   - A BIGINT constant near 2^63 (`CAST('9223372036854775807' AS BIGINT) + 1`) had the same defect and is checked too.
-- **B2 (ansinull Off).** Measured on SQL Anywhere 17 with real variables under the TDS profiles (`iqbuild/review5fix/sa`
-  probes p3-p5, about 50 forms):
-  - `x = @v`, `x <> @v` and `x != @v` are two-valued in a search condition (WHERE, HAVING, ON, a subquery's WHERE): a
-    NULL x makes them FALSE, not UNKNOWN, so `NOT (x = @v)` keeps the rows where x is NULL. This holds with the
+- **B2 (ansinull Off).** Measured on SQL Anywhere 17 with real variables under the TDS profiles (about 50
+  forms, kept with the private research):
+  - `x = @v`, `x <> @v` and `x != @v` are two-valued in a search condition (WHERE, HAVING, ON, a subquery's WHERE)
+    when x is a column (corrected by §9.15: also a constant, arithmetic and a CAST over columns, and a derived table's
+    column defined by one; a function's, an aggregate's or a scalar subquery's value stays three-valued): a NULL x
+    makes them FALSE, not UNKNOWN, so `NOT (x = @v)` keeps the rows where x is NULL. For such an x this holds with the
     variable on either side, parenthesized or not, and for strings too.
   - These stay three-valued: `<`, `<=`, `>`, `>=`, IN, NOT IN, BETWEEN, LIKE, a variable inside an expression
     (`x = @v + 0`), and every comparison outside a search condition (the select list's IF and CASE, ORDER BY).
   - Inside an IF's or a CASE's condition within a search condition, SQL Anywhere's answer follows its own rewriting of
     the condition. `IF x = @v THEN 1 ELSE 0 ENDIF = 0` is two-valued, but inside a COALESCE it is three-valued.
   - Lite now reads such a comparison two-valued where the search condition reaches it through AND, OR and NOT. Inside
-    an IF, a CASE or a function there, it refuses the comparison by name when it may be UNKNOWN.
+    an IF, a CASE or a function there, it refuses the comparison by name when it may be UNKNOWN. (This fix read every
+    operand two-valued, a column's or not: §9.15 narrows it to the measured operands.)
   - Before the fix, 12 runs were FAIL on both lanes (the review's r5f had passed only because the oracle wrote a
     constant).
 - **B3 (a date variable before the year 100).** A StrictDate or DateTime variable reaches the SQL as a literal. Lite's
@@ -1697,7 +1702,8 @@ test, and each case failed, answered where SQL Anywhere raises, or raised a Java
   - It runs the case's SQL as written, but for `:name`, which is written `@name`: in dynamic SQL SQL Anywhere reads
     `:name` only as a placeholder a client binds (-188 with none).
   - Under a TDS profile, where `tsql_variables` On makes `@name` such a placeholder too, the case runs with
-    `tsql_variables` Off.
+    `tsql_variables` Off. (§9.15: that also makes a column or an alias of `@name`'s name read before the variable,
+    which a placeholder never is; the tool now rejects a case whose SQL names one.)
   - A value its type cannot hold is SQL Anywhere's error from the SET.
 
   Re-snapped, every answer of a case with params is the same as before but for these:
@@ -1726,5 +1732,67 @@ test, and each case failed, answered where SQL Anywhere raises, or raised a Java
 - TOP @n stays refused, though SQL Anywhere answers it.
 
 **Evidence:** both lanes identical, 3,006 runs: PASS 1,856, REFUSED 757, BOTH_ERROR 389, SKIP 4; FAIL, BUG, ERROR 0.
-The answers: 2,641 cases, 3,002 answers. The scratchpad's `iqbuild/review5fix_evidence.md` has the measurements, the
-before/after of each case and the counts.
+The answers: 2,641 cases, 3,002 answers. The measurements, the before/after of each case and the
+counts are kept with the private research.
+
+### 9.15 The sixth review's findings, fixed
+
+Built 2026-10-14 on `claude/iq-island-2`, over the second landing's squashed commit. The sixth review, the final audit
+before the landing, found one blocker, two majors and three minors. Each fix is pinned by a case in `lite/review6.yaml`
+(64 cases, 89 runs) or a unit test; each case that is now refused answered otherwise than SQL Anywhere before the fix.
+
+- **B1 (ansinull Off: two-valued for every operand).** §9.14's B2 fix read `x = @v` two-valued under ansinull Off for
+  any nullable `x`. Re-measured on SQL Anywhere 17 with real variables under iq16-tds and sqla17-tds (about 70 forms
+  beside the review's, kept with the private research), the rule depends on the operand:
+  - Two-valued: a column (of a table, either side of an inner or outer join, an enclosing query's, a GROUP BY key or a
+    select-list alias of one in HAVING); a constant; `+ - * / %`, `||`, string `+` and a sign over such operands (a
+    column with a constant or with another column, nested); a CAST or CONVERT of one (to an integer, a NUMERIC or a
+    string); a derived table's column, through `*` too, whose definition is one (a plain column, `sm + 0`, `sm + id`,
+    a DISTINCT's, a grouped query's key, every branch of a UNION ALL, a NULL constant). The variable may be on either
+    side. A view's column follows its definition the same way (measured; the island reads no views).
+  - Three-valued: a function's value (NULLIF, COALESCE, ISNULL, ABS, UPPER, TRIM, LENGTH), an aggregate's in HAVING
+    (MAX, MIN, or a select-list alias of one), a scalar subquery's (an aggregate or a plain column), and a derived
+    table's column defined by a function, which SQL Anywhere merges into the query (over a table and over
+    sa_rowgenerator alike, and through a LEFT JOIN, in WHERE and in ON).
+  - Two-valued too, but not read here: a CASE's and an IF's value, and a derived column SQL Anywhere does not merge
+    (a grouped query's aggregate, a UNION ALL branch's NULLIF, a CASE over sa_rowgenerator). Whether it merges is its
+    plan's choice.
+
+  Lite now reads `x = @v` two-valued only where `x` is one of the first list (`IqDialect.twoValuedOperand`, resolving
+  a column through the derived tables and the enclosing queries' FROM items it may come from; an unqualified name an
+  inner table may hold and an outer derived table defines otherwise is refused). Any other operand that may be NULL is
+  refused by name under a NOT. Reached through AND and OR alone, FALSE and UNKNOWN filter alike, so there it answers
+  three-valued, as before §9.14. The review's 13 wrong answers (on both lanes: NULLIF, COALESCE, ISNULL, UPPER, TRIM,
+  LENGTH, ABS, MAX and MIN in HAVING, two scalar subqueries, a derived NULLIF column and one through a LEFT JOIN), and
+  four the re-measurement found (the variable on the left of a function, a derived NULLIF over sa_rowgenerator and in
+  an ON, a derived ABS), were FAIL (one ERROR) and are REFUSED. Coverage lost: 8 runs that answered right are refused
+  (CASE, IF, an aggregate's HAVING alias, a grouped derived aggregate, a UNION ALL's NULLIF branch).
+- **B1, found while re-measuring: HAVING's alias.** A HAVING that reads a select-list alias (`SELECT sm AS z ... GROUP
+  BY sm HAVING NOT (z = @lo)`) is rewritten with the alias's expression in place (`IqAggregates.grouping`, M1c), which
+  rebuilt the comparison after it was placed, so it was read three-valued: three runs were FAIL. The rewrite is now
+  made once per SELECT and placed as rewritten (`IqDialect.grouping` returns it). And every comparison of a statement
+  with a host variable is placed before translating (three-valued outside a search condition): one the translation
+  meets unplaced is refused by name, never read three-valued by default.
+- **M1 (a column named like a variable under a TDS profile).** Under iq16-tds and sqla17-tds (`tsql_variables` On, as
+  a TDS login sets it) a client binds `@name` as a placeholder, and SQL Anywhere reads the bound value even where a
+  column `@name` is in scope (measured through dbcapi's bound parameters); with `tsql_variables` Off, a connection's
+  variable reads the column first (GRAMMAR L27, S56). Which one an island's `@name` is under a TDS profile is not
+  decided, so such an `@name` is refused by name there (`IqProfile.tsqlVariables`); `:name` never reads a column, and
+  an alias of `@name`'s name is refused under every profile (§9.14, M2). No committed case moved: the column-first
+  cases run under iq16-default. Pinned by `IqBindingsTest.underATdsProfileAColumnNamedLikeAVariableIsRefused`.
+- **M2 (references to private files).** Fourteen committed lines of this landing (this document, `IqFunctions`,
+  `IqDateTimeTest`) and the header of `lite/rules.yaml` named local files of the line's working notes or of the
+  private research. They now say what the evidence is and that it is kept with the private research.
+- **m1 (the oracle's `:name`).** `snap.py` writes `:name` as `@name`, which a column or an alias spelled `@name`
+  would shadow, where a bound `:name` never is. The tool now rejects a case with params whose SQL names a column or
+  alias spelled like one of them (any quoted name `@name`) where it writes `:name`, or where the case runs under a TDS
+  profile (`tsql_variables` On there: M1); such a case is rewritten or skipped by its own `skip:` key.
+- **m2.** §9.14's B2 bullet, its M5 bullet, the O3 decision (§4) and the register's S56 now state the rules as
+  measured: two-valued for the operands above only, and a column before a variable only with `tsql_variables` Off.
+- **m3 (not changed).** `NOT (-sm = @lo)` and `NOT (sm + 1 = @lo)` raise in lite where the overflowing rows make SQL
+  Anywhere raise too (BOTH_ERROR). `-sm` is now two-valued by measurement (`-t_id` over `u`, which cannot overflow,
+  answers), and `NOT (t_id + 1 = @lo)` over `u` answers on both lanes.
+
+**Evidence:** both lanes identical, 3,095 runs: PASS 1,913, REFUSED 789, BOTH_ERROR 389, SKIP 4; FAIL, BUG, ERROR 0.
+No earlier run moved. The answers: 2,705 cases, 3,091 answers (89 new; every earlier answer identical). The syntax
+verdicts are unchanged. The measurements and the before/after of each case are kept with the private research.
