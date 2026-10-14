@@ -9501,3 +9501,64 @@ what reads, what is refused and why, the reviews' findings and the numbers below
    ASCII-only case fold and right trim, exact decimal division, a range check that takes its operand once, a raise
    that carries IQ's code); the syntax ratchet pinning PARSED ids; `SELECT id, ID … ORDER BY id`'s false ambiguity;
    Postgres's default name of nested casts, 2^n in their depth (the seventh line's, older than the seam).
+
+## 2026-10-14 — `#SQL{...}#`: the stress corpus and its fixes, and four planner wrong answers (the seventh line)
+
+Announced in `docs/IN_FLIGHT.md` (fc4609e, 740e37c, 42aaed2); the compiler line's go-ahead with four asks (a8d11c2),
+each answered below. Branch `claude/loving-euler-gjta59`, one pull request.
+
+1. **The stress corpus** (`core/src/test/resources/sql-stress/`, the user: "an insane sql corpus that stress tests our
+   parser and sqlgen"): 86 queries, each scaled along one axis (joins of 2 to 50 tables, FROM nesting to 50, IN and
+   EXISTS to 30, 50 scalar subqueries, CTE chains, 40 set operations, CASE, OR, `+` and parentheses to 2,000, 500
+   columns, 50 windows, nested casts to 100, combined monsters), each run raw on Postgres 16 and as an island on both
+   lanes, planned, timed, measured and judged (`testcases/SqlStress.java`, `run.sh`). `baseline.tsv` is main before
+   the fixes, `after.tsv` this branch; the README tabulates both. No query that finished gave an answer other than
+   Postgres's, before or after; eleven that timed out or overflowed now pass; none got worse.
+2. **The fixes, measured by it:**
+   - `compiler/spec/JoinChecker.java` (cross-area): a join's inputs are typed again only when its condition reads a
+     column by name (`readsByName`, `rowRead`): a chain of N joins typed its innermost input 2^N times (20 tables:
+     36 s to plan; now 0.45 s; 50 tables: 0.9 s). Pinned by `JoinCheckerTest.aLongJoinChainTypesEachInputOnce` (40
+     modern-condition joins, in the core suite, its own timeout: the compiler line's ask 3).
+   - `protocol/sql/SqlToPure.java`: a strict operation merges a strict operand's NULL test into its own when that
+     operand is the one that may be NULL (a 10-term `+` chain was 96 KB of SQL, now 253 characters); AND and OR
+     chains read without recursion and combined as a balanced tree (a 500-term OR overflowed a default stack),
+     reachable by a dialect as `At.logical` (the tenth line takes it for `#IQ`); an integer cast of a value an
+     enclosed cast already holds to the range is not tested again (ten nested casts were 9 MB of SQL, now 327
+     characters at any depth); `PostgresDialect`'s default name of a cast read once a level (2^n).
+3. **The planner's wrong answers** (the tenth line found three through `#SQL`; the review one more), wrong for plain
+   Pure too, each pinned by a DuckDB integration test that fails without its fix and by unit tests beside the method
+   (`FoldTest.aKeylessAggregateIsABoundary`, `NullSemanticsTest.emptyColumnsAreEqual`: ask 2):
+   - `lowering/Fold.java`, `SubselectPrune.java`, `RelationPredicates.java`: an aggregate with no GROUP BY is a
+     boundary (`aggregatesWithoutKeys`). Before, `aggregate(...)->filter(r|false)` answered one row (HAVING 1 = 0),
+     `aggregate(count)->aggregate(count)` counted the rows read, a column that read none of it read a row per row,
+     a union arm was pruned to its constants, a searched relation's WHERE was added to it.
+   - `lowering/NullSemantics.java`: `[] == []` is TRUE and `x == []` the absence test, null-safe (so the legacy
+     null-unsafe mode keeps the engine's `=`); two NULL constant columns were compared `NULL = NULL`
+     (`SELECT NULL INTERSECT SELECT NULL` answered no row).
+   - `sql/SqlAgg.aggregatesSelect`: the one "does this aggregate its select" predicate, with the typing's lambda
+     stop; `SqlTyping.aggregateRooted` and Fold's copy are gone (ask 1).
+4. **The parity corpus,** identical in both lanes: PASS 1,537, REFUSED 449, BOTH_ERROR 139, SKIP 68 (was 1,527 /
+   449 / 136 / 68); thirteen new own cases (`lite/aggregates`, `functions`, `subqueries`), Postgres 16's answers
+   snapped; no other answer moved.
+5. **Judges,** on 76f8cf0 (main 83e79ce under it; `docs/build-inventory/program/evidence/sql-stress/judges.txt`):
+   - **The independent review** (an agent that wrote none of it): one blocker of this branch's (the merged NULL test
+     skipped an operand's error when another was NULL: `CAST(big_val AS int4) + NULLIF(id, 2)` answered NULL where
+     Postgres raises), one major from before it (the three further keyless-aggregate sites), one minor (the legacy
+     equality); each fixed and pinned.
+   - **The reference lane and the corpus** (ask 4): `//spec:reference_lane`, `//spec:update_reference_lane_test`,
+     `//spec:corpus_duckdb`, `//spec:corpus_h2` (their verdicts and the ten roster tests): green; PCT DuckDB, H2 and
+     channel B: 26 of 26.
+   - **The render census** (ask 4): the 2,398 cases the PCT DuckDB and H2 lanes recorded, rendered by nine dialects
+     at main's `core/src/main` and at this branch: 21,462 lines each, 0 differ. The committed `RenderCensus` passes no
+     runtime, which the planner now refuses (every case failed at LOWER on both sides); it was run with PCT's
+     storeless runtime, as the PCT lanes run a case. Five cases of the wrong-answer shapes, which PCT reaches none
+     of, differ as intended (the SQL in the evidence).
+   - **The local gate:** `bazel test --lockfile_mode=error //gates:local` (the Postgres targets through
+     `tools/postgres/as_unprivileged.sh`): 357 pass, 1 skipped (`//tools/guards:classpath_test`, x86 host), 7 time
+     out: `//engine-client:model_data_test` and six `//datacube` browser targets, which time out identically with
+     main's `core/src/main` swapped in (this container; CI runs them). `//sdlc-server:page` and `//wasm:planner` build.
+   - **The full CI run:** the pull request's.
+6. **Recorded, not fixed:** with the NULL operand first, `NULLIF(id, 2) + CAST(big_val AS int4)` stops at the NULL
+   test before the cast's error (as before this branch: an evaluation-order question for every strict operator);
+   CTE chains that reuse earlier CTEs (a relation `let` lowered to a `WITH`); 500-deep CASE (the name resolver),
+   200-term `+` chains (the lowering) and 400-deep parentheses (the SQL parser) overflow a default stack.
