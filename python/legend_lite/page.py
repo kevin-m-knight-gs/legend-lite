@@ -564,9 +564,8 @@ class Grid(Tile):
     def chart(self, mark: str, *, x: str | None = None, y: Sequence[Any] | None = None,
               split: str | None = None, title: str | None = None, frozen: bool = False,
               options: Mapping[str, Any] | None = None, grain: str | None = None,
-              bins: Mapping[str, float] | None = None, size: Any = None, tooltip: Sequence[Any] | None = None,
-              facet: Mapping[str, str] | None = None, layers: Sequence[Mapping[str, Any]] | None = None,
-              label: Any = None) -> Chart:
+              bins: Mapping[str, float] | None = None, tooltip: Sequence[Any] | None = None,
+              layers: Sequence[Mapping[str, Any]] | None = None, label: Any = None) -> Chart:
         """A chart of this grid, beside it: ``mark`` (one of MARKS), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the grid's first measure unless given -- and a ``split`` (one series per value);
         ``frozen`` keeps its own grouping rather than following the grid's (and stays when the grid is removed, as in
@@ -575,13 +574,13 @@ class Grid(Tile):
         The spec's version 2 slots, each in its own keys: a measure of ``y`` may be a dict -- ``column``, ``fn`` (an
         aggregate, or ``'value'``: a group-level column of the grid, plotted as it is), its own ``mark`` (MEASURE_MARKS),
         ``axis`` (AXES) and ``showAs`` (``{'kind': one of SHOW_AS}``); ``grain`` takes a date across to its period
-        (GRAINS); ``bins`` a number across to its bins (``{'width': w}`` or ``{'count': n}``); ``size`` a measure sizing
-        each mark; ``label`` a measure written on each mark instead of its own value; ``tooltip`` further measures a
-        hover lists; ``facet`` small multiples (``{'row': c}``,
-        ``{'column': c}``); ``layers`` reference lines, bands, thresholds and pinned extremes (each a dict, its
-        ``kind`` one of LAYERS)."""
+        (GRAINS); ``bins`` a number across to its bins (``{'width': w}`` or ``{'count': n}``); ``label`` a measure
+        written on each mark instead of its own value; ``tooltip`` further measures a hover lists; ``layers`` reference
+        lines, bands, thresholds and pinned extremes (each a dict, its ``kind`` one of LAYERS). What DataCube does not
+        draw yet (small multiples, a bubble's size) it does not offer, and neither does this."""
         spec = {**_spec(self, mark, x, y, split, frozen), 'options': _copied(options or {}),
-                **_slots(self, grain, bins, size, tooltip, facet, layers, label)}
+                **_slots(self, grain, bins, tooltip, layers, label)}
+        _drawable(self, spec)
         named = _named(title, 'a title')
         id = self._page._next('chart')
         self._page._doc['views'].append({'id': id, 'kind': 'chart', 'cube': self._view['cube'],
@@ -672,8 +671,33 @@ def _measure(grid: Grid, plotted: Any, what: str) -> dict[str, Any]:
     return {**_copied(plotted), 'column': column}
 
 
-def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, size: Any,
-           tooltip: Sequence[Any] | None, facet: Mapping[str, str] | None,
+# a frame column's compiler type, a date or a number (chart-spec.ts chartProblems asks the same of DataCube's)
+_DATES = frozenset({'StrictDate', 'DateTime', 'Date'})
+_NUMBERS = frozenset({'Integer', 'Float', 'Decimal', 'Number'})
+
+
+def _drawable(grid: Grid, spec: Mapping[str, Any]) -> None:
+    """Refused at the line that writes it, what DataCube would refuse to draw and Python can know from the frame: a
+    grain on a column that is not a date, bins on one that is not a number, a layer reading a value the chart does not
+    plot, a layer on a scatter or on a 100% stack. (A calculated column's type is the compiler's, known only when
+    DataCube plans it: its grain or bins are DataCube's to refuse.)"""
+    types = {c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
+    x = spec.get('x')
+    if 'grain' in spec and x in types and types[x] not in _DATES:
+        raise ValueError(f'{x!r} is not a date ({types[x]}): it has no {spec["grain"]}')
+    if 'bins' in spec and x in types and types[x] not in _NUMBERS:
+        raise ValueError(f'{x!r} is not a number ({types[x]}): it has no bins')
+    layers = spec.get('layers', [])
+    for layer in layers:
+        if layer['kind'] != 'band' and layer.get('measure', 0) >= len(spec['y']):
+            raise ValueError(f'a {layer["kind"]} layer reads value {layer.get("measure", 0) + 1}, which the chart does not plot')
+    if layers and spec['mark'] == 'scatter':
+        raise ValueError('a scatter draws no reference lines yet')
+    if spec.get('options', {}).get('stack') == 'percent' and any(layer['kind'] != 'band' for layer in layers):
+        raise ValueError('a 100% stack shows shares: a reference line, a threshold or a pinned extreme has no place on it')
+
+
+def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
            layers: Sequence[Mapping[str, Any]] | None, label: Any = None) -> dict[str, Any]:
     """The spec's version 2 slots a chart was given, checked word by word as DataCube's reader checks them."""
     out: dict[str, Any] = {}
@@ -686,17 +710,10 @@ def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, size
                 or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 for v in bins.values())):
             raise ValueError(f'bins are {{\'width\': w}} or {{\'count\': n}}, each a positive number, not {bins!r}')
         out['bins'] = _copied(bins)
-    if size is not None:
-        out['size'] = _measure(grid, size, 'a chart\'s size')
     if label is not None:
         out['label'] = _measure(grid, label, 'a chart\'s label')
     if tooltip is not None:
         out['tooltip'] = [_measure(grid, m, 'a chart\'s tooltip') for m in tooltip]
-    if facet is not None:
-        if not isinstance(facet, Mapping) or not ({'row', 'column'} & set(facet)) or set(facet) - {'row', 'column'}:
-            raise ValueError(f'a facet is {{\'row\': column}} and/or {{\'column\': column}}, not {facet!r}')
-        grid._check(list(facet.values()), 'a facet')
-        out['facet'] = _copied(facet)
     if layers is not None:
         for layer in layers:
             kind = layer.get('kind') if isinstance(layer, Mapping) else None
@@ -704,7 +721,8 @@ def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, size
                 raise ValueError(f'a layer\'s kind is one of {", ".join(sorted(LAYERS))}, not {kind!r}')
             if kind == 'stat' and layer.get('stat') not in STATS:
                 raise ValueError(f'a stat layer\'s stat is one of {", ".join(sorted(STATS))}, not {layer.get("stat")!r}')
-            if kind in ('line', 'threshold') and not isinstance(layer.get('value'), (int, float)):
+            if kind in ('line', 'threshold') and (not isinstance(layer.get('value'), (int, float))
+                                                  or isinstance(layer.get('value'), bool)):
                 raise ValueError(f'a {kind} layer has a number value, not {layer.get("value")!r}')
             if kind == 'band' and (layer.get('axis') not in ('x', 'y') or 'from' not in layer or 'to' not in layer):
                 raise ValueError('a band layer has an axis (\'x\' or \'y\'), a from and a to')

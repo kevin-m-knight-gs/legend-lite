@@ -219,41 +219,47 @@ class Document(Paged):
 
     def test_a_chart_takes_the_spec_version_2_slots_in_their_own_words(self):
         page, grid, _ = self.built()
-        chart = grid.chart('bar', x='region', grain='month', y=[
+        chart = grid.chart('bar', x='region', y=[
             ('notional', 'sum'),
-            {'column': 'qty', 'fn': 'average', 'mark': 'line', 'axis': 'right', 'showAs': {'kind': 'movingAverage', 'rows': 3}},
-        ], size=('qty', 'sum'), label=('qty', 'max'), tooltip=[('notional', 'max')], facet={'column': 'desk'},
+            {'column': 'pnl', 'fn': 'average', 'mark': 'line', 'axis': 'right', 'showAs': {'kind': 'movingAverage', 'rows': 3}},
+        ], label=('pnl', 'max'), tooltip=[('notional', 'max')],
             layers=[{'kind': 'line', 'value': 100, 'label': 'Target'}, {'kind': 'stat', 'stat': 'average'},
                     {'kind': 'band', 'axis': 'y', 'from': 0, 'to': 50}])
         spec = page.to_dict()['views'][-1]['spec']
         self.assertEqual(spec['version'], 2)
-        self.assertEqual(spec['grain'], 'month')
-        self.assertEqual(spec['y'][1], {'column': 'qty', 'fn': 'average', 'mark': 'line', 'axis': 'right',
+        self.assertEqual(spec['y'][1], {'column': 'pnl', 'fn': 'average', 'mark': 'line', 'axis': 'right',
                                         'showAs': {'kind': 'movingAverage', 'rows': 3}})
-        self.assertEqual(spec['size'], {'column': 'qty', 'fn': 'sum'})
-        self.assertEqual(spec['label'], {'column': 'qty', 'fn': 'max'})
-        self.assertEqual(spec['facet'], {'column': 'desk'})
+        self.assertEqual(spec['label'], {'column': 'pnl', 'fn': 'max'})
         self.assertEqual([layer['kind'] for layer in spec['layers']], ['line', 'stat', 'band'])
-        # re-plotted, the slots it was not told about stay; a measure's own words survive a re-plot
+        # bins on a number across, kept while it stays across and gone with it
+        binned = grid.chart('bar', x='notional', bins={'width': 50}, y=[('pnl', 'count')])
+        self.assertEqual(page.to_dict()['views'][-1]['spec']['bins'], {'width': 50})
+        binned.plot(x='region')
+        self.assertNotIn('bins', page.to_dict()['views'][-1]['spec'])
+        # re-plotted, a measure's own words survive
         chart.plot('line')
-        self.assertEqual(page.to_dict()['views'][-1]['spec']['y'][1]['mark'], 'line')
-        self.assertEqual(page.to_dict()['views'][-1]['spec']['grain'], 'month')
-        # a new column across goes without the grain chosen for the last
-        chart.plot(x='desk')
-        self.assertNotIn('grain', page.to_dict()['views'][-1]['spec'])
-        # every word one of DataCube's, refused at the line that names it
+        self.assertEqual(page.to_dict()['views'][-2]['spec']['y'][1]['mark'], 'line')
+        # every word one of DataCube's, and nothing DataCube would refuse to draw, refused at the line that names it
         for bad, why in [({'grain': 'decade'}, 'a grain is one of'),
+                         ({'grain': 'month'}, "'region' is not a date"),
+                         ({'bins': {'width': 3}}, "'region' is not a number"),
                          ({'y': [{'column': 'notional', 'fn': 'sum', 'mark': 'pie'}]}, "a measure's mark"),
                          ({'y': [{'column': 'notional', 'fn': 'sum', 'axis': 'top'}]}, "a measure's axis"),
                          ({'y': [{'column': 'notional', 'fn': 'sum', 'showAs': {'kind': 'forecast'}}]}, 'shown as'),
                          ({'y': [{'column': 'margin', 'fn': 'value'}]}, 'not a group-level column'),
                          ({'layers': [{'kind': 'sparkle'}]}, "a layer's kind"),
                          ({'layers': [{'kind': 'stat', 'stat': 'mode'}]}, "a stat layer's stat"),
-                         ({'facet': {'column': 'nope'}}, 'not a column'),
+                         ({'layers': [{'kind': 'line', 'value': True}]}, 'a line layer has a number value'),
+                         ({'layers': [{'kind': 'stat', 'stat': 'average', 'measure': 2}]}, 'reads value 3'),
+                         ({'layers': [{'kind': 'extremes'}], 'options': {'stack': 'percent'}}, '100% stack'),
                          ({'bins': {'size': 3}}, 'bins are'),
                          ({'bins': {'width': '10'}}, 'bins are')]:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, why):
                 grid.chart('bar', x='region', **{'y': [('notional', 'sum')], **bad})
+        with self.assertRaisesRegex(ValueError, 'no reference lines'):
+            grid.chart('scatter', x='notional', y=[('pnl', 'sum')], layers=[{'kind': 'line', 'value': 1}])
+        with self.assertRaises(TypeError):
+            grid.chart('bar', x='region', facet={'column': 'desk'})
 
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()

@@ -275,3 +275,46 @@ describe('the database\'s edges: a period\'s end, a bin\'s upper edge (the audit
     }
   });
 });
+
+describe('a bin and its filter agree by construction (the DataCube + Python line\'s review)', () => {
+  it('values on every edge: each bar\'s click keeps exactly its own rows, width and count bins alike', async () => {
+    const { AXIS_UPPER, markConditions } = await import('../src/chart-spec.ts');
+    const db = await openDatabase();
+    const local = new DuckDbEngine(db.connection);
+    try {
+      // discounts ON the edges of 0.05-wide bins, where a product of floats (3 * 0.05 = 0.15000000000000002) misplaces them
+      const discounts = [0, 0.05, 0.1, 0.15, 0.15, 0.2, 0.25, 0.3, 0.35, 0.35, 0.35, 0.4];
+      const csv = `region,discount\n${discounts.map((d, i) => `${i % 2 ? 'EMEA' : 'AMER'},${d.toFixed(2)}`).join('\n')}\n`;
+      const r = await ingestFile(local, db.files, new File([csv], 'edges.csv'), writer);
+      const p = plannerFor(r.model, r.runtime);
+      const edges: CubeSnapshot = {
+        source: { query: r.source },
+        columns: [{ name: 'region', type: 'String' }, { name: 'discount', type: 'Float', kind: 'measure' }],
+        derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1,
+      };
+      for (const bins of [{ width: 0.05 }, { count: 4 }]) {
+        const spec: ChartSpec = { ...BY_REGION, x: 'discount', bins, y: [{ column: 'discount', fn: 'count' }] };
+        const bars = await local.execute(await p.plan(chartQuery(edges, spec).query), 0);
+        const at = values(bars, 'discount__bin');
+        const counts = values(bars, 'count').map(Number);
+        const uppers = values(bars, AXIS_UPPER);
+        assert.equal(counts.reduce((a, b) => a + b, 0), discounts.length, `${JSON.stringify(bins)}: every row in a bin`);
+        for (let i = 0; i < at.length; i++) {
+          // the bar's click, run as the grid's filter: its rows, and none of another bar's
+          const filter = markConditions(spec, edges, { discount: at[i] as number }, uppers[i] as number);
+          const kept = await local.execute(await p.plan(chartQuery({ ...edges, filter: { kind: 'and', children: filter } },
+            { ...BY_REGION, x: 'region', y: [{ column: 'discount', fn: 'count' }] }).query), 0);
+          const total = values(kept, 'count').map(Number).reduce((a, b) => a + b, 0);
+          assert.equal(total, counts[i], `${JSON.stringify(bins)}: the bar at ${String(at[i])} holds ${counts[i]}, its click keeps ${total}`);
+        }
+        if (bins.width !== undefined) {
+          // and each edge is the decimal it means: 0.15's bar holds both 0.15s
+          assert.deepEqual(at.map(Number), [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4]);
+          assert.deepEqual(counts, [1, 1, 1, 2, 1, 1, 1, 3, 1]);
+        }
+      }
+    } finally {
+      await local.close();
+    }
+  });
+});

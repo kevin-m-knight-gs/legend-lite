@@ -98,22 +98,29 @@ export function binName(column: string): string {
 }
 
 /**
- * A number column taken to its bin's lower edge, a row-stage dimension. `width`: `floor($x.v / w) * w` (`floorOf`: an edge
- * value in its own bin). `count`: that
- * many bins over the column's range -- its minimum and maximum are windows over every row (before the grid's filter,
- * so the bins stay put as the filter changes), the edge `min + min(floor((v - min) / w), count - 1) * w` with
- * `w = (max - min) / count`: the database's arithmetic, every step.
+ * A number column taken to its bin, as two row-stage columns: its lower edge (a dimension: the bin) and its upper edge
+ * (exclusive). THE BIN AND ITS FILTER AGREE BY CONSTRUCTION (the DataCube + Python line's review): a row is in bin `k`
+ * exactly when `edge(k) <= v < edge(k + 1)` -- the same edges a click's or a brush's conditions compare against
+ * (rangeConditions) -- so a bar's rows are the rows its filter keeps. The database guesses `k` by a division and moves
+ * it by comparing with those edges (`placed`), since a float quotient may land either side of a whole number.
+ *
+ * `width`: the edges are the width's own decimals -- `0.05` is `5 / 100`, so edge 3 is `(3 * 5) / 100`, the double
+ * nearest 0.15, the very double a filter's literal 0.15 is (a product `3 * 0.05` is 0.15000000000000002, and would put
+ * 0.15 in the bin below). `count`: that many bins over the column's range -- its minimum and maximum windows over every
+ * row (before the grid's filter, so the bins stay put as the filter changes); the last bin keeps the maximum, its upper
+ * edge one width past it.
  */
 export function binColumns(column: string, bins: Bins): DerivedColumn[] {
   const name = binName(column);
+  const v = one(column);
   if (bins.width !== undefined) {
     if (!(bins.width > 0)) throw new Error('a bin is wider than nothing');
-    const w = number(bins.width);
-    const edge = times(floorOf(divide(one(column), w)), w);
+    const [whole, scale] = exactly(bins.width);
+    const edge = (k: ValueSpecification): ValueSpecification => divide(times(k, lit.integer(whole)), lit.integer(scale));
+    const k = placed(fn('floor', divide(v, number(bins.width))), v, edge);
     return [
-      { name, lambda: row(edge), kind: 'dimension' },
-      // the bin's upper edge, exclusive: the database's, so a click or a brush filters to the bin it meant
-      { name: upperName(name), lambda: row(plus(edge, w)), kind: 'measure' },
+      { name, lambda: row(edge(k)), kind: 'dimension' },
+      { name: upperName(name), lambda: row(edge(plus(k, lit.integer(1)))), kind: 'measure' },
     ];
   }
   const count = Math.floor(bins.count ?? 0);
@@ -122,29 +129,54 @@ export function binColumns(column: string, bins: Bins): DerivedColumn[] {
   const hi = `${name}__max`;
   const whole = { partition: [] as string[], order: [] as SortSpec[], frame: 'partition' as const };
   const width = divide(minus(one(hi), one(lo)), lit.integer(count));
-  const index = floorOf(divide(minus(one(column), one(lo)), width));
-  const clamped = fn('if', fn('greaterThanEqual', index, lit.integer(count)),
-    lambda([], lit.integer(count - 1)), lambda([], index));
-  const edge = fn('if', fn('equal', one(hi), one(lo)), lambda([], one(lo)), lambda([], plus(one(lo), times(clamped, width))));
-  // the upper edge, exclusive: the next bin's edge -- for the maximum (in the last bin, unclamped) one bin past it, so
-  // `< upper` keeps it; a bin's rows agree on it but for that one, and the chart takes their maximum
-  const upper = fn('if', fn('equal', one(hi), one(lo)), lambda([], plus(one(lo), lit.integer(1))),
-    lambda([], plus(one(lo), times(plus(index, lit.integer(1)), width))));
+  const edge = (k: ValueSpecification): ValueSpecification => plus(one(lo), times(k, width));
+  const k = placed(fn('floor', divide(minus(v, one(lo)), width)), v, edge);
+  // the maximum, and any value placed past the last bin, is in the last bin
+  const last = fn('greaterThanEqual', k, lit.integer(count - 1));
+  const flat = fn('equal', one(hi), one(lo));
   return [
     { name: lo, window: { ...whole, fn: 'min', column }, kind: 'measure' },
     { name: hi, window: { ...whole, fn: 'max', column }, kind: 'measure' },
-    { name, lambda: row(edge), kind: 'dimension' },
-    { name: upperName(name), lambda: row(upper), kind: 'measure' },
+    {
+      name,
+      lambda: row(fn('if', flat, lambda([], one(lo)),
+        lambda([], fn('if', last, lambda([], edge(lit.integer(count - 1))), lambda([], edge(k)))))),
+      kind: 'dimension',
+    },
+    {
+      name: upperName(name),
+      lambda: row(fn('if', flat, lambda([], plus(one(lo), lit.integer(1))),
+        lambda([], fn('if', last, lambda([], plus(one(hi), width)), lambda([], edge(plus(k, lit.integer(1)))))))),
+      kind: 'measure',
+    },
   ];
 }
 
 /**
- * A quotient's whole part, the database's: `floor(round(q, 9))`. A float quotient lands just under a whole number it
- * means -- 0.15 / 0.05 is 2.9999999999999996 -- and its floor would put an edge value in the bin below; rounded to nine
- * places first, it is 3.
+ * A bin's index, placed by comparison: `guess` (a division's floor) moved down one when the value is below its edge,
+ * up one when at or past the next -- so the bin a row is drawn in is the one its edges say.
  */
-function floorOf(quotient: ValueSpecification): ValueSpecification {
-  return fn('floor', fn('round', quotient, lit.integer(9)));
+function placed(
+  guess: ValueSpecification,
+  v: ValueSpecification,
+  edge: (k: ValueSpecification) => ValueSpecification,
+): ValueSpecification {
+  return fn('if', fn('lessThan', v, edge(guess)), lambda([], minus(guess, lit.integer(1))),
+    lambda([], fn('if', fn('greaterThanEqual', v, edge(plus(guess, lit.integer(1)))),
+      lambda([], plus(guess, lit.integer(1))), lambda([], guess))));
+}
+
+/**
+ * A width as a whole number over a power of ten, from its own decimals: 0.05 is [5, 100], 250 is [250, 1]. The build
+ * reads the number the spec says (model text, not a value the query computes).
+ */
+export function exactly(width: number): readonly [number, number] {
+  const text = String(width);
+  if (/e/i.test(text)) throw new Error(`a bin width of ${text} has too many places: give a width of 12 decimals or fewer`);
+  const decimals = text.includes('.') ? text.length - text.indexOf('.') - 1 : 0;
+  if (decimals > 12) throw new Error(`a bin width of ${text} has too many places: give a width of 12 decimals or fewer`);
+  const scale = 10 ** decimals;
+  return [Math.round(width * scale), scale];
 }
 
 // ---------------------------------------------------------------- show as

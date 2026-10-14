@@ -100,6 +100,17 @@ chart drawn today draws the same:
 A new KIND stays a new `mark`; a reader that does not know one refuses it by name (`page-document.ts`, as now). The
 spec stays plain JSON, holding no functions: formats come from the grid at draw time, never stored.
 
+A page this DataCube saves writes its charts as version 2, whether or not they use a slot version 2 adds, so a DataCube
+from before batch 2 refuses it ("its version 2 is not one this DataCube reads"). Accepted (the DataCube + Python line's
+review, 2026-10-14): there is one deployed DataCube, and it reads every version before its own.
+
+**Planners.** Every preset's query is planned by legend-lite and run on DuckDB in `test/chart-queries.test.ts`. Not yet
+planned through legend-engine (a running 4.145, as D5b's probes did): the forms the presets lean on --
+`firstDayOfWeek/Month/Quarter/Year` and `datePart` (a grain), `adjust(..., DurationUnit)` (a period's end), a bin's
+nested `if` and `floor` over a division (its edge), `if(..., |[], ...)` (a change from zero), and the group-level `lag`,
+`rank` and framed windows (show-as, statistics). Until they are, a chart using one on a page planned by legend-engine is
+unchecked there; the probe is a step before batch 2 lands on a deployment that plans with the engine.
+
 #### 3.2 Calculations: the calculated columns DataCube already has, packaged
 
 What the column editor (`ui/column-editor.ts`; `snapshot.ts` `DerivedColumn`, `WindowSpec`, `ChildAggregate`; `calc.ts`)
