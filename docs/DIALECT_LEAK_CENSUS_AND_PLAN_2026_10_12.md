@@ -1,8 +1,8 @@
 # The dialect-leak census and the plan to close it (2026-10-12)
 
 **Status: IN PROGRESS on `claude/great-wright-p6t5s1` (2026-10-13).** Phase 0 is done (55569df); in Phase 1, 1b's
-steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so are P1a (e64e7e8) and P1c (9e6363e to
-074bd95); P1d and the capability matrix remain before the review (D7).
+steps 1, 2 and 3 are done (2a4a5c8, 9373aec, 4a9f1bc and 43ad660), and so are P1a (e64e7e8), P1c (9e6363e to
+074bd95) and P1d with D8 (0470214 to 1447d42); the capability matrix remains before the review (D7).
 Before it, five items landed on main with neema2/legend-lite#30 (listed in the evidence folder's README).
 
 ## 0. Start here: the handoff to the session that implements it (2026-10-12)
@@ -534,6 +534,61 @@ every digest the baseline's: a transient warehouse or connection error. `//spec:
 `//spec:corpus_h2` pass (12 of 12, no roster or register moved; here on 9e6363e and in sibling 1a on 074bd95), as do
 `//core:stress_suites` and `//core:stress_suites_h2`. `//gates:local` is green (347 under the root-container recipe, the
 root-only pair as root, `//tools/guards:classpath_test` skipped as before).
+
+**1d done 2026-10-14.**
+- **Odds and ends** (0470214, b46f4b6):
+  - The copy's select list leaves `CatalogModel`: `SqlDialect.copySelectList(conversions)`, written by the database
+    the copy is made in (the snap's store, or the source when it is rewritten in place; none when the table is never
+    copied). DuckDB's is its star modifier, `* REPLACE (...)`; any other database copies a table whole and refuses a
+    conversion by name. The first cut asked the source's dialect, and DataCube's Postgres warehouse page refused a
+    zoned timestamp's copy conversion (`//datacube:verify_app_test`): fixed in b46f4b6, with a pin in
+    `infer.test.ts`.
+  - The engine text's insert and DDL column rules (`h2ExecIdentifier`, `engineColumnName`) leave `DdlSpelling` for
+    `EngineStyleH2`; `Ddl`'s setUpDataSQLs text asks the dialect it is given (`SqlDialect.insertColumnName`).
+  - The stale notes: `RawSql`'s javadoc named a package that does not exist; the "SQLite is not a class" note and the
+    orphaned `SqlDialect` javadoc were already gone (P1a, P1c).
+- **D8: Postgres folds a store's bare names** (the user's decision: fold, as legend-engine does).
+  - The rule, in `Postgres`: a name the store declares bare is spelled in lower case, bare where it may be and
+    delimited where it must be (a keyword): `physicalName`, `tableName`, `columnName` and `ddlIdentifier`. It names the
+    table this dialect's DDL made, a table a bare `CREATE TABLE` made (the engine's unquoted SQL, the corpus's setup
+    text) and a catalog's lower-case name. A name the store declared quoted keeps its case; a name the query writes (an
+    alias, a derived label) stays quoted as written. The engine's H2 text, translated for Postgres, quotes its bare
+    column names in lower case too (`RawSqlBoundary`).
+  - The review's two prerequisites (neema2/legend-lite#30):
+    - *A stored read's label is spelled as its references are.* A read with no declared output is labelled with its
+      folded name, as an outer query's reference to it is (7afb645 labelled it in the declared case while the
+      reference was folded: `"META"` against `t1.meta`). A projection with a declared output is still labelled with
+      that output's name, quoted.
+    - *A catalog name a bare declaration would not reach is declared quoted* (`CatalogModel`, through
+      `SqlDialect.bareNameReaches`: on Postgres, a name that is not its own fold). That needed a fix underneath:
+      **lite dropped a quoted table's and schema's quoting** (`Table "Orders"` was read as `Orders` and folded on
+      H2 and Postgres alike). `TableDefinition` now records `quoted` and `schemaQuoted`, the table reference carries
+      them (`TypedTableReference.sqlName`), and the renderer delimits a declared-quoted part with the dialect's own
+      quote character (`AnsiSqlRenderer.tableName`, `ddlPart`; H2's, Postgres's and SQLite's own rules too); the DDL
+      and the CSV seed spell such a table the same way. The corpus's quoted tables (`"test table"`, `Schema "Schema
+      with space"`) were already delimited, so their SQL is unchanged. Left as it was: a table-name post-processor
+      (`TableNameMapper`) matches a quoted table by its quoted spelling.
+  - The tests follow the rule (D8: "the two kinds of test then follow whichever rule is chosen"):
+    - DataCube's `infer.test.ts` reads `FROM sales.orders` on Postgres.
+    - The `#SQL{...}#` fixture's store declares its mixed-case columns quoted (`"ID"`, `"firstName"`, `"LAST_NAME"`),
+      as its Postgres table spells them; that table is made bare (`emp`), its mixed-case columns quoted.
+    - The six goldens 7afb645 moved move again (`PostgresDialectTest`, `SeedSpellingTest`, `StoredReadsTest`,
+      `StoreTypesTest`, `CatalogModelTest`, `PostgresCatalogTest`), `StoredReadsTest` with the label rule above, and
+      two more the gate found (`PlanOnJavaBase`, `infer.test.ts`'s Postgres probe table: 1447d42); new pins: a
+      mixed-case Postgres catalog table read with its case (`PostgresCatalogTest`), and the catalog name rule on both
+      databases (`CatalogModelTest`).
+- Main's fix for a parity case that went stale at midnight (`date_spelling_of_now_is_refused`, 4a8ff29) is
+  cherry-picked (821398a), so `//core:sql_parity_postgres_test` is green on the branch before main is merged.
+
+Measured on 9b609f8 (1447d42 moves only tests) in the six-container layout: all 102 targets pass. 100 have the
+baseline's SQL, by digest; Postgres's grammar suite moves on both channels in one statement each, the one PCT
+statement that reads a stored table (`FROM "metamodel_classes"`, now `FROM metamodel_classes`): no label moved, and
+channel B's counts are unchanged on every database. The corpus on Postgres shows what the rule is for: of its 77
+covering tests (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20), **53 pass with folding and 0 without** (every one stops in
+the shared setup, `relation "addresstable" does not exist`); the 24 left are Postgres gaps, not names.
+`//gates:local` is green (347 under the root-container recipe, the root-only pair as root,
+`//tools/guards:classpath_test` skipped as before), and so are `//core:stress_suites` and `//core:stress_suites_h2`.
+`//spec:corpus_duckdb` and `//spec:corpus_h2` pass (12 of 12, no roster or register moved).
 
 ### Phase 2: the IR says *what*, never *how* (invariant 3a)
 
