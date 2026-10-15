@@ -2308,4 +2308,11 @@ public final class Postgres extends AnsiSqlRenderer {
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         throw new DialectCapability("typeof reached Postgres: its type names are Postgres's");
     }
+
+    /** {@inheritDoc} A map is carried as its entries, a jsonb[] of {"key", "value"} (2026-10-12): an ARRAY at the
+     *  wire. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        return label instanceof SqlType.Map && wire.equals("ARRAY");
+    }
 }

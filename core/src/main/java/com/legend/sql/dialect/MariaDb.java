@@ -3393,4 +3393,33 @@ public class MariaDb extends AnsiSqlRenderer {
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         throw new DialectCapability("typeof reached MariaDB: its type names are DuckDB's");
     }
+
+    /** {@inheritDoc} Its text types and a UUID are text, its DATETIME the naive date-time (2026-10-11). */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName == null ? null : switch (driverTypeName) {
+            case "LONGTEXT", "MEDIUMTEXT", "TEXT", "TINYTEXT", "CHAR", "UUID" -> "VARCHAR";
+            case "DATETIME" -> "TIMESTAMP";
+            default -> driverTypeName;
+        });
+    }
+
+    /** {@inheritDoc} Its own types, the platform's by design (2026-10-11): a comparison and a boolean are integers; a
+     *  list, a struct, a map and a Variant are JSON text (a JSON function's type is JSON, a column's text); an integer
+     *  sum or a big integer is a DECIMAL of scale 0 (SUM of BIGINT, measured), or an unsigned BIGINT (a bit
+     *  operation's); a NULL literal's column claims no type. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        boolean integral = label == SqlType.Scalar.BIGINT || label == SqlType.Scalar.INTEGER
+                || label == SqlType.Scalar.HUGEINT;
+        boolean composite = label instanceof SqlType.Array || label instanceof SqlType.Struct
+                || label instanceof SqlType.Map || label == SqlType.Scalar.JSON;
+        return wire.equals("NULL")
+                || label == SqlType.Scalar.BOOLEAN && (wire.equals("INTEGER") || wire.equals("BIGINT")
+                        || wire.equals("TINYINT"))
+                || integral && (wire.startsWith("DECIMAL(") && wire.endsWith(",0)") || wire.equals("BIGINT UNSIGNED"))
+                || label instanceof SqlType.Decimal d && wire.startsWith("DECIMAL(")
+                        && wire.endsWith("," + d.scale() + ")")
+                || composite && (wire.equals("JSON") || wire.equals("VARCHAR"));
+    }
 }

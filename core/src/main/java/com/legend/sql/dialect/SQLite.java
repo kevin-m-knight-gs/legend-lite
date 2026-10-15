@@ -3095,4 +3095,31 @@ public final class SQLite extends AnsiSqlRenderer {
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         throw new DialectCapability("typeof reached SQLite: its type names are SQLite's storage classes");
     }
+
+    /** {@inheritDoc} Its FLOAT is a REAL value, and NUMERIC its name for a NULL value (measured: no storage class). */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName == null ? null : switch (driverTypeName) {
+            case "FLOAT" -> "DOUBLE";
+            case "NUMERIC" -> "NULL";
+            default -> driverTypeName;
+        });
+    }
+
+    /** {@inheritDoc} Its own types, the platform's by design (2026-10-11): a VALUE has a storage class, a column none,
+     *  and the driver names a column by its first value's (INTEGER, FLOAT, TEXT, and NUMERIC for a NULL, measured). A
+     *  boolean is an INTEGER (1 or 0); a date, a date-time, a list, a struct, a map and a Variant are their text, and a
+     *  root decimal its text at its scale; a NULL first value claims no type. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        return switch (wire) {
+            case "NULL" -> true;
+            case "INTEGER" -> label == SqlType.Scalar.BOOLEAN || label == SqlType.Scalar.HUGEINT;
+            case "VARCHAR" -> label == SqlType.Scalar.DATE || label == SqlType.Scalar.TIMESTAMP
+                    || label == SqlType.Scalar.TIMESTAMPTZ || label == SqlType.Scalar.JSON
+                    || label instanceof SqlType.Array || label instanceof SqlType.Struct || label instanceof SqlType.Map
+                    || label instanceof SqlType.Decimal;
+            default -> false;
+        };
+    }
 }

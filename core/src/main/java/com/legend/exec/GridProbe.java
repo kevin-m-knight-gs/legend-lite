@@ -50,7 +50,7 @@ public final class GridProbe {
                 new ArrayList<>();
         for (String[] c : probeColumns(sql, writtenFor, conn, dialect)) {
             com.legend.compiler.element.type.Type t =
-                    Executor.pureOfSqlTypeOrNull(c[1]);
+                    Executor.pureOfSqlTypeOrNull(dialect.wireTypeName(c[1]));
             cols.add(t == null
                     ? com.legend.compiler.element.type.Type.RelationType
                             .trustedColumn(c[0])

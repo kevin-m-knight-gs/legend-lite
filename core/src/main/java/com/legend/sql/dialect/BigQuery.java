@@ -2926,4 +2926,32 @@ public final class BigQuery extends AnsiSqlRenderer {
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         throw new DialectCapability("typeof reached BigQuery: its type names are BigQuery's");
     }
+
+    /** {@inheritDoc} INT64, FLOAT64 and DATETIME (the naive date-time; its TIMESTAMP, an instant, folds with every
+     *  TIMESTAMP spelling) are its own names (2026-10-11). */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName == null ? null : switch (driverTypeName) {
+            case "INT64" -> "BIGINT";
+            case "FLOAT64" -> "DOUBLE";
+            case "DATETIME" -> "TIMESTAMP";
+            default -> driverTypeName;
+        });
+    }
+
+    /** {@inheritDoc} Its exact decimal carrier (2026-10-11): every decimal is a BIGNUMERIC (a parameterized type cannot
+     *  be cast to; its 38 digits each side hold every DECIMAL(p,s) and HUGEINT value), and a Float-declared column may
+     *  arrive as it (the numeric charter's Rule 2, as a DECIMAL does). A map is carried as its entries, a list of
+     *  (key, value) structs: an ARRAY at the wire, BigQuery having no map type. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        if (label instanceof SqlType.Map && wire.equals("ARRAY")) {
+            return true;
+        }
+        if (!wire.equals("BIGNUMERIC")) {
+            return false;
+        }
+        return label == SqlType.Scalar.HUGEINT || label == SqlType.Scalar.DOUBLE
+                || label instanceof SqlType.Decimal d && d.scale() <= 38 && d.precision() - d.scale() <= 38;
+    }
 }

@@ -2826,4 +2826,42 @@ public final class ClickHouse extends AnsiSqlRenderer {
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         throw new DialectCapability("typeof reached ClickHouse: its type names are ClickHouse's");
     }
+
+    /** {@inheritDoc} Every scalar is Nullable(T); its own names for the same types, a date-time's precision and zone in
+     *  its name, a struct a (named) Tuple (2026-10-12). */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        if (driverTypeName == null) {
+            return WireNames.fold(null);
+        }
+        String n = driverTypeName.trim();
+        while (n.startsWith("Nullable(") && n.endsWith(")")) {
+            n = n.substring("Nullable(".length(), n.length() - 1).trim();
+        }
+        if (n.startsWith("Tuple(")) {
+            return WireNames.fold("STRUCT");
+        }
+        if (n.startsWith("DateTime")) {
+            return WireNames.fold("TIMESTAMP");
+        }
+        if (n.startsWith("Decimal")) {
+            return WireNames.fold("DECIMAL");
+        }
+        return WireNames.fold(switch (n) {
+            case "Int64", "UInt32" -> "BIGINT";
+            case "Int32", "Int16", "Int8", "UInt16", "UInt8" -> "INTEGER";
+            case "Int128", "UInt64" -> "HUGEINT";
+            case "Float64" -> "DOUBLE";
+            case "Float32" -> "FLOAT";
+            case "Date32", "Date" -> "DATE";
+            case "Nothing" -> "NULL";
+            default -> n;
+        });
+    }
+
+    /** {@inheritDoc} A Variant is its JSON text, a String (2026-10-12, {@link #scalarTypeName}). */
+    @Override
+    public boolean deliversOwn(com.legend.sql.SqlType label, String wire) {
+        return label == com.legend.sql.SqlType.Scalar.JSON && wire.equals("VARCHAR");
+    }
 }

@@ -3021,4 +3021,14 @@ public final class Snowflake extends AnsiSqlRenderer {
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         throw new DialectCapability("typeof reached Snowflake: TYPEOF names Snowflake's variant types, not DuckDB's");
     }
+
+    /** {@inheritDoc} Its own types, the platform's by design (2026-10-11): its integers are NUMBER(p,0), every integer
+     *  type a synonym of NUMBER(38,0) and an integer expression reported at its own precision (42 is NUMBER(2,0),
+     *  measured); and its one object type, OBJECT, carries a struct and a map alike. */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        boolean integral = label == SqlType.Scalar.BIGINT || label == SqlType.Scalar.INTEGER;
+        return integral && wire.startsWith("DECIMAL(") && wire.endsWith(",0)")
+                || (label instanceof SqlType.Struct || label instanceof SqlType.Map) && wire.equals("OBJECT");
+    }
 }

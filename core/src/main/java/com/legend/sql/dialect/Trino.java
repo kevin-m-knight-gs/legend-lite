@@ -1855,4 +1855,18 @@ public final class Trino extends AnsiSqlRenderer {
     protected String typeofName(com.legend.sql.SqlType.Scalar type) {
         throw new DialectCapability("typeof reached Trino: its type names are Trino's");
     }
+
+    /** {@inheritDoc} A statement's ROW column is delivered as its JSON text (the driver's own Row class is read
+     *  through no interface; {@link #rowsAsJson}), decoded to the struct's map (2026-10-12). */
+    @Override
+    public boolean deliversOwn(SqlType label, String wire) {
+        return label instanceof SqlType.Struct && wire.equals("JSON");
+    }
+
+    /** {@inheritDoc} Measured 2026-10-12: a date 12,345,678,912 days on opens with no columns, its error on the first
+     *  read; a statement that succeeds always reports its columns. */
+    @Override
+    public boolean opensFailedResultsWithoutColumns() {
+        return true;
+    }
 }

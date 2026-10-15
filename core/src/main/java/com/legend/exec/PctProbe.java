@@ -37,8 +37,8 @@ public final class PctProbe {
             List<OutputCol> outs = new ArrayList<>(md.getColumnCount());
             Map<String, String> typeNames = new LinkedHashMap<>();
             for (int i = 1; i <= md.getColumnCount(); i++) {
-                String tn = md.getColumnTypeName(i) == null ? ""
-                        : md.getColumnTypeName(i).toUpperCase(java.util.Locale.ROOT);
+                // the driver's type name read by the dialect (the dialect program's Phase 4)
+                String tn = dialect.wireTypeName(md.getColumnTypeName(i));
                 SqlType slot = tn.equals("DATE") ? SqlType.Scalar.DATE
                         : tn.startsWith("TIMESTAMP")
                                 ? SqlType.Scalar.TIMESTAMP

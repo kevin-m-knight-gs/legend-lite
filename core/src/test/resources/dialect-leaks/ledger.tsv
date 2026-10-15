@@ -39,7 +39,6 @@ core/src/main/java/com/legend/exec/Sessions.java	product-call	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/exec/Sessions.java	product-name	65
 core/src/main/java/com/legend/exec/SqlReplayOracle.java	product-name	3
-core/src/main/java/com/legend/exec/SqlTypeCensus.java	product-name	10
 core/src/main/java/com/legend/executionplan/PlanJson.java	database-type	2
 # 2026-10-14, the PR #39 audit's finding 6: H2 and DB2 counted inside identifiers, pinned as measured (the reason at the first such row).
 core/src/main/java/com/legend/executionplan/PlanJson.java	product-name	27

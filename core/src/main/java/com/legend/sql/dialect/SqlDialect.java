@@ -65,6 +65,27 @@ public interface SqlDialect {
         return jdbcValue;
     }
 
+    /** A result column's type as this database's driver names it ({@code getColumnTypeName}), in the platform's wire
+     *  vocabulary ({@link WireNames}): the type census compares a plan's label with it, and a late-bound or pivot-made
+     *  column is typed by it (the dialect program's Phase 4, 2026-10-15: until then the census held each database's
+     *  names, keyed by the dialect's class name). Default: the names every driver shares. */
+    default String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return WireNames.fold(driverTypeName);
+    }
+
+    /** Whether this database delivers a column the platform labels {@code label} as the wire type {@code wire} (in
+     *  {@link #wireTypeName}'s vocabulary) by a carrier convention of its own: the census counts it delivered, not a
+     *  divergence. Default: it has none. */
+    default boolean deliversOwn(com.legend.sql.SqlType label, String wire) {
+        return false;
+    }
+
+    /** Whether this database's driver opens the result of a statement that fails before its columns are known with
+     *  none, its error surfacing on the first read: a result with no columns is then no claim to check. */
+    default boolean opensFailedResultsWithoutColumns() {
+        return false;
+    }
+
     /** Whether dynamic PIVOT needs the two-phase staticization
      * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
      * dynamic pivot on this backend). */

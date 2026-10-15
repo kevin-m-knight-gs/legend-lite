@@ -1048,8 +1048,10 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
             com.legend.sql.@com.legend.base.Nullable SqlType type) {
+        // a JSON-carried list's text too (the list-less carrier, §2b): until 2026-10-15 the executor decoded H2's
+        // byte[] there itself
         if (jdbcValue instanceof byte[] b
-                && type == com.legend.sql.SqlType.Scalar.JSON) {
+                && (type == com.legend.sql.SqlType.Scalar.JSON || type instanceof com.legend.sql.SqlType.Array)) {
             return new String(b, java.nio.charset.StandardCharsets.UTF_8);
         }
         // LEGACY-mode H2 hands DOUBLE aggregates back as BigDecimal
