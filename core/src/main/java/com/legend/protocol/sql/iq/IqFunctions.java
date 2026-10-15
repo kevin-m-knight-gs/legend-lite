@@ -251,7 +251,7 @@ final class IqFunctions {
         if (fn == null) {
             return null;
         }
-        return (f, args, at) -> IqDialect.bounded(new IqFunctions(dialect).apply(fn, f, args, at), f.pos());
+        return (f, args, at) -> IqDialect.bounded(new IqFunctions(dialect).apply(fn, f, args, at), f);
     }
 
     private Tx apply(Fn fn, SqlAst.FunctionCall f, List<Tx> args, SqlToPure.At at) {
@@ -1776,7 +1776,7 @@ final class IqFunctions {
                     + (target.equals("REAL") ? " (a single-precision float)" : target.contains("INT")
                     ? " (an unsigned or TINYINT type)" : ""), c.pos());
         };
-        return IqDialect.bounded(result, c.pos());
+        return IqDialect.bounded(result, c);
     }
 
     private static boolean isNull(Tx x) {

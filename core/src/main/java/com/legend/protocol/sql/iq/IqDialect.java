@@ -9,6 +9,7 @@ import com.legend.protocol.spec.CDate;
 import com.legend.protocol.spec.CDecimal;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.InputDialect;
 import com.legend.protocol.sql.SqlAst;
@@ -2877,7 +2878,7 @@ public final class IqDialect implements InputDialect {
 
     @Override
     public Tx binary(SqlAst.Binary b, SqlToPure.At at) {
-        return bounded(meaning(b, at), b.pos());
+        return bounded(meaning(b, at), b);
     }
 
     private Tx meaning(SqlAst.Binary b, SqlToPure.At at) {
@@ -2948,7 +2949,7 @@ public final class IqDialect implements InputDialect {
         BigInteger lo = t.hi().negate();
         BigInteger hi = t.lo().negate();
         return bounded(checkedInteger(u, "-", result, lo, hi, List.of(x), List.of(t), constants(List.of(u.operand()),
-                List.of(x)), false, v -> SqlToPure.call("minus", v.get(0))), u.pos());
+                List.of(x)), false, v -> SqlToPure.call("minus", v.get(0))), u);
     }
 
     /** {@code +}: two strings join (as {@code ||} does), two integers add; a string with anything else is IQ's NUMERIC
@@ -3698,19 +3699,60 @@ public final class IqDialect implements InputDialect {
      *  bytes a node. */
     static final long LARGEST = 20_000;
 
-    /** {@code t}, unless its Pure written out exceeds {@link #LARGEST} nodes: refused by name. */
-    static Tx bounded(Tx t, SqlAst.Pos pos) {
+    /** How many nodes of Pure written out per node of the SQL read a translation may hold past {@link #LARGEST}
+     *  (IQ island, 2026-10-14, the scale suite's cliff 3): a linear construct (an IN list, a long AND/OR, a CASE of
+     *  many WHENs) writes a few nodes a node of SQL however long it is; a checked operation repeating its operands
+     *  multiplies per level, which is what the bound is for. */
+    static final long RATIO = 50;
+
+    /** {@code t}, {@code node}'s translation, unless its Pure written out exceeds {@link #LARGEST} nodes and
+     *  {@link #RATIO} times {@code node}'s own size: refused by name. */
+    static Tx bounded(Tx t, SqlAst.Expr node) {
+        long size = written(t);
+        if (size > LARGEST && size > RATIO * sqlSize(node)) {
+            throw tooLarge(node.pos());
+        }
+        return t;
+    }
+
+    /** The nodes of {@code e}'s SQL (its subqueries one node each), counted without recursion. */
+    private static long sqlSize(SqlAst.Expr e) {
+        long n = 0;
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+        todo.push(e);
+        while (!todo.isEmpty()) {
+            SqlAst.Expr x = todo.pop();
+            n++;
+            for (SqlAst.Expr c : children(x)) {
+                todo.push(c);
+            }
+        }
+        return n;
+    }
+
+    /** {@code t}'s Pure written out: the larger of its value's and its falsity's. */
+    private static long written(Tx t) {
         long size = size(t.vs(), new IdentityHashMap<>());
         if (t.whenFalse() != null) {
             size = Math.max(size, size(t.falseWhen(), new IdentityHashMap<>()));
         }
-        if (size > LARGEST) {
-            throw SqlTranslationException.unsupported("this expression nests too many operations IQ checks for"
-                    + " overflow or a zero divisor to be translated: each repeats its operands in lite's SQL, which"
-                    + " would hold more than " + LARGEST + " nodes; split it into fewer operations (or compute it over"
-                    + " BIGINT values, which need no check)", pos);
+        return size;
+    }
+
+    /** {@code t}, unless its Pure written out exceeds {@link #LARGEST} nodes: refused by name (where no SQL node is at
+     *  hand to measure against). */
+    static Tx bounded(Tx t, SqlAst.Pos pos) {
+        if (written(t) > LARGEST) {
+            throw tooLarge(pos);
         }
         return t;
+    }
+
+    private static SqlTranslationException tooLarge(SqlAst.Pos pos) {
+        return SqlTranslationException.unsupported("this expression nests too many operations IQ checks for overflow"
+                + " or a zero divisor to be translated: each repeats its operands in lite's SQL, which would hold more"
+                + " than " + LARGEST + " nodes; split it into fewer operations (or compute it over BIGINT values, which"
+                + " need no check)", pos);
     }
 
     /** The nodes of {@code vs} written out: a node shared by several parents counts once for each. */
@@ -4084,7 +4126,7 @@ public final class IqDialect implements InputDialect {
                 b.pos());
         Tx test = Tx.condition(SqlToPure.call("and", low.vs(), high.vs()), SqlToPure.call("or", low.falseWhen(),
                 high.falseWhen()), low.nullable() || high.nullable());
-        return bounded(b.negated() ? SqlToPure.not(test) : test, b.pos());
+        return bounded(b.negated() ? SqlToPure.not(test) : test, b);
     }
 
     /** {@code x [NOT] IN (v, ...)}: {@code x = v} for each, by IQ's comparison, in three-valued OR -- TRUE where one
@@ -4094,6 +4136,10 @@ public final class IqDialect implements InputDialect {
     public Tx inList(SqlAst.InList in, SqlToPure.At at) {
         if (in.operand() instanceof SqlAst.NullLit) {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
+        }
+        Tx fast = literalList(in, at);
+        if (fast != null) {
+            return in.negated() ? SqlToPure.not(fast) : fast;
         }
         Tx x = at.tx(in.operand());
         List<ValueSpecification> holds = new ArrayList<>();
@@ -4114,7 +4160,65 @@ public final class IqDialect implements InputDialect {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
         }
         Tx test = Tx.condition(balanced("or", holds), balanced("and", fails), nullable);
-        return bounded(in.negated() ? SqlToPure.not(test) : test, in.pos());
+        return bounded(in.negated() ? SqlToPure.not(test) : test, in);
+    }
+
+    /**
+     * {@code x IN (v, ...)} over integer constants (an integer {@code x}) or string constants (a string {@code x}), with
+     * at most NULLs besides: Pure's {@code in}, one node a value and SQL's own {@code IN (...)} (IQ island, 2026-10-14,
+     * the scale suite's cliff 3: the general reading writes about ten nodes a value and met the node cap at 2,500).
+     * Its meaning is the general reading's: {@link SqlToPure#strictTest} -- UNKNOWN for a NULL {@code x} -- of IQ's
+     * equality, a string compared by its {@link #collated} key (a constant with no trailing blank in a case-sensitive
+     * database is its own key, written as it is); a NULL in the list: TRUE where found, else UNKNOWN, never FALSE.
+     * Null when the list is not of that form (the general reading).
+     */
+    private @com.legend.base.Nullable Tx literalList(SqlAst.InList in, SqlToPure.At at) {
+        boolean ints = true;
+        boolean strings = true;
+        boolean nullInList = false;
+        int constants = 0;
+        for (SqlAst.Expr v : in.values()) {
+            if (v instanceof SqlAst.NullLit) {
+                nullInList = true;
+                continue;
+            }
+            constants++;
+            ints &= v instanceof SqlAst.IntegerLit;
+            strings &= v instanceof SqlAst.StringLit;
+        }
+        if (constants < 2 || !ints && !strings) {
+            return null;
+        }
+        Tx x = at.tx(in.operand());
+        if (ints ? x.kind() != Kind.INTEGER : x.kind() != Kind.STRING) {
+            return null;
+        }
+        List<Tx> operands = new ArrayList<>();
+        operands.add(x);
+        List<SqlAst.Expr> values = new ArrayList<>();
+        for (SqlAst.Expr v : in.values()) {
+            if (!(v instanceof SqlAst.NullLit)) {
+                Tx c = at.tx(v);
+                if (c.nullable() || c.kind() != x.kind()) {
+                    return null;
+                }
+                operands.add(c);
+                values.add(v);
+            }
+        }
+        boolean integers = ints;
+        Tx test = SqlToPure.strictTest(operands, v -> {
+            if (integers) {
+                return SqlToPure.call("in", v.get(0), new PureCollection(v.subList(1, v.size())));
+            }
+            List<ValueSpecification> keys = new ArrayList<>();
+            for (int i = 1; i < v.size(); i++) {
+                boolean own = settings.caseSensitive() && !((SqlAst.StringLit) values.get(i - 1)).value().endsWith(" ");
+                keys.add(own ? v.get(i) : collated(v.get(i)));
+            }
+            return SqlToPure.call("in", collated(v.get(0)), new PureCollection(keys));
+        });
+        return nullInList ? Tx.condition(test.vs(), new CBoolean(false), true) : test;
     }
 
     /** {@code fn} (and, or) of {@code terms} as a balanced tree: no deeper than the logarithm of their count. */
@@ -4147,7 +4251,7 @@ public final class IqDialect implements InputDialect {
                             SqlToPure.valueOf(r))), eq.vs()) : eq.vs();
         }
         Tx notDistinct = Tx.condition(same, SqlToPure.call("not", same), false);
-        return bounded(d.negated() ? notDistinct : SqlToPure.not(notDistinct), d.pos());
+        return bounded(d.negated() ? notDistinct : SqlToPure.not(notDistinct), d);
     }
 
     /**
@@ -4197,7 +4301,7 @@ public final class IqDialect implements InputDialect {
         }
         if (!(l.pattern() instanceof SqlAst.StringLit pattern)) {
             Tx result = bounded(SqlToPure.strictTest(List.of(operand, runtimePattern(l, at)), v -> runtimeLike(
-                    integer ? SqlToPure.call("toString", v.get(0)) : v.get(0), v.get(1))), l.pos());
+                    integer ? SqlToPure.call("toString", v.get(0)) : v.get(0), v.get(1))), l);
             return l.negated() ? SqlToPure.not(result) : result;
         }
         List<String> parts = likeParts(pattern, l.escape(), true);
@@ -4207,7 +4311,7 @@ public final class IqDialect implements InputDialect {
             return likeTest(value, parts, caseless);
         };
         Tx result = SqlToPure.strictTest(List.of(operand), test);
-        return bounded(l.negated() ? SqlToPure.not(result) : result, l.pos());
+        return bounded(l.negated() ? SqlToPure.not(result) : result, l);
     }
 
     /**
@@ -4740,10 +4844,10 @@ public final class IqDialect implements InputDialect {
             return IqFunctions.rule(this, name);
         }
         return switch (fn) {
-            case ISNULL -> (f, args, at) -> bounded(coalesce("ISNULL", f, args), f.pos());
-            case COALESCE -> (f, args, at) -> bounded(coalesce("COALESCE", f, args), f.pos());
-            case IFNULL -> (f, args, at) -> bounded(ifnull(f, args), f.pos());
-            case NULLIF -> (f, args, at) -> bounded(nullif(f, args), f.pos());
+            case ISNULL -> (f, args, at) -> bounded(coalesce("ISNULL", f, args), f);
+            case COALESCE -> (f, args, at) -> bounded(coalesce("COALESCE", f, args), f);
+            case IFNULL -> (f, args, at) -> bounded(ifnull(f, args), f);
+            case NULLIF -> (f, args, at) -> bounded(nullif(f, args), f);
         };
     }
 
