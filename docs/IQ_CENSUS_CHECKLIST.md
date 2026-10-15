@@ -52,7 +52,7 @@ Status words:
 |---|---|---|
 | 2.14 | EXISTS and IN subqueries, semi and anti joins, correlated subqueries | done, with IQ's engine's positions refused as IQ refuses them |
 | 2.15 | COUNT(DISTINCT) and DISTINCT, by the collation | done |
-| 2.16 | Statistical and list aggregates: STDDEV and VARIANCE (sample, population), MEDIAN, PERCENTILE_CONT/DISC, LIST's order (GROUP_CONCAT) | open: STDDEV, VARIANCE, PERCENTILE, MEDIAN of a NUMERIC, LIST ordered by another column |
+| 2.16 | Statistical and list aggregates: STDDEV and VARIANCE (sample, population), MEDIAN, PERCENTILE_CONT/DISC, LIST's order (GROUP_CONCAT) | partial. Done (2026-10-15, measured on IQ 17.1): PERCENTILE_CONT and PERCENTILE_DISC (WITHIN GROUP; IQ's errors for them raised before translating), MEDIAN of a NUMERIC (its type, the midpoint cut toward zero: D-F20) and of a DOUBLE. Refused by name: STDDEV and VARIANCE (IQ's engine computes them by a lossy formula of its own: VARIANCE of 1000000.1, .2, .3 is 0.0100 there, 0.01 exactly), PERCENTILE_DISC of a BIGINT, a NUMERIC of more than 15 digits, a string or a date, MEDIAN of a BIGINT (IQ's midpoint wraps). Open: LIST ordered by another column. |
 | 2.16b | Subtotals: ROLLUP, CUBE, GROUPING SETS, GROUPING() (BI tools' totals) | open |
 | 2.16c | CROSS APPLY, OUTER APPLY, LATERAL | open |
 | 2.17 | Session and metadata statements (31% of BI statements) | out: the island reads one SELECT and refuses IQ's catalog by name (standing rule) |

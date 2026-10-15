@@ -2825,6 +2825,8 @@ public final class IqDialect implements InputDialect {
             case SqlAst.FunctionCall f -> {
                 List<SqlAst.Expr> all = new ArrayList<>(f.args());
                 f.orderBy().forEach(o -> all.add(o.expr()));
+                // IQ island, 2026-10-15 (checklist 2.16): a percentile's WITHIN GROUP value
+                f.withinGroup().forEach(o -> all.add(o.expr()));
                 yield all;
             }
             case SqlAst.Case c -> {

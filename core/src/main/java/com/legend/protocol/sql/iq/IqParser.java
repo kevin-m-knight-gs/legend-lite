@@ -75,7 +75,8 @@ public final class IqParser {
     /** The aggregates read (M1c, the research's GRAMMAR F7 and F10): {@code [ALL | DISTINCT] value}, COUNT's
      *  {@code *} (or nothing), LIST's delimiter, and an ORDER BY inside the call (IQ's syntax in any call; the dialect
      *  takes it in LIST's only). */
-    static final Set<String> READ_AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "median", "list");
+    static final Set<String> READ_AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "median", "list",
+            "percentile_cont", "percentile_disc");
 
     /** IQ's statistical aggregates: SQL Anywhere computes them by a formula that loses precision (the research's
      *  TYPING §7: three equal values of 9999999999999999.9999 give a STDDEV of 134217728), which lite's databases do
@@ -1956,13 +1957,42 @@ public final class IqParser {
             }
         }
         expectOp(")");
-        if (peek().is("within")) {
+        // IQ island, 2026-10-15 (checklist 2.16, measured on IQ 17.1): PERCENTILE_CONT and PERCENTILE_DISC read their
+        // values from WITHIN GROUP (ORDER BY x [ASC | DESC])
+        boolean percentile = lower.equals("percentile_cont") || lower.equals("percentile_disc");
+        List<SqlAst.SortItem> within = new ArrayList<>();
+        if (peek().is("within") && percentile) {
+            take();
+            expectKeyword("group");
+            expectOp("(");
+            expectKeyword("order");
+            expectKeyword("by");
+            IqLexer.Token key = peek();
+            SqlAst.Expr e = expression();
+            value(e, "WITHIN GROUP");
+            boolean descending = false;
+            if (peek().is("desc")) {
+                take();
+                descending = true;
+            } else if (peek().is("asc")) {
+                take();
+            }
+            expectOp(")");
+            within.add(new SqlAst.SortItem(e, descending, null, key.pos()));
+        } else if (peek().is("within")) {
             throw SqlSyntaxException.unsupported(peek().text().toUpperCase(java.util.Locale.ROOT) + " after a call is"
                     + " not supported yet", peek().pos());
+        } else if (percentile) {
+            throw SqlSyntaxException.unsupported(lower.toUpperCase(java.util.Locale.ROOT) + " without WITHIN GROUP is"
+                    + " not supported", first.pos());
         }
-        SqlAst.FunctionCall call = new SqlAst.FunctionCall(parts, args, distinct, star, orderBy, List.of(), null,
+        SqlAst.FunctionCall call = new SqlAst.FunctionCall(parts, args, distinct, star, orderBy, within, null,
                 first.pos());
         spans.put(call, text.substring(tokens.get(start - 1).start(), tokens.get(at - 1).end()));
+        if (peek().is("over") && percentile) {
+            // measured on IQ 17.1: a percentile takes no OVER
+            throw new SqlSyntaxException("a percentile takes no OVER" + IqDialect.syntaxCode(), peek().pos());
+        }
         if (peek().is("over")) {
             // IQ island, 2026-10-15 (windows): an aggregate over a window (GRAMMAR F7, F30); a call with an ORDER BY
             // of its own takes no OVER (F42: IQ's syntax error)

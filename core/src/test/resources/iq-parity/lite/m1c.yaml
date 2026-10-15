@@ -255,10 +255,15 @@ tests:
     sql: "SELECT MEDIAN(NULL) FROM g"
   - id: median_of_a_bigint_is_refused
     sql: "SELECT MEDIAN(w) FROM g WHERE k < 4"
-  - id: median_of_a_double_is_refused
+  # IQ island, 2026-10-15 (checklist 2.16, measured on IQ 17.1): answered now, so renamed from median_of_a_double_is_refused
+  # and median_of_a_numeric_is_refused; under IQ's engine MEDIAN of a NUMERIC keeps its type (D-F20), where SQL
+  # Anywhere's front end gives a NUMERIC(126,38)
+  - id: median_of_a_double
     sql: "SELECT MEDIAN(d) FROM g WHERE k < 4"
-  - id: median_of_a_numeric_is_refused
+  - id: median_of_a_numeric
     sql: "SELECT MEDIAN(n) FROM g"
+    decision: D-F20
+    expect: '{"columns": [["MEDIAN(g.n)", "numeric", 2]], "rows": [["1.25"]]}'
 
   # ---- LIST: an integer column's values in its own order, joined
   - id: list_ordered_by_its_value

@@ -126,16 +126,22 @@
 # IQ island, 2026-10-15 (checklist 1.10, measured on the live IQ 17.1: REGEXP_SUBSTR's patterns of single-character
 # atoms with greedy quantifiers read): accept PARSED 3,038 -> 3,047 (REFUSED 1,910 -> 1,901); reject REJECTED 972 -> 974
 # (REFUSED 813 -> 811). Reject-parsed and accept-rejected unchanged.
-accept	parsed	3047
-accept	refused	1901
+# IQ island, 2026-10-15 (checklist 2.16, measured on the live IQ 17.1: PERCENTILE_CONT and PERCENTILE_DISC with WITHIN
+# GROUP read, IQ's errors for them raised before translating -- a fraction that is no constant from 0 to 1 and a constant
+# WITHIN GROUP value -1005028, an aggregate there -156, a subquery -1001030, OVER -131): accept PARSED 3,047 -> 3,068
+# (REFUSED 1,901 -> 1,880); reject REJECTED 974 -> 995 (REFUSED 811 -> 789). One reject case parses, pinned by hand
+# (the update refuses it): c13_olap-302, PERCENTILE_CONT of a string, which IQ rejects by its value's type, unknown
+# to the reader; the translation refuses it (a percentile of a value that is no number), so no answer is wrong.
+accept	parsed	3068
+accept	refused	1880
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	67
 flag	refused	67
-reject	parsed	24
-reject	refused	811
-reject	rejected	974
+reject	parsed	25
+reject	refused	789
+reject	rejected	995
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609
@@ -157,6 +163,7 @@ reject-parsed	a4_sa_fn2-645
 reject-parsed	a4_sa_fn2-702
 reject-parsed	a5_sa_fn3-482
 reject-parsed	a6_sa_query-695
+reject-parsed	c13_olap-302
 reject-parsed	s1_lexical-1164
 reject-parsed	s1_lexical-614
 reject-parsed	s1_lexical-683

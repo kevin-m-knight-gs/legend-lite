@@ -1986,7 +1986,7 @@ final class IqFunctions {
 
     /** {@code x} (a decimal) to {@code n} places, half away from zero or toward zero, at scale max(n, 0): exact
      *  decimal arithmetic, its scaled value within 18 digits. */
-    private static ValueSpecification places(ValueSpecification x, int n, boolean round) {
+    static ValueSpecification places(ValueSpecification x, int n, boolean round) {
         ValueSpecification scaled = n == 0 ? x : AppliedFunction.infixRun("times", List.of(x, new CDecimal(pow10(n))));
         ValueSpecification positive = SqlToPure.call("greaterThanEqual", x, integer(0));
         ValueSpecification half = new CDecimal(new BigDecimal("0.5"));

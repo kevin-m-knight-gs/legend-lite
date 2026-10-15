@@ -4,6 +4,7 @@
 package com.legend.protocol.sql.iq;
 
 import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.CDecimal;
 import com.legend.protocol.spec.CFloat;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
@@ -85,7 +86,7 @@ final class IqAggregates {
 
     /** The aggregates the island reads ({@link IqParser#READ_AGGREGATES}). */
     private enum Fn {
-        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST;
+        COUNT, SUM, AVG, MIN, MAX, MEDIAN, LIST, PERCENTILE_CONT, PERCENTILE_DISC;
 
         static Fn of(SqlAst.FunctionCall f) {
             return valueOf(IqLexer.lower(f.name().get(0).text()).toUpperCase(java.util.Locale.ROOT));
@@ -181,6 +182,9 @@ final class IqAggregates {
                 throw SqlTranslationException.invalid("MEDIAN takes a number, not a " + c.type().name()
                         + code(-156, "42W08"), f.pos());
             }
+            if (fn.startsWith("percentile_")) {
+                percentileParsed(f);
+            }
             if (fn.equals("list") && n == 2 && !(f.args().get(1) instanceof SqlAst.StringLit)
                     && !(f.args().get(1) instanceof SqlAst.NullLit)) {
                 throw SqlTranslationException.unsupported("a LIST delimiter other than a string constant or NULL is"
@@ -190,6 +194,47 @@ final class IqAggregates {
         for (SqlAst.Expr child : IqDialect.children(e)) {
             calls(child);
         }
+    }
+
+    /** IQ island, 2026-10-15 (checklist 2.16, measured on IQ 17.1): the errors IQ raises for PERCENTILE_CONT and
+     *  PERCENTILE_DISC before running: a fraction that is no numeric constant from 0 to 1 (-1005028), a WITHIN GROUP
+     *  value that is a constant (-1005028), holds an aggregate (-156) or a subquery (-1001030). */
+    private static void percentileParsed(SqlAst.FunctionCall f) {
+        String name = f.name().get(0).text().toUpperCase(java.util.Locale.ROOT);
+        SqlAst.Expr p = f.args().get(0);
+        java.math.BigDecimal fraction = p instanceof SqlAst.NumericLit d ? d.value() : p instanceof SqlAst.IntegerLit i
+                ? new java.math.BigDecimal(i.value()) : p instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.MINUS
+                && (u.operand() instanceof SqlAst.NumericLit || u.operand() instanceof SqlAst.IntegerLit)
+                ? java.math.BigDecimal.ONE.negate() : null;
+        if (fraction == null || fraction.signum() < 0 || fraction.compareTo(java.math.BigDecimal.ONE) > 0) {
+            throw SqlTranslationException.invalid("the argument of " + name + " must be a numeric constant from 0 to 1"
+                    + code(-1005028, "QTA28"), p.pos());
+        }
+        SqlAst.Expr value = f.withinGroup().get(0).expr();
+        if (hasAggregateCall(value)) {
+            throw SqlTranslationException.invalid("an aggregate in " + name + "'s WITHIN GROUP" + code(-156, "42W08"),
+                    value.pos());
+        }
+        if (hasSubqueryIn(value)) {
+            throw SqlTranslationException.invalid("a subquery in " + name + "'s WITHIN GROUP is not supported by IQ's"
+                    + " engine" + code(-1001030, "QFA2A"), value.pos());
+        }
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        columns(value, refs, true);
+        if (refs.isEmpty()) {
+            throw SqlTranslationException.invalid("the ORDER BY item of " + name + "'s WITHIN GROUP cannot be a constant"
+                    + " expression" + code(-1005028, "QTA28"), value.pos());
+        }
+    }
+
+    private static boolean hasAggregateCall(SqlAst.Expr e) {
+        return e instanceof SqlAst.FunctionCall f && named(f) || IqDialect.children(e).stream().anyMatch(
+                IqAggregates::hasAggregateCall);
+    }
+
+    private static boolean hasSubqueryIn(SqlAst.Expr e) {
+        return e instanceof SqlAst.ScalarSubquery || e instanceof SqlAst.Exists || e instanceof SqlAst.InSubquery
+                || e instanceof SqlAst.Quantified || IqDialect.children(e).stream().anyMatch(IqAggregates::hasSubqueryIn);
     }
 
     /** The types MEDIAN takes none of (IQ's -156, measured): CAST's spellings. */
@@ -1111,9 +1156,12 @@ final class IqAggregates {
                     at.values())), null);
             return new SqlToPure.Aggregation(List.of(count), null, Kind.INTEGER, false, countType(engine));
         }
-        SqlAst.Expr argument = f.args().get(0);
+        // a percentile's values are its WITHIN GROUP's, its argument the fraction
+        boolean percentile = !f.withinGroup().isEmpty();
+        SqlAst.Expr argument = percentile ? f.withinGroup().get(0).expr() : f.args().get(0);
         List<SqlAst.ColumnRef> refs = new ArrayList<>();
         f.args().forEach(a -> columns(a, refs, true));
+        f.withinGroup().forEach(o -> columns(o.expr(), refs, true));
         boolean mine = refs.stream().anyMatch(r -> at.inputColumn(r) != null);
         boolean theirs = refs.stream().anyMatch(at::enclosing);
         if (mine && theirs) {
@@ -1180,6 +1228,7 @@ final class IqAggregates {
             }
             case MEDIAN -> median(f, at, x, type, values);
             case LIST -> list(f, at, x, type, dialect);
+            case PERCENTILE_CONT, PERCENTILE_DISC -> percentile(f, at, x, type, values);
         };
     }
 
@@ -1520,6 +1569,13 @@ final class IqAggregates {
             throw SqlTranslationException.invalid("MEDIAN takes a number, not " + (x.kind() == Kind.NULL ? "NULL"
                     : family.equals("BIT") ? "a BIT" : "this value") + code(-156, "42W08"), f.pos());
         }
+        if (f.distinct()) {
+            throw SqlTranslationException.unsupported("MEDIAN(DISTINCT ...) is not supported yet: lite's Postgres takes"
+                    + " no percentile of distinct values", f.pos());
+        }
+        if (x.kind() == Kind.FLOAT || x.kind() == Kind.DECIMAL) {
+            return middles(f, at, x, java.util.Objects.requireNonNull(type, "a NUMERIC's or a DOUBLE's type"), values);
+        }
         if (x.kind() != Kind.INTEGER || !(family.equals("SMALLINT") || family.equals("INTEGER")
                 || family.equals("TINYINT"))) {
             throw SqlTranslationException.unsupported("MEDIAN of a " + (type == null ? "value of this type"
@@ -1547,6 +1603,121 @@ final class IqAggregates {
         return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(floored.vs()), null, null),
                 Kind.INTEGER, true, IqType.integer(family, java.util.Objects.requireNonNull(type).lo(), type.hi(),
                         false));
+    }
+
+    /**
+     * MEDIAN of a NUMERIC(p, s) of at most 15 digits or a DOUBLE (IQ island, 2026-10-15, checklist 2.16, measured on IQ
+     * 17.1): the midpoint of the two middle values -- one for an odd count --, of the input's type: a NUMERIC's cut
+     * toward zero at scale s (1.25 and 2.50 give 1.87, -3.75 and 0.00 give -1.87), a DOUBLE's (lo + hi) / 2 (two values
+     * of 1e308 give Infinity there). The middle values are the discrete percentiles at 0.5, ascending and descending
+     * (exact values, as doubles: a NUMERIC of 15 digits is read back exactly); the midpoint is decimal arithmetic.
+     */
+    private static SqlToPure.Aggregation middles(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x, IqType type,
+            ValueSpecification values) {
+        boolean decimal = x.kind() == Kind.DECIMAL;
+        int scale = decimal ? scale(type, f) : 0;
+        Tx asDouble = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> decimal ? SqlToPure.call("toFloat", v.get(0))
+                : v.get(0));
+        List<ColSpec> specs = new ArrayList<>();
+        List<ValueSpecification> middle = new ArrayList<>();
+        for (boolean ascending : new boolean[] {true, false}) {
+            String raw = at.fresh();
+            specs.add(new ColSpec(raw, at.overRow(SqlToPure.valueOf(asDouble)), at.overGroup(SqlToPure.call(
+                    "percentile", values, new CFloat(0.5), new com.legend.protocol.spec.CBoolean(ascending),
+                    new com.legend.protocol.spec.CBoolean(false))), null));
+            middle.add(at.column(raw));
+        }
+        Tx lo = Tx.value(middle.get(0), Kind.FLOAT, true);
+        Tx hi = Tx.value(middle.get(1), Kind.FLOAT, true);
+        Tx mid = SqlToPure.strict(decimal ? Kind.DECIMAL : Kind.FLOAT, List.of(lo, hi), v -> {
+            if (!decimal) {
+                return SqlToPure.call("divide", AppliedFunction.infixRun("plus", List.of(v.get(0), v.get(1))),
+                        new CFloat(2.0));
+            }
+            ValueSpecification sum = AppliedFunction.infixRun("plus", List.of(decimalAt(v.get(0), scale),
+                    decimalAt(v.get(1), scale)));
+            return IqFunctions.atScale(IqFunctions.places(AppliedFunction.infixRun("times", List.of(sum,
+                    new CDecimal(new java.math.BigDecimal("0.5")))), scale, false), scale);
+        });
+        return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(mid.vs()), null, null), x.kind(),
+                true, type);
+    }
+
+    /**
+     * {@code PERCENTILE_CONT(p) WITHIN GROUP (ORDER BY x [DESC])} and {@code PERCENTILE_DISC} (IQ island, 2026-10-15,
+     * checklist 2.16, measured on IQ 17.1): the continuous percentile p of the group's values in that order, the two
+     * values around it interpolated linearly, a DOUBLE; the discrete one, the first value whose cumulative share
+     * reaches p, of the value's own type (an INTEGER's an INTEGER). Of numbers only; p a constant from 0 to 1.
+     * Refused by name: a BIGINT or a NUMERIC of more than 15 digits to PERCENTILE_DISC (its value comes back as a
+     * DOUBLE, exact only to 15 digits), DISTINCT.
+     */
+    private static SqlToPure.Aggregation percentile(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
+            @com.legend.base.Nullable IqType type, ValueSpecification values) {
+        String name = f.name().get(0).text().toUpperCase(java.util.Locale.ROOT);
+        boolean continuous = IqLexer.lower(f.name().get(0).text()).equals("percentile_cont");
+        boolean descending = f.withinGroup().get(0).descending();
+        java.math.BigDecimal p = f.args().get(0) instanceof SqlAst.NumericLit n ? n.value()
+                : f.args().get(0) instanceof SqlAst.IntegerLit i ? new java.math.BigDecimal(i.value()) : null;
+        if (p == null || p.signum() < 0 || p.compareTo(java.math.BigDecimal.ONE) > 0) {
+            throw SqlTranslationException.unsupported(name + " of a fraction that is no constant from 0 to 1 is not"
+                    + " supported", f.args().get(0).pos());
+        }
+        if (f.distinct()) {
+            throw SqlTranslationException.unsupported(name + "(DISTINCT ...) is not supported", f.pos());
+        }
+        if (!(x.kind() == Kind.INTEGER || x.kind() == Kind.DECIMAL || x.kind() == Kind.FLOAT) || type == null) {
+            throw SqlTranslationException.unsupported(name + " of a value that is no number is not supported yet",
+                    f.pos());
+        }
+        boolean decimal = x.kind() == Kind.DECIMAL;
+        int digits = decimal ? type.size() : 0;
+        if (!continuous && (x.kind() == Kind.INTEGER && type.family().equals("BIGINT") || decimal && digits > 15)) {
+            throw SqlTranslationException.unsupported(name + " of a " + type.spelling() + " is not supported yet: its"
+                    + " value comes back as a DOUBLE, exact only to 15 digits", f.pos());
+        }
+        String raw = at.fresh();
+        Tx asDouble = SqlToPure.strict(Kind.FLOAT, List.of(x), v -> x.kind() == Kind.FLOAT ? v.get(0)
+                : SqlToPure.call("toFloat", v.get(0)));
+        ColSpec spec = new ColSpec(raw, at.overRow(SqlToPure.valueOf(asDouble)), at.overGroup(SqlToPure.call(
+                "percentile", values, new CFloat(p.doubleValue()), new com.legend.protocol.spec.CBoolean(!descending),
+                new com.legend.protocol.spec.CBoolean(continuous))), null);
+        Tx value = Tx.value(at.column(raw), Kind.FLOAT, true);
+        if (continuous || x.kind() == Kind.FLOAT) {
+            // Pure's percentile is a Number: the DOUBLE it is
+            Tx asFloat = SqlToPure.strict(Kind.FLOAT, List.of(value), v -> SqlToPure.call("toFloat", v.get(0)));
+            return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(asFloat.vs()), null,
+                    null), Kind.FLOAT, true, new IqType("DOUBLE"));
+        }
+        int scale = decimal ? scale(type, f) : 0;
+        Tx back = SqlToPure.strict(decimal ? Kind.DECIMAL : Kind.INTEGER, List.of(value), v -> decimal
+                ? decimalAt(v.get(0), scale) : SqlToPure.call("round", v.get(0)));
+        return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(back.vs()), null, null),
+                x.kind(), true, type);
+    }
+
+    /** {@code d}, a DOUBLE holding a decimal of at most 15 digits and {@code scale} places, as that decimal: d times
+     *  10^scale rounded to the whole number it is within a rounding of, then scaled back. */
+    private static ValueSpecification decimalAt(ValueSpecification d, int scale) {
+        ValueSpecification whole = SqlToPure.call("toDecimal", SqlToPure.call("round", scale == 0 ? d
+                : AppliedFunction.infixRun("times", List.of(d, new CFloat(Math.pow(10, scale))))));
+        return scale == 0 ? whole : IqFunctions.atScale(AppliedFunction.infixRun("times", List.of(whole,
+                new CDecimal(java.math.BigDecimal.ONE.movePointLeft(scale)))), scale);
+    }
+
+    /** A NUMERIC's scale, by its IQ type. */
+    private static int scale(IqType type, SqlAst.FunctionCall f) {
+        String sp = type.spelling();
+        int comma = sp.indexOf(',');
+        if (type.size() < 0) {
+            throw SqlTranslationException.unsupported("an aggregate of a NUMERIC whose precision is not known is not"
+                    + " supported", f.pos());
+        }
+        if (type.size() > 15) {
+            throw SqlTranslationException.unsupported(f.name().get(0).text().toUpperCase(java.util.Locale.ROOT) + " of a "
+                    + sp + " is not supported yet: its middle values come back as DOUBLEs, exact only to 15 digits",
+                    f.pos());
+        }
+        return comma < 0 ? 0 : Integer.parseInt(sp.substring(comma + 1, sp.indexOf(')')).strip());
     }
 
     /** LIST({@code x} [, delimiter] ORDER BY {@code x}) of an integer column ({@link IqAggregates}): Pure's ordered
