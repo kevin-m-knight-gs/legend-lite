@@ -1000,8 +1000,10 @@ tests:
     engine: sa
   - id: convert_of_columns
     sql: "SELECT id, CONVERT(INT, nm) AS a, CONVERT(VARCHAR(20), it) AS b, CONVERT(DATE, ts) AS c FROM t ORDER BY id"
-  - id: convert_date_to_text_is_refused
+  - id: convert_date_to_text
     sql: "SELECT CONVERT(VARCHAR(30), dt) AS a FROM t WHERE id = 1"
+    decision: D-C6
+    expect: '{"columns": [["a", "varchar", 0]], "rows": [["2026-03-04"]]}'
   - id: convert_date_to_text_in_sql_anywhere_is_refused
     sql: "SELECT CONVERT(VARCHAR(30), CAST('2026-03-04' AS DATE)) AS a"
     engine: sa

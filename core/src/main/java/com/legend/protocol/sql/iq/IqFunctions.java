@@ -2244,7 +2244,9 @@ final class IqFunctions {
                                 new CString(".")), SqlToPure.call("toString", v.get(0))));
             }
             case DATE -> {
-                if (convert) {
+                // IQ island, 2026-10-15 (D-C6, measured on IQ 17.1): under IQ's engine CONVERT without a style writes
+                // the DATE_FORMAT option's form, as CAST does ('2026-03-04')
+                if (convert && engine != IqDialect.Engine.IQ) {
                     throw SqlTranslationException.unsupported("CONVERT of a date to text without a style is not"
                             + " supported yet: " + (engine == IqDialect.Engine.IQ ? "under the IQ engine it writes the"
                             + " DATE_FORMAT option's form (the research's D-C6, not yet verified)" : "SQL Anywhere writes"
@@ -2261,7 +2263,8 @@ final class IqFunctions {
             }
             // IQ island, 2026-10-14 (M1e): a timestamp in the profile's TIMESTAMP_FORMAT (IqDateTime, measured)
             case DATETIME -> {
-                if (convert) {
+                // IQ island, 2026-10-15 (D-C6, measured on IQ 17.1): as a DATE's, the TIMESTAMP_FORMAT's form
+                if (convert && engine != IqDialect.Engine.IQ) {
                     throw SqlTranslationException.unsupported("CONVERT of a timestamp to text without a style is not"
                             + " supported yet: " + (engine == IqDialect.Engine.IQ ? "under the IQ engine it writes the"
                             + " TIMESTAMP_FORMAT option's form (the research's D-C6, not yet verified)" : "SQL Anywhere"

@@ -254,7 +254,6 @@ class IqFunctionsTest {
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
                 {"SELECT DATEPART(cdw, dt) AS d FROM " + T, "D-T10"},
                 {"SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T, "D-C2"},
-                {"SELECT CONVERT(VARCHAR(20), dt) AS c FROM " + T, "D-C6"},
                 {"SELECT CAST(d AS NUMERIC(10, 2)) AS c FROM " + T, "D-N6"},
                 {"SELECT CAST(nm AS VARCHAR(4)) AS c FROM " + T, "D-C1"},
         };

@@ -622,6 +622,9 @@ lite/iq_engine_dates/datediff_seconds_and_milliseconds_elapsed@iq17-default	PASS
 lite/iq_engine_dates/datediff_hours_of_columns@iq17-default	PASS	PASS
 lite/iq_engine_dates/datediff_in_where@iq17-default	PASS	PASS
 lite/iq_engine_dates/datediff_dayofyear_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_dates/convert_of_a_date_to_text@iq17-default	PASS	PASS
+lite/iq_engine_dates/convert_of_a_timestamp_to_text@iq17-default	PASS	PASS
+lite/iq_engine_dates/a_date_concatenated@iq17-default	PASS	PASS
 lite/iq_engine_functions/round_of_a_numeric@iq17-default	PASS	PASS
 lite/iq_engine_functions/round_half_away_from_zero@iq17-default	PASS	PASS
 lite/iq_engine_functions/round_to_its_own_scale@iq17-default	PASS	PASS
@@ -3418,8 +3421,8 @@ lite/m1d/convert_plus_cast@iq16-default	PASS	PASS
 lite/m1d/convert_plus_cast@iq17-default	PASS	PASS
 lite/m1d/convert_of_columns@iq16-default	PASS	PASS
 lite/m1d/convert_of_columns@iq17-default	PASS	PASS
-lite/m1d/convert_date_to_text_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1d/convert_date_to_text_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1d/convert_date_to_text@iq16-default	PASS	PASS
+lite/m1d/convert_date_to_text@iq17-default	PASS	PASS
 lite/m1d/convert_date_to_text_in_sql_anywhere_is_refused@iq16-default	REFUSED	REFUSED
 lite/m1d/convert_date_to_text_in_sql_anywhere_is_refused@iq17-default	REFUSED	REFUSED
 lite/m1d/convert_with_a_style_is_refused@iq16-default	REFUSED	REFUSED
@@ -3792,8 +3795,8 @@ lite/m1e/timestamp_of_a_date_to_text@iq17-default	PASS	PASS
 lite/m1e/timestamp_of_a_date_to_text@iq17-odbc	PASS	PASS
 lite/m1e/date_of_a_timestamp_concatenated@iq16-default	PASS	PASS
 lite/m1e/date_of_a_timestamp_concatenated@iq17-default	PASS	PASS
-lite/m1e/timestamp_convert_without_a_style_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1e/timestamp_convert_without_a_style_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1e/timestamp_convert_without_a_style@iq16-default	PASS	PASS
+lite/m1e/timestamp_convert_without_a_style@iq17-default	PASS	PASS
 lite/m1e/timestamp_text_without_from@iq16-default	PASS	PASS
 lite/m1e/timestamp_text_without_from@iq16-odbc	PASS	PASS
 lite/m1e/timestamp_text_without_from@iq16-tds	PASS	PASS

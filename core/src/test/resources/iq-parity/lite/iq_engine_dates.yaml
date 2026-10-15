@@ -70,3 +70,13 @@ tests:
   - id: datediff_dayofyear_is_iqs_error
     sql: "SELECT DATEDIFF(dayofyear, CAST('2025-12-31' AS DATE), dt) AS d FROM t ORDER BY id"
     profile: iq17-default
+  # ---- CONVERT of a date or a timestamp to text without a style (D-C6): the DATE_FORMAT's and TIMESTAMP_FORMAT's forms
+  - id: convert_of_a_date_to_text
+    sql: "SELECT id, CONVERT(VARCHAR(20), dt) AS a, CAST(dt AS VARCHAR(20)) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_of_a_timestamp_to_text
+    sql: "SELECT id, CONVERT(VARCHAR(30), ts) AS a, CAST(ts AS VARCHAR(30)) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: a_date_concatenated
+    sql: "SELECT id, 'on ' || dt AS a FROM t ORDER BY id"
+    profile: iq17-default

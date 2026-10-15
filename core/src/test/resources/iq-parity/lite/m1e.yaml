@@ -397,8 +397,10 @@ tests:
     profile: iq16-default, iq16-odbc
   - id: date_of_a_timestamp_concatenated
     sql: "SELECT id, CAST(ts AS DATE) || '' AS s FROM t ORDER BY id"
-  - id: timestamp_convert_without_a_style_is_refused
+  - id: timestamp_convert_without_a_style
     sql: "SELECT id, CONVERT(VARCHAR(30), ts) AS s FROM t ORDER BY id"
+    decision: D-C6
+    expect: '{"columns": [["id", "integer", 0], ["s", "varchar", 0]], "rows": [["1", "2026-03-04 05:06:07.123"], ["2", "1999-12-31 23:59:59.999"], ["3", "2000-02-29 00:00:00.000"], ["4", "1900-01-01 12:00:00.000"], ["5", null], ["6", "2026-12-31 23:59:59.500"], ["7", "2026-03-04 05:06:07.123"]]}'
   - id: timestamp_text_without_from
     sql: "SELECT CAST(CAST('2026-03-04' AS TIMESTAMP) AS VARCHAR(30)) || '!' AS s"
     profile: iq16-default, iq16-odbc, iq16-tds, sqla17-tds
