@@ -86,8 +86,11 @@ class Document(Paged):
         self.assertEqual(query['rows'], ['region'])
         self.assertEqual(query['measures'], [{'name': 'notional', 'column': 'notional', 'fn': 'sum'}])
         self.assertEqual(query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
-        self.assertEqual(query['filter'], {'kind': 'and', 'children': [
-            {'kind': 'condition', 'column': 'desk', 'operator': 'notEqual', 'value': 'Equity'}]})
+        # a list of one condition, in the filter editor's normal form: a group of one is that one, as DataCube writes it
+        self.assertEqual(query['filter'],
+                         {'kind': 'condition', 'column': 'desk', 'operator': 'notEqual', 'value': 'Equity'})
+        self.assertEqual(json.loads(page.to_json())['cubes'][0]['cube']['query']['filter'], query['filter'],
+                         'read back as DataCube reads it: the same')
         self.assertEqual([(v['id'], v['kind'], v['cube']) for v in doc['views']],
                          [(grid.id, 'grid', grid.id), (chart.id, 'chart', grid.id)])
         # made as DataCube makes a new chart (_made): what it was not told is DataCube's own -- the grid's row group
@@ -509,6 +512,12 @@ class Document(Paged):
             grid.filter(('desk', 'in', {'FX', 'Rates'}))
         with self.assertRaisesRegex(ValueError, 'not several'):
             grid.filter(('desk', 'equal', ['FX']))
+        with self.assertRaisesRegex(ValueError, 'one at least'):
+            grid.filter(('desk', 'in', []))
+        with self.assertRaisesRegex(ValueError, "'contains' is not offered on notional, a Float column"):
+            grid.filter(('notional', 'contains', '1'))
+        with self.assertRaisesRegex(ValueError, 'no overload'):
+            grid.filter(('region', 'lessThan', {'relative': 'today'}))
         for wrong in (None, float('nan'), object(), datetime.datetime(2024, 1, 31)):
             with self.assertRaisesRegex(ValueError, 'takes text, a number'):
                 grid.filter(('notional', 'greaterThan', wrong))
@@ -531,9 +540,12 @@ class Document(Paged):
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['filter']['children'][1],
                          {'kind': 'not', 'child': {'kind': 'condition', 'column': 'desk', 'operator': 'in', 'value': ['FX', 'Rates']}})
         grid.filter([('notional', 'greaterThan', Decimal('12.30')), ('region', 'equal', datetime.date(2024, 1, 31)),
-                     ('region', 'lessThan', {'relative': 'today'}), ('notional', 'lessThan', 10)])
+                     ('notional', 'lessThan', 10)])
         self.assertEqual([c['value'] for c in page.to_dict()['cubes'][0]['cube']['query']['filter']['children']],
-                         ['12.30', '2024-01-31', {'relative': 'today'}, 10])
+                         ['12.30', '2024-01-31', 10])
+        dated = page.grid(pd.DataFrame({'day': [datetime.date(2024, 1, 1)], 'qty': [1]}), name='dated')
+        dated.filter(('day', 'lessThan', {'relative': 'today'}))
+        self.assertEqual(page.to_dict()['cubes'][1]['cube']['query']['filter']['value'], {'relative': 'today'})
 
     def test_a_grid_refused_leaves_the_page_and_the_frames_as_they_were(self):
         page, _, _ = self.built()

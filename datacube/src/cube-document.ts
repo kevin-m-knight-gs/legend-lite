@@ -534,6 +534,12 @@ function walk(node: unknown, visit: (n: Record<string, unknown>) => void): void 
 }
 
 /** A filter with every condition on a gone column left out (and named), or undefined if none remain. */
+/** A filter in its normal form, as the filter editor writes one (ui/filter-editor.ts toFilterNode) and a reopened cube
+ *  holds it: a group of one is that one, an empty group none (undefined: no filter at all). */
+export function normalFilter(node: FilterNode): FilterNode | undefined {
+  return pruneFilter(node, new Set(), []);
+}
+
 function pruneFilter(node: FilterNode, gone: ReadonlySet<string>, notes: string[]): FilterNode | undefined {
   switch (node.kind) {
     case 'condition': {

@@ -17,7 +17,10 @@ import { nameProblem } from '../calc.ts';
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
-import { cubeToJson, frameSource, openCube, readCube, rebuilt, writeCube, type OpenedCube } from '../cube-document.ts';
+import {
+  cubeToJson, frameSource, normalFilter, openCube, readCube, rebuilt, writeCube, type OpenedCube,
+} from '../cube-document.ts';
+import { OPERATORS, isCompatible } from '../filter-operators.ts';
 import { STALE } from '../epoch.ts';
 import { columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportKind } from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
@@ -27,7 +30,10 @@ import { typeColumns } from '../plan.ts';
 import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import { shownColumns } from '../shown-columns.ts';
-import { COLUMN_KINDS, type ColumnKind, type ColumnSpec, type CubeSnapshot, type DerivedColumn } from '../snapshot.ts';
+import {
+  COLUMN_KINDS, isJsonValue, isRelativeDate, rowColumns, type ColumnKind, type ColumnSpec, type CubeSnapshot,
+  type DerivedColumn, type FilterNode, type FilterValue,
+} from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
@@ -175,12 +181,128 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
       return JSON.stringify({ problems: [e instanceof Error ? e.message : String(e)] });
     }
     const column: DerivedColumn = { name: name.trim(), lambda, ...(kind !== null ? { kind } : {}) };
-    const snapshot: CubeSnapshot = { ...state.snapshot, derived: [...state.snapshot.derived, column] };
-    const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
-    const outcome = await controller.compile({ snapshot, tree: state.tree }, null);
+    const typed = await typedColumns(planner, state.snapshot);
+    const snapshot: CubeSnapshot = { ...typed, derived: [...typed.derived, column] };
+    const outcome = await compiled(planner, { snapshot, tree: state.tree });
     if (outcome === undefined) throw new Error('the host cannot compile a cube without running it');
     if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
     return JSON.stringify({ derived: toJson(column) });
+  });
+}
+
+/** The grid's columns as the compiler types them now, its calculated ones too: the controller's step 0 (plan.ts
+ *  typeColumns), compile-only -- the snapshot the screen's editors work on. */
+async function typedColumns(planner: LitePlanner, snapshot: CubeSnapshot): Promise<CubeSnapshot> {
+  const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
+  return (await typeColumns(snapshot, runner)).snapshot;
+}
+
+/** The cube compiled as a refresh would send it (CubeController.compile), never run; a host that cannot is a bug. */
+async function compiled(planner: LitePlanner, state: { snapshot: CubeSnapshot; tree: CubeState['tree'] }):
+  Promise<{ readonly refusal: string | null }> {
+  const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
+  const outcome = await controller.compile(state, null);
+  if (outcome === undefined) throw new Error('the host cannot compile a cube without running it');
+  return outcome;
+}
+
+/** A filter as Python hands one in: its own conditions' operands, not yet the editor's values or columns. */
+type GivenFilter =
+  | { readonly kind: 'and' | 'or'; readonly children: readonly GivenFilter[] }
+  | { readonly kind: 'not'; readonly child: GivenFilter }
+  | { readonly kind: 'condition'; readonly column: unknown; readonly operator: unknown; readonly operand?: unknown };
+
+const isValue = (v: unknown): v is FilterValue => typeof v === 'string' || typeof v === 'boolean'
+  || (typeof v === 'number' && Number.isFinite(v)) || isRelativeDate(v) || isJsonValue(v);
+
+const VALUES = 'text, a number, a boolean, a date as its text, {"relative": "today" | "now"} or {"json": text}';
+
+/**
+ * `given` as the filter editor's tree (snapshot.ts FilterNode), each condition's operand where its operator's takes one
+ * (filter-operators.ts: none, one value, a list in its order, another column), its operator one a column of its type is
+ * offered (offers.ts), over the grid's columns (`types`) -- or why not, in the editor's own terms.
+ */
+function filterFrom(given: GivenFilter, types: ReadonlyMap<string, string | undefined>): FilterNode | string {
+  switch (given.kind) {
+    case 'and':
+    case 'or': {
+      const children: FilterNode[] = [];
+      for (const child of given.children) {
+        const made = filterFrom(child, types);
+        if (typeof made === 'string') return made;
+        children.push(made);
+      }
+      return { kind: given.kind, children };
+    }
+    case 'not': {
+      const child = filterFrom(given.child, types);
+      return typeof child === 'string' ? child : { kind: 'not', child };
+    }
+    case 'condition':
+      return conditionFrom(given, types);
+  }
+}
+
+function conditionFrom(
+  given: Extract<GivenFilter, { kind: 'condition' }>, types: ReadonlyMap<string, string | undefined>,
+): FilterNode | string {
+  const { column, operator } = given;
+  if (typeof column !== 'string' || !types.has(column)) {
+    const names = [...types.keys()].sort().join(', ');
+    return `the filter names ${JSON.stringify(column)}, not a column of the grid (${names})`;
+  }
+  const meta = OPERATORS.find((o) => o.op === operator);
+  if (meta === undefined) {
+    const all = OPERATORS.map((o) => o.op).sort().join(', ');
+    return `${JSON.stringify(operator)} is not one of DataCube's filter operators: ${all}`;
+  }
+  const op = meta.op;
+  if (!isCompatible(op, types.get(column))) {
+    return `'${op}' is not offered on ${column}, a ${String(types.get(column))} column`;
+  }
+  const has = 'operand' in given;
+  const operand = given.operand;
+  switch (meta.operand) {
+    case 'none':
+      return has ? `'${op}' takes no value` : { kind: 'condition', column, operator: op };
+    case 'column':
+      if (!has || typeof operand !== 'string' || !types.has(operand)) {
+        return `'${op}' compares to another column: ${JSON.stringify(operand ?? null)} is not one of the grid's`;
+      }
+      return { kind: 'condition', column, operator: op, rightColumn: operand };
+    case 'list':
+      if (!has || !Array.isArray(operand) || operand.length === 0) {
+        return `'${op}' takes a list of values, one at least, in their order: (column, '${op}', [...])`;
+      }
+      if (!operand.every(isValue)) return `'${op}' takes ${VALUES} in its list`;
+      return { kind: 'condition', column, operator: op, value: operand };
+    case 'single':
+      if (!has) return `'${op}' takes one value: (column, '${op}', value)`;
+      if (Array.isArray(operand)) return `'${op}' takes one value, not several (several are for "in")`;
+      if (!isValue(operand)) return `'${op}' takes ${VALUES}`;
+      return { kind: 'condition', column, operator: op, value: operand };
+  }
+}
+
+/**
+ * A FILTER SET as DataCube's filter editor sets one (ui/filter-editor.ts): `given` (JSON, GivenFilter) built into the
+ * editor's tree by its operators' own operands and offers (filterFrom), in its normal form (cube-document.ts
+ * normalFilter: a group of one is that one), and the cube with it compiled as a refresh would send it -- so Python
+ * checks no filter by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 6). JSON: `{filter}` (null: no
+ * filter at all) or `{problems}`, why it was refused.
+ */
+export async function gridFilter(spec: GridSpec, given: string): Promise<string> {
+  return using(spec, async ({ planner, state }) => {
+    const typed = await typedColumns(planner, state.snapshot);
+    const types = new Map(rowColumns(typed).map((c) => [c.name, c.type] as const));
+    const made = filterFrom(JSON.parse(given) as GivenFilter, types);
+    if (typeof made === 'string') return JSON.stringify({ problems: [made] });
+    const filter = normalFilter(made);
+    const { filter: _was, ...rest } = typed;
+    const snapshot: CubeSnapshot = filter === undefined ? rest : { ...rest, filter };
+    const outcome = await compiled(planner, { snapshot, tree: state.tree });
+    if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
+    return JSON.stringify({ filter: filter ?? null });
   });
 }
 

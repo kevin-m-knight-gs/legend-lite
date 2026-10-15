@@ -7,7 +7,9 @@ import './install-url.ts';
 
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
-import { gridCalculate, gridChart, gridClass, gridCube, gridExport, gridRelation, gridView } from './grid.ts';
+import {
+  gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView,
+} from './grid.ts';
 import { forget, ingest, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelKept, pageModelNames } from './model.ts';
 import { layoutAdd, layoutArrange, layoutRemove, layoutStack } from './layout.ts';
@@ -19,8 +21,8 @@ export { REQUEST_KINDS };
 /** A grid, headless (§4): its view, its rows as a relation, its rows as a class's (B4), its export (D), a chart of it
  *  as DataCube makes and judges one (chart-spec.ts chartFrom and chartProblems: written once, which Python asks), and
  *  its cube over a frame as DataCube makes one, new or rebuilt over the frame as it is now (cube-document.ts
- *  rebuilt), and a calculated column added to it as the column editor adds one. */
-export { gridCalculate, gridChart, gridClass, gridCube, gridExport, gridRelation, gridView };
+ *  rebuilt), and a calculated column added to it and its filter set as the screen's editors do. */
+export { gridCalculate, gridChart, gridClass, gridCube, gridExport, gridFilter, gridRelation, gridView };
 
 /** Data in (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.3): a file read into the host's database by upload.ts, its
  *  table dropped again, and a remote file mounted as a view (its extensions and keys put in place first, where the host

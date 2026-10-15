@@ -47,14 +47,6 @@ from .frames import LIVE, SNAPPED
 # DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts): a name outside
 # them is refused here, at the line that names it. datacube/test/python-vocabulary.test.ts reads each against
 # DataCube's source.
-FILTER_OPERATORS = frozenset({
-    'equal', 'notEqual', 'lessThan', 'lessThanEqual', 'greaterThan', 'greaterThanEqual', 'isEmpty', 'isNotEmpty',
-    'contains', 'notContains', 'startsWith', 'notStartsWith', 'endsWith', 'notEndsWith', 'in', 'notIn',
-    'equalCaseInsensitive', 'notEqualCaseInsensitive', 'containsCaseInsensitive', 'startsWithCaseInsensitive',
-    'endsWithCaseInsensitive', 'inCaseInsensitive', 'notInCaseInsensitive', 'equalColumn', 'equalCaseInsensitiveColumn',
-    'notEqualColumn', 'notEqualCaseInsensitiveColumn', 'lessThanColumn', 'lessThanEqualColumn', 'greaterThanColumn',
-    'greaterThanEqualColumn',
-})
 AGGREGATES = frozenset({
     'sum', 'count', 'average', 'min', 'max', 'median', 'stdDevSample', 'stdDevPopulation', 'varianceSample',
     'variancePopulation', 'joinStrings', 'wavg', 'unique',
@@ -77,10 +69,6 @@ DIRECTIONS = frozenset({'asc', 'desc'})
 PAGE_KIND = 'datacube.page'
 # 4: the page's model, where its classes are (DataCube's Create a Class…); a page of Python's has none yet
 PAGE_VERSION = 4
-# the operators that take no value, those that take a list of them, and those that compare to another column
-_NO_VALUE = frozenset({'isEmpty', 'isNotEmpty'})
-_LIST = frozenset({'in', 'notIn', 'inCaseInsensitive', 'notInCaseInsensitive'})
-_COLUMN = frozenset(op for op in FILTER_OPERATORS if op.endswith('Column'))
 _KEEP: Any = object()
 
 
@@ -122,7 +110,7 @@ def _number(id: str) -> int:
 
 # -- filters ----------------------------------------------------------------------------------------------------------
 
-def _value(operator: str, value: Any) -> Any:
+def _value(value: Any) -> Any:
     """A filter's value as DataCube keeps one (snapshot.ts, FilterValue): text, a number, a boolean, a date relative to
     when the query runs (``{'relative': 'today' | 'now'}``) or a variant column's JSON (``{'json': text}``). A date and a
     Decimal go as their exact text, which DataCube writes as the column's type writes it (``'2024-01-31'``, ``'12.30'``)."""
@@ -139,14 +127,15 @@ def _value(operator: str, value: Any) -> Any:
     if isinstance(value, Mapping) and ((set(value) == {'relative'} and value['relative'] in ('today', 'now'))
                                        or (set(value) == {'json'} and isinstance(value['json'], str))):
         return dict(value)
-    raise ValueError(f'{operator!r} takes text, a number, a boolean, a date, {{"relative": "today" | "now"}} or '
+    raise ValueError(f'a filter takes text, a number, a boolean, a date, {{"relative": "today" | "now"}} or '
                      f'{{"json": text}}, not {value!r} (a timestamp as its text: "2024-01-31 10:30:00")')
 
 
-def _filter(node: Any, columns: set[str]) -> dict[str, Any]:
-    """A filter as the filter editor writes it: a condition ``(column, operator[, value])``, a group ``('and' | 'or',
-    [nodes])``, or ``('not', node)``; a list is all of them. Checked against the grid's columns and DataCube's operators,
-    each value against its operator."""
+def _given_filter(node: Any) -> dict[str, Any]:
+    """A filter as Python takes one -- a condition ``(column, operator[, operand])``, a group ``('and' | 'or',
+    [nodes])`` or ``('not', node)``, a list being all of them -- in the shape of the filter editor's tree, each
+    operand's values as DataCube keeps them (``_value``). What an operator takes, and whether a column takes it,
+    DataCube's code says (gridFilter)."""
     if isinstance(node, list):
         node = ('and', node)
     if not isinstance(node, tuple) or len(node) < 2:
@@ -154,34 +143,17 @@ def _filter(node: Any, columns: set[str]) -> dict[str, Any]:
                          f'not {node!r}')
     head = node[0]
     if head in ('and', 'or') and len(node) == 2 and isinstance(node[1], (list, tuple)):
-        return {'kind': head, 'children': [_filter(child, columns) for child in node[1]]}
+        return {'kind': head, 'children': [_given_filter(child) for child in node[1]]}
     if head == 'not' and len(node) == 2:
-        return {'kind': 'not', 'child': _filter(node[1], columns)}
-    column, operator, *rest = node
-    if column not in columns:
-        raise ValueError(f'the filter names {column!r}, not a column of the grid ({", ".join(sorted(columns))})')
-    if operator not in FILTER_OPERATORS:
-        raise ValueError(f'{operator!r} is not one of DataCube\'s filter operators: {", ".join(sorted(FILTER_OPERATORS))}')
-    condition: dict[str, Any] = {'kind': 'condition', 'column': column, 'operator': operator}
-    if operator in _NO_VALUE:
-        if rest:
-            raise ValueError(f'{operator!r} takes no value')
-        return condition
-    if len(rest) != 1:
-        raise ValueError(f'{operator!r} takes one value: (column, {operator!r}, value)')
-    given = rest[0]
-    if operator in _COLUMN:
-        if given not in columns:
-            raise ValueError(f'{operator!r} compares to another column: {given!r} is not one of the grid\'s')
-        condition['rightColumn'] = given
-    elif operator in _LIST:
-        if not isinstance(given, (list, tuple)):
-            raise ValueError(f'{operator!r} takes a list of values, in their order: (column, {operator!r}, [...])')
-        condition['value'] = [_value(operator, v) for v in given]
-    else:
-        if isinstance(given, (list, tuple, set, frozenset)):
-            raise ValueError(f'{operator!r} takes one value, not several (several are for "in")')
-        condition['value'] = _value(operator, given)
+        return {'kind': 'not', 'child': _given_filter(node[1])}
+    if len(node) > 3:
+        raise ValueError(f'a condition is (column, operator) or (column, operator, value), not {node!r}')
+    condition: dict[str, Any] = {'kind': 'condition', 'column': node[0], 'operator': node[1]}
+    if len(node) == 3:
+        given = node[2]
+        if isinstance(given, (set, frozenset)):
+            raise ValueError('a filter takes a list of values, in their order (a list or a tuple), not a set')
+        condition['operand'] = [_value(v) for v in given] if isinstance(given, (list, tuple)) else _value(given)
     return condition
 
 
@@ -442,9 +414,18 @@ class Grid(Tile):
 
     def filter(self, condition: Any) -> Grid:
         """Its filter: a condition ``(column, operator[, value])``, a list of them (all of them), a group
-        ``('and' | 'or', [...])`` or ``('not', ...)`` -- the filter editor's own conditions; ``None`` for none."""
+        ``('and' | 'or', [...])`` or ``('not', ...)`` -- the filter editor's own conditions, set as it sets them
+        (DataCube's code, headless: gridFilter): each operator's value as it takes one (none, one, a list, another
+        column), one a column of its type is offered, the grid with it compiled, in the editor's normal form (a group of
+        one is that one); ``None`` for none."""
         if condition is not None:
-            return self._set('filter', _filter(condition, self._columns()))
+            engine, frames = self._headless()
+            with frames.serving():
+                said = json.loads(engine.call('gridFilter', self._spec(frames), _json.dumps(_given_filter(condition))))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            if said['filter'] is not None:
+                return self._set('filter', said['filter'])
         self._query.pop('filter', None)
         self._page._changed()
         return self

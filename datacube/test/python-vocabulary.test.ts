@@ -1,10 +1,10 @@
 // What Python's ll.Page writes (python/legend_lite/page.py; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md), in
-// DataCube's own words: its filter operators, aggregates, sort directions and charts, the page's version, each as
-// DataCube's sources spell them -- so a name added here is one Python offers too, and Python never writes one DataCube
-// does not read (where it places a tile, and what a grid's cube holds, DataCube's own code says, headless). And what
-// Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner protocol's own lists
-// and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads Python's side as text
-// (the two halves are in two languages), and DataCube's types as text, its values as they are.
+// DataCube's own words: its aggregates, sort directions and charts, the page's version, each as DataCube's sources
+// spell them -- so a name added here is one Python offers too, and Python never writes one DataCube does not read
+// (where it places a tile, what a grid's cube holds and what its filter takes, DataCube's own code says, headless).
+// And what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner protocol's own
+// lists and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads Python's side as
+// text (the two halves are in two languages), and DataCube's types as text, its values as they are.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -46,12 +46,6 @@ const pyNumber = (name: string, file = PAGE): number =>
   digits(new RegExp(`^${name} = ([\\d_.]+)$`, 'm').exec(SOURCES.read(file))?.[1]);
 
 describe('Python writes pages in DataCube\'s own words', () => {
-  it('its filter operators are the filter editor\'s', () => {
-    const operators = union('src/snapshot.ts', 'FilterOperator');
-    assert.ok(operators.length > 20, 'the scan found them');
-    assert.deepEqual(python('FILTER_OPERATORS'), operators);
-  });
-
   it('its aggregates, sort directions and charts are the grid\'s and the chart\'s', () => {
     assert.deepEqual(python('AGGREGATES'), union('src/snapshot.ts', 'AggregateFn'));
     assert.deepEqual(python('DIRECTIONS'), union('src/snapshot.ts', 'SortDirection'));
