@@ -1874,11 +1874,19 @@ public final class SqlToPure {
         List<String> names = new ArrayList<>();
         List<OutCol> columns = new ArrayList<>();
         List<java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification>> setKeys = new ArrayList<>();
+        List<@com.legend.base.Nullable Tx> leftValues = new ArrayList<>();
+        List<@com.legend.base.Nullable Tx> rightValues = new ArrayList<>();
         for (int i = 0; i < left.columns().size(); i++) {
             OutCol l = left.columns().get(i);
             OutCol r = right.columns().get(i);
-            ColumnType unified = dialect.setColumn(s, i, new ColumnType(l.kind(), l.nullable(), l.detail()),
-                    new ColumnType(r.kind(), r.nullable(), r.detail()));
+            ColumnType lt = new ColumnType(l.kind(), l.nullable(), l.detail());
+            ColumnType rt = new ColumnType(r.kind(), r.nullable(), r.detail());
+            ColumnType unified = dialect.setColumn(s, i, lt, rt);
+            // IQ island, 2026-10-15: each side's values brought to the column's type where the dialect converts them
+            leftValues.add(unified == null ? null : dialect.setValue(s, i, Tx.value(property(row, l.name()), l.kind(),
+                    l.nullable(), l.detail()), rt, true));
+            rightValues.add(unified == null ? null : dialect.setValue(s, i, Tx.value(property(row, r.name()),
+                    r.kind(), r.nullable(), r.detail()), lt, false));
             if (unified == null && l.kind() != r.kind()) {
                 if (l.kind() == Kind.NULL || r.kind() == Kind.NULL || l.kind().numeric() && r.kind().numeric()) {
                     throw SqlTranslationException.unsupported(op + " of " + l.kind().name().toLowerCase(Locale.ROOT)
@@ -1914,6 +1922,8 @@ public final class SqlToPure {
             columns.add(unified != null ? new OutCol(l.name(), unified.kind(), nullable, unified.detail())
                     : new OutCol(l.name(), l.kind() == Kind.DECIMAL ? Kind.NUMBER : l.kind(), nullable));
         }
+        left = converted(left, leftValues);
+        right = converted(right, rightValues);
         ValueSpecification vs = s.op() == SqlAst.SetOp.UNION ? union(s, left, right, names, setKeys)
                 : rowsFound(s.op() == SqlAst.SetOp.INTERSECT, left, right);
         List<ValueSpecification> sortInfos = new ArrayList<>();
@@ -1948,6 +1958,40 @@ public final class SqlToPure {
             vs = call("limit", vs, dialect.rowCount(limit, "LIMIT"));
         }
         return new Rel(vs, columns);
+    }
+
+    /** IQ island, 2026-10-15: {@code rel} with each column whose {@code values} entry is not null computed as that
+     *  value (a set operation's side brought to its columns' types), its other columns as they are, in their order. */
+    private Rel converted(Rel rel, List<@com.legend.base.Nullable Tx> values) {
+        if (values.stream().allMatch(java.util.Objects::isNull)) {
+            return rel;
+        }
+        Set<String> taken = new HashSet<>();
+        rel.columns().forEach(c -> taken.add(c.name()));
+        List<ColSpec> computed = new ArrayList<>();
+        List<ColSpec> selection = new ArrayList<>();
+        List<String[]> renames = new ArrayList<>();
+        List<OutCol> cols = new ArrayList<>();
+        for (int i = 0; i < rel.columns().size(); i++) {
+            OutCol c = rel.columns().get(i);
+            Tx v = values.get(i);
+            if (v == null) {
+                selection.add(colSpec(c.name()));
+                cols.add(c);
+                continue;
+            }
+            String k = fresh(taken);
+            computed.add(new ColSpec(k, lambda(row, valueOf(v)), null, null));
+            selection.add(colSpec(k));
+            renames.add(new String[] {k, c.name()});
+            cols.add(new OutCol(c.name(), v.kind(), c.nullable() || v.nullable(), v.detail()));
+        }
+        ValueSpecification vs = call("select", call("extend", rel.vs(), new ColSpecArray(computed)),
+                new ColSpecArray(selection));
+        for (String[] r : renames) {
+            vs = call("rename", vs, colSpec(r[0]), colSpec(r[1]));
+        }
+        return new Rel(vs, cols);
     }
 
     private ValueSpecification union(SqlAst.SetOperation s, Rel left, Rel right, List<String> names,

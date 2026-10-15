@@ -567,11 +567,11 @@ tests:
     sql: "SELECT ts FROM t WHERE id = 1 UNION ALL SELECT ts FROM t WHERE id = 7 ORDER BY 1"
   - id: union_of_doubles
     sql: "SELECT dbl FROM t WHERE id < 3 UNION SELECT dbl FROM t WHERE id = 7 ORDER BY 1"
-  - id: union_of_numerics_is_refused
+  - id: union_of_numerics
     sql: "SELECT nm FROM t UNION SELECT qty FROM u"
   - id: union_integer_with_numeric_is_refused
     sql: "SELECT 1 UNION SELECT 1.5"
-  - id: union_integer_with_double_is_refused
+  - id: union_integer_with_double
     sql: "SELECT id FROM t UNION ALL SELECT dbl FROM t"
   - id: union_parenthesized_branches
     sql: "(SELECT id FROM t) UNION (SELECT t_id FROM u) ORDER BY 1"

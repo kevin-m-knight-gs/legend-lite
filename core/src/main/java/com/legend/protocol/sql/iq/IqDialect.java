@@ -213,6 +213,9 @@ public final class IqDialect implements InputDialect {
      *  (its GROUP BY and HAVING with their aliases' expressions in place), made once, so that the comparisons
      *  {@link #twoValuedPlaces} placed in a HAVING are the ones translated. */
     private final Map<SqlAst.Select, SqlAst.Select> grouped;
+    /** IQ island, 2026-10-15: the statement's set operations that are a branch of another, by identity (an all-NULL
+     *  column stays untyped there, {@link #setColumn}). */
+    private final Set<SqlAst.SetOperation> innerSets;
     /** IQ island, 2026-10-14 (the options framework): each statement {@link #parse} read after SET statements, by
      *  identity, with the dialect of the settings they made, which translates it ({@link #reading}). */
     private final Map<SqlAst.Statement, IqDialect> prefixed = new IdentityHashMap<>();
@@ -222,8 +225,10 @@ public final class IqDialect implements InputDialect {
             Set<String> derived, Set<SqlAst.Pos> starred,
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
             @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
-            Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped) {
+            Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped,
+            Set<SqlAst.SetOperation> innerSets) {
         this.settings = settings;
+        this.innerSets = innerSets;
         this.twoValued = twoValued;
         this.grouped = grouped;
         this.naming = naming;
@@ -247,14 +252,14 @@ public final class IqDialect implements InputDialect {
     public static IqDialect of(IqSettings settings) {
         return new IqDialect(settings, null, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
-                Map.of());
+                Map.of(), Set.of());
     }
 
     /** The dialect under {@code settings} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqSettings settings, Engine engine) {
         return new IqDialect(settings, engine, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
-                Map.of());
+                Map.of(), Set.of());
     }
 
     public IqSettings settings() {
@@ -1249,14 +1254,23 @@ public final class IqDialect implements InputDialect {
         Set<SqlAst.Expr> valuesHere = statement instanceof SqlAst.Select s ? shownOnly(s)
                 : Collections.newSetFromMap(new IdentityHashMap<>());
         Map<SqlAst.Select, SqlAst.Select> groupedHere = new IdentityHashMap<>();
+        Set<SqlAst.SetOperation> innerSetsHere = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 groupedHere.put(s, IqAggregates.grouping(s));
             }
+            if (q instanceof SqlAst.SetOperation o) {
+                for (SqlAst.Statement branch : List.of(o.left(), o.right())) {
+                    if (branch instanceof SqlAst.SetOperation inner) {
+                        innerSetsHere.add(inner);
+                    }
+                }
+            }
         }
         IqDialect read = new IqDialect(settings, chosen, inCase, names, limitedHere, shownHere, derivedHere,
                 starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, settings),
-                lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere);
+                lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
+                innerSetsHere);
         read.outerReads.addAll(outerReads);
         read.aliasesRead.putAll(aliasesRead);
         read.innerNames.putAll(innerNames);
@@ -4790,8 +4804,12 @@ public final class IqDialect implements InputDialect {
      * A set operation's column takes one type by IQ's unification ({@link #unify}: the research's TYPING §8, which
      * UNION shares), where the island proves it: integers the smallest type holding both (measured: SMALLINT with
      * BIGINT is BIGINT), strings, dates, timestamps, doubles alike; an untyped NULL with an integer (its NULL is a
-     * SMALLINT's). Refused by name: a NUMERIC (the research's D-N1, and a scale the two sides share), a NULL with any
-     * other type, and every mix of kinds (IQ converts one to the other, a string to a number by its rules).
+     * SMALLINT's). IQ island, 2026-10-15 (measured on IQ 17.1), under IQ's engine: a NUMERIC with an integer or a
+     * NUMERIC is a NUMERIC of the most digits before the point and the largest scale (NUMERIC(10,2) with INTEGER is
+     * NUMERIC(12,2), with BIGINT NUMERIC(21,2)), with a DOUBLE a DOUBLE, an integer with a DOUBLE a DOUBLE, a DATE with
+     * a TIMESTAMP a TIMESTAMP, and an untyped NULL takes the other side's type; each side's values converted
+     * ({@link #setValue}). Refused by name: those on SQL Anywhere's front end, and every other mix of kinds (IQ's
+     * error -1001020 for a string with a number).
      */
     @Override
     public SqlToPure.ColumnType setColumn(SqlAst.SetOperation s, int i, SqlToPure.ColumnType left,
@@ -4806,8 +4824,20 @@ public final class IqDialect implements InputDialect {
         if (leftNull || rightNull) {
             SqlToPure.ColumnType other = leftNull ? right : left;
             if (other.kind() == Kind.NULL) {
+                // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a UNION types its columns over all
+                // its branches, so NULL with NULL stays untyped for a later branch (NULL, NULL, a DATE is a DATE);
+                // the outermost UNION's all-NULL column is a VARCHAR(4)
+                if (engine == Engine.IQ) {
+                    return innerSets.contains(s) ? new SqlToPure.ColumnType(Kind.NULL, true, null)
+                            : new SqlToPure.ColumnType(Kind.STRING, true, new IqType("VARCHAR(4)"));
+                }
                 return new SqlToPure.ColumnType(Kind.INTEGER, true, IqType.integer("SMALLINT", IqType.SMALLINT_MIN,
                         IqType.SMALLINT_MAX, false));
+            }
+            if (engine == Engine.IQ && (other.kind() != Kind.INTEGER || !(other.detail() instanceof IqType o)
+                    || !o.isInteger())) {
+                // IQ island, 2026-10-15 (measured on IQ 17.1): the NULL takes the other side's type
+                return new SqlToPure.ColumnType(other.kind(), true, other.detail());
             }
             if (other.kind() != Kind.INTEGER || !(other.detail() instanceof IqType t) || !t.isInteger()) {
                 throw SqlTranslationException.unsupported(op + " of a NULL and " + kindName(other.kind()) + " in"
@@ -4816,6 +4846,13 @@ public final class IqDialect implements InputDialect {
             // the NULL's type is a SMALLINT's; its values are the other side's
             return new SqlToPure.ColumnType(Kind.INTEGER, true, IqType.integer(IqTypes.unified("SMALLINT",
                     t.family()), t.lo(), t.hi(), t.wide(), t.wider()));
+        }
+        if (engine == Engine.IQ && s.op() == SqlAst.SetOp.UNION && (left.kind() != right.kind()
+                || left.kind() == Kind.DECIMAL || left.kind() == Kind.NUMBER)) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): numbers and dates unified as a CASE's are
+            SqlToPure.Common common = unify(op, List.of(new SqlAst.NullLit(s.pos()), new SqlAst.NullLit(s.pos())),
+                    List.of(placeholder(left), placeholder(right)), s.pos());
+            return new SqlToPure.ColumnType(common.kind(), left.nullable() || right.nullable(), common.detail());
         }
         if (left.kind() == Kind.DECIMAL || left.kind() == Kind.NUMBER || right.kind() == Kind.DECIMAL
                 || right.kind() == Kind.NUMBER) {
@@ -4841,6 +4878,49 @@ public final class IqDialect implements InputDialect {
         // not NULL because the right's are not, an ORDER BY's collation key of RTRIM(vc) INTERSECT 'Hello' failed)
         return new SqlToPure.ColumnType(common.kind(), s.op() == SqlAst.SetOp.EXCEPT ? left.nullable()
                 : left.nullable() || right.nullable(), common.detail());
+    }
+
+    /** A set operation's side's column as a value of its type, for {@link #unify} to type (never computed). */
+    private static Tx placeholder(SqlToPure.ColumnType t) {
+        return Tx.value(new CString(""), t.kind(), t.nullable(), t.detail());
+    }
+
+    /** IQ island, 2026-10-15: a UNION's side's values converted to the column's type ({@link #setColumn}): an untyped
+     *  NULL a NULL of that type, a number or a date as {@link #unify} converts a CASE's. */
+    @Override
+    public @com.legend.base.Nullable Tx setValue(SqlAst.SetOperation s, int i, Tx side, SqlToPure.ColumnType other,
+            boolean left) {
+        if (engine != Engine.IQ || s.op() != SqlAst.SetOp.UNION) {
+            return null;
+        }
+        if (side.kind() == Kind.NULL) {
+            if (other.kind() == Kind.NULL && !innerSets.contains(s)) {
+                return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, new IqType("VARCHAR(4)"));
+            }
+            if (other.kind() == Kind.NULL || other.kind() == Kind.INTEGER) {
+                return null;
+            }
+            if (other.kind() == Kind.DECIMAL || other.kind() == Kind.NUMBER) {
+                // a NULL of the column's own Decimal type (the other side's is brought to its scale): Pure types the
+                // never-taken branch, so the databases see one NUMERIC, not a NUMERIC of 18 places
+                int scale = iqNumericType(placeholder(other), new SqlAst.NullLit(s.pos()))[1];
+                ValueSpecification zero = SqlToPure.call("toDecimal", new CInteger(0L));
+                return Tx.value(ifThen(new com.legend.protocol.spec.CBoolean(true, null),
+                        SqlToPure.nullOf(Kind.DECIMAL).vs(), scale > 0 ? IqFunctions.atScale(zero, scale) : zero),
+                        Kind.DECIMAL, true, other.detail());
+            }
+            return Tx.value(SqlToPure.nullOf(other.kind()).vs(), other.kind(), true, other.detail());
+        }
+        boolean numeric = side.kind() == Kind.DECIMAL || side.kind() == Kind.NUMBER;
+        if (other.kind() == Kind.NULL && !numeric || side.kind() == other.kind() && !numeric) {
+            // (a NUMERIC beside a NULL is brought to its scale as unify brings it: one Decimal type with the NULL's)
+            return null;
+        }
+        Tx o = placeholder(other);
+        SqlToPure.Common common = unify(s.op().name(), List.of(new SqlAst.NullLit(s.pos()),
+                new SqlAst.NullLit(s.pos())), left ? List.of(side, o) : List.of(o, side), s.pos());
+        Tx mine = common.values().get(left ? 0 : 1);
+        return mine == side ? null : mine;
     }
 
     // ------------------------------------------------------------------ one type for alternatives
@@ -4871,6 +4951,19 @@ public final class IqDialect implements InputDialect {
             SqlToPure.Common numbers = iqNumericUnify(what, exprs, values, pos);
             if (numbers != null) {
                 return numbers;
+            }
+            // IQ island, 2026-10-15 (measured on IQ 17.1): a DATE beside a TIMESTAMP is the TIMESTAMP of its midnight
+            if (values.stream().anyMatch(v -> v.kind() == Kind.DATE)
+                    && values.stream().anyMatch(v -> v.kind() == Kind.DATETIME)
+                    && values.stream().allMatch(v -> v.kind() == Kind.DATE || v.kind() == Kind.DATETIME
+                    || v.kind() == Kind.NULL)) {
+                List<Tx> timestamps = new ArrayList<>();
+                for (Tx v : values) {
+                    timestamps.add(v.kind() != Kind.DATE ? v : Tx.value(SqlToPure.strict(Kind.DATETIME, List.of(v),
+                            x -> IqFunctions.midnight(x.get(0))).vs(), Kind.DATETIME, v.nullable(),
+                            IqFunctions.dated("TIMESTAMP", IqFunctions.latestYear(v))));
+                }
+                return unify(what, exprs, timestamps, pos);
             }
         }
         Kind kind = null;
@@ -4979,6 +5072,7 @@ public final class IqDialect implements InputDialect {
             List<Tx> values, SqlAst.Pos pos) {
         boolean numeric = false;
         boolean doubles = false;
+        boolean integers = false;
         for (Tx v : values) {
             if (v.kind() == Kind.NULL) {
                 continue;
@@ -4987,11 +5081,14 @@ public final class IqDialect implements InputDialect {
                 numeric = true;
             } else if (v.kind() == Kind.FLOAT && v.detail() instanceof IqType t && t.family().equals("DOUBLE")) {
                 doubles = true;
-            } else if (!(v.kind() == Kind.INTEGER && v.detail() instanceof IqType t && t.isInteger())) {
+            } else if (v.kind() == Kind.INTEGER && v.detail() instanceof IqType t && t.isInteger()) {
+                integers = true;
+            } else {
                 return null;
             }
         }
-        if (!numeric) {
+        // IQ island, 2026-10-15 (measured on IQ 17.1): an integer beside a DOUBLE is a DOUBLE too
+        if (!numeric && !(doubles && integers)) {
             return null;
         }
         if (doubles) {

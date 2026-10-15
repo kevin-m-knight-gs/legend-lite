@@ -815,11 +815,17 @@ class IqToPureTest {
         assertTrue(numbers("SELECT sm AS x FROM " + T + " UNION SELECT bg FROM " + T).contains("->distinct()"));
         pure("SELECT NULL UNION ALL SELECT id FROM " + T);
         for (String sql : new String[] {"SELECT vc FROM " + T + " UNION ALL SELECT id FROM " + T,
-                "SELECT NULL UNION ALL SELECT vc FROM " + T,
                 "SELECT NULL INTERSECT SELECT NULL"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal(sql).kind(), sql);
         }
-        assertTrue(numbersRefusal("SELECT nm FROM " + T + " UNION SELECT nm FROM " + T).getMessage().contains("D-N1"));
+        // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a NULL takes the other side's type and
+        // NUMERICs unify, each side's values converted; SQL Anywhere's front end refuses them by name still
+        assertTrue(pure("SELECT NULL UNION ALL SELECT vc FROM " + T).contains("cast(@String)"));
+        assertTrue(numbers("SELECT nm FROM " + T + " UNION SELECT i FROM " + T).contains("toDecimal()"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT NULL UNION ALL SELECT vc FROM " + T,
+                IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).kind());
+        assertTrue(refusal("SELECT nm FROM " + T + " UNION SELECT nm FROM " + T, IqProfile.SQLA17_DEFAULT.settings(),
+                NUMBERS).getMessage().contains("D-N1"));
         // a set operation's ORDER BY: a position or a first-branch name; anything else IQ's -152
         assertTrue(refusal("SELECT 1 a UNION SELECT 2 ORDER BY a + 1").getMessage().contains("-152"));
         assertTrue(refusal("SELECT 1 a UNION SELECT 2 b ORDER BY b").getMessage().contains("-854"));

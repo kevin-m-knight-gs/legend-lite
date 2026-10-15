@@ -218,6 +218,14 @@ public interface InputDialect {
         return null;
     }
 
+    /** IQ island, 2026-10-15: column {@code i} of one side of {@code s} ({@code left}'s or the right's), its value
+     *  {@code side}, converted to the type the column takes beside the other side's {@code other} ({@link #setColumn}):
+     *  null where its values are already that type's. */
+    default SqlToPure.@com.legend.base.Nullable Tx setValue(SqlAst.SetOperation s, int i, SqlToPure.Tx side,
+            SqlToPure.ColumnType other, boolean left) {
+        return null;
+    }
+
     /** Whether a NATURAL join shows the columns its two sides share once, merged (the standard's, Postgres's); a
      *  dialect that keeps both sides' columns, each read qualified, joining on their equality, says false. */
     default boolean mergesNaturalJoin() {

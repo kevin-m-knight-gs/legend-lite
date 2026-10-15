@@ -1999,6 +1999,11 @@ final class IqFunctions {
     }
 
     /** A timestamp of {@code d} (a DATE: its midnight). */
+    /** IQ island, 2026-10-15: the TIMESTAMP of date {@code d}'s midnight. */
+    static ValueSpecification midnight(ValueSpecification d) {
+        return timestamp(d, true);
+    }
+
     private static ValueSpecification timestamp(ValueSpecification d, boolean date) {
         return date ? SqlToPure.call("date", SqlToPure.call("year", d), SqlToPure.call("monthNumber", d),
                 SqlToPure.call("dayOfMonth", d), integer(0), integer(0), integer(0)) : d;
