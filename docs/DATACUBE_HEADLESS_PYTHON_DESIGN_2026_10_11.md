@@ -236,7 +236,11 @@ depends on steps 1-2. Steps 3-4 can follow the model plan's step 3 (dashboards o
 
 ## 10. Ruled (the user, 2026-10-11)
 
-1. **One package**, with a `datacube` extra, not two wheels.
+1. **One package**, with a `datacube` extra, not two wheels. *Extended 2026-10-15 (the user: "core is just the compiler
+   and datacube installs everything datacube needs including v8"): the wheel alone is the compiler and requires
+   nothing; the extra is all of DataCube -- duckdb, pyarrow and mini-racer -- and every DataCube module asks for it
+   first (`legend_lite/_extra.py`), so DataCube's code can always be asked and its rules are never copied into Python
+   (`docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`).*
 2. **V8** (`mini-racer`), at its size (+15-22 MB, +51 MB of memory), not QuickJS.
 3. **Before the model plan's Python calls** (§15.5): this design's steps 0-2 first.
 4. **The rename**, `WasmPlanner` to `LitePlanner`, with the Plan Gen / Exec Split line (agreed by it, 2026-10-11).

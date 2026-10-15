@@ -1,7 +1,8 @@
 # DataCube charts and dashboards: what the ECharts gallery shows we need (design, 2026-10-09)
 
-The DataCube + Python line. The order (§3) and the maps (§4) are agreed with the user (2026-10-09); §6 lists what is
-still open. This builds on `docs/DATACUBE_DASHBOARDS_DESIGN_2026_09_28.md` (the chart spec, the page model and its
+The DataCube + Python line. The order (§3) and the maps (§4) are agreed with the user (2026-10-09); batches 2-5 were
+widened with the user on 2026-10-14 (§3.1-§3.3: every chart we can realistically draw, the spec's version 2, the
+calculated columns packaged as presets, an example page per batch); §6 lists what is still open. This builds on `docs/DATACUBE_DASHBOARDS_DESIGN_2026_09_28.md` (the chart spec, the page model and its
 linking rules, milestones M0-M5) rather than replacing it: batch 1 here is that design's M3 and M4, never built.
 
 ## 0. The ask
@@ -64,53 +65,260 @@ with its step 3 (its §13: dashboards on classes).
    sheet, stacked, following the grid's measure or frozen, saved, and Python's `grid.chart('kpi', ...)` -- with none
    of it written twice; its options carry the target and which way is good.
 
+### Batches 2-5: every chart we can realistically draw (revised with the user, 2026-10-14)
+
+The user, 2026-10-14: "do all the charting you can -- like every possible combination of charts and visualizations
+that we can realistically do ... anything BI/visualization/PowerBI/tableau/superset ideas ... does not have to conform
+to current charts model in datacube". Then, before any new query machinery: "check Extended Columns or Calculated
+Columns first -- that might have the starting point or most of what you want". It did (§3.2), and the plan below is
+built on it. Agreed in conversation the same day: the spec's version 2 (§3.1), a chart's own calculations kept in its
+spec (§3.2, option (a)), the presets shared by the chart and the grid (§3.2), an example page per batch (§3.3), and the
+batches in this order.
+
+#### 3.1 The chart spec, version 2: a slot per role
+
+Version 1 is fixed slots -- one column across (`x`), one `split` (a series per value), the measures (`y`), six options --
+enough for seven kinds and no more: a bubble needs a size, a bar-and-line chart a kind and an axis per measure, small
+multiples a facet, a reference line a layer. Version 2 is a SUPERSET of version 1, every new field optional, so a
+version 1 spec reads as a version 2 spec unchanged (the reader moves the number; nothing else is rewritten) and every
+chart drawn today draws the same:
+
+| Slot | What it holds | What uses it |
+|---|---|---|
+| `x` | the column across; with a **grain** (a date's day, week, month, quarter, year) or **bins** (a number's width) | every axis chart; a time axis |
+| `y[]` | each measure: its column and aggregate -- or `fn: 'value'`, a GROUP-LEVEL column already computed per group --, its own `mark` (bar, line, area), its `axis` (left, right; else by unit, §6), and a **show as** (§3.2) | bar and line together; running totals, % of total |
+| `split` | the colour slot: one series per value (the name kept: Python and saved pages say it) | as today |
+| `size` | a measure sizing each mark | bubble, scatter |
+| `label` | what a mark says on it: its value, the category, another measure | data labels |
+| `tooltip[]` | further measures a hover lists, beside the plotted ones | every kind |
+| `facet` | a column per small chart (rows, or columns, or both): small multiples on shared axes | small multiples, the matrix |
+| `layers[]` | reference lines (a constant, a target, the average, min or max of a measure -- the database's figure, a group-level window over every row of the chart, before its top N; the median comes with batch 4's percentile), bands (between two values, or a date range), thresholds (colour by value: below a target red) and pinned extremes | the analytics layer |
+| `drill[]` | the path drilled so far (the grid's row groupings, one level per click) | drill-down |
+| `calcs[]` | the chart's own calculated columns, written in Pure as the grid's are (the column editor's own types, `DerivedColumn`) | anything a preset does not say |
+| `options` | grows: smooth, step, log axis, axis breaks, label position and rotation, zoom (slider), brush, sampling, hover dimming, decal fills, the toolbox | §3 batch 2 item 12 |
+
+A new KIND stays a new `mark`; a reader that does not know one refuses it by name (`page-document.ts`, as now). The
+spec stays plain JSON, holding no functions: formats come from the grid at draw time, never stored.
+
+A page this DataCube saves writes its charts as version 2, whether or not they use a slot version 2 adds, so a DataCube
+from before batch 2 refuses it ("its version 2 is not one this DataCube reads"). Accepted (the DataCube + Python line's
+review, 2026-10-14): there is one deployed DataCube, and it reads every version before its own.
+
+**Planners.** Every preset's query is planned by legend-lite and run on DuckDB in `test/chart-queries.test.ts`. Not yet
+planned through legend-engine (a running 4.145, as D5b's probes did): the forms the presets lean on --
+`firstDayOfWeek/Month/Quarter/Year` and `datePart` (a grain), `adjust(..., DurationUnit)` (a period's end), a bin's
+nested `if` and `floor` over a division (its edge), `if(..., |[], ...)` (a change from zero), and the group-level `lag`,
+`rank` and framed windows (show-as, statistics). Until they are, a chart using one on a page planned by legend-engine is
+unchecked there; the probe is a step before batch 2 lands on a deployment that plans with the engine.
+
+#### 3.2 Calculations: the calculated columns DataCube already has, packaged
+
+What the column editor (`ui/column-editor.ts`; `snapshot.ts` `DerivedColumn`, `WindowSpec`, `ChildAggregate`; `calc.ts`)
+can already say, read 2026-10-14:
+
+- **Row level**: any Pure expression over the source row, typed by the compiler. A time grain is
+  `$x.tradeDate->firstDayOfMonth()` (and `firstDayOfWeek`, `firstDayOfQuarter`, `firstDayOfYear`, `year`,
+  `monthNumber`, `quarterNumber`, `dayOfWeekNumber` -- every one a native of the compiler); bins are
+  `floor($x.notional / 1000000) * 1000000`.
+- **Window**: a running or moving sum, average, min, max, count (a partition, an order, a frame of the last N rows); rank,
+  dense rank, row number, percent rank, cumulative distribution, ntile; lag and lead; first and last value. That is
+  running totals, moving averages, rank (a bump chart), the period before (lag), an ECDF, a Pareto's cumulative share.
+- **Group level**: an expression over the grouped measures (`$x.profit / $x.revenue`); windows at this level run over
+  the grouped rows, so a running total runs along a chart's categories.
+
+The gaps, and what each step closes:
+
+1. **A chart cannot plot a group-level column today**: `chartSnapshot` drops `groupDerived` and the windows, and a
+   chart's measure is a column and an aggregate only. Version 2's `fn: 'value'` plots one, and the chart's query keeps
+   the group-level columns it plots (with the measures they read, under the names they read them by).
+2. **Presets**, one library (`calc-presets.ts`) turning a choice into ordinary calculated columns of the existing
+   types: **grain** (day, week, month, quarter, year), **bins** (a width, or one from the column's range), and **show
+   as** -- running total, % of total, difference from the previous, % change from the previous, moving average over N,
+   rank. Nothing new is queried: a preset IS a `DerivedColumn` the planner already plans.
+3. **Where a chart's calculation lives (option (a), the user's choice):** in the chart's spec -- the grid stays as the
+   person left it; a button promotes it into the grid. A preset is kept as its WORDS (`x: {column, grain: 'month'}`,
+   `showAs: {kind: 'runningTotal'}`) and expanded to calculated columns by `chart-spec.ts` when the query is built, so
+   Python writes the same words and never a copy of the expansion (one-platform rule 1: DataCube's semantics are
+   DataCube's TypeScript); a calculation in Pure is a `calcs[]` entry, as the grid keeps one.
+4. **The grid gets the presets too**: its column header menu (beside "Extend Column X…") offers grain, bins and show-as,
+   each adding the columns to the cube, editable afterwards as Pure; a new column may start from a preset.
+5. **The editor's vocabulary** (`CALC_FUNCTIONS`) gains the date functions, each with an example the build compiles.
+6. **Batch 4's aggregates** -- `percentile` (quartiles), `corr`, `covarSample`/`covarPopulation`, `maxBy`/`minBy`
+   (first and last by time) -- are natives of the compiler already; DataCube's `AggregateFn` and Python's `AGGREGATES`
+   gain them. A trend line needs no regression function: its slope is the covariance over the variance, its intercept
+   the mean of y less the slope times the mean of x -- two aggregates and a group-level column.
+
+#### 3.3 An example page per batch
+
+Each batch ships a saved page of examples, simple to complex, one sheet (tab) per family: opened from the Open window
+("Examples"), over a sample DataCube makes itself (`samples.ts`, from a fixed seed: a page names its sample and opening
+rebuilds it, as a saved page over a sample does today), so it needs no file and no network. Each page is BUILT by
+TypeScript (`src/examples/`, its own lazily loaded chunk) rather than hand-written JSON, so it moves with the spec; a
+node test reads each page back and finds every chart drawable (`chartProblems` empty), and the browser test opens it
+and draws every tile. A sample with what a dashboard needs: `sales` -- a date, a region, a country (its ISO code and
+name), a city with latitude and longitude, a channel, a category, a product, units, revenue, cost, profit, a target, a
+discount -- and, for batch 4, `prices` (a symbol's daily open, high, low, close and volume).
+
 ### Batch 2: the charts made dashboard-grade
 
-1. **Bar and line together**, one series a bar and another a line, on one axis when they share a unit and on two when
-   they do not -- each axis then labelled in its series' colour (§6, decided).
-2. **Reference lines and colour by value**: a target, an average or a constant as a line; a shaded period or band;
-   the highest and lowest pinned; a series coloured by thresholds (red below target).
-3. **The grid's own number formats** on every axis, label and tooltip (currency, percent, thousands and millions),
-   from the column's format in the grid, so a chart never says 15054092 where the grid says $15.1M.
-4. **A real time axis, zoom and pan**: a date across is a time scale (gaps are gaps), a slider under a long series,
-   and point thinning (ECharts' sampling) so a long series stays quick (the dashboards design's "~100k points").
-5. **Drill-down in a chart**: a click on a bar goes one level down the grid's own row groupings (region, then desk),
-   with the path shown and a way back up; it uses the grid's groupings, so a chart drills as its grid does.
-6. **Brush to filter**: drag across a date range, or around a region of a scatter, to filter -- today's click-to-filter
-   for a range (two conditions, from and to; four on a scatter's two columns).
-7. **The cheaper options** with them: smooth and step lines, a log axis, axis breaks, label position and rotation,
-   dimming the rest on hover, pattern fills for readers who cannot tell colours apart (ECharts' decal), and switching a
-   chart's kind in place.
+Each step a commit of its own, in this order:
 
-### Batch 3: new kinds over the query DataCube already runs (groupings and measures)
+0. This note, and the branch announced in `docs/IN_FLIGHT.md`.
+1. **The spec's version 2** (§3.1): the slots, the reader (version 1 read unchanged), Python's words
+   (`page.py`, `python-vocabulary.test.ts`).
+2. **A chart plots group-level columns and windows** (§3.2 gap 1).
+3. **The presets** (`calc-presets.ts`): grain, bins, show as, used by the chart's editor; the date functions in the
+   editor's vocabulary.
+4. **The grid's presets**: its header menu and the column editor's start (§3.2 item 4).
+5. **Bar and line together**: a kind per measure; one value axis when the measures share a unit, two when they do not,
+   each labelled in its series' colour (§6, decided).
+6. **The grid's own number formats** on every axis, label and tooltip (currency, percent, thousands and millions), from
+   the column's format in the grid, so a chart never says 15054092 where the grid says $15.1M.
+7. **Reference lines and colour by value**: a constant, a target, the average, minimum or maximum as a line (the
+   database's figure: a group-level window over every row of the chart -- before its top N, across every series); a
+   shaded band or period; the highest and lowest pinned; a series coloured by thresholds (red below target). Not on a
+   100% stack (its axis is shares), refused by name. The median comes with batch 4's percentile.
+8. **Label and tooltip**: a hover lists every measure asked for; a label from any column.
+9. **A real time axis, zoom and pan**: a date across is a time scale (gaps are gaps), a slider under a long series, and
+   point thinning (ECharts' sampling) so a long series stays quick.
+10. **Drill-down and drill-through**: a double-click on a bar goes one level down the grid's own row groupings (region,
+    then desk), with the path shown and a way back up -- only from a column the grid groups by, never from a period or
+    a bin; drill-through is a click, which filters the grid to the rows behind the mark.
+11. **Brush to filter**: drag across a date range, or around a region of a scatter, to filter the chart's own grid --
+    today's click-to-filter for a range (two conditions, from and to; four on a scatter's two columns), taken by value
+    whatever order the chart draws in. A period's or a bin's end is the DATABASE's (its `adjust()`, its next edge:
+    chart-spec.ts AXIS_UPPER), compared, never computed in the browser.
+12. **The cheaper options**: smooth and step lines, a log axis, axis breaks, label position and rotation, dimming the
+    rest on hover, hiding a series from its legend (ECharts' own: a click on its legend entry), pattern fills for
+    readers who cannot tell colours apart (ECharts' decal), switching a chart's kind in place (the toolbox's bars or
+    line, kept), the toolbox (save as a picture, the chart's data, its CSV), and a crosshair shared across a page's
+    charts of one column across -- the tooltip relayed, nothing else (ECharts' `connect` would pass on a brush or a zoom
+    too). The options form leaves startup: a chunk of its own (ui/chart-form.ts), fetched when a chart's options are
+    first shown.
+13. **The notebook widget fetches its chart code lazily** (today ECharts is inside its one module, budget 461,746 bytes
+    gzipped, and grows with every piece registered): measured before and after, and asked of the user before it is
+    built, since it changes the widget's build. **Done** (the user said yes, 2026-10-14): the module is built with lazy
+    chunks (`widget-chunks/`); the loader fetches each over the kernel's channel the first time the cube needs it and
+    imports it from a blob URL with its chunk specifiers rewritten (a static import to the chunk's own URL, a dynamic
+    one to the loader's fetch). What a cube fetches before it shows went from 604,278 bytes gzipped to 281,797; the
+    chart's code and ECharts come with the first chart. Python's hash of the module covers the chunks.
+14. **Its example page** (§3.3): sheets for combinations, reference lines and thresholds, time and zoom, drill and brush,
+    formats and labels, the options.
 
-Each is drawing work over rows the database already grouped, as the seven are: **waterfall** (a profit-and-loss
-bridge: each bar starts where the one before ended), **funnel**, **gauge** or **progress** against a target, **donut
-variants** (half, two rings), **bubble** (a scatter whose size is a measure), **sunburst** (the row groups as rings, as
-the treemap draws them as boxes), **Sankey** (two groupings as from and to, a measure as the flow), **calendar heatmap**
-(a date grouping laid out as a calendar), **radar** (one shape per value, a measure per spoke), and **small multiples**
-(one chart per value of a column, side by side, on shared axes).
+### Batch 3: new kinds over the query DataCube already runs
 
-### Batch 4: new kinds that need the database to compute something new
+Drawing work over rows the database already groups, using version 2's slots and the presets; the rarer kinds in chunks
+of their own, fetched with their first chart:
 
-The rule holds -- the database computes, the chart draws -- so each needs the query to say more, and an aggregate
-DataCube does not have becomes one it has (and Python's `AGGREGATES` with it):
+- **Comparing**: bubble (a scatter sized by a measure), waterfall (a profit-and-loss bridge), Pareto (bars and their
+  cumulative share, the running-total preset), lollipop, dumbbell (two measures per category), diverging bar, bullet,
+  polar bar and rose, radial bar.
+- **Over time**: stacked area and streamgraph (themeRiver), a range band (min to max), slope chart, bump chart (the rank
+  preset), calendar heatmap, a sparkline grid, Gantt and timeline (a start and an end per row).
+- **Part of a whole**: funnel, half donut, two-ring donut, sunburst (the row groups as rings), Marimekko, waffle.
+- **Flow and hierarchy**: Sankey (two groupings as from and to, a measure as the flow), chord, tree and org chart from
+  the row groupings.
+- **One value**: gauge, progress ring (against the KPI's target).
+- **Many measures**: radar (one shape per value, a measure per spoke), parallel coordinates, a scatter matrix.
+- **Layout**: small multiples on shared axes (`facet`), and the matrix (a chart per cell).
+- **Its example page**: a sheet per family.
 
-| Kind | What the query must compute |
+**Step 1, built 2026-10-14** (stacked on batch 2, to land with it): seventeen kinds -- lollipop, dumbbell, range,
+waterfall, Pareto, funnel, rose, polar bar and radial bars, radar, parallel coordinates, Sankey, chord, streamgraph,
+calendar, gauge and progress ring, sunburst and tree (the grid as shown, as the treemap) -- and the pie in two rings
+(its split outside) and as half a ring; a line of ranks is a bump chart (its axis runs from the first), a line by year a
+slope chart. The database computes each kind's own figures: a waterfall's starts and ends (a running total along the
+chart's own order, which now breaks ties by the category so the window and the rows agree), a Pareto's cumulative share,
+a two-ring pie's inner totals (calc-presets.ts); the page only places them. Every kind refuses by name what it cannot
+draw (chart-spec.ts chartProblems; Python's `_drawable` the same). The drawing (chart-kinds.ts) and the rarer ECharts
+charts (chart-render-kinds.ts) are chunks of their own, fetched with the first such chart: ECharts is now registered a
+chart at a time (`echarts/lib/...`), since the `echarts/charts` index imported by both chunks put every chart in the
+first chart's download. Its example page, "Charts: more kinds", has a sheet per family; each chart's query is planned
+and run on DuckDB (chart-queries.test.ts) and every sheet drawn in a browser (verify_charts). A grid's tree (treemap,
+sunburst, tree) is now valued by its first MEASURE, not its first number column (an id is empty on a group's row).
+
+**Step 2, built 2026-10-14**: the bubble -- a scatter's `size`, each point sized between the least and the most its
+rows say (ECharts' visual map places them; a point with no size is not drawn, and counted) -- and small multiples
+(`facet`: a chart per value of a column, a row of them, or a matrix of both) of bars, lines and areas, which make the
+sparkline grid too. The query groups by the facet's columns and asks for each panel's most times the most panels drawn
+(12); every window is a panel's own (a share is of the panel's total, an average line the panel's average). Each panel
+is drawn by the chart's own drawing from its rows and laid out as one picture: the value axes shared (each runs to the
+most any panel shows, found by comparing; a stack's panels keep their own scale, said), a series the same colour and
+in the same place in every panel, one legend, one hover, a click saying the panel's facet values too. Refused: a facet
+on another kind, with a brush or a slider, or coloured by value.
+
+**Step 3, built 2026-10-14**: the scatter matrix (`matrix`): two to five values, each pair plotted against each other
+from the cube's rows (as a scatter, not groups), each value's name on the diagonal, a colour per value of the split.
+
+Batch 3 is complete but for the kinds named above as not planned yet (Marimekko, waffle, Gantt).
+
+**Its audit (2026-10-14)** found and fixed: a live chart of one series (a waterfall, a lollipop) took the cube's
+second grouping as its split and was refused with no way to take it off -- following the cube, such a kind takes no
+split, and a kind of several values (a dumbbell, a radar) keeps its own; a split polar bar's hover read the first
+series' row; a matrix of small multiples shifted its panels after an empty pair; a calendar of a date-time without the
+day grain; a waterfall cut by "At most" called its last bar the total ("Total shown" now); Python's refusals caught up
+with DataCube's; the notebook's loader asks the next open cube's channel when one does not answer in 30 seconds.
+**A saved pie with a split changes look**: it was drawn as one ring from each category's first row (a split silently
+dropped); it is now two rings, the split outside. `options.half` and `options.ring` are checked words (true or false);
+a DataCube from before batch 3 draws a full pie or a dial for them, as it reads version 2. Named, not planned yet: Marimekko and waffle (each needs its shares laid out as cells, a layout to
+design so the page does not compute), Gantt (a start and an end per row: dates as measures).
+
+**The rules written once (2026-10-15, before batches 2 and 3 landed; the review of 2d24022).** The DataCube + Python
+line's review found Python's chart rules (`page.py _drawable`) a copy of `chartProblems`, held to it only by the shared
+cases, and drifted: a Windows fix to the calendar's check had changed DataCube's side alone. With the user: one
+rulebook, DataCube's, which Python asks. `readChart` is the one reader of a saved chart (the page's, and Python's).
+`editChart` is the one change by hand: every field of the panel's options form goes through it, and so does Python
+(`chartFrom`: DataCube's own new chart, `defaultChart`, or the chart as it was, changed by `editChart`). In it a slot
+told as null is taken away, a kind takes what it needs and leaves what it has no place for (`asMark`, once the form's
+own), a new column across takes its own order and its grain or bins go with the old one (`acrossChanged`, shared with
+`followCube`, so a Pareto keeps its order on a date either way), and a hand on what `followCube` would set again
+freezes a live chart (`freezesOn`: a KPI's measure, but not its trend; nothing of a chart of rows). The headless
+bundle's `gridChart` judges that chart, and keeps it, as the panel draws and keeps it -- a live chart regrouped by its
+grid -- against the grid's columns as the compiler types them now, calculated ones included (step 0). Python keeps
+what it makes, or refuses in DataCube's words; it passes what it is told as given, turning only its `(column, fn)`
+shorthand into a measure. Rules only Python had (no weighted average on a chart; bins a positive number, a count a whole
+one; a measure's and a facet's keys) moved into DataCube, whose reader now refuses any key a chart has no place for (a
+slot, an option, a measure's, a facet's, a layer's by its kind, bins', an order's, a drill's, a calculated column's) by
+name, as it refuses a word it does not know. A chart told its grouping and told to follow the grid (Python's
+`frozen=False`) is refused where the grid would replace what it was told (`followRefusal`): the panel never meets it, as
+a hand on the grouping freezes the chart. A chart of the grid as shown (treemap, sunburst, tree) asks nothing
+across and nothing to plot, but a slot it does not draw (a layer, a facet, a grain) is refused, and the panel now asks
+before drawing one too. Sharing the rule found two bugs of the panel's: changing the column across kept the old
+column's order (a date ran from the largest), and a live chart with a split was taken for regrouped on every refresh
+(the regrouped copy's keys came in another order), so its form was painted again each time. To make DataCube's code
+always there to ask, the package is one package, two things: the wheel alone the compiler; its `datacube` extra
+everything DataCube needs, V8 included (the headless design's §10, extended).
+The audit of the other twins is `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`.
+
+### Batch 4: new aggregates, and the kinds they unlock
+
+The rule holds -- the database computes, the chart draws. The aggregates (§3.2 item 6) join `AggregateFn` and Python's
+`AGGREGATES`; then:
+
+| Kind | What the query computes |
 |---|---|
-| Histogram | bins: a value's bucket as a grouping (its width chosen, or from the column's range) |
-| Box plot | the quartiles (`quantile_cont` in DuckDB): new aggregates, or one "quartiles" measure |
-| Candlestick, OHLC | open, high, low, close per period: `first` and `last` by time, new aggregates |
-| Trend line | a regression (`regr_slope`, `regr_intercept`), drawn over the scatter or line |
-| KPI change | the same measure for the period before, or a running window (DataCube's window columns) |
+| Histogram | the bins preset as the grouping, a count |
+| Box plot | quartiles (`percentile` at 0.25, 0.5, 0.75), min, max |
+| Violin | a density: fine bins and a count, per group |
+| ECDF | the cumulative distribution window (`cumeDist`) |
+| Candlestick, OHLC | open and close (`minBy`/`maxBy` by time), high and low, per period |
+| Error bars | the standard deviation (an aggregate DataCube has) |
+| Percentile lines | `percentile` over every row: one more query, as the average line is |
+| Correlation heatmap | `corr` for each pair of measures |
+| Hexbin density | two bins presets and a count |
+| Trend line, forecast | slope and intercept from `covarPopulation`, `variancePopulation` and two means; the forecast extends the line |
+| KPI change | the same measure for the period before (the lag window) |
 
-### Batch 5: maps (§4)
+And its example page.
 
-### Left for later
+### Batch 5: maps (§4), with its example page
 
-Network graphs, flow lines between places, fully custom series, picture bars, parallel coordinates, themeRiver, bar
-races and timelines (storytelling, of little use in BI), 3D. And not adopted at all: ECharts' own data transforms
-(filter, sort, aggregate in the chart), since the database does that.
+### After the batches
+
+Program step F1 rebuilds page filters and cross-filtering on classes (its own line); this work's clicks, brushes and
+drills filter a chart's own grid, built to feed F1 when it lands. Left for later: network graphs, bar races and
+timelines (storytelling, of little use in BI), word clouds (a third-party plugin), 3D. Not adopted: ECharts' own data
+transforms (filter, sort, aggregate in the chart), since the database does that.
 
 ## 4. Maps (agreed)
 
@@ -157,13 +365,21 @@ bubbles placed by latitude and longitude. Both offline: everything a map draws s
 - **Accessible**: each kind says what it shows in words (`describe`), and pattern fills are one option away.
 - **Tests**: each kind's option tested in node, drawn as SVG (`chart-option` tests); each batch's interactions in
   Chromium (`verify_*`); Python's words read against DataCube's (`python-vocabulary.test.ts`).
+- **Examples**: each batch's example page (§3.3), every chart on it read back drawable in node and drawn in Chromium.
 
 ## 6. Decided, and open
 
-**Decided (the user, 2026-10-09):** the work happens on this branch, `datacube-charts`, batch by batch, this note
-landing with the first ("we should do everything on branch here -- definitely start"); and a second value axis, as
-recommended ("yes on 2 axis"): only for a bar-and-line chart whose two measures differ in unit, each axis labelled in
-its series' colour, one axis otherwise -- `chart-option.ts`'s rule changes to say so.
+**Decided (the user, 2026-10-09):** the work happens batch by batch, this note landing with the first ("we should do
+everything on branch here -- definitely start"); and a second value axis, as recommended ("yes on 2 axis"): only for a
+bar-and-line chart whose two measures differ in unit, each axis labelled in its series' colour, one axis otherwise --
+`chart-option.ts`'s rule changes to say so.
+
+**Decided (the user, 2026-10-14):** batches 2-5 widened to every chart we can realistically draw (§3); the spec's
+version 2, a slot per role (§3.1); calculations from the calculated columns DataCube already has, packaged as presets,
+not new query machinery (§3.2); a chart's own calculations kept in its spec, the grid untouched (option (a)); the
+presets shared by the chart and the grid; an example page per batch, a sheet per family (§3.3). Batch 1's page filters
+and cross-filtering are not ported from the old `datacube-charts` branch: program step F1 rebuilds them on classes.
+Batch 2 is built on the session branch `claude/epic-rubin-ay7upl`, from main.
 
 **Open:**
 
@@ -171,3 +387,4 @@ its series' colour, one axis otherwise -- `chart-option.ts`'s rule changes to sa
    cover most countries, and a user's own shapes cover the rest.
 2. **The map-preparation tool**: a pinned Python tool run at build time, or files prepared once and committed with how
    they were made. To be chosen when batch 5 starts, with the measured sizes.
+3. **The notebook widget's chart code fetched lazily** (batch 2 item 13): measured, asked, built (2026-10-14).

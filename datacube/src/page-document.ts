@@ -26,7 +26,7 @@
 // names its cube.
 
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
-import { CHART_MARKS, DEFAULT_OPTIONS, type ChartSpec } from './chart-spec.ts';
+import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
 import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { PageModelRef } from './page-model.ts';
@@ -159,9 +159,10 @@ export function writePageOf(o: {
 /**
  * The page's model as the page writes it: its tables and classes kept for the cubes the page holds, and only those --
  * a grid removed since its class was made takes its table's name and its class with it, as the reader holds every
- * kept name to a cube of the page (the audit's B1: a page written otherwise would never open again).
+ * kept name to a cube of the page (the audit's B1: a page written otherwise would never open again). Python's page asks
+ * it too, headless, when a grid leaves (headless/model.ts pageModelKept): the one rule.
  */
-function keptFor(model: PageModelRef, cubes: readonly { readonly id: string }[]): PageModelRef {
+export function keptFor(model: PageModelRef, cubes: readonly { readonly id: string }[]): PageModelRef {
   const ids = new Set(cubes.map((c) => c.id));
   const tables: Record<string, string> = {};
   for (const [cube, table] of Object.entries(model.tables)) if (ids.has(cube)) tables[cube] = table;
@@ -339,11 +340,9 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   }
   if (v['kind'] !== 'chart') throw new PageDocumentError(`view ${id} is of an unknown kind ${JSON.stringify(v['kind'] ?? null)}`);
   if (typeof v['title'] !== 'string') throw new PageDocumentError(`chart ${id} has no title`);
-  const spec = v['spec'];
-  if (!isObject(spec) || spec['version'] !== 1 || !CHART_MARKS.some((m) => m.value === spec['mark'])
-    || !Array.isArray(spec['y']) || !isObject(spec['options'])) {
-    throw new PageDocumentError(`chart ${id} has no chart it can draw (version 1: a mark, what is plotted, its options)`);
-  }
+  // version 1 or 2 (chart-spec.ts CHART_VERSION): every word of the spec's slots one this DataCube knows
+  const spec = readChart(v['spec']);
+  if (typeof spec === 'string') throw new PageDocumentError(`chart ${id} has no chart it can draw: ${spec}`);
   const selection = v['selection'];
   if (selection !== undefined && !Array.isArray(selection)) {
     throw new PageDocumentError(`chart ${id}'s selection is not a list`);
@@ -353,9 +352,7 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     kind: 'chart',
     cube: v['cube'],
     title: v['title'],
-    // an option it leaves out (a page written in Python sets only those it means: §3 of the Python pages design) is
-    // the chart's own default
-    spec: { ...spec, options: { ...DEFAULT_OPTIONS, ...spec['options'] } } as unknown as ChartSpec,
+    spec,
     ...(selection && selection.length > 0 ? { selection: selection as FilterNode[] } : {}),
   };
 }

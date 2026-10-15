@@ -60,6 +60,12 @@ class CodeShapeGuardrailTest {
             // same lifecycle as the inliner (the compile artifact); it
             // exists so a program-sized tree walk walls instead of hanging
             "UserCallInliner.spent",
+            // the fold budget's remainder (2026-10-15): the expression nodes a pass's written projections may
+            // still add (Fold.Budget, Calcite's bloat); one object per pass, the inliner's shape
+            "Fold.left",
+            // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
+            // correlated read spends no pass's fold budget; raised and lowered around the read
+            "Lowerer.correlatedReads",
             // a LAZY value (2026-09-23): an execute() call's activity rows
             // carry a second render of its chain, computed on the first
             // read and kept — set once, never reassigned after

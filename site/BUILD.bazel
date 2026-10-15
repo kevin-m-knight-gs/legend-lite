@@ -4,7 +4,7 @@
 # it is built -- so the saved queries Query keeps in this browser (query-store, IndexedDB) are the
 # ones DataCube opens, and the projects Studio keeps here (sdlc-client's legend-projects) are every app's. A
 # browser keeps storage per origin: two ports would be two stores.
-load("@aspect_rules_js//js:defs.bzl", "js_binary")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//tools/browser:defs.bzl", "browser_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
@@ -22,7 +22,36 @@ legend_java_library(
     ],
 )
 
-# `bazel build //site:dist`: the folder for any static host -- every app, no backend.
+# `bazel build //site:dist`: the folder for any static host -- every app, no backend, their WebAssembly once (/vendor/:
+# DuckDB, the compiler, the SDLC, the stores' rules, the warehouse's binding; make-dist.mjs), each app's config pointed
+# at it. Each app's own site still carries its own copy, to be served alone.
+js_binary(
+    name = "make_dist",
+    entry_point = "make-dist.mjs",
+)
+
+# the three apps' sites as they are built, gathered in one folder: make-dist.mjs reads them from it
+copy_to_directory(
+    name = "app_sites",
+    srcs = [
+        "//datacube:site",
+        "//query:site",
+        "//studio:site",
+    ],
+    out = "app_sites",
+)
+
+js_run_binary(
+    name = "apps",
+    srcs = [":app_sites"],
+    args = [
+        package_name() + "/apps",
+        package_name() + "/app_sites",
+    ],
+    out_dirs = ["apps"],
+    tool = ":make_dist",
+)
+
 copy_to_directory(
     name = "dist",
     srcs = [
@@ -31,11 +60,10 @@ copy_to_directory(
         "//:LICENSE",
         "//:NOTICE",
         "//:THIRD_PARTY_NOTICES.md",
-        "//datacube:site",
-        "//query:site",
-        "//studio:site",
+        ":apps",
     ],
     out = "dist",
+    replace_prefixes = {"apps/": ""},
     visibility = ["//:__pkg__"],
 )
 

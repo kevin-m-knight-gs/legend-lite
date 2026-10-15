@@ -55,6 +55,10 @@ esbuild_bundle(
         "--bundle",
         "--format=esm",
         "--target=es2022",
+        # minified, its names kept, as DataCube's are (2026-10-15, the user's "does minify buy anything if already
+        # zipped?": measured 4,654,944 -> 2,065,504 bytes, 993,856 -> 667,478 gzipped)
+        "--minify",
+        "--keep-names",
         "--log-level=warning",
         "--outfile=demo/bundle.js",
     ],
@@ -112,9 +116,7 @@ copy_to_directory(
         "warehouse/sqlapi_page/classes.wasm",
         "warehouse/sqlapi_page/wasm-gc-module-runtime.js",
         "engine-client/duckdb-extensions/**",
-        "**/dist/duckdb-mvp.wasm",
         "**/dist/duckdb-eh.wasm",
-        "**/dist/duckdb-browser-mvp.worker.js",
         "**/dist/duckdb-browser-eh.worker.js",
         "legend-art/fonts/roboto-latin-300-normal.woff2",
         "legend-art/fonts/roboto-latin-400-normal.woff2",

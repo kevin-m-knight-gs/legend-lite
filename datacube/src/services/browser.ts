@@ -57,7 +57,9 @@ export interface TabConfig {
   readonly queryStore: string;
   readonly user: string;
   readonly projects: readonly ConfiguredProject[];
-  readonly depot?: { readonly sdlc: string; readonly vendor: string };
+  readonly depot?: { readonly sdlc: string };
+  /** Where the page's WebAssembly is served (page-config.ts `vendor`). */
+  readonly vendor: string;
 }
 
 export interface BrowserServicesOptions {
@@ -74,12 +76,12 @@ export interface BrowserServicesOptions {
  *  started it (its session set up, its extensions the site's). */
 export async function browserServices(o: BrowserServicesOptions): Promise<Services> {
   const { config } = o;
-  const modelHome = o.config.depot ? depotHome(o.config.depot, o.location) : undefined;
+  const modelHome = o.config.depot ? depotHome(o.config.depot.sdlc, o.config.vendor, o.location) : undefined;
   // THE STORES' RULES: the saved queries' and the saved pages', one WebAssembly module (`vendor/queries/`), fetched
   // once, at the first call of either store (a load that failed is tried again at the next)
   let stores: Promise<QueriesModule> | undefined;
   const storeRules = (): Promise<QueriesModule> => (stores ??= queryStores()
-    .then((m) => m.loadQueriesModule(new URL('./vendor/queries/', o.location.href).href))
+    .then((m) => m.loadQueriesModule(new URL(`${config.vendor}queries/`, o.location.href).href))
     .catch((e: unknown) => {
       stores = undefined;
       throw e;
@@ -209,13 +211,15 @@ function hostOf(url: string): string {
 
 /** The model home a depot names (the page's own SDLC and Depot, or servers), opened once -- loaded only when first
  *  asked for: the grid-only page's budget does not carry it. */
-function depotHome(depot: { readonly sdlc: string; readonly vendor: string }, location: { readonly href: string }): ModelHomeService {
+function depotHome(sdlc: string, vendor: string, location: { readonly href: string }): ModelHomeService {
   let home: ReturnType<ModelHomeService['connect']> | undefined;
   return {
     connect: () => (home ??= import('../../../depot-client/src/model-home.ts')
-      .then(({ connectModelHome }) => connectModelHome({ sdlc: depot.sdlc, vendor: depot.vendor }))),
+      .then(({ connectModelHome }) => connectModelHome({ sdlc, vendor }))),
+    // beside this page, as the one site lays the apps out (<site>/datacube/demo/, <site>/studio/demo/), wherever the site
+    // is served -- under a path on GitHub Pages; at the root, where `..` stops, as before
     studio: (project, workspace) => new URL(
-      `/studio/demo/index.html#/edit/${encodeURIComponent(project)}/${encodeURIComponent(workspace)}`, location.href).href,
+      `../../studio/demo/index.html#/edit/${encodeURIComponent(project)}/${encodeURIComponent(workspace)}`, location.href).href,
   };
 }
 
@@ -234,7 +238,7 @@ function warehouseService(config: TabConfig, location: { readonly href: string }
   const loaded = (): Promise<{ readonly driver: Driver; readonly binding: WarehouseBinding }> => (loading ??=
     import('../../../engine-client/src/warehouse.ts')
       .then(async (driver) => (ready = {
-        driver, binding: await driver.loadWarehouseBinding(new URL('./vendor/warehouse/', location.href).href),
+        driver, binding: await driver.loadWarehouseBinding(new URL(`${config.vendor}warehouse/`, location.href).href),
       }))
       .catch((e: unknown) => {
         loading = undefined;

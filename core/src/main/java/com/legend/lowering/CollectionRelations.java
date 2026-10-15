@@ -51,7 +51,7 @@ final class CollectionRelations {
             List<ColumnResolver> outerScopes) {
         SqlExpr value = lo.scalar(cr.value(), (v, name) -> {
             for (var outer : outerScopes) {
-                if (Resolvers.Resolution.attempt(() -> outer.resolve(v, name))
+                if (Resolvers.Resolution.attempt(() -> lo.correlated(() -> outer.resolve(v, name)))
                         instanceof Resolvers.Resolution.Resolved o) {
                     return o.expr();
                 }

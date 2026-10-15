@@ -57,7 +57,7 @@ const CUBE = writeCube({
 });
 
 const SPEC: ChartSpec = {
-  version: 1,
+  version: 2,
   mark: 'bar',
   x: 'region',
   y: [{ column: 'notional', fn: 'sum' }],
@@ -107,6 +107,41 @@ describe('a saved page', () => {
     assert.deepEqual(chart.spec, SPEC);
     assert.deepEqual(chart.selection, [{ kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }]);
     assert.equal(pageDefinitionText(back), pageDefinitionText(page()));
+  });
+
+  it('reads a version 1 chart as version 2: every field 2 adds is optional, so only its number moves', () => {
+    const raw = JSON.parse(pageToJson(page()));
+    raw.views = raw.views.map((v: Record<string, unknown>) => (v['kind'] === 'chart' ? { ...v, spec: { ...(v['spec'] as object), version: 1 } } : v));
+    const chart = readPage(JSON.stringify(raw)).views.find((v) => v.id === 'chart-1');
+    assert.ok(chart && chart.kind === 'chart');
+    assert.deepEqual(chart.spec, SPEC);
+  });
+
+  it('keeps every version 2 slot it reads', () => {
+    const rich: ChartSpec = {
+      ...SPEC,
+      grain: 'month',
+      y: [
+        { column: 'notional', fn: 'sum', mark: 'bar' },
+        { column: 'margin', fn: 'value', mark: 'line', axis: 'right', showAs: { kind: 'movingAverage', rows: 3 } },
+      ],
+      size: { column: 'notional', fn: 'count' },
+      tooltip: [{ column: 'notional', fn: 'average' }],
+      facet: { column: 'desk' },
+      layers: [
+        { kind: 'line', value: 100, label: 'Target' },
+        { kind: 'stat', stat: 'average' },
+        { kind: 'band', axis: 'x', from: '2024-01-01', to: '2024-03-31' },
+        { kind: 'threshold', value: 0 },
+        { kind: 'extremes', measure: 1 },
+      ],
+      options: { ...SPEC.options, smooth: true, zoom: true, decal: true },
+    };
+    const raw = JSON.parse(pageToJson(page()));
+    raw.views = raw.views.map((v: Record<string, unknown>) => (v['id'] === 'chart-1' ? { ...v, spec: rich } : v));
+    const chart = readPage(JSON.stringify(raw)).views.find((v) => v.id === 'chart-1');
+    assert.ok(chart && chart.kind === 'chart');
+    assert.deepEqual(chart.spec, rich);
   });
 
   it('is read by its kind; a cube alone is still a cube', () => {
@@ -163,8 +198,20 @@ describe('a saved page', () => {
     assert.throws(bad({ cubes: [] }), /no cube/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'map', cube: 'cube' }] }), /unknown kind "map"/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'grid', cube: 'elsewhere' }] }), /shows no cube of this page/);
-    assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 1, mark: 'radar', y: [], options: {} } }] }),
+    assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 1, mark: 'violin', y: [], options: {} } }] }),
       /no chart it can draw/);
+    // version 2's slots (chart-spec.ts §3.1): a word this DataCube does not know is refused by name, never drawn as
+    // something else
+    const chart = (spec: Record<string, unknown>) => bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c',
+      spec: { version: 2, mark: 'bar', x: 'region', y: [{ column: 'notional', fn: 'sum' }], options: {}, ...spec } }] });
+    assert.throws(chart({ version: 3 }), /version 3 is not one this DataCube reads/);
+    assert.throws(chart({ grain: 'decade' }), /grain "decade"/);
+    assert.throws(chart({ y: [{ column: 'notional', fn: 'mode' }] }), /measure 1 is not a column and an aggregate/);
+    assert.throws(chart({ y: [{ column: 'notional', fn: 'sum', mark: 'pie' }] }), /mark "pie" is not bar, line or area/);
+    assert.throws(chart({ y: [{ column: 'notional', fn: 'sum', showAs: { kind: 'forecast' } }] }), /shown as something/);
+    assert.throws(chart({ layers: [{ kind: 'sparkle' }] }), /layer 1 is of a kind this DataCube does not know \("sparkle"\)/);
+    assert.throws(chart({ layers: [{ kind: 'stat', stat: 'mode' }] }), /statistic "mode"/);
+    assert.throws(chart({ drill: { levels: ['region'], path: ['EMEA'] } }), /drill path/);
     const layout = (node: unknown, height = 1) => ({ kind: 'bands', fit: false, bands: [{ height, node }] });
     const band = (node: unknown, height = 1) => ({ sheets: [{ id: FIRST_SHEET, layout: layout(node, height) }] });
     assert.throws(bad(band({ tile: 'nowhere' })), /shows no view/);

@@ -188,6 +188,47 @@ try {
     return `${id}: ${value}, ${await target.textContent()}, its trend by ${across}`;
   });
 
+  // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the
+  // sales sample it makes itself; on each of its sheets every chart draws -- batch 2's, then batch 3's kinds
+  for (const [example, marker, least] of [['charts-dashboard', 'c-bars', 20], ['charts-kinds', 'k-lollipop', 20]]) {
+    await check(`the example page ${example} opens from Open…, and every chart on every sheet draws`, async () => {
+      await page.click('.dc-titlebar-menu');
+      const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();
+      if (!(await open.isVisible())) await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("File"))').first().hover();
+      await open.click();
+      await page.locator(`#cubeswin .dc-open-example[data-example="${example}"]`).click();
+      // this page, not the one open before it: one of its own charts is among its views
+      await page.waitForFunction(([mark, n]) => {
+        const views = window.__dataPage?.views().views ?? [];
+        return views.some((v) => v.id === mark) && views.filter((v) => v.kind === 'chart').length >= n;
+      }, [marker, least], { timeout: 120_000 });
+      await settle();
+      const sheets = await page.locator('.dc-sheet-tab').evaluateAll((els) => els.map((e) => e.dataset.sheet));
+      let drawnCharts = 0;
+      for (const sheet of sheets) {
+        await page.locator(`.dc-sheet-tab[data-sheet="${sheet}"]`).click();
+        await settle();
+        // every chart tile shown on this sheet has drawn -- a canvas -- or said why not (a problem, failed below)
+        await page.waitForFunction(() => {
+          const shown = [...document.querySelectorAll('[data-tile] .dc-chart-tile')].filter((t) => t.offsetParent !== null);
+          return shown.every((t) => t.querySelector('.dc-chartpanel-chart canvas') || t.querySelector('.dc-chartpanel-bad'));
+        }, null, { timeout: 60_000 }).catch(async (e) => {
+          // what each tile still undrawn says, beside the timeout
+          const said = await page.locator('[data-tile] .dc-chart-tile').evaluateAll((els) => els
+            .filter((t) => t.offsetParent !== null && !t.querySelector('.dc-chartpanel-chart canvas'))
+            .map((t) => `${t.closest('[data-tile]')?.dataset.tile}: ${t.querySelector('.dc-chartpanel-status')?.textContent ?? ''}`));
+          throw new Error(`sheet ${sheet}: ${e.message}; undrawn: ${said.join(' | ')}`);
+        });
+        if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath(`${example}-${sheet}.png`) }); }
+        const bad = await page.locator('[data-tile] .dc-chartpanel-bad').evaluateAll((els) =>
+          els.filter((e) => e.offsetParent !== null).map((e) => e.textContent));
+        if (bad.length) throw new Error(`sheet ${sheet}: ${bad.join(' | ')}`);
+        drawnCharts += await page.locator('[data-tile] .dc-chart-tile canvas').evaluateAll((els) => els.filter((e) => e.offsetParent !== null).length);
+      }
+      return `${sheets.length} sheets, ${drawnCharts} canvases drawn`;
+    });
+  }
+
   await check('no page errors', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 2).join(' | '));
   });

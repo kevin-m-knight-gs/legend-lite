@@ -155,7 +155,14 @@ public sealed interface SqlSource {
      * (invalid SQL, or an accidental natural join). LEFT_LATERAL spells
      * its always-true condition explicitly ({@code ON true}). */
     record Join(SqlSource left, SqlSource right, Kind kind,
-            @com.legend.base.Nullable SqlExpr on) implements SqlSource {
+            @com.legend.base.Nullable SqlExpr on, List<OutputCol> outputs) implements SqlSource {
+
+        /** A join over {@code left} and {@code right}; its delivered columns are computed here, once
+         *  ({@link #delivered}). The five-argument form is the record's own, which a record cannot hide: its
+         *  {@code outputs} must be {@code delivered(left, right, kind)}, and no caller passes a list of its own. */
+        public Join(SqlSource left, SqlSource right, Kind kind, @com.legend.base.Nullable SqlExpr on) {
+            this(left, right, kind, on, delivered(left, right, kind));
+        }
 
         public Join {
             boolean onless = kind == Kind.CROSS || kind == Kind.CROSS_LATERAL;
@@ -219,8 +226,10 @@ public sealed interface SqlSource {
          * both the kind and the sides. Every consumer (starOf frames,
          * star expansion, wraps) spends the fact instead of running a
          * repair pass — the old Fold.padJoinOutputs is deleted. */
-        @Override
-        public List<OutputCol> outputs() {
+        private static List<OutputCol> delivered(SqlSource left, SqlSource right, Kind kind) {
+            // ONCE, when the join is made, and {@link #outputs} answers the list (2026-10-15): until then every
+            // reader had the list built again, both sides down to the leaves, so a chain of N joins built N levels
+            // at each column lookup -- the tenth line's 250-join report planned in 27-40 s
             List<OutputCol> all = new ArrayList<>();
             side(left.outputs(), kind.padsLeft(), all);
             side(right.outputs(), kind.padsRight(), all);

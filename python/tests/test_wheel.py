@@ -1,6 +1,7 @@
 """The wheel (//python:wheel) as a developer installs it: a fresh virtual environment of the repository's Python, the
 wheel and its packages installed offline (Bazel's own downloads, the pinned versions, the notebook extra's with them),
-then show(), a query and a notebook's cube run in isolated mode, from outside the repository, with no setting pointing
+then show(), a query and a notebook's cube run in isolated mode -- and first the wheel alone, the compiler, which
+reaches for DataCube only to be told to install its extra -- from outside the repository, with no setting pointing
 back into it -- so the wheel stands alone: its modules, the compiler's library, DataCube's page and its notebook module
 all come from inside it. And its label told true: the platform tag
 the wheel declares against what its library needs, read from the library itself (its minimum macOS, or the newest
@@ -20,6 +21,32 @@ from pathlib import Path
 # resolved through the runfiles by main.py, as every suite's files are
 WHEEL = Path(os.environ['LEGEND_LITE_WHEEL'])
 DEPENDENCIES = [Path(p) for p in os.environ['LEGEND_LITE_DEPENDENCY_WHEELS'].split(os.pathsep)]
+
+# run with the wheel alone, before any package of its datacube extra is installed: the compiler works on Python's own
+# library, and DataCube -- each way into it -- says, in one sentence, to install the extra (legend_lite/_extra.py)
+CORE = r'''
+import json
+import legend_lite as ll
+tree = ll.parse("|1 + 1")
+refused = {}
+for name in ("show", "Page", "Frames", "Engine", "DataCube"):
+    try:
+        getattr(ll, name)
+        refused[name] = None
+    except ImportError as failure:
+        refused[name] = str(failure)
+try:
+    import legend_lite.page
+    refused["legend_lite.page"] = None
+except ImportError as failure:
+    refused["legend_lite.page"] = str(failure)
+# what reaches the native library beside the compiler needs no extra: every module the compiler-only install holds
+# imports, and a model home answers, on the compiler's threads (an empty folder's projects: none)
+import pathlib, tempfile
+import legend_lite._home, legend_lite._pool, legend_lite.model, legend_lite.upstream
+homed = list(legend_lite.model.home_call(pathlib.Path(tempfile.mkdtemp()), "sdlc", "GET", "/projects", None))
+print(json.dumps({"parsed": sorted(tree), "refused": refused, "homed": homed}))
+'''
 
 # run in the installed environment: a frame shown, its cube asked for, a query executed as DataCube sends it
 SCRIPT = r'''
@@ -47,7 +74,9 @@ cube.close()
 widget = ll.DataCube(pd.DataFrame({"desk": ["FX"], "qty": [1.0]}), name="nb")
 sent = []
 widget.send = lambda content, buffers=None: sent.append((content, buffers))
-for name in ("widget.js", "widget.css"):
+# and a lazy chunk of it, the chart's code, as the loader asks for it the first time a chart draws
+chunks = __import__("pathlib").Path(ll.__file__).parent / "_site" / "widget-chunks"
+for name in ("widget.js", "widget.css", "widget-chunks/" + next(f.name for f in chunks.iterdir() if f.name.startswith("chart-render-"))):
     widget._answer({"kind": "call", "id": name, "method": "GET", "path": "/" + name, "query": "", "body": None})
 notebook = {"loader": " as default" in widget._esm, "answers": [(c["status"], len(b[0])) for c, b in sent]}
 widget.close()
@@ -293,9 +322,13 @@ class Label(unittest.TestCase):
             metadata = wheel.read(info).decode()
         self.assertIn('Requires-Python: >=3.12', metadata)
         self.assertIn('License: Apache-2.0', metadata)
-        for requirement in ('duckdb>=1.5.5', 'pyarrow>=23.0.1', "anywidget>=0.11.0; extra == 'notebook'",
-                            "mini-racer>=0.14.1; extra == 'datacube'"):
-            self.assertIn(f'Requires-Dist: {requirement}', metadata)
+        # the compiler alone needs nothing; DataCube's packages are its extra's (and the notebook's, with anywidget)
+        self.assertEqual([line for line in metadata.splitlines() if line.startswith('Requires-Dist:') and 'extra ==' not in line],
+                         [], 'the wheel alone requires nothing')
+        for extra in ('datacube', 'notebook'):
+            for requirement in ('duckdb>=1.5.5', 'mini-racer>=0.14.1', 'pyarrow>=23.0.1'):
+                self.assertIn(f"Requires-Dist: {requirement}; extra == '{extra}'", metadata)
+        self.assertIn("Requires-Dist: anywidget>=0.11.0; extra == 'notebook'", metadata)
 
 
 class Installed(unittest.TestCase):
@@ -313,8 +346,21 @@ class Installed(unittest.TestCase):
         venv = root / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', str(venv)], check=True, env=env, timeout=120)
         python = str(venv / 'Scripts' / 'python.exe') if sys.platform == 'win32' else str(venv / 'bin' / 'python')
-        subprocess.run([python, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '-q',
-                        str(WHEEL), *map(str, DEPENDENCIES)], check=True, env=env, timeout=240)
+        pip = [python, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '-q']
+        # the wheel alone: the compiler, and DataCube refused in one sentence naming its extra
+        subprocess.run([*pip, str(WHEEL)], check=True, env=env, timeout=240)
+        core = subprocess.run([python, '-I', '-c', CORE], cwd=root, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(core.returncode, 0, core.stdout + core.stderr)
+        alone = json.loads(core.stdout.strip().splitlines()[-1])
+        self.assertIn('body', alone['parsed'], 'the compiler alone parses')
+        self.assertEqual(alone['homed'], [200, '[]'], 'a model home answers without the datacube extra (_pool.py)')
+        for name, said in alone['refused'].items():
+            self.assertIsNotNone(said, f'{name} came without the datacube extra')
+            # a notebook's cube names its own extra, which brings DataCube's packages and anywidget
+            extra = 'notebook' if name == 'DataCube' else 'datacube'
+            self.assertIn(f"pip install 'legend-lite[{extra}]'", said, name)
+        # then its extras' packages (the datacube extra's, the notebook's, pandas)
+        subprocess.run([*pip, *map(str, DEPENDENCIES)], check=True, env=env, timeout=240)
         # what each wheel says it needs (legend-lite's Requires-Dist, pandas' own) is what is installed
         checked = subprocess.run([python, '-m', 'pip', 'check', '--disable-pip-version-check'], env=env,
                                  capture_output=True, text=True, timeout=60)
@@ -345,7 +391,7 @@ class Installed(unittest.TestCase):
         self.assertEqual(out['rows'], [{'desk': 'EQ', 'q': 2.5}, {'desk': 'FX', 'q': 5.5}])
         # the notebook extra installed: the cube's loader, and DataCube's module (about 1.3 MB) and styles, from the wheel
         self.assertTrue(out['notebook']['loader'], out['notebook'])
-        self.assertEqual([status for status, _ in out['notebook']['answers']], [200, 200], out['notebook'])
+        self.assertEqual([status for status, _ in out['notebook']['answers']], [200, 200, 200], out['notebook'])
         self.assertGreater(out['notebook']['answers'][0][1], 500_000, out['notebook'])
         # the datacube extra installed: a grid viewed by DataCube's own code, its bundle the wheel's
         self.assertEqual(out['headless']['groups'], [['EQ', 2.5], ['FX', 5.5]], out['headless'])
@@ -358,7 +404,7 @@ class Installed(unittest.TestCase):
         self.assertTrue(Path(out['headless']['bundle']).is_relative_to(venv), out['headless'])
         # Query and Studio inside it (E): each served, its link traded for the cookie its calls then carry; Studio's demo
         # projects shipped, DuckDB-WASM's builds not (Python's DuckDB runs the queries)
-        for app, keys in (('query', ['depot', 'execution', 'projects']),
+        for app, keys in (('query', ['depot', 'execution', 'projects', 'vendor']),
                           ('studio', ['depot', 'engine', 'sdlc', 'vendor', 'worker'])):
             self.assertEqual(out['apps'][app], {'traded': 303, 'page': 200, 'config': keys, 'user': [200, '"this user"'],
                                                 'no_cookie': 401}, out['apps'])

@@ -576,3 +576,31 @@ describe('a JSON column in the menu', () => {
     assert.ok(!got.some((id) => String(id).startsWith('json.')));
   });
 });
+
+describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)', () => {
+  const DATED: CubeSnapshot = {
+    ...CUBE,
+    columns: [...CUBE.columns, { name: 'trade_date', type: 'StrictDate' }],
+    pivotOn: [],
+  };
+  const items = (ctx: Parameters<typeof buildMenu>[0]) => menuItems(buildMenu(ctx));
+
+  it('a source date by its period, a source number by its bins', () => {
+    const dated = items({ snapshot: DATED, column: 'trade_date', extendable: true });
+    assert.deepEqual(dated.filter((i) => i.id === 'calc.grain').map((i) => i.grain), ['day', 'week', 'month', 'quarter', 'year']);
+    assert.ok(!dated.some((i) => i.id === 'calc.bins'));
+    const number = items({ snapshot: DATED, column: 'notional', extendable: true });
+    assert.ok(number.some((i) => i.id === 'calc.bins' && i.label === 'Bins of notional...'));
+    assert.ok(!number.some((i) => i.id === 'calc.grain'));
+    // a column a row-stage expression cannot see (a pivot's, a group-stage one) is not extendable
+    assert.ok(!items({ snapshot: DATED, column: 'trade_date' }).some((i) => i.id === 'calc.grain'));
+  });
+
+  it('a measure of grouped rows shown as something computed from it; not on a pivot', () => {
+    const shown = items({ snapshot: DATED, column: 'total', isMeasure: true });
+    assert.deepEqual(shown.filter((i) => i.id === 'calc.showAs').map((i) => i.showAs),
+      ['runningTotal', 'percentOfTotal', 'difference', 'percentChange', 'movingAverage', 'rank']);
+    assert.ok(!items({ snapshot: CUBE, column: 'total', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
+    assert.ok(!items({ snapshot: { ...DATED, rows: [] }, column: 'total', isMeasure: true }).some((i) => i.id === 'calc.showAs'));
+  });
+});

@@ -1254,7 +1254,8 @@ From `docs/DATACUBE_MODEL_DESIGN_2026_10_10.md` §13. Each lands once, in the on
       - All 19 browser tests pass under it. They ran with the lanes `//gates:datacube`, `//gates:ui` and `//gates:sdlc`,
         plus the warehouse lane's browser tests: 186 tests in all.
       - Only the `wasm_eh` files are loaded by a test: headless Chromium has exception handling, so DuckDB-WASM always
-        picks that build. The `wasm_mvp` files are pinned by content and laid out the same way.
+        picks that build. (2026-10-15: the apps ship that build alone -- `duckdb-tab.ts` refuses a browser without
+        exception handling, in words -- so the `wasm_mvp` files are no longer pinned; PR neema2/legend-lite#42.)
     - **On a DuckDB-WASM bump:** three places move together: `engine-client/package.json`, `_DUCKDB_VERSION` in
       `engine-client/BUILD.bazel`, and the URLs in `MODULE.bazel`. A stale one fails loudly: the tab asks for another
       folder, ICU does not load, and every page's start fails.

@@ -193,22 +193,17 @@ _DUCKDB_EXTENSIONS = [
 # fails loudly: the tab asks for another folder, and ICU's load fails every page's start.
 _DUCKDB_VERSION = "v1.5.4"
 
-# one per extension and browser build
-_DUCKDB_EXTENSION_BUILDS = [
-    (extension, build)
-    for extension in _DUCKDB_EXTENSIONS
-    for build in ("wasm_eh", "wasm_mvp")
-]
-
+# one per extension, for the one browser build the apps ship -- DuckDB's with WebAssembly exception handling (wasm_eh;
+# duckdb-tab.ts refuses a browser without it) -- where DuckDB-WASM asks for it
 [copy_file(
-    name = "duckdb_extension_" + extension + "_" + build,
-    src = "@duckdb_wasm_" + extension + "_extension_" + build + "//file",
-    out = "duckdb-extensions/" + _DUCKDB_VERSION + "/" + build + "/" + extension + ".duckdb_extension.wasm",
-) for extension, build in _DUCKDB_EXTENSION_BUILDS]
+    name = "duckdb_extension_" + extension + "_wasm_eh",
+    src = "@duckdb_wasm_" + extension + "_extension_wasm_eh//file",
+    out = "duckdb-extensions/" + _DUCKDB_VERSION + "/wasm_eh/" + extension + ".duckdb_extension.wasm",
+) for extension in _DUCKDB_EXTENSIONS]
 
 filegroup(
     name = "duckdb_extensions",
-    srcs = [":duckdb_extension_" + extension + "_" + build for extension, build in _DUCKDB_EXTENSION_BUILDS],
+    srcs = [":duckdb_extension_" + extension + "_wasm_eh" for extension in _DUCKDB_EXTENSIONS],
     visibility = [
         "//datacube:__pkg__",
         "//query:__pkg__",

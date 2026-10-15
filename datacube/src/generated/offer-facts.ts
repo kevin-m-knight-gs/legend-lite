@@ -681,6 +681,64 @@ export const CALC_FACTS: Readonly<Record<string, { readonly path: string; readon
       'mod(dividend:Integer[1], divisor:Integer[1]):Integer[1]',
     ],
   },
+  firstDayOfWeek: {
+    path: 'meta::pure::functions::date::firstDayOfWeek',
+    signatures: [
+      'firstDayOfWeek(date:Date[1]):Date[1]',
+    ],
+  },
+  firstDayOfMonth: {
+    path: 'meta::pure::functions::date::firstDayOfMonth',
+    signatures: [
+      'firstDayOfMonth(date:Date[1]):Date[1]',
+    ],
+  },
+  firstDayOfQuarter: {
+    path: 'meta::pure::functions::date::firstDayOfQuarter',
+    signatures: [
+      'firstDayOfQuarter(date:Date[1]):StrictDate[1]',
+    ],
+  },
+  firstDayOfYear: {
+    path: 'meta::pure::functions::date::firstDayOfYear',
+    signatures: [
+      'firstDayOfYear(date:Date[1]):Date[1]',
+    ],
+  },
+  datePart: {
+    path: 'meta::pure::functions::date::datePart',
+    signatures: [
+      'datePart(d:Date[0..1]):Date[0..1]',
+      'datePart(d:Date[1]):Date[1]',
+    ],
+  },
+  year: {
+    path: 'meta::pure::functions::date::year',
+    signatures: [
+      'year(d:Date[0..1]):Integer[0..1]',
+      'year(d:Date[1]):Integer[1]',
+    ],
+  },
+  monthNumber: {
+    path: 'meta::pure::functions::date::monthNumber',
+    signatures: [
+      'monthNumber(d:Date[0..1]):Integer[0..1]',
+      'monthNumber(d:Date[1]):Integer[1]',
+    ],
+  },
+  quarterNumber: {
+    path: 'meta::pure::functions::date::quarterNumber',
+    signatures: [
+      'quarterNumber(d:Date[1]):Integer[1]',
+    ],
+  },
+  dayOfWeekNumber: {
+    path: 'meta::pure::functions::date::dayOfWeekNumber',
+    signatures: [
+      'dayOfWeekNumber(d:Date[1]):Integer[1]',
+      'dayOfWeekNumber(day:Date[1], firstDay:DayOfWeek[1]):Integer[1]',
+    ],
+  },
   if: {
     path: 'meta::pure::functions::lang::if',
     signatures: [

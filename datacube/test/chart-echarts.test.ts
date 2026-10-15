@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { toJson, element } from '../../pure-protocol/src/index.ts';
+import { toJson, element, fn, lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import {
   chartProblems,
   chartQuery,
@@ -15,9 +15,14 @@ import {
   KPI_TREND_LIMIT,
   kpiQueries,
   measureName,
+  chartColumns,
+  axisName,
+  markConditions,
+  TIME_LIMIT,
+  AXIS_UPPER,
   type ChartSpec,
 } from '../src/chart-spec.ts';
-import { chartOption, kpiDrawing, MAX_SERIES, treemapOfGrid, type GridShown } from '../src/chart-option.ts';
+import { chartCsv, chartOption, kpiDrawing, MAX_SERIES, periodText, treemapOfGrid, type GridShown, type LabelOf } from '../src/chart-option.ts';
 import * as echarts from 'echarts/core';
 import { SVGRenderer } from 'echarts/renderers';
 import '../src/chart-render.ts';   // registers the charts and components the page uses
@@ -99,7 +104,7 @@ describe('the chart\'s query', () => {
   });
 
   it('orders by the value for a top N, or by the category', () => {
-    assert.deepEqual(chartSnapshot(CUBE, BAR).sorts, [{ column: 'sum_notional', direction: 'desc' }]);
+    assert.deepEqual(chartSnapshot(CUBE, BAR).sorts, [{ column: 'sum_notional', direction: 'desc' }, { column: 'region', direction: 'asc' }], 'ties by the category');
     const byX = { ...BAR, options: { ...BAR.options, sort: { by: 'x', direction: 'asc' } } } as ChartSpec;
     assert.deepEqual(chartSnapshot(CUBE, byX).sorts, [{ column: 'region', direction: 'asc' }]);
   });
@@ -114,6 +119,72 @@ describe('the chart\'s query', () => {
 
   it('names a count as count', () => {
     assert.equal(measureName({ column: 'x', fn: 'count' }), 'count');
+  });
+});
+
+describe('a group-level column, plotted as it is (version 2: fn \'value\')', () => {
+  // the cube's margin: its two measures' ratio, after grouping; and a running total of its notional, a window
+  const ratio = lambda(['x'], fn('divide', property(variable('x'), 'pnl_sum'), property(variable('x'), 'total')));
+  const GROUPED: CubeSnapshot = {
+    ...CUBE,
+    columns: [...CUBE.columns, { name: 'pnl', type: 'Float' }],
+    measures: [
+      { name: 'total', column: 'notional', fn: 'sum' },
+      { name: 'pnl_sum', column: 'pnl', fn: 'sum' },
+      { name: 'qty_max', column: 'qty', fn: 'max' },
+    ],
+    groupDerived: [
+      { name: 'margin', lambda: ratio, type: 'Float' },
+      { name: 'running', window: { fn: 'sum', column: 'total', partition: [], order: [{ column: 'region', direction: 'asc' }], frame: 'running' } },
+      { name: 'smallest_desk', childAggregate: { fn: 'min', of: 'total' } },
+    ],
+  };
+  const MARGIN: ChartSpec = { ...BAR, y: [{ column: 'margin', fn: 'value' }] };
+
+  it('is offered beside the number columns; a child aggregate (a second query per level) is not', () => {
+    assert.deepEqual(chartColumns(GROUPED).groupLevel.map((d) => d.name), ['margin', 'running']);
+  });
+
+  it('keeps its name, and brings the measures it reads under the names it reads them by -- and nothing else', () => {
+    assert.equal(measureName({ column: 'margin', fn: 'value' }), 'margin');
+    const s = chartSnapshot(GROUPED, MARGIN);
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['margin']);
+    assert.deepEqual(s.measures.map((m) => m.name), ['pnl_sum', 'total']);
+    assert.deepEqual(s.columns.map((c) => c.name).sort(), ['desk', 'notional', 'pnl', 'region']);
+    assert.deepEqual(s.sorts, [{ column: 'margin', direction: 'desc' }, { column: 'region', direction: 'asc' }]);
+    // grouped, then extended: the ratio is of the groups' sums, never an average of the rows' ratios
+    const { query } = chartQuery(GROUPED, MARGIN);
+    const text = toJson(query as never);
+    assert.ok(text.indexOf('"groupBy"') < text.indexOf('"margin"'), 'the column is extended after the grouping');
+  });
+
+  it('a window over the chart\'s rows comes with what it reads', () => {
+    const s = chartSnapshot(GROUPED, { ...BAR, y: [{ column: 'notional', fn: 'sum' }, { column: 'running', fn: 'value', mark: 'line' }] });
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['running']);
+    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional', 'total']);
+  });
+
+  it('the chart\'s own calculations: a row-stage one is a dimension it can group by, a group-stage one it can plot', () => {
+    const spec: ChartSpec = {
+      ...BAR,
+      x: 'big',
+      y: [{ column: 'notional', fn: 'sum' }, { column: 'share', fn: 'value' }],
+      calcs: [
+        { stage: 'row', column: { name: 'big', lambda: lambda(['x'], fn('greaterThan', property(variable('x'), 'notional'), { _type: 'integer', value: 100 } as never)), kind: 'dimension', type: 'Boolean' } },
+        { stage: 'group', column: { name: 'share', window: { fn: 'sum', column: 'sum_notional', partition: [], order: [], frame: 'partition' } } },
+      ],
+    };
+    assert.deepEqual(chartProblems(spec, GROUPED), []);
+    assert.deepEqual(chartColumns(GROUPED, spec).dimensions.map((c) => c.name).filter((n) => n === 'big'), ['big']);
+    const s = chartSnapshot(GROUPED, spec);
+    assert.deepEqual(s.derived.map((d) => d.name), ['big']);
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['share']);
+    assert.deepEqual(s.rows, ['big']);
+  });
+
+  it('what stops one: not a group-level column, or on a scatter (it plots rows)', () => {
+    assert.deepEqual(chartProblems({ ...BAR, y: [{ column: 'nope', fn: 'value' }] }, GROUPED), ['The cube has no group-level column \'nope\'.']);
+    assert.match(chartProblems({ ...MARGIN, mark: 'scatter', x: 'notional' }, GROUPED).join(' '), /A scatter plots rows/);
   });
 });
 
@@ -215,7 +286,7 @@ describe('the drawing', () => {
     const spec: ChartSpec = { ...BAR, split: 'desk', options: { ...BAR.options, stack: 'percent' } };
     const o = chartOption(spec, rows).option as { series: { data: number[]; stack: string }[] };
     assert.deepEqual(o.series.map((s) => s.data[0]), [25, 75]);
-    assert.ok(o.series.every((s) => s.stack === 'total'));
+    assert.ok(o.series.every((s) => s.stack === 'total-0'), 'one stack per value axis');
   });
 
   it('shows at most eight series and says so', () => {
@@ -273,7 +344,7 @@ describe('the drawing', () => {
       { path: ['AMER'], level: 1, isGroup: true, expanded: false, isTotal: false },
     ],
     // what the grid shows: hidden_qty is not on screen
-    leaves: [{ name: '__tree', type: 'String' }, { name: 'sum_notional', type: 'Float' }],
+    leaves: [{ name: '__tree', type: 'String' }, { name: 'sum_notional', type: 'Float', measure: true }],
     levels: ['region', 'desk'],
   });
   type Node = { name: string; value?: number; key: Record<string, unknown>; children?: Node[] };
@@ -426,5 +497,474 @@ describe('a KPI (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, batch 1)', () => {
     assert.equal(data.length, KPI_TREND_LIMIT);
     assert.deepEqual([data[0], data.at(-1)], [2, n], 'the oldest one left out');
     assert.deepEqual(drawn.notes, [`The trend shows the latest ${KPI_TREND_LIMIT} values of day.`]);
+  });
+});
+
+describe('presets in the spec: kept as words, expanded when the query is built (§3.2)', () => {
+  const BY_MONTH: ChartSpec = { ...BAR, x: 'trade_date', grain: 'month' };
+
+  it('a grain groups by its own column, sorted and drawn from it, and carries each period\'s end; the cube\'s column stays its source', () => {
+    assert.equal(axisName(BY_MONTH), 'trade_date__month');
+    const s = chartSnapshot(CUBE, { ...BY_MONTH, options: { ...BAR.options, sort: { by: 'x', direction: 'asc' } } });
+    assert.deepEqual(s.rows, ['trade_date__month']);
+    assert.deepEqual(s.derived.map((d) => d.name), ['trade_date__month', 'trade_date__month__upper']);
+    // the period's end, the database's adjust(), carried as the most of each period's rows'
+    assert.deepEqual(s.measures.find((m) => m.name === AXIS_UPPER), { name: AXIS_UPPER, column: 'trade_date__month__upper', fn: 'max' });
+    assert.deepEqual(s.sorts, [{ column: 'trade_date__month', direction: 'asc' }]);
+    assert.ok(s.columns.some((c) => c.name === 'trade_date'));
+    // the drawing reads its categories from the grain's column, and a period's end from the database's
+    const d = chartOption(BY_MONTH, table([
+      { name: 'trade_date__month', type: 'StrictDate', values: ['2024-01-01', '2024-02-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2] },
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-02-01', '2024-03-01'] },
+    ]));
+    assert.deepEqual(d.keyAt(0, 1), { trade_date: '2024-02-01' });
+    assert.equal(d.upperAt?.(1), '2024-03-01');
+  });
+
+  it('a click on a period filters the cube\'s column from its first day to its end, the database\'s', () => {
+    assert.deepEqual(markConditions(BY_MONTH, CUBE, { trade_date: '2024-12-01' }, '2025-01-01'), [
+      { kind: 'condition', column: 'trade_date', operator: 'greaterThanEqual', value: '2024-12-01' },
+      { kind: 'condition', column: 'trade_date', operator: 'lessThan', value: '2025-01-01' },
+    ]);
+    assert.deepEqual(markConditions({ ...BY_MONTH, grain: 'quarter' }, CUBE, { trade_date: '2024-10-01', region: 'EMEA' }, '2025-01-01'), [
+      { kind: 'condition', column: 'trade_date', operator: 'greaterThanEqual', value: '2024-10-01' },
+      { kind: 'condition', column: 'trade_date', operator: 'lessThan', value: '2025-01-01' },
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+    ]);
+    // no end answered: refused, never guessed
+    assert.throws(() => markConditions(BY_MONTH, CUBE, { trade_date: '2024-12-01' }), /was not answered/);
+  });
+
+  it('a click on a bin filters to its range: up to its end, the database\'s -- the next bin\'s edge, drawn or not', () => {
+    const BINS: ChartSpec = { ...BAR, x: 'notional', bins: { width: 100 }, y: [{ column: 'qty', fn: 'count' }] };
+    // sorted by count, a bin cut off by "at most": [200, 300) is not drawn, but [100, 200) still ends at 200
+    const d = chartOption(BINS, table([
+      { name: 'notional__bin', type: 'Float', values: [0, 100] },
+      { name: 'count', type: 'Integer', values: [5, 3] },
+      { name: AXIS_UPPER, type: 'Float', values: [100, 200] },
+    ]));
+    assert.equal(d.upperAt?.(1), 200);
+    assert.deepEqual(markConditions(BINS, CUBE, { notional: 100 }, 200), [
+      { kind: 'condition', column: 'notional', operator: 'greaterThanEqual', value: 100 },
+      { kind: 'condition', column: 'notional', operator: 'lessThan', value: 200 },
+    ]);
+  });
+
+  it('a show-as plots its own column, over the measure it reads, along the axis, restarting per series', () => {
+    const spec: ChartSpec = { ...BAR, split: 'desk', y: [{ column: 'notional', fn: 'sum', showAs: { kind: 'runningTotal' } }] };
+    assert.equal(measureName(spec.y[0]!), 'runningTotal_sum_notional');
+    const s = chartSnapshot(CUBE, spec);
+    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional']);
+    assert.deepEqual(s.groupDerived, [{ name: 'runningTotal_sum_notional', window: {
+      fn: 'sum', column: 'sum_notional', partition: ['desk'], order: [{ column: 'region', direction: 'asc' }], frame: 'running',
+    } }]);
+  });
+
+  it('what stops one: a grain on what is not a date, bins on what is not a number', () => {
+    assert.match(chartProblems({ ...BAR, grain: 'month' }, CUBE).join(' '), /'region' is not a date/);
+    assert.match(chartProblems({ ...BAR, bins: { width: 3 } }, CUBE).join(' '), /'region' is not a number/);
+    assert.deepEqual(chartProblems(BY_MONTH, CUBE), []);
+  });
+
+  it('a live chart keeps its grain while its column stays across, and drops it when the column changes', () => {
+    const live = BY_MONTH;
+    const cube: CubeSnapshot = { ...CUBE, rows: ['trade_date'], pivotOn: [] };
+    assert.equal(followCube(live, cube).grain, 'month');
+    assert.equal(followCube(live, { ...CUBE, rows: ['region'], pivotOn: [] }).grain, undefined);
+  });
+});
+
+describe('dashboard-grade drawing: bar and line together, the grid\'s formats, layers, labels (batch 2, steps 5-8)', () => {
+  const ROWS = table([
+    { name: 'region', type: 'String', values: ['EMEA', 'AMER', 'APAC'] },
+    { name: 'sum_notional', type: 'Float', values: [1500000, 900000, 300000] },
+    { name: 'average_qty', type: 'Float', values: [12.5, 7, 3] },
+    { name: 'percentOfTotal_sum_notional', type: 'Float', values: [0.5555, 0.3333, 0.1111] },
+    { name: 'average_of_sum_notional', type: 'Float', values: [900000, 900000, 900000] },
+    { name: 'max_of_sum_notional', type: 'Float', values: [1500000, 1500000, 1500000] },
+    { name: 'min_of_sum_notional', type: 'Float', values: [300000, 300000, 300000] },
+  ]);
+  // the grid's formats: notional in dollars, millions; qty plain
+  const money: LabelOf = (v, column) => (v === null ? '' : column === 'notional' ? `$${(Number(v) / 1e6).toFixed(1)}M` : String(v));
+  const units = (column: string) => (column === 'notional' ? 'currency|USD|' : undefined);
+  type Opt = { series: Record<string, any>[]; yAxis: Record<string, any> | Record<string, any>[]; visualMap?: Record<string, any>[]; tooltip: Record<string, any> };
+  const COMBO: ChartSpec = { ...BAR, y: [{ column: 'notional', fn: 'sum' }, { column: 'qty', fn: 'average', mark: 'line' }] };
+
+  it('a bar and a line: each its own mark, on two value axes when their units differ, each in its series\' colour', () => {
+    const d = chartOption(COMBO, ROWS, undefined, money, units);
+    const o = d.option as unknown as Opt;
+    assert.deepEqual(o.series.map((s) => s.type), ['bar', 'line']);
+    assert.ok(Array.isArray(o.yAxis) && o.yAxis.length === 2, 'two value axes');
+    const axes = o.yAxis as Record<string, any>[];
+    assert.equal(o.series[1]!.yAxisIndex, 1);
+    assert.equal(axes[0]!.axisLabel.color, '#2a78d6');
+    assert.equal(axes[1]!.axisLabel.color, '#eb6834');
+    assert.match(chartSvg(d), /\$1\.5M/);
+  });
+
+  it('one value axis when they share a unit, or a measure says its own axis', () => {
+    const same = chartOption(COMBO, ROWS, undefined, money, () => undefined).option as unknown as Opt;
+    assert.ok(!Array.isArray(same.yAxis), 'one axis');
+    const told = chartOption({ ...COMBO, y: [COMBO.y[0]!, { ...COMBO.y[1]!, axis: 'right' }] }, ROWS, undefined, money, () => undefined).option as unknown as Opt;
+    assert.ok(Array.isArray(told.yAxis));
+  });
+
+  it('every value as the grid writes it: the axis, the label, the hover', () => {
+    const d = chartOption({ ...BAR, options: { ...BAR.options, labels: true } }, ROWS, undefined, money);
+    const o = d.option as unknown as Opt;
+    assert.equal((o.yAxis as Record<string, any>).axisLabel.formatter(2000000), '$2.0M');
+    assert.equal(o.series[0]!.label.formatter({ dataIndex: 0, value: 1500000 }), '$1.5M');
+    assert.equal(o.series[0]!.tooltip.valueFormatter(900000), '$0.9M');
+    // a share as a percentage, whatever the column's format
+    const share = chartOption({ ...BAR, y: [{ column: 'notional', fn: 'sum', showAs: { kind: 'percentOfTotal' } }] }, ROWS, undefined, money);
+    assert.match(String((share.option as unknown as Opt).series[0]!.tooltip.valueFormatter(0.5555)), /^55\.6\s?%$/);
+  });
+
+  it('a hover lists the further measures asked for, and writes data as text, never markup', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['<img src=x onerror=alert(1)>'] },
+      { name: 'sum_notional', type: 'Float', values: [1] },
+      { name: 'average_qty', type: 'Float', values: [7] },
+    ]);
+    const d = chartOption({ ...BAR, tooltip: [{ column: 'qty', fn: 'average' }] }, rows, undefined, (v) => String(v));
+    const html = (d.option as unknown as Opt).tooltip.formatter([{ seriesIndex: 0, dataIndex: 0, value: 1, marker: '' }]) as string;
+    assert.ok(!html.includes('<img'), html);
+    assert.match(html, /&lt;img/);
+    assert.match(html, /average of qty: 7/);
+  });
+
+  it('the label slot writes another measure on each mark', () => {
+    const d = chartOption({ ...BAR, label: { column: 'qty', fn: 'average' }, options: { ...BAR.options, labels: true } }, ROWS, undefined, money);
+    assert.equal((d.option as unknown as Opt).series[0]!.label.formatter({ dataIndex: 1, value: 900000 }), '7');
+  });
+
+  it('reference lines: a target where it is told, the average where the database says; a band; extremes pinned', () => {
+    const spec: ChartSpec = { ...BAR, layers: [
+      { kind: 'line', value: 1000000, label: 'Target' },
+      { kind: 'stat', stat: 'average' },
+      { kind: 'band', axis: 'x', from: 'AMER', to: 'APAC', label: 'Growth' },
+      { kind: 'extremes' },
+    ] };
+    const d = chartOption(spec, ROWS, undefined, money);
+    const s = (d.option as unknown as Opt).series[0]!;
+    assert.deepEqual(s.markLine.data.map((l: Record<string, unknown>) => l['yAxis']), [1000000, 900000]);
+    assert.match(s.markLine.data[1].label.formatter, /Average: \$0\.9M/);
+    assert.equal(s.markArea.data.length, 1);
+    assert.deepEqual(s.markPoint.data.map((p: Record<string, unknown>) => p['name']), ['Maximum', 'Minimum']);
+    assert.match(chartSvg(d), /Target/);
+  });
+
+  it('a threshold colours its measure\'s marks below it in the bad colour', () => {
+    const d = chartOption({ ...BAR, layers: [{ kind: 'threshold', value: 1000000 }] }, ROWS);
+    const vm = (d.option as unknown as Opt).visualMap!;
+    assert.equal(vm.length, 1);
+    assert.deepEqual(vm[0]!.pieces[0], { lt: 1000000, color: '#e34948' });
+    chartSvg(d);
+  });
+
+  it('the cheaper options: smooth, step, log axis, labels inside and turned, no dimming', () => {
+    const line = chartOption({ ...BAR, mark: 'line', options: { ...BAR.options, smooth: true, logAxis: true, labelRotate: 45, dim: false } }, ROWS);
+    const o = line.option as unknown as Opt & { xAxis: Record<string, any> };
+    assert.equal(o.series[0]!.smooth, true);
+    assert.equal((o.yAxis as Record<string, any>).type, 'log');
+    assert.equal(o.xAxis.axisLabel.rotate, 45);
+    assert.equal(o.series[0]!.emphasis.focus, 'none');
+    chartSvg(line);
+  });
+});
+
+describe('the query of a dashboard-grade chart', () => {
+  it('asks for the measures a hover, a size and a label read, and the statistics its reference lines draw', () => {
+    const s = chartSnapshot(CUBE, {
+      ...BAR, tooltip: [{ column: 'qty', fn: 'max' }], label: { column: 'qty', fn: 'sum' },
+      layers: [{ kind: 'stat', stat: 'average' }, { kind: 'extremes' }],
+    });
+    assert.deepEqual(s.measures.map((m) => m.name), ['sum_notional', 'max_qty', 'sum_qty']);
+    assert.deepEqual(s.groupDerived?.map((d) => d.name), ['average_of_sum_notional', 'max_of_sum_notional', 'min_of_sum_notional']);
+  });
+});
+
+describe('a real time axis, zoom and pan (batch 2, step 9)', () => {
+  const days = (n: number) => Array.from({ length: n }, (_, i) => new Date(Date.UTC(2024, 0, 1 + i)).toISOString().slice(0, 10));
+  const LINE: ChartSpec = { ...BAR, mark: 'line', x: 'trade_date' };
+  type Opt = { xAxis: Record<string, any>; series: Record<string, any>[]; dataZoom?: Record<string, any>[] };
+
+  it('a date across is a time scale: each point at its own time, in time order whatever the chart\'s order', () => {
+    const rows = table([
+      { name: 'trade_date', type: 'StrictDate', values: ['2024-03-01', '2024-01-01', '2024-02-01'] },
+      { name: 'sum_notional', type: 'Float', values: [3, 1, 2] },
+    ]);
+    const d = chartOption(LINE, rows);
+    const o = d.option as unknown as Opt;
+    assert.equal(o.xAxis.type, 'time');
+    assert.deepEqual(o.series[0]!.data, [['2024-01-01', 1], ['2024-02-01', 2], ['2024-03-01', 3]]);
+    // a click still names the point's own date
+    assert.deepEqual(d.keyAt(0, 2), { trade_date: '2024-03-01' });
+    assert.match(chartSvg(d), /<path/);
+  });
+
+  it('a gap in time is a gap: a missing month is spaced as a month, not drawn as a neighbour', () => {
+    const rows = table([
+      { name: 'trade_date', type: 'StrictDate', values: ['2024-01-01', '2024-02-01', '2024-06-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2, 3] },
+    ]);
+    const o = chartOption(LINE, rows).option as unknown as Opt;
+    assert.equal(o.xAxis.type, 'time', 'the axis measures time, so June sits four months on');
+  });
+
+  it('a long series gets a slider and point thinning; a short one neither, unless asked', () => {
+    const many = table([
+      { name: 'trade_date', type: 'StrictDate', values: days(600) },
+      { name: 'sum_notional', type: 'Float', values: days(600).map((_, i) => i) },
+    ]);
+    const long = chartOption(LINE, many).option as unknown as Opt;
+    assert.deepEqual(long.dataZoom?.map((z) => z['type']), ['inside', 'slider']);
+    assert.equal(long.series[0]!.sampling, 'lttb');
+    const few = table([
+      { name: 'trade_date', type: 'StrictDate', values: days(10) },
+      { name: 'sum_notional', type: 'Float', values: days(10).map((_, i) => i) },
+    ]);
+    assert.equal((chartOption(LINE, few).option as unknown as Opt).dataZoom, undefined);
+    assert.ok((chartOption({ ...LINE, options: { ...LINE.options, zoom: true } }, few).option as unknown as Opt).dataZoom);
+    assert.equal((chartOption({ ...LINE, options: { ...LINE.options, zoom: false } }, many).option as unknown as Opt).dataZoom, undefined);
+    chartSvg(chartOption(LINE, many));
+  });
+});
+
+describe('a time series asks for its points', () => {
+  it('a first chart of a date asks for a time series\' points, not a top 50; so does a live chart moving onto one', () => {
+    const dated: CubeSnapshot = { ...CUBE, rows: ['trade_date'], pivotOn: [] };
+    assert.equal(defaultChart(dated)?.options.limit, TIME_LIMIT);
+    const live: ChartSpec = { ...BAR, x: 'region' };
+    assert.equal(followCube(live, dated).options.limit, TIME_LIMIT);
+    // told how many, it keeps what it was told
+    assert.equal(followCube({ ...live, options: { ...live.options, limit: 12 } }, dated).options.limit, 12);
+  });
+});
+
+describe('drill-down in a chart (batch 2, step 10)', () => {
+  const GROUPED: CubeSnapshot = { ...CUBE, rows: ['region', 'desk'], pivotOn: [] };
+  const BY_REGION: ChartSpec = { ...BAR, x: 'region', frozen: true };
+
+  it('drills through the grid\'s own groupings, from the column across down', async () => {
+    const { drillLevels, drillDown, drillUp, drilledView } = await import('../src/chart-spec.ts');
+    assert.deepEqual(drillLevels(BY_REGION, GROUPED), ['region', 'desk']);
+    assert.equal(drillLevels(BY_REGION, { ...GROUPED, rows: ['region'] }), null, 'nothing below: no drill');
+    const down = drillDown(BY_REGION, GROUPED, 'EMEA')!;
+    assert.deepEqual(down.drill, { levels: ['region', 'desk'], path: ['EMEA'] });
+    assert.equal(drillDown(down, GROUPED, 'FX'), null, 'the bottom');
+    // drawn: desk across, its query narrowed to EMEA -- the chart's own conditions, not the cube's filter
+    assert.equal(drilledView(down).spec.x, 'desk');
+    const s = chartSnapshot(GROUPED, down);
+    assert.deepEqual(s.rows, ['desk']);
+    assert.deepEqual(s.filter, { kind: 'and', children: [CUBE.filter, { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }] });
+    assert.deepEqual(drillUp(down, 0).drill, undefined);
+  });
+
+  it('a click on a drilled mark narrows the grid to its path and its own value', async () => {
+    const { drillDown } = await import('../src/chart-spec.ts');
+    const down = drillDown(BY_REGION, GROUPED, 'EMEA')!;
+    const d = chartOption(down, table([
+      { name: 'desk', type: 'String', values: ['FX', 'Rates'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2] },
+    ]));
+    const key = d.keyAt(0, 1)!;
+    assert.deepEqual(key, { desk: 'Rates' });
+    assert.deepEqual(markConditions(down, GROUPED, key), [
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+      { kind: 'condition', column: 'desk', operator: 'equal', value: 'Rates' },
+    ]);
+  });
+
+  it('a drilled live chart stays where it was taken while the grid changes', async () => {
+    const { drillDown } = await import('../src/chart-spec.ts');
+    const live: ChartSpec = { ...BAR, x: 'region' };
+    const down = drillDown(live, GROUPED, 'EMEA')!;
+    assert.equal(followCube(down, { ...GROUPED, rows: ['desk'] }), down);
+  });
+});
+
+describe('brush to filter (batch 2, step 11)', () => {
+  const ROWS = table([
+    { name: 'region', type: 'String', values: ['EMEA', 'AMER', 'APAC'] },
+    { name: 'sum_notional', type: 'Float', values: [3, 2, 1] },
+  ]);
+
+  it('a range across categories takes them, and filters the grid to those values', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const spec: ChartSpec = { ...BAR, options: { ...BAR.options, brush: true } };
+    const d = chartOption(spec, ROWS);
+    assert.equal((d.option as { brush?: { brushType: string } }).brush?.brushType, 'lineX');
+    const took = d.brushed!([{ brushType: 'lineX', coordRange: [0, 1] }])!;
+    assert.deepEqual(took, { kind: 'across', values: ['EMEA', 'AMER'] });
+    assert.deepEqual(brushConditions(spec, CUBE, took), [{ kind: 'condition', column: 'region', operator: 'in', value: ['EMEA', 'AMER'] }]);
+    chartSvg(d);
+  });
+
+  it('a range of time: from its first period\'s start to its last\'s end, the database\'s', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const { localTime } = await import('../src/chart-option.ts');
+    const spec: ChartSpec = { ...BAR, mark: 'line', x: 'trade_date', grain: 'month', options: { ...BAR.options, brush: true } };
+    const d = chartOption(spec, table([
+      { name: 'trade_date__month', type: 'StrictDate', values: ['2024-01-01', '2024-02-01', '2024-03-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2, 3] },
+      { name: AXIS_UPPER, type: 'StrictDate', values: ['2024-02-01', '2024-03-01', '2024-04-01'] },
+    ]));
+    // the brush's ends in the page's local time, as ECharts places a date with no zone
+    const took = d.brushed!([{ coordRange: [localTime('2024-01-15'), localTime('2024-03-02')] }])!;
+    assert.deepEqual(took, { kind: 'across', values: ['2024-02-01', '2024-03-01'], upper: '2024-04-01' });
+    assert.deepEqual(brushConditions(spec, CUBE, took), [
+      { kind: 'condition', column: 'trade_date', operator: 'greaterThanEqual', value: '2024-02-01' },
+      { kind: 'condition', column: 'trade_date', operator: 'lessThan', value: '2024-04-01' },
+    ]);
+  });
+
+  it('a scatter\'s rectangle is its two columns\' ranges', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const spec: ChartSpec = { ...BAR, mark: 'scatter', x: 'notional', y: [{ column: 'qty', fn: 'sum' }], options: { ...BAR.options, brush: true } };
+    const d = chartOption(spec, table([
+      { name: 'notional', type: 'Float', values: [1, 5, 9] },
+      { name: 'qty', type: 'Integer', values: [3, 6, 9] },
+    ]));
+    const took = d.brushed!([{ brushType: 'rect', coordRange: [[8, 2], [4, 7]] }])!;
+    assert.deepEqual(brushConditions(spec, CUBE, took), [
+      { kind: 'condition', column: 'notional', operator: 'greaterThanEqual', value: 2 },
+      { kind: 'condition', column: 'notional', operator: 'lessThanEqual', value: 8 },
+      { kind: 'condition', column: 'qty', operator: 'greaterThanEqual', value: 4 },
+      { kind: 'condition', column: 'qty', operator: 'lessThanEqual', value: 7 },
+    ]);
+  });
+
+  it('no brush unless asked: a click filters as before', () => {
+    const d = chartOption(BAR, ROWS);
+    assert.equal(d.brushed, undefined);
+    assert.equal((d.option as { brush?: unknown }).brush, undefined);
+  });
+});
+
+describe('the cheaper options (batch 2, step 12)', () => {
+  const ROWS = table([
+    { name: 'region', type: 'String', values: ['EMEA', 'AMER, "the Americas"'] },
+    { name: 'sum_notional', type: 'Float', values: [3, 2] },
+  ]);
+  type Opt = { aria: { decal: { show: boolean } }; toolbox?: { feature: Record<string, unknown> } };
+
+  it('pattern fills as well as colours, one option away', () => {
+    assert.equal((chartOption(BAR, ROWS).option as unknown as Opt).aria.decal.show, false);
+    const d = chartOption({ ...BAR, options: { ...BAR.options, decal: true } }, ROWS);
+    assert.equal((d.option as unknown as Opt).aria.decal.show, true);
+    chartSvg(d);
+  });
+
+  it('the toolbox: a picture, the data, the CSV, and bars or a line in place; none unless asked', () => {
+    assert.equal((chartOption(BAR, ROWS).option as unknown as Opt).toolbox, undefined);
+    const d = chartOption({ ...BAR, options: { ...BAR.options, toolbox: true } }, ROWS);
+    assert.deepEqual(Object.keys((d.option as unknown as Opt).toolbox!.feature), ['saveAsImage', 'dataView', 'myCsv', 'magicType']);
+    const pie = chartOption({ ...BAR, mark: 'pie', options: { ...BAR.options, toolbox: true } }, ROWS);
+    assert.deepEqual(Object.keys((pie.option as unknown as Opt).toolbox!.feature), ['saveAsImage', 'dataView', 'myCsv']);
+    chartSvg(d);
+  });
+
+  it('the CSV is the chart\'s rows, a value with a comma or a quote quoted', () => {
+    assert.equal(chartCsv(ROWS), 'region,sum_notional\r\nEMEA,3\r\n"AMER, ""the Americas""",2\r\n');
+  });
+});
+
+describe('a period is named as one', () => {
+  it('a month, a quarter, a year, a week by its first day', () => {
+    assert.equal(periodText('2024-03-01', 'month'), 'Mar 2024');
+    assert.equal(periodText('2024-10-01', 'quarter'), '2024 Q4');
+    assert.equal(periodText('2025-01-01', 'year'), '2025');
+    assert.equal(periodText('2024-03-04', 'week'), 'w/c 2024-03-04');
+  });
+
+  it('bars by quarter are categories named by their quarter; a line by quarter keeps the time scale', () => {
+    const rows = table([
+      { name: 'trade_date__quarter', type: 'StrictDate', values: ['2024-01-01', '2024-04-01'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 2] },
+    ]);
+    const bars = chartOption({ ...BAR, x: 'trade_date', grain: 'quarter' }, rows).option as { xAxis: { type: string; data?: string[] } };
+    assert.equal(bars.xAxis.type, 'category');
+    assert.deepEqual(bars.xAxis.data, ['2024 Q1', '2024 Q2']);
+    const line = chartOption({ ...BAR, mark: 'line', x: 'trade_date', grain: 'quarter' }, rows).option as { xAxis: { type: string } };
+    assert.equal(line.xAxis.type, 'time');
+  });
+});
+
+describe('the audit\'s cases (batch 2): a brush by value, the last bin, refusals', () => {
+  it('a brush over bars sorted by their value takes its range by VALUE, not by where the bars are drawn', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const BINS: ChartSpec = { ...BAR, x: 'notional', bins: { width: 100 }, y: [{ column: 'qty', fn: 'count' }], options: { ...BAR.options, brush: true } };
+    // drawn largest count first: 200, 0, 100 -- a brush over the first two takes 200 and 0, not 0..100
+    const d = chartOption(BINS, table([
+      { name: 'notional__bin', type: 'Float', values: [200, 0, 100] },
+      { name: 'count', type: 'Integer', values: [9, 5, 1] },
+      { name: AXIS_UPPER, type: 'Float', values: [300, 100, 200] },
+    ]));
+    const took = d.brushed!([{ coordRange: [0, 1] }])!;
+    assert.deepEqual(brushConditions(BINS, CUBE, took), [
+      { kind: 'condition', column: 'notional', operator: 'greaterThanEqual', value: 0 },
+      { kind: 'condition', column: 'notional', operator: 'lessThan', value: 300 },
+    ]);
+  });
+
+  it('a brush ending on the last bin keeps the whole of it, to its database end', async () => {
+    const { brushConditions } = await import('../src/chart-spec.ts');
+    const BINS: ChartSpec = { ...BAR, x: 'notional', bins: { width: 100 }, y: [{ column: 'qty', fn: 'count' }], options: { ...BAR.options, brush: true, sort: { by: 'x', direction: 'asc' } } };
+    const d = chartOption(BINS, table([
+      { name: 'notional__bin', type: 'Float', values: [0, 100, 200] },
+      { name: 'count', type: 'Integer', values: [1, 2, 3] },
+      { name: AXIS_UPPER, type: 'Float', values: [100, 200, 300] },
+    ]));
+    assert.deepEqual(brushConditions(BINS, CUBE, d.brushed!([{ coordRange: [1, 2] }])!), [
+      { kind: 'condition', column: 'notional', operator: 'greaterThanEqual', value: 100 },
+      { kind: 'condition', column: 'notional', operator: 'lessThan', value: 300 },
+    ]);
+  });
+
+  it('a stacked line chart stacks; a line beside stacked bars does not', () => {
+    const rows = table([
+      { name: 'region', type: 'String', values: ['EMEA', 'EMEA'] },
+      { name: 'desk', type: 'String', values: ['FX', 'Rates'] },
+      { name: 'sum_notional', type: 'Float', values: [1, 3] },
+    ]);
+    const lines = chartOption({ ...BAR, mark: 'line', split: 'desk', options: { ...BAR.options, stack: 'stacked' } }, rows).option as { series: { stack?: string }[] };
+    assert.ok(lines.series.every((x) => x.stack === 'total-0'));
+    const combo = chartOption({ ...BAR, y: [BAR.y[0]!, { column: 'qty', fn: 'sum', mark: 'line' }], options: { ...BAR.options, stack: 'stacked' } },
+      table([{ name: 'region', type: 'String', values: ['EMEA'] }, { name: 'sum_notional', type: 'Float', values: [1] }, { name: 'sum_qty', type: 'Float', values: [2] }])).option as { series: { stack?: string }[] };
+    assert.equal(combo.series[1]!.stack, undefined);
+  });
+
+  it('what nothing draws is refused by name, never ignored', () => {
+    // small multiples are drawn now (batch 3): a facet on a kind they are not drawn for, or with a brush, is refused
+    assert.deepEqual(chartProblems({ ...BAR, facet: { column: 'desk' } }, CUBE), []);
+    assert.match(chartProblems({ ...BAR, mark: 'pie', facet: { column: 'desk' } }, CUBE).join(' '), /not drawn as small multiples/);
+    assert.match(chartProblems({ ...BAR, facet: { column: 'desk' }, options: { ...BAR.options, brush: true } }, CUBE).join(' '), /no brush/);
+    assert.match(chartProblems({ ...BAR, layers: [{ kind: 'stat', stat: 'average', measure: 3 }] }, CUBE).join(' '), /reads value 4/);
+    assert.match(chartProblems({ ...BAR, options: { ...BAR.options, stack: 'percent' }, layers: [{ kind: 'extremes' }] }, CUBE).join(' '), /100% stack/);
+    assert.match(chartProblems({ ...BAR, mark: 'scatter', x: 'notional', layers: [{ kind: 'line', value: 1 }] }, CUBE).join(' '), /scatter/);
+  });
+
+  it('a group-level column that reads a grouping the chart does not group by is refused', () => {
+    const s: CubeSnapshot = { ...CUBE, pivotOn: [], groupDerived: [{ name: 'deskRank', window: { fn: 'rank', partition: ['desk'], order: [{ column: 'total', direction: 'desc' }] } }] };
+    assert.match(chartProblems({ ...BAR, y: [{ column: 'deskRank', fn: 'value' }] }, s).join(' '), /reads 'desk'/);
+    assert.deepEqual(chartProblems({ ...BAR, split: 'desk', y: [{ column: 'deskRank', fn: 'value' }] }, s), []);
+  });
+
+  it('the treemap\'s hover writes data as text, never markup', () => {
+    const d = treemapOfGrid({
+      rows: table([{ name: 'region', type: 'String', values: ['<img src=x onerror=alert(1)>'] }, { name: 'v', type: 'Float', values: [1] }]),
+      tree: [{ path: [], level: 1, isGroup: false, expanded: false, isTotal: false }],
+      leaves: [{ name: 'region', type: 'String' }, { name: 'v', type: 'Float' }],
+      levels: [],
+    });
+    const f = (d.option as { tooltip: { formatter: (p: unknown) => string } }).tooltip.formatter;
+    assert.ok(!f({ name: '<img src=x>', data: { text: '<b>1</b>' } }).includes('<'));
+  });
+
+  it('a newer DataCube\'s option word is refused by name', async () => {
+    const { specProblem } = await import('../src/chart-spec.ts');
+    assert.match(specProblem({ ...BAR, options: { ...BAR.options, stack: 'stream' } }, ['bar']) ?? '', /stack "stream"/);
   });
 });

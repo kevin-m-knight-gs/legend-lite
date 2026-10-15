@@ -31,12 +31,17 @@ export interface PageConfig {
    * are its own: the model's Data elements, loaded into this tab's DuckDB (plan A2). Absent: none.
    */
   readonly depot?: DepotConfig;
+  /**
+   * Where the page's WebAssembly is served -- DuckDB and its extensions, the compiler, the page's SDLC, the saved
+   * stores' rules, the warehouse's binding: `./vendor/` beside the page, unless the site serves one copy for every app
+   * (//site:dist). The one key: nothing else in the config names a vendor folder.
+   */
+  readonly vendor: string;
 }
 
 export interface DepotConfig {
+  /** `"page"` (the page's own SDLC, its module from the page's `vendor`), or a model home's server. */
   readonly sdlc: string;
-  /** Where the page's SDLC module is served (`<vendor>sdlc/`), for `"page"`. */
-  readonly vendor: string;
 }
 
 /**
@@ -51,7 +56,7 @@ export interface ProjectConfig {
   readonly models: readonly string[];
 }
 
-const EMPTY: PageConfig = { legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', projects: [] };
+const EMPTY: PageConfig = { legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', projects: [], vendor: './vendor/' };
 
 const texts = (v: unknown): string[] => (Array.isArray(v) ? v.map(text).filter((t) => t !== '') : []);
 
@@ -80,7 +85,7 @@ function depot(v: unknown): DepotConfig | undefined {
   const o = v as Record<string, unknown>;
   const sdlc = text(o['sdlc']);
   if (!sdlc) return undefined;
-  return { sdlc, vendor: text(o['vendor']) || './vendor/' };
+  return { sdlc };
 }
 
 function text(v: unknown): string {
@@ -104,6 +109,7 @@ export async function pageConfig(location: Location = window.location): Promise<
       file = {
         legendLite: text(raw['legendLite']), legendEngine: text(raw['legendEngine']), warehouse: text(raw['warehouse']),
         queryStore: text(raw['queryStore']), user: text(raw['user']), projects: projects(raw['projects'], url.href),
+        vendor: text(raw['vendor']) || EMPTY.vendor,
         ...(byName ? { depot: byName } : {}),
       };
     }
@@ -118,6 +124,7 @@ export async function pageConfig(location: Location = window.location): Promise<
     queryStore: text(q.get('queryStore')) || file.queryStore,
     user: file.user,
     projects: file.projects,
+    vendor: file.vendor,
     ...(file.depot ? { depot: file.depot } : {}),
   };
 }
