@@ -1,0 +1,102 @@
+# THE PLAYGROUND: every app from one origin on GitHub Pages, https://neema2.github.io/legend-lite/ -- Legend Query,
+# DataCube and Studio running entirely in the visitor's browser (the planner, DuckDB and the model store are
+# WebAssembly; no server, nothing behind the pages). It is //site:dist as built (site/BUILD.bazel), published as is.
+#
+# WHAT IS PUBLISHED: main as of its last green gate run. The deploy follows the gates (gate.yml), not a push: a push
+# to main runs them, and so does every night's run, which is what publishes a PR merged with [skip ci] in its message
+# (its gates already ran on the branch) -- or a run by hand, sooner. A gate run re-run to green publishes too (its
+# completion is a run's like any other). A run by hand (workflow_dispatch) is run on main and publishes main as it is
+# then: the github-pages environment deploys the default branch alone. Pages' source is GitHub Actions (Settings >
+# Pages; set by the repository's owner, 2026-10-15).
+#
+# The build is the product job's (gates-run.yml): the same flags (tools/ci/lane-flags.sh), downloads cache and remote
+# cache, so //site:dist is mostly fetched from what that job already built rather than built again. Pages serves the
+# site under the repository's name (/legend-lite/), which //site:verify_test serves it under too.
+name: pages
+on:
+  workflow_run:
+    workflows: [gates]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# one deploy at a time, and none cancelled halfway: a later run waits for the one in flight
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # a green, whole gate run of main: a push's or the night's (never a PR's -- a fork's branch may be named main too --
+    # nor a dispatch of some lanes only); or a run by hand
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the commit the gates passed, not main's head when this starts
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      # the downloads the product job saved (gates-run.yml says what is in it and why); restored, never saved here
+      - name: Bazel downloads, keyed by the pins
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/bazel-repo/content_addressable
+          key: bazel-repo-linux=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
+          restore-keys: |
+            bazel-repo-linux=
+      - name: Linux host prerequisites of the hermetic toolchain (D7)
+        run: |
+          set -euo pipefail
+          # LLVM's prebuilt ld.lld links libxml2.so.2: the C toolchain's one recorded host library (MODULE.bazel)
+          ldconfig -p | grep -q 'libxml2\.so\.2' || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libxml2; }
+      # the remote cache, read: this job writes nothing to it (no --remote_upload_local_results, which only the gates'
+      # jobs turn on: gates-run.yml); its build's events still go to BuildBuddy, as every build's under --config=remote
+      - name: the remote cache (BuildBuddy)
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BUILDBUDDY_API_KEY" ]; then
+            printf 'common --config=remote\ncommon --remote_header=x-buildbuddy-api-key=%s\ncommon --bes_header=x-buildbuddy-api-key=%s\n' \
+              "$BUILDBUDDY_API_KEY" "$BUILDBUDDY_API_KEY" >> "$HOME/.bazelrc"
+            echo "the remote cache is on (BuildBuddy)"
+          else
+            echo "::warning ::no BUILDBUDDY_API_KEY secret: building without the remote cache"
+          fi
+      - name: bazel build //site:dist
+        env:
+          LOW_MEMORY: "false"
+          PLATFORM: linux
+          LINUX_ONLY_TESTS: ci-policy
+        run: |
+          set -euo pipefail
+          . tools/ci/lane-flags.sh
+          bazel build "${flags[@]}" //site:dist
+          # the folder as files, never the links into Bazel's tree it may hold
+          cp -RL bazel-bin/site/dist "$RUNNER_TEMP/site"
+          du -sh "$RUNNER_TEMP/site"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # what deploy-pages needs, and only this job has it
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

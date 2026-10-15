@@ -804,6 +804,44 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `datacube/BUILD.bazel` (the widget's sources: one file added; to the Bazel program session first),
   `python/legend_lite/engine.py` (`page.json`), their tests and the Python engine's browser test. Step 2:
   `python/legend_lite/page.py` (new), `datacube.py`, `notebook.py`, `python/tests/test_page.py`.
+- **DataCube charts, batches 2-5 (announced 2026-10-14, before the first edit; the design, widened with the user the
+  same day: `docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md` §3).** Every chart we can realistically draw: the chart spec's
+  version 2 (a slot per role), the calculated columns DataCube already has packaged as presets (grain, bins, show as)
+  for the chart and the grid, batch 2's dashboard-grade charts, then batch 3's new kinds, batch 4's aggregates and the
+  kinds they unlock, batch 5's maps -- each batch landing on its own with an example page (a sheet per family). Branch
+  `claude/epic-rubin-ay7upl`, from main; built by its own session and reviewed by this line before it lands. Batch 2's
+  files, all in `datacube/` and `python/`: `src/chart-spec.ts`, `src/chart-option.ts`, `src/chart-render.ts`,
+  `src/calc-presets.ts` (new), `src/calc.ts` (the date functions), `src/examples/` (new: the example pages),
+  `src/samples.ts` (the `sales` sample), `src/ui/chart-panel.ts`, `src/ui/chart-form.ts` (new: the options form, its own
+  chunk), `src/ui/menu.ts` and `src/app.ts` (the grid's presets; a column starts from the bins preset in the column
+  editor, which is not changed), `src/page-document.ts` (version 2 read), `src/page/cube-page.ts`
+  (drill, brush), `src/app/datacube-app.ts` (Examples in the Open window), `src/app.css`, `demo/verify-charts.mjs`,
+  their tests, `test/bundle-budget.test.ts` (the chart chunk's budget, raised on purpose with a measured note),
+  `test_imports.bzl`, `datacube/BUILD.bazel` (new sources and tests: to the Compiler Rewrite session),
+  `python/legend_lite/page.py` and `python/tests/test_page.py` (Python's words). Not touched: D5b's files
+  (`engine-client/src/snap.ts`, `duckdb.ts`; `datacube/src/cube.ts`, `app/sources.ts`, `upload.ts`, `infer.ts`,
+  `lite-planner.ts`), core. Batch 4 adds aggregates to `src/snapshot.ts` and `src/query.ts`, announced here before it
+  starts. **Widened 2026-10-15 with the user, in PR neema2/legend-lite#42 before it lands (batches 2 and 3 together):**
+  (1) the chart rules written once -- Python's charts made and judged by DataCube's own code, headless (`src/chart-spec.ts`
+  `readChart`/`chartFrom`, `src/headless/grid.ts` `gridChart`, `src/headless/model.ts` `pageModelKept`,
+  `src/page-document.ts`; `python/legend_lite/page.py`'s copy of the rules deleted); (2) one package, two things: the
+  wheel alone the compiler, its `datacube` extra everything DataCube needs, V8 included (`python/legend_lite/_extra.py`
+  new, `frames.py`, `engine.py`, `__init__.py`, `python/README.md`, `python/BUILD.bazel`, `python/tests/test_wheel.py`);
+  (3) the static site slimmed -- one DuckDB build (eh), one copy of the apps' WebAssembly, no page that needs a server
+  (`engine-client/src/duckdb-tab.ts` and its `BUILD.bazel`; `query/BUILD.bazel`, `query/demo/main.ts`,
+  `query/src/app/context.ts`; `studio/BUILD.bazel`, `studio/src/app/app.ts`; `site/BUILD.bazel`, `site/make-dist.mjs`
+  new; DataCube's `demo/` config, boot and planners, `src/services/browser.ts`); (4) every app's bundles minified, names
+  kept (`datacube/`, `query/`, `studio/` BUILD files; the budgets measured down); (5) the playground on GitHub Pages
+  (`.github/workflows/pages.yml` new; `site/index.html`, `site/verify.mjs` served under `/legend-lite/`). Reviews: the
+  DataCube + Python line (DataCube, Python), the Studio line (Query, Studio, the site, `duckdb-tab.ts`), the Compiler
+  Rewrite line (the BUILD files, the workflow), an independent audit of the whole PR. The other Python twins of
+  DataCube's logic the audit found are the next program: `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`. **The reviews'
+  fixes, 2026-10-15, files beyond the list above:** `src/ui/chart-panel.ts` and `src/ui/chart-form.ts` (every edit
+  through `chart-spec.ts` `editChart`, the one change by hand Python's charts use too); `python/legend_lite/_pool.py`
+  (new: the compiler's threads, on Python's standard library), `model.py`, `_home.py`, `_headless.py`;
+  `query/demo/config*.json` and `datacube/demo/config.json` (one `vendor` key each); `MODULE.bazel` (the `wasm_mvp`
+  extension pins removed; the lock unchanged) and `engine-client/BUILD.bazel`; `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`
+  (that note).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
@@ -1073,6 +1111,8 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   evaluation order. For the compiler line: the committed `tools/census/RenderCensus.java` passes no runtime, which the
   planner refuses, so every case fails at lowering on both sides; the census above ran a copy with PCT's storeless
   runtime.
+  (The compiler line, 2026-10-15: the committed tool lowers with the storeless runtime on DuckDB since 487a0f460 on
+  main; GATES "The compiler's two scale costs".)
 
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
@@ -1539,6 +1579,9 @@ repros will be in the study's §9.
         give 53 MB of SQL, which DuckDB runs in 30–56 s.
       - `SqlSource.Join.outputs/side` are rebuilt on every column lookup once compile is fixed: 100 joins plan in
         about 1 s, 250 in 27–40 s, 100 comma joins in 11 s.
+        (The compiler line, 2026-10-15: both fixed, 487a0f460 on main; GATES "The compiler's two scale costs". The fold
+        budget changes the render of four of this line's IQ parity cases, on DuckDB and on Postgres: an overflow-checked
+        computed column read more than once is a subselect's now; both parity tests pass, the answers unchanged.)
     - **The lowering:** a CASE of 1,000 WHENs renders as nested CASEs past DuckDB's depth limit, and 5,000 AND terms
       overflow the stack.
     - **The ninth line (dialects):** Postgres's `concat()` takes at most 100 arguments, and Postgres cannot run a
@@ -1591,3 +1634,21 @@ repros will be in the study's §9.
    scopes, never the base's same-named column). `CorrelatedComputedColumnTest` pins both spellings. Judges in GATES: the
    six corpus passes 0 of 23 result files differ; the render census 58,688 entries, 6 differ, all six the new test's own
    renders.
+   **Landed 2026-10-15 (487a0f460 at the head on main, branch `core/scale-costs`, one commit over 8d2e55a65; run
+   38689728911 on every lane and platform, green on all 50 jobs first time (the gates-green summary skipped, as on every
+   dispatch); main's own run 38693372933 red on two jobs, neither this landing's: the macOS datacube job's runner was
+   lost by GitHub (its annotation "The hosted runner lost communication with the server"; no log; the same SHA green on
+   the branch run), and the Windows core job timed out `//core:core_tests_integration` at 300 s, as main's run
+   38667214956 on 10bc6fbe2 (PR #41, before this landing) had at 305.8 s; on Linux the suite's summed test time FELL
+   with this landing, 153.8 s to 106.7 s, and on Windows the lane runs it two to three times slower than it runs alone
+   (the tenth line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
+   lane that predates this landing, which the tenth line is fixing and the Bazel program reviews (the Phase 8 brief's
+   "sharding; third order" item); the reading, with five runs' class times:
+   `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`; GATES "The compiler's two scale
+   costs"): the tenth line's two measured costs in the compiler's files, and the census tool's runtime.** A join's
+   delivered columns are computed once, when it is made (250 joins plan in 434 ms, 8,770 before). A fold may grow a
+   select by at most 100 expression nodes a pass through the computed projections it writes into reads (Calcite-shaped:
+   its bloat); past that the pass isolates, so a doubling chain of derived tables stays linear (20 levels: 3,814 chars;
+   15 levels ran out of memory before). `tools/census/RenderCensus.java` lowers with the storeless runtime on DuckDB.
+   `ScaleCostsTest` pins the work. Judges in GATES: the six corpus passes 0 of 23 result files differ; the render census
+   58,794 entries, 22 differ.

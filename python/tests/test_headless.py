@@ -14,6 +14,7 @@ import pandas as pd
 
 import legend_lite as ll
 from legend_lite import datacube
+from legend_lite._headless import Headless, bundle
 from legend_lite.engine import Engine
 
 TRADES = pd.DataFrame({
@@ -368,14 +369,17 @@ class Files(unittest.TestCase):
         with self.frames.serving() as models:
             self.assertNotIn('files_bad', models)
 
-    def test_without_its_bundle_the_engine_takes_no_file(self):
+    def test_without_its_bundle_reading_a_file_says_so_never_hides_it(self):
         import os
         from unittest import mock
-        with mock.patch.dict(os.environ, {'LEGEND_LITE_DATACUBE': os.path.join(os.sep, 'no', 'such', 'bundle.js')}):
-            self.assertFalse(json.loads(self.engine.answer('GET', '/services.json', '', None).body)['files'])
-            # neither a part nor the file it would make is taken
-            self.assertEqual(self.send('/file-part.json', {'at': 0, 'bytes': 'YQoxCg=='}).status, 404)
-            self.assertEqual(self.send('/file.json', {'upload': 'u', 'name': 'a.csv', 'table': 'files_none'}).status, 404)
+        missing = os.path.join(os.sep, 'no', 'such', 'bundle.js')
+        engine = Engine(self.frames, headless=lambda: Headless(bundle()))
+        with mock.patch.dict(os.environ, {'LEGEND_LITE_DATACUBE': missing}):
+            # given DataCube's code, the engine offers files; the bundle missing is said where a file is read
+            self.assertTrue(json.loads(engine.answer('GET', '/services.json', '', None).body)['files'])
+            answer = engine.answer('POST', '/file-part.json', '', json.dumps({'at': 0, 'bytes': 'YQoxCg=='}))
+            self.assertEqual(answer.status, 500)
+            self.assertIn(f"DataCube's code is not at {missing}", answer.body.decode('utf-8'))
 
 
 

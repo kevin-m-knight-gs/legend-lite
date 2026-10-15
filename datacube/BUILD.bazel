@@ -41,7 +41,11 @@ exports_files(
 
 # the shared cases of a server planning for a page (G1), which Python's twin is held to as the tab's planner is
 exports_files(
-    ["test/fixtures/upstream-plans.json"],
+    [
+        # DataCube's chart rules, which Python's page.py is held to as well (//python:engine_test)
+        "test/fixtures/chart-rules.json",
+        "test/fixtures/upstream-plans.json",
+    ],
     visibility = ["//python:__pkg__"],
 )
 
@@ -189,10 +193,16 @@ _EXTRA_ENV = {
     "upstream-plans": {
         "UPSTREAM_PLANS": "$(rlocationpath test/fixtures/upstream-plans.json)",
     },
+    # the chart rules, one table for DataCube and Python (python/tests/test_page.py reads it too)
+    "chart-rules": {
+        "CHART_RULES": "$(rlocationpath test/fixtures/chart-rules.json)",
+    },
 }
 
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
+    # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
+    "chart-queries",
     "duckdb",
     "group-derived",
     "model-join",
@@ -216,6 +226,9 @@ _EXTRA_DATA = {
         ":bundle_bundle",
         ":bundle_bundle_engine",
         ":demo/bundle-engine.js",
+        # a notebook cube's module and its lazy chunks (widget-chunks/), and the loader whose reading of them is checked
+        ":widget",
+        "demo/widget-loader.ts",
         ":demo/bundle.js",
         ":demo/widget-loader.js",
         ":demo/widget.css",
@@ -224,6 +237,7 @@ _EXTRA_DATA = {
     # the saved queries Query writes, and the project they compile against
     "saved-queries": ["//fixtures/saved-queries:records", ":projects", ":trading_copies"],
     "upstream-plans": ["test/fixtures/upstream-plans.json"],
+    "chart-rules": ["test/fixtures/chart-rules.json"],
     # the in-memory source the Ad Hoc Analysis tests query
     "adhoc-session": ["test/adhoc-fixture.ts"],
     "adhoc-mode": ["test/adhoc-fixture.ts"],
@@ -251,6 +265,7 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "calc-fix",
+    "chart-queries",
     "infer",
     "offer-facts",
     "upload",
@@ -368,6 +383,7 @@ _HEADLESS_TESTS = [
     "engine-remote",
     "epoch",
     "escaping",
+    "examples",
     "export",
     "export-doc",
     "export-model",
@@ -427,9 +443,12 @@ _HEADLESS_LEFT_OUT = {
     "warehouse-session-http": "the warehouse sign-in's HTTP",
     # the chart renderer (ECharts) draws on a DOM canvas: a screen test, though it imports no jsdom itself
     "chart-echarts": "ECharts draws on a DOM canvas",
+    "chart-kinds": "ECharts draws on a DOM canvas",
     # a picked File read as a stream (Blob, TextDecoderStream: upload.ts fileParts) is the page's: headless reads a file
     # by its path (readFileInto, run by //python:headless_test's Files)
     "upload": "a picked File, read as the page's stream",
+    # its rows read in from a picked File, as upload's are (the queries themselves run headless in every chart's page)
+    "chart-queries": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",
@@ -1256,28 +1275,41 @@ copy_file(
 
 # Split: what a page loads only when it needs it (ECharts, the first time a chart draws -- plan
 # F7) is a chunk beside the bundle, in its own directory per bundle, fetched by the bundle itself.
+# Minified, its names kept, as the notebook's module is (the user, 2026-10-15, "does minify buy anything if already
+# zipped?": measured, a third off the gzipped download and about half off the text the browser parses -- a grid page's
+# startup 405,798 -> 278,151 bytes gzipped, its script 764,104 bytes at 2d24022 -> 411,165). A minified file names no
+# module it holds, so esbuild's record of each output's modules and imports (<bundle>-meta.json, beside it) is what
+# test/bundle-budget.test.ts reads.
 [esbuild_bundle(
     name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
     srcs = glob(["demo/**/*.ts"]) + [":src"],
-    outs = [out],
+    outs = [
+        out,
+        out[:-len(".js")] + "-meta.json",
+    ],
     out_dirs = ["demo/chunks-" + out[len("demo/"):-len(".js")]],
     args = [
         entry,
         "--bundle",
         "--format=esm",
         "--target=es2022",
+        "--minify",
+        "--keep-names",
         "--log-level=warning",
         "--splitting",
         "--outdir=demo",
         "--entry-names=" + out[len("demo/"):-len(".js")],
         "--chunk-names=chunks-" + out[len("demo/"):-len(".js")] + "/[name]-[hash]",
+        "--metafile=" + out[:-len(".js")] + "-meta.json",
     ],
 ) for entry, out in _BUNDLES.items()]
 
 # A NOTEBOOK'S CUBE (legend_lite.notebook.DataCube; docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md, "In a notebook"):
 # anywidget's script, a small loader (widget-loader.js), and DataCube's module, which the loader fetches over the
-# widget's channel once per notebook page: widget.js, one file with no lazy chunks (a module imported from a blob URL
-# loads none beside it), minified with its names kept, and widget.css, DataCube's styles (in the notebook's own type).
+# widget's channel once per notebook page: widget.js, minified with its names kept, its lazy chunks beside it in
+# widget-chunks/ (a chart's code, fetched over the channel the first time a chart draws: the loader rewrites a chunk's
+# import, for a module imported from a blob URL resolves none), and widget.css, DataCube's styles (in the notebook's own
+# type).
 esbuild_bundle(
     name = "widget_loader",
     srcs = ["demo/widget-loader.ts"],
@@ -1306,9 +1338,11 @@ esbuild_bundle(
         ":src",
     ] + glob(["src/**/*.css"]),
     outs = [
+        "demo/widget-meta.json",
         "demo/widget.css",
         "demo/widget.js",
     ],
+    out_dirs = ["demo/widget-chunks"],
     args = [
         # two entry points, both named widget: the module (widget.js) and its styles (widget.css). The styles are their
         # own entry ON PURPOSE: widget.ts imports no CSS, for esbuild would write a JS entry's imported CSS to a sibling
@@ -1321,6 +1355,10 @@ esbuild_bundle(
         "--minify",
         "--keep-names",
         "--log-level=warning",
+        "--splitting",
+        "--chunk-names=widget-chunks/[name]-[hash]",
+        # esbuild's record of each output's imports: the loader's rewriting is held to it (test/bundle-budget.test.ts)
+        "--metafile=demo/widget-meta.json",
         "--outdir=demo",
     ],
 )
@@ -1367,9 +1405,7 @@ copy_to_directory(
         "legend-art/fonts/roboto-latin-ext-700-normal.woff2",
         "legend-art/fonts/LICENSE-roboto.txt",
         "engine-client/duckdb-extensions/**",
-        "**/dist/duckdb-mvp.wasm",
         "**/dist/duckdb-eh.wasm",
-        "**/dist/duckdb-browser-mvp.worker.js",
         "**/dist/duckdb-browser-eh.worker.js",
         "wasm/planner/classes.wasm",
         "wasm/planner/wasm-gc-module-runtime.js",

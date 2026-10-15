@@ -8,7 +8,9 @@
 //     so the cube works wherever the notebook does (this machine, a remote JupyterHub, VS Code, Colab);
 //   - DataCube's module (widget.ts: `widget.js`, and its styles `widget.css`), fetched over that channel ONCE per
 //     notebook page, kept by its hash (the widget's `_module`), and reused by every later cube on the page; its styles
-//     adopted by the page and by the shadow root a cube is in (marimo's).
+//     adopted by the page and by the shadow root a cube is in (marimo's). Its lazy chunks (`widget-chunks/`: a chart's
+//     code and ECharts, the saved pages' windows) are fetched the same way when the cube first needs each, over the
+//     channel of any cube still open on the page.
 
 /** The part of anywidget's model a cube uses (anywidget's AFM: https://anywidget.dev/en/afm/). */
 export interface WidgetModel {
@@ -108,6 +110,10 @@ export function channel(model: WidgetModel): { readonly fetch: typeof globalThis
 
 /** Where a page keeps DataCube's module, by its hash: one load per page, whichever of its notebooks asks. */
 const LOADED = Symbol.for('legend-lite.datacube.module');
+/** What a chunk's dynamic import calls instead (its text rewritten, below): `(hash, name)` to the chunk's module. */
+const CHUNK = Symbol.for('legend-lite.datacube.chunk');
+/** Where the module's lazy chunks are, beside it (datacube/BUILD.bazel's `widget`, `--chunk-names`). */
+const CHUNKS = 'widget-chunks/';
 
 /** DataCube's module, and its styles as one sheet a page or a shadow root adopts. */
 export interface Loaded {
@@ -115,18 +121,43 @@ export interface Loaded {
   readonly styles: CSSStyleSheet;
 }
 
-/** DataCube's module, fetched over `fetch` the first time this page asks for this hash. A load that fails is forgotten,
- *  so the next cube tries again. */
-export function loaded(hash: string, fetch: typeof globalThis.fetch): Promise<Loaded> {
-  const store = globalThis as typeof globalThis & { [LOADED]?: Map<string, Promise<Loaded>> };
-  const modules = (store[LOADED] ??= new Map());
-  let module = modules.get(hash);
-  if (module === undefined) {
-    module = load(fetch);
-    modules.set(hash, module);
-    module.catch(() => { if (modules.get(hash) === module) modules.delete(hash); });
+/** One module's files on this page: the channels open to fetch them through (each view's, while it is open), each file
+ *  made a module's URL once, and the module itself. */
+interface Page {
+  readonly channels: Set<typeof globalThis.fetch>;
+  readonly files: Map<string, Promise<string>>;
+  module?: Promise<Loaded> | undefined;
+}
+
+function pageOf(hash: string): Page {
+  const store = globalThis as typeof globalThis & {
+    [LOADED]?: Map<string, Page>;
+    [CHUNK]?: (hash: string, name: string) => Promise<unknown>;
+  };
+  // a chunk's import, from whichever module asks: its file fetched over a channel of a cube still open on the page
+  store[CHUNK] ??= (h, name) => moduleUrl(pageOf(h), h, name, []).then((url) => import(/* @vite-ignore */ url));
+  const pages = (store[LOADED] ??= new Map());
+  let page = pages.get(hash);
+  if (page === undefined) {
+    page = { channels: new Set(), files: new Map() };
+    pages.set(hash, page);
   }
-  return module;
+  return page;
+}
+
+/** DataCube's module, fetched over `fetch` the first time this page asks for this hash, and its lazy chunks when it
+ *  first asks for each (a chart's code, the first time a chart draws) over the channel of any of its cubes still open.
+ *  `fetch` is kept until `close` is called. A load that fails is forgotten, so the next cube tries again. */
+export function loaded(hash: string, fetch: typeof globalThis.fetch): { readonly module: Promise<Loaded>; close(): void } {
+  const page = pageOf(hash);
+  page.channels.add(fetch);
+  let module = page.module;
+  if (module === undefined) {
+    const made = load(page, hash);
+    page.module = module = made;
+    made.catch(() => { if (page.module === made) page.module = undefined; });
+  }
+  return { module, close: () => { page.channels.delete(fetch); } };
 }
 
 async function file(fetch: typeof globalThis.fetch, name: string): Promise<string> {
@@ -135,15 +166,93 @@ async function file(fetch: typeof globalThis.fetch, name: string): Promise<strin
   return answer.text();
 }
 
-async function load(fetch: typeof globalThis.fetch): Promise<Loaded> {
-  const [script, css] = await Promise.all([file(fetch, 'widget.js'), file(fetch, 'widget.css')]);
-  const url = URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
-  let module: CubeModule;
-  try {
-    module = (await import(/* @vite-ignore */ url)) as CubeModule;
-  } finally {
-    URL.revokeObjectURL(url);
+/** How long a channel has to answer for a file before the next open one is asked: a cube of another notebook on the
+ *  page may be open over a kernel that no longer answers (stopped, restarted). */
+const ANSWER_MS = 30_000;
+
+/** A file over a channel still open: one closed while it answered is passed for the next, and so is one that does not
+ *  answer in time; every open channel is asked once, newest first (the cube asking is the newest open, most often). */
+async function fetched(page: Page, name: string): Promise<string> {
+  const tried = new Set<typeof globalThis.fetch>();
+  for (;;) {
+    const fetch = [...page.channels].reverse().find((f) => !tried.has(f));
+    if (fetch === undefined) {
+      if (tried.size === 0) throw new ChannelClosed();
+      throw new Error(`no cube open on this page answered for DataCube's ${name}`);
+    }
+    tried.add(fetch);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        file(fetch, name),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new TimeoutError()), ANSWER_MS); }),
+      ]);
+    } catch (e) {
+      if (e instanceof ChannelClosed) page.channels.delete(fetch);
+      else if (!(e instanceof TimeoutError)) throw e;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+}
+
+/** A channel that did not answer in time. */
+class TimeoutError extends Error {}
+
+/** A module's specifiers, as esbuild writes them: a static import (`from"./x.js"`, `import"./x.js"`), a dynamic one
+ *  (`import("./x.js")`). Only those naming a chunk are touched. */
+const SPECIFIER = /(\bimport\s*\(\s*|\bfrom\s*|\bimport\s*)(["'])(\.{1,2}\/[^"'\n]+?\.js)\2/g;
+
+/**
+ * What a file of the module imports, as the loader reads it: each relative specifier resolved against the file's own
+ * place, and whether it is a dynamic `import()`. test/bundle-budget.test.ts holds this to esbuild's own record of each
+ * output's imports (its metafile), so a form the pattern misses -- or a match that is not an import -- fails there, not
+ * in a notebook.
+ */
+export function specifiersOf(text: string, name: string): { readonly target: string; readonly dynamic: boolean }[] {
+  return [...text.matchAll(SPECIFIER)].map(([, how, , specifier]) => ({ target: resolved(name, specifier!), dynamic: how!.includes('(') }));
+}
+
+function resolved(from: string, specifier: string): string {
+  const parts = from.split('/').slice(0, -1);
+  for (const part of specifier.split('/')) {
+    if (part === '..') parts.pop();
+    else if (part !== '.') parts.push(part);
+  }
+  return parts.join('/');
+}
+
+/** A file of the module as a module's URL: a module imported from a blob URL resolves no relative specifier, so its
+ *  chunks' are rewritten -- a static import to that chunk's own URL (made first), a dynamic one to a call of `CHUNK`. */
+function moduleUrl(page: Page, hash: string, name: string, importers: readonly string[]): Promise<string> {
+  let url = page.files.get(name);
+  if (url === undefined) {
+    const made = (async () => {
+      const text = await fetched(page, name);
+      const statics = new Map<string, string>();
+      for (const { target, dynamic } of specifiersOf(text, name)) {
+        if (!target.startsWith(CHUNKS) || dynamic || statics.has(target)) continue;
+        if (importers.includes(target) || target === name) throw new Error(`DataCube's ${name} and ${target} import each other`);
+        statics.set(target, await moduleUrl(page, hash, target, [...importers, name]));
+      }
+      const script = text.replace(SPECIFIER, (all, how: string, quote: string, specifier: string) => {
+        const target = resolved(name, specifier);
+        if (!target.startsWith(CHUNKS)) return all;
+        return how.includes('(')
+          ? `globalThis[Symbol.for(${JSON.stringify(CHUNK.description)})](${JSON.stringify(hash)},${JSON.stringify(target)}`
+          : `${how}${quote}${statics.get(target)}${quote}`;
+      });
+      return URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
+    })();
+    page.files.set(name, url = made);
+    made.catch(() => { if (page.files.get(name) === made) page.files.delete(name); });
+  }
+  return url;
+}
+
+async function load(page: Page, hash: string): Promise<Loaded> {
+  const [url, css] = await Promise.all([moduleUrl(page, hash, 'widget.js', []), fetched(page, 'widget.css')]);
+  const module = (await import(/* @vite-ignore */ url)) as CubeModule;
   const styles = new CSSStyleSheet();
   styles.replaceSync(css);
   return { module, styles };
@@ -169,8 +278,11 @@ export default {
     const link = channel(model);
     let gone = false;
     let takeDown: (() => void) | undefined;
+    let kept: { close(): void } | undefined;
     const open = (): void => {
-      loaded(String(model.get('_module')), link.fetch).then(({ module, styles }) => {
+      kept?.close();
+      const load = kept = loaded(String(model.get('_module')), link.fetch);
+      load.module.then(({ module, styles }) => {
         if (gone) return;
         styled(styles, el);
         takeDown = module.render(model, el, link.fetch);
@@ -186,6 +298,7 @@ export default {
     return () => {
       gone = true;
       takeDown?.();
+      kept?.close();
       link.close();
     };
   },

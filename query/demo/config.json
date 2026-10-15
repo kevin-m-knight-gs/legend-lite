@@ -1,15 +1,14 @@
 {
+  "vendor": "./vendor/",
   "execution": {
     "kind": "duckdb-wasm",
     "user": "me"
   },
   "planner": {
-    "worker": "./planner-worker.js",
-    "vendor": "./vendor/"
+    "worker": "./planner-worker.js"
   },
   "depot": {
-    "sdlc": "page",
-    "vendor": "./vendor/"
+    "sdlc": "page"
   },
   "projects": [
     {

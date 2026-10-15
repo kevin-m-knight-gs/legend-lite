@@ -175,6 +175,80 @@ export function sampleCsv(
   return `${out.join('\n')}\n`;
 }
 
+/** The sales sample's places: a region, a country (its ISO code and name), a city where it sells and where that is. */
+const SALES_PLACES = [
+  { region: 'EMEA', code: 'GBR', country: 'United Kingdom', city: 'London', lat: 51.51, lon: -0.13, weight: 5 },
+  { region: 'EMEA', code: 'DEU', country: 'Germany', city: 'Berlin', lat: 52.52, lon: 13.4, weight: 4 },
+  { region: 'EMEA', code: 'FRA', country: 'France', city: 'Paris', lat: 48.86, lon: 2.35, weight: 3 },
+  { region: 'AMER', code: 'USA', country: 'United States', city: 'New York', lat: 40.71, lon: -74.01, weight: 8 },
+  { region: 'AMER', code: 'CAN', country: 'Canada', city: 'Toronto', lat: 43.65, lon: -79.38, weight: 2 },
+  { region: 'AMER', code: 'BRA', country: 'Brazil', city: 'Sao Paulo', lat: -23.55, lon: -46.63, weight: 2 },
+  { region: 'APAC', code: 'JPN', country: 'Japan', city: 'Tokyo', lat: 35.68, lon: 139.69, weight: 4 },
+  { region: 'APAC', code: 'AUS', country: 'Australia', city: 'Sydney', lat: -33.87, lon: 151.21, weight: 2 },
+  { region: 'APAC', code: 'IND', country: 'India', city: 'Mumbai', lat: 19.08, lon: 72.88, weight: 3 },
+  { region: 'APAC', code: 'SGP', country: 'Singapore', city: 'Singapore', lat: 1.35, lon: 103.82, weight: 1 },
+] as const;
+
+/** What it sells: a category, a product, its price and the share of its price that is cost. */
+const SALES_PRODUCTS = [
+  { category: 'Hardware', product: 'Laptop', price: 1400, cost: 0.78 },
+  { category: 'Hardware', product: 'Monitor', price: 380, cost: 0.72 },
+  { category: 'Hardware', product: 'Dock', price: 220, cost: 0.65 },
+  { category: 'Software', product: 'Suite', price: 600, cost: 0.2 },
+  { category: 'Software', product: 'Cloud', price: 90, cost: 0.35 },
+  { category: 'Software', product: 'Support', price: 300, cost: 0.45 },
+  { category: 'Services', product: 'Consulting', price: 2400, cost: 0.62 },
+  { category: 'Services', product: 'Training', price: 800, cost: 0.5 },
+] as const;
+
+const SALES_CHANNELS = ['Online', 'Retail', 'Partner'] as const;
+
+/** The sales sample's columns, in order. */
+export const SALES_COLUMNS = [
+  'order_id', 'sold', 'region', 'country_code', 'country', 'city', 'lat', 'lon', 'channel', 'category', 'product',
+  'units', 'revenue', 'cost', 'profit', 'discount', 'target',
+] as const;
+
+/**
+ * A SALES LEDGER for dashboards (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): two years of orders, day by day, in
+ * ten countries of three regions (each with its ISO code, a city and where that is, for maps), through three channels,
+ * of eight products in three categories -- with a trend (growth through the two years), a season (a strong fourth
+ * quarter) and a target per order, so a chart has something to say. Every amount has two places (a DOUBLE to DuckDB:
+ * a Float), units and ids are whole (an Integer), the day a date (a StrictDate).
+ */
+export function salesCsv(rows = 6000, seed = 20261014): string {
+  const rand = rng(seed);
+  const places = SALES_PLACES.flatMap((p) => Array.from({ length: p.weight }, () => p));
+  const days = 731;
+  const out: string[] = [SALES_COLUMNS.join(',')];
+  for (let i = 0; i < rows; i++) {
+    const day = Math.floor((i / rows) * days);
+    const date = new Date(Date.UTC(2024, 0, 1 + day));
+    const month = date.getUTCMonth();
+    const place = places[Math.floor(rand() * places.length)]!;
+    const product = SALES_PRODUCTS[Math.floor(rand() * SALES_PRODUCTS.length)]!;
+    const channel = SALES_CHANNELS[Math.floor(rand() * SALES_CHANNELS.length)]!;
+    const growth = 1 + day / days * 0.35;
+    const season = month >= 9 ? 1.4 : month <= 1 ? 0.85 : 1;
+    const units = 1 + Math.floor(rand() * 12 * season);
+    const discount = [0, 0, 0.05, 0.1, 0.15, 0.2][Math.floor(rand() * 6)]!;
+    const revenue = units * product.price * growth * (1 - discount);
+    const cost = revenue * (product.cost + (rand() - 0.5) * 0.1 + discount * 0.5);
+    const target = units * product.price * 1.05;
+    out.push([
+      String(1000000 + i),
+      date.toISOString().slice(0, 10),
+      place.region, place.code, place.country, place.city,
+      place.lat.toFixed(2), place.lon.toFixed(2),
+      channel, product.category, product.product,
+      String(units),
+      revenue.toFixed(2), cost.toFixed(2), (revenue - cost).toFixed(2),
+      discount.toFixed(2), target.toFixed(2),
+    ].map(csvCell).join(','));
+  }
+  return `${out.join('\n')}\n`;
+}
+
 export const SAMPLES: readonly Sample[] = [
   {
     id: 'trades',
@@ -184,6 +258,14 @@ export const SAMPLES: readonly Sample[] = [
     defaultRows: 5000,
     build: (rows, seed) =>
       sampleCsv(seed === undefined ? { rows } : { rows, seed }),
+  },
+  {
+    id: 'sales',
+    label: 'Sales -- for dashboards',
+    about: 'Two years of orders in ten countries: dates, regions, ISO codes and coordinates, channels, products, '
+      + 'units, revenue, cost, profit, discount and a target. What the chart examples are drawn from.',
+    defaultRows: 6000,
+    build: (rows, seed) => salesCsv(rows, seed),
   },
   {
     id: 'types',

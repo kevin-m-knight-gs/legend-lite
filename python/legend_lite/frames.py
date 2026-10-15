@@ -33,6 +33,11 @@ import sys
 import threading
 from typing import Any, Callable, Iterator
 
+from ._extra import require_datacube
+
+# DataCube's: the datacube extra's packages, or one sentence saying to install it (_extra.py)
+require_datacube()
+
 import duckdb
 import pyarrow as pa
 

@@ -307,7 +307,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     hostOperations: (databaseType: string, operations: Parameters<TableModels['hostOperations']>[1]) =>
       engineReady.then((p) => p.tables.hostOperations(databaseType, operations)),
   };
-  const duck = await startDuckDbInTab('./vendor/', planned);
+  const duck = await startDuckDbInTab((await configured).vendor, planned);
   performance.mark('dc:database-ready');
 
   // A REMOTE SOURCE, when one is named.

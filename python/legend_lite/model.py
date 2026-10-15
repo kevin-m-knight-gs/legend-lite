@@ -110,7 +110,7 @@ def home_call(folder: Path, kind: str, method: str, path: str, body: str | None)
     raised (``OSError``)."""
     from ._home import locked
     from ._library import library
-    from .engine import _workers
+    from ._pool import _workers
     with locked(folder):
         said = _workers().submit(library().call, f'lite_{kind}_handle', str(folder), method, path, body or '').result()
     tag, _, rest = said.partition('\n')

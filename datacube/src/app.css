@@ -3024,6 +3024,22 @@
 
 .dc-chartpanel-status[hidden] { display: none; }
 .dc-chartpanel-hint { margin: var(--dc-pad-2) 0 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+/* batch 2: a value after the first (its own mark and axis), the add button, a section's heading */
+.dc-chartpanel-measure {
+  display: flex; flex-direction: column; gap: var(--dc-pad-1);
+  padding: var(--dc-pad-2) 0; border-top: 1px solid var(--dc-line);
+}
+.dc-chartpanel-measure > .dc-btn { align-self: flex-end; }
+.dc-chartpanel-add { align-self: flex-start; margin: var(--dc-pad-1) 0; }
+/* a drilled chart's path (batch 2 item 10): each step a way back up */
+.dc-chartpanel-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 var(--dc-pad-2); font-size: var(--dc-text-sm-size); color: var(--dc-muted); }
+.dc-chartpanel-crumb { border: 0; background: none; padding: 0; color: var(--dc-active); cursor: pointer; text-decoration: underline; font: inherit; }
+.dc-chartpanel-crumb-here { color: var(--dc-muted-strong); }
+.dc-chartpanel-crumbs-hint .dc-chartpanel-crumb-here { color: var(--dc-muted); }
+.dc-chartpanel-heading {
+  margin: var(--dc-pad-2) 0 var(--dc-pad-1); padding-top: var(--dc-pad-2); border-top: 1px solid var(--dc-line);
+  color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;
+}
 
 /* In a tile the options float over the chart, from its left edge, rather
    than taking width from it: a small tile keeps its chart whole. */
@@ -4035,3 +4051,15 @@
 .sharenote { flex: 1; opacity: .8; }
 .sharenote.warn { color: #b45309; opacity: 1; }
 .sharenote.bad { color: crimson; opacity: 1; }
+
+/* the Open window's example pages (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3) */
+.dc-open-examples { display: flex; flex-direction: column; gap: var(--dc-pad-1); padding: var(--dc-pad-2); border-top: 1px solid var(--dc-line); }
+.dc-open-examples-title { margin: 0; font-size: var(--dc-text-sm-size); font-weight: 600; color: var(--dc-muted-strong); }
+.dc-open-example {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  padding: var(--dc-pad-1) var(--dc-pad-2); border: 1px solid var(--dc-line); border-radius: var(--dc-radius-sm);
+  background: var(--dc-bg); color: inherit; font: inherit; cursor: pointer;
+}
+.dc-open-example:hover { background: var(--dc-hover); }
+.dc-open-example-name { font-weight: 600; }
+.dc-open-example-about { color: var(--dc-muted); font-size: var(--dc-text-sm-size); }

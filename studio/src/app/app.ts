@@ -34,14 +34,14 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   root.append(h('div', { class: 'loading' }, 'Loading Legend Studio…'));
   const { client, depot, where } = await connect(config);
   // the session's engine (plan A1): a legend server's pure/v1 when the config names one, else the one in this tab
-  const inTab = config.engine ? undefined : new WasmGrammar(new WorkerPort(workerUrl, `${config.vendor}planner/`));
+  const inTab = config.engine ? undefined : new WasmGrammar(new WorkerPort(workerUrl, config.vendor));
   const compiler = inTab
     ? new Compiler(inTab, () => inTab.warm({ _type: 'text', code: '' }))
     : new Compiler(new HttpEngine(config.engine!));
   // running a function (plan A3): in the tab, DuckDB started the first time and the model's own rows loaded before each
   // run; on a server, its pure/v1 execute
   const user = config.user?.userId ?? 'local';
-  const session: RunSession & BuilderSession = inTab ? inTabSession(inTab, `${config.vendor}duckdb/`, user) : serverSession(config.engine!, user);
+  const session: RunSession & BuilderSession = inTab ? inTabSession(inTab, config.vendor, user) : serverSession(config.engine!, user);
   const run = runner(session);
   // the query builder (plan A5): Query's, over the same session
   const builder = queryBuilder(session);

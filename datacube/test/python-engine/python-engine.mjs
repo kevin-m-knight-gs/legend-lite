@@ -643,7 +643,7 @@ try {
   // loads one (its text as a module), their messages carried to Python's widgets and back as a notebook's channel
   // carries them. DataCube's module comes over the channel once for the page; no call goes over HTTP.
   const widgets = await browser.newPage();
-  widgets.on('pageerror', (e) => { console.log(`widget page error: ${e.message}`); failed = true; });
+  widgets.on('pageerror', (e) => { console.log(`widget page error: ${e.message}\n${(e.stack ?? '').split('\n').slice(0, 6).join('\n')}`); failed = true; });
   widgets.on('console', (m) => { if (m.type() === 'error') console.log(`widget page console: ${m.text()}`); });
   const http = [];
   widgets.on('request', (r) => { if (!r.url().endsWith('/widgets.html')) http.push(r.url()); });
@@ -732,6 +732,13 @@ try {
     .map((t) => t.textContent).join('|');
   await check('a notebook\'s page shows its sheet and its grid over its frame, over the widget\'s channel',
     `(${String(pageTabs)})() === 'nbpage' && document.getElementById('nbp').innerText.includes('EMEA')`);
+  // its chart draws: the chart's code fetched over the channel, once for the page, when it first drew
+  await check('a notebook page\'s charts draw -- a bar and a funnel -- their code fetched over the widget\'s channel',
+    () => document.getElementById('nbp').querySelectorAll('.dc-chartpanel canvas').length >= 2);
+  const charts = [...fetched.entries()].filter(([p]) => /^\/widget-chunks\/chart-(render|kinds|render-kinds)-[^/]+\.js$/.test(p));
+  const chartOnce = charts.length === 3 && charts.every(([, n]) => n === 1);
+  console.log(`${chartOnce ? 'ok  ' : 'FAIL'} the charts' code came once each, as chunks (${JSON.stringify(charts)})`);
+  if (!chartOnce) failed = true;
   engine.stdin.write('widget-page-sheet\n');
   if ((await nextLine()) !== 'done widget-page-sheet') throw new Error('the engine did not do widget-page-sheet');
   await check('a sheet added to the notebook\'s page in Python shows by itself (its versions followed)',
