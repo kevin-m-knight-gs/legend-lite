@@ -9745,7 +9745,17 @@ each answered below. Branch `claude/loving-euler-gjta59`, one pull request.
      `tools/postgres/as_unprivileged.sh`): 357 pass, 1 skipped (`//tools/guards:classpath_test`, x86 host), 7 time
      out: `//engine-client:model_data_test` and six `//datacube` browser targets, which time out identically with
      main's `core/src/main` swapped in (this container; CI runs them). `//sdlc-server:page` and `//wasm:planner` build.
-   - **The full CI run:** the pull request's.
+   - **The full CI run:** the pull request's, neema2/legend-lite#41: run 38663358847 on ec003fe (main 8501ccb, #39,
+     merged in) green on every job (Linux, Linux ARM, macOS, Windows; "gates green"), the DataCube targets included;
+     merged as 10bc6fb over main 7cf39c0 (an IN_FLIGHT-only commit). Main was merged into the branch twice: #40 at
+     a6b2965 (two additions side by side: `SqlToPure.At`'s `logical` and `hasColumn`, and this file) and #39 at
+     0cb0980 (no conflict; its dialect-leak ratchet counted `SqlStress.java`'s connection lines against no pin: five
+     moved, the two URLs pinned with a dated reason, ec003fe). On each merge the IQ parity lanes were unchanged
+     (PASS 1,913 of 3,095, both lanes), the `sql-parity` lanes too, and the local gate green (358 pass, 1 skipped;
+     the seven container timeouts above left out).
+   - **The tenth line's "planning time doubles with each join"** (the compiler line asked for one timing): its repro
+     through `#SQL{...}#` on the landed code plans 18 joins in 67 ms (LEFT), 28 ms (INNER), 39 ms (comma), where it
+     measured 28 s; 30 joins in 73, 54 and 413 ms.
 6. **Recorded, not fixed:** with the NULL operand first, `NULLIF(id, 2) + CAST(big_val AS int4)` stops at the NULL
    test before the cast's error (as before this branch: an evaluation-order question for every strict operator);
    CTE chains that reuse earlier CTEs (a relation `let` lowered to a `WITH`); 500-deep CASE (the name resolver),

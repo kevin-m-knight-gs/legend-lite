@@ -1054,6 +1054,26 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   `NormalizeFolds`, `TypedCInteger`, `StampCensus`, `ConcatenateChecker`, `ExecuteChainAssembly`, `TypedConcatenate` and
   five resolver files), so the rebase is plain.
 
+**Landed 2026-10-15 (10bc6fb, the merge of PR neema2/legend-lite#41 at ec003fe over main 7cf39c0; the PR's run
+38663358847 green on every job -- Linux, Linux ARM, macOS, Windows, "gates green"; main's own run 38667214956; GATES
+"the stress corpus and its fixes").**
+- **Files beyond the announced list:** `sql/SqlAgg.java` and `sql/SqlTyping.java` (ask 1's one predicate, where the
+  compiler line asked for it), and `core/src/test/resources/dialect-leaks/ledger.tsv` (after #39's ratchet: the stress
+  runner's two connection URLs pinned with a dated reason). Nothing in `sql/dialect/`.
+- **The compiler line's asks:** taken on f3d95e07d (its note above). Ask 4's runs: `//spec:reference_lane` and
+  `//spec:update_reference_lane_test`, both corpora, PCT DuckDB, H2 and channel B (26 of 26); the render census, 0 of
+  21,462 lines differ (`docs/build-inventory/program/evidence/sql-stress/judges.txt`).
+- **The tenth line's "planning time doubles with each join"** is covered: its repro through `#SQL{...}#` on the landed
+  code plans 18 joins in 67 ms (LEFT), 28 ms (INNER) and 39 ms (comma), where it measured 28 s.
+- **The independent review** found one blocker of the branch's own (a merged NULL test skipped an operand's error when
+  another operand was NULL) and the three further keyless-aggregate sites; each fixed and pinned before the merge.
+- **Next on the line:** the deep shapes that still overflow a default stack (400-deep parentheses in the SQL parser,
+  200-term `+` chains in the lowering, a 400-branch CASE in the name resolver), the CASE fix waiting on the user's
+  choice (a balanced decision tree in the translator, or the compiler's stack); CTE chains as a `WITH`; the NULL-first
+  evaluation order. For the compiler line: the committed `tools/census/RenderCensus.java` passes no runtime, which the
+  planner refuses, so every case fails at lowering on both sides; the census above ran a copy with PCT's storeless
+  runtime.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
