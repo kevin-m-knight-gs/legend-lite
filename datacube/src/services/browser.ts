@@ -216,8 +216,10 @@ function depotHome(depot: { readonly sdlc: string; readonly vendor: string }, lo
   return {
     connect: () => (home ??= import('../../../depot-client/src/model-home.ts')
       .then(({ connectModelHome }) => connectModelHome({ sdlc: depot.sdlc, vendor: depot.vendor }))),
+    // beside this page, as the one site lays the apps out (<site>/datacube/demo/, <site>/studio/demo/), wherever the site
+    // is served -- under a path on GitHub Pages; at the root, where `..` stops, as before
     studio: (project, workspace) => new URL(
-      `/studio/demo/index.html#/edit/${encodeURIComponent(project)}/${encodeURIComponent(workspace)}`, location.href).href,
+      `../../studio/demo/index.html#/edit/${encodeURIComponent(project)}/${encodeURIComponent(workspace)}`, location.href).href,
   };
 }
 
