@@ -167,12 +167,13 @@ export async function gridExport(spec: GridSpec, kind: ExportKind): Promise<stri
 }
 
 /**
- * A chart of the grid as DataCube makes and judges it: made of what Python was told (chart-spec.ts chartFrom: what is
- * not told is DataCube's own new chart's, and an edit of `before` keeps the rest), read as a page reads a chart, and
- * judged as the charts' panel will draw it -- a live chart regrouped the way the grid is now (followCube) -- against the
- * grid as opened: its columns as the compiler types them now, its calculated columns too (chartProblems). The one place
- * a chart's rules are written: Python's grid.chart(), Chart.plot() and Chart.options() keep the chart this makes, or
- * refuse in these words (legend_lite/page.py _made). JSON: `{"spec", "problems"}` (`problems` empty when it draws).
+ * A chart of the grid as DataCube makes and judges it: made of what Python was told as the panel's form makes a change
+ * by hand (chart-spec.ts chartFrom, editChart: of DataCube's own new chart, or of `before`), read as a page reads a
+ * chart, and judged and kept as the charts' panel draws and keeps it -- a live chart regrouped the way the grid is now
+ * (followCube) -- against the grid as opened: its columns as the compiler types them now, its calculated columns too
+ * (chartProblems). The one place a chart's rules are written: Python's grid.chart(), Chart.plot() and Chart.options()
+ * keep the chart this makes, or refuse in these words (legend_lite/page.py _made). JSON: `{"spec", "problems"}`
+ * (`problems` empty when it draws).
  */
 export async function gridChart(spec: GridSpec, given: string, before: string | null): Promise<string> {
   return using(spec, async ({ planner, state }) => {
@@ -183,7 +184,9 @@ export async function gridChart(spec: GridSpec, given: string, before: string | 
     const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
     const { snapshot } = await typeColumns(state.snapshot, runner);
     const made = chartFrom(JSON.parse(given), snapshot, was);
-    if (typeof made === 'string') return JSON.stringify({ problems: [`DataCube cannot read this chart: ${made}.`] });
-    return JSON.stringify({ spec: made, problems: chartProblems(followCube(made, snapshot), snapshot) });
+    if (typeof made === 'string') return JSON.stringify({ problems: [made] });
+    // kept as the panel keeps it: a live chart regrouped as the grid is now (ui/chart-panel.ts refresh)
+    const drawn = followCube(made, snapshot);
+    return JSON.stringify({ spec: drawn, problems: chartProblems(drawn, snapshot) });
   });
 }

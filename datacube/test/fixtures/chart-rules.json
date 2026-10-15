@@ -1,5 +1,5 @@
 {
- "about": "DataCube's chart rules, as cases: each a chart over the columns below, refused or not. They are written once, in DataCube (chart-spec.ts readChart and chartProblems): datacube/test/chart-rules.test.ts holds them to these cases, and python/tests/test_page.py holds Python to the same answers, which it gets by asking DataCube's own code, headless (legend_lite/page.py _made) -- so the cases check Python's way to the one rulebook, never a copy of it (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, the review of 2d24022).",
+ "about": "DataCube's chart rules, as cases: each a chart over the columns below, refused or not. They are written once, in DataCube: each case is made as a chart Python makes is -- DataCube's own new chart changed by hand (chart-spec.ts chartFrom, editChart), read as a page reads it (readChart), regrouped as the panel keeps it (followCube) -- and judged (chartProblems): headless/grid.ts gridChart. datacube/test/chart-rules.test.ts holds them to these cases, and python/tests/test_page.py holds Python to the same answers, which it gets by asking DataCube's own code, headless (legend_lite/page.py _made) -- so the cases check Python's way to the one rulebook, never a copy of it (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, the review of 2d24022).",
  "columns": [
   {
    "name": "region",
@@ -1165,6 +1165,97 @@
      }
     ],
     "options": {}
+   }
+  },
+  {
+   "case": "a treemap with a reference line",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "treemap",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "layers": [
+     {
+      "kind": "line",
+      "value": 10
+     }
+    ]
+   }
+  },
+  {
+   "case": "a sunburst with a grain",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "sunburst",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "day",
+    "grain": "month"
+   }
+  },
+  {
+   "case": "a tree as small multiples",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "tree",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "facet": {
+     "column": "channel"
+    }
+   }
+  },
+  {
+   "case": "bins of half a count",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "revenue",
+    "bins": {
+     "count": 0.5
+    }
+   }
+  },
+  {
+   "case": "a Pareto along a date, from the largest",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "pareto",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "day"
    }
   }
  ]

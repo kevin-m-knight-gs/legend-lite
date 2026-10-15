@@ -16,8 +16,9 @@ always there when DataCube is: there is never a case for a copy "in case V8 is m
 ## Done, with PR neema2/legend-lite#42
 
 - **A chart's rules, its reader and its defaults** (`page.py _drawable`, `_spec`/`_measure`/`_slots`'s judgements, the
-  grid's first measure, the grain-goes-with-its-column rule in `Chart.plot`): now DataCube's `readChart`, `chartFrom`,
-  `followCube` and `chartProblems`, asked through `gridChart`, against the grid as DataCube opens and types it.
+  grid's first measure, the grain-goes-with-its-column rule in `Chart.plot`): now DataCube's `readChart`, `chartFrom`
+  (its new chart changed by `editChart`, the panel's form's own change by hand), `followCube` and `chartProblems`,
+  asked through `gridChart`, against the grid as DataCube opens and types it.
 - **A removed grid's model** (`Page.remove`): a grid made a class and then removed left its table's name in the page's
   model, which DataCube's reader refuses -- the page would never open again. Now DataCube's `keptFor`, asked through
   `pageModelKept`.

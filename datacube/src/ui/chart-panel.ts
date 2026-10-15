@@ -17,6 +17,7 @@ import {
   drillDown,
   drillLevels,
   drillUp,
+  editChart,
   followCube,
   GRID_MARKS,
   KIND_MARKS,
@@ -24,6 +25,7 @@ import {
   markConditions,
   MAX_FACETS,
   plotsRows,
+  type ChartChange,
   type ChartMark,
   type ChartSpec,
 } from '../chart-spec.ts';
@@ -89,13 +91,8 @@ export class ChartPanel {
   readonly #formHost: FormHost = ((panel: ChartPanel): FormHost => ({
     get doc() { return panel.#doc; },
     spec: () => this.#spec,
-    replace: (spec) => { this.#spec = spec; },
     set: (change, redraw) => this.#set(change, redraw),
     setOption: (key, value) => this.#setOption(key, value),
-    frozen: () => this.frozen,
-    froze: () => this.#options.onFrozen?.(true),
-    onSpec: () => this.#options.onSpec?.(),
-    refresh: () => this.refresh(),
     snapshot: () => this.#options.snapshot(),
   }))(this);
   #chart: MountedChart | null = null;
@@ -203,22 +200,20 @@ export class ChartPanel {
     this.#paintForm();
   }
 
-  #set(change: Partial<ChartSpec>, redrawForm = false): void {
+  #set(change: ChartChange, redrawForm = false): void {
     if (!this.#spec) return;
-    // a hand on the grouping of a live chart freezes it: the next pivot
-    // change would otherwise undo the choice
-    const grouping = 'x' in change || 'y' in change || 'split' in change;
-    const freeze = grouping && !this.frozen && !plotsRows(this.#spec);
-    this.#spec = { ...this.#spec, ...change, ...(freeze ? { frozen: true } : {}) };
-    if (freeze) this.#options.onFrozen?.(true);
+    // changed by hand as a chart Python makes is (chart-spec.ts editChart): a hand on the grouping of a live chart
+    // freezes it, as the next pivot change would otherwise undo the choice
+    const wasFrozen = this.frozen;
+    this.#spec = editChart(this.#spec, change, this.#options.snapshot());
+    if (this.frozen && !wasFrozen) this.#options.onFrozen?.(true);
     this.#options.onSpec?.();
     if (redrawForm) this.#paintForm();
     this.refresh();
   }
 
-  #setOption<K extends keyof ChartSpec['options']>(key: K, value: ChartSpec['options'][K]): void {
-    if (!this.#spec) return;
-    this.#set({ options: { ...this.#spec.options, [key]: value } });
+  #setOption<K extends keyof ChartSpec['options']>(key: K, value: ChartSpec['options'][K] | null): void {
+    this.#set({ options: { [key]: value } });
   }
 
   /**
@@ -253,6 +248,15 @@ export class ChartPanel {
     const spec = this.#spec;
     const cube = this.#options.snapshot();
     if (!spec) return;
+    // what stops it is said before anything is drawn, a chart of the grid as shown too (a slot it does not draw); a
+    // query still answering would draw over the words: it is let go
+    const problems = chartProblems(spec, cube);
+    if (problems.length > 0) {
+      this.#inflight?.abort();
+      this.#inflight = null;
+      this.#say(problems.join(' '), true);
+      return;
+    }
     // A TREEMAP DRAWS THE GRID AS SHOWN, with no query of its own (the old treemap's way, the user
     // 2026-09-30): following, the rows on screen now; frozen, the rows it last drew. So do a sunburst and a tree.
     if (GRID_MARKS.has(spec.mark)) {
@@ -282,11 +286,6 @@ export class ChartPanel {
       }
       chart.show(drawing);
       this.#say(drawing.notes.join(' '));
-      return;
-    }
-    const problems = chartProblems(spec, cube);
-    if (problems.length > 0) {
-      this.#say(problems.join(' '), true);
       return;
     }
     if (spec.mark === 'kpi') {

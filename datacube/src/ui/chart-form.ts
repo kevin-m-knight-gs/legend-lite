@@ -9,8 +9,12 @@ import {
   chartColumns,
   GRID_MARKS,
   LAYER_STATS,
+  NO_CHART,
   SHOW_AS_KINDS,
+  SPLIT_NEEDED,
   TIME_GRAINS,
+  UNSPLIT,
+  type ChartChange,
   type ChartLayer,
   type ChartLayerKind,
   type ChartMark,
@@ -26,12 +30,7 @@ import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
 
-/** The kinds that draw one series, and so offer no split. */
-const UNSPLIT_MARKS: ReadonlySet<ChartMark> = new Set([
-  'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar',
-]);
-/** The kinds that need their split, and what each calls it. */
-const SPLIT_REQUIRED: ReadonlySet<ChartMark> = new Set(['heatmap', 'sankey', 'chord', 'stream']);
+/** What each kind calls its split. Which kinds draw one series (no split) and which need one are the rulebook's. */
 const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
   heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:',
 };
@@ -51,19 +50,13 @@ export interface FormHost {
   readonly doc: Document;
   /** The spec as it is now. */
   spec(): ChartSpec | null;
-  /** The spec replaced, nothing else done (an edit that changes it again after). */
-  replace(spec: ChartSpec): void;
-  /** The spec changed by the form: a hand on the grouping of a live chart freezes it; `redraw` paints the form again. */
-  set(change: Partial<ChartSpec>, redraw?: boolean): void;
-  setOption<K extends keyof ChartSpec['options']>(key: K, value: ChartSpec['options'][K]): void;
-  /** Whether the chart keeps its own grouping. */
-  frozen(): boolean;
-  /** The chart froze (a hand on its grouping). */
-  froze(): void;
-  /** The user changed the chart. */
-  onSpec(): void;
-  /** Draw again. */
-  refresh(): void;
+  /**
+   * The spec changed by hand (chart-spec.ts editChart: a slot told as null taken away, a hand on the grouping of a live
+   * chart freezing it); `redraw` paints the form again.
+   */
+  set(change: ChartChange, redraw?: boolean): void;
+  /** One option changed by hand; null takes it away (the chart's default again). */
+  setOption<K extends keyof ChartSpec['options']>(key: K, value: ChartSpec['options'][K] | null): void;
   /** The cube as it is now. */
   snapshot(): CubeSnapshot;
 }
@@ -74,7 +67,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   const s = h.snapshot();
   const spec = current(h);
   if (!spec) {
-    form.textContent = 'This cube has no column to chart.';
+    form.textContent = NO_CHART;
     return;
   }
   const { dimensions, measures, groupLevel } = chartColumns(s, spec ?? undefined);
@@ -109,17 +102,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
 
   const markField = field(doc, 'Chart:', dropdown<ChartMark>(doc, spec.mark, CHART_MARKS, (v) => {
     if (!v || !h.spec()) return;
-    // a kind takes what it needs and leaves what it has no place for: a gauge has nothing across and no split, a kind
-    // of one series no split; a Pareto runs from the largest
-    const { x, split, ...rest } = current(h);
-    const keepX = v !== 'gauge' && v !== 'matrix' && x !== undefined;
-    const keepSplit = v !== 'gauge' && !UNSPLIT_MARKS.has(v) && split !== undefined;
-    h.replace({
-      ...rest,
-      ...(keepX ? { x } : {}),
-      ...(keepSplit ? { split } : {}),
-      ...(v === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
-    });
+    // a kind takes what it needs and leaves what it has no place for (editChart's asMark)
     h.set({ mark: v }, true);
   }));
   if (spec.mark === 'kpi') {
@@ -132,18 +115,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         const now = h.spec()?.y[0];
         if (v && now) h.set({ y: [{ column: now.column, fn: v }] });
       })),
-      field(doc, 'Trend by:', dropdown<string>(doc, spec.x, dims, (v) => {
-        if (!h.spec()) return;
-        const { x: _old, ...rest } = current(h);
-        h.replace(v ? { ...rest, x: v } : rest);
-        h.onSpec();
-        h.refresh();
-      }, { allowNone: true })),
-      field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => {
-        if (!h.spec()) return;
-        const { target: _old, ...rest } = current(h).options;
-        h.set({ options: v === undefined ? rest : { ...rest, target: v } });
-      }, { width: 110 })),
+      field(doc, 'Trend by:', dropdown<string>(doc, spec.x, dims, (v) => h.set({ x: v ?? null }), { allowNone: true })),
+      field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => h.setOption('target', v ?? null), { width: 110 })),
       field(doc, 'Good when:', dropdown(doc, spec.options.better ?? 'higher', [
         { value: 'higher', label: 'Above target' },
         { value: 'lower', label: 'Below target' },
@@ -161,11 +134,7 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         const now = h.spec()?.y[0];
         if (v && now) h.set({ y: [{ column: now.column, fn: v }] });
       })),
-      field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => {
-        if (!h.spec()) return;
-        const { target: _old, ...rest } = current(h).options;
-        h.set({ options: v === undefined ? rest : { ...rest, target: v } });
-      }, { width: 110 })),
+      field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => h.setOption('target', v ?? null), { width: 110 })),
       field(doc, 'Good when:', dropdown(doc, spec.options.better ?? 'higher', [
         { value: 'higher', label: 'At or above target' },
         { value: 'lower', label: 'At or below target' },
@@ -184,13 +153,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         h.set({ y: [{ column: v, fn: 'sum' }, ...current(h).y.slice(1)] }, true);
       })),
       ...measureRows(h, spec, numbers, typeOf, false),
-      field(doc, 'Colour by:', dropdown<string>(doc, spec.split, dims, (v) => {
-        if (!h.spec()) return;
-        const { split: _old, ...rest } = current(h);
-        h.replace(v ? { ...rest, split: v } : rest);
-        h.onSpec();
-        h.refresh();
-      }, { allowNone: true })),
+      field(doc, 'Colour by:', dropdown<string>(doc, spec.split, dims, (v) => h.set({ split: v ?? null }),
+        { allowNone: true })),
     );
     return;
   }
@@ -209,11 +173,8 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
   form.append(
     markField,
     field(doc, scatter ? 'X:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
-      if (!v || !h.spec()) return;
-      // a grain or bins belong to the column they were chosen for
-      const { grain: _g, bins: _b, ...rest } = current(h);
-      h.replace(rest);
-      h.set({ x: v }, true);
+      // a new column across takes its own order, and a grain or bins go with the old one (editChart)
+      if (v) h.set({ x: v }, true);
     })),
     ...presetFields(h, spec, typeOf.get(spec.x ?? '')),
     // every handler reads the spec as it is AT THE EVENT, never the one
@@ -230,18 +191,10 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         if (v && now) h.set({ y: [{ ...now, fn: v }] });
       },
     ))]),
-    ...(UNSPLIT_MARKS.has(spec.mark) ? [] : [field(doc, SPLIT_LABELS[spec.mark] ?? 'Split by:', dropdown<string>(
+    ...(UNSPLIT.has(spec.mark) ? [] : [field(doc, SPLIT_LABELS[spec.mark] ?? 'Split by:', dropdown<string>(
       doc, spec.split, dims,
-      (v) => {
-        if (!h.spec()) return;
-        const { split: _old, ...rest } = current(h);
-        const freeze = !h.frozen() && current(h).mark !== 'scatter';
-        h.replace({ ...(v ? { ...rest, split: v } : rest), ...(freeze ? { frozen: true } : {}) });
-        if (freeze) h.froze();
-        h.onSpec();
-        h.refresh();
-      },
-      { allowNone: !SPLIT_REQUIRED.has(spec.mark) },
+      (v) => h.set({ split: v ?? null }),
+      { allowNone: SPLIT_NEEDED[spec.mark] === undefined },
     ))]),
   );
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
@@ -250,25 +203,19 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     const facetField = (which: 'column' | 'row', text: string): HTMLElement => field(doc, text, dropdown<string>(
       doc, spec.facet?.[which], dims.filter((d) => d.value !== spec.x && d.value !== spec.split), (v) => {
         if (!h.spec()) return;
-        const { facet, ...rest } = current(h);
-        const { [which]: _old, ...other } = facet ?? {};
+        const { [which]: _old, ...other } = current(h).facet ?? {};
         const next = v ? { ...other, [which]: v } : other;
-        h.replace(Object.keys(next).length > 0 ? { ...rest, facet: next } : rest);
-        h.onSpec();
-        h.refresh();
+        h.set({ facet: Object.keys(next).length > 0 ? next : null });
       }, { allowNone: true },
     ));
     form.append(facetField('column', 'A chart per:'), facetField('row', 'And a row per:'));
   }
   if (scatter) {
     // A BUBBLE: each point sized by a third column of its row
-    form.append(field(doc, 'Size by:', dropdown<string>(doc, spec.size?.column, measures.map((c) => ({ value: c.name, label: c.name })), (v) => {
-      if (!h.spec()) return;
-      const { size: _old, ...rest } = current(h);
-      h.replace(v ? { ...rest, size: { column: v, fn: 'sum' } } : rest);
-      h.onSpec();
-      h.refresh();
-    }, { allowNone: true })));
+    form.append(field(doc, 'Size by:', dropdown<string>(
+      doc, spec.size?.column, measures.map((c) => ({ value: c.name, label: c.name })),
+      (v) => h.set({ size: v ? { column: v, fn: 'sum' } : null }), { allowNone: true },
+    )));
   }
   // the kinds of several values, none drawn as another mark: a dumbbell's two ends, a radar's spokes
   if (spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'radar' || spec.mark === 'parallel' || spec.mark === 'polar') {
@@ -417,9 +364,7 @@ function layerFields(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     const was = ownIn(current(h).layers, kind);
     const rest = (current(h).layers ?? []).filter((l) => l !== was);
     const next = layer ? [...rest, layer] : rest;
-    const { layers: _old, ...spec2 } = current(h);
-    h.replace(spec2);
-    h.set(next.length > 0 ? { layers: next } : {});
+    h.set({ layers: next.length > 0 ? next : null });
   };
   const target = own('line');
   const threshold = own('threshold');
@@ -442,18 +387,10 @@ function layerFields(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
     field(doc, 'Bad below:', numberInput(doc, threshold?.kind === 'threshold' ? threshold.value : undefined, (v) => {
       setLayer('threshold', v === undefined ? null : { kind: 'threshold', value: v });
     }, { width: 110 })),
-    field(doc, 'Also in hover:', dropdown<string>(doc, extraOf(spec.tooltip?.[0]), measures, (v) => {
-      if (!h.spec()) return;
-      const { tooltip: _old, ...rest } = current(h);
-      h.replace(rest);
-      h.set(v ? { tooltip: [{ column: v, fn: 'sum' }] } : {});
-    }, { allowNone: true })),
-    field(doc, 'Label with:', dropdown<string>(doc, extraOf(spec.label), measures, (v) => {
-      if (!h.spec()) return;
-      const { label: _old, ...rest } = current(h);
-      h.replace(rest);
-      h.set(v ? { label: { column: v, fn: 'sum' } } : {});
-    }, { allowNone: true })),
+    field(doc, 'Also in hover:', dropdown<string>(doc, extraOf(spec.tooltip?.[0]), measures,
+      (v) => h.set({ tooltip: v ? [{ column: v, fn: 'sum' }] : null }), { allowNone: true })),
+    field(doc, 'Label with:', dropdown<string>(doc, extraOf(spec.label), measures,
+      (v) => h.set({ label: v ? { column: v, fn: 'sum' } : null }), { allowNone: true })),
   ];
 }
 
@@ -466,23 +403,13 @@ function presetFields(h: FormHost, spec: ChartSpec, xType: string | undefined): 
   const doc = h.doc;
   if (spec.mark === 'scatter' || spec.mark === 'pie' && spec.x === undefined) return [];
   const out: HTMLElement[] = [];
-  const without = <K extends 'grain' | 'bins'>(key: K): ChartSpec => {
-    const { [key]: _gone, ...rest } = current(h);
-    return rest as ChartSpec;
-  };
   if (isTemporal(xType)) {
     out.push(field(doc, 'By:', dropdown<TimeGrain>(doc, spec.grain,
-      TIME_GRAINS.map((g) => ({ value: g, label: GRAIN_LABELS[g] })), (v) => {
-        if (!h.spec()) return;
-        h.replace(without('grain'));
-        h.set(v ? { grain: v } : {});
-      }, { allowNone: true })));
+      TIME_GRAINS.map((g) => ({ value: g, label: GRAIN_LABELS[g] })), (v) => h.set({ grain: v ?? null }),
+      { allowNone: true })));
   } else if (isNumeric(xType)) {
-    out.push(field(doc, 'Bin width:', numberInput(doc, spec.bins?.width, (v) => {
-      if (!h.spec()) return;
-      h.replace(without('bins'));
-      h.set(v !== undefined && v > 0 ? { bins: { width: v } } : {});
-    }, { min: 0, width: 90 })));
+    out.push(field(doc, 'Bin width:', numberInput(doc, spec.bins?.width,
+      (v) => h.set({ bins: v !== undefined && v > 0 ? { width: v } : null }), { min: 0, width: 90 })));
   }
   const first = spec.y[0];
   if (first && spec.mark !== 'pie' && spec.mark !== 'heatmap') {
@@ -526,24 +453,12 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
     ] as const, (v) => { if (v) h.setOption('labelPosition', v); })),
     field(doc, 'Turn labels:', dropdown<string>(doc, String(o.labelRotate ?? 0), [
       { value: '0', label: 'No' }, { value: '45', label: '45\u00b0' }, { value: '90', label: '90\u00b0' },
-    ], (v) => {
-      if (!h.spec() || v === undefined) return;
-      const { labelRotate: _old, ...rest } = current(h).options;
-      h.set({ options: v === '0' ? rest : { ...rest, labelRotate: Number(v) } });
-    })),
-    checkbox(doc, 'Dim the rest on hover', o.dim !== false, (on) => {
-      if (!h.spec()) return;
-      const { dim: _old, ...rest } = current(h).options;
-      h.set({ options: on ? rest : { ...rest, dim: false } });
-    }),
+    ], (v) => { if (v !== undefined) h.setOption('labelRotate', v === '0' ? null : Number(v)); })),
+    checkbox(doc, 'Dim the rest on hover', o.dim !== false, (on) => h.setOption('dim', on ? null : false)),
     flag('decal', 'Pattern fills'),
     field(doc, 'Zoom slider:', dropdown<string>(doc, o.zoom === undefined ? 'auto' : o.zoom ? 'on' : 'off', [
       { value: 'auto', label: 'For a long series' }, { value: 'on', label: 'Always' }, { value: 'off', label: 'Never' },
-    ], (v) => {
-      if (!h.spec() || v === undefined) return;
-      const { zoom: _old, ...rest } = current(h).options;
-      h.set({ options: v === 'auto' ? rest : { ...rest, zoom: v === 'on' } });
-    })),
+    ], (v) => { if (v !== undefined) h.setOption('zoom', v === 'auto' ? null : v === 'on'); })),
     flag('brush', 'Drag to filter (brush)'),
     flag('toolbox', 'Toolbox: picture, data, CSV'),
   ];
@@ -551,7 +466,5 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
 
 /** An on/off option: on is said, off is left out (the spec stays as small as what it means). */
 function setFlag(h: FormHost, key: 'smooth' | 'step' | 'logAxis' | 'decal' | 'brush' | 'toolbox' | 'half' | 'ring', on: boolean): void {
-  if (!h.spec()) return;
-  const { [key]: _old, ...rest } = current(h).options;
-  h.set({ options: on ? { ...rest, [key]: true } : rest });
+  h.setOption(key, on ? true : null);
 }

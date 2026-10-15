@@ -266,17 +266,23 @@ design so the page does not compute), Gantt (a start and an end per row: dates a
 **The rules written once (2026-10-15, before batches 2 and 3 landed; the review of 2d24022).** The DataCube + Python
 line's review found Python's chart rules (`page.py _drawable`) a copy of `chartProblems`, held to it only by the shared
 cases, and drifted: a Windows fix to the calendar's check had changed DataCube's side alone. With the user: one
-rulebook, DataCube's, which Python asks. `readChart` is the one reader of a saved chart (the page's, and Python's);
-`chartFrom` makes the chart DataCube would of what it is told -- what is not told is its own new chart's
-(`defaultChart`'s measure and options), an edit keeps the rest and a grain or bins go with their column (followCube's
-rule, one helper); the headless bundle's `gridChart` judges that chart as the panel will draw it -- a live chart
-regrouped by its grid (followCube) -- against the grid's columns as the compiler types them now, calculated ones
-included (step 0). Python keeps what it makes, or refuses in DataCube's words. Rules only Python had (no weighted
-average on a chart; bins a positive number) moved into DataCube; a chart of the grid as shown (treemap, sunburst, tree)
-is judged by nothing of its own, in the rulebook as in the panel. Judging as drawn found what the copy let through: a
-live chart is regrouped on screen, so a live Sankey whose split is not the grid's is refused there -- Python users
-freeze such charts. To make DataCube's code always there to ask, the package is one package, two things: the wheel
-alone the compiler; its `datacube` extra everything DataCube needs, V8 included (the headless design's §10, extended).
+rulebook, DataCube's, which Python asks. `readChart` is the one reader of a saved chart (the page's, and Python's).
+`editChart` is the one change by hand: every field of the panel's options form goes through it, and so does Python
+(`chartFrom`: DataCube's own new chart, `defaultChart`, or the chart as it was, changed by `editChart`). In it a slot
+told as null is taken away, a kind takes what it needs and leaves what it has no place for (`asMark`, once the form's
+own), a new column across takes its own order and its grain or bins go with the old one (`acrossChanged`, shared with
+`followCube`, so a Pareto keeps its order on a date either way), and a hand on what `followCube` would set again
+freezes a live chart (`freezesOn`: a KPI's measure, but not its trend; nothing of a chart of rows). The headless
+bundle's `gridChart` judges that chart, and keeps it, as the panel draws and keeps it -- a live chart regrouped by its
+grid -- against the grid's columns as the compiler types them now, calculated ones included (step 0). Python keeps
+what it makes, or refuses in DataCube's words. Rules only Python had (no weighted average on a chart; bins a positive
+number, a count a whole one) moved into DataCube. A chart of the grid as shown (treemap, sunburst, tree) asks nothing
+across and nothing to plot, but a slot it does not draw (a layer, a facet, a grain) is refused, and the panel now asks
+before drawing one too. Sharing the rule found two bugs of the panel's: changing the column across kept the old
+column's order (a date ran from the largest), and a live chart with a split was taken for regrouped on every refresh
+(the regrouped copy's keys came in another order), so its form was painted again each time. To make DataCube's code
+always there to ask, the package is one package, two things: the wheel alone the compiler; its `datacube` extra
+everything DataCube needs, V8 included (the headless design's §10, extended).
 The audit of the other twins is `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`.
 
 ### Batch 4: new aggregates, and the kinds they unlock

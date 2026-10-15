@@ -59,7 +59,7 @@ const DRILLABLE: ReadonlySet<ChartMark> = new Set([
 ]);
 
 /** The kinds that draw one series of categories: no split (a colour per value) has a place on them. */
-const UNSPLIT: ReadonlySet<ChartMark> = new Set([
+export const UNSPLIT: ReadonlySet<ChartMark> = new Set([
   'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel', 'calendar', 'gauge',
 ]);
 
@@ -67,7 +67,7 @@ const UNSPLIT: ReadonlySet<ChartMark> = new Set([
 const SEVERAL_VALUES: ReadonlySet<ChartMark> = new Set(['dumbbell', 'range', 'radar', 'parallel']);
 
 /** The kinds that need a second grouping (the split): a heatmap's rows, a flow's target, a stream's layers. */
-const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
+export const SPLIT_NEEDED: Readonly<Partial<Record<ChartMark, string>>> = {
   heatmap: 'A heatmap needs a second column, for its rows.',
   sankey: 'A Sankey needs a second column, where each flow goes (Split by).',
   chord: 'A chord diagram needs a second column, where each flow goes (Split by).',
@@ -327,10 +327,14 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (bins !== undefined && (!isRecord(bins) || (typeof bins['width'] !== 'number' && typeof bins['count'] !== 'number'))) {
     return 'its bins have neither a width nor a count';
   }
-  // a bin is some width of a number, and there is some count of them
-  for (const key of ['width', 'count'] as const) {
-    const n = isRecord(bins) ? bins[key] : undefined;
-    if (n !== undefined && !(typeof n === 'number' && n > 0)) return `its bins' ${key} ${JSON.stringify(n)} is not a positive number`;
+  // a bin is some width of a number, and there is a whole count of them (calc-presets.ts binColumns)
+  const width = isRecord(bins) ? bins['width'] : undefined;
+  if (width !== undefined && !(typeof width === 'number' && width > 0)) {
+    return `its bins' width ${JSON.stringify(width)} is not a positive number`;
+  }
+  const count = isRecord(bins) ? bins['count'] : undefined;
+  if (count !== undefined && !(Number.isInteger(count) && (count as number) >= 1)) {
+    return `its bins' count ${JSON.stringify(count)} is not a whole number from 1`;
   }
   // the options' words: a newer DataCube's stack or position is refused by name, never drawn as another
   const o = spec['options'];
@@ -342,6 +346,13 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (optionProblem) return optionProblem;
   for (const flag of ['half', 'ring'] as const) {
     if (o[flag] !== undefined && typeof o[flag] !== 'boolean') return `its ${flag} ${JSON.stringify(o[flag])} is not true or false`;
+  }
+  // how many it draws, a whole number; a target, a number
+  if (o['limit'] !== undefined && !(Number.isInteger(o['limit']) && (o['limit'] as number) >= 1)) {
+    return `its limit ${JSON.stringify(o['limit'])} is not a whole number from 1`;
+  }
+  if (o['target'] !== undefined && typeof o['target'] !== 'number') {
+    return `its target ${JSON.stringify(o['target'])} is not a number`;
   }
   const sort = o['sort'];
   if (sort !== undefined && (!isRecord(sort) || (sort['by'] !== 'x' && sort['by'] !== 'y')
@@ -385,8 +396,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
 /**
  * A saved chart as a page reads it (page-document.ts), or what stops it from being read, in words (specProblem). A
  * version 1 spec IS a version 2 spec (every field 2 adds is optional): only its number moves. An option it leaves out
- * (a page written in Python sets only those it means: §3 of the Python pages design) is the chart's own default.
- * Python's grid.chart() asks DataCube's code the same, headless (headless/grid.ts gridChartProblems): one reader.
+ * is the chart's own default. Python's charts are read the same, headless (headless/grid.ts gridChart): one reader --
+ * as the Python pages design's §3 has it, Python adds no second set of rules.
  */
 export function readChart(spec: unknown): ChartSpec | string {
   const problem = specProblem(spec, CHART_MARKS.map((m) => m.value));
@@ -695,15 +706,33 @@ function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
 
 /** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
 function optionsAcross(x: string | undefined, s: CubeSnapshot): ChartOptions {
-  const temporal = x !== undefined && isTemporal(rowColumns(s).find((c) => c.name === x)?.type);
+  const temporal = isTemporalAcross(x, s);
   return { ...DEFAULT_OPTIONS, ...(temporal ? { sort: { by: 'x', direction: 'asc' }, limit: TIME_LIMIT } : {}) };
 }
 
-/** A grain or bins belong to the column they were chosen for: kept while `x` is still across, gone with it. */
-function boundTo(spec: ChartSpec, x: string | undefined): Pick<ChartSpec, 'grain' | 'bins'> {
-  return x !== spec.x ? {} : {
-    ...(spec.grain !== undefined ? { grain: spec.grain } : {}),
-    ...(spec.bins !== undefined ? { bins: spec.bins } : {}),
+/** Whether `x` is a date or a time the cube has (its rows' columns). */
+function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
+  return x !== undefined && isTemporal(rowColumns(s).find((c) => c.name === x)?.type);
+}
+
+/**
+ * A chart with another column across (or none), as the cube's grouping moves it (followCube) and as a hand moves it
+ * (editChart) -- one rule: what was chosen for the old column, its grain or bins, goes with it; the order is the new
+ * column's -- a Pareto's from the largest always (its cumulative share runs along that order), a date's in time, and
+ * long unless the chart was told how many, another column's from the largest.
+ */
+function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot): ChartSpec {
+  const { x: _x, grain: _g, bins: _b, ...rest } = spec;
+  const inTime = spec.mark !== 'pareto' && isTemporalAcross(x, s);
+  const toTime = inTime && spec.options.limit === DEFAULT_CHART_LIMIT;
+  return {
+    ...rest,
+    ...(x !== undefined ? { x } : {}),
+    options: {
+      ...spec.options,
+      sort: inTime ? { by: 'x', direction: 'asc' } : { by: 'y', direction: 'desc' },
+      ...(toTime ? { limit: TIME_LIMIT } : {}),
+    },
   };
 }
 
@@ -730,46 +759,112 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
 }
 
 /**
- * The chart DataCube makes of what it is told (`given`: a saved spec's own keys, any of them), as its own new chart
- * would be made -- what is not told is the new chart's (`defaultChart`'s measure and options) -- or of an edit of
- * `before` (what is not told stays, and a grain or bins go with the column they were chosen for, as followCube's do).
- * Read as a page reads a chart (readChart): the made chart, or what stops it, in words. Python's grid.chart(),
- * Chart.plot() and Chart.options() are made here (headless/grid.ts gridChart): never by rules of Python's own.
+ * A chart taking another kind: a kind takes what it needs and leaves what it has no place for -- a gauge and a scatter
+ * matrix have nothing across, a gauge and a kind of one series no split -- and a Pareto runs from the largest. Part of
+ * a change by hand (editChart).
  */
-export function chartFrom(given: Readonly<Record<string, unknown>>, s: CubeSnapshot, before?: ChartSpec): ChartSpec | string {
-  const told = (key: string): boolean => Object.hasOwn(given, key);
-  const x = (told('x') ? given['x'] : before?.x) as string | undefined;
-  const { grain: _grain, bins: _bins, ...rest } = before ?? {};
-  const base: Record<string, unknown> = before ? { ...rest, ...boundTo(before, x) } : {};
-  // y told as null is the new chart's measure again; untold, an edit keeps its own
-  const measure = firstMeasure(s);
-  const fresh = measure ? [measure] : x !== undefined ? [{ column: x, fn: 'count' }] : [];
-  const y = told('y') ? given['y'] ?? fresh : before ? before.y : fresh;
-  const options = isRecord(given['options']) ? given['options'] : {};
-  const made = {
-    ...base,
-    ...given,
-    version: CHART_VERSION,
-    y,
-    options: { ...(before ? before.options : optionsAcross(x, s)), ...options },
+function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
+  const { x, split, ...rest } = spec;
+  const keepX = mark !== 'gauge' && mark !== 'matrix' && x !== undefined;
+  const keepSplit = !UNSPLIT.has(mark) && split !== undefined;
+  return {
+    ...rest,
+    mark,
+    ...(keepX ? { x } : {}),
+    ...(keepSplit ? { split } : {}),
+    ...(mark === 'pareto' ? { options: { ...rest.options, sort: { by: 'y', direction: 'desc' } } } : {}),
   };
-  // a slot told as null is taken away (a split, a grain): the reader sees it absent
-  for (const [key, value] of Object.entries(made)) if (value === null) delete (made as Record<string, unknown>)[key];
-  return readChart(made);
+}
+
+/** Whether a chart takes its grouping from the cube as the cube's grouping changes (followCube): a live chart of
+ *  groups, not one of rows, nor one drawing the grid as shown. */
+function live(spec: ChartSpec): boolean {
+  return !spec.frozen && !plotsRows(spec) && !GRID_MARKS.has(spec.mark);
 }
 
 /**
- * A live chart, regrouped the way the cube is now: its first row group
- * across; its second row group -- else its first column label -- as the
- * split; the cube's own measure plotted, when it has one. The mark and the
- * options are the chart's; the order follows what is across (a date runs
- * in time order, anything else leads with the largest). A frozen chart,
- * a scatter (it plots values, not groups) and a cube with nothing grouped
- * are left as they are.
+ * Whether a change by hand freezes a chart: it touches what the next change of the cube's grouping would set again
+ * (followCube) -- a KPI's or a gauge's measure; another kind's column across, its split (but a kind of one series',
+ * which has none) and its measure (but a kind of several values', which keeps its own). Frozen, the chart keeps the
+ * hand's choice. Part of a change by hand (editChart).
+ */
+function freezesOn(spec: ChartSpec, changed: readonly string[]): boolean {
+  if (!live(spec)) return false;
+  const followed = spec.mark === 'kpi' || spec.mark === 'gauge' ? ['y']
+    : ['x', ...(UNSPLIT.has(spec.mark) ? [] : ['split']), ...(SEVERAL_VALUES.has(spec.mark) ? [] : ['y'])];
+  return changed.some((k) => followed.includes(k));
+}
+
+/** A change of a chart by hand, in its spec's own keys: a slot told as null is taken away, and an option likewise. */
+export type ChartChange = {
+  readonly [K in Exclude<keyof ChartSpec, 'version' | 'mark' | 'y' | 'options'>]?: ChartSpec[K] | null;
+} & {
+  readonly mark?: ChartMark;
+  readonly y?: readonly ChartMeasure[];
+  readonly options?: { readonly [K in keyof ChartOptions]?: ChartOptions[K] | null };
+};
+
+/**
+ * A chart changed by hand -- each field of the charts' options form (ui/chart-panel.ts, ui/chart-form.ts), and a chart
+ * Python makes or edits (chartFrom): one rule. What is told replaces what the chart had, and what is told as null is
+ * taken away; a kind told takes what it needs and leaves what it has no place for (asMark); a new column across takes
+ * its own order, and what was chosen for the old one goes with it (acrossChanged); told options are laid over the
+ * chart's own; a hand on what the cube's grouping sets freezes a live chart (freezesOn), unless `frozen` is told.
+ */
+export function editChart(spec: ChartSpec, change: ChartChange, s: CubeSnapshot): ChartSpec {
+  const told = (key: string): boolean => Object.hasOwn(change, key);
+  const shaped = change.mark !== undefined && change.mark !== spec.mark ? asMark(spec, change.mark) : spec;
+  const x = change.x ?? undefined;
+  const moved = told('x') && x !== spec.x ? acrossChanged(shaped, x, s) : shaped;
+  const { options, ...slots } = change;
+  // options that are no object come only from a caller with no types (Python's, through chartFrom): kept as told, for
+  // the reader to refuse by name
+  const laid = options === undefined ? moved.options
+    : isRecord(options) ? withoutNulls({ ...moved.options, ...options }) : options;
+  const made = withoutNulls({ ...moved, ...slots, options: laid }) as ChartSpec;
+  return !told('frozen') && freezesOn(made, Object.keys(change)) ? { ...made, frozen: true } : made;
+}
+
+/** What the charts' panel says of a cube it can make no chart of (defaultChart: no column to put across). */
+export const NO_CHART = 'This cube has no column to chart.';
+
+/**
+ * The chart DataCube makes of what Python tells it (`given`: a saved spec's own keys, any of them): its own new chart
+ * (defaultChart) changed by hand, or `before` changed by hand -- one rule, the panel's (editChart) -- then read as a
+ * page reads a chart (readChart). The made chart, or what stops it, in words. Python's grid.chart(), Chart.plot() and
+ * Chart.options() are made here (headless/grid.ts gridChart): never by rules of Python's own.
+ */
+export function chartFrom(
+  given: Readonly<Record<string, unknown>>, s: CubeSnapshot, before?: ChartSpec,
+): ChartSpec | string {
+  const start = before ?? defaultChart(s);
+  if (!start) return NO_CHART;
+  // what Python told, untyped: whatever is not a chart's the reader refuses by name
+  const read = readChart(editChart(start, given as ChartChange, s));
+  return typeof read === 'string' ? `DataCube cannot read this chart: ${read}.` : read;
+}
+
+/** An object without the keys told as null: a slot or an option taken away. */
+function withoutNulls<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null)) as T;
+}
+
+/** Whether two specs say the same, whatever the order of their keys. */
+function sameSpec(a: ChartSpec, b: ChartSpec): boolean {
+  const canonical = (v: unknown): unknown => (Array.isArray(v) ? v.map(canonical)
+    : isRecord(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v);
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
+/**
+ * A live chart, regrouped the way the cube is now: its first row group across; its second row group -- else its first
+ * column label -- as the split; the cube's own measure plotted, when it has one. The mark and the options are the
+ * chart's; the order follows what is across (acrossChanged). A frozen chart, a chart of rows (it plots values, not
+ * groups), a chart of the grid as shown and a cube with nothing grouped are left as they are.
  */
 export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
-  // a drilled chart stays where it was taken until it is taken back up; a chart of the grid as shown draws it as it is
-  if (spec.frozen || plotsRows(spec) || GRID_MARKS.has(spec.mark) || (spec.drill?.path.length ?? 0) > 0) return spec;
+  // a drilled chart stays where it was taken until it is taken back up
+  if (!live(spec) || (spec.drill?.path.length ?? 0) > 0) return spec;
   // a KPI or a gauge follows the cube's measure; a KPI's trend's column is its own
   if (spec.mark === 'kpi' || spec.mark === 'gauge') {
     const measure = s.measures.find((m) => m.fn !== 'wavg');
@@ -785,41 +880,28 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
     : s.rows[0] !== undefined ? (s.rows[1] ?? s.pivotOn[0]) : s.pivotOn[1];
   const configured = s.measures.find((m) => m.fn !== 'wavg');
   const y = configured && !SEVERAL_VALUES.has(spec.mark) ? [{ column: configured.column, fn: configured.fn }] : spec.y;
-  // a grain or bins belong to the column they were chosen for: a new column across starts without them
-  const { split: _old, grain: _g, bins: _b, ...rest } = spec;
-  const kept = boundTo(spec, x);
-  const sort = x === spec.x ? spec.options.sort
-    : isTemporal(rowColumns(s).find((c) => c.name === x)?.type)
-      ? { by: 'x' as const, direction: 'asc' as const }
-      : { by: 'y' as const, direction: 'desc' as const };
-  // a date newly across asks for a time series' points, unless the chart was told how many
-  const toTime = x !== spec.x && sort.by === 'x' && isTemporal(rowColumns(s).find((c) => c.name === x)?.type)
-    && spec.options.limit === DEFAULT_CHART_LIMIT;
-  const next: ChartSpec = {
-    ...rest,
-    x,
-    ...kept,
-    y,
-    ...(split !== undefined ? { split } : {}),
-    options: { ...spec.options, sort, ...(toTime ? { limit: TIME_LIMIT } : {}) },
-  };
-  return JSON.stringify(next) === JSON.stringify(spec) ? spec : next;
+  // a new column across takes its own order, and its grain or bins go with the old one (acrossChanged)
+  const { split: _old, ...rest } = x === spec.x ? spec : acrossChanged(spec, x, s);
+  const next: ChartSpec = { ...rest, y, ...(split !== undefined ? { split } : {}) };
+  return sameSpec(next, spec) ? spec : next;
 }
 
 /** What stops a spec from being drawn, in words; empty when it can be. */
 export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
-  // a chart of the grid as shown (a treemap, a sunburst, a tree) is drawn from the grid's own rows and levels, nothing
-  // of its own judged: the charts' panel draws it without asking, and Python's chart is judged here as it draws
-  if (GRID_MARKS.has(drilled.mark)) return [];
+  // a chart of the grid as shown (a treemap, a sunburst, a tree) is drawn from the grid's own rows and levels: it asks
+  // nothing across and nothing to plot of its own, but a slot it does not draw is refused as on any kind
+  const gridKind = GRID_MARKS.has(drilled.mark);
   // a drilled chart is checked as it draws: the level after its path across (the levels themselves are checked too)
   const spec = drilledView(drilled).spec;
   const known = new Set([...rowColumns(s), ...chartRowCalcs(spec)].map((c) => c.name));
   const groupLevel = new Set(groupLevelColumns(s, spec).map((d) => d.name));
   const out: string[] = [];
   // a KPI's column across is its trend, and it may have none; a gauge is one value, with nothing across
-  if (spec.x === undefined && spec.mark !== 'kpi' && spec.mark !== 'gauge' && spec.mark !== 'matrix') out.push('Pick a column across.');
+  if (spec.x === undefined && !gridKind && spec.mark !== 'kpi' && spec.mark !== 'gauge' && spec.mark !== 'matrix') {
+    out.push('Pick a column across.');
+  }
   else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
-  if (spec.y.length === 0) out.push('Pick something to plot.');
+  if (spec.y.length === 0 && !gridKind) out.push('Pick something to plot.');
   for (const m of [...spec.y, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
     if (m.fn === 'value') {
       if (plotsRows(spec)) out.push(`A ${markLabel(spec.mark)} plots rows, not groups: '${m.column}' is a group-level column.`);
@@ -870,6 +952,9 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     out.push(`'${spec.x}' is not a number: it has no bins.`);
   }
   if (spec.grain !== undefined && spec.bins !== undefined) out.push('A column across has a grain or bins, not both.');
+  if (gridKind && (spec.grain !== undefined || spec.bins !== undefined)) {
+    out.push(`${article} ${kind} draws the grid as shown: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
+  }
   if (spec.split !== undefined && spec.split === spec.x) {
     out.push('Split by a different column than the one across.');
   }
