@@ -282,7 +282,8 @@ class TypeNamesAreReadHere(unittest.TestCase):
     guardrails test holds engine-client's types.ts the one: no other module of the package spells a type's name to
     decide what it is (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 4) -- it asks _types, which reads either compiler's
     name and refuses an unknown one. It scans the modules this lane holds: the compiler's and the datacube extra's
-    (notebook.py, the notebook extra's widget, is not among them; it reads no type)."""
+    (notebook.py, the notebook extra's widget, is not among them; it reads no type). It sees string literals: on the
+    lanes' Python (3.12) an f-string is tokens of its own, so a type's name in an f-string's text is not seen."""
 
     def test_no_other_module_spells_a_type_name(self):
         import ast
