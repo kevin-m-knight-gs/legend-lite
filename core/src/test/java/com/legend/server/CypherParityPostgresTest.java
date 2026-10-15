@@ -68,6 +68,7 @@ class CypherParityPostgresTest {
                 }
             });
         }
+        CypherParity.census(outcomes, "postgres");
         String update = System.getProperty("cypher.parity.update");
         problems.addAll(CypherParity.ratchet(cases, outcomes, Runfile.property("cypher.parity.ledger"), "postgres",
                 update == null ? null : Path.of(update)));

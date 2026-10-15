@@ -424,6 +424,56 @@ public final class CypherParity {
         return m.length() > 300 ? m.substring(0, 300) + "..." : m;
     }
 
+    // ------------------------------------------------------------------ the refusal census
+
+    /**
+     * The REFUSED and SKIP outcomes by their reason, the specifics (names, positions) folded away, most frequent
+     * first: the burn-down list (docs/CYPHER_STUDY_2026_10_15.md §12.3). A case counts once, under the FIRST
+     * construct the translator refused, so attacking a category uncovers the next refusal in its queries. Written to
+     * the test's outputs as {@code cypher-parity-<lane>-census.tsv} and printed.
+     */
+    public static String census(Map<String, SqlParity.Outcome> outcomes, String lane) throws IOException {
+        Map<String, Integer> counts = new java.util.HashMap<>();
+        for (SqlParity.Outcome o : outcomes.values()) {
+            if (o.status() == SqlParity.Status.REFUSED || o.status() == SqlParity.Status.SKIP) {
+                counts.merge(o.status() + "\t" + reason(o.detail()), 1, Integer::sum);
+            }
+        }
+        StringBuilder out = new StringBuilder("status\treason\tcases\n");
+        counts.entrySet().stream().sorted((x, y) -> y.getValue().compareTo(x.getValue()) != 0
+                ? y.getValue().compareTo(x.getValue()) : x.getKey().compareTo(y.getKey()))
+                .forEach(e -> out.append(e.getKey()).append('\t').append(e.getValue()).append('\n'));
+        String text = out.toString();
+        String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+        if (outputs != null) {
+            Files.writeString(Path.of(outputs, "cypher-parity-" + lane + "-census.tsv"), text, StandardCharsets.UTF_8);
+        }
+        System.out.println("the refusal census, " + lane + " lane:\n" + text);
+        return text;
+    }
+
+    /** A refusal's or skip's reason with its specifics folded away: one line per construct. */
+    static String reason(String detail) {
+        String m = detail.replaceAll("^\\w+: #Cypher\\{\\.\\.\\.\\}# at line \\d+, column \\d+( of the SQL)?: ", "");
+        m = m.replaceAll("\\(.*?\\)", "");
+        m = m.replaceAll("the (function|list predicate) \\S+", "the $1 X");
+        m = m.replaceAll("the label \\S+ names no class.*", "a label naming no class of the model (C4)");
+        m = m.replaceAll("the class \\S+ has no property \\S+.*", "a property no class declares (C4)");
+        m = m.replaceAll("the relationship type \\S+ names no property.*",
+                "a relationship type naming no property or association end (C4)");
+        m = m.replaceAll("the relationship \\S+ (holds|reaches|is a property).*",
+                "a relationship that fans out or has no inverse end");
+        m = m.replaceAll("a (node|relationship) as a value \\S*", "a node or relationship as a value");
+        m = m.replaceAll("a float literal beyond.*", "a float literal beyond 1e15 or below 1e-15");
+        m = m.replaceAll("harness: the property \\S+ holds a (\\w+).*", "harness: a property holding a $1");
+        m = m.replaceAll("harness: the relationship type \\S+ joins several class pairs.*",
+                "harness: a relationship type joining several class pairs");
+        m = m.replaceAll("harness: a node with several labels.*", "harness: a node with several labels");
+        m = m.replaceAll("Neo4j refused the setup.*", "Neo4j refused the setup");
+        m = m.replaceAll("^(\\w+) is not supported yet$", "the clause $1");
+        return m.replaceAll("\\s+", " ").strip().replaceAll("\\.$", "");
+    }
+
     // ------------------------------------------------------------------ the ledger
 
     private static final String LEDGER_HEADER = "# the Cypher parity corpus (the openCypher TCK and lite's cases,"

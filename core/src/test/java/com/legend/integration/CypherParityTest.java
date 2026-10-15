@@ -134,6 +134,7 @@ class CypherParityTest {
                 }
             });
         }
+        CypherParity.census(outcomes, "duckdb");
         String update = System.getProperty("cypher.parity.update");
         problems.addAll(CypherParity.ratchet(cases, outcomes, Runfile.property("cypher.parity.ledger"), "duckdb",
                 update == null ? null : Path.of(update)));

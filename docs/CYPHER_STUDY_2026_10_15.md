@@ -1467,3 +1467,43 @@ The plan's PR1 completed: the harness of §8, with the first ledger and the show
   byte (`showcase/`).
 - **Not yet, carried to PR2:** the randomized differential check (§8.4); the syntax ratchet (`syntax-pins.tsv`); the
   independent review of PR1 (next, before the merge).
+
+### 12.3 The refusal census: the burn-down list (2026-10-15, after PR1b)
+
+Each lane writes `cypher-parity-<lane>-census.tsv` to its test outputs (`CypherParity.census`): the REFUSED and SKIP
+cases by reason, specifics folded away. A case counts once, under the FIRST construct the translator refused, so
+attacking a category uncovers the next refusal in its queries (a TCK expression scenario typically starts with
+`WITH [..] AS list` or `UNWIND`, and most of the 577 "a map as a value" cases are `WITH {..} AS map` scenarios). The
+2,723 REFUSED by the slice that reads them:
+
+| slice | reason (the translator's, folded) | cases |
+|---|---|---|
+| PR2, values | a map as a value | 577 |
+| PR2 | the list predicates `all`, `any`, `none`, `single` (and `reduce`) | 564 |
+| PR2 | a query starting with `WITH` (a value pipeline over literals) | 269 |
+| PR2 | a function not read yet: the temporal constructors `date`, `datetime`, `localdatetime`, `time`, `localtime`, `duration` and their `transaction`/`statement`/`realtime` forms (about 180), `range` (40), `toString` (4), `abs`, `sqrt`, `substring`, `reverse` | 243 |
+| PR2 | `UNWIND` | 128 |
+| PR2 | a list comprehension | 90 |
+| PR2 | a list as a value | 78 |
+| PR2 | list indexing and slicing | 52 |
+| PR2 | `IN` with a right side other than a literal list, over mixed types, or over a list holding null | 15 |
+| PR2 | a comparison across types (String with Integer or Float, Boolean with Integer), ordering booleans, `%` of floats, `STARTS WITH` on a non-string, `RETURN *`, a parameter | 14 |
+| PR2 or PR3, the join form | a pattern that fans out (a to-many hop with no to-one inverse), a relationship pattern without a type or with several types, a second pattern sharing no variable (a cartesian product), a `MATCH` after a projecting `WITH` | 328 |
+| PR3, the model | `OPTIONAL MATCH` | 25 |
+| PR3 | a node or relationship as a value | 17 |
+| PR3 | a pattern inside an expression (a pattern predicate or comprehension), a label predicate in an expression | 18 |
+| PR3 | `UNION` | 6 |
+| PR4, paths | a named path | 27 |
+| PR4 | a variable-length relationship | 5 |
+| decided, stays | a label naming no class of the model, a property no class declares (C4, S58: the TCK queries labels its graph does not have; Neo4j answers no rows) | 40 |
+| the database owner's | a float literal beyond 1e15 or below 1e-15 (the Postgres dialect's float spelling, IN_FLIGHT) | 6 |
+| writes, after F1 | `CREATE` 57, `SET` 50, `MERGE` 43, `REMOVE` 31, `DELETE` 29, `DETACH DELETE` 8 | 218 |
+| | an `ORDER BY` aggregate outside the items | 1 |
+
+The 330 SKIP are the harness's, not lite's: procedures (50) and control queries (33) in the scenarios; temporal,
+duration and list properties the inferred model cannot hold yet (about 100, PR2); a relationship type joining several
+class pairs (about 90) and a node with several labels (18), both PR3's inheritance; a few setups Neo4j refused (3).
+
+**The order of attack PR2 takes from this:** values first (maps, lists, `UNWIND`, the list predicates and
+comprehensions: 1,700 cases open behind the first refusal), then the function table with the temporal constructors
+(243), then the join form (328), which PR3's `OPTIONAL MATCH` and nodes as values build on.
