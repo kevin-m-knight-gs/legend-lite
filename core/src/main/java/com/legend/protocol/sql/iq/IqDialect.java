@@ -403,6 +403,8 @@ public final class IqDialect implements InputDialect {
                 likePatterns(e);
                 subqueryWidths(e);
             }
+            // IQ island, 2026-10-15 (windows): the errors IQ raises for a query's window functions
+            IqWindows.parsed(s, engine != null ? engine : engineOf(statement, settings), settings);
             // IQ island, 2026-10-14 (M1c): the errors IQ raises for a query's aggregates and grouping
             IqAggregates.parsed(s);
             nameLengths(s);
@@ -418,6 +420,8 @@ public final class IqDialect implements InputDialect {
             }
         }
         bound(statement, Map.of());
+        // IQ island, 2026-10-15 (windows): a window function in an IN, ANY or ALL subquery (the IQ engine's -1001030)
+        IqWindows.statement(statement, engine != null ? engine : engineOf(statement, settings));
         // IQ island, 2026-10-14 (M1c): the grouping errors a SELECT's own reading cannot see
         IqAggregates.statement(statement);
         innerNamesInOrderBy(statement);
@@ -2511,6 +2515,9 @@ public final class IqDialect implements InputDialect {
             case SqlAst.NullLit n -> List.of();
             // IQ island, 2026-10-14 (M1e): a host variable
             case SqlAst.Param p -> List.of();
+            // IQ island, 2026-10-15 (windows): a window call is no call of this query's (not an aggregate of its
+            // grouping, no function of the catalog), but what it reads is (IqWindows.children)
+            case SqlAst.Window w -> IqWindows.children(w);
             // exhaustive over IqParser's forms: a new form is read here before a walk can miss what is inside it
             default -> throw new IllegalStateException("the #IQ{...}# dialect does not walk " + e.getClass()
                     .getSimpleName() + " yet");
@@ -5006,6 +5013,12 @@ public final class IqDialect implements InputDialect {
         return IqAggregates.aggregate(f, at, this);
     }
 
+    /** IQ island, 2026-10-15 (windows): IQ's window functions ({@link IqWindows}). */
+    @Override
+    public SqlToPure.WindowFunction window(SqlAst.FunctionCall f, SqlToPure.Windowing at) {
+        return IqWindows.window(f, at, this);
+    }
+
     /**
      * A key over strings, by IQ's collation ({@link #collated}; IQ island, 2026-10-14, the merge of M1c and the natives
      * slice; measured on SQL Anywhere 17). ORDER BY sorts by the collation key (the order of rows whose keys tie is the
@@ -5026,7 +5039,8 @@ public final class IqDialect implements InputDialect {
             return null;
         }
         switch (clause) {
-            case "ORDER BY" -> {
+            // IQ island, 2026-10-15 (windows): a window's PARTITION BY partitions by the key (it shows no value of it)
+            case "ORDER BY", "PARTITION BY" -> {
                 return expr != null && keys.own(expr) ? null : key(value.nullable());
             }
             case "GROUP BY" -> {

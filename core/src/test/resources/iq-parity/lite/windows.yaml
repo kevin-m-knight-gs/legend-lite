@@ -1,0 +1,679 @@
+# Window functions (IQ island, 2026-10-15, landing 4: windows are in 11% of production BI queries), judged by the live
+# SAP IQ 17.1 (iq17-default): SQL Anywhere 17 has no LAG, LEAD or NTILE and types a window's SUM and AVG by its front
+# end's rules, so these cases name the live IQ's profile only. IqWindows has the rules, each measured on the live server.
+# Every case is deterministic: a window function that reads its rows in the window's order has PARTITION BY and ORDER BY
+# keys that reach a unique column (IqParity's determinism lint), and the statement's ORDER BY is total. The SQL in YAML
+# double quotes.
+tests:
+  - id: row_number_over_id
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM g ORDER BY id"
+    profile: iq17-default
+  - id: row_number_descending
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id DESC) AS rn FROM g ORDER BY id"
+    profile: iq17-default
+  - id: row_number_per_partition
+    sql: "SELECT id, k, ROW_NUMBER() OVER (PARTITION BY k ORDER BY id DESC) AS rn FROM g ORDER BY id"
+    profile: iq17-default
+  - id: row_number_by_nullable_key_then_id
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY k, id) AS a, ROW_NUMBER() OVER (ORDER BY k DESC, id) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_and_dense_rank_with_ties
+    sql: "SELECT id, k, RANK() OVER (ORDER BY k) AS r, DENSE_RANK() OVER (ORDER BY k) AS d FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_and_dense_rank_descending
+    sql: "SELECT id, k, RANK() OVER (ORDER BY k DESC) AS r, DENSE_RANK() OVER (ORDER BY k DESC) AS d FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_within_partitions
+    sql: "SELECT id, RANK() OVER (PARTITION BY k ORDER BY j) AS r, DENSE_RANK() OVER (PARTITION BY j ORDER BY k DESC) AS d FROM g ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_and_cume_dist
+    sql: "SELECT id, PERCENT_RANK() OVER (ORDER BY k) AS p, CUME_DIST() OVER (ORDER BY k) AS c FROM g ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_and_cume_dist_descending
+    sql: "SELECT id, PERCENT_RANK() OVER (ORDER BY j DESC) AS p, CUME_DIST() OVER (ORDER BY j DESC) AS c FROM g ORDER BY id"
+    profile: iq17-default
+  - id: percent_rank_and_cume_dist_per_partition
+    sql: "SELECT id, PERCENT_RANK() OVER (PARTITION BY k ORDER BY j) AS p, CUME_DIST() OVER (PARTITION BY k ORDER BY j) AS c FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_over_two_keys
+    sql: "SELECT id, RANK() OVER (ORDER BY k, j) AS r, DENSE_RANK() OVER (ORDER BY j DESC, k) AS d, PERCENT_RANK() OVER (ORDER BY k, j DESC) AS p FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_over_an_expression
+    sql: "SELECT id, RANK() OVER (ORDER BY k * 2 DESC) AS r, DENSE_RANK() OVER (PARTITION BY j / 10 ORDER BY id) AS d FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_by_strings_in_iq_collation
+    sql: "SELECT id, s, RANK() OVER (ORDER BY s) AS r, DENSE_RANK() OVER (ORDER BY s DESC) AS d FROM g ORDER BY id"
+    profile: iq17-default
+  - id: row_number_per_string_partition
+    sql: "SELECT id, s, ROW_NUMBER() OVER (PARTITION BY s ORDER BY id) AS rn FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_by_dates
+    sql: "SELECT id, RANK() OVER (ORDER BY dt) AS r, DENSE_RANK() OVER (ORDER BY dt DESC) AS d FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_by_doubles_and_numerics
+    sql: "SELECT id, RANK() OVER (ORDER BY d) AS r, DENSE_RANK() OVER (ORDER BY n DESC) AS dn FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_by_bigint_and_bit
+    sql: "SELECT id, RANK() OVER (ORDER BY w DESC) AS r, DENSE_RANK() OVER (ORDER BY b) AS db FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_of_each_type_of_t
+    sql: "SELECT id, RANK() OVER (ORDER BY sm) AS a, RANK() OVER (ORDER BY it DESC) AS b, RANK() OVER (ORDER BY bg) AS c, RANK() OVER (ORDER BY nm) AS e, RANK() OVER (ORDER BY dbl) AS f, RANK() OVER (ORDER BY vc) AS h, RANK() OVER (ORDER BY dt) AS i FROM t ORDER BY id"
+    profile: iq17-default
+  - id: cume_dist_by_a_string
+    sql: "SELECT id, CUME_DIST() OVER (ORDER BY vc) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: ntile_three
+    sql: "SELECT id, NTILE(3) OVER (ORDER BY id) AS q FROM g ORDER BY id"
+    profile: iq17-default
+  - id: ntile_per_partition
+    sql: "SELECT id, NTILE(2) OVER (PARTITION BY k ORDER BY id DESC) AS q FROM g ORDER BY id"
+    profile: iq17-default
+  - id: ntile_more_buckets_than_rows
+    sql: "SELECT id, NTILE(20) OVER (ORDER BY id DESC) AS q FROM g ORDER BY id"
+    profile: iq17-default
+  - id: ntile_one
+    sql: "SELECT id, NTILE(1) OVER (ORDER BY k, id) AS q FROM g ORDER BY id"
+    profile: iq17-default
+  - id: several_rankings_at_once
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn, RANK() OVER (ORDER BY j) AS r, DENSE_RANK() OVER (ORDER BY j) AS d, NTILE(4) OVER (ORDER BY id) AS q FROM g ORDER BY id"
+    profile: iq17-default
+  - id: row_number_needs_order_by
+    sql: "SELECT id, ROW_NUMBER() OVER () AS rn FROM g"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: rank_needs_order_by
+    sql: "SELECT id, RANK() OVER (PARTITION BY k) AS r FROM g"
+    profile: iq17-default
+  - id: ntile_needs_order_by
+    sql: "SELECT id, NTILE(2) OVER (PARTITION BY k) AS q FROM g"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: row_number_takes_no_frame
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS rn FROM g"
+    profile: iq17-default
+  - id: rank_takes_no_frame
+    sql: "SELECT id, RANK() OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS r FROM g"
+    profile: iq17-default
+  - id: rank_takes_no_argument
+    sql: "SELECT id, RANK(k) OVER (ORDER BY k) AS r FROM g"
+    profile: iq17-default
+  - id: row_number_takes_no_argument
+    sql: "SELECT id, ROW_NUMBER(1) OVER (ORDER BY k) AS rn FROM g"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: ntile_of_zero
+    sql: "SELECT id, NTILE(0) OVER (ORDER BY id) AS q FROM g"
+    profile: iq17-default
+  - id: ntile_of_a_negative
+    sql: "SELECT id, NTILE(-1) OVER (ORDER BY id) AS q FROM g"
+    profile: iq17-default
+  - id: ntile_of_null
+    sql: "SELECT id, NTILE(NULL) OVER (ORDER BY id) AS q FROM g"
+    profile: iq17-default
+  - id: ntile_of_a_column
+    sql: "SELECT id, NTILE(k) OVER (ORDER BY id) AS q FROM g"
+    profile: iq17-default
+  - id: ntile_past_its_limit
+    sql: "SELECT id, NTILE(32768) OVER (ORDER BY id) AS q FROM g"
+    profile: iq17-default
+  - id: ntile_of_a_fraction
+    sql: "SELECT id, NTILE(1.5) OVER (ORDER BY id) AS q FROM g"
+    profile: iq17-default
+  - id: ntile_of_a_computed_constant_is_refused
+    sql: "SELECT id, NTILE(1 + 1) OVER (ORDER BY id) AS q FROM g ORDER BY id"
+    profile: iq17-default
+  - id: ntile_of_two_arguments
+    sql: "SELECT id, NTILE(2, 3) OVER (ORDER BY id) AS q FROM g"
+    profile: iq17-default
+  - id: cume_dist_of_two_keys
+    sql: "SELECT id, CUME_DIST() OVER (ORDER BY k, j) AS c FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rank_ordered_by_a_constant
+    sql: "SELECT id, RANK() OVER (PARTITION BY k ORDER BY 'x') AS r FROM g"
+    profile: iq17-default
+  - id: rank_ordered_by_a_position
+    sql: "SELECT id, RANK() OVER (ORDER BY 1) AS r FROM g"
+    profile: iq17-default
+  - id: rank_partitioned_by_a_position
+    sql: "SELECT id, RANK() OVER (PARTITION BY 1 ORDER BY id) AS r FROM g"
+    profile: iq17-default
+  - id: rank_without_over
+    sql: "SELECT id, RANK() AS r FROM g"
+    profile: iq17-default
+  - id: rank_with_nulls_last
+    sql: "SELECT id, RANK() OVER (ORDER BY k NULLS LAST) AS r FROM g"
+    profile: iq17-default
+  - id: count_star_over_everything
+    sql: "SELECT id, COUNT(*) OVER () AS n, COUNT() OVER () AS m FROM g ORDER BY id"
+    profile: iq17-default
+  - id: count_per_partition
+    sql: "SELECT id, COUNT(v) OVER (PARTITION BY k) AS n, COUNT(*) OVER (PARTITION BY j) AS m FROM g ORDER BY id"
+    profile: iq17-default
+  - id: count_running
+    sql: "SELECT id, COUNT(s) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS n FROM g ORDER BY id"
+    profile: iq17-default
+  - id: count_with_peers
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY k) AS a, COUNT(*) OVER (ORDER BY k DESC) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_of_each_type_over_everything
+    sql: "SELECT id, SUM(k) OVER () AS sk, SUM(n) OVER () AS sn, SUM(b) OVER () AS sb FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_of_integers_over_everything
+    sql: "SELECT id, SUM(v) OVER () AS sv FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_of_integers_widens_under_iq
+    sql: "SELECT id, SUM(v) OVER () AS sv FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_of_bigints_widens_under_iq
+    sql: "SELECT id, SUM(w) OVER () AS sw FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_running_past_int_and_bigint
+    sql: "SELECT id, SUM(v) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS sv, SUM(w) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS sw FROM o ORDER BY id"
+    profile: iq17-default
+  - id: sum_per_partition
+    sql: "SELECT id, SUM(w) OVER (PARTITION BY k) AS sw, SUM(n) OVER (PARTITION BY j) AS sn FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_of_doubles
+    sql: "SELECT id, SUM(d) OVER (PARTITION BY k) AS s FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_of_doubles_out_of_range
+    sql: "SELECT id, SUM(d) OVER (PARTITION BY k) AS s FROM g ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_doubles_out_of_range
+    sql: "SELECT id, AVG(d) OVER () AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_running_total
+    sql: "SELECT id, SUM(n) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS rt FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_running_total_per_partition
+    sql: "SELECT id, k, SUM(n) OVER (PARTITION BY k ORDER BY id ROWS UNBOUNDED PRECEDING) AS rt FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_with_peers_by_default
+    sql: "SELECT id, k, SUM(w) OVER (ORDER BY k) AS a, SUM(n) OVER (ORDER BY k DESC) AS b FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: sum_moving_window
+    sql: "SELECT id, SUM(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS a, SUM(k) OVER (ORDER BY id ROWS 2 PRECEDING) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_to_the_end
+    sql: "SELECT id, SUM(n) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS a, SUM(k) OVER (ORDER BY id DESC ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_whole_partition_frame
+    sql: "SELECT id, SUM(n) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS a, SUM(n) OVER (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: aggregates_over_an_empty_frame
+    sql: "SELECT id, SUM(n) OVER (ORDER BY id ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING) AS s, COUNT(n) OVER (ORDER BY id ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING) AS c, MAX(k) OVER (ORDER BY id ROWS BETWEEN 3 PRECEDING AND 2 PRECEDING) AS m FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_frame_by_offsets
+    sql: "SELECT id, k, SUM(n) OVER (ORDER BY k RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS a, COUNT(*) OVER (ORDER BY k RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS b, COUNT(*) OVER (ORDER BY k RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS c FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_frame_descending
+    sql: "SELECT id, k, SUM(n) OVER (ORDER BY k DESC RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS a, COUNT(*) OVER (ORDER BY k DESC RANGE BETWEEN CURRENT ROW AND 1 FOLLOWING) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_frame_short_form
+    sql: "SELECT id, k, COUNT(*) OVER (ORDER BY k RANGE 1 PRECEDING) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_frame_over_a_double
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY d RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_frame_over_a_bit
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY b) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_frame_over_a_bigint
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY w) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_whole_partition
+    sql: "SELECT id, SUM(n) OVER (PARTITION BY k ORDER BY id RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_integers
+    sql: "SELECT id, AVG(k) OVER () AS ak, AVG(v) OVER (PARTITION BY k) AS av FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_cut_at_sixteen_places
+    sql: "SELECT id, AVG(v) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS a FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_cut_toward_zero
+    sql: "SELECT id, AVG(k - 5) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS a FROM g WHERE id < 6 ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_bigints
+    sql: "SELECT id, AVG(w) OVER (PARTITION BY k) AS a FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_bigints_past_their_range
+    sql: "SELECT id, AVG(w) OVER () AS a FROM o ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_bits
+    sql: "SELECT id, AVG(b) OVER () AS a FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_numerics
+    sql: "SELECT id, AVG(n) OVER () AS a, AVG(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS b FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_numerics_of_t_and_u
+    sql: "SELECT id, AVG(qty) OVER () AS a, AVG(qty) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS b FROM u ORDER BY id"
+    profile: iq17-default
+  - id: avg_of_doubles
+    sql: "SELECT id, AVG(d) OVER (PARTITION BY k) AS a FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: min_and_max_of_numbers
+    sql: "SELECT id, MIN(k) OVER () AS a, MAX(v) OVER (PARTITION BY k) AS b, MIN(w) OVER () AS c, MAX(n) OVER () AS e, MIN(d) OVER () AS f FROM g ORDER BY id"
+    profile: iq17-default
+  - id: min_and_max_of_dates_and_bits
+    sql: "SELECT id, MAX(dt) OVER (PARTITION BY k) AS a, MIN(b) OVER () AS m, MAX(b) OVER (PARTITION BY k) AS x FROM g ORDER BY id"
+    profile: iq17-default
+  - id: min_and_max_moving
+    sql: "SELECT id, MIN(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS a, MAX(dt) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: min_and_max_of_strings_by_collation
+    sql: "SELECT id, MIN(s) OVER () AS a, MAX(s) OVER (PARTITION BY k) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: min_and_max_of_latin1_strings
+    sql: "SELECT id, MIN(vc) OVER () AS a, MAX(vc) OVER () AS b, MIN(vc) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: min_and_max_of_trimmed_strings
+    sql: "SELECT id, MIN(RTRIM(s)) OVER (PARTITION BY j) AS a, MAX(TRIM(s)) OVER (ORDER BY k) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: max_of_strings_with_peers
+    sql: "SELECT id, MAX(s) OVER (ORDER BY k) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: min_of_strings_over_a_moving_frame_is_refused
+    sql: "SELECT id, MIN(RTRIM(s)) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: count_distinct_over_a_window
+    sql: "SELECT id, COUNT(DISTINCT v) OVER () AS n FROM g"
+    profile: iq17-default
+  - id: sum_distinct_over_a_window
+    sql: "SELECT id, SUM(DISTINCT v) OVER (PARTITION BY k) AS s FROM g"
+    profile: iq17-default
+  - id: list_over_a_window
+    sql: "SELECT id, LIST(s) OVER () AS l FROM g"
+    profile: iq17-default
+  - id: median_over_a_window_is_refused
+    sql: "SELECT id, MEDIAN(v) OVER (PARTITION BY k) AS m FROM g ORDER BY id"
+    profile: iq17-default
+  - id: sum_of_two_arguments
+    sql: "SELECT id, COUNT(v, k) OVER () AS n FROM g"
+    profile: iq17-default
+  - id: sum_of_star
+    sql: "SELECT id, SUM(*) OVER () AS n FROM g"
+    profile: iq17-default
+  - id: sum_of_a_string_is_refused
+    sql: "SELECT id, SUM(s) OVER () AS n FROM g ORDER BY id"
+    profile: iq17-default
+  - id: default_frame_over_a_string_key
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY s) AS n FROM g ORDER BY id"
+    profile: iq17-default
+  - id: default_frame_over_a_date_key
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY dt) AS n FROM g ORDER BY id"
+    profile: iq17-default
+  - id: default_frame_over_two_keys
+    sql: "SELECT id, SUM(k) OVER (ORDER BY k, id) AS n FROM g ORDER BY id"
+    profile: iq17-default
+  - id: range_frame_over_two_keys
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY k, id RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS n FROM g"
+    profile: iq17-default
+  - id: range_frame_without_order_by
+    sql: "SELECT id, COUNT(*) OVER (RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS n FROM g"
+    profile: iq17-default
+  - id: range_frame_over_a_date
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY dt RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS n FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rows_frame_by_a_string_key
+    sql: "SELECT id, COUNT(*) OVER (ORDER BY s, id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS n FROM g ORDER BY id"
+    profile: iq17-default
+  - id: rows_frame_without_order_by_over_everything
+    sql: "SELECT id, SUM(n) OVER (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS s FROM g ORDER BY id"
+    profile: iq17-default
+  - id: frame_offset_of_a_column
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN k PRECEDING AND CURRENT ROW) AS s FROM g"
+    profile: iq17-default
+  - id: frame_offset_of_zero
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN 0 PRECEDING AND CURRENT ROW) AS s FROM g"
+    profile: iq17-default
+  - id: frame_end_offset_of_zero
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 0 FOLLOWING) AS s FROM g"
+    profile: iq17-default
+  - id: frame_offset_negative
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN -1 PRECEDING AND CURRENT ROW) AS s FROM g"
+    profile: iq17-default
+  - id: frame_offset_null
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN NULL PRECEDING AND CURRENT ROW) AS s FROM g"
+    profile: iq17-default
+  - id: frame_offset_computed_is_refused
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN 1 + 1 PRECEDING AND CURRENT ROW) AS s FROM g ORDER BY id"
+    profile: iq17-default
+  - id: frame_ending_before_its_start
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 2 PRECEDING) AS s FROM g ORDER BY id"
+    profile: iq17-default
+  - id: frame_following_ending_before_its_start
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN 2 FOLLOWING AND 1 FOLLOWING) AS s FROM g ORDER BY id"
+    profile: iq17-default
+  - id: frame_from_current_row_back
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 1 PRECEDING) AS s FROM g"
+    profile: iq17-default
+  - id: frame_from_unbounded_following
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED FOLLOWING AND CURRENT ROW) AS s FROM g"
+    profile: iq17-default
+  - id: frame_to_unbounded_preceding
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND UNBOUNDED PRECEDING) AS s FROM g"
+    profile: iq17-default
+  - id: frame_starting_following
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id ROWS 1 FOLLOWING) AS s FROM g"
+    profile: iq17-default
+  - id: frame_groups_unit
+    sql: "SELECT id, SUM(k) OVER (ORDER BY id GROUPS 1 PRECEDING) AS s FROM g"
+    profile: iq17-default
+  - id: lag_and_lead
+    sql: "SELECT id, LAG(v) OVER (ORDER BY id) AS a, LEAD(v) OVER (ORDER BY id) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_and_lead_by_offsets
+    sql: "SELECT id, LAG(v, 2) OVER (ORDER BY id) AS a, LEAD(v, 3) OVER (PARTITION BY k ORDER BY id) AS b, LAG(v, 0) OVER (ORDER BY id) AS c, LEAD(k, +1) OVER (ORDER BY id) AS e FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_and_lead_per_partition
+    sql: "SELECT id, k, LAG(id) OVER (PARTITION BY k ORDER BY id) AS a, LEAD(id) OVER (PARTITION BY k ORDER BY id DESC) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_and_lead_with_defaults
+    sql: "SELECT id, LAG(v, 1, 0) OVER (ORDER BY id) AS a, LEAD(v, 1, -1) OVER (PARTITION BY k ORDER BY id) AS b, LAG(k, 2, 99) OVER (ORDER BY id) AS c, LAG(v, 1, NULL) OVER (ORDER BY id) AS e FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_default_converted_to_the_value_type
+    sql: "SELECT id, LAG(v, 1, '7') OVER (ORDER BY id) AS a, LAG(v, 1, 2.5) OVER (ORDER BY id) AS b, LAG(d, 1, 7) OVER (ORDER BY id) AS c, LAG(w, 1, 5) OVER (ORDER BY id) AS e FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_default_of_a_string_and_a_date
+    sql: "SELECT id, LAG(s, 1, 'zz') OVER (ORDER BY id) AS a, LAG(dt, 1, '2000-01-01') OVER (ORDER BY id) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_default_of_a_numeric
+    sql: "SELECT id, LAG(n, 1, 1) OVER (ORDER BY id) AS a, LEAD(n, 2, -0.5) OVER (ORDER BY id) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_of_each_type
+    sql: "SELECT id, LAG(k) OVER (ORDER BY id) AS a, LAG(w) OVER (ORDER BY id) AS b, LAG(n) OVER (ORDER BY id) AS c2, LAG(d) OVER (ORDER BY id) AS d2, LAG(s) OVER (ORDER BY id) AS e, LAG(dt) OVER (ORDER BY id) AS f, LAG(b) OVER (ORDER BY id) AS h FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_by_a_string_and_a_date_key
+    sql: "SELECT id, LAG(v) OVER (ORDER BY s, id) AS a, LEAD(id) OVER (ORDER BY dt, id) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_difference
+    sql: "SELECT id, k, k - LAG(k) OVER (ORDER BY id) AS dk, LEAD(k, 1, 0) OVER (ORDER BY id) - k AS nk FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_of_an_expression
+    sql: "SELECT id, LAG(k * 10) OVER (ORDER BY id) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_needs_order_by
+    sql: "SELECT id, LAG(v) OVER (PARTITION BY k) AS a FROM g"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: lag_takes_no_frame
+    sql: "SELECT id, LAG(v) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS a FROM g"
+    profile: iq17-default
+  - id: lag_offset_negative
+    sql: "SELECT id, LAG(v, -1) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_offset_computed
+    sql: "SELECT id, LAG(v, 1 + 1) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_offset_of_a_column
+    sql: "SELECT id, LAG(v, k) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_offset_null
+    sql: "SELECT id, LAG(v, NULL) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_offset_fractional
+    sql: "SELECT id, LEAD(v, 1.7) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_offset_past_its_range
+    sql: "SELECT id, LAG(v, 3000000000) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_default_of_a_column
+    sql: "SELECT id, LAG(v, 1, j) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_default_not_a_number
+    sql: "SELECT id, LAG(v, 1, 'abc') OVER (ORDER BY id) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: lag_of_no_argument
+    sql: "SELECT id, LAG() OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: lag_of_four_arguments
+    sql: "SELECT id, LAG(v, 1, 0, 0) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: first_and_last_value_running
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id) AS a, LAST_VALUE(v) OVER (ORDER BY id) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: first_and_last_value_per_partition
+    sql: "SELECT id, FIRST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS a, LAST_VALUE(v) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: first_and_last_value_moving
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS a, LAST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: first_and_last_value_of_each_type
+    sql: "SELECT id, FIRST_VALUE(s) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS a, LAST_VALUE(dt) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS b, FIRST_VALUE(n) OVER (ORDER BY id ROWS 1 PRECEDING) AS c2, LAST_VALUE(d) OVER (ORDER BY id DESC ROWS 1 PRECEDING) AS d2 FROM g ORDER BY id"
+    profile: iq17-default
+  - id: first_value_over_an_empty_frame
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY id ROWS BETWEEN 2 FOLLOWING AND 3 FOLLOWING) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: first_value_respect_nulls
+    sql: "SELECT id, FIRST_VALUE(v RESPECT NULLS) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: first_value_ignore_nulls_is_refused
+    sql: "SELECT id, LAST_VALUE(v IGNORE NULLS) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: first_value_by_a_date_key
+    sql: "SELECT id, FIRST_VALUE(v) OVER (ORDER BY dt) AS a FROM g ORDER BY id"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: first_value_ignore_nulls_after_the_call
+    sql: "SELECT id, FIRST_VALUE(v) IGNORE NULLS OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: first_value_of_two_arguments
+    sql: "SELECT id, FIRST_VALUE(v, 1) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: nth_value_is_no_function
+    sql: "SELECT id, NTH_VALUE(v, 2) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: named_window
+    sql: "SELECT id, ROW_NUMBER() OVER w AS rn, RANK() OVER w AS r, SUM(n) OVER (w ROWS UNBOUNDED PRECEDING) AS rt FROM g WINDOW w AS (PARTITION BY k ORDER BY id) ORDER BY id"
+    profile: iq17-default
+  - id: named_window_given_an_order
+    sql: "SELECT id, ROW_NUMBER() OVER (w ORDER BY id) AS rn, COUNT(*) OVER w AS n FROM g WINDOW w AS (PARTITION BY k) ORDER BY id"
+    profile: iq17-default
+  - id: named_windows_two
+    sql: "SELECT id, SUM(n) OVER a AS x, MAX(k) OVER b AS y FROM g WINDOW a AS (ORDER BY id ROWS 1 PRECEDING), b AS (PARTITION BY j) ORDER BY id"
+    profile: iq17-default
+  - id: named_window_in_another_case
+    sql: "SELECT id, ROW_NUMBER() OVER W AS rn FROM g WINDOW w AS (ORDER BY id) ORDER BY id"
+    profile: iq17-default
+  - id: named_window_twice_the_first_counts
+    sql: "SELECT id, ROW_NUMBER() OVER w AS rn FROM g WINDOW w AS (ORDER BY id), w AS (ORDER BY id DESC) ORDER BY id"
+    profile: iq17-default
+  - id: named_window_with_a_frame_for_a_ranking
+    sql: "SELECT id, ROW_NUMBER() OVER w AS rn FROM g WINDOW w AS (ORDER BY id ROWS UNBOUNDED PRECEDING)"
+    profile: iq17-default
+  - id: named_window_given_a_partition
+    sql: "SELECT id, SUM(k) OVER (w PARTITION BY j) AS s FROM g WINDOW w AS (ORDER BY id)"
+    profile: iq17-default
+  - id: named_window_given_a_second_order
+    sql: "SELECT id, ROW_NUMBER() OVER (w ORDER BY v) AS rn FROM g WINDOW w AS (ORDER BY id)"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: named_window_given_a_second_frame
+    sql: "SELECT id, SUM(k) OVER (w ROWS 1 PRECEDING) AS s FROM g WINDOW w AS (ORDER BY id ROWS UNBOUNDED PRECEDING)"
+    profile: iq17-default
+  - id: named_window_missing
+    sql: "SELECT id, ROW_NUMBER() OVER zz AS rn FROM g"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: named_window_on_a_named_window_is_refused
+    sql: "SELECT id, ROW_NUMBER() OVER w2 AS rn FROM g WINDOW w1 AS (PARTITION BY k), w2 AS (w1 ORDER BY id) ORDER BY id"
+    profile: iq17-default
+  - id: window_clause_before_group_by
+    sql: "SELECT k FROM g WINDOW w AS (ORDER BY k) GROUP BY k"
+    profile: iq17-default
+  - id: window_clause_after_order_by
+    sql: "SELECT id FROM g ORDER BY id WINDOW w AS (ORDER BY id)"
+    profile: iq17-default
+  - id: window_in_where
+    sql: "SELECT id FROM g WHERE ROW_NUMBER() OVER (ORDER BY id) = 1"
+    profile: iq17-default
+  - id: window_alias_in_where
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM g WHERE rn = 1"
+    profile: iq17-default
+  - id: window_in_on
+    sql: "SELECT g.id FROM g JOIN u ON u.id = ROW_NUMBER() OVER (ORDER BY g.id)"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: window_in_group_by
+    sql: "SELECT ROW_NUMBER() OVER (ORDER BY id) AS rn, COUNT(*) AS n FROM g GROUP BY ROW_NUMBER() OVER (ORDER BY id)"
+    profile: iq17-default
+    nondeterministic: "tests IQ's error"
+  - id: ranking_in_having
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k HAVING RANK() OVER (ORDER BY k) = 1"
+    profile: iq17-default
+  - id: lag_in_having
+    sql: "SELECT k, COUNT(*) AS n FROM g GROUP BY k HAVING LAG(k) OVER (ORDER BY k) > 1"
+    profile: iq17-default
+  - id: window_inside_a_window
+    sql: "SELECT id, SUM(ROW_NUMBER() OVER (ORDER BY id)) OVER () AS a FROM g"
+    profile: iq17-default
+  - id: window_inside_an_aggregate
+    sql: "SELECT SUM(ROW_NUMBER() OVER (ORDER BY id)) AS a FROM g"
+    profile: iq17-default
+  - id: window_in_lag
+    sql: "SELECT id, LAG(ROW_NUMBER() OVER (ORDER BY id)) OVER (ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: window_in_order_by
+    sql: "SELECT id FROM g ORDER BY ROW_NUMBER() OVER (ORDER BY v DESC, id), id"
+    profile: iq17-default
+  - id: window_alias_in_order_by
+    sql: "SELECT id, RANK() OVER (ORDER BY k) AS r FROM g ORDER BY r DESC, id"
+    profile: iq17-default
+  - id: window_position_in_order_by
+    sql: "SELECT id, RANK() OVER (ORDER BY k) AS r FROM g ORDER BY 2, 1"
+    profile: iq17-default
+  - id: window_needs_an_alias_here
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: window_compared
+    sql: "SELECT id, CASE WHEN ROW_NUMBER() OVER (ORDER BY id) <= 3 THEN 1 ELSE 0 END AS top3 FROM g ORDER BY id"
+    profile: iq17-default
+  - id: window_beside_star
+    sql: "SELECT *, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM u ORDER BY id"
+    profile: iq17-default
+  - id: window_beside_qualified_star
+    sql: "SELECT x.*, COUNT(*) OVER () AS n FROM u x ORDER BY id"
+    profile: iq17-default
+  - id: window_over_a_join
+    sql: "SELECT g.id, u.label, ROW_NUMBER() OVER (PARTITION BY u.t_id ORDER BY g.id, u.id) AS rn, COUNT(*) OVER (PARTITION BY g.k) AS n FROM g JOIN u ON u.t_id = g.id ORDER BY g.id, u.id"
+    profile: iq17-default
+  - id: window_partitioned_by_an_alias
+    sql: "SELECT id, k * 10 AS kk, ROW_NUMBER() OVER (PARTITION BY kk ORDER BY id) AS rn FROM g ORDER BY id"
+    profile: iq17-default
+  - id: window_of_an_alias
+    sql: "SELECT id, k * 2 AS kk, SUM(kk) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS s FROM g ORDER BY id"
+    profile: iq17-default
+  - id: window_ordered_by_an_alias
+    sql: "SELECT id AS i, ROW_NUMBER() OVER (ORDER BY i DESC) AS rn FROM g ORDER BY i"
+    profile: iq17-default
+  - id: window_partitioned_by_a_constant
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY 'x' ORDER BY id) AS a, ROW_NUMBER() OVER (PARTITION BY -1 ORDER BY id) AS b FROM g ORDER BY id"
+    profile: iq17-default
+  - id: window_partitioned_by_null_is_refused
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY NULL ORDER BY id) AS a FROM g ORDER BY id"
+    profile: iq17-default
+  - id: window_partitioned_by_a_condition
+    sql: "SELECT id, ROW_NUMBER() OVER (PARTITION BY v >= 3 ORDER BY id) AS a FROM g"
+    profile: iq17-default
+  - id: window_reading_an_enclosing_query
+    sql: "SELECT x.id FROM g x WHERE EXISTS (SELECT SUM(y.qty) OVER (PARTITION BY x.k) FROM u y) ORDER BY x.id"
+    profile: iq17-default
+  - id: sum_of_sums
+    sql: "SELECT k, SUM(v) AS s, SUM(SUM(v)) OVER () AS total, SUM(SUM(v)) OVER (ORDER BY k) AS running FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: rank_of_counts
+    sql: "SELECT k, COUNT(*) AS n, RANK() OVER (ORDER BY COUNT(*) DESC) AS r, ROW_NUMBER() OVER (ORDER BY k) AS rn FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: rank_of_group_keys
+    sql: "SELECT j, MAX(v) AS m, DENSE_RANK() OVER (ORDER BY j DESC) AS r FROM g GROUP BY j ORDER BY j"
+    profile: iq17-default
+  - id: running_sum_of_counts
+    sql: "SELECT k, RANK() OVER (ORDER BY COUNT(*)) AS r, SUM(COUNT(*)) OVER (ORDER BY k ROWS UNBOUNDED PRECEDING) AS c FROM g WHERE k IS NOT NULL GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: avg_of_sums
+    sql: "SELECT k, AVG(SUM(v)) OVER () AS a, COUNT(COUNT(*)) OVER () AS c FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: share_of_the_total_is_refused
+    sql: "SELECT k, SUM(v) AS s, SUM(v) * 100 / SUM(SUM(v)) OVER () AS pct FROM g WHERE id < 10 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: window_of_an_ungrouped_column
+    sql: "SELECT k, SUM(v) OVER () AS a FROM g GROUP BY k"
+    profile: iq17-default
+  - id: distinct_over_windows
+    sql: "SELECT DISTINCT k, COUNT(*) OVER (PARTITION BY k) AS n FROM g ORDER BY k"
+    profile: iq17-default
+  - id: distinct_of_row_numbers
+    sql: "SELECT DISTINCT k, ROW_NUMBER() OVER (ORDER BY id) AS rn FROM g ORDER BY rn"
+    profile: iq17-default
+  - id: top_after_the_window
+    sql: "SELECT TOP 3 id, ROW_NUMBER() OVER (ORDER BY id DESC) AS rn FROM g ORDER BY id"
+    profile: iq17-default
+  - id: top_of_a_running_total
+    sql: "SELECT TOP 3 id, SUM(n) OVER (ORDER BY id ROWS UNBOUNDED PRECEDING) AS rt FROM g ORDER BY rt DESC, id"
+    profile: iq17-default
+  - id: top_n_per_group
+    sql: "SELECT x.k, x.id, x.v FROM (SELECT k, id, v, ROW_NUMBER() OVER (PARTITION BY k ORDER BY v DESC, id) AS rn FROM g) x WHERE x.rn <= 2 ORDER BY x.k, x.id"
+    profile: iq17-default
+  - id: top_rank_per_group
+    sql: "SELECT * FROM (SELECT id, k, RANK() OVER (PARTITION BY j ORDER BY k) AS r FROM g) d WHERE d.r = 1 ORDER BY id"
+    profile: iq17-default
+  - id: window_in_a_cte
+    sql: "WITH r AS (SELECT id, k, ROW_NUMBER() OVER (PARTITION BY k ORDER BY id) AS rn FROM g) SELECT id, rn FROM r WHERE rn = 1 ORDER BY id"
+    profile: iq17-default
+  - id: window_in_a_scalar_subquery
+    sql: "SELECT id, (SELECT MAX(z.r) FROM (SELECT ROW_NUMBER() OVER (ORDER BY y.id) AS r FROM u y) z) AS m FROM g WHERE id < 3 ORDER BY id"
+    profile: iq17-default
+  - id: window_in_exists
+    sql: "SELECT id FROM g x WHERE EXISTS (SELECT ROW_NUMBER() OVER (ORDER BY y.id) FROM u y WHERE y.t_id = x.id) ORDER BY id"
+    profile: iq17-default
+  - id: window_in_an_in_subquery
+    sql: "SELECT id FROM g WHERE id IN (SELECT ROW_NUMBER() OVER (ORDER BY y.id) FROM u y) ORDER BY id"
+    profile: iq17-default
+  - id: window_in_an_any_subquery
+    sql: "SELECT id FROM g WHERE id = ANY (SELECT SUM(y.id) OVER (ORDER BY y.id ROWS UNBOUNDED PRECEDING) FROM u y) ORDER BY id"
+    profile: iq17-default
+  - id: window_in_a_derived_table_in_an_in_subquery
+    sql: "SELECT id FROM g WHERE id IN (SELECT d.r FROM (SELECT ROW_NUMBER() OVER (ORDER BY y.id) AS r FROM u y) d) ORDER BY id"
+    profile: iq17-default
+  - id: window_in_a_union
+    sql: "SELECT id, COUNT(*) OVER () AS n FROM g WHERE id < 3 UNION ALL SELECT id, COUNT(*) OVER () FROM u ORDER BY 1, 2"
+    profile: iq17-default
+  - id: report_running_total_by_group
+    sql: "SELECT k, id, n, SUM(n) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running FROM g WHERE k IS NOT NULL ORDER BY k, id"
+    profile: iq17-default
+  - id: report_rank_within_group
+    sql: "SELECT j, id, k, RANK() OVER (PARTITION BY j ORDER BY k DESC) AS r, DENSE_RANK() OVER (PARTITION BY j ORDER BY k DESC) AS dr FROM g ORDER BY j, id"
+    profile: iq17-default
+  - id: report_top_two_per_group
+    sql: "SELECT q.j, q.id, q.n FROM (SELECT j, id, n, ROW_NUMBER() OVER (PARTITION BY j ORDER BY n DESC, id) AS rn FROM g) q WHERE q.rn <= 2 ORDER BY q.j, q.rn"
+    profile: iq17-default
+  - id: report_moving_sum_of_three
+    sql: "SELECT id, n, SUM(n) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS s3, COUNT(n) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS c3 FROM g ORDER BY id"
+    profile: iq17-default
+  - id: report_moving_average_of_three
+    sql: "SELECT id, n, AVG(n) OVER (ORDER BY id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS ma3 FROM g WHERE id < 10 ORDER BY id"
+    profile: iq17-default
+  - id: report_change_from_the_previous_row
+    sql: "SELECT id, k, k - LAG(k, 1) OVER (PARTITION BY j ORDER BY id) AS change FROM g ORDER BY id"
+    profile: iq17-default
+  - id: report_share_of_rows_per_group
+    sql: "SELECT DISTINCT k, COUNT(*) OVER (PARTITION BY k) AS rows_in_k, COUNT(*) OVER () AS rows_in_all FROM g ORDER BY k"
+    profile: iq17-default
+  - id: report_first_and_last_in_group
+    sql: "SELECT id, k, FIRST_VALUE(id) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_id, LAST_VALUE(id) OVER (PARTITION BY k ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_id FROM g ORDER BY id"
+    profile: iq17-default
+  - id: report_leaderboard
+    sql: "SELECT id, vc, nm, RANK() OVER (ORDER BY nm DESC) AS place, CUME_DIST() OVER (ORDER BY nm DESC) AS top_share FROM t WHERE nm IS NOT NULL ORDER BY place, id"
+    profile: iq17-default
+  - id: report_quartiles
+    sql: "SELECT id, it, NTILE(4) OVER (ORDER BY it, id) AS quartile FROM t ORDER BY id"
+    profile: iq17-default
+  - id: report_dedup_latest_per_key
+    sql: "SELECT q.t_id, q.id, q.label FROM (SELECT t_id, id, label, ROW_NUMBER() OVER (PARTITION BY t_id ORDER BY id DESC) AS rn FROM u) q WHERE q.rn = 1 ORDER BY q.id"
+    profile: iq17-default
+  - id: report_gap_to_the_next_date
+    sql: "SELECT id, dt, LEAD(dt) OVER (ORDER BY dt, id) AS next_dt FROM g WHERE dt IS NOT NULL ORDER BY id"
+    profile: iq17-default
+  - id: report_year_to_date
+    sql: "SELECT id, dt, SUM(n) OVER (PARTITION BY YEAR(dt) ORDER BY dt, id ROWS UNBOUNDED PRECEDING) AS ytd FROM g WHERE dt IS NOT NULL ORDER BY id"
+    profile: iq17-default

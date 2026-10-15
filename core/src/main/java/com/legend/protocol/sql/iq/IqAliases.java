@@ -444,6 +444,9 @@ final class IqAliases {
                 SqlAst.Statement s = inner(q.query(), p);
                 yield l == q.left() && s == q.query() ? q : new SqlAst.Quantified(q.op(), q.all(), l, s, q.pos());
             }
+            // IQ island, 2026-10-15 (windows): an alias in a window's arguments, PARTITION BY and ORDER BY is read as
+            // anywhere (measured on IQ 17.1: PARTITION BY an alias, SUM(alias) OVER ...)
+            case SqlAst.Window w -> IqWindows.rebuilt(w, x -> expr(x, p), this::copied);
             default -> {
                 if (!IqDialect.children(e).isEmpty()) {
                     throw new IllegalStateException("the #IQ{...}# alias reader does not walk "
@@ -712,6 +715,8 @@ final class IqAliases {
             case SqlAst.Exists q -> new SqlAst.Exists(q.query(), q.pos());
             case SqlAst.InSubquery q -> new SqlAst.InSubquery(copy(q.operand()), q.query(), q.negated(), q.pos());
             case SqlAst.Quantified q -> new SqlAst.Quantified(q.op(), q.all(), copy(q.left()), q.query(), q.pos());
+            // IQ island, 2026-10-15 (windows)
+            case SqlAst.Window w -> IqWindows.copied(w, this::copy, this::copied);
             default -> throw new IllegalStateException("the #IQ{...}# alias reader does not copy "
                     + e.getClass().getSimpleName() + " yet");
         };

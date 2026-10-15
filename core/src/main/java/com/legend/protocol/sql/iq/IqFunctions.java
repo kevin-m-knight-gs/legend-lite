@@ -1156,6 +1156,25 @@ final class IqFunctions {
                 && whole1 + Math.max(-k, 0) + s1 <= 38);
     }
 
+    /**
+     * IQ island, 2026-10-15 (windows): {@code x / y} cut toward zero at scale {@code s}, exactly -- the IQ engine's AVG
+     * (measured on IQ 17.1: the AVG of 1, 1 and 3 is 1.6666666666666666, at its 16 places) -- for {@code x} a
+     * decimal of scale {@code s1} with at most {@code whole1} digits before its point, and {@code y} a whole decimal of
+     * at most {@code whole2} digits, above 0: n = |x| * 10^s, its whole quotient by y ({@link #whole}), at scale s, with
+     * x's sign. Null where a step would need more than lite's 38 digits.
+     */
+    static @com.legend.base.Nullable ValueSpecification cutQuotient(ValueSpecification x, int s1, int whole1,
+            ValueSpecification y, int whole2, int s) {
+        if (whole1 + s + s1 + 1 > 38 || whole2 + s1 + 1 > 38) {
+            return null;
+        }
+        ValueSpecification ax = SqlToPure.call("abs", x);
+        ValueSpecification n = s > 0 ? times(ax, new CDecimal(pow10(s))) : ax;
+        ValueSpecification m = whole(n, y, pow10(whole1 + s));
+        BigDecimal unit = pow10(-s);
+        return times(m, ifThen(lt(x, integer(0)), new CDecimal(unit.negate()), new CDecimal(unit)));
+    }
+
     /** Whether {@link #remainder}'s operands at one scale fit lite's 38 digits. */
     static boolean remainderFits(int s1, int whole1, int s2, int whole2) {
         int scale = Math.max(s1, s2);

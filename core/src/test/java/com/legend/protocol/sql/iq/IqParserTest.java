@@ -128,7 +128,6 @@ class IqParserTest {
                 {"SELECT id FROM t GROUP BY (id, vc)", "composite"},
                 {"SELECT stddev(id) FROM t", "loses precision"},
                 {"SELECT corr(id, id) FROM t", "aggregate"},
-                {"SELECT count(*) OVER () FROM t", "OVER"},
                 {"SELECT dba.f(id) FROM t", "owner-qualified"},
                 // IQ island, 2026-10-14 (M1a): LIKE, IN lists and the truth tests are read now; these are not
                 {"SELECT id FROM t WHERE vc SIMILAR TO 'a%'", "SIMILAR"},

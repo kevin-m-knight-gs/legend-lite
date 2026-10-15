@@ -790,6 +790,13 @@ public final class IqParity {
             }
             // IQ island, 2026-10-14 (M1d): CAST and CONVERT
             case SqlAst.Cast c -> List.of(c.operand());
+            // IQ island, 2026-10-15 (windows): a window call's arguments and keys
+            case SqlAst.Window w -> {
+                List<SqlAst.Expr> all = new ArrayList<>(w.call().args());
+                all.addAll(w.spec().partitionBy());
+                w.spec().orderBy().forEach(o -> all.add(o.expr()));
+                yield all;
+            }
             default -> List.of();
         };
     }
@@ -816,7 +823,10 @@ public final class IqParity {
      *       of its unique columns, unless an inner join's ON or the WHERE equates one with a column of an item they
      *       order;</li>
      *   <li>a LIST without its own ORDER BY, unless it lists a GROUP BY key of its query or a constant (its values
-     *       are one).</li>
+     *       are one);</li>
+     *   <li>IQ island, 2026-10-15 (windows): a window function that reads its window's rows in its order (ROW_NUMBER,
+     *       NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, an aggregate over a ROWS frame) whose PARTITION BY and ORDER BY
+     *       keys reach no unique column of a FROM item, as a row limit's must ({@link #unorderedWindows}).</li>
      * </ul>
      * A limit over at most one row (no FROM, DUMMY, an aggregate without GROUP BY) needs no ORDER BY, nor does one
      * inside EXISTS, which reads only whether a row is kept (SQL Anywhere rejects an ORDER BY there, -131). A case
@@ -876,10 +886,123 @@ public final class IqParity {
             if (q instanceof SqlAst.Select s) {
                 for (SqlAst.Expr e : clauses(s)) {
                     unorderedLists(e, s, byName, found);
+                    unorderedWindows(e, s, byName, found);
                 }
             }
         }
         return found;
+    }
+
+    /** IQ island, 2026-10-15 (windows): the window functions that read their window's rows in its order. */
+    private static final Set<String> ORDERED_WINDOWS = Set.of("row_number", "ntile", "lag", "lead", "first_value",
+            "last_value");
+
+    /**
+     * IQ island, 2026-10-15 (windows): each window call under {@code e} (in {@code s}) whose value is one plan's choice,
+     * in a few words, into {@code out}: ROW_NUMBER, NTILE, LAG, LEAD, FIRST_VALUE and LAST_VALUE, and an aggregate over
+     * a ROWS frame other than the whole partition, read rows in the window's order, so its PARTITION BY and ORDER BY
+     * keys together must reach a unique column of each FROM item, as a row limit's ORDER BY must ({@link #limitProblem}:
+     * a grouped query's keys, all of them). RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST and RANGE frames give ties one
+     * value.
+     */
+    private static void unorderedWindows(SqlAst.Expr e, SqlAst.Select s, Map<String, SqlParity.Table> tables,
+            List<String> out) {
+        if (e instanceof SqlAst.Window w) {
+            SqlAst.WindowSpec spec = w.spec();
+            for (int guard = 0; spec.base() != null && guard <= s.windows().size(); guard++) {
+                String base = java.util.Objects.requireNonNull(spec.base()).text().toLowerCase(Locale.ROOT);
+                SqlAst.WindowSpec named = null;
+                for (SqlAst.NamedWindow n : s.windows()) {
+                    if (named == null && n.name().text().toLowerCase(Locale.ROOT).equals(base)) {
+                        named = n.spec();
+                    }
+                }
+                if (named == null) {
+                    break;
+                }
+                spec = new SqlAst.WindowSpec(named.base(), named.partitionBy(), spec.orderBy().isEmpty()
+                        ? named.orderBy() : spec.orderBy(), spec.frame() != null ? spec.frame() : named.frame(),
+                        spec.pos());
+            }
+            String fn = w.call().name().get(w.call().name().size() - 1).text().toLowerCase(Locale.ROOT);
+            SqlAst.Frame frame = spec.frame();
+            boolean rows = frame != null && frame.unit() == SqlAst.FrameUnit.ROWS
+                    && !(frame.start().kind() == SqlAst.BoundKind.UNBOUNDED_PRECEDING
+                    && frame.end().kind() == SqlAst.BoundKind.UNBOUNDED_FOLLOWING);
+            if (ORDERED_WINDOWS.contains(fn) || rows) {
+                String why = windowOrder(spec, s, tables);
+                if (why != null) {
+                    out.add("the window at line " + w.pos().line() + ", column " + w.pos().column() + " " + why
+                            + " (" + fn.toUpperCase(Locale.ROOT) + (rows && !ORDERED_WINDOWS.contains(fn)
+                            ? " over a ROWS frame" : "") + " reads its rows in the window's order)");
+                }
+            }
+        }
+        for (SqlAst.Expr child : subexpressions(e)) {
+            unorderedWindows(child, s, tables, out);
+        }
+    }
+
+    /** Why {@code spec}'s keys order no row of {@code s} totally ({@link #unorderedWindows}); null when they do. */
+    private static @com.legend.base.Nullable String windowOrder(SqlAst.WindowSpec spec, SqlAst.Select s,
+            Map<String, SqlParity.Table> tables) {
+        if (oneRow(s, tables)) {
+            return null;
+        }
+        List<Source> sources = sources(s, tables);
+        List<String> keys = new ArrayList<>();
+        for (SqlAst.Expr k : spec.partitionBy()) {
+            String r = resolve(k, s, sources, true);
+            if (r != null) {
+                keys.add(r);
+            }
+        }
+        for (SqlAst.SortItem o : spec.orderBy()) {
+            String r = resolve(o.expr(), s, sources, true);
+            if (r != null) {
+                keys.add(r);
+            }
+        }
+        if (!s.groupBy().isEmpty()) {
+            for (SqlAst.Expr g : s.groupBy()) {
+                String k = resolve(g, s, sources, true);
+                if (k == null || !keys.contains(k)) {
+                    return "orders a grouped query by fewer than its GROUP BY keys";
+                }
+            }
+            return null;
+        }
+        boolean[] reached = new boolean[sources.size()];
+        for (int i = 0; i < sources.size(); i++) {
+            Source src = sources.get(i);
+            reached[i] = src.oneRow();
+            for (String u : src.unique()) {
+                reached[i] |= keys.contains(i + "." + u);
+            }
+        }
+        List<SqlAst.Expr> equalities = new ArrayList<>();
+        if (s.where() != null) {
+            conjuncts(java.util.Objects.requireNonNull(s.where()), equalities);
+        }
+        for (SqlAst.FromItem f : s.from()) {
+            innerOns(f, equalities);
+        }
+        for (boolean more = true; more; ) {
+            more = false;
+            for (SqlAst.Expr eq : equalities) {
+                if (eq instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.EQ) {
+                    more |= determines(resolve(b.left(), s, sources, false), resolve(b.right(), s, sources, false),
+                            sources, reached) | determines(resolve(b.right(), s, sources, false),
+                            resolve(b.left(), s, sources, false), sources, reached);
+                }
+            }
+        }
+        for (int i = 0; i < sources.size(); i++) {
+            if (!reached[i]) {
+                return "orders by no unique column of " + sources.get(i).label();
+            }
+        }
+        return null;
     }
 
     /** A query's row limit that keeps rows of its plan's choosing, in a few words; null for none (IQ's reader puts a
@@ -1517,6 +1640,8 @@ public final class IqParity {
             // IQ island, landing 4 (WP1): a run the live IQ cannot judge here (snap.sh --oracle iq says why)
             return new SqlParity.Outcome(SqlParity.Status.SKIP, "not judged by the live IQ: " + snap.notJudged());
         }
+        // IQ island, 2026-10-15 (windows): a decision written in full judges by its own columns (IqAnswers.judged)
+        snap = IqAnswers.judged(run, snap);
         SqlParity.Answer expected = IqAnswers.expected(run, snap);
         com.legend.exec.ExecutionResult result;
         try {
