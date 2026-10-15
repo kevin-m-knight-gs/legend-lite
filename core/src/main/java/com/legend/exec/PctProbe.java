@@ -46,9 +46,11 @@ public final class PctProbe {
                                 : SqlType.Scalar.VARCHAR;
                 outs.add(new OutputCol(md.getColumnName(i), slot, true));
                 // typed by its dialect's typing reading; a name that does not say the type (Snowflake's NUMBER)
-                // stays the driver's own, outside the wire vocabulary, which the Pure-type table refuses, naming it
+                // types nothing, and the column is absent (PlanProbe.typeName refuses it)
                 String typing = dialect.typingWireName(driverType);
-                typeNames.put(md.getColumnName(i), typing != null ? typing : String.valueOf(driverType));
+                if (typing != null) {
+                    typeNames.put(md.getColumnName(i), typing);
+                }
             }
             return new PlanProbe(outs, typeNames);
         } catch (java.sql.SQLException e) {

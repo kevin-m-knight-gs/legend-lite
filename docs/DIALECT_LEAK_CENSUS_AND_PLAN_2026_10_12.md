@@ -833,6 +833,17 @@ Size: about 400 lines.
   - **The owner guard read a dialect's parent from the raw source.** A comment, or a nested class extending another
     dialect, named that dialect's database for the whole file. It now reads `class <File> extends <Parent>` in code
     only, and a test pins this.
+  - **Two more guard holes, closed in `DialectOwnerExclusivityTest`:**
+    - Vocabulary code could pick one database by a literal, `DatabaseType.valueOf("H2")`, which the check stripped as
+      a name read from the model. A literal argument is flagged now; a name read from the model still passes.
+    - A dialect could be decided by asking which class it is: `instanceof EngineStyleComposite`, or
+      `getSimpleName().equals("Postgres")`. No name in either says a database, so no check saw them. Main code may
+      now neither `instanceof` nor `.class` a dialect class, nor compare a simple name; nothing does today. The
+      test was checked by planting `instanceof Postgres` in `PctProbe`.
+  - **The PCT probe no longer falls back to the driver's name.** 299295f kept a refused column's driver name in the
+    probe's map, and that is safe only while the platform's table does not know the name; SQLite's `NUMERIC` would
+    have typed Decimal behind its dialect's back. A refused column is now absent, and `PlanProbe.typeName` refuses it
+    by name.
   - SQLite's `NUMERIC`, which its driver gives a column whose first value is NULL, now types nothing. Before Phase 4
     it typed Decimal, which was also a guess. Lanes 1b measure whether any test moved.
 

@@ -56,6 +56,11 @@ class DialectOwnerExclusivityTest {
     /** {@code DatabaseType.valueOf} and {@code .values()}: the vocabulary reading a name, deciding nothing. */
     private static final Pattern ANY_TYPE = Pattern.compile("\\bDatabaseType\\s*\\.\\s*(valueOf|values)\\b");
 
+    /** {@code DatabaseType.valueOf("H2")}: one database by its name in a string, which {@link #ANY_TYPE} would pass
+     *  (2026-10-15, the audit of the owner guard's hole c). Read on the line as written, comments blank. */
+    private static final Pattern TYPE_BY_LITERAL =
+            Pattern.compile("\\bDatabaseType\\s*\\.\\s*valueOf\\s*\\(\\s*\"");
+
     private static final List<String> MAIN_ROOTS = List.of("core/src/main/java", "core/src/main/duckdb");
 
     @Test
@@ -102,6 +107,84 @@ class DialectOwnerExclusivityTest {
                 + failures);
     }
 
+    /** A question about which dialect a value is, by its class: {@code instanceof} or {@code .class} of a dialect
+     *  class, or its simple name compared. A dialect answers for itself; asking which one it is decides by a name
+     *  this guard cannot read when the class's name holds no database's (2026-10-15, the audit of the owner guard's
+     *  hole b: {@code instanceof EngineStyleComposite}, {@code getSimpleName().equals("Postgres")}). */
+    private static final Pattern BY_SIMPLE_NAME = Pattern.compile(
+            "getSimpleName\\s*\\(\\s*\\)\\s*\\.\\s*(equals|equalsIgnoreCase|startsWith|endsWith|contains)\\b"
+                    + "|\\b(equals|equalsIgnoreCase)\\s*\\([^;]*getSimpleName|\\bswitch\\s*\\([^)]*getSimpleName");
+
+    @Test
+    void noDialectIsDecidedByItsClass() throws IOException {
+        Map<String, String> sources = new TreeMap<>();
+        for (Path f : SourceFiles.under(MAIN_ROOTS.get(0), MAIN_ROOTS.subList(1, MAIN_ROOTS.size())
+                .toArray(String[]::new))) {
+            String rel = SourceFiles.path(f);
+            if (rel.endsWith(".java")) {
+                sources.put(rel, String.join("\n", DialectLeakRatchetTest.lex(Files.readString(f)).code()));
+            }
+        }
+        // the dialect classes: SqlDialect's implementations in sql/dialect, by their extends chains
+        Set<String> dialects = new java.util.HashSet<>(Set.of("SqlDialect", "AnsiSqlRenderer"));
+        Pattern declared = Pattern.compile("\\bclass\\s+(\\w+)\\s*(?:extends\\s+(\\w+))?([^{]*)\\{");
+        Pattern implementsDialect = Pattern.compile("\\bimplements\\b.*\\bSqlDialect\\b", Pattern.DOTALL);
+        for (boolean grew = true; grew; ) {
+            grew = false;
+            for (var e : sources.entrySet()) {
+                if (!e.getKey().contains("/sql/dialect/")) {
+                    continue;
+                }
+                var m = declared.matcher(e.getValue());
+                while (m.find()) {
+                    if ((m.group(2) != null && dialects.contains(m.group(2))
+                            || implementsDialect.matcher(m.group(3)).find()) && dialects.add(m.group(1))) {
+                        grew = true;
+                    }
+                }
+            }
+        }
+        dialects.removeAll(Set.of("SqlDialect", "AnsiSqlRenderer"));
+        Pattern byClass = Pattern.compile("\\binstanceof\\s+(?:[\\w.]+\\.)?(" + String.join("|", dialects)
+                + ")\\b|\\b(" + String.join("|", dialects) + ")\\s*\\.\\s*class\\b");
+        List<String> failures = new ArrayList<>();
+        sources.forEach((rel, code) -> {
+            String[] lines = code.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                if (byClass.matcher(lines[i]).find() || BY_SIMPLE_NAME.matcher(lines[i]).find()) {
+                    failures.add(rel + ":" + (i + 1));
+                }
+            }
+        });
+        assertTrue(dialects.containsAll(Set.of("DuckDb", "MySql", "H2Modern", "EngineStyleComposite")),
+                "the dialect classes were not all found by their extends chains: " + dialects);
+        assertTrue(failures.isEmpty(), "a dialect is decided by asking which class it is: let the dialect answer"
+                + " (a method on SqlDialect it overrides), " + failures);
+    }
+
+    /** Line {@code i} as written, its comments blank: the lexer keeps the code and the strings column for column. */
+    private static String written(DialectLeakRatchetTest.Lines lines, int i) {
+        String code = lines.code().get(i);
+        String strings = lines.strings().get(i);
+        StringBuilder out = new StringBuilder(code.length());
+        for (int k = 0; k < code.length(); k++) {
+            char s = k < strings.length() ? strings.charAt(k) : ' ';
+            out.append(s != ' ' ? s : code.charAt(k));
+        }
+        return out.toString();
+    }
+
+    /** A literal name read as a database type is a decision by that name; a name read from the model is not. */
+    @Test
+    void aDatabaseTypeByALiteralIsSeen() {
+        var picked = DialectLeakRatchetTest.lex("t = DatabaseType.valueOf(\"H2\"); // DatabaseType.valueOf(\"X\")");
+        assertTrue(TYPE_BY_LITERAL.matcher(written(picked, 0)).find());
+        var read = DialectLeakRatchetTest.lex("t = DatabaseType.valueOf(r.databaseType()); /* valueOf(\"H2\") */");
+        assertTrue(!TYPE_BY_LITERAL.matcher(written(read, 0)).find());
+        var commented = DialectLeakRatchetTest.lex("// DatabaseType.valueOf(\"H2\")");
+        assertTrue(!TYPE_BY_LITERAL.matcher(written(commented, 0)).find());
+    }
+
     @Test
     void aVocabularyOwnerCarriesADatabasesNameAndDecidesNothingByIt() throws IOException {
         List<String> failures = new ArrayList<>();
@@ -125,6 +208,9 @@ class DialectOwnerExclusivityTest {
                 }
                 if (DialectLeakRatchetTest.JDBC_URL.matcher(lines.strings().get(i)).find()) {
                     failures.add(rel + ":" + (i + 1) + " jdbc-url");
+                }
+                if (TYPE_BY_LITERAL.matcher(written(lines, i)).find()) {
+                    failures.add(rel + ":" + (i + 1) + " database-type by a literal");
                 }
             }
         }

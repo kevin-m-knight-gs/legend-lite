@@ -105,4 +105,13 @@ class WireTypeNamesTest {
         // no other database's driver gives the name, so the names every driver's reading folds do not hold it
         assertEquals("NUMBER", WireNames.fold("NUMBER"));
     }
+
+    /** A probed column its dialect does not type by name is absent from the probe's type names, and the lookup refuses
+     *  it: no fallback to the driver's own name (SQLite's NUMERIC would type Decimal) or to the probe's slot. */
+    @Test
+    void aProbedColumnWithNoTypeIsRefusedNotGuessed() {
+        var probe = new com.legend.sql.PlanProbe(java.util.List.of(), Map.of("a", "BIGINT"));
+        assertEquals("BIGINT", probe.typeName("a"));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> probe.typeName("n"));
+    }
 }
