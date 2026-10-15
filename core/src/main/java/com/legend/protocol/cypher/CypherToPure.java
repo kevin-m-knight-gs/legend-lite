@@ -1006,7 +1006,8 @@ public final class CypherToPure {
                         pos);
             }
             String cls = java.util.Objects.requireNonNull(b.classPath());
-            Property prop = property(cls, name);
+            // the outer class's lookup: this scope's own property(Prop) shadows its name
+            Property prop = CypherToPure.this.property(cls, name);
             if (prop == null) {
                 throw CypherErrors.invalid("the class " + cls + " has no property " + name + " (the"
                         + " graph is the model: a property a class does not declare is an error, not null)", pos);
