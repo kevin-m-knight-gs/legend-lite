@@ -1000,8 +1000,15 @@ slices burn down. Two things it took first:
   - *Why it was reverted.* The PR's CI (neema2/legend-lite#30) showed two tests that rely on Postgres keeping a
     store's names as declared and quoted (`"EMP"."firstName"`): `#SQL{...}#`'s Postgres fixture, which creates its
     table with quoted mixed-case names, and DataCube's `infer.test.ts`.
-  - *Where it stands.* Postgres spells a store's names as before, and the 77 are to be re-measured. Which case a bare
-    store name has on Postgres is an open decision. It is listed in docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md.
+  - *Where it stands (2026-10-14).* Decided: fold (decision D8, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md,
+    Phase 1d), with the review's two prerequisites and the two kinds of test following the rule. The 77 re-measured
+    on the branch: **53 pass** with folding (1447d42), **0** without it (821398a: every test stops in the shared
+    setup, `relation "addresstable" does not exist`, the corpus's bare setup text against the quoted spelling). The
+    24 left are Postgres gaps, not names: jsonb delivered as `PGobject` (7, the connector's cells, the plan's Phase
+    5), collections and variants over jsonb (5, leg P4), nested checked defects (2), a `bit` column the setup text
+    fills with an integer, a list of unknown type, `strptime`, four statements Postgres refuses (an ordering on json,
+    a `UNION` of bigint and text, a varchar compared with an integer, a `${GMTtoTZ}` template left in the SQL) and
+    three wrong or unjudged answers to trace (one count, one SQL-text row verdict, one referee fault).
 
 ## 21. Postgres: its own pins burned down (2026-10-12)
 

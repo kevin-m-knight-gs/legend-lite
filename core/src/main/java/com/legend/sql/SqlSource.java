@@ -60,9 +60,14 @@ public sealed interface SqlSource {
      *  {@code storedTypes}: the columns' DECLARED store types, by bare name -- what the database
      *  holds, which a column's {@code outputs} type (the value as read) does not say. A dialect reads
      *  a stored type the platform cannot use as held (docs/STORE_TYPES_HOMEWORK_2026_10_02.md).
-     *  Empty for a table nothing declared (a synthetic CTE, the calendar table). */
+     *  Empty for a table nothing declared (a synthetic CTE, the calendar table).
+     *
+     *  {@code name} is the table's text, {@code schema.table} for a schema's, bare (no quote characters): the
+     *  identity every reader looks it up by. {@code quoting}: which parts the store declared quoted, which the
+     *  dialect delimits, their case kept ({@link NameQuoting}; {@link NameQuoting#BARE} for every name the
+     *  platform makes). */
     record Table(String name, String alias, List<OutputCol> outputs, boolean call,
-            java.util.Map<String, SqlDdl.ColumnType> storedTypes) implements SqlSource {
+            java.util.Map<String, SqlDdl.ColumnType> storedTypes, NameQuoting quoting) implements SqlSource {
         public Table {
             storedTypes = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(storedTypes));
         }
@@ -131,13 +136,17 @@ public sealed interface SqlSource {
                   List<OutputCol> outputs) implements SqlSource {
     }
 
-    /** A CORPUS-AUTHORED raw SQL text as a relation source —
+    /** An AUTHORED raw SQL text as a relation source —
      * {@code (rawSql) AS alias} (One-Platform Plan Phase 1: the typed
      * {@code executeInDb} result grid; columns from the LIMIT-0 schema
      * probe). The text is CARRIED data (a user/test-authored query),
-     * never platform-composed SQL — the SQL-text ratchet's distinction. */
-    record RawSql(String sql, String alias, List<OutputCol> outputs)
-            implements SqlSource {
+     * never platform-composed SQL — the SQL-text ratchet's distinction.
+     * {@code writtenFor} is the database its connection declares (that
+     * type's name): the dialect translates the engine's H2 text and runs
+     * any other as written (decision D2); null for the platform's own
+     * text (a catalog grid's), written in the session's language. */
+    record RawSql(String sql, String alias, List<OutputCol> outputs,
+            @com.legend.base.Nullable String writtenFor) implements SqlSource {
     }
 
     /** {@code on} is KIND-COUPLED, enforced at construction: the CROSS

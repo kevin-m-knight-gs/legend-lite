@@ -121,9 +121,27 @@ class PostgresCatalogTest {
                 + "->filter(x|$x.ip->toOne()->contains('10.'))->select(~[id, ip, ia, j])").plan("t::RT").sql();
         // every Postgres type has a text form: an inet is searched as text, an array is shown as text,
         // and json is read as jsonb -- never cast an array to jsonb
-        assertTrue(sql.contains("strpos(CAST(\"t0\".\"ip\" AS VARCHAR), '10.')"), sql);
-        assertTrue(sql.contains("CAST(\"t0\".\"ia\" AS VARCHAR)"), sql);
-        assertTrue(sql.contains("CAST(\"t0\".\"j\" AS JSONB)"), sql);
+        assertTrue(sql.contains("strpos(CAST(\"t0\".ip AS VARCHAR), '10.')"), sql);
+        assertTrue(sql.contains("CAST(\"t0\".ia AS VARCHAR)"), sql);
+        assertTrue(sql.contains("CAST(\"t0\".j AS JSONB)"), sql);
+    }
+
+    /** A catalog name that is not its own fold (a table made with {@code CREATE TABLE "Orders"}) is declared quoted,
+     *  so the store reaches it under Postgres's folding (decision D8); a lower-case name is declared bare and spelled
+     *  bare. */
+    @Test
+    void aMixedCaseCatalogNameIsDeclaredQuoted_andReadWithItsCase() {
+        CatalogModel.Database db = CatalogModel.database("t::DB", "sales", "Orders",
+                List.of(col("customerId", "bigint", "int8"), col("region", "text", "text")), new Postgres(), false);
+        assertTrue(db.text().contains("Table \"Orders\""), db.text());
+        assertTrue(db.text().contains("\"customerId\" BIGINT"), db.text());
+        assertTrue(db.text().contains("region VARCHAR(4096)"), db.text());
+        assertEquals("#>{t::DB.sales.\"Orders\"}#", db.accessor());
+        String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()
+                + "->select(~[customerId, region])").plan("t::RT").sql();
+        assertTrue(sql.contains("FROM sales.\"Orders\""), sql);
+        assertTrue(sql.contains("\"t0\".\"customerId\""), sql);
+        assertTrue(sql.contains("\"t0\".region"), sql);
     }
 
     @Test

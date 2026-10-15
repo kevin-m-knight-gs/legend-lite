@@ -13,6 +13,7 @@ import com.legend.sql.SqlType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The ClickHouse EXECUTION dialect (ClickHouse 25.8, its Memory engine; 2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md
@@ -45,7 +46,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
 
     /** The settings every statement carries: SQL's NULLs for an outer join's missing side, a bare UNION distinct, a cast
      *  keeping its value's NULL, the zone UTC (the platform's naive-UTC contract). An aggregate's NULL over no row is
-     *  each aggregate's own {@code OrNull} form ({@link #aggregateName}): {@code aggregate_functions_null_for_empty}
+     *  each aggregate's own {@code OrNull} form ({@link #reducerIn}): {@code aggregate_functions_null_for_empty}
      *  makes {@code groupArray} a NULLABLE array, which ClickHouse refuses (measured). And a CASE's branch runs only
      *  where its guard holds: the planner's merge of a subquery's expressions into its reader's drops that (a guarded
      *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off. */
@@ -68,13 +69,51 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  an EXISTS, IN written as EXISTS, or a quantified comparison. */
     private final boolean[] correlatedExists = {false};
 
+    /** ClickHouse (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19): double quotes (case-sensitive names). The
+     *  {@code ClickHouse} dialect quotes every identifier, so this list decides no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "all", "and", "any", "array", "as", "asc", "asof", "between", "by", "case", "cast", "cross", "desc",
+            "distinct", "else", "end", "except", "exists", "false", "final", "format", "from", "full", "global",
+            "group", "having", "in", "inner", "interval", "into", "is", "join", "left", "like", "limit", "not", "null",
+            "offset", "on", "or", "order", "outer", "prewhere", "qualify", "right", "sample", "select", "settings",
+            "then", "true", "union", "using", "when", "where", "window", "with"));
+
+    /** ClickHouse (2026-10-12): typed native arrays with lambdas -- the strategies stand aside; FULL OUTER, the
+     *  as-of join and QUALIFY are native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public ClickHouse() {
-        super(Lexicon.CLICKHOUSE, TypeNames.CLICKHOUSE, Spellings.CLICKHOUSE);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
+
+    /** The engine's H2 text is refused here: ClickHouse has no translation of it (decision D2: raw text runs on the
+     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+    @Override
+    public String fromEngineH2(String statement) {
+        throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
+    }
+
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "Nullable(Bool)";
+            case INTEGER -> "Nullable(Int32)";
+            case BIGINT -> "Nullable(Int64)";
+            case HUGEINT -> "Nullable(Int128)";
+            case DOUBLE -> "Nullable(Float64)";
+            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "Nullable(String)";
+            case DATE -> "Nullable(Date32)";
+            case TIMESTAMP, TIMESTAMPTZ -> "Nullable(DateTime64(6, 'UTC'))";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
 
     /** No session: the driver speaks HTTP, statement by statement; the settings ride each statement. */
     @Override
@@ -94,7 +133,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  exclusion and the as-of join are native. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.CLICKHOUSE), new PivotAsGroupBy(),
+        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
                 new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)), new ConstantKeysAsExpressions(),
@@ -644,7 +683,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
     /** A Tuple; a field that is itself a struct is its {@code Variant}, which holds NULL (an absent instance: a Tuple
      *  is never NULL, measured) and is read through {@link #structGet}. */
     @Override
-    protected String structTypeName(List<java.util.Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         StringBuilder sb = new StringBuilder("Tuple(");
         for (int i = 0; i < fields.size(); i++) {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(" ")
@@ -1476,30 +1516,75 @@ public final class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        // two instances' equality: a Tuple's = answers NULL where a field is NULL on either side ((1, NULL) = (1, NULL)
-        // and (1, NULL) = (1, 'x') are NULL, measured), and an array's compares its elements NULL-safe, a nested Tuple
-        // too ([(1, NULL)] = [(1, NULL)] is 1, [(1, NULL)] = [(1, 'x')] is 0, measured): each instance in a list
-        if ((c.fn() == SqlFn.EQUAL || c.fn() == SqlFn.NOT_EQUAL) && a.size() == 2
-                && typeOf(a.get(0)) instanceof SqlType.Struct && typeOf(a.get(1)) instanceof SqlType.Struct) {
-            return writer.append("([").expr(a.get(0), 0).append(c.fn() == SqlFn.EQUAL ? "] = [" : "] != [")
-                    .expr(a.get(1), 0).append("])");
-        }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.CLICKHOUSE row) is ClickHouse SQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, NEGATE, IS_NULL, IS_NOT_NULL, IN, PARSE_INT, PI, CEILING, FLOOR, SIGN,
-                 LPAD, RPAD, TODAY, DIVIDE, ROUND, HASH, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT,
-                 BIT_SHIFT_RIGHT, XOR,
-                 // Spellings.CLICKHOUSE rows
-                 ACOS, ASIN, ATAN, ATAN2, CBRT, COALESCE, COS, COSH, DEGREES, LOG10,
-                 POW, RADIANS, SIN, SINH, SQRT, TAN, LIST_FLATTEN, MAP_KEYS, MAP_VALUES,
-                 STARTS_WITH, ENDS_WITH, LIST_REVERSE, JARO_WINKLER, CHR,
-                 // the base's idiom points, overridden above
-                 UNNEST, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, STRUCT_INSERT,
-                 PURE_SPLIT_PART, LIST_EXISTS, ALL_DISTINCT, LIST_FOR_ALL, TO_VARIANT, VARIANT_ELEMENTS, VARIANT_GET,
-                 LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE,
-                 LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE,
-                 LIST_BOOL_AND, LIST_BOOL_OR, TYPEOF, FLOAT_CANON -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
+            case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case ROUND -> roundHalfEven(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
+                 LIST_BOOL_OR, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ACOS -> writer.function("acos", c.args());
+            case ASIN -> writer.function("asin", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
+            case COALESCE -> writer.function("coalesce", c.args());
+            case COS -> writer.function("cos", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case POW -> writer.function("pow", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case LIST_FLATTEN -> writer.function("arrayFlatten", c.args());
+            case MAP_KEYS -> writer.function("mapKeys", c.args());
+            case MAP_VALUES -> writer.function("mapValues", c.args());
+            case STARTS_WITH -> writer.function("startsWith", c.args());
+            case ENDS_WITH -> writer.function("endsWith", c.args());
+            case LIST_REVERSE -> writer.function("arrayReverse", c.args());
+            case JARO_WINKLER -> writer.function("jaroWinklerSimilarity", c.args());
+            case CHR -> writer.function("char", c.args());
+            // refused by name (D1, measured 2026-10-13: ClickHouse cannot run DuckDB's spelling)
+            // (ClickHouse's current_date is a function, current_date(): the bare keyword is an unknown identifier)
+            case TODAY -> throw new DialectCapability("today() reached ClickHouse, which has no bare current_date");
 
             // an integer's abs is a UInt64 here: back to an Int64, raising where it does not fit (abs of Int64's least,
             // as DuckDB's overflow)
@@ -1509,15 +1594,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // a raise: no function raises a computed message, so its text cast to an integer raises it, the
             // platform's markers around it, verbatim in the server's message
             // (materialize: a constant one would raise at analysis, in a branch not taken -- measured)
-            case ERROR -> {
-                writer.append("toInt64(materialize(concat(char(31), ");
-                if (a.size() > 1) {
-                    writer.expr(a.get(1), 0).append(", char(30), ");
-                }
-                // the server's error text quotes the message as a string literal, a quote in it escaped (\', measured):
-                // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
-                yield writer.append("replaceAll(toString(").expr(a.get(0), 0).append("), '\\'', char(29)), char(31))))");
-            }
+            case ERROR -> error(writer, c);
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> writer.append("NOT coalesce(").expr(a.get(0), 4).append(" = ")
                     .expr(a.get(1), 4).append(", isNull(").expr(a.get(0), 0).append(") AND isNull(").expr(a.get(1), 0)
                     .append("))");
@@ -1542,13 +1619,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case BIT_NOT -> writer.append("bitNot(toInt64(").expr(a.get(0), 0).append("))");
             case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");
             case COT -> writer.append("(1 / tan(").expr(a.get(0), 0).append("))");
-            case ROUND_HALF_UP -> {
-                writer.append("round(toDecimal128(").expr(a.get(0), 0).append(", 18)");
-                if (a.size() > 1) {
-                    writer.append(", ").expr(a.get(1), 0);
-                }
-                yield writer.append(")");
-            }
+            case ROUND_HALF_UP -> roundHalfUp(writer, c);
 
             // exp and log are approximations here (exp(1) is 2.718281828460626, log(e()) 0.9999999987491066, measured);
             // pow and log2 are exact, DuckDB's bits
@@ -1557,8 +1628,8 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // tanh too (tanh(3.14) is 1.2e-8 off, measured): 1 - 2 / (e^2x + 1), +-1 where e^2x overflows
             case TANH -> writer.append("(1 - 2 / (pow(e(), 2 * toFloat64(").expr(a.get(0), 0).append(")) + 1))");
             // a Decimal and a Float64 have no supertype here: unified (arrayLit's rule)
-            case GREATEST, LEAST -> writer.append(c.fn() == SqlFn.GREATEST ? "greatest(" : "least(")
-                    .join(a, ", ", unified(a)).append(")");
+            case GREATEST -> writer.append("greatest(").join(a, ", ", unified(a)).append(")");
+            case LEAST -> writer.append("least(").join(a, ", ", unified(a)).append(")");
             // ---- strings (UTF-8: the plain ones count bytes)
             // (an unsigned answer is an Int64: a CASE of UInt64 and Int64 has no common type, measured)
             case LENGTH -> writer.append("toInt64(lengthUTF8(").expr(a.get(0), 0).append("))");
@@ -1587,39 +1658,15 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case MATCHES -> writer.append("match(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
             case REGEXP_FULL_MATCH -> writer.append("match(").expr(a.get(0), 0).append(", ").piece(anchored(a.get(1)))
                     .append(")");
-            case REGEXP_EXTRACT -> {
-                if (a.size() > 2 && !(a.get(2) instanceof SqlExpr.IntLit g && g.value() == 0)) {
-                    yield writer.append("regexpExtract(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(", ")
-                            .expr(a.get(2), 0).append(")");
-                }
-                yield writer.append("regexpExtract(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(", 0)");
-            }
+            case REGEXP_EXTRACT -> regexpExtractArm(writer, c);
             // extractAll answers the first group where the pattern has one (measured): the pattern in one group of
             // its own is the whole match, DuckDB's group 0; a numbered group from every match's groups
-            case REGEXP_EXTRACT_ALL -> {
-                writer.append("if(isNull(").expr(a.get(0), 0).append("), [], ");
-                SqlWriter.Piece text = w -> w.append("ifNull(").expr(a.get(0), 0).append(", '')");
-                yield (a.size() > 2 && !(a.get(2) instanceof SqlExpr.IntLit g && g.value() == 0)
-                        ? writer.append("arrayMap(\"__g\" -> arrayElement(\"__g\", ").expr(a.get(2), 0)
-                                .append("), extractAllGroupsVertical(").piece(text).append(", ").expr(a.get(1), 0)
-                                .append("))")
-                        : writer.append("extractAll(").piece(text).append(", concat('(', ").expr(a.get(1), 0)
-                                .append(", ')'))")).append(")");
-            }
+            case REGEXP_EXTRACT_ALL -> regexpExtractAll(writer, c);
             // DuckDB replaces the first match unless 'g'; its \1 group references are ClickHouse's own
-            case REGEXP_REPLACE -> {
-                boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
-                yield writer.append(global ? "replaceRegexpAll(" : "replaceRegexpOne(").list(a.subList(0, 3)).append(")");
-            }
+            case REGEXP_REPLACE -> regexpReplace(writer, c);
             case SPLIT -> writer.append("if(isNull(").expr(a.get(0), 0).append("), [], splitByString(").expr(a.get(1), 0)
                     .append(", ifNull(").expr(a.get(0), 0).append(", '')))");
-            case TRIM, LTRIM, RTRIM -> {
-                String side = c.fn() == SqlFn.TRIM ? "BOTH" : c.fn() == SqlFn.LTRIM ? "LEADING" : "TRAILING";
-                if (a.size() == 1) {
-                    yield writer.append("trim(" + side + " ' ' FROM ").expr(a.get(0), 0).append(")");
-                }
-                yield writer.append("trim(" + side + " ").expr(a.get(1), 0).append(" FROM ").expr(a.get(0), 0).append(")");
-            }
+            case TRIM, LTRIM, RTRIM -> trimArm(writer, c);
             case ENCODE_BASE64 -> writer.append("base64Encode(").expr(a.get(0), 0).append(")");
             case DECODE_BASE64 -> writer.append("base64Decode(").expr(a.get(0), 0).append(")");
             case MD5 -> writer.append("lower(hex(MD5(").expr(a.get(0), 0).append(")))");
@@ -1628,29 +1675,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case GUID -> writer.append("toString(generateUUIDv4())");
             // printf takes native numbers and strings (a Decimal is refused, measured)
             // printf takes a Float64 for %f and only a String for %s: a Float under %s is its Pure text
-            case FORMAT -> {
-                List<Character> conversions = a.get(0) instanceof SqlExpr.StringLit f ? conversions(f.value()) : null;
-                writer.append("printf(").expr(a.get(0), 0);
-                for (int i = 1; i < a.size(); i++) {
-                    SqlExpr x = a.get(i);
-                    boolean real = typeOf(x) instanceof SqlType.Decimal || x instanceof SqlExpr.FloatLit
-                            || x instanceof SqlExpr.DecimalLit || typeOf(x) == SqlType.Scalar.DOUBLE;
-                    writer.append(", ");
-                    boolean asText = conversions != null && i - 1 < conversions.size() && conversions.get(i - 1) == 's';
-                    if (real && asText) {
-                        writer.expr(FloatCanonText.of(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE)), 0);
-                    } else if (asText && (typeOf(x) == SqlType.Scalar.BOOLEAN || typeOf(x) == SqlType.Scalar.BIGINT
-                            || typeOf(x) == SqlType.Scalar.INTEGER)) {
-                        // %s takes only a String (a Bool or an Int64 is refused, measured): its text
-                        writer.append("toString(").expr(x, 0).append(")");
-                    } else if (real && typeOf(x) != SqlType.Scalar.DOUBLE) {
-                        writer.append("toFloat64(").expr(x, 0).append(")");
-                    } else {
-                        writer.expr(x, 0);
-                    }
-                }
-                yield writer.append(")");
-            }
+            case FORMAT -> formatCall(writer, c);
             case CURRENT_USER_FN -> writer.append("currentUser()");
 
             // ---- temporal (temporal(): call is held to 250 lines)
@@ -1660,18 +1685,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // ---- lists whose first argument is no list
             case LIST_LENGTH -> writer.append("toInt64(length(").piece(list(a.get(0))).append("))");
             // DuckDB's range: [start, stop) by step, as ClickHouse's
-            case RANGE_FN -> {
-                if (a.size() == 1) {
-                    yield writer.append("arrayMap(\"__g\" -> toInt64(\"__g\"), range(toInt64(").expr(a.get(0), 0)
-                            .append(")))");
-                }
-                if (a.size() == 3) {
-                    // a constant step is folded before its guard runs (range's own error over the guard's, measured)
-                    yield writer.append("arrayMap(\"__g\" -> toInt64(\"__g\"), range(").expr(a.get(0), 0).append(", ")
-                            .expr(a.get(1), 0).append(", materialize(").expr(a.get(2), 0).append(")))");
-                }
-                yield writer.append("arrayMap(\"__g\" -> toInt64(\"__g\"), range(").list(a).append("))");
-            }
+            case RANGE_FN -> rangeFn(writer, c);
             case REPEAT_VALUE -> writer.append("arrayWithConstant(toUInt64(greatest(").expr(a.get(1), 0).append(", 0)), ")
                     .expr(a.get(0), 0).append(")");
 
@@ -1697,6 +1711,122 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case JSON_PRETTY -> throw wall(c.fn(), "ClickHouse has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "ClickHouse has no JSON merge patch");
         };
+    }
+
+    /** two instances' equality: a Tuple's = answers NULL where a field is NULL on either side ((1, NULL) = (1, NULL)
+     * and (1, NULL) = (1, 'x') are NULL, measured), and an array's compares its elements NULL-safe, a nested Tuple
+     * too ([(1, NULL)] = [(1, NULL)] is 1, [(1, NULL)] = [(1, 'x')] is 0, measured): each instance in a list */
+    private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2
+                && typeOf(a.get(0)) instanceof SqlType.Struct && typeOf(a.get(1)) instanceof SqlType.Struct) {
+            return writer.append("([").expr(a.get(0), 0).append(c.fn() == SqlFn.EQUAL ? "] = [" : "] != [")
+                    .expr(a.get(1), 0).append("])");
+        }
+        return infix(writer, c, parentPrec);
+    }
+
+    /** The {@code ERROR} arm of {@link #call}. */
+    private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("toInt64(materialize(concat(char(31), ");
+        if (a.size() > 1) {
+            writer.expr(a.get(1), 0).append(", char(30), ");
+        }
+        // the server's error text quotes the message as a string literal, a quote in it escaped (\', measured):
+        // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
+        return writer.append("replaceAll(toString(").expr(a.get(0), 0).append("), '\\'', char(29)), char(31))))");
+    }
+
+    /** The {@code ROUND_HALF_UP} arm of {@link #call}. */
+    private SqlWriter roundHalfUp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("round(toDecimal128(").expr(a.get(0), 0).append(", 18)");
+        if (a.size() > 1) {
+            writer.append(", ").expr(a.get(1), 0);
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code REGEXP_EXTRACT} arm of {@link #call}. */
+    private SqlWriter regexpExtractArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() > 2 && !(a.get(2) instanceof SqlExpr.IntLit g && g.value() == 0)) {
+            return writer.append("regexpExtract(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(", ")
+                    .expr(a.get(2), 0).append(")");
+        }
+        return writer.append("regexpExtract(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(", 0)");
+    }
+
+    /** The {@code REGEXP_EXTRACT_ALL} arm of {@link #call}. */
+    private SqlWriter regexpExtractAll(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("if(isNull(").expr(a.get(0), 0).append("), [], ");
+        SqlWriter.Piece text = w -> w.append("ifNull(").expr(a.get(0), 0).append(", '')");
+        return (a.size() > 2 && !(a.get(2) instanceof SqlExpr.IntLit g && g.value() == 0)
+                ? writer.append("arrayMap(\"__g\" -> arrayElement(\"__g\", ").expr(a.get(2), 0)
+                        .append("), extractAllGroupsVertical(").piece(text).append(", ").expr(a.get(1), 0)
+                        .append("))")
+                : writer.append("extractAll(").piece(text).append(", concat('(', ").expr(a.get(1), 0)
+                        .append(", ')'))")).append(")");
+    }
+
+    /** The {@code REGEXP_REPLACE} arm of {@link #call}. */
+    private SqlWriter regexpReplace(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
+        return writer.append(global ? "replaceRegexpAll(" : "replaceRegexpOne(").list(a.subList(0, 3)).append(")");
+    }
+
+    /** The {@code TRIM}, {@code LTRIM}, {@code RTRIM} arm of {@link #call}. */
+    private SqlWriter trimArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String side = c.fn() == SqlFn.TRIM ? "BOTH" : c.fn() == SqlFn.LTRIM ? "LEADING" : "TRAILING";
+        if (a.size() == 1) {
+            return writer.append("trim(" + side + " ' ' FROM ").expr(a.get(0), 0).append(")");
+        }
+        return writer.append("trim(" + side + " ").expr(a.get(1), 0).append(" FROM ").expr(a.get(0), 0).append(")");
+    }
+
+    /** The {@code RANGE_FN} arm of {@link #call}. */
+    private SqlWriter rangeFn(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 1) {
+            return writer.append("arrayMap(\"__g\" -> toInt64(\"__g\"), range(toInt64(").expr(a.get(0), 0)
+                    .append(")))");
+        }
+        if (a.size() == 3) {
+            // a constant step is folded before its guard runs (range's own error over the guard's, measured)
+            return writer.append("arrayMap(\"__g\" -> toInt64(\"__g\"), range(").expr(a.get(0), 0).append(", ")
+                    .expr(a.get(1), 0).append(", materialize(").expr(a.get(2), 0).append(")))");
+        }
+        return writer.append("arrayMap(\"__g\" -> toInt64(\"__g\"), range(").list(a).append("))");
+    }
+
+    /** format(template, values...) as printf: each value as printf takes it (the call arm's comment says how). */
+    private SqlWriter formatCall(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        List<Character> conversions = a.get(0) instanceof SqlExpr.StringLit f ? conversions(f.value()) : null;
+        writer.append("printf(").expr(a.get(0), 0);
+        for (int i = 1; i < a.size(); i++) {
+            SqlExpr x = a.get(i);
+            boolean real = typeOf(x) instanceof SqlType.Decimal || x instanceof SqlExpr.FloatLit
+                    || x instanceof SqlExpr.DecimalLit || typeOf(x) == SqlType.Scalar.DOUBLE;
+            writer.append(", ");
+            boolean asText = conversions != null && i - 1 < conversions.size() && conversions.get(i - 1) == 's';
+            if (real && asText) {
+                writer.expr(FloatCanonText.of(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE)), 0);
+            } else if (asText && (typeOf(x) == SqlType.Scalar.BOOLEAN || typeOf(x) == SqlType.Scalar.BIGINT
+                    || typeOf(x) == SqlType.Scalar.INTEGER)) {
+                // %s takes only a String (a Bool or an Int64 is refused, measured): its text
+                writer.append("toString(").expr(x, 0).append(")");
+            } else if (real && typeOf(x) != SqlType.Scalar.DOUBLE) {
+                writer.append("toFloat64(").expr(x, 0).append(")");
+            } else {
+                writer.expr(x, 0);
+            }
+        }
+        return writer.append(")");
     }
 
     /**
@@ -2017,108 +2147,138 @@ public final class ClickHouse extends AnsiSqlRenderer {
     /** A reducer, windowed over {@code win} when it is one. */
     private SqlWriter reducerIn(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
         return switch (r.fn()) {
-            case COUNT -> {
-                writer.append("toInt64(");
-                super.reducer(writer, r);
-                yield ov(writer, win).append(")");
-            }
+            case COUNT -> count(writer, r, win);
             // corr takes no Decimal beside an Int64 (measured): Float64 operands
             case CORR -> ov(writer.append("corrOrNull(toFloat64(").expr(r.args().get(0), 0).append("), toFloat64(")
                     .expr(r.args().get(1), 0).append("))"), win);
-            case SUM, AVG, MIN, MAX, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached ClickHouse");
-                }
-                yield ov(super.reducer(writer, r), win);
-            }
+            // an aggregate over no row is NULL in SQL, its type's default here unless the aggregate is its OrNull form
+            case SUM -> ov(aggregate(unordered(writer, r), "sumOrNull", r), win);
+            case AVG -> ov(aggregate(unordered(writer, r), "avgOrNull", r), win);
+            case MIN -> ov(aggregate(unordered(writer, r), "minOrNull", r), win);
+            case MAX -> ov(aggregate(unordered(writer, r), "maxOrNull", r), win);
             // one value's sample deviation and variance are inf here, DuckDB's NULL (measured 25.8, 2026-10-13)
             case STDDEV_SAMP, STDDEV -> sampled(writer, "stddevSampStableOrNull", r, win);
             case STDDEV_POP -> ov(plain(writer, "stddevPopStableOrNull", r), win);
             case VAR_SAMP, VARIANCE -> sampled(writer, "varSampStableOrNull", r, win);
             case VAR_POP -> ov(plain(writer, "varPopStableOrNull", r), win);
             // one row's sample covariance is NaN here, DuckDB's NULL (measured)
-            case COVAR_SAMP -> {
-                writer.append("if(");
-                ov(writer.append("count(").expr(r.args().get(0), 0).append(")"), win).append(" < 2, NULL, ");
-                yield ov(plain(writer, "covarSampStableOrNull", r), win).append(")");
-            }
+            case COVAR_SAMP -> covarSamp(writer, r, win);
             case COVAR_POP -> ov(plain(writer, "covarPopStableOrNull", r), win);
             case BOOL_AND -> ov(plain(writer, "minOrNull", r), win);
             case BOOL_OR -> ov(plain(writer, "maxOrNull", r), win);
             case ANY_VALUE -> ov(plain(writer, "anyOrNull", r), win);
-            case LAG, LEAD -> throw new IllegalStateException(r.fn() + " is a window function: windowCall writes it");
-            case STRING_AGG -> {
-                if (r.args().size() != 2) {
-                    throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached ClickHouse");
-                }
-                SqlExpr v = r.args().get(0);
-                SqlWriter.Piece values = r.distinct()
-                        ? w -> ov(w.append("arrayDistinct(groupArray(").expr(v, 0).append(")"), win).append(")")
-                        : r.orderBy().isEmpty()
-                                ? w -> ov(w.append("groupArray(").expr(v, 0).append(")"), win)
-                                : w -> w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ").piece(collected(
-                                        x -> x.expr(v, 0), r.orderBy().stream().map(this::sortKeyOf).toList(), win))
-                                        .append(")");
-                yield writer.append("if(empty(").piece(values).append("), NULL, arrayStringConcat(").piece(values)
-                        .append(", ").expr(r.args().get(1), 0).append("))");
-            }
+            case STRING_AGG -> stringAgg(writer, r, win);
             case MEDIAN -> ov(writer.append("quantileExactInclusiveOrNull(0.5)(toFloat64(").expr(r.args().get(0), 0)
                     .append("))"), win);
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
-                }
-                boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
-                if (r.fn() == SqlAgg.Fn.QUANTILE_CONT) {
-                    writer.append("quantileExactInclusiveOrNull(");
-                    if (desc) {
-                        writer.append("1 - ");
-                    }
-                    yield ov(writer.expr(r.args().get(1), 6).append(")(toFloat64(").expr(r.args().get(0), 0).append("))"),
-                            win);
-                }
-                // DuckDB's quantile_disc: the sorted values' element at max(ceil(n q) - 1, 0), 0-based
-                SqlWriter.Piece sorted = w -> ov(w.append("arraySort(groupArray(").expr(r.args().get(0), 0).append(")"),
-                        win).append(")");
-                SqlWriter.Piece q = desc ? w -> w.append("(1 - ").expr(r.args().get(1), 6).append(")")
-                        : w -> w.expr(r.args().get(1), 6);
-                yield writer.append("if(empty(").piece(sorted).append("), NULL, arrayElement(").piece(sorted)
-                        .append(", toInt64(greatest(ceil(length(").piece(sorted).append(") * ").piece(q)
-                        .append(") - 1, 0)) + 1))");
-            }
+            case QUANTILE_CONT -> quantileCont(writer, r, win);
+            case QUANTILE_DISC -> quantileDisc(writer, r, win);
             case MODE -> writer.piece(modeOf(w -> ov(w.append("groupArray(").expr(r.args().get(0), 0).append(")"), win)));
-            case LIST -> {
-                if (r.distinct() || r.args().size() != 1) {
-                    throw new DialectCapability("a distinct LIST aggregate reached ClickHouse");
-                }
-                yield writer.piece(collected(w -> w.expr(r.args().get(0), 0),
-                        r.orderBy().stream().map(this::sortKeyOf).toList(), win));
-            }
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
-                }
-                yield ov(writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "argMax(" : "argMin(").list(r.args()).append(")"),
-                        win);
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case LIST -> listOfValues(writer, r, win);
+            case ARG_MAX -> argExtreme(writer, "argMax", r, win);
+            case ARG_MIN -> argExtreme(writer, "argMin", r, win);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
     }
 
-    /** An aggregate over no row is NULL in SQL, its type's default here unless the aggregate is its {@code OrNull}
-     *  form. */
+    /** {@code writer}, for an aggregate ClickHouse cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached ClickHouse");
+        }
+        return writer;
+    }
+
+    /** The {@code COUNT} arm of {@link #reducerIn}: an Int64. */
+    private SqlWriter count(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        writer.append("toInt64(");
+        aggregate(writer, "count", r);
+        return ov(writer, win).append(")");
+    }
+
+    /** The {@code COVAR_SAMP} arm of {@link #reducerIn}: one row's sample covariance is NaN here, DuckDB's NULL. */
+    private SqlWriter covarSamp(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        writer.append("if(");
+        ov(writer.append("count(").expr(r.args().get(0), 0).append(")"), win).append(" < 2, NULL, ");
+        return ov(plain(writer, "covarSampStableOrNull", r), win).append(")");
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducerIn}. */
+    private SqlWriter stringAgg(SqlWriter writer, SqlAgg.Reducer r, SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        if (r.args().size() != 2) {
+            throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached ClickHouse");
+        }
+        SqlExpr v = r.args().get(0);
+        SqlWriter.Piece values = r.distinct()
+                ? w -> ov(w.append("arrayDistinct(groupArray(").expr(v, 0).append(")"), win).append(")")
+                : r.orderBy().isEmpty()
+                        ? w -> ov(w.append("groupArray(").expr(v, 0).append(")"), win)
+                        : w -> w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ").piece(collected(
+                                x -> x.expr(v, 0), r.orderBy().stream().map(this::sortKeyOf).toList(), win))
+                                .append(")");
+        return writer.append("if(empty(").piece(values).append("), NULL, arrayStringConcat(").piece(values)
+                .append(", ").expr(r.args().get(1), 0).append("))");
+    }
+
+    /** A percentile's shape here: a value and a level, at most one order key (its direction). */
+    private static boolean descendingPercentile(SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
+        }
+        return !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
+    }
+
+    /** The {@code QUANTILE_CONT} arm of {@link #reducerIn}. */
+    private SqlWriter quantileCont(SqlWriter writer, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        boolean desc = descendingPercentile(r);
+        writer.append("quantileExactInclusiveOrNull(");
+        if (desc) {
+            writer.append("1 - ");
+        }
+        return ov(writer.expr(r.args().get(1), 6).append(")(toFloat64(").expr(r.args().get(0), 0).append("))"),
+                win);
+    }
+
+    /** The {@code QUANTILE_DISC} arm of {@link #reducerIn}: DuckDB's quantile_disc, the sorted values' element at
+     *  max(ceil(n q) - 1, 0), 0-based. */
+    private SqlWriter quantileDisc(SqlWriter writer, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        boolean desc = descendingPercentile(r);
+        SqlWriter.Piece sorted = w -> ov(w.append("arraySort(groupArray(").expr(r.args().get(0), 0).append(")"),
+                win).append(")");
+        SqlWriter.Piece q = desc ? w -> w.append("(1 - ").expr(r.args().get(1), 6).append(")")
+                : w -> w.expr(r.args().get(1), 6);
+        return writer.append("if(empty(").piece(sorted).append("), NULL, arrayElement(").piece(sorted)
+                .append(", toInt64(greatest(ceil(length(").piece(sorted).append(") * ").piece(q)
+                .append(") - 1, 0)) + 1))");
+    }
+
+    /** The {@code LIST} arm of {@link #reducerIn}. */
+    private SqlWriter listOfValues(SqlWriter writer, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        if (r.distinct() || r.args().size() != 1) {
+            throw new DialectCapability("a distinct LIST aggregate reached ClickHouse");
+        }
+        return writer.piece(collected(w -> w.expr(r.args().get(0), 0),
+                r.orderBy().stream().map(this::sortKeyOf).toList(), win));
+    }
+
+    /** {@code argMax(value, key)} / {@code argMin}: the value at the key's greatest (least) row. */
+    private SqlWriter argExtreme(SqlWriter writer, String name, SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall win) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached ClickHouse");
+        }
+        return ov(writer.append(name).append("(").list(r.args()).append(")"), win);
+    }
+
+    /** A window function's name: lowercase (each aggregate's is {@link #reducerIn}'s). */
     @Override
     protected String aggregateName(SqlAgg.Fn fn) {
-        return switch (fn) {
-            case SUM -> "sumOrNull";
-            case MIN -> "minOrNull";
-            case MAX -> "maxOrNull";
-            case AVG -> "avgOrNull";
-            case CORR -> "corrOrNull";
-            default -> super.aggregateName(fn).toLowerCase(java.util.Locale.ROOT);
-        };
+        return fn.toString().toLowerCase(java.util.Locale.ROOT);
     }
 
     /** A sample statistic, NULL under two values (as DuckDB's; ClickHouse answers inf for one). */
@@ -2250,7 +2410,10 @@ public final class ClickHouse extends AnsiSqlRenderer {
             conds.add(hi);
         }
         String agg = switch (r.fn()) {
-            case SUM, AVG, MIN, MAX -> aggregateName(r.fn());
+            case SUM -> "sumOrNull";
+            case AVG -> "avgOrNull";
+            case MIN -> "minOrNull";
+            case MAX -> "maxOrNull";
             case COUNT -> "count";
             case STDDEV_SAMP, STDDEV -> "stddevSampStableOrNull";
             case STDDEV_POP -> "stddevPopStableOrNull";

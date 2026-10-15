@@ -12,6 +12,7 @@ import com.legend.sql.SqlType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The Trino EXECUTION dialect (Trino 483, its memory connector; 2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md
@@ -38,18 +39,62 @@ import java.util.List;
  *       notation ({@code 4.1E1}), which the platform's Float spelling unfolds.</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * {@code Spellings.TRINO} row), a Trino arm, or a {@link DialectCapability} wall.
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
 public final class Trino extends AnsiSqlRenderer {
 
+    /** Trino (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): double quotes; Trino's documented reserved
+     *  keywords. The {@code Trino} dialect quotes every identifier, so the list decides no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "alter", "and", "as", "auto", "between", "by", "case", "cast", "constraint", "create", "cross", "cube",
+            "current_catalog", "current_date", "current_path", "current_role", "current_schema", "current_time",
+            "current_timestamp", "current_user", "deallocate", "delete", "describe", "distinct", "drop", "else", "end",
+            "escape", "except", "execute", "exists", "extract", "false", "for", "from", "full", "group", "grouping",
+            "having", "in", "inner", "insert", "intersect", "into", "is", "join", "json_array", "json_exists",
+            "json_object", "json_query", "json_table", "json_value", "left", "like", "listagg", "localtime",
+            "localtimestamp", "natural", "normalize", "not", "null", "on", "or", "order", "outer", "prepare",
+            "recursive", "right", "rollup", "select", "skip", "table", "then", "trim", "true", "uescape", "union",
+            "unnest", "using", "values", "when", "where", "with"));
+
+    /** Trino (2026-10-12): typed native arrays with lambdas -- the strategies stand aside, as on Databricks; its
+     *  dialect writes the static pivot and the as-of join itself (Trino has neither); FULL OUTER is native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public Trino() {
-        super(Lexicon.TRINO, TypeNames.TRINO, Spellings.TRINO);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
+
+    /** The engine's H2 text is refused here: Trino has no translation of it (decision D2: raw text runs on the
+     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+    @Override
+    public String fromEngineH2(String statement) {
+        throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
+    }
+
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INTEGER";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "DECIMAL(38,0)";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "TIMESTAMP(6)";
+            case TIMESTAMPTZ -> "TIMESTAMP(6) WITH TIME ZONE";
+            case JSON -> "JSON";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
 
     /** The platform's naive-UTC temporal contract. */
     @Override
@@ -72,7 +117,7 @@ public final class Trino extends AnsiSqlRenderer {
      *  DECIMAL(p,s) and HUGEINT columns cast to their declared types. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.TRINO), new PivotAsGroupBy(), new AsOfAsPick(),
+        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new AsOfAsPick(),
                 new StarExceptToColumns(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new CheckedDefectsToLists(), new SubstringClamp(),
@@ -250,7 +295,8 @@ public final class Trino extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String structTypeName(List<java.util.Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         StringBuilder sb = new StringBuilder("ROW(");
         for (int i = 0; i < fields.size(); i++) {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(" ").append(fields.get(i).getValue());
@@ -761,33 +807,91 @@ public final class Trino extends AnsiSqlRenderer {
             return writer.append("CAST(NULL AS ").append(castTypeName(t.type())).append(")");
         }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.TRINO row) is Trino SQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, NEGATE, IS_NULL, IS_NOT_NULL, IN, IS_DISTINCT_FROM,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, PARSE_INT, PI, CEILING, FLOOR, SIGN,
-                 LPAD, RPAD, UC_FIRST, LC_FIRST, TODAY, DIVIDE,
-                 ROUND, HASH, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
-                 // Spellings.TRINO rows
-                 ABS, ACOS, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, DEGREES, EXP,
-                 GREATEST, LEAST, LENGTH, LEVENSHTEIN, LIST_FLATTEN, LN, LOG10, LOWER,
-                 MAP_KEYS, MAP_VALUES, POW, RADIANS, REPLACE, REVERSE_STRING,
-                 SIN, SINH, SQRT, SUBSTRING, TAN, TANH, UPPER, STARTS_WITH, STRPOS,
-                 MAP_FROM_ENTRIES, LIST_REVERSE,
-                 // the base's idiom points, overridden above
-                 UNNEST, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, STRUCT_INSERT,
-                 PURE_SPLIT_PART, LIST_EXISTS, ALL_DISTINCT, LIST_FOR_ALL, TO_VARIANT, VARIANT_ELEMENTS, VARIANT_GET,
-                 LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE,
-                 LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE,
-                 LIST_BOOL_AND, LIST_BOOL_OR, TYPEOF, FLOAT_CANON -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case TODAY -> writer.append("current_date");
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case ROUND -> roundHalfEven(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
+                 LIST_BOOL_OR, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case ACOS -> writer.function("acos", c.args());
+            case ASIN -> writer.function("asin", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
+            case CHR -> writer.function("chr", c.args());
+            case COALESCE -> writer.function("coalesce", c.args());
+            case COS -> writer.function("cos", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case GREATEST -> writer.function("greatest", c.args());
+            case LEAST -> writer.function("least", c.args());
+            case LENGTH -> writer.function("length", c.args());
+            case LEVENSHTEIN -> writer.function("levenshtein_distance", c.args());
+            case LIST_FLATTEN -> writer.function("flatten", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case MAP_KEYS -> writer.function("map_keys", c.args());
+            case MAP_VALUES -> writer.function("map_values", c.args());
+            case POW -> writer.function("power", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case REVERSE_STRING, LIST_REVERSE -> writer.function("reverse", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case UPPER -> writer.function("upper", c.args());
+            case STARTS_WITH -> writer.function("starts_with", c.args());
+            case STRPOS -> writer.function("strpos", c.args());
+            case MAP_FROM_ENTRIES -> writer.function("map_from_entries", c.args());
 
             // fail(message): the raise, its message the platform's envelope
-            case ERROR -> {
-                writer.append("fail(chr(31) || ");
-                if (a.size() > 1) {
-                    writer.expr(a.get(1), 0).append(" || chr(30) || ");
-                }
-                yield writer.append("(").expr(a.get(0), 0).append(") || chr(31))");
-            }
+            case ERROR -> error(writer, c);
             // NULL-ignoring, as DuckDB's concat (Trino's concat is NULL if any argument is)
             case CONCAT -> writer.append("concat_ws('', ").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat_ws('', ").join(a, ", ", this::asText).append(")");
@@ -820,13 +924,7 @@ public final class Trino extends AnsiSqlRenderer {
                     .append(", 0)), '') END)");
             // DuckDB's split_part: the empty string past the end (Trino's is NULL)
             case SPLIT_PART -> writer.append("coalesce(split_part(").list(a).append("), '')");
-            case ROUND_HALF_UP -> {
-                writer.append("round(").expr(a.get(0), 0);
-                if (a.size() > 1) {
-                    writer.append(", CAST(").expr(a.get(1), 0).append(" AS INTEGER)");
-                }
-                yield writer.append(")");
-            }
+            case ROUND_HALF_UP -> roundHalfUp(writer, c);
 
             // ---- strings
             case MATCHES -> writer.append("regexp_like(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
@@ -838,35 +936,10 @@ public final class Trino extends AnsiSqlRenderer {
                     .expr(a.get(1), 0).append(", ").piece(group(a)).append(")");
             // DuckDB replaces the first match unless 'g'; Trino replaces every one: the first alone is the match of
             // ^(.*?)(?:p), replaced by that prefix and r, r's group references shifted by one
-            case REGEXP_REPLACE -> {
-                boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
-                if (!(a.get(2) instanceof SqlExpr.StringLit r)) {
-                    throw wall(c.fn(), "a computed regexp replacement");
-                }
-                if (global) {
-                    yield writer.append("regexp_replace(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
-                            .append(", ").append(stringLit(javaReplacement(r.value(), 0))).append(")");
-                }
-                if (a.get(1) instanceof SqlExpr.StringLit p && p.value().matches("(?s).*\\\\[0-9].*")) {
-                    throw wall(c.fn(), "a first-match replacement whose pattern has a back reference");
-                }
-                writer.append("regexp_replace(").expr(a.get(0), 0).append(", ");
-                if (a.get(1) instanceof SqlExpr.StringLit p) {
-                    writer.append(stringLit("^(?s:(.*?))(?:" + p.value() + ")"));
-                } else {
-                    writer.append("concat('^(?s:(.*?))(?:', ").expr(a.get(1), 0).append(", ')')");
-                }
-                yield writer.append(", ").append(stringLit("$1" + javaReplacement(r.value(), 1))).append(")");
-            }
+            case REGEXP_REPLACE -> regexpReplace(writer, c);
             // split takes the delimiter as text
             case SPLIT -> writer.append("split(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
-            case TRIM, LTRIM, RTRIM -> {
-                String fn = c.fn() == SqlFn.TRIM ? "trim" : c.fn() == SqlFn.LTRIM ? "ltrim" : "rtrim";
-                if (a.size() == 1) {
-                    yield writer.append(fn + "(").expr(a.get(0), 0).append(")");
-                }
-                yield writer.append(fn + "(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
-            }
+            case TRIM, LTRIM, RTRIM -> trim(writer, c);
             case ENCODE_BASE64 -> writer.append("to_base64(to_utf8(").expr(a.get(0), 0).append("))");
             case DECODE_BASE64 -> writer.append("from_utf8(from_base64(").expr(a.get(0), 0).append("))");
             case MD5 -> writer.append("lower(to_hex(md5(to_utf8(").expr(a.get(0), 0).append("))))");
@@ -880,53 +953,20 @@ public final class Trino extends AnsiSqlRenderer {
             // ---- temporal
             case NOW -> writer.append("CAST(current_timestamp AS TIMESTAMP(6))");
             case DATE_TRUNC_DAY -> writer.append("CAST(").expr(a.get(0), 0).append(" AS DATE)");
-            case DATE_TRUNC -> {
-                String part = literal(a.get(0), "DATE_TRUNC");
-                boolean toDate = switch (part) {
-                    case "month", "year", "week", "quarter" -> true;
-                    default -> false;
-                };
-                writer.append(toDate ? "CAST(date_trunc(" : "date_trunc(").append(stringLit(part)).append(", ")
-                        .expr(a.get(1), 0).append(")");
-                yield toDate ? writer.append(" AS DATE)") : writer;
-            }
+            case DATE_TRUNC -> dateTrunc(writer, c);
             case PARSE_DATE -> writer.append("CAST(").expr(a.get(0), 0).append(" AS TIMESTAMP(6))");
             case EXTRACT -> writer.piece(extract(a));
             case MAKE_DATE -> writer.append("date_add('day', ").expr(a.get(2), 0).append(" - 1, date_add('month', ")
                     .expr(a.get(1), 0).append(" - 1, date_add('year', ").expr(a.get(0), 0)
                     .append(" - 1970, DATE '1970-01-01')))");
-            case MAKE_TIMESTAMP -> {
-                if (a.size() != 6) {
-                    throw wall(c.fn(), "make_timestamp of " + a.size() + " arguments");
-                }
-                // its text, cast (date_add has no microsecond unit): the seconds to six digits
-                yield writer.append("CAST(format('%04d-%02d-%02d %02d:%02d:%09.6f', ").list(a.subList(0, 5))
-                        .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE)) AS TIMESTAMP(6))");
-            }
+            case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             // date_add has no microsecond unit: microseconds through the epoch's
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> {
-                String unitFn = literal(a.get(0), c.fn().name());
-                String unit = intervalUnit(unitFn);
-                if (EPOCH_ADDED_UNITS.contains(unitFn)) {
-                    yield writer.piece(fromMicros(w -> w.piece(micros(v -> v.expr(a.get(2), 0))).append(" + ")
-                            .expr(a.get(1), 6)));
-                }
-                yield writer.append("date_add(").append(stringLit(unit)).append(", ").expr(a.get(1), 0).append(", ")
-                        .expr(a.get(2), 0).append(")");
-            }
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> addInterval(writer, c);
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants; a zoned one, a
             // parsed offset's, is its own instant: with_timezone takes only a naive one)
-            case TIMEZONE -> {
-                writer.append("CAST(at_timezone(");
-                if (typeOf(a.get(1)) == SqlType.Scalar.TIMESTAMPTZ) {
-                    writer.expr(a.get(1), 0);
-                } else {
-                    writer.append("with_timezone(").expr(a.get(1), 0).append(", 'UTC')");
-                }
-                yield writer.append(", ").piece(zone(a.get(0))).append(") AS TIMESTAMP(6))");
-            }
+            case TIMEZONE -> timezone(writer, c);
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("to_unixtime(with_timezone(").expr(a.get(0), 0).append(", 'UTC'))");
             case EPOCH_MS -> writer.append("CAST(truncate(to_unixtime(with_timezone(").expr(a.get(0), 0)
@@ -937,35 +977,14 @@ public final class Trino extends AnsiSqlRenderer {
                     .append(" AS DOUBLE) / 1000, 'UTC') AS TIMESTAMP(6))");
             case DAYNAME -> writer.append("format_datetime(").expr(a.get(0), 0).append(", 'EEEE')");
             case MONTHNAME -> writer.append("format_datetime(").expr(a.get(0), 0).append(", 'MMMM')");
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.append("format_datetime(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
-            }
-            case STRPTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.append("CAST(parse_datetime(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
-                        .append(") AS TIMESTAMP(6))");
-            }
+            case STRFTIME -> strftime(writer, c);
+            case STRPTIME -> strptime(writer, c);
 
             // ---- lists whose first argument is no list
             case LIST_LENGTH -> writer.append("cardinality(").piece(list(a.get(0))).append(")");
             // DuckDB's range: [start, stop) by step (start 0, step 1 by default); Trino's sequence is inclusive and
             // refuses a step away from the stop
-            case RANGE_FN -> {
-                SqlWriter.Piece start = a.size() == 1 ? w -> w.append("BIGINT '0'") : w -> w.append("CAST(")
-                        .expr(a.get(0), 0).append(" AS BIGINT)");
-                SqlWriter.Piece stop = w -> w.append("CAST(").expr(a.get(a.size() == 1 ? 0 : 1), 0).append(" AS BIGINT)");
-                SqlWriter.Piece step = a.size() > 2 ? w -> w.append("CAST(").expr(a.get(2), 0).append(" AS BIGINT)")
-                        : w -> w.append("BIGINT '1'");
-                yield writer.append("(CASE WHEN (").piece(stop).append(" - ").piece(start).append(") * ").piece(step)
-                        .append(" > 0 THEN filter(sequence(").piece(start).append(", ").piece(stop).append(", ")
-                        .piece(step).append("), \"__g\" -> \"__g\" <> ").piece(stop)
-                        .append(") ELSE CAST(ARRAY[] AS ARRAY(BIGINT)) END)");
-            }
+            case RANGE_FN -> rangeOf(writer, c);
             case REPEAT_VALUE -> writer.append("repeat(").expr(a.get(0), 0).append(", greatest(").expr(a.get(1), 0)
                     .append(", 0))");
 
@@ -981,19 +1000,158 @@ public final class Trino extends AnsiSqlRenderer {
 
             // ---- variant
             // in DuckDB's json_type vocabulary, which the lowering compares against
-            case JSON_TYPE -> {
-                SqlWriter.Piece s = w -> w.append("json_format(").expr(a.get(0), 0).append(")");
-                yield writer.append("(CASE WHEN ").expr(a.get(0), 0).append(" IS NULL THEN NULL WHEN ").piece(s)
-                        .append(" = 'null' THEN 'NULL' WHEN ").piece(s).append(" IN ('true', 'false') THEN 'BOOLEAN'")
-                        .append(" WHEN substr(").piece(s).append(", 1, 1) = '\"' THEN 'VARCHAR' WHEN substr(").piece(s)
-                        .append(", 1, 1) = '[' THEN 'ARRAY' WHEN substr(").piece(s)
-                        .append(", 1, 1) = '{' THEN 'OBJECT' WHEN regexp_like(").piece(s)
-                        .append(", '^-?[0-9]+$') THEN 'BIGINT' ELSE 'DOUBLE' END)");
-            }
+            case JSON_TYPE -> jsonType(writer, c);
             case JSON_ARRAY_LENGTH -> writer.append("json_array_length(").expr(a.get(0), 0).append(")");
             case JSON_PRETTY -> throw wall(c.fn(), "Trino has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "Trino has no JSON merge patch");
         };
+    }
+
+    /** The {@code ERROR} arm of {@link #call}. */
+    private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("fail(chr(31) || ");
+        if (a.size() > 1) {
+            writer.expr(a.get(1), 0).append(" || chr(30) || ");
+        }
+        return writer.append("(").expr(a.get(0), 0).append(") || chr(31))");
+    }
+
+    /** The {@code ROUND_HALF_UP} arm of {@link #call}. */
+    private SqlWriter roundHalfUp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("round(").expr(a.get(0), 0);
+        if (a.size() > 1) {
+            writer.append(", CAST(").expr(a.get(1), 0).append(" AS INTEGER)");
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code TRIM}, {@code LTRIM}, {@code RTRIM} arm of {@link #call}. */
+    private SqlWriter trim(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String fn = c.fn() == SqlFn.TRIM ? "trim" : c.fn() == SqlFn.LTRIM ? "ltrim" : "rtrim";
+        if (a.size() == 1) {
+            return writer.append(fn + "(").expr(a.get(0), 0).append(")");
+        }
+        return writer.append(fn + "(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+    }
+
+    /** The {@code DATE_TRUNC} arm of {@link #call}. */
+    private SqlWriter dateTrunc(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String part = literal(a.get(0), "DATE_TRUNC");
+        boolean toDate = switch (part) {
+            case "month", "year", "week", "quarter" -> true;
+            default -> false;
+        };
+        writer.append(toDate ? "CAST(date_trunc(" : "date_trunc(").append(stringLit(part)).append(", ")
+                .expr(a.get(1), 0).append(")");
+        return toDate ? writer.append(" AS DATE)") : writer;
+    }
+
+    /** The {@code MAKE_TIMESTAMP} arm of {@link #call}. */
+    private SqlWriter makeTimestamp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() != 6) {
+            throw wall(c.fn(), "make_timestamp of " + a.size() + " arguments");
+        }
+        // its text, cast (date_add has no microsecond unit): the seconds to six digits
+        return writer.append("CAST(format('%04d-%02d-%02d %02d:%02d:%09.6f', ").list(a.subList(0, 5))
+                .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE)) AS TIMESTAMP(6))");
+    }
+
+    /** The {@code ADD_INTERVAL}, {@code ADD_INTERVAL_TEMPORAL} arm of {@link #call}. */
+    private SqlWriter addInterval(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String unitFn = literal(a.get(0), c.fn().name());
+        String unit = intervalUnit(unitFn);
+        if (EPOCH_ADDED_UNITS.contains(unitFn)) {
+            return writer.piece(fromMicros(w -> w.piece(micros(v -> v.expr(a.get(2), 0))).append(" + ")
+                    .expr(a.get(1), 6)));
+        }
+        return writer.append("date_add(").append(stringLit(unit)).append(", ").expr(a.get(1), 0).append(", ")
+                .expr(a.get(2), 0).append(")");
+    }
+
+    /** The {@code TIMEZONE} arm of {@link #call}. */
+    private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("CAST(at_timezone(");
+        if (typeOf(a.get(1)) == SqlType.Scalar.TIMESTAMPTZ) {
+            writer.expr(a.get(1), 0);
+        } else {
+            writer.append("with_timezone(").expr(a.get(1), 0).append(", 'UTC')");
+        }
+        return writer.append(", ").piece(zone(a.get(0))).append(") AS TIMESTAMP(6))");
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftime(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.append("format_datetime(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+    }
+
+    /** The {@code STRPTIME} arm of {@link #call}. */
+    private SqlWriter strptime(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.append("CAST(parse_datetime(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                .append(") AS TIMESTAMP(6))");
+    }
+
+    /** The {@code JSON_TYPE} arm of {@link #call}. */
+    private SqlWriter jsonType(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece s = w -> w.append("json_format(").expr(a.get(0), 0).append(")");
+        return writer.append("(CASE WHEN ").expr(a.get(0), 0).append(" IS NULL THEN NULL WHEN ").piece(s)
+                .append(" = 'null' THEN 'NULL' WHEN ").piece(s).append(" IN ('true', 'false') THEN 'BOOLEAN'")
+                .append(" WHEN substr(").piece(s).append(", 1, 1) = '\"' THEN 'VARCHAR' WHEN substr(").piece(s)
+                .append(", 1, 1) = '[' THEN 'ARRAY' WHEN substr(").piece(s)
+                .append(", 1, 1) = '{' THEN 'OBJECT' WHEN regexp_like(").piece(s)
+                .append(", '^-?[0-9]+$') THEN 'BIGINT' ELSE 'DOUBLE' END)");
+    }
+
+    /** DuckDB's range: [start, stop) by step, as a filtered sequence. */
+    private SqlWriter rangeOf(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece start = a.size() == 1 ? w -> w.append("BIGINT '0'") : w -> w.append("CAST(")
+                .expr(a.get(0), 0).append(" AS BIGINT)");
+        SqlWriter.Piece stop = w -> w.append("CAST(").expr(a.get(a.size() == 1 ? 0 : 1), 0).append(" AS BIGINT)");
+        SqlWriter.Piece step = a.size() > 2 ? w -> w.append("CAST(").expr(a.get(2), 0).append(" AS BIGINT)")
+                : w -> w.append("BIGINT '1'");
+        return writer.append("(CASE WHEN (").piece(stop).append(" - ").piece(start).append(") * ").piece(step)
+                .append(" > 0 THEN filter(sequence(").piece(start).append(", ").piece(stop).append(", ")
+                .piece(step).append("), \"__g\" -> \"__g\" <> ").piece(stop)
+                .append(") ELSE CAST(ARRAY[] AS ARRAY(BIGINT)) END)");
+    }
+
+    /** DuckDB's regexp_replace on Trino: the first match alone unless 'g' (the call arm's comment says how). */
+    private SqlWriter regexpReplace(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        boolean global = a.size() > 3 && a.get(3) instanceof SqlExpr.StringLit o && o.value().contains("g");
+        if (!(a.get(2) instanceof SqlExpr.StringLit r)) {
+            throw wall(c.fn(), "a computed regexp replacement");
+        }
+        if (global) {
+            return writer.append("regexp_replace(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                    .append(", ").append(stringLit(javaReplacement(r.value(), 0))).append(")");
+        }
+        if (a.get(1) instanceof SqlExpr.StringLit p && p.value().matches("(?s).*\\\\[0-9].*")) {
+            throw wall(c.fn(), "a first-match replacement whose pattern has a back reference");
+        }
+        writer.append("regexp_replace(").expr(a.get(0), 0).append(", ");
+        if (a.get(1) instanceof SqlExpr.StringLit p) {
+            writer.append(stringLit("^(?s:(.*?))(?:" + p.value() + ")"));
+        } else {
+            writer.append("concat('^(?s:(.*?))(?:', ").expr(a.get(1), 0).append(", ')')");
+        }
+        return writer.append(", ").append(stringLit("$1" + javaReplacement(r.value(), 1))).append(")");
     }
 
     /** A CONCAT argument as text: concat_ws takes strings only. */
@@ -1302,49 +1460,75 @@ public final class Trino extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case CORR, COVAR_SAMP, COVAR_POP -> writer.piece(covariance(r, null));
-            case SUM, COUNT, AVG, MIN, MAX, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, BOOL_AND, BOOL_OR, VARIANCE, STDDEV, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST,
-                 NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached Trino");
-                }
-                yield super.reducer(writer, r);
-            }
+            case SUM -> aggregate(unordered(writer, r), "SUM", r);
+            case COUNT -> aggregate(unordered(writer, r), "COUNT", r);
+            case AVG -> aggregate(unordered(writer, r), "AVG", r);
+            case MIN -> aggregate(unordered(writer, r), "MIN", r);
+            case MAX -> aggregate(unordered(writer, r), "MAX", r);
             case ANY_VALUE -> writer.append("arbitrary(").list(r.args()).append(")");
-            case STRING_AGG -> {
-                if (r.args().size() != 2) {
-                    throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached Trino");
-                }
-                writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
-                        .append(") WITHIN GROUP (ORDER BY ");
-                if (r.orderBy().isEmpty()) {
-                    // no order: the values' own (listagg needs one); the platform's comparison is unordered
-                    yield writer.expr(r.args().get(0), 0).append(")");
-                }
-                yield writer.join(r.orderBy(), ", ", this::aggregateOrderKey).append(")");
-            }
+            case STDDEV_SAMP -> aggregate(unordered(writer, r), "STDDEV_SAMP", r);
+            case STDDEV_POP -> aggregate(unordered(writer, r), "STDDEV_POP", r);
+            case VAR_SAMP -> aggregate(unordered(writer, r), "VAR_SAMP", r);
+            case VAR_POP -> aggregate(unordered(writer, r), "VAR_POP", r);
             case MEDIAN, QUANTILE_CONT, QUANTILE_DISC -> writer.piece(quantile(r, collected(r.args().get(0), null)));
             case MODE -> writer.piece(mode(counted(r.args().get(0), null)));
-            case LIST -> {
-                if (r.distinct() || r.args().size() != 1) {
-                    throw new DialectCapability("a distinct LIST aggregate reached Trino");
-                }
-                writer.append("array_agg(").expr(r.args().get(0), 0);
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::listOrderKey);
-                }
-                yield writer.append(")");
-            }
+            case STRING_AGG -> listagg(writer, r);
+            case LIST -> arrayAgg(writer, r);
+            case CORR, COVAR_SAMP, COVAR_POP -> writer.piece(covariance(r, null));
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Trino");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "max_by(" : "min_by(").list(r.args()).append(")");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> byExtreme(writer, "max_by", r);
+            case ARG_MIN -> byExtreme(writer, "min_by", r);
+            case BOOL_AND -> aggregate(unordered(writer, r), "BOOL_AND", r);
+            case BOOL_OR -> aggregate(unordered(writer, r), "BOOL_OR", r);
+            case VARIANCE -> aggregate(unordered(writer, r), "VARIANCE", r);
+            case STDDEV -> aggregate(unordered(writer, r), "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** {@code writer}, for an aggregate Trino cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached Trino");
+        }
+        return writer;
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducer}: {@code listagg(...) WITHIN GROUP (ORDER BY ...)}. */
+    private SqlWriter listagg(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 2) {
+            throw new DialectCapability("a STRING_AGG of " + r.args().size() + " arguments reached Trino");
+        }
+        writer.append("listagg(").append(r.distinct() ? "DISTINCT " : "").list(r.args())
+                .append(") WITHIN GROUP (ORDER BY ");
+        if (r.orderBy().isEmpty()) {
+            // no order: the values' own (listagg needs one); the platform's comparison is unordered
+            return writer.expr(r.args().get(0), 0).append(")");
+        }
+        return writer.join(r.orderBy(), ", ", this::aggregateOrderKey).append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter arrayAgg(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.distinct() || r.args().size() != 1) {
+            throw new DialectCapability("a distinct LIST aggregate reached Trino");
+        }
+        writer.append("array_agg(").expr(r.args().get(0), 0);
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::listOrderKey);
+        }
+        return writer.append(")");
+    }
+
+    /** {@code max_by(value, key)} / {@code min_by}: the value at the key's greatest (least) row. */
+    private static SqlWriter byExtreme(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached Trino");
+        }
+        return writer.append(name).append("(").list(r.args()).append(")");
     }
 
     /**

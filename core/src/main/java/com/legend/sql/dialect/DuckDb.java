@@ -6,6 +6,7 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * The DuckDB dialect: {@link AnsiSqlRenderer} plus DuckDB's genuine
@@ -16,6 +17,84 @@ import java.util.List;
  * SPELLING or SHAPE for this backend; meaning lives in the IR.
  */
 public final class DuckDb extends AnsiSqlRenderer {
+
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INTEGER";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "HUGEINT";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "TIMESTAMP";
+            case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            case JSON -> "JSON";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
+    /** A struct type: {@code STRUCT(a T, ...)}, each field its name (spelled) and type. */
+    @Override
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        return "STRUCT(" + structFields(st).stream().map(f -> f.getKey() + " " + f.getValue())
+                .collect(java.util.stream.Collectors.joining(", ")) + ")";
+    }
+
+    /** A date format's parts: DuckDB's strftime codes, the base's {@code strftimeText} (the dialect program's
+     *  Phase 1, 2026-10-13: each dialect declares its date-format vocabulary). */
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return strftimeText(fl);
+    }
+
+    /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
+     *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
+    @Override
+    public String fromEngineH2(String statement) {
+        return RawSqlBoundary.h2ToDuckDb(statement);
+    }
+
+    /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too). */
+    @Override
+    protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+        return switch (r.fn()) {
+            case SUM -> aggregate(writer, "SUM", r);
+            case COUNT -> aggregate(writer, "COUNT", r);
+            case AVG -> aggregate(writer, "AVG", r);
+            case MIN -> aggregate(writer, "MIN", r);
+            case MAX -> aggregate(writer, "MAX", r);
+            case ANY_VALUE -> aggregate(writer, "ANY_VALUE", r);
+            case STDDEV_SAMP -> aggregate(writer, "STDDEV_SAMP", r);
+            case STDDEV_POP -> aggregate(writer, "STDDEV_POP", r);
+            case VAR_SAMP -> aggregate(writer, "VAR_SAMP", r);
+            case VAR_POP -> aggregate(writer, "VAR_POP", r);
+            case MEDIAN -> aggregate(writer, "MEDIAN", r);
+            case MODE -> aggregate(writer, "MODE", r);
+            case STRING_AGG -> aggregate(writer, "STRING_AGG", r);
+            case LIST -> aggregate(writer, "LIST", r);
+            case QUANTILE_CONT -> aggregate(writer, "QUANTILE_CONT", r);
+            case QUANTILE_DISC -> aggregate(writer, "QUANTILE_DISC", r);
+            case CORR -> aggregate(writer, "CORR", r);
+            case COVAR_SAMP -> aggregate(writer, "COVAR_SAMP", r);
+            case COVAR_POP -> aggregate(writer, "COVAR_POP", r);
+            case ARG_MAX -> aggregate(writer, "ARG_MAX", r);
+            case ARG_MIN -> aggregate(writer, "ARG_MIN", r);
+            case BOOL_AND -> aggregate(writer, "BOOL_AND", r);
+            case BOOL_OR -> aggregate(writer, "BOOL_OR", r);
+            case VARIANCE -> aggregate(writer, "VARIANCE", r);
+            case STDDEV -> aggregate(writer, "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
+        };
+    }
 
     /** B6 — DuckDB sessions pin UTC: the driver's Timestamps are
      * wall-preserving under it (the platform's naive-UTC temporal
@@ -92,6 +171,26 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     public CatalogType catalogType(CatalogModel.Column column) {
         return CATALOG_RULES.typeOf(column);
+    }
+
+    /** {@inheritDoc} DuckDB matches a name case-insensitively, so a bare declaration reaches every catalog name. */
+    @Override
+    public boolean bareNameReaches(String catalogName) {
+        return true;
+    }
+
+    /** {@inheritDoc} DuckDB's star modifier, {@code * REPLACE (<conversion> AS "<column>", ...)}: an upload's
+     *  rewrite, a Snap into the tab, a Python frame. */
+    @Override
+    public String copySelectList(List<CatalogModel.Conversion> conversions) {
+        if (conversions.isEmpty()) {
+            return "*";
+        }
+        List<String> items = new java.util.ArrayList<>();
+        for (CatalogModel.Conversion c : conversions) {
+            items.add(c.sql() + " AS " + CatalogModel.sqlIdent(c.column()));
+        }
+        return "* REPLACE (" + String.join(", ", items) + ")";
     }
 
     /**
@@ -189,8 +288,27 @@ public final class DuckDb extends AnsiSqlRenderer {
         return java.util.Collections.unmodifiableMap(m);
     }
 
+    /** DuckDB (the execution backend): every keyword DuckDB will not take as a table or column name (its
+     *  {@code reserved} and {@code type_function} categories, {@code duckdb_keywords()}), held so by
+     *  DuckDbKeywordsTest against the pinned DuckDB; a few more DML words besides. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "all", "analyse", "analyze", "and", "anti", "any", "array", "as", "asc", "asof", "asymmetric", "at",
+            "authorization", "between", "binary", "both", "by", "case", "cast", "check", "collate", "collation",
+            "column", "columns", "concurrently", "constraint", "create", "cross", "default", "deferrable", "delete",
+            "desc", "describe", "distinct", "do", "drop", "else", "end", "except", "exists", "false", "fetch", "for",
+            "foreign", "freeze", "from", "full", "generated", "glob", "group", "having", "ilike", "in", "initially",
+            "inner", "insert", "intersect", "into", "is", "isnull", "join", "lambda", "lateral", "leading", "left",
+            "like", "limit", "map", "natural", "not", "notnull", "null", "offset", "on", "only", "or", "order",
+            "outer", "overlaps", "pivot", "pivot_longer", "pivot_wider", "placing", "positional", "primary",
+            "qualify", "references", "returning", "right", "select", "semi", "show", "similar", "some", "struct",
+            "summarize", "symmetric", "table", "tablesample", "then", "to", "trailing", "true", "try_cast", "union",
+            "unique", "unpack", "unpivot", "update", "using", "values", "variadic", "verbose", "when", "where",
+            "window", "with"));
+
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public DuckDb() {
-        super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
+        super(LEXICON);
     }
 
     /** DuckDB DDL: a store FLOAT is DOUBLE (H2's FLOAT is double
@@ -212,46 +330,202 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
-        // the engine's H2 returns NaN for out-of-domain acos/asin;
-        // DuckDB THROWS 'Unable to compute acos of 1.1'. Same rows on
-        // both backends means guarding the domain and yielding NaN —
-        // the engine's answer — not propagating DuckDB's exception.
-        if (c.fn() == com.legend.sql.SqlFn.ACOS
-                || c.fn() == com.legend.sql.SqlFn.ASIN) {
-            String fn = c.fn() == com.legend.sql.SqlFn.ACOS
-                    ? "acos" : "asin";
-            return writer.append("(CASE WHEN (").expr(c.args().get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn)
-                    .append("(").expr(c.args().get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
-        }
-        // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
-        // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
-        // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
-        // type (session TZ is pinned UTC).
-        if (c.fn() == com.legend.sql.SqlFn.NOW) {
-            return writer.append("CAST(now() AS TIMESTAMP)");
-        }
-        // len(DOUBLE): the corpus spells length() over numeric-typed
-        // expressions (engine H2 coerces); DuckDB has no len(DOUBLE) —
-        // stringify the argument first, matching the engine's implicit
-        // varchar coercion.
-        if (c.fn() == com.legend.sql.SqlFn.LENGTH
-                && !(c.args().get(0) instanceof SqlExpr.StringLit)) {
-            return writer.append("length(CAST(").expr(c.args().get(0), 0).append(" AS VARCHAR))");
-        }
-        // date_trunc('day', ts): DuckDB returns a DATE at day grain and
-        // coarser (TIMESTAMP only for hour and finer); the semantic fact is
-        // pure's firstHourOfDay(Date):DateTime — the engine's H2 keeps the
-        // TIMESTAMP, so this backend casts back to it. The coarser parts
-        // are the Date-typed heads (firstDayOf*) and stay as they are.
-        if (c.fn() == com.legend.sql.SqlFn.DATE_TRUNC
-                && c.args().get(0) instanceof SqlExpr.StringLit part
-                && part.value().equals("day")) {
+        List<SqlExpr> a = c.args();
+        // every function, each by name (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a new
+        // function asks this dialect too)
+        return switch (c.fn()) {
+            // ---- DuckDB's own spellings (the base renderer's until the dialect program's Phase 1, D1, 2026-10-13)
+            // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
+            // the engine's H2 returns NaN for out-of-domain acos/asin;
+            // DuckDB THROWS 'Unable to compute acos of 1.1'. Same rows on
+            // both backends means guarding the domain and yielding NaN —
+            // the engine's answer — not propagating DuckDB's exception.
+            case ACOS -> domainGuarded(writer, "acos", a);
+            case ASIN -> domainGuarded(writer, "asin", a);
+            // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
+            // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
+            // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
+            // type (session TZ is pinned UTC).
+            case NOW -> writer.append("CAST(now() AS TIMESTAMP)");
+            // the functions only DuckDB runs (DuckDbSpellings: the engine-H2 text names them too)
+            case BIT_NOT -> DuckDbSpellings.bitNot(writer, a);
+            case MAP_EMPTY -> DuckDbSpellings.mapEmpty(writer);
+            case JSON_MERGE_PATCH -> DuckDbSpellings.jsonMergePatch(writer, a);
+            case ENCODE_BASE64 -> DuckDbSpellings.encodeBase64(writer, a);
+            case DECODE_BASE64 -> DuckDbSpellings.decodeBase64(writer, a);
+            case MAKE_TIMESTAMP -> DuckDbSpellings.makeTimestamp(writer, a);
+            case TIME_BUCKET -> DuckDbSpellings.timeBucket(writer, a);
+            case FROM_EPOCH_MS -> DuckDbSpellings.fromEpochMs(writer, a);
+            case INT_DIVIDE -> DuckDbSpellings.intDivide(writer, a);
+            // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
+            // as a string literal and renders bare: d + to_years(n).
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
+                    .append(" + ").append(((SqlExpr.StringLit) a.get(0)).value()).append("(").expr(a.get(1), 0)
+                    .append(")"));
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings this dialect's lanes prove
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // NULL-skipping flat concat (the database's concat skips NULL arguments)
+            case CONCAT -> concatFlat(writer, c.args());
+            // joinStrings' interleaved concat, never flattened
+            case CONCAT_JOIN -> writer.function("concat", c.args());
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // generateGuid's contract is text: the uuid as VARCHAR
+            case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            case TODAY -> writer.append("current_date");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DATE_TRUNC -> dateTruncArm(writer, c);
+            case CURRENT_USER_FN -> writer.append("current_user");
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            // parseDate(text): the ISO text as a timestamp
+            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
+            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case ERROR -> raiseEnvelope(writer, c.args(), "error");
+            case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
+                 LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case COALESCE -> writer.function("coalesce", c.args());
+            case LENGTH -> lengthArm(writer, c);
+            case UPPER -> writer.function("upper", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case GREATEST -> writer.function("greatest", c.args());
+            case LEAST -> writer.function("least", c.args());
+            case LIST_FLATTEN -> writer.function("flatten", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case POW -> writer.function("power", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case COS -> writer.function("cos", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case REGEXP_EXTRACT -> writer.function("regexp_extract", c.args());
+            case REGEXP_EXTRACT_ALL -> writer.function("regexp_extract_all", c.args());
+            case REGEXP_REPLACE -> writer.function("regexp_replace", c.args());
+            case REGEXP_FULL_MATCH -> writer.function("regexp_full_match", c.args());
+            case MAP_FROM_LISTS -> writer.function("map", c.args());
+            case MAP_FROM_ENTRIES -> writer.function("map_from_entries", c.args());
+            case MAP_EXTRACT -> writer.function("map_extract", c.args());
+            case MAP_KEYS -> writer.function("map_keys", c.args());
+            case MAP_VALUES -> writer.function("map_values", c.args());
+            case MAP_CONCAT -> writer.function("map_concat", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case STRPOS -> writer.function("strpos", c.args());
+            case STARTS_WITH -> writer.function("starts_with", c.args());
+            case ENDS_WITH -> writer.function("ends_with", c.args());
+            case MATCHES -> writer.function("regexp_matches", c.args());
+            case LEFT -> writer.function("left", c.args());
+            case RIGHT -> writer.function("right", c.args());
+            case TRIM -> writer.function("trim", c.args());
+            case LTRIM -> writer.function("ltrim", c.args());
+            case RTRIM -> writer.function("rtrim", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case SPLIT -> writer.function("string_split", c.args());
+            case SPLIT_PART -> writer.function("split_part", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case ASCII_CODE -> writer.function("ascii", c.args());
+            case CHR -> writer.function("chr", c.args());
+            case LEVENSHTEIN -> writer.function("levenshtein", c.args());
+            case FORMAT -> writer.function("printf", c.args());
+            case MD5 -> writer.function("md5", c.args());
+            case SHA1 -> writer.function("sha1", c.args());
+            case SHA256 -> writer.function("sha256", c.args());
+            case EXTRACT -> writer.function("date_part", c.args());
+            case MAKE_DATE -> writer.function("make_date", c.args());
+            case DATE_DIFF -> writer.function("date_diff", c.args());
+            case TIMEZONE -> writer.function("timezone", c.args());
+            case EPOCH_SECONDS -> writer.function("epoch", c.args());
+            case EPOCH_MS -> writer.function("epoch_ms", c.args());
+            case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
+            case DAYNAME -> writer.function("dayname", c.args());
+            case MONTHNAME -> writer.function("monthname", c.args());
+            case COT -> writer.function("cot", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case REPEAT_STR -> writer.function("repeat", c.args());
+            case JARO_WINKLER -> writer.function("jaro_winkler_similarity", c.args());
+            case LIST_LENGTH -> writer.function("len", c.args());
+            case STRFTIME -> writer.function("strftime", c.args());
+            case STRPTIME -> writer.function("strptime", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case JSON_TYPE -> writer.function("json_type", c.args());
+            case JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
+            case JSON_PRETTY -> writer.function("json_pretty", c.args());
+        };
+    }
+
+    /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: NaN outside the domain, as the engine's H2. */
+    private SqlWriter domainGuarded(SqlWriter writer, String fn, List<SqlExpr> a) {
+        return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn).append("(")
+                .expr(a.get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
+    }
+
+    /** len(DOUBLE): the corpus spells length() over numeric-typed expressions (engine H2 coerces); DuckDB has no
+     *  len(DOUBLE) — stringify the argument first, matching the engine's implicit varchar coercion. */
+    private SqlWriter lengthArm(SqlWriter writer, SqlExpr.Call c) {
+        return c.args().get(0) instanceof SqlExpr.StringLit
+                ? writer.function("length", c.args())
+                : writer.append("length(CAST(").expr(c.args().get(0), 0).append(" AS VARCHAR))");
+    }
+
+    /** date_trunc('day', ts): DuckDB returns a DATE at day grain and coarser (TIMESTAMP only for hour and finer); the
+     *  semantic fact is pure's firstHourOfDay(Date):DateTime — the engine's H2 keeps the TIMESTAMP, so this backend
+     *  casts back to it. The coarser parts are the Date-typed heads (firstDayOf*) and stay as they are. */
+    private SqlWriter dateTruncArm(SqlWriter writer, SqlExpr.Call c) {
+        if (c.args().get(0) instanceof SqlExpr.StringLit part && part.value().equals("day")) {
             writer.append("CAST(");
-            super.call(writer, c, 0);
+            dateTruncDateGrained(writer, c.args());
             return writer.append(" AS TIMESTAMP)");
         }
-        return super.call(writer, c, parentPrec);
+        return dateTruncDateGrained(writer, c.args());
     }
 
     @Override
@@ -266,11 +540,11 @@ public final class DuckDb extends AnsiSqlRenderer {
         // corpus runner opts in, the ENGINE_CASED precedent.
         java.util.List<com.legend.sql.SqlRewriter> ps =
                 new java.util.ArrayList<>(java.util.List.of(
-                        new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
+                        new CarrierStrategies(CAPS),
                         new QuantileOrder(),
                         new UnqualifyPivotArgs(), new FoldToListReduce(),
                         new CheckedDefectsToLists(),
-                        new SubstringClamp(), new RawSqlAdapt()));
+                        new SubstringClamp()));
         if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
             ps.add(new StableScanOrder());
         }

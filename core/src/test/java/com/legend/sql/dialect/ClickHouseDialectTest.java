@@ -36,7 +36,7 @@ class ClickHouseDialectTest {
     }
 
     private static SqlSource.Table table(String name, String alias, String col, SqlType t) {
-        return new SqlSource.Table(name, alias, List.of(new OutputCol(col, t, true)), false, Map.of());
+        return new SqlSource.Table(name, alias, List.of(new OutputCol(col, t, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE);
     }
 
     private static SqlSelect select(SqlSource from, @com.legend.base.Nullable SqlExpr where, SqlExpr... values) {

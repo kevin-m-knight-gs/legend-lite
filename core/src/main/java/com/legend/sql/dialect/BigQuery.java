@@ -65,19 +65,62 @@ import java.util.Set;
  *       TIMESTAMP; JSON objects keep their keys SORTED (DuckDB keeps insertion order).</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * {@link Spellings#BIGQUERY} row), a BigQuery arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling
  * is a silent wrong answer.
  */
 public final class BigQuery extends AnsiSqlRenderer {
 
+    /** BigQuery (GoogleSQL; 2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): backticks; GoogleSQL's reserved
+     *  keywords. The {@code BigQuery} dialect quotes every identifier, so the list decides no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('`', Set.of(
+            "all", "and", "any", "array", "as", "asc", "assert_rows_modified", "at", "between", "by", "case", "cast",
+            "collate", "contains", "create", "cross", "cube", "current", "default", "define", "desc", "distinct",
+            "else", "end", "enum", "escape", "except", "exclude", "exists", "extract", "false", "fetch", "following",
+            "for", "from", "full", "group", "grouping", "groups", "hash", "having", "if", "ignore", "in", "inner",
+            "intersect", "interval", "into", "is", "join", "lateral", "left", "like", "limit", "lookup", "merge",
+            "natural", "new", "no", "not", "null", "nulls", "of", "on", "or", "order", "outer", "over", "partition",
+            "preceding", "proto", "qualify", "range", "recursive", "respect", "right", "rollup", "rows", "select",
+            "set", "some", "struct", "tablesample", "then", "to", "treat", "true", "unbounded", "union", "unnest",
+            "using", "when", "where", "window", "with", "within"));
+
+    /** BigQuery (2026-10-11): the portable strategies (static pivot and as-of emulation, explode placements, list
+     *  reductions fused), as on Postgres: arrays are native but lambda-less; FULL OUTER is native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, true, true, true);
+
     public BigQuery() {
-        super(Lexicon.BIGQUERY, TypeNames.BIGQUERY, Spellings.BIGQUERY);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
+
+    /** The engine's H2 text is refused here: BigQuery has no translation of it (decision D2: raw text runs on the
+     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+    @Override
+    public String fromEngineH2(String statement) {
+        throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
+    }
+
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOL";
+            case INTEGER, BIGINT -> "INT64";
+            case HUGEINT -> "BIGNUMERIC";
+            case DOUBLE -> "FLOAT64";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "STRING";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "DATETIME";
+            case TIMESTAMPTZ -> "TIMESTAMP";
+            case JSON -> "JSON";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
 
     /** Nothing to set: a BigQuery session's zone is UTC unless a statement names one (measured {@code @@time_zone}),
      *  which is the platform's naive-UTC contract -- CURRENT_DATETIME() is the UTC wall time, a TIMESTAMP reads as
@@ -111,7 +154,7 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.BIGQUERY), new FoldsAsRecursiveCtes(),
+        return List.of(new CarrierStrategies(CAPS), new FoldsAsRecursiveCtes(),
                 new SubstringClamp(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.SelectListUnnestAsLateral(),
                 new ExplosionMarkers.StarOverExplosionUnwrapped(),
@@ -733,7 +776,8 @@ public final class BigQuery extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String structTypeName(List<Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         StringBuilder sb = new StringBuilder("STRUCT<");
         for (int i = 0; i < fields.size(); i++) {
             sb.append(i > 0 ? ", " : "").append(fields.get(i).getKey()).append(' ').append(fields.get(i).getValue());
@@ -1304,37 +1348,75 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        if ((c.fn() == SqlFn.EQUAL || c.fn() == SqlFn.NOT_EQUAL) && a.size() == 2
-                && (composite(a.get(0)) || composite(a.get(1)))) {
-            return compositeEquality(writer, a, c.fn() == SqlFn.EQUAL);
-        }
-        // null-safe: a NULL composite's JSON text is 'null', no composite value's is
-        if ((c.fn() == SqlFn.IS_DISTINCT_FROM || c.fn() == SqlFn.NULL_SAFE_EQUAL
-                || c.fn() == SqlFn.NULL_SAFE_NOT_EQUAL) && a.size() == 2
-                && (composite(a.get(0)) || composite(a.get(1)))) {
-            return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0)
-                    .append(c.fn() == SqlFn.NULL_SAFE_EQUAL ? ") = " : ") <> ").append("TO_JSON_STRING(")
-                    .expr(a.get(1), 0).append("))");
-        }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.BIGQUERY row) is GoogleSQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
-                 IS_NULL, IS_NOT_NULL, IS_DISTINCT_FROM, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, LPAD, RPAD,
-                 UC_FIRST, LC_FIRST, DATE_TRUNC_DAY, ERROR,
-                 // the base's hooks, overridden below
-                 HASH, ROUND, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, STRUCT_INSERT, UNNEST,
-                 PURE_SPLIT_PART, LIST_EXISTS, LIST_FOR_ALL, ALL_DISTINCT, TO_VARIANT, VARIANT_GET, VARIANT_ELEMENTS,
-                 // Spellings.BIGQUERY rows (ACOS/ASIN raise outside [-1, 1] as DuckDB's do; SPLIT('', d) is [] on both)
-                 ABS, ACOS, ASIN, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, SIN, SINH, TAN, TANH, LOWER, UPPER,
-                 LTRIM, RTRIM, TRIM, REPLACE, STARTS_WITH, ENDS_WITH, STRPOS, SPLIT, ASCII_CODE, REVERSE_STRING,
-                 REPEAT_STR, LEVENSHTEIN, FLOOR_RAW, MATCHES, SUBSTRING, LIST_REVERSE, LIST_LENGTH, FLOAT_CANON ->
-                    super.call(writer, c, parentPrec);
-            case IN -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    throw listParameter(p);
-                }
-                yield super.call(writer, c, parentPrec);
-            }
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
+            case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> nullSafeArm(writer, c, false);
+            case NULL_SAFE_EQUAL -> nullSafeArm(writer, c, true);
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case HASH -> hashSigned(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("ABS", c.args());
+            case ACOS -> writer.function("ACOS", c.args());
+            case ASIN -> writer.function("ASIN", c.args());
+            case ATAN -> writer.function("ATAN", c.args());
+            case ATAN2 -> writer.function("ATAN2", c.args());
+            case CBRT -> writer.function("CBRT", c.args());
+            case CHR -> writer.function("CHR", c.args());
+            case COALESCE -> writer.function("COALESCE", c.args());
+            case COS -> writer.function("COS", c.args());
+            case COSH -> writer.function("COSH", c.args());
+            case COT -> writer.function("COT", c.args());
+            case SIN -> writer.function("SIN", c.args());
+            case SINH -> writer.function("SINH", c.args());
+            case TAN -> writer.function("TAN", c.args());
+            case TANH -> writer.function("TANH", c.args());
+            case LOWER -> writer.function("LOWER", c.args());
+            case UPPER -> writer.function("UPPER", c.args());
+            case LTRIM -> writer.function("LTRIM", c.args());
+            case RTRIM -> writer.function("RTRIM", c.args());
+            case TRIM -> writer.function("TRIM", c.args());
+            case REPLACE -> writer.function("REPLACE", c.args());
+            case STARTS_WITH -> writer.function("STARTS_WITH", c.args());
+            case ENDS_WITH -> writer.function("ENDS_WITH", c.args());
+            case STRPOS -> writer.function("STRPOS", c.args());
+            case SPLIT -> writer.function("SPLIT", c.args());
+            case ASCII_CODE -> writer.function("ASCII", c.args());
+            case REVERSE_STRING -> writer.function("REVERSE", c.args());
+            case REPEAT_STR -> writer.function("REPEAT", c.args());
+            case LEVENSHTEIN -> writer.function("EDIT_DISTANCE", c.args());
+            case FLOOR_RAW -> writer.function("FLOOR", c.args());
+            case MATCHES -> writer.function("REGEXP_CONTAINS", c.args());
+            case SUBSTRING -> writer.function("SUBSTR", c.args());
+            case LIST_REVERSE -> writer.function("ARRAY_REVERSE", c.args());
+            case LIST_LENGTH -> writer.function("ARRAY_LENGTH", c.args());
+            case IN -> in(writer, c, parentPrec);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
 
@@ -1346,13 +1428,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case MOD, REM -> writer.piece(remainder(c.fn(), a));
             // DuckDB's // truncates toward zero and answers NULL for a zero divisor (measured); so does DIV, which
             // raises instead
-            case INT_DIVIDE -> {
-                if (a.stream().anyMatch(BigQuery::isDouble)) {
-                    throw wall(c.fn(), "DIV takes no FLOAT64");
-                }
-                yield writer.append("(CASE WHEN ").expr(a.get(1), 4).append(" = 0 THEN NULL ELSE DIV(")
-                        .expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") END)");
-            }
+            case INT_DIVIDE -> intDivide(writer, c);
             case CEILING -> writer.append("CAST(CEIL(").expr(a.get(0), 0).append(") AS INT64)");
             case FLOOR -> writer.append("CAST(FLOOR(").expr(a.get(0), 0).append(") AS INT64)");
             case SIGN -> writer.append("CAST(SIGN(").expr(a.get(0), 0).append(") AS INT64)");
@@ -1373,7 +1449,8 @@ public final class BigQuery extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
             // in for itself, or for another when NULL, so only all-NULL is NULL
-            case GREATEST, LEAST -> writer.piece(nullSkipping(c.fn() == SqlFn.GREATEST ? "GREATEST" : "LEAST", a));
+            case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
+            case LEAST -> writer.piece(nullSkipping("LEAST", a));
 
             // ---- strings
             // NULL-ignoring, as DuckDB's concat (BigQuery's is NULL if any argument is, measured)
@@ -1388,12 +1465,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case SPLIT_PART -> splitPart(writer, a);
             case REGEXP_FULL_MATCH -> writer.append("REGEXP_CONTAINS(").expr(a.get(0), 0).append(", ")
                     .piece(anchored(a.get(1))).append(")");
-            case REGEXP_EXTRACT -> {
-                String pattern = onlyGroup(literal(a.get(1), "a regexp_extract pattern"), group(a));
-                yield writer.append("(CASE WHEN ").expr(a.get(0), 4)
-                        .append(" IS NULL THEN NULL ELSE COALESCE(REGEXP_EXTRACT(").expr(a.get(0), 0)
-                        .append(", " + stringLit(pattern) + "), '') END)");
-            }
+            case REGEXP_EXTRACT -> regexpExtract(writer, c);
             case REGEXP_EXTRACT_ALL -> regexpExtractAll(writer, a);
             case REGEXP_REPLACE -> writer.piece(regexpReplace(a));
             case ENCODE_BASE64 -> writer.append("TO_BASE64(CAST(").piece(asText(a.get(0))).append(" AS BYTES))");
@@ -1443,29 +1515,12 @@ public final class BigQuery extends AnsiSqlRenderer {
                     .expr(a.get(0), 0).append(" AS INT64))")));
             case DAYNAME -> writer.append("FORMAT_DATETIME('%A', CAST(").expr(a.get(0), 0).append(" AS DATETIME))");
             case MONTHNAME -> writer.append("FORMAT_DATETIME('%B', CAST(").expr(a.get(0), 0).append(" AS DATETIME))");
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.piece(strftime(a.get(0), fl));
-            }
+            case STRFTIME -> strftimeArm(writer, c);
             case STRPTIME -> strptime(writer, a, c);
 
             // ---- lists (ARRAY<T>; lambdas as correlated subqueries)
-            case LIST_FILTER -> {
-                SqlExpr.Lambda l = lambdaOf(a.get(1), c.fn());
-                String x = l.params().get(0);
-                yield writer.piece(overElements(a.get(0), x, offsetOf(l), w -> w.append(param(x)),
-                        w -> w.expr(lambdaBody(a.get(0), l), 0)));
-            }
-            case LIST_TRANSFORM -> {
-                if (listElement(c) instanceof SqlType.Array) {
-                    throw nestedList();
-                }
-                SqlExpr.Lambda l = lambdaOf(a.get(1), c.fn());
-                yield writer.piece(overElements(a.get(0), l.params().get(0), offsetOf(l),
-                        w -> w.expr(lambdaBody(a.get(0), l), 0), null));
-            }
+            case LIST_FILTER -> listFilter(writer, c);
+            case LIST_TRANSFORM -> listTransform(writer, c);
             // NULL ++ xs is xs, as DuckDB's list_concat (measured)
             case LIST_CONCAT -> writer.append("ARRAY_CONCAT(").join(a, ", ", (w, x) -> w.append("IFNULL(").expr(x, 0)
                     .append(", ").append(emptyList(listElement(x) != null ? x : c)).append(")")).append(")");
@@ -1483,13 +1538,7 @@ public final class BigQuery extends AnsiSqlRenderer {
                     + " FROM ").piece(elements(a.get(0), "__e", "__o")).append(" WHERE " + param("__e")
                     + " IS NOT NULL GROUP BY " + param("__e") + " ORDER BY MIN(" + param("__o") + "))")));
             // list_append(NULL, v) is [v] (measured)
-            case LIST_APPEND -> {
-                if (typeOf(a.get(1)) instanceof SqlType.Array) {
-                    throw nestedList();
-                }
-                yield writer.append("ARRAY_CONCAT(IFNULL(").expr(a.get(0), 0).append(", ").append(emptyList(a.get(0)))
-                        .append("), [").expr(a.get(1), 0).append("])");
-            }
+            case LIST_APPEND -> listAppend(writer, c);
             case LIST_SUM -> writer.piece(overRows(a.get(0), SqlAgg.Fn.SUM, List.of()));
             case LIST_MIN -> writer.piece(overRows(a.get(0), SqlAgg.Fn.MIN, List.of()));
             case LIST_MAX -> writer.piece(overRows(a.get(0), SqlAgg.Fn.MAX, List.of()));
@@ -1500,13 +1549,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case LIST_BOOL_OR -> writer.piece(overRows(a.get(0), SqlAgg.Fn.BOOL_OR, List.of()));
             // ascending / descending, NULLs last both ways (DuckDB's list_sort / list_reverse_sort, measured); a
             // struct by its fields in declared order (BigQuery orders no STRUCT)
-            case LIST_SORT, LIST_SORT_DESC -> {
-                String dir = c.fn() == SqlFn.LIST_SORT ? " ASC NULLS LAST" : " DESC NULLS LAST";
-                SqlType el = listElement(a.get(0));
-                yield writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + param("__e") + " FROM UNNEST(")
-                        .expr(a.get(0), 0).append(") AS " + param("__e") + " ORDER BY ")
-                        .append(elementSort(param("__e"), el, dir)).append(")")));
-            }
+            case LIST_SORT, LIST_SORT_DESC -> listSort(writer, c);
             case LIST_TAIL -> writer.piece(overElements(a.get(0), "__e", "__o", w -> w.append(param("__e")),
                     w -> w.append(param("__o") + " > 0")));
             case LIST_INIT -> writer.piece(overElements(a.get(0), "__e", "__o", w -> w.append(param("__e")),
@@ -1517,13 +1560,7 @@ public final class BigQuery extends AnsiSqlRenderer {
                             + param("__o") + " + 1 <= ").piece(sliceEnd(a.get(0), a.get(2)))));
             // DuckDB's range: [start, stop) by step (start 0, step 1 by default); GENERATE_ARRAY is inclusive
             case RANGE_FN -> range(writer, a);
-            case REPEAT_VALUE -> {
-                if (typeOf(a.get(0)) instanceof SqlType.Array) {
-                    throw nestedList();
-                }
-                yield writer.append("ARRAY(SELECT ").expr(a.get(0), 0).append(" FROM UNNEST(GENERATE_ARRAY(1, CAST(")
-                        .expr(a.get(1), 0).append(" AS INT64))) AS " + param("__g") + ")");
-            }
+            case REPEAT_VALUE -> repeatValue(writer, c);
             case LIST_FLATTEN -> throw nestedList();
             case LIST_ZIP -> throw wall(c.fn(), "list_zip names its struct fields by position, unmeasured");
             case LIST_PRODUCT -> throw wall(c.fn(), "BigQuery has no product aggregate and no fold");
@@ -1547,6 +1584,112 @@ public final class BigQuery extends AnsiSqlRenderer {
             case JSON_PRETTY -> throw wall(c.fn(), "BigQuery has no JSON pretty-printer");
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "BigQuery has no JSON merge patch");
         };
+    }
+
+    /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #call}. */
+    private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            return compositeEquality(writer, a, c.fn() == SqlFn.EQUAL);
+        }
+        return infix(writer, c, parentPrec);
+    }
+
+    /** The null-safe arms of {@link #call}: a NULL composite's JSON text is 'null', no composite value's is. */
+    private SqlWriter nullSafeArm(SqlWriter writer, SqlExpr.Call c, boolean equal) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            return writer.append("(TO_JSON_STRING(").expr(a.get(0), 0).append(equal ? ") = " : ") <> ")
+                    .append("TO_JSON_STRING(").expr(a.get(1), 0).append("))");
+        }
+        return equal ? notDistinctFrom(writer, a) : distinctFrom(writer, a);
+    }
+
+    /** The {@code IN} arm of {@link #call}. */
+    private SqlWriter in(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
+            throw listParameter(p);
+        }
+        return inList(writer, a, parentPrec);
+    }
+
+    /** The {@code INT_DIVIDE} arm of {@link #call}. */
+    private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.stream().anyMatch(BigQuery::isDouble)) {
+            throw wall(c.fn(), "DIV takes no FLOAT64");
+        }
+        return writer.append("(CASE WHEN ").expr(a.get(1), 4).append(" = 0 THEN NULL ELSE DIV(")
+                .expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") END)");
+    }
+
+    /** The {@code REGEXP_EXTRACT} arm of {@link #call}. */
+    private SqlWriter regexpExtract(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String pattern = onlyGroup(literal(a.get(1), "a regexp_extract pattern"), group(a));
+        return writer.append("(CASE WHEN ").expr(a.get(0), 4)
+                .append(" IS NULL THEN NULL ELSE COALESCE(REGEXP_EXTRACT(").expr(a.get(0), 0)
+                .append(", " + stringLit(pattern) + "), '') END)");
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftimeArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.piece(strftime(a.get(0), fl));
+    }
+
+    /** The {@code LIST_FILTER} arm of {@link #call}. */
+    private SqlWriter listFilter(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlExpr.Lambda l = lambdaOf(a.get(1), c.fn());
+        String x = l.params().get(0);
+        return writer.piece(overElements(a.get(0), x, offsetOf(l), w -> w.append(param(x)),
+                w -> w.expr(lambdaBody(a.get(0), l), 0)));
+    }
+
+    /** A list with one element appended (NULL ++ x is [x]; no nested lists). */
+    private SqlWriter listAppend(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (typeOf(a.get(1)) instanceof SqlType.Array) {
+            throw nestedList();
+        }
+        return writer.append("ARRAY_CONCAT(IFNULL(").expr(a.get(0), 0).append(", ").append(emptyList(a.get(0)))
+                .append("), [").expr(a.get(1), 0).append("])");
+    }
+
+    /** A list sorted by its elements, NULLs last either way. */
+    private SqlWriter listSort(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String dir = c.fn() == SqlFn.LIST_SORT ? " ASC NULLS LAST" : " DESC NULLS LAST";
+        SqlType el = listElement(a.get(0));
+        return writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + param("__e") + " FROM UNNEST(")
+                .expr(a.get(0), 0).append(") AS " + param("__e") + " ORDER BY ")
+                .append(elementSort(param("__e"), el, dir)).append(")")));
+    }
+
+    /** A value repeated n times (no nested lists). */
+    private SqlWriter repeatValue(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (typeOf(a.get(0)) instanceof SqlType.Array) {
+            throw nestedList();
+        }
+        return writer.append("ARRAY(SELECT ").expr(a.get(0), 0).append(" FROM UNNEST(GENERATE_ARRAY(1, CAST(")
+                .expr(a.get(1), 0).append(" AS INT64))) AS " + param("__g") + ")");
+    }
+
+    /** A list transform: each element through the lambda, in order (no nested lists). */
+    private SqlWriter listTransform(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (listElement(c) instanceof SqlType.Array) {
+            throw nestedList();
+        }
+        SqlExpr.Lambda l = lambdaOf(a.get(1), c.fn());
+        return writer.piece(overElements(a.get(0), l.params().get(0), offsetOf(l),
+                w -> w.expr(lambdaBody(a.get(0), l), 0), null));
     }
 
     private static boolean composite(SqlExpr e) {
@@ -2317,56 +2460,86 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ANY_VALUE, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, CORR, COVAR_SAMP,
-                 COVAR_POP, VARIANCE, STDDEV, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached BigQuery");
-                }
-                yield super.reducer(writer, r);
-            }
-            case BOOL_AND, BOOL_OR -> {
-                if (!r.orderBy().isEmpty()) {
-                    throw new DialectCapability("an ordered " + r.fn() + " reached BigQuery");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.BOOL_AND ? "LOGICAL_AND(" : "LOGICAL_OR(")
-                        .piece(aggregateArgs(r)).append(")");
-            }
-            case STRING_AGG, LIST -> {
-                if (r.fn() == SqlAgg.Fn.LIST
-                        && (r.args().size() != 1 || typeOf(r.args().get(0)) instanceof SqlType.Array)) {
-                    throw r.args().size() != 1 ? new DialectCapability("a LIST aggregate of " + r.args().size()
-                            + " arguments reached BigQuery") : nestedList();
-                }
-                writer.append(r.fn() == SqlAgg.Fn.LIST ? "ARRAY_AGG(" : "STRING_AGG(").piece(aggregateArgs(r));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.piece(aggregateKey(k)));
-                }
-                yield writer.append(")");
-            }
-            case MEDIAN -> {
-                if (r.args().size() != 1 || r.distinct()) {
-                    throw new DialectCapability("a median of this shape reached BigQuery");
-                }
-                yield writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
-            }
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
-                }
-                yield writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
-            }
+            case SUM -> aggregate(unordered(writer, r), "SUM", r);
+            case COUNT -> aggregate(unordered(writer, r), "COUNT", r);
+            case AVG -> aggregate(unordered(writer, r), "AVG", r);
+            case MIN -> aggregate(unordered(writer, r), "MIN", r);
+            case MAX -> aggregate(unordered(writer, r), "MAX", r);
+            case ANY_VALUE -> aggregate(unordered(writer, r), "ANY_VALUE", r);
+            case STDDEV_SAMP -> aggregate(unordered(writer, r), "STDDEV_SAMP", r);
+            case STDDEV_POP -> aggregate(unordered(writer, r), "STDDEV_POP", r);
+            case VAR_SAMP -> aggregate(unordered(writer, r), "VAR_SAMP", r);
+            case VAR_POP -> aggregate(unordered(writer, r), "VAR_POP", r);
+            case MEDIAN -> median(writer, r);
             case MODE -> modeArm(writer, r);
+            case STRING_AGG -> orderedAggregate(writer, "STRING_AGG", r);
+            case LIST -> arrayAgg(writer, r);
+            case QUANTILE_CONT, QUANTILE_DISC -> percentile(writer, r);
+            case CORR -> aggregate(unordered(writer, r), "CORR", r);
+            case COVAR_SAMP -> aggregate(unordered(writer, r), "COVAR_SAMP", r);
+            case COVAR_POP -> aggregate(unordered(writer, r), "COVAR_POP", r);
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "MAX_BY(" : "MIN_BY(").list(r.args()).append(")");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> byExtreme(writer, "MAX_BY", r);
+            case ARG_MIN -> byExtreme(writer, "MIN_BY", r);
+            case BOOL_AND -> unordered(writer, r).append("LOGICAL_AND(").piece(aggregateArgs(r)).append(")");
+            case BOOL_OR -> unordered(writer, r).append("LOGICAL_OR(").piece(aggregateArgs(r)).append(")");
+            case VARIANCE -> aggregate(unordered(writer, r), "VARIANCE", r);
+            case STDDEV -> aggregate(unordered(writer, r), "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** {@code writer}, for an aggregate BigQuery cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached BigQuery");
+        }
+        return writer;
+    }
+
+    /** {@code name([DISTINCT ]args[ ORDER BY keys])}: the string and list aggregates. */
+    private SqlWriter orderedAggregate(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        writer.append(name).append("(").piece(aggregateArgs(r));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.piece(aggregateKey(k)));
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}: ARRAY_AGG of one value that is no list. */
+    private SqlWriter arrayAgg(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || typeOf(r.args().get(0)) instanceof SqlType.Array) {
+            throw r.args().size() != 1 ? new DialectCapability("a LIST aggregate of " + r.args().size()
+                    + " arguments reached BigQuery") : nestedList();
+        }
+        return orderedAggregate(writer, "ARRAY_AGG", r);
+    }
+
+    /** The {@code MEDIAN} arm of {@link #reducer}. */
+    private SqlWriter median(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct()) {
+            throw new DialectCapability("a median of this shape reached BigQuery");
+        }
+        return writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
+    }
+
+    /** The {@code QUANTILE_CONT} and {@code QUANTILE_DISC} arms of {@link #reducer}. */
+    private SqlWriter percentile(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
+        }
+        return writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
+    }
+
+    /** {@code MAX_BY(value, key)} / {@code MIN_BY}: the value at the key's greatest (least) row. */
+    private static SqlWriter byExtreme(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached BigQuery");
+        }
+        return writer.append(name).append("(").list(r.args()).append(")");
     }
 
     /**
@@ -2645,7 +2818,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "CREATE TEMP TABLE " : "CREATE TABLE ")
-                        .append(qualified(ct.schema(), ct.table())).append(" (");
+                        .append(qualified(ct.schema(), ct.table(), ct.quoting())).append(" (");
                 List<String> keys = new ArrayList<>();
                 for (int i = 0; i < ct.columns().size(); i++) {
                     com.legend.sql.SqlDdl.Column col = ct.columns().get(i);
@@ -2660,11 +2833,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                 }
                 yield sb.append(");").toString();
             }
-            case com.legend.sql.SqlDdl.DropTable dt -> "DROP TABLE IF EXISTS " + qualified(dt.schema(), dt.table())
+            case com.legend.sql.SqlDdl.DropTable dt -> "DROP TABLE IF EXISTS " + qualified(dt.schema(), dt.table(), dt.quoting())
                     + ";";
-            case com.legend.sql.SqlDdl.CreateSchema cs -> "CREATE SCHEMA IF NOT EXISTS " + physicalName(cs.schema())
+            case com.legend.sql.SqlDdl.CreateSchema cs -> "CREATE SCHEMA IF NOT EXISTS " + storedName(cs.schema(), cs.quoted())
                     + ";";
-            case com.legend.sql.SqlDdl.DropSchema ds -> "DROP SCHEMA IF EXISTS " + physicalName(ds.schema())
+            case com.legend.sql.SqlDdl.DropSchema ds -> "DROP SCHEMA IF EXISTS " + storedName(ds.schema(), ds.quoted())
                     + " CASCADE;";
         };
     }
@@ -2673,14 +2846,15 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     public String render(com.legend.sql.SqlDml dml) {
         if (dml instanceof com.legend.sql.SqlDml.DeleteAll da) {
-            return "DELETE FROM " + qualified(da.schema(), da.table()) + " WHERE TRUE;";
+            return "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + " WHERE TRUE;";
         }
         return super.render(dml);
     }
 
-    private String qualified(@com.legend.base.Nullable String schema, String table) {
+    private String qualified(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
-                ? physicalName(table) : physicalName(schema) + "." + physicalName(table);
+                ? storedName(table, quoting.table())
+                : storedName(schema, quoting.schema()) + "." + storedName(table, quoting.table());
     }
 
     @Override

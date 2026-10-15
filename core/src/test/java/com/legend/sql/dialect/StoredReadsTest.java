@@ -33,7 +33,7 @@ class StoredReadsTest {
     private static final OutputCol V = new OutputCol("V", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
 
     private static SqlSource.Table table(Map<String, SqlDdl.ColumnType> stored) {
-        return new SqlSource.Table("T", "t0", List.of(ID, V), false, stored);
+        return new SqlSource.Table("T", "t0", List.of(ID, V), false, stored, com.legend.sql.NameQuoting.BARE);
     }
 
     private static SqlSelect selectV(SqlSource.Table t) {
@@ -53,13 +53,15 @@ class StoredReadsTest {
     void eachDialectSpellsItsRead() {
         SqlQuery other = selectV(table(Map.of("V", OTHER)));
         assertEquals("SELECT CAST(t0.V AS VARCHAR) AS V\nFROM T AS t0", new DuckDb().render(other));
-        assertTrue(new Postgres().render(other).startsWith("SELECT CAST(\"t0\".\"V\" AS VARCHAR) AS \"V\""),
+        // Postgres folds the store's bare V (D8), and labels the read as it is referenced, so an outer query's
+        // reference to it names the same column (the label a read with no declared output takes)
+        assertTrue(new Postgres().render(other).startsWith("SELECT CAST(\"t0\".v AS VARCHAR) AS v"),
                 new Postgres().render(other));
         // the engine-text printer spells what legend-engine would: every column bare (S26)
         assertTrue(!new EngineStyleH2().render(other).contains("CAST"), new EngineStyleH2().render(other));
         // an array cannot be cast to jsonb on Postgres: it is converted; DuckDB reads it as stored
         SqlQuery array = selectV(table(Map.of("V", ARRAY)));
-        assertTrue(new Postgres().render(array).startsWith("SELECT to_jsonb(\"t0\".\"V\") AS \"V\""),
+        assertTrue(new Postgres().render(array).startsWith("SELECT to_jsonb(\"t0\".v) AS v"),
                 new Postgres().render(array));
         assertEquals("SELECT t0.V\nFROM T AS t0", new DuckDb().render(array));
     }

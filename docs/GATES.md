@@ -65,6 +65,14 @@ So all 347 tests passed in this container. The two hazards are the tests' own: a
 network at run time, and a scratch file written outside `TEST_TMPDIR`. CI doesn't see them because it has direct
 internet and owns its runfiles tree.
 
+4. *A container whose own `~/.bazelrc` passes the proxy into tests* (2026-10-14, measured at beebe47; the cloud lanes'
+   containers carry `test --test_env=HTTPS_PROXY --test_env=https_proxy ...` for their JVMs). Chromium on Linux reads
+   `https_proxy`, so a page sends `extensions.duckdb.org` to the proxy, which resolves it: the browser guard's
+   resolver rule (`--host-resolver-rules=MAP extensions.duckdb.org ~NOTFOUND`, `tools/browser/pinned-chromium.mjs`)
+   never sees the name, and `//datacube:browser_guard_test` fails ("Download is starting"). Run that test with the
+   proxy cleared, `--test_env=HTTPS_PROXY= --test_env=https_proxy=`: both launches then meet `ERR_NAME_NOT_RESOLVED`,
+   and it passes. A guard the proxy can step around in such a container; CI passes no proxy.
+
 Beside the gates, in `bazel test //...`:
 
 - **Generated files** — `//:generated` (CI's checks lane), that is `//core:update_generated_*_test`,
@@ -9501,6 +9509,63 @@ what reads, what is refused and why, the reviews' findings and the numbers below
    ASCII-only case fold and right trim, exact decimal division, a range check that takes its operand once, a raise
    that carries IQ's code); the syntax ratchet pinning PARSED ids; `SELECT id, ID … ORDER BY id`'s false ambiguity;
    Postgres's default name of nested casts, 2^n in their depth (the seventh line's, older than the seam).
+
+## 2026-10-13 — The dialect program's D1: the base renderer spells no function (the ninth line, on its branch)
+
+Branch `claude/great-wright-p6t5s1`, not landed (Phase 1 lands for the user's review, decision D7). The step and its
+evidence: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`, Phase 1b. One register moves:
+
+- **`spec/src/test/resources/rcorpus/h2-database-outside-body-register.txt` shrinks by two `fallback=1` rows**
+  (`objectReferenceIn::testObjectReferenceInWithObjReferenceOutput`,
+  `graphFetch::tests::simple::testRelationalGraphFetchWithAlloySerializationConfig`). Both are on H2's fail roster
+  before and after. Each sent `to_base64(...)` to H2, which has no such function, from the database judge's fallback;
+  the H2 dialect now refuses it by name (`DialectCapability`) before it is sent, so no statement leaves the body. The
+  H2 roster is unchanged (`//spec:update_rcorpus_h2_*` green).
+- **`spec/src/test/resources/rcorpus/h2-database-untriaged-register.txt` loses
+  `objectReferenceIn::testObjectReferenceInWithObjReferenceOutput`** ("#0 database FAIL, host never reached it",
+  2026-09-23): the two judges no longer disagree on it, both stopping at the same refused `to_base64` (the guard's own
+  instruction: delete an entry whose test no longer disagrees). It stays on H2's fail roster.
+- **The first cut of D1 (9373aec) regressed 14 corpus tests on both lanes** by refusing those DuckDB spellings in the
+  engine-H2 text too: the corpus reads that text on DuckDB, and a refusal left the result without its SQL. Caught by
+  the corpus run in a sibling container, not by PCT or `//gates:local`; c7cd917 restores them there (`DuckDbSpellings`).
+
+## 2026-10-14 — The dialect program's Phase 1 complete, main merged in, every lane re-measured (the ninth line, on its branch)
+
+Branch `claude/great-wright-p6t5s1` at beebe47, not landed (Phase 1 waits for the user's review, decision D7).
+- **What landed on the branch since D1:**
+  - Phase 1b steps 3 and 3b;
+  - P1a, P1c (D2) and P1d (D8);
+  - the capability matrix (b563e84, 6ff3815; `docs/dialect-capability/`, its data diff-tested in `//:generated`).
+
+  Then origin/main (91 commits: C5/D5, the Python line, the parity fix) was merged as beebe47. Two conflicts:
+  `datacube/src/upload.ts` and this file. The record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`, Phase 1.
+- **`//gates:local` on beebe47**, in a root cloud container (the recipe above, items 1 to 4): 358 of 362 passed on
+  the first run. The other four:
+  - the root-only pair passed as root;
+  - `//datacube:browser_guard_test` (new with main) passed with the proxy cleared (item 4);
+  - `//tools/guards:classpath_test` was skipped as before.
+
+  Also green: `//core:stress_suites` and `//core:stress_suites_h2` (308 s).
+- **Every PCT lane, both channels, on beebe47**, in five sibling containers: 102 of 102 targets pass.
+  - 100 have the baseline's SQL, by digest. Postgres's grammar suite keeps the two digests D8 gave it at 9b609f8, so
+    the merge moved no query's SQL.
+  - Channel B's counts are unchanged on every database.
+  - One target was killed for memory, not by a test: `//pct:pct_trino_standard`, a cgroup OOM with
+    `pct_channel_b_trino_standard` beside it, the two Trino servers and their two JVMs at JOBS=2. It passed alone,
+    with the baseline's digest. That is the first such kill in five identical runs; Trino at JOBS=1 avoids it.
+  - `//spec:corpus_duckdb` and `//spec:corpus_h2`: 12 of 12, no roster or register moved.
+- **Found on the way:** the first gate run of the capability matrix failed `//tools/guards:markdown_inputs_test`. G17
+  says no test reads Markdown, and the matrix's pages were diff-tested; 6ff3815 diff-tests its data instead.
+- **After the PR #39 audit's fixes (c437c0c,** the record: `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`, Phase 1,
+  "The independent review"):
+  - CI run 38596414110: all 52 checks green (Linux, Linux ARM, macOS, Windows).
+  - `//gates:local` in this container: 364 of 368 on the first run. The root-only pair passed as root, the browser
+    guard with the proxy cleared (items 3 and 4), and `classpath_test` was skipped. The stress suites pass.
+  - Every PCT lane, both channels, in the five sibling containers: 102 of 102 targets pass, each with beebe47's
+    digest, and Channel B's counts are unchanged.
+  - The lane dumps hold query statements only, so the seed and DDL spelling changes show in no digest: the targets
+    passing are their proof there.
+  - `//spec:corpus_duckdb` and `//spec:corpus_h2`: 12 of 12, no roster or register moved.
 
 ## 2026-10-14 — `#IQ{...}#`: the second landing — M1, IQ's collation and exact NUMERIC, host variables, the showcase (the tenth line)
 

@@ -56,11 +56,38 @@ import java.util.Set;
  *       comes back in the driver's error, measured with 300 characters).</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * Spellings row), a Snowflake arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling is a
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling is a
  * silent wrong answer.
  */
 public final class Snowflake extends AnsiSqlRenderer {
+
+    /** The engine's H2 text is refused here: Snowflake has no translation of it (decision D2: raw text runs on the
+     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+    @Override
+    public String fromEngineH2(String statement) {
+        throw new DialectCapability("the engine's H2 text reached Snowflake, which has no translation of it");
+    }
+
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INTEGER";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "NUMBER(38,0)";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "TIMESTAMP_NTZ";
+            case TIMESTAMPTZ -> "TIMESTAMP_LTZ";
+            case JSON -> "VARIANT";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
 
     /** No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
      *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
@@ -70,8 +97,25 @@ public final class Snowflake extends AnsiSqlRenderer {
         return false;
     }
 
+    /** Snowflake (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): double quotes; Snowflake's documented reserved keywords. The dialect quotes EVERY
+     *  identifier, so the list never decides a spelling here. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "account", "all", "alter", "and", "any", "as", "between", "by", "case", "cast", "check", "column",
+            "connect", "connection", "constraint", "create", "cross", "current", "current_date", "current_time",
+            "current_timestamp", "current_user", "database", "delete", "distinct", "drop", "else", "exists", "false",
+            "following", "for", "from", "full", "grant", "group", "gscluster", "having", "ilike", "in", "increment",
+            "inner", "insert", "intersect", "into", "is", "issue", "join", "lateral", "left", "like", "localtime",
+            "localtimestamp", "minus", "natural", "not", "null", "of", "on", "or", "order", "organization", "qualify",
+            "regexp", "revoke", "right", "rlike", "row", "rows", "sample", "schema", "select", "set", "some", "start",
+            "table", "tablesample", "then", "to", "trigger", "true", "try_cast", "union", "unique", "update", "using",
+            "values", "view", "when", "whenever", "where", "window", "with"));
+
+    /** Snowflake (2026-10-11): semi-structured arrays with higher-order functions -- the strategies stand aside,
+     *  as on DuckDB and Databricks; FULL OUTER is native. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(true, true, true, true);
+
     public Snowflake() {
-        super(Lexicon.SNOWFLAKE, TypeNames.SNOWFLAKE, Spellings.SNOWFLAKE);
+        super(LEXICON);
     }
 
     // ==================================================================
@@ -138,7 +182,7 @@ public final class Snowflake extends AnsiSqlRenderer {
      */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.SNOWFLAKE), new PivotAsGroupBy(), new CheckedDefectsToLists(),
+        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
@@ -268,7 +312,8 @@ public final class Snowflake extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String structTypeName(List<Map.Entry<String, String>> fields) {
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        List<java.util.Map.Entry<String, String>> fields = structFields(st);
         return "OBJECT";
     }
 
@@ -1243,59 +1288,110 @@ public final class Snowflake extends AnsiSqlRenderer {
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings row) is Snowflake SQL
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, NEGATE, IS_NULL, IS_NOT_NULL, IS_DISTINCT_FROM,
-                 NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, PI, CEILING, FLOOR, SIGN,
-                 LPAD, RPAD, UC_FIRST, LC_FIRST, TODAY, DATE_TRUNC_DAY, BOOL_TO_TEXT, DIVIDE, MOD, REM,
-                 ROUND, HASH, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
-                 // the base's idiom points, overridden above
-                 STRUCT_INSERT, PURE_SPLIT_PART, LIST_EXISTS, ALL_DISTINCT, LIST_FOR_ALL, TO_VARIANT,
-                 VARIANT_ELEMENTS, VARIANT_GET, UNNEST,
-                 // Spellings rows
-                 ABS, ASCII_CODE, ATAN, ATAN2, CBRT, CHR, COALESCE, COS, COSH, COT, DEGREES, EXP, FLOOR_RAW,
-                 GREATEST, LEAST, LEFT, LENGTH, LEVENSHTEIN, LN, LOWER, LTRIM, MAKE_DATE, MD5, POW, RADIANS,
-                 REPEAT_STR, REPLACE, REVERSE_STRING, RIGHT, RTRIM, SHA1, SIN, SINH, SPLIT_PART, SQRT,
-                 STARTS_WITH, ENDS_WITH, SUBSTRING, TAN, TANH, TRIM, UPPER, LIST_LENGTH, LIST_REVERSE, MAP_KEYS,
-                 ENCODE_BASE64, DECODE_BASE64, JSON_ARRAY_LENGTH, FLOAT_CANON -> super.call(writer, c, parentPrec);
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case TODAY -> writer.append("current_date");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case ROUND -> roundHalfEven(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case ASCII_CODE -> writer.function("ascii", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
+            case CHR -> writer.function("chr", c.args());
+            case COALESCE -> writer.function("coalesce", c.args());
+            case COS -> writer.function("cos", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case COT -> writer.function("cot", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case GREATEST -> writer.function("greatest_ignore_nulls", c.args());
+            case LEAST -> writer.function("least_ignore_nulls", c.args());
+            case LEFT -> writer.function("left", c.args());
+            case LENGTH -> writer.function("length", c.args());
+            case LEVENSHTEIN -> writer.function("editdistance", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case LTRIM -> writer.function("ltrim", c.args());
+            case MAKE_DATE -> writer.function("date_from_parts", c.args());
+            case MD5 -> writer.function("md5", c.args());
+            case POW -> writer.function("power", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case REPEAT_STR -> writer.function("repeat", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case RIGHT -> writer.function("right", c.args());
+            case RTRIM -> writer.function("rtrim", c.args());
+            case SHA1 -> writer.function("sha1", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case SPLIT_PART -> writer.function("split_part", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case STARTS_WITH -> writer.function("startswith", c.args());
+            case ENDS_WITH -> writer.function("endswith", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case TRIM -> writer.function("trim", c.args());
+            case UPPER -> writer.function("upper", c.args());
+            case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("array_size", c.args());
+            case LIST_REVERSE -> writer.function("array_reverse", c.args());
+            case MAP_KEYS -> writer.function("object_keys", c.args());
+            case ENCODE_BASE64 -> writer.function("base64_encode", c.args());
+            case DECODE_BASE64 -> writer.function("base64_decode_string", c.args());
 
             // a list parameter is bound as one array on the base (= ANY(?)): Snowflake binds none
-            case IN -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    throw new DialectCapability("list parameter '" + p.name() + "' reached Snowflake, which binds"
-                            + " no array (= ANY(?))");
-                }
-                yield super.call(writer, c, parentPrec);
-            }
+            case IN -> inArm(writer, c, parentPrec);
             // NULL-ignoring, as DuckDB's concat (|| and CONCAT are NULL if any argument is, measured)
             case CONCAT -> writer.piece(concat(flattenConcat(a)));
             case CONCAT_JOIN -> writer.piece(concat(a));
             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
-            case ACOS, ASIN -> {
-                String f = c.fn() == SqlFn.ACOS ? "ACOS" : "ASIN";
-                yield writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN " + f + "(")
-                        .expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE) END)");
-            }
+            case ACOS, ASIN -> acosArm(writer, c);
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
             // Pure's divide-with-scale is HALF_UP: ROUND over a NUMBER (half away from zero, measured); over a FLOAT
             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)
-            case ROUND_HALF_UP -> {
-                if (!isDouble(a.get(0))) {
-                    yield super.call(writer, c, parentPrec);
-                }
-                SqlWriter.Piece scale = a.size() > 1 ? w -> w.append("POWER(10, ").expr(a.get(1), 0).append(")") : null;
-                SqlWriter.Piece v = scale == null ? w -> w.expr(a.get(0), 6)
-                        : w -> w.append("(").expr(a.get(0), 6).append(" * ").piece(scale).append(")");
-                writer.append("(SIGN(").piece(v).append(") * FLOOR(ABS(").piece(v).append(") + 0.5)");
-                yield (scale == null ? writer : writer.append(" / ").piece(scale)).append(")");
-            }
+            case ROUND_HALF_UP -> roundHalfUp(writer, c);
             // DuckDB's // truncates toward zero; x // 0 is NULL (DIV0NULL answers 0, measured)
-            case INT_DIVIDE -> {
-                boolean integers = isInteger(typeOf(a.get(0))) && isInteger(typeOf(a.get(1)));
-                writer.append(integers ? "CAST(TRUNC(" : "TRUNC(").expr(a.get(0), 6).append(" / NULLIF(")
-                        .expr(a.get(1), 0).append(", 0))");
-                yield integers ? writer.append(" AS BIGINT)") : writer;
-            }
+            case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");
             // a 64-bit integer text: CAST rounds a decimal text ('1.5' is 2, measured), so the text is checked first
             case PARSE_INT -> writer.append("CAST(CASE WHEN REGEXP_LIKE(").expr(a.get(0), 0).append(", ")
@@ -1326,13 +1422,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case EXTRACT -> writer.piece(extract(a));
             case DATE_TRUNC -> writer.piece(dateTrunc(a));
             // seconds as a DOUBLE: whole seconds, then the fraction's microseconds
-            case MAKE_TIMESTAMP -> {
-                if (a.size() != 6) {
-                    throw wall(c.fn(), "make_timestamp of " + a.size() + " arguments");
-                }
-                yield writer.append("DATEADD(MICROSECOND, ROUND(").expr(a.get(5), 6)
-                        .append(" * 1000000), TIMESTAMP_FROM_PARTS(").list(a.subList(0, 5)).append(", 0))");
-            }
+            case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             // DuckDB's date + interval is a TIMESTAMP at every unit (DATEADD of days keeps a DATE, measured)
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("CAST(DATEADD(")
                     .append(intervalUnit(literal(a.get(0), c.fn().name()))).append(", ").expr(a.get(1), 0)
@@ -1356,18 +1446,8 @@ public final class Snowflake extends AnsiSqlRenderer {
             // DAYNAME is 'Sun' here: the full name by the ISO weekday
             case DAYNAME -> writer.piece(weekdayName(naive(a.get(0))));
             case MONTHNAME -> writer.append("TO_CHAR(").piece(naive(a.get(0))).append(", 'MMMM')");
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.piece(strftime(a.get(0), fl));
-            }
-            case STRPTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.append("TO_TIMESTAMP_NTZ(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
-            }
+            case STRFTIME -> strftimeArm(writer, c);
+            case STRPTIME -> strptime(writer, c);
 
             // ---- lists
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_FLATTEN, LIST_ZIP,
@@ -1378,77 +1458,22 @@ public final class Snowflake extends AnsiSqlRenderer {
             case RANGE_FN -> a.size() == 1
                     ? writer.append("ARRAY_GENERATE_RANGE(0, ").expr(a.get(0), 0).append(")")
                     : writer.function("ARRAY_GENERATE_RANGE", a);
-            case REPEAT_VALUE -> {
-                String r = freshName("r");
-                yield writer.append("TRANSFORM(ARRAY_GENERATE_RANGE(0, ").expr(a.get(1), 0).append("), ")
-                        .piece(lambdaOf(List.of(new Param(r, "INTEGER")), Map.of(), w -> w.expr(a.get(0), 0)))
-                        .append(")");
-            }
+            case REPEAT_VALUE -> repeatValue(writer, c);
 
             // ---- maps: OBJECTs (string keys only)
             case MAP_EMPTY -> writer.append("OBJECT_CONSTRUCT()");
-            case MAP_FROM_LISTS -> {
-                if (listElement(a.get(0)) != SqlType.Scalar.VARCHAR) {
-                    throw wall(c.fn(), "a map keyed by " + listElement(a.get(0)) + " (an OBJECT's keys are text)");
-                }
-                String m = freshName("m");
-                String i = freshName("i");
-                yield writer.append("REDUCE(ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(").expr(a.get(0), 0)
-                        .append(")), OBJECT_CONSTRUCT(), ")
-                        .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(i, "INTEGER")), Map.of(),
-                                w -> w.append("OBJECT_INSERT(" + delimited(m) + ", CAST(GET(").expr(a.get(0), 0)
-                                        .append(", " + delimited(i) + ") AS VARCHAR), COALESCE(GET(")
-                                        .expr(a.get(1), 0).append(", " + delimited(i) + "), PARSE_JSON('null')), TRUE)")))
-                        .append(")");
-            }
+            case MAP_FROM_LISTS -> mapFromLists(writer, c);
             // DuckDB's map_from_entries: each entry a struct of (key, value), by position whatever their names
-            case MAP_FROM_ENTRIES -> {
-                if (!(listElement(a.get(0)) instanceof SqlType.Struct entry) || entry.fields().size() != 2
-                        || entry.fields().get(0).type() != SqlType.Scalar.VARCHAR) {
-                    throw wall(c.fn(), "entries of " + listElement(a.get(0)) + " (an OBJECT's keys are text)");
-                }
-                String m = freshName("m");
-                String e = freshName("e");
-                String key = stringLit(entry.fields().get(0).name());
-                String value = stringLit(entry.fields().get(1).name());
-                yield writer.append("REDUCE(COALESCE(").expr(a.get(0), 0).append(", ARRAY_CONSTRUCT()), OBJECT_CONSTRUCT(), ")
-                        .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(e, "OBJECT")), Map.of(),
-                                w -> w.append("OBJECT_INSERT(" + delimited(m) + ", CAST(GET(" + delimited(e) + ", " + key
-                                        + ") AS VARCHAR), COALESCE(GET(" + delimited(e) + ", " + value
-                                        + "), PARSE_JSON('null')), TRUE)")))
-                        .append(")");
-            }
+            case MAP_FROM_ENTRIES -> mapFromEntries(writer, c);
             // DuckDB's map_extract: a list of the key's value, empty when absent
             case MAP_EXTRACT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL WHEN")
                     .append(" ARRAY_CONTAINS(TO_VARIANT(").expr(a.get(1), 0).append("), OBJECT_KEYS(")
                     .expr(a.get(0), 0).append(")) THEN ARRAY_CONSTRUCT(COALESCE(GET(").expr(a.get(0), 0).append(", ")
                     .expr(a.get(1), 0).append("), PARSE_JSON('null'))) ELSE ARRAY_CONSTRUCT() END)");
             // in the keys' order (OBJECT_KEYS sorts them, measured; DuckDB's map keeps insertion order)
-            case MAP_VALUES -> {
-                String k = freshName("k");
-                yield writer.append("TRANSFORM(OBJECT_KEYS(").expr(a.get(0), 0).append("), ")
-                        .piece(lambdaOf(List.of(new Param(k, "VARCHAR")), Map.of(), w -> w.append("GET(")
-                                .expr(a.get(0), 0).append(", " + delimited(k) + ")")))
-                        .append(")");
-            }
+            case MAP_VALUES -> mapValues(writer, c);
             // the later map's keys win, as DuckDB's map_concat
-            case MAP_CONCAT -> {
-                SqlWriter.Piece acc = w -> w.append("COALESCE(").expr(a.get(0), 0).append(", OBJECT_CONSTRUCT())");
-                for (int n = 1; n < a.size(); n++) {
-                    SqlWriter.Piece left = acc;
-                    SqlExpr next = a.get(n);
-                    String m = freshName("m");
-                    String k = freshName("k");
-                    acc = w -> w.append("REDUCE(COALESCE(OBJECT_KEYS(").expr(next, 0).append("), ARRAY_CONSTRUCT()), ")
-                            .piece(left).append(", ")
-                            .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(k, "VARCHAR")), Map.of(),
-                                    v -> v.append("OBJECT_INSERT(" + delimited(m) + ", " + delimited(k)
-                                            + ", COALESCE(GET(").expr(next, 0).append(", " + delimited(k)
-                                            + "), PARSE_JSON('null')), TRUE)")))
-                            .append(")");
-                }
-                yield writer.piece(acc);
-            }
+            case MAP_CONCAT -> mapConcat(writer, c);
 
             // ---- variant
             // in DuckDB's json_type vocabulary (NULL, VARCHAR, BIGINT, DOUBLE, BOOLEAN, ARRAY, OBJECT); Snowflake
@@ -1459,24 +1484,171 @@ public final class Snowflake extends AnsiSqlRenderer {
                     .append(" 'OBJECT', 'OBJECT', 'VARCHAR') END)");
             case JSON_PRETTY -> throw wall(c.fn(), "Snowflake has no JSON pretty-printer in SQL");
             // RFC 7386 with a literal object patch of non-null values: each key replaced (OBJECT_INSERT)
-            case JSON_MERGE_PATCH -> {
-                if (!(a.get(1) instanceof SqlExpr.JsonObject patch) || patch.kv().size() % 2 != 0) {
-                    throw wall(c.fn(), "a merge patch that is not a literal object");
-                }
-                SqlWriter.Piece acc = w -> w.expr(a.get(0), 0);
-                for (int n = 0; n < patch.kv().size(); n += 2) {
-                    SqlExpr k = patch.kv().get(n);
-                    SqlExpr val = patch.kv().get(n + 1);
-                    if (!(k instanceof SqlExpr.StringLit) || val instanceof SqlExpr.NullLit) {
-                        throw wall(c.fn(), "a merge patch with a computed key or a null value");
-                    }
-                    SqlWriter.Piece left = acc;
-                    acc = w -> w.append("OBJECT_INSERT(").piece(left).append(", ").expr(k, 0).append(", ")
-                            .expr(val, 0).append(", TRUE)");
-                }
-                yield writer.piece(acc);
-            }
+            case JSON_MERGE_PATCH -> jsonMergePatch(writer, c);
         };
+    }
+
+    /** The {@code IN} arm of {@link #call}. */
+    private SqlWriter inArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
+            throw new DialectCapability("list parameter '" + p.name() + "' reached Snowflake, which binds"
+                    + " no array (= ANY(?))");
+        }
+        return inList(writer, a, parentPrec);
+    }
+
+    /** The {@code ACOS}, {@code ASIN} arm of {@link #call}. */
+    private SqlWriter acosArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String f = c.fn() == SqlFn.ACOS ? "ACOS" : "ASIN";
+        return writer.append("(CASE WHEN (").expr(a.get(0), 0).append(") BETWEEN -1 AND 1 THEN " + f + "(")
+                .expr(a.get(0), 0).append(") ELSE CAST('NaN' AS DOUBLE) END)");
+    }
+
+    /** The {@code ROUND_HALF_UP} arm of {@link #call}. */
+    private SqlWriter roundHalfUp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!isDouble(a.get(0))) {
+            return writer.function("ROUND", a);
+        }
+        SqlWriter.Piece scale = a.size() > 1 ? w -> w.append("POWER(10, ").expr(a.get(1), 0).append(")") : null;
+        SqlWriter.Piece v = scale == null ? w -> w.expr(a.get(0), 6)
+                : w -> w.append("(").expr(a.get(0), 6).append(" * ").piece(scale).append(")");
+        writer.append("(SIGN(").piece(v).append(") * FLOOR(ABS(").piece(v).append(") + 0.5)");
+        return (scale == null ? writer : writer.append(" / ").piece(scale)).append(")");
+    }
+
+    /** The {@code INT_DIVIDE} arm of {@link #call}. */
+    private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        boolean integers = isInteger(typeOf(a.get(0))) && isInteger(typeOf(a.get(1)));
+        writer.append(integers ? "CAST(TRUNC(" : "TRUNC(").expr(a.get(0), 6).append(" / NULLIF(")
+                .expr(a.get(1), 0).append(", 0))");
+        return integers ? writer.append(" AS BIGINT)") : writer;
+    }
+
+    /** The {@code MAKE_TIMESTAMP} arm of {@link #call}. */
+    private SqlWriter makeTimestamp(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() != 6) {
+            throw wall(c.fn(), "make_timestamp of " + a.size() + " arguments");
+        }
+        return writer.append("DATEADD(MICROSECOND, ROUND(").expr(a.get(5), 6)
+                .append(" * 1000000), TIMESTAMP_FROM_PARTS(").list(a.subList(0, 5)).append(", 0))");
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftimeArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.piece(strftime(a.get(0), fl));
+    }
+
+    /** The {@code STRPTIME} arm of {@link #call}. */
+    private SqlWriter strptime(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.append("TO_TIMESTAMP_NTZ(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
+    }
+
+    /** The {@code REPEAT_VALUE} arm of {@link #call}. */
+    private SqlWriter repeatValue(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String r = freshName("r");
+        return writer.append("TRANSFORM(ARRAY_GENERATE_RANGE(0, ").expr(a.get(1), 0).append("), ")
+                .piece(lambdaOf(List.of(new Param(r, "INTEGER")), Map.of(), w -> w.expr(a.get(0), 0)))
+                .append(")");
+    }
+
+    /** The {@code MAP_FROM_LISTS} arm of {@link #call}. */
+    private SqlWriter mapFromLists(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (listElement(a.get(0)) != SqlType.Scalar.VARCHAR) {
+            throw wall(c.fn(), "a map keyed by " + listElement(a.get(0)) + " (an OBJECT's keys are text)");
+        }
+        String m = freshName("m");
+        String i = freshName("i");
+        return writer.append("REDUCE(ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(").expr(a.get(0), 0)
+                .append(")), OBJECT_CONSTRUCT(), ")
+                .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(i, "INTEGER")), Map.of(),
+                        w -> w.append("OBJECT_INSERT(" + delimited(m) + ", CAST(GET(").expr(a.get(0), 0)
+                                .append(", " + delimited(i) + ") AS VARCHAR), COALESCE(GET(")
+                                .expr(a.get(1), 0).append(", " + delimited(i) + "), PARSE_JSON('null')), TRUE)")))
+                .append(")");
+    }
+
+    /** The {@code MAP_FROM_ENTRIES} arm of {@link #call}. */
+    private SqlWriter mapFromEntries(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(listElement(a.get(0)) instanceof SqlType.Struct entry) || entry.fields().size() != 2
+                || entry.fields().get(0).type() != SqlType.Scalar.VARCHAR) {
+            throw wall(c.fn(), "entries of " + listElement(a.get(0)) + " (an OBJECT's keys are text)");
+        }
+        String m = freshName("m");
+        String e = freshName("e");
+        String key = stringLit(entry.fields().get(0).name());
+        String value = stringLit(entry.fields().get(1).name());
+        return writer.append("REDUCE(COALESCE(").expr(a.get(0), 0).append(", ARRAY_CONSTRUCT()), OBJECT_CONSTRUCT(), ")
+                .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(e, "OBJECT")), Map.of(),
+                        w -> w.append("OBJECT_INSERT(" + delimited(m) + ", CAST(GET(" + delimited(e) + ", " + key
+                                + ") AS VARCHAR), COALESCE(GET(" + delimited(e) + ", " + value
+                                + "), PARSE_JSON('null')), TRUE)")))
+                .append(")");
+    }
+
+    /** The {@code MAP_VALUES} arm of {@link #call}. */
+    private SqlWriter mapValues(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        String k = freshName("k");
+        return writer.append("TRANSFORM(OBJECT_KEYS(").expr(a.get(0), 0).append("), ")
+                .piece(lambdaOf(List.of(new Param(k, "VARCHAR")), Map.of(), w -> w.append("GET(")
+                        .expr(a.get(0), 0).append(", " + delimited(k) + ")")))
+                .append(")");
+    }
+
+    /** RFC 7386 with a literal object patch of non-null values: each key replaced (OBJECT_INSERT). */
+    private SqlWriter jsonMergePatch(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.JsonObject patch) || patch.kv().size() % 2 != 0) {
+            throw wall(c.fn(), "a merge patch that is not a literal object");
+        }
+        SqlWriter.Piece acc = w -> w.expr(a.get(0), 0);
+        for (int n = 0; n < patch.kv().size(); n += 2) {
+            SqlExpr k = patch.kv().get(n);
+            SqlExpr val = patch.kv().get(n + 1);
+            if (!(k instanceof SqlExpr.StringLit) || val instanceof SqlExpr.NullLit) {
+                throw wall(c.fn(), "a merge patch with a computed key or a null value");
+            }
+            SqlWriter.Piece left = acc;
+            acc = w -> w.append("OBJECT_INSERT(").piece(left).append(", ").expr(k, 0).append(", ")
+                    .expr(val, 0).append(", TRUE)");
+        }
+        return writer.piece(acc);
+    }
+
+    /** Maps concatenated, the later map's keys winning, as DuckDB's map_concat. */
+    private SqlWriter mapConcat(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        SqlWriter.Piece acc = w -> w.append("COALESCE(").expr(a.get(0), 0).append(", OBJECT_CONSTRUCT())");
+        for (int n = 1; n < a.size(); n++) {
+            SqlWriter.Piece left = acc;
+            SqlExpr next = a.get(n);
+            String m = freshName("m");
+            String k = freshName("k");
+            acc = w -> w.append("REDUCE(COALESCE(OBJECT_KEYS(").expr(next, 0).append("), ARRAY_CONSTRUCT()), ")
+                    .piece(left).append(", ")
+                    .piece(lambdaOf(List.of(new Param(m, "OBJECT"), new Param(k, "VARCHAR")), Map.of(),
+                            v -> v.append("OBJECT_INSERT(" + delimited(m) + ", " + delimited(k)
+                                    + ", COALESCE(GET(").expr(next, 0).append(", " + delimited(k)
+                                    + "), PARSE_JSON('null')), TRUE)")))
+                    .append(")");
+        }
+        return writer.piece(acc);
     }
 
     /** DuckDB's concat: each argument as text, a NULL one skipped (an all-NULL concat is ''). */
@@ -2120,60 +2292,91 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
-        if (!r.orderBy().isEmpty() && r.fn() != SqlAgg.Fn.STRING_AGG && r.fn() != SqlAgg.Fn.LIST
-                && r.fn() != SqlAgg.Fn.QUANTILE_CONT && r.fn() != SqlAgg.Fn.QUANTILE_DISC) {
-            throw new DialectCapability("an ordered " + r.fn() + " reached Snowflake");
-        }
         return switch (r.fn()) {
-            case SUM, COUNT, MIN, MAX, ANY_VALUE, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG,
-                 LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE -> super.reducer(writer, r);
-            case AVG -> r.args().size() == 1 && typeOf(r.args().get(0)) instanceof SqlType.Decimal
-                    ? super.reducer(writer.append("CAST("), r).append(" AS DOUBLE)")
-                    : super.reducer(writer, doubleArgs(r));
-            case STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, CORR, COVAR_SAMP, COVAR_POP, VARIANCE, STDDEV ->
-                    super.reducer(writer, doubleArgs(r));
-            case BOOL_AND -> writer.append("BOOLAND_AGG(").list(r.args()).append(")");
-            case BOOL_OR -> writer.append("BOOLOR_AGG(").list(r.args()).append(")");
+            case SUM -> aggregate(unordered(writer, r), "SUM", r);
+            case COUNT -> aggregate(unordered(writer, r), "COUNT", r);
+            case MIN -> aggregate(unordered(writer, r), "MIN", r);
+            case MAX -> aggregate(unordered(writer, r), "MAX", r);
+            case ANY_VALUE -> aggregate(unordered(writer, r), "ANY_VALUE", r);
+            case AVG -> avg(unordered(writer, r), r);
+            case STDDEV_SAMP -> aggregate(unordered(writer, r), "STDDEV_SAMP", doubleArgs(r));
+            case STDDEV_POP -> aggregate(unordered(writer, r), "STDDEV_POP", doubleArgs(r));
+            case VAR_SAMP -> aggregate(unordered(writer, r), "VAR_SAMP", doubleArgs(r));
+            case VAR_POP -> aggregate(unordered(writer, r), "VAR_POP", doubleArgs(r));
+            case CORR -> aggregate(unordered(writer, r), "CORR", doubleArgs(r));
+            case COVAR_SAMP -> aggregate(unordered(writer, r), "COVAR_SAMP", doubleArgs(r));
+            case COVAR_POP -> aggregate(unordered(writer, r), "COVAR_POP", doubleArgs(r));
+            case VARIANCE -> aggregate(unordered(writer, r), "VARIANCE", doubleArgs(r));
+            case STDDEV -> aggregate(unordered(writer, r), "STDDEV", doubleArgs(r));
+            case BOOL_AND -> unordered(writer, r).append("BOOLAND_AGG(").list(r.args()).append(")");
+            case BOOL_OR -> unordered(writer, r).append("BOOLOR_AGG(").list(r.args()).append(")");
             // LISTAGG answers '' over no row (measured); DuckDB's string_agg NULL
             case STRING_AGG -> writer.append("(CASE WHEN COUNT(").expr(r.args().get(0), 0)
                     .append(") = 0 THEN NULL ELSE ").piece(listagg(r)).append(" END)");
             // DuckDB's median interpolates numbers in DOUBLE (an integer's median is a DOUBLE)
-            case MEDIAN -> writer.append("MEDIAN(").piece(numericArg(r.args().get(0))).append(")");
-            case MODE -> writer.append("MODE(").expr(r.args().get(0), 0).append(")");
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
-                }
-                boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
-                boolean cont = r.fn() == SqlAgg.Fn.QUANTILE_CONT;
-                writer.append(cont ? "PERCENTILE_CONT(" : "PERCENTILE_DISC(").expr(r.args().get(1), 0)
-                        .append(") WITHIN GROUP (ORDER BY ");
-                yield (cont ? writer.piece(numericArg(r.args().get(0))) : writer.expr(r.args().get(0), 0))
-                        .append(desc ? " DESC" : "").append(")");
-            }
+            case MEDIAN -> unordered(writer, r).append("MEDIAN(").piece(numericArg(r.args().get(0))).append(")");
+            case MODE -> unordered(writer, r).append("MODE(").expr(r.args().get(0), 0).append(")");
+            case QUANTILE_CONT -> percentile(writer, "PERCENTILE_CONT", r, true);
+            case QUANTILE_DISC -> percentile(writer, "PERCENTILE_DISC", r, false);
             // a NULL value kept (ARRAY_AGG drops it, measured), in the keys' order
-            case LIST -> {
-                if (r.args().size() != 1) {
-                    throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached Snowflake");
-                }
-                writer.append("ARRAY_AGG(").append(r.distinct() ? "DISTINCT " : "").piece(keepNull(r.args().get(0)))
-                        .append(")");
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey)
-                            .append(")");
-                }
-                yield writer;
-            }
+            case LIST -> arrayAgg(writer, r);
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
-                }
-                yield writer.append(r.fn() == SqlAgg.Fn.ARG_MAX ? "MAX_BY(" : "MIN_BY(").list(r.args()).append(")");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> byExtreme(unordered(writer, r), "MAX_BY", r);
+            case ARG_MIN -> byExtreme(unordered(writer, r), "MIN_BY", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** {@code writer}, for an aggregate Snowflake cannot order: an ordered one is refused. */
+    private static SqlWriter unordered(SqlWriter writer, SqlAgg.Reducer r) {
+        if (!r.orderBy().isEmpty()) {
+            throw new DialectCapability("an ordered " + r.fn() + " reached Snowflake");
+        }
+        return writer;
+    }
+
+    /** The {@code AVG} arm of {@link #reducer}: a DOUBLE, a Decimal's average cast to one. */
+    private SqlWriter avg(SqlWriter writer, SqlAgg.Reducer r) {
+        return r.args().size() == 1 && typeOf(r.args().get(0)) instanceof SqlType.Decimal
+                ? aggregate(writer.append("CAST("), "AVG", r).append(" AS DOUBLE)")
+                : aggregate(writer, "AVG", doubleArgs(r));
+    }
+
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}, the value a number when {@code numeric}. */
+    private SqlWriter percentile(SqlWriter writer, String name, SqlAgg.Reducer r, boolean numeric) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
+        writer.append(name).append("(").expr(r.args().get(1), 0)
+                .append(") WITHIN GROUP (ORDER BY ");
+        return (numeric ? writer.piece(numericArg(r.args().get(0))) : writer.expr(r.args().get(0), 0))
+                .append(desc ? " DESC" : "").append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter arrayAgg(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1) {
+            throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached Snowflake");
+        }
+        writer.append("ARRAY_AGG(").append(r.distinct() ? "DISTINCT " : "").piece(keepNull(r.args().get(0)))
+                .append(")");
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" WITHIN GROUP (ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey)
+                    .append(")");
+        }
+        return writer;
+    }
+
+    /** {@code MAX_BY(value, key)} / {@code MIN_BY}: the value at the key's greatest (least) row. */
+    private static SqlWriter byExtreme(SqlWriter writer, String name, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct()) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        return writer.append(name).append("(").list(r.args()).append(")");
     }
 
     private SqlWriter.Piece numericArg(SqlExpr x) {
@@ -2335,7 +2538,7 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
         if (r.fn() == SqlAgg.Fn.AVG && r.args().size() == 1 && typeOf(r.args().get(0)) instanceof SqlType.Decimal) {
             writer.append("CAST(");
-            super.reducer(writer, r);
+            aggregate(writer, "AVG", r);
             over(writer, win);
             return writer.append(" AS DOUBLE)");
         }

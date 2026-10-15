@@ -44,27 +44,11 @@ public final class CatalogModel {
     /**
      * The Database element's text; the relation accessor that reads the table
      * ({@code #>{db.schema.table}#}); the conversions a COPY of the table applies so it holds
-     * the declared types (an upload's rewrite at ingest, a Snap into the tab); and the columns
+     * the declared types (an upload's rewrite at ingest, a Snap into the tab; the database the copy is
+     * made in writes its select list, {@link SqlDialect#copySelectList}); and the columns
      * left out, because their source cannot convert them or no Database type holds them.
      */
     public record Database(String text, String accessor, List<Conversion> conversions, List<String> excluded) {
-
-        /**
-         * The select list a COPY of the table applies so that it holds the declared types:
-         * {@code * REPLACE (<conversion> AS "<column>", ...)}, or {@code *} when no column converts. In
-         * DuckDB's spelling (its star modifier), because every copy is a DuckDB table: an upload's
-         * rewrite, a Snap into the tab, a Python frame. The one place this list is written.
-         */
-        public String copySelectList() {
-            if (conversions.isEmpty()) {
-                return "*";
-            }
-            List<String> items = new ArrayList<>();
-            for (Conversion c : conversions) {
-                items.add(c.sql() + " AS " + sqlIdent(c.column()));
-            }
-            return "* REPLACE (" + String.join(", ", items) + ")";
-        }
     }
 
     /**
@@ -114,7 +98,7 @@ public final class CatalogModel {
                 excluded.add(c.name());
                 continue;
             }
-            lines.add(ident(c.name()) + " " + t.declared() + (c.notNull() ? " NOT NULL" : ""));
+            lines.add(ident(c.name(), dialect) + " " + t.declared() + (c.notNull() ? " NOT NULL" : ""));
             // what a copy applies: every declared column's conversion (on a read-only source only the
             // COPY_CONVERTED ones are declared; the source itself reads them as stored)
             if (t.conversion() != null) {
@@ -125,12 +109,13 @@ public final class CatalogModel {
             throw new IllegalArgumentException("no column of '" + table
                     + "' can be read from its source: " + String.join(", ", excluded));
         }
-        String tableBlock = "Table " + ident(table) + "\n    (\n        "
+        String tableBlock = "Table " + ident(table, dialect) + "\n    (\n        "
                 + String.join(",\n        ", lines) + "\n    )";
         String body = schema == null ? "    " + tableBlock
-                : "    Schema " + ident(schema) + "\n    (\n        "
+                : "    Schema " + ident(schema, dialect) + "\n    (\n        "
                         + tableBlock.replace("\n", "\n    ") + "\n    )";
-        String accessor = "#>{" + path + "." + (schema == null ? "" : ident(schema) + ".") + ident(table) + "}#";
+        String accessor = "#>{" + path + "." + (schema == null ? "" : ident(schema, dialect) + ".")
+                + ident(table, dialect) + "}#";
         return new Database("###Relational\nDatabase " + path + "\n(\n" + body + "\n)\n", accessor,
                 List.copyOf(conversions), List.copyOf(excluded));
     }
@@ -148,17 +133,20 @@ public final class CatalogModel {
         }
     }
 
-    /** A name as a Pure Database identifier: bare when it is one, else quoted with the
-     *  lexer's backslash escapes (a doubled quote would end the token). */
-    static String ident(String name) {
-        if (name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+    /** A catalog name as a Pure Database identifier: bare when it is one and a bare declaration reaches it on
+     *  {@code dialect}'s database ({@link SqlDialect#bareNameReaches}: Postgres folds a bare name, so its
+     *  {@code "Orders"} is declared quoted), else quoted with the lexer's backslash escapes (a doubled quote would end
+     *  the token). */
+    static String ident(String name, SqlDialect dialect) {
+        if (name.matches("[A-Za-z_][A-Za-z0-9_]*") && dialect.bareNameReaches(name)) {
             return name;
         }
         return "\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
-    /** A name as a SQL identifier, always quoted, for a conversion's column reference. */
-    private static String sqlIdent(String name) {
+    /** A name as a SQL identifier, always quoted, for a conversion's column reference (and the name a copy's
+     *  select list gives the converted column, {@link DuckDb#copySelectList}). */
+    static String sqlIdent(String name) {
         return "\"" + name.replace("\"", "\"\"") + "\"";
     }
 }

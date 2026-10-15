@@ -41,6 +41,12 @@ public interface SqlDialect {
      *  table and a query reading it spell one name (C3c). */
     String physicalName(String name);
 
+    /** A stored table, schema or column name as this dialect's queries reference it, given how its store DECLARED it:
+     *  one declared quoted ({@code Table "Orders"}) delimited, its case kept; one declared bare by
+     *  {@link #physicalName} (decision D8: Postgres folds it). The declaration is data ({@code sql.NameQuoting}, a
+     *  column's {@code declaredQuoted}), never quote characters inside the name. */
+    String storedName(String name, boolean declaredQuoted);
+
     /** This dialect for the server version a session reports ({@code DatabaseMetaData}'s product version):
      *  a dialect whose SQL differs by version says how. Default: every version is spelled alike. */
     default SqlDialect forServer(String version) {
@@ -59,10 +65,6 @@ public interface SqlDialect {
         return jdbcValue;
     }
 
-    /** True when corpus-authored raw H2 statements execute NATIVELY on
-     * this dialect's session — the {@code RawSqlBoundary.h2ToDuckDb}
-     * rewrite is a DUCKDB-TARGET adaptation and must be identity here
-     * (H2_BACKEND.md §12 step 12). */
     /** Whether dynamic PIVOT needs the two-phase staticization
      * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
      * dynamic pivot on this backend). */
@@ -70,15 +72,17 @@ public interface SqlDialect {
         return false;
     }
 
-    default boolean rawH2IsNative() {
-        return false;
-    }
+    /**
+     * A raw statement as this session runs it (decision D2, the dialect program's Phase 1c): raw text is in the language
+     * of the database its connection DECLARES ({@code writtenFor}, that type's name), and is translated only when it
+     * runs on another. The engine's H2 text (legend-engine's test database's: its corpus's setup, an H2 connection's
+     * {@code executeInDb}) is this dialect's {@link #fromEngineH2}; text written for any other database, or by this
+     * session's own dialect ({@code writtenFor} null), runs as written, as legend-engine sends it.
+     */
+    String raw(String statement, @com.legend.base.Nullable String writtenFor);
 
-    /** Whom the corpus's raw H2 text is translated for (RawSqlBoundary, where the translation lives): DuckDB's
-     *  flavor unless a dialect says otherwise. */
-    default RawSqlBoundary.Target rawTarget() {
-        return RawSqlBoundary.Target.DUCKDB;
-    }
+    /** One statement of the engine's H2 text as this database runs it: H2's own, translated, or refused by name. */
+    String fromEngineH2(String statement);
 
     /** An effect segment's statements as ONE script (block-compiler stage 3): the
      *  target decides its transaction bracket INSIDE its dialect — DuckDB brackets
@@ -112,6 +116,11 @@ public interface SqlDialect {
      *  rule and literal spelling. */
     String render(com.legend.sql.SqlDml dml);
 
+    /** A store column's name in the column list of a row this dialect writes as TEXT (a seed's insert, the engine
+     *  text's {@code setUpDataSQLs}): the rule its DDL names the column by, so the statement that fills a table names
+     *  the columns the one that created it declared; a declared-quoted name keeps its quotes. */
+    String insertColumnName(String name, boolean declaredQuoted);
+
     /** A column as this database's CATALOG describes it (structured: its canonical type, a
      *  decimal's precision and scale), read into what a Pure Database declares and the
      *  conversion it needs at the source (T2: a store's model comes from the database's own
@@ -120,6 +129,28 @@ public interface SqlDialect {
     default CatalogType catalogType(CatalogModel.Column column) {
         throw new DialectCapability("reading this database's catalog type '" + column.dataType()
                 + "' is not implemented for " + getClass().getSimpleName());
+    }
+
+    /** Whether a store that declares the catalog's name {@code catalogName} BARE reaches the object the catalog
+     *  names (CatalogModel declares the name quoted where it does not): a database that matches names
+     *  case-insensitively always does; one that folds a bare name (Postgres, decision D8) only when the name is its
+     *  own fold. Refused where the catalog is not read ({@link #catalogType}). */
+    default boolean bareNameReaches(String catalogName) {
+        throw new DialectCapability("reading this database's catalog names is not implemented for "
+                + getClass().getSimpleName());
+    }
+
+    /** The select list a COPY of a table applies when the copy is made IN this database, so that it holds the
+     *  declared types: each of {@code conversions} (the source catalog's, {@link #catalogType}, written for where
+     *  copies run) under its column's name, every other column as it is; {@code *} when no column converts. Refused
+     *  where this database cannot replace a column in a star select ({@link DuckDb#copySelectList} can: every host
+     *  copies into its own DuckDB, the tab's or Python's). */
+    default String copySelectList(java.util.List<CatalogModel.Conversion> conversions) {
+        if (conversions.isEmpty()) {
+            return "*";
+        }
+        throw new DialectCapability("a copy that converts columns in its star select is not implemented for "
+                + getClass().getSimpleName());
     }
 
 }

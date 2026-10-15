@@ -60,11 +60,11 @@ class RawSqlLedgerTest {
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
             // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: adaptRaw is in setup/CsvSeed.java now
             // (exec.SetupRunner calls it); same file name, one site
-            "CsvSeed.java", 1,
-            // Phase 1c: the ONE render-time adapter — the DuckDb pass
-            // (slice 3: ResultNav's pre-adaptation DIED; it had begun
-            // double-translating once the pass existed)
-            "RawSqlAdapt.java", 1);
+            // 2026-10-13 (the dialect program's Phase 1c, decision D2): CsvSeed.adaptRaw and the RawSqlAdapt pass are
+            // gone. Raw text is translated only when its connection declares the engine's H2, and only through the
+            // dialect that runs it (SqlDialect.raw -> fromEngineH2): DuckDB's is the one h2ToDuckDb call (Postgres's
+            // flavor is RawSqlBoundary.h2ToPostgres, inside the boundary)
+            "DuckDb.java", 1);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)h2ToDuckDb");
@@ -116,9 +116,8 @@ class RawSqlLedgerTest {
             // Phase 1c: the compiler's TypedRawSqlRelation lowering,
             // carrying the AUTHORED text from the typed node verbatim
             "Lowerer.java", 1,
-            // Phase 1c: RawSqlAdapt REWRAPS an existing RawSql with the
-            // adapted authored text — same contract, dialect layer
-            "RawSqlAdapt.java", 1,
+            // RawSqlAdapt.java 1 -> gone (2026-10-13, the dialect program's Phase 1c): a RawSql carries the
+            // database its text is written for, and the renderer translates it in place (SqlDialect.raw)
             // leg 3.4 step 2 (2026-09-20): AliasPrefix REWRAPS an existing RawSql
             // under the frame body's alias prefix — the authored text verbatim
             "AliasPrefix.java", 1);

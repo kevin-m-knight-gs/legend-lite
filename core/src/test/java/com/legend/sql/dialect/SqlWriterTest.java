@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SqlWriterTest {
 
     private static final SqlSelect QUERY = SqlSelect.starOf(
-            new SqlSource.Table("T_PERSON", "t0", List.of(), false, java.util.Map.of()));
+            new SqlSource.Table("T_PERSON", "t0", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE));
 
     /** A writer for pieces with no sub-expression: its expressions refuse. */
     private static SqlWriter textOnly() {
@@ -143,7 +143,7 @@ class SqlWriterTest {
 
     @Test
     void aParameterInsideASubqueryIsBoundInPlace() throws SQLException {
-        SqlSelect inner = SqlSelect.starOf(new SqlSource.Table("T_PERSON", "t1", List.of(), false, Map.of()))
+        SqlSelect inner = SqlSelect.starOf(new SqlSource.Table("T_PERSON", "t1", List.of(), false, Map.of(), com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(SqlExpr.Column.physical("t1", "NAME"), null, null)))
                 .withWhere(SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Column.physical("t1", "AGE"), P_AGE));
         SqlSelect q = where(SqlExpr.Call.of(SqlFn.AND,
@@ -183,7 +183,8 @@ class SqlWriterTest {
     @Test
     void aParameterInADmlRowIsRefused() {
         // a row holds values; a DML statement is text, with no parameters to bind
-        var rows = new com.legend.sql.SqlDml.InsertValues(null, "T_PERSON", List.of("NAME"), List.of(List.of(P_NAME)));
+        var rows = new com.legend.sql.SqlDml.InsertValues(null, "T_PERSON",
+                com.legend.sql.NameQuoting.BARE, List.of("NAME"), java.util.Set.of(), List.of(List.of(P_NAME)));
         var refused = assertThrows(DialectCapability.class, () -> new DuckDb().render(rows));
         assertTrue(refused.getMessage().contains("in a DML row"), refused.getMessage());
     }

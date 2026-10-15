@@ -9,18 +9,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * THE corpus raw-SQL boundary (audit 23 / R0 relocation): the engine's test
- * corpus hands {@code executeInDb} LITERAL H2-flavored DDL/DML strings
- * (unquoted keyword column names, {@code CURRENT_TIMESTAMP()}, H2 type
- * kinds, H2 statement orderings). Something must translate them to the
- * executing backend, and it happens HERE — never in the dialect renderers,
- * which speak only the SQL IR, and never against platform-GENERATED SQL,
- * which is IR-rendered and must not pass through this class.
+ * THE raw-SQL boundary (audit 23 / R0 relocation): the engine's H2 text, translated for the database a session runs
+ * on. The engine's test corpus hands {@code executeInDb} LITERAL H2-flavored DDL/DML strings (unquoted keyword column
+ * names, {@code CURRENT_TIMESTAMP()}, H2 type kinds, H2 statement orderings), written for the H2 its connections
+ * declare.
  *
- * <p>CONTRACT (aspirational until F7.4): text-level translation of
- * corpus-authored statements only — TODAY Java-generated DDL
- * (Ddl.setUpDataSqlsText, spelled H2-style on purpose) also routes
- * through here; RawSqlLedgerTest pins the caller set shrink-only.
+ * <p>Which text crosses is decided by the database its connection DECLARES (decision D2, the dialect program's Phase
+ * 1c; {@link SqlDialect#raw}): only text written for {@link #ENGINE_H2}, and only through the dialect that runs it
+ * ({@link DuckDb#fromEngineH2}, {@link Postgres#fromEngineH2}; H2 runs it as written, the others refuse it). Text
+ * written for any other database runs as written, and SQL a dialect rendered never passes through here. Java-generated
+ * engine text (Ddl's H2 spelling) still crosses when a body sends it through {@code executeInDb} on an H2 connection.
+ * RawSqlLedgerTest pins the caller set shrink-only.
  * This is the one sanctioned home for pattern-based SQL rewriting; adding a
  * recognizer anywhere else is an architecture violation (RUNNABILITY_PLAN
  * R0 rule). The designed replacement is the parser leg — raw statements
@@ -150,19 +149,23 @@ public final class RawSqlBoundary {
     private static final Pattern H2_VERSION_FN =
             Pattern.compile("(?i)\\bH2VERSION\\s*\\(\\s*\\)");
 
+    /** The declared database whose text is legend-engine's H2 (the engine's test database): the one language raw
+     *  text is translated from (decision D2, {@link SqlDialect#raw}). */
+    public static final String ENGINE_H2 = "H2";
+
+    /** One statement of the engine's H2 text for DuckDB ({@link DuckDb#fromEngineH2}). */
     public static String h2ToDuckDb(String sql) {
         return h2ToDuckDb0(sql, Target.DUCKDB);
     }
 
-    /** Who the corpus's H2 text is translated for: DuckDB's grammar, its column TYPES spelled for the target
-     *  (2026-10-12, the corpus on other databases, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: Postgres reads the
-     *  DuckDB flavor but for its type names). A dialect names its own ({@link SqlDialect#rawTarget}). */
-    public enum Target { DUCKDB, POSTGRES }
-
-    /** {@link #h2ToDuckDb(String)}, the column types spelled for {@code target}. */
-    public static String h2ToDuckDb(String sql, Target target) {
-        return h2ToDuckDb0(sql, target);
+    /** One statement of the engine's H2 text for Postgres ({@link Postgres#fromEngineH2}): DuckDB's flavor, its column
+     *  types Postgres's (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20). */
+    public static String h2ToPostgres(String sql) {
+        return h2ToDuckDb0(sql, Target.POSTGRES);
     }
+
+    /** Who the engine's H2 text is translated for: DuckDB's grammar, its column TYPES spelled for the target. */
+    private enum Target { DUCKDB, POSTGRES }
 
     private static String h2ToDuckDb0(String sql, Target target) {
         String out = CURRENT_TS.matcher(sql).replaceAll("CURRENT_TIMESTAMP");
@@ -192,7 +195,7 @@ public final class RawSqlBoundary {
                 cols.append(", ");
             }
             String name = c.strip();
-            cols.append(name.startsWith("\"") ? name : "\"" + name + "\"");
+            cols.append(name.startsWith("\"") ? name : "\"" + folded(name, target) + "\"");
         }
         return m.group(1) + cols + m.group(3) + out.substring(m.end(3));
     }
@@ -256,7 +259,7 @@ public final class RawSqlBoundary {
             } else {
                 // H2 semantics on the TYPE PART only: FLOAT is an 8-byte
                 // double; BIT is a boolean (DuckDB's BIT is a bitstring)
-                out.append('\"').append(head).append('\"')
+                out.append('\"').append(folded(head, target)).append('\"')
                         .append(mapColumnTypes(col.substring(sp), target));
             }
         }
@@ -278,6 +281,16 @@ public final class RawSqlBoundary {
             // Postgres names the 8-byte double DOUBLE PRECISION, and has no TINYINT (SMALLINT is its smallest)
             case POSTGRES -> TINYINT_KIND.matcher(DOUBLE_KIND.matcher(t).replaceAll("DOUBLE PRECISION"))
                     .replaceAll("SMALLINT");
+        };
+    }
+
+    /** A bare H2 name, quoted for the target: as written where names match case-insensitively (DuckDB); in lower case
+     *  for Postgres, which folds a bare name so and spells a store's bare names so ({@link Postgres#physicalName},
+     *  decision D8). */
+    private static String folded(String bare, Target target) {
+        return switch (target) {
+            case DUCKDB -> bare;
+            case POSTGRES -> bare.toLowerCase(java.util.Locale.ROOT);
         };
     }
 

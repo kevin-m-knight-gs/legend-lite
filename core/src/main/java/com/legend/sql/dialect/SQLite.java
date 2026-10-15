@@ -62,18 +62,87 @@ import java.util.Set;
  *       ({@code json_extract('{}', <message>)}: "bad JSON path: '...'"), so a message is raised as one.</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * {@link Spellings#SQLITE} row), a SQLite arm, or a {@link DialectCapability} wall.
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
 public final class SQLite extends AnsiSqlRenderer {
 
+    /**
+     * SQLite (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>)
+     * &mdash; the ANSI baseline rendering with SQLite's reserved-word list.
+     * SQLite accepts the relational core the base renderer emits (SELECT/
+     * JOIN/WHERE/GROUP BY/ORDER BY/LIMIT-OFFSET, TRUE/FALSE since 3.23).
+     * KNOWN GAPS that fail LOUD at execution, pending SQLite-specific
+     * passes: aliased VALUES sources (TDS literals &mdash; SQLite lacks
+     * {@code (VALUES ...) AS t(c1, c2)}), typed DATE/TIMESTAMP literals,
+     * and everything with no ANSI encoding at all (list lambdas, QUALIFY,
+     * ASOF, native PIVOT) on the base renderer's loud defaults.
+     */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "abort", "action", "add", "after", "all", "alter", "analyze", "and", "as",
+            "asc", "attach", "autoincrement", "before", "begin", "between", "by",
+            "cascade", "case", "cast", "check", "collate", "column", "commit",
+            "conflict", "constraint", "create", "cross", "current_date",
+            "current_time", "current_timestamp", "database", "default", "deferrable",
+            "deferred", "delete", "desc", "detach", "distinct", "drop", "each",
+            "else", "end", "escape", "except", "exclusive", "exists", "explain",
+            "fail", "for", "foreign", "from", "full", "glob", "group", "having",
+            "if", "ignore", "immediate", "in", "index", "indexed", "initially",
+            "inner", "insert", "instead", "intersect", "into", "is", "isnull",
+            "join", "key", "left", "like", "limit", "match", "natural", "no", "not",
+            "notnull", "null", "of", "offset", "on", "or", "order", "outer", "plan",
+            "pragma", "primary", "query", "raise", "recursive", "references",
+            "regexp", "reindex", "release", "rename", "replace", "restrict", "right",
+            "rollback", "row", "savepoint", "select", "set", "table", "temp",
+            "temporary", "then", "to", "transaction", "trigger", "union", "unique",
+            "update", "using", "vacuum", "values", "view", "virtual", "when",
+            "where", "with", "without"));
+
+    /** SQLite (2026-10-11): the portable strategies over its JSON lists (json_each correlates, measured); FULL
+     *  OUTER is native (3.39). */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, true, true, true);
+
     public SQLite() {
-        super(Lexicon.SQLITE, TypeNames.SQLITE, Spellings.SQLITE);
+        super(LEXICON);
     }
 
     // ==================================================================
     // Session and structure
     // ==================================================================
+
+    /** The engine's H2 text is refused here: SQLite has no translation of it (decision D2: raw text runs on the
+     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+    @Override
+    public String fromEngineH2(String statement) {
+        throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
+    }
+
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
+            case DOUBLE -> "REAL";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
+    /** No STRUCT type here: a struct cast is refused. */
+    @Override
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
+    }
+
+    /** A date format's parts: the base's strftime codes, {@code strftimeText} (its own strftime helper spells the
+     *  parts it formats itself; the dialect program's Phase 1, 2026-10-13: each dialect declares its date-format
+     *  vocabulary). */
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return strftimeText(fl);
+    }
 
     /** LIKE is case-insensitive unless the session says otherwise (measured: 'ABC' LIKE 'a%' is 1). */
     @Override
@@ -101,7 +170,7 @@ public final class SQLite extends AnsiSqlRenderer {
 
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.SQLITE), new StarExceptToColumns(),
+        return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new WholePartitionOrderedSets(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new QualifyToSubselect(true), new ConstantKeysAsExpressions(), new CommonSubexpressions());
@@ -1344,39 +1413,77 @@ public final class SQLite extends AnsiSqlRenderer {
 
     private SqlWriter calls(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        if ((c.fn() == SqlFn.EQUAL || c.fn() == SqlFn.NOT_EQUAL) && a.size() == 2
-                && (composite(a.get(0)) || composite(a.get(1)))) {
-            return writer.append("(json(").expr(a.get(0), 0).append(c.fn() == SqlFn.EQUAL ? ") = json(" : ") <> json(")
-                    .expr(a.get(1), 0).append("))");
-        }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.SQLITE row) is SQLite's
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
-                 IS_NULL, IS_NOT_NULL, IS_DISTINCT_FROM, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, XOR, UC_FIRST, LC_FIRST,
-                 CEILING, FLOOR, SIGN, PI,
-                 // the base's hooks, overridden below
-                 HASH, ROUND, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, STRUCT_INSERT, UNNEST,
-                 PURE_SPLIT_PART, LIST_EXISTS, LIST_FOR_ALL, ALL_DISTINCT, TO_VARIANT, VARIANT_GET, VARIANT_ELEMENTS,
-                 // Spellings.SQLITE rows
-                 ABS, ATAN, ATAN2, COS, COSH, COT, SIN, SINH, TAN, TANH, DEGREES, RADIANS, EXP, LN, LOG10,
-                 SQRT, POW, LOWER, UPPER, LTRIM, RTRIM, TRIM, REPLACE, REVERSE_STRING, CHR, FLOOR_RAW,
-                 SUBSTRING, STRPOS, LIST_LENGTH, JSON_ARRAY_LENGTH, FLOAT_CANON -> super.call(writer, c, parentPrec);
-            case IN -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    throw listParameter(p);
-                }
-                yield super.call(writer, c, parentPrec);
-            }
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
+            case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case PI -> writer.append("pi()");
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case HASH -> hashSigned(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case COS -> writer.function("cos", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case COT -> writer.function("cot", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case POW -> writer.function("pow", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case UPPER -> writer.function("upper", c.args());
+            case LTRIM -> writer.function("ltrim", c.args());
+            case RTRIM -> writer.function("rtrim", c.args());
+            case TRIM -> writer.function("trim", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case CHR -> writer.function("char", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case STRPOS -> writer.function("instr", c.args());
+            case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
+            case IN -> in(writer, c, parentPrec);
             // DuckDB's ascii('') is 0 (unicode('') is NULL here, measured)
             case ASCII_CODE -> writer.append("(CASE WHEN ").expr(a.get(0), 4)
                     .append(" IS NULL THEN NULL ELSE coalesce(")
                     .append("unicode(").expr(a.get(0), 0).append("), 0) END)");
             // outside [-1, 1] SQLite answers NULL (measured), DuckDB raises
-            case ACOS, ASIN -> writer.append("(CASE WHEN ").expr(a.get(0), 4)
-                    .append(" IS NULL THEN NULL ELSE coalesce(")
-                    .append(c.fn() == SqlFn.ACOS ? "acos(" : "asin(").expr(a.get(0), 0).append("), ")
-                    .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]"))))
-                    .append(") END)");
+            case ACOS -> domainGuarded(writer, c, "acos");
+            case ASIN -> domainGuarded(writer, c, "asin");
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
@@ -1388,12 +1495,7 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append(" AS REAL))");
             case MOD, REM -> writer.piece(remainder(c.fn(), a));
             // DuckDB's // truncates toward zero, NULL for a zero divisor: SQLite's integer division
-            case INT_DIVIDE -> {
-                if (a.stream().anyMatch(SQLite::isDouble)) {
-                    throw wall(c.fn(), "an integer division of a Float");
-                }
-                yield writer.append("(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 7).append(")");
-            }
+            case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a, c);
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -pow(-(").expr(a.get(0), 0)
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
@@ -1401,7 +1503,8 @@ public final class SQLite extends AnsiSqlRenderer {
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // NULL-skipping, as DuckDB's (SQLite's max/min of several are NULL for any NULL argument)
-            case GREATEST, LEAST -> writer.piece(nullSkipping(c.fn() == SqlFn.GREATEST ? "max" : "min", a));
+            case GREATEST -> writer.piece(nullSkipping("max", a));
+            case LEAST -> writer.piece(nullSkipping("min", a));
 
             // ---- strings
             // NULL-skipping, as DuckDB's concat (SQLite's concat, 3.44)
@@ -1425,14 +1528,7 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append(" || ']' ELSE '$[' || (").expr(a.get(2), 6).append(" - 1) || ']' END), '') END)");
             // SQLite has no regular-expression function: a literal pattern's NFA is walked by the database
             // (SqliteRegex); a full match anchors both ends, MATCHES searches
-            case MATCHES, REGEXP_FULL_MATCH -> {
-                if (!(a.get(1) instanceof SqlExpr.StringLit pattern) || a.size() > 2) {
-                    throw wall(c.fn(), "a pattern that is not a literal, or options beside it (SQLite matches a literal"
-                            + " pattern only, as a table its query walks)");
-                }
-                yield writer.piece(SqliteRegex.matches(w -> w.expr(a.get(0), 0), pattern.value(),
-                        c.fn() == SqlFn.REGEXP_FULL_MATCH));
-            }
+            case MATCHES, REGEXP_FULL_MATCH -> matchesArm(writer, c);
             // where a literal pattern matches: its leftmost match found by the same walk (SqliteRegex.find)
             case REGEXP_EXTRACT -> writer.piece(regexpExtract(a));
             case REGEXP_EXTRACT_ALL -> writer.piece(regexpExtractAll(a));
@@ -1465,12 +1561,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC text: UTC's wall time is the instant's, either way
-            case TIMEZONE -> {
-                if (!(a.get(0) instanceof SqlExpr.StringLit zone) || !UTC_ZONES.contains(zone.value())) {
-                    throw wall(c.fn(), "SQLite has no time zones but UTC");
-                }
-                yield writer.expr(a.get(1), parentPrec);
-            }
+            case TIMEZONE -> timezone(writer, c, parentPrec);
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000.0)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("datetime(").expr(a.get(0), 0).append(", 'unixepoch')");
@@ -1478,12 +1569,7 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append(" / 1000.0, 'unixepoch')");
             case DAYNAME -> writer.piece(dayName(a.get(0)));
             case MONTHNAME -> writer.piece(monthName(a.get(0), false));
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.piece(strftime(a.get(0), fl));
-            }
+            case STRFTIME -> strftimeArm(writer, c);
             case STRPTIME -> throw wall(c.fn(), "SQLite parses ISO text only");
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
@@ -1505,6 +1591,72 @@ public final class SQLite extends AnsiSqlRenderer {
             case JSON_PRETTY -> writer.append("json_pretty(").expr(a.get(0), 0).append(")");
             case JSON_MERGE_PATCH -> writer.append("json_patch(").list(a).append(")");
         };
+    }
+
+    /** The {@code ACOS} and {@code ASIN} arms of {@link #calls}: undefined outside [-1, 1], raised. */
+    private SqlWriter domainGuarded(SqlWriter writer, SqlExpr.Call c, String fn) {
+        List<SqlExpr> a = c.args();
+        return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
+                .append("(").expr(a.get(0), 0).append("), ")
+                .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]"))))
+                .append(") END)");
+    }
+
+    /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #calls}. */
+    private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            return writer.append("(json(").expr(a.get(0), 0).append(c.fn() == SqlFn.EQUAL ? ") = json(" : ") <> json(")
+                    .expr(a.get(1), 0).append("))");
+        }
+        return infix(writer, c, parentPrec);
+    }
+
+    /** The {@code IN} arm of {@link #calls}. */
+    private SqlWriter in(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
+            throw listParameter(p);
+        }
+        return inList(writer, a, parentPrec);
+    }
+
+    /** The {@code INT_DIVIDE} arm of {@link #calls}. */
+    private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.stream().anyMatch(SQLite::isDouble)) {
+            throw wall(c.fn(), "an integer division of a Float");
+        }
+        return writer.append("(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 7).append(")");
+    }
+
+    /** The {@code MATCHES}, {@code REGEXP_FULL_MATCH} arm of {@link #calls}. */
+    private SqlWriter matchesArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.StringLit pattern) || a.size() > 2) {
+            throw wall(c.fn(), "a pattern that is not a literal, or options beside it (SQLite matches a literal"
+                    + " pattern only, as a table its query walks)");
+        }
+        return writer.piece(SqliteRegex.matches(w -> w.expr(a.get(0), 0), pattern.value(),
+                c.fn() == SqlFn.REGEXP_FULL_MATCH));
+    }
+
+    /** The {@code TIMEZONE} arm of {@link #calls}. */
+    private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(0) instanceof SqlExpr.StringLit zone) || !UTC_ZONES.contains(zone.value())) {
+            throw wall(c.fn(), "SQLite has no time zones but UTC");
+        }
+        return writer.expr(a.get(1), parentPrec);
+    }
+
+    /** The {@code STRFTIME} arm of {@link #calls}. */
+    private SqlWriter strftimeArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.piece(strftime(a.get(0), fl));
     }
 
     private static boolean composite(SqlExpr e) {
@@ -2464,77 +2616,98 @@ public final class SQLite extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, AVG, MIN, MAX, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> super.reducer(writer, r);
+            case SUM -> aggregate(writer, "SUM", r);
+            case COUNT -> aggregate(writer, "COUNT", r);
+            case AVG -> aggregate(writer, "AVG", r);
+            case MIN -> aggregate(writer, "MIN", r);
+            case MAX -> aggregate(writer, "MAX", r);
             // any non-NULL value: the least (SQLite has no any_value)
             case ANY_VALUE -> writer.append("min(").piece(aggregateArgs(r)).append(")");
             // the driver's statistics extension: stdev and variance are the sample ones
             case STDDEV_SAMP, STDDEV -> writer.append("stdev(").piece(aggregateArgs(r)).append(")");
             case VAR_SAMP, VARIANCE -> writer.append("variance(").piece(aggregateArgs(r)).append(")");
-            case VAR_POP, STDDEV_POP -> {
-                SqlExpr x = r.args().get(0);
-                SqlWriter.Piece pop = w -> w.append("(CASE count(").expr(x, 0)
-                        .append(") WHEN 0 THEN NULL WHEN 1 THEN 0.0"
-                        + " ELSE variance(").expr(x, 0).append(") * (count(").expr(x, 0).append(") - 1) / count(")
-                        .expr(x, 0).append(") END)");
-                yield r.fn() == SqlAgg.Fn.STDDEV_POP ? writer.append("sqrt(").piece(pop).append(")")
-                        : writer.piece(pop);
-            }
+            case VAR_POP -> writer.piece(populationVariance(r));
+            case STDDEV_POP -> writer.append("sqrt(").piece(populationVariance(r)).append(")");
             case COVAR_POP, COVAR_SAMP, CORR -> writer.piece(moments(r));
             case BOOL_AND -> writer.append("min(").piece(aggregateArgs(r)).append(")");
             case BOOL_OR -> writer.append("max(").piece(aggregateArgs(r)).append(")");
-            case STRING_AGG -> {
-                writer.append("group_concat(").piece(aggregateArgs(r));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
-                }
-                yield writer.append(")");
-            }
-            case LIST -> {
-                if (r.args().size() != 1) {
-                    throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached SQLite");
-                }
-                writer.append("json_group_array(").append(r.distinct() ? "DISTINCT " : "").piece(json(r.args().get(0)));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
-                }
-                yield writer.append(")");
-            }
-            case MEDIAN -> {
-                if (r.args().size() != 1 || r.distinct()) {
-                    throw new DialectCapability("a median of this shape reached SQLite");
-                }
-                yield writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
-            }
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached SQLite");
-                }
-                yield writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
-            }
+            case STRING_AGG -> groupConcat(writer, r);
+            case LIST -> listOfValues(writer, r);
+            case MEDIAN -> median(writer, r);
+            case QUANTILE_CONT, QUANTILE_DISC -> percentile(writer, r);
             // the most frequent non-NULL value, the least among ties
-            case MODE -> {
-                SqlExpr x = r.args().get(0);
-                yield writer.append("(SELECT __m.value FROM json_each(json_group_array(").piece(json(x))
-                        .append(")) AS __m WHERE __m.value IS NOT NULL GROUP BY __m.value ORDER BY count(*) DESC,"
-                                + " min(__m.key) LIMIT 1)");
-            }
+            case MODE -> writer.append("(SELECT __m.value FROM json_each(json_group_array(")
+                    .piece(json(r.args().get(0)))
+                    .append(")) AS __m WHERE __m.value IS NOT NULL GROUP BY __m.value ORDER BY count(*) DESC,"
+                            + " min(__m.key) LIMIT 1)");
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached SQLite");
-                }
-                SqlExpr v = r.args().get(0);
-                SqlExpr k = r.args().get(1);
-                // an aggregate's own ORDER BY (a json_each over the group's array is a subquery, where SQLite refuses
-                // the aggregate: "misuse of aggregate function", measured)
-                yield writer.append("((json_group_array(").piece(json(v)).append(" ORDER BY ").expr(k, 0)
-                        .append(r.fn() == SqlAgg.Fn.ARG_MAX ? " DESC" : " ASC").append(") FILTER (WHERE ").expr(k, 4)
-                        .append(" IS NOT NULL)) ->> 0)");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> argExtreme(writer, r, " DESC");
+            case ARG_MIN -> argExtreme(writer, r, " ASC");
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** The population variance from the sample one: NULL over no value, 0 over one. */
+    private static SqlWriter.Piece populationVariance(SqlAgg.Reducer r) {
+        SqlExpr x = r.args().get(0);
+        return w -> w.append("(CASE count(").expr(x, 0)
+                .append(") WHEN 0 THEN NULL WHEN 1 THEN 0.0"
+                + " ELSE variance(").expr(x, 0).append(") * (count(").expr(x, 0).append(") - 1) / count(")
+                .expr(x, 0).append(") END)");
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducer}. */
+    private SqlWriter groupConcat(SqlWriter writer, SqlAgg.Reducer r) {
+        writer.append("group_concat(").piece(aggregateArgs(r));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter listOfValues(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1) {
+            throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached SQLite");
+        }
+        writer.append("json_group_array(").append(r.distinct() ? "DISTINCT " : "").piece(json(r.args().get(0)));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
+        }
+        return writer.append(")");
+    }
+
+    /** The {@code MEDIAN} arm of {@link #reducer}. */
+    private SqlWriter median(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct()) {
+            throw new DialectCapability("a median of this shape reached SQLite");
+        }
+        return writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
+    }
+
+    /** The {@code QUANTILE_CONT} and {@code QUANTILE_DISC} arms of {@link #reducer}. */
+    private SqlWriter percentile(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached SQLite");
+        }
+        return writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
+    }
+
+    /** The value at the first row in the key's {@code direction}, rows of a NULL key ignored: an aggregate's own ORDER
+     *  BY (a json_each over the group's array is a subquery, where SQLite refuses the aggregate: "misuse of aggregate
+     *  function", measured). */
+    private SqlWriter argExtreme(SqlWriter writer, SqlAgg.Reducer r, String direction) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached SQLite");
+        }
+        SqlExpr v = r.args().get(0);
+        SqlExpr k = r.args().get(1);
+        return writer.append("((json_group_array(").piece(json(v)).append(" ORDER BY ").expr(k, 0)
+                .append(direction).append(") FILTER (WHERE ").expr(k, 4)
+                .append(" IS NOT NULL)) ->> 0)");
     }
 
     /** Covariance and correlation over the pairs with both values: their sums, as the moments' definitions. */
@@ -2822,12 +2995,17 @@ public final class SQLite extends AnsiSqlRenderer {
      *  an attached database is a namespace, but ATTACH has no IF NOT EXISTS and the metamodel's seed creates its schema
      *  once per table (measured: "database metamodel is already in use"). */
     @Override
-    protected String tableName(String name) {
-        return name.indexOf('.') <= 0 ? ident(name) : delimited(name);
+    protected String tableName(String name, com.legend.sql.NameQuoting quoting) {
+        int dot = name.indexOf('.');
+        if (dot <= 0) {
+            return super.tableName(name, quoting);
+        }
+        // one delimited name, its case kept, whichever parts the store declared quoted
+        return delimited(name);
     }
 
-    private String qualified(@com.legend.base.Nullable String schema, String table) {
-        return schema == null || schema.isEmpty() || "default".equals(schema) ? physicalName(table)
+    private String qualified(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting) {
+        return schema == null || schema.isEmpty() || "default".equals(schema) ? storedName(table, quoting.table())
                 : delimited(schema + "." + table);
     }
 
@@ -2839,7 +3017,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.DropSchema ds -> "SELECT 1;";
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "Create Temporary Table " : "Create Table ")
-                        .append(qualified(ct.schema(), ct.table())).append("(");
+                        .append(qualified(ct.schema(), ct.table(), ct.quoting())).append("(");
                 List<String> keys = new ArrayList<>();
                 for (int i = 0; i < ct.columns().size(); i++) {
                     com.legend.sql.SqlDdl.Column col = ct.columns().get(i);
@@ -2856,7 +3034,7 @@ public final class SQLite extends AnsiSqlRenderer {
                 yield sb.append(");").toString();
             }
             case com.legend.sql.SqlDdl.DropTable dt ->
-                    "Drop table if exists " + qualified(dt.schema(), dt.table()) + ";";
+                    "Drop table if exists " + qualified(dt.schema(), dt.table(), dt.quoting()) + ";";
         };
     }
 
@@ -2865,8 +3043,8 @@ public final class SQLite extends AnsiSqlRenderer {
     public String render(com.legend.sql.SqlDml dml) {
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
-                SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table()))
-                        .append(columns(iv.columns())).append(" VALUES ");
+                SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table(), iv.quoting()))
+                        .append(columns(iv.columns(), iv.quotedColumns())).append(" VALUES ");
                 for (int r = 0; r < iv.rows().size(); r++) {
                     writer.append(r == 0 ? "(" : ", (").list(iv.rows().get(r)).append(")");
                 }
@@ -2877,14 +3055,15 @@ public final class SQLite extends AnsiSqlRenderer {
                 }
                 yield insert.sql();
             }
-            case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO " + qualified(it.schema(), it.table())
-                    + columns(it.columns()) + " SELECT * FROM " + ident(it.source()) + ";";
-            case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table()) + ";";
+            case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO " + qualified(it.schema(), it.table(), it.quoting())
+                    + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
+            case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
         };
     }
 
-    private String columns(List<String> columns) {
-        return columns.isEmpty() ? "" : " (" + String.join(", ", columns.stream().map(this::ident).toList()) + ")";
+    private String columns(List<String> columns, java.util.Set<String> quoted) {
+        return columns.isEmpty() ? ""
+                : " (" + String.join(", ", columns.stream().map(c -> storedName(c, quoted.contains(c))).toList()) + ")";
     }
 
     @Override

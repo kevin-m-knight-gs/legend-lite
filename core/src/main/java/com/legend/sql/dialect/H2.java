@@ -7,6 +7,7 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * The H2 EXECUTION dialect (H2_BACKEND.md §12 step 8) — a sibling of
@@ -28,12 +29,41 @@ import java.util.List;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN -> "BOOLEAN";
+            case INTEGER -> "INTEGER";
+            case BIGINT -> "BIGINT";
+            case HUGEINT -> "NUMERIC(38)";
+            case DOUBLE -> "DOUBLE PRECISION";
+            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP -> "TIMESTAMP";
+            case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            case JSON -> "JSON";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
+    /** No STRUCT type here: a struct cast is refused. */
+    @Override
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
+    }
+
     /** The base passes plus the lateral explode (H2 2.1 has no LATERAL;
      * see LateralExplodeToUnion). */
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        java.util.List<com.legend.sql.SqlRewriter> ps =
-                new java.util.ArrayList<>(super.passes());
+        java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
+        ps.add(new CarrierStrategies(CAPS));
+        if (!supportsQualify()) {
+            ps.add(new QualifyToSubselect());
+        }
         ps.add(new LateralExplodeToUnion());
         ps.add(new AggregatesDeliverDouble(java.util.Set.of(com.legend.sql.SqlAgg.Fn.AVG)));
         // LAST: every source the passes above introduced is in scope when
@@ -60,8 +90,42 @@ public class H2 extends AnsiSqlRenderer {
         return java.util.OptionalInt.empty();
     }
 
+    /** H2 2.1.214 reserved words — the ENGINE's own list
+     * (h2Extension2_1_214.pure:180-192). This is the GOLDEN TEXT
+     * channel's set ({@code Ddl.createTable ENGINE_TEXT}'s
+     * column-name rule quotes exactly what the engine quotes); the
+     * EXECUTION lexicon {@link #LEXICON} derives from it. */
+    public static final Lexicon ENGINE_LEXICON = new Lexicon('"', Set.of(
+            "all", "and", "array", "as", "between", "case", "check",
+            "constraint", "cross", "current_catalog", "current_date",
+            "current_schema", "current_time", "current_timestamp",
+            "current_user", "distinct", "except", "exists", "false", "fetch",
+            "for", "foreign", "from", "full", "group", "having", "if", "in",
+            "inner", "intersect", "interval", "is", "join", "left", "like",
+            "limit", "localtime", "localtimestamp", "minus", "natural", "not",
+            "null", "offset", "on", "or", "order", "primary", "qualify",
+            "row", "rownum", "select", "table", "true", "union", "unique",
+            "unknown", "using", "values", "where", "window", "with",
+            "_rowid_", "both", "groups", "ilike", "leading", "over",
+            "partition", "range", "regexp", "rows", "top", "trailing"));
+
+    /** Stock H2 2.1.214 EXECUTION lexicon: the engine's list plus the
+     * words the STOCK parser rejects in alias position (witnessed:
+     * {@code AS right} &rarr; syntax error) that the engine's laxer
+     * FORK omits. Execution-dialect-only — golden text channels use
+     * {@link #ENGINE_LEXICON} or {@link EngineStyleH2#LEXICON}. */
+    public static final Lexicon LEXICON = new Lexicon('"',
+            java.util.stream.Stream.concat(
+                    ENGINE_LEXICON.reservedWords().stream(),
+                    java.util.stream.Stream.of("right"))
+                    .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet)));
+
+    /** H2: no native lists, no correlated explosion (the ONLY probed
+     * backend without it), JSON constructors only. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
+
     public H2() {
-        super(Lexicon.H2, TypeNames.H2, Spellings.H2);
+        super(LEXICON);
     }
 
     @Override
@@ -81,13 +145,14 @@ public class H2 extends AnsiSqlRenderer {
      * {@link #ident} (bare-unless-needed); this brings the dotted
      * branch to the same rule. */
     @Override
-    protected String tableName(String name) {
+    protected String tableName(String name, com.legend.sql.NameQuoting quoting) {
         int dot = name.indexOf('.');
         if (dot <= 0) {
-            return super.tableName(name);
+            return super.tableName(name, quoting);
         }
-        return execPart(name.substring(0, dot)) + "."
-                + execPart(name.substring(dot + 1));
+        // a part the store declared quoted keeps its case (delimited); a bare one by the reference rule
+        return (quoting.schema() ? delimited(name.substring(0, dot)) : execPart(name.substring(0, dot))) + "."
+                + (quoting.table() ? delimited(name.substring(dot + 1)) : execPart(name.substring(dot + 1)));
     }
 
     /** EXCEPT names are DERIVED labels of the framed source (TDS/pivot
@@ -170,9 +235,10 @@ public class H2 extends AnsiSqlRenderer {
         return part;
     }
 
+    /** The engine's H2 text is H2's own. */
     @Override
-    public boolean rawH2IsNative() {
-        return true;
+    public String fromEngineH2(String statement) {
+        return statement;
     }
 
     /** The server versions this dialect writes for, as prefixes of the version a session reports: 2.1 and 2.2, the
@@ -259,59 +325,221 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        // integer division: the base renderer spells DuckDB's `a // b`,
-        // and `//` is a LINE COMMENT on H2 — `SELECT 7 // 2` returns 7
-        // silently (H2_BACKEND.md H5.2). H2's `/` over INT operands IS
-        // integer division; CAST pins the operand type against widening.
-        if (c.fn() == SqlFn.INT_DIVIDE) {
-            return writer.append("CAST(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6).append(" AS BIGINT)");
-        }
-        // date arithmetic: the ANSI base spells DuckDB's interval idiom
-        // `d + to_days(n)`; H2's form is dateadd(UNIT, n, d) — probed
-        // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
-        // CAST-around composition.
-        if (c.fn() == SqlFn.ADD_INTERVAL || c.fn() == SqlFn.ADD_INTERVAL_TEMPORAL) {
-            return writer.append("dateadd(").append(dateUnit(((SqlExpr.StringLit) a.get(0)).value())).append(", ")
-                    .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
-        }
-        // H2 has no date_part — the SQL-standard extract(UNIT FROM x)
-        // form (probed 2.1.214: HOUR over TIMESTAMP and TIME)
-        if (c.fn() == SqlFn.EXTRACT) {
-            return writer.append("extract(")
+        // every function, each by name: the switch is this dialect's whole table (the dialect program's Phase 1,
+        // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
+        return switch (c.fn()) {
+            case FORMAT -> formatArm(writer, c);
+            case EQUAL -> equalArm(writer, c, parentPrec);
+            case DATE_DIFF -> dateDiffArm(writer, c);
+            case SPLIT_PART -> splitPartArm(writer, c);
+            case REGEXP_EXTRACT -> regexpExtractArm(writer, c);
+            // ---- this dialect's own spellings
+            // integer division: DuckDB spells `a // b`,
+            // and `//` is a LINE COMMENT on H2 — `SELECT 7 // 2` returns 7
+            // silently (H2_BACKEND.md H5.2). H2's `/` over INT operands IS
+            // integer division; CAST pins the operand type against widening.
+            case INT_DIVIDE ->
+                    writer.append("CAST(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6).append(" AS BIGINT)");
+            // date arithmetic: DuckDB spells its interval idiom
+            // `d + to_days(n)`; H2's form is dateadd(UNIT, n, d) — probed
+            // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
+            // CAST-around composition.
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("dateadd(")
+                    .append(dateUnit(((SqlExpr.StringLit) a.get(0)).value())).append(", ").expr(a.get(1), 0)
+                    .append(", ").expr(a.get(2), 0).append(")");
+            // H2 has no date_part — the SQL-standard extract(UNIT FROM x)
+            // form (probed 2.1.214: HOUR over TIMESTAMP and TIME)
+            case EXTRACT -> writer.append("extract(")
                     .append(((SqlExpr.StringLit) a.get(0)).value().toUpperCase(java.util.Locale.ROOT))
                     .append(" FROM ").expr(a.get(1), 0).append(")");
-        }
-        // format(template, args…) over a LITERAL template: H2 has no printf
-        // (probed absent, 2026-07-31) — the template is a concatenation of
-        // its text segments with each %d / %s slot CAST to VARCHAR (the
-        // metamodel's dataTypeToSqlText: 'VARCHAR(%d)', 'DECIMAL(%d, %d)');
-        // any other specifier is a capability gap, loud.
-        if (c.fn() == SqlFn.FORMAT && !a.isEmpty()
-                && a.get(0) instanceof SqlExpr.StringLit tpl) {
+            // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
+            // incl. '%' in the prefix: no LIKE-escaping hazard)
+            case STARTS_WITH -> writer.append("(LEFT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0)
+                    .append(")) = ").expr(a.get(1), 0).append(")");
+            // strpos (P3): H2 spells LOCATE with SWAPPED args — probed
+            // 2.1.214 parity on all edges (1-based, miss 0, empty needle 1).
+            case STRPOS -> writer.append("LOCATE(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
+            // ends_with (P3): the RIGHT/CHAR_LENGTH twin of STARTS_WITH
+            // (probed incl. '%' suffix and needle-longer-than-string).
+            case ENDS_WITH -> writer.append("(RIGHT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0)
+                    .append(")) = ").expr(a.get(1), 0).append(")");
+            // boolean text (P7): H2 CAST prints 'TRUE' — the reference
+            // prints 'true'; NULL stays NULL through the CASE.
+            case BOOL_TO_TEXT -> writer.append("CASE WHEN ").expr(a.get(0), 0).append(" THEN 'true' WHEN NOT ")
+                    .expr(a.get(0), 0).append(" THEN 'false' END");
+            // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
+            // probed partial-vs-full parity; literal patterns anchor at
+            // build time, dynamic ones through CONCAT.
+            case REGEXP_FULL_MATCH -> regexpFullMatch(writer, c);
+            // error(msg) (P3): SIGNAL raises with the message and is LAZY
+            // under CASE (probed 2.1.214: guarded branches do not fire,
+            // taken branches raise, THEN-arm types unify). B7: the U+001F
+            // provenance sentinel rides both ends (RaisedErrors).
+            case ERROR -> errorArm(writer, c);
+            // epoch(ts) / epoch_ms(ts): H2 has neither — the standard
+            // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
+            // probed 2.1.214: 1417706543.123) and its millisecond scaling.
+            case EPOCH_SECONDS -> writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
+            case EPOCH_MS -> writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+                    infix(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            // Pure's divide is a Float division: both operands DOUBLE
+            case DIVIDE -> divideAsDoubles(writer, c.args());
+            case MOD -> modFloored(writer, c.args());
+            case REM -> modTruncated(writer, c.args());
+            case NEGATE -> negation(writer, c.args());
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case IN -> inList(writer, c.args(), parentPrec);
+            // 64-bit parse (PCT Long.MIN/MAX round-trips)
+            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // NULL-skipping flat concat (the database's concat skips NULL arguments)
+            case CONCAT -> concatFlat(writer, c.args());
+            // joinStrings' interleaved concat, never flattened
+            case CONCAT_JOIN -> writer.function("concat", c.args());
+            case PI -> writer.append("pi()");
+            case CEILING -> bigintOf(writer, "ceil", c.args());
+            case FLOOR -> bigintOf(writer, "floor", c.args());
+            case SIGN -> bigintOf(writer, "sign", c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case LPAD -> padWithSpace(writer, "lpad", c.args());
+            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // generateGuid's contract is text: the uuid as VARCHAR
+            case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
+            case TODAY -> writer.append("current_date");
+            case NOW -> writer.append("now()");
+            case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args());
+            case CURRENT_USER_FN -> writer.append("current_user");
+            case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
+            case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
+            // parseDate(text): the ISO text as a timestamp
+            case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
+            // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
+            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+                 LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
+                 LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
+                 LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE, TYPEOF -> listCall(writer, c.fn(), c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case HASH -> hashSigned(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case COALESCE -> writer.function("coalesce", c.args());
+            case LENGTH -> writer.function("length", c.args());
+            case UPPER -> writer.function("upper", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case GREATEST -> writer.function("greatest", c.args());
+            case LEAST -> writer.function("least", c.args());
+            case LIST_FLATTEN -> writer.function("flatten", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case POW -> writer.function("power", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case COS -> writer.function("cos", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case ASIN -> writer.function("asin", c.args());
+            case ACOS -> writer.function("acos", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case REGEXP_EXTRACT_ALL -> writer.function("regexp_extract_all", c.args());
+            case REGEXP_REPLACE -> writer.function("regexp_replace", c.args());
+            case MAP_FROM_LISTS -> writer.function("map", c.args());
+            case MAP_FROM_ENTRIES -> writer.function("map_from_entries", c.args());
+            case MAP_EXTRACT -> writer.function("map_extract", c.args());
+            case MAP_KEYS -> writer.function("map_keys", c.args());
+            case MAP_VALUES -> writer.function("map_values", c.args());
+            case MAP_CONCAT -> writer.function("map_concat", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case MATCHES -> writer.function("regexp_like", c.args());
+            case LEFT -> writer.function("left", c.args());
+            case RIGHT -> writer.function("right", c.args());
+            case TRIM -> writer.function("trim", c.args());
+            case LTRIM -> writer.function("ltrim", c.args());
+            case RTRIM -> writer.function("rtrim", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case SPLIT -> writer.function("string_split", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case ASCII_CODE -> writer.function("ascii", c.args());
+            case CHR -> writer.function("chr", c.args());
+            case LEVENSHTEIN -> writer.function("levenshtein", c.args());
+            case MD5 -> writer.function("md5", c.args());
+            case SHA1 -> writer.function("sha1", c.args());
+            case SHA256 -> writer.function("sha256", c.args());
+            case MAKE_DATE -> writer.function("make_date", c.args());
+            case TIMEZONE -> writer.function("timezone", c.args());
+            case FROM_EPOCH_SECONDS -> writer.function("to_timestamp", c.args());
+            case DAYNAME -> writer.function("dayname", c.args());
+            case MONTHNAME -> writer.function("monthname", c.args());
+            case COT -> writer.function("cot", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case REPEAT_STR -> writer.function("repeat", c.args());
+            case JARO_WINKLER -> writer.function("jaro_winkler_similarity", c.args());
+            case LIST_LENGTH -> writer.function("len", c.args());
+            case STRFTIME -> writer.function("formatdatetime", c.args());
+            case STRPTIME -> writer.function("parsedatetime", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case JSON_TYPE -> writer.function("json_type", c.args());
+            case JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
+            case JSON_PRETTY -> writer.function("json_pretty", c.args());
+            // refused by name (D1, measured 2026-10-13: H2 cannot run DuckDB's spelling)
+            case JSON_MERGE_PATCH ->
+                    throw new DialectCapability("a JSON merge reached H2, which has no json_merge_patch()");
+            case BIT_NOT -> throw new DialectCapability("bitNot reached H2, which has no xor()");
+            case MAP_EMPTY -> throw new DialectCapability("an empty map reached H2, which has no map type");
+            case ENCODE_BASE64 -> throw new DialectCapability("encodeBase64 reached H2, which has no to_base64()");
+            case MAKE_TIMESTAMP ->
+                    throw new DialectCapability("a date-time constructor reached H2, which has no make_timestamp()");
+            case FROM_EPOCH_MS ->
+                    throw new DialectCapability("a date from epoch milliseconds reached H2, which has no epoch_ms()");
+            case DECODE_BASE64 -> throw new DialectCapability("decodeBase64 reached H2, which has no from_base64()");
+            case TIME_BUCKET -> throw new DialectCapability("a time bucket reached H2, which has no time_bucket()");
+        };
+    }
+
+    /** format(template, args…) over a LITERAL template: H2 has no printf (probed absent, 2026-07-31) — the template
+     * is a concatenation of its text segments with each %d / %s slot CAST to VARCHAR (the metamodel's
+     * dataTypeToSqlText: 'VARCHAR(%d)', 'DECIMAL(%d, %d)'); any other specifier is a capability gap, loud. */
+    private SqlWriter formatArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!a.isEmpty() && a.get(0) instanceof SqlExpr.StringLit tpl) {
             return formatAsConcat(writer, tpl.value(), a.subList(1, a.size()));
         }
-        // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
-        // incl. '%' in the prefix: no LIKE-escaping hazard)
-        if (c.fn() == SqlFn.STARTS_WITH) {
-            return writer.append("(LEFT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0).append(")) = ")
-                    .expr(a.get(1), 0).append(")");
-        }
-        // strpos (P3): H2 spells LOCATE with SWAPPED args — probed
-        // 2.1.214 parity on all edges (1-based, miss 0, empty needle 1).
-        if (c.fn() == SqlFn.STRPOS) {
-            return writer.append("LOCATE(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
-        }
-        // ends_with (P3): the RIGHT/CHAR_LENGTH twin of STARTS_WITH
-        // (probed incl. '%' suffix and needle-longer-than-string).
-        if (c.fn() == SqlFn.ENDS_WITH) {
-            return writer.append("(RIGHT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0).append(")) = ")
-                    .expr(a.get(1), 0).append(")");
-        }
-        // bool = text (P8): the reference COERCES the string to bool
-        // ('N' -> false, probed) where strict H2 rejects the compare —
-        // a parseable literal becomes the boolean it names; anything
-        // else falls through (the type error stays loud).
-        if (c.fn() == SqlFn.EQUAL && a.size() == 2) {
+        return writer.function("printf", c.args());
+    }
+
+    /** bool = text (P8): the reference COERCES the string to bool ('N' -> false, probed) where strict H2 rejects the
+     * compare — a parseable literal becomes the boolean it names; anything else falls through (the type error stays
+     * loud). */
+    private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2) {
             for (int i = 0; i < 2; i++) {
                 if (booleanShaped(a.get(i))
                         && a.get(1 - i) instanceof SqlExpr.StringLit bs) {
@@ -328,49 +556,27 @@ public class H2 extends AnsiSqlRenderer {
                 }
             }
         }
-        // boolean text (P7): H2 CAST prints 'TRUE' — the reference
-        // prints 'true'; NULL stays NULL through the CASE.
-        if (c.fn() == SqlFn.BOOL_TO_TEXT) {
-            return writer.append("CASE WHEN ").expr(a.get(0), 0).append(" THEN 'true' WHEN NOT ").expr(a.get(0), 0)
-                    .append(" THEN 'false' END");
-        }
-        // date_diff (P7): DATEDIFF(UNIT, a, b) — probed sign parity
-        // (10 / -10) with the reference date_diff('unit', a, b).
-        if (c.fn() == SqlFn.DATE_DIFF
-                && a.get(0) instanceof SqlExpr.StringLit du) {
+        return infix(writer, c, parentPrec);
+    }
+
+    /** date_diff (P7): DATEDIFF(UNIT, a, b) — probed sign parity (10 / -10) with the reference
+     * date_diff('unit', a, b). */
+    private SqlWriter dateDiffArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.get(0) instanceof SqlExpr.StringLit du) {
             return writer.append("DATEDIFF(").append(du.value().toUpperCase(java.util.Locale.ROOT)).append(", ")
                     .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
         }
-        // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
-        // probed partial-vs-full parity; literal patterns anchor at
-        // build time, dynamic ones through CONCAT.
-        if (c.fn() == SqlFn.REGEXP_FULL_MATCH) {
-            writer.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ");
-            return (a.get(1) instanceof SqlExpr.StringLit pl
-                    ? writer.append(stringLit("^(?:" + pl.value() + ")$"))
-                    : writer.append("CONCAT('^(?:', ").expr(a.get(1), 0).append(", ')$')")).append(")");
-        }
-        // error(msg) (P3): SIGNAL raises with the message and is LAZY
-        // under CASE (probed 2.1.214: guarded branches do not fire,
-        // taken branches raise, THEN-arm types unify). B7: the U+001F
-        // provenance sentinel rides both ends (RaisedErrors).
-        if (c.fn() == SqlFn.ERROR) {
-            // optional second arg = 'line:col' provenance (PureSql.raise) —
-            // same in-envelope U+001E convention as the ANSI arm
-            writer.append("SIGNAL('45000', CHAR(31) || ");
-            if (c.args().size() > 1) {
-                writer.expr(c.args().get(1), 0).append(" || CHAR(30) || ");
-            }
-            return writer.append("(").expr(a.get(0), 0).append(") || CHAR(31))");
-        }
-        // split_part (R5c): H2 has no token pick — the probed EXACT
-        // spelling (empty tokens KEPT, missing token -> '', matching
-        // DuckDB split_part on all 6 probed edges): separator-count CASE
-        // guard + REGEXP_REPLACE with \Q\E-quoted separator (H2 regexes
-        // are java.util.regex). Literal single-char separator + literal
-        // positive index only — the strategy rule emits nothing else.
-        if (c.fn() == SqlFn.SPLIT_PART
-                && a.get(1) instanceof SqlExpr.StringLit sep
+        return writer.function("date_diff", c.args());
+    }
+
+    /** split_part (R5c): H2 has no token pick — the probed EXACT spelling (empty tokens KEPT, missing token -> '',
+     * matching DuckDB split_part on all 6 probed edges): separator-count CASE guard + REGEXP_REPLACE with
+     * \Q\E-quoted separator (H2 regexes are java.util.regex). Literal single-char separator + literal positive index
+     * only — the strategy rule emits nothing else. */
+    private SqlWriter splitPartArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.get(1) instanceof SqlExpr.StringLit sep
                 && sep.value().length() == 1
                 && a.get(2) instanceof SqlExpr.IntLit ix && ix.value() >= 1) {
             String sepLit = stringLit(sep.value());
@@ -383,25 +589,41 @@ public class H2 extends AnsiSqlRenderer {
                     .append(" THEN '' ELSE REGEXP_REPLACE(").expr(a.get(0), 0).append(", ").append(pat)
                     .append(", '$1') END");
         }
-        // regexp_extract(s, p[, g]): H2 spells REGEXP_SUBSTR(s, p, 1, 1,
-        // NULL, g) — probed 2.1.214: group g returns the capture ('-1.3421E-8'
-        // -> '1.3421'); a MISS is NULL where DuckDB yields '' — COALESCE
-        // keeps the contract the callers read ('' = the group did not match).
-        if (c.fn() == SqlFn.REGEXP_EXTRACT && (a.size() == 2 || a.size() == 3)) {
+        return writer.function("split_part", c.args());
+    }
+
+    /** regexp_extract(s, p[, g]): H2 spells REGEXP_SUBSTR(s, p, 1, 1, NULL, g) — probed 2.1.214: group g returns the
+     * capture ('-1.3421E-8' -> '1.3421'); a MISS is NULL where DuckDB yields '' — COALESCE keeps the contract the
+     * callers read ('' = the group did not match). */
+    private SqlWriter regexpExtractArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 || a.size() == 3) {
             writer.append("COALESCE(REGEXP_SUBSTR(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
                     .append(", 1, 1, NULL, ");
             return (a.size() == 3 ? writer.expr(a.get(2), 0) : writer.append("0")).append("), '')");
         }
-        // epoch(ts) / epoch_ms(ts): H2 has neither — the standard
-        // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
-        // probed 2.1.214: 1417706543.123) and its millisecond scaling.
-        if (c.fn() == SqlFn.EPOCH_SECONDS) {
-            return writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
+        return writer.function("regexp_extract", c.args());
+    }
+
+    /** The {@code REGEXP_FULL_MATCH} arm of {@link #call}. */
+    private SqlWriter regexpFullMatch(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        writer.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ");
+        return (a.get(1) instanceof SqlExpr.StringLit pl
+                ? writer.append(stringLit("^(?:" + pl.value() + ")$"))
+                : writer.append("CONCAT('^(?:', ").expr(a.get(1), 0).append(", ')$')")).append(")");
+    }
+
+    /** The {@code ERROR} arm of {@link #call}. */
+    private SqlWriter errorArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        // optional second arg = 'line:col' provenance (PureSql.raise) —
+        // same in-envelope U+001E convention as raiseEnvelope
+        writer.append("SIGNAL('45000', CHAR(31) || ");
+        if (c.args().size() > 1) {
+            writer.expr(c.args().get(1), 0).append(" || CHAR(30) || ");
         }
-        if (c.fn() == SqlFn.EPOCH_MS) {
-            return writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
-        }
-        return super.call(writer, c, parentPrec);
+        return writer.append("(").expr(a.get(0), 0).append(") || CHAR(31))");
     }
 
     /** H2 window-frame interval bounds want the SQL-standard QUOTED
@@ -588,67 +810,109 @@ public class H2 extends AnsiSqlRenderer {
      * reducers render on the base. */
     @Override
     protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
-        if (r.fn() == com.legend.sql.SqlAgg.Fn.ANY_VALUE && r.args().size() == 1
-                && !r.distinct() && r.orderBy().isEmpty()) {
-            // Pure's first() over a group is ANY non-empty value (empties
-            // vanish from a collection); H2 2.1.214 has no ANY_VALUE, so a
-            // comparable scalar takes MIN, which is such a value. A JSON or
-            // array carrier has no order to take a minimum over: a wall,
-            // never a guess (rebuild W0.6 push 13, E5).
-            SqlExpr arg = r.args().get(0);
-            if (arg.type() instanceof com.legend.sql.TypeFact.Typed t
-                    && t.type() instanceof com.legend.sql.SqlType.Scalar sc
-                    && sc != com.legend.sql.SqlType.Scalar.JSON) {
-                return writer.append("MIN(").expr(arg, 0).append(")");
-            }
-            throw new DialectCapability("first() over a group of "
-                    + (arg.type() instanceof com.legend.sql.TypeFact.Typed t2 ? t2.type() : arg.type())
-                    + " values has no H2 spelling: this H2 has no ANY_VALUE and MIN needs a comparable scalar");
+        return switch (r.fn()) {
+            case SUM -> h2Aggregate(writer, "SUM", r);
+            case COUNT -> h2Aggregate(writer, "COUNT", r);
+            case AVG -> h2Aggregate(writer, "AVG", r);
+            case MIN -> h2Aggregate(writer, "MIN", r);
+            case MAX -> h2Aggregate(writer, "MAX", r);
+            // Pure's first() over a group is ANY non-empty value (empties vanish from a collection); H2 2.1.214 has no
+            // ANY_VALUE, so a comparable scalar takes MIN (anyValue)
+            case ANY_VALUE -> r.args().size() == 1 && !r.distinct() && r.orderBy().isEmpty() ? anyValue(writer, r)
+                    : h2Aggregate(writer, "ANY_VALUE", r);
+            case STDDEV_SAMP -> h2Aggregate(writer, "STDDEV_SAMP", r);
+            case STDDEV_POP -> h2Aggregate(writer, "STDDEV_POP", r);
+            case VAR_SAMP -> h2Aggregate(writer, "VAR_SAMP", r);
+            case VAR_POP -> h2Aggregate(writer, "VAR_POP", r);
+            case MEDIAN -> h2Aggregate(writer, "MEDIAN", r);
+            case MODE -> h2Aggregate(writer, "MODE", r);
+            case STRING_AGG -> h2Aggregate(writer, "STRING_AGG", r);
+            case LIST -> r.args().size() == 1 && !r.distinct() ? listOfValues(writer, r)
+                    : h2Aggregate(writer, "LIST", r);
+            // the reducer's single order key IS the within-group order (a descending percentile); none = ascending
+            case QUANTILE_CONT -> withinGroupShaped(r) ? percentile(writer, "PERCENTILE_CONT", r)
+                    : h2Aggregate(writer, "QUANTILE_CONT", r);
+            case QUANTILE_DISC -> withinGroupShaped(r) ? percentile(writer, "PERCENTILE_DISC", r)
+                    : h2Aggregate(writer, "QUANTILE_DISC", r);
+            case CORR -> h2Aggregate(writer, "CORR", r);
+            case COVAR_SAMP -> h2Aggregate(writer, "COVAR_SAMP", r);
+            case COVAR_POP -> h2Aggregate(writer, "COVAR_POP", r);
+            case ARG_MAX -> h2Aggregate(writer, "ARG_MAX", r);
+            case ARG_MIN -> h2Aggregate(writer, "ARG_MIN", r);
+            case BOOL_AND -> h2Aggregate(writer, "BOOL_AND", r);
+            case BOOL_OR -> h2Aggregate(writer, "BOOL_OR", r);
+            case VARIANCE -> h2Aggregate(writer, "VARIANCE", r);
+            case STDDEV -> h2Aggregate(writer, "STDDEV", r);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
+        };
+    }
+
+    /** An aggregate by its name; an ordered one pins the reference NULL placement too (the sortKey pin's
+     *  aggregate-internal twin — witnessed: sorted joinStrings led with TDSNull under H2's NULLS-FIRST default). */
+    private SqlWriter h2Aggregate(SqlWriter writer, String name, com.legend.sql.SqlAgg.Reducer r) {
+        if (r.orderBy().isEmpty()) {
+            return aggregate(writer, name, r);
         }
-        if ((r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
-                    || r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_DISC)
-                && r.args().size() == 2 && !r.distinct()
-                && r.orderBy().size() <= 1) {
-            // the reducer's single order key IS the within-group order
-            // (a descending percentile); none = ascending
-            boolean desc = !r.orderBy().isEmpty()
-                    && !r.orderBy().get(0).ascending();
-            return writer.append(r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
-                            ? "PERCENTILE_CONT(" : "PERCENTILE_DISC(")
-                    .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
-                    .append(desc ? " DESC" : "").append(")");
+        writer.append(name).append("(").append(r.distinct() ? "DISTINCT " : "");
+        if (r.args().isEmpty()) {
+            writer.append("*");
+        } else {
+            writer.list(r.args());
         }
-        if (r.fn() == com.legend.sql.SqlAgg.Fn.LIST && r.args().size() == 1
-                && !r.distinct()) {
-            writer.append("JSON_ARRAYAGG(").expr(r.args().get(0), 0);
-            if (!r.orderBy().isEmpty()) {
-                writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
-                        .append(k.ascending() ? " ASC" : " DESC")
-                        .append(k.nullOrder() == null ? ""
-                                : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
-                                        ? " NULLS FIRST" : " NULLS LAST"));
-            }
-            return writer.append(" NULL ON NULL)");
+        return writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
+                .append(k.ascending() ? " ASC" : " DESC")
+                .append(k.nullOrder() == null
+                        ? (k.ascending() ? " NULLS LAST" : " NULLS FIRST")
+                        : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                                ? " NULLS FIRST" : " NULLS LAST"))
+                .append(")");
+    }
+
+    /** Pure's first() over a group is ANY non-empty value (empties
+     * vanish from a collection); H2 2.1.214 has no ANY_VALUE, so a
+     * comparable scalar takes MIN, which is such a value. A JSON or
+     * array carrier has no order to take a minimum over: a wall,
+     * never a guess (rebuild W0.6 push 13, E5). */
+    private SqlWriter anyValue(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+        SqlExpr arg = r.args().get(0);
+        if (arg.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() instanceof com.legend.sql.SqlType.Scalar sc
+                && sc != com.legend.sql.SqlType.Scalar.JSON) {
+            return writer.append("MIN(").expr(arg, 0).append(")");
         }
-        // ordered aggregates pin the reference NULL placement too (the
-        // sortKey pin's aggregate-internal twin — witnessed: sorted
-        // joinStrings led with TDSNull under H2's NULLS-FIRST default)
+        throw new DialectCapability("first() over a group of "
+                + (arg.type() instanceof com.legend.sql.TypeFact.Typed t2 ? t2.type() : arg.type())
+                + " values has no H2 spelling: this H2 has no ANY_VALUE and MIN needs a comparable scalar");
+    }
+
+    /** A percentile H2 writes WITHIN GROUP: a value and a level, at most one order key. */
+    private static boolean withinGroupShaped(com.legend.sql.SqlAgg.Reducer r) {
+        return r.args().size() == 2 && !r.distinct() && r.orderBy().size() <= 1;
+    }
+
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}. */
+    private SqlWriter percentile(SqlWriter writer, String name, com.legend.sql.SqlAgg.Reducer r) {
+        boolean desc = !r.orderBy().isEmpty()
+                && !r.orderBy().get(0).ascending();
+        return writer.append(name).append("(")
+                .expr(r.args().get(1), 0).append(") WITHIN GROUP (ORDER BY ").expr(r.args().get(0), 0)
+                .append(desc ? " DESC" : "").append(")");
+    }
+
+    /** A list of the group's values: {@code JSON_ARRAYAGG(x[ ORDER BY keys] NULL ON NULL)}. */
+    private SqlWriter listOfValues(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+        writer.append("JSON_ARRAYAGG(").expr(r.args().get(0), 0);
         if (!r.orderBy().isEmpty()) {
-            writer.append(r.fn().toString()).append("(").append(r.distinct() ? "DISTINCT " : "");
-            if (r.args().isEmpty()) {
-                writer.append("*");
-            } else {
-                writer.list(r.args());
-            }
-            return writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
                     .append(k.ascending() ? " ASC" : " DESC")
-                    .append(k.nullOrder() == null
-                            ? (k.ascending() ? " NULLS LAST" : " NULLS FIRST")
+                    .append(k.nullOrder() == null ? ""
                             : k.nullOrder() == com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
-                                    ? " NULLS FIRST" : " NULLS LAST"))
-                    .append(")");
+                                    ? " NULLS FIRST" : " NULLS LAST"));
         }
-        return super.reducer(writer, r);
+        return writer.append(" NULL ON NULL)");
     }
 
     /** Banker's ROUND (probed on 2.1.214 against DuckDB ROUND_EVEN over

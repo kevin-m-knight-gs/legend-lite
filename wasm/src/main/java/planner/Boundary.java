@@ -271,7 +271,10 @@ public final class Boundary {
      * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "snapDatabaseType"?,
      * "columns": [catalog rows]}} in;
      * {@code {"model", "runtime", "snapRuntime"?, "source" (protocol), "accessor" (its Pure text),
-     * "conversions": [{"column","sql"}], "copySelectList", "excluded": [name], "bitColumns": [name]}} out.
+     * "conversions": [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
+     * {@code copySelectList}: the select list a copy applies, written by the copy's own database: the snap's store,
+     * or the source itself when it is rewritten in place ({@code convertible}); a read-only source with no snap is
+     * never copied, and has none.
      * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
      */
     public static String tableModel(String tableJson) {
@@ -301,7 +304,11 @@ public final class Boundary {
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        out.put("copySelectList", db.copySelectList());
+        String copyDatabaseType = snapDatabaseType != null ? snapDatabaseType
+                : in.getBool("convertible") ? databaseType : null;
+        if (copyDatabaseType != null) {
+            out.put("copySelectList", dialectOf(copyDatabaseType).copySelectList(db.conversions()));
+        }
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);

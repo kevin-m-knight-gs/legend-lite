@@ -133,7 +133,7 @@ final class Overloads {
         if (shadow != null) {
             return shadow;
         }
-        return rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()));
+        return rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()), env);
     }
 
     /** Leg 6a — the receiver's OWN qualified property SHADOWS an
@@ -197,7 +197,7 @@ final class Overloads {
      * exactly as TDS types as its relation. Statement shapes (DDL, DML,
      * multi-statement blobs) keep the declared opaque handle — they are
      * EFFECTS and ride the execute-once path. */
-    private TypedSpec rawGridOrSelf(TypedSpec call) {
+    private TypedSpec rawGridOrSelf(TypedSpec call, Env env) {
         if (!(call instanceof TypedNativeCall nc)) {
             return call;
         }
@@ -218,15 +218,35 @@ final class Overloads {
                 // DECLARED table-function schema, never late-bound (no
                 // LIMIT-0 probe, reads stamp statically)
                 return new com.legend.compiler.spec.typed
-                        .TypedRawSqlRelation(sql, ExprType.one(
+                        .TypedRawSqlRelation(sql, false, null, ExprType.one(
                                 Type.relation(CatalogGrids.gridSchema(java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nc.callee().id()))))));
             }
         }
         if (sql == null) {
             return call;
         }
+        // the text's language: the database its connection argument declares (decision D2)
         return new com.legend.compiler.spec.typed.TypedRawSqlRelation(
-                sql, ExprType.one(Type.relation(Type.RelationType.lateBound())));
+                sql, true, nc.args().size() > 1 ? declaredDatabase(nc.args().get(1), env) : null,
+                ExprType.one(Type.relation(Type.RelationType.lateBound())));
+    }
+
+    /** The database a connection argument declares (decision D2), read at typing as from() reads its runtime
+     *  (FromChecker): a let-bound variable through its alias, typed; a helper's body read raw. Null when it cannot be
+     *  read. */
+    private @com.legend.base.Nullable String declaredDatabase(TypedSpec connection, Env env) {
+        java.util.function.UnaryOperator<TypedSpec> bind = v -> {
+            if (v instanceof com.legend.compiler.spec.typed.TypedVariable tv) {
+                com.legend.protocol.spec.ValueSpecification raw = env.aliasOf(tv.name());
+                if (raw != null && !(raw instanceof com.legend.protocol.spec.Variable)) {
+                    return t.synth(raw, env);
+                }
+            }
+            return v;
+        };
+        return com.legend.compiler.spec.typed.ExecutionContext.declaredDatabase(connection,
+                com.legend.compiler.spec.typed.ExecutionContext.reader()
+                        .overloads(ctx::findFunction).bind(bind));
     }
 
     /**

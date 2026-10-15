@@ -662,7 +662,7 @@ public final class SqlTypeCensus {
         return "Trino".equals(dialect) && label instanceof SqlType.Struct && meta.equals("JSON");
     }
 
-    /** ClickHouse's carrier (2026-10-12): a Variant is its JSON text, a String (TypeNames.CLICKHOUSE). */
+    /** ClickHouse's carrier (2026-10-12): a Variant is its JSON text, a String (ClickHouse.scalarTypeName). */
     private static boolean clickHouseOwn(String dialect, SqlType label, String meta) {
         return "ClickHouse".equals(dialect) && label == SqlType.Scalar.JSON && meta.equals("VARCHAR");
     }
@@ -720,7 +720,7 @@ public final class SqlTypeCensus {
             return true;
         }
         // HUGEINT's own spelling where the database has no 128-bit integer
-        // (TypeNames: NUMERIC(38) on Postgres and H2) -- the cast the root
+        // (scalarTypeName: NUMERIC(38) on Postgres and H2) -- the cast the root
         // delivers it by (RootNumericTypes)
         if (label == SqlType.Scalar.HUGEINT && meta.equals("DECIMAL(38,0)")) {
             return true;

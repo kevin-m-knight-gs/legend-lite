@@ -26,11 +26,15 @@ import java.util.List;
  *              (StoreCompiler.declaredType): what the database holds, which the
  *              relation type -- the value as read -- does not say; the lowering
  *              stamps them on the scan (docs/STORE_TYPES_HOMEWORK_2026_10_02.md)
+ * @param quotedTable  the table's name was declared QUOTED ({@code Table "Orders"}): the scan carries it as data
+ *              ({@code com.legend.sql.NameQuoting}); {@code table} stays bare, the identity every lookup spells
+ * @param quotedSchema the same for its schema's name
  */
 public record TypedTableReference(String store, String table, ExprType info,
                                   boolean accessor, @com.legend.base.Nullable String frame,
                                   java.util.Set<String> quotedColumns, boolean call,
-                                  java.util.Map<String, com.legend.sql.SqlDdl.ColumnType> storedTypes)
+                                  java.util.Map<String, com.legend.sql.SqlDdl.ColumnType> storedTypes,
+                                  boolean quotedTable, boolean quotedSchema)
         implements TypedSpec {
     public TypedTableReference {
         quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
@@ -39,7 +43,7 @@ public record TypedTableReference(String store, String table, ExprType info,
 
     public TypedTableReference(String store, String table, ExprType info, boolean accessor,
             @com.legend.base.Nullable String frame) {
-        this(store, table, info, accessor, frame, java.util.Set.of(), false, java.util.Map.of());
+        this(store, table, info, accessor, frame, java.util.Set.of(), false, java.util.Map.of(), false, false);
     }
 
     /** {@code frame}: the rows of this table identity are a PLANNED
@@ -52,7 +56,8 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
 
     public TypedTableReference withFrame(String frame) {
-        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns, call, storedTypes);
+        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns, call, storedTypes,
+                quotedTable, quotedSchema);
     }
     /** {@code accessor}: the {@code #>{db.TABLE}#} relation-accessor
      * spelling (engine: columns typed as precisePrimitives from the
@@ -74,6 +79,7 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns, call, storedTypes);
+        return new TypedTableReference(store, table, info, accessor, frame, quotedColumns, call, storedTypes,
+                quotedTable, quotedSchema);
     }
 }

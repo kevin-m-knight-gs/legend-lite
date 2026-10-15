@@ -15,9 +15,11 @@ import java.util.List;
  * {@code INSERT ... SELECT}. Nothing here converts a value, and nothing here
  * spells SQL: the dialect renders the {@link SqlDml} this becomes.
  *
- * @param schema  the table's schema (null or {@code default}: the default one)
- * @param table   the table
- * @param columns the target columns, or empty for every column in declared order
+ * @param schema  the table's schema (null or {@code default}: the default one), its text
+ * @param table   the table, its text
+ * @param quoting which of the two names the store declared quoted (the dialect spells both, once)
+ * @param columns the target columns, their text, or empty for every column in declared order
+ * @param quotedColumns the ones of {@code columns} the store declared quoted (the dialect spells each column, once)
  * @param width   the number of cells in every row
  * @param rows    the rows; each exactly {@code width} cells
  * @param casts   per cell position, the type each cell's text is CAST to in the database (null: none, the column
@@ -26,18 +28,19 @@ import java.util.List;
  *                string into an INT64 or a BOOL; measured 2026-10-11). The DATABASE still does the typing: the
  *                dialect spells its own conversion.
  */
-public record RowLoad(@com.legend.base.Nullable String schema, String table, List<String> columns,
-                      int width, List<List<String>> rows,
+public record RowLoad(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
+                      List<String> columns, java.util.Set<String> quotedColumns, int width, List<List<String>> rows,
                       List<com.legend.sql.@com.legend.base.Nullable SqlType> casts) {
 
     /** A load whose cells the database takes as text. */
-    public RowLoad(@com.legend.base.Nullable String schema, String table, List<String> columns, int width,
-            List<List<String>> rows) {
-        this(schema, table, columns, width, rows, List.of());
+    public RowLoad(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
+            List<String> columns, java.util.Set<String> quotedColumns, int width, List<List<String>> rows) {
+        this(schema, table, quoting, columns, quotedColumns, width, rows, List.of());
     }
 
     public RowLoad {
         columns = List.copyOf(columns);
+        quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
         rows = List.copyOf(rows);
         casts = java.util.Collections.unmodifiableList(new ArrayList<>(casts));
         if (!casts.isEmpty() && casts.size() != width) {
@@ -71,12 +74,12 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, Lis
             }
             out.add(cells);
         }
-        return new SqlDml.InsertValues(schema, table, columns, out);
+        return new SqlDml.InsertValues(schema, table, quoting, columns, quotedColumns, out);
     }
 
     /** The staged path's copy into this table from {@code stage}. */
     public SqlDml.InsertFromTable fromStage(String stage) {
-        return new SqlDml.InsertFromTable(schema, table, columns, stage);
+        return new SqlDml.InsertFromTable(schema, table, quoting, columns, quotedColumns, stage);
     }
 
     /** The staging table a bulk load appends its cells to: temporary, so one per session, created and dropped inside
@@ -99,8 +102,9 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, Lis
                     false, false));
         }
         return new com.legend.executionplan.ExecutionPlan.SetupStep.Rows(STAGE,
-                dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, text, true)),
+                dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, com.legend.sql.NameQuoting.BARE, text,
+                        true)),
                 dialect.render(fromStage(STAGE)),
-                dialect.render(new com.legend.sql.SqlDdl.DropTable(null, STAGE)), rows);
+                dialect.render(new com.legend.sql.SqlDdl.DropTable(null, STAGE, com.legend.sql.NameQuoting.BARE)), rows);
     }
 }

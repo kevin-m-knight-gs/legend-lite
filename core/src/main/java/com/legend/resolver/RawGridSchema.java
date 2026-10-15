@@ -74,7 +74,8 @@ public final class RawGridSchema {
      * to the trusted-Any column at the oracle — an upgrade, never a
      * new wall). */
     public interface SchemaOracle {
-        List<Type.Column> columnsOf(String sql);
+        /** The columns of {@code sql}, written for the database {@code writtenFor} (null: the session's own). */
+        List<Type.Column> columnsOf(String sql, @com.legend.base.Nullable String writtenFor);
     }
 
     /** The tree with every late-bound raw grid stamped and its
@@ -155,9 +156,9 @@ public final class RawGridSchema {
                 && Type.relationSchema(raw.info().type())
                         instanceof Type.RelationType rt
                 && rt.isLateBound()) {
-            return new TypedRawSqlRelation(raw.sql(),
+            return new TypedRawSqlRelation(raw.sql(), raw.authored(), raw.database(),
                     new ExprType(Type.relation(new Type.RelationType(
-                                    oracle.columnsOf(raw.sql()), List.of())),
+                                    oracle.columnsOf(raw.sql(), raw.writtenFor()), List.of())),
                             raw.info().multiplicity()));
         }
         // BINDER SCOPE: a lambda over a (recursively stamped) grid binds

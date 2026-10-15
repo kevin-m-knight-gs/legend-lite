@@ -44,27 +44,30 @@ public sealed interface SqlDdl
                   boolean notNull, boolean primaryKey) {
     }
 
-    /** {@code CREATE [TEMPORARY] TABLE [schema.]table (columns..., PRIMARY KEY(...))}. */
-    record CreateTable(@com.legend.base.Nullable String schema, String table,
+    /** {@code CREATE [TEMPORARY] TABLE [schema.]table (columns..., PRIMARY KEY(...))}. The names are their text;
+     *  {@code quoting} says which the store declared quoted ({@link com.legend.sql.NameQuoting}). */
+    record CreateTable(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
                        List<Column> columns, boolean temporary) implements SqlDdl {
         public CreateTable {
             columns = List.copyOf(columns);
         }
 
-        public CreateTable(@com.legend.base.Nullable String schema, String table, List<Column> columns) {
-            this(schema, table, columns, false);
+        public CreateTable(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
+                List<Column> columns) {
+            this(schema, table, quoting, columns, false);
         }
     }
 
-    /** {@code DROP TABLE IF EXISTS [schema.]table}. */
-    record DropTable(@com.legend.base.Nullable String schema, String table) implements SqlDdl {
+    /** {@code DROP TABLE IF EXISTS [schema.]table}, its names as {@link CreateTable}'s. */
+    record DropTable(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting)
+            implements SqlDdl {
     }
 
-    /** {@code CREATE SCHEMA IF NOT EXISTS schema}. */
-    record CreateSchema(String schema) implements SqlDdl {
+    /** {@code CREATE SCHEMA IF NOT EXISTS schema}; {@code quoted}: the store declared the name quoted. */
+    record CreateSchema(String schema, boolean quoted) implements SqlDdl {
     }
 
-    /** {@code DROP SCHEMA IF EXISTS schema CASCADE}. */
-    record DropSchema(String schema) implements SqlDdl {
+    /** {@code DROP SCHEMA IF EXISTS schema CASCADE}; {@code quoted} as {@link CreateSchema}'s. */
+    record DropSchema(String schema, boolean quoted) implements SqlDdl {
     }
 }

@@ -235,6 +235,44 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     // The reader — the only code that knows the runtime value's shape
     // =====================================================================
 
+    /** The language of raw text written for a CONNECTION argument ({@code executeInDb}'s, its helpers inlined and
+     *  its lets bound): the database it declares (decision D2, {@link #declaredDatabase}). Refused by name when it
+     *  cannot be read, never assumed. */
+    public static String rawLanguage(TypedSpec connection) {
+        String db = declaredDatabase(connection, reader());
+        if (db == null) {
+            throw unknownLanguage("executeInDb");
+        }
+        return db;
+    }
+
+    /** The language of the setup SQL this context's connection carries: the database it declares (decision D2).
+     *  Refused by name when it cannot be read, never assumed. */
+    public String rawLanguage() {
+        if (databaseType == null) {
+            throw unknownLanguage("setup SQL");
+        }
+        return databaseType;
+    }
+
+    /** {@code what}'s raw text over a connection whose database cannot be read: its language is unknown (D2). */
+    static com.legend.error.NotImplementedException unknownLanguage(String what) {
+        return new com.legend.error.NotImplementedException(what + " over a connection whose declared database is not"
+                + " statically readable: the language of its text is unknown (decision D2)");
+    }
+
+    /** The database a CONNECTION argument declares (that type's name), read statically through {@code reader} (its
+     *  helper bodies, its let bindings): the value, or a zero-parameter function answering it
+     *  ({@code executeInDbToTDS}'s); null when it cannot be read. The language of raw text written for that
+     *  connection (decision D2). */
+    public static @com.legend.base.Nullable String declaredDatabase(TypedSpec connection, Reader reader) {
+        TypedSpec c = connection;
+        if (c instanceof TypedLambda l && l.parameters().isEmpty() && !l.body().isEmpty()) {
+            c = l.body().get(l.body().size() - 1);
+        }
+        return reader.read(Optional.empty(), c).databaseType();
+    }
+
     /** A reader with defaults (the only minting of one outside this class:
      * typed-HIR constructors belong to the compiler layers). */
     public static Reader reader() {
@@ -244,12 +282,12 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     /** Reads a context off a runtime ARGUMENT. The argument is a reference,
      * a constructed instance, a let-bound variable (chased through
      * {@link #bind}) or a helper call (its body read raw through
-     * {@link #fnBody} — at typing nothing is inlined yet; an inlined value
+     * {@link #overloads} — at typing nothing is inlined yet; an inlined value
      * needs neither). Field names of the engine's runtime classes are
      * spelled here and nowhere else. */
     public record Reader(
-            /** RAW body lookup for helper calls met in the value (typing time). */
-            Function<String, Optional<List<ValueSpecification>>> fnBody,
+            /** The functions a name declares, for helper calls met in the value: their RAW bodies (typing time). */
+            Function<String, List<com.legend.compiler.element.TypedFunction>> overloads,
             /** Chases a variable met in the value to its binding (a let). */
             UnaryOperator<TypedSpec> bind,
             /** Canonicalizes a class name read from an unchecked helper body. */
@@ -258,34 +296,30 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy) {
 
         public Reader() {
-            this(f -> Optional.empty(), UnaryOperator.identity(), UnaryOperator.identity(),
+            this(f -> List.of(), UnaryOperator.identity(), UnaryOperator.identity(),
                     cp -> null);
         }
 
-        public Reader fnBody(Function<String, Optional<List<ValueSpecification>>> f) {
+        public Reader overloads(Function<String, List<com.legend.compiler.element.TypedFunction>> f) {
             return new Reader(f, bind, canon, dbOfCopy);
         }
 
         public Reader bind(UnaryOperator<TypedSpec> b) {
-            return new Reader(fnBody, b, canon, dbOfCopy);
+            return new Reader(overloads, b, canon, dbOfCopy);
         }
 
         public Reader canon(UnaryOperator<String> c) {
-            return new Reader(fnBody, bind, c, dbOfCopy);
+            return new Reader(overloads, bind, c, dbOfCopy);
         }
 
         public Reader dbOfCopy(Function<TypedCopyInstance, @com.legend.base.Nullable String> d) {
-            return new Reader(fnBody, bind, canon, d);
+            return new Reader(overloads, bind, canon, d);
         }
 
         public ExecutionContext read(Optional<TypedPackageableRef> mapping,
                 @com.legend.base.Nullable TypedSpec runtimeArg) {
-            return new ContextReading(fnBody, bind, canon, dbOfCopy).read(mapping, runtimeArg);
+            return new ContextReading(overloads, bind, canon, dbOfCopy).read(mapping, runtimeArg);
         }
 
-        /** The connection's DatabaseType name ("H2" when unspelled). */
-        public static String databaseType(TypedNewInstance conn) {
-            return ContextReading.databaseType(conn);
-        }
     }
 }

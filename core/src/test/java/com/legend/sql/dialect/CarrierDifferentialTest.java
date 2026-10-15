@@ -33,7 +33,7 @@ class CarrierDifferentialTest {
     @Test
     void reduceCollectionFusionRowEqual() throws Exception {
         SqlSelect collect = SqlSelect.starOf(
-                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("s", "v")), false,
@@ -49,8 +49,7 @@ class CarrierDifferentialTest {
         String nativeSql = new DuckDb().render(q);
         // the PORTABLE strategy must also be VALID DuckDB — that is the
         // whole differential contract
-        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+        String portableSql = portable().render(q);
         assertTrue(nativeSql.contains("list_aggregate"),
                 "native strategy should use the list carrier: " + nativeSql);
         assertTrue(portableSql.contains("STRING_AGG"),
@@ -73,7 +72,7 @@ class CarrierDifferentialTest {
     @Test
     void transformedReduceFusionRowEqual() throws Exception {
         SqlSelect collect = SqlSelect.starOf(
-                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("s", "v")), false,
@@ -91,8 +90,7 @@ class CarrierDifferentialTest {
                 .withProjections(List.of(
                                 new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
-        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+        String portableSql = portable().render(q);
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             st.execute("CREATE TABLE t (v VARCHAR)");
@@ -121,8 +119,7 @@ class CarrierDifferentialTest {
                 .withProjections(List.of(
                                 new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
-        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+        String portableSql = portable().render(q);
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             assertEquals(one(st, nativeSql), one(st, portableSql),
@@ -159,8 +156,7 @@ class CarrierDifferentialTest {
                     .withProjections(List.of(
                                     new SqlSelect.Projection(member, "m", null)));
             String nativeSql = new DuckDb().render(q);
-            String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
-                    TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
+            String portableSql = portable().render(q);
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 assertEquals(one(st, nativeSql), one(st, portableSql),
@@ -235,7 +231,7 @@ class CarrierDifferentialTest {
     @Test
     void throughSubselectSingletonRowEqual() throws Exception {
         SqlSelect inner = SqlSelect.starOf(
-                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlExpr.ArrayLit(List.of(
                                         new SqlExpr.Column("s", "v"))), "c", null)));
@@ -260,7 +256,7 @@ class CarrierDifferentialTest {
     @Test
     void throughSubselectPairMultisetEqual() throws Exception {
         SqlSelect inner = SqlSelect.starOf(
-                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlExpr.ArrayLit(List.of(
                                         new SqlExpr.Column("s", "v"),
@@ -374,7 +370,7 @@ class CarrierDifferentialTest {
                             new SqlExpr.StringLit(",")),
                     new SqlExpr.IntLit(ix));
             SqlSelect q = SqlSelect.starOf(
-                            new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                            new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                     .withProjections(List.of(
                             new SqlSelect.Projection(get, "e", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
@@ -424,7 +420,7 @@ class CarrierDifferentialTest {
                     new SqlExpr.StringLit("D"))),
                     new SqlExpr.StringLit("TS"));
             SqlSelect q = SqlSelect.starOf(
-                            new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                            new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                     .withProjections(List.of(
                             new SqlSelect.Projection(probe, "k", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
@@ -579,7 +575,7 @@ class CarrierDifferentialTest {
      * LIST(c) FROM (SELECT [v, upper(v)] AS c FROM t) sub. */
     private static SqlSelect cellsCollect() {
         SqlSelect inner = SqlSelect.starOf(
-                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlExpr.ArrayLit(List.of(
                                         new SqlExpr.Column("s", "v"),
@@ -604,7 +600,7 @@ class CarrierDifferentialTest {
 
     private static SqlExpr collectOfV() {
         return new SqlExpr.ScalarSubquery(SqlSelect.starOf(
-                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of()))
+                        new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("s", "v")), false,
@@ -620,8 +616,55 @@ class CarrierDifferentialTest {
     }
 
     private static AnsiSqlRenderer portable() {
-        return new AnsiSqlRenderer(Lexicon.DUCKDB, TypeNames.DUCKDB,
-                Spellings.DUCKDB);
+        return new Portable();
+    }
+
+    /** THE PORTABLE STRATEGY on DuckDB: the carrier strategies over H2's capabilities (no native lists, no
+     *  correlated explosion: what the base renderer's passes were before each dialect held its own), every other
+     *  point as DuckDB spells it (the dialect program's decision D1 and Phase 1, 2026-10-13). */
+    private static final class Portable extends AnsiSqlRenderer {
+        private final DuckDb duck = new DuckDb();
+
+        Portable() {
+            super(DuckDb.LEXICON);
+        }
+
+        @Override
+        protected java.util.List<com.legend.sql.SqlRewriter> passes() {
+            CarrierStrategies carriers = new CarrierStrategies(H2.CAPS);
+            return supportsQualify() ? java.util.List.of(carriers)
+                    : java.util.List.of(carriers, new QualifyToSubselect());
+        }
+
+        @Override
+        protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+            return duck.scalarTypeName(s);
+        }
+
+        @Override
+        protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+            return duck.structTypeName(st);
+        }
+
+        @Override
+        protected String formatText(SqlExpr.FormatLit fl) {
+            return strftimeText(fl);
+        }
+
+        @Override
+        public String fromEngineH2(String statement) {
+            return duck.fromEngineH2(statement);
+        }
+
+        @Override
+        protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+            return duck.call(writer, c, parentPrec);
+        }
+
+        @Override
+        protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+            return duck.reducer(writer, r);
+        }
     }
 
     private static java.util.List<String> all(Statement st, String sql)
