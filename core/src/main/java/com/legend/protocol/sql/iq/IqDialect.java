@@ -2986,10 +2986,8 @@ public final class IqDialect implements InputDialect {
             return Tx.value(negated.vs(), Kind.FLOAT, negated.nullable(), new IqType("DOUBLE"));
         }
         if (decimal(x)) {
-            // a NUMERIC's negation keeps its type (TYPING §6), exactly
-            if (engine == Engine.IQ) {
-                throw numericRefused("-", u.pos());
-            }
+            // a NUMERIC's negation keeps its type (TYPING §6), exactly; under IQ's engine too (IQ island, 2026-10-15,
+            // D-N1, measured on IQ 17.1: -nm is a NUMERIC(10,2))
             int[] type = numericType(x, u.operand(), "-");
             Tx negated = SqlToPure.strict(Kind.DECIMAL, List.of(x), v -> SqlToPure.call("minus", v.get(0)));
             return Tx.value(negated.vs(), Kind.DECIMAL, negated.nullable(), numeric(type[0], type[1]));
@@ -3178,8 +3176,12 @@ public final class IqDialect implements InputDialect {
      */
     private Tx decimalArithmetic(SqlAst.Binary b, Tx l, Tx r) {
         String operator = operator(b.op());
-        if (engine == Engine.IQ) {
-            throw numericRefused(operator, b.pos());
+        // IQ island, 2026-10-15 (the research's D-N1, measured on IQ 17.1): under IQ's engine + - * and % type and
+        // compute as SQL Anywhere's front end does (nm + 1 a NUMERIC(11,2), nm * nm a NUMERIC(20,4), nm % 3 of scale 2,
+        // the dividend's sign); / is its own (iqQuotient)
+        if (engine == Engine.IQ && b.op() == SqlAst.BinaryOp.DIVIDE && l.kind() != Kind.NULL
+                && r.kind() != Kind.NULL) {
+            return iqQuotient(b, l, r);
         }
         if ((l.kind() == Kind.NULL || r.kind() == Kind.NULL) && b.op() == SqlAst.BinaryOp.MODULO) {
             // IQ island, 2026-10-14 (natives): NULL % 1.5 is a NUMERIC(2,1) NULL (measured), not a DOUBLE
@@ -3321,6 +3323,68 @@ public final class IqDialect implements InputDialect {
                     ? SqlToPure.nullOf(Kind.DECIMAL).vs() : raiseDecimal(), value);
         });
         return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(p, s));
+    }
+
+    /**
+     * {@code l / r} where either is a NUMERIC, under IQ's engine (IQ island, 2026-10-15; the research's D-N1, measured
+     * on IQ 17.1): a NUMERIC of scale max(6, s1 + (p2 - s2) + 1) -- the divisor's digits before its point counted as
+     * IQ counts them, a constant's by its value (100: 3), a SMALLINT's 5, an INTEGER's 10, a BIGINT's 19, a BIT's 1,
+     * a COUNT's 20 -- its value the quotient cut toward zero there (-0.5 / 3 is -.166666), wherever it is read; a zero
+     * divisor is IQ's error. IQ reads an integer column's digits from its data (a column of 1 to 7 divides as one
+     * digit, D-N3), lite from its type. Refused by name: a step of more than lite's 38 digits.
+     */
+    private Tx iqQuotient(SqlAst.Binary b, Tx l, Tx r) {
+        int[] lt = iqNumericType(l, b.left());
+        int[] rt = iqNumericType(r, b.right());
+        int s = Math.max(6, lt[1] + rt[0] - rt[1] + 1);
+        int whole1 = lt[0] - lt[1];
+        int whole2 = rt[0] - rt[1];
+        if (!IqFunctions.truncatedDivisionFits(lt[1], whole1, rt[1], whole2, s)) {
+            throw SqlTranslationException.unsupported("this / of a NUMERIC(" + lt[0] + "," + lt[1] + ") and a NUMERIC("
+                    + rt[0] + "," + rt[1] + ") is a NUMERIC of scale " + s + ", a step of which needs more than the 38"
+                    + " digits lite's decimals hold", b.pos());
+        }
+        BigDecimal divisor = numberLiteral(b.right());
+        boolean nullOnZero = !settings.divideByZeroError() && (divisor == null || divisor.signum() == 0)
+                && zeroGuarded(b, "/");
+        if (nullOnZero && divisor != null) {
+            return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, numeric(whole1 + s + 1, s));
+        }
+        boolean lInteger = !decimal(l);
+        boolean rInteger = !decimal(r);
+        Tx result = SqlToPure.strict(Kind.DECIMAL, List.of(l, r), v -> {
+            ValueSpecification x = lInteger ? SqlToPure.call("toDecimal", v.get(0)) : wide(v.get(0));
+            ValueSpecification y = rInteger ? SqlToPure.call("toDecimal", v.get(1)) : wide(v.get(1));
+            if (divisor != null && divisor.signum() == 0) {
+                return raiseDecimal();
+            }
+            ValueSpecification value = IqFunctions.truncatedDivision(x, lt[1], whole1, y, rt[1], s);
+            return divisor != null ? value : ifThen(SqlToPure.call("equal", new CInteger(0L), y), nullOnZero
+                    ? SqlToPure.nullOf(Kind.DECIMAL).vs() : raiseDecimal(), value);
+        });
+        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(whole1 + rt[1] + s + 1,
+                s));
+    }
+
+    /** An operand of IQ's engine's NUMERIC quotient as a NUMERIC(p, s) ({@link #iqQuotient}): a NUMERIC its own, an
+     *  integer literal its digits, an integer column its type's (SMALLINT 5, INTEGER 10, BIGINT 19, BIT 1), a COUNT
+     *  (IQ's UNSIGNED BIGINT) 20. */
+    private static int[] iqNumericType(Tx t, SqlAst.Expr e) {
+        if (t.detail() instanceof IqType type) {
+            if (type.spelling().equals("UNSIGNED BIGINT")) {
+                return new int[] {20, 0};
+            }
+            if (type.isInteger() && integerLiteral(e) == null) {
+                return new int[] {switch (type.family()) {
+                    case "BIT" -> 1;
+                    case "SMALLINT" -> 5;
+                    case "INTEGER" -> 10;
+                    case "BIGINT" -> 19;
+                    default -> throw new IllegalStateException("an integer family IQ divides by: " + type.family());
+                }, 0};
+            }
+        }
+        return numericType(t, e, "/");
     }
 
     /** A number literal's written value, signs applied ({@code 1.5}, {@code -2}); null for any other expression. */
@@ -3551,9 +3615,8 @@ public final class IqDialect implements InputDialect {
             return true;
         }
         if (decimal(t)) {
-            if (engine == Engine.IQ) {
-                throw numericRefused(operator, e.pos());
-            }
+            // a NUMERIC with a DOUBLE is a DOUBLE, under IQ's engine as in SQL Anywhere's front end (IQ island,
+            // 2026-10-15, measured on IQ 17.1: dbl + nm is a DOUBLE)
             return false;
         }
         if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type && type.isInteger()) {
@@ -4793,6 +4856,12 @@ public final class IqDialect implements InputDialect {
                     + " raise (a comparison, arithmetic, a call), or beside a NULL of another type, is not supported"
                     + " yet: write it without that WHEN", exprs.get(branches - 2).pos());
         }
+        if (engine == Engine.IQ) {
+            SqlToPure.Common numbers = iqNumericUnify(what, exprs, values, pos);
+            if (numbers != null) {
+                return numbers;
+            }
+        }
         Kind kind = null;
         String family = null;
         List<Integer> charLengths = new ArrayList<>();
@@ -4862,12 +4931,10 @@ public final class IqDialect implements InputDialect {
         IqType type;
         if (kind == Kind.STRING && "CHAR".equals(family)) {
             int longest = Collections.max(charLengths);
-            if (engine == Engine.IQ && charLengths.stream().anyMatch(n -> n != longest)) {
-                throw SqlTranslationException.unsupported(what + " of strings of different lengths is IQ's CHAR("
-                        + longest + "): whether the IQ engine pads it, as the research's D-S1 pads a CHAR(n) column, is"
-                        + " not decided, so it is not supported yet", pos);
-            }
-            type = new IqType("CHAR(" + longest + ")");
+            // IQ island, 2026-10-15 (D-S1, measured on IQ 17.1): under IQ's engine strings of different lengths unify
+            // to a VARCHAR, each value as it is (CASE ... 'Yes' ELSE 'No' is 'No', two characters)
+            type = new IqType((engine == Engine.IQ && charLengths.stream().anyMatch(n -> n != longest) ? "VARCHAR("
+                    : "CHAR(") + longest + ")");
         } else if (kind == Kind.INTEGER) {
             type = IqType.integer(java.util.Objects.requireNonNull(family), java.util.Objects.requireNonNull(lo),
                     java.util.Objects.requireNonNull(hi), wide, loose);
@@ -4887,6 +4954,76 @@ public final class IqDialect implements InputDialect {
             unified.add(v.kind() == Kind.NULL ? Tx.value(SqlToPure.nullOf(kind).vs(), kind, true, type) : v);
         }
         return new SqlToPure.Common(unified, kind, type);
+    }
+
+    /**
+     * IQ's engine's unification of numbers where one is a NUMERIC (IQ island, 2026-10-15; the research's D-N1, measured
+     * on IQ 17.1: COALESCE(nm, 0) is a NUMERIC(10,2) and its 0 is 0.00): with a DOUBLE a DOUBLE; else a NUMERIC whose
+     * scale is the largest of the values' and whose digits before the point are the most of theirs (an integer's its
+     * type's: SMALLINT 5, INTEGER 10, BIGINT 19, BIT 1; a literal's its own), each value converted to it. Null where no
+     * value is a NUMERIC or another kind is among them (the general unification then refuses or reads it). Refused by
+     * name: a NUMERIC of more than lite's 38 digits.
+     */
+    private SqlToPure.@com.legend.base.Nullable Common iqNumericUnify(String what, List<SqlAst.Expr> exprs,
+            List<Tx> values, SqlAst.Pos pos) {
+        boolean numeric = false;
+        boolean doubles = false;
+        for (Tx v : values) {
+            if (v.kind() == Kind.NULL) {
+                continue;
+            }
+            if (decimal(v)) {
+                numeric = true;
+            } else if (v.kind() == Kind.FLOAT && v.detail() instanceof IqType t && t.family().equals("DOUBLE")) {
+                doubles = true;
+            } else if (!(v.kind() == Kind.INTEGER && v.detail() instanceof IqType t && t.isInteger())) {
+                return null;
+            }
+        }
+        if (!numeric) {
+            return null;
+        }
+        if (doubles) {
+            IqType type = new IqType("DOUBLE");
+            List<Tx> unified = new ArrayList<>();
+            for (Tx v : values) {
+                unified.add(v.kind() == Kind.NULL ? Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, type)
+                        : v.kind() == Kind.FLOAT ? v : SqlToPure.strict(Kind.FLOAT, List.of(v),
+                        x -> SqlToPure.call("toFloat", x.get(0))));
+            }
+            return new SqlToPure.Common(unified, Kind.FLOAT, type);
+        }
+        int whole = 0;
+        int scale = 0;
+        for (int i = 0; i < values.size(); i++) {
+            Tx v = values.get(i);
+            if (v.kind() == Kind.NULL) {
+                continue;
+            }
+            int[] ps = iqNumericType(v, exprs.get(i));
+            whole = Math.max(whole, ps[0] - ps[1]);
+            scale = Math.max(scale, ps[1]);
+        }
+        if (whole + scale > 38) {
+            throw SqlTranslationException.unsupported(what + " of these numbers is a NUMERIC(" + (whole + scale) + ","
+                    + scale + "), more than the 38 digits lite's decimals hold", pos);
+        }
+        IqType type = numeric(whole + scale, scale);
+        int s = scale;
+        List<Tx> unified = new ArrayList<>();
+        for (Tx v : values) {
+            if (v.kind() == Kind.NULL) {
+                unified.add(Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, type));
+                continue;
+            }
+            boolean integer = !decimal(v);
+            Tx converted = SqlToPure.strict(Kind.DECIMAL, List.of(v), x -> {
+                ValueSpecification d = integer ? SqlToPure.call("toDecimal", x.get(0)) : x.get(0);
+                return s > 0 ? IqFunctions.atScale(d, s) : d;
+            });
+            unified.add(Tx.value(converted.vs(), Kind.DECIMAL, converted.nullable(), type));
+        }
+        return new SqlToPure.Common(unified, Kind.DECIMAL, type);
     }
 
     // ------------------------------------------------------------------ the catalog

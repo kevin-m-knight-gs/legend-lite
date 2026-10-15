@@ -690,7 +690,7 @@ tests:
     sql: "SELECT k, CASE WHEN SUM(v) > 0 THEN 1 ELSE 0 END AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
   - id: sum_as_coalesces_first_argument
     sql: "SELECT k, COALESCE(SUM(v), 0) AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
-  - id: sum_in_an_if_test_of_strings_of_two_lengths_is_refused
+  - id: sum_in_an_if_test_of_strings_of_two_lengths
     sql: "SELECT k, IF SUM(v) > 5 THEN 'big' ELSE 'small' ENDIF AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
   - id: sum_as_isnulls_first_argument
     sql: "SELECT k, ISNULL(SUM(v), -1) AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"

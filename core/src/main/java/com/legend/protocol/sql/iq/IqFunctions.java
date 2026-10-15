@@ -1119,7 +1119,7 @@ final class IqFunctions {
     /** {@code x} at scale {@code s} (no fewer places than it has): a 38-digit zero, then a zero of that scale added.
      *  IQ island, 2026-10-14 (natives): the 38-digit zero first -- DuckDB adds two decimals of at most 18 digits in
      *  18 ({@code 756929791864553.5 + 0.00000} overflows there), where Postgres's numeric has no limit. */
-    private static ValueSpecification atScale(ValueSpecification x, int s) {
+    static ValueSpecification atScale(ValueSpecification x, int s) {
         return AppliedFunction.infixRun("plus", List.of(x, SqlToPure.call("toDecimal", new CInteger(0L)),
                 new CDecimal(BigDecimal.ZERO.setScale(s))));
     }
@@ -1193,6 +1193,31 @@ final class IqFunctions {
         ValueSpecification m = whole(n, y, pow10(whole1 + s));
         BigDecimal unit = pow10(-s);
         return times(m, ifThen(lt(x, integer(0)), new CDecimal(unit.negate()), new CDecimal(unit)));
+    }
+
+    /**
+     * IQ's engine's NUMERIC quotient (IQ island, 2026-10-15; D-N1, measured on IQ 17.1): {@code x / y} cut toward zero
+     * at scale {@code s}, x of scale {@code s1} with at most {@code whole1} digits before its point, y of scale
+     * {@code s2}, neither NULL and y not 0 (the caller raises IQ's error first). Exactly: the whole quotient of
+     * |x| * 10^s by |y| ({@link #whole}), signed as x / y is. x and y are 38-digit decimals already; the caller
+     * refuses what {@link #truncatedDivisionFits} says would need more than lite's 38 digits.
+     */
+    static ValueSpecification truncatedDivision(ValueSpecification x, int s1, int whole1, ValueSpecification y,
+            int s2, int s) {
+        ValueSpecification ax = SqlToPure.call("abs", x);
+        ValueSpecification ay = SqlToPure.call("abs", y);
+        ValueSpecification n = s > 0 ? times(ax, new CDecimal(pow10(s))) : ax;
+        ValueSpecification m = whole(n, ay, pow10(whole1 + s + s2));
+        ValueSpecification negative = SqlToPure.call("or", SqlToPure.call("and", lt(x, integer(0)),
+                SqlToPure.call("greaterThan", y, integer(0))), SqlToPure.call("and",
+                SqlToPure.call("greaterThan", x, integer(0)), lt(y, integer(0))));
+        BigDecimal unit = pow10(-s);
+        return times(m, ifThen(negative, new CDecimal(unit.negate()), new CDecimal(unit)));
+    }
+
+    /** Whether {@link #truncatedDivision}'s steps fit lite's 38 digits, scales counted. */
+    static boolean truncatedDivisionFits(int s1, int whole1, int s2, int whole2, int s) {
+        return s <= 38 && whole1 + s + s2 <= 38 && Math.max(whole1 + s + s2, whole2) + 1 + Math.max(s1, s2) <= 38;
     }
 
     /** Whether {@link #truncatedQuotient}'s steps fit lite's 38 digits, scales counted (n keeps x's scale). */

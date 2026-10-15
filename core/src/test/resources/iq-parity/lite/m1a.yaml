@@ -618,9 +618,9 @@ tests:
   - id: numeric_columns_of_another_table_in_sql_anywhere
     sql: "SELECT id, qty * 2.5 AS a, qty + qty AS b FROM u ORDER BY id"
     profile: sqla17-default
-  - id: numeric_column_under_the_iq_engine_is_refused
+  - id: numeric_column_under_the_iq_engine
     sql: "SELECT id, nm + 1 AS a FROM t ORDER BY id"
-  - id: numeric_column_negated_under_the_iq_engine_is_refused
+  - id: numeric_column_negated_under_the_iq_engine
     sql: "SELECT id, -nm AS a FROM t ORDER BY id"
 
   # ---- DOUBLE arithmetic: IEEE, the same in every database; past the largest DOUBLE IQ's -158, by zero -628
@@ -644,7 +644,7 @@ tests:
     sql: "SELECT TOP 1 id, dbl * dbl AS a FROM t ORDER BY id"
   - id: double_remainder_is_refused
     sql: "SELECT id, dbl % 2 AS a FROM t ORDER BY id"
-  - id: double_and_numeric_under_the_iq_engine_is_refused
+  - id: double_and_numeric_under_the_iq_engine
     sql: "SELECT id, dbl + nm AS a FROM t WHERE id <> 6 ORDER BY id"
   - id: double_and_numeric_in_sql_anywhere
     sql: "SELECT id, dbl + nm AS a, dbl * 1.5 AS b FROM t WHERE id <> 6 ORDER BY id"

@@ -219,7 +219,9 @@ class IqFunctionsTest {
         assertTrue(refusal("SELECT DISTINCT 10.0 / 3 AS q").getMessage().contains("select item"));
         assertTrue(refusal("SELECT (2 + 3) / 1.5 AS q").getMessage().contains("constant integer expression"));
         assertTrue(refusal("SELECT NULL % 1.5 AS q").getMessage().contains("untyped NULL"));
-        assertTrue(refusal("SELECT nm / 2 AS q FROM " + T).getMessage().contains("D-N1"));
+        // under IQ's engine a NUMERIC quotient is cut toward zero at scale max(6, ...) (IQ island, 2026-10-15, D-N1
+        // measured on IQ 17.1)
+        assertTrue(pure("SELECT nm / 2 AS q FROM " + T).contains("0.000001"));
         assertTrue(refusal("SELECT CAST(1 AS NUMERIC(30,10)) / CAST(1 AS NUMERIC(30,10)) AS q",
                 IqProfile.SQLA17_DEFAULT.settings()).getMessage().contains("'?'"));
         assertTrue(IqFunctions.quotientFits(2, 8, 2, 8, 21, 11));

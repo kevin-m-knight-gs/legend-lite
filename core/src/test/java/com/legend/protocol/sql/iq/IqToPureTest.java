@@ -352,21 +352,19 @@ class IqToPureTest {
     @Test
     void arithmeticIqTypesAsNumericOrUnsignedIsRefused() {
         // IQ island, 2026-10-14 (M1a): DOUBLE arithmetic is read now (below), and NUMERIC arithmetic without FROM
-        for (String sql : new String[] {"SELECT nm + 1 AS n", "SELECT d % 2 AS n", "SELECT bt + bt AS n",
-                "SELECT bt + bg AS n", "SELECT 1.5 * 2 AS n"}) {
+        for (String sql : new String[] {"SELECT d % 2 AS n", "SELECT bt + bt AS n",
+                "SELECT bt + bg AS n"}) {
             SqlTranslationException e = numbersRefusal(sql + " FROM " + T);
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
         }
-        assertTrue(numbersRefusal("SELECT nm + 1 AS n FROM " + T).getMessage().contains("D-N1"));
         // IQ island, 2026-10-15 (D-N3, measured on IQ 17.1): IQ's engine shows a BIGINT's remainder and a constant
         // past an INTEGER plus one as scale-0 NUMERICs of whole values, read as the integers they are; SQL Anywhere's
         // front end refuses both
         assertTrue(numbers("SELECT bg % 2 AS n FROM " + T).contains("->rem(2)"));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, saNumbersRefusal("SELECT bg % 2 AS n FROM " + T)
                 .kind());
-        // a constant past an INTEGER is a NUMERIC constant to IQ: its arithmetic is D-N1's, refused under both
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT 2147483648 + 1 AS n FROM " + T)
-                .kind());
+        // a constant past an INTEGER is a NUMERIC constant to IQ, whose sums IQ's engine types as SQL Anywhere's
+        numbers("SELECT 2147483648 + 1 AS n FROM " + T);
     }
 
     @Test
@@ -389,9 +387,9 @@ class IqToPureTest {
     void ifAndCaseTakeIqsUnifiedType() {
         String p = numbers("SELECT IF sm > 0 THEN sm ELSE bg ENDIF AS n FROM " + T);
         assertTrue(p.contains("if("), p);
-        // CHAR results of different lengths: whether the IQ engine pads them is open (D-S1)
-        SqlTranslationException e = refusal("SELECT IF id > 0 THEN 'pos' ELSE 'nonpos' ENDIF AS s FROM " + T);
-        assertTrue(e.getMessage().contains("D-S1"), e.getMessage());
+        // CHAR results of different lengths: under IQ's engine a VARCHAR, each value as it is (IQ island, 2026-10-15,
+        // D-S1 measured on IQ 17.1)
+        assertTrue(pure("SELECT IF id > 0 THEN 'pos' ELSE 'nonpos' ENDIF AS s FROM " + T).contains("'nonpos'"));
         // SQL Anywhere's front end (no FROM) does not pad: answered
         assertTrue(pure("SELECT IF 1 > 0 THEN 'pos' ELSE 'nonpos' ENDIF AS s").contains("'nonpos'"));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED,
@@ -688,8 +686,10 @@ class IqToPureTest {
         assertTrue(pure("SELECT 1.5 + NULL AS a").contains("[]->cast(@Float)"));
         // refused: the IQ engine's (D-N1), a result PRECISION caps or lite cannot hold (IQ island, 2026-10-14
         // (natives): / and % are read now, IqFunctionsTest's numericQuotientsAreSqlAnywheres)
-        assertTrue(numbersRefusal("SELECT nm + 1 AS a FROM " + T).getMessage().contains("D-N1"));
-        assertTrue(numbersRefusal("SELECT -nm AS a FROM " + T).getMessage().contains("D-N1"));
+        // (IQ island, 2026-10-15, D-N1 measured on IQ 17.1: IQ's engine types + - * % and a negation as SQL
+        // Anywhere's front end does, so they are read there too)
+        assertTrue(numbers("SELECT nm + 1 AS a FROM " + T).contains("+ toDecimal(1)"));
+        numbers("SELECT -nm AS a FROM " + T);
         for (String sql : new String[] {"SELECT (row_num * 1.123456789012) * (row_num * 1.123456789012) AS a FROM"
                 + " sa_rowgenerator(1, 2)"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal(sql).kind(), sql);
@@ -711,7 +711,8 @@ class IqToPureTest {
         assertTrue(p.contains("$r.i->toFloat()") && p.contains("> 1.7976931348623157E308"), p);
         assertTrue(numbers("SELECT d / 2 AS a FROM " + T).contains("== 0.0"));
         assertTrue(numbers("SELECT -d AS a FROM " + T).contains("-$r.d"));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT d + nm AS a FROM " + T).kind());
+        // a NUMERIC with a DOUBLE is a DOUBLE, under IQ's engine too (IQ island, 2026-10-15, measured on IQ 17.1)
+        numbers("SELECT d + nm AS a FROM " + T);
         numbersSa("SELECT d + nm AS a FROM " + T);
         // IQ computes a row-limited select list for the rows it keeps only: an operation that can raise is refused
         assertTrue(numbersRefusal("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i").getMessage().contains(
