@@ -196,6 +196,9 @@ describe('a saved page', () => {
     const bad = (patch: Record<string, unknown>) => () => readPage(JSON.stringify({ ...raw, ...patch }));
     assert.throws(bad({ cubes: [] }), PageDocumentError);
     assert.throws(bad({ cubes: [] }), /no cube/);
+    // two cubes of one id: a view could not say which it shows
+    const cubes = raw['cubes'] as unknown[];
+    assert.throws(bad({ cubes: [...cubes, ...cubes] }), /two cubes share an id/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'map', cube: 'cube' }] }), /unknown kind "map"/);
     assert.throws(bad({ views: [{ id: 'x', kind: 'grid', cube: 'elsewhere' }] }), /shows no cube of this page/);
     assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 1, mark: 'violin', y: [], options: {} } }] }),

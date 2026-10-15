@@ -155,8 +155,12 @@ class Document(Paged):
         # deleted meanwhile (in DataCube's Open…): saved again as a new one under its id
         self.assertEqual(engine.answer('DELETE', f'/api/pure/v1/query/dataCube/{first}', '', None).status, 204)
         self.assertEqual(page.save(), first)
-        # another page is another saved page
-        self.assertNotEqual(ll.Page('Other').save(), first)
+        # another page is another saved page; one DataCube would not open (no grid) is not saved, in DataCube's words
+        other = ll.Page('Other')
+        with self.assertRaisesRegex(ValueError, 'it has no cube'):
+            other.save()
+        other.grid(trades(), name='other_trades')
+        self.assertNotEqual(other.save(), first)
         with self.assertRaises(ValueError):
             page.save(name=' ')
 
@@ -219,12 +223,12 @@ class Document(Paged):
         self.assertEqual([p['node'] for p in self.bands(sheet)[0]['node']['parts']],
                          [{'tile': grid.id}, {'tile': other.id}, {'tile': added.id}])
         self.assertEqual([p['size'] for p in self.bands(sheet)[0]['node']['parts']], [1 / 3] * 3)
-        with self.assertRaisesRegex(ValueError, 'not a layout DataCube draws'):
+        with self.assertRaisesRegex(ValueError, 'cannot be laid out: band 0: shares summing to 1.4'):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'split': 'row', 'parts': [
                 {'node': {'tile': grid.id}, 'size': 0.7}, {'node': {'tile': other.id}, 'size': 0.7}]}},
                 {'height': 1, 'node': {'split': 'row', 'parts': [{'node': {'tile': added.id}, 'size': 0.5},
                                                                  {'node': {'tile': heads.id}, 'size': 0.5}]}}]})
-        with self.assertRaisesRegex(ValueError, 'left out'):
+        with self.assertRaisesRegex(ValueError, 'no sheet has a place for'):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'tile': grid.id}}]})
 
     def test_sheets_layouts_and_stacks(self):
@@ -626,27 +630,37 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "follows its grid takes 'desk' as its split, not none"):
             grid.chart('bar', split=None, frozen=False)
 
-    def test_a_document_python_cannot_work_on_is_refused_saying_why(self):
+    def test_a_document_is_read_as_datacube_reads_it_and_refused_in_its_words(self):
+        # DataCube's own reader (page-document.ts readPage, headless): Python keeps no copy of its rules
         page, _, _ = self.built()
         doc = page.to_dict()
-        elsewhere = copy.deepcopy(doc)
-        elsewhere['cubes'][0]['cube']['source'] = {'_type': 'warehouseTable', 'name': 'trades'}
-        with self.assertRaisesRegex(ValueError, 'reads no frame'):
-            ll.Page.load(elsewhere, frames={'trades': trades()})
         unplaced = copy.deepcopy(doc)
         unplaced['sheets'][0]['layout']['bands'] = []
-        with self.assertRaisesRegex(ValueError, 'every view has its place'):
+        with self.assertRaisesRegex(ValueError, 'no sheet has a place for grid-1'):
             ll.Page.load(unplaced, frames={'trades': trades()})
-        with self.assertRaisesRegex(ValueError, 'version 2'):
-            ll.Page.load({**doc, 'version': 2}, frames={'trades': trades()})
+        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 4\)'):
+            ll.Page.load({**doc, 'version': 99}, frames={'trades': trades()})
         twice = copy.deepcopy(doc)
         twice['sheets'].append({'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
-        with self.assertRaisesRegex(ValueError, 'share an id'):
+        with self.assertRaisesRegex(ValueError, 'two sheets are sheet-1'):
             ll.Page.load(twice, frames={'trades': trades()})
+        cubes = copy.deepcopy(doc)
+        cubes['cubes'].append(copy.deepcopy(cubes['cubes'][0]))
+        with self.assertRaisesRegex(ValueError, 'two cubes share an id'):
+            ll.Page.load(cubes, frames={'trades': trades()})
         listed = copy.deepcopy(doc)
         listed['views'][0]['cube'] = ['grid-1']
-        with self.assertRaisesRegex(ValueError, 'not what a page holds'):
+        with self.assertRaisesRegex(ValueError, 'shows no cube of this page'):
             ll.Page.load(listed, frames={'trades': trades()})
+        # an older page DataCube reads is read, brought to DataCube's own version
+        self.assertEqual(ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()}).to_dict()['version'], 4)
+        # and what Python adds: a page in Python is over frames
+        elsewhere = copy.deepcopy(doc)
+        elsewhere['cubes'][0]['cube']['source'] = {'_type': 'remoteFile', 'name': 'trades.parquet',
+                                                   'url': 'https://example.com/trades.parquet',
+                                                   'columns': doc['cubes'][0]['cube']['source']['columns']}
+        with self.assertRaisesRegex(ValueError, 'reads no frame'):
+            ll.Page.load(elsewhere, frames={'trades': trades()})
 
 
 class Live(Paged):
@@ -690,7 +704,10 @@ class Live(Paged):
         self.assertEqual(self.get(f'/page.json?page={page._key}')[0], 404)
 
     def test_an_empty_page_is_not_shown(self):
-        with self.assertRaisesRegex(ValueError, 'a grid at least'):
+        # DataCube opens no page without a grid: refused in its words, and never written either
+        with self.assertRaisesRegex(ValueError, 'cannot read saved page: it has no cube'):
+            ll.Page('Empty').to_json()
+        with self.assertRaisesRegex(ValueError, 'it has no cube'):
             ll.show(ll.Page('Empty'), browser=False)
         self.assertEqual(datacube._session.pages, [])
 

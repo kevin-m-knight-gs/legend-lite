@@ -216,45 +216,6 @@ def _tiles(layout: dict[str, Any]) -> list[str]:
     return [t for leaf in _leaves(layout) for t in _leaf_tiles(leaf)]
 
 
-def _problems(layout: Any) -> list[str]:
-    """What keeps ``layout`` from being one DataCube draws (as page-document.ts and bands.ts read it), or nothing."""
-    if not isinstance(layout, dict) or layout.get('kind') != 'bands' or not isinstance(layout.get('fit'), bool) \
-            or not isinstance(layout.get('bands'), list):
-        return ['it is not a layout of bands ({"kind": "bands", "fit": True | False, "bands": [...]})']
-    out: list[str] = []
-    seen: set[str] = set()
-
-    def share(v: Any) -> bool:
-        return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and v > 0
-
-    def walk(node: Any, parent: str | None, where: str) -> None:
-        if isinstance(node, dict) and isinstance(node.get('tile'), str):
-            tiles = [node['tile']]
-        elif isinstance(node, dict) and isinstance(node.get('stack'), list) and len(node['stack']) >= 2 \
-                and all(isinstance(t, str) for t in node['stack']):
-            tiles = node['stack']
-        elif isinstance(node, dict) and node.get('split') in ('row', 'column') and isinstance(node.get('parts'), list) \
-                and len(node['parts']) >= 2 and all(isinstance(p, dict) and share(p.get('size')) for p in node['parts']):
-            if node['split'] == parent:
-                out.append(f'{where}: a {parent} inside a {parent}')
-            if abs(sum(p['size'] for p in node['parts']) - 1) > 1e-9:
-                out.append(f'{where}: shares not summing to 1')
-            for i, part in enumerate(node['parts']):
-                walk(part.get('node'), node['split'], f'{where}.{i}')
-            return
-        else:
-            out.append(f'{where} is not a tile, a stack of two or more, or a split of two parts or more')
-            return
-        out.extend(f'{t} is in the layout twice' for t in tiles if t in seen)
-        seen.update(tiles)
-    for i, band in enumerate(layout['bands']):
-        if not isinstance(band, dict) or not share(band.get('height')):
-            out.append(f'band {i} has no height above 0')
-        else:
-            walk(band.get('node'), None, f'band {i}')
-    return out
-
-
 # -- the handles ------------------------------------------------------------------------------------------------------
 
 class Tile:
@@ -848,18 +809,12 @@ class Sheet:
         """Its layout in the page document's own words -- ``{"kind": "bands", "fit": ..., "bands": [{"height": ...,
         "node": ...}]}``, each node a ``{"tile": id}``, a ``{"stack": [ids]}`` or a ``{"split": "row" | "column",
         "parts": [{"node": ..., "size": share}]}`` -- as ``page.to_dict()`` shows a sheet's. Every tile on the sheet is in
-        it once, and only they."""
-        sheet = self._doc
-        given = _copied(layout)
-        wrong = _problems(given)
-        if wrong:
-            raise ValueError(f'not a layout DataCube draws: {"; ".join(wrong)}')
-        on, named = set(_tiles(sheet['layout'])), set(_tiles(given))
-        if on != named:
-            raise ValueError(f'a sheet\'s layout holds its tiles, each once: {", ".join(sorted(on - named)) or "none"} '
-                             f'left out, {", ".join(sorted(named - on)) or "none"} not on the sheet')
-        sheet['layout'] = given
-        self._page._changed()
+        it once, and only they: the page with it is read as DataCube reads one, and refused in its words."""
+        page = self._page
+        doc = _copied(page._doc)
+        next(s for s in doc['sheets'] if s['id'] == self._id)['layout'] = _copied(layout)
+        page._doc = _read_page(doc)
+        page._changed()
         return self
 
     def __repr__(self) -> str:
@@ -1179,8 +1134,9 @@ class Page:
         return _copied(self._doc)
 
     def to_json(self, indent: int | None = 2) -> str:
-        """The page document as JSON text, its numbers exact (what ``save`` writes)."""
-        return _json.dumps(self._doc, indent=indent)
+        """The page document as JSON text, its numbers exact, as DataCube writes it (what ``save`` writes): refused in
+        DataCube's words when DataCube would not open it (a page with no grid)."""
+        return _json.dumps(_read_page(self._doc), indent=indent)
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
         """Saved. With no ``path``, as DataCube's Save keeps a page: into this user's saved pages (``ll.home()/pages``,
@@ -1198,7 +1154,7 @@ class Page:
         if named is None:
             raise ValueError('a saved page has a name')
         id = self._saved if self._saved is not None else str(uuid.uuid4())
-        record = _json.dumps({'id': id, 'name': named, 'content': self._doc}, indent=None)
+        record = _json.dumps({'id': id, 'name': named, 'content': _read_page(self._doc)}, indent=None)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
                         if self._saved is not None else (404, ''))
         if status == 404:
@@ -1216,9 +1172,10 @@ class Page:
     @classmethod
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any], *, mode: str = LIVE) -> Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
-        cube's ``{"_type": "frame", "name": ...}``), served ``mode``; the document kept as it is."""
-        doc = _copied(document) if isinstance(document, Mapping) else _plain(_json.loads(Path(document).read_text('utf-8')))
-        _check(doc)
+        cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (any version it
+        reads, brought to its own; refused in its words when DataCube would not open it)."""
+        doc = _read_page(_copied(document) if isinstance(document, Mapping)
+                         else _json.loads(Path(document).read_text('utf-8')))
         wanted = sorted({c['cube']['source']['name'] for c in doc['cubes']})
         missing = [n for n in wanted if n not in frames]
         if missing:
@@ -1240,8 +1197,7 @@ class Page:
         keep it.)"""
         said = self._session.engine().read_page(self._key) if self._shown else None
         if said is not None:
-            doc = _plain(said)
-            _check(doc)
+            doc = _read_page(said)
             unserved = sorted({c['cube']['source']['name'] for c in doc['cubes']} - set(self._served()))
             if unserved:
                 raise ValueError(f'the open page reads the frames {", ".join(unserved)}, which this session does not serve')
@@ -1257,9 +1213,8 @@ class Page:
         return f'page-{id(self):x}'
 
     def _showable(self) -> None:
-        """Refused when it cannot be shown: DataCube shows a page with a grid at least."""
-        if not self._doc['cubes']:
-            raise ValueError('a page shows a grid at least: page.grid(frame) first')
+        """Refused when it cannot be shown: a page DataCube would not open (one with no grid), in DataCube's words."""
+        _read_page(self._doc)
 
     def _changed(self) -> None:
         """Something on the page changed: where it is shown, it is served again (and opened again there)."""
@@ -1365,42 +1320,21 @@ def _ids(doc: dict[str, Any]) -> set[str]:
     return {x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]}
 
 
-def _check(doc: Any) -> None:
-    """Refused, saying why, unless ``doc`` is a page document Python can work on: DataCube's (version 4), each cube over a
-    frame, each id once, each view of one of its cubes and on one sheet, each layout of the shape Python edits. What else
-    DataCube's reader asks of a page (page-document.ts: a chart's mark, a sheet's name), it asks when the page is shown:
-    Python keeps no second copy of its rules."""
-    def need(ok: bool, why: str) -> None:
-        if not ok:
-            raise ValueError(f'not a page Python reads: {why}')
-
-    def each(part: str, ok: Any) -> list[dict[str, Any]]:
-        items = doc.get(part)
-        need(isinstance(items, list) and all(isinstance(x, dict) and isinstance(x.get('id'), str) and ok(x)
-                                             for x in items), f'its {part} are not what a page holds')
-        need(len({x['id'] for x in items}) == len(items), f'two of its {part} share an id')
-        return items
-    need(isinstance(doc, dict) and doc.get('kind') == PAGE_KIND, f'it is not a DataCube page ({PAGE_KIND})')
-    need(doc.get('version') == PAGE_VERSION,
-         f'it is of version {doc.get("version")!r}, not {PAGE_VERSION} (open it in DataCube and export it again)')
-    need(isinstance(doc.get('name'), str), 'it has no name')
-    cubes = each('cubes', lambda c: isinstance(c.get('cube'), dict) and isinstance(c['cube'].get('query'), dict))
-    need(bool(cubes), 'it has no cube')
-    for c in cubes:
-        source = c['cube'].get('source')
-        need(isinstance(source, dict) and source.get('_type') == 'frame' and isinstance(source.get('name'), str),
-             f'the cube {c["id"]} reads no frame (a page in Python is over frames)')
-    ids = {c['id'] for c in cubes}
-    views = each('views', lambda v: v.get('kind') in ('grid', 'chart') and isinstance(v.get('cube'), str)
-                 and v['cube'] in ids and (v['kind'] == 'grid' or isinstance(v.get('spec'), dict)))
-    sheets = each('sheets', lambda s: True)
-    need(bool(sheets), 'it has no sheet')
-    placed: list[str] = []
-    for s in sheets:
-        wrong = _problems(s.get('layout'))
-        need(not wrong, f'the sheet {s["id"]} cannot be laid out: {"; ".join(wrong)}')
-        placed += _tiles(s['layout'])
-    need(sorted(placed) == sorted(v['id'] for v in views), 'every view has its place, on one sheet')
+def _read_page(doc: Any) -> dict[str, Any]:
+    """``doc`` as DataCube reads a page document and would write it again (page-document.ts readPage and pageToJson,
+    asked headless): of any version DataCube reads, migrated to its own, every rule of its reader held, and refused in
+    its words otherwise -- Python keeps no second copy of them. Then what a page in Python adds: each cube over a
+    frame."""
+    from .datacube import _current
+    said = json.loads(_current().headless().call('pageRead', _json.dumps(doc)))
+    if 'problems' in said:
+        raise ValueError('; '.join(said['problems']))
+    page: dict[str, Any] = _plain(_json.loads(said['page']))
+    for c in page['cubes']:
+        source = c['cube']['source']
+        if source.get('_type') != 'frame' or not isinstance(source.get('name'), str):
+            raise ValueError(f'the cube {c["id"]} reads no frame (a page in Python is over frames)')
+    return page
 
 
 def _column_choices(columns: Mapping[str, Any]) -> dict[str, dict[str, str]]:

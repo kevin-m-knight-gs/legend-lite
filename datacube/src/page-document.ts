@@ -241,6 +241,8 @@ export function readPage(input: string | unknown): PageDocument {
     return { id: c['id'], cube: readCube(c['cube']) };
   });
   const ids = new Set(cubes.map((c) => c.id));
+  // a view names its cube by id, and the model keeps a table per cube's id: two cubes of one id are one too many
+  if (ids.size !== cubes.length) throw new PageDocumentError('two cubes share an id');
 
   const viewsRaw = plain(raw['views']);
   if (!Array.isArray(viewsRaw)) throw new PageDocumentError("'views' is not a list");
