@@ -1038,6 +1038,27 @@ relationship type, the shape a Neo4j user and a Legend link entity share); an en
 when a model wants to navigate from a node to its edges in Pure or DataCube, as `Directing` shows. §5.6's earlier
 wording that called the association form idiomatic is superseded by this section.
 
+**Verified (2026-10-15, the user: "feel good about the Pure?").** The three code blocks above, concatenated as
+one text, were compiled by legend-lite at `74d873d` through its every-error route
+(`POST /api/lite/v1/compilation/compile`, `Compiler.compileErrors`: A to F, then every body), in this cloud
+container after `tools/cloud-distdir.sh`: **`{"errors":[]}`**. So the profile, the stereotypes on the class, on
+stored properties, on derived properties and on association ends, the derived property's enumeration body, the
+subclass with a filter over its superclass's table, the edge classes over their bridge tables, the association
+mappings, the DuckDB connection, the runtime and the data space all parse and compile, bodies included.
+Three negative controls, each a one-token edit of the same text:
+- `RelationshipType.NOPE` in the derived property: refused, "in function 'demo::Acting$prop$type': enumeration
+  demo::RelationshipType has no value 'NOPE'". The body is typed.
+- `actor: Actorr[1]`: refused, "Unknown type: 'Actorr'". The ends are resolved.
+- `<<Graph.Edgee>>`, a stereotype the profile does not declare: **accepted, `{"errors":[]}`.** legend-lite does not
+  check a stereotype or a profile reference against the profile today (no such check exists in `core/`, and
+  `docs/LENIENCY_CATALOG.md` does not list the leniency); legend-engine refuses it ("Can't find stereotype"). Two
+  consequences: the `GraphEdges` reader of PR3 validates the graph profile's references itself, so a misspelled
+  `<<Graph.from>>` is an error here as it is in the engine; and the general leniency is its own finding for the
+  compiler line, recorded with this verification, since a model that compiles here with a misspelled stereotype
+  fails in the engine.
+The run against the real legend-engine, through `//tools/engine-runner:testable` (parse and compile, no
+testables), is recorded below when it completes.
+
 ---
 
 ## 6. Recursion: what Pure lacks, what the databases have, what the native is
