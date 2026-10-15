@@ -369,9 +369,11 @@ class Document(Paged):
         Python refuses exactly the same charts by asking DataCube's own code (page._made), never by rules of its own. A
         frame makes the cases' String, Float, StrictDate and DateTime columns; a Date and a StrictTime are calculated
         columns' (Pure's firstDayOfMonth returns a Date, and a time of day is written %10:30:00), judged with the
-        compiler's types, as DataCube judges them -- no frame carries a StrictTime (the compiler's catalog reads a
-        database's TIME as text: docs/PYTHON_ASKS_DATACUBE_2026_10_15.md), so a calculated column is the way to one.
-        Every case is asked, none skipped."""
+        compiler's types, as DataCube judges them. No frame carries a StrictTime (the compiler's catalog reads a
+        database's TIME as text), and on this plane DataCube adds no StrictTime column either (its compile lowers the
+        cube, which has no SQL type for a time of day: docs/PYTHON_ASKS_DATACUBE_2026_10_15.md) -- so the StrictTime
+        column comes as a page saved where one is lowered (a server's plane) holds it, loaded. Every case is asked,
+        none skipped."""
         rules = json.loads(Path(os.environ['LEGEND_LITE_CHART_RULES']).read_text('utf-8'))
         made = {'String': ['EMEA', 'APAC'], 'Float': [1.5, 2.5], 'StrictDate': [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
                 'DateTime': [pd.Timestamp('2024-01-01 09:30'), pd.Timestamp('2024-01-01 10:30')]}
@@ -381,10 +383,16 @@ class Document(Paged):
         types = {c.name: plain_type(c.type) for c in grid._page._session.frames[grid.frame].columns}
         self.assertEqual(types, {c['name']: c['type'] for c in framed}, 'the frame is typed as the cases say')
         days = next(c['name'] for c in framed if c['type'] == 'StrictDate')
-        calculated = {'Date': f'$x.{days}->toOne()->firstDayOfMonth()', 'StrictTime': '%10:30:00'}
-        for column in (c for c in rules['columns'] if c['type'] not in made):
-            grid.calculate(column['name'], calculated[column['type']])
-        cube = grid._view['cube']
+        dated = next(c['name'] for c in rules['columns'] if c['type'] == 'Date')
+        grid.calculate(dated, f'$x.{days}->toOne()->firstDayOfMonth()')
+        timed = next(c['name'] for c in rules['columns'] if c['type'] == 'StrictTime')
+        self.assertEqual({c['type'] for c in rules['columns']} - set(made), {'Date', 'StrictTime'}, 'the cases\' types')
+        with self.assertRaisesRegex(ValueError, 'STRICT_TIME'):
+            grid.calculate(timed, '%10:30:00')
+        doc = page.to_dict()
+        doc['cubes'][0]['cube']['query']['derived'].append({'name': timed, 'lambda': ll.parse('x|%10:30:00')})
+        page = ll.Page.load(doc, frames={'rules': grid._page._session.frames['rules'].given})
+        cube = page.grids[0]._view['cube']
         for case in rules['cases']:
             with self.subTest(case=case['case']):
                 if case['refused']:
@@ -462,13 +470,26 @@ class Document(Paged):
         derived = page.to_dict()['cubes'][0]['cube']['query']['derived']
         self.assertEqual(derived[0]['name'], 'margin')
         self.assertEqual(derived[0]['lambda']['_type'], 'lambda')
-        with self.assertRaisesRegex(ll.LegendError, 'nope'):
+        # added as DataCube's column editor adds one; its kind undeclared unless given (DataCube then reads its type, as
+        # for any column: a number a measure), declared when it is; refused in DataCube's and the compiler's words -- a
+        # column it does not have, a multiplicity, a name the grid has already, a kind DataCube has not
+        self.assertNotIn('kind', derived[0])
+        grid.calculate('loss', '$x.pnl->toOne() < 0', kind='dimension')
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['derived'][-1]['kind'], 'dimension')
+        with self.assertRaisesRegex(ValueError, "a column's kind is 'dimension' or 'measure', not 'sum'"):
+            grid.calculate('odd', '$x.pnl', kind='sum')
+        with self.assertRaisesRegex(ValueError, 'nope'):
             grid.calculate('wrong', '$x.nope * 2')
-        with self.assertRaisesRegex(ll.LegendError, 'multiplicity'):
+        with self.assertRaisesRegex(ValueError, 'multiplicity'):
             grid.calculate('nullable', '$x.pnl / $x.notional')
+        with self.assertRaisesRegex(ValueError, "'margin' is already a column"):
+            grid.calculate('margin', '$x.pnl')
+        with self.assertRaisesRegex(ValueError, 'a calculated column needs a name'):
+            grid.calculate(' ', '$x.pnl')
         # one reads the calculated columns before it, typed as the grid runs them
         grid.calculate('margin_pct', '$x.margin * 100')
-        self.assertEqual([d['name'] for d in page.to_dict()['cubes'][0]['cube']['query']['derived']], ['margin', 'margin_pct'])
+        self.assertEqual([d['name'] for d in page.to_dict()['cubes'][0]['cube']['query']['derived']],
+                         ['margin', 'loss', 'margin_pct'])
         # a chart can plot it, as any column
         grid.chart('line', x='region', y=[('margin', 'average')])
 

@@ -40,7 +40,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from . import _json, compiler
+from . import _json
 from ._types import is_boolean, is_decimal, is_float, is_integer
 from .frames import LIVE, SNAPPED
 
@@ -81,7 +81,6 @@ PAGE_VERSION = 4
 _NO_VALUE = frozenset({'isEmpty', 'isNotEmpty'})
 _LIST = frozenset({'in', 'notIn', 'inCaseInsensitive', 'notInCaseInsensitive'})
 _COLUMN = frozenset(op for op in FILTER_OPERATORS if op.endswith('Column'))
-_PLAIN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 _KEEP: Any = object()
 
 
@@ -457,23 +456,21 @@ class Grid(Tile):
         sort = {'column': self._check([column], 'a sort')[0], 'direction': direction}
         return self._set('sorts', [*self._query.get('sorts', []), sort])
 
-    def calculate(self, name: str, expression: str) -> Grid:
+    def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
-        empty, as a dataframe's can, ``->toOne()`` first for arithmetic), as the grid's own editor takes it. It can read
-        the grid's calculated columns before it (a window column made in DataCube excepted: Python does not type one
-        yet). The compiler checks it here, against the frame and those columns: a mistake fails at this line."""
-        if not isinstance(name, str) or not name:
-            raise ValueError(f'a calculated column has a name, not {name!r}')
-        if name in self._columns():
-            raise ValueError(f'{name!r} is a column of the grid already')
-        table = self._page._session.frames[self.frame]
-        derived = self._query.get('derived', [])
-        # typed as the grid runs it (query.ts, extendDerived): the frame's rows extended by its calculated columns in
-        # order, then by it
-        before = ''.join(_step(d) for d in derived if 'lambda' in d and 'window' not in d and 'childAggregate' not in d)
-        table.relation_type(compiler.parse(
-            f'|{table.accessor}{before}->extend(~{_pure_name(name)}:x|{expression})'))
-        return self._set('derived', [*derived, {'name': name, 'lambda': compiler.parse(f'x|{expression}')}])
+        empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one
+        (DataCube's code, headless: gridCalculate): its name as DataCube takes one, ``kind`` ``'measure'`` or
+        ``'dimension'`` as declared (not given, its type decides, as for any column: a number a measure), and the grid
+        with it compiled as DataCube would run it -- reading any of the grid's columns before it, a window column's too.
+        A mistake fails at this line, in DataCube's and the compiler's words."""
+        if not isinstance(name, str) or not isinstance(expression, str):
+            raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        engine, frames = self._headless()
+        with frames.serving():
+            said = json.loads(engine.call('gridCalculate', self._spec(frames), name, f'x|{expression}', kind))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._set('derived', [*self._query.get('derived', []), _plain(_json.loads(said['derived']))])
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,
@@ -534,23 +531,6 @@ class Grid(Tile):
 
     def __repr__(self) -> str:
         return f'<Grid {self._id}>'
-
-
-def _pure_name(name: str) -> str:
-    """A column name in a column spec: as it is when plain, quoted otherwise."""
-    return name if _PLAIN.match(name) else "'" + name.replace('\\', '\\\\').replace("'", "\\'") + "'"
-
-
-def _step(derived: dict[str, Any]) -> str:
-    """A calculated column as the grid's query takes it, as Pure text: ``->extend(~name:x|...)``, or an exploded one's
-    ``->lateral(x|<collection>->flatten(~name))``."""
-    lambda_ = derived['lambda']
-    if not derived.get('unnest'):
-        return f'->extend(~{_pure_name(derived["name"])}:{compiler.print_tree(lambda_, "STANDARD")})'
-    # flatten's own tree, from the compiler's parse of it, around the column's collection
-    flatten = compiler.parse(f'x|$x->flatten(~{_pure_name(derived["name"])})')['body'][0]
-    flatten['parameters'][0] = lambda_['body'][0]
-    return f'->lateral({compiler.print_tree({**lambda_, "body": [flatten]}, "STANDARD")})'
 
 
 def _given(mark: str, x: Any, y: Sequence[Any] | None, split: Any, frozen: bool | None) -> dict[str, Any]:
@@ -1314,10 +1294,12 @@ class Page:
         """A grid's cube over ``frame`` as DataCube makes one (cube-document.ts rebuilt, asked headless: gridCube): a
         new grid's (its rows as they are; ``capped`` at the row limit when it joins others), or ``saved`` rebuilt over
         the frame as it is now; and what DataCube says of what changed."""
-        table = self._session.frames[frame]
-        spec = {'model': table.model, 'runtime': table.runtime, 'source': table.accessor, 'frame': frame}
-        made = json.loads(self._session.headless().call(
-            'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, capped))
+        engine, frames = self._session.headless(), self._session.frames
+        with frames.serving():
+            table = frames[frame]
+            spec = {'model': table.model, 'runtime': table.runtime, 'source': table.accessor, 'frame': frame}
+            made = json.loads(engine.call(
+                'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, capped))
         return _plain(_json.loads(made['cube'])), list(made['notes'])
 
     def __repr__(self) -> str:

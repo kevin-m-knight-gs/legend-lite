@@ -66,6 +66,10 @@ Smaller, none checked mechanically: `model.py` ↔ `model-changes/src` (five rep
 
 No Python frame, and no tab's table read the same way, has a `StrictTime` column: the compiler's catalog reads a
 database's `TIME` as stored text (`DuckDb.java`'s catalog rules map it to `OTHER`; found 2026-10-15, building a
-time-of-day column for the chart cases from pandas and from Arrow). Python's chart cases reach one through a calculated
-column instead (`%10:30:00`), so every case is asked from Python too; a source carrying a time of day is the compiler
-line's to decide.
+time-of-day column for the chart cases from pandas and from Arrow). Nor does a calculated column give one on this
+plane: a cube with `%10:30:00` compiles to a relation type (compile-only), but its query does not lower --
+"IllegalStateException: no SQL type for Pure primitive STRICT_TIME at the lowering boundary" -- so DataCube's column
+editor refuses it, and since item 5 so does Python (found 2026-10-15, when Python's calculated columns began to be
+checked by DataCube's own compile). Python's chart cases reach a StrictTime column as a page saved where one is lowered
+holds it, loaded, so every case is still asked; a time of day in a source and in the lowering is the compiler line's to
+decide.

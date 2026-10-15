@@ -12,7 +12,8 @@
 
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
-import { fromJson, toJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { nameProblem } from '../calc.ts';
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
@@ -26,7 +27,7 @@ import { typeColumns } from '../plan.ts';
 import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import { shownColumns } from '../shown-columns.ts';
-import type { ColumnSpec } from '../snapshot.ts';
+import { COLUMN_KINDS, type ColumnKind, type ColumnSpec, type CubeSnapshot, type DerivedColumn } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { TreeState } from '../tree.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
@@ -88,7 +89,9 @@ export interface FrameSpec extends Omit<GridSpec, 'cube'> {
  * A GRID'S CUBE OVER A FRAME, as DataCube makes one (cube-document.ts rebuilt and writeCube, the frame's source as
  * frameSource records it) -- so Python's pages make no cube document of their own
  * (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 2 and 1). With no `saved` cube: a new grid's, its rows as they are,
- * titled `label`, capped at the row limit when it joins others on its page (`capped`). With one (a cube document,
+ * titled `label`, capped at the row limit when it joins others on its page (`capped`: the app's own rule -- the source
+ * picker's "add" opens a source capped, openInPlace not, and a saved page reopening caps its cubes when it holds more
+ * than one, app/datacube-app.ts; rebuilt reads it only for a new cube). With one (a cube document,
  * JSON): that cube rebuilt over the frame as it is now -- a new column hidden, a gone one left out of everything that
  * read it, the open groups dropped when the grouping changed -- said in `notes`. `name` is its page's (a page's cubes
  * carry the page's name). JSON: `{cube, notes}`, the cube document as its text (its numbers exact).
@@ -143,6 +146,41 @@ function viewJson(view: CubeView, configuration: CubeState['configuration'], que
     ...(view.totalRows !== undefined ? { totalRows: view.totalRows } : {}),
     sql: view.sql,
     query,
+  });
+}
+
+/**
+ * A CALCULATED COLUMN ADDED as DataCube's column editor adds one (ui/column-editor.ts): named as calc.ts nameProblem
+ * allows, its expression (the whole lambda, `x|$x.qty * 2`) parsed by the planner, a row-stage column of the `kind`
+ * declared (null: none, so that its type decides, as for any column -- types.ts defaultKind), and the cube with it
+ * compiled as a refresh would send it (CubeController.compile: every query, window and child columns too) -- so Python
+ * checks no calculated column by rules of its own (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 5). JSON: `{derived}`,
+ * the column as the cube document holds it (its text: its lambda's numbers exact), or `{problems}`, why it was refused,
+ * in DataCube's words.
+ */
+export async function gridCalculate(spec: GridSpec, name: string, expression: string,
+  kind: ColumnKind | null): Promise<string> {
+  return using(spec, async ({ planner, state }) => {
+    if (kind !== null && !COLUMN_KINDS.includes(kind)) {
+      const kinds = COLUMN_KINDS.map((k) => `'${k}'`).join(' or ');
+      return JSON.stringify({ problems: [`a column's kind is ${kinds}, not '${String(kind)}'`] });
+    }
+    const problem = nameProblem(state.snapshot, 'row', name);
+    if (problem !== null) return JSON.stringify({ problems: [problem] });
+    let lambda: Lambda;
+    try {
+      lambda = await planner.parse(expression);
+    } catch (e) {
+      // the parse refused (the editor's #parsed): its message is the compiler's
+      return JSON.stringify({ problems: [e instanceof Error ? e.message : String(e)] });
+    }
+    const column: DerivedColumn = { name: name.trim(), lambda, ...(kind !== null ? { kind } : {}) };
+    const snapshot: CubeSnapshot = { ...state.snapshot, derived: [...state.snapshot.derived, column] };
+    const controller = new CubeController(new DuckDbEngine(hostDatabase(hostCalls()).connection), planner);
+    const outcome = await controller.compile({ snapshot, tree: state.tree }, null);
+    if (outcome === undefined) throw new Error('the host cannot compile a cube without running it');
+    if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
+    return JSON.stringify({ derived: toJson(column) });
   });
 }
 
