@@ -293,9 +293,8 @@ class IqFunctionsTest {
     void castToCharPadsUnderTheIqEngineAndLikeOverItIsRefused() {
         assertTrue(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T).contains("rpad(22, ' ')"));
         assertFalse(pure("SELECT CAST(vc AS CHAR(22)) AS c FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("rpad"));
-        // D-S5: whether IQ matches the pad in LIKE is not verified
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE CAST(vc AS CHAR(22)) LIKE 'a%'").getMessage()
-                .contains("D-S5"));
+        // D-S5 (IQ island, 2026-10-15, measured on IQ 17.1): IQ matches the pad in LIKE, which lite reads
+        assertTrue(pure("SELECT id FROM " + T + " WHERE CAST(vc AS CHAR(22)) LIKE 'a%'").contains("rpad(22, ' ')"));
     }
 
     @Test

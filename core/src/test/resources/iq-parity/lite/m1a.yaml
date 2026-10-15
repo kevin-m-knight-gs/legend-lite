@@ -547,7 +547,7 @@ tests:
   - id: like_null_operand
     sql: "SELECT 1 AS x WHERE NULL LIKE 'a'"
     engine: sa
-  - id: like_char_column_is_refused
+  - id: like_char_column
     sql: "SELECT id FROM t WHERE ch LIKE 'ab%' ORDER BY id"
   # IQ island, 2026-10-14 (the third landing, docs/IQ_SQL_STUDY_2026_10_13.md §9.16): answered now; the id
   # is kept as the ledger's key

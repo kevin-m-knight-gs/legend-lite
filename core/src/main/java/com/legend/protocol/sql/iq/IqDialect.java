@@ -4422,29 +4422,19 @@ public final class IqDialect implements InputDialect {
         if (operand.kind() == Kind.DATE || operand.kind() == Kind.DATETIME) {
             operand = IqDateTime.text(operand, settings, "LIKE", l.operand().pos());
         }
-        if (engine == Engine.IQ) {
-            List<SqlAst.ColumnRef> refs = new ArrayList<>();
-            columnRefs(l.operand(), refs);
-            // IQ island, 2026-10-14 (M1d): a CAST to CHAR(n) is padded under the IQ engine as a CHAR(n) column is
-            if (operand.detail() instanceof IqType o && o.family().equals("CHAR") && o.size() > 0) {
-                refs.add(0, null);
-            }
-            for (SqlAst.ColumnRef ref : refs) {
-                if (ref == null || at.tx(ref).detail() instanceof IqType t && t.family().equals("CHAR")) {
-                    throw SqlTranslationException.unsupported("LIKE over a CHAR(n) column under the IQ engine is not"
-                            + " supported yet: whether IQ matches its blank pad is the research's D-S5, not yet"
-                            + " verified", l.pos());
-                }
-            }
-        }
+        // IQ island, 2026-10-15 (the research's D-S5, measured on IQ 17.1): under IQ's engine LIKE matches a CHAR(n)
+        // column's value blank padded ('ab   ' LIKE 'ab' is false, LIKE 'ab%' and LIKE 'a____' true), which is the
+        // value lite reads there (D-S1)
         boolean integer = operand.kind() == Kind.INTEGER && operand.detail() instanceof IqType t && t.isInteger();
         if (operand.kind() != Kind.STRING && !integer) {
             throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is not supported"
                     + " yet: IQ matches its text, written by its own format", l.operand().pos());
         }
         if (!(l.pattern() instanceof SqlAst.StringLit pattern)) {
+            char escape = l.escape() instanceof SqlAst.StringLit e && e.value().length() == 1 ? e.value().charAt(0)
+                    : 0;
             Tx result = bounded(SqlToPure.strictTest(List.of(operand, runtimePattern(l, at)), v -> runtimeLike(
-                    integer ? SqlToPure.call("toString", v.get(0)) : v.get(0), v.get(1))), l);
+                    integer ? SqlToPure.call("toString", v.get(0)) : v.get(0), v.get(1), escape)), l);
             return l.negated() ? SqlToPure.not(result) : result;
         }
         List<String> parts = likeParts(pattern, l.escape(), true);
@@ -4464,7 +4454,13 @@ public final class IqDialect implements InputDialect {
      * under the IQ engine (D-S5). Refused by name otherwise.
      */
     private Tx runtimePattern(SqlAst.Like l, SqlToPure.At at) {
-        String why = l.escape() != null ? "with ESCAPE" : !settings.caseSensitive()
+        if (l.escape() != null && !(l.escape() instanceof SqlAst.StringLit e && e.value().length() == 1
+                && "%_[".indexOf(e.value().charAt(0)) < 0)) {
+            throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is not"
+                    + " supported yet with an ESCAPE other than a constant of one character that is no wildcard",
+                    l.pattern().pos());
+        }
+        String why = !settings.caseSensitive()
                 ? "in a database that matches without regard to case (profile " + settings.spelling() + ": its"
                 + " letters' cases are ASCII's only)" : null;
         if (why != null) {
@@ -4475,20 +4471,6 @@ public final class IqDialect implements InputDialect {
         if (pattern.kind() != Kind.STRING) {
             throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is not"
                     + " supported yet over " + kindName(pattern.kind()), l.pattern().pos());
-        }
-        if (engine == Engine.IQ) {
-            List<SqlAst.ColumnRef> refs = new ArrayList<>();
-            columnRefs(l.pattern(), refs);
-            if (pattern.detail() instanceof IqType o && o.family().equals("CHAR") && o.size() > 0) {
-                refs.add(0, null);
-            }
-            for (SqlAst.ColumnRef ref : refs) {
-                if (ref == null || at.tx(ref).detail() instanceof IqType t && t.family().equals("CHAR")) {
-                    throw SqlTranslationException.unsupported("LIKE with a pattern that is not a constant string is"
-                            + " not supported yet over a CHAR(n) column under the IQ engine: whether IQ matches its"
-                            + " blank pad is the research's D-S5, not yet verified", l.pattern().pos());
-                }
-            }
         }
         return pattern;
     }
@@ -4504,18 +4486,47 @@ public final class IqDialect implements InputDialect {
      * characters (SQL Anywhere's -606 for some values) raises, never answers otherwise than IQ: (IQ island,
      * 2026-10-14, review 7's m3) by name ({@link #LIKE_PATTERN_RAISE}).
      */
-    private static ValueSpecification runtimeLike(ValueSpecification value, ValueSpecification pattern) {
-        ValueSpecification p = SqlToPure.call("replace", pattern, new CString("\\"), new CString("\\\\"));
+    private static ValueSpecification runtimeLike(ValueSpecification value, ValueSpecification pattern,
+            char escape) {
+        // IQ island, 2026-10-15: with ESCAPE c, each c-pair, read left to right as IQ reads it (cc, c%, c_, c[), is a
+        // placeholder first -- a control character below a blank -- and the literal it stands for last; a pattern
+        // holding a placeholder already, or a c left over (before any other character: IQ's error -630), raises
+        ValueSpecification p = pattern;
+        String[] pairs = {"", "%", "_", "["};
+        if (escape != 0) {
+            for (int i = 0; i < pairs.length; i++) {
+                String pair = String.valueOf(escape) + (i == 0 ? String.valueOf(escape) : pairs[i]);
+                p = SqlToPure.call("replace", p, new CString(pair), new CString(String.valueOf((char) (1 + i))));
+            }
+        }
+        ValueSpecification left = p;
+        p = SqlToPure.call("replace", p, new CString("\\"), new CString("\\\\"));
         for (int i = 0; i < REGEX_SPECIAL.length(); i++) {
             String c = String.valueOf(REGEX_SPECIAL.charAt(i));
             p = SqlToPure.call("replace", p, new CString(c), new CString("\\" + c));
         }
         p = SqlToPure.call("replace", SqlToPure.call("replace", p, new CString("%"), new CString(".*")),
                 new CString("_"), new CString("."));
+        if (escape != 0) {
+            for (int i = 0; i < pairs.length; i++) {
+                String literal = i == 0 ? String.valueOf(escape) : pairs[i];
+                String regex = REGEX_SPECIAL.indexOf(literal.charAt(0)) >= 0 || literal.equals("\\") ? "\\" + literal
+                        : literal;
+                p = SqlToPure.call("replace", p, new CString(String.valueOf((char) (1 + i))), new CString(regex));
+            }
+        }
         ValueSpecification regex = AppliedFunction.infixRun("plus", List.of(new CString("(?s)"), p));
-        ValueSpecification refused = SqlToPure.call("or", SqlToPure.call("contains", pattern, new CString("[")),
-                SqlToPure.call("greaterThan", SqlToPure.call("length", pattern),
+        ValueSpecification refused = SqlToPure.call("or", SqlToPure.call("contains", escape != 0 ? left : pattern,
+                new CString("[")), SqlToPure.call("greaterThan", SqlToPure.call("length", pattern),
                         SqlToPure.integer(BigInteger.valueOf(LONGEST_PATTERN))));
+        if (escape != 0) {
+            for (int i = 0; i < pairs.length; i++) {
+                refused = SqlToPure.call("or", refused, SqlToPure.call("contains", pattern, new CString(
+                        String.valueOf((char) (1 + i)))));
+            }
+            refused = SqlToPure.call("or", refused, SqlToPure.call("contains", left, new CString(
+                    String.valueOf(escape))));
+        }
         return ifThen(refused, SqlToPure.call("fail", new CString(LIKE_PATTERN_RAISE)), SqlToPure.call("matches",
                 value, regex));
     }

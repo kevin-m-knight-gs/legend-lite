@@ -609,7 +609,7 @@ tests:
     sql: "SELECT id FROM t WHERE NOT vc LIKE vc ORDER BY id"
   - id: like_a_nullable_pattern
     sql: "SELECT id, CASE WHEN vc LIKE NULLIF(vc, 'hello') THEN 1 WHEN NOT vc LIKE NULLIF(vc, 'hello') THEN 0 END FROM t ORDER BY id"
-  - id: constant_char_like_a_pattern_is_refused_d_s5
+  - id: constant_char_like_a_pattern
     sql: "SELECT id FROM t WHERE 'h' LIKE LEFT(vc, 1) ORDER BY id"
   - id: like_a_repeated_wildcard
     sql: "SELECT id FROM t WHERE vc LIKE REPEAT('_', 5) ORDER BY id"
@@ -623,14 +623,14 @@ tests:
     params: "s = 'h'"
   - id: not_like_a_computed_pattern
     sql: "SELECT id FROM t WHERE vc NOT LIKE '%' || 'l' || '%' ORDER BY id"
-  - id: computed_pattern_with_escape_is_refused
+  - id: computed_pattern_with_escape
     sql: "SELECT id FROM t WHERE vc LIKE '%' || 'l' || '%' ESCAPE '!' ORDER BY id"
   - id: computed_pattern_without_case_is_refused
     sql: "SELECT id FROM t WHERE vc LIKE '%' || 'L' || '%' ORDER BY id"
     profile: sqla17-default
-  - id: char_like_char_is_refused_d_s5
+  - id: char_like_char
     sql: "SELECT id FROM t WHERE ch LIKE ch ORDER BY id"
-  - id: varchar_like_a_char_pattern_is_refused_d_s5
+  - id: varchar_like_a_char_pattern
     sql: "SELECT id FROM t WHERE vc LIKE ch ORDER BY id"
   - id: like_a_computed_pattern_over_u
     sql: "SELECT u.id FROM u WHERE label LIKE '%' || 'n' || '%' ORDER BY 1"

@@ -644,11 +644,12 @@ class IqToPureTest {
         // IQ island, 2026-10-14 (natives): a sqla17 profile's LIKE is read now, each letter a class of its two cases
         assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a'", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
                 .contains("matches('(?s)^[aA]$')"));
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR)
-                .getMessage().contains("D-S5"));
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch || '' LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR)
-                .getMessage().contains("D-S5"));
-        for (String like : new String[] {"vc LIKE 'a[b]'", "vc LIKE vc ESCAPE '!'", "vc LIKE 'a' ESCAPE '!!'",
+        // IQ island, 2026-10-15 (D-S5, measured on IQ 17.1): under IQ's engine LIKE matches a CHAR(n) column's padded
+        // value, which lite reads (D-S1); a computed pattern takes a one-character ESCAPE
+        pure("SELECT id FROM " + T + " WHERE ch LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR);
+        pure("SELECT id FROM " + T + " WHERE ch || '' LIKE 'a%'", IqProfile.IQ16_DEFAULT.settings(), WITH_CHAR);
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE vc ESCAPE '!'").contains("matches("));
+        for (String like : new String[] {"vc LIKE 'a[b]'", "vc LIKE 'a' ESCAPE '!!'",
                 "vc LIKE 'a' ESCAPE ''", "vc LIKE '!a' ESCAPE '!'", "vc LIKE 'a!' ESCAPE '!'",
                 "vc LIKE '" + "a".repeat(127) + "'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE " + like)
