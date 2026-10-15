@@ -1489,6 +1489,7 @@ repros will be in the study's §9.
         give 53 MB of SQL, which DuckDB runs in 30–56 s.
       - `SqlSource.Join.outputs/side` are rebuilt on every column lookup once compile is fixed: 100 joins plan in
         about 1 s, 250 in 27–40 s, 100 comma joins in 11 s.
+        (The compiler line, 2026-10-15: both taken on `core/scale-costs`, announced under rule 7.)
     - **The lowering:** a CASE of 1,000 WHENs renders as nested CASEs past DuckDB's depth limit, and 5,000 AND terms
       overflow the stack.
     - **The ninth line (dialects):** Postgres's `concat()` takes at most 100 arguments, and Postgres cannot run a
@@ -1541,3 +1542,19 @@ repros will be in the study's §9.
    scopes, never the base's same-named column). `CorrelatedComputedColumnTest` pins both spellings. Judges in GATES: the
    six corpus passes 0 of 23 result files differ; the render census 58,688 entries, 6 differ, all six the new test's own
    renders.
+   **Announced 2026-10-15: the tenth line's two measured costs in the compiler's files, and the census tool's runtime
+   (branch `core/scale-costs`).** (1) `SqlSource.Join.outputs()` builds both sides' column lists on every call, and a
+   left-deep chain of N joins builds them N levels deep each time a column is looked up (`Fold.sourceColumn` asks more
+   than once per read), so a chain's planning grows faster than the cube of its length (the tenth line: 100 joins in
+   about a second, 250 in 27-40 s). The join computes its outputs once, when it is made (a record component its
+   four-argument constructor fills), and every reader gets that list. (2) `Fold.resolveIntoExact` writes a computed
+   column's expression into each read of it, so a computed column read twice doubles at every level of nesting (the
+   tenth line: 20 nested derived tables give 53 MB of SQL). The rule becomes Calcite's (ProjectMergeRule's `bloat`, its
+   default 100): a pass may grow the select's expressions by at most 100 nodes through such writes; past that it
+   isolates, and the reads go through a subselect, as every unfoldable read does today. A single read, a plain column, a
+   small chain fold as before; a doubling chain isolates every few levels and the SQL stays linear. (3)
+   `tools/census/RenderCensus.java` lowers with no runtime, which the planner refuses since #39 (decision D2: the
+   language of raw text is the runtime's database), so every case failed on both sides of a comparison; it now lowers
+   with the storeless runtime on DuckDB (`StorelessRuntime.with`), as the stress line's copy did. Judged as every
+   compiler landing: the six corpus passes, the render census, the reference lane, the census target, an audit, one CI
+   run; the measurements before and after in GATES.
