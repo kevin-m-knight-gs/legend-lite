@@ -21,14 +21,15 @@ load(
 )
 load("//tools/runfiles:defs.bzl", "executable_of")
 
-# the compiler's bindings: no package beyond Python's own
+# the compiler's bindings, and what reaches the native library beside them -- this user's legend-lite folder and its saved
+# pages and queries (_home.py), a model home (model.py), a server planning (upstream.py), the compiler's threads
+# (_pool.py): no package beyond Python's own (the compiler-only install, //python:wheel_test)
 py_library(
     name = "compiler",
     srcs = glob(
         ["legend_lite/**/*.py"],
         exclude = [
             "legend_lite/_headless.py",
-            "legend_lite/_home.py",
             "legend_lite/datacube.py",
             "legend_lite/engine.py",
             "legend_lite/frames.py",
@@ -47,24 +48,17 @@ py_library(
     # //datacube:engine_fixture serves a frame to DataCube's browser test
     visibility = ["//datacube:__pkg__"],
     srcs = [
-        # this user's legend-lite folder, and the pages DataCube saves in it (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md,
-        # step 2d): the engine keeps them
-        "legend_lite/_home.py",
         "legend_lite/datacube.py",
         "legend_lite/engine.py",
         "legend_lite/frames.py",
         # a DataCube page built in Python (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md)
         "legend_lite/page.py",
-        # a class, an association or a data space made in a project: the twin of model-changes/ (B4)
-        "legend_lite/model.py",
-        # a server planning for Python's pages (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G1)
-        "legend_lite/upstream.py",
     ],
     imports = ["."],
     deps = [
         ":compiler",
         # DataCube's own code in V8 (legend_lite/_headless.py): its rules are asked of it, never copied (a chart's, page.py
-        # _drawable); every module here asks for the datacube extra first (legend_lite/_extra.py)
+        # _made); every module here asks for the datacube extra first (legend_lite/_extra.py)
         ":headless",
         "@pypi//duckdb",
         "@pypi//pyarrow",
@@ -377,6 +371,7 @@ py_test(
         "test_warehouse",
     ],
     data = [
+        ":wheel_duckdb",
         "//datacube:headless_bundle",
         "//datacube:test/fixtures/chart-rules.json",
         "//native:compiler",
@@ -384,9 +379,8 @@ py_test(
     ],
     # the warehouse's driver (legend_lite/warehouse.py), held to the one corpus its binding is (C3); a page's charts
     # judged by DataCube's own rules, headless (its bundle), and answered as chart-spec.ts is held to (test_page.py)
-    env = _ENV | {
+    env = _ENV | _HEADLESS_ENV | {
         "LEGEND_LITE_CHART_RULES": "$(rlocationpath //datacube:test/fixtures/chart-rules.json)",
-        "LEGEND_LITE_DATACUBE": "$(rlocationpath //datacube:headless_bundle)",
         "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
     },
     main = "tests/main.py",

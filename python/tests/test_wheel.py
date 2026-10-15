@@ -40,7 +40,14 @@ try:
     refused["legend_lite.page"] = None
 except ImportError as failure:
     refused["legend_lite.page"] = str(failure)
-print(json.dumps({"parsed": sorted(tree), "refused": refused}))
+# what reaches the native library beside the compiler needs no extra: a model home's call, on the compiler's threads
+import pathlib, tempfile
+from legend_lite import model
+try:
+    homed = model.home_call(pathlib.Path(tempfile.mkdtemp()), "sdlc", "GET", "/api/projects", None)[0]
+except OSError as failure:
+    homed = "the library said: " + str(failure)
+print(json.dumps({"parsed": sorted(tree), "refused": refused, "homed": homed}))
 '''
 
 # run in the installed environment: a frame shown, its cube asked for, a query executed as DataCube sends it
@@ -348,6 +355,7 @@ class Installed(unittest.TestCase):
         self.assertEqual(core.returncode, 0, core.stdout + core.stderr)
         alone = json.loads(core.stdout.strip().splitlines()[-1])
         self.assertIn('body', alone['parsed'], 'the compiler alone parses')
+        self.assertIsNotNone(alone['homed'], 'a model home is called without the datacube extra (_pool.py)')
         for name, said in alone['refused'].items():
             self.assertIsNotNone(said, f'{name} came without the datacube extra')
             # a notebook's cube names its own extra, which brings DataCube's packages and anywidget

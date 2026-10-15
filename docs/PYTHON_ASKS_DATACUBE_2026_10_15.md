@@ -15,7 +15,8 @@ always there when DataCube is: there is never a case for a copy "in case V8 is m
 
 ## Done, with PR neema2/legend-lite#42
 
-- **A chart's rules, its reader and its defaults** (`page.py _drawable`, `_spec`/`_measure`/`_slots`'s judgements, the
+- **A chart's rules, its reader and its defaults** (`page.py _drawable`, `_spec`/`_measure`/`_slots`'s judgements --
+  a measure's or a facet's keys among them, now the reader's, which refuses any key a chart has no place for -- the
   grid's first measure, the grain-goes-with-its-column rule in `Chart.plot`): now DataCube's `readChart`, `chartFrom`
   (its new chart changed by `editChart`, the panel's form's own change by hand), `followCube` and `chartProblems`,
   asked through `gridChart`, against the grid as DataCube opens and types it.
@@ -59,6 +60,8 @@ Smaller, none checked mechanically: `model.py` ↔ `model-changes/src` (five rep
 
 ## A finding for the compiler line
 
-No Python frame, and no tab's table read the same way, has a `StrictTime` column: the compiler's catalog writes a
-database's `TIME` as `String` (found 2026-10-15, building a time-of-day column for the chart cases from pandas and from
-Arrow). DataCube's rules for a time of day are held by DataCube's own test alone until a source can carry one.
+No Python frame, and no tab's table read the same way, has a `StrictTime` column: the compiler's catalog reads a
+database's `TIME` as stored text (`DuckDb.java`'s catalog rules map it to `OTHER`; found 2026-10-15, building a
+time-of-day column for the chart cases from pandas and from Arrow). Python's chart cases reach one through a calculated
+column instead (`%10:30:00`), so every case is asked from Python too; a source carrying a time of day is the compiler
+line's to decide.

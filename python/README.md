@@ -71,19 +71,19 @@ IDE's Stop); one that opened none (`browser=False`, or no browser to open: a tes
 
 **Install it** (into PyCharm's environment, a virtualenv, anywhere; Python 3.12 and up, on macOS 14 and up, Linux, or
 Windows on x86-64). One package, two things: the wheel alone is **the compiler**, on Python's standard library; its
-`datacube` extra is **DataCube**, with everything DataCube needs -- duckdb and pyarrow for the frames, and mini-racer's V8,
-which runs DataCube's own code (its rules, a chart's among them, are asked of it, never copied into Python). Without the
-extra, `show`, `Page`, `Frames` and the engine each say, in one sentence, to install it.
+`datacube` extra is **DataCube**, with everything DataCube needs -- duckdb and pyarrow for the frames, and mini-racer's
+V8, which runs DataCube's own code (its rules, a chart's among them, are asked of it, never copied into Python). Without
+the extra, `show`, `Page`, `Frames` and the engine each say, in one sentence, to install it.
 `bazel build //python:wheel`, then `pip install 'bazel-bin/python/legend_lite-0.1.0-<platform>.whl[datacube,pandas]'`
-(`[polars]` for polars). On Linux DataCube needs glibc 2.27 (mini-racer's wheels), where the compiler alone needs 2.17. Or take it from CI without building: each run's
-`legend-lite-wheel-<platform>` download (macOS, Linux, Linux ARM, Windows), kept once the warehouse lane that tests it is
-green. The wheel carries the compiler's library and DataCube's page; `//python:wheel_test` installs it into a
-fresh environment, offline, and runs `show()` and a query from it alone.
+(`[polars]` for polars). On Linux DataCube needs glibc 2.27 (mini-racer's wheels), where the compiler alone needs 2.17.
+Or take it from CI without building: each run's `legend-lite-wheel-<platform>` download (macOS, Linux, Linux ARM,
+Windows), kept once the warehouse lane that tests it is green. The wheel carries the compiler's library and DataCube's
+page; `//python:wheel_test` installs it into a fresh environment, offline, and runs `show()` and a query from it alone.
 
-**In a notebook** (Jupyter, VS Code, Colab; `pip install '...whl[notebook,pandas]'`, DataCube's packages and anywidget): the same
-`ll.show(df)` puts the cube under the cell, once, and returns its handle; `ll.DataCube(df)` is that cube as a widget
-object, for an ipywidgets layout; `cube.height = 700` resizes it; `cube.close()` takes it out of the output. The cube
-reaches Python over the notebook's own widget channel, not HTTP, so it works where the browser cannot reach the
+**In a notebook** (Jupyter, VS Code, Colab; `pip install '...whl[notebook,pandas]'`, DataCube's packages and anywidget):
+the same `ll.show(df)` puts the cube under the cell, once, and returns its handle; `ll.DataCube(df)` is that cube as a
+widget object, for an ipywidgets layout; `cube.height = 700` resizes it; `cube.close()` takes it out of the output. The
+cube reaches Python over the notebook's own widget channel, not HTTP, so it works where the browser cannot reach the
 kernel's machine (a remote JupyterHub). While a cell runs, the cube waits for it, as any notebook widget does.
 `ll.show(df, inline=False)` opens a tab from a kernel instead (Spyder's console, qtconsole: they show no widgets).
 

@@ -146,7 +146,7 @@ def store_call(entry: str, folder: Path, *asked: str) -> tuple[int, str]:
     ``lite_saved_cubes``, legend-lite's own rules), under the lock every Python process takes on it, the library's call
     on one of the compiler's threads: its status and its body. A failure of the library's raised (``OSError``)."""
     from ._library import library
-    from .engine import _workers
+    from ._pool import _workers
     with locked(folder):
         said = _workers().submit(library().call, entry, str(folder), *asked).result()
     tag, _, rest = said.partition('\n')
