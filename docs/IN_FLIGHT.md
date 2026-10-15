@@ -1344,6 +1344,11 @@ pause for the user's review after Phase 1.
     (`SqlTypeCensus`, `Executor`, `GridProbe`, `PctProbe`).
   - Judged by every PCT lane's whole-statement SQL dump: main 8501ccb against the branch, on all 11 databases, with
     the clouds' run after Phase 2. Phase 2 is meant to change no statement; Phase 4 changes typing and no statement.
+  - The audit's fixes (299295f, 4196471) touch, outside `sql/dialect`: `sql/PlanProbe.java`, lowering's
+    `PctTdsWrap` and `Render` (a probed column with no type is refused, never guessed), and exec's `Executor`,
+    `GridProbe` and `PctProbe` again (`SqlDialect.typingWireName`).
+  - Measured, 2026-10-15 (`docs/GATES.md`): on all 11 databases no statement, census line or test outcome moved
+    against main, and the corpus moved nothing. The local gate is green on the branch head.
 - **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
   platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
   `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
