@@ -833,6 +833,113 @@ relationship with no properties, and the edge class is the right element for one
 UML association class and a GQL edge type relate to a plain association. The two spellings coexist in one model and
 one query.
 
+### 5.7 Regular edges and property edges, side by side (the user's ask, 2026-10-15)
+
+One model with three node classes, two regular edges and two property edges, one in each form; its mapping has
+nothing new in it (the edge classes on their bridge tables, every end a join, as `AssociationIntegrationTest`
+writes them); and each Cypher pattern with the Pure the island builds.
+
+```
+###Pure
+import graph::*;
+import demo::*;
+
+Enum demo::RelationshipType { ACTED_IN, DIRECTED }
+
+Class demo::Person { <<equality.Key>> id: Integer[1]; name: String[1]; }
+Class demo::Firm   { <<equality.Key>> id: Integer[1]; legalName: String[1]; }
+Class demo::Movie
+{
+  <<equality.Key>> id: Integer[1];
+  title: String[1];
+  year: Integer[1];
+  studio: Firm[0..1];                                   // REGULAR EDGE, one way: a property
+}
+
+Association demo::Employment { employees: Person[*]; firm: Firm[0..1]; }   // REGULAR EDGE, both ways: one association
+
+Class <<Graph.Edge>> demo::Acting                       // PROPERTY EDGE, class form: one element (the primary form)
+{
+  <<equality.Key>> id: Integer[1];
+  <<Graph.from>>   actor: Person[1];
+  <<Graph.to>>     movie: Movie[1];
+  <<Graph.type>>   type() { RelationshipType.ACTED_IN }: RelationshipType[1];
+  role: String[1];
+}
+
+Class <<Graph.Edge>> demo::Directing                    // PROPERTY EDGE, ends through associations
+{                                                       // (only when Person and Movie should navigate to it in Pure)
+  <<equality.Key>> id: Integer[1];
+  <<Graph.type>>   type() { RelationshipType.DIRECTED }: RelationshipType[1];
+}
+Association demo::DirectorDirecting { <<Graph.from>> director: Person[1]; directings: Directing[*]; }
+Association demo::DirectingMovie    { <<Graph.to>>   movie: Movie[1];     directings: Directing[*]; }
+```
+
+```
+###Relational
+Database demo::DB
+(
+  Table T_PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER)
+  Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+  Table T_MOVIE (ID INTEGER PRIMARY KEY, TITLE VARCHAR(200), YEAR INTEGER, STUDIO_ID INTEGER)
+  Table T_ACTING (ID INTEGER PRIMARY KEY, ACTOR_ID INTEGER, MOVIE_ID INTEGER, ROLE VARCHAR(100))
+  Table T_DIRECTING (ID INTEGER PRIMARY KEY, DIRECTOR_ID INTEGER, MOVIE_ID INTEGER)
+  Join PersonFirm(T_PERSON.FIRM_ID = T_FIRM.ID)
+  Join MovieStudio(T_MOVIE.STUDIO_ID = T_FIRM.ID)
+  Join ActingActor(T_ACTING.ACTOR_ID = T_PERSON.ID)
+  Join ActingMovie(T_ACTING.MOVIE_ID = T_MOVIE.ID)
+  Join DirectingDirector(T_DIRECTING.DIRECTOR_ID = T_PERSON.ID)
+  Join DirectingMovie(T_DIRECTING.MOVIE_ID = T_MOVIE.ID)
+)
+###Mapping
+import demo::*;
+Mapping demo::Map
+(
+  Person: Relational { ~mainTable [demo::DB] T_PERSON  id: [demo::DB] T_PERSON.ID, name: [demo::DB] T_PERSON.NAME }
+  Firm: Relational   { ~mainTable [demo::DB] T_FIRM    id: [demo::DB] T_FIRM.ID, legalName: [demo::DB] T_FIRM.LEGAL_NAME }
+  Movie: Relational  { ~mainTable [demo::DB] T_MOVIE   id: [demo::DB] T_MOVIE.ID, title: [demo::DB] T_MOVIE.TITLE,
+                       year: [demo::DB] T_MOVIE.YEAR, studio: [demo::DB]@MovieStudio }
+  Acting: Relational { ~mainTable [demo::DB] T_ACTING  id: [demo::DB] T_ACTING.ID, role: [demo::DB] T_ACTING.ROLE,
+                       actor: [demo::DB]@ActingActor, movie: [demo::DB]@ActingMovie }
+  Directing: Relational { ~mainTable [demo::DB] T_DIRECTING  id: [demo::DB] T_DIRECTING.ID }
+  demo::Employment: Relational { AssociationMapping ( employees: [demo::DB]@PersonFirm, firm: [demo::DB]@PersonFirm ) }
+  demo::DirectorDirecting: Relational { AssociationMapping ( director: [demo::DB]@DirectingDirector, directings: [demo::DB]@DirectingDirector ) }
+  demo::DirectingMovie: Relational { AssociationMapping ( movie: [demo::DB]@DirectingMovie, directings: [demo::DB]@DirectingMovie ) }
+)
+```
+
+**Regular edges.**
+
+| Cypher | Reads | The Pure the island builds |
+|---|---|---|
+| `MATCH (p:Person)-[:firm]->(f:Firm) RETURN p.name, f.legalName` | `Person.firm`, the association's end | `Person.all()->filter(p\|$p.firm->isNotEmpty())->project(~[name: p\|$p.name, legalName: p\|$p.firm.legalName])` |
+| `MATCH (f:Firm)-[:employees]->(p:Person) RETURN f.legalName, p.name` | the other end, same relationship, opposite direction | `Firm.all()->project(~[legalName: f\|$f.legalName, name: f\|$f.employees.name])`, one row per employee |
+| `MATCH (p:Person)-[:Employment]-(f:Firm)` | the association by name, either direction | the union of the two above |
+| `MATCH (m:Movie)-[:studio]->(f:Firm)` | `Movie.studio`, the property; owner to target is the direction | `Movie.all()->filter(...)->project(...)` |
+| `MATCH (f:Firm)<-[:studio]-(m:Movie)` | the same rows, from the firm's side | the same Pure |
+| `MATCH (f:Firm)-[:studio]->(m:Movie)` | nothing: a firm has no `studio` | no rows, with a compile-time note that `Firm` declares no `studio` |
+| `MATCH (p)-[r:firm]->(f) RETURN type(r), properties(r)` | | `'firm'`, `{}`: a regular edge has a name and no properties |
+
+**Property edges.**
+
+| Cypher | Reads | The Pure the island builds |
+|---|---|---|
+| `MATCH (a:Person)-[r:ACTED_IN]->(m:Movie) RETURN a.name, r.role, m.title` | the edge class, from `actor` to `movie` | `Acting.all()->project(~[name: x\|$x.actor.name, role: x\|$x.role, title: x\|$x.movie.title])` |
+| `MATCH (m:Movie)<-[r:ACTED_IN]-(a:Person)` | the same rows from the movie's side | the same Pure |
+| `MATCH (a:Person)-[r:ACTED_IN]->(m) WHERE r.role = 'Neo' RETURN type(r), properties(r), startNode(r).name` | | `type(r)` is `RelationshipType.ACTED_IN`, written `'ACTED_IN'`; `properties(r)` the Variant `{role: 'Neo'}`; `startNode(r)` the actor |
+| `MATCH ()-[r:ACTED_IN]->() RETURN count(DISTINCT r)` | identity by `Acting.id` | `Acting.all()->distinct(~[id])->size()` |
+| `MATCH (x:Acting)` | | refused: "Acting is an edge type, not a label" |
+| `MATCH (d:Person)-[r:DIRECTED]->(m:Movie) RETURN d.name, m.title` | the edge class whose ends come through the two associations | `Directing.all()->project(~[name: x\|$x.director.name, title: x\|$x.movie.title])`, the same shape as `Acting` |
+
+**What the two property-edge forms differ in, and only that:** in Pure, `$person.directings.movie` works and
+`$person.actings` does not exist, because `Acting`'s ends are its own properties and `Directing`'s are
+associations. The island cannot tell them apart, the engine compiles both, and the mapping is the same bridge-table
+shape. **The class form is the primary form** (the user's review of 2026-10-15: one element for one relationship
+type, the shape a Neo4j user and a Legend link entity share); an end moves into an association only when a model
+wants to navigate from a node to its edges in Pure or DataCube, as `Directing` shows. §5.6's earlier wording that
+called the association form idiomatic is superseded by this section.
+
 ---
 
 ## 6. Recursion: what Pure lacks, what the databases have, what the native is
