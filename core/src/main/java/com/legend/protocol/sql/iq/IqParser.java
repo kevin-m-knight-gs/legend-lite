@@ -134,6 +134,8 @@ public final class IqParser {
      *  each named parameter read so far, one per name ({@link #parameter}). */
     private final IqSettings settings;
     private final Map<String, Integer> parameters = new java.util.HashMap<>();
+    /** IQ island, 2026-10-15: the common table expressions in scope, by name in lower case ({@link #with}). */
+    private Map<String, CteDef> ctes = Map.of();
 
     private IqParser(String text, List<IqLexer.Token> tokens, IqSettings settings) {
         this.text = text;
@@ -237,14 +239,11 @@ public final class IqParser {
     /** A statement: a query expression ({@link #queryBlock}), with the tail clauses IQ reads after it refused. */
     private SqlAst.Statement statement() {
         IqLexer.Token first = peek();
-        if (first.is("with")) {
-            throw SqlSyntaxException.unsupported("WITH (common table expressions) is not supported yet", first.pos());
-        }
-        if (!first.is("select") && !first.isOp("(")) {
+        if (!first.is("with") && !first.is("select") && !first.isOp("(")) {
             throw SqlSyntaxException.unsupported("only a SELECT is read in an #IQ{...}# island, not '" + first.text()
                     + "'", first.pos());
         }
-        SqlAst.Statement query = queryBlock();
+        SqlAst.Statement query = first.is("with") ? with() : queryBlock();
         refuseClause("for", "FOR READ ONLY, FOR UPDATE and FOR XML are not supported yet");
         refuseClause("option", "the OPTION clause is not supported yet");
         if (peek().isWord("limit") || peek().isWord("offset")) {
@@ -255,6 +254,90 @@ public final class IqParser {
                     peek().pos());
         }
         return query;
+    }
+
+    /**
+     * {@code WITH [RECURSIVE] name [(column, ...)] AS (query), ... query} at the head of the statement (IQ island,
+     * 2026-10-15: common table expressions, 25% of production BI queries): each a name the queries after it read as a
+     * table, read by the shared translator (a recursive one is refused by name there). Only at the head: a WITH in a
+     * derived table, a subquery or a set operation's branch stays IQ's syntax error or a refusal, as before.
+     */
+    private SqlAst.Statement with() {
+        IqLexer.Token w = take();
+        if (peek().isWord("recursive")) {
+            throw SqlSyntaxException.unsupported("WITH RECURSIVE is not supported yet", peek().pos());
+        }
+        Map<String, CteDef> outer = ctes;
+        try {
+            do {
+                IqLexer.Token n = peek();
+                if (!n.isName()) {
+                    throw new SqlSyntaxException("a common table expression needs a name" + IqDialect.syntaxCode(),
+                            n.pos());
+                }
+                SqlAst.Ident name = name(take());
+                List<SqlAst.Ident> columns = new ArrayList<>();
+                if (peek().isOp("(")) {
+                    take();
+                    do {
+                        IqLexer.Token c = peek();
+                        if (!c.isName()) {
+                            throw new SqlSyntaxException("a common table expression's column list holds names"
+                                    + IqDialect.syntaxCode(), c.pos());
+                        }
+                        columns.add(name(take()));
+                    } while (takeOp(","));
+                    expectOp(")");
+                }
+                expectKeyword("as");
+                expectOp("(");
+                if (peek().is("with")) {
+                    throw SqlSyntaxException.unsupported("a WITH inside a common table expression is not supported"
+                            + " yet", peek().pos());
+                }
+                String key = IqLexer.lower(name.text());
+                if (ctes.containsKey(key) && ctes != outer) {
+                    throw new SqlSyntaxException("the common table expression '" + name.text() + "' is named twice"
+                            + IqDialect.syntaxCode(), name.pos());
+                }
+                CteDef def = new CteDef(name, columns, at, ctes);
+                queryBlock(); // read once here: its errors, and where it ends
+                expectOp(")");
+                Map<String, CteDef> next = new java.util.HashMap<>(ctes);
+                next.put(key, def);
+                ctes = next;
+            } while (takeOp(","));
+            if (!peek().is("select") && !peek().isOp("(")) {
+                throw new SqlSyntaxException("a WITH's query begins with SELECT, not '" + peek().text() + "'"
+                        + IqDialect.syntaxCode(), peek().pos());
+            }
+            return queryBlock();
+        } finally {
+            ctes = outer;
+        }
+    }
+
+    /**
+     * A common table expression (IQ island, 2026-10-15), read where it is named as a table: a derived table whose
+     * query is read again from the CTE's own tokens, so each reference is a tree of its own (the island's readings key
+     * on its nodes); the CTEs before it are the names its query sees. IQ's meaning of a CTE that is not recursive is
+     * that derived table.
+     */
+    private record CteDef(SqlAst.Ident name, List<SqlAst.Ident> columns, int start, Map<String, CteDef> visible) {
+
+        SqlAst.SubqueryFrom read(IqParser p, SqlAst.Ident alias, SqlAst.Pos pos) {
+            int save = p.at;
+            Map<String, CteDef> scope = p.ctes;
+            try {
+                p.at = start;
+                p.ctes = visible;
+                SqlAst.Statement query = p.queryBlock();
+                return new SqlAst.SubqueryFrom(query, alias, columns, false, pos);
+            } finally {
+                p.at = save;
+                p.ctes = scope;
+            }
+        }
     }
 
     // ------------------------------------------------------------------ query expressions
@@ -970,6 +1053,11 @@ public final class IqParser {
         }
         SqlAst.Ident alias = alias(true);
         noTableHints();
+        CteDef cte = name.size() == 1 ? ctes.get(IqLexer.lower(name.get(0).text())) : null;
+        if (cte != null) {
+            return cte.read(this, alias != null ? alias : new SqlAst.Ident(name.get(0).text(), name.get(0).quoted(),
+                    name.get(0).pos()), first.pos());
+        }
         return new SqlAst.TableName(name, alias, List.of(), first.pos());
     }
 

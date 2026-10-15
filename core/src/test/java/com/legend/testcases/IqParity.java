@@ -427,6 +427,42 @@ public final class IqParity {
 
     // ------------------------------------------------------------------ the rewrite
 
+    /** The names a leading {@code WITH [RECURSIVE] name [(...)] AS (...), ...} defines, in lower case. */
+    private static Set<String> cteNames(List<IqLexer.Token> tokens) {
+        Set<String> out = new java.util.HashSet<>();
+        if (tokens.isEmpty() || !tokens.get(0).is("with")) {
+            return out;
+        }
+        int i = 1;
+        if (i < tokens.size() && tokens.get(i).isWord("recursive")) {
+            i++;
+        }
+        while (i < tokens.size() && tokens.get(i).isName()) {
+            out.add(tokens.get(i).text().toLowerCase(Locale.ROOT));
+            i++;
+            // the optional column list, AS, then the CTE's parenthesized query
+            for (int round = 0; round < 2 && i < tokens.size(); round++) {
+                if (tokens.get(i).is("as")) {
+                    i++;
+                }
+                if (i < tokens.size() && tokens.get(i).isOp("(")) {
+                    int depth = 0;
+                    do {
+                        IqLexer.Token x = tokens.get(i);
+                        depth += x.isOp("(") ? 1 : x.isOp(")") ? -1 : 0;
+                        i++;
+                    } while (depth > 0 && i < tokens.size());
+                }
+            }
+            if (i < tokens.size() && tokens.get(i).isOp(",")) {
+                i++;
+            } else {
+                break;
+            }
+        }
+        return out;
+    }
+
     /** {@code sql} with each schema table named in FROM, after JOIN or after a comma in FROM ({@code t}, {@code [t]},
      *  {@code T}) replaced by its Legend source, {@code tb('e2e::DB.t')}, aliased by the name as written when no alias
      *  follows. The text is read by {@link IqLexer} under the run's profile; text that does not lex is returned as it
@@ -448,6 +484,8 @@ public final class IqParity {
         int copied = 0;
         Deque<Boolean> inFrom = new ArrayDeque<>();
         inFrom.push(false);
+        // IQ island, 2026-10-15: a common table expression's name hides a table's, so it is no table to rewrite
+        Set<String> ctes = cteNames(tokens);
         for (int i = 0; i < tokens.size(); i++) {
             IqLexer.Token t = tokens.get(i);
             if (t.isOp("(")) {
@@ -479,7 +517,7 @@ public final class IqParity {
                     || (prev.isOp(",") || prev.isOp("(")) && Boolean.TRUE.equals(inFrom.peek());
             IqLexer.Token after = tokens.get(Math.min(i + 1, tokens.size() - 1));
             if (!tablePlace || !t.isName() || !tables.contains(t.text().toLowerCase(Locale.ROOT))
-                    || after.isOp(".") || after.isOp("(")) {
+                    || ctes.contains(t.text().toLowerCase(Locale.ROOT)) || after.isOp(".") || after.isOp("(")) {
                 continue;
             }
             boolean aliased = after.is("as") || after.isName();

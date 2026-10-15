@@ -144,7 +144,9 @@ class IqParserTest {
                 {"SELECT :a.b FROM t", "part of a host variable"},
                 {"SELECT dba.t.* FROM dba.t", "owner-qualified star"},
                 {"SELECT @@version", "global variables"},
-                {"WITH q AS (SELECT 1) SELECT * FROM q", "WITH"},
+                // IQ island, 2026-10-15: WITH reads now (each CTE inlined as a derived table); RECURSIVE does not
+                {"WITH RECURSIVE q AS (SELECT 1) SELECT * FROM q", "RECURSIVE"},
+                {"WITH q AS (WITH r AS (SELECT 1) SELECT 1) SELECT * FROM q", "WITH inside"},
                 {"SELECT id INTO x FROM t", "INTO"},
                 {"SELECT id FROM t;", "separator"},
                 {"SELECT TOP 10 PERCENT id FROM t", "PERCENT"},
@@ -527,5 +529,22 @@ class IqParserTest {
             assertFalse(e.unsupported(), sql + ": " + e.reason());
             assertTrue(e.reason().contains("SQLCODE -131"), e.reason());
         }
+    }
+
+    @org.junit.jupiter.api.Test
+    void aCommonTableExpressionIsReadAsTheDerivedTableItNames() {
+        // IQ island, 2026-10-15: each reference a derived table of its own, read again from the CTE's tokens
+        SqlAst.Statement s = IqParser.parse("WITH q (a) AS (SELECT id FROM t), r AS (SELECT a FROM q)"
+                + " SELECT x.a, r.a FROM q x, r", IqProfile.IQ16_DEFAULT.settings());
+        SqlAst.Select top = (SqlAst.Select) s;
+        SqlAst.SubqueryFrom x = (SqlAst.SubqueryFrom) top.from().get(0);
+        SqlAst.SubqueryFrom r = (SqlAst.SubqueryFrom) top.from().get(1);
+        org.junit.jupiter.api.Assertions.assertEquals("x", java.util.Objects.requireNonNull(x.alias()).text());
+        org.junit.jupiter.api.Assertions.assertEquals(List.of("a"), x.columnAliases().stream().map(SqlAst.Ident::text)
+                .toList());
+        org.junit.jupiter.api.Assertions.assertEquals("r", java.util.Objects.requireNonNull(r.alias()).text());
+        // r's query reads q: inlined there too, a tree of its own
+        SqlAst.SubqueryFrom inner = (SqlAst.SubqueryFrom) ((SqlAst.Select) r.query()).from().get(0);
+        org.junit.jupiter.api.Assertions.assertNotSame(x.query(), inner.query());
     }
 }
