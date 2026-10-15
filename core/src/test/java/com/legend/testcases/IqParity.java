@@ -49,7 +49,7 @@ public final class IqParity {
 
     /** The keys a case may carry (tools/iq-oracle/README.md): any other is an error. */
     private static final Set<String> CASE_KEYS = Set.of("id", "sql", "profile", "engine", "skip", "sa_defect",
-            "decision", "expect");
+            "decision", "expect", "params");
 
     private static final Pattern DECISION = Pattern.compile("D-[A-Z]+[0-9]+[a-z]?");
 
@@ -63,12 +63,113 @@ public final class IqParity {
      *  the decided rows (one line of JSON). */
     public record Case(String file, String id, String sql, List<String> profiles, @com.legend.base.Nullable String engine,
             @com.legend.base.Nullable String skip, @com.legend.base.Nullable String decision,
-            @com.legend.base.Nullable String expect) {
+            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params) {
+
+        /** A case that binds no variables. */
+        public Case(String file, String id, String sql, List<String> profiles,
+                @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
+                @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect) {
+            this(file, id, sql, profiles, engine, skip, decision, expect, null);
+        }
 
         /** The case's key in the answers file: {@code lite/<file>/<id>}. */
         public String key() {
             return file.replaceAll("\\.yaml$", "") + "/" + id;
         }
+    }
+
+    /** IQ island, 2026-10-14 (M1e): a variable a case binds ({@code params}: {@code name = value; ...}), for its host
+     *  variables ({@code @name}, {@code :name}): its name, its Pure type, its value as a Pure literal (a {@code let}
+     *  before the island), and the SQL Anywhere variable the oracle holds it in (tools/iq-oracle/snap.py reads the same
+     *  spelling): its type and its value as SQL Anywhere's constant, null for a NULL. IQ island, 2026-10-14 (review 5's
+     *  M5): the oracle binds a real variable of that type on the case's connection (it wrote the constant into the SQL
+     *  before, which SQL Anywhere reads otherwise in measured places); {@code null:<type>} is a NULL, a Pure empty value
+     *  of that type. */
+    public record Param(String name, String type, String pure, String saType, @com.legend.base.Nullable String saValue) {
+
+        /** Whether the value is a NULL (an empty Pure value). */
+        public boolean isNull() {
+            return saValue == null;
+        }
+    }
+
+    private static final Pattern PARAM = Pattern.compile("([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(.+)");
+    private static final Pattern PARAM_INTEGER = Pattern.compile("-?[0-9]+");
+    private static final Pattern PARAM_FLOAT = Pattern.compile("-?[0-9]+\\.[0-9]+");
+    private static final Pattern PARAM_DECIMAL = Pattern.compile("-?[0-9]+\\.([0-9]+)D");
+    private static final Pattern PARAM_DATE = Pattern.compile("%([0-9]{4}-[0-9]{2}-[0-9]{2})");
+    private static final Pattern PARAM_TIMESTAMP = Pattern.compile(
+            "%([0-9]{4}-[0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?)");
+    private static final Pattern PARAM_NULL = Pattern.compile(
+            "null:(Integer|Float|String|StrictDate|DateTime|Decimal\\(38,([0-9]+)\\))");
+
+    /** A case's {@code params}, in order: {@code name = 5} (an Integer, SQL Anywhere's BIGINT), {@code 1.5} (a Float, a
+     *  DOUBLE), {@code 1.50D} (a Decimal of scale 2, a NUMERIC(38,2)), {@code 'text'} (a String, a LONG VARCHAR; no
+     *  quote or backslash inside, which the two readers would read otherwise), {@code %2026-03-04} (a StrictDate, a
+     *  DATE), {@code %2026-03-04T05:06:07.123456} (a DateTime, a TIMESTAMP), {@code null:Integer} (a NULL of that type:
+     *  Integer, Float, String, StrictDate, DateTime or Decimal(38,s)). Names are distinct ignoring case (SQL Anywhere's
+     *  variable names are). */
+    public static List<Param> params(@com.legend.base.Nullable String params) {
+        List<Param> out = new ArrayList<>();
+        if (params == null) {
+            return out;
+        }
+        Set<String> seen = new java.util.HashSet<>();
+        for (String entry : params.split(";")) {
+            if (entry.strip().isEmpty()) {
+                continue;
+            }
+            Matcher m = PARAM.matcher(entry.strip());
+            if (!m.matches()) {
+                throw new IllegalStateException("a param is name = value, not " + entry);
+            }
+            String name = m.group(1);
+            if (!seen.add(name.toLowerCase(Locale.ROOT))) {
+                throw new IllegalStateException("the param " + name + " twice (SQL Anywhere's variable names ignore"
+                        + " case)");
+            }
+            String v = m.group(2).strip();
+            Matcher d;
+            if (PARAM_INTEGER.matcher(v).matches()) {
+                out.add(new Param(name, "Integer", v, "BIGINT", v));
+            } else if (PARAM_FLOAT.matcher(v).matches()) {
+                out.add(new Param(name, "Float", v, "DOUBLE", "CAST(" + v + " AS DOUBLE)"));
+            } else if ((d = PARAM_DECIMAL.matcher(v)).matches()) {
+                int scale = d.group(1).length();
+                // IQ island, 2026-10-14 (review 5's m6): Pure types a negative decimal literal (-0.50D, a minus of
+                // 0.50D) a plain Decimal, which the island refuses: the engine-neutrality check reads it so too
+                out.add(new Param(name, v.startsWith("-") ? "Decimal" : "Decimal(38," + scale + ")", v,
+                        "NUMERIC(38," + scale + ")", v.substring(0, v.length() - 1)));
+            } else if (v.length() >= 2 && v.startsWith("'") && v.endsWith("'")
+                    && v.indexOf('\'', 1) == v.length() - 1) {
+                if (v.indexOf('\\') >= 0) {
+                    throw new IllegalStateException("a string param holds no backslash (SQL Anywhere reads one as an"
+                            + " escape, Pure's let does not), not " + v);
+                }
+                out.add(new Param(name, "String", v, "LONG VARCHAR", v));
+            } else if ((d = PARAM_DATE.matcher(v)).matches()) {
+                out.add(new Param(name, "StrictDate", v, "DATE", "CAST('" + d.group(1) + "' AS DATE)"));
+            } else if ((d = PARAM_TIMESTAMP.matcher(v)).matches()) {
+                out.add(new Param(name, "DateTime", v, "TIMESTAMP", "CAST('" + d.group(1) + " " + d.group(2)
+                        + "' AS TIMESTAMP)"));
+            } else if ((d = PARAM_NULL.matcher(v)).matches()) {
+                String pure = d.group(2) != null ? "Decimal" : d.group(1);
+                String sa = switch (d.group(1)) {
+                    case "Integer" -> "BIGINT";
+                    case "Float" -> "DOUBLE";
+                    case "String" -> "LONG VARCHAR";
+                    case "StrictDate" -> "DATE";
+                    case "DateTime" -> "TIMESTAMP";
+                    default -> "NUMERIC(38," + d.group(2) + ")";
+                };
+                out.add(new Param(name, d.group(2) != null ? "Decimal(38," + d.group(2) + ")" : pure,
+                        "[]->cast(@" + pure + ")", sa, null));
+            } else {
+                throw new IllegalStateException("a param's value is an integer, a float, a decimal (1.5D), a 'string',"
+                        + " a %date, a %date-time or null:<type>, not " + v);
+            }
+        }
+        return out;
     }
 
     /** One run of a case: the case under one of its profiles. Its key in the ledger is the case's,
@@ -140,8 +241,10 @@ public final class IqParity {
         if (skip == null && m.get("sa_defect") != null) {
             skip = "sa_defect: " + m.get("sa_defect");
         }
+        String params = (String) m.get("params");
+        params(params);
         return new Case(file, id, sql, profiles, engine == null || engine.equals("auto") ? null : engine, skip,
-                decision, expect);
+                decision, expect, params);
     }
 
     /** Every run of {@code cases}: each case under each of its profiles, in order. */
@@ -298,7 +401,11 @@ public final class IqParity {
         for (int i = 0; i < tokens.size(); i++) {
             IqLexer.Token t = tokens.get(i);
             if (t.isOp("(")) {
-                inFrom.push(false);
+                // IQ island, 2026-10-14 (M1b): a parenthesis at a table's place (a parenthesized join, a derived table)
+                // is in the FROM clause too; any other (a call's, a subquery's in a condition) is not
+                IqLexer.Token before = i == 0 ? t : tokens.get(i - 1);
+                inFrom.push(Boolean.TRUE.equals(inFrom.peek()) && (before.is("from") || before.is("join")
+                        || before.isOp(",") || before.isOp("(")));
                 continue;
             }
             if (t.isOp(")")) {
@@ -309,7 +416,7 @@ public final class IqParity {
             }
             if (t.kind() == IqLexer.Kind.KEYWORD) {
                 boolean was = Boolean.TRUE.equals(inFrom.pop());
-                inFrom.push(t.is("from") || was && !CLAUSES.contains(t.text().toLowerCase(Locale.ROOT)));
+                inFrom.push(t.is("from") || t.is("join") || was && !CLAUSES.contains(t.text().toLowerCase(Locale.ROOT)));
                 if (t.is("from") || t.is("join")) {
                     continue;
                 }
@@ -319,7 +426,7 @@ public final class IqParity {
             }
             IqLexer.Token prev = tokens.get(i - 1);
             boolean tablePlace = prev.is("from") || prev.is("join")
-                    || prev.isOp(",") && Boolean.TRUE.equals(inFrom.peek());
+                    || (prev.isOp(",") || prev.isOp("(")) && Boolean.TRUE.equals(inFrom.peek());
             IqLexer.Token after = tokens.get(Math.min(i + 1, tokens.size() - 1));
             if (!tablePlace || !t.isName() || !tables.contains(t.text().toLowerCase(Locale.ROOT))
                     || after.isOp(".") || after.isOp("(")) {
@@ -336,15 +443,24 @@ public final class IqParity {
         return out.append(sql, copied, sql.length()).toString();
     }
 
-    /** The keywords that end a FROM clause. */
+    /** The keywords that end a FROM clause (IQ island, 2026-10-14, M1b: not ON, whose condition a comma or a JOIN
+     *  ends, both back in the FROM clause). */
     private static final Set<String> CLAUSES = Set.of("where", "group", "having", "order", "union", "except",
-            "intersect", "window", "for", "option", "into", "select", "on", "using");
+            "intersect", "window", "for", "option", "into", "select", "using");
 
     /** The island a run is: {@code #IQ{...}#} under the default profile, {@code #IQ:<profile>{...}#} under another. */
     public static String island(Run run, Set<String> tables) {
         String sql = rewrite(run.c().sql(), tables, run.profile());
-        return run.profile() == IqProfile.DEFAULT ? "#IQ{" + sql + "}#"
+        String island = run.profile() == IqProfile.DEFAULT ? "#IQ{" + sql + "}#"
                 : "#IQ:" + run.profile().spelling() + "{" + sql + "}#";
+        // IQ island, 2026-10-14 (M1e): the variables a case binds, each a let before the island
+        List<Param> params = params(run.c().params());
+        if (params.isEmpty()) {
+            return island;
+        }
+        StringBuilder lets = new StringBuilder("|");
+        params.forEach(p -> lets.append("let ").append(p.name()).append(" = ").append(p.pure()).append("; "));
+        return lets.append(island).append(';').toString();
     }
 
     /** A run whose case pins an engine: the engine IQ runs the island in must be it (an island cannot choose one). */
@@ -391,11 +507,12 @@ public final class IqParity {
         if (IqDialect.engineOf(statement, run.profile()) != IqDialect.Engine.IQ) {
             return null;
         }
-        String iq = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.IQ));
+        List<Param> params = params(c.params());
+        String iq = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.IQ), params);
         if (iq == null) {
             return null;
         }
-        String sa = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.SA));
+        String sa = pureOf(sql, tables, IqDialect.of(run.profile(), IqDialect.Engine.SA), params);
         return iq.equals(sa) ? null : "ENGINE NEUTRALITY: " + run.key() + " translates otherwise under the IQ engine's"
                 + " rules than under SQL Anywhere's, which judges it: name its decision, or pin engine: sa";
     }
@@ -418,13 +535,36 @@ public final class IqParity {
         } catch (SqlSyntaxException e) {
             return null;
         }
-        if (!(statement instanceof SqlAst.Select s) || s.where() == null
-                || !raisesBesideAndOr(java.util.Objects.requireNonNull(s.where()))) {
+        // IQ island, 2026-10-14 (M1b): every query's WHERE (a subquery's, a branch's, a derived table's) and every
+        // join's ON is such a search condition; (review 3's M4) and every HAVING
+        List<SqlAst.Expr> conditions = new ArrayList<>();
+        for (SqlAst.Statement q : IqDialect.queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                if (s.where() != null) {
+                    conditions.add(java.util.Objects.requireNonNull(s.where()));
+                }
+                if (s.having() != null) {
+                    conditions.add(java.util.Objects.requireNonNull(s.having()));
+                }
+                s.from().forEach(f -> onConditions(f, conditions));
+            }
+        }
+        if (conditions.stream().noneMatch(IqParity::raisesBesideAndOr)) {
             return null;
         }
-        return "EVALUATION ORDER: " + run.key() + " puts an operation that can raise beside AND or OR in its WHERE:"
-                + " whether IQ raises depends on its plan (D-E2), so skip it (skip: " + PLAN_DEPENDENT + ") or rewrite"
-                + " it";
+        return "EVALUATION ORDER: " + run.key() + " puts an operation that can raise beside AND or OR in a WHERE, an"
+                + " ON or a HAVING: whether IQ raises depends on its plan (D-E2), so skip it (skip: " + PLAN_DEPENDENT
+                + ") or rewrite it";
+    }
+
+    private static void onConditions(SqlAst.FromItem f, List<SqlAst.Expr> out) {
+        if (f instanceof SqlAst.Join j) {
+            if (j.on() != null) {
+                out.add(java.util.Objects.requireNonNull(j.on()));
+            }
+            onConditions(j.left(), out);
+            onConditions(j.right(), out);
+        }
     }
 
     /** Whether a search condition has an AND or OR (outside a CASE) one of whose operands holds an operation that
@@ -435,6 +575,8 @@ public final class IqParity {
                     canRaise(b.left()) || canRaise(b.right()) || raisesBesideAndOr(b.left())
                             || raisesBesideAndOr(b.right());
             case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> raisesBesideAndOr(u.operand());
+            // IQ island, 2026-10-14 (M1a): a truth test's condition is the condition the AND or OR stands in
+            case SqlAst.IsTruth t -> raisesBesideAndOr(t.operand());
             default -> false;
         };
     }
@@ -448,12 +590,20 @@ public final class IqParity {
                 default -> false;
             };
             case SqlAst.Unary u -> u.op() == SqlAst.UnaryOp.MINUS && readsAColumn(e);
-            case SqlAst.FunctionCall f -> f.name().get(f.name().size() - 1).text().equalsIgnoreCase("nullif")
-                    && readsAColumn(e);
+            // IQ island, 2026-10-14 (M1d): the functions and the CASTs that can raise IQ's errors over a column
+            case SqlAst.FunctionCall f -> RAISING_FUNCTIONS.contains(f.name().get(f.name().size() - 1).text()
+                    .toLowerCase(Locale.ROOT)) && readsAColumn(e);
+            case SqlAst.Cast c -> readsAColumn(e);
             default -> false;
         };
         return here || subexpressions(e).stream().anyMatch(IqParity::canRaise);
     }
+
+    /** The functions whose result can be IQ's run-time error (NULLIF's conversion; M1d's: SUBSTRING's negative length,
+     *  MOD's zero divisor, ABS's and ROUND's overflow, the IQ engine's domain errors; review 3's M4: SUM's and AVG's
+     *  overflow, D-E3). */
+    private static final Set<String> RAISING_FUNCTIONS = Set.of("nullif", "substring", "substr", "mod", "remainder",
+            "abs", "round", "sqrt", "exp", "ln", "log", "log10", "sum", "avg");
 
     private static boolean readsAColumn(SqlAst.Expr e) {
         return e instanceof SqlAst.ColumnRef || subexpressions(e).stream().anyMatch(IqParity::readsAColumn);
@@ -465,7 +615,21 @@ public final class IqParity {
             case SqlAst.Binary b -> List.of(b.left(), b.right());
             case SqlAst.Unary u -> List.of(u.operand());
             case SqlAst.IsNull n -> List.of(n.operand());
+            // IQ island, 2026-10-14 (M1a): the predicates IQ's reader now makes
+            case SqlAst.IsTruth t -> List.of(t.operand());
+            case SqlAst.IsDistinct d -> List.of(d.left(), d.right());
+            case SqlAst.Between b -> List.of(b.operand(), b.low(), b.high());
+            case SqlAst.InList in -> {
+                List<SqlAst.Expr> all = new ArrayList<>(List.of(in.operand()));
+                all.addAll(in.values());
+                yield all;
+            }
+            case SqlAst.Like l -> l.escape() == null ? List.of(l.operand(), l.pattern())
+                    : List.of(l.operand(), l.pattern(), java.util.Objects.requireNonNull(l.escape()));
             case SqlAst.FunctionCall f -> f.args();
+            // IQ island, 2026-10-14 (M1b): a subquery's own expressions are its query's
+            case SqlAst.InSubquery q -> List.of(q.operand());
+            case SqlAst.Quantified q -> List.of(q.left());
             case SqlAst.Case c -> {
                 List<SqlAst.Expr> all = new ArrayList<>();
                 if (c.operand() != null) {
@@ -480,6 +644,8 @@ public final class IqParity {
                 }
                 yield all;
             }
+            // IQ island, 2026-10-14 (M1d): CAST and CONVERT
+            case SqlAst.Cast c -> List.of(c.operand());
             default -> List.of();
         };
     }
@@ -487,20 +653,47 @@ public final class IqParity {
     /** {@code sql}'s Pure under {@code dialect}, the schema's tables its sources; null when the dialect refuses it,
      *  the refusal's kind and message when it rejects it. */
     private static @com.legend.base.Nullable String pureOf(String sql, List<SqlParity.Table> tables,
-            IqDialect dialect) {
+            IqDialect dialect, List<Param> params) {
+        // IQ island, 2026-10-14 (M1e): the model's tables (in its default schema) and the case's variables
+        com.legend.protocol.sql.SqlToPure.Sources sources = new com.legend.protocol.sql.SqlToPure.Sources() {
+            @Override
+            public void columns(com.legend.protocol.spec.ValueSpecification source,
+                    com.legend.protocol.sql.SqlToPure.Column column) {
+                String printed = com.legend.protocol.PureComposer.valueSpecification(source,
+                        com.legend.protocol.PureComposer.Style.STANDARD);
+                String table = printed.substring(printed.lastIndexOf('.') + 1, printed.lastIndexOf("}#"));
+                for (SqlParity.Table t : tables) {
+                    if (t.name().equals(table)) {
+                        t.columns().forEach(col -> column.column(col.name(), pureType(col.type()), true,
+                                relationalType(col.type())));
+                    }
+                }
+            }
+
+            @Override
+            public void tables(com.legend.protocol.sql.SqlToPure.Table table) {
+                tables.forEach(t -> table.table(DATABASE, "default", t.name()));
+            }
+
+            @Override
+            public boolean variable(String name, com.legend.protocol.sql.SqlToPure.Scoped type) {
+                for (Param p : params) {
+                    if (p.name().equals(name)) {
+                        type.variable(p.type(), p.isNull(), false);
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public void variables(java.util.function.Consumer<String> names) {
+                params.forEach(p -> names.accept(p.name()));
+            }
+        };
         try {
             return com.legend.protocol.PureComposer.valueSpecification(com.legend.protocol.sql.SqlToPure.translate(sql,
-                    (source, column) -> {
-                        String printed = com.legend.protocol.PureComposer.valueSpecification(source,
-                                com.legend.protocol.PureComposer.Style.STANDARD);
-                        String table = printed.substring(printed.lastIndexOf('.') + 1, printed.lastIndexOf("}#"));
-                        for (SqlParity.Table t : tables) {
-                            if (t.name().equals(table)) {
-                                t.columns().forEach(col -> column.column(col.name(), pureType(col.type()), true,
-                                        relationalType(col.type())));
-                            }
-                        }
-                    }, dialect), com.legend.protocol.PureComposer.Style.STANDARD);
+                    sources, dialect), com.legend.protocol.PureComposer.Style.STANDARD);
         } catch (com.legend.protocol.sql.SqlTranslationException e) {
             return e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? null
                     : e.kind() + ": " + e.getMessage();
@@ -611,8 +804,8 @@ public final class IqParity {
      *  each of lite's decimal cells ({@link #scale}), each cell exactly by SQL
      *  Anywhere's type ({@link #cellEquals}); rows in order when the query orders them (the order among rows tied on
      *  keys that are all output columns is the database's), else as a set. The run's ORDER BY is read by IQ's
-     *  reader. */
-    private static List<String> compare(Run run, SqlParity.Grid expected, IqAnswers.Snap snap, SqlParity.Grid actual,
+     *  reader. Public for its test (IQ island, 2026-10-14, review 4's B2). */
+    public static List<String> compare(Run run, SqlParity.Grid expected, IqAnswers.Snap snap, SqlParity.Grid actual,
             List<String> liteTypes) {
         List<String> diffs = new ArrayList<>();
         if (expected.columns().size() != actual.columns().size()) {
@@ -639,15 +832,24 @@ public final class IqParity {
             return diffs;
         }
         List<SqlAst.SortItem> orderBy;
+        SqlAst.Statement st;
         try {
-            SqlAst.Statement st = IqParser.parse(run.c().sql(), run.profile());
-            orderBy = st instanceof SqlAst.Select s ? s.orderBy() : List.of();
+            st = IqParser.parse(run.c().sql(), run.profile());
+            // IQ island, 2026-10-14 (M1b): a set operation's ORDER BY is its own
+            orderBy = st instanceof SqlAst.Select s ? s.orderBy() : st instanceof SqlAst.SetOperation o ? o.orderBy()
+                    : List.of();
         } catch (SqlSyntaxException e) {
             boolean ordered = run.c().sql().toUpperCase(Locale.ROOT).contains("ORDER BY");
-            return rows(ordered, null, expected, actual, snap.types());
+            return rows(ordered, null, expected, actual, snap.types(), run.profile());
         }
         if (orderBy.isEmpty()) {
-            return rows(false, null, expected, actual, snap.types());
+            return rows(false, null, expected, actual, snap.types(), run.profile());
+        }
+        if (rounded(st)) {
+            // IQ island, 2026-10-14 (review 4's B2): the tie rule reads the shown keys; a value of a quotient or an
+            // AVG is shown rounded where SQL Anywhere sorts by the unrounded one (.9990 and .9990 sort as 997/998 <
+            // 998/999), so where any item of the statement is (or reads) one, the rows are compared in their order
+            return rows(true, null, expected, actual, snap.types(), run.profile());
         }
         List<Integer> keys = new ArrayList<>();
         for (SqlAst.SortItem item : orderBy) {
@@ -663,17 +865,41 @@ public final class IqParity {
                 }
             }
             if (found < 0) {
-                return rows(true, null, expected, actual, snap.types());
+                return rows(true, null, expected, actual, snap.types(), run.profile());
             }
             keys.add(found);
         }
-        return rows(true, keys, expected, actual, snap.types());
+        return rows(true, keys, expected, actual, snap.types(), run.profile());
+    }
+
+    /** Whether a select item of any query of {@code statement} is, or reads, a quotient ({@code /}) or an AVG or a
+     *  MEDIAN (a quotient of its values): values SQL Anywhere shows rounded (IQ island, 2026-10-14, review 4's B2). */
+    private static boolean rounded(SqlAst.Statement statement) {
+        for (SqlAst.Statement q : IqDialect.queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.SelectItem item : s.items()) {
+                    if (item instanceof SqlAst.SelectExpr x && roundedValue(x.expr())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean roundedValue(SqlAst.Expr e) {
+        boolean here = e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.DIVIDE
+                || e instanceof SqlAst.FunctionCall f && Set.of("avg", "median").contains(
+                f.name().get(f.name().size() - 1).text().toLowerCase(Locale.ROOT));
+        return here || subexpressions(e).stream().anyMatch(IqParity::roundedValue);
     }
 
     /** The rows: in order ({@code ordered}, no {@code keys}), as a set, or as a set whose {@code keys} columns are in
-     *  order. */
+     *  order -- a string key by IQ's collation under {@code profile} (IQ island, 2026-10-14: rows whose string keys
+     *  differ only in trailing spaces, or in a {@code sqla17} profile in the ASCII letters' case, tie, and their order
+     *  is the plan's, measured on SQL Anywhere 17). */
     private static List<String> rows(boolean ordered, @com.legend.base.Nullable List<Integer> keys,
-            SqlParity.Grid expected, SqlParity.Grid actual, List<String> types) {
+            SqlParity.Grid expected, SqlParity.Grid actual, List<String> types, IqProfile profile) {
         List<String> diffs = new ArrayList<>();
         if (expected.rows().size() != actual.rows().size()) {
             diffs.add("Row count mismatch: expected " + expected.rows().size() + " but got " + actual.rows().size());
@@ -692,8 +918,8 @@ public final class IqParity {
         if (keys != null && diffs.isEmpty()) {
             for (int r = 0; r < expected.rows().size() && diffs.isEmpty(); r++) {
                 for (int k : keys) {
-                    Object ev = expected.rows().get(r).get(k);
-                    Object av = actual.rows().get(r).get(k);
+                    Object ev = collationKey(expected.rows().get(r).get(k), types.get(k), profile);
+                    Object av = collationKey(actual.rows().get(r).get(k), types.get(k), profile);
                     if (!cellEquals(ev, av, types.get(k))) {
                         diffs.add("Row " + r + ", sort key '" + expected.columns().get(k) + "': expected '" + ev
                                 + "' but got '" + av + "'");
@@ -702,6 +928,27 @@ public final class IqParity {
             }
         }
         return diffs;
+    }
+
+    /** A sort key's cell as IQ orders it: a string of SQL Anywhere's type {@code saType} by its collation under
+     *  {@code profile} -- its ASCII letters in lower case in a case-insensitive database, its trailing spaces dropped in
+     *  a blank-padding one -- any other cell itself. */
+    static @com.legend.base.Nullable Object collationKey(@com.legend.base.Nullable Object cell, String saType,
+            IqProfile profile) {
+        if (!(cell instanceof String s) || !(saType.equals("char") || saType.equals("varchar")
+                || saType.equals("long varchar"))) {
+            return cell;
+        }
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            b.append(!profile.caseSensitive() && c >= 'A' && c <= 'Z' ? (char) (c + ('a' - 'A')) : c);
+        }
+        int end = b.length();
+        while (profile.blankPadding() && end > 0 && b.charAt(end - 1) == ' ') {
+            end--;
+        }
+        return b.substring(0, end);
     }
 
     /** Rows in one order whatever their source: by each cell's canonical text ({@link #canonical}). */

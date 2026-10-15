@@ -5,6 +5,7 @@ package com.legend.protocol.sql.iq;
 
 import com.legend.protocol.PureComposer;
 import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.sql.SqlAst;
 import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
 import org.junit.jupiter.api.Test;
@@ -105,8 +106,10 @@ class IqToPureTest {
         assertEquals("#>{s::DB.T}#->extend(~['1.5':r|1.5D, '-1':r|-1, '\\'a\\'':r|'a', null:r|[]->cast(@Integer)])"
                         + "->select(~['1.5', '-1', '\\'a\\'', null])",
                 pure("SELECT 1.50, -1, 'a', NULL FROM " + T));
-        // a whole numeric between an INT's range and eleven digits: its name is not known yet
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 4000000000. FROM " + T).kind());
+        // IQ island, 2026-10-14 (M1b): a whole numeric beyond an INT's range is named by its digits (measured:
+        // 2147483648.0 is 2147483648, 2147483647.0 is 2147483647.0), no longer refused
+        assertTrue(pure("SELECT 4000000000., 2147483647.0 FROM " + T).contains("->select(~['4000000000',"
+                + " '2147483647.0'])"));
     }
 
     @Test
@@ -166,21 +169,29 @@ class IqToPureTest {
     }
 
     @Test
-    void orderingStringsAndCaseInsensitiveComparisonsWaitForTheirNatives() {
-        assertTrue(refusal("SELECT id FROM " + T + " WHERE vc < 'b'").getMessage().contains("right trim"));
-        assertTrue(refusal("SELECT id FROM " + T + " ORDER BY vc").getMessage().contains("ORDER BY over strings"));
+    void orderingStringsAndCaseInsensitiveComparisonsAreIqsCollation() {
+        // IQ island, 2026-10-14 (natives): composed now -- an ordering drops the trailing spaces (U+0020 only), a
+        // sqla17 profile's comparison folds the ASCII letters to lower case; keys still wait for the seam
+        String lt = pure("SELECT id FROM " + T + " WHERE vc < 'b'");
+        assertTrue(lt.contains("regexpReplace(' +$', '', false)") && !lt.contains("rtrim"), lt);
+        // IQ island, 2026-10-14 (the merge): the seam's key takes the dialect's collation -- ORDER BY sorts by it;
+        // DISTINCT shows one value of a group of equal keys, so it reads only strings that are their own keys
+        String ordered = pure("SELECT id FROM " + T + " ORDER BY vc");
+        assertTrue(ordered.contains("regexpReplace(' +$', '', false))])->sort("), ordered);
         assertTrue(refusal("SELECT DISTINCT vc FROM " + T).getMessage().contains("DISTINCT over strings"));
-        SqlTranslationException e = refusal("SELECT id FROM " + T + " WHERE vc = 'x'", IqProfile.SQLA17_DEFAULT,
-                COLUMNS);
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind());
-        assertTrue(e.getMessage().contains("case fold"), e.getMessage());
+        assertFalse(pure("SELECT DISTINCT RTRIM(vc) AS r FROM " + T).contains("regexpReplace(' +$'"));
+        String eq = pure("SELECT id FROM " + T + " WHERE vc = 'x'", IqProfile.SQLA17_DEFAULT);
+        assertTrue(eq.contains("replace('A', 'a')") && eq.contains("replace('Z', 'z')") && !eq.contains("toLower"),
+                eq);
+        assertFalse(eq.contains("regexpReplace"), eq);
     }
 
     // ------------------------------------------------------------------ kinds and refusals
 
     @Test
     void conversionsBetweenKindsAreLaterSlices() {
-        for (String where : new String[] {"vc = 1", "dt = '2020-01-01'", "vc + 1 = 'b'", "dt + 1 = dt"}) {
+        // IQ island, 2026-10-14 (M1a): a string constant compared with a date is read now (below); these are not
+        for (String where : new String[] {"vc = 1", "dt = vc", "vc + 1 = 'b'", "dt + 1 = dt"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED,
                     refusal("SELECT id FROM " + T + " WHERE " + where).kind(), where);
         }
@@ -285,7 +296,8 @@ class IqToPureTest {
 
     @Test
     void arithmeticIqTypesAsNumericOrUnsignedIsRefused() {
-        for (String sql : new String[] {"SELECT nm + 1 AS n", "SELECT d * 2 AS n", "SELECT bg % 2 AS n",
+        // IQ island, 2026-10-14 (M1a): DOUBLE arithmetic is read now (below), and NUMERIC arithmetic without FROM
+        for (String sql : new String[] {"SELECT nm + 1 AS n", "SELECT d % 2 AS n", "SELECT bg % 2 AS n",
                 "SELECT bt + bt AS n", "SELECT bt + bg AS n", "SELECT 2147483648 + 1 AS n", "SELECT 1.5 * 2 AS n"}) {
             SqlTranslationException e = numbersRefusal(sql + " FROM " + T);
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
@@ -303,7 +315,10 @@ class IqToPureTest {
         // + of a string and anything else is IQ's NUMERIC addition
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT vc + 1 AS s FROM " + T).kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 'a' + NULL AS s FROM " + T).kind());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT dt || 'x' AS s FROM " + T).kind());
+        // IQ island, 2026-10-14 (M1e): a date joins as its text in the profile's DATE_FORMAT (IqDateTime), no longer
+        // refused
+        String date = pure("SELECT dt || 'x' AS s FROM " + T);
+        assertTrue(date.contains("year()->toString()->lpad(4, '0') + '-'"), date);
     }
 
     @Test
@@ -336,7 +351,8 @@ class IqToPureTest {
         assertTrue(nullif.contains("> 32767"), nullif);
         SqlTranslationException arity = numbersRefusal("SELECT ISNULL(sm) AS n FROM " + T);
         assertEquals(SqlTranslationException.Kind.INVALID, arity.kind());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT upper(i) AS n FROM " + T)
+        // IQ island, 2026-10-14 (natives): UPPER is read now (an integer as its digits); POWER still waits
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT power(i, 2) AS n FROM " + T)
                 .kind());
     }
 
@@ -412,5 +428,432 @@ class IqToPureTest {
     @Test
     void withoutFromIsOneRow() {
         assertTrue(pure("SELECT 1 AS one WHERE 1 = 1").contains("->filter(r|1 == 1)"));
+    }
+
+    // ------------------------------------------------------------------ M1a: SQL Anywhere's own relations
+
+    @Test
+    void dummyAndTheRowGeneratorRunInSqlAnywheresFrontEnd() {
+        for (String from : new String[] {"DUMMY", "sys.dummy", "\"DUMMY\"", "sa_rowgenerator(1, 2)",
+                "dbo.sa_rowgenerator(1, 2) g", "SA_ROWGENERATOR()"}) {
+            assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse("SELECT * FROM " + from,
+                    IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT), from);
+        }
+        for (String from : new String[] {"dbo.dummy", "iq_dummy", "sys.sa_rowgenerator(1, 2)", T}) {
+            assertEquals(IqDialect.Engine.IQ, IqDialect.engineOf(IqParser.parse("SELECT * FROM " + from,
+                    IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT), from);
+        }
+    }
+
+    @Test
+    void dummyIsOneRowOfTheInteger0() {
+        assertEquals("#TDS{\ndummy_col\n0\n}#->select(~[dummy_col])", pure("SELECT * FROM SYS.DUMMY"));
+        assertTrue(pure("SELECT d.dummy_col + 1 AS n FROM dummy d").contains("$r.dummy_col + 1"));
+    }
+
+    @Test
+    void theRowGeneratorIsARangeFlattened() {
+        assertEquals("1->range(6, 1)->flatten(~row_num)->select(~[row_num])",
+                pure("SELECT * FROM sa_rowgenerator(1, 5)"));
+        // its stop is the constant after end, a 64-bit integer: no 32-bit end + 1 for a database to overflow
+        assertTrue(pure("SELECT row_num FROM sa_rowgenerator(2147483646, 2147483647, 5)").contains(
+                "2147483646->range(2147483648, 5)"));
+        // not written: 0 to 100; no rows for a step that is not positive or a start beyond the end
+        assertTrue(pure("SELECT row_num FROM sa_rowgenerator()").contains("0->range(101, 1)"));
+        for (String args : new String[] {"5, 1", "1, 5, 0", "5, 1, -1", "1, 5, -1"}) {
+            assertTrue(pure("SELECT row_num FROM sa_rowgenerator(" + args + ")").contains("0->range(0, 1)"), args);
+        }
+        // the column is an INTEGER of the range: + 1 cannot leave it, so it is not checked
+        assertFalse(pure("SELECT row_num + 1 AS n FROM sa_rowgenerator(1, 5)").contains("2147483647"));
+        assertTrue(pure("SELECT row_num * row_num AS n FROM sa_rowgenerator(46340, 46341)").contains("2147483647"));
+        // IQ's errors, and the arguments not read yet
+        assertTrue(refusal("SELECT row_num FROM sa_rowgenerator(1, 2, 1, 1)").getMessage().contains("SQLCODE -154"));
+        assertTrue(refusal("SELECT row_num FROM sa_rowgenerator(1, 2147483648)").getMessage().contains("SQLCODE -158"));
+        for (String args : new String[] {"NULL, 3", "1 + 1, 3", "1.5, 3", "'1', 3"}) {
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT row_num FROM sa_rowgenerator("
+                    + args + ")").kind(), args);
+        }
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT * FROM sys.sa_rowgenerator(1, 2)")
+                .kind());
+    }
+
+    // ------------------------------------------------------------------ M1a: comparisons with IQ's conversions
+
+    @Test
+    void aStringComparedWithANumberIsItsNumericInSqlAnywheresFrontEnd() {
+        String p = pure("SELECT row_num FROM sa_rowgenerator(0, 2) WHERE ' 1.50 ' = row_num");
+        assertTrue(p.contains("1.5D"), p);
+        assertTrue(pure("SELECT 1 AS x WHERE '' = 0").contains("0D"));
+        assertTrue(pure("SELECT 1 AS x WHERE '1e1' > 9").contains("10D"));
+        // the IQ engine's NUMERIC is D-N1; a string IQ reads otherwise, or that SCALE rounds, is refused
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE id = '3'").getMessage().contains("D-N1"));
+        for (String s : new String[] {"'abc'", "'1\t'", "'- 1'", "'1e'", "'.'", "'1e40'"}) {
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 AS x WHERE " + s + " = 1")
+                    .kind(), s);
+        }
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 AS x WHERE '0.1234567' = 1",
+                IqProfile.SQLA17_DEFAULT, COLUMNS).kind());
+        pure("SELECT 1 AS x WHERE '0.1234567' = 1");
+        // under a SQL Anywhere profile, over a table too; a DOUBLE's NUMERIC is not read
+        assertTrue(pure("SELECT id FROM " + T + " WHERE id = '3'", IqProfile.SQLA17_DEFAULT).contains("3D"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT i FROM " + T + " WHERE d = '1'",
+                IqProfile.SQLA17_DEFAULT, NUMBERS).kind());
+    }
+
+    @Test
+    void aStringComparedWithADateIsATimestamp() {
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt = '2026-03-04'").contains("%2026-03-04"));
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt >= '2026-03-04 00:00:00.000'").contains("%2026-03-04"));
+        for (String s : new String[] {"'2026-03-04 10:00'", "'2026-02-30'", "''", "'Mar 2026'", "'10:11:12'"}) {
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE dt = " + s)
+                    .kind(), s);
+        }
+        // IQ island, 2026-10-14 (M1e): IQ's other spellings are read now (IqDateTime, measured): '2026/03/04',
+        // '2026-3-4', and a seventh place of the second, cut
+        for (String s : new String[] {"'2026/03/04'", "'2026-3-4'", "'2026-03-04 00:00:00.0000009'"}) {
+            assertTrue(pure("SELECT id FROM " + T + " WHERE dt = " + s).contains("%2026-03-04"), s);
+        }
+        SqlAst.Pos at = new SqlAst.Pos(1, 1);
+        assertEquals(java.util.Arrays.asList("2026-03-04", "05:06:07.100000"), java.util.Arrays.asList(
+                IqDateTime.read("2026-03-04 05:06:07.1", IqProfile.IQ16_DEFAULT, at)));
+        assertEquals(java.util.Arrays.asList("2000-02-29", "23:59:00"), java.util.Arrays.asList(
+                IqDateTime.read("2000-02-29 23:59", IqProfile.IQ16_DEFAULT, at)));
+        assertEquals(null, IqDateTime.read("1900-02-29", IqProfile.IQ16_DEFAULT, at));
+    }
+
+    @Test
+    void theNumericOfAString() {
+        assertEquals(0, new java.math.BigDecimal("0").compareTo(IqDialect.numericText("   ")));
+        assertEquals(new java.math.BigDecimal("-0.5"), IqDialect.numericText(" -.5 "));
+        assertEquals(new java.math.BigDecimal("1.5E+1"), IqDialect.numericText("+1.5e1"));
+        assertEquals(new java.math.BigDecimal("1."), IqDialect.numericText("1."));
+        for (String s : new String[] {".", "1e", "- 1", "1\t", "0x10", "1,000", "e5", "1e+12345"}) {
+            assertEquals(null, IqDialect.numericText(s), s);
+        }
+    }
+
+    // ------------------------------------------------------------------ M1a: BETWEEN, IN, IS DISTINCT FROM
+
+    @Test
+    void betweenAndInAreIqsComparisons_threeValued() {
+        String between = pure("SELECT id FROM " + T + " WHERE sm BETWEEN 1 AND 5");
+        assertTrue(between.contains("$r.sm->toOne() >= 1") && between.contains("$r.sm->toOne() <= 5"), between);
+        // a NULL bound is UNKNOWN, never FALSE, whatever ansinull says
+        assertTrue(pure("SELECT id FROM " + T + " WHERE sm NOT BETWEEN NULL AND 5", IqProfile.IQ16_TDS)
+                .contains("false"));
+        // strings compare ignoring trailing blanks; a NULL in the list is UNKNOWN even under ansinull Off
+        String in = pure("SELECT id FROM " + T + " WHERE vc IN ('a', NULL)", IqProfile.IQ16_TDS);
+        assertTrue(in.contains("startsWith") && !in.contains("isEmpty($r.vc)"), in);
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt IN ('2026-03-04')").contains("%2026-03-04"));
+        // IQ island, 2026-10-14 (natives): ordering strings drops their trailing spaces first
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc BETWEEN 'a' AND 'b'").contains("regexpReplace(' +$'"));
+    }
+
+    @Test
+    void isDistinctFromIsNeverUnknown() {
+        String p = pure("SELECT id FROM " + T + " WHERE sm IS NOT DISTINCT FROM 1");
+        assertTrue(p.contains("$r.sm->isEmpty()") || p.contains("isEmpty"), p);
+        assertTrue(pure("SELECT 1 AS x WHERE NULL IS NOT DISTINCT FROM NULL").contains("true"));
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc IS DISTINCT FROM 'x'").contains("startsWith"));
+    }
+
+    // ------------------------------------------------------------------ M1a: LIKE
+
+    @Test
+    void likeIsMatchedByItsPatternsShape() {
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'h%'").contains("->startsWith('h')"));
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE '%h'").contains("->endsWith('h')"));
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE '%h%'").contains("->contains('h')"));
+        // no wildcard: equality, trailing blanks significant (no padding)
+        String eq = pure("SELECT id FROM " + T + " WHERE vc LIKE 'x'");
+        assertTrue(eq.contains("== 'x'") && !eq.contains("startsWith"), eq);
+        // _ matches a line feed too; the regular expression's own characters are themselves
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a_b.c%'").contains("'(?s)^a.b\\\\.c.*$'"));
+        // ESCAPE: no default escape character
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a!%' ESCAPE '!'").contains("== 'a%'"));
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a\\\\%'").contains("startsWith('a\\\\')"));
+        // an integer is matched as its digits
+        assertTrue(pure("SELECT id FROM " + T + " WHERE id LIKE '1%'").contains("toString()->startsWith('1')"));
+        // a NULL pattern or escape is UNKNOWN
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE NULL").contains("filter(r|false)"));
+    }
+
+    @Test
+    void likeRefusals() {
+        // IQ island, 2026-10-14 (natives): a sqla17 profile's LIKE is read now, each letter a class of its two cases
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a'", IqProfile.SQLA17_DEFAULT, COLUMNS)
+                .contains("matches('(?s)^[aA]$')"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch LIKE 'a%'", IqProfile.IQ16_DEFAULT, WITH_CHAR)
+                .getMessage().contains("D-S5"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE ch || '' LIKE 'a%'", IqProfile.IQ16_DEFAULT, WITH_CHAR)
+                .getMessage().contains("D-S5"));
+        for (String like : new String[] {"vc LIKE 'a[b]'", "vc LIKE vc", "vc LIKE 'a' ESCAPE '!!'",
+                "vc LIKE 'a' ESCAPE ''", "vc LIKE '!a' ESCAPE '!'", "vc LIKE 'a!' ESCAPE '!'",
+                "vc LIKE '" + "a".repeat(127) + "'"}) {
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE " + like)
+                    .kind(), like);
+        }
+        // a pattern's errors are refused before translation, as the syntax-case ratchet reads them
+        assertThrows(SqlTranslationException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT).parse(
+                "SELECT 1 AS x WHERE 'a' LIKE 'a' ESCAPE '!!'"));
+        pure("SELECT id FROM " + T + " WHERE vc LIKE '" + "a".repeat(126) + "'");
+        // IQ island, 2026-10-14 (M1e): a date is matched as its text in the profile's DATE_FORMAT (IqDateTime,
+        // measured), no longer refused
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt LIKE '2%'").contains("lpad(4, '0')"));
+    }
+
+    // ------------------------------------------------------------------ M1a: NUMERIC and DOUBLE arithmetic
+
+    @Test
+    void numericArithmeticInSqlAnywheresFrontEndIsExact() {
+        // an integer is a 38-digit decimal of scale 0 first; a NUMERIC is itself
+        String p = pure("SELECT row_num * 1.5 AS a FROM sa_rowgenerator(1, 3)");
+        assertTrue(p.contains("$r.row_num->toOne()->toDecimal() * 1.5D"), p);
+        assertTrue(pure("SELECT 1.5 + 2.25 AS a").contains("1.5D + 2.25D"));
+        // a product of more than 18 digits widens an operand, so that DuckDB does not compute it in 64 bits
+        String nm = numbersSa("SELECT nm * nm AS a FROM " + T);
+        assertTrue(nm.contains("+ toDecimal(0)"), nm);
+        // with an untyped NULL: a DOUBLE NULL
+        assertTrue(pure("SELECT 1.5 + NULL AS a").contains("[]->cast(@Float)"));
+        // refused: the IQ engine's (D-N1), a result PRECISION caps or lite cannot hold (IQ island, 2026-10-14
+        // (natives): / and % are read now, IqFunctionsTest's numericQuotientsAreSqlAnywheres)
+        assertTrue(numbersRefusal("SELECT nm + 1 AS a FROM " + T).getMessage().contains("D-N1"));
+        assertTrue(numbersRefusal("SELECT -nm AS a FROM " + T).getMessage().contains("D-N1"));
+        for (String sql : new String[] {"SELECT (row_num * 1.123456789012) * (row_num * 1.123456789012) AS a FROM"
+                + " sa_rowgenerator(1, 2)"}) {
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal(sql).kind(), sql);
+        }
+        pure("SELECT row_num / 1.5 AS a, row_num % 1.5 AS b FROM sa_rowgenerator(1, 2)");
+        assertTrue(refusal("SELECT (row_num * 1.5) * (row_num * 1.25) * (row_num * 0.5) AS a FROM sa_rowgenerator(1,"
+                + " 2)", IqProfile.SQLA17_DEFAULT, COLUMNS).getMessage().contains("PRECISION"));
+        pure("SELECT (row_num * 1.5) * (row_num * 1.25) * (row_num * 0.5) AS a FROM sa_rowgenerator(1, 2)");
+    }
+
+    private static String numbersSa(String sql) {
+        return pure(sql, IqProfile.SQLA17_DEFAULT, NUMBERS);
+    }
+
+    @Test
+    void doubleArithmeticRaisesWhereIqDoes() {
+        String p = numbers("SELECT d * i AS a FROM " + T);
+        // the integer converted; past the largest DOUBLE an error (DuckDB would answer an infinity)
+        assertTrue(p.contains("$r.i->toFloat()") && p.contains("> 1.7976931348623157E308"), p);
+        assertTrue(numbers("SELECT d / 2 AS a FROM " + T).contains("== 0.0"));
+        assertTrue(numbers("SELECT -d AS a FROM " + T).contains("-$r.d"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT d + nm AS a FROM " + T).kind());
+        numbersSa("SELECT d + nm AS a FROM " + T);
+        // IQ computes a row-limited select list for the rows it keeps only: an operation that can raise is refused
+        assertTrue(numbersRefusal("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i").getMessage().contains(
+                "TOP, FIRST or START AT"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT d + 'a' AS a FROM " + T).kind());
+    }
+
+    // ------------------------------------------------------------------ M1b: names, joins, subqueries, set operations
+
+    @Test
+    void anUnaliasedItemIsNamedAsSqlAnywhereRendersIt() {
+        // a column qualified by its FROM item's name, written tight; words lower case; an IN list's constants first
+        String p = pure("SELECT id + 1, (sm) * 2, IF id IN (sm, NULL, 1) THEN 'a' ELSE 'b' ENDIF, ISNULL( sm , 0 ),"
+                + " id % 2, - -id, NULLIF(id, 1) FROM " + T + " a");
+        assertTrue(p.contains("->select(~['a.id+1', '(a.sm)*2', 'if a.id in( 1,a.sm,null ) then \\'a\\' else"
+                + " \\'b\\' endif', 'ISNULL(a.sm,0)', 'remainder(a.id,2)', '- -a.id', 'NULLIF(a.id,1)'])"), p);
+        // an unaliased tb('...T') is known by its table's name, as IQ knows a table
+        assertTrue(pure("SELECT T.id + 1 FROM " + T).contains("'T.id+1'"));
+        // NOT before a predicate is written inside it; IS DISTINCT FROM is IS NOT DISTINCT FROM negated
+        assertTrue(pure("SELECT IF NOT vc LIKE 'x' THEN 1 ENDIF, IF id IS DISTINCT FROM 1 THEN 1 ENDIF FROM " + T)
+                .contains("['if T.vc not like \\'x\\' then 1 endif', 'if not T.id is not distinct from 1 then 1"
+                        + " endif']"));
+        // a parenthesized query shows as its one item, named in its own query
+        assertTrue(pure("SELECT (SELECT b.sm + 1 FROM " + T + " b WHERE b.id = 1) FROM " + T + " a").contains(
+                "'b.sm+1'"));
+        // no rendering: a comment between the tokens, a derived table's column (SQL Anywhere renders its definition)
+        assertTrue(refusal("SELECT id /* c */ + 1 FROM " + T).getMessage().contains("needs an alias"));
+        assertTrue(refusal("SELECT x + 1 FROM (SELECT id AS x FROM " + T + ") d").getMessage().contains("needs an"
+                + " alias"));
+        // a name no one sees (an EXISTS subquery's item) is never refused
+        pure("SELECT id FROM " + T + " a WHERE EXISTS (SELECT a.id + b.id FROM " + T + " b)");
+    }
+
+    @Test
+    void joinsReadIqsColumnsAndIqsComparisons() {
+        // a NATURAL join keeps both sides' columns: its condition is IQ's = of each shared column, ANDed with any ON
+        String n = pure("SELECT a.id, b.vc FROM " + T + " a NATURAL JOIN " + T + " b ON a.id > 1");
+        assertTrue(n.contains("$a.id > 1") && n.contains("$a.id == $b.b_id") && n.contains("startsWith"), n);
+        assertTrue(refusal("SELECT id FROM " + T + " a NATURAL JOIN " + T + " b").getMessage().contains("-144"));
+        // the FROM clause's errors IQ raises before running a query
+        assertEquals(SqlTranslationException.Kind.INVALID, refusal("SELECT 1 FROM " + T + " a, " + T + " a").kind());
+        // IQ island, 2026-10-14 (M1c): names alike but for case, and an ON naming an item before the comma, are refused
+        // by name with IQ's code (the research's syntax cases are split on both)
+        assertTrue(refusal("SELECT 1 FROM " + T + " a, " + T + " A").getMessage().contains("-139"));
+        assertTrue(refusal("SELECT 1 FROM " + T + " a, " + T + " b JOIN " + T + " c ON a.id = c.id").getMessage()
+                .contains("-824"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 FROM " + T + " a JOIN " + T
+                + " b").kind());
+        // two unaliased references to one table: SQL Anywhere reads them as one
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 FROM " + T + ", " + T).kind());
+    }
+
+    @Test
+    void subqueriesComparedByIqsRulesWhereIqsEngineTakesThem() {
+        // ANY and IN compare each row as IQ's = does (blank padding)
+        assertTrue(pure("SELECT id FROM " + T + " a WHERE vc = ANY (SELECT b.vc FROM " + T + " b)").contains(
+                "startsWith"));
+        // the IQ engine's restrictions, refused by name; SQL Anywhere's front end takes them
+        for (String sql : new String[] {"SELECT id FROM " + T + " WHERE id + (SELECT 1 FROM DUMMY) = 2",
+                "SELECT IF id = 1 THEN (SELECT 1 FROM DUMMY) ENDIF AS x FROM " + T,
+                "SELECT a.id FROM " + T + " a JOIN " + T + " b ON EXISTS (SELECT 1 FROM DUMMY)",
+                "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)"}) {
+            assertTrue(refusal(sql).getMessage().contains("IQ's engine"), sql);
+            pure(sql, IqProfile.SQLA17_DEFAULT);
+        }
+        // one column where one is read (IQ's -151); a row limit in a subquery is refused
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE id IN (SELECT 1, 2 FROM DUMMY)").getMessage().contains(
+                "-151"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE id IN (SELECT"
+                + " TOP 1 row_num FROM sa_rowgenerator(1, 2) ORDER BY 1)").kind());
+        // the engine: a subquery reading a table makes the statement the IQ engine's
+        assertEquals(IqDialect.Engine.IQ, IqDialect.engineOf(IqParser.parse("SELECT (SELECT id FROM " + T + ") AS x",
+                IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT));
+        assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse("SELECT (SELECT 1 FROM DUMMY) AS x UNION"
+                + " SELECT row_num FROM sa_rowgenerator(1, 2)", IqProfile.IQ16_DEFAULT), IqProfile.IQ16_DEFAULT));
+    }
+
+    @Test
+    void setOperationsTypeTheirColumnsByIqsUnification() {
+        assertTrue(numbers("SELECT sm AS x FROM " + T + " UNION SELECT bg FROM " + T).contains("->distinct()"));
+        pure("SELECT NULL UNION ALL SELECT id FROM " + T);
+        for (String sql : new String[] {"SELECT vc FROM " + T + " UNION ALL SELECT id FROM " + T,
+                "SELECT NULL UNION ALL SELECT vc FROM " + T, "SELECT vc FROM " + T + " UNION SELECT vc FROM " + T,
+                "SELECT NULL INTERSECT SELECT NULL"}) {
+            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal(sql).kind(), sql);
+        }
+        assertTrue(numbersRefusal("SELECT nm FROM " + T + " UNION SELECT nm FROM " + T).getMessage().contains("D-N1"));
+        // a set operation's ORDER BY: a position or a first-branch name; anything else IQ's -152
+        assertTrue(refusal("SELECT 1 a UNION SELECT 2 ORDER BY a + 1").getMessage().contains("-152"));
+        assertTrue(refusal("SELECT 1 a UNION SELECT 2 b ORDER BY b").getMessage().contains("-854"));
+        assertTrue(refusal("SELECT 1, 2 UNION SELECT 3").getMessage().contains("-153"));
+    }
+
+    @Test
+    void groupingReadsIqsAliasesAndConstants() {
+        // IQ island, 2026-10-14 (M1c): an alias before a column of its name, in GROUP BY and HAVING
+        String byAlias = pure("SELECT sm AS id, COUNT(*) AS n FROM " + T + " GROUP BY id HAVING n > 1");
+        assertTrue(byAlias.contains("groupBy(~[sm]"), byAlias);
+        assertTrue(byAlias.contains("> 1"), byAlias);
+        // an integer is a constant: IQ's -149 for a column it does not group, else refused
+        assertTrue(refusal("SELECT sm, COUNT(*) FROM " + T + " GROUP BY 1").getMessage().contains("-149"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT COUNT(*) FROM " + T + " GROUP BY 1")
+                .kind());
+        // a constant beside another key divides no group
+        assertTrue(pure("SELECT sm FROM " + T + " GROUP BY sm, 1").contains("distinct()"));
+        // strings are no key yet; a column of a GROUP BY expression read outside it is refused
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT vc FROM " + T + " GROUP BY vc").kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 + sm FROM " + T + " GROUP BY sm + 1")
+                .kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT DISTINCT vc FROM " + T).kind());
+    }
+
+    @Test
+    void theAggregatesTypesAndChecks() {
+        // SUM of an INTEGER: its running total checked, the positive and the negative values' sums (D-E3)
+        String sum = numbers("SELECT SUM(i) AS s FROM " + T);
+        assertTrue(sum.contains("2147483647") && sum.contains("-2147483648"), sum);
+        // a DOUBLE's SUM and AVG checked against the largest DOUBLE
+        assertTrue(numbers("SELECT AVG(d) AS a FROM " + T).contains("average()"));
+        // AVG of an exact number is a NUMERIC quotient (refused); SUM of a NUMERIC under the IQ engine is D-N1
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT AVG(i) AS a FROM " + T).kind());
+        assertTrue(numbersRefusal("SELECT SUM(nm) AS s FROM " + T).getMessage().contains("D-N1"));
+        // COUNT is IQ's UNSIGNED BIGINT under its engine (D-F15): arithmetic on it is refused; INTEGER in SA's
+        assertTrue(numbersRefusal("SELECT COUNT(*) + 1 AS c FROM " + T).getMessage().contains("UNSIGNED BIGINT"));
+        pure("SELECT COUNT(*) + 1 AS c FROM sa_rowgenerator(1, 3)");
+        // MEDIAN of an integer floored; of a BIT IQ's -156; of a BIGINT refused
+        assertTrue(numbers("SELECT MEDIAN(sm) AS m FROM " + T).contains("floor"));
+        assertTrue(numbersRefusal("SELECT MEDIAN(bt) AS m FROM " + T).getMessage().contains("-156"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT MEDIAN(bg) AS m FROM " + T)
+                .kind());
+        // LIST of an integer column ordered by itself; any other order is the plan's
+        assertTrue(pure("SELECT LIST(id ORDER BY id) AS l FROM " + T).contains("joinStrings"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT LIST(id) AS l FROM " + T).kind());
+        assertTrue(refusal("SELECT LIST(row_num ORDER BY row_num), LIST(row_num ORDER BY row_num DESC) FROM"
+                + " sa_rowgenerator(1, 3)").getMessage().contains("-904"));
+        assertTrue(refusal("SELECT LIST(id ORDER BY id), LIST(sm ORDER BY sm) FROM " + T).getMessage().contains(
+                "D-A1"));
+        // IQ's errors raised before running: -154, -949, -152
+        assertTrue(refusal("SELECT SUM(id, sm) FROM " + T).getMessage().contains("-154"));
+        assertTrue(refusal("SELECT MIN(id ORDER BY id) FROM " + T).getMessage().contains("-949"));
+        assertTrue(refusal("SELECT LIST(id ORDER BY 1) FROM " + T).getMessage().contains("-152"));
+        // IQ island, 2026-10-14 (the merge): strings by IQ's collation -- COUNT(DISTINCT) counts the keys, MIN and MAX
+        // read only strings that are their own keys (IQ shows the first value of a key it meets)
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT MAX(vc) AS m FROM " + T).kind());
+        assertTrue(pure("SELECT MAX(RTRIM(vc)) AS m FROM " + T).contains("->max()"));
+        assertTrue(pure("SELECT COUNT(DISTINCT vc) AS m FROM " + T).contains("regexpReplace(' +$', '', false)"));
+    }
+
+    @Test
+    void aCheckedSumReadForSomeGroupsOnlyIsRefused() {
+        // IQ island, 2026-10-14 (review 3's B1): D-E3's check is computed where the SUM is read, so a SUM read inside
+        // IF, CASE, COALESCE, under AND/OR in HAVING or under a row limit is refused; read everywhere, it is checked
+        for (String sql : List.of(
+                "SELECT sm, IF sm = 4 THEN 0 ELSE SUM(i) ENDIF AS s FROM " + T + " GROUP BY sm",
+                "SELECT sm, COALESCE(MAX(i), SUM(i)) AS s FROM " + T + " GROUP BY sm",
+                "SELECT sm FROM " + T + " GROUP BY sm HAVING COUNT(*) > 2 AND SUM(i) > 0",
+                "SELECT sm FROM " + T + " GROUP BY sm HAVING NOT (SUM(d) <= 0)",
+                "SELECT TOP 1 sm, SUM(i) AS s FROM " + T + " GROUP BY sm ORDER BY sm")) {
+            assertTrue(numbersRefusal(sql).getMessage().contains("D-E3"), sql);
+        }
+        assertTrue(numbers("SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm HAVING SUM(i) > 0").contains("sum()"));
+        // a NUMERIC's SUM has no check to miss
+        pure("SELECT SUM(nm) AS s FROM " + T + " HAVING COUNT(*) > 2 AND SUM(nm) > 0", IqProfile.SQLA17_DEFAULT,
+                NUMBERS);
+    }
+
+    @Test
+    void aStarBeforeADerivedTablesItemHidesWhichColumnItIs() {
+        // IQ island, 2026-10-14 (review 4's B1): after a *, item i is some later column, so each name of the column
+        // list from i on may be the folded constant's (a quotient over it is refused, IqDialect.folded)
+        SqlAst.Statement s = IqParser.parse("SELECT c FROM (SELECT *, 2 + 3 FROM t) d(a, b, c)",
+                IqProfile.IQ16_DEFAULT);
+        assertTrue(IqDialect.folded(s).containsAll(List.of("b", "c")), IqDialect.folded(s).toString());
+        SqlAst.Statement plain = IqParser.parse("SELECT c FROM (SELECT id, 2 + 3 FROM t) d(a, c)",
+                IqProfile.IQ16_DEFAULT);
+        assertEquals(java.util.Set.of("c"), IqDialect.folded(plain));
+    }
+
+    @Test
+    void stringKeysAreIqsCollation() {
+        // IQ island, 2026-10-14 (the merge of M1c and the natives slice): a GROUP BY key not shown groups by the
+        // collation key; one shown only where each value is its own key; a set operation likewise
+        String hidden = pure("SELECT COUNT(*) AS n FROM " + T + " GROUP BY vc");
+        assertTrue(hidden.contains("regexpReplace(' +$', '', false)") && hidden.contains("groupBy("), hidden);
+        assertTrue(refusal("SELECT vc, COUNT(*) AS n FROM " + T + " GROUP BY vc").getMessage().contains(
+                "GROUP BY over strings"));
+        assertTrue(refusal("SELECT COUNT(*) AS n FROM " + T + " GROUP BY vc HAVING vc > 'a'").getMessage().contains(
+                "GROUP BY over strings"));
+        assertFalse(pure("SELECT RTRIM(vc) AS r, COUNT(*) AS n FROM " + T + " GROUP BY RTRIM(vc)").contains(
+                "regexpReplace(' +$'"));
+        assertTrue(refusal("SELECT vc FROM " + T + " UNION SELECT 'a'").getMessage().contains("UNION over strings"));
+        pure("SELECT RTRIM(vc) AS r FROM " + T + " UNION SELECT 'a'");
+        // a sqla17 profile folds the ASCII letters: LOWER is its own key there, RTRIM is not
+        assertTrue(refusal("SELECT DISTINCT RTRIM(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT, COLUMNS)
+                .getMessage().contains("'A' and 'a'"));
+        pure("SELECT DISTINCT LOWER(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT, COLUMNS);
+        // a derived table's column is what its definition is
+        pure("SELECT DISTINCT x FROM (SELECT RTRIM(vc) AS x FROM " + T + ") d");
+        assertTrue(refusal("SELECT DISTINCT x FROM (SELECT vc AS x FROM " + T + ") d").getMessage().contains(
+                "DISTINCT over strings"));
+    }
+
+    @Test
+    void aGroupedQuerysItemsAreNamedAsIqFirstReadsTheirParts() {
+        // HAVING is read before the select list, which is read from the left
+        assertTrue(pure("SELECT SUM(SM) FROM " + T + " HAVING sum(sm) > 0").contains("'sum(T.sm)'"));
+        assertTrue(pure("SELECT SUM(sm), sum(sm) + 1 FROM " + T).contains("'SUM(T.sm)+1'"));
+        // a GROUP BY item's spelling, its parentheses gone
+        assertTrue(pure("SELECT SM, sm * 2 FROM " + T + " GROUP BY sm").contains("'T.sm*2'"));
+        assertTrue(pure("SELECT (sm + 1) * 2 FROM " + T + " GROUP BY sm + 1").contains("'T.sm+1*2'"));
+        // an aggregate IQ may read as an earlier one, or one in parentheses: not known
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT SUM(sm + 1), SUM(1 + sm) FROM " + T)
+                .kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT (SUM(sm)) * 2 FROM " + T).kind());
     }
 }

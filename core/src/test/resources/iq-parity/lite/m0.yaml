@@ -76,12 +76,12 @@ tests:
   - id: precedence_of_the_value_operators
     sql: "SELECT 2 + 3 * 4 - 10 / 3 % 2 AS n"
     engine: sa
-  - id: numeric_constant_arithmetic_is_refused
+  - id: numeric_constant_arithmetic_in_sql_anywhere
     sql: "SELECT 2147483648 + 1 AS n"
     engine: sa
   - id: numeric_column_arithmetic_is_refused
     sql: "SELECT nm + 1 AS n FROM t WHERE id = 1"
-  - id: double_arithmetic_is_refused
+  - id: double_arithmetic_of_one_row
     sql: "SELECT dbl + 1 AS n FROM t WHERE id = 1"
   - id: bigint_modulo_is_numeric_and_refused
     sql: "SELECT bg % it AS n FROM t WHERE id = 4"
@@ -209,7 +209,8 @@ tests:
     profile: sqla17-default
   - id: concat_of_a_numeric_is_refused
     sql: "SELECT nm || 'x' AS s FROM t WHERE id = 1"
-  - id: concat_of_a_date_is_refused
+  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from concat_of_a_date_is_refused
+  - id: concat_of_a_date
     sql: "SELECT dt || 'x' AS s FROM t WHERE id = 1"
 
   # ---- row limits: TOP n [START AT m], FIRST; literal TOP 0, a negative count, START AT below 1: IQ's error -674 (D-Q1)
@@ -399,7 +400,8 @@ tests:
     sql: "SELECT IsNull(sm, 0) AS a, coalesce(sm, 0) AS b FROM t WHERE id = 1"
   - id: an_unknown_function
     sql: "SELECT nosuchfn(id) AS n FROM t"
-  - id: an_unaliased_call_is_refused
+  # named as SQL Anywhere renders it since M1b
+  - id: an_unaliased_call_is_named_as_sql_anywhere_renders_it
     sql: "SELECT ISNULL(sm, 0) FROM t WHERE id = 1"
 
   # ---- aliases: T-SQL's alias = expression (never a comparison), string aliases, delimited ones

@@ -484,7 +484,7 @@ public final class StoreResolver {
                 // resolved sides are RELATIONS: their union is one too
                 boolean relations = Type.isRelation(a.info().type()) && Type.isRelation(b.info().type());
                 yield new TypedConcatenate(a, b, relations
-                        ? new ExprType(a.info().type(), m.info().multiplicity()) : m.info());
+                        ? TypedConcatenate.unionInfo(a, b, m.info().multiplicity()) : m.info());
             }
             // executed-concatenate map distribution / whole-instance terminal (ClassConcatenates)
             case TypedMap m when m.source() instanceof TypedFrom fr0 && classConcatOf(fr0.source()) != null ->

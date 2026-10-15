@@ -160,10 +160,21 @@ public final class IqAnswers {
      *  editing a case's SQL, its profile, its decided rows or the schema makes its answer STALE. */
     public static String sqlSha(String sql, String profile, @com.legend.base.Nullable String decision,
             @com.legend.base.Nullable String expect, byte[] schema) {
+        return sqlSha(sql, profile, decision, expect, null, schema);
+    }
+
+    /** {@link #sqlSha}, IQ island, 2026-10-14 (M1e): with the case's {@code params}, when it binds variables (one more
+     *  part; a case without them keeps its sha). */
+    public static String sqlSha(String sql, String profile, @com.legend.base.Nullable String decision,
+            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params, byte[] schema) {
         try {
             MessageDigest d = MessageDigest.getInstance("SHA-256");
-            for (String part : new String[] {sql, profile, decision == null ? "" : decision,
-                    expect == null ? "" : expect}) {
+            List<String> parts = new ArrayList<>(List.of(sql, profile, decision == null ? "" : decision,
+                    expect == null ? "" : expect));
+            if (params != null) {
+                parts.add(params);
+            }
+            for (String part : parts) {
                 d.update(part.getBytes(StandardCharsets.UTF_8));
                 d.update((byte) 0);
             }
@@ -189,7 +200,7 @@ public final class IqAnswers {
                 problems.add("UNSNAPPED: " + r.key() + " has no answer in iq-answers.jsonl (tools/iq-oracle/snap.sh"
                         + " --write)");
             } else if (!snap.sqlSha().equals(sqlSha(r.c().sql(), r.profile().spelling(), r.c().decision(),
-                    r.c().expect(), schema))) {
+                    r.c().expect(), r.c().params(), schema))) {
                 problems.add("STALE: " + r.key() + "'s answer was snapped for other SQL, profile, decided rows or"
                         + " schema");
             }

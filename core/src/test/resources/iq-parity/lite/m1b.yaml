@@ -1,0 +1,624 @@
+# M1b for the #IQ{...}# island (docs/IQ_SQL_STUDY_2026_10_13.md §9.4): the names SQL Anywhere gives unaliased select
+# items, joins (comma, INNER, LEFT, RIGHT, FULL, CROSS, NATURAL without merging), derived tables, subqueries (scalar,
+# EXISTS, IN, ANY/SOME/ALL) and set operations (UNION, EXCEPT, INTERSECT). Each is judged by SQL Anywhere 17's answer in
+# iq-answers.jsonl. A case without FROM, or over DUMMY or sa_rowgenerator only, runs in SQL Anywhere's front end
+# (engine: sa); one over tables in the IQ engine. No case outputs or compares the CHAR(5) column ch under the IQ engine
+# (its padding is the research's D-S1, judged in m0.yaml), nor orders strings (a native not built yet).
+# tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- default names: SQL Anywhere's rendering of an unaliased item
+  - id: name_of_column_arithmetic
+    sql: "SELECT id + 1, id * 2, id - 1, id / 2 FROM t WHERE id < 3 ORDER BY id"
+  - id: name_qualifies_by_the_alias
+    sql: "SELECT a.id + 1, -a.id, A.ID * 2 FROM t a WHERE a.id < 3 ORDER BY a.id"
+  - id: name_keeps_the_reference_case
+    sql: "SELECT ID + 1, Id - 1 FROM t WHERE id = 1"
+  - id: name_of_a_delimited_column
+    sql: "SELECT [id] + 1, `sm` + 0 FROM t WHERE id = 1"
+  - id: name_of_a_delimited_correlation
+    sql: "SELECT id + 1, \"Q\".sm - 1 FROM t AS \"Q\" WHERE id = 1"
+  - id: name_of_a_bracketed_table
+    sql: "SELECT id + 1 FROM [t] WHERE id = 1"
+  - id: name_of_an_upper_case_table
+    sql: "SELECT id + 1 FROM T WHERE id = 1"
+  - id: name_keeps_written_parentheses
+    sql: "SELECT (id + 1) * 2, ((id)) + 0, (id) + (1), 2 * (3 + id) FROM t WHERE id = 1"
+  - id: name_drops_the_outer_parentheses
+    sql: "SELECT ((id + 1)), (-id) FROM t WHERE id = 1"
+  - id: name_drops_a_plus_sign
+    sql: "SELECT +id, +(id + 1), -(+id), 1 + +id FROM t WHERE id = 1"
+  - id: name_of_a_parenthesized_column
+    sql: "SELECT (a.id), (sm) FROM t a WHERE id = 1"
+  - id: name_of_minus_before_minus
+    sql: "SELECT - -id, 1 - -id, -(-id), 1 + -id, 1 * -id FROM t WHERE id = 1"
+  - id: name_of_remainder
+    sql: "SELECT id % 2, (id + 1) % 3 FROM t WHERE id < 3 ORDER BY id"
+  - id: name_of_concatenation
+    sql: "SELECT vc || 'x', vc || id FROM t WHERE id = 1"
+  - id: name_of_string_plus
+    sql: "SELECT vc + '!' FROM t WHERE id = 1"
+  - id: name_of_constants_in_the_front_end
+    sql: "SELECT 1 + 1, 1.50 + 1, 0.5 * 2, 1e3 + 0, 1.5e-3 + 0, 12345678901. + 0, 00012 + 0, 100.0 + 0"
+  - id: name_of_whole_numerics
+    sql: "SELECT 2147483647.0 + 0, 2147483648.0 + 0, 9999999999.0 + 0, -2147483648.0 + 0, 4294967296.0"
+    engine: sa
+  - id: name_of_negative_constants
+    sql: "SELECT -1 + 0, -0.5 + 1, -(5) + 0, - 5 + 0, - -5 + 0"
+  - id: name_of_strings
+    sql: "SELECT 'it''s' || '', 'a\\nb' || 'c', 'x\\x41' || 'y', '\\\\' || '', '' || ''"
+  - id: name_of_a_control_character
+    sql: "SELECT 'a\tb' || '', 'a\rb' || ''"
+  - id: name_of_latin1_text
+    sql: "SELECT 'é' || 'É', 'tab\\x7F' || ''"
+  - id: name_of_null_arithmetic
+    sql: "SELECT NULL + 1, 1 + NULL, -NULL"
+  - id: name_of_a_bare_null_and_constants
+    sql: "SELECT NULL, 1, 'a', 2.5"
+  - id: name_of_if
+    sql: "SELECT IF id = 1 THEN 'y' ELSE 'n' ENDIF, IF id > 1 THEN 1 ENDIF, IF id = 1 THEN 'y' END IF FROM t WHERE id < 3 ORDER BY id"
+  - id: name_of_if_lower_case
+    sql: "SELECT if id = 1 then 2 else 3 endif FROM t WHERE id = 1"
+  - id: name_of_if_comparisons
+    sql: "SELECT IF id <> 1 AND id != 2 OR NOT id < 3 THEN 1 ELSE 2 ENDIF, IF id <= 1 AND id >= 0 AND id !< 0 AND id !> 5 THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_if_predicates
+    sql: "SELECT IF id IS NULL THEN 1 ENDIF, IF id IS NOT NULL THEN 1 ENDIF, IF id BETWEEN 1 AND 2 THEN 1 ENDIF, IF id NOT BETWEEN 1 AND 2 THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_if_in_and_like
+    sql: "SELECT IF id IN (1, 2) THEN 1 ENDIF, IF id NOT IN (1,2) THEN 1 ENDIF, IF vc LIKE 'H%' THEN 1 ENDIF, IF vc NOT LIKE 'H%' ESCAPE '!' THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_an_in_list_reordered
+    sql: "SELECT IF id IN (sm, NULL, 1) THEN 1 ENDIF, IF id IN (-1, 1) THEN 1 ENDIF, IF id IN ((1), 2) THEN 1 ENDIF, IF id IN (2, NULL, 1) THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_in_before_and
+    sql: "SELECT IF id IN (1) AND id = 1 THEN 1 ENDIF, IF (id IN (1)) IS TRUE THEN 1 ENDIF, IF (id IN (1) OR id IN (2)) THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_is_distinct
+    sql: "SELECT IF id IS DISTINCT FROM 1 THEN 1 ENDIF, IF id IS NOT DISTINCT FROM 1 THEN 1 ENDIF, IF NOT id IS DISTINCT FROM sm THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_truth_tests
+    sql: "SELECT IF (id = 1) IS TRUE THEN 1 ENDIF, IF (id = 1) IS NOT UNKNOWN THEN 1 ENDIF, IF id = 1 IS NOT TRUE THEN 1 ENDIF, IF NOT (id = 2) IS NOT TRUE THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_not_folded_into_a_predicate
+    sql: "SELECT IF NOT vc LIKE 'x' THEN 1 ENDIF, IF NOT id BETWEEN 1 AND 2 THEN 1 ENDIF, IF NOT id IS NULL THEN 1 ENDIF, IF NOT (id IS NULL) THEN 1 ENDIF, IF NOT id IN (2) THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_parenthesized_conditions
+    sql: "SELECT IF (id = 1) THEN 1 ENDIF, IF ((id = 1)) THEN 1 ENDIF, IF (id = 1 OR id = 2) AND id = 3 THEN 1 ENDIF, IF NOT (NOT id = 1) THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_glues_a_parenthesis_or_minus_after_a_word
+    sql: "SELECT IF id = 1 THEN (1 + 2) ELSE (3) ENDIF, IF id = 1 THEN -1 ELSE -2 ENDIF, IF id BETWEEN (1) AND -(-2) THEN 1 ENDIF, IF -id = -1 THEN 1 ENDIF FROM t WHERE id = 1"
+  - id: name_of_case
+    sql: "SELECT CASE WHEN id = 1 THEN 'a' ELSE 'b' END, CASE WHEN id = 1 THEN 'a' END, CASE WHEN id = 1 THEN 1 WHEN id = 2 THEN 2 END FROM t WHERE id < 3 ORDER BY id"
+  - id: name_of_simple_case
+    sql: "SELECT CASE id WHEN 1 THEN 'a' WHEN 2 THEN 'b' ELSE 'c' END, case id when 1 then 'a' end case, CASE (id) WHEN (1) THEN 'p' END, CASE -id WHEN -1 THEN 'm' END FROM t WHERE id = 1"
+  - id: name_of_nested_if_and_case
+    sql: "SELECT IF id = 1 THEN IF sm = 1 THEN 1 ENDIF ENDIF, IF id < 2 THEN 'x' ELSE IF id < 3 THEN 'y' ENDIF ENDIF, CASE WHEN id = 1 THEN CASE WHEN id = 2 THEN 1 END END FROM t WHERE id < 3 ORDER BY id"
+  - id: name_of_case_in_arithmetic
+    sql: "SELECT CASE WHEN id = 1 THEN 1 END + 1, IF id = 1 THEN 1 ENDIF * 2, IF id = 1 THEN 'a' ELSE 'b' ENDIF || 'c' FROM t WHERE id = 1"
+  - id: name_of_functions_as_written
+    sql: "SELECT ISNULL(sm, 0), isnull(sm,0), IsNull( sm , 0 ), COALESCE(sm, it, 2), coalesce(sm, 1), IFNULL(sm, 1), ifnull(sm, 1, 2), NULLIF(id, 2), nullif(id, 1) FROM t WHERE id = 5"
+  - id: name_of_a_quoted_function
+    sql: "SELECT \"isnull\"(sm, 0), [ISNULL](sm, 1) FROM t WHERE id = 1"
+  - id: name_of_nested_functions
+    sql: "SELECT ISNULL(sm, 0) + 1, NULLIF(1, 2) * 2, COALESCE(NULL, NULL, 3), ISNULL(ISNULL(sm, it), 0), ISNULL(id + 1, 0) FROM t WHERE id = 3"
+  - id: name_of_rowgenerator_columns
+    sql: "SELECT row_num + 1, ROW_NUM * 2, g.row_num - 1 FROM sa_rowgenerator(1, 2) g ORDER BY row_num"
+    engine: sa
+  - id: name_of_an_unaliased_rowgenerator
+    sql: "SELECT row_num + 1 FROM SA_ROWGENERATOR(1, 1)"
+    engine: sa
+  - id: name_of_dummy_columns
+    sql: "SELECT dummy_col + 1, DUMMY_COL * 2 FROM DUMMY"
+    engine: sa
+  - id: name_of_an_owner_qualified_dummy
+    sql: "SELECT dummy_col + 1, dummy.dummy_col - 1 FROM sys.dummy"
+    engine: sa
+  - id: name_of_a_joined_column
+    sql: "SELECT t.id + u.id, t_id + 1, u.label || 'x' FROM t, u WHERE t.id = 1 AND u.id = 1"
+  - id: name_is_cut_to_255_characters
+    sql: "SELECT 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' || 'b'"
+  - id: name_of_a_long_sum
+    sql: "SELECT vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc||vc FROM t WHERE id = 1"
+  - id: name_under_a_tds_login
+    sql: "SELECT ISNULL(id, 0), id + 1, IF id = 1 THEN 'y' ENDIF, 'a\\nb' || '' FROM t WHERE id = 1"
+    profile: iq16-tds
+  # IQ island, 2026-10-14 (review 4's m3): renamed, its id shared six words with the manuals' text
+  - id: name_under_a_sqla17_profile
+    sql: "SELECT ISNULL(id, 0), id + 1, IF id = 1 THEN 'y' ENDIF FROM t WHERE id = 1"
+    profile: sqla17-default
+  - id: name_of_a_scalar_subquery
+    sql: "SELECT (SELECT label FROM u WHERE u.id = t.id), (SELECT u.t_id FROM u WHERE u.id = t.id) FROM t WHERE id = 1"
+  - id: name_of_a_computed_scalar_subquery
+    sql: "SELECT (SELECT id + 1 FROM u WHERE id = 1), (SELECT label AS lb FROM u WHERE id = 1)"
+  - id: name_of_a_constant_scalar_subquery
+    sql: "SELECT (SELECT 1 + 1 FROM DUMMY), ((SELECT dummy_col FROM DUMMY))"
+    engine: sa
+  - id: name_with_a_comment_is_refused
+    sql: "SELECT id /* one */ + 1 FROM t WHERE id = 1"
+  - id: name_over_a_derived_column_is_refused
+    sql: "SELECT x + 1 FROM (SELECT id AS x FROM t) d WHERE x = 1"
+  - id: name_of_a_bare_derived_column
+    sql: "SELECT d.x FROM (SELECT id AS x FROM t) d WHERE x = 1"
+  - id: name_of_the_first_branch
+    sql: "SELECT id + 1 FROM t WHERE id = 1 UNION SELECT id * 2 FROM u WHERE id = 1"
+  - id: name_with_distinct_and_top
+    sql: "SELECT DISTINCT id + 1 FROM t WHERE id = 1"
+  - id: name_twice_is_refused
+    sql: "SELECT id + 1, id + 1 FROM t WHERE id = 1"
+
+  # ---- comma joins and column resolution
+  - id: comma_join_qualified
+    sql: "SELECT t.id, u.label FROM t, u WHERE t.id = u.t_id ORDER BY 1"
+  - id: comma_join_unqualified_unique_columns
+    sql: "SELECT sm, label FROM t, u WHERE t.id = u.t_id ORDER BY sm"
+  - id: comma_join_ambiguous_column
+    sql: "SELECT id FROM t, u WHERE t.id = u.t_id"
+  - id: comma_join_ambiguous_in_where
+    sql: "SELECT t.id FROM t, u WHERE id = 1"
+  - id: comma_join_no_such_qualifier
+    sql: "SELECT x.id FROM t, u"
+  - id: comma_join_alias_hides_the_table_name
+    sql: "SELECT t.id FROM t a, u WHERE a.id = 1"
+  - id: comma_join_three_tables
+    sql: "SELECT a.id, b.id AS bid, c.id AS cid FROM t a, u b, t c WHERE a.id = b.t_id AND c.id = b.id ORDER BY 1, 2"
+  - id: comma_join_cross_product
+    sql: "SELECT a.id, b.id AS bid FROM t a, u b WHERE a.id < 3 AND b.id < 3 ORDER BY 1, 2"
+  - id: comma_join_duplicate_alias
+    sql: "SELECT a.id FROM t a, u a"
+  - id: comma_join_duplicate_alias_by_case
+    sql: "SELECT 1 FROM t a, u A"
+  - id: comma_join_alias_equal_to_a_table
+    sql: "SELECT t.id FROM t, u t"
+  - id: comma_join_with_dummy
+    sql: "SELECT t.id, dummy_col FROM t, DUMMY WHERE t.id < 3 ORDER BY 1"
+  - id: comma_join_with_rowgenerator
+    sql: "SELECT t.id, g.row_num FROM t, sa_rowgenerator(1, 2) g WHERE t.id < 3 ORDER BY 1, 2"
+  - id: comma_join_of_rowgenerators
+    sql: "SELECT g.row_num, h.row_num AS h FROM sa_rowgenerator(1, 2) g, sa_rowgenerator(5, 6) h ORDER BY 1, 2"
+    engine: sa
+  - id: comma_join_names_without_case
+    sql: "SELECT T.ID, U.LABEL FROM t, u WHERE T.ID = U.T_ID ORDER BY 1"
+  - id: comma_join_column_names_twice_is_refused
+    sql: "SELECT t.id, u.id FROM t, u WHERE t.id = u.id"
+  - id: comma_join_string_equality_ignores_trailing_blanks
+    sql: "SELECT t.id FROM t, (SELECT 'x' AS v FROM DUMMY) d WHERE t.vc = d.v"
+  - id: comma_join_compares_case_sensitively
+    sql: "SELECT t.id FROM t, (SELECT 'HELLO' AS v FROM DUMMY) d WHERE t.vc = d.v"
+
+  # ---- [INNER] JOIN ... ON
+  - id: join_on
+    sql: "SELECT t.id, u.label FROM t JOIN u ON t.id = u.t_id ORDER BY 1"
+  - id: inner_join_on
+    sql: "SELECT t.id, u.label FROM t INNER JOIN u ON t.id = u.t_id ORDER BY 1"
+  - id: join_on_with_where
+    sql: "SELECT t.id, u.label FROM t JOIN u ON t.id = u.t_id WHERE u.id > 1 ORDER BY 1"
+  - id: join_on_two_conditions
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON t.id = u.t_id AND u.id > 1 ORDER BY 1, 2"
+  - id: join_on_parenthesized
+    sql: "SELECT t.id FROM t JOIN u ON (t.id = u.t_id) ORDER BY 1"
+  - id: join_on_a_constant_condition
+    sql: "SELECT t.id FROM t JOIN u ON t.id = 1 WHERE u.id = 1"
+  - id: join_on_ambiguous_column
+    sql: "SELECT t.id FROM t JOIN u ON id = 1"
+  - id: join_on_unknown_table
+    sql: "SELECT t.id FROM t JOIN u ON t.id = x.id"
+  - id: join_on_a_later_table
+    sql: "SELECT t.id FROM t JOIN u ON t.id = d.dummy_col, DUMMY d"
+  - id: join_on_an_earlier_comma_item
+    sql: "SELECT t.id FROM t, u JOIN DUMMY d ON t.id = d.dummy_col"
+  - id: join_chain
+    sql: "SELECT t.id, u.label FROM t JOIN u ON t.id = u.t_id JOIN DUMMY d ON d.dummy_col = 0 ORDER BY 1"
+  - id: join_chain_reads_both_earlier_tables
+    sql: "SELECT a.id, c.id AS cid FROM t a JOIN u b ON a.id = b.t_id JOIN t c ON c.id = b.id ORDER BY 1, 2"
+  - id: join_self_with_aliases
+    sql: "SELECT x.id, y.id AS yid FROM t AS x JOIN t AS y ON x.id = y.id + 1 ORDER BY 1"
+  - id: join_duplicate_alias
+    sql: "SELECT a.id FROM t a JOIN u a ON a.id = 1"
+  - id: join_without_on_is_refused
+    sql: "SELECT t.id FROM t JOIN u"
+  - id: inner_join_without_on_is_refused
+    sql: "SELECT t.id FROM t INNER JOIN u"
+  - id: key_join_is_refused
+    sql: "SELECT t.id FROM t KEY JOIN u"
+  - id: join_using_is_a_syntax_error
+    sql: "SELECT t.id FROM t JOIN u USING (id)"
+  - id: join_stacked_on_is_a_syntax_error
+    sql: "SELECT t.id FROM t JOIN u JOIN DUMMY ON 1 = 1 ON t.id = u.t_id"
+  - id: join_outer_alone_is_a_syntax_error
+    sql: "SELECT t.id FROM t OUTER JOIN u ON t.id = u.id"
+  - id: join_left_inner_is_a_syntax_error
+    sql: "SELECT t.id FROM t LEFT INNER JOIN u ON t.id = u.id"
+  - id: join_on_strings_ignores_trailing_blanks
+    sql: "SELECT t.id FROM t JOIN (SELECT 'x' AS v FROM DUMMY) d ON t.vc = d.v"
+  - id: join_on_a_string_with_a_number_is_refused
+    sql: "SELECT t.id FROM t JOIN u ON t.vc = u.id"
+  - id: join_on_dummy
+    sql: "SELECT t.id, d.dummy_col FROM t JOIN DUMMY d ON t.id = d.dummy_col + 1"
+  - id: join_on_rowgenerator
+    sql: "SELECT t.id, g.row_num FROM t JOIN sa_rowgenerator(2, 4) g ON t.id = g.row_num ORDER BY 1"
+  - id: join_of_rowgenerators_in_the_front_end
+    sql: "SELECT g.row_num, h.row_num AS h FROM sa_rowgenerator(1, 5) g JOIN sa_rowgenerator(3, 8) h ON g.row_num = h.row_num ORDER BY 1"
+    engine: sa
+  - id: join_on_with_in_list
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON t.id = u.t_id AND u.id IN (1, 3) ORDER BY 1, 2"
+  - id: join_on_with_between
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON u.id BETWEEN t.id AND t.id + 1 WHERE t.id < 3 ORDER BY 1, 2"
+  - id: join_on_is_not_distinct
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON t.id IS NOT DISTINCT FROM u.t_id ORDER BY 1, 2"
+  - id: join_under_a_tds_login
+    sql: "SELECT t.id, u.label FROM t JOIN u ON t.id = u.t_id ORDER BY 1"
+    profile: iq16-tds
+  - id: join_in_a_sql_anywhere_database
+    sql: "SELECT t.id, u.id AS uid FROM t JOIN u ON t.id = u.t_id ORDER BY 1, 2"
+    profile: sqla17-default
+  # IQ island, 2026-10-14 (the merge of M1b/M1c with the natives slice): was join_on_strings_in_a_sql_anywhere_database_is_refused; IQ's collation answers it now
+  - id: join_on_strings_in_a_sql_anywhere_database
+    sql: "SELECT t.id FROM t JOIN u ON t.vc = u.label"
+    profile: sqla17-default
+
+  # ---- outer joins
+  - id: left_join
+    sql: "SELECT t.id, u.label FROM t LEFT JOIN u ON t.id = u.t_id ORDER BY 1"
+  - id: left_outer_join
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT OUTER JOIN u ON t.id = u.t_id ORDER BY 1, 2"
+  - id: left_join_where_on_the_null_side
+    sql: "SELECT t.id FROM t LEFT JOIN u ON t.id = u.t_id WHERE u.id IS NULL ORDER BY 1"
+  - id: left_join_condition_on_the_left_side
+    sql: "SELECT t.id, u.id AS uid FROM t LEFT JOIN u ON t.id = u.t_id AND t.id = 1 ORDER BY 1, 2"
+  - id: right_join
+    sql: "SELECT t.id, u.label FROM t RIGHT JOIN u ON t.id = u.t_id ORDER BY 1"
+  - id: right_outer_join
+    sql: "SELECT t.id, u.id AS uid FROM t RIGHT OUTER JOIN u ON t.id = u.t_id ORDER BY 2"
+  - id: full_join
+    sql: "SELECT t.id, u.id AS uid FROM t FULL JOIN u ON t.id = u.t_id ORDER BY 1, 2"
+  - id: full_outer_join
+    sql: "SELECT t.id, u.label FROM t FULL OUTER JOIN u ON t.id = u.t_id ORDER BY 1"
+  - id: left_join_then_inner_join
+    sql: "SELECT a.id, b.id AS bid, c.id AS cid FROM t a LEFT JOIN u b ON a.id = b.t_id JOIN t c ON c.id = a.id ORDER BY 1, 2"
+  - id: left_join_arithmetic_on_the_null_side
+    sql: "SELECT t.id, u.id + 1 AS n FROM t LEFT JOIN u ON t.id = u.t_id ORDER BY 1, 2"
+  - id: left_join_isnull_on_the_null_side
+    sql: "SELECT t.id, ISNULL(u.id, 0) AS n FROM t LEFT JOIN u ON t.id = u.t_id ORDER BY 1, 2"
+  - id: left_join_rowgenerator
+    sql: "SELECT g.row_num, t.sm FROM sa_rowgenerator(1, 9) g LEFT JOIN t ON t.id = g.row_num ORDER BY 1"
+
+  # ---- CROSS JOIN
+  - id: cross_join
+    sql: "SELECT a.id, b.id AS bid FROM t a CROSS JOIN u b WHERE a.id < 3 AND b.id < 3 ORDER BY 1, 2"
+  - id: cross_join_dummy
+    sql: "SELECT t.id, DUMMY.dummy_col FROM t CROSS JOIN DUMMY WHERE t.id = 1"
+  - id: cross_join_with_on_is_a_syntax_error
+    sql: "SELECT t.id FROM t CROSS JOIN u ON t.id = u.id"
+  - id: cross_apply_is_refused
+    sql: "SELECT t.id FROM t CROSS APPLY (SELECT 1 AS x) d"
+
+  # ---- NATURAL JOIN: the shared columns are not merged
+  - id: natural_join
+    sql: "SELECT t.id, u.label FROM t NATURAL JOIN u ORDER BY 1"
+  - id: natural_join_unqualified_shared_column
+    sql: "SELECT id FROM t NATURAL JOIN u"
+  - id: natural_join_star_shows_both_sides
+    sql: "SELECT * FROM t NATURAL JOIN u"
+  - id: natural_join_with_on
+    sql: "SELECT t.id FROM t NATURAL JOIN u ON t.id = 1"
+  - id: natural_left_join
+    sql: "SELECT d.a FROM (SELECT 1 a, 2 b FROM DUMMY) d NATURAL LEFT JOIN (SELECT 1 a, 3 b FROM DUMMY) e"
+    engine: sa
+  - id: natural_join_two_shared_columns
+    sql: "SELECT d.a FROM (SELECT 1 a, 2 b FROM DUMMY) d NATURAL JOIN (SELECT 1 a, 3 b FROM DUMMY) e"
+    engine: sa
+  - id: natural_join_names_without_case
+    sql: "SELECT u.id, d.label FROM u NATURAL JOIN (SELECT 1 AS ID, 'one' AS label FROM DUMMY) d"
+  - id: natural_join_no_shared_column
+    sql: "SELECT u.id FROM u NATURAL JOIN (SELECT 1 AS zz FROM DUMMY) r"
+  - id: natural_join_compares_as_iq
+    sql: "SELECT t.id FROM t NATURAL JOIN (SELECT 'x' AS vc FROM DUMMY) d"
+  - id: natural_cross_is_a_syntax_error
+    sql: "SELECT t.id FROM t NATURAL CROSS JOIN u"
+
+  # ---- parenthesized joins
+  - id: parenthesized_join
+    sql: "SELECT t.id FROM (t JOIN u ON t.id = u.t_id) ORDER BY 1"
+  - id: parenthesized_right_operand
+    sql: "SELECT t.id, d.dummy_col FROM t JOIN (u JOIN DUMMY d ON d.dummy_col = 0) ON t.id = u.t_id ORDER BY 1"
+  - id: parenthesized_table
+    sql: "SELECT t.id FROM ((t)) WHERE t.id < 3 ORDER BY 1"
+  - id: parenthesized_join_with_alias_is_a_syntax_error
+    sql: "SELECT t.id FROM (t JOIN u ON t.id = u.t_id) AS x"
+  - id: parenthesized_join_after_a_comma
+    sql: "SELECT t.id, u.id AS uid FROM t, (u JOIN DUMMY d ON d.dummy_col = 0) WHERE t.id = u.t_id ORDER BY 1, 2"
+  - id: parenthesized_derived_table
+    sql: "SELECT d.x FROM ((SELECT 1 AS x FROM DUMMY) d)"
+    engine: sa
+
+  # ---- derived tables
+  - id: derived_table
+    sql: "SELECT d.x FROM (SELECT id AS x FROM t) d WHERE d.x < 3 ORDER BY 1"
+  - id: derived_table_with_as
+    sql: "SELECT x FROM (SELECT id AS x FROM t WHERE id < 3) AS d ORDER BY x"
+  - id: derived_table_star
+    sql: "SELECT * FROM (SELECT id, label FROM u WHERE id < 3) d ORDER BY id"
+  - id: derived_table_qualified_star
+    sql: "SELECT d.* FROM (SELECT id, label FROM u WHERE id = 1) AS d"
+  - id: derived_table_column_list
+    sql: "SELECT a, b FROM (SELECT id, t_id FROM u WHERE id < 3) d (a, b) ORDER BY a"
+  - id: derived_table_column_list_hides_the_names
+    sql: "SELECT id FROM (SELECT id FROM t WHERE id = 1) AS d (x)"
+  - id: derived_table_column_list_case
+    sql: "SELECT X FROM (SELECT id FROM t WHERE id = 1) AS d (x)"
+  - id: derived_table_column_list_too_short
+    sql: "SELECT * FROM (SELECT id, sm FROM t WHERE id = 1) d (x)"
+  - id: derived_table_column_list_too_long
+    sql: "SELECT * FROM (SELECT id FROM t WHERE id = 1) d (x, y)"
+  - id: derived_table_needs_a_name
+    sql: "SELECT * FROM (SELECT id FROM t WHERE id = 1)"
+  - id: derived_table_unnamed_expression
+    sql: "SELECT * FROM (SELECT id + 1 FROM t WHERE id = 1) d"
+  - id: derived_table_unnamed_constant
+    sql: "SELECT * FROM (SELECT 1 FROM DUMMY) d"
+  - id: derived_table_parenthesized_column_is_unnamed
+    sql: "SELECT * FROM (SELECT (id) FROM t WHERE id = 1) d"
+  - id: derived_table_plus_column_is_named
+    sql: "SELECT * FROM (SELECT +id FROM t WHERE id = 1) d"
+  - id: derived_table_arithmetic_keeps_iq_types
+    sql: "SELECT d.x + 1 AS y FROM (SELECT it AS x FROM t WHERE id > 2) d ORDER BY 1"
+  - id: derived_table_smallint_overflow
+    sql: "SELECT d.x + 1 AS y FROM (SELECT sm AS x FROM t WHERE id = 1) d"
+  - id: derived_table_computed_column
+    sql: "SELECT d.y FROM (SELECT id * 10 AS y FROM t WHERE id < 3) d ORDER BY 1"
+  - id: derived_table_nested
+    sql: "SELECT e.z FROM (SELECT d.y AS z FROM (SELECT id AS y FROM t WHERE id < 4) d) e ORDER BY 1"
+  - id: derived_table_joined
+    sql: "SELECT t.id, d.n FROM t JOIN (SELECT t_id, id AS n FROM u) d ON t.id = d.t_id ORDER BY 1, 2"
+  - id: derived_table_ordered_inside
+    sql: "SELECT d.id FROM (SELECT id FROM t ORDER BY id) d WHERE d.id < 3 ORDER BY 1"
+  - id: derived_table_of_a_union
+    sql: "SELECT d.v FROM (SELECT id AS v FROM t WHERE id < 3 UNION ALL SELECT t_id FROM u WHERE id = 1) d ORDER BY 1"
+  - id: derived_table_union_names_from_its_first_branch
+    sql: "SELECT * FROM (SELECT id FROM t WHERE id = 1 UNION SELECT 1 FROM DUMMY) d"
+  - id: derived_table_union_unnamed_first_branch
+    sql: "SELECT * FROM (SELECT 1 FROM DUMMY UNION SELECT id FROM t WHERE id = 1) d"
+  - id: derived_table_with_top_is_refused
+    sql: "SELECT d.id FROM (SELECT TOP 2 id FROM t ORDER BY id) d"
+  - id: derived_table_over_dummy
+    sql: "SELECT d.a + d.b AS c FROM (SELECT 1 AS a, 2 AS b FROM DUMMY) d"
+    engine: sa
+  - id: derived_table_with_a_where_on_a_null_column
+    sql: "SELECT d.s FROM (SELECT sm AS s FROM t) d WHERE d.s IS NULL"
+  - id: derived_table_alias_twice
+    sql: "SELECT d.id FROM (SELECT id FROM t) d, (SELECT id FROM u) d"
+  - id: derived_table_columns_compare_strings_as_iq
+    sql: "SELECT d.v FROM (SELECT vc AS v FROM t) d WHERE d.v = 'x'"
+
+  # ---- scalar subqueries
+  - id: scalar_subquery_correlated
+    sql: "SELECT id, (SELECT label FROM u WHERE u.id = t.id) AS l FROM t ORDER BY id"
+  - id: scalar_subquery_no_row_is_null
+    sql: "SELECT id, (SELECT u.id FROM u WHERE u.t_id = t.id AND u.id > 100) AS n FROM t WHERE id < 3 ORDER BY id"
+  - id: scalar_subquery_two_rows
+    sql: "SELECT (SELECT t_id FROM u) AS x FROM t WHERE id = 1"
+  - id: scalar_subquery_two_columns
+    sql: "SELECT (SELECT id, t_id FROM u WHERE id = 1) AS x FROM t WHERE id = 1"
+  - id: scalar_subquery_in_where
+    sql: "SELECT id FROM t WHERE id = (SELECT t_id FROM u WHERE id = 3)"
+  - id: scalar_subquery_on_the_left_in_where
+    sql: "SELECT id FROM t WHERE (SELECT t_id FROM u WHERE id = 3) = id"
+  - id: scalar_subquery_empty_in_where
+    sql: "SELECT id FROM t WHERE id = (SELECT t_id FROM u WHERE id = 99)"
+  - id: scalar_subquery_two_rows_in_where
+    sql: "SELECT id FROM t WHERE id = (SELECT t_id FROM u)"
+  - id: scalar_subquery_in_arithmetic_is_refused
+    sql: "SELECT id FROM t WHERE id + (SELECT 1 FROM DUMMY) = 2"
+  - id: scalar_subquery_in_case_is_refused
+    sql: "SELECT IF id = 1 THEN (SELECT label FROM u WHERE u.id = 1) ENDIF AS x FROM t WHERE id = 1"
+  - id: scalar_subquery_in_order_by_is_refused
+    sql: "SELECT id FROM t ORDER BY (SELECT u.id FROM u WHERE u.id = t.id)"
+  - id: scalar_subquery_in_a_function_is_refused
+    sql: "SELECT ISNULL((SELECT label FROM u WHERE u.id = t.id), 'none') AS x FROM t WHERE id = 1"
+  - id: scalar_subquery_in_the_front_end
+    sql: "SELECT (SELECT dummy_col FROM DUMMY) + 1 AS x"
+  - id: scalar_subquery_in_case_in_the_front_end
+    sql: "SELECT IF 2 > 1 THEN (SELECT row_num FROM sa_rowgenerator(7, 7)) ENDIF AS x"
+  - id: scalar_subquery_of_a_union_is_refused
+    sql: "SELECT (SELECT id FROM u WHERE id = 1 UNION SELECT 1 FROM DUMMY) AS x FROM t WHERE id = 1"
+  - id: scalar_subquery_compares_strings_as_iq
+    sql: "SELECT id FROM t WHERE vc = (SELECT 'x' FROM DUMMY)"
+  - id: scalar_subquery_of_an_integer_keeps_its_type
+    sql: "SELECT (SELECT sm FROM t WHERE id = 6) AS x"
+  - id: scalar_subquery_with_top_is_refused
+    sql: "SELECT (SELECT TOP 1 id FROM u ORDER BY id) AS x FROM t WHERE id = 1"
+
+  # ---- EXISTS
+  - id: exists_correlated
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id) ORDER BY 1"
+  - id: not_exists_correlated
+    sql: "SELECT id FROM t WHERE NOT EXISTS (SELECT * FROM u WHERE u.t_id = t.id) ORDER BY 1"
+  - id: exists_empty
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.id = 99)"
+  - id: exists_uncorrelated
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u) AND id < 3 ORDER BY 1"
+  - id: exists_or
+    sql: "SELECT id FROM t WHERE id = 7 OR EXISTS (SELECT 1 FROM u WHERE u.id = t.id) ORDER BY 1"
+  - id: exists_as_a_value_is_a_syntax_error
+    sql: "SELECT EXISTS (SELECT 1 FROM u)"
+  - id: exists_in_if_is_refused
+    sql: "SELECT IF EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id) THEN 1 ELSE 0 ENDIF AS x FROM t WHERE id = 1"
+  - id: exists_in_if_in_the_front_end
+    sql: "SELECT IF EXISTS (SELECT 1 FROM sa_rowgenerator(1, 3) WHERE row_num = 2) THEN 1 ELSE 0 ENDIF AS x"
+  - id: exists_in_the_on_is_refused
+    sql: "SELECT t.id FROM t JOIN u ON t.id = u.t_id AND EXISTS (SELECT 1 FROM DUMMY)"
+  - id: exists_with_a_union_is_refused
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u UNION SELECT 2 FROM DUMMY)"
+  - id: exists_with_with_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE EXISTS (WITH x AS (SELECT 1 a) SELECT a FROM x)"
+
+  # ---- IN (subquery), three-valued
+  - id: in_subquery
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u) ORDER BY 1"
+  - id: not_in_subquery_with_a_null_is_empty
+    sql: "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u) ORDER BY 1"
+  - id: not_in_subquery_without_nulls
+    sql: "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u WHERE t_id IS NOT NULL) ORDER BY 1"
+  - id: in_subquery_empty
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u WHERE id > 100)"
+  - id: not_in_subquery_empty_is_every_row
+    sql: "SELECT id FROM t WHERE id NOT IN (SELECT t_id FROM u WHERE id > 100) ORDER BY 1"
+  - id: in_subquery_null_operand
+    sql: "SELECT id FROM t WHERE sm IN (SELECT t_id FROM u) ORDER BY 1"
+  - id: in_subquery_truth_test
+    sql: "SELECT id, IF id IN (SELECT t_id FROM u) THEN 'in' ELSE 'out' ENDIF AS v FROM t ORDER BY 1"
+  - id: in_subquery_unknown_counted
+    sql: "SELECT id FROM t WHERE (id NOT IN (SELECT t_id FROM u)) IS UNKNOWN ORDER BY 1"
+  - id: in_subquery_two_columns
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id, id FROM u)"
+  - id: in_subquery_correlated
+    sql: "SELECT id FROM t WHERE sm IN (SELECT u.t_id FROM u WHERE u.id = t.id) ORDER BY 1"
+  - id: in_subquery_strings_ignore_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc IN (SELECT 'x' FROM DUMMY)"
+  - id: in_subquery_of_dummy
+    sql: "SELECT id FROM t WHERE id IN (SELECT dummy_col + 1 FROM DUMMY)"
+  - id: in_subquery_of_a_union_is_refused
+    sql: "SELECT id FROM t WHERE id IN (SELECT t_id FROM u UNION SELECT 7 FROM DUMMY) ORDER BY 1"
+  - id: in_subquery_of_a_union_in_the_front_end
+    sql: "SELECT IF 2 IN (SELECT 1 FROM DUMMY UNION ALL SELECT 2 FROM DUMMY) THEN 'T' ELSE 'F' ENDIF AS x"
+  - id: in_subquery_in_parentheses
+    sql: "SELECT id FROM t WHERE id IN ((SELECT t_id FROM u)) ORDER BY 1"
+  - id: in_list_with_a_scalar_subquery
+    sql: "SELECT id FROM t WHERE id IN ((SELECT t_id FROM u WHERE id = 3), 2) ORDER BY 1"
+
+  # ---- ANY, SOME, ALL
+  - id: equal_any
+    sql: "SELECT id FROM t WHERE id = ANY (SELECT t_id FROM u) ORDER BY 1"
+  - id: greater_than_all
+    sql: "SELECT id FROM t WHERE id > ALL (SELECT t_id FROM u WHERE id < 3) ORDER BY 1"
+  - id: greater_than_all_of_none_is_true
+    sql: "SELECT id FROM t WHERE id > ALL (SELECT t_id FROM u WHERE id > 100) ORDER BY 1"
+  - id: equal_any_of_none_is_false
+    sql: "SELECT id FROM t WHERE id = ANY (SELECT t_id FROM u WHERE id > 100)"
+  - id: less_than_some
+    sql: "SELECT id FROM t WHERE sm < SOME (SELECT t_id FROM u) ORDER BY 1"
+  - id: not_equal_all_with_a_null
+    sql: "SELECT id FROM t WHERE id <> ALL (SELECT t_id FROM u) ORDER BY 1"
+  - id: greater_equal_all_with_a_null
+    sql: "SELECT id FROM t WHERE id >= ALL (SELECT t_id FROM u WHERE id < 4) ORDER BY 1"
+  - id: any_strings_ignore_trailing_blanks
+    sql: "SELECT id FROM t WHERE vc = ANY (SELECT 'x' FROM DUMMY)"
+  - id: any_needs_a_subquery
+    sql: "SELECT id FROM t WHERE id = ANY (1, 2)"
+  - id: all_correlated
+    sql: "SELECT id FROM t WHERE id >= ALL (SELECT u.t_id FROM u WHERE u.id = t.id) ORDER BY 1"
+
+  # ---- set operations
+  - id: union
+    sql: "SELECT id FROM t UNION SELECT t_id FROM u ORDER BY 1"
+  - id: union_all
+    sql: "SELECT id FROM t UNION ALL SELECT t_id FROM u ORDER BY 1"
+  - id: union_distinct
+    sql: "SELECT id FROM t UNION DISTINCT SELECT t_id FROM u ORDER BY 1"
+  - id: union_all_distinct_is_a_syntax_error
+    sql: "SELECT id FROM t UNION ALL DISTINCT SELECT t_id FROM u"
+  - id: union_names_from_the_first_branch
+    sql: "SELECT 1 x UNION SELECT 2 y ORDER BY x"
+  - id: union_order_by_a_second_branch_name
+    sql: "SELECT 1 x UNION SELECT 2 y ORDER BY y"
+  - id: union_order_by_a_name_without_case
+    sql: "SELECT 1 x UNION SELECT 2 y ORDER BY X DESC"
+  - id: union_order_by_position_descending
+    sql: "SELECT 1 a UNION ALL SELECT 2 ORDER BY 1 DESC"
+  - id: union_order_by_plus_position
+    sql: "SELECT 1 a UNION SELECT 2 ORDER BY +1"
+  - id: union_order_by_an_expression
+    sql: "SELECT id FROM t UNION SELECT t_id FROM u ORDER BY id + 1"
+  - id: union_order_by_a_qualified_name
+    sql: "SELECT id FROM t UNION SELECT t_id FROM u ORDER BY t.id"
+  - id: union_order_by_a_parenthesized_constant
+    sql: "SELECT 1 UNION SELECT 2 ORDER BY (1)"
+  - id: union_order_by_a_negative_position
+    sql: "SELECT 1 a UNION SELECT 2 ORDER BY -1"
+  - id: union_order_by_position_zero
+    sql: "SELECT 1 a UNION ALL SELECT 2 ORDER BY 0"
+  - id: union_order_by_position_beyond
+    sql: "SELECT 1 a UNION ALL SELECT 2 ORDER BY 2"
+  - id: union_order_by_two_keys
+    sql: "SELECT 1 a, 2 b UNION SELECT 2, 3 ORDER BY b DESC, 1"
+  - id: union_column_count_mismatch
+    sql: "SELECT id FROM t UNION SELECT id, t_id FROM u"
+  - id: union_integer_with_string
+    sql: "SELECT id FROM t UNION SELECT label FROM u"
+  - id: union_null_with_integer
+    sql: "SELECT NULL UNION ALL SELECT 1 ORDER BY 1"
+  - id: union_integer_with_null
+    sql: "SELECT id FROM t UNION ALL SELECT NULL ORDER BY 1"
+  - id: union_null_with_string_is_refused
+    sql: "SELECT NULL UNION ALL SELECT 'a'"
+  - id: union_smallint_with_bigint
+    sql: "SELECT sm FROM t UNION SELECT bg FROM t ORDER BY 1"
+  - id: union_smallint_with_integer
+    sql: "SELECT sm FROM t UNION ALL SELECT it FROM t WHERE id = 1 ORDER BY 1"
+  - id: union_bit_with_smallint
+    sql: "SELECT bt FROM t UNION SELECT sm FROM t WHERE id < 3 ORDER BY 1"
+  - id: union_all_of_strings
+    sql: "SELECT vc FROM t WHERE id < 3 UNION ALL SELECT label FROM u WHERE id = 1"
+  - id: union_of_strings_is_refused
+    sql: "SELECT vc FROM t UNION SELECT label FROM u"
+  # IQ island, 2026-10-14 (the merge of M1b/M1c with the natives slice): was union_all_ordered_by_a_string_is_refused; IQ's collation answers it now
+  - id: union_all_ordered_by_a_string
+    sql: "SELECT vc FROM t UNION ALL SELECT label FROM u ORDER BY 1"
+  - id: union_of_dates
+    sql: "SELECT dt FROM t WHERE id < 3 UNION SELECT dt FROM t WHERE id > 5 ORDER BY 1"
+  - id: union_of_timestamps
+    sql: "SELECT ts FROM t WHERE id = 1 UNION ALL SELECT ts FROM t WHERE id = 7 ORDER BY 1"
+  - id: union_of_doubles
+    sql: "SELECT dbl FROM t WHERE id < 3 UNION SELECT dbl FROM t WHERE id = 7 ORDER BY 1"
+  - id: union_of_numerics_is_refused
+    sql: "SELECT nm FROM t UNION SELECT qty FROM u"
+  - id: union_integer_with_numeric_is_refused
+    sql: "SELECT 1 UNION SELECT 1.5"
+  - id: union_integer_with_double_is_refused
+    sql: "SELECT id FROM t UNION ALL SELECT dbl FROM t"
+  - id: union_parenthesized_branches
+    sql: "(SELECT id FROM t) UNION (SELECT t_id FROM u) ORDER BY 1"
+  - id: union_branch_with_order_by_is_refused
+    sql: "(SELECT id FROM t ORDER BY id) UNION SELECT 1"
+  - id: union_after_order_by_is_a_syntax_error
+    sql: "SELECT id FROM t ORDER BY id UNION SELECT 1"
+  - id: union_branch_with_top_and_order_by_is_a_syntax_error
+    sql: "SELECT TOP 1 id FROM t ORDER BY id UNION SELECT 1"
+  - id: union_branch_with_top_is_refused
+    sql: "SELECT TOP 1 id FROM t UNION SELECT 1"
+  - id: union_branch_with_with_is_a_syntax_error
+    sql: "SELECT 1 UNION ALL (WITH x AS (SELECT 1 a) SELECT a FROM x)"
+  - id: union_three_branches
+    sql: "SELECT 1 UNION SELECT 2 UNION ALL SELECT 1 ORDER BY 1"
+  - id: union_all_of_a_parenthesized_union
+    sql: "SELECT 1 UNION ALL (SELECT 2 UNION SELECT 2) ORDER BY 1"
+  - id: union_of_joins
+    sql: "SELECT t.id FROM t JOIN u ON t.id = u.t_id UNION SELECT u.id FROM u WHERE u.id > 3 ORDER BY 1"
+  - id: union_of_rowgenerators
+    sql: "SELECT row_num FROM sa_rowgenerator(1, 3) UNION SELECT row_num FROM sa_rowgenerator(2, 5) ORDER BY 1"
+    engine: sa
+  - id: union_unaliased_computed_first_branch
+    sql: "SELECT id + 1 FROM t WHERE id < 3 UNION ALL SELECT id FROM u WHERE id = 1 ORDER BY 1"
+  - id: except
+    sql: "SELECT id FROM t EXCEPT SELECT t_id FROM u ORDER BY 1"
+  - id: except_distinct
+    sql: "SELECT id FROM t EXCEPT DISTINCT SELECT t_id FROM u ORDER BY 1"
+  - id: except_all_is_refused
+    sql: "SELECT id FROM t EXCEPT ALL SELECT t_id FROM u ORDER BY 1"
+  - id: except_keeps_a_null_row
+    sql: "SELECT sm FROM t EXCEPT SELECT sm FROM t WHERE id < 3 ORDER BY 1"
+  - id: except_null_from_null
+    sql: "SELECT NULL EXCEPT SELECT NULL"
+  - id: intersect
+    sql: "SELECT id FROM t INTERSECT SELECT t_id FROM u ORDER BY 1"
+  - id: intersect_distinct
+    sql: "SELECT id FROM t INTERSECT DISTINCT SELECT t_id FROM u ORDER BY 1"
+  - id: intersect_all_is_refused
+    sql: "SELECT id FROM t INTERSECT ALL SELECT t_id FROM u ORDER BY 1"
+  - id: intersect_keeps_a_null_row
+    sql: "SELECT t_id FROM u INTERSECT SELECT t_id FROM u"
+  - id: intersect_two_columns
+    sql: "SELECT id, sm FROM t INTERSECT SELECT id, sm FROM t ORDER BY 1"
+  - id: intersect_null_with_null
+    sql: "SELECT NULL INTERSECT SELECT NULL"
+  - id: intersect_binds_tighter_than_union
+    sql: "SELECT 1 UNION ALL SELECT 2 INTERSECT SELECT 2"
+  - id: except_and_union_associate_left
+    sql: "SELECT 1 UNION ALL SELECT 2 EXCEPT SELECT 2"
+  - id: union_then_intersect_parenthesized
+    sql: "(SELECT 1 UNION ALL SELECT 2) INTERSECT SELECT 2"
+  - id: union_under_a_tds_login
+    sql: "SELECT id FROM t UNION SELECT t_id FROM u ORDER BY 1"
+    profile: iq16-tds

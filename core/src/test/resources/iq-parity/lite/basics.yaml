@@ -25,7 +25,8 @@ tests:
     sql: "SELECT id, ch FROM t WHERE ch = 'abc' ORDER BY id"
     decision: D-S1
     expect: '[["2","abc  "]]'
-  # the same at SQL Anywhere's defaults: no blank padding, and case-insensitive (refused: no ASCII case fold yet)
+  # the same at SQL Anywhere's defaults: no blank padding, and case-insensitive (IQ island, 2026-10-14: the ASCII
+  # case fold, composed)
   - id: where_char_with_trailing_blanks_sa_defaults
     sql: "SELECT id FROM t WHERE ch = 'abc' ORDER BY id"
     profile: sqla17-default
@@ -45,6 +46,9 @@ tests:
     profile: iq16-default, iq16-tds
   - id: join_on_u
     sql: "SELECT t.id, u.label, u.qty FROM t JOIN u ON u.t_id = t.id ORDER BY u.id"
+  # read since M1b (lite/m1b.yaml has its family)
+  - id: comma_join_of_two_tables
+    sql: "SELECT t.id FROM t, u WHERE u.t_id = t.id ORDER BY 1"
   # timestamp_format differs by profile; a TIMESTAMP column is snapped at six fractional digits under each
   - id: timestamps_and_dates_by_profile
     sql: "SELECT id, dt, ts FROM t WHERE ts IS NOT NULL ORDER BY ts, id"
@@ -139,7 +143,7 @@ tests:
   - id: double_quoted_string_under_tds
     sql: "SELECT id FROM t WHERE vc = \"hello\" ORDER BY id"
     profile: iq16-tds
-  # ordering strings needs an ASCII-only right trim (IQ ignores trailing blanks before comparing): refused
+  # ordering strings: IQ ignores trailing blanks before comparing (IQ island, 2026-10-14: the trailing spaces dropped)
   - id: string_less_than
     sql: "SELECT id FROM t WHERE vc < 'b' ORDER BY id"
 
@@ -192,10 +196,8 @@ tests:
   - id: true_is_a_name
     sql: "SELECT TRUE FROM t"
 
-  # ---- refused by name, not read yet (later slices)
-  - id: comma_join_is_not_read_yet
-    sql: "SELECT t.id FROM t, u WHERE u.t_id = t.id ORDER BY 1"
-  - id: like_is_not_read_yet
+  # ---- read since M1a (lite/m1a.yaml has its family)
+  - id: like_of_a_varchar
     sql: "SELECT id FROM t WHERE vc LIKE 'h%' ORDER BY id"
 
   # ---- read since the rest of M0 (lite/m0.yaml has their families)

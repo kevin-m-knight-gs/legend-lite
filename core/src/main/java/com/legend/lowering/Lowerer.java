@@ -1473,12 +1473,18 @@ public final class Lowerer {
             // door applies (§4bZ): the unwrap site is the other place
             // that KNOWS the read crossed a declared mismatch
             boolean unwrapped = body != cellRoot;
-            SqlSelect resolveBase = base;
-            switch (attempt(() -> {
-                SqlExpr lowered = scalar(body,
-                        (v, name) -> resolveOrThrow(resolveBase, name));
-                return lowered;
-            })) {
+            // the column lambda's OWN row against the base select; any other
+            // variable through the enclosing scopes, as a predicate's
+            // (scopedResolver), never the base's same-named column. Until
+            // 2026-10-14 every read resolved by name against the base: an
+            // enclosing row's column was unfoldable (the tenth line's find,
+            // a correlated subquery's `max(x.age) + e.ID`), and one named
+            // like a base column would have been the base's, silently.
+            // (a column lambda with no parameter -- a constant column -- owns
+            // no row: every variable read is an enclosing row's)
+            ColumnResolver reads = scopedResolver(base,
+                    c.fn().parameters().isEmpty() ? null : c.fn().parameters().get(0));
+            switch (attempt(() -> scalar(body, reads))) {
                 case Resolution.Resolved r -> {
                     if (manyCols.contains(c)) {
                         Type elemT = Type.schemaView(info.type()) instanceof Type.RelationType rt
@@ -1707,7 +1713,7 @@ public final class Lowerer {
      * OTHER vars try ENCLOSING scopes FIRST (own-select-first silently
      * self-correlates on same-named columns — audit's two wrong-answer
      * regressions); non-own vars missing every scope are UNFOLDABLE. */
-    private ColumnResolver scopedResolver(SqlSelect select, String ownVar) {
+    private ColumnResolver scopedResolver(SqlSelect select, @com.legend.base.Nullable String ownVar) {
         // SNAPSHOT the enclosing scopes at creation: iterating the LIVE
         // deque includes this resolver itself once inner scopes run — any
         // correlated miss then recurses forever (audit: StackOverflow where

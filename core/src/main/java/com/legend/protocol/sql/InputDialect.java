@@ -51,6 +51,28 @@ public interface InputDialect {
     /** The output name of a select item written without an alias. */
     String defaultName(SqlAst.SelectExpr item);
 
+    /** The output name of a select item written without an alias, where {@code tables} says which FROM item of the
+     *  item's query each of its column references reads: {@link #defaultName(SqlAst.SelectExpr)} unless the dialect
+     *  names an item by the tables it reads (Postgres's does not). */
+    default String defaultName(SqlAst.SelectExpr item, Tables tables) {
+        return defaultName(item);
+    }
+
+    /** The name an unaliased FROM function is known by in the query (its correlation name): its own, as written
+     *  (Postgres's), unless the dialect says otherwise. */
+    default SqlAst.Ident functionName(SqlAst.TableFunction f) {
+        return f.name().get(f.name().size() - 1);
+    }
+
+    /** Which FROM item a column reference reads, for {@link #defaultName(SqlAst.SelectExpr, Tables)}. */
+    @FunctionalInterface
+    interface Tables {
+        /** The correlation name (its alias, else its name) of the FROM item of the reference's own query that
+         *  {@code ref} reads, as written; null when it reads none there (an enclosing query's column, a column two
+         *  items share). */
+        SqlAst.@com.legend.base.Nullable Ident table(SqlAst.ColumnRef ref);
+    }
+
     /** The output name of a select item that is a column reference written without an alias: {@code written} is the
      *  reference's last part as written, {@code label} the name the column has where it is read (Postgres's). */
     default String columnName(SqlAst.Ident written, String label) {
@@ -112,10 +134,113 @@ public interface InputDialect {
     /** {@code x [NOT] LIKE pattern}'s translation. */
     SqlToPure.Tx like(SqlAst.Like l, SqlToPure.At at);
 
-    /** A value of {@code kind} used as a key of {@code clause} ({@code ORDER BY}, {@code DISTINCT}): nothing when the
-     *  translation's ordering and equality are the dialect's for it (Postgres's always are), else the dialect's
-     *  refusal. */
-    default void key(String clause, SqlToPure.Kind kind, SqlAst.Pos pos) {
+    /** {@code x [NOT] BETWEEN low AND high}'s translation: Postgres's unless the dialect says otherwise. */
+    default SqlToPure.Tx between(SqlAst.Between b, SqlToPure.At at) {
+        return at.postgresBetween(b);
+    }
+
+    /** {@code x [NOT] IN (value, ...)}'s translation: Postgres's unless the dialect says otherwise. */
+    default SqlToPure.Tx inList(SqlAst.InList in, SqlToPure.At at) {
+        return at.postgresInList(in);
+    }
+
+    /** {@code x IS [NOT] DISTINCT FROM y}'s translation: Postgres's unless the dialect says otherwise. */
+    default SqlToPure.Tx isDistinct(SqlAst.IsDistinct d, SqlToPure.At at) {
+        return at.postgresIsDistinct(d);
+    }
+
+    /** A FROM item that is one of the dialect's own relations (a system table, a system procedure), as the dialect
+     *  reads it; null when it is none and the translator reads the item (Postgres's: never one). */
+    default SqlToPure.@com.legend.base.Nullable Relation source(SqlAst.FromItem item) {
+        return null;
+    }
+
+    /** IQ island, 2026-10-14 (review 5's M3): a FROM table name that is one of the dialect's own relations
+     *  ({@link #source}), read beside the model's tables ({@link SqlToPure.Sources#tables}), which a dialect may find
+     *  before its own: {@link #source}'s unless the dialect says otherwise. */
+    default SqlToPure.@com.legend.base.Nullable Relation tableSource(SqlAst.TableName t, SqlToPure.Sources sources) {
+        return source(t);
+    }
+
+    /** IQ island, 2026-10-14 (M1e): a FROM table named without a source function ({@code owner.table}), as the
+     *  dialect binds it to one of the model's tables ({@link SqlToPure.Sources#tables}): its relation, which the
+     *  translator types as it types a source function's, or the dialect's error; null when the dialect binds no name
+     *  so (Postgres's: refused, a table name needs {@code tb(...)}). */
+    default com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification table(SqlAst.TableName t,
+            SqlToPure.Sources sources) {
+        return null;
+    }
+
+    /** IQ island, 2026-10-14 (M1e): a parameter's translation {@code at} its place: a named one (a host variable) as
+     *  the dialect reads it, a variable of the enclosing Pure query in scope ({@link SqlToPure.Sources#variable}).
+     *  Postgres's ({@code $1}): refused. */
+    default SqlToPure.Tx parameter(SqlAst.Param p, SqlToPure.At at, SqlToPure.Sources sources) {
+        throw SqlTranslationException.unsupported("parameters ($" + p.index() + ") are not supported yet", p.pos());
+    }
+
+    /** One row of a subquery compared, for {@code x op ANY | ALL (query)} and {@code x [NOT] IN (query)}:
+     *  {@code left op each}, {@code each} the subquery's column read in that row. Postgres's unless the dialect says
+     *  otherwise. */
+    default SqlToPure.Tx quantifiedTest(SqlAst.BinaryOp op, SqlAst.Expr left, SqlToPure.Tx each, SqlAst.Pos pos,
+            SqlToPure.At at) {
+        return at.postgresQuantifiedTest(op, left, each, pos);
+    }
+
+    /** The type of column {@code i} of {@code s}, a set operation, from its two sides' ({@code left}, {@code right}):
+     *  null for the translator's own rule (Postgres's: one kind on both sides). A dialect that unifies the two (or
+     *  refuses the pair by name) answers its type. */
+    default SqlToPure.@com.legend.base.Nullable ColumnType setColumn(SqlAst.SetOperation s, int i,
+            SqlToPure.ColumnType left, SqlToPure.ColumnType right) {
+        return null;
+    }
+
+    /** Whether a NATURAL join shows the columns its two sides share once, merged (the standard's, Postgres's); a
+     *  dialect that keeps both sides' columns, each read qualified, joining on their equality, says false. */
+    default boolean mergesNaturalJoin() {
+        return true;
+    }
+
+    /**
+     * A value used as a key of {@code clause} ({@code ORDER BY}, {@code DISTINCT}, {@code GROUP BY}, {@code UNION},
+     * {@code INTERSECT}, {@code EXCEPT}): null when the translation's ordering and equality of the values themselves
+     * are the dialect's for it (Postgres's always are), else the dialect's key -- its collation's: what the clause
+     * sorts or groups by in the value's place, the value's translation in, the key's out -- or the dialect's refusal.
+     * {@code value} is the value as the clause reads it, {@code expr} its expression where it has one (none for a
+     * star's column or a set operation's). A DISTINCT or a set operation shows one value of each group of equal keys,
+     * which the translation does not choose: a dialect answers null for them or refuses; a GROUP BY key the dialect
+     * answers a key for is grouped by that key, and the query must show no value of it (the dialect's to check).
+     * IQ island, 2026-10-14: the dialect's key (it was a refusal only).
+     */
+    default java.util.function.@com.legend.base.Nullable UnaryOperator<com.legend.protocol.spec.ValueSpecification> key(
+            String clause, SqlToPure.Tx value, SqlAst.@com.legend.base.Nullable Expr expr, SqlAst.Pos pos) {
+        return null;
+    }
+
+    // ------------------------------------------------------------------ grouping
+
+    /** {@code s} as the dialect reads its GROUP BY and HAVING: itself (Postgres's), unless the dialect reads a name
+     *  there otherwise -- IQ reads a select-list alias before a column of its name. */
+    default SqlAst.Select grouping(SqlAst.Select s) {
+        return s;
+    }
+
+    /** Whether an integer constant in GROUP BY names a select item by its position (Postgres's); a dialect that
+     *  groups by the constant itself says false. */
+    default boolean groupsByPosition() {
+        return true;
+    }
+
+    /** Whether a call of {@code name} (a function's name as the translator reads one: folded when unquoted) is an
+     *  aggregate: one of Postgres's, unless the dialect says otherwise. */
+    default boolean isAggregate(String name) {
+        return SqlToPure.postgresAggregate(name);
+    }
+
+    /** A call of one of the dialect's own aggregates ({@link #isAggregate}), as the dialect computes it {@code at} its
+     *  grouped query; null for the translator's own reading (Postgres's). */
+    default SqlToPure.@com.legend.base.Nullable Aggregation aggregate(SqlAst.FunctionCall f,
+            SqlToPure.Grouping at) {
+        return null;
     }
 
     // ------------------------------------------------------------------ the dialect's own refusals

@@ -946,3 +946,30 @@ a stream cut in Python fails on the page in words.
 
 **Anchor.** `the whole result as one chunk: streamed back in chunks is a follow-up` in
 `datacube/src/services/python-host.ts` (ParkedWorkLedgerTest reads core only; checked by hand).
+
+## PARK-37 — a spelled integer at or above 2^63 read as an index, an offset or a precision wraps
+
+**Recorded** 2026-10-14 by the Compiler Rewrite line, at the audit of the three planner fixes the tenth line asked for
+(`docs/build-inventory/program/evidence/iq-finds/AUDIT.md`, question 1). The two folds that compare or equate two
+spelled integers now read the exact value (`TypedCInteger.big()`: the parser keeps a literal beyond long a
+`BigInteger`); the other reads of a spelled integer's `longValue()` in the compiler and the lowering are the index,
+offset and precision kind, and the audit lists them.
+
+**What happens today.** A literal at or above 2^63 wraps when such a read takes its `longValue()`:
+`at(18446744073709551616)` over a spelled collection picks element 0 (`ExecuteChainAssembly`), a zero test reads the
+wrapped value (`ResultEnvelopeSplice`, `CastChecker`), and `StaticFold`'s evaluator adds and subtracts in long. Nothing
+a query writes on purpose; a wrong answer rather than a refusal when one does.
+
+**The fix.** Each such read takes `big()` and refuses where the value does not fit (an index beyond the collection, a
+precision beyond int), with a test per read.
+
+**Acceptance.** `at` with an index at 2^64 over a spelled collection is refused, not answered with element 0; the zero
+tests and `StaticFold`'s arithmetic agree with Pure's for a literal beyond long.
+
+**Why parked.** No query reaches these reads with such a literal today, and no wrong answer was reported; the fix
+touches a dozen sites across the compiler and the lowering.
+
+**When.** With the next change to any of those sites, or a reported wrong answer.
+
+**Anchor.** `k.value().longValue() < coll.elements().size()` in
+`core/src/main/java/com/legend/compiler/spec/ExecuteChainAssembly.java` (ParkedWorkLedgerTest).

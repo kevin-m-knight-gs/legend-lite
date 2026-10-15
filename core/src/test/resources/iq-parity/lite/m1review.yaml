@@ -1,0 +1,172 @@
+# The third review's findings on M1a-M1d, each pinned (docs/IQ_SQL_STUDY_2026_10_13.md §9.10; IQ island, 2026-10-14):
+# a case that failed, or answered where SQL Anywhere raises, before its fix. B1: a SUM whose overflow check (D-E3) is
+# read only for some groups is refused; B2: an ESCAPE that is a wildcard is refused; B3: a date read from a string
+# with a year below 100 is refused; B4: DATEADD past IQ's years raises -158, and a count SQL Anywhere wraps is refused;
+# M1: an item that is a chain of number constants is named as SQL Anywhere names it (its parentheses dropped where it
+# optimizes the statement); M2: MEDIAN of an
+# INTEGER whose midpoint may wrap is refused (SQL Anywhere's defect); M3: GETDATE() beside another clock reading is
+# refused (D-T13); M5: IF ... ELSE NULL and a CASE's last NULL branches answer; m1: NUMERIC + and - past 18 digits;
+# m4: a DOUBLE product or quotient that underflows is 0 on both lanes. Judged by SQL Anywhere 17's answers in
+# iq-answers.jsonl. A case without FROM, or over sa_rowgenerator, runs in SQL Anywhere's front end (engine: sa).
+# The SQL in YAML double quotes. tools/iq-oracle's README.md has the keys.
+tests:
+
+  # ---- B1: a checked SUM read for some groups only (SQL Anywhere raises -158 in the aggregation, every group)
+  - id: b1_sum_inside_if_is_refused
+    sql: "SELECT k, IF k = 4 THEN 0 ELSE SUM(v) ENDIF AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_sum_inside_case_is_refused
+    sql: "SELECT k, CASE WHEN k = 4 THEN 0 ELSE SUM(v) END AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_sum_inside_coalesce_is_refused
+    sql: "SELECT k, COALESCE(MAX(j), SUM(v)) AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_sum_inside_isnull_is_refused
+    sql: "SELECT k, ISNULL(MAX(j), SUM(v)) AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_sum_under_a_count_test_is_refused
+    sql: "SELECT k, IF COUNT(*) > 2 THEN SUM(v) ENDIF AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_bigint_sum_inside_if_is_refused
+    sql: "SELECT k, IF k = 4 THEN 0 ELSE SUM(w) ENDIF AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_double_sum_inside_if_is_refused
+    sql: "SELECT k, IF k = 4 THEN 0 ELSE SUM(d) ENDIF AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_sum_under_top_is_refused
+    sql: "SELECT TOP 1 k, SUM(v) AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_sum_under_start_at_is_refused
+    sql: "SELECT TOP 1 START AT 2 k, SUM(v) AS s FROM g GROUP BY k ORDER BY k"
+  - id: b1_sum_in_a_scalar_subquery_under_top_is_refused
+    sql: "SELECT TOP 3 id, (SELECT SUM(v) FROM g WHERE g.k = t.id) AS s FROM t ORDER BY id"
+  - id: b1_sum_read_everywhere_still_raises
+    sql: "SELECT k FROM g GROUP BY k HAVING SUM(v) > 0 ORDER BY k"
+  - id: b1_sum_read_everywhere_still_answers
+    sql: "SELECT k, SUM(v) AS s FROM g WHERE k < 4 GROUP BY k ORDER BY k"
+
+  # ---- B2: an ESCAPE that is %, _ or [ (SQL Anywhere reads it as the wildcard)
+  - id: b2_escape_percent_is_refused
+    sql: "SELECT id FROM t WHERE vc LIKE '%%' ESCAPE '%' ORDER BY id"
+  - id: b2_escape_underscore_is_refused
+    sql: "SELECT x FROM (SELECT 'a_b' AS x UNION ALL SELECT 'axb' UNION ALL SELECT '_') d WHERE x LIKE 'a__b' ESCAPE '_'"
+    engine: sa
+  - id: b2_escape_bracket_is_refused
+    sql: "SELECT x FROM (SELECT 'a[b' AS x UNION ALL SELECT 'axb' UNION ALL SELECT '[') d WHERE x LIKE 'a[[b' ESCAPE '['"
+    engine: sa
+  - id: b2_escape_bracket_close_is_read
+    sql: "SELECT x FROM (SELECT 'a%b' AS x UNION ALL SELECT 'axb') d WHERE x LIKE 'a]%b' ESCAPE ']'"
+    engine: sa
+
+  # ---- B3: a date read from a string, a year below 100 (lite's lowering writes the year without its zeros)
+  - id: b3_date_before_the_year_12_is_refused
+    sql: "SELECT id FROM t WHERE dt < '0012-12-12' ORDER BY id"
+  - id: b3_timestamp_before_the_year_12_is_refused
+    sql: "SELECT id FROM t WHERE ts < '0012-12-12 00:00' ORDER BY id"
+  - id: b3_between_years_1_and_30_is_refused
+    sql: "SELECT id FROM t WHERE dt BETWEEN '0001-01-01' AND '0030-12-31' ORDER BY id"
+  - id: b3_the_year_100_is_read
+    sql: "SELECT id FROM t WHERE dt > '0100-01-01' ORDER BY id"
+
+  # ---- B4: DATEADD past 9999-12-31 or before 0001-01-01 is IQ's -158; a count SQL Anywhere wraps is refused
+  - id: b4_a_day_past_9999
+    sql: "SELECT DATEADD(DAY, 1, CAST(DATEADD(DAY, row_num - 1, '9999-12-31') AS DATE)) AS x FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: b4_a_year_past_9999
+    sql: "SELECT DATEADD(YEAR, 1, CAST(DATEADD(DAY, row_num - 1, '9999-01-01') AS DATE)) AS x FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: b4_back_before_the_year_1
+    sql: "SELECT DATEADD(YEAR, -2026, CAST(DATEADD(DAY, row_num - 1, '2026-01-01') AS DATE)) AS x FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: b4_back_to_the_year_1
+    sql: "SELECT DATEADD(YEAR, -2025, CAST(DATEADD(DAY, row_num - 1, '2026-01-01') AS DATE)) AS x FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: b4_months_past_9999
+    sql: "SELECT DATEADD(MONTH, CAST(IF row_num > 0 THEN 100000 ENDIF AS INTEGER), CAST(DATEADD(DAY, row_num - 1, '2026-01-01') AS DATE)) AS x FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: b4_minutes_before_the_year_1
+    sql: "SELECT DATEADD(MINUTE, CAST(IF row_num > 0 THEN -2147483647 ENDIF AS INTEGER), CAST(DATEADD(DAY, row_num - 1, '2026-01-01') AS DATE)) AS x FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: b4_a_day_count_sql_anywhere_wraps_is_refused
+    sql: "SELECT DATEADD(DAY, CAST(IF row_num > 0 THEN 2147483647 ENDIF AS INTEGER), CAST(DATEADD(DAY, row_num - 1, '2026-01-01') AS DATE)) AS x FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: b4_a_smallint_day_count_is_read
+    sql: "SELECT id, DATEADD(DAY, k, dt) AS x FROM g ORDER BY id"
+    profile: sqla17-default
+
+  # ---- M1: a chain of number constants is named without its parentheses over a FROM (not over DUMMY or none)
+  - id: m1_constant_chains_over_sa_rowgenerator
+    sql: "SELECT 1 + (2), 1 - (2 - 3), (1.5) + 1, 1 + (2) * 3, (1 * 2) + (3 * 4), 1 + (2 * (3)) FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: m1_a_product_in_a_constant_chain_keeps_its_factors_parentheses
+    sql: "SELECT 1 + ((2) * 3), (1) * 2 + 3, +(1) + 2 FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: m1_constant_chains_over_one_table_keep_their_parentheses
+    sql: "SELECT 1 + (2), (1) + 2 + (3), 1 - (2 + 3) FROM t WHERE id = 1"
+  - id: m1_constant_chains_over_a_join
+    sql: "SELECT 1 + (2), (1) + 2 + (3), 1 - (2 + 3) FROM t JOIN u ON t.id = u.t_id WHERE u.id = 1"
+  - id: m1_constant_chains_over_a_grouping
+    sql: "SELECT 1 + (2), COUNT(*) AS n FROM t GROUP BY id ORDER BY id"
+  - id: m1_constant_chains_in_a_union
+    sql: "SELECT 1 + (2) UNION ALL SELECT 4"
+    engine: sa
+  - id: m1_constant_chains_over_a_derived_table
+    sql: "SELECT 1 + (2), ((1 + 2)) + 3 FROM (SELECT 1 AS a) d"
+    engine: sa
+  - id: m1_constant_chains_without_from_keep_their_parentheses
+    sql: "SELECT 1 + (2), 1 - (2 - 3), (1.5) + 1"
+    engine: sa
+  - id: m1_constant_chains_over_dummy_keep_their_parentheses
+    sql: "SELECT 1 + (2), (1) + 2 + (3) FROM DUMMY"
+    engine: sa
+  - id: m1_chains_of_other_operands_keep_their_parentheses
+    sql: "SELECT 1 + (2) + row_num, 1 + (-2), (null) + 1, 1 + (7 / 3) FROM sa_rowgenerator(1, 1)"
+    engine: sa
+
+  # ---- M2: MEDIAN of an INTEGER (SQL Anywhere's midpoint wraps at 32 bits: its defect)
+  - id: m2_median_of_integer_extremes_is_refused
+    sql: "SELECT MEDIAN(it) AS m FROM t WHERE id IN (1, 2)"
+  - id: m2_median_of_smallint_extremes
+    sql: "SELECT MEDIAN(sm) AS m FROM t WHERE id IN (1, 2)"
+  - id: m2_median_of_a_bounded_integer
+    sql: "SELECT MEDIAN(row_num) AS m FROM sa_rowgenerator(1, 10)"
+    engine: sa
+
+  # ---- M3: GETDATE() is a clock reading of its own in SQL Anywhere (D-T13)
+  - id: m3_getdate_beside_another_reading_is_refused
+    sql: "SELECT IF GETDATE() IS NOT NULL AND CURRENT TIMESTAMP IS NOT NULL THEN 1 ELSE 0 ENDIF AS a"
+    engine: sa
+  - id: m3_getdate_alone
+    sql: "SELECT IF GETDATE() IS NOT NULL THEN 1 ELSE 0 ENDIF AS a"
+    engine: sa
+
+  # ---- M5: IF ... ELSE NULL and a CASE's last NULL branches (the compiler's stamp of an all-NULL CASE)
+  - id: m5_if_else_null_of_a_string
+    sql: "SELECT IF row_num = 1 THEN 'x' ELSE NULL ENDIF AS a FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: m5_if_else_null_of_a_number
+    sql: "SELECT IF row_num = 1 THEN 10 ELSE NULL ENDIF AS a FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: m5_if_else_null_named
+    sql: "SELECT IF row_num = 1 THEN 'x' ELSE NULL ENDIF FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: m5_case_whose_last_when_is_null_after_a_null_test
+    sql: "SELECT CASE WHEN row_num = 1 THEN 'x' WHEN row_num IS NULL THEN NULL END AS a FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: m5_simple_case_else_null_named
+    sql: "SELECT CASE row_num WHEN 1 THEN 'x' ELSE NULL END FROM sa_rowgenerator(1, 2)"
+    engine: sa
+  - id: m5_case_whose_last_when_is_null_after_a_comparison_is_refused
+    sql: "SELECT CASE WHEN row_num = 1 THEN 'x' WHEN row_num = 2 THEN NULL END AS a FROM sa_rowgenerator(1, 2)"
+    engine: sa
+
+  # ---- m1: NUMERIC + and - past 18 digits
+  - id: m1_numeric_sums_past_18_digits
+    sql: "SELECT 99999999999999999.5 + 1.00 AS a, 99999999999999999.5 - -1.25 AS b, 99999999999999999.5 + 123456789.123456789 AS c, 99999999999999999.5 - 0.0000001 AS d"
+    engine: sa
+
+  # ---- m4: a DOUBLE product or quotient that underflows to 0 (Postgres raises; SQL Anywhere and DuckDB answer 0)
+  - id: m4_double_products_that_underflow
+    sql: "SELECT EXP(-700 + row_num - 1) * EXP(-700 + row_num - 1) AS x, EXP(-372 + row_num - 1) * EXP(-373 + row_num - 1) AS w, EXP(-390 + row_num) * EXP(-350 + row_num) AS v FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: m4_double_quotients_that_underflow
+    sql: "SELECT EXP(-700 + row_num - 1) / EXP(700 + row_num - 1) AS y, EXP(-10 + row_num) / EXP(700 + row_num) AS z FROM sa_rowgenerator(1, 1)"
+    engine: sa
+  - id: m4_a_constant_double_product_that_underflows_is_refused
+    sql: "SELECT EXP(-700) * EXP(-700) AS x"
+    engine: sa
+  - id: m4_rowgenerator_overflow_on_no_row
+    sql: "SELECT row_num * 100000 AS x FROM sa_rowgenerator(30000, 30000) WHERE row_num < 0"
+    engine: sa

@@ -245,8 +245,9 @@ final class SyntheticHeads {
         TypedSpec out = b0 == null ? pipe : filter.apply(pipe, b0);
         for (TypedLambda b : branches.subList(1, branches.size())) {
             TypedSpec member = b == null ? pipe : filter.apply(pipe, b);
-            out = new com.legend.compiler.spec.typed.TypedConcatenate(
-                    out, member, member.info());
+            out = new com.legend.compiler.spec.typed.TypedConcatenate(out, member,
+                    com.legend.compiler.spec.typed.TypedConcatenate.unionInfo(out, member,
+                            member.info().multiplicity()));
         }
         return out;
     }

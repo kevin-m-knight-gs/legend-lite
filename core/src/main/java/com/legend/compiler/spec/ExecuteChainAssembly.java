@@ -443,8 +443,10 @@ public final class ExecuteChainAssembly {
         }
         TypedSpec folded = queries.get(0);
         for (int qi = 1; qi < queries.size(); qi++) {
-            folded = new TypedConcatenate(folded, queries.get(qi),
-                    folded.info());
+            // the union's column stamps are both sides' (TypedConcatenate.unionInfo)
+            TypedSpec q = queries.get(qi);
+            folded = new TypedConcatenate(folded, q,
+                    TypedConcatenate.unionInfo(folded, q, folded.info().multiplicity()));
         }
         return new TypedLambda(List.of(), List.of(folded),
                 new ExprType(new Type.FunctionType(List.of(),

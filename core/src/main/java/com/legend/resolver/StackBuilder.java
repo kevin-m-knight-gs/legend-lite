@@ -1931,9 +1931,8 @@ final class StackBuilder {
         }
         TypedSpec out = widened.get(0);
         for (int i = 1; i < widened.size(); i++) {
-            out = new TypedConcatenate(out,
-                    widened.get(i),
-                    new ExprType(out.info().type(), Multiplicity.Bounded.ONE));
+            out = new TypedConcatenate(out, widened.get(i),
+                    TypedConcatenate.unionInfo(out, widened.get(i), Multiplicity.Bounded.ONE));
         }
         return out;
     }

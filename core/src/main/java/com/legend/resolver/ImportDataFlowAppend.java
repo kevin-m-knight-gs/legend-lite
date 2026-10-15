@@ -73,7 +73,8 @@ public final class ImportDataFlowAppend {
         if (n instanceof TypedConcatenate c) {
             TypedSpec l = appendTo(c.left(), threads, coalesce);
             TypedSpec r = appendTo(c.right(), threads, coalesce);
-            return new TypedConcatenate(l, r, l.info());
+            // the rebuilt union's column stamps are both sides' (TypedConcatenate.unionInfo)
+            return new TypedConcatenate(l, r, TypedConcatenate.unionInfo(l, r, l.info().multiplicity()));
         }
         if (n instanceof TypedProject p) {
             Type.RelationType srcRow = Type.requireRelationSchema(p.source().info().type());

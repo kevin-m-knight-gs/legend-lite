@@ -110,7 +110,8 @@ final class ConcatenateChecker {
                 renames.add(new TypedRename.ColRename(rc.name(), lc.name()));
             }
         }
-        ExprType one = new ExprType(left.info().type(), Multiplicity.Bounded.ONE);
+        // the union's column stamps are both sides' (TypedConcatenate.unionInfo, 2026-10-14)
+        ExprType one = TypedConcatenate.unionInfo(left, right, Multiplicity.Bounded.ONE);
         TypedSpec aligned = renames.isEmpty() ? right : new TypedRename(right, renames, one);
         return new TypedConcatenate(left, aligned, one);
     }

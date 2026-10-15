@@ -1,0 +1,280 @@
+# The sixth review's findings on the second landing, each pinned (docs/IQ_SQL_STUDY_2026_10_13.md §9.15; IQ island,
+# 2026-10-14). B1: under ansinull Off (iq16-tds, sqla17-tds) SQL Anywhere reads x = @v and x <> @v two-valued in a
+# search condition only for some operands x -- a column, a constant, + - * / % || and a sign over such operands, a CAST,
+# and a derived table's column defined by one -- and three-valued for a function's value, an aggregate's, a scalar
+# subquery's and a derived table's column defined by a function. Review 5's fix read every operand two-valued: the
+# refused cases of the first group answered otherwise than SQL Anywhere before this fix (but an aggregate's alias in
+# HAVING, which a rewrite left three-valued); those of the second group (CASE, IF, a derived column SQL Anywhere does
+# not merge) answered right, and are refused now. Under a NOT such an operand is refused where it may be NULL; through
+# AND and OR alone FALSE and UNKNOWN filter alike, and it answers. The re-measured boundary (derived tables, joins,
+# the variable on the left, arithmetic between columns) answers, and a HAVING that reads a select-list alias is placed
+# as IQ reads it (it was read three-valued before). Judged by SQL Anywhere 17's answers in iq-answers.jsonl, each
+# case's params real variables on its connection. A case over sa_rowgenerator runs in SQL Anywhere's front end
+# (engine: sa). The SQL in YAML double quotes. tools/iq-oracle's README.md has the keys.
+tests:
+  # ---- B1: the operands SQL Anywhere reads three-valued under ansinull Off, refused under a NOT where they may be NULL
+  - id: b1_nullif_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (NULLIF(sm, 0) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_coalesce_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (COALESCE(sm, NULL) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_isnull_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (ISNULL(sm, NULL) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_upper_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (UPPER(vc) = @s) ORDER BY id"
+    params: "s = 'HELLO'"
+    profile: iq16-tds
+  - id: b1_trim_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (TRIM(vc) = @s) ORDER BY id"
+    params: "s = 'Hello'"
+    profile: iq16-tds
+  - id: b1_length_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (LENGTH(vc) = @lo) ORDER BY id"
+    params: "lo = 5"
+    profile: iq16-tds
+  - id: b1_abs_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (ABS(sm) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: sqla17-tds
+  - id: b1_max_in_having_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t GROUP BY id HAVING NOT (MAX(sm) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_min_in_having_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t GROUP BY id HAVING NOT (MIN(sm) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_aggregate_subquery_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT ((SELECT MAX(u.t_id) FROM u WHERE u.id = t.id) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_column_subquery_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT ((SELECT u.t_id FROM u WHERE u.id = t.id) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_derived_nullif_column_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM (SELECT id, NULLIF(sm, 0) AS z FROM t) d WHERE NOT (z = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_outer_joined_derived_nullif_column_compared_with_a_variable_is_refused
+    sql: "SELECT t.id FROM t LEFT JOIN (SELECT id, NULLIF(t_id, 3) AS z FROM u) v ON v.id = t.id WHERE NOT (v.z = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds
+  # found by the re-measured boundary: the variable on the left, a derived table over sa_rowgenerator, an ON, ABS
+  - id: b1_variable_first_with_a_function_is_refused
+    sql: "SELECT id FROM t WHERE NOT (@lo = NULLIF(sm, 0)) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_derived_nullif_over_a_row_generator_is_refused
+    sql: "SELECT id FROM (SELECT row_num AS id, NULLIF(row_num, 2) AS v FROM sa_rowgenerator(1, 4)) d WHERE NOT (v = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+    engine: sa
+  - id: b1_derived_nullif_column_in_on_is_refused
+    sql: "SELECT t.id, v.id AS vid FROM t LEFT JOIN (SELECT id, NULLIF(t_id, 3) AS z FROM u) v ON v.id = t.id AND NOT (v.z = @lo) ORDER BY 1, 2"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_derived_abs_column_is_refused
+    sql: "SELECT id FROM (SELECT id, ABS(sm) AS z FROM t) d WHERE NOT (z = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_having_alias_of_an_aggregate_is_refused
+    sql: "SELECT id, MAX(sm) AS m FROM t GROUP BY id HAVING NOT (m = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  # two-valued in SQL Anywhere, not read here: a CASE's and an IF's value, a derived column it does not merge
+  - id: b1_case_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (CASE WHEN sm = 0 THEN NULL ELSE sm END = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_if_compared_with_a_variable_is_refused
+    sql: "SELECT id FROM t WHERE NOT (IF sm = 0 THEN NULL ELSE sm ENDIF = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_grouped_derived_aggregate_is_refused
+    sql: "SELECT id FROM (SELECT id, MAX(sm) AS m FROM t GROUP BY id) d WHERE NOT (m = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_union_column_with_a_nullif_branch_is_refused
+    sql: "SELECT id FROM (SELECT id, NULLIF(sm, 0) AS z FROM t UNION ALL SELECT 8, NULL) d WHERE NOT (z = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+
+  # ---- B1: a function compared with a variable answers where it may not be NULL, or through AND and OR alone
+  - id: b1_function_that_is_never_null_answers
+    sql: "SELECT id FROM t WHERE NOT (UPPER(vc || '') = @s) ORDER BY id"
+    params: "s = 'HELLO'"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_function_compared_without_not_answers
+    sql: "SELECT id FROM t WHERE NULLIF(sm, 0) = @lo ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_function_compared_beside_or_answers
+    sql: "SELECT id FROM t WHERE UPPER(vc) = @s OR id = 3 ORDER BY id"
+    params: "s = 'HELLO'"
+    profile: iq16-tds
+  - id: b1_function_compared_in_having_without_not_answers
+    sql: "SELECT id FROM t GROUP BY id HAVING MAX(sm) = @lo ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+
+  # ---- B1: the re-measured boundary, two-valued in SQL Anywhere and here
+  - id: b1_derived_plain_column_is_two_valued
+    sql: "SELECT id FROM (SELECT id, sm AS z FROM t) d WHERE NOT (z = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_derived_column_of_its_own_name_is_two_valued
+    sql: "SELECT id FROM (SELECT id, sm FROM t) d WHERE NOT (sm = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_derived_column_qualified_is_two_valued
+    sql: "SELECT d.id FROM (SELECT id, sm AS z FROM t) d WHERE NOT (d.z = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_derived_star_column_is_two_valued
+    sql: "SELECT id FROM (SELECT * FROM t) d WHERE NOT (sm = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: sqla17-tds
+  - id: b1_derived_of_a_derived_column_is_two_valued
+    sql: "SELECT id FROM (SELECT id, z FROM (SELECT id, sm AS z FROM t) d1) d2 WHERE NOT (z = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_outer_joined_derived_plain_column_is_two_valued
+    sql: "SELECT t.id FROM t LEFT JOIN (SELECT id, t_id AS z FROM u) v ON v.id = t.id WHERE NOT (v.z = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_derived_arithmetic_column_is_two_valued
+    sql: "SELECT id FROM (SELECT id, sm + id AS z FROM t) d WHERE NOT (z = @lo) ORDER BY id"
+    params: "lo = 5"
+    profile: iq16-tds
+  - id: b1_distinct_derived_column_is_two_valued
+    sql: "SELECT z FROM (SELECT DISTINCT sm AS z FROM t) d WHERE NOT (z = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_grouped_derived_key_is_two_valued
+    sql: "SELECT k FROM (SELECT k, COUNT(*) AS n FROM g GROUP BY k) d WHERE NOT (k = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_union_column_with_a_null_branch_is_two_valued
+    sql: "SELECT id FROM (SELECT id, sm AS z FROM t UNION ALL SELECT 8, NULL) d WHERE NOT (z = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_inner_joined_column_is_two_valued
+    sql: "SELECT t.id FROM t JOIN u ON u.id = t.id WHERE NOT (u.t_id = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_comma_joined_column_is_two_valued
+    sql: "SELECT t.id FROM t, u WHERE u.id = t.id AND NOT (u.t_id = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_correlated_column_is_two_valued
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.id = t.id AND NOT (t.sm = @lo)) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_variable_first_with_a_column_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (@lo = sm) ORDER BY id"
+    params: "lo = 1"
+    profile: sqla17-tds
+  - id: b1_variable_first_not_equal_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (@lo <> sm) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_variable_first_with_arithmetic_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (@lo = sm + 0) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_variable_first_with_a_derived_column_is_two_valued
+    sql: "SELECT id FROM (SELECT id, sm AS z FROM t) d WHERE NOT (@lo = z) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_nested_arithmetic_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (sm * 1 + 0 = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_constant_first_arithmetic_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (0 + sm = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_cast_of_arithmetic_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (CAST(sm + 0 AS INT) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_arithmetic_over_a_cast_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (CAST(sm AS INT) + 0 = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_cast_to_text_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (CAST(sm AS VARCHAR(10)) = @s) ORDER BY id"
+    params: "s = '1'"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_cast_to_numeric_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (CAST(sm AS NUMERIC(10,2)) = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: sqla17-tds
+  - id: b1_negated_column_is_two_valued
+    sql: "SELECT id FROM u WHERE NOT (-t_id = @lo) ORDER BY id"
+    params: "lo = -1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_sum_of_two_columns_is_two_valued
+    sql: "SELECT id FROM u WHERE NOT (t_id + id = @lo) ORDER BY id"
+    params: "lo = 2"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_sum_of_a_nullable_column_with_itself_is_two_valued
+    sql: "SELECT id FROM u WHERE NOT (t_id + t_id = @lo) ORDER BY id"
+    params: "lo = 2"
+    profile: iq16-tds
+  - id: b1_product_of_columns_is_two_valued
+    sql: "SELECT id FROM u WHERE NOT (t_id * t_id = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_quotient_of_columns_is_two_valued
+    sql: "SELECT id FROM u WHERE NOT (t_id / id = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_remainder_of_columns_is_two_valued
+    sql: "SELECT id FROM u WHERE NOT (t_id % id = @lo) ORDER BY id"
+    params: "lo = 0"
+    profile: sqla17-tds
+  - id: b1_checked_sum_over_a_null_row_is_two_valued
+    sql: "SELECT id FROM u WHERE NOT (t_id + 1 = @lo) ORDER BY id"
+    params: "lo = 2"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_concatenated_columns_are_two_valued
+    sql: "SELECT id FROM t WHERE NOT (vc || ch = @s) ORDER BY id"
+    params: "s = 'Helloab'"
+    profile: sqla17-tds
+  - id: b1_strings_joined_by_plus_are_two_valued
+    sql: "SELECT id FROM t WHERE NOT (vc + ch = @s) ORDER BY id"
+    params: "s = 'Helloab'"
+    profile: sqla17-tds
+  - id: b1_double_column_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (dbl = @lo) ORDER BY id"
+    params: "lo = 0"
+    profile: iq16-tds
+  - id: b1_numeric_column_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (nm = @lo) ORDER BY id"
+    params: "lo = 0"
+    profile: sqla17-tds
+  - id: b1_bit_column_is_two_valued
+    sql: "SELECT id FROM t WHERE NOT (bt = @lo) ORDER BY id"
+    params: "lo = 1"
+    profile: iq16-tds
+
+  # ---- B1: HAVING reads a select-list alias as IQ reads it (before this fix such a comparison was read three-valued)
+  - id: b1_having_alias_of_a_column_is_two_valued
+    sql: "SELECT sm AS z FROM t GROUP BY sm HAVING NOT (z = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
+  - id: b1_having_alias_of_arithmetic_is_two_valued
+    sql: "SELECT sm + 0 AS z FROM t GROUP BY sm + 0 HAVING NOT (z = @lo) ORDER BY 1"
+    params: "lo = 1"
+    profile: iq16-tds
+  - id: b1_having_key_arithmetic_is_two_valued
+    sql: "SELECT k FROM g GROUP BY k HAVING NOT (k + 0 = @lo) ORDER BY k"
+    params: "lo = 1"
+    profile: iq16-tds, sqla17-tds
