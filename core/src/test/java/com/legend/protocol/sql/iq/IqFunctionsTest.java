@@ -119,9 +119,19 @@ class IqFunctionsTest {
                 "SELECT CAST(id AS VARBINARY(4)) AS x", "SELECT CAST('abc' AS INT) AS x",
                 "SELECT CAST('40000' AS SMALLINT) AS x", "SELECT CAST(2 AS BIT) AS x",
                 "SELECT CAST('2026-02-30' AS DATE) AS x", "SELECT CAST(12345 AS CHAR(3)) AS x",
-                "SELECT CAST(999.5 AS NUMERIC(3, 0)) AS x", "SELECT CONVERT(DATE, 'not a date') AS x")) {
+                "SELECT CAST(1000.5 AS NUMERIC(3, 0)) AS x", "SELECT CONVERT(DATE, 'not a date') AS x")) {
             assertTrue(assertThrows(SqlSyntaxException.class, () -> IqParser.parse(sql, IqProfile.IQ16_DEFAULT.settings()))
                     .unsupported(), sql);
+        }
+        // IQ island, 2026-10-15 (checklist 0.5, measured on IQ 17.1): what only SQL Anywhere's front end raises for --
+        // a value its rounding takes past a NUMERIC's digits, a string longer than its target -- is refused there, and
+        // read under IQ's engine, which truncates and cuts
+        String[][] frontEndOnly = {{"SELECT CAST(999.5 AS NUMERIC(3, 0)) AS x", "floor("},
+                {"SELECT CAST('abcdef' AS VARCHAR(3)) AS x", "left(3)"}};
+        for (String[] c : frontEndOnly) {
+            assertTrue(assertThrows(SqlSyntaxException.class, () -> IqDialect.of(IqProfile.IQ16_DEFAULT.settings())
+                    .parse(c[0])).unsupported(), c[0]);
+            assertTrue(pure(c[0] + " FROM " + T).contains(c[1]), c[0]);
         }
     }
 
@@ -260,13 +270,20 @@ class IqFunctionsTest {
         String[][] decided = {
                 {"SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T, "D-F3"},
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
-                {"SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T, "D-C2"},
-                {"SELECT CAST(d AS NUMERIC(10, 2)) AS c FROM " + T, "D-N6"},
-                {"SELECT CAST(nm AS VARCHAR(4)) AS c FROM " + T, "D-C1"},
         };
         for (String[] d : decided) {
             assertTrue(refusal(d[0]).getMessage().contains(d[1]), d[0]);
         }
+        // IQ island, 2026-10-15 (checklist 0.5; D-C2, D-N6, D-C1, measured on IQ 17.1): under IQ's engine a longer
+        // string is cut to the target's bytes (characters in ISO-8859-1, whole characters in UTF-8), a DOUBLE to a
+        // NUMERIC is its DOUBLE product cut toward zero, a NUMERIC whose text is too long raises for that row
+        assertTrue(pure("SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T).contains("left(3)"));
+        assertTrue(pure("SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T, IqProfile.IQ17_DEFAULT.settings())
+                .contains("'xxE'"));
+        String dbl = pure("SELECT CAST(d AS NUMERIC(10, 2)) AS c FROM " + T);
+        assertTrue(dbl.contains("100.0") && dbl.contains("floor("), dbl);
+        assertTrue(refusal("SELECT CAST(d AS NUMERIC(19, 2)) AS c FROM " + T).getMessage().contains("18 digits"));
+        assertTrue(pure("SELECT CAST(nm AS VARCHAR(4)) AS c FROM " + T).contains("cast(@String)->toOne()"));
         // IQ island, 2026-10-15 (D-T10, measured on IQ 17.1): the calendar parts are read under IQ's engine, its weeks
         // from Sunday (the week's Wednesday decides its year and number)
         String cdw = pure("SELECT DATEPART(cdw, dt) AS d, DATEPART(cwk, dt) AS w FROM " + T);

@@ -162,13 +162,20 @@ final class IqFunctions {
      * NUMERIC(p, s) holds (-158); a string to BIT, or a number other than 0 and 1 (-158); a string that is no ISO date
      * to DATE or TIMESTAMP (-157, or IQ's other spellings, not read); an integer longer than a CHAR or VARCHAR (-157), a
      * string longer than it but for blanks (-638).
+     * <p>
+     * IQ island, 2026-10-15 (checklist 0.5, measured on IQ 17.1): what only SQL Anywhere's front end cannot convert --
+     * a string longer than a CHAR or VARCHAR, which IQ's engine cuts (D-C2), a constant only its rounding takes past a
+     * NUMERIC's digits, which IQ's engine truncates (D-N6) -- is returned, the refusal's text, for the caller to refuse
+     * once the statement's engine is known; null when there is none.
      */
-    static void constantCast(SqlAst.Expr operand, SqlAst.TypeName type, String what, IqSettings settings) {
+    static @com.legend.base.Nullable String constantCast(SqlAst.Expr operand, SqlAst.TypeName type, String what,
+            IqSettings settings) {
         String target = type.name();
         List<Integer> sizes = type.modifiers();
         String text = operand instanceof SqlAst.StringLit lit ? lit.value() : null;
         BigDecimal number = numberConstant(operand);
         String problem = null;
+        String frontEnd = null;
         switch (target) {
             case "SMALLINT", "INTEGER", "BIGINT" -> {
                 BigInteger v = text != null ? integerText(text) : number == null ? null
@@ -185,10 +192,13 @@ final class IqFunctions {
                 if (v != null && !sizes.isEmpty()) {
                     int p = sizes.get(0);
                     int sc = sizes.size() > 1 ? sizes.get(1) : 0;
-                    BigDecimal rounded = v.setScale(sc, java.math.RoundingMode.HALF_UP);
-                    if (rounded.abs().compareTo(new BigDecimal(BigInteger.TEN.pow(p - sc))) >= 0) {
-                        problem = v + " has more whole digits than a NUMERIC(" + p + "," + sc + ") holds: IQ's error"
-                                + " -158";
+                    BigDecimal top = new BigDecimal(BigInteger.TEN.pow(p - sc));
+                    String past = v + " has more whole digits than a NUMERIC(" + p + "," + sc + ") holds: IQ's error"
+                            + " -158";
+                    if (v.setScale(sc, java.math.RoundingMode.DOWN).abs().compareTo(top) >= 0) {
+                        problem = past;
+                    } else if (v.setScale(sc, java.math.RoundingMode.HALF_UP).abs().compareTo(top) >= 0) {
+                        frontEnd = past + " (rounded)";
                     }
                 }
             }
@@ -222,7 +232,7 @@ final class IqFunctions {
                     if (number != null && number.toPlainString().length() > n) {
                         problem = number.toPlainString() + " is longer than " + target + "(" + n + "): IQ's error -157";
                     } else if (text != null && text.length() > n && !text.substring(n).replace(" ", "").isEmpty()) {
-                        problem = "'" + text + "' is longer than " + target + "(" + n + "): IQ's error -638";
+                        frontEnd = "'" + text + "' is longer than " + target + "(" + n + "): IQ's error -638";
                     }
                 }
             }
@@ -233,6 +243,8 @@ final class IqFunctions {
             throw com.legend.protocol.sql.SqlSyntaxException.unsupported(what + " of a constant IQ cannot convert is"
                     + " not supported: " + problem + " wherever it is computed", operand.pos());
         }
+        return frontEnd == null ? null : what + " of a constant IQ cannot convert is not supported: " + frontEnd
+                + " wherever it is computed in SQL Anywhere's front end";
     }
 
     /** A number constant's value, signs applied; null for any other expression. */
@@ -1594,7 +1606,9 @@ final class IqFunctions {
     }
 
     /** {@code STRING(a, ...)}: the values as text, joined; a NULL among them is '', all NULL is NULL (measured). An
-     *  integer joins as its digits; a value IQ writes by its own format (a NUMERIC, a DOUBLE, a date) is refused. */
+     *  integer joins as its digits, a date by the profile's format, under IQ's engine a NUMERIC as its text (IQ
+     *  island, 2026-10-15, D-C8, measured on IQ 17.1: '0.01'); a value IQ writes by its own format otherwise (a
+     *  DOUBLE, a NUMERIC in SQL Anywhere's front end) is refused. */
     private Tx string(SqlAst.FunctionCall f, List<Tx> args) {
         List<Tx> present = new ArrayList<>();
         for (int i = 0; i < args.size(); i++) {
@@ -1602,7 +1616,8 @@ final class IqFunctions {
             if (a.kind() == Kind.NULL) {
                 continue;
             }
-            present.add(text(a, f.args().get(i), "STRING"));
+            present.add(engine == IqDialect.Engine.IQ && a.kind() == Kind.DECIMAL
+                    ? iqNumericAsText(a, f.args().get(i), "STRING") : text(a, f.args().get(i), "STRING"));
         }
         if (present.isEmpty()) {
             return nullString();
@@ -1686,11 +1701,30 @@ final class IqFunctions {
                 true));
     }
 
-    /** {@code SIGN(x)}: -1, 0 or 1, a SMALLINT (of -0.0, 0). */
+    /** {@code SIGN(x)}: -1, 0 or 1, a SMALLINT (of -0.0, 0); under IQ's engine of the argument's own type (IQ island,
+     *  2026-10-15, D-F19, measured on IQ 17.1: a BIGINT's a BIGINT, a NUMERIC(10,2)'s -1.00, a DOUBLE's -1.0). */
     private Tx sign(SqlAst.FunctionCall f, List<Tx> args) {
         Tx x = args.get(0);
         if (x.kind() != Kind.NULL) {
             number(x, f.args().get(0), "SIGN");
+        }
+        if (engine == IqDialect.Engine.IQ && x.kind() != Kind.NULL) {
+            SqlAst.Expr e = f.args().get(0);
+            if (x.kind() == Kind.FLOAT) {
+                return strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(x), v -> SqlToPure.call("toFloat",
+                        SqlToPure.call("sign", v.get(0))));
+            }
+            if (decimal(x)) {
+                int[] ps = scaleOf(x, e, "SIGN");
+                IqType own = (IqType) java.util.Objects.requireNonNull(x.detail());
+                return strict(Kind.DECIMAL, own, List.of(x), v -> {
+                    ValueSpecification d = SqlToPure.call("toDecimal", SqlToPure.call("sign", v.get(0)));
+                    return ps[1] > 0 ? atScale(d, ps[1]) : d;
+                });
+            }
+            IqType t = integerType(x, e, "SIGN");
+            return strict(Kind.INTEGER, IqType.integer(t.family(), t.lo().signum() < 0 ? BigInteger.ONE.negate()
+                    : BigInteger.ZERO, BigInteger.ONE, false), List.of(x), v -> SqlToPure.call("sign", v.get(0)));
         }
         return strict(Kind.INTEGER, IqType.integer("SMALLINT", BigInteger.ONE.negate(), BigInteger.ONE, false),
                 List.of(x), v -> SqlToPure.call("sign", v.get(0)));
@@ -1795,6 +1829,9 @@ final class IqFunctions {
         if (iqRound && whole) {
             return iqRoundInteger(f, x, places);
         }
+        if (!round && whole && engine == IqDialect.Engine.IQ) {
+            return iqTruncateInteger(f, x, places);
+        }
         if (places == null) {
             return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, type);
         }
@@ -1850,6 +1887,28 @@ final class IqFunctions {
         }
         return strict(Kind.INTEGER, wide, List.of(x), v -> SqlToPure.call("floor", places(SqlToPure.call("toDecimal",
                 v.get(0)), n, true)));
+    }
+
+    /** TRUNCNUM of an integer under IQ's engine (IQ island, 2026-10-15, D-F19, measured on IQ 17.1): of the integer's
+     *  own type (TRUNCNUM(sm, -2) a SMALLINT), toward zero, so never past it. */
+    private Tx iqTruncateInteger(SqlAst.FunctionCall f, Tx x, @com.legend.base.Nullable BigInteger places) {
+        IqType t = integerType(x, f.args().get(0), "TRUNCNUM");
+        if (places == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, IqType.integer(t.family(),
+                    t.min(), t.max(), false));
+        }
+        if (places.signum() >= 0) {
+            return strict(Kind.INTEGER, t, List.of(x), v -> v.get(0));
+        }
+        int n = places.intValue();
+        int digits = Math.max(t.lo().abs().toString().length(), t.hi().abs().toString().length());
+        if (digits + n > 18 || n < -18) {
+            throw SqlTranslationException.unsupported("TRUNCNUM of a " + t.family() + " to " + n + " places is not"
+                    + " supported yet: its scaled value may exceed 18 digits", f.pos());
+        }
+        // a 64-bit value now (floor of a decimal), of the integer's type and range
+        return strict(Kind.INTEGER, IqType.integer(t.family(), t.lo(), t.hi(), true, t.wider()), List.of(x),
+                v -> SqlToPure.call("floor", places(SqlToPure.call("toDecimal", v.get(0)), n, false)));
     }
 
     /** {@code x} (a decimal) to {@code n} places, half away from zero or toward zero, at scale max(n, 0): exact
@@ -2713,18 +2772,22 @@ final class IqFunctions {
      *       by IQ's strict reading (blanks around it, an optional sign, digits; nothing but blanks 0; anything else IQ's
      *       error -157); out of the type IQ's error -158;</li>
      *   <li>to NUMERIC(p, s) (DECIMAL; NUMERIC(p); an integer's NUMERIC(10,0) or (20,0) and a NUMERIC's own without a
-     *       precision): rounded half away from zero to s places, more than p - s whole digits IQ's error -158;</li>
+     *       precision): rounded half away from zero to s places, more than p - s whole digits IQ's error -158; under
+     *       the IQ engine truncated toward zero, a DOUBLE too, and without a precision the options' NUMERIC(126,38)
+     *       (D-N6, {@link #toNumeric});</li>
      *   <li>to DOUBLE: an integer, a NUMERIC of at most 15 digits, a constant numeric string;</li>
      *   <li>to CHAR(n), VARCHAR(n), LONG VARCHAR: a string as itself -- longer than n IQ's error -638 in SQL Anywhere's
-     *       front end, unless the rest is blanks (measured), and under the IQ engine cut (the research's D-C2,
-     *       refused); under the IQ engine a CHAR(n) is padded to n (D-S1); an integer its digits (too long: -157, in
-     *       both engines); a NUMERIC IQ's text ({@code -.50}); a DATE yyyy-mm-dd;</li>
+     *       front end, unless the rest is blanks (measured), and under the IQ engine cut to n bytes (D-C2,
+     *       {@link #toText}); under the IQ engine a CHAR(n) is padded to n bytes (D-S1); an integer its digits (too
+     *       long: -157, in both engines); a NUMERIC IQ's text ({@code -.50}; {@code -0.50} under the IQ engine, D-C8);
+     *       a DATE yyyy-mm-dd;</li>
      *   <li>to DATE, TIMESTAMP (DATETIME): a date, a timestamp, a constant string in ISO spelling;</li>
      *   <li>to BIT, in SQL Anywhere's front end: 0 or 1 (a number truncated first), anything else -158.</li>
      * </ul>
      * Refused by name: what IQ converts by rules not read yet (a non-constant string to a number or a date, a DOUBLE to
-     * a NUMERIC -- SQL Anywhere rounds its decimal digits, the IQ engine truncates: D-N6 --, a DOUBLE or a timestamp to
-     * text), and the types the island does not read (REAL, TINYINT, unsigned, TIME, binary, national).
+     * a NUMERIC in SQL Anywhere's front end, which rounds its decimal digits, and under the IQ engine to more than 18
+     * digits, a DOUBLE to text), and the types the island does not read (REAL, TINYINT, unsigned, TIME, binary,
+     * national).
      */
     Tx cast(SqlAst.Cast c, SqlToPure.At at) {
         String typeName = c.type().name();
@@ -2890,9 +2953,16 @@ final class IqFunctions {
         return c == ' ' || c >= '\t' && c <= '\r';
     }
 
-    /** CAST to NUMERIC: see {@link #cast}. */
+    /** CAST to NUMERIC: see {@link #cast}. Under IQ's engine (IQ island, 2026-10-15; the research's D-N6, measured on
+     *  IQ 17.1) a narrower scale truncates toward zero -- a column's, a constant's, a string constant's alike (2.675 is
+     *  2.67 at two places, 999.5 is 999 as a NUMERIC(3,0)) -- and without a precision the type is the PRECISION and
+     *  SCALE options' (a NUMERIC(126,38): CAST(it AS NUMERIC) too). */
     private Tx toNumeric(List<Integer> sizes, Tx x, SqlAst.Cast c, String what) {
+        boolean iq = engine == IqDialect.Engine.IQ;
         if (x.kind() == Kind.FLOAT) {
+            if (iq) {
+                return iqDoubleToNumeric(sizes, x, c, what);
+            }
             throw SqlTranslationException.unsupported(what + " of a DOUBLE to NUMERIC is not supported yet: SQL Anywhere"
                     + " rounds its decimal digits (2.675e0 is 2.68 at two places), the IQ engine truncates (the"
                     + " research's D-N6)", c.pos());
@@ -2938,13 +3008,15 @@ final class IqFunctions {
                     + " yet", c.pos());
         }
         // without a precision: an integer's NUMERIC(10,0) or (20,0), a NUMERIC's own, a string's the profile's
-        // PRECISION and SCALE (measured: CAST('1' AS DECIMAL) is a NUMERIC(126,38) in an IQ database)
-        boolean fromString = x.kind() == Kind.STRING;
-        int p = sizes.isEmpty() ? fromString ? settings.precision() : sp : sizes.get(0);
-        int s = sizes.isEmpty() ? fromString ? settings.scale() : ss : sizes.size() > 1 ? sizes.get(1) : 0;
+        // PRECISION and SCALE (measured: CAST('1' AS DECIMAL) is a NUMERIC(126,38) in an IQ database); under IQ's
+        // engine every source's the options' (measured on IQ 17.1)
+        boolean options = x.kind() == Kind.STRING || iq;
+        int p = sizes.isEmpty() ? options ? settings.precision() : sp : sizes.get(0);
+        int s = sizes.isEmpty() ? options ? settings.scale() : ss : sizes.size() > 1 ? sizes.get(1) : 0;
         if (p > 38) {
             throw SqlTranslationException.unsupported(what + " to a NUMERIC of more than 38 digits is not supported:"
-                    + " lite's decimals hold 38", c.pos());
+                    + " lite's decimals hold 38" + (sizes.isEmpty() ? " (without a precision it is a NUMERIC(" + p
+                    + "," + s + "), the PRECISION and SCALE options': write a precision)" : ""), c.pos());
         }
         IqType type = new IqType("NUMERIC(" + p + "," + s + ")");
         if (isNull(x)) {
@@ -2956,20 +3028,54 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(what + " of a NUMERIC(" + sp + "," + ss + ") to " + n + " places"
                     + " is not supported yet: its scaled value may exceed 18 digits", c.pos());
         }
-        // can the value need more whole digits than p - s? (rounding up may add one)
-        boolean check = sp - ss + (round ? 1 : 0) > p - s;
+        // can the value need more whole digits than p - s? (rounding up may add one; IQ's engine truncates)
+        boolean check = sp - ss + (round && !iq ? 1 : 0) > p - s;
         if (check) {
-            raisesHere(c, "-158 (out of range)");
+            raisesHere(c, iq ? "-1009145 (out of range)" : "-158 (out of range)");
         }
         boolean fromWhole = whole;
         return strict(Kind.DECIMAL, type, List.of(value), v -> {
             ValueSpecification d = fromWhole ? SqlToPure.call("toDecimal", v.get(0)) : v.get(0);
-            ValueSpecification r = round ? places(d, n, true) : s == ss ? d : atScale(d, s);
+            ValueSpecification r = round ? places(d, n, !iq) : s == ss ? d : atScale(d, s);
             if (!check) {
                 return r;
             }
             return ifThen(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", r), new CDecimal(pow10(p - s))),
                     raise("Decimal"), r);
+        });
+    }
+
+    /**
+     * CAST of a DOUBLE to NUMERIC(p, s) under IQ's engine (IQ island, 2026-10-15; the research's D-N6, measured on IQ
+     * 17.1): a NUMERIC of at most 18 digits is a scaled 64-bit integer there, so the value is the DOUBLE times 10^s,
+     * a DOUBLE product, cut toward zero -- 0.29e0 is .28 at two places (28.999999999999996), 0.15e0 is .15 (15.0
+     * exactly), 2.3e0 is 2.3 at one -- and a product of 10^p or more is IQ's error -1009145. Refused by name: more
+     * than 18 digits, which IQ's engine converts from the DOUBLE's decimal expansion instead (0.15e0 is .14 there).
+     */
+    private Tx iqDoubleToNumeric(List<Integer> sizes, Tx x, SqlAst.Cast c, String what) {
+        doubleOnly(x, c.operand(), what);
+        int p = sizes.isEmpty() ? settings.precision() : sizes.get(0);
+        int s = sizes.isEmpty() ? settings.scale() : sizes.size() > 1 ? sizes.get(1) : 0;
+        if (p > 18) {
+            throw SqlTranslationException.unsupported(what + " of a DOUBLE to a NUMERIC of more than 18 digits is not"
+                    + " supported yet: IQ's engine converts it from the DOUBLE's decimal expansion (0.15e0 is .14 at two"
+                    + " places), not read yet" + (sizes.isEmpty() ? " (without a precision it is a NUMERIC(" + p + ","
+                    + s + "), the PRECISION and SCALE options')" : ""), c.pos());
+        }
+        IqType type = new IqType("NUMERIC(" + p + "," + s + ")");
+        if (isNull(x)) {
+            return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, type);
+        }
+        raisesHere(c, "-1009145 (out of range)");
+        return strict(Kind.DECIMAL, type, List.of(x), v -> {
+            ValueSpecification y = s == 0 ? v.get(0) : AppliedFunction.infixRun("times", List.of(v.get(0),
+                    new CFloat(pow10(s).doubleValue())));
+            ValueSpecification cut = SqlToPure.call("toDecimal", ifThen(SqlToPure.call("greaterThanEqual", y,
+                    integer(0)), SqlToPure.call("floor", y), SqlToPure.call("ceiling", y)));
+            ValueSpecification r = s == 0 ? cut : atScale(AppliedFunction.infixRun("times", List.of(cut,
+                    new CDecimal(pow10(-s)))), s);
+            return ifThen(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", y), new CFloat(pow10(p)
+                    .doubleValue())), raise("Decimal"), r);
         });
     }
 
@@ -2995,10 +3101,28 @@ final class IqFunctions {
         return Tx.value(d.vs(), Kind.FLOAT, d.nullable(), type);
     }
 
-    /** CAST to a character type: see {@link #cast}. */
+    /**
+     * CAST to a character type: see {@link #cast}. Under IQ's engine (IQ island, 2026-10-15, measured on IQ 17.1): a
+     * longer string is cut to n bytes, never inside a character (the research's D-C2: 'Résumé' is 'Ré' as a
+     * VARCHAR(3) in a UTF-8 database, whatever STRING_RTRUNCATION says); a CHAR(n) is padded to n bytes, a CHAR
+     * without a length to 255; a VARCHAR's length in characters, {@code (n CHAR)}, cuts at n characters, a CHAR's is
+     * IQ's error -1001030; a NUMERIC is written with its 0 before the point (D-C8: '-0.50'); a NUMERIC, a date or a
+     * timestamp whose text is longer than n is IQ's error -1009145 for that row (D-C1).
+     */
     private Tx toText(String target, List<Integer> sizes, Tx x, SqlAst.Cast c, String what, boolean convert) {
-        int n = target.equals("LONG VARCHAR") || sizes.isEmpty() ? -1 : sizes.get(0);
-        boolean pad = target.equals("CHAR") && n > 0 && engine == IqDialect.Engine.IQ;
+        boolean iq = engine == IqDialect.Engine.IQ;
+        boolean characters = sizes.size() > 1;
+        if (iq && characters && !target.equals("VARCHAR")) {
+            throw SqlTranslationException.unsupported(what + " to a CHAR of a length in characters, (n CHAR), is IQ's"
+                    + " error -1001030 under its engine (the CHARACTER-LENGTH semantics it does not support), refused"
+                    + " before translating", c.pos());
+        }
+        // IQ's engine reads CHAR without a length as a CHAR(255) (measured: CAST(vc AS CHAR) is padded to 255 bytes)
+        int n = target.equals("LONG VARCHAR") || sizes.isEmpty() ? iq && target.equals("CHAR") ? 255 : -1
+                : sizes.get(0);
+        boolean pad = target.equals("CHAR") && n > 0 && iq;
+        // a UTF-8 database's lengths are bytes, but a length in characters
+        boolean utf8 = !settings.latin1() && !characters;
         IqType type = new IqType(n < 0 ? (target.equals("LONG VARCHAR") ? "VARCHAR" : target) : target + "(" + n + ")");
         if (isNull(x)) {
             return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, type);
@@ -3012,13 +3136,11 @@ final class IqFunctions {
                         ? lit.value().getBytes(java.nio.charset.StandardCharsets.UTF_8).length : longest(x, c.operand());
                 if (n < 0 || longest >= 0 && longest <= n) {
                     text = x;
+                } else if (iq) {
+                    // cut to n bytes (D-C2): in ISO-8859-1 n characters
+                    text = SqlToPure.strict(Kind.STRING, List.of(x), v -> utf8 ? utf8Prefix(v.get(0), n)
+                            : SqlToPure.call("left", v.get(0), integer(n)));
                 } else {
-                    if (engine == IqDialect.Engine.IQ) {
-                        throw SqlTranslationException.unsupported(what + " of a string that may be longer than " + n
-                                + " characters to " + target + "(" + n + ") is not supported under the IQ engine yet:"
-                                + " IQ's manual cuts it, SQL Anywhere raises -638 (the research's D-C2, not yet"
-                                + " verified)", c.pos());
-                    }
                     if (!settings.latin1()) {
                         throw SqlTranslationException.unsupported(what + " of a string that may be longer than " + n
                                 + " to " + target + "(" + n + ") is not supported in profile " + settings.spelling()
@@ -3051,6 +3173,10 @@ final class IqFunctions {
             case DECIMAL -> {
                 int[] ps = scaleOf(x, c.operand(), what);
                 int longest = ps[0] + (ps[1] > 0 ? 2 : 1);
+                if (iq) {
+                    text = iqNumericText(x, ps, n, c, what);
+                    break;
+                }
                 if (n >= 0 && n < longest) {
                     throw SqlTranslationException.unsupported(what + " of a NUMERIC(" + ps[0] + "," + ps[1] + ") to "
                             + target + "(" + n + ") is not supported yet: SQL Anywhere cuts its text, the IQ engine"
@@ -3072,7 +3198,7 @@ final class IqFunctions {
                             + " DATE_FORMAT option's form (the research's D-C6, not yet verified)" : "SQL Anywhere writes"
                             + " style 0 (Mar 04 2026 12:00AM), a format not read yet"), c.pos());
                 }
-                if (n >= 0 && n < 10) {
+                if (n >= 0 && n < 10 && !iq) {
                     throw SqlTranslationException.unsupported(what + " of a DATE to " + target + "(" + n + ") is not"
                             + " supported yet: SQL Anywhere cuts its text, the IQ engine raises (the research's D-C1)",
                             c.pos());
@@ -3080,6 +3206,9 @@ final class IqFunctions {
                 // IQ island, 2026-10-14 (review 5's M4): in the profile's DATE_FORMAT, each part with its zeros (a year
                 // below 1000 too), as || and STRING write it (IqDateTime, measured)
                 text = IqDateTime.text(x, settings, what, c.pos());
+                if (iq && n >= 0 && n < IqDateTime.length(false, settings)) {
+                    text = raisedPastLength(text, n, c);
+                }
             }
             // IQ island, 2026-10-14 (M1e): a timestamp in the profile's TIMESTAMP_FORMAT (IqDateTime, measured)
             case DATETIME -> {
@@ -3091,22 +3220,91 @@ final class IqFunctions {
                             + " writes style 0 (Mar 04 2026 05:06AM), a format not read yet"), c.pos());
                 }
                 int length = IqDateTime.length(true, settings);
-                if (n >= 0 && n < length) {
+                if (n >= 0 && n < length && !iq) {
                     throw SqlTranslationException.unsupported(what + " of a TIMESTAMP to " + target + "(" + n + ") is not"
                             + " supported yet: SQL Anywhere cuts its text, the IQ engine raises (the research's D-C1)",
                             c.pos());
                 }
                 text = IqDateTime.text(x, settings, what, c.pos());
+                if (iq && n >= 0 && n < length) {
+                    text = raisedPastLength(text, n, c);
+                }
             }
             default -> throw SqlTranslationException.unsupported(what + " of " + kindName(x.kind()) + " to text is not"
                     + " supported yet: IQ writes it by its own format", c.pos());
         }
         if (pad) {
+            // to n bytes: in a UTF-8 database n less the bytes beyond one a character the text has
             Tx padded = SqlToPure.strict(Kind.STRING, List.of(text), v -> SqlToPure.call("rpad", v.get(0),
-                    integer(n), new CString(" ")));
+                    utf8 && x.kind() == Kind.STRING ? AppliedFunction.infixRun("minus", List.of(AppliedFunction
+                            .infixRun("plus", List.of(SqlToPure.call("length", v.get(0)), integer(n))),
+                            SqlToPure.call("length", utf8Units(v.get(0))))) : integer(n), new CString(" ")));
             return Tx.value(padded.vs(), Kind.STRING, padded.nullable(), type);
         }
         return Tx.value(text.vs(), Kind.STRING, text.nullable(), type);
+    }
+
+    /**
+     * A NUMERIC as text under IQ's engine (IQ island, 2026-10-15, measured on IQ 17.1): as the database writes it, at
+     * its scale, with its 0 before the point (D-C8: 0.01 is '0.01', -0.50 '-0.50', where SQL Anywhere's front end writes
+     * '.01'); longer than n, IQ's error -1009145 for that row (D-C1). Refused by name: a NUMERIC that reads no column
+     * ({@link #iqNumericAsText}).
+     */
+    private Tx iqNumericText(Tx x, int[] ps, int n, SqlAst.Cast c, String what) {
+        Tx text = iqNumericAsText(x, c.operand(), what);
+        int longest = ps[0] + (ps[1] > 0 ? 2 : 1) + (ps[1] == ps[0] ? 1 : 0);
+        return n >= 0 && n < longest ? raisedPastLength(text, n, c) : text;
+    }
+
+    /**
+     * A NUMERIC as IQ's engine writes it as text, in a CAST, {@code ||}, {@code +} of strings and STRING alike (IQ
+     * island, 2026-10-15, D-C8, measured on IQ 17.1): as the database writes it, at its scale, its 0 before the point
+     * ('0.01', '-0.50'). Refused by name: one that reads no column (IQ's engine writes a constant's digits by rules not
+     * read yet: 10.50 is '10.5', 0.0 '0').
+     */
+    static Tx iqNumericAsText(Tx x, SqlAst.Expr e, String what) {
+        if (!readsColumn(e)) {
+            throw SqlTranslationException.unsupported(what + " of a NUMERIC constant as text is not supported under IQ's"
+                    + " engine yet: it writes a constant's digits by rules not read yet (10.50 is '10.5', 0.0 is '0')",
+                    e.pos());
+        }
+        int s = scaleOf(x, e, what)[1];
+        Tx text = SqlToPure.strict(Kind.STRING, List.of(x), v -> SqlToPure.call("toString", s > 0 ? atScale(v.get(0), s)
+                : v.get(0)));
+        return Tx.value(text.vs(), Kind.STRING, text.nullable(), varchar());
+    }
+
+    /** {@code text} (ASCII), IQ's error -1009145 where it is longer than {@code n} (the research's D-C1). */
+    private Tx raisedPastLength(Tx text, int n, SqlAst.Cast c) {
+        raisesHere(c, "-1009145 (a text longer than its type)");
+        return SqlToPure.strict(Kind.STRING, List.of(text), v -> ifThen(SqlToPure.call("greaterThan",
+                SqlToPure.call("length", v.get(0)), integer(n)), raise("String"), v.get(0)));
+    }
+
+    /**
+     * {@code s}'s UTF-8 bytes as units (IQ island, 2026-10-15): each character becomes as many characters as it has
+     * bytes, the last an {@code E}, the others {@code x} -- so the units' length is s's length in bytes, and n units
+     * hold whole the characters whose {@code E} they hold. Four replaces by code point range: one byte below U+0080,
+     * two below U+0800, three to U+FFFF, four beyond.
+     */
+    private static ValueSpecification utf8Units(ValueSpecification s) {
+        ValueSpecification w = replaceAll(s, "[\u0001-\u007f]", "E");
+        w = replaceAll(w, "[\u0080-\u07ff]", "xE");
+        w = replaceAll(w, "[\u0800-\uffff]", "xxE");
+        return replaceAll(w, "[^xE]", "xxxE");
+    }
+
+    /** The longest start of {@code s} of at most {@code n} UTF-8 bytes, no character cut: as many characters as the
+     *  first n of its units ({@link #utf8Units}) hold {@code E}s. */
+    private static ValueSpecification utf8Prefix(ValueSpecification s, int n) {
+        ValueSpecification units = SqlToPure.call("left", utf8Units(SqlToPure.call("left", s, integer(n))), integer(n));
+        return SqlToPure.call("left", s, SqlToPure.call("length", replaceAll(units, "x", "")));
+    }
+
+    /** Every match of {@code regex} in {@code s} replaced by {@code by}. */
+    private static ValueSpecification replaceAll(ValueSpecification s, String regex, String by) {
+        return SqlToPure.call("regexpReplace", s, new CString(regex), new CString(by),
+                new com.legend.protocol.spec.CBoolean(true));
     }
 
     /** The most characters a string value may have, by its type: a CHAR(n)'s or VARCHAR(n)'s n, a constant's length;

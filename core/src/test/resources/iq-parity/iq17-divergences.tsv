@@ -19,13 +19,10 @@ cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, wh
 cause	non-string-input	LOCATE's start under IQ's engine: a large one is its -1009145 ("cannot be big integer for non-LOB data"), which lite answers (WP2 item 8; IQ island, 2026-10-15: the other non-string inputs -- a number or a date given to LEFT, SUBSTRING, UPPER, the TRIMs, REPLACE, STUFF, LIKE, an untyped NULL in arithmetic, a DATE's time -- are refused with IQ's codes, IqFunctions.iqEngineArguments)
 cause	length	LENGTH of a non-string under IQ's engine is its storage width, not its text's length (WP2 item 8)
 cause	not-in-unknown	IS UNKNOWN over NOT IN of a subquery holding NULL: IQ's engine answers otherwise (WP2 item 9)
-cause	result-types	the IQ engine's result types: CAST(x AS NUMERIC) is NUMERIC(126,38) (the PUBLIC precision and scale), TRUNCNUM and SIGN keep their argument's type (WP2 item 10, D-N1)
-cause	D-N6	a narrowing CAST of a NUMERIC to a NUMERIC truncates under IQ's engine, where lite rounds as SQL Anywhere does (WP2 item 10)
 cause	D-F17	MEDIAN of integers: IQ's engine truncates the midpoint toward zero, where lite floors (WP2 item 10)
 cause	D-S5	blank padding with a tab: IQ's engine pads the shorter string with blanks before comparing (WP2 item 10)
 cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Anywhere 17's (WP2 item 10)
 cause	true-keyword	TRUE is a keyword in IQ 17.1, a name in SQL Anywhere 17 (WP2 item 10)
-cause	utf8-char-bytes	the CharSet UTF-8 database: CHAR(n) counts bytes, so a value with non-ASCII letters gets fewer blanks
 cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
@@ -81,16 +78,11 @@ run	lite/m1d/length_of_integers@iq17-default	length	duckdb,postgres
 run	lite/m1e/timestamp_length@iq17-default	length	duckdb,postgres
 run	lite/m1e/timestamp_length@iq17-odbc	length	duckdb,postgres
 run	lite/m1b/in_subquery_unknown_counted@iq17-default	not-in-unknown	duckdb,postgres
-run	lite/m1d/cast_integer_column_to_numeric@iq17-default	result-types	duckdb,postgres
-run	lite/m1d/sign_of_columns@iq17-default	result-types	duckdb,postgres
-run	lite/m1d/truncnum_of_columns@iq17-default	result-types	duckdb,postgres
-run	lite/m1d/cast_numeric_column_to_numeric@iq17-default	D-N6	duckdb,postgres
 run	lite/m1review/m2_median_of_smallint_extremes@iq17-default	D-F17	duckdb,postgres
 run	lite/natives/between_with_a_tab_and_blanks@iq17-default	D-S5	duckdb,postgres
 run	lite/m1d/exp_at_the_largest_and_the_smallest_doubles@iq17-default	exp-underflow	duckdb,postgres
 run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres
 run	lite/basics/true_is_a_name@iq17-default	true-keyword	duckdb,postgres
-run	lite/m1d/cast_varchar_column_to_char_is_padded@iq17-default	utf8-char-bytes	duckdb,postgres
 run	lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	having-alias	duckdb,postgres
 run	lite/m1d/functions_in_case_and_isnull@iq17-default	iq-defect	duckdb,postgres
 run	lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	iq-defect	duckdb,postgres

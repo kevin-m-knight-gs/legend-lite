@@ -229,7 +229,8 @@ tests:
   - id: concat_of_a_char_in_a_sql_anywhere_database
     sql: "SELECT id, ch || '|' AS s FROM t ORDER BY id"
     profile: sqla17-default
-  - id: concat_of_a_numeric_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C8): answered under IQ's engine, so renamed from concat_of_a_numeric_is_refused
+  - id: concat_of_a_numeric
     sql: "SELECT nm || 'x' AS s FROM t WHERE id = 1"
   # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from concat_of_a_date_is_refused
   - id: concat_of_a_date

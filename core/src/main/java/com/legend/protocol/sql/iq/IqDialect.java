@@ -363,7 +363,14 @@ public final class IqDialect implements InputDialect {
         settings.check();
         IqParser.Parsed read = IqParser.parsed(sql, settings);
         SqlAst.Statement statement = read.statement();
-        if (!read.droppedOrderKeys().isEmpty() && (engine != null ? engine : engineOf(statement, settings)) == Engine.IQ) {
+        Engine statementEngine = engine != null ? engine : engineOf(statement, settings);
+        if (!read.frontEndCasts().isEmpty() && statementEngine != Engine.IQ) {
+            // IQ island, 2026-10-15 (checklist 0.5): a constant SQL Anywhere's front end raises for, where IQ's engine
+            // cuts or truncates it (IqFunctions.constantCast)
+            throw com.legend.protocol.sql.SqlSyntaxException.unsupported(read.frontEndCasts().get(0).refusal(), read
+                    .frontEndCasts().get(0).pos());
+        }
+        if (!read.droppedOrderKeys().isEmpty() && statementEngine == Engine.IQ) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine ORDER BY (1) is the first column's
             // position, where SQL Anywhere's front end orders by nothing
             throw SqlTranslationException.unsupported("ORDER BY a parenthesized integer is a position under IQ's engine"
@@ -3077,10 +3084,11 @@ public final class IqDialect implements InputDialect {
             case PLUS -> plus(b, at);
             case CONCAT -> {
                 List<Tx> parts = new ArrayList<>();
-                for (SqlAst.Expr e : operands(b, SqlAst.BinaryOp.CONCAT)) {
+                List<SqlAst.Expr> leaves = operands(b, SqlAst.BinaryOp.CONCAT);
+                for (SqlAst.Expr e : leaves) {
                     parts.add(at.tx(e));
                 }
-                yield concatenation(parts, b, "||");
+                yield concatenation(parts, leaves, b, "||");
             }
             case MINUS, TIMES, DIVIDE, MODULO -> arithmetic(b, at.tx(b.left()), at.tx(b.right()));
             case POWER -> throw SqlTranslationException.unsupported("IQ has no power operator", b.pos());
@@ -3158,7 +3166,7 @@ public final class IqDialect implements InputDialect {
         // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a string + an untyped NULL joins them, the
         // NULL as nothing (vc + NULL is vc), as || does
         if (strings || engine == Engine.IQ && anyString && stringsOrNull) {
-            return concatenation(parts, b, "+");
+            return concatenation(parts, leaves, b, "+");
         }
         if (anyString) {
             throw SqlTranslationException.unsupported("+ of a string and a value that is no string is IQ's NUMERIC"
@@ -3178,17 +3186,22 @@ public final class IqDialect implements InputDialect {
     }
 
     /** IQ's {@code ||} (and {@code +} of strings): the values as text, joined; a NULL among them is read as '', and the
-     *  result is NULL only when every one is (the research's D-S3). An integer joins as its digits; any other value
-     *  ({@code ||} writes numerics, doubles and dates by IQ's formats) is refused by name. */
-    private Tx concatenation(List<Tx> parts, SqlAst.Binary b, String operator) {
+     *  result is NULL only when every one is (the research's D-S3). An integer joins as its digits, a date by the
+     *  profile's format, under IQ's engine a NUMERIC as its text (D-C8); any other value ({@code ||} writes doubles by
+     *  IQ's format) is refused by name. */
+    private Tx concatenation(List<Tx> parts, List<SqlAst.Expr> leaves, SqlAst.Binary b, String operator) {
         List<Tx> present = new ArrayList<>();
-        for (Tx part : parts) {
+        for (int i = 0; i < parts.size(); i++) {
+            Tx part = parts.get(i);
             if (part.kind() == Kind.NULL) {
                 continue;
             }
-            // IQ island, 2026-10-14 (M1e): a date or a timestamp in the profile's DATE_FORMAT or TIMESTAMP_FORMAT
+            // IQ island, 2026-10-14 (M1e): a date or a timestamp in the profile's DATE_FORMAT or TIMESTAMP_FORMAT;
+            // IQ island, 2026-10-15 (D-C8, measured on IQ 17.1): under IQ's engine a NUMERIC as its text ('0.01x')
             Tx p = part.kind() == Kind.DATE || part.kind() == Kind.DATETIME
-                    ? IqDateTime.text(part, settings, operator, b.pos()) : part;
+                    ? IqDateTime.text(part, settings, operator, b.pos())
+                    : engine == Engine.IQ && part.kind() == Kind.DECIMAL
+                    ? IqFunctions.iqNumericAsText(part, leaves.get(i), operator) : part;
             boolean integer = p.kind() == Kind.INTEGER && p.detail() instanceof IqType t && t.isInteger();
             if (p.kind() != Kind.STRING && !integer) {
                 throw SqlTranslationException.unsupported(operator + " of " + kindName(p.kind()) + " (IQ writes it as"

@@ -408,7 +408,8 @@ tests:
     sql: "SELECT id, STRING(vc, '/', sm, '/', bt) AS s FROM t ORDER BY id"
   - id: string_of_all_null_columns
     sql: "SELECT id, STRING(vc, it) AS s FROM t WHERE id IN (5, 6) ORDER BY id"
-  - id: string_of_a_numeric_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C8): answered under IQ's engine, so renamed from string_of_a_numeric_is_refused
+  - id: string_of_a_numeric
     sql: "SELECT STRING(nm, 'a') AS s FROM t WHERE id = 1"
   - id: string_of_no_argument
     sql: "SELECT STRING() AS s"
@@ -448,8 +449,11 @@ tests:
   - id: sign_of_constants
     sql: "SELECT SIGN(-5) AS a, SIGN(0) AS b, SIGN(2.5) AS c, SIGN(NULL) AS d, SIGN(-0.0) AS e"
     engine: sa
+  # IQ island, 2026-10-15 (checklist 0.5, D-F19, measured on IQ 17.1): under IQ's engine SIGN is of its argument's type
   - id: sign_of_columns
     sql: "SELECT id, SIGN(sm) AS a, SIGN(bg) AS b, SIGN(nm) AS c, SIGN(dbl) AS d FROM t ORDER BY id"
+    decision: D-F19
+    expect: '{"columns": [["id", "integer", 0], ["a", "smallint", 0], ["b", "bigint", 0], ["c", "numeric", 2], ["d", "double", 0]], "rows": [["1", "1", "1", "1.00", "1.0"], ["2", "-1", "-1", "-1.00", "-1.0"], ["3", "0", "0", "0.00", "0.0"], ["4", "1", "1", "1.00", "1.0"], ["5", null, null, null, null], ["6", "1", "1", "1.00", "1.0"], ["7", "-1", "-1", "-1.00", "-1.0"]]}'
   - id: sign_of_a_string_is_refused
     sql: "SELECT SIGN('1') AS s"
     engine: sa
@@ -511,8 +515,11 @@ tests:
   - id: truncnum_of_constants
     sql: "SELECT TRUNCNUM(2.59, 1) AS a, TRUNCNUM(-2.59, 1) AS b, TRUNCNUM(655.348, 2) AS c, TRUNCNUM(1259, -2) AS d, TRUNCNUM(-1259, -2) AS e, TRUNCNUM(NULL, 1) AS f"
     engine: sa
+  # IQ island, 2026-10-15 (checklist 0.5, D-F19, measured on IQ 17.1): under IQ's engine TRUNCNUM of an integer keeps its type
   - id: truncnum_of_columns
     sql: "SELECT id, TRUNCNUM(nm, 1) AS a, TRUNCNUM(nm, -3) AS b, TRUNCNUM(sm, -2) AS c, TRUNCNUM(bg, -1) AS d, TRUNCNUM(it, 3) AS e FROM t ORDER BY id"
+    decision: D-F19
+    expect: '{"columns": [["id", "integer", 0], ["a", "numeric", 2], ["b", "numeric", 2], ["c", "smallint", 0], ["d", "bigint", 0], ["e", "integer", 0]], "rows": [["1", "12345678.90", "12345000.00", "32700", "9223372036854775800", "2147483647"], ["2", "-99999999.90", "-99999000.00", "-32700", "-9223372036854775800", "-2147483648"], ["3", "0.00", "0.00", "0", "0", "0"], ["4", "0.00", "0.00", "0", "0", "-1"], ["5", null, null, null, null, null], ["6", "100.50", "0.00", "100", "100", "100"], ["7", "-.50", "0.00", "0", "0", "7"]]}'
   - id: truncnum_of_a_double_is_refused
     sql: "SELECT TRUNCNUM(dbl, 1) AS t FROM t WHERE id = 1"
 
@@ -809,10 +816,15 @@ tests:
   - id: cast_strings_to_numeric
     sql: "SELECT CAST('1.5' AS NUMERIC(5,2)) AS a, CAST('1e2' AS NUMERIC(5,1)) AS b, CAST(' -1.25 ' AS NUMERIC(5,1)) AS c, CAST('' AS NUMERIC(5,2)) AS d, CAST('.5' AS NUMERIC(3,2)) AS e"
     engine: sa
+  # IQ island, 2026-10-15 (checklist 0.5, D-N6, measured on IQ 17.1): under IQ's engine a narrower scale truncates
   - id: cast_numeric_column_to_numeric
     sql: "SELECT id, CAST(nm AS NUMERIC(12,1)) AS a, CAST(nm AS NUMERIC(15,4)) AS b, CAST(nm AS DECIMAL(10)) AS c FROM t ORDER BY id"
+    decision: D-N6
+    expect: '[["1","12345678.9","12345678.9900","12345678"],["2","-99999999.9","-99999999.9900","-99999999"],["3","0.0","0.0000","0"],["4","0.0",".0100","0"],["5",null,null,null],["6","100.5","100.5000","100"],["7","-.5","-.5000","0"]]'
+  # IQ island, 2026-10-15 (checklist 0.5): CAST(it AS NUMERIC) is a NUMERIC(126,38) under IQ's engine, refused
+  # (iq_engine_casts.yaml), so this reads a precision
   - id: cast_integer_column_to_numeric
-    sql: "SELECT id, CAST(sm AS NUMERIC(7,2)) AS a, CAST(it AS NUMERIC) AS b, CAST(bg AS DECIMAL(20,0)) AS c FROM t ORDER BY id"
+    sql: "SELECT id, CAST(sm AS NUMERIC(7,2)) AS a, CAST(it AS NUMERIC(10,0)) AS b, CAST(bg AS DECIMAL(20,0)) AS c FROM t ORDER BY id"
   - id: cast_to_numeric_out_of_range
     sql: "SELECT id, CAST(nm AS NUMERIC(5,1)) AS a FROM t ORDER BY id"
   - id: cast_to_numeric_rounding_up_out_of_range
@@ -828,8 +840,9 @@ tests:
   - id: cast_string_to_numeric_without_precision_is_refused
     sql: "SELECT CAST('1' AS DECIMAL) AS a"
     engine: sa
-  - id: cast_double_to_numeric_is_refused
-    sql: "SELECT CAST(dbl AS NUMERIC(10,2)) AS a FROM t WHERE id = 1"
+  # IQ island, 2026-10-15 (checklist 0.5, D-N6): answered under IQ's engine, so renamed from cast_double_to_numeric_is_refused
+  - id: cast_double_to_numeric
+    sql: "SELECT id, CAST(dbl AS NUMERIC(10,2)) AS a FROM t WHERE id <> 6 ORDER BY id"
   - id: cast_string_column_to_numeric_is_refused
     sql: "SELECT CAST(vc AS NUMERIC(10,2)) AS a FROM t WHERE id = 1"
   - id: cast_to_numeric_of_precision_0
@@ -883,8 +896,14 @@ tests:
   - id: cast_varchar_column_to_char_in_sql_anywhere
     sql: "SELECT id, CAST(vc AS CHAR(22)) || '|' AS a FROM t ORDER BY id"
     profile: sqla17-default
-  - id: cast_varchar_column_to_a_shorter_varchar_is_refused
-    sql: "SELECT CAST(vc AS VARCHAR(3)) AS a FROM t WHERE id = 1"
+  # IQ island, 2026-10-15 (checklist 0.5, D-C2, measured on IQ 17.1): under IQ's engine a longer string is cut, to n bytes
+  # (n characters in this ISO-8859-1 database; the live IQ's UTF-8 cut is iq_engine_casts.yaml's), where SQL Anywhere
+  # raises -638; renamed from cast_varchar_column_to_a_shorter_varchar_is_refused
+  - id: cast_varchar_column_to_a_shorter_varchar
+    sql: "SELECT id, CAST(vc AS VARCHAR(3)) AS a, CAST(vc AS CHAR(2)) || '|' AS b FROM t ORDER BY id"
+    decision: D-C2
+    expect: '{"columns": [["id", "integer", 0], ["a", "varchar", 0], ["b", "varchar", 0]], "rows": [["1", "Hel", "He|"], ["2", "hel", "he|"], ["3", "Rés", "Ré|"], ["4", "ÉCO", "ÉC|"], ["5", null, "|"], ["6", "x  ", "x |"], ["7", "app", "ap|"]]}'
+
   - id: cast_varchar_column_to_a_shorter_varchar_in_sql_anywhere_is_refused
     sql: "SELECT CAST(vc AS VARCHAR(3)) AS a FROM t WHERE id = 1"
     profile: sqla17-default
@@ -902,12 +921,20 @@ tests:
   - id: cast_numeric_constants_to_text
     sql: "SELECT CAST(-0.50 AS VARCHAR(10)) AS a, CAST(0.01 AS VARCHAR(10)) AS b, CAST(10.5 AS VARCHAR(10)) AS c, CAST(-3 AS VARCHAR(5)) AS d"
     engine: sa
-  - id: cast_numeric_to_short_text_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C1, measured on IQ 17.1): IQ's engine raises for a row whose text is too long,
+  # where SQL Anywhere cuts it; renamed from cast_numeric_to_short_text_is_refused
+  - id: cast_numeric_to_short_text_is_iqs_error
     sql: "SELECT CAST(nm AS VARCHAR(4)) AS a FROM t WHERE id = 1"
+    decision: D-C1
+    expect: '{"error": "SQLCODE -1009145, SQLSTATE QFA2E: Data type conversion is not possible"}'
   - id: cast_date_to_text
     sql: "SELECT id, CAST(dt AS VARCHAR(20)) AS a, CAST(dt AS VARCHAR(10)) AS b FROM t ORDER BY id"
-  - id: cast_date_to_short_text_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C1, measured on IQ 17.1): as a NUMERIC's; renamed from
+  # cast_date_to_short_text_is_refused
+  - id: cast_date_to_short_text_is_iqs_error
     sql: "SELECT CAST(dt AS VARCHAR(5)) AS a FROM t WHERE id = 1"
+    decision: D-C1
+    expect: '{"error": "SQLCODE -1009145, SQLSTATE QFA2E: Data type conversion is not possible"}'
   - id: cast_double_to_text_is_refused
     sql: "SELECT CAST(dbl AS VARCHAR(30)) AS a FROM t WHERE id = 1"
   # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from cast_timestamp_to_text_is_refused

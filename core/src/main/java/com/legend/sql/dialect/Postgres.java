@@ -662,8 +662,8 @@ public final class Postgres extends AnsiSqlRenderer {
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
-            case LPAD -> padWithSpace(writer, "lpad", c.args());
-            case RPAD -> padWithSpace(writer, "rpad", c.args());
+            case LPAD -> padWithSpaceToInteger(writer, "lpad", c.args());
+            case RPAD -> padWithSpaceToInteger(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
             case TODAY -> writer.append("current_date");

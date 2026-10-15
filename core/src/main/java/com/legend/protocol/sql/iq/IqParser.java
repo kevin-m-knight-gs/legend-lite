@@ -121,6 +121,9 @@ public final class IqParser {
     /** IQ island, 2026-10-15: where ORDER BY dropped a parenthesized integer constant ({@code (1)}), a constant that
      *  orders nothing in SQL Anywhere's front end and a position under IQ's engine (measured on IQ 17.1). */
     private final List<SqlAst.Pos> droppedOrderKeys = new ArrayList<>();
+    /** IQ island, 2026-10-15 (checklist 0.5): each CAST or CONVERT of a constant only SQL Anywhere's front end cannot
+     *  convert ({@link IqFunctions#constantCast}), with its refusal's text: IQ's engine cuts or truncates it. */
+    private final List<FrontEndCast> frontEndCasts = new ArrayList<>();
     /** IQ island, 2026-10-14 (review 3's M5): the trailing branches whose value is NULL each CASE and IF was read
      *  without (an ELSE NULL; a last WHEN ... THEN NULL whose condition cannot raise), by identity: the value is the
      *  same, and the compiler's multiplicity stamp of a CASE whose last branches are all NULL is wrong (the compiler
@@ -167,7 +170,11 @@ public final class IqParser {
     /** A statement as read ({@link #parsed}): its tree, and the text of each GROUP BY item and each aggregate's call
      *  in it, as written (by identity). */
     public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans,
-            List<SqlAst.Pos> droppedOrderKeys) {
+            List<SqlAst.Pos> droppedOrderKeys, List<FrontEndCast> frontEndCasts) {
+    }
+
+    /** A CAST or CONVERT of a constant only SQL Anywhere's front end cannot convert: where, and its refusal's text. */
+    public record FrontEndCast(SqlAst.Pos pos, String refusal) {
     }
 
     /** The query {@code sql} is, read under {@code settings}'s options, with the texts the tree does not keep. */
@@ -181,7 +188,8 @@ public final class IqParser {
         if (end.kind() != IqLexer.Kind.EOF) {
             throw p.unexpected(end);
         }
-        return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys));
+        return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys),
+                List.copyOf(p.frontEndCasts));
     }
 
     /** An expression as it was written ({@link #written}): its tree, and what the tree does not keep -- the parentheses
@@ -2192,6 +2200,15 @@ public final class IqParser {
         return null;
     }
 
+    /** A constant's CAST or CONVERT checked ({@link IqFunctions#constantCast}): what only SQL Anywhere's front end cannot
+     *  convert is kept for the dialect to refuse there. */
+    private void frontEndCast(SqlAst.Expr operand, SqlAst.TypeName type, String what) {
+        String refusal = IqFunctions.constantCast(operand, type, what, settings);
+        if (refusal != null) {
+            frontEndCasts.add(new FrontEndCast(operand.pos(), refusal));
+        }
+    }
+
     /** {@code CAST(expression AS data_type)} (GRAMMAR F14). */
     private SqlAst.Expr castCall() {
         IqLexer.Token t = take();
@@ -2201,7 +2218,7 @@ public final class IqParser {
         expectSyntax("as", "CAST needs AS");
         SqlAst.TypeName type = dataType();
         expectOp(")");
-        IqFunctions.constantCast(operand, type, "CAST", settings);
+        frontEndCast(operand, type, "CAST");
         return new SqlAst.Cast(operand, type, t.pos());
     }
 
@@ -2272,7 +2289,7 @@ public final class IqParser {
                     t.pos());
         }
         expectOp(")");
-        IqFunctions.constantCast(operand, type, "CONVERT", settings);
+        frontEndCast(operand, type, "CONVERT");
         return new SqlAst.Cast(operand, new SqlAst.TypeName(CONVERT + type.name(), type.modifiers(), type.pos()),
                 t.pos());
     }

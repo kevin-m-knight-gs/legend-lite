@@ -348,8 +348,12 @@ tests:
   - id: timestamp_cast_to_its_odbc_text_length
     sql: "SELECT id, CAST(ts AS VARCHAR(26)) AS s FROM t ORDER BY id"
     profile: iq16-odbc
-  - id: timestamp_cast_to_a_shorter_varchar_is_refused
+  # IQ island, 2026-10-15 (checklist 0.5, D-C1, measured on IQ 17.1): IQ's engine raises for a row whose text is too long,
+  # where SQL Anywhere cuts it; renamed from timestamp_cast_to_a_shorter_varchar_is_refused
+  - id: timestamp_cast_to_a_shorter_varchar_is_iqs_error
     sql: "SELECT id, CAST(ts AS VARCHAR(19)) AS s FROM t ORDER BY id"
+    decision: D-C1
+    expect: '{"error": "SQLCODE -1009145, SQLSTATE QFA2E: Data type conversion is not possible"}'
   - id: timestamp_concatenated
     sql: "SELECT id, ts || 'x' AS s FROM t ORDER BY id"
     profile: iq16-default, iq16-odbc, iq16-tds

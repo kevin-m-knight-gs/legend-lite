@@ -1,0 +1,120 @@
+# CAST and CONVERT under IQ's engine (IQ island, 2026-10-15, checklist 0.5; the research's D-C1, D-C2, D-N6, measured on
+# the live IQ 17.1, a UTF-8 database): a longer string is cut to the target's length in bytes, never inside a character,
+# whatever STRING_RTRUNCATION says; a CHAR(n) is padded to n bytes, a CHAR without a length to 255; a narrower NUMERIC
+# scale truncates toward zero, constants too; a DOUBLE to a NUMERIC of at most 18 digits is the DOUBLE times 10^s, a
+# DOUBLE product, cut toward zero; a NUMERIC is written with its 0 before the point; a number or a date whose text is
+# longer than the target is IQ's error for that row. SQL Anywhere's front end raises, rounds and writes otherwise, so
+# these cases are judged by the live IQ only. Every case is deterministic.
+tests:
+
+  # ---- a string to a shorter string: cut to n bytes (D-C2)
+  - id: varchar_cut_to_its_bytes
+    sql: "SELECT id, CAST(vc AS VARCHAR(3)) AS a, CAST(vc AS VARCHAR(4)) || '|' AS b, CAST(vc AS VARCHAR(7)) || '|' AS c, CAST(vc AS VARCHAR(1)) || '|' AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: char_cut_and_padded_to_its_bytes
+    sql: "SELECT id, CAST(vc AS CHAR(2)) || '|' AS a, CAST(vc AS CHAR(7)) || '|' AS b, CAST(vc AS CHAR(1)) || '|' AS c, CAST(ch AS CHAR(3)) || '|' AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: char_padded_to_its_bytes
+    sql: "SELECT id, CAST(vc AS CHAR(22)) || '|' AS a, LENGTH(CAST(vc AS CHAR(22))) AS n FROM t ORDER BY id"
+    profile: iq17-default
+  - id: char_without_a_length_is_255_bytes
+    sql: "SELECT id, LENGTH(CAST(vc AS CHAR)) AS a, LENGTH(CAST(sm AS CHAR)) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: convert_cuts_as_cast_does
+    sql: "SELECT id, CONVERT(VARCHAR(3), vc) AS a, CONVERT(CHAR(3), vc) || '|' AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: string_constants_cut_to_their_bytes
+    sql: "SELECT id, CAST('abcdef' AS VARCHAR(3)) AS a, CAST('Résumé' AS VARCHAR(2)) AS b, CAST('Résumé' AS VARCHAR(3)) AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: cut_strings_computed_and_compared
+    sql: "SELECT id, CAST(UPPER(vc) AS VARCHAR(3)) AS a, CAST(vc || 'xyz' AS VARCHAR(7)) AS b, CAST(CAST(vc AS VARCHAR(3)) AS VARCHAR(20)) || '|' AS c FROM t WHERE CAST(vc AS VARCHAR(3)) <> 'hel' ORDER BY id"
+    profile: iq17-default
+  - id: varchar_of_a_length_in_characters_or_bytes
+    sql: "SELECT id, CAST(vc AS VARCHAR(3 CHAR)) AS a, CAST(vc AS VARCHAR(3 BYTE)) || '|' AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: char_of_a_length_in_characters_is_iqs_error
+    sql: "SELECT CAST(vc AS CHAR(8 CHAR)) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- a NUMERIC to a narrower NUMERIC: truncated toward zero, constants and strings too (D-N6)
+  - id: numeric_narrowed_toward_zero
+    sql: "SELECT id, CAST(nm AS NUMERIC(9,1)) AS a, CAST(nm AS NUMERIC(20,1)) AS b, CAST(nm AS DECIMAL(10)) AS c, CAST(nm AS NUMERIC(3,2)) AS d FROM t WHERE id <> 1 AND id <> 2 AND id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: numeric_narrowed_whole_digits_kept
+    sql: "SELECT id, CAST(nm AS NUMERIC(9,1)) AS a, CAST(nm AS NUMERIC(19,0)) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_constants_narrowed_toward_zero
+    sql: "SELECT id, CAST(2.675 AS NUMERIC(5,2)) AS a, CAST(-2.675 AS NUMERIC(5,2)) AS b, CAST('1.555' AS NUMERIC(5,2)) AS c, CAST(999.5 AS NUMERIC(3,0)) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: numeric_narrowed_past_its_digits_is_iqs_error
+    sql: "SELECT id, CAST(nm AS NUMERIC(5,1)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: integers_to_numeric
+    sql: "SELECT id, CAST(sm AS NUMERIC(20,2)) AS a, CAST(it AS NUMERIC(10,0)) AS b, CAST(bt AS NUMERIC(3,1)) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_without_a_precision_is_refused
+    sql: "SELECT CAST(it AS NUMERIC) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- a DOUBLE to NUMERIC(p, s), p at most 18: the DOUBLE times 10^s, cut toward zero (D-N6)
+  - id: double_to_numeric_cut_toward_zero
+    sql: "SELECT id, CAST(dbl AS NUMERIC(10,2)) AS a, CAST(dbl AS NUMERIC(2,1)) AS b, CAST(dbl AS NUMERIC(18,15)) AS c FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: double_to_numeric_by_its_double_product
+    sql: "SELECT id, CAST(dbl * 0 + 0.29e0 AS NUMERIC(10,2)) AS a, CAST(dbl * 0 + 0.15e0 AS NUMERIC(10,2)) AS b, CAST(dbl * 0 - 0.15e0 AS NUMERIC(10,2)) AS c, CAST(dbl * 0 + 2.3e0 AS NUMERIC(5,1)) AS d, CAST(dbl * 0 + 9.95e0 AS NUMERIC(5,2)) AS e, CAST(dbl * 0 + 1.15e0 AS NUMERIC(5,2)) AS f FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: double_to_numeric_of_18_digits
+    sql: "SELECT id, CAST(dbl * 1e14 AS NUMERIC(18,2)) AS a, CAST(dbl * 1e12 AS NUMERIC(18,4)) AS b, CAST(dbl AS NUMERIC(18,17)) AS c FROM t WHERE id IN (1, 2, 4, 7) ORDER BY id"
+    profile: iq17-default
+  - id: double_to_numeric_out_of_range_is_iqs_error
+    sql: "SELECT id, CAST(dbl AS NUMERIC(5,2)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: average_of_doubles_to_numeric
+    sql: "SELECT k, CAST(AVG(d) AS NUMERIC(10,3)) AS a, CAST(SUM(d) AS DECIMAL(12,1)) AS b FROM g WHERE k IN (1, 2, 3) GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: double_to_numeric_of_more_than_18_digits_is_refused
+    sql: "SELECT CAST(dbl AS NUMERIC(19,2)) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+
+  # ---- a NUMERIC as text: its 0 before the point (D-C8); longer than the target, IQ's error for that row (D-C1)
+  - id: numeric_to_text
+    sql: "SELECT id, CAST(nm AS VARCHAR(20)) AS a, CAST(nm AS CHAR(14)) || '|' AS b, CONVERT(VARCHAR(12), nm) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_to_text_long_enough_for_its_rows
+    sql: "SELECT id, CAST(nm AS VARCHAR(11)) AS a FROM t WHERE id <> 2 ORDER BY id"
+    profile: iq17-default
+  - id: numeric_to_too_short_text_is_iqs_error
+    sql: "SELECT id, CAST(nm AS VARCHAR(11)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_concatenated_as_its_text
+    sql: "SELECT id, nm || 'x' AS a, STRING(nm, '|', it) AS b, 'n=' + CAST(nm AS VARCHAR(20)) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: numeric_constant_concatenated_is_refused
+    sql: "SELECT 0.01 || 'x' AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: numeric_constant_to_text_is_refused
+    sql: "SELECT CAST(0.01 AS VARCHAR(10)) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: integers_to_short_text_are_iqs_error
+    sql: "SELECT id, CAST(sm AS VARCHAR(3)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: dates_to_text
+    sql: "SELECT id, CAST(dt AS VARCHAR(10)) AS a, CAST(dt AS CHAR(12)) || '|' AS b, CAST(bt AS VARCHAR(1)) AS c, CAST(bt AS CHAR(2)) || '|' AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_to_too_short_text_is_iqs_error
+    sql: "SELECT id, CAST(dt AS VARCHAR(5)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_to_too_short_text_of_null_only
+    sql: "SELECT id, CAST(dt AS VARCHAR(5)) AS a FROM t WHERE id = 5"
+    profile: iq17-default
+  - id: timestamp_to_too_short_text_is_iqs_error
+    sql: "SELECT id, CAST(ts AS VARCHAR(19)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+
+  # ---- SIGN and TRUNCNUM: of the argument's own type (D-F19)
+  - id: sign_keeps_its_arguments_type
+    sql: "SELECT id, SIGN(sm) AS a, SIGN(it) AS b, SIGN(bg) AS c, SIGN(nm) AS d, SIGN(dbl) AS e FROM t ORDER BY id"
+    profile: iq17-default
+  - id: truncnum_keeps_its_arguments_type
+    sql: "SELECT id, TRUNCNUM(sm, -2) AS a, TRUNCNUM(it, -3) AS b, TRUNCNUM(bg, -1) AS c, TRUNCNUM(it, 2) AS d, TRUNCNUM(nm, 1) AS e FROM t ORDER BY id"
+    profile: iq17-default
