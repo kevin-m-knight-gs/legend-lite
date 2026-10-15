@@ -80,14 +80,24 @@ tests:
     sql: "SELECT k, SUM(v), SUM(w) FROM g WHERE k < 4 OR k IS NULL GROUP BY k ORDER BY k"
   - id: sum_of_an_integer_out_of_range
     sql: "SELECT SUM(v) FROM g"
+    decision: D-N3
+    expect: '{"columns": [["SUM(g.v)", "numeric", 0]], "rows": [["2147483661"]]}'
   - id: sum_of_a_bigint_out_of_range
     sql: "SELECT SUM(w) FROM g"
+    decision: D-N3
+    expect: '{"columns": [["SUM(g.w)", "numeric", 0]], "rows": [["9223372036854775832"]]}'
   - id: sum_out_of_range_in_one_group
     sql: "SELECT k, SUM(v) FROM g GROUP BY k"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["SUM(g.v)", "numeric", 0]], "rows": [[null, "3"], ["1", "12"], ["2", "2"], ["3", "-4"], ["4", "2147483648"]]}'
   - id: sum_whose_running_total_passes_the_largest
     sql: "SELECT SUM(v) FROM o"
+    decision: D-N3
+    expect: '{"columns": [["SUM(o.v)", "numeric", 0]], "rows": [["2147483643"]]}'
   - id: sum_of_a_bigint_whose_running_total_passes_the_largest
     sql: "SELECT SUM(w) FROM o"
+    decision: D-N3
+    expect: '{"columns": [["SUM(o.w)", "numeric", 0]], "rows": [["9223372036854775803"]]}'
   - id: sum_whose_running_total_may_pass_the_largest
     sql: "SELECT SUM(x) FROM (SELECT 2147483647 x UNION ALL SELECT 1 UNION ALL SELECT -5) d"
     engine: sa

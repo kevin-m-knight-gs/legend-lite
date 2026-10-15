@@ -650,6 +650,17 @@ public final class IqParity {
         if (IqDialect.engineOf(statement, select.settings()) != IqDialect.Engine.IQ) {
             return null;
         }
+        if (run.profile().spelling().startsWith("iq16-") && liveJudgesItsSettings(c)
+                && select.select().strip().equals(sql.strip())) {
+            // IQ island, 2026-10-15 (landing 4, the research's D-N3: IQ's engine widens integer arithmetic, so most
+            // integer arithmetic over IQ tables translates otherwise under its rules): this guard predates the live
+            // IQ. An iq16-* run now has an iq17-* twin (runs) that the live IQ 17.1 judges by the IQ engine's own
+            // semantics, so the IQ engine's translation is judged where it differs; SQL Anywhere stays a second judge,
+            // whose disagreement fails the run (which then names its decision). Kept for a case with SET statements or
+            // settings other than the query's own (temporary options), whose twin the live IQ may not judge
+            // (not_judged: another database property or PUBLIC option).
+            return null;
+        }
         List<Param> params = params(c.params());
         String iq = pureOf(sql, tables, IqDialect.of(run.settings(), IqDialect.Engine.IQ), params);
         if (iq == null) {
@@ -658,6 +669,21 @@ public final class IqParity {
         String sa = pureOf(sql, tables, IqDialect.of(run.settings(), IqDialect.Engine.SA), params);
         return iq.equals(sa) ? null : "ENGINE NEUTRALITY: " + run.key() + " translates otherwise under the IQ engine's"
                 + " rules than under SQL Anywhere's, which judges it: name its decision, or pin engine: sa";
+    }
+
+    /** Whether the live IQ judges {@code c}'s iq17-* twin whatever its settings: none, or the query's own only (the
+     *  temporary options a connection sets; IQ island, 2026-10-15, {@link #engineNeutrality}). */
+    private static boolean liveJudgesItsSettings(Case c) {
+        String written = c.settings();
+        if (written == null) {
+            return true;
+        }
+        for (com.legend.protocol.sql.iq.IqSettings.Setting setting : settings(written)) {
+            if (setting.level() != com.legend.protocol.sql.iq.IqSettings.Level.QUERY) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The skip a case takes when its answer depends on the order IQ evaluates a search condition's operands in (the

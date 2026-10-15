@@ -3548,6 +3548,12 @@ public final class IqDialect implements InputDialect {
         IqType lt = integerOperand(l, b.left(), operator);
         IqType rt = integerOperand(r, b.right(), operator);
         String family = IqTypes.arithmetic(b.op(), lt.family(), rt.family());
+        if (family == null && engine == Engine.IQ && b.op() == SqlAst.BinaryOp.MODULO && lt.isInteger()
+                && rt.isInteger() && !lt.family().equals("BIT") && !rt.family().equals("BIT")) {
+            // IQ island, 2026-10-15 (D-N3, measured on IQ 17.1): a BIGINT's remainder under IQ's engine is a
+            // scale-0 NUMERIC of the remainder's value (bg % 7 is NUMERIC(20,0) 0), read as the integer it is
+            family = "BIGINT";
+        }
         if (family == null) {
             throw resultRefused(operator, lt.family(), rt.family(), b.pos());
         }
@@ -3596,10 +3602,22 @@ public final class IqDialect implements InputDialect {
 
     /** {@link #checkedInteger}, NULL where the operand at {@code zeroGuard} (when 0 or more) is 0 (IQ island,
      *  2026-10-14, the options framework: divide_by_zero_error Off). */
-    private Tx checkedInteger(SqlAst.Expr node, String operator, IqType type, BigInteger lo, BigInteger hi,
+    private Tx checkedInteger(SqlAst.Expr node, String operator, IqType declared, BigInteger lo, BigInteger hi,
             List<Tx> operands, List<IqType> types, boolean constant, boolean zeroDivisor, int zeroGuard,
             java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
         SqlAst.Pos pos = node.pos();
+        IqType widened = null;
+        if (engine == Engine.IQ && lo.compareTo(IqType.BIGINT_MIN) >= 0 && hi.compareTo(IqType.BIGINT_MAX) <= 0) {
+            // IQ island, 2026-10-15 (the research's D-N3, measured on IQ 17.1): IQ's engine widens -- no integer
+            // operation raises -158; its result is of the narrowest type that holds it (IQ reads its operands' ranges
+            // from their data -- id + 1 over ids 1 to 7 is a SMALLINT, sm + 1 an INTEGER, it + 1 a BIGINT --, lite from
+            // their types: the same integers, of a type no narrower). Past a BIGINT, IQ answers a NUMERIC: there lite
+            // keeps its BIGINT, which the database's own overflow guards.
+            widened = new IqType(lo.compareTo(IqType.SMALLINT_MIN) >= 0 && hi.compareTo(IqType.SMALLINT_MAX) <= 0
+                    ? "SMALLINT" : lo.compareTo(IqType.INTEGER_MIN) >= 0 && hi.compareTo(IqType.INTEGER_MAX) <= 0
+                    ? "INTEGER" : "BIGINT");
+        }
+        IqType type = widened != null ? widened : declared;
         boolean certainlyOut = lo.compareTo(type.max()) > 0 || hi.compareTo(type.min()) < 0;
         if (certainlyOut && constant) {
             throw SqlTranslationException.invalid("the value of this " + operator + " is out of range for its type, "
@@ -3628,7 +3646,12 @@ public final class IqDialect implements InputDialect {
             widen.add(w);
             wide |= w || t.wide();
         }
-        Tx result = SqlToPure.strict(Kind.INTEGER, operands, v -> {
+        // IQ island, 2026-10-15 (D-N3): under IQ's engine an operation that cannot raise merges every operand's NULL
+        // guard: none of its operands raises where another is NULL either (an integer operation raises only for a
+        // zero divisor, which IQ's engine answers no rows for, its defect), so a chain stays linear in size
+        boolean merge = widened != null && !check && !zeroDivisor && zeroGuard < 0;
+        Tx result = SqlToPure.strict(Kind.INTEGER, operands, merge || operands.stream().filter(Tx::nullable).count()
+                == 1, v -> {
             List<ValueSpecification> args = new ArrayList<>();
             for (int i = 0; i < v.size(); i++) {
                 // floor: Pure's integer of a number, the database's 64-bit integer (exact below 2^53)
@@ -3636,7 +3659,9 @@ public final class IqDialect implements InputDialect {
             }
             ValueSpecification core = build.apply(args);
             ValueSpecification checked = check ? inRange(core, type.min(), type.max()) : core;
-            return zeroGuard < 0 ? checked : ifThen(SqlToPure.call("equal", v.get(zeroGuard), new CInteger(0L)),
+            // 0 == x, the constant first: Pure's == binds tighter than arithmetic, and the printer writes x - 3 == 0
+            // for equal(x - 3, 0), which reads back as x - (3 == 0) (upstream's composer's rule, ported verbatim)
+            return zeroGuard < 0 ? checked : ifThen(SqlToPure.call("equal", new CInteger(0L), v.get(zeroGuard)),
                     SqlToPure.nullOf(Kind.INTEGER).vs(), checked);
         });
         BigInteger low = lo.max(type.min());

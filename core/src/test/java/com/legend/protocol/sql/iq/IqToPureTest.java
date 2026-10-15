@@ -125,9 +125,10 @@ class IqToPureTest {
             assertTrue(pure("SELECT id, sm AS x FROM " + T + " ORDER BY " + key).contains("$r.sm"), key);
         }
         // an alias defined later in the list, an alias of an alias; inside its own definition its name is the column
-        assertTrue(pure("SELECT x + 1 AS y, id AS x FROM " + T).contains("y:r|if(($r.id->floor() + 1"));
-        assertTrue(pure("SELECT id + 1 AS id FROM " + T + " WHERE id > 3").contains("->filter(r|if(($r.id->floor() + 1"
-                + " < -2147483648)"));
+        // (IQ island, 2026-10-15: IQ's engine widens, D-N3 -- no range check)
+        assertTrue(pure("SELECT x + 1 AS y, id AS x FROM " + T).contains("y:r|$r.id->floor() + 1"));
+        assertTrue(pure("SELECT id + 1 AS id FROM " + T + " WHERE id > 3").contains("->filter(r|$r.id->floor() + 1"
+                + " > 3)"));
         // a definition that reaches itself through another alias is IQ's error -831
         assertTrue(refusal("SELECT id AS a, a + 1 AS id FROM " + T).getMessage().contains("-831"));
         // an aggregate's alias in WHERE is IQ's -150
@@ -233,56 +234,82 @@ class IqToPureTest {
 
     @Test
     void integerArithmeticIsTypedAndCheckedAsIqs() {
-        // smallint + smallint constant: a SMALLINT, checked against its range, the column widened to 64 bits first
-        String plus = numbers("SELECT sm + 1 AS n FROM " + T);
+        // SQL Anywhere's front end (a sqla17 profile): smallint + smallint constant is a SMALLINT, checked against its
+        // range, the column widened to 64 bits first
+        String plus = saNumbers("SELECT sm + 1 AS n FROM " + T);
         assertTrue(plus.contains("$r.sm->toOne()->floor() + 1"), plus);
         assertTrue(plus.contains("< -32768") && plus.contains("> 32767"), plus);
         // two constants that cannot leave their type: no check, no widening
-        assertTrue(numbers("SELECT 2 + 3 * 4 AS n FROM " + T).contains("n:r|2 + (3 * 4)"));
+        assertTrue(saNumbers("SELECT 2 + 3 * 4 AS n FROM " + T).contains("n:r|2 + (3 * 4)"));
         // a constant result out of its type's range is IQ's error now (-158)
-        SqlTranslationException over = numbersRefusal("SELECT 32767 + 1 AS n FROM " + T);
+        SqlTranslationException over = saNumbersRefusal("SELECT 32767 + 1 AS n FROM " + T);
         assertEquals(SqlTranslationException.Kind.INVALID, over.kind());
         assertTrue(over.getMessage().contains("SQLCODE -158"), over.getMessage());
         // a result that cannot leave its type is not checked: a BIT and a SMALLINT give an INTEGER
-        assertFalse(numbers("SELECT bt + sm AS n FROM " + T).contains("2147483647"));
+        assertFalse(saNumbers("SELECT bt + sm AS n FROM " + T).contains("2147483647"));
         // a BIGINT result is never checked: the database computes it in 64 bits and raises its own overflow first
-        String wide = numbers("SELECT i + bg AS n FROM " + T);
+        String wide = saNumbers("SELECT i + bg AS n FROM " + T);
         assertFalse(wide.contains("9223372036854775807") || wide.contains("cast(@Integer)->toOne()"), wide);
         // / truncates toward zero (the shared exact quotient); % is rem
-        assertTrue(numbers("SELECT i / 2 AS q FROM " + T).contains("->rem("));
-        assertTrue(numbers("SELECT i % 2 AS r FROM " + T).contains("->rem(2)->cast(@Integer)"));
+        assertTrue(saNumbers("SELECT i / 2 AS q FROM " + T).contains("->rem("));
+        assertTrue(saNumbers("SELECT i % 2 AS r FROM " + T).contains("->rem(2)->cast(@Integer)"));
         // a minus before a column is checked in its type; before a constant it is a constant typed by its value
-        assertTrue(numbers("SELECT -sm AS n FROM " + T).contains("> 32767"));
-        assertEquals(SqlTranslationException.Kind.INVALID, numbersRefusal("SELECT -(-32768) AS n FROM " + T).kind());
+        assertTrue(saNumbers("SELECT -sm AS n FROM " + T).contains("> 32767"));
+        assertEquals(SqlTranslationException.Kind.INVALID, saNumbersRefusal("SELECT -(-32768) AS n FROM " + T).kind());
+        // IQ island, 2026-10-15 (D-N3, measured on IQ 17.1): IQ's engine widens -- no check, the result of the
+        // narrowest type that holds it (sm + 1 an INTEGER, 32767 + 1 the INTEGER 32768), the guards of a chain merged
+        String iq = numbers("SELECT sm + 1 AS n FROM " + T);
+        assertTrue(iq.contains("$r.sm->toOne()->floor() + 1") && !iq.contains("32767"), iq);
+        assertTrue(numbers("SELECT 32767 + 1 AS n FROM " + T).contains("32767 + 1"));
+        assertFalse(numbers("SELECT -sm AS n FROM " + T).contains("32767"));
+        String chain = numbers("SELECT sm + sm + sm + sm AS n FROM " + T);
+        assertEquals(4, chain.split("isEmpty", -1).length - 1, chain);
+    }
+
+    /** {@link #numbers} in SQL Anywhere's front end: a sqla17 profile's database (IQ island, 2026-10-15). */
+    private static String saNumbers(String sql) {
+        return pure(sql, IqProfile.SQLA17_DEFAULT.settings(), NUMBERS);
+    }
+
+    private static SqlTranslationException saNumbersRefusal(String sql) {
+        return refusal(sql, IqProfile.SQLA17_DEFAULT.settings(), NUMBERS);
     }
 
     @Test
     void aConstantThatMayBeNullIsCheckedWhereItIsComputed() {
-        // the second review's M3: IQ answers NULL where the IF is unknown, and raises only where it computes 32768
+        // the second review's M3, in SQL Anywhere's front end: it answers NULL where the IF is unknown, and raises only
+        // where it computes 32768 (IQ island, 2026-10-15: IQ's engine widens instead, D-N3)
         for (String sql : new String[] {"SELECT IF i = 1 THEN 32767 ENDIF + 1 AS n FROM ",
                 "SELECT CASE WHEN i = 1 THEN 2147483647 END + 1 AS n FROM ",
                 "SELECT NULLIF(32767, sm) + 1 AS n FROM "}) {
-            String p = numbers(sql + T);
+            String p = saNumbers(sql + T);
             assertTrue(p.contains("cast(@Integer)->toOne()"), p);
         }
         assertTrue(pure("SELECT IF 1 = 2 THEN 32767 ENDIF + 1 AS n").contains("cast(@Integer)->toOne()"));
-        // constants IQ folds still raise at once, as IQ does
-        assertEquals(SqlTranslationException.Kind.INVALID, numbersRefusal("SELECT (40000 - 39999) + 2147483647 AS n"
+        // constants SQL Anywhere folds still raise at once, as it does
+        assertEquals(SqlTranslationException.Kind.INVALID, saNumbersRefusal("SELECT (40000 - 39999) + 2147483647 AS n"
                 + " FROM " + T).kind());
-        assertEquals(SqlTranslationException.Kind.INVALID, numbersRefusal("SELECT NULLIF(sm, 100000) AS n FROM " + T)
+        assertEquals(SqlTranslationException.Kind.INVALID, saNumbersRefusal("SELECT NULLIF(sm, 100000) AS n FROM " + T)
                 .kind());
+        // under IQ's engine none of these raises
+        assertFalse(numbers("SELECT IF i = 1 THEN 32767 ENDIF + 1 AS n FROM " + T).contains("cast(@Integer)->toOne()"));
     }
 
     @Test
     void checkedArithmeticPastItsSizeIsRefusedQuickly() {
         // the second review's M1: each checked operation repeats its operands, fourfold per level
         String twelve = String.join(" + ", java.util.Collections.nCopies(12, "sm"));
+        // (in SQL Anywhere's front end, which checks each step; IQ island, 2026-10-15: IQ's engine checks none, D-N3,
+        // so there a chain stays linear, below)
         SqlTranslationException e = assertTimeoutPreemptively(java.time.Duration.ofSeconds(10),
-                () -> numbersRefusal("SELECT " + twelve + " AS n FROM " + T));
+                () -> saNumbersRefusal("SELECT " + twelve + " AS n FROM " + T));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind());
         assertTrue(e.getMessage().contains("nests too many operations"), e.getMessage());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT i / 2 / 2 / 2 AS n FROM " + T)
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, saNumbersRefusal("SELECT i / 2 / 2 / 2 AS n FROM " + T)
                 .kind());
+        String chain = numbers("SELECT " + String.join(" + ", java.util.Collections.nCopies(200, "sm")) + " AS n FROM "
+                + T);
+        assertTrue(chain.length() < 20_000, "" + chain.length());
         // what is translated stays small
         String six = numbers("SELECT " + String.join(" + ", java.util.Collections.nCopies(6, "sm")) + " AS n FROM "
                 + T);
@@ -301,9 +328,20 @@ class IqToPureTest {
                 "SELECT TOP 1 START AT 2 i, -sm AS n FROM " + T + " ORDER BY i",
                 "SELECT TOP 1 i FROM " + T + " ORDER BY bg + 1",
                 "SELECT TOP 1 i, NULLIF(sm, bg) AS n FROM " + T + " ORDER BY i"}) {
-            SqlTranslationException e = numbersRefusal(sql);
+            SqlTranslationException e = saNumbersRefusal(sql);
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
             assertTrue(e.getMessage().contains("TOP, FIRST or START AT"), e.getMessage());
+        }
+        // IQ island, 2026-10-15 (D-N3): under IQ's engine only a zero divisor and a result past a BIGINT can raise
+        for (String sql : new String[] {"SELECT TOP 1 i, 100 / sm AS n FROM " + T + " ORDER BY i DESC",
+                "SELECT TOP 1 i FROM " + T + " ORDER BY bg + 1"}) {
+            assertTrue(numbersRefusal(sql).getMessage().contains("TOP, FIRST or START AT"), sql);
+        }
+        for (String sql : new String[] {"SELECT TOP 1 i, sm + 1 AS n FROM " + T + " ORDER BY i DESC",
+                "SELECT FIRST i, i * 2 AS n FROM " + T + " ORDER BY i",
+                "SELECT TOP 1 START AT 2 i, -sm AS n FROM " + T + " ORDER BY i",
+                "SELECT TOP 1 i, NULLIF(sm, bg) AS n FROM " + T + " ORDER BY i"}) {
+            numbers(sql);
         }
         // what cannot raise is translated, and so is the same arithmetic without a row limit or in WHERE
         numbers("SELECT TOP 2 i, sm + 0 AS n FROM " + T + " ORDER BY i DESC");
@@ -314,12 +352,21 @@ class IqToPureTest {
     @Test
     void arithmeticIqTypesAsNumericOrUnsignedIsRefused() {
         // IQ island, 2026-10-14 (M1a): DOUBLE arithmetic is read now (below), and NUMERIC arithmetic without FROM
-        for (String sql : new String[] {"SELECT nm + 1 AS n", "SELECT d % 2 AS n", "SELECT bg % 2 AS n",
-                "SELECT bt + bt AS n", "SELECT bt + bg AS n", "SELECT 2147483648 + 1 AS n", "SELECT 1.5 * 2 AS n"}) {
+        for (String sql : new String[] {"SELECT nm + 1 AS n", "SELECT d % 2 AS n", "SELECT bt + bt AS n",
+                "SELECT bt + bg AS n", "SELECT 1.5 * 2 AS n"}) {
             SqlTranslationException e = numbersRefusal(sql + " FROM " + T);
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, e.kind(), sql);
         }
         assertTrue(numbersRefusal("SELECT nm + 1 AS n FROM " + T).getMessage().contains("D-N1"));
+        // IQ island, 2026-10-15 (D-N3, measured on IQ 17.1): IQ's engine shows a BIGINT's remainder and a constant
+        // past an INTEGER plus one as scale-0 NUMERICs of whole values, read as the integers they are; SQL Anywhere's
+        // front end refuses both
+        assertTrue(numbers("SELECT bg % 2 AS n FROM " + T).contains("->rem(2)"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, saNumbersRefusal("SELECT bg % 2 AS n FROM " + T)
+                .kind());
+        // a constant past an INTEGER is a NUMERIC constant to IQ: its arithmetic is D-N1's, refused under both
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT 2147483648 + 1 AS n FROM " + T)
+                .kind());
     }
 
     @Test
@@ -364,7 +411,7 @@ class IqToPureTest {
         assertTrue(numbers("SELECT ISNULL(sm, i, 0) AS n FROM " + T).contains("coalesce("));
         String ifnull = numbers("SELECT IFNULL(sm, 99) AS n FROM " + T);
         assertTrue(ifnull.contains("if($r.sm->isEmpty(), |99, |[]"), ifnull);
-        String nullif = numbers("SELECT NULLIF(sm, bg) AS n FROM " + T);
+        String nullif = saNumbers("SELECT NULLIF(sm, bg) AS n FROM " + T);
         assertTrue(nullif.contains("> 32767"), nullif);
         SqlTranslationException arity = numbersRefusal("SELECT ISNULL(sm) AS n FROM " + T);
         assertEquals(SqlTranslationException.Kind.INVALID, arity.kind());
@@ -789,9 +836,12 @@ class IqToPureTest {
 
     @Test
     void theAggregatesTypesAndChecks() {
-        // SUM of an INTEGER: its running total checked, the positive and the negative values' sums (D-E3)
-        String sum = numbers("SELECT SUM(i) AS s FROM " + T);
+        // SUM of an INTEGER in SQL Anywhere's front end: its running total checked, the positive and the negative
+        // values' sums (D-E3); under IQ's engine none (IQ island, 2026-10-15, D-N3: IQ answers past 2^31)
+        String sum = saNumbers("SELECT SUM(i) AS s FROM " + T);
         assertTrue(sum.contains("2147483647") && sum.contains("-2147483648"), sum);
+        String iqSum = numbers("SELECT SUM(i) AS s FROM " + T);
+        assertTrue(iqSum.contains("sum()") && !iqSum.contains("2147483647"), iqSum);
         // a DOUBLE's SUM and AVG checked against the largest DOUBLE
         assertTrue(numbers("SELECT AVG(d) AS a FROM " + T).contains("average()"));
         // IQ island, 2026-10-15 (D-N1, measured on IQ 17.1): under the IQ engine AVG of an integer is SUM / COUNT cut
@@ -836,9 +886,12 @@ class IqToPureTest {
                 "SELECT sm, COALESCE(MAX(i), SUM(i)) AS s FROM " + T + " GROUP BY sm",
                 "SELECT sm FROM " + T + " GROUP BY sm HAVING COUNT(*) > 2 AND SUM(i) > 0",
                 "SELECT TOP 1 sm, SUM(i) AS s FROM " + T + " GROUP BY sm ORDER BY sm")) {
-            assertTrue(numbersRefusal(sql).getMessage().contains("D-E3"), sql);
+            // SQL Anywhere's front end checks the running total (IQ island, 2026-10-15: IQ's engine checks none,
+            // D-N3, so there each is read)
+            assertTrue(saNumbersRefusal(sql).getMessage().contains("D-E3"), sql);
+            assertTrue(numbers(sql).contains("sum()"), sql);
         }
-        assertTrue(numbers("SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm HAVING SUM(i) > 0").contains("sum()"));
+        assertTrue(saNumbers("SELECT sm, SUM(i) AS s FROM " + T + " GROUP BY sm HAVING SUM(i) > 0").contains("sum()"));
         for (String sql : List.of("SELECT sm FROM " + T + " GROUP BY sm HAVING NOT (SUM(d) <= 0)",
                 "SELECT sm, IF SUM(i) > 0 THEN 1 ELSE 0 ENDIF AS s FROM " + T + " GROUP BY sm",
                 "SELECT sm, COALESCE(SUM(i), 0) AS s FROM " + T + " GROUP BY sm",

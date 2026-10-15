@@ -1234,6 +1234,9 @@ final class IqAggregates {
                         SqlToPure.call("sum", values)), null);
                 return new SqlToPure.Aggregation(List.of(spec), null, Kind.INTEGER, true, new IqType("NUMERIC(18,0)"));
             }
+            if (engine == IqDialect.Engine.IQ) {
+                return iqIntegerSum(at, x, values, family);
+            }
             readEverywhere(f, dialect);
             boolean bigint = family.equals("BIGINT");
             BigInteger min = bigint ? IqType.BIGINT_MIN : IqType.INTEGER_MIN;
@@ -1307,6 +1310,22 @@ final class IqAggregates {
                 sAvg));
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
                 Kind.DECIMAL, true, new IqType("NUMERIC(" + pAvg + "," + sAvg + ")"));
+    }
+
+    /**
+     * SUM of an integer under IQ's engine (IQ island, 2026-10-15; the research's D-N3, measured on IQ 17.1): no
+     * running total is checked -- IQ answers 2147483661 for a sum of INTEGERs past 2^31 -- and the value is the exact
+     * sum. IQ types a SMALLINT's sum a BIGINT, an INTEGER's or a BIGINT's a NUMERIC(20,0) (whatever the values); lite
+     * reads each as a whole number of 64 bits (the scale-0 NUMERIC IQ shows holds the same value), so that arithmetic
+     * on it is integer arithmetic, which IQ's engine widens as it does a column's. A sum of BIGINTs past 64 bits is the
+     * database's own overflow, where IQ answers the NUMERIC.
+     */
+    private static SqlToPure.Aggregation iqIntegerSum(SqlToPure.Grouping at, Tx x, ValueSpecification values,
+            String family) {
+        ColSpec spec = new ColSpec(at.name(), at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("sum",
+                values)), null);
+        return new SqlToPure.Aggregation(List.of(spec), null, Kind.INTEGER, true, IqType.integer("BIGINT",
+                IqType.BIGINT_MIN, IqType.BIGINT_MAX, true, family.equals("BIGINT")));
     }
 
     /**

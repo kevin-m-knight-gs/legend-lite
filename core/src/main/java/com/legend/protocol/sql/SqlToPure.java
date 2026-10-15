@@ -3999,6 +3999,17 @@ public final class SqlToPure {
     /** Postgres's strict functions and operators: NULL when any argument is NULL, else {@code build} of the values. */
     public static Tx strict(Kind kind, List<Tx> args, java.util.function.Function<List<ValueSpecification>,
             ValueSpecification> build) {
+        return strict(kind, args, mergesGuards(args), build);
+    }
+
+    /**
+     * {@link #strict}, merging every strict operand's NULL guard into this one's where {@code merge} (IQ island,
+     * 2026-10-15): for an input dialect whose operands' bodies cannot raise where another operand is NULL -- there
+     * the merge loses no error, and a chain of operations stays linear in size rather than repeating each operand
+     * at each level ({@link #mergesGuards} is the safe choice where an operand may raise).
+     */
+    public static Tx strict(Kind kind, List<Tx> args, boolean merge,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
         for (Tx a : args) {
             if (isNullConstant(a)) {
                 // a NULL constant makes a strict operator or function NULL, of the type Postgres resolves it by
@@ -4007,7 +4018,6 @@ public final class SqlToPure {
         }
         List<ValueSpecification> values = new ArrayList<>();
         ValueSpecification anyNull = null;
-        boolean merge = mergesGuards(args);
         for (Tx a : args) {
             if (merge && a.guard() != null && a.body() != null) {
                 // a strict operand: NULL exactly when its guard holds, else its body

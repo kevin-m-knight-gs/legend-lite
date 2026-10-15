@@ -358,6 +358,8 @@ tests:
     sql: "SELECT d.x + 1 AS y FROM (SELECT it AS x FROM t WHERE id > 2) d ORDER BY 1"
   - id: derived_table_smallint_overflow
     sql: "SELECT d.x + 1 AS y FROM (SELECT sm AS x FROM t WHERE id = 1) d"
+    decision: D-N3
+    expect: '{"columns": [["y", "integer", 0]], "rows": [["32768"]]}'
   - id: derived_table_computed_column
     sql: "SELECT d.y FROM (SELECT id * 10 AS y FROM t WHERE id < 3) d ORDER BY 1"
   - id: derived_table_nested

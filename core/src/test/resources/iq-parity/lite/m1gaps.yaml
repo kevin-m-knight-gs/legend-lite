@@ -188,12 +188,18 @@ tests:
     sql: "SELECT id AS k, COUNT(*) FROM t GROUP BY k ORDER BY 1"
   - id: alias_of_an_alias_grouped_by_the_first
     sql: "SELECT k AS a, a + 1 AS b, COUNT(*) AS n FROM g GROUP BY a ORDER BY 1"
-  - id: sum_overflow_through_alias_is_iq_error_158
+  - id: sum_overflow_through_alias_widens
     sql: "SELECT SUM(v) AS s, s + 1 FROM g ORDER BY 1"
-  - id: grouped_sum_overflow_through_alias_is_iq_error_158
+    decision: D-N3
+    expect: '{"columns": [["s", "numeric", 0], ["s+1", "bigint", 0]], "rows": [["2147483661", "2147483662"]]}'
+  - id: grouped_sum_overflow_through_alias_widens
     sql: "SELECT k, SUM(v) AS s, s + 1 FROM g GROUP BY k ORDER BY 1"
-  - id: overflow_through_an_alias_is_iq_error_158
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["s", "numeric", 0], ["s+1", "bigint", 0]], "rows": [[null, "3", "4"], ["1", "12", "13"], ["2", "2", "3"], ["3", "-4", "-3"], ["4", "2147483648", "2147483649"]]}'
+  - id: overflow_through_an_alias_widens
     sql: "SELECT sm + 1 AS sm FROM t WHERE sm > 0 ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["sm", "integer", 0]], "rows": [["1"], ["2"], ["101"], ["32768"]]}'
   - id: alias_read_by_between_and_in
     sql: "SELECT id AS x FROM t WHERE x BETWEEN 3 AND 5 AND x IN (3, 4) ORDER BY 1"
   - id: alias_of_a_quotient_read_in_where_reads_its_digits
@@ -664,8 +670,10 @@ tests:
   - id: list_distinct_of_a_constant_is_refused
     sql: "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1"
   # ---- 7. a checked SUM read for every group: a CASE's first test, a NULL-reading function's first argument, NOT
-  - id: sum_in_a_case_test_overflows_as_iq
+  - id: sum_in_a_case_test_widens
     sql: "SELECT k, CASE WHEN SUM(v) > 0 THEN 1 ELSE 0 END AS c FROM g GROUP BY k ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["c", "smallint", 0]], "rows": [[null, "1"], ["1", "1"], ["2", "1"], ["3", "0"], ["4", "1"]]}'
   - id: sum_in_a_case_test
     sql: "SELECT k, CASE WHEN SUM(v) > 0 THEN 1 ELSE 0 END AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
   - id: sum_as_coalesces_first_argument
@@ -678,12 +686,16 @@ tests:
     sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING COALESCE(SUM(v), 0) > 3 ORDER BY 1"
   - id: sum_inside_nullif
     sql: "SELECT k, NULLIF(SUM(v), 12) AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
-  - id: sum_as_a_case_value_is_refused
+  - id: sum_as_a_case_value
     sql: "SELECT k, CASE WHEN k = 4 THEN 0 ELSE SUM(v) END AS c FROM g GROUP BY k ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["c", "numeric", 0]], "rows": [[null, "3"], ["1", "12"], ["2", "2"], ["3", "-4"], ["4", "0"]]}'
   - id: sum_as_a_simple_case_operand
     sql: "SELECT k, CASE SUM(v) WHEN 12 THEN 'x' ELSE 'y' END AS c FROM g WHERE k < 4 GROUP BY k ORDER BY 1"
-  - id: sum_inside_coalesce_overflows_as_iq
+  - id: sum_inside_coalesce_widens
     sql: "SELECT k, COALESCE(SUM(v), 0) AS c FROM g GROUP BY k ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["k", "smallint", 0], ["c", "numeric", 0]], "rows": [[null, "3"], ["1", "12"], ["2", "2"], ["3", "-4"], ["4", "2147483648"]]}'
   - id: sum_in_having_between
     sql: "SELECT k FROM g WHERE k < 4 GROUP BY k HAVING SUM(v) BETWEEN 1 AND 20 ORDER BY 1"
   - id: sum_in_having_under_not
@@ -761,8 +773,10 @@ tests:
     sql: "SELECT id, (SELECT 'x' || vc) AS z FROM t ORDER BY 1"
   - id: query_without_from_inside_one_without_from
     sql: "SELECT (SELECT 5)"
-  - id: overflowing_query_without_from_is_iq_error_158
+  - id: overflowing_query_without_from_widens
     sql: "SELECT id, (SELECT sm + 1) AS z FROM t ORDER BY 1"
+    decision: D-N3
+    expect: '{"columns": [["id", "integer", 0], ["z", "integer", 0]], "rows": [["1", "32768"], ["2", "-32767"], ["3", "1"], ["4", "2"], ["5", null], ["6", "101"], ["7", "0"]]}'
   # ---- 10. IQ's codes for errors lite raised in Postgres's words, INTO after FROM, DATEDIFF's arguments
   - id: distinct_ordered_by_another_column_is_iq_error_854
     sql: "SELECT DISTINCT id FROM t ORDER BY sm"

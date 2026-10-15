@@ -11,7 +11,7 @@
 # its entries, and a cause no entry names any more.
 #
 # Lines: cause<TAB>id<TAB>what it is, then run<TAB>run key<TAB>cause id<TAB>lanes.
-cause	D-N3	integer overflow: IQ's engine widens the result (INTEGER+1 a BIGINT, SMALLINT an INTEGER, BIGINT a NUMERIC(20,0); SUM(INTEGER) a NUMERIC(20,0)) where lite raises -158 as SQL Anywhere's front end does (WP2 item 1)
+cause	D-N3	integer arithmetic past a BIGINT: IQ's engine widens to a NUMERIC (BIGINT + 1 a NUMERIC(20,0), BIGINT * BIGINT a NUMERIC(39,0)), lite keeps a BIGINT, whose overflow the database raises; and IQ types by its data's range (k * 2 over small values a SMALLINT, its SUM a BIGINT) where lite types by the declared types' (IQ island, 2026-10-15: below a BIGINT lite widens as IQ does, 28 runs fixed)
 cause	names	the name IQ's engine gives an unaliased expression (its spelling, its parentheses, its case) is not SQL Anywhere's, which lite follows (WP2 item 3)
 cause	intersect-except	INTERSECT and EXCEPT over IQ tables are IQ's -1001030, which lite answers (WP2 item 4)
 cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a non-constant expression in an IN list, a scalar subquery outside the top-level select list, ORDER BY a negative constant (WP2 item 4)
@@ -43,37 +43,9 @@ cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is fal
 run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/bigint_plus_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/bigint_times_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/constants_smallint_overflow_over_a_table@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/if_of_a_constant_plus_one_where_taken@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/integer_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/integer_plus_bigint_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/integer_plus_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/integer_times_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/integer_times_smallint_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/negation_of_the_bigint_minimum@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/negation_of_the_smallint_minimum@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/negation_twice_of_the_integer_minimum@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/nullif_reads_its_second_as_its_first_s_type@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/smallint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/smallint_minus_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/smallint_plus_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/smallint_plus_smallint_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m0/where_overflow_alone@iq17-default	D-N3	duckdb,postgres
 run	lite/m1a/double_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m1b/derived_table_smallint_overflow@iq17-default	D-N3	duckdb,postgres
-run	lite/m1c/sum_of_a_bigint_out_of_range@iq17-default	D-N3	duckdb,postgres
-run	lite/m1c/sum_of_a_bigint_whose_running_total_passes_the_largest@iq17-default	D-N3	duckdb,postgres
-run	lite/m1c/sum_of_an_integer_out_of_range@iq17-default	D-N3	duckdb,postgres
-run	lite/m1c/sum_out_of_range_in_one_group@iq17-default	D-N3	duckdb,postgres
-run	lite/m1c/sum_whose_running_total_passes_the_largest@iq17-default	D-N3	duckdb,postgres
-run	lite/m1gaps/grouped_sum_overflow_through_alias_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
-run	lite/m1gaps/overflow_through_an_alias_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
-run	lite/m1gaps/overflowing_query_without_from_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
-run	lite/m1gaps/sum_in_a_case_test_overflows_as_iq@iq17-default	D-N3	duckdb,postgres
-run	lite/m1gaps/sum_inside_coalesce_overflows_as_iq@iq17-default	D-N3	duckdb,postgres
-run	lite/m1gaps/sum_overflow_through_alias_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
-run	lite/m1review/b1_sum_read_everywhere_still_raises@iq17-default	D-N3	duckdb,postgres
-run	lite/review4/b3_sum_of_the_statement_still_raises@iq17-default	D-N3	duckdb,postgres
 run	lite/review5/b1_bigint_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/review5/b1_bigint_variable_in_a_counted_where_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/review5/b1_bigint_variable_minus_a_column_overflow@iq17-default	D-N3	duckdb,postgres

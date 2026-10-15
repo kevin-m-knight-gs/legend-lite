@@ -361,9 +361,14 @@ class IqParityTest {
         List<SqlParity.Table> tables = List.of(new SqlParity.Table("t", List.of(new SqlParity.Column("id", "integer"),
                 new SqlParity.Column("ch", "char(5)")), List.of()));
         Set<String> names = Set.of("t");
-        IqParity.Case padded = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
+        // IQ island, 2026-10-15 (landing 4): an iq16 run whose live twin judges the IQ engine's rules needs no decision
+        IqParity.Case twinned = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
                 null, null, null, null);
-        // the IQ engine pads ch (D-S1), SQL Anywhere's does not: the case must name its decision
+        assertEquals(null, IqParity.engineNeutrality(IqParity.runs(List.of(twinned)).get(0), tables, names));
+        // one whose settings the live IQ may not take (a database property) still must name its decision: the IQ
+        // engine pads ch (D-S1), SQL Anywhere's does not
+        IqParity.Case padded = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
+                null, null, null, null, null, "database.BlankPadding='On'", null);
         assertTrue(IqParity.engineNeutrality(IqParity.runs(List.of(padded)).get(0), tables, names) != null);
         IqParity.Case decided = new IqParity.Case("lite/x.yaml", "a", "SELECT ch FROM t", List.of("iq16-default"),
                 null, null, "D-S1", "[]");
