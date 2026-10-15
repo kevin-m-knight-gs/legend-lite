@@ -1466,6 +1466,7 @@ public final class Lowerer {
         }
         SqlSelect target = base;
         List<OutputCol> contract = outputsOf(info);
+        java.util.Map<String, OutputCol> byContract = Fold.byName(contract);
         // one fold budget for the pass (Fold.Budget): a computed projection written into the columns' reads more
         // than the budget allows makes the pass unfoldable, and the retry over the isolated base reads it by name
         Fold.Budget budget = new Fold.Budget();
@@ -1524,11 +1525,11 @@ public final class Lowerer {
                                 SqlExpr.Column.of(lat, "elem",
                                         PureSql.type(elemT), true,
                                         com.legend.sql.OutputCol.Origin.DERIVED),
-                                c.name(), Fold.named(contract, c.name())));
+                                c.name(), Fold.named(byContract, contract, c.name())));
                         continue;
                     }
                     ps.add(new SqlSelect.Projection(r.expr(), c.name(),
-                            Fold.named(contract, c.name())));
+                            Fold.named(byContract, contract, c.name())));
                 }
                 case Resolution.Unfoldable u -> {
                     miss[0] = c.name();

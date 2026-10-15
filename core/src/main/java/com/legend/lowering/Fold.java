@@ -495,6 +495,29 @@ final class Fold {
      * caller isolates.
      */
     static @com.legend.base.Nullable SqlExpr resolveInto(SqlSelect s, String column) {
+        return resolveInto(s, column, null);
+    }
+
+    /** A select's projections by output name, the first of each, a star's apart: what {@link #resolveIntoExact}'s
+     *  scan finds, built once for a pass that resolves many columns of one select (2026-10-15, the IQ island's census
+     *  scale suite: a 4 MB report's projection of thousands of columns scanned its select once per column). */
+    record ProjectionIndex(java.util.Map<String, SqlSelect.Projection> byName, boolean star) {
+        static ProjectionIndex of(SqlSelect s) {
+            java.util.Map<String, SqlSelect.Projection> byName = new java.util.HashMap<>();
+            boolean star = false;
+            for (SqlSelect.Projection p : s.projections()) {
+                if (p.expr() instanceof SqlExpr.Star) {
+                    star = true;
+                } else if (p.outputName() != null) {
+                    byName.putIfAbsent(p.outputName(), p);
+                }
+            }
+            return new ProjectionIndex(byName, star);
+        }
+    }
+
+    private static @com.legend.base.Nullable SqlExpr resolveInto(SqlSelect s, String column,
+            @com.legend.base.Nullable ProjectionIndex index) {
         if (column == null) {
             // a COLUMN-LESS read reaching fold resolution was an NPE
             // (dishonest wall) — the producing shape failed to name its
@@ -503,7 +526,7 @@ final class Fold {
                     + " read reached fold resolution — the producing shape"
                     + " did not name its column");
         }
-        SqlExpr r = resolveIntoExact(s, column);
+        SqlExpr r = resolveIntoExact(s, column, index);
         if (r == null && s.projections().isEmpty() && s.from()
                 instanceof com.legend.sql.SqlSource.RawSql raw) {
             // Phase 1c: an authored-SQL grid's by-name read. A DECLARED
@@ -519,7 +542,7 @@ final class Fold {
             // retry unquoted.
             String bare = pivotIdentity(column);
             if (!bare.equals(column)) {
-                r = resolveIntoExact(s, bare);
+                r = resolveIntoExact(s, bare, index);
             }
         }
         return r;
@@ -634,12 +657,23 @@ final class Fold {
                 : column;
     }
 
-    private static @com.legend.base.Nullable SqlExpr resolveIntoExact(SqlSelect s, String column) {
+    private static @com.legend.base.Nullable SqlExpr resolveIntoExact(SqlSelect s, String column,
+            @com.legend.base.Nullable ProjectionIndex index) {
         if (s.projections().isEmpty()) {
             // §E3-S: the select's WHERE rides into the read door so
             // pad flips agree with the frame's WHERE≡INNER outputs
             return sourceColumn(s.from(), column,
                     com.legend.sql.SqlTyping.whereNullRejections(s.where()));
+        }
+        if (index != null) {
+            SqlSelect.Projection p = index.byName().get(column);
+            if (p != null) {
+                return p.expr() instanceof SqlExpr.Column c ? c
+                        : scalarInlineable(p.expr()) ? p.expr() : null;
+            }
+            return index.star() ? sourceColumn(s.from(), column,
+                    com.legend.sql.SqlTyping.whereNullRejections(s.where()))
+                    : null;
         }
         boolean star = false;
         for (SqlSelect.Projection p : s.projections()) {
@@ -724,6 +758,22 @@ final class Fold {
      * prefix joins). Name-keyed at CONSTRUCTION against the declared
      * schema: spending builder knowledge, not consumption re-derivation.
      * A miss is a builder bug and walls loudly. */
+    /** {@code outs} by name, the first of each: {@link #named}'s lookup built once for a pass over many columns
+     *  (2026-10-15, the IQ island's census scale suite: a scan per column was quadratic in a wide pass's width). */
+    static java.util.Map<String, OutputCol> byName(List<OutputCol> outs) {
+        java.util.Map<String, OutputCol> m = new java.util.HashMap<>();
+        for (OutputCol o : outs) {
+            m.putIfAbsent(o.name(), o);
+        }
+        return m;
+    }
+
+    /** {@link #named} through {@code index} ({@link #byName} of {@code outs}): the scan's answer, its wall on a miss. */
+    static OutputCol named(java.util.Map<String, OutputCol> index, List<OutputCol> outs, String name) {
+        OutputCol c = index.get(name);
+        return c != null ? c : named(outs, name);
+    }
+
     static com.legend.sql.OutputCol named(List<com.legend.sql.OutputCol> outs, String name) {
         for (com.legend.sql.OutputCol c : outs) {
             if (c.name().equals(name)) {
@@ -1443,8 +1493,12 @@ final class Fold {
     static @com.legend.base.Nullable List<SqlSelect.Projection> tryProjectAll(
             SqlSelect base, List<String> columns, List<OutputCol> contract) {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
+        // the select's projections and the contract by name, built once (2026-10-15: a scan per column was
+        // quadratic in a wide projection's width)
+        ProjectionIndex index = ProjectionIndex.of(base);
+        java.util.Map<String, OutputCol> byContract = byName(contract);
         for (String c : columns) {
-            SqlExpr e = Fold.resolveInto(base, c);
+            SqlExpr e = Fold.resolveInto(base, c, index);
             if (e == null) {
                 // PROJECTION position may inline a COMPUTED projection
                 // (window calls included): the caller REPLACES the whole
@@ -1452,11 +1506,9 @@ final class Fold {
                 // same select — never a recomputation in a filtering
                 // position (the restrict-over-window-cols corpus pin;
                 // resolveInto's computed-decline serves the WHERE sites).
-                for (SqlSelect.Projection p : base.projections()) {
-                    if (c.equals(p.outputName())) {
-                        e = p.expr();
-                        break;
-                    }
+                SqlSelect.Projection p = index.byName().get(c);
+                if (p != null) {
+                    e = p.expr();
                 }
             }
             if (e == null) {
@@ -1472,7 +1524,7 @@ final class Fold {
             ps.add(new SqlSelect.Projection(e,
                     !unionRead && e instanceof SqlExpr.Column col
                             && col.name().equals(c) ? null : c,
-                    named(contract, c)));
+                    named(byContract, contract, c)));
         }
         return ps;
     }
