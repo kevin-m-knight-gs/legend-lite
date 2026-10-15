@@ -835,7 +835,13 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   (`.github/workflows/pages.yml` new; `site/index.html`, `site/verify.mjs` served under `/legend-lite/`). Reviews: the
   DataCube + Python line (DataCube, Python), the Studio line (Query, Studio, the site, `duckdb-tab.ts`), the Compiler
   Rewrite line (the BUILD files, the workflow), an independent audit of the whole PR. The other Python twins of
-  DataCube's logic the audit found are the next program: `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`.
+  DataCube's logic the audit found are the next program: `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`. **The reviews'
+  fixes, 2026-10-15, files beyond the list above:** `src/ui/chart-panel.ts` and `src/ui/chart-form.ts` (every edit
+  through `chart-spec.ts` `editChart`, the one change by hand Python's charts use too); `python/legend_lite/_pool.py`
+  (new: the compiler's threads, on Python's standard library), `model.py`, `_home.py`, `_headless.py`;
+  `query/demo/config*.json` and `datacube/demo/config.json` (one `vendor` key each); `MODULE.bazel` (the `wasm_mvp`
+  extension pins removed; the lock unchanged) and `engine-client/BUILD.bazel`; `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`
+  (that note).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
