@@ -578,10 +578,17 @@ function countsOf(preset: string): number[] {
   return list;
 }
 
-/** The presets named outright (the others are 'rows:' and 'columns:' with their counts). */
-const NAMED_PRESETS: ReadonlySet<string> = new Set<Preset>([
-  'side-by-side', 'stacked', 'focus-left', 'focus-right', 'focus-top', 'focus-bottom',
-]);
+/** The presets named outright, each once (the others are 'rows:' and 'columns:' with their counts): a Record over
+ *  exactly those, so a preset added to Preset and not here, or here and not there, is a compile error. */
+const NAMED: { readonly [K in Exclude<Preset, `rows:${string}` | `columns:${string}`>]: true } = {
+  'side-by-side': true,
+  stacked: true,
+  'focus-left': true,
+  'focus-right': true,
+  'focus-top': true,
+  'focus-bottom': true,
+};
+const NAMED_PRESETS: ReadonlySet<string> = new Set(Object.keys(NAMED));
 
 /** `preset`, refused by name when `arrange` does not name it -- whatever the page holds, an empty one included. */
 function checkedPreset(preset: Preset): void {

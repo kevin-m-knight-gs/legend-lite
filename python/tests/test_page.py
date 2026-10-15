@@ -538,9 +538,13 @@ class Document(Paged):
         self.assertNotEqual(other.id, grid.id)
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             grid.group('desk')
-        # a tile stacked with itself is no stack
+        # a tile stacked with itself is no stack; one taken off, or not a tile, is refused before anything is asked
         with self.assertRaisesRegex(ValueError, 'two tiles or more'):
             page.stack(other, other)
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            page.stack(other, later)
+        with self.assertRaisesRegex(ValueError, 'a stack is of tiles'):
+            page.stack(other, 'chart-1')
 
     def test_saved_and_loaded_again_as_it_was_what_it_does_not_model_kept(self):
         page, grid, chart = self.built()

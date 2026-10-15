@@ -1131,6 +1131,9 @@ class Page:
         DataCube stacks a tile dropped on another's middle (bands.ts stackTiles): the first one's place keeps its own
         tabs first, the others follow in the order given, and a tile stacked already brings its stack's others after
         them."""
+        strays = [t for t in tiles if not isinstance(t, Tile)]
+        if strays:
+            raise ValueError(f'a stack is of tiles (grids and charts), not {", ".join(repr(t) for t in strays)}')
         if len({t._id for t in tiles}) < 2:
             raise ValueError('a stack is two tiles or more')
         if any(t._page is not self for t in tiles):
