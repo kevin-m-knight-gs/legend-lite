@@ -68,6 +68,15 @@ Size: 20k to 25k lines over six to eight landings, each with its cases, ledger, 
 fixed-length patterns, the seam, 67 tests. PR1b next: `tools/neo4j-oracle/`, the TCK reader and the inferred models,
 `cypher-parity/` with its lanes in `//gates:core`, the first ledger; then the independent review of PR1.
 
+**The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
+`docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle
+(PR1b) and grows with each later slice: one non-trivial Cypher query over the worked example's model (the study's
+§5.7), Neo4j's answer snapped by `tools/neo4j-oracle`, lite's answer identical cell for cell on both parity lanes
+(DuckDB and Postgres), the Pure the island desugars to, the SQL for DuckDB (run) and for Snowflake (rendered only),
+both pinned byte for byte by a test, what lite refused on the way, and how it was checked and its limits. Each
+slice adds a section for what it brings (PR3 the edge classes and `USE`, PR4 a bounded path, PR5 an unbounded one,
+PR6 an algorithm against both oracles).
+
 ## 5. The rules this line keeps
 
 - Zero FAIL, zero BUG, zero ERROR, always; a refusal by name beats a possibly wrong answer.
