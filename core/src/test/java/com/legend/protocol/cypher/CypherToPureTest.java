@@ -355,7 +355,7 @@ class CypherToPureTest {
         invalid("MATCH (p:Person) RETURN sum(p.name)",
                 "Type mismatch: expected Float, Integer or Duration but was String");
         invalid("MATCH (p:Person) RETURN count(count(*))", "aggregate functions inside of aggregate functions");
-        unsupported("MATCH (p:Person) RETURN p.name SKIP -1", "SKIP with an expression other than an integer literal");
+        invalid("MATCH (p:Person) RETURN p.name SKIP -1", "not a valid value");
     }
 
     // ------------------------------------------------------------------ refusals by name
@@ -388,5 +388,7 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person) WITH p ORDER BY p.age LIMIT 1 RETURN p.name", "a node as a value (p)");
         unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");
         unsupported("MATCH (p:Person) RETURN p.age + count(*)", "an expression around an aggregate");
+        unsupported("RETURN 1e308 AS x", "a float literal beyond 1e15");
+        unsupported("RETURN 1e-20 AS x", "a float literal beyond 1e15");
     }
 }

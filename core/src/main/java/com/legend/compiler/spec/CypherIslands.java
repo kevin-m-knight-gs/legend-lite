@@ -26,18 +26,25 @@ import java.util.TreeMap;
  * a class, named by its simple name or its full path; a relationship type is the name of a property or association
  * end holding a class; a node's properties are its class's, own, inherited or association-injected. The result's
  * names are resolved as the resolver resolves any query, and the Typer then types it once, like any query. A
- * refusal becomes the compile error its kind says, placed in the enclosing source.
+ * refusal becomes the compile error its kind says, placed in the enclosing source. Public for one reader outside the
+ * typer: the Cypher parity harness's showcase dump ({@code CypherParityTest}), which pins the Pure an island
+ * desugars to beside its SQL, so that a person reads it (docs/CYPHER_SHOWCASE.md).
  */
-final class CypherIslands {
+public final class CypherIslands {
 
     private CypherIslands() {
     }
 
     /** The relation expression {@code island} means over {@code model}'s classes, names resolved. */
-    static ValueSpecification desugar(SqlIsland island, ModelContext model) {
+    public static ValueSpecification desugar(SqlIsland island, ModelContext model) {
+        return NameResolver.resolveQuery(translate(island, model));
+    }
+
+    /** The relation expression {@code island} means, as the translator spells it (names as a person writes them,
+     *  before resolution): what the showcase dump prints. */
+    public static ValueSpecification translate(SqlIsland island, ModelContext model) {
         try {
-            ValueSpecification pure = CypherToPure.translate(island.sql(), new Graph(model));
-            return NameResolver.resolveQuery(pure);
+            return CypherToPure.translate(island.sql(), new Graph(model));
         } catch (SqlTranslationException e) {
             String message = island.opening() + "...}# at " + SqlIslands.position(island, e.line(), e.column()) + ": "
                     + e.getMessage();

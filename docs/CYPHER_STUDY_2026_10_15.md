@@ -1352,7 +1352,8 @@ the spec, a real oracle judges every case) applies to them only when PR1b snaps 
   `CREATE`, `MERGE`, `SET`, `DELETE`, `DETACH DELETE`, `REMOVE`, `CALL`, `UNION`, `FOREACH`, `LOAD CSV`, `FILTER`,
   `LET`, `NEXT`, `FINISH`, `SHOW`, `INSERT`) kept as an `OtherClause` with its text, so the translator refuses it by
   name. Expressions by Pratt precedence as Neo4j's manual orders it (§5.1), chained comparisons as `AND`s, `^`
-  right-associative and tighter than unary minus (`-2 ^ 2` is `-(2 ^ 2)`). Refused in the reader, each by name: label
+  left-associative and looser than unary minus (`-3 ^ 2` is 9 and `4 ^ 1 ^ 3` is 64: the TCK's Precedence2, which
+  the first harness run caught against the manual's reading; verified on Neo4j 2026.09.0). Refused in the reader, each by name: label
   expressions, a `WHERE` inside a pattern, path selectors, quantified patterns, dynamic labels, list indexing, label
   predicates in expressions, pattern predicates and comprehensions, `EXISTS`/`COUNT`/`COLLECT` subqueries, type
   predicates.
@@ -1405,3 +1406,64 @@ the spec, a real oracle judges every case) applies to them only when PR1b snaps 
   (Neo4j's aggregating functions); null last ascending and first descending; the chained comparison; `-2 ^ 2`;
   `7 / 2` is 3 and `-7 / 2` is -3; `'a' + 1` refused (Neo4j concatenates `a1`; PR2 reads it with `toString`); a
   comparison between values of different types refused (Neo4j: `=` false, `<` null; PR2 spells them).
+
+### 12.2 PR1b, 2026-10-15: the oracle, the TCK as test input, the parity lanes, the showcase
+
+The plan's PR1 completed: the harness of §8, with the first ledger and the showcase (`docs/CYPHER_SHOWCASE.md`).
+
+- **The oracle,** `tools/neo4j-oracle/` (`snap.py`, `snap.sh`, `README.md`, a build test in the checks lane): Neo4j
+  Community 2026.09.0 (the newest Community release at this landing, C9: `CypherParity.PINNED_SERVER`; the tarball
+  on the container's JDK 21, authentication off, loopback only), the Apache 2.0 Python driver 6.4.1. For each case:
+  the graph emptied, the setup run, the graph dumped (nodes with labels and properties, relationships with ends,
+  type and properties, every value in the TCK's value grammar), then the query under its Cypher version (lite's
+  default 25 when the case names none), its rows in the value grammar or Neo4j's error by code and first line. The
+  answers file: `cypher-parity/neo4j-answers.jsonl`, 3,823 answers (3,147 with rows, 673 errors, 3 setup errors; lite's
+  26 among them), 4 minutes to snap. The guards: UNSNAPPED, STALE (a sha over the query, the version, the setup and
+  the parameters as written, computed alike by the oracle and `CypherAnswers.sha`), GONE, VERSION (a file snapped on
+  another server than the pinned one).
+- **The TCK as test input:** `cypher-parity/tck/` (the feature files and the two named graphs, Apache 2.0, at
+  openCypher commit 677cbaf; its `README.md`), read by `CypherTck` (the Gherkin subset, 300 lines) and by the oracle's
+  reader step for step: 3,880 scenarios (1,339 plain, 276 outlines over their examples), 3,116 expecting rows, 667 an
+  error, 83 skipped by both readers (a control query, a procedure). The first run caught the one difference
+  between the readers (the files' CRLF line endings, which Python's text mode folds) as 66 STALE answers.
+- **The inferred models,** `CypherGraph`: a class per label (a node with several labels waits for PR3), a property
+  per key typed by its values (a list, map or temporal value waits for PR2; a key typed two ways is refused), each
+  relationship type an association between the one class pair it joins (several pairs wait for PR3), its ends named
+  `T` and `T_in`, realized as a foreign key on the to-one side (`{target}` for a self-join) or a junction table with a
+  join chain; every node a row of its class's table, `n_<label>`, columns `p_<key>` and `r_<type>`; two cases with
+  one graph seed once. The model is pinned for the showcase (`showcase/model.pure`). What the inference cannot model
+  is SKIP in the ledger with its reason (330: procedures 50, control queries 33, temporal properties 84, a type over
+  several class pairs 70, several labels 18, ...).
+- **The judge,** `CypherParity` over `SqlParity`'s statuses and ratchet: columns by name in order; rows as a bag or in
+  order as the scenario says (a lite case: in order when it has an `ORDER BY`); values by the grammar (`CypherValues`:
+  nodes by label set and properties, maps by key, lists in order or as bags where the step says, doubles within 1e-9);
+  REFUSED for a refusal by name and for C4's compile error (S58); the decisions file (`decisions.tsv`, a register row
+  per decided case, per lane: rows, or the database's error) for the six NaN cases (S60).
+- **The lanes,** `//core:cypher_parity_test` (DuckDB) and `//core:cypher_parity_postgres_test` (Postgres 16, as the
+  container's unprivileged user), both in `//gates:core`; the ledger `cypher-parity/ledger.tsv`:
+
+  | | both lanes |
+  |---|---|
+  | cases | 3,906 (3,880 TCK, 26 lite) |
+  | PASS | 184 (162 TCK: literals 65, precedence 45, comparison 16, boolean 11, conditional 10, null 5, with-orderBy 4, mathematical 2, return 2, list 1, return-skip-limit 1; lite 22 of 26, the other 4 the refusals and the error the cases are about) |
+  | FAIL, BUG, ERROR | 0 |
+  | REFUSED by name | 2,723 (a map as a value 577, a pattern that fans out 305, a query starting with WITH 269, the list predicates 563, UNWIND 128, list comprehensions 90, ...) |
+  | BOTH_ERROR | 669 |
+  | SKIP | 330 |
+
+  The two columns are identical.
+- **What the first run found and fixed in the translator and the reader** (each with its test): `^` is
+  left-associative and looser than unary minus (`-3 ^ 2` is 9; the manual's reading in §12.1 was wrong, the TCK's
+  Precedence2 and the oracle right); `ORDER BY` after a projection reads the projected aliases first (an alias shadows
+  the variable it came from); `<-[]->` is undirected; a map key may be a keyword; `-9223372036854775808` is the
+  smallest integer; `MERGE`'s `ON MATCH SET` belongs to the `MERGE`; a `UNION` after a `RETURN` is refused as a
+  `UNION`; list predicates and comprehensions are refused before their arguments are read; an `ORDER BY` aggregate
+  outside the items is refused by name. **Decided:** the NaN comparisons (S60). **Reported to the database owner**
+  (IN_FLIGHT): lite's Postgres dialect spells a Float literal in plain digits, which Postgres types numeric (`1e308`
+  answers an exact numeric where Neo4j and DuckDB answer a float); the translator refuses a float literal beyond 1e15
+  or below 1e-15 until the dialect spells a float.
+- **The showcase,** `docs/CYPHER_SHOWCASE.md`: the query over the Legend-shaped graph (`graphs/legend.cypher`), Neo4j's
+  answer, lite's identical on both lanes, the inferred model, the Pure and the DuckDB and Snowflake SQL pinned byte for
+  byte (`showcase/`).
+- **Not yet, carried to PR2:** the randomized differential check (§8.4); the syntax ratchet (`syntax-pins.tsv`); the
+  independent review of PR1 (next, before the merge).

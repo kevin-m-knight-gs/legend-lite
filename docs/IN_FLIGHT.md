@@ -1664,8 +1664,20 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   dispatch), `CodeShapeGuardrailTest` (the cursors, dated), `IdentityGuardrailTest` (NAME_CUTTING 107 to 108, the
   label index, dated), `dialect-leaks/ledger.tsv` (the DuckDB test's rows, dated). Not needed yet: the build and gate files (the harness is
   PR1b), `PlatformNamesGuardrailTest` (the reader keeps its keywords in sets), the own-corpus census (no test embeds
-  the island in a model). The register's rows S57 to S59. Next, PR1b: the oracle tool, the TCK reader, the parity
-  lanes.
+  the island in a model). The register's rows S57 to S59.
+- **Landed on the branch, 2026-10-15 (PR1b, the study's §12.2):** `tools/neo4j-oracle/` (its build test in the checks
+  lane), `core/src/test/resources/cypher-parity/` (the TCK, Apache 2.0; lite's cases; the answers; the ledger; the
+  decisions; the showcase's pins), `testcases/Cypher*` (the reader, the answers, the inferred models, the values, the
+  judge), `integration/CypherParityTest`, `server/CypherParityPostgresTest`, the two lanes in `//gates:core`
+  (`core/BUILD.bazel`, `gates/BUILD.bazel`), `docs/CYPHER_SHOWCASE.md`, the register's S60, the dialect-leak ledger's
+  rows for the two lane tests (dated). `compiler/spec/CypherIslands` is public for the showcase dump (the Pure a person
+  reads). The parser and translator fixes the first run named are in the study's §12.2. Next: the independent review
+  of PR1, then the merge.
+- **Found by this line in other lines' code, 2026-10-15 (the database owner's):** lite's Postgres dialect spells a
+  Float literal in plain digits (`1e308` as a 309-digit numeral), which Postgres types numeric, so `RETURN 1e308`
+  answers an exact numeric where Neo4j and DuckDB answer a float (the TCK's Literals5 [5], [11], [25], [26]). The Cypher
+  translator refuses a float literal beyond 1e15 or below 1e-15 by name until the dialect spells a float
+  (`CypherToPure`, the `FloatLit` arm; `docs/CYPHER_STUDY_2026_10_15.md` §12.2).
 - **Not touched by PR1 to PR4:** `lowering/`, `sql/dialect/`, `builtin/`, `Typer.java`, `NameResolver.java`,
   `SqlToPure.java`, `InputDialect.java`. **Announced to the database owner for PR3:** the identity half of
   `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's

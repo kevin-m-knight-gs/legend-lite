@@ -171,6 +171,12 @@ public final class CypherToPure {
     private ValueSpecification statement(CypherAst.Statement s) {
         State state = null;
         List<Clause> clauses = s.clauses();
+        for (Clause c : clauses) {
+            if (c instanceof CypherAst.OtherClause o) {
+                // refused by name first: a UNION after a RETURN is a UNION, not a misplaced RETURN
+                throw CypherErrors.unsupported(o.keyword() + " is not supported yet", o.pos());
+            }
+        }
         for (int i = 0; i < clauses.size(); i++) {
             Clause c = clauses.get(i);
             boolean last = i == clauses.size() - 1;
@@ -640,17 +646,30 @@ public final class CypherToPure {
                 outputs.add(new Output(name, tx(e, scope), null));
             }
         }
-        // the sort keys: an item (by its alias or its text), else an expression over the scope before the projection
+        // the sort keys: an item (by its alias or its text), else an expression over the projected aliases first
+        // (an alias shadows the variable it was computed from: the TCK's WithOrderBy4) and the scope before the
+        // projection
         List<SortKey> sortKeys = new ArrayList<>();
         List<ColSpec> hidden = new ArrayList<>();
+        Map<String, Tx> projected = new HashMap<>();
+        for (Output out : outputs) {
+            if (out.value() != null) {
+                projected.put(out.name(), out.value());
+            }
+        }
+        Scope sortScope = new ProjectedScope(scope, projected);
         for (SortItem o : orderBy) {
             String key = outputNamed(items, o.expr(), outputs);
             if (key == null) {
+                if (grouped && containsAggregate(o.expr())) {
+                    throw CypherErrors.unsupported("an ORDER BY aggregate that is not one of the items is not"
+                            + " supported yet", o.pos());
+                }
                 if (grouped || distinct) {
                     throw CypherErrors.invalid("In a WITH/RETURN with DISTINCT or an aggregation, it is not possible"
                             + " to access variables declared before the WITH/RETURN", o.pos());
                 }
-                Tx t = tx(o.expr(), scope);
+                Tx t = tx(o.expr(), sortScope);
                 key = freshName(names);
                 hidden.add(new ColSpec(key, lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                 sortKeys.add(new SortKey(key, o.descending(), true));
@@ -1033,6 +1052,43 @@ public final class CypherToPure {
         }
     }
 
+    /** The scope an ORDER BY reads after a projection: the projected items by their names (each its value over the
+     *  row before the projection), then the scope before it. */
+    private static final class ProjectedScope implements Scope {
+        private final Scope inner;
+        private final Map<String, Tx> projected;
+
+        ProjectedScope(Scope inner, Map<String, Tx> projected) {
+            this.inner = inner;
+            this.projected = projected;
+        }
+
+        @Override
+        public String row() {
+            return inner.row();
+        }
+
+        @Override
+        public Tx variable(CypherAst.Var v) {
+            Tx t = projected.get(v.name());
+            return t != null ? t : inner.variable(v);
+        }
+
+        @Override
+        public Tx property(CypherAst.Prop p) {
+            if (p.target() instanceof CypherAst.Var v && projected.containsKey(v.name())) {
+                throw CypherErrors.unsupported("a property of a projected value (" + v.name() + ") is not supported"
+                        + " yet", p.pos());
+            }
+            return inner.property(p);
+        }
+
+        @Override
+        public boolean isPatternVariable(String name) {
+            return !projected.containsKey(name) && inner.isPatternVariable(name);
+        }
+    }
+
     private static final class RowScope implements Scope {
         private final Rows rows;
 
@@ -1114,7 +1170,17 @@ public final class CypherToPure {
     private Tx tx(Expr e, Scope scope) {
         return switch (e) {
             case CypherAst.IntLit n -> Tx.value(new CInteger(n.value()), Kind.INTEGER, false);
-            case CypherAst.FloatLit f -> Tx.value(new CFloat(f.value()), Kind.FLOAT, false);
+            case CypherAst.FloatLit f -> {
+                double v = Math.abs(f.value());
+                if (v >= 1e15 || (v != 0 && v < 1e-15)) {
+                    // lite's Postgres dialect spells a Float literal in plain digits, which Postgres types numeric
+                    // (1e308 answers an exact numeric, Neo4j a float): reported to the database owner (IN_FLIGHT,
+                    // 2026-10-15); refused here until it spells a float
+                    throw CypherErrors.unsupported("a float literal beyond 1e15 or below 1e-15 (" + f.text()
+                            + ") is not supported yet", f.pos());
+                }
+                yield Tx.value(new CFloat(f.value()), Kind.FLOAT, false);
+            }
             case CypherAst.StringLit s -> Tx.value(new CString(s.value()), Kind.STRING, false);
             case CypherAst.BoolLit b -> Tx.condition(new CBoolean(b.value()), new CBoolean(!b.value()), false);
             case CypherAst.NullLit n -> Tx.value(SqlToPure.empty(), Kind.NULL, true);

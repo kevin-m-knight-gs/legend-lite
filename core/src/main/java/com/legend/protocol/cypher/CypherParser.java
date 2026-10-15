@@ -48,6 +48,11 @@ public final class CypherParser {
             "DETACH", "REMOVE", "CALL", "UNION", "FOREACH", "LOAD", "FILTER", "LET", "NEXT", "FINISH", "SHOW",
             "INSERT");
 
+    /** The functions whose argument is a variable over a list ({@code all(x IN list WHERE ...)}), refused by name
+     *  until lists land. */
+    private static final Set<String> LIST_PREDICATES = Set.of("all", "any", "none", "single", "filter", "extract",
+            "reduce");
+
     private static final Set<String> RESERVED = Set.of("AND", "OR", "XOR", "NOT", "IS", "NULL", "TRUE", "FALSE",
             "IN", "STARTS", "ENDS", "CONTAINS", "AS", "ASC", "ASCENDING", "DESC", "DESCENDING", "DISTINCT", "CASE",
             "WHEN", "THEN", "ELSE", "END", "CYPHER");
@@ -242,12 +247,19 @@ public final class CypherParser {
         }
         int depth = 0;
         int end = keyword.end();
+        Token before = keyword;
+        Token beforeThat = keyword;
         while (!peek().is(Type.EOF)) {
             Token t = peek();
-            if (depth == 0 && atClauseWord() && !t.isWord("WHERE") && !t.isWord("ORDER") && !t.isWord("SKIP")
-                    && !t.isWord("LIMIT") && !t.isWord("OFFSET")) {
+            // MERGE's ON MATCH SET and ON CREATE SET actions are the MERGE's, not new clauses
+            boolean action = before.isWord("ON") && (t.isWord("MATCH") || t.isWord("CREATE"))
+                    || t.isWord("SET") && beforeThat.isWord("ON") && (before.isWord("MATCH") || before.isWord("CREATE"));
+            if (depth == 0 && atClauseWord() && !action && !t.isWord("WHERE") && !t.isWord("ORDER")
+                    && !t.isWord("SKIP") && !t.isWord("LIMIT") && !t.isWord("OFFSET")) {
                 break;
             }
+            beforeThat = before;
+            before = t;
             if (t.is(Type.LPAREN) || t.is(Type.LBRACKET) || t.is(Type.LBRACE)) {
                 depth++;
             } else if (t.is(Type.RPAREN) || t.is(Type.RBRACKET) || t.is(Type.RBRACE)) {
@@ -438,13 +450,11 @@ public final class CypherParser {
         if (!right) {
             expect(Type.MINUS, "'-' or '->'");
         }
-        if (left && right) {
-            throw CypherErrors.syntax("a relationship pattern cannot point both ways", pos);
-        }
         if (peek().is(Type.LBRACE)) {
             throw CypherErrors.unsupported("a quantifier after a relationship pattern is not supported yet", pos);
         }
-        Direction d = left ? Direction.IN : right ? Direction.OUT : Direction.BOTH;
+        // <-[]-> points both ways: Neo4j reads it as undirected
+        Direction d = left && !right ? Direction.IN : right && !left ? Direction.OUT : Direction.BOTH;
         return new RelPattern(variable, types, d, properties, range, pos);
     }
 
@@ -565,11 +575,22 @@ public final class CypherParser {
     }
 
     private Expr multiplicative() {
-        Expr e = unary();
+        Expr e = power();
         while (peek().is(Type.STAR) || peek().is(Type.SLASH) || peek().is(Type.PERCENT)) {
             Token t = advance();
             BinaryOp op = t.is(Type.STAR) ? BinaryOp.TIMES : t.is(Type.SLASH) ? BinaryOp.DIVIDE : BinaryOp.MODULO;
-            e = new CypherAst.Binary(op, e, unary(), t.pos());
+            e = new CypherAst.Binary(op, e, power(), t.pos());
+        }
+        return e;
+    }
+
+    /** {@code ^}: tighter than {@code * / %}, looser than unary minus, LEFT-associative, as Neo4j reads it (the
+     *  TCK's Precedence2: {@code -3 ^ 2} is 9, {@code 4 ^ (3 / 2) ^ 3} is 64; verified on Neo4j 2026.09.0). */
+    private Expr power() {
+        Expr e = unary();
+        while (peek().is(Type.CARET)) {
+            Pos pos = advance().pos();
+            e = new CypherAst.Binary(BinaryOp.POWER, e, unary(), pos);
         }
         return e;
     }
@@ -577,23 +598,18 @@ public final class CypherParser {
     private Expr unary() {
         if (peek().is(Type.MINUS)) {
             Pos pos = advance().pos();
+            if (peek().is(Type.INTEGER) && !peek(1).is(Type.DOT) && !peek(1).is(Type.CARET)) {
+                // the sign folded into the literal, as Neo4j reads -9223372036854775808 (the smallest integer)
+                Token t = advance();
+                return new CypherAst.IntLit(parseInteger(t, true), "-" + t.text(), pos);
+            }
             return new CypherAst.Unary(UnaryOp.NEG, unary(), pos);
         }
         if (peek().is(Type.PLUS)) {
             Pos pos = advance().pos();
             return new CypherAst.Unary(UnaryOp.POS, unary(), pos);
         }
-        return power();
-    }
-
-    private Expr power() {
-        Expr base = postfix();
-        if (peek().is(Type.CARET)) {
-            Pos pos = advance().pos();
-            // right-associative: 2 ^ 3 ^ 2 is 2 ^ (3 ^ 2)
-            return new CypherAst.Binary(BinaryOp.POWER, base, unary(), pos);
-        }
-        return base;
+        return postfix();
     }
 
     private Expr postfix() {
@@ -646,6 +662,9 @@ public final class CypherParser {
             }
             case LBRACKET -> {
                 advance();
+                if (peek().is(Type.IDENT) && peek(1).isWord("IN")) {
+                    throw CypherErrors.unsupported("a list comprehension is not supported yet", pos);
+                }
                 List<Expr> elements = new ArrayList<>();
                 if (!peek().is(Type.RBRACKET)) {
                     do {
@@ -670,18 +689,30 @@ public final class CypherParser {
     }
 
     private long parseInteger(Token t) {
+        return parseInteger(t, false);
+    }
+
+    private long parseInteger(Token t, boolean negated) {
         String text = t.text();
+        java.math.BigInteger value;
         try {
             if (text.startsWith("0x") || text.startsWith("0X")) {
-                return Long.parseLong(text.substring(2), 16);
+                value = new java.math.BigInteger(text.substring(2), 16);
+            } else if (text.startsWith("0o") || text.startsWith("0O")) {
+                value = new java.math.BigInteger(text.substring(2), 8);
+            } else {
+                value = new java.math.BigInteger(text);
             }
-            if (text.startsWith("0o") || text.startsWith("0O")) {
-                return Long.parseLong(text.substring(2), 8);
-            }
-            return Long.parseLong(text);
         } catch (NumberFormatException e) {
-            throw CypherErrors.invalid("integer is too large: " + text, t.pos());
+            throw CypherErrors.syntax("not an integer: " + text, t.pos());
         }
+        if (negated) {
+            value = value.negate();
+        }
+        if (value.bitLength() > 63) {
+            throw CypherErrors.invalid("integer is too large: " + (negated ? "-" : "") + text, t.pos());
+        }
+        return value.longValue();
     }
 
     private CypherAst.MapLit mapLiteral() {
@@ -690,9 +721,13 @@ public final class CypherParser {
         Map<String, Expr> entries = new LinkedHashMap<>();
         if (!peek().is(Type.RBRACE)) {
             do {
-                String key = identifier("a map key");
+                Token k = peek();
+                if (!k.is(Type.IDENT)) {
+                    throw error("expected a map key but found '" + k.text() + "'");
+                }
+                advance();
                 expect(Type.COLON, "':'");
-                entries.put(key, expression());
+                entries.put(k.text(), expression());
             } while (match(Type.COMMA));
         }
         expect(Type.RBRACE, "'}'");
@@ -740,6 +775,11 @@ public final class CypherParser {
                 advance();
                 advance();
                 return new CypherAst.CountStar(pos);
+            }
+            if (LIST_PREDICATES.contains(name.toLowerCase(java.util.Locale.ROOT)) && peek().is(Type.IDENT)
+                    && (peek(1).isWord("IN") || peek(1).is(Type.EQ))) {
+                throw CypherErrors.unsupported("the list predicate " + name + "(... IN ...) is not supported yet",
+                        pos);
             }
             boolean distinct = matchWord("DISTINCT");
             List<Expr> args = new ArrayList<>();

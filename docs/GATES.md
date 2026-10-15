@@ -9849,3 +9849,26 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
 3. **Next.** PR1b: `tools/neo4j-oracle/` (Neo4j Community, local only, through the Apache 2.0 Python driver), the
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
+
+## 2026-10-15 — `#Cypher{...}#`: the second landing — the Neo4j oracle, the TCK as test input, the two parity lanes, the showcase (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after PR1a; the record is the study's §12.2 (`docs/CYPHER_STUDY_2026_10_15.md`),
+the showcase `docs/CYPHER_SHOWCASE.md`.
+
+1. **What lands.** The plan's PR1 completed: `tools/neo4j-oracle/` (Neo4j Community 2026.09.0, GPLv3, run locally
+   only through the Apache 2.0 Python driver; CI judges from the committed answers), the openCypher TCK under
+   `core/src/test/resources/cypher-parity/tck` (Apache 2.0) read by `CypherTck` as the oracle reads it, the models
+   the dumped graphs imply (`CypherGraph`), the judge in the TCK's value grammar (`CypherValues`, `CypherParity`),
+   the decisions file, the two lanes `//core:cypher_parity_test` and `//core:cypher_parity_postgres_test` in
+   `//gates:core`, lite's 26 first cases and the showcase pinned byte for byte (model, Pure, DuckDB and Snowflake SQL).
+2. **The ledger,** identical on both lanes: 3,906 cases; PASS 184; FAIL 0; BUG 0; ERROR 0; REFUSED 2,723; BOTH_ERROR
+   669; SKIP 330. What the first run found in the translator and the reader (nine fixes, each with its test) and what
+   it decided (the NaN comparisons, S60) and reported (the Postgres dialect's float literals) is in the study's §12.2.
+3. **Judges, on the final tree:** `//core:cypher_parity_test`, `//core:cypher_parity_postgres_test` (as the container's
+   unprivileged user: `tools/postgres/as_unprivileged.sh`), `//core:core_tests_protocol`, `//core:core_tests_integration`,
+   `//core:guardrails`, `//core:census`, `//tools/neo4j-oracle:tools_build_test`: all green. The oracle's `--check`
+   against the running Neo4j: clean. Guard entries, dated: the dialect-leak ledger (the two lane tests). The full local
+   gate: as the first landing's, the branch's CI run is the landing's full judge (the container's disk allowance;
+   `docs/CLOUD_SESSIONS.md` gained the Maven seeding this session needed).
+4. **Next.** The independent review of PR1 (an agent that wrote none of it, read-only, each claim run on lite and on
+   Neo4j), then the merge; then PR2.

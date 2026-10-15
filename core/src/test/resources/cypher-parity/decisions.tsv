@@ -1,0 +1,11 @@
+# The Cypher parity corpus's decided cases (docs/CYPHER_STUDY_2026_10_15.md §8.3): a case whose answer lite gives by a
+# rule of its own, each a row of docs/SEMANTICS_REGISTER.md, judged per lane against what the decision names instead of
+# Neo4j's answer: a JSON list of rows in the TCK's value grammar, ERROR (the database raises where Neo4j answers), or
+# - (Neo4j's answer judges that lane). A decision for a case that is gone fails the guards.
+# key<TAB>register row<TAB>duckdb<TAB>postgres
+tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #1	S60	-	ERROR
+tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #2	S60	-	ERROR
+tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #3	S60	[["true", "false"]]	ERROR
+tck/expressions/comparison/Comparison2/[5] Comparing NaN #1	S60	[["true", "true", "false", "false"]]	ERROR
+tck/expressions/comparison/Comparison2/[5] Comparing NaN #2	S60	[["true", "true", "false", "false"]]	ERROR
+tck/expressions/comparison/Comparison2/[5] Comparing NaN #3	S60	[["false", "true", "false", "true"]]	ERROR

@@ -65,8 +65,10 @@ line.
 Size: 20k to 25k lines over six to eight landings, each with its cases, ledger, independent review and GATES entry.
 
 **Status, 2026-10-15:** PR1a landed on the branch (the study's §12.1): the island, the reader, the translator over
-fixed-length patterns, the seam, 67 tests. PR1b next: `tools/neo4j-oracle/`, the TCK reader and the inferred models,
-`cypher-parity/` with its lanes in `//gates:core`, the first ledger; then the independent review of PR1.
+fixed-length patterns, the seam, 67 tests. PR1b landed on the branch (§12.2): the oracle (Neo4j Community 2026.09.0),
+the TCK as test input, the inferred models, the two parity lanes in `//gates:core` with the first ledger (3,906 cases,
+184 PASS, 0 FAIL, 0 BUG, 0 ERROR, 2,723 REFUSED by name, 669 BOTH_ERROR, 330 SKIP, identical on DuckDB and Postgres),
+and the showcase. Next: the independent review of PR1, then the merge, then PR2.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

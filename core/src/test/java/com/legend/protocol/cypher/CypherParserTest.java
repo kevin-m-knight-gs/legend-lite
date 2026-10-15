@@ -238,8 +238,10 @@ class CypherParserTest {
         assertEquals("XOR(a,AND(b,c))", tree(expr("a XOR b AND c")));
         assertEquals("PLUS(a,TIMES(b,c))", tree(expr("a + b * c")));
         assertEquals("MINUS(MINUS(a,b),c)", tree(expr("a - b - c")));
-        assertEquals("POWER(2,POWER(3,2))", tree(expr("2 ^ 3 ^ 2")));
-        assertEquals("NEG(POWER(2,2))", tree(expr("-2 ^ 2")));
+        // Neo4j's: ^ left-associative and looser than unary minus (the TCK's Precedence2, verified on 2026.09.0)
+        assertEquals("POWER(POWER(2,3),2)", tree(expr("2 ^ 3 ^ 2")));
+        assertEquals("POWER(NEG(2),2)", tree(expr("-2 ^ 2")));
+        assertEquals("TIMES(2,POWER(3,2))", tree(expr("2 * 3 ^ 2")));
         assertEquals("TIMES(NEG(a),b)", tree(expr("-a * b")));
         assertEquals("EQ(PLUS(a,1),MODULO(b,2))", tree(expr("a + 1 = b % 2")));
         assertEquals("AND(LT(1,x),LT(x,3))", tree(expr("1 < x < 3")));
@@ -333,15 +335,33 @@ class CypherParserTest {
         assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("").kind());
         assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("MATCH (n) RETURN").kind());
         assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("MATCH (n) RETURN n WHERE n.x = 1").kind());
-        assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("MATCH (a)<-[:X]->(b) RETURN a").kind());
+        // <-[]-> points both ways: undirected, as Neo4j reads it
+        assertEquals(Direction.BOTH, ((RelPattern) ((Match) parse("MATCH (a)<-[:X]->(b) RETURN a").clauses().get(0))
+                .patterns().get(0).elements().get(1)).direction());
         assertEquals("unterminated string", refusal("RETURN 'abc").getMessage());
         assertEquals("unexpected character '@'", refusal("RETURN @").getMessage());
         assertEquals("a CASE needs at least one WHEN", refusal("RETURN CASE END").getMessage());
     }
 
     @Test
-    void anIntegerTooLargeIsNeo4jsError() {
+    void anIntegerTooLargeIsNeo4jsErrorAndTheSmallestIntegerIsRead() {
         SqlTranslationException e = refusal("RETURN 99999999999999999999");
         assertEquals(SqlTranslationException.Kind.INVALID, e.kind());
+        assertEquals(SqlTranslationException.Kind.INVALID, refusal("RETURN 9223372036854775808").kind());
+        assertEquals(Long.MIN_VALUE, ((CypherAst.IntLit) expr("-9223372036854775808")).value());
+        assertEquals(Long.MIN_VALUE, ((CypherAst.IntLit) expr("-0x8000000000000000")).value());
+        assertEquals("NEG((POWER(2,2)))", tree(expr("-(2 ^ 2)")));
+        assertEquals("POWER(NEG(2),2)", tree(expr("-2 ^ 2")));
+    }
+
+    @Test
+    void mergeActionsListPredicatesAndKeywordMapKeys() {
+        OtherClause merge = (OtherClause) parse("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2 RETURN a")
+                .clauses().get(0);
+        assertEquals("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2", merge.text());
+        SqlTranslationException all = refusal("RETURN all(x IN [1, 2] WHERE x > 0)");
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, all.kind());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("RETURN reduce(s = 0, x IN [1] | s + x)").kind());
+        assertEquals("{null:1,NULL:2}", tree(expr("{null: 1, NULL: 2}")));
     }
 }

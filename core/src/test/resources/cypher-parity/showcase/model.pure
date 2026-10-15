@@ -1,0 +1,59 @@
+###Pure
+Class g::City
+{
+    name: String[0..1];
+}
+Class g::Firm
+{
+    founded: Integer[0..1];
+    legalName: String[0..1];
+}
+Class g::Person
+{
+    active: Boolean[0..1];
+    age: Integer[0..1];
+    name: String[0..1];
+}
+Association g::HQ
+{
+    HQ: g::City[0..1];
+    HQ_in: g::Firm[*];
+}
+Association g::WORKS_AT
+{
+    WORKS_AT: g::Firm[0..1];
+    WORKS_AT_in: g::Person[*];
+}
+###Relational
+Database g::DB
+(
+    Table n_city (id BIGINT PRIMARY KEY, p_name VARCHAR(4000))
+    Table n_firm (id BIGINT PRIMARY KEY, p_founded BIGINT, p_legalname VARCHAR(4000), r_hq BIGINT)
+    Table n_person (id BIGINT PRIMARY KEY, p_active BIT, p_age BIGINT, p_name VARCHAR(4000), r_works_at BIGINT)
+    Join HQ(n_firm.r_hq = n_city.id)
+    Join WORKS_AT(n_person.r_works_at = n_firm.id)
+)
+###Mapping
+Mapping g::Map
+(
+    g::City: Relational
+    {
+        ~mainTable [g::DB] n_city
+        name: [g::DB] n_city.p_name
+    }
+    g::Firm: Relational
+    {
+        ~mainTable [g::DB] n_firm
+        founded: [g::DB] n_firm.p_founded,
+        legalName: [g::DB] n_firm.p_legalname
+    }
+    g::Person: Relational
+    {
+        ~mainTable [g::DB] n_person
+        active: [g::DB] n_person.p_active,
+        age: [g::DB] n_person.p_age,
+        name: [g::DB] n_person.p_name
+    }
+    g::HQ: Relational { AssociationMapping ( HQ: [g::DB]@HQ, HQ_in: [g::DB]@HQ ) }
+    g::WORKS_AT: Relational { AssociationMapping ( WORKS_AT: [g::DB]@WORKS_AT, WORKS_AT_in: [g::DB]@WORKS_AT ) }
+)

@@ -4,6 +4,15 @@ A cloud session runs in a container whose network goes through a proxy, as root,
 works there, but not out of the box. This is what a session hit and how it got through (2026-10-11 to 2026-10-14,
 Bazel 9.2.0, a 4-core Linux x86 container).
 
+## Maven Central answers Bazel's downloads with 404: `tools/cloud-maven-distdir.sh`
+
+Seen 2026-10-15 after the Bazel repository cache was emptied to free the disk allowance: Bazel's downloader got
+`404 Not Found` from `repo1.maven.org` for every jar the build pins, while `curl` of the same URL got the file. The
+proxy answers the two clients differently. `tools/cloud-maven-distdir.sh <targets>` runs `bazel fetch --keep_going`,
+reads the URLs Bazel could not download, fetches each with `curl` into the distdir (`~/.cache/legend-lite/distdir`,
+which Bazel reads first and checks against the pinned sha256), and repeats until a fetch names none; four rounds for
+the core test targets. Run it after `tools/cloud-distdir.sh`, which seeds the GitHub archives the same way.
+
 ## GitHub archive downloads are refused: `tools/cloud-distdir.sh`
 
 **The symptom.** `bazel fetch`, `build` or `test` stops on
