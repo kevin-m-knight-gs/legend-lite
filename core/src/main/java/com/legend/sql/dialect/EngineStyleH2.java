@@ -1078,6 +1078,21 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return writer.expr(e, 0);
     }
 
+    /** The engine text's join keywords: legend-engine's, in lower case, an inner join {@code inner join}. */
+    @Override
+    protected String joinKeyword(SqlSource.Join.Kind kind) {
+        return switch (kind) {
+            case INNER -> "inner join";
+            case LEFT -> "left outer join";
+            case RIGHT -> "right outer join";
+            case FULL -> "full outer join";
+            case CROSS -> "cross join";
+            case CROSS_LATERAL -> "cross join lateral";
+            case ASOF_LEFT -> "asof left join";
+            case LEFT_LATERAL -> "left join lateral";
+        };
+    }
+
     @Override
     protected SqlWriter source(SqlWriter writer, SqlSource src, int depth) {
         return switch (src) {
@@ -1130,11 +1145,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     .append(rename(vp.alias())).append('"');
             case SqlSource.Join j -> {
                 source(writer, j.left(), depth);
-                writer.append(' ')
-                        .append(j.kind() == SqlSource.Join.Kind.INNER
-                                ? "inner join"
-                                : j.kind().sql.toLowerCase(Locale.ROOT))
-                        .append(' ');
+                writer.append(' ').append(joinKeyword(j.kind())).append(' ');
                 source(writer, j.right(), depth);
                 if (j.on() != null) {
                     writer.append(" on (").expr(j.on(), 0).append(')');
@@ -1696,8 +1707,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && le.args().size() == 2
                 && le.args().get(0) instanceof SqlExpr.Call dayDiff
                 && dayDiff.fn() == com.legend.sql.SqlFn.DATE_DIFF
-                && dayDiff.args().get(0) instanceof SqlExpr.StringLit day
-                && day.value().equals("day")
+                && dayDiff.args().get(0) instanceof SqlExpr.DatePartLit day
+                && day.part() == com.legend.sql.DatePart.DAY
                 && le.args().get(1) instanceof SqlExpr.IntLit zero
                 && zero.value() == 0
                 && isSundayIndexDifference(cs.whens().get(0).then())
@@ -1776,25 +1787,44 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     // == engine-H2 spellings (each MATCHED against a corpus golden) =====
 
-    /** DurationUnit interval-fn -> H2 dateadd unit keyword. LOWERCASE:
+    /** A DurationUnit's part -> H2 dateadd unit keyword. LOWERCASE:
      * the H2Compatible NEW goldens ride the sql-dialect-translation
      * mapToDBUnitType (sqlDialectExtensionDefaults.pure:362 'second'),
      * not the legacy extension's uppercase table — the uppercase
      * dateadd(DAY,...) corpus spellings are firstDayOf* FORMAT literals,
      * never adjust units. */
-    private static String dbUnitOf(String unitFn) {
-        return switch (unitFn) {
-            case "to_years" -> "year";
-            case "to_months" -> "month";
-            case "to_weeks" -> "week";
-            case "to_days" -> "day";
-            case "to_hours" -> "hour";
-            case "to_minutes" -> "minute";
-            case "to_seconds" -> "second";
-            case "to_milliseconds" -> "millisecond";
-            case "to_microseconds" -> "microsecond";
-            default -> throw new IllegalStateException(
-                    "no H2 dateadd unit for interval fn '" + unitFn + "'");
+    private static String dbUnitOf(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "year";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new IllegalStateException(
+                    "no H2 dateadd unit for an interval of " + unit);
+        };
+    }
+
+    /** A date part as the engine text names it: {@code datediff}'s, {@code extract}'s, {@code date_part}'s and
+     *  {@code date_trunc}'s unit. */
+    private static String enginePart(com.legend.sql.DatePart p) {
+        return switch (p) {
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case DAY_OF_YEAR -> "doy";
+            case ISO_DAY_OF_WEEK -> "isodow";
         };
     }
 
@@ -1824,20 +1854,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case CONCAT -> concatArm(writer, c);
             // datediff(<bare unit>, a, b); composite elapsed-time forms
             // built at lowering (weeks/hours/...) have no re-spelling here
-            case DATE_DIFF -> a.get(0) instanceof SqlExpr.StringLit u
-                    ? writer.append("datediff(").append(u.value()).append(", ").expr(a.get(1), 0).append(", ")
-                            .expr(a.get(2), 0).append(")")
-                    : writer.function("date_diff", a);
+            case DATE_DIFF -> writer.append("datediff(").append(enginePart(part(a.get(0)))).append(", ")
+                    .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
             // engine H2 adjust: dateadd(UNIT, n, x) (h2Extension dynaFn
             // 'adjust' + extensionDefaults mapToDBUnitType) — the ANSI
             // base's d + to_days(n) is the DuckDB-executable spelling
-            case ADD_INTERVAL -> writer.append("dateadd(").append(dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()))
+            case ADD_INTERVAL -> writer.append("dateadd(").append(dbUnitOf(part(a.get(0))))
                     .append(", ").expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
             // milestoning adjust channel: the same lowercase unit — the
             // UPPERCASE dateadd(DAY, ...) corpus spellings are all LEGACY
             // (H2 1.4.200) goldens of assertEqualsH2Compatible pairs
             case ADD_INTERVAL_TEMPORAL -> writer.append("dateadd(")
-                    .append(dbUnitOf(((SqlExpr.StringLit) a.get(0)).value())).append(", ").expr(a.get(1), 0)
+                    .append(dbUnitOf(part(a.get(0)))).append(", ").expr(a.get(1), 0)
                     .append(", ").expr(a.get(2), 0).append(")");
             // engine h2 parseInteger dynaFn golden spelling; execution
             // dialects keep the 64-bit BIGINT cast
@@ -2049,12 +2077,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The {@code EXTRACT} arm of {@link #call}. */
     private SqlWriter extractArm(SqlWriter writer, SqlExpr.Call c) {
         java.util.List<SqlExpr> a = c.args();
-        if (a.size() == 2
-            && a.get(0) instanceof SqlExpr.StringLit part
-            && "doy".equals(part.value())) {
+        if (a.size() == 2 && part(a.get(0)) == com.legend.sql.DatePart.DAY_OF_YEAR) {
             writer.append("extract(doy from ").expr(a.get(1), 0).append(")");
         } else {
-            writer.function("date_part", a);
+            writer.append("date_part(").append(stringLit(enginePart(part(a.get(0))))).append(", ")
+                    .list(a.subList(1, a.size())).append(")");
         }
         return writer;
     }
@@ -2062,10 +2089,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The {@code DATE_TRUNC} arm of {@link #call}. */
     private SqlWriter dateTrunc(SqlWriter writer, SqlExpr.Call c) {
         java.util.List<SqlExpr> a = c.args();
-        if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u
-                && Set.of("week", "month", "quarter", "year")
-                        .contains(u.value())) {
-            writer.append("cast(cast(date_trunc('").append(u.value()).append("', ");
+        com.legend.sql.DatePart u = part(a.get(0));
+        if (a.size() == 2 && Set.of(com.legend.sql.DatePart.WEEK, com.legend.sql.DatePart.MONTH,
+                com.legend.sql.DatePart.QUARTER, com.legend.sql.DatePart.YEAR).contains(u)) {
+            writer.append("cast(cast(date_trunc('").append(enginePart(u)).append("', ");
             if (a.get(1) instanceof SqlExpr.Call tc && tc.fn() == com.legend.sql.SqlFn.TODAY) {
                 writer.append("now()");
             } else {
@@ -2073,7 +2100,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             }
             return writer.append(") as timestamp) as date)");
         }
-        return dateTruncDateGrained(writer, a);
+        return dateTruncDateGrained(writer, a, stringLit(enginePart(u)));
     }
 
     /** The {@code STRPTIME} arm of {@link #call}. */
@@ -2202,5 +2229,29 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     protected SqlWriter splitPartCall(SqlWriter writer, java.util.List<SqlExpr> a) {
         return writer.append("legend_h2_extension_split_part(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
                 .append(", ").expr(a.get(2), 0).append(")");
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (the engine text's json_type, read on DuckDB). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} A DATE is {@code DATE}; no other type's name is compared. */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        if (type == com.legend.sql.SqlType.Scalar.DATE) {
+            return "DATE";
+        }
+        throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached the engine text");
     }
 }

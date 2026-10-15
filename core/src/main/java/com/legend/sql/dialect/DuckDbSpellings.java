@@ -53,12 +53,47 @@ final class DuckDbSpellings {
     /** Week buckets align to the Monday ON/BEFORE the epoch (1969-12-29 — real pure's origin, PCT-pinned); every
      *  other unit aligns to the 1970 epoch. */
     static SqlWriter timeBucket(SqlWriter writer, List<SqlExpr> a) {
-        String unit = ((SqlExpr.StringLit) a.get(0)).value();
-        return writer.append("time_bucket(").append(unit).append("(").expr(a.get(1), 0).append("), ")
+        com.legend.sql.DatePart unit = AnsiSqlRenderer.part(a.get(0));
+        return writer.append("time_bucket(").append(intervalFunction(unit)).append("(").expr(a.get(1), 0).append("), ")
                 .expr(a.get(2), 0)
-                .append("to_weeks".equals(unit) ? ", TIMESTAMP '1969-12-29 00:00:00'"
+                .append(unit == com.legend.sql.DatePart.WEEK ? ", TIMESTAMP '1969-12-29 00:00:00'"
                         : ", TIMESTAMP '1970-01-01 00:00:00'")
                 .append(")");
+    }
+
+    /** A date part as DuckDB's {@code date_part}, {@code date_trunc} and {@code date_diff} name it. */
+    static String datePart(com.legend.sql.DatePart p) {
+        return switch (p) {
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case DAY_OF_YEAR -> "doy";
+            case ISO_DAY_OF_WEEK -> "isodow";
+        };
+    }
+
+    /** The function DuckDB builds an interval of {@code p} with ({@code to_days(n)}). */
+    static String intervalFunction(com.legend.sql.DatePart p) {
+        return switch (p) {
+            case YEAR -> "to_years";
+            case MONTH -> "to_months";
+            case WEEK -> "to_weeks";
+            case DAY -> "to_days";
+            case HOUR -> "to_hours";
+            case MINUTE -> "to_minutes";
+            case SECOND -> "to_seconds";
+            case MILLISECOND -> "to_milliseconds";
+            case MICROSECOND -> "to_microseconds";
+            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("an interval of " + p
+                    + " reached DuckDB, which builds none");
+        };
     }
 
     static SqlWriter fromEpochMs(SqlWriter writer, List<SqlExpr> a) {

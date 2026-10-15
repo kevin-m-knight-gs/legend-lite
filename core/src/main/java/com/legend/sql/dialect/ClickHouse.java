@@ -223,7 +223,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 SqlWriter.Piece cond = w -> w.append("if(").expr(on, 0).append(", 0, 1)");
                 SqlWriter.Piece zero = w -> w.append("coalesce(cityHash64(").expr(other, 0).append("), 0) * 0");
                 source(writer, j.left(), depth);
-                nl(writer, depth).append(j.kind().sql).append(" ");
+                nl(writer, depth).append(joinKeyword(j.kind())).append(" ");
                 source(writer, j.right(), depth);
                 return writer.append(" ON ").piece(leftOnly ? cond : zero).append(" = ").piece(leftOnly ? zero : cond);
             }
@@ -1835,18 +1835,19 @@ public final class ClickHouse extends AnsiSqlRenderer {
      * size. {@code toStartOfInterval} counts unsigned units, wrapping before 1970 (1951 bucketed to 2087, measured).
      */
     private SqlWriter.Piece timeBucket(List<SqlExpr> a) {
-        String unit = literal(a.get(0), "TIME_BUCKET");
+        com.legend.sql.DatePart unit = part(a.get(0));
         SqlWriter.Piece n = w -> w.append("toInt64(").expr(a.get(1), 0).append(")");
-        Long micros = BUCKET_MICROS.get(unit);
+        Long micros = bucketMicros(unit);
         if (micros != null) {
-            long origin = unit.endsWith("weeks") ? -3L * 86400000000L : 0L;
+            long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
             SqlWriter.Piece x = w -> w.append("(toUnixTimestamp64Micro(toDateTime64(").expr(a.get(2), 0)
                     .append(", 6, 'UTC')) - (" + origin + "))");
             SqlWriter.Piece u = w -> w.append("(").piece(n).append(" * " + micros + ")");
             return w -> w.append("fromUnixTimestamp64Micro(").piece(x).append(" - ((").piece(x).append(" % ").piece(u)
                     .append(") + ").piece(u).append(") % ").piece(u).append(" + (" + origin + "), 'UTC')");
         }
-        Integer months = BUCKET_MONTHS.get(unit);
+        Integer months = unit == com.legend.sql.DatePart.MONTH ? Integer.valueOf(1)
+                : unit == com.legend.sql.DatePart.YEAR ? Integer.valueOf(12) : null;
         if (months == null) {
             throw new DialectCapability("a " + unit + " time bucket reached ClickHouse");
         }
@@ -1857,11 +1858,37 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 .append(" % ").piece(size).append(") + ").piece(size).append(") % ").piece(size).append("), 6, 'UTC')");
     }
 
-    private static final java.util.Map<String, Long> BUCKET_MICROS = java.util.Map.of(
-            "to_weeks", 7L * 86400000000L, "to_days", 86400000000L, "to_hours", 3600000000L,
-            "to_minutes", 60000000L, "to_seconds", 1000000L, "to_milliseconds", 1000L, "to_microseconds", 1L);
+    /** A fixed-length bucket's length in microseconds; null for a calendar one. */
+    private static @com.legend.base.Nullable Long bucketMicros(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case WEEK -> 7L * 86400000000L;
+            case DAY -> 86400000000L;
+            case HOUR -> 3600000000L;
+            case MINUTE -> 60000000L;
+            case SECOND -> 1000000L;
+            case MILLISECOND -> 1000L;
+            case MICROSECOND -> 1L;
+            case YEAR, QUARTER, MONTH, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> null;
+        };
+    }
 
-    private static final java.util.Map<String, Integer> BUCKET_MONTHS = java.util.Map.of("to_months", 1, "to_years", 12);
+    /** A unit as ClickHouse's dateDiff names it. */
+    private static String diffUnit(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("dateDiff of " + unit
+                    + " has no ClickHouse spelling");
+        };
+    }
 
     /** A modulo's operand: beside a Decimal, both are Decimal128s of the larger scale (an Int64 modulo a Decimal is
      *  wrong, 5 % 2.5 is 0.5; and Decimals of two scales too, 5 % 1.5 at scales 18 and 1 is 5e-18, measured). */
@@ -1895,17 +1922,18 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case NOW -> writer.append("now64(6, 'UTC')");
             case DATE_TRUNC_DAY -> writer.append("toDate32(").expr(a.get(0), 0).append(")");
             case DATE_TRUNC -> {
-                String part = literal(a.get(0), "DATE_TRUNC");
+                com.legend.sql.DatePart part = part(a.get(0));
                 yield switch (part) {
-                    case "year" -> writer.append("toDate32(toStartOfYear(").expr(a.get(1), 0).append("))");
-                    case "quarter" -> writer.append("toDate32(toStartOfQuarter(").expr(a.get(1), 0).append("))");
-                    case "month" -> writer.append("toDate32(toStartOfMonth(").expr(a.get(1), 0).append("))");
-                    case "week" -> writer.append("toDate32(toMonday(").expr(a.get(1), 0).append("))");
-                    case "day" -> writer.append("toDateTime64(toDate32(").expr(a.get(1), 0).append("), 6, 'UTC')");
-                    case "hour" -> writer.append("toStartOfHour(").expr(a.get(1), 0).append(")");
-                    case "minute" -> writer.append("toStartOfMinute(").expr(a.get(1), 0).append(")");
-                    case "second" -> writer.append("toStartOfSecond(").expr(a.get(1), 0).append(")");
-                    default -> throw new DialectCapability("date_trunc '" + part + "' has no ClickHouse spelling");
+                    case YEAR -> writer.append("toDate32(toStartOfYear(").expr(a.get(1), 0).append("))");
+                    case QUARTER -> writer.append("toDate32(toStartOfQuarter(").expr(a.get(1), 0).append("))");
+                    case MONTH -> writer.append("toDate32(toStartOfMonth(").expr(a.get(1), 0).append("))");
+                    case WEEK -> writer.append("toDate32(toMonday(").expr(a.get(1), 0).append("))");
+                    case DAY -> writer.append("toDateTime64(toDate32(").expr(a.get(1), 0).append("), 6, 'UTC')");
+                    case HOUR -> writer.append("toStartOfHour(").expr(a.get(1), 0).append(")");
+                    case MINUTE -> writer.append("toStartOfMinute(").expr(a.get(1), 0).append(")");
+                    case SECOND -> writer.append("toStartOfSecond(").expr(a.get(1), 0).append(")");
+                    case MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability(
+                            "date_trunc " + part + " has no ClickHouse spelling");
                 };
             }
             case PARSE_DATE -> writer.append("parseDateTime64BestEffort(").expr(a.get(0), 0).append(", 6, 'UTC')");
@@ -1920,17 +1948,18 @@ public final class ClickHouse extends AnsiSqlRenderer {
                         .append(") * 1000000)))");
             }
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> {
-                String fn = switch (literal(a.get(0), c.fn().name())) {
-                    case "to_years" -> "addYears";
-                    case "to_months" -> "addMonths";
-                    case "to_weeks" -> "addWeeks";
-                    case "to_days" -> "addDays";
-                    case "to_hours" -> "addHours";
-                    case "to_minutes" -> "addMinutes";
-                    case "to_seconds" -> "addSeconds";
-                    case "to_milliseconds" -> "addMilliseconds";
-                    case "to_microseconds" -> "addMicroseconds";
-                    default -> throw wall(c.fn(), "the unit " + a.get(0));
+                com.legend.sql.DatePart unit = part(a.get(0));
+                String fn = switch (unit) {
+                    case YEAR -> "addYears";
+                    case MONTH -> "addMonths";
+                    case WEEK -> "addWeeks";
+                    case DAY -> "addDays";
+                    case HOUR -> "addHours";
+                    case MINUTE -> "addMinutes";
+                    case SECOND -> "addSeconds";
+                    case MILLISECOND -> "addMilliseconds";
+                    case MICROSECOND -> "addMicroseconds";
+                    case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw wall(c.fn(), "the unit " + unit);
                 };
                 yield writer.append(fn + "(").expr(a.get(2), 0).append(", ").expr(a.get(1), 0).append(")");
             }
@@ -1939,7 +1968,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             // Date32's first day (1900-01-01: an earlier date clamps to it, measured); a difference of indices is the
             // same from any Sunday a whole number of weeks away, and 1900-01-07 is one, within the range
             case DATE_DIFF -> {
-                writer.append("dateDiff(").append(stringLit(literal(a.get(0), "DATE_DIFF"))).append(", ");
+                writer.append("dateDiff(").append(stringLit(diffUnit(part(a.get(0))))).append(", ");
                 if (a.get(1) instanceof SqlExpr.DateLit d && d.iso().equals("0001-01-07")) {
                     writer.append(dateLit("1900-01-07"));
                 } else {
@@ -1991,13 +2020,6 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return new DialectCapability(fn + " reached ClickHouse: " + why);
     }
 
-    private static String literal(SqlExpr e, String what) {
-        if (e instanceof SqlExpr.StringLit s) {
-            return s.value();
-        }
-        throw new DialectCapability(what + " with a non-literal part reached ClickHouse");
-    }
-
     private SqlWriter.Piece anchored(SqlExpr p) {
         if (p instanceof SqlExpr.StringLit lit) {
             String s = stringLit("^(?:" + lit.value() + ")$");
@@ -2006,27 +2028,23 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return w -> w.append("concat('^(?:', ").expr(p, 0).append(", ')$')");
     }
 
-    /** DuckDB's date_part names → ClickHouse's functions; DuckDB's dow is Sunday 0 (ClickHouse's toDayOfWeek is
-     *  Monday 1 .. Sunday 7). */
+    /** A date part as ClickHouse's function of it (toDayOfWeek is Monday 1 .. Sunday 7). */
     private SqlWriter.Piece extract(List<SqlExpr> a) {
-        String part = literal(a.get(0), "EXTRACT");
+        com.legend.sql.DatePart part = part(a.get(0));
         String fn = switch (part) {
-            case "year" -> "toYear";
-            case "quarter" -> "toQuarter";
-            case "month" -> "toMonth";
-            case "week" -> "toISOWeek";
-            case "day" -> "toDayOfMonth";
-            case "hour" -> "toHour";
-            case "minute" -> "toMinute";
-            case "second" -> "toSecond";
-            case "doy" -> "toDayOfYear";
-            case "isodow" -> "toDayOfWeek";
-            case "dow" -> "dow";
-            default -> throw new DialectCapability("date part '" + part + "' has no probed ClickHouse spelling");
+            case YEAR -> "toYear";
+            case QUARTER -> "toQuarter";
+            case MONTH -> "toMonth";
+            case WEEK -> "toISOWeek";
+            case DAY -> "toDayOfMonth";
+            case HOUR -> "toHour";
+            case MINUTE -> "toMinute";
+            case SECOND -> "toSecond";
+            case DAY_OF_YEAR -> "toDayOfYear";
+            case ISO_DAY_OF_WEEK -> "toDayOfWeek";
+            case MILLISECOND, MICROSECOND -> throw new DialectCapability("date part " + part
+                    + " has no probed ClickHouse spelling");
         };
-        if ("dow".equals(fn)) {
-            return w -> w.append("toInt64(toDayOfWeek(").expr(a.get(1), 0).append(") % 7)");
-        }
         return w -> w.append("toInt64(" + fn + "(").expr(a.get(1), 0).append("))");
     }
 
@@ -2786,5 +2804,26 @@ public final class ClickHouse extends AnsiSqlRenderer {
             return out;
         }
         return v;
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a multiIf over JSONType). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are ClickHouse's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached ClickHouse: its type names are ClickHouse's");
     }
 }

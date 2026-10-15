@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DatePart;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -1434,7 +1435,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             // DuckDB's date + interval is a TIMESTAMP at every unit (DATEADD of days keeps a DATE, measured)
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("CAST(DATEADD(")
-                    .append(intervalUnit(literal(a.get(0), c.fn().name()))).append(", ").expr(a.get(1), 0)
+                    .append(intervalUnit(part(a.get(0)))).append(", ").expr(a.get(1), 0)
                     .append(", ").expr(a.get(2), 0).append(") AS TIMESTAMP_NTZ)");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
@@ -1686,13 +1687,6 @@ public final class Snowflake extends AnsiSqlRenderer {
 
     private static DialectCapability wall(SqlFn fn, String why) {
         return new DialectCapability(fn + " reached Snowflake: " + why);
-    }
-
-    private static String literal(SqlExpr e, String what) {
-        if (e instanceof SqlExpr.StringLit s) {
-            return s.value();
-        }
-        throw new DialectCapability(what + " with a non-literal part reached Snowflake");
     }
 
     // ---- error(): no raise function
@@ -2070,87 +2064,92 @@ public final class Snowflake extends AnsiSqlRenderer {
         return w -> w.append("CAST(").expr(e, 0).append(" AS TIMESTAMP_NTZ)");
     }
 
-    /** DuckDB's date_part names; a Pure integer (seconds truncated). Weeks are ISO's; DuckDB's dow is Sunday 0. */
+    /** A date part of a date, a Pure integer (seconds truncated). Weeks are ISO's. */
     private SqlWriter.Piece extract(List<SqlExpr> a) {
-        String part = literal(a.get(0), "EXTRACT");
+        DatePart part = part(a.get(0));
         SqlExpr x = a.get(1);
         return switch (part) {
-            case "year", "quarter", "month", "day" -> w -> w.append("DATE_PART(" + part.toUpperCase(java.util.Locale.ROOT)
-                    + ", ").expr(x, 0).append(")");
-            case "week" -> w -> w.append("WEEKISO(").expr(x, 0).append(")");
-            case "doy" -> w -> w.append("DAYOFYEAR(").expr(x, 0).append(")");
-            case "isodow" -> w -> w.append("DAYOFWEEKISO(").expr(x, 0).append(")");
-            case "dow" -> w -> w.append("MOD(DAYOFWEEKISO(").expr(x, 0).append("), 7)");
-            case "hour", "minute", "second" -> w -> w.append("DATE_PART(" + part.toUpperCase(java.util.Locale.ROOT)
-                    + ", ").piece(naive(x)).append(")");
+            case YEAR, QUARTER, MONTH, DAY -> w -> w.append("DATE_PART(" + unit(part) + ", ").expr(x, 0).append(")");
+            case WEEK -> w -> w.append("WEEKISO(").expr(x, 0).append(")");
+            case DAY_OF_YEAR -> w -> w.append("DAYOFYEAR(").expr(x, 0).append(")");
+            case ISO_DAY_OF_WEEK -> w -> w.append("DAYOFWEEKISO(").expr(x, 0).append(")");
+            case HOUR, MINUTE, SECOND -> w -> w.append("DATE_PART(" + unit(part) + ", ").piece(naive(x)).append(")");
             // DuckDB counts the second's milli/microseconds with the seconds
-            case "millisecond" -> w -> w.append("(DATE_PART(SECOND, ").piece(naive(x))
+            case MILLISECOND -> w -> w.append("(DATE_PART(SECOND, ").piece(naive(x))
                     .append(") * 1000 + TRUNC(DATE_PART(NANOSECOND, ").piece(naive(x)).append(") / 1000000))");
-            case "microsecond" -> w -> w.append("(DATE_PART(SECOND, ").piece(naive(x))
+            case MICROSECOND -> w -> w.append("(DATE_PART(SECOND, ").piece(naive(x))
                     .append(") * 1000000 + TRUNC(DATE_PART(NANOSECOND, ").piece(naive(x)).append(") / 1000))");
-            default -> throw new DialectCapability("date part '" + part + "' has no probed Snowflake spelling");
         };
     }
 
     /** As the DuckDB dialect delivers it: a date-grained truncation a DATE, a finer one a TIMESTAMP. WEEK starts on
      *  Monday (the session's WEEK_START, measured). */
     private SqlWriter.Piece dateTrunc(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_TRUNC");
+        DatePart part = part(a.get(0));
         SqlExpr x = a.get(1);
+        String unit = unit(part).toLowerCase(java.util.Locale.ROOT);
         return switch (part) {
-            case "year", "quarter", "month", "week" -> w -> w.append("CAST(DATE_TRUNC('" + part + "', ").expr(x, 0)
+            case YEAR, QUARTER, MONTH, WEEK -> w -> w.append("CAST(DATE_TRUNC('" + unit + "', ").expr(x, 0)
                     .append(") AS DATE)");
-            case "day", "hour", "minute", "second", "millisecond", "microsecond" -> w -> w.append("DATE_TRUNC('"
-                    + part + "', ").piece(naive(x)).append(")");
-            default -> throw new DialectCapability("date_trunc part '" + part + "' has no probed Snowflake spelling");
+            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> w -> w.append("DATE_TRUNC('"
+                    + unit + "', ").piece(naive(x)).append(")");
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_trunc part " + part
+                    + " has no probed Snowflake spelling");
         };
     }
 
-    /** DuckDB's interval-function name ({@code to_days}) → a DATEADD unit. */
-    private static String intervalUnit(String unitFn) {
-        String unit = INTERVAL_UNITS.get(unitFn);
-        if (unit == null) {
-            throw new DialectCapability("interval unit '" + unitFn + "' has no Snowflake spelling");
-        }
-        return unit;
+    /** A unit as Snowflake's DATE_PART, DATE_TRUNC, DATEADD and DATEDIFF name it. */
+    private static String unit(DatePart part) {
+        return switch (part) {
+            case YEAR -> "YEAR";
+            case QUARTER -> "QUARTER";
+            case MONTH -> "MONTH";
+            case WEEK -> "WEEK";
+            case DAY -> "DAY";
+            case HOUR -> "HOUR";
+            case MINUTE -> "MINUTE";
+            case SECOND -> "SECOND";
+            case MILLISECOND -> "MILLISECOND";
+            case MICROSECOND -> "MICROSECOND";
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a " + part
+                    + " unit has no Snowflake spelling");
+        };
     }
 
-    private static final Map<String, String> INTERVAL_UNITS = Map.of(
-            "to_years", "YEAR", "to_months", "MONTH", "to_weeks", "WEEK", "to_days", "DAY",
-            "to_hours", "HOUR", "to_minutes", "MINUTE", "to_seconds", "SECOND",
-            "to_milliseconds", "MILLISECOND", "to_microseconds", "MICROSECOND");
+    /** An interval's DATEADD unit. */
+    private static String intervalUnit(DatePart part) {
+        if (part == DatePart.QUARTER) {
+            throw new DialectCapability("interval unit " + part + " has no Snowflake spelling");
+        }
+        return unit(part);
+    }
 
     /** DuckDB's date_diff counts BOUNDARIES crossed, as DATEDIFF does (measured); its week is the day count over 7,
      *  truncated (Saturday to Monday is 0), where DATEDIFF counts week boundaries. */
     private SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_DIFF");
+        DatePart part = part(a.get(0));
         SqlExpr from = a.get(1);
         SqlExpr to = a.get(2);
         return switch (part) {
-            case "year", "quarter", "month", "day" -> w -> w.append("DATEDIFF(" + part.toUpperCase(java.util.Locale.ROOT)
-                    + ", ").expr(from, 0).append(", ").expr(to, 0).append(")");
-            case "week" -> w -> w.append("CAST(TRUNC(DATEDIFF(DAY, ").expr(from, 0).append(", ").expr(to, 0)
+            case YEAR, QUARTER, MONTH, DAY -> w -> w.append("DATEDIFF(" + unit(part) + ", ").expr(from, 0).append(", ")
+                    .expr(to, 0).append(")");
+            case WEEK -> w -> w.append("CAST(TRUNC(DATEDIFF(DAY, ").expr(from, 0).append(", ").expr(to, 0)
                     .append(") / 7) AS BIGINT)");
-            case "hour", "minute", "second", "millisecond", "microsecond" -> w -> w.append("DATEDIFF("
-                    + part.toUpperCase(java.util.Locale.ROOT) + ", ").piece(naive(from)).append(", ").piece(naive(to))
-                    .append(")");
-            default -> throw new DialectCapability("date_diff part '" + part + "' has no probed Snowflake spelling");
+            case HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> w -> w.append("DATEDIFF(" + unit(part) + ", ")
+                    .piece(naive(from)).append(", ").piece(naive(to)).append(")");
+            case DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("date_diff part " + part
+                    + " has no probed Snowflake spelling");
         };
     }
 
     /** DuckDB's time_bucket over its origins (1970-01-01; weeks the Monday 1969-12-29) is TIME_SLICE's own (measured:
      *  weeks, months, years before 1970); a TIMESTAMP whatever the input. TIME_SLICE has no sub-second unit. */
     private SqlWriter.Piece timeBucket(List<SqlExpr> a) {
-        String unit = literal(a.get(0), "TIME_BUCKET");
+        DatePart unit = part(a.get(0));
         String slice = switch (unit) {
-            case "to_years" -> "YEAR";
-            case "to_months" -> "MONTH";
-            case "to_weeks" -> "WEEK";
-            case "to_days" -> "DAY";
-            case "to_hours" -> "HOUR";
-            case "to_minutes" -> "MINUTE";
-            case "to_seconds" -> "SECOND";
-            default -> throw new DialectCapability("a " + unit + " time bucket has no Snowflake TIME_SLICE unit");
+            case YEAR, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND -> unit(unit);
+            case QUARTER, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("a "
+                    + unit + " time bucket has no Snowflake TIME_SLICE unit");
         };
         return w -> w.append("TIME_SLICE(").piece(naive(a.get(2))).append(", ").expr(a.get(1), 0)
                 .append(", '" + slice + "', 'START')");
@@ -2775,7 +2774,6 @@ public final class Snowflake extends AnsiSqlRenderer {
         }
     }
 
-
     /** A marker's FLATTEN: over the positions of its longest list (DuckDB's parallel UNNEST pads the shorter with
      *  NULL); a lateral one CROSS JOINs (FLATTEN takes no ON, measured), a LEFT one keeps an empty list's row
      *  ({@code OUTER => TRUE}). */
@@ -3001,5 +2999,26 @@ public final class Snowflake extends AnsiSqlRenderer {
                         + " reached Snowflake without a column name");
             };
         }
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a DECODE over TYPEOF). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (TYPEOF names Snowflake's variant types, not DuckDB's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached Snowflake: TYPEOF names Snowflake's variant types, not DuckDB's");
     }
 }

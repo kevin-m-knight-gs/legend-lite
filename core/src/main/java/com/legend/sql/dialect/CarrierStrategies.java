@@ -916,8 +916,8 @@ public final class CarrierStrategies extends SqlRewriter {
                 && eq.args().get(0) instanceof SqlExpr.Call tf
                 && tf.fn() == com.legend.sql.SqlFn.TYPEOF
                 && tf.args().size() == 1
-                && eq.args().get(1) instanceof SqlExpr.StringLit ts
-                && "DATE".equals(ts.value())) {
+                && eq.args().get(1) instanceof SqlExpr.TypeNameLit ts
+                && ts.scalar() == com.legend.sql.SqlType.Scalar.DATE) {
             return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
                     SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH,
                             new SqlExpr.Cast(tf.args().get(0),

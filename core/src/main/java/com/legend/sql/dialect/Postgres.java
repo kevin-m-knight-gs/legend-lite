@@ -802,7 +802,7 @@ public final class Postgres extends AnsiSqlRenderer {
             // unit and any BIGINT amount (make_interval takes INTEGER)
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
                     .append(" + ").expr(a.get(1), 6).append(" * INTERVAL '1 ")
-                    .append(intervalUnit(literal(a.get(0), c.fn().name()))).append("'"));
+                    .append(intervalUnit(part(a.get(0)))).append("'"));
             case DATE_DIFF -> writer.piece(dateDiff(a));
             // the origins are the base's (weeks align to the Monday 1969-12-29, everything else to
             // 1970); date_bin bins fixed-length intervals, so months and years count whole calendar
@@ -960,7 +960,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** DuckDB's time_bucket on Postgres: date_bin for fixed-length units, the month index for calendar ones. */
     private SqlWriter timeBucket(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String unit = intervalUnit(literal(a.get(0), "TIME_BUCKET"));
+        String unit = intervalUnit(part(a.get(0)));
         String origin = BUCKET_ORIGINS.get(unit);
         if (origin != null) {
             return writer.append("date_bin(").expr(a.get(1), 6).append(" * INTERVAL '1 ").append(unit)
@@ -1487,7 +1487,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** The {@code EXTRACT} arm of {@link #call}. */
     private SqlWriter extractArm(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        String part = literal(a.get(0), "EXTRACT");
+        String part = datePart(part(a.get(0)));
         if (!List.of("year", "quarter", "month", "week", "day", "doy", "dow",
                 "isodow", "hour", "minute", "second").contains(part)) {
             throw new DialectCapability("date part '" + part
@@ -1738,13 +1738,6 @@ public final class Postgres extends AnsiSqlRenderer {
                 && t.type() == SqlType.Scalar.DOUBLE;
     }
 
-    private static String literal(SqlExpr e, String what) {
-        if (e instanceof SqlExpr.StringLit s) {
-            return s.value();
-        }
-        throw new DialectCapability(what + " with a non-literal part reached Postgres");
-    }
-
     /** A temporal operand as a NAIVE timestamp: a DATE implicitly casts to
      * timestamptz in Postgres' function resolution (date_trunc, to_char, date_bin),
      * which the session zone would then shift; a declared TIMESTAMPTZ stays one. */
@@ -1759,7 +1752,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** The base's contract: Date-grained parts (year/quarter/month/week) deliver a
      * DATE, finer parts a TIMESTAMP (DuckDb casts 'day' back to one). */
     private SqlWriter.Piece dateTrunc(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_TRUNC");
+        String part = datePart(part(a.get(0)));
         SqlWriter.Piece trunc = w -> w.append("date_trunc(").append(stringLit(part)).append(", ").piece(naive(a.get(1)))
                 .append(")");
         if (DATE_GRAINED.contains(part)) {
@@ -1781,7 +1774,7 @@ public final class Postgres extends AnsiSqlRenderer {
      * against DuckDB 1.5: day over timestamps (23:00 → 01:00 is 1), month
      * (01-31 → 02-01 is 1), year backwards (-1), quarter. */
     private SqlWriter.Piece dateDiff(List<SqlExpr> a) {
-        String part = literal(a.get(0), "DATE_DIFF");
+        String part = datePart(part(a.get(0)));
         SqlWriter.Piece from = w -> w.expr(a.get(1), 0);
         SqlWriter.Piece to = w -> w.expr(a.get(2), 0);
         SqlWriter.Piece y = w -> w.append("(extract(year FROM ").piece(to).append(") - extract(year FROM ").piece(from)
@@ -1821,19 +1814,40 @@ public final class Postgres extends AnsiSqlRenderer {
                 .piece(from).append(")" + scale + ")");
     }
 
-    /** DuckDB's interval-function name ({@code to_days}) → a Postgres interval unit. */
-    private static String intervalUnit(String unitFn) {
-        String unit = INTERVAL_UNITS.get(unitFn);
-        if (unit == null) {
-            throw new DialectCapability("interval unit '" + unitFn + "' has no Postgres spelling");
-        }
-        return unit;
+    /** A date part as Postgres names it: {@code extract}'s field, {@code date_trunc}'s unit. */
+    private static String datePart(com.legend.sql.DatePart p) {
+        return switch (p) {
+            case YEAR -> "year";
+            case QUARTER -> "quarter";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case DAY_OF_YEAR -> "doy";
+            case ISO_DAY_OF_WEEK -> "isodow";
+        };
     }
 
-    private static final java.util.Map<String, String> INTERVAL_UNITS = java.util.Map.of(
-            "to_years", "year", "to_months", "month", "to_weeks", "week", "to_days", "day",
-            "to_hours", "hour", "to_minutes", "minute", "to_seconds", "second",
-            "to_milliseconds", "millisecond", "to_microseconds", "microsecond");
+    /** An interval's unit as Postgres names it ({@code INTERVAL '1 day'}). */
+    private static String intervalUnit(com.legend.sql.DatePart unit) {
+        return switch (unit) {
+            case YEAR -> "year";
+            case MONTH -> "month";
+            case WEEK -> "week";
+            case DAY -> "day";
+            case HOUR -> "hour";
+            case MINUTE -> "minute";
+            case SECOND -> "second";
+            case MILLISECOND -> "millisecond";
+            case MICROSECOND -> "microsecond";
+            case QUARTER, DAY_OF_YEAR, ISO_DAY_OF_WEEK -> throw new DialectCapability("interval unit '" + unit
+                    + "' has no Postgres spelling");
+        };
+    }
 
     /** The calendar units date_bin cannot bin, by their length in months. */
     private static final java.util.Map<String, Integer> CALENDAR_UNITS = java.util.Map.of("month", 1, "year", 12);
@@ -2272,5 +2286,26 @@ public final class Postgres extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
         };
+    }
+
+    /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a CASE over jsonb_typeof). */
+    @Override
+    protected String jsonKindName(com.legend.sql.JsonKind kind) {
+        return switch (kind) {
+            case OBJECT -> "OBJECT";
+            case ARRAY -> "ARRAY";
+            case NULL -> "NULL";
+            case STRING -> "VARCHAR";
+            case INTEGER -> "BIGINT";
+            case UNSIGNED_INTEGER -> "UBIGINT";
+            case FLOAT -> "DOUBLE";
+            case BOOLEAN -> "BOOLEAN";
+        };
+    }
+
+    /** {@inheritDoc} Refused, as TYPEOF is here (its type names are Postgres's). */
+    @Override
+    protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+        throw new DialectCapability("typeof reached Postgres: its type names are Postgres's");
     }
 }

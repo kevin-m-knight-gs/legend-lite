@@ -375,12 +375,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.Join j -> {
                 source(writer, j.left(), depth);
                 nl(writer, depth);
-                if (j.kind() == SqlSource.Join.Kind.ASOF_LEFT) {
-                    writer.append(asOfJoinClause());
-                } else {
-                    writer.append(j.kind().sql);
-                }
-                writer.append(" ");
+                writer.append(joinKeyword(j.kind())).append(" ");
                 source(writer, j.right(), depth);
                 if (j.on() != null) {
                     writer.append(" ON ").expr(j.on(), 0);
@@ -421,6 +416,21 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** Native PIVOT or a CASE-WHEN aggregation rewrite — no ANSI form exists. */
     protected SqlWriter pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
         throw new DialectCapability("pivot reached a dialect without a PIVOT strategy");
+    }
+
+    /** A join's keywords (the dialect program's Phase 2, 2026-10-15: until then the IR's join kind carried its SQL):
+     *  the ANSI forms, and an AS-OF join's own ({@link #asOfJoinClause}). */
+    protected String joinKeyword(SqlSource.Join.Kind kind) {
+        return switch (kind) {
+            case INNER -> "JOIN";
+            case LEFT -> "LEFT OUTER JOIN";
+            case RIGHT -> "RIGHT OUTER JOIN";
+            case FULL -> "FULL OUTER JOIN";
+            case CROSS -> "CROSS JOIN";
+            case CROSS_LATERAL -> "CROSS JOIN LATERAL";
+            case ASOF_LEFT -> asOfJoinClause();
+            case LEFT_LATERAL -> "LEFT JOIN LATERAL";
+        };
     }
 
     /** The AS-OF join clause keyword(s); no ANSI form exists. */
@@ -534,6 +544,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                             .collect(java.util.stream.Collectors.joining(", ")) + ")");
             case SqlExpr.StringLit s -> writer.append(stringLit(s.value()));
             case SqlExpr.FormatLit fl -> writer.append(stringLit(formatText(fl)));
+            case SqlExpr.DatePartLit p -> throw new IllegalStateException("a date part (" + p.part()
+                    + ") reached the expression writer: the arm of its call spells it");
+            case SqlExpr.JsonKindLit k -> writer.append(stringLit(jsonKindName(k.kind())));
+            case SqlExpr.TypeNameLit t -> writer.append(stringLit(typeofName(t.scalar())));
             case SqlExpr.IntLit i -> writer.append(String.valueOf(i.value()));
             // NUMERIC CHARTER Rule 1 (docs/NUMERIC_CHARTER_2026_09_17.md): a
             // Float literal renders BARE in the plain Float spelling — the
@@ -854,14 +868,30 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * SEMANTIC fact is pure's firstDayOf*(Date):Date; whether a cast is needed to honor it is the backend's idiom —
      * DuckDB's date_trunc returns TIMESTAMP). The engine-TEXT channel spells its own.
      */
-    protected final SqlWriter dateTruncDateGrained(SqlWriter writer, List<SqlExpr> a) {
-        return a.get(0) instanceof SqlExpr.StringLit part
-                && switch (part.value()) {
-                    case "month", "year", "week", "quarter" -> true;
-                    default -> false;
-                }
-                ? writer.append("CAST(").function("date_trunc", a).append(" AS DATE)")
-                : writer.function("date_trunc", a);
+    protected final SqlWriter dateTruncDateGrained(SqlWriter writer, List<SqlExpr> a, String spelledPart) {
+        SqlWriter.Piece trunc = w -> w.append("date_trunc(").append(spelledPart).append(", ").expr(a.get(1), 0)
+                .append(")");
+        return switch (part(a.get(0))) {
+            case MONTH, YEAR, WEEK, QUARTER -> writer.append("CAST(").piece(trunc).append(" AS DATE)");
+            case DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK ->
+                    writer.piece(trunc);
+        };
+    }
+
+    /** A JSON kind's name as this dialect's {@code JSON_TYPE} answers it (the dialect program's Phase 2: until
+     *  2026-10-15 the IR carried DuckDB's names). */
+    protected abstract String jsonKindName(com.legend.sql.JsonKind kind);
+
+    /** A type's name as this dialect's {@code TYPEOF} answers it. */
+    protected abstract String typeofName(com.legend.sql.SqlType.Scalar type);
+
+    /** The part a date call's first argument names ({@link SqlExpr.DatePartLit}): the call's arm spells it. */
+    protected static com.legend.sql.DatePart part(SqlExpr e) {
+        if (e instanceof SqlExpr.DatePartLit p) {
+            return p.part();
+        }
+        throw new IllegalStateException("a date call's first argument is its part, not " + e
+                + ": the lowering's bug");
     }
 
     /** A Float's literal spelling: the portable decomposition over the double's text (a dialect whose double text is

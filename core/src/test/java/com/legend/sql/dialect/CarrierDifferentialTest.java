@@ -662,6 +662,16 @@ class CarrierDifferentialTest {
         }
 
         @Override
+        protected String jsonKindName(com.legend.sql.JsonKind kind) {
+            return duck.jsonKindName(kind);
+        }
+
+        @Override
+        protected String typeofName(com.legend.sql.SqlType.Scalar type) {
+            return duck.typeofName(type);
+        }
+
+        @Override
         protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
             return duck.call(writer, c, parentPrec);
         }

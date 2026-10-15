@@ -352,7 +352,7 @@ final class CollectionLanes {
                                 new SqlExpr.Call(SqlFn.IS_NOT_NULL, java.util.List.of(x)),
                                 new SqlExpr.Call(SqlFn.NOT_EQUAL, java.util.List.of(
                                         SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
-                                        new SqlExpr.StringLit("NULL")))))
+                                        new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.NULL)))))
                         : new SqlExpr.Call(SqlFn.IS_NOT_NULL, java.util.List.of(x));
                 // a computed collection IS find(set, v | v != TDSNull): the
                 // find rule owns the carrier emission (no new list site)
@@ -369,7 +369,7 @@ final class CollectionLanes {
     private static SqlExpr nullifyJsonNull(SqlExpr el) {
         return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
                 new SqlExpr.Call(SqlFn.EQUAL, java.util.List.of(
-                        SqlExpr.Call.of(SqlFn.JSON_TYPE, el), new SqlExpr.StringLit("NULL"))),
+                        SqlExpr.Call.of(SqlFn.JSON_TYPE, el), new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.NULL))),
                 new SqlExpr.NullLit())), el);
     }
 

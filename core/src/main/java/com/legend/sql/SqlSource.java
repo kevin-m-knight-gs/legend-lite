@@ -175,24 +175,20 @@ public sealed interface SqlSource {
         }
 
 
+        /** What a join does; each dialect writes its keywords ({@code joinKeyword}: until 2026-10-15 each kind
+         *  carried its ANSI SQL here, the dialect program's Phase 2). */
         public enum Kind {
-            INNER("JOIN"),
-            LEFT("LEFT OUTER JOIN"),
-            RIGHT("RIGHT OUTER JOIN"),
-            FULL("FULL OUTER JOIN"),
-            CROSS("CROSS JOIN"),
+            INNER,
+            LEFT,
+            RIGHT,
+            FULL,
+            CROSS,
             // Per-row correlated right side (real relation lateral.pure);
             // the right subselect references the left alias.
-            CROSS_LATERAL("CROSS JOIN LATERAL"),
-            ASOF_LEFT("ASOF LEFT JOIN"),
+            CROSS_LATERAL,
+            ASOF_LEFT,
             /** Correlated derived table preserving left rows ({@code ... ON TRUE}) — array explosion. */
-            LEFT_LATERAL("LEFT JOIN LATERAL");
-
-            public final String sql;
-
-            Kind(String sql) {
-                this.sql = sql;
-            }
+            LEFT_LATERAL;
 
             /** §E3 M-N2 — PAD PROVENANCE, the kind's own semantics:
              * does this join NULL-pad its LEFT side's columns on
