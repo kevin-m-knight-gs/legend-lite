@@ -508,6 +508,7 @@ public class H2 extends AnsiSqlRenderer {
             case LTRIM -> writer.function("ltrim", c.args());
             case RTRIM -> writer.function("rtrim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> translate(writer, c.args());
             case SPLIT -> writer.function("string_split", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case ASCII_CODE -> writer.function("ascii", c.args());
@@ -1040,6 +1041,20 @@ public class H2 extends AnsiSqlRenderer {
             };
             default -> false;
         };
+    }
+
+    /** translate, where H2's means the same: its TRANSLATE keeps a character of {@code from} past {@code to}'s end
+     *  ({@code translate('abcabc', 'abc', 'x')} is {@code xbcxbc} on 2.4.240, measured 2026-10-15), where the function
+     *  removes it ({@code xx}). So it is spelled only when {@code to}, a literal, is at least as long as {@code from}, a
+     *  literal, and refused otherwise: H2's own answer would be a different one. */
+    private static SqlWriter translate(SqlWriter writer, java.util.List<SqlExpr> a) {
+        if (a.get(1) instanceof SqlExpr.StringLit from && a.get(2) instanceof SqlExpr.StringLit to
+                && to.value().codePointCount(0, to.value().length())
+                        >= from.value().codePointCount(0, from.value().length())) {
+            return writer.function("translate", a);
+        }
+        throw new DialectCapability("TRANSLATE reached H2 with a to shorter than its from, or either not a literal:"
+                + " H2's TRANSLATE keeps the characters translate removes");
     }
 
     /** H2 hands JSON values back as {@code byte[]} (UTF-8 text) — the

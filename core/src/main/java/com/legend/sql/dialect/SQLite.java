@@ -1470,6 +1470,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case RTRIM -> writer.function("rtrim", c.args());
             case TRIM -> writer.function("trim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> throw wall(c.fn(), "SQLite has no translate function");
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case CHR -> writer.function("char", c.args());
             case FLOOR_RAW -> writer.function("floor", c.args());

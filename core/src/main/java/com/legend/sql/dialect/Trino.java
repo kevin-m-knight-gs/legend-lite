@@ -878,6 +878,7 @@ public final class Trino extends AnsiSqlRenderer {
             case POW -> writer.function("power", c.args());
             case RADIANS -> writer.function("radians", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case REVERSE_STRING, LIST_REVERSE -> writer.function("reverse", c.args());
             case SIN -> writer.function("sin", c.args());
             case SINH -> writer.function("sinh", c.args());

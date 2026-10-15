@@ -1439,6 +1439,12 @@ pause for the user's review after Phase 1.
   and a spelling or a refusal by name where it has not (SQLite, MariaDB, MySQL). The Pure native that lowers to it is
   the island's. The dialect line builds the IR node and the arms in its next PR, after this one lands, unless the
   tenth line needs them sooner: then it announces them here and this program merges them between phases.
+  - **Built, 2026-10-15** (the dialect line's next PR, after #45). `translate` is spelled on DuckDB, Postgres,
+    Trino, Snowflake, Databricks and BigQuery, and as `translateUTF8` on ClickHouse (its `translate` maps ASCII only).
+    SQLite, MariaDB, MySQL and the engine text refuse it by name. One correction to the answer above: H2's
+    `TRANSLATE` keeps a character past `to`'s end, where every other database removes it (`xbcxbc`, not `xx`;
+    measured). So H2 spells it only when `from` and `to` are literals and `to` is at least as long as `from`, which
+    covers the ASCII case fold, and refuses otherwise. ClickHouse takes `from` and `to` as constants only.
 
 ## A tenth line, 2026-10-13: SAP IQ SQL in Pure, the `#IQ{...}#` island (the user's ask, rule 5)
 

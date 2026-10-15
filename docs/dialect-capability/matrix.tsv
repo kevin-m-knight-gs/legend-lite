@@ -96,6 +96,7 @@ H2	H2	call	RTRIM	spelled	rtrim		60
 H2	H2	call	REPLACE	spelled	replace		313
 H2	H2	call	SPLIT	spelled	string_split		2
 H2	H2	call	SPLIT_PART	emulated	splitPartArm		19
+H2	H2	call	TRANSLATE	emulated	translate		0
 H2	H2	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 H2	H2	call	REVERSE_STRING	spelled	reverse		2
 H2	H2	call	ASCII_CODE	spelled	ascii		10
@@ -311,6 +312,7 @@ H2Modern	-	call	RTRIM	spelled	rtrim	as H2	-
 H2Modern	-	call	REPLACE	spelled	replace	as H2	-
 H2Modern	-	call	SPLIT	spelled	string_split	as H2	-
 H2Modern	-	call	SPLIT_PART	emulated	splitPartArm	as H2	-
+H2Modern	-	call	TRANSLATE	emulated	translate	as H2	-
 H2Modern	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as H2	-
 H2Modern	-	call	REVERSE_STRING	spelled	reverse	as H2	-
 H2Modern	-	call	ASCII_CODE	spelled	ascii	as H2	-
@@ -526,6 +528,7 @@ Postgres	Postgres	call	RTRIM	spelled	rtrim		60
 Postgres	Postgres	call	REPLACE	spelled	replace		313
 Postgres	Postgres	call	SPLIT	emulated	(CASE WHEN … = '' THEN ARRAY[''] ELSE string_to_array(…, …) END)		2
 Postgres	Postgres	call	SPLIT_PART	spelled	split_part		19
+Postgres	Postgres	call	TRANSLATE	spelled	translate		0
 Postgres	Postgres	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Postgres	Postgres	call	REVERSE_STRING	spelled	reverse		2
 Postgres	Postgres	call	ASCII_CODE	spelled	ascii		10
@@ -741,6 +744,7 @@ Snowflake	Snowflake	call	RTRIM	spelled	rtrim		60
 Snowflake	Snowflake	call	REPLACE	spelled	replace		313
 Snowflake	Snowflake	call	SPLIT	emulated	split		2
 Snowflake	Snowflake	call	SPLIT_PART	spelled	split_part		19
+Snowflake	Snowflake	call	TRANSLATE	spelled	translate		0
 Snowflake	Snowflake	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Snowflake	Snowflake	call	REVERSE_STRING	spelled	reverse		2
 Snowflake	Snowflake	call	ASCII_CODE	spelled	ascii		10
@@ -956,6 +960,7 @@ Trino	Trino	call	RTRIM	emulated	trim		60
 Trino	Trino	call	REPLACE	spelled	replace		313
 Trino	Trino	call	SPLIT	spelled	split		2
 Trino	Trino	call	SPLIT_PART	emulated	coalesce(split_part(…), '')		19
+Trino	Trino	call	TRANSLATE	spelled	translate		0
 Trino	Trino	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Trino	Trino	call	REVERSE_STRING	spelled	reverse		2
 Trino	Trino	call	ASCII_CODE	emulated	(CASE WHEN length(…) = 0 THEN 0 ELSE codepoint(CAST(substr(…, 1, 1) AS VARCHA...		10
@@ -1171,6 +1176,7 @@ BigQuery	BigQuery	call	RTRIM	spelled	RTRIM		60
 BigQuery	BigQuery	call	REPLACE	spelled	REPLACE		313
 BigQuery	BigQuery	call	SPLIT	spelled	SPLIT		2
 BigQuery	BigQuery	call	SPLIT_PART	emulated	splitPart		19
+BigQuery	BigQuery	call	TRANSLATE	spelled	TRANSLATE		0
 BigQuery	BigQuery	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 BigQuery	BigQuery	call	REVERSE_STRING	spelled	REVERSE		2
 BigQuery	BigQuery	call	ASCII_CODE	spelled	ASCII		10
@@ -1386,6 +1392,7 @@ Databricks	Databricks	call	RTRIM	emulated	trim		60
 Databricks	Databricks	call	REPLACE	spelled	replace		313
 Databricks	Databricks	call	SPLIT	emulated	split		2
 Databricks	Databricks	call	SPLIT_PART	spelled	split_part		19
+Databricks	Databricks	call	TRANSLATE	spelled	translate		0
 Databricks	Databricks	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 Databricks	Databricks	call	REVERSE_STRING	spelled	reverse		2
 Databricks	Databricks	call	ASCII_CODE	spelled	ascii		10
@@ -1601,6 +1608,7 @@ DuckDb	DuckDB	call	RTRIM	spelled	rtrim		60
 DuckDb	DuckDB	call	REPLACE	spelled	replace		313
 DuckDb	DuckDB	call	SPLIT	spelled	string_split		2
 DuckDb	DuckDB	call	SPLIT_PART	spelled	split_part		19
+DuckDb	DuckDB	call	TRANSLATE	spelled	translate		0
 DuckDb	DuckDB	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 DuckDb	DuckDB	call	REVERSE_STRING	spelled	reverse		2
 DuckDb	DuckDB	call	ASCII_CODE	spelled	ascii		10
@@ -1816,6 +1824,7 @@ ClickHouse	ClickHouse	call	RTRIM	emulated	trimArm		60
 ClickHouse	ClickHouse	call	REPLACE	spelled	replaceAll		313
 ClickHouse	ClickHouse	call	SPLIT	emulated	if(isNull(…), [], splitByString(…, ifNull(…, '')))		2
 ClickHouse	ClickHouse	call	SPLIT_PART	emulated	if(isNull(…), NULL, coalesce(arrayElement(splitByString(…, ifNull(…, '')), …)...		19
+ClickHouse	ClickHouse	call	TRANSLATE	spelled	translateUTF8		0
 ClickHouse	ClickHouse	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 ClickHouse	ClickHouse	call	REVERSE_STRING	spelled	reverseUTF8		2
 ClickHouse	ClickHouse	call	ASCII_CODE	emulated	toInt64(ascii(…))		10
@@ -2031,6 +2040,7 @@ SQLite	SQLite	call	RTRIM	spelled	rtrim		60
 SQLite	SQLite	call	REPLACE	spelled	replace		313
 SQLite	SQLite	call	SPLIT	emulated	split		2
 SQLite	SQLite	call	SPLIT_PART	emulated	split: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(json_extract(…, CAS...		19
+SQLite	SQLite	call	TRANSLATE	refused	SQLite has no translate function reached SQLite:		0
 SQLite	SQLite	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 SQLite	SQLite	call	REVERSE_STRING	spelled	reverse		2
 SQLite	SQLite	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE coalesce(unicode(…), 0) END)		10
@@ -2246,6 +2256,7 @@ MariaDb	MariaDB	call	RTRIM	emulated	trim		60
 MariaDb	MariaDB	call	REPLACE	spelled	replace		293
 MariaDb	MariaDB	call	SPLIT	emulated	split		2
 MariaDb	MariaDB	call	SPLIT_PART	emulated	valueAt, split, indexPath: (CASE WHEN … IS NULL OR … IS NULL THEN NULL WHEN … = 0 THEN '' ELSE coalesce(...		19
+MariaDb	MariaDB	call	TRANSLATE	refused	has no translate function reached :		0
 MariaDb	MariaDB	call	PURE_SPLIT_PART	emulated	splitPartCall		9
 MariaDb	MariaDB	call	REVERSE_STRING	spelled	reverse		2
 MariaDb	MariaDB	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL WHEN CHAR_LENGTH(…) = 0 THEN 0 ELSE CAST(CONV(...		10
@@ -2461,6 +2472,7 @@ MySql	MySQL	call	RTRIM	emulated	trim	as MariaDb	60
 MySql	MySQL	call	REPLACE	spelled	replace	as MariaDb	293
 MySql	MySQL	call	SPLIT	emulated	split	as MariaDb	2
 MySql	MySQL	call	SPLIT_PART	emulated	valueAt, split, indexPath: (CASE WHEN … IS NULL OR … IS NULL THEN NULL WHEN … = 0 THEN '' ELSE coalesce(...	as MariaDb	19
+MySql	MySQL	call	TRANSLATE	refused	has no translate function reached :	as MariaDb	0
 MySql	MySQL	call	PURE_SPLIT_PART	emulated	splitPartCall	as MariaDb	9
 MySql	MySQL	call	REVERSE_STRING	spelled	reverse	as MariaDb	2
 MySql	MySQL	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL WHEN CHAR_LENGTH(…) = 0 THEN 0 ELSE CAST(CONV(...	as MariaDb	10
@@ -2676,6 +2688,7 @@ EngineStyleH2	-	call	RTRIM	emulated	regexp_replace(…, '[ ]+$', '')		-
 EngineStyleH2	-	call	REPLACE	spelled	replace		-
 EngineStyleH2	-	call	SPLIT	spelled	string_split		-
 EngineStyleH2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part		-
+EngineStyleH2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell		-
 EngineStyleH2	-	call	PURE_SPLIT_PART	emulated	splitPartCall		-
 EngineStyleH2	-	call	REVERSE_STRING	spelled	legend_h2_extension_reverse_string		-
 EngineStyleH2	-	call	ASCII_CODE	spelled	ascii		-
@@ -2891,6 +2904,7 @@ EngineStyleDB2	-	call	RTRIM	spelled	rtrim		-
 EngineStyleDB2	-	call	REPLACE	spelled	replace	as EngineStyleH2	-
 EngineStyleDB2	-	call	SPLIT	spelled	string_split	as EngineStyleH2	-
 EngineStyleDB2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleH2	-
+EngineStyleDB2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleH2	-
 EngineStyleDB2	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	REVERSE_STRING	spelled	reverse		-
 EngineStyleDB2	-	call	ASCII_CODE	spelled	ascii	as EngineStyleH2	-
@@ -3106,6 +3120,7 @@ EngineStyleComposite	-	call	RTRIM	spelled	rtrim	as EngineStyleDB2	-
 EngineStyleComposite	-	call	REPLACE	spelled	replace	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	SPLIT	spelled	string_split	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	REVERSE_STRING	spelled	reverse	as EngineStyleDB2	-
 EngineStyleComposite	-	call	ASCII_CODE	spelled	ascii	as EngineStyleDB2, as EngineStyleH2	-

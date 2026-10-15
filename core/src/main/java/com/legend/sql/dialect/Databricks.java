@@ -1041,6 +1041,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case RADIANS -> writer.function("radians", c.args());
             case REPEAT_STR -> writer.function("repeat", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case REVERSE_STRING, LIST_REVERSE -> writer.function("reverse", c.args());
             case RIGHT -> writer.function("right", c.args());
             case SHA1 -> writer.function("sha1", c.args());

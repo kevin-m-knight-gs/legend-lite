@@ -483,6 +483,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case LTRIM -> writer.function("ltrim", c.args());
             case RTRIM -> writer.function("rtrim", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
             case SPLIT -> writer.function("string_split", c.args());
             case SPLIT_PART -> writer.function("split_part", c.args());
             case REVERSE_STRING -> writer.function("reverse", c.args());

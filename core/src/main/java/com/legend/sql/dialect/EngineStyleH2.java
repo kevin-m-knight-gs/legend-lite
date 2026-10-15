@@ -1994,6 +1994,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case LEFT -> writer.function("left", c.args());
             case RIGHT -> writer.function("right", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> throw new DialectCapability("translate reached the engine text: legend-engine has no"
+                    + " translate dynaFunction to spell");
             case SPLIT -> writer.function("string_split", c.args());
             case ASCII_CODE -> writer.function("ascii", c.args());
             case LEVENSHTEIN -> writer.function("levenshtein", c.args());

@@ -1775,6 +1775,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case LOWER -> writer.function("lower", c.args());
             case UPPER -> writer.function("upper", c.args());
             case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> throw wall(c.fn(), product() + " has no translate function");
             case REVERSE_STRING -> writer.function("reverse", c.args());
             case FLOOR_RAW -> writer.function("floor", c.args());
             case STRPOS -> writer.function("INSTR", c.args());
