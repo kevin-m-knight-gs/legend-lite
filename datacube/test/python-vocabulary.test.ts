@@ -1,10 +1,10 @@
 // What Python's ll.Page writes (python/legend_lite/page.py; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md), in
-// DataCube's own words: its filter operators, aggregates, sort directions and charts, the page's and the cube's
-// versions, each as DataCube's sources spell them -- so a name added here is one Python offers too, and Python never
-// writes one DataCube does not read (where it places a tile, DataCube's own layout rules say: headless/layout.ts). And
-// what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner protocol's own
-// lists and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads Python's side as
-// text (the two halves are in two languages), and DataCube's types as text, its values as they are.
+// DataCube's own words: its filter operators, aggregates, sort directions and charts, the page's version, each as
+// DataCube's sources spell them -- so a name added here is one Python offers too, and Python never writes one DataCube
+// does not read (where it places a tile, and what a grid's cube holds, DataCube's own code says, headless). And what
+// Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner protocol's own lists
+// and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads Python's side as text
+// (the two halves are in two languages), and DataCube's types as text, its values as they are.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -68,9 +68,8 @@ describe('Python writes pages in DataCube\'s own words', () => {
     assert.equal(pyNumber('CHART_VERSION'), tsNumber('src/chart-spec.ts', 'CHART_VERSION'));
   });
 
-  it('its page and cube versions are the documents\'', () => {
+  it('its page version is the document\'s (a grid\'s cube document is DataCube\'s own: headless gridCube)', () => {
     assert.equal(pyNumber('PAGE_VERSION'), tsNumber('src/page-document.ts', 'PAGE_VERSION'));
-    assert.equal(pyNumber('CUBE_VERSION'), tsNumber('src/cube-document.ts', 'CUBE_VERSION'));
   });
 });
 

@@ -16,7 +16,7 @@ import { fromJson, toJson, type ValueSpecification } from '../../../pure-protoco
 import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
-import { openCube, readCube, type OpenedCube } from '../cube-document.ts';
+import { cubeToJson, frameSource, openCube, readCube, rebuilt, writeCube, type OpenedCube } from '../cube-document.ts';
 import { STALE } from '../epoch.ts';
 import { columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderExport, type ExportKind } from '../export-render.ts';
 import { FormatterCache } from '../format.ts';
@@ -26,7 +26,9 @@ import { typeColumns } from '../plan.ts';
 import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import { shownColumns } from '../shown-columns.ts';
+import type { ColumnSpec } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
+import { TreeState } from '../tree.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
 import { base64 } from './web.ts';
 
@@ -48,19 +50,62 @@ interface Opened {
   readonly state: CubeState;
 }
 
-/** The grid opened: its planner over the host's worker, its cube over the source as the compiler types it now. */
-async function opened(spec: GridSpec): Promise<Opened> {
+/** A source as the compiler types it now: its planner over the host's worker, its relation, its columns. */
+async function typed(spec: Omit<GridSpec, 'cube'>): Promise<{
+  readonly planner: LitePlanner; readonly relation: ValueSpecification; readonly columns: ColumnSpec[];
+}> {
   const calls = hostCalls();
   const planner = new LitePlanner({ model: spec.model, runtime: spec.runtime, worker: () => hostWorker(calls) });
   try {
     const relation = (await planner.parse(`|${spec.source}`)).body[0] as ValueSpecification | undefined;
     if (relation === undefined) throw new Error(`the source is not a relation: ${spec.source}`);
-    const columns = await sourceColumns(planner, relation);
+    return { planner, relation, columns: await sourceColumns(planner, relation) };
+  } catch (e) {
+    planner.dispose();
+    throw e;
+  }
+}
+
+/** The grid opened: its planner over the host's worker, its cube over the source as the compiler types it now. */
+async function opened(spec: GridSpec): Promise<Opened> {
+  const { planner, relation, columns } = await typed(spec);
+  try {
     const cube = openCube(readCube(fromJson(spec.cube)), { query: relation }, columns);
     return { planner, cube, state: fold({ snapshot: cube.snapshot, configuration: cube.configuration, tree: cube.tree }) };
   } catch (e) {
     planner.dispose();
     throw e;
+  }
+}
+
+/** A frame as Python hands one in for a grid's cube: its source's model and relation (as GridSpec's), and its name. */
+export interface FrameSpec extends Omit<GridSpec, 'cube'> {
+  /** The frame's name on the host: the cube's source, `{_type: 'frame', name}`. */
+  readonly frame: string;
+}
+
+/**
+ * A GRID'S CUBE OVER A FRAME, as DataCube makes one (cube-document.ts rebuilt and writeCube, the frame's source as
+ * frameSource records it) -- so Python's pages make no cube document of their own
+ * (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 2 and 1). With no `saved` cube: a new grid's, its rows as they are,
+ * titled `label`, capped at the row limit when it joins others on its page (`capped`). With one (a cube document,
+ * JSON): that cube rebuilt over the frame as it is now -- a new column hidden, a gone one left out of everything that
+ * read it, the open groups dropped when the grouping changed -- said in `notes`. `name` is its page's (a page's cubes
+ * carry the page's name). JSON: `{cube, notes}`, the cube document as its text (its numbers exact).
+ */
+export async function gridCube(spec: FrameSpec, saved: string | null, name: string, label: string,
+  capped: boolean): Promise<string> {
+  const { planner, relation, columns } = await typed(spec);
+  try {
+    const was = saved === null ? undefined : readCube(fromJson(saved));
+    const made = rebuilt(was, relation, columns, label, capped);
+    const cube = writeCube({
+      name, source: frameSource(spec.frame, columns), snapshot: made.snapshot, configuration: made.configuration,
+      tree: made.tree ?? TreeState.empty(), ...(was?.unknown ? { unknown: was.unknown } : {}),
+    });
+    return JSON.stringify({ cube: cubeToJson(cube), notes: made.notes });
+  } finally {
+    planner.dispose();
   }
 }
 

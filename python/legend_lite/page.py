@@ -34,6 +34,7 @@ import math
 import numbers
 import re
 import uuid
+import warnings
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
@@ -76,8 +77,6 @@ DIRECTIONS = frozenset({'asc', 'desc'})
 PAGE_KIND = 'datacube.page'
 # 4: the page's model, where its classes are (DataCube's Create a Class…); a page of Python's has none yet
 PAGE_VERSION = 4
-CUBE_KIND = 'datacube.cube'
-CUBE_VERSION = 1
 # the operators that take no value, those that take a list of them, and those that compare to another column
 _NO_VALUE = frozenset({'isEmpty', 'isNotEmpty'})
 _LIST = frozenset({'in', 'notIn', 'inCaseInsensitive', 'notInCaseInsensitive'})
@@ -1041,13 +1040,9 @@ class Page:
         else:
             served, new = session.register(frame, name, mode), True
         try:
-            columns_now = [{'name': c.name, 'type': c.type} for c in self._session.frames[served].columns]
-            self._doc['cubes'].append({'id': id, 'cube': {
-                'kind': CUBE_KIND, 'version': CUBE_VERSION, 'name': self.name,
-                'source': {'_type': 'frame', 'name': served, 'columns': columns_now},
-                'query': {'columns': [dict(c) for c in columns_now], 'derived': [], 'rows': [], 'pivotOn': [],
-                          'measures': [], 'sorts': []},
-                'configuration': {'reportTitle': served}, 'tree': {'open': [], 'showTotals': False}}})
+            # its cube as DataCube makes a grid's over a frame: capped at the row limit when it joins others
+            cube, _ = self._frame_cube(served, capped=bool(self._doc['cubes']))
+            self._doc['cubes'].append({'id': id, 'cube': cube})
             self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
             grid = self._tile(id, Grid)
             # set before it is placed, nothing told meanwhile
@@ -1174,8 +1169,7 @@ class Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
         cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (any version it
         reads, brought to its own; refused in its words when DataCube would not open it)."""
-        doc = _read_page(_copied(document) if isinstance(document, Mapping)
-                         else _json.loads(Path(document).read_text('utf-8')))
+        doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'))
         wanted = sorted({c['cube']['source']['name'] for c in doc['cubes']})
         missing = [n for n in wanted if n not in frames]
         if missing:
@@ -1296,20 +1290,35 @@ class Page:
         return json.loads(self._session.headless().call(call, _json.dumps(layout), *args))
 
     def _update(self, name: str, frame: Any, mode: str | None) -> None:
-        """Frame ``name`` served again over ``frame``: its grids' columns, as the compiler types the frame now, in their
-        cubes (each column's settings kept by its name); the page served again when they changed."""
+        """Frame ``name`` served again over ``frame``: each grid's cube over it rebuilt over the frame as the compiler
+        types it now, as DataCube reopens a saved cube over its source (``_frame_cube``: a new column hidden, a gone one
+        left out of everything that read it, the open groups dropped when the grouping changed -- each said as a
+        warning, in DataCube's words); the page served again when one changed."""
         session = self._session
         session.register(frame, name, session.frames[name].mode if mode is None else mode)
-        now = [{'name': c.name, 'type': c.type} for c in session.frames[name].columns]
         moved = False
-        for cube in (c['cube'] for c in self._doc['cubes'] if c['cube']['source']['name'] == name):
-            if cube['source'].get('columns') != now:
-                kept = {c['name']: c for c in cube['query'].get('columns', [])}
-                cube['source']['columns'] = [dict(c) for c in now]
-                cube['query']['columns'] = [{**kept.get(c['name'], {}), **c} for c in now]
-                moved = True
+        for c in (c for c in self._doc['cubes'] if c['cube']['source']['name'] == name):
+            cube, notes = self._frame_cube(name, c['cube'])
+            # the frame's columns as they were: its cube stands as it is (a page opened over them rebuilds the same)
+            if cube['source'] == c['cube']['source']:
+                continue
+            for note in notes:
+                warnings.warn(f'{name}: {note}', stacklevel=3)
+            c['cube'] = cube
+            moved = True
         if moved:
             self._changed()
+
+    def _frame_cube(self, frame: str, saved: dict[str, Any] | None = None,
+                    capped: bool = False) -> tuple[dict[str, Any], list[str]]:
+        """A grid's cube over ``frame`` as DataCube makes one (cube-document.ts rebuilt, asked headless: gridCube): a
+        new grid's (its rows as they are; ``capped`` at the row limit when it joins others), or ``saved`` rebuilt over
+        the frame as it is now; and what DataCube says of what changed."""
+        table = self._session.frames[frame]
+        spec = {'model': table.model, 'runtime': table.runtime, 'source': table.accessor, 'frame': frame}
+        made = json.loads(self._session.headless().call(
+            'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, capped))
+        return _plain(_json.loads(made['cube'])), list(made['notes'])
 
     def __repr__(self) -> str:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'
@@ -1321,12 +1330,12 @@ def _ids(doc: dict[str, Any]) -> set[str]:
 
 
 def _read_page(doc: Any) -> dict[str, Any]:
-    """``doc`` as DataCube reads a page document and would write it again (page-document.ts readPage and pageToJson,
-    asked headless): of any version DataCube reads, migrated to its own, every rule of its reader held, and refused in
-    its words otherwise -- Python keeps no second copy of them. Then what a page in Python adds: each cube over a
-    frame."""
+    """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
+    (page-document.ts readPage and pageToJson, asked headless): of any version DataCube reads, migrated to its own,
+    every rule of its reader held, and refused in its words otherwise -- Python keeps no second copy of them. Then what
+    a page in Python adds: each cube over a frame."""
     from .datacube import _current
-    said = json.loads(_current().headless().call('pageRead', _json.dumps(doc)))
+    said = json.loads(_current().headless().call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
     if 'problems' in said:
         raise ValueError('; '.join(said['problems']))
     page: dict[str, Any] = _plain(_json.loads(said['page']))

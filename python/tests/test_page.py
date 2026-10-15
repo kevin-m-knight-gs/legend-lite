@@ -199,6 +199,20 @@ class Document(Paged):
         self.assertEqual((len(bands), bands[0]['node']['parts'][0]), (1, {'node': {'tile': grid.id}, 'size': 0.5}))
         self.assertEqual(sheet.tiles, [grid, chart, *more])
 
+    def test_a_grid_over_a_frame_of_other_columns_is_rebuilt_as_datacube_rebuilds_one(self):
+        # DataCube's reopening over the frame as it is now (cube-document.ts rebuilt, headless): a gone column left out
+        # of everything that read it, said in DataCube's words; a new one hidden; the page one DataCube opens
+        page = ll.Page('changed')
+        grid = page.grid(trades(), name='changed_trades', rows=['region', 'desk'], measures={'notional': 'sum'})
+        with self.assertWarnsRegex(UserWarning, 'left out grouping by desk'):
+            grid.update(trades().drop(columns=['desk']).assign(book='B1'))
+        cube = page.to_dict()['cubes'][0]['cube']
+        self.assertEqual(cube['query']['rows'], ['region'])
+        self.assertNotIn('desk', [c['name'] for c in cube['query']['columns']])
+        self.assertEqual(cube['configuration']['columns']['book'], {'hidden': True})
+        self.assertEqual([c['name'] for c in cube['source']['columns']], ['region', 'notional', 'pnl', 'book'])
+        ll.Page.load(page.to_dict(), frames={'changed_trades': trades().drop(columns=['desk']).assign(book='B1')})
+
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
         other = page.grid(desks(), name='desks')
