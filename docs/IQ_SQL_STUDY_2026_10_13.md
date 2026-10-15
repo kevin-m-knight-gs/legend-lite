@@ -2127,3 +2127,20 @@ unchanged.
 **Not in this part.** The Pure plumbing (the platform Profile and the tagged values on a Database and a function, read
 where the island is compiled); the presets' move to IQ 17.1 (the fourth landing); and a lite-only assertion that the
 data's strings are canonical (for grouping over strings): each waits on the user's decision or on other lines' files.
+
+#### Combined with review 7 (2026-10-14)
+
+The two halves of the third landing were built side by side over the M1 gaps: this part, and review 7's fixes (§9.16's
+addendum). Combined, each keeps what it built. A case carries both keys, `settings` and `nondeterministic`. The
+determinism lint reads a run's SELECT after its SET statements, under the settings its case and those statements make
+(with quoted_identifier Off, `ORDER BY "id"` orders by a string, so it reaches no unique column); a SET statement IQ
+raises an error for keeps no rows. Review 7's rules (B2's names, M1's refusal, -831, -854, EXISTS's -131) read the
+settings vector as every other rule does. The lint flags none of `lite/options/`'s 339 cases (470 runs, the SET
+statements' 63 cases and 101 runs among them): none has a TOP, FIRST, START AT or LIST. A row limit set as an option
+(`SET ROWCOUNT n`, `row_count`) is not one the lint reads; it is refused at any value but its default, 0
+(`tsql_set_rowcount_is_not_supported_yet`, its SELECT ordered by `id`), and the lint must learn it when it is built.
+
+**Evidence:** both lanes identical, 3,992 runs: PASS 2,574, REFUSED 896, BOTH_ERROR 518, SKIP 4; FAIL, BUG, ERROR 0.
+These are the two halves' runs (3,925 here, review 7's 67), each with its half's status. The answers: 3,988 (3,466
+cases, 4 skipped), regenerated on SQL Anywhere 17, each as its half snapped it. The Postgres island's Pure is
+byte-identical, both `sql-parity` ledgers are unchanged, and the showcase's pinned SQL is unchanged.

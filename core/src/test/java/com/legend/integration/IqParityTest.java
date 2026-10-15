@@ -363,6 +363,21 @@ class IqParityTest {
                 "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1", "SELECT TOP 2 WITH TIES id FROM t")) {
             assertEquals(null, lint.apply(sql, null), sql);
         }
+        // IQ island, 2026-10-14 (the combination with the options framework): a run that begins with SET statements
+        // is linted on its SELECT, read under the settings they make (quoted_identifier Off: ORDER BY "id" orders by
+        // a string); an error in them keeps no rows; a case's settings key reads alike
+        assertTrue(lint.apply("SET TEMPORARY OPTION date_order = 'DMY'; SELECT TOP 2 id FROM t", null)
+                .contains("has no ORDER BY"));
+        assertEquals(null, lint.apply("SET TEMPORARY OPTION date_order = 'DMY'; SELECT TOP 2 id FROM t ORDER BY id",
+                null));
+        assertEquals(null, lint.apply("SELECT TOP 2 id FROM t ORDER BY \"id\"", null));
+        assertTrue(lint.apply("SET TEMPORARY OPTION quoted_identifier = 'Off'; SELECT TOP 2 id FROM t ORDER BY \"id\"",
+                null).contains("no unique column of t"));
+        assertEquals(null, lint.apply("SET TEMPORARY OPTION no_such_option = 1; SELECT TOP 2 id FROM t", null));
+        assertTrue(IqParity.determinism(IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a",
+                "SELECT TOP 2 id FROM t", List.of("sqla17-default"), null, null, null, null, null,
+                "query.date_order='DMY'", null))).get(0), tables, SqlParity.Status.REFUSED)
+                .contains("has no ORDER BY"));
         // a case that tests a refusal or an error opts out with its reason: it must not PASS, nor opt out of nothing
         assertEquals(null, lint.apply("SELECT TOP 2 id FROM t", "tests the refusal of a TOP without ORDER BY"));
         assertTrue(IqParity.determinism(IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a",
