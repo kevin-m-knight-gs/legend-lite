@@ -20,8 +20,6 @@ cause	non-string-input	LOCATE's start under IQ's engine: a large one is its -100
 cause	cast-long-varchar	CAST to LONG VARCHAR or TEXT over IQ tables is IQ's -1001006, which lite answers (WP2 item 5)
 cause	substring	SUBSTRING's positions under IQ's engine: no ANSI virtual positions, NULL past the end (WP2 item 8)
 cause	length	LENGTH of a non-string under IQ's engine is its storage width, not its text's length (WP2 item 8)
-cause	D-L1	ansinull Off reaches further under IQ's engine (a TDS login): IN lists holding NULL, NOT IN, LIKE NULL (WP2 item 9)
-cause	not-between-null	NOT BETWEEN with a NULL bound is UNKNOWN for every row under IQ's engine (WP2 item 9)
 cause	not-in-unknown	IS UNKNOWN over NOT IN of a subquery holding NULL: IQ's engine answers otherwise (WP2 item 9)
 cause	untyped-null	an untyped NULL's type under IQ's engine: an all-NULL CASE and MIN/MAX of NULL are VARCHAR (WP2 item 11)
 cause	result-types	the IQ engine's result types: CAST(x AS NUMERIC) is NUMERIC(126,38) (the PUBLIC precision and scale), TRUNCNUM and SIGN keep their argument's type (WP2 item 10, D-N1)
@@ -99,13 +97,6 @@ run	lite/m1d/length_of_a_date@iq17-default	length	duckdb,postgres
 run	lite/m1d/length_of_integers@iq17-default	length	duckdb,postgres
 run	lite/m1e/timestamp_length@iq17-default	length	duckdb,postgres
 run	lite/m1e/timestamp_length@iq17-odbc	length	duckdb,postgres
-run	lite/m1a/in_only_null@iq17-tds	D-L1	duckdb,postgres
-run	lite/m1a/in_with_a_null@iq17-tds	D-L1	duckdb,postgres
-run	lite/m1a/not_in_with_a_null@iq17-tds	D-L1	duckdb,postgres
-run	lite/m1a/not_like_null_pattern_in_a_tds_login@iq17-tds	D-L1	duckdb,postgres
-run	lite/m1e/ansinull_off_leaves_an_in_list_unknown@iq17-tds	D-L1	duckdb,postgres
-run	lite/m1a/not_between_a_null_bound@iq17-default	not-between-null	duckdb,postgres
-run	lite/m1a/not_between_a_null_bound@iq17-tds	not-between-null	duckdb,postgres
 run	lite/m1b/in_subquery_unknown_counted@iq17-default	not-in-unknown	duckdb,postgres
 run	lite/m0/case_of_nulls_only@iq17-default	untyped-null	duckdb,postgres
 run	lite/m1c/min_max_of_untyped_null@iq17-default	untyped-null	duckdb,postgres

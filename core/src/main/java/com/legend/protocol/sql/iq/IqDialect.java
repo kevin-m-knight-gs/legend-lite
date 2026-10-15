@@ -219,6 +219,9 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-15: arithmetic whose value an enclosing + - * (or a / as its dividend) reads, by identity: a
      *  DOUBLE there leaves its overflow to the chain's end ({@link #doubleArithmetic}). */
     private final Set<SqlAst.Expr> chained;
+    /** IQ island, 2026-10-15: the IN and LIKE predicates a search condition (WHERE, HAVING, ON) reaches through AND, OR
+     *  and NOT alone, by identity: where IQ's engine reads a NULL in them two-valued under ansinull Off. */
+    private final Set<SqlAst.Expr> filters;
     /** IQ island, 2026-10-14 (the options framework): each statement {@link #parse} read after SET statements, by
      *  identity, with the dialect of the settings they made, which translates it ({@link #reading}). */
     private final Map<SqlAst.Statement, IqDialect> prefixed = new IdentityHashMap<>();
@@ -229,8 +232,9 @@ public final class IqDialect implements InputDialect {
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
             @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
             Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped,
-            Set<SqlAst.SetOperation> innerSets, Set<SqlAst.Expr> chained) {
+            Set<SqlAst.SetOperation> innerSets, Set<SqlAst.Expr> chained, Set<SqlAst.Expr> filters) {
         this.settings = settings;
+        this.filters = filters;
         this.innerSets = innerSets;
         this.chained = chained;
         this.twoValued = twoValued;
@@ -256,14 +260,14 @@ public final class IqDialect implements InputDialect {
     public static IqDialect of(IqSettings settings) {
         return new IqDialect(settings, null, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
-                Map.of(), Set.of(), Set.of());
+                Map.of(), Set.of(), Set.of(), Set.of());
     }
 
     /** The dialect under {@code settings} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqSettings settings, Engine engine) {
         return new IqDialect(settings, engine, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
-                Map.of(), Set.of(), Set.of());
+                Map.of(), Set.of(), Set.of(), Set.of());
     }
 
     public IqSettings settings() {
@@ -1260,10 +1264,28 @@ public final class IqDialect implements InputDialect {
         Map<SqlAst.Select, SqlAst.Select> groupedHere = new IdentityHashMap<>();
         Set<SqlAst.SetOperation> innerSetsHere = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<SqlAst.Expr> chainedHere = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<SqlAst.Expr> filtersHere = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 groupedHere.put(s, IqAggregates.grouping(s));
                 expressions(s).forEach(e -> chained(e, chainedHere));
+                List<SqlAst.Expr> conditions = new ArrayList<>();
+                if (s.where() != null) {
+                    conditions.add(java.util.Objects.requireNonNull(s.where()));
+                }
+                if (s.having() != null) {
+                    conditions.add(java.util.Objects.requireNonNull(s.having()));
+                }
+                for (SqlAst.FromItem f : s.from()) {
+                    List<SqlAst.Join> joins = new ArrayList<>();
+                    joins(f, joins);
+                    for (SqlAst.Join j : joins) {
+                        if (j.on() != null) {
+                            conditions.add(java.util.Objects.requireNonNull(j.on()));
+                        }
+                    }
+                }
+                conditions.forEach(c -> filters(c, filtersHere));
             }
             if (q instanceof SqlAst.SetOperation o) {
                 for (SqlAst.Statement branch : List.of(o.left(), o.right())) {
@@ -1276,7 +1298,7 @@ public final class IqDialect implements InputDialect {
         IqDialect read = new IqDialect(settings, chosen, inCase, names, limitedHere, shownHere, derivedHere,
                 starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, settings),
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
-                innerSetsHere, chainedHere);
+                innerSetsHere, chainedHere, filtersHere);
         read.outerReads.addAll(outerReads);
         read.aliasesRead.putAll(aliasesRead);
         read.innerNames.putAll(innerNames);
@@ -3533,6 +3555,26 @@ public final class IqDialect implements InputDialect {
         }
     }
 
+    /** The IN and LIKE predicates search condition {@code c} reaches through AND, OR and NOT alone, into {@code out}. */
+    private static void filters(SqlAst.Expr c, Set<SqlAst.Expr> out) {
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+        todo.push(c);
+        while (!todo.isEmpty()) {
+            SqlAst.Expr x = todo.pop();
+            switch (x) {
+                case SqlAst.Binary b when b.op() == SqlAst.BinaryOp.AND || b.op() == SqlAst.BinaryOp.OR -> {
+                    todo.push(b.left());
+                    todo.push(b.right());
+                }
+                case SqlAst.Unary u when u.op() == SqlAst.UnaryOp.NOT -> todo.push(u.operand());
+                case SqlAst.InList in -> out.add(in);
+                case SqlAst.Like l -> out.add(l);
+                default -> {
+                }
+            }
+        }
+    }
+
     private static boolean arithmetic(SqlAst.Expr e) {
         return e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
                 || b.op() == SqlAst.BinaryOp.TIMES || b.op() == SqlAst.BinaryOp.DIVIDE);
@@ -4369,14 +4411,30 @@ public final class IqDialect implements InputDialect {
      *  conversions, its blank padding), in three-valued logic (a NULL bound leaves the other to decide FALSE). */
     @Override
     public Tx between(SqlAst.Between b, SqlToPure.At at) {
+        boolean iq = engine == Engine.IQ;
+        if (iq && (b.low() instanceof SqlAst.NullLit || b.high() instanceof SqlAst.NullLit)) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a NULL bound leaves every row UNKNOWN
+            // (sm NOT BETWEEN NULL AND 5 holds for none), where SQL Anywhere's lets the other bound decide FALSE
+            return Tx.condition(new CBoolean(false), new CBoolean(false), true);
+        }
         Tx x = at.tx(b.operand());
         boolean xNull = b.operand() instanceof SqlAst.NullLit;
-        Tx low = comparison(SqlAst.BinaryOp.GE, x, at.tx(b.low()), xNull, b.low() instanceof SqlAst.NullLit, null,
+        Tx lowValue = at.tx(b.low());
+        Tx highValue = at.tx(b.high());
+        Tx low = comparison(SqlAst.BinaryOp.GE, x, lowValue, xNull, b.low() instanceof SqlAst.NullLit, null,
                 b.pos());
-        Tx high = comparison(SqlAst.BinaryOp.LE, x, at.tx(b.high()), xNull, b.high() instanceof SqlAst.NullLit, null,
+        Tx high = comparison(SqlAst.BinaryOp.LE, x, highValue, xNull, b.high() instanceof SqlAst.NullLit, null,
                 b.pos());
-        Tx test = Tx.condition(SqlToPure.call("and", low.vs(), high.vs()), SqlToPure.call("or", low.falseWhen(),
-                high.falseWhen()), low.nullable() || high.nullable());
+        ValueSpecification fails = SqlToPure.call("or", low.falseWhen(), high.falseWhen());
+        if (iq) {
+            // ... and a bound that is NULL in a row leaves that row UNKNOWN too
+            for (Tx bound : List.of(lowValue, highValue)) {
+                if (bound.nullable()) {
+                    fails = SqlToPure.call("and", fails, SqlToPure.call("isNotEmpty", SqlToPure.valueOf(bound)));
+                }
+            }
+        }
+        Tx test = Tx.condition(SqlToPure.call("and", low.vs(), high.vs()), fails, low.nullable() || high.nullable());
         return bounded(b.negated() ? SqlToPure.not(test) : test, b);
     }
 
@@ -4387,6 +4445,23 @@ public final class IqDialect implements InputDialect {
     public Tx inList(SqlAst.InList in, SqlToPure.At at) {
         if (in.operand() instanceof SqlAst.NullLit) {
             return Tx.condition(new CBoolean(false), new CBoolean(false), true);
+        }
+        if (engine == Engine.IQ && !settings.ansinull() && filters.contains(in)
+                && in.values().stream().anyMatch(v -> v instanceof SqlAst.NullLit)) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine with ansinull Off (a TDS login) a NULL in
+            // a search condition's list matches a NULL value, two-valued: sm IN (1, NULL) is sm = 1 OR sm IS NULL, NOT
+            // IN its negation; in an IF's condition it is UNKNOWN (measured), as the general reading has it
+            Tx x = at.tx(in.operand());
+            List<ValueSpecification> holds = new ArrayList<>();
+            holds.add(x.nullable() ? SqlToPure.call("isEmpty", SqlToPure.valueOf(x)) : new CBoolean(false));
+            for (SqlAst.Expr v : in.values()) {
+                if (!(v instanceof SqlAst.NullLit)) {
+                    holds.add(compared(SqlAst.BinaryOp.EQ, x, at.tx(v), v.pos()).vs());
+                }
+            }
+            ValueSpecification found = balanced("or", holds);
+            Tx test = Tx.condition(found, SqlToPure.call("not", found), false);
+            return bounded(in.negated() ? SqlToPure.not(test) : test, in);
         }
         Tx fast = literalList(in, at);
         if (fast != null) {
@@ -4520,6 +4595,13 @@ public final class IqDialect implements InputDialect {
      */
     @Override
     public Tx like(SqlAst.Like l, SqlToPure.At at) {
+        if (engine == Engine.IQ && !settings.ansinull() && filters.contains(l) && l.pattern() instanceof SqlAst.NullLit
+                && l.escape() == null) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine with ansinull Off LIKE NULL is FALSE for
+            // every row, a NULL value's too (NOT LIKE NULL holds for all)
+            Tx no = Tx.condition(new CBoolean(false), new CBoolean(true), false);
+            return l.negated() ? SqlToPure.not(no) : no;
+        }
         Tx unknown = Tx.condition(new CBoolean(false), new CBoolean(false), true);
         if (l.operand() instanceof SqlAst.NullLit || l.pattern() instanceof SqlAst.NullLit
                 || l.escape() instanceof SqlAst.NullLit) {

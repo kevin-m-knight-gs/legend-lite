@@ -289,6 +289,8 @@ tests:
   - id: not_between_a_null_bound
     sql: "SELECT id FROM t WHERE sm NOT BETWEEN NULL AND 5 ORDER BY id"
     profile: iq16-default, iq16-tds
+    decision: D-L2
+    expect: '[]'
   - id: between_reversed_bounds
     sql: "SELECT id FROM t WHERE sm BETWEEN 100 AND -1 ORDER BY id"
   - id: between_date_strings
@@ -311,16 +313,33 @@ tests:
   - id: between_symmetric
     sql: "SELECT id FROM t WHERE id BETWEEN SYMMETRIC 3 AND 1"
 
-  # ---- IN lists: = for each, three-valued; a NULL in the list is UNKNOWN whatever ansinull says
+  # ---- IN lists: = for each, three-valued; a NULL in the list is UNKNOWN whatever ansinull says, but under IQ's engine
+  # with ansinull Off (a TDS login) a search condition's matches a NULL value (D-L1, measured on IQ 17.1: the
+  # _in_a_tds_login cases)
   - id: in_with_a_null
     sql: "SELECT id FROM t WHERE sm IN (1, 100, NULL) ORDER BY id"
-    profile: iq16-default, iq16-tds
+    profile: iq16-default
+  - id: in_with_a_null_in_a_tds_login
+    sql: "SELECT id FROM t WHERE sm IN (1, 100, NULL) ORDER BY id"
+    profile: iq16-tds
+    decision: D-L1
+    expect: '[["4"],["5"],["6"]]'
   - id: not_in_with_a_null
     sql: "SELECT id FROM t WHERE sm NOT IN (1, NULL) ORDER BY id"
-    profile: iq16-default, iq16-tds
+    profile: iq16-default
+  - id: not_in_with_a_null_in_a_tds_login
+    sql: "SELECT id FROM t WHERE sm NOT IN (1, NULL) ORDER BY id"
+    profile: iq16-tds
+    decision: D-L1
+    expect: '[["1"],["2"],["3"],["6"],["7"]]'
   - id: in_only_null
     sql: "SELECT id FROM t WHERE sm IN (NULL) ORDER BY id"
-    profile: iq16-default, iq16-tds
+    profile: iq16-default
+  - id: in_only_null_in_a_tds_login
+    sql: "SELECT id FROM t WHERE sm IN (NULL) ORDER BY id"
+    profile: iq16-tds
+    decision: D-L1
+    expect: '[["5"]]'
   - id: not_in_integers
     sql: "SELECT id FROM t WHERE sm NOT IN (1, 100) ORDER BY id"
   - id: null_in_a_list
@@ -544,6 +563,8 @@ tests:
   - id: not_like_null_pattern_in_a_tds_login
     sql: "SELECT id FROM t WHERE vc NOT LIKE NULL"
     profile: iq16-tds
+    decision: D-L1
+    expect: '[["1"],["2"],["3"],["4"],["5"],["6"],["7"]]'
   - id: like_null_operand
     sql: "SELECT 1 AS x WHERE NULL LIKE 'a'"
     engine: sa
