@@ -2487,6 +2487,18 @@ public final class Lowerer {
         }
     }
 
+    /** A CASE whose ELSE is a CASE, as one CASE of both's WHENs: {@code CASE WHEN a THEN x ELSE CASE WHEN b THEN y
+     *  ELSE z END END} is {@code CASE WHEN a THEN x WHEN b THEN y ELSE z END} in every SQL (2026-10-15). */
+    private static SqlExpr flatCase(SqlExpr e) {
+        if (e instanceof SqlExpr.Case c && c.otherwise() instanceof SqlExpr.Case inner) {
+            List<SqlExpr.Case.When> whens = new ArrayList<>(c.whens().size() + inner.whens().size());
+            whens.addAll(c.whens());
+            whens.addAll(inner.whens());
+            return new SqlExpr.Case(whens, inner.otherwise());
+        }
+        return e;
+    }
+
     /**
      * Literal Integer args (ntile n, lag/lead offset) ride along; variable
      * refs are the window params; anything else is LOUD, never dropped.
@@ -2942,20 +2954,23 @@ public final class Lowerer {
 
             case TypedSpec js when JsonEmission.owns(js) -> JsonEmission.lower(this, js, columns);
             // if(cond, {|then}, {|else}) — scalar position: CASE WHEN.
-            // If-chains (the mapping enum decode emission) render as NESTED
-            // CASE expressions in the otherwise slot — correct; single-CASE
-            // flattening is a cosmetic peephole if ever demanded.
+            // If-chains (the mapping enum decode emission, a SQL island's CASE
+            // of many WHENs) render as ONE CASE (flatCase): nested in the
+            // otherwise slot they were correct, but DuckDB refuses a CASE
+            // nested past its max_expression_depth (1,000), which one CASE of
+            // 1,000 WHENs is not (2026-10-15, the IQ island's census scale
+            // suite: Tableau falls back to "large IN or CASE expressions").
             case TypedIf i -> {
                 TypedSpec thenB = PureSql.thunkBody(i.thenBranch());
                 TypedSpec elseB = i.elseBranch()
                         .map(PureSql::thunkBody).orElse(null);
                 // Any-LUB branch alignment (variant carrier) lives in
                 // MixedEncoding.lubCase — the mixed-kind discipline.
-                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB,
+                yield flatCase(MixedEncoding.lubCase(i.info().type(), thenB, elseB,
                         scalar(i.condition(), columns),
                         scalar(thenB, columns),
                         elseB == null ? new SqlExpr.NullLit()
-                                : scalar(elseB, columns));
+                                : scalar(elseB, columns)));
             }
 
             // An enum VALUE in scalar position renders as its name string
