@@ -40,13 +40,11 @@ try:
     refused["legend_lite.page"] = None
 except ImportError as failure:
     refused["legend_lite.page"] = str(failure)
-# what reaches the native library beside the compiler needs no extra: a model home's call, on the compiler's threads
+# what reaches the native library beside the compiler needs no extra: every module the compiler-only install holds
+# imports, and a model home answers, on the compiler's threads (an empty folder's projects: none)
 import pathlib, tempfile
-from legend_lite import model
-try:
-    homed = model.home_call(pathlib.Path(tempfile.mkdtemp()), "sdlc", "GET", "/api/projects", None)[0]
-except OSError as failure:
-    homed = "the library said: " + str(failure)
+import legend_lite._home, legend_lite._pool, legend_lite.model, legend_lite.upstream
+homed = list(legend_lite.model.home_call(pathlib.Path(tempfile.mkdtemp()), "sdlc", "GET", "/projects", None))
 print(json.dumps({"parsed": sorted(tree), "refused": refused, "homed": homed}))
 '''
 
@@ -355,7 +353,7 @@ class Installed(unittest.TestCase):
         self.assertEqual(core.returncode, 0, core.stdout + core.stderr)
         alone = json.loads(core.stdout.strip().splitlines()[-1])
         self.assertIn('body', alone['parsed'], 'the compiler alone parses')
-        self.assertIsNotNone(alone['homed'], 'a model home is called without the datacube extra (_pool.py)')
+        self.assertEqual(alone['homed'], [200, '[]'], 'a model home answers without the datacube extra (_pool.py)')
         for name, said in alone['refused'].items():
             self.assertIsNotNone(said, f'{name} came without the datacube extra')
             # a notebook's cube names its own extra, which brings DataCube's packages and anywidget
@@ -406,7 +404,7 @@ class Installed(unittest.TestCase):
         self.assertTrue(Path(out['headless']['bundle']).is_relative_to(venv), out['headless'])
         # Query and Studio inside it (E): each served, its link traded for the cookie its calls then carry; Studio's demo
         # projects shipped, DuckDB-WASM's builds not (Python's DuckDB runs the queries)
-        for app, keys in (('query', ['depot', 'execution', 'projects']),
+        for app, keys in (('query', ['depot', 'execution', 'projects', 'vendor']),
                           ('studio', ['depot', 'engine', 'sdlc', 'vendor', 'worker'])):
             self.assertEqual(out['apps'][app], {'traded': 303, 'page': 200, 'config': keys, 'user': [200, '"this user"'],
                                                 'no_cookie': 401}, out['apps'])

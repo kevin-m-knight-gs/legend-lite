@@ -577,10 +577,11 @@ class Grid(Tile):
               facet: Mapping[str, str] | None = None) -> Chart:
         """A chart of this grid, beside it: ``mark`` (one of MARKS), its category ``x``, what it plots ``y`` --
         ``[(column, aggregate), ...]``, the measure DataCube's own new chart would plot unless given -- and a ``split``
-        (one series per value), each DataCube's own new chart's unless given (None: none); ``frozen`` keeps its own grouping rather than following the grid's (and stays when the
-        grid is removed, as in DataCube) -- unless told, a chart told its ``x``, ``y`` or ``split`` keeps them, as a hand
-        on them in DataCube's options freezes the chart, and one told none of them follows the grid; ``options``: the
-        chart's Options, in its spec's own keys (one left out is its default).
+        (one series per value), each DataCube's own new chart's unless given (None: none); ``frozen`` keeps its own
+        grouping rather than following the grid's (and stays when the grid is removed, as in DataCube) -- unless told, a
+        chart told its ``x``, ``y`` or ``split`` keeps them, as a hand on them in DataCube's options freezes the chart,
+        and one told none of them follows the grid (told them and ``frozen=False``, one the grid would replace is
+        refused); ``options``: the chart's Options, in its spec's own keys (one left out is its default).
 
         The spec's version 2 slots, each in its own keys: a measure of ``y`` may be a dict -- ``column``, ``fn`` (an
         aggregate, or ``'value'``: a group-level column of the grid, plotted as it is), its own ``mark`` (MEASURE_MARKS),

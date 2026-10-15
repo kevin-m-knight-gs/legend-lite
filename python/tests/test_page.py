@@ -95,11 +95,14 @@ class Document(Paged):
         spec = doc['views'][1]['spec']
         self.assertEqual({k: v for k, v in spec.items() if k != 'options'},
                          {'version': 2, 'mark': 'bar', 'x': 'region', 'y': [{'column': 'notional', 'fn': 'sum'}]})
-        # told its grouping, a chart keeps it, as a hand on it in DataCube's options freezes one -- unless told otherwise
+        # told its grouping, a chart keeps it, as a hand on it in DataCube's options freezes one -- unless told otherwise:
+        # then it follows the grid, and one told what the grid would replace is refused, never quietly dropped
         grid.chart('bar', x='desk')
         self.assertTrue(page.to_dict()['views'][-1]['spec']['frozen'])
-        grid.chart('bar', x='desk', frozen=False)
+        grid.chart('bar', x='region', frozen=False)
         self.assertNotIn('frozen', page.to_dict()['views'][-1]['spec'])
+        with self.assertRaisesRegex(ValueError, "follows its grid takes 'region' across, not 'desk'"):
+            grid.chart('bar', x='desk', frozen=False)
         self.assertEqual(spec['options']['sort'], {'by': 'y', 'direction': 'desc'})
         # one sheet: the grid in a band of its own, the chart beside it, as DataCube places them
         self.assertEqual(doc['sheets'], [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': [
@@ -277,9 +280,11 @@ class Document(Paged):
                          # what Python's arguments carry goes as given: DataCube's reader judges its shape too
                          ({'y': [('notional',)]}, 'measure 1 is not a column and an aggregate'),
                          ({'y': [{'column': 'notional', 'fn': 'sum', 'colour': 'red'}]}, 'no "colour" in measure 1'),
-                         ({'y': 'notional'}, 'plots nothing'),
+                         ({'y': 'notional'}, 'its y "notional" is not a list of measures'),
                          ({'options': {'stak': 'stacked'}}, 'no "stak" in its options'),
-                         ({'options': 'wide'}, 'no options'),
+                         ({'options': 'wide'}, 'its options "wide" are not an object'),
+                         ({'layers': [{'kind': 'line', 'value': 1, 'mesure': 1}]}, 'no "mesure" in layer 1'),
+                         ({'bins': {'width': 5, 'cnt': 3}}, 'no "cnt" in its bins'),
                          ({'bins': 50}, 'neither a width nor a count')]:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, why):
                 grid.chart('bar', x='region', **{'y': [('notional', 'sum')], **bad})
@@ -302,9 +307,8 @@ class Document(Paged):
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
                 grid.chart(mark, **given)
         # a live chart follows its grid -- regrouped the way the grid is (DataCube's followCube), its measure the grid's --
-        # and is judged as DataCube will draw it: taken live, two values and a line on the second is a chart of its own
-        # grouping
-        with self.assertRaisesRegex(ValueError, 'reads value 2'):
+        # so two values told to a chart told to follow are refused: the grid's measure would replace them
+        with self.assertRaisesRegex(ValueError, "follows its grid takes sum of 'notional' as its values"):
             grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')], frozen=False,
                        layers=[{'kind': 'line', 'value': 1, 'measure': 1}])
         # and a chart written fine cannot be changed into one DataCube refuses: by plot or by options
@@ -549,8 +553,6 @@ class Document(Paged):
         chart_view['selection'] = [{'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': 'EMEA'}]
         chart_view['spec']['options'] = {'orientation': 'vertical', 'stack': 'none', 'sort': {'by': 'x', 'direction': 'asc'},
                                          'limit': 25, 'labels': False, 'legend': 'bottom'}
-        # frozen in the UI: the grid regrouped below leaves its grouping and its order as they are
-        chart_view['spec']['frozen'] = True
         doc['sheets'][0]['layout'] = {'kind': 'bands', 'fit': True, 'bands': [
             {'height': 0.62, 'node': {'split': 'row', 'parts': [
                 {'node': {'stack': [grid.id, other.id]}, 'size': 0.35}, {'node': {'tile': chart.id}, 'size': 0.65}]}}]}
@@ -564,7 +566,11 @@ class Document(Paged):
         self.assertEqual(after['cubes'][0]['cube']['unknown'], {'fromANewerWriter': 1})
         after_chart = next(v for v in after['views'] if v['kind'] == 'chart')
         self.assertEqual(after_chart['selection'], chart_view['selection'])
-        self.assertEqual(after_chart['spec']['options'], {**chart_view['spec']['options'], 'labels': True})
+        # a live chart written in the UI, regrouped from Python: across, the grid's first row group, in that column's
+        # order (a category's: the largest first); what else the UI wrote stays
+        self.assertEqual(after_chart['spec']['x'], after['cubes'][0]['cube']['query']['rows'][0])
+        self.assertEqual(after_chart['spec']['options'], {**chart_view['spec']['options'], 'labels': True,
+                                                          'sort': {'by': 'y', 'direction': 'desc'}})
         self.assertEqual(after['sheets'], doc['sheets'])
 
     def test_a_kpi_is_a_chart_of_the_grid_its_number_and_its_trend(self):
@@ -577,6 +583,21 @@ class Document(Paged):
         self.assertEqual((spec['options']['target'], spec['options']['better']), (300, 'lower'))
         kpi.plot(x='region')
         self.assertEqual(page.to_dict()['views'][-1]['spec']['x'], 'region')
+
+    def test_told_none_a_chart_has_no_split_as_it_has_no_trend(self):
+        page = ll.Page('two rows')
+        grid = page.grid(trades(), name='trades', rows=['region', 'desk'], measures={'notional': 'sum'})
+        # DataCube's own new chart of a grid grouped twice: its second row group the split
+        grid.chart('bar')
+        self.assertEqual(page.to_dict()['views'][-1]['spec']['split'], 'desk')
+        # told none, one series: a hand taking the split away, so the chart keeps it so (frozen)
+        grid.chart('bar', split=None)
+        spec = page.to_dict()['views'][-1]['spec']
+        self.assertNotIn('split', spec)
+        self.assertTrue(spec['frozen'])
+        # and told to follow the grid as well, refused: the grid would split it again
+        with self.assertRaisesRegex(ValueError, "follows its grid takes 'desk' as its split, not none"):
+            grid.chart('bar', split=None, frozen=False)
 
     def test_a_document_python_cannot_work_on_is_refused_saying_why(self):
         page, _, _ = self.built()
