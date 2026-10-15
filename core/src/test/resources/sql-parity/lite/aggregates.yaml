@@ -25,3 +25,21 @@ tests:
     sql: "SELECT count(DISTINCT dept_id ORDER BY age) AS c FROM persons"
   - id: max_of_a_boolean_is_an_error
     sql: "SELECT dept_id, max(active) AS m FROM persons GROUP BY dept_id ORDER BY dept_id"
+  # an aggregate with no GROUP BY is one row: HAVING filters that row, and an aggregate over it counts one row (the
+  # tenth line's find, 2026-10-14: a constant HAVING was merged into WHERE, and a second aggregate into the first)
+  - id: having_false_without_group_by
+    sql: "SELECT count(*) AS n FROM persons HAVING 1 = 0"
+  - id: having_true_without_group_by
+    sql: "SELECT count(*) AS n FROM persons HAVING 1 = 1"
+  - id: count_of_an_aggregate_without_group_by
+    sql: "SELECT count(*) AS c FROM (SELECT count(*) AS n FROM persons) t"
+  # a column that reads none of such an aggregate keeps its one row (the independent review, 2026-10-14: a
+  # constant column, and a union arm pruned to its constants, read a row per row of the table)
+  - id: constant_over_an_aggregate_without_group_by
+    sql: "SELECT 'x' AS lbl FROM (SELECT count(*) AS c FROM persons) t"
+  - id: count_of_a_constant_over_an_aggregate_without_group_by
+    sql: "SELECT count(*) AS n FROM (SELECT 'x' AS lbl FROM (SELECT count(*) AS c FROM persons) t) u"
+  - id: filtered_aggregate_without_group_by_read_for_a_constant
+    sql: "SELECT lbl FROM (SELECT count(*) AS c, 'x' AS lbl FROM persons WHERE age > 30) t"
+  - id: union_arms_aggregating_without_group_by_read_for_a_constant
+    sql: "SELECT one FROM (SELECT count(*) AS c, 1 AS one FROM persons UNION ALL SELECT count(*) AS c, 2 AS one FROM orders) t ORDER BY one"

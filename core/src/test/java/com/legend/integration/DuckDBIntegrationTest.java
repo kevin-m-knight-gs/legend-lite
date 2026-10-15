@@ -4776,6 +4776,64 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     @Test
+    void aFilterOfAnAggregateWithNoKeysFiltersItsOneRow() throws SQLException {
+        // an aggregate with no group keys is one row; a filter that reads no column filters that row, not the rows
+        // aggregated (merged into the aggregate's WHERE, a false filter answered one row: #SQL's HAVING 1 = 0)
+        String source = """
+                #TDS
+                    id, value
+                    1, 10
+                    2, 20
+                    3, 30
+                #->aggregate(~[n : x | $x.id : y | $y->count()])""";
+        assertEquals(0, executeRelation(source + "->filter(r | false)").rows().size());
+        assertEquals(0, executeRelation(source + "->filter(r | 1 == 0)").rows().size());
+        assertEquals(1, executeRelation(source + "->filter(r | true)").rows().size());
+    }
+
+    @Test
+    void anAggregateOfAnAggregateWithNoKeysCountsItsOneRow() throws SQLException {
+        // merged into the first aggregate, the second counted the three rows the first read, not its one row (a
+        // second aggregate that reads the first's column was isolated already: the read cannot be merged)
+        var result = executeRelation("""
+                #TDS
+                    id, value
+                    1, 10
+                    2, 20
+                    3, 30
+                #->aggregate(~[n : x | $x.id : y | $y->count()])->aggregate(~[c : x | 1 : y | $y->count()])""");
+        assertEquals(1, result.rows().size());
+        assertEquals(1L, ((Number) result.rows().getFirst().values().getFirst()).longValue());
+    }
+
+    @Test
+    void aColumnThatReadsNoneOfAnAggregateWithNoKeysKeepsItsOneRow() throws SQLException {
+        // merged into the aggregate, a projection that dropped its aggregate read a row per row (the review, 2026-10-14)
+        String source = """
+                #TDS
+                    id, value
+                    1, 10
+                    2, 20
+                    3, 30
+                #->aggregate(~[n : x | $x.id : y | $y->count()])""";
+        assertEquals(1, executeRelation(source + "->extend(~[one : r | 1])->select(~[one])").rows().size());
+        assertEquals(1, executeRelation(source + "->project(~[k : r | 1])").rows().size());
+    }
+
+    @Test
+    void twoEmptyColumnsAreEqual() throws SQLException {
+        // [] == [] is true in Pure; two empty constant columns, inlined as NULLs, were compared NULL = NULL (never
+        // true): #SQL's SELECT NULL INTERSECT SELECT NULL answered no row
+        var result = executeRelation("""
+                #TDS
+                    id
+                    1
+                    2
+                #->extend(~[a : r | [], b : r | []])->filter(r | $r.a == $r.b)->select(~[id])""");
+        assertEquals(2, result.rows().size());
+    }
+
+    @Test
     void testAggregateJoinStrings() throws SQLException {
         // GIVEN: A TDS with string values to concatenate
         String pureQuery = """

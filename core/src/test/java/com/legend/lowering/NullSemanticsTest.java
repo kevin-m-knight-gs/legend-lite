@@ -90,6 +90,18 @@ class NullSemanticsTest {
     }
 
     @Test
+    @DisplayName("an empty column == is the absence test, and two empty columns are EQUAL (pure [] == [] is true)")
+    void emptyColumnsAreEqual() throws SQLException {
+        // FAILS-BEFORE (#SQL's SELECT NULL INTERSECT SELECT NULL, 2026-10-14): an empty constant column inlines as a
+        // NULL literal, and '=' with a NULL is never TRUE -- two empty columns compared NULL = NULL kept no row
+        assertEquals(List.of("a", "b", "c"),
+                names("#>{s::DB.A}#->extend(~[e:r|[], f:r|[]])->filter(r|$r.e == $r.f)->select(~[NAME])"));
+        // x == [] is the absence test: only the null-street row
+        assertEquals(List.of("c"),
+                names("#>{s::DB.A}#->extend(~[e:r|[]])->filter(r|$r.STREET == $r.e)->select(~[NAME])"));
+    }
+
+    @Test
     @DisplayName("partition contract: pred + notPred == all (null operands land on the NOT side)")
     void partitionContract() throws SQLException {
         assertEquals(List.of("c"),

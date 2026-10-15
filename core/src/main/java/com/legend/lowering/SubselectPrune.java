@@ -405,6 +405,10 @@ final class SubselectPrune {
             } else if (!(b instanceof SqlSelect bs) || bs.distinct()
                     || !bs.groupBy().isEmpty() || bs.having() != null
                     || bs.qualify() != null
+                    // an arm that aggregates with no keys is one row only while
+                    // it keeps an aggregate: pruned to its constants, it is a
+                    // row per row read
+                    || Fold.aggregatesWithoutKeys(bs)
                     || bs.projections().size() != n) {
                 return false;
             }

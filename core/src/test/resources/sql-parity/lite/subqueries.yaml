@@ -112,3 +112,8 @@ tests:
     sql: "SELECT status FROM orders EXCEPT SELECT status FROM orders WHERE status = 'cancelled' ORDER BY 1"
   - id: intersect_all
     sql: "SELECT dept_id FROM persons INTERSECT ALL SELECT id FROM departments ORDER BY 1"
+  # two NULL constants are the same row (the tenth line's find, 2026-10-14: [] == [] was lowered to NULL = NULL)
+  - id: intersect_of_two_null_constants
+    sql: "SELECT NULL INTERSECT SELECT NULL"
+  - id: except_of_two_null_constants
+    sql: "SELECT NULL EXCEPT SELECT NULL"
