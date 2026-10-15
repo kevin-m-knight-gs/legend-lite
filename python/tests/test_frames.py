@@ -277,6 +277,32 @@ class TypedByPlan(unittest.TestCase):
         self.assertTrue(pd.isna(out['i'][1]) and pd.isna(out['b'][1]))
 
 
+class TypeNamesAreReadHere(unittest.TestCase):
+    """A column's type is read in one place (legend_lite/_types.py, over the generated _type_facts.py), as DataCube's
+    guardrails test holds engine-client's types.ts the one: no other module of the package spells a type's name to
+    decide what it is (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 4) -- it asks _types, which reads either compiler's
+    name and refuses an unknown one. It scans the modules this lane holds: the compiler's and the datacube extra's
+    (notebook.py, the notebook extra's widget, is not among them; it reads no type)."""
+
+    def test_no_other_module_spells_a_type_name(self):
+        import ast
+        import io
+        import pathlib
+        import tokenize
+        import legend_lite
+        from legend_lite._type_facts import TYPE_FACTS
+        names = set(TYPE_FACTS) | {plain for plain, _ in TYPE_FACTS.values()}
+        package = pathlib.Path(legend_lite.__file__).parent
+        modules = sorted(f for f in package.glob('*.py') if f.name not in ('_types.py', '_type_facts.py'))
+        self.assertIn('page.py', [f.name for f in modules], 'the scan found the package')
+        spelled = []
+        for module in modules:
+            for token in tokenize.generate_tokens(io.StringIO(module.read_text('utf-8')).readline):
+                if token.type == tokenize.STRING and ast.literal_eval(token.string) in names:
+                    spelled.append(f'{module.name}:{token.start[0]} {token.string}')
+        self.assertEqual(spelled, [], 'a type is asked of legend_lite._types, never spelled')
+
+
 class ModelFor(unittest.TestCase):
     """The model a page's query may be planned over (Frames.model_for; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B3, the
     user's option (c)): one Python holds for what it serves, or a page's own whose every table Python serves."""

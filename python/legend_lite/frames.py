@@ -42,7 +42,7 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, _json, compiler
-from ._types import UnknownType, plain_type
+from ._types import UnknownType, is_integer
 
 LIVE = 'live'
 SNAPPED = 'snapped'
@@ -66,7 +66,7 @@ _ADMITTED = 8
 
 class UntypedColumn(RuntimeError):
     """A result column its plan does not type -- the plan and the database disagree about the query's shape -- or types
-    by a name legend-lite does not read (``_types.plain_type``)."""
+    by a name legend-lite does not read (``_types``)."""
 
 
 def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
@@ -96,10 +96,10 @@ def typed_by_plan(rows: pa.Table, plan: compiler.Plan) -> pa.Table:
         if typed is None:
             raise UntypedColumn(f"the plan does not type the result column '{field.name}': {plan.sql}")
         try:
-            plain = plain_type(typed)
+            integer = is_integer(typed)
         except UnknownType as unknown:
             raise UntypedColumn(f'{unknown}: {plan.sql}') from None
-        if plain == 'Integer':
+        if integer:
             column = _integer(column)
         fields.append(pa.field(field.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
         columns.append(column)

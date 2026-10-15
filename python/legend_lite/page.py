@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _json, compiler
-from ._types import plain_type
+from ._types import is_boolean, is_decimal, is_float, is_integer
 from .frames import LIVE, SNAPPED
 
 # DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts, layout/bands.ts): a
@@ -713,12 +713,12 @@ class GridView:
         # text (DataCube's exact decimals) a Decimal, a Float a float even when JSON wrote it as a whole number (10.0 is
         # written 10)
         def typed(v: Any, type: str) -> Any:
-            if type == 'Decimal' and isinstance(v, str):
+            if is_decimal(type) and isinstance(v, str):
                 return Decimal(v)
-            if type == 'Float' and isinstance(v, int) and not isinstance(v, bool):
+            if is_float(type) and isinstance(v, int) and not isinstance(v, bool):
                 return float(v)
             return v
-        types = [plain_type(c['type']) for c in self.columns]
+        types = [c['type'] for c in self.columns]
         self.rows: list[list[Any]] = [[typed(v, t) for v, t in zip(row, types)] for row in view['rows']]
         self.tree: list[dict[str, Any]] = list(view['tree'])
         self.truncated: list[dict[str, Any]] = list(view['truncated'])
@@ -730,15 +730,17 @@ class GridView:
         """The rows as the grid shows them, a DataFrame with one column per column shown: an Integer or a Boolean
         column with nulls an integer or a boolean still (pandas' nullable types, as ``frames.to_pandas``)."""
         import pandas as pd
-        nullable = {'Integer': pd.Int64Dtype(), 'Boolean': pd.BooleanDtype()}
 
         def column(i: int, type: str) -> Any:
             values = [row[i] for row in self.rows]
+            integer = is_integer(type)
             # an Integer past 64 bits kept exact, as Python's own rows keep it (frames.to_pandas): pandas' objects
-            wide = type == 'Integer' and any(isinstance(v, int) and not -2 ** 63 <= v < 2 ** 63 for v in values)
-            return pd.Series(values, dtype=object if wide else nullable.get(type))
+            if integer and any(isinstance(v, int) and not -2 ** 63 <= v < 2 ** 63 for v in values):
+                return pd.Series(values, dtype=object)
+            nullable = pd.Int64Dtype() if integer else pd.BooleanDtype() if is_boolean(type) else None
+            return pd.Series(values, dtype=nullable)
         # by position: a pivot's columns may share a name
-        frame = pd.DataFrame({i: column(i, plain_type(c['type'])) for i, c in enumerate(self.columns)})
+        frame = pd.DataFrame({i: column(i, c['type']) for i, c in enumerate(self.columns)})
         frame.columns = [c['name'] for c in self.columns]
         return frame
 

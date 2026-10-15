@@ -50,7 +50,11 @@ of harm:
 8. **The snap's limit and receipt** (`engine.py _warehouse_snap`, `_MAX_SNAP_ROWS` ↔ `snap.ts MAX_SNAP_ROWS`,
    `preflight`, `receipt.ts`). At least: the vocabulary test reads `engine.py` too.
 9. **A server's plans** (`upstream.py` ↔ `planner.ts serverPlan`, `engine-client/src/legend/engine.ts`): interim by its
-   own words, to move into the native library.
+   own words, to move into the native library. One difference it carries (item 4 left it here, 2026-10-15): a server's
+   Database `BIT` column, which legend-engine types `precisePrimitives::TinyInt`, reads as a Boolean on the page
+   (`relation-type.ts`'s rule, `docs/SEMANTICS_REGISTER.md` S23) but is labelled `TinyInt` -- an Integer by the
+   lattice -- in Python's rows (`frames.TYPE_KEY`, as `upstream.tds_columns` keeps the server's type). The rows are
+   booleans either way; the label is put right when the server's plan is read where the page reads it.
 10. **The planner protocol's side lists** (`engine.py _PAGE_KINDS`, `_planner.py HELD` ↔ `python-host.ts`'s
     `'handle' in body`).
 
