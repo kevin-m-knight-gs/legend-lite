@@ -794,9 +794,11 @@ class IqToPureTest {
         assertTrue(sum.contains("2147483647") && sum.contains("-2147483648"), sum);
         // a DOUBLE's SUM and AVG checked against the largest DOUBLE
         assertTrue(numbers("SELECT AVG(d) AS a FROM " + T).contains("average()"));
-        // AVG of an exact number is a NUMERIC quotient (refused); SUM of a NUMERIC under the IQ engine is D-N1
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT AVG(i) AS a FROM " + T).kind());
-        assertTrue(numbersRefusal("SELECT SUM(nm) AS s FROM " + T).getMessage().contains("D-N1"));
+        // IQ island, 2026-10-15 (D-N1, measured on IQ 17.1): under the IQ engine AVG of an integer is SUM / COUNT cut
+        // toward zero at scale 16, and SUM of a NUMERIC(p,s) a NUMERIC(p+1,s)
+        String avg = numbers("SELECT AVG(i) AS a FROM " + T);
+        assertTrue(avg.contains("sum()") && avg.contains("count()") && avg.contains("10000000000000000"), avg);
+        assertFalse(numbers("SELECT SUM(nm) AS s FROM " + T).contains("D-N1"));
         // COUNT is IQ's UNSIGNED BIGINT under its engine (D-F15): arithmetic on it is refused; INTEGER in SA's
         assertTrue(numbersRefusal("SELECT COUNT(*) + 1 AS c FROM " + T).getMessage().contains("UNSIGNED BIGINT"));
         pure("SELECT COUNT(*) + 1 AS c FROM sa_rowgenerator(1, 3)");

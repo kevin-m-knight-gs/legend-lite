@@ -40,8 +40,8 @@ import java.util.Set;
  *       COUNT shown, compared or ordered is exact in both, while arithmetic on it is refused under the IQ engine
  *       (unsigned types are not computed by the island).</li>
  *   <li><b>SUM</b> of a SMALLINT or an INTEGER is an INTEGER, of a BIGINT a BIGINT, of a BIT or a TINYINT a
- *       NUMERIC(18,0), of a DOUBLE a DOUBLE, of a NUMERIC(p,s) in SQL Anywhere's front end a NUMERIC(p+8,s) (under the
- *       IQ engine the research's D-N1, refused). SQL Anywhere checks each running total against the type, in the plan's
+ *       NUMERIC(18,0), of a DOUBLE a DOUBLE, of a NUMERIC(p,s) in SQL Anywhere's front end a NUMERIC(p+8,s), under the
+ *       IQ engine a NUMERIC(p+1,s) (the research's D-N1, measured on IQ 17.1, 2026-10-15). SQL Anywhere checks each running total against the type, in the plan's
  *       order (measured: 2147483647, 1, -5 raises -158 in one order and answers 2147483643 in another): the island
  *       raises IQ's -158 where some order could overflow -- the positive values' sum above the type's largest, or the
  *       negative values' below its smallest -- so that it never answers where SQL Anywhere raises; where only some
@@ -49,7 +49,8 @@ import java.util.Set;
  *   <li><b>AVG</b> of a DOUBLE is a DOUBLE, checked as its SUM is. AVG of a NUMERIC(p,s) in SQL Anywhere's front end
  *       is a NUMERIC(p+19, s+11), SUM / COUNT by SQL Anywhere's quotient ({@link IqFunctions#quotient}; IQ island,
  *       2026-10-14), where it is shown (an operand reads it unrounded); of an integer (a NUMERIC(49,21), beyond lite's
- *       38 digits) and under the IQ engine (D-N1), refused.</li>
+ *       38 digits), refused. Under the IQ engine (D-N1, measured on IQ 17.1, 2026-10-15) AVG of an integer is a
+ *       NUMERIC of scale 16, of a NUMERIC(p,s) one of scale s+21, SUM / COUNT cut toward zero there, wherever read.</li>
  *   <li><b>MIN, MAX</b> keep their argument's type: integers, NUMERICs, DOUBLEs, dates and timestamps; strings where
  *       each value is its own collation key ({@link IqKeys}: IQ shows the first value of the least key it meets).</li>
  *   <li><b>MEDIAN</b> of a SMALLINT or an INTEGER keeps the type, the mean of the two middle values floored (measured:
@@ -1218,6 +1219,9 @@ final class IqAggregates {
             return checkedSum(at, x, values, average ? "average" : "sum", Kind.FLOAT, new IqType("DOUBLE"),
                     new CFloat(0.0), new CFloat(Double.MAX_VALUE), new CFloat(-Double.MAX_VALUE));
         }
+        if (average && engine == IqDialect.Engine.IQ) {
+            return iqAverage(f, at, x, type, values, settings);
+        }
         if (average && !(type != null && type.family().equals("NUMERIC"))) {
             throw SqlTranslationException.unsupported("AVG of an integer is not supported yet: IQ's is a NUMERIC(49,21)"
                     + " quotient, beyond the 38 digits lite's decimals hold", f.pos());
@@ -1239,8 +1243,7 @@ final class IqAggregates {
         }
         if ((kind == Kind.DECIMAL || kind == Kind.INTEGER) && type != null && type.family().equals("NUMERIC")) {
             if (engine == IqDialect.Engine.IQ) {
-                throw SqlTranslationException.unsupported("SUM of a NUMERIC is not supported under IQ's engine yet: its"
-                        + " result type there is the research's D-N1, not yet verified", f.pos());
+                return iqNumericSum(f, at, x, type, values, settings);
             }
             int[] ps = numeric(type);
             int p = ps[0] + 8;
@@ -1304,6 +1307,102 @@ final class IqAggregates {
                 sAvg));
         return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
                 Kind.DECIMAL, true, new IqType("NUMERIC(" + pAvg + "," + sAvg + ")"));
+    }
+
+    /**
+     * SUM of a NUMERIC(p,s) under IQ's engine (IQ island, 2026-10-15; the research's D-N1, measured on IQ 17.1): a
+     * NUMERIC(p+1, s), whatever the values (an empty group's too; NUMERIC(126,38) stays one), the exact sum. Refused by
+     * name where the type needs more than lite's 38 digits or the profile's PRECISION. IQ 17.1 answers no rows at all
+     * where a sum leaves p+1 digits (a SUM over a join of NUMERIC(7,2)s past 999999.99, measured), its defect: lite
+     * answers the sum.
+     */
+    private static SqlToPure.Aggregation iqNumericSum(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
+            IqType type, ValueSpecification values, IqSettings settings) {
+        measuredOptions(f, settings, "SUM");
+        int[] ps = numeric(type);
+        int p = Math.min(ps[0] + 1, 126);
+        if (p > 38 || p > settings.precision()) {
+            throw SqlTranslationException.unsupported("SUM of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not supported"
+                    + " under IQ's engine: its type, NUMERIC(" + p + "," + ps[1] + "), is capped by the profile or needs"
+                    + " more than lite's 38 digits", f.pos());
+        }
+        ColSpec spec = new ColSpec(at.name(), at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("sum",
+                values)), null);
+        return new SqlToPure.Aggregation(List.of(spec), null, x.kind(), true, new IqType("NUMERIC(" + p + "," + ps[1]
+                + ")"));
+    }
+
+    /**
+     * AVG under IQ's engine (IQ island, 2026-10-15; the research's D-N1, measured on IQ 17.1): of a SMALLINT, an
+     * INTEGER, a BIGINT, a BIT or a TINYINT a NUMERIC of scale 16; of a NUMERIC(p,s) one of scale s + 21 (the
+     * precision is the engine's, from the data: p + 22 where measured); the value SUM / COUNT cut toward zero at that
+     * scale ({@link IqFunctions#truncatedQuotient}) wherever it is read -- HAVING compares the cut value, and
+     * {@code AVG(v) * 3} is 12.9999999999999999 for 13 / 3; an empty group's NULL. Refused by name where the value
+     * may need more than lite's 38 digits: a NUMERIC of more than 16 digits (its AVG's p + 22), a BIGINT whose sum may
+     * pass 22 digits being bounded by the database's arithmetic.
+     */
+    private static SqlToPure.Aggregation iqAverage(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
+            @com.legend.base.Nullable IqType type, ValueSpecification values, IqSettings settings) {
+        measuredOptions(f, settings, "AVG");
+        int scale;
+        int sumScale;
+        int sumWhole;
+        String spelling;
+        boolean numeric = type != null && type.family().equals("NUMERIC");
+        if (x.kind() == Kind.INTEGER && type != null && (type.isInteger() || type.family().equals("TINYINT")
+                || type.family().equals("BIT"))) {
+            scale = 16;
+            sumScale = 0;
+            // a sum of BIGINTs is a whole number the databases add in 38 digits: 22 before the 16 places
+            sumWhole = 22;
+            spelling = "NUMERIC(36,16)";
+        } else if (type != null && numeric && (x.kind() == Kind.DECIMAL || x.kind() == Kind.INTEGER)) {
+            int[] ps = numeric(type);
+            if (ps[0] + 22 > 38 || ps[0] + 22 > settings.precision()) {
+                throw SqlTranslationException.unsupported("AVG of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not"
+                        + " supported under IQ's engine: its NUMERIC(" + (ps[0] + 22) + "," + (ps[1] + 21) + ") needs"
+                        + " more than lite's 38 digits or the profile's PRECISION", f.pos());
+            }
+            scale = ps[1] + 21;
+            sumScale = ps[1];
+            sumWhole = ps[0] + 1 - ps[1];
+            spelling = "NUMERIC(" + (ps[0] + 22) + "," + scale + ")";
+        } else {
+            throw SqlTranslationException.unsupported("AVG of " + (x.kind() == Kind.STRING ? "a string"
+                    : x.kind() == Kind.DATE || x.kind() == Kind.DATETIME ? "a date" : "a value of this type")
+                    + " is not supported yet (IQ converts it to a number by its own rules)", f.pos());
+        }
+        if (!IqFunctions.truncatedFits(sumScale, sumWhole, scale)) {
+            throw SqlTranslationException.unsupported("AVG of " + java.util.Objects.requireNonNull(type).spelling()
+                    + " under IQ's engine needs a step"
+                    + " of more than the 38 digits lite's decimals hold", f.pos());
+        }
+        String sum = at.fresh();
+        String count = at.fresh();
+        ValueSpecification value = numeric ? SqlToPure.valueOf(x) : SqlToPure.valueOf(SqlToPure.strict(Kind.DECIMAL,
+                List.of(x), v -> SqlToPure.call("toDecimal", v.get(0))));
+        List<ColSpec> specs = List.of(
+                new ColSpec(sum, at.overRow(value), at.overGroup(SqlToPure.call("sum", values)), null),
+                new ColSpec(count, at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("count", values)),
+                        null));
+        Tx total = Tx.value(at.column(sum), Kind.DECIMAL, true);
+        Tx n = Tx.value(at.column(count), Kind.INTEGER, false);
+        int s1 = sumScale;
+        int whole1 = sumWhole;
+        Tx quotient = SqlToPure.strict(Kind.DECIMAL, List.of(total, n), v -> IqFunctions.truncatedQuotient(
+                IqDialect.wide(v.get(0)), s1, whole1, SqlToPure.call("toDecimal", v.get(1)), scale));
+        return new SqlToPure.Aggregation(specs, new ColSpec(at.name(), at.overRow(quotient.vs()), null, null),
+                Kind.DECIMAL, true, new IqType(spelling));
+    }
+
+    /** IQ island, 2026-10-15: the IQ engine's SUM and AVG types were measured on IQ 17.1 at its PUBLIC PRECISION 126
+     *  and SCALE 38 only; under other values they are refused by name (how the options cut them is not measured). */
+    private static void measuredOptions(SqlAst.FunctionCall f, IqSettings settings, String what) {
+        if (settings.precision() != 126 || settings.scale() != 38) {
+            throw SqlTranslationException.unsupported(what + " under IQ's engine is supported at PRECISION 126 and"
+                    + " SCALE 38 only (profile " + settings.spelling() + " has " + settings.precision() + " and "
+                    + settings.scale() + "): how IQ cuts its type to other values is not measured", f.pos());
+        }
     }
 
     /** The digits of a COUNT, as a quotient's divisor: a BIGINT's at most. */

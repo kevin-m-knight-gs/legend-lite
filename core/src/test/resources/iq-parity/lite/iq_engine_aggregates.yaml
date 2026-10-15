@@ -1,0 +1,87 @@
+# SUM and AVG under IQ's engine (IQ island, 2026-10-15; the research's D-N1, measured on IQ 17.1, the live server): SUM
+# of a NUMERIC(p,s) is a NUMERIC(p+1,s), the exact sum; AVG of an integer (SMALLINT, INTEGER, BIGINT, BIT) a NUMERIC of
+# scale 16, of a NUMERIC(p,s) one of scale s+21, SUM / COUNT cut toward zero at that scale wherever it is read. SQL
+# Anywhere's front end types and rounds AVG otherwise, so the AVG cases are judged by the live IQ only (iq17-default);
+# the SUM cases by both. Every case is deterministic: a total ORDER BY, or a single row.
+tests:
+
+  # ---- SUM of a NUMERIC: NUMERIC(p+1,s)
+  - id: sum_of_a_numeric_5_1
+    sql: "SELECT SUM(qty) AS s FROM u"
+  - id: sum_of_a_numeric_10_2
+    sql: "SELECT SUM(nm) AS s FROM t"
+  - id: sum_of_a_numeric_grouped
+    sql: "SELECT k, SUM(n) AS s FROM g GROUP BY k ORDER BY k"
+  - id: sum_of_a_numeric_over_no_rows
+    sql: "SELECT SUM(nm) AS s FROM t WHERE id > 100"
+  - id: sum_distinct_of_a_numeric
+    sql: "SELECT SUM(DISTINCT n) AS s FROM g"
+  - id: sum_of_a_numeric_compared_in_having
+    sql: "SELECT k, COUNT(*) AS c FROM g WHERE k IS NOT NULL GROUP BY k HAVING SUM(n) > 0 ORDER BY k"
+  - id: sum_of_a_numeric_ordered
+    sql: "SELECT k, SUM(n) AS s FROM g WHERE k IS NOT NULL GROUP BY k ORDER BY SUM(n), k"
+  - id: sum_of_a_numeric_in_a_derived_table
+    sql: "SELECT s FROM (SELECT SUM(nm) AS s FROM t) d"
+  - id: sum_of_a_numeric_through_a_cte
+    sql: "WITH q AS (SELECT t_id, qty FROM u) SELECT t_id, SUM(qty) AS total FROM q GROUP BY t_id ORDER BY t_id"
+
+  # ---- AVG of an integer: scale 16, cut toward zero
+  - id: avg_of_an_integer_cut
+    sql: "SELECT AVG(v) AS a FROM g WHERE id IN (1, 2, 4)"
+    profile: iq17-default
+  - id: avg_of_an_integer_negative_cut_toward_zero
+    sql: "SELECT AVG(k - 5) AS a FROM g WHERE id < 6"
+    profile: iq17-default
+  - id: avg_of_integers_grouped
+    sql: "SELECT k, AVG(v) AS a, AVG(j) AS b FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: avg_distinct_of_an_integer
+    sql: "SELECT AVG(DISTINCT v) AS a FROM g"
+    profile: iq17-default
+  - id: avg_of_an_integer_over_no_rows
+    sql: "SELECT AVG(v) AS a FROM g WHERE id > 100"
+    profile: iq17-default
+  - id: avg_of_a_smallint
+    sql: "SELECT AVG(sm) AS a FROM t"
+    profile: iq17-default
+  - id: avg_of_an_integer_at_its_largest
+    sql: "SELECT AVG(it) AS a, AVG(v) AS b FROM t, g WHERE t.id = 1 AND g.id = 10"
+    profile: iq17-default
+  - id: avg_of_a_bigint
+    sql: "SELECT AVG(w) AS a FROM g"
+    profile: iq17-default
+  - id: avg_of_bigints_at_their_extremes
+    sql: "SELECT AVG(bg) AS a FROM t"
+    profile: iq17-default
+  - id: avg_of_a_bit
+    sql: "SELECT AVG(b) AS a FROM g"
+    profile: iq17-default
+  - id: avg_of_an_integer_compared_in_having
+    sql: "SELECT COUNT(*) AS c FROM g WHERE id IN (1, 2, 4) HAVING AVG(v) = 4.3333333333333333"
+    profile: iq17-default
+  - id: avg_of_an_integer_ordered
+    sql: "SELECT k, AVG(v) AS a FROM g WHERE k IS NOT NULL GROUP BY k ORDER BY AVG(v), k"
+    profile: iq17-default
+
+  # ---- AVG of a NUMERIC: scale s+21, cut toward zero
+  - id: avg_of_a_numeric_10_2
+    sql: "SELECT AVG(nm) AS a FROM t"
+    profile: iq17-default
+  - id: avg_of_a_numeric_5_1
+    sql: "SELECT AVG(qty) AS a FROM u"
+    profile: iq17-default
+  - id: avg_of_a_numeric_grouped
+    sql: "SELECT k, AVG(n) AS a FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: avg_of_a_numeric_repeating
+    sql: "SELECT AVG(n) AS a FROM g WHERE id IN (8, 11, 2)"
+    profile: iq17-default
+  - id: avg_of_a_numeric_negative
+    sql: "SELECT AVG(n) AS a FROM g WHERE id IN (8, 4, 11)"
+    profile: iq17-default
+  - id: avg_of_a_numeric_compared_in_having
+    sql: "SELECT COUNT(*) AS c FROM g WHERE id IN (8, 11, 2) HAVING AVG(n) = 0.83333333333333333333333"
+    profile: iq17-default
+  - id: avg_of_a_numeric_over_no_rows
+    sql: "SELECT AVG(n) AS a FROM g WHERE id > 100"
+    profile: iq17-default

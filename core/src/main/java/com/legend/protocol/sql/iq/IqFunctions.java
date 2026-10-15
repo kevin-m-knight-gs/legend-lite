@@ -1122,6 +1122,31 @@ final class IqFunctions {
         return times(m, ifThen(negative, new CDecimal(unit.negate()), new CDecimal(unit)));
     }
 
+    /**
+     * IQ's engine's AVG quotient (IQ island, 2026-10-15; measured on IQ 17.1): {@code x / y} cut toward zero at scale
+     * {@code s} (24 / 7 is 3.4285714285714285 at scale 16, -11 / 3 is -3.6666666666666666), where x is a decimal of
+     * scale {@code s1} (at most s) with at most {@code whole1} digits before its point and y a positive whole number,
+     * neither NULL. Exactly: n = |x| * 10^s, so that n / y = |x / y| * 10^s; its whole quotient by y
+     * ({@link #whole}) is the value's digits; the sign is x's. x and y are 38-digit decimals already; the caller refuses
+     * what {@link #truncatedFits} says would need more than lite's 38 digits.
+     */
+    static ValueSpecification truncatedQuotient(ValueSpecification x, int s1, int whole1, ValueSpecification y,
+            int s) {
+        if (!truncatedFits(s1, whole1, s)) {
+            throw new IllegalStateException("a quotient of more than 38 digits");
+        }
+        ValueSpecification ax = SqlToPure.call("abs", x);
+        ValueSpecification n = s > 0 ? times(ax, new CDecimal(pow10(s))) : ax;
+        ValueSpecification m = whole(n, y, pow10(whole1 + s));
+        BigDecimal unit = pow10(-s);
+        return times(m, ifThen(lt(x, integer(0)), new CDecimal(unit.negate()), new CDecimal(unit)));
+    }
+
+    /** Whether {@link #truncatedQuotient}'s steps fit lite's 38 digits, scales counted (n keeps x's scale). */
+    static boolean truncatedFits(int s1, int whole1, int s) {
+        return s1 <= s && whole1 + s + s1 <= 38;
+    }
+
     /** Whether {@link #quotient}'s steps fit lite's 38 digits, scales counted (n = |x| * 10^s keeps x's scale, and
      *  2n + d, a - q * b the larger one). */
     static boolean quotientFits(int s1, int whole1, int s2, int whole2, int p, int s) {

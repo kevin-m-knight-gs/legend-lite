@@ -398,8 +398,9 @@ tests:
   - id: avg_of_a_numeric_in_a_derived_table_is_refused
     sql: "SELECT a FROM (SELECT AVG(n) AS a FROM g) d"
     profile: sqla17-default
-  - id: avg_of_a_numeric_under_the_iq_engine_is_refused
+  - id: avg_of_a_numeric_under_the_iq_engine
     sql: "SELECT AVG(n) AS a FROM g"
+    profile: iq17-default
   - id: avg_of_an_integer_is_refused
     sql: "SELECT AVG(row_num) AS a FROM sa_rowgenerator(1, 3)"
     engine: sa
