@@ -29,6 +29,7 @@ import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '..
 import { typeColumns } from '../plan.ts';
 import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
+import { sampleOf } from '../sample-rows.ts';
 import { shownColumns } from '../shown-columns.ts';
 import {
   COLUMN_KINDS, isJsonValue, isRelativeDate, rowColumns, type ColumnKind, type ColumnSpec, type CubeSnapshot,
@@ -323,9 +324,10 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
 
 /**
  * A grid's rows as a class's, as Create a Class… asks for one (model-actions.ts `pageGrids`): its rows at their finest
- * level (classLambda), the table its source reads (storeTableOf), the query of that table's first rows (sampleLambda,
- * which Python runs on its own database for the class's sample), the source they are read from, and the names the
- * window offers (`named`: the grid's source's and the page's) -- DataCube's own
+ * level (classLambda), the table its source reads (storeTableOf), that table's first rows as the window writes them
+ * into the project (sampleLambda, run on the host's database by sample-rows.ts sampleOf: item 7 of
+ * docs/PYTHON_ASKS_DATACUBE_2026_10_15.md), the source they are read from, and the names the window offers (`named`:
+ * the grid's source's and the page's) -- DataCube's own
  * semantics, which Python's `grid.create_class()` asks of DataCube's code before it calls the generic library
  * (legend_lite/model.py; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4). JSON, each query as the protocol writes it; a
  * source that is no table of its own refused in words (`{"refused"}`).
@@ -341,7 +343,10 @@ export async function gridClass(spec: GridSpec, named: { readonly source: string
       className: suggestedClassName(named.source), package: suggestedPackage(named.page),
       dataSpace: suggestedDataSpaceName(named.page),
     };
-    return `{"query":${toJson(classLambda(state.snapshot))},"sample":${toJson(sampleLambda(state.snapshot.source.query))},`
+    // its first rows as the window writes them into the project (sample-rows.ts sampleOf), read on the host's database
+    const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
+    const sample = await sampleOf(runner.host, sampleLambda(state.snapshot.source.query));
+    return `{"query":${toJson(classLambda(state.snapshot))},"sample":${JSON.stringify(sample)},`
       + `"table":${JSON.stringify(table)},"source":${JSON.stringify(planner.source())},"names":${JSON.stringify(names)}}`;
   });
 }

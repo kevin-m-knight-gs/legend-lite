@@ -792,6 +792,7 @@ TEST_IMPORTS = {
         "src/plan.ts",
         "src/query.ts",
         "src/runner.ts",
+        "src/sample-rows.ts",
         "src/snapshot.ts",
         "src/tree.ts",
         "src/treeview.ts",

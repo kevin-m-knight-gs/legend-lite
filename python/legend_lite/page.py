@@ -326,24 +326,20 @@ class Grid(Tile):
     def _class(self, name: str | None = None, columns: Mapping[str, Any] | None = None,
                documentation: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         """Its rows as a class's, as the window asks for them: DataCube's own request (headless ``gridClass``: its rows
-        at their finest level, its table, its sample's query, the names offered), its sample read on Python's database
-        by the session's planner -- with the frames held still, so a Live frame is read once for both, unless a server
-        plans (its answer is awaited holding no lock of the frames'). Answers the writer's class action and what
-        DataCube said; a grid whose rows cannot be a class refused in DataCube's words (``ValueError``)."""
+        at their finest level, its table, its first rows as the window writes them into the project -- read on Python's
+        database, as every headless grid's are -- and the names offered), with the frames held still. Answers the
+        writer's class action and what DataCube said; a grid whose rows cannot be a class refused in DataCube's words
+        (``ValueError``)."""
         engine, frames = self._headless()
-        local = frames.planner is None
         with frames.serving():
             asked = _json.loads(engine.call('gridClass', self._spec(frames), {'source': self.frame, 'page': self._page.name}))
-            if 'refused' in asked:
-                raise ValueError(f'{self.frame!r} cannot be a class: {asked["refused"]}')
-            sample = frames[self.frame].execute(asked['sample']) if local else None
-        if sample is None:
-            sample = frames[self.frame].execute(asked['sample'])
+        if 'refused' in asked:
+            raise ValueError(f'{self.frame!r} cannot be a class: {asked["refused"]}')
         cls = {'query': asked['query'], 'source': asked['source'], 'name': name or asked['names']['className'],
                **({'documentation': documentation} if documentation else {}),
                **({'columns': _column_choices(columns)} if columns else {}),
                'where': {'from': asked['table']['database'], 'as': 'Python',
-                         'samples': {asked['table']['table']: _sample_rows(sample)}}}
+                         'samples': {asked['table']['table']: asked['sample']}}}
         return cls, asked
 
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
@@ -1320,65 +1316,6 @@ def _column_choices(columns: Mapping[str, Any]) -> dict[str, dict[str, str]]:
             raise ValueError(f"a column is a 'property', a 'key' or 'omit', not {choice.get('as')!r} ({column!r})")
         out[column] = {k: v for k, v in choice.items() if k in ('as', 'name', 'documentation')}
     return out
-
-
-def _sample_rows(rows: Any) -> dict[str, Any]:
-    """A table's first rows as the writer's sample takes them, each value written as the window writes it (the writer
-    copies a number's text and a string into the sample as they come): an integer past 2**53, a decimal (its digits at
-    its own scale), a date, a time and a timestamp (to the microsecond, its trailing zeros dropped, no zone: as
-    engine-client's values.ts writes them) as text; a double as JavaScript writes the number; anything nested as its
-    JSON."""
-    return {'columns': list(rows.column_names),
-            'rows': [[_sample_value(v) for v in row.values()] for row in rows.to_pylist()]}
-
-
-def _sample_value(v: Any) -> Any:
-    if v is None or isinstance(v, (bool, str)):
-        return v
-    if isinstance(v, int):
-        return v if abs(v) < 2 ** 53 else str(v)
-    if isinstance(v, float):
-        return _js_number(v)
-    if isinstance(v, Decimal):
-        return format(v, 'f')
-    if isinstance(v, datetime.datetime):
-        if v.tzinfo is not None:
-            v = v.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-        return f'{v.date().isoformat()}T{_time_text(v.time())}'
-    if isinstance(v, datetime.date):
-        return v.isoformat()
-    if isinstance(v, datetime.time):
-        return _time_text(v)
-    if isinstance(v, (dict, list, tuple)):
-        return _json.dumps(v)
-    return str(v)
-
-
-def _time_text(t: datetime.time) -> str:
-    """A time of day as values.ts ``timeText`` writes it: ``HH:MM:SS``, its fraction's trailing zeros dropped."""
-    fraction = f'{t.microsecond:06d}'.rstrip('0')
-    return f'{t.hour:02d}:{t.minute:02d}:{t.second:02d}' + (f'.{fraction}' if fraction else '')
-
-
-def _js_number(v: float) -> Any:
-    """A double as JavaScript writes it (Number.prototype.toString, which JSON.stringify uses): the shortest digits
-    that read back as it -- Python's own -- laid out in fixed notation from 1e-7 up to 1e21, so ``1.0`` is ``1``. A
-    whole number answers as an int and any other as a Decimal of that text, both of which JSON writes as they are;
-    beyond that range, and for what JSON cannot carry, the float itself."""
-    if not math.isfinite(v) or v == 0:
-        return 0 if v == 0 else v
-    sign, digits, exponent = Decimal(repr(v)).normalize().as_tuple()
-    k, n = len(digits), exponent + len(digits)
-    text = ''.join(map(str, digits))
-    if k <= n <= 21:
-        return -int(text + '0' * (n - k)) if sign else int(text + '0' * (n - k))
-    if 0 < n <= 21:
-        fixed = f'{text[:n]}.{text[n:]}'
-    elif -6 < n <= 0:
-        fixed = f'0.{"0" * -n}{text}'
-    else:
-        return v
-    return Decimal(('-' if sign else '') + fixed)
 
 
 def _end(end: Any) -> dict[str, Any]:
