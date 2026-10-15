@@ -91,16 +91,22 @@
 # IQ island, 2026-10-14 (review 7's m5, the note above only; no count moves): that BOTH_ERROR is a refusal by name
 # where SQL Anywhere raises its own error (-141, the temporary table not found), which the harness judges a
 # BOTH_ERROR, not a REFUSED. Review 7's fixes move no syntax case's verdict (every one of the 6,983 identical).
-accept	parsed	2687
-accept	refused	2261
+# IQ island, 2026-10-15 (landing 4, common table expressions; IQ 17.1's rules measured on the live server): the reader
+# now reads WITH at the head of the statement and of a derived table, each CTE read as the derived table it names:
+# accept PARSED 2,687 -> 2,717 (REFUSED 2,261 -> 2,231); reject REJECTED 838 -> 839 (REFUSED 947 -> 946: a WITH at the
+# head of a CTE's query, IQ's -131). A CTE named inside its own reading (IQ's -938, a cycle -914) is refused by name with
+# IQ's code, as M1b's note does where the cases disagree: z2_redteam-763 calls it accept, a6_sa_query-92,
+# c09_statements-70 and s2_query-346 reject. Reject-parsed and accept-rejected unchanged.
+accept	parsed	2717
+accept	refused	2231
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	50
 flag	refused	84
 reject	parsed	24
-reject	refused	947
-reject	rejected	838
+reject	refused	946
+reject	rejected	839
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

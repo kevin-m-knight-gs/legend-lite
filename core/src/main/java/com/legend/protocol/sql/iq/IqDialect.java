@@ -5009,11 +5009,11 @@ public final class IqDialect implements InputDialect {
     /**
      * A key over strings, by IQ's collation ({@link #collated}; IQ island, 2026-10-14, the merge of M1c and the natives
      * slice; measured on SQL Anywhere 17). ORDER BY sorts by the collation key (the order of rows whose keys tie is the
-     * plan's, in SQL Anywhere as in lite's databases); a GROUP BY key the query shows no value of groups by it. A
-     * DISTINCT, a set operation and a GROUP BY key the query shows show one value of each group of equal keys -- the
-     * first row SQL Anywhere meets, its plan's choice -- so they read strings only where no two different values share
-     * a key ({@link IqKeys}): there the values themselves are the keys. Anything else over strings is refused by name;
-     * a value of an unknown kind or JSON is no key.
+     * plan's, in SQL Anywhere as in lite's databases); GROUP BY and DISTINCT group by it, and where the query shows the
+     * key's value it shows one value of each group ({@link #representative}; IQ island, 2026-10-15: IQ shows the first
+     * it meets, its plan's choice, so any value of the group is an answer IQ gives). A set operation reads strings only
+     * where no two different values share a key ({@link IqKeys}): there the values themselves are the keys. Anything
+     * else over strings is refused by name; a value of an unknown kind or JSON is no key.
      */
     @Override
     public java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> key(String clause, Tx value,
@@ -5030,29 +5030,25 @@ public final class IqDialect implements InputDialect {
                 return expr != null && keys.own(expr) ? null : key(value.nullable());
             }
             case "GROUP BY" -> {
-                if (expr != null && keys.distinct(expr)) {
-                    return null;
-                }
-                if (expr == null || keys.shown(expr)) {
-                    throw SqlTranslationException.unsupported("GROUP BY over strings whose value the query shows is"
-                            + " supported only where every value is its own collation key (RTRIM, TRIM, a constant"
-                            + (settings.caseSensitive() ? "" : ", LOWER, UPPER") + "): IQ groups "
-                            + (settings.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'") + " as one and shows the"
-                            + " first it meets, which is its plan's choice", pos);
-                }
-                return key(value.nullable());
+                return expr != null && keys.distinct(expr) ? null : key(value.nullable());
             }
             default -> {
-                if (expr != null && keys.distinct(expr) || !clause.equals("DISTINCT")) {
-                    // a set operation's columns are checked by setColumn
-                    return null;
-                }
-                throw SqlTranslationException.unsupported("DISTINCT over strings is supported only where every value"
-                        + " is its own collation key (RTRIM, TRIM, a constant" + (settings.caseSensitive() ? ""
-                        : ", LOWER, UPPER") + "): IQ tells " + (settings.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
-                        + " apart as one value and shows the first it meets, which is its plan's choice", pos);
+                // a set operation's columns are checked by setColumn
+                return expr != null && keys.distinct(expr) || !clause.equals("DISTINCT") ? null : key(value.nullable());
             }
         }
+    }
+
+    /**
+     * A GROUP BY key over strings the query shows the value of, and a DISTINCT's string, show one value of each group
+     * (IQ island, 2026-10-15; the user's rule: which spelling of a group IQ shows is its plan's choice, so any is an
+     * answer IQ could give). A key whose values are their own keys ({@link IqKeys#distinct}) is grouped by as it is
+     * and needs none.
+     */
+    @Override
+    public boolean representative(String clause, Tx value, SqlAst.@com.legend.base.Nullable Expr expr) {
+        return value.kind() == Kind.STRING && (clause.equals("DISTINCT")
+                || clause.equals("GROUP BY") && (expr == null || keys.shown(expr)));
     }
 
     /** The collation key of a string that may be NULL ({@code nullable}): NULL's is NULL. */

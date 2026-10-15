@@ -240,6 +240,17 @@ public interface InputDialect {
         return null;
     }
 
+    /**
+     * Whether a GROUP BY key the dialect answers a {@link #key} for shows a member of each group (IQ island,
+     * 2026-10-15): the groups are the key's, and where the query reads the key's value it reads one value of the group
+     * -- the least of the values themselves, which is one of them -- rather than the key. A dialect whose database
+     * shows a group's first value it meets (its plan's choice) may answer true: any value of the group is an answer
+     * that database could give. Postgres's keys are its values (false).
+     */
+    default boolean representative(String clause, SqlToPure.Tx value, SqlAst.@com.legend.base.Nullable Expr expr) {
+        return false;
+    }
+
     // ------------------------------------------------------------------ grouping
 
     /** {@code s} as the dialect reads its GROUP BY and HAVING: itself (Postgres's), unless the dialect reads a name

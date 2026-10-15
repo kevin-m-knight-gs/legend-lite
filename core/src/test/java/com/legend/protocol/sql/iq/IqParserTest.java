@@ -146,7 +146,6 @@ class IqParserTest {
                 {"SELECT @@version", "global variables"},
                 // IQ island, 2026-10-15: WITH reads now (each CTE inlined as a derived table); RECURSIVE does not
                 {"WITH RECURSIVE q AS (SELECT 1) SELECT * FROM q", "RECURSIVE"},
-                {"WITH q AS (WITH r AS (SELECT 1) SELECT 1) SELECT * FROM q", "WITH inside"},
                 {"SELECT id INTO x FROM t", "INTO"},
                 {"SELECT id FROM t;", "separator"},
                 {"SELECT TOP 10 PERCENT id FROM t", "PERCENT"},
@@ -546,5 +545,59 @@ class IqParserTest {
         // r's query reads q: inlined there too, a tree of its own
         SqlAst.SubqueryFrom inner = (SqlAst.SubqueryFrom) ((SqlAst.Select) r.query()).from().get(0);
         org.junit.jupiter.api.Assertions.assertNotSame(x.query(), inner.query());
+    }
+
+    @Test
+    void commonTableExpressionsAreScopedAsIq17Scopes() {
+        // IQ island, 2026-10-15, each measured on IQ 17.1: a CTE names one written after it
+        SqlAst.SubqueryFrom a = (SqlAst.SubqueryFrom) select("WITH a AS (SELECT n FROM b), b (n) AS (SELECT 1)"
+                + " SELECT n FROM a").from().get(0);
+        assertInstanceOf(SqlAst.SubqueryFrom.class, ((SqlAst.Select) a.query()).from().get(0));
+        // of two with one name, in any case, the first is read
+        SqlAst.SubqueryFrom q = (SqlAst.SubqueryFrom) select("WITH q AS (SELECT 1 AS a), Q AS (SELECT 2 AS a)"
+                + " SELECT a FROM q").from().get(0);
+        assertEquals(BigInteger.ONE, ((SqlAst.IntegerLit) ((SqlAst.SelectExpr) ((SqlAst.Select) q.query()).items()
+                .get(0)).expr()).value());
+        // one named inside its own reading: -938 itself (a subquery's reference too), -914 a cycle; only where read
+        assertTrue(error("WITH r (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 3) SELECT n FROM r")
+                .getMessage().contains("-938"));
+        assertTrue(error("WITH r (n) AS (SELECT 1 FROM t WHERE id IN (SELECT n FROM r)) SELECT n FROM r")
+                .getMessage().contains("-938"));
+        assertTrue(error("WITH a AS (SELECT n FROM b), b (n) AS (SELECT n FROM a) SELECT n FROM a").getMessage()
+                .contains("-914"));
+        select("WITH r AS (SELECT 1 AS a FROM r) SELECT 1 AS x");
+        // a derived table's WITH: read there, and blind to the CTEs outside it (a table of that name)
+        SqlAst.SubqueryFrom d = (SqlAst.SubqueryFrom) select("WITH q AS (SELECT 5 AS a) SELECT a FROM (WITH r AS"
+                + " (SELECT 1 AS b) SELECT a FROM q) d").from().get(0);
+        assertInstanceOf(SqlAst.TableName.class, ((SqlAst.Select) d.query()).from().get(0));
+        // a plain derived table and a subquery see them
+        SqlAst.SubqueryFrom plain = (SqlAst.SubqueryFrom) select("WITH q AS (SELECT 5 AS a) SELECT a FROM (SELECT a"
+                + " FROM q) d").from().get(0);
+        assertInstanceOf(SqlAst.SubqueryFrom.class, ((SqlAst.Select) plain.query()).from().get(0));
+        // WITH in a subquery, a CTE's query or a set operation's branch is IQ's syntax error
+        assertTrue(error("SELECT id FROM t WHERE id IN (WITH q AS (SELECT 1 AS a) SELECT a FROM q)").getMessage()
+                .contains("-131"));
+        assertTrue(error("WITH p AS (WITH q AS (SELECT 1 AS a) SELECT a FROM q) SELECT a FROM p").getMessage()
+                .contains("-131"));
+        assertTrue(error("SELECT 1 AS a UNION ALL (WITH q AS (SELECT 2 AS a) SELECT a FROM q)").getMessage()
+                .contains("-131"));
+    }
+
+    @Test
+    void commonTableExpressionsReadAgainAreBounded() {
+        // IQ island, 2026-10-15: a chain whose each link names the one before twice doubles with each link
+        StringBuilder sql = new StringBuilder("WITH c0 AS (SELECT id FROM t)");
+        for (int i = 1; i <= 20; i++) {
+            sql.append(", c").append(i).append(" AS (SELECT x.id FROM c").append(i - 1).append(" x, c").append(i - 1)
+                    .append(" y)");
+        }
+        sql.append(" SELECT id FROM c20");
+        assertTrue(error(sql.toString()).getMessage().contains("name each fewer times"));
+        // a chain of single links reads each once
+        StringBuilder chain = new StringBuilder("WITH c0 AS (SELECT id FROM t)");
+        for (int i = 1; i <= 200; i++) {
+            chain.append(", c").append(i).append(" AS (SELECT id FROM c").append(i - 1).append(")");
+        }
+        select(chain.append(" SELECT id FROM c200").toString());
     }
 }

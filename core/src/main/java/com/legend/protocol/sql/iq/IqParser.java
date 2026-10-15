@@ -134,8 +134,21 @@ public final class IqParser {
      *  each named parameter read so far, one per name ({@link #parameter}). */
     private final IqSettings settings;
     private final Map<String, Integer> parameters = new java.util.HashMap<>();
-    /** IQ island, 2026-10-15: the common table expressions in scope, by name in lower case ({@link #with}). */
-    private Map<String, CteDef> ctes = Map.of();
+    /** IQ island, 2026-10-15: the common table expressions in scope, by name in lower case, the innermost scope first
+     *  ({@link #with}): a WITH's own, or none (while a WITH's queries are read for their syntax, and inside a derived
+     *  table's WITH, which sees no CTE outside it: measured on IQ 17.1, -141). */
+    private final java.util.ArrayDeque<Map<String, CteDef>> cteScopes = new java.util.ArrayDeque<>(List.of(Map.of()));
+    /** The CTEs being read again where they are named, the innermost last: one named again inside its own reading is
+     *  IQ's error (-938 itself, -914 a cycle; measured on IQ 17.1). */
+    private final List<CteDef> reading = new ArrayList<>();
+    /** The tokens read again for CTEs so far ({@link CteDef#read}), bounded by {@link #REREAD_LARGEST} and
+     *  {@link #REREAD_RATIO}. */
+    private final long[] reread = {0};
+    /** A statement's CTEs are read again where each is named, so one named twice in each of a chain of CTEs doubles
+     *  with each link: the tokens read again are refused past both this many and {@link #REREAD_RATIO} times the
+     *  statement's (IQ island, 2026-10-15, the scale suite's bound for the island's other expansions). */
+    private static final long REREAD_LARGEST = 20_000;
+    private static final long REREAD_RATIO = 50;
 
     private IqParser(String text, List<IqLexer.Token> tokens, IqSettings settings) {
         this.text = text;
@@ -257,17 +270,22 @@ public final class IqParser {
     }
 
     /**
-     * {@code WITH [RECURSIVE] name [(column, ...)] AS (query), ... query} at the head of the statement (IQ island,
-     * 2026-10-15: common table expressions, 25% of production BI queries): each a name the queries after it read as a
-     * table, read by the shared translator (a recursive one is refused by name there). Only at the head: a WITH in a
-     * derived table, a subquery or a set operation's branch stays IQ's syntax error or a refusal, as before.
+     * {@code WITH [RECURSIVE] name [(column, ...)] AS (query), ... query} at the head of the statement or of a derived
+     * table (IQ island, 2026-10-15: common table expressions, 25% of production BI queries): each a name the WITH's
+     * queries read as a table, each other's too (WITH RECURSIVE is refused by name). Measured on IQ 17.1: a CTE may
+     * name one written after it; of two with one name (in any case) the first is read, and a CTE no query names is
+     * never read (its errors but its syntax's are none); a derived table's WITH sees no CTE outside it; a WITH in a
+     * subquery, a CTE's query or a set operation's branch is IQ's syntax error (-131).
      */
     private SqlAst.Statement with() {
-        IqLexer.Token w = take();
+        take();
         if (peek().isWord("recursive")) {
             throw SqlSyntaxException.unsupported("WITH RECURSIVE is not supported yet", peek().pos());
         }
-        Map<String, CteDef> outer = ctes;
+        // every CTE of the WITH sees every other, a later one too, and the first of two with one name is the one
+        // read (measured on IQ 17.1); their queries are read here for their syntax only, no name resolving to a CTE
+        Map<String, CteDef> scope = new java.util.LinkedHashMap<>();
+        cteScopes.push(Map.of());
         try {
             do {
                 IqLexer.Token n = peek();
@@ -292,50 +310,66 @@ public final class IqParser {
                 expectKeyword("as");
                 expectOp("(");
                 if (peek().is("with")) {
-                    throw SqlSyntaxException.unsupported("a WITH inside a common table expression is not supported"
-                            + " yet", peek().pos());
+                    throw new SqlSyntaxException("a common table expression's query cannot begin with WITH"
+                            + IqDialect.syntaxCode(), peek().pos());
                 }
-                String key = IqLexer.lower(name.text());
-                if (ctes.containsKey(key) && ctes != outer) {
-                    throw new SqlSyntaxException("the common table expression '" + name.text() + "' is named twice"
-                            + IqDialect.syntaxCode(), name.pos());
-                }
-                CteDef def = new CteDef(name, columns, at, ctes);
-                queryBlock(); // read once here: its errors, and where it ends
+                int start = at;
+                queryBlock();
+                scope.putIfAbsent(IqLexer.lower(name.text()), new CteDef(name, columns, start, at, scope));
                 expectOp(")");
-                Map<String, CteDef> next = new java.util.HashMap<>(ctes);
-                next.put(key, def);
-                ctes = next;
             } while (takeOp(","));
-            if (!peek().is("select") && !peek().isOp("(")) {
-                throw new SqlSyntaxException("a WITH's query begins with SELECT, not '" + peek().text() + "'"
-                        + IqDialect.syntaxCode(), peek().pos());
-            }
+        } finally {
+            cteScopes.pop();
+        }
+        if (!peek().is("select") && !peek().isOp("(")) {
+            throw new SqlSyntaxException("a WITH's query begins with SELECT, not '" + peek().text() + "'"
+                    + IqDialect.syntaxCode(), peek().pos());
+        }
+        cteScopes.push(scope);
+        try {
             return queryBlock();
         } finally {
-            ctes = outer;
+            cteScopes.pop();
         }
     }
 
     /**
      * A common table expression (IQ island, 2026-10-15), read where it is named as a table: a derived table whose
      * query is read again from the CTE's own tokens, so each reference is a tree of its own (the island's readings key
-     * on its nodes); the CTEs before it are the names its query sees. IQ's meaning of a CTE that is not recursive is
-     * that derived table.
+     * on its nodes); its WITH's CTEs are the names its query sees. IQ's meaning of a CTE that is not recursive is
+     * that derived table; one named inside its own reading is IQ's error (measured on IQ 17.1: -938 where it names
+     * itself, -914 where CTEs name each other in a cycle), raised only where it is read, as IQ raises it.
      */
-    private record CteDef(SqlAst.Ident name, List<SqlAst.Ident> columns, int start, Map<String, CteDef> visible) {
+    private record CteDef(SqlAst.Ident name, List<SqlAst.Ident> columns, int start, int end,
+            Map<String, CteDef> visible) {
 
         SqlAst.SubqueryFrom read(IqParser p, SqlAst.Ident alias, SqlAst.Pos pos) {
+            int here = p.reading.indexOf(this);
+            if (here >= 0) {
+                // IQ's error, refused by name naming it: the syntax cases call the form accept in one case and reject
+                // in others (z2_redteam-763; a6_sa_query-92, c09_statements-70, s2_query-346), as M1b's pins note
+                throw SqlSyntaxException.unsupported(here == p.reading.size() - 1
+                        ? "the common table expression '" + name.text() + "' names itself: recursion is not allowed"
+                                + " without the RECURSIVE keyword" + IqDialect.code(-938, "42WA0")
+                        : "the common table expressions from '" + name.text() + "' name each other in a cycle"
+                                + IqDialect.code(-914, "42W93"), pos);
+            }
+            p.reread[0] += end - start;
+            if (p.reread[0] > REREAD_LARGEST && p.reread[0] > REREAD_RATIO * p.tokens.size()) {
+                throw SqlSyntaxException.unsupported("the common table expressions read where they are named come to"
+                        + " more than " + REREAD_RATIO + " times the statement: name each fewer times", pos);
+            }
             int save = p.at;
-            Map<String, CteDef> scope = p.ctes;
+            p.cteScopes.push(visible);
+            p.reading.add(this);
             try {
                 p.at = start;
-                p.ctes = visible;
                 SqlAst.Statement query = p.queryBlock();
                 return new SqlAst.SubqueryFrom(query, alias, columns, false, pos);
             } finally {
+                p.reading.remove(p.reading.size() - 1);
+                p.cteScopes.pop();
                 p.at = save;
-                p.ctes = scope;
             }
         }
     }
@@ -962,7 +996,16 @@ public final class IqParser {
         }
         take();
         if (peek().is("with")) {
-            throw SqlSyntaxException.unsupported("WITH in a derived table is not supported yet", peek().pos());
+            // a derived table's own WITH (measured on IQ 17.1): its queries see no CTE outside it
+            cteScopes.push(Map.of());
+            SqlAst.Statement inner;
+            try {
+                inner = with();
+            } finally {
+                cteScopes.pop();
+            }
+            expectOp(")");
+            return derivedTable(inner, first);
         }
         try {
             SqlAst.FromItem inner = tableExpression();
@@ -1053,7 +1096,7 @@ public final class IqParser {
         }
         SqlAst.Ident alias = alias(true);
         noTableHints();
-        CteDef cte = name.size() == 1 ? ctes.get(IqLexer.lower(name.get(0).text())) : null;
+        CteDef cte = name.size() == 1 ? cteScopes.element().get(IqLexer.lower(name.get(0).text())) : null;
         if (cte != null) {
             return cte.read(this, alias != null ? alias : new SqlAst.Ident(name.get(0).text(), name.get(0).quoted(),
                     name.get(0).pos()), first.pos());

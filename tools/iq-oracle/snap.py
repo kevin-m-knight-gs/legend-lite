@@ -82,7 +82,7 @@ PROFILES = {
 DEFAULT_PROFILE = "iq16-default"
 ENGINES = {"iq", "sa", "auto"}
 CASE_KEYS = {"id", "sql", "profile", "engine", "skip", "sa_defect", "decision", "expect", "params", "settings",
-             "nondeterministic"}
+             "nondeterministic", "member"}
 
 # IQ island, 2026-10-14 (the options framework): a case's settings, IQ's own names each given at a level (as Pure's
 # tagged values will give them: a Database element's, the enclosing function's) -- database.<name>=<value> and
@@ -338,6 +338,10 @@ def read_cases(lite_dir):
             why = m.get("nondeterministic")
             if why is not None and (not isinstance(why, str) or not why.strip()):
                 raise Bad("%s: nondeterministic states its reason (the case tests a refusal or an error)" % where)
+            member = m.get("member")
+            if member is not None and (not isinstance(member, str) or not member.strip()):
+                raise Bad("%s: member states its reason (which value of a group of equal strings the query shows is"
+                          " IQ's choice)" % where)
             params = m.get("params")
             if params is not None and not isinstance(params, str):
                 raise Bad("%s: params is one line of text, name = value; ..." % where)

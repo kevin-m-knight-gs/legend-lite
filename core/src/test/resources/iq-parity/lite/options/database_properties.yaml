@@ -65,6 +65,7 @@ tests:
     sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
     settings: "database.CaseSensitive='Off'"
     profile: iq16-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
 
   # ---- iq16-default: Collation='UTF8BIN'
   - id: iq_utf8_equal
@@ -123,6 +124,7 @@ tests:
     sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
     settings: "database.Collation='UTF8BIN'"
     profile: iq16-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
 
   # ---- iq16-default: CaseSensitive='Off', Collation='UTF8BIN'
   - id: iq_ci_utf8_equal
@@ -181,6 +183,7 @@ tests:
     sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
     settings: "database.CaseSensitive='Off', database.Collation='UTF8BIN'"
     profile: iq16-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
 
   # ---- sqla17-default: CaseSensitive='On'
   - id: sa_cs_equal
@@ -297,6 +300,7 @@ tests:
     sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
     settings: "database.BlankPadding='On'"
     profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
 
   # ---- sqla17-default: CaseSensitive='On', BlankPadding='On'
   - id: sa_cs_bp_equal
@@ -355,6 +359,7 @@ tests:
     sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
     settings: "database.CaseSensitive='On', database.BlankPadding='On'"
     profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
 
   # ---- sqla17-default: Collation='ISO_BINENG'
   - id: sa_latin1_equal
@@ -529,6 +534,7 @@ tests:
     sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
     settings: "database.BlankPadding='On', database.Collation='ISO_BINENG'"
     profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
 
   # ---- sqla17-default: CaseSensitive='On', BlankPadding='On', Collation='ISO_BINENG'
   - id: sa_cs_bp_latin1_equal
@@ -587,3 +593,4 @@ tests:
     sql: "SELECT LOWER(s) AS k, COUNT(*) AS n FROM g GROUP BY LOWER(s) ORDER BY k"
     settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG'"
     profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"

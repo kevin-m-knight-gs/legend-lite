@@ -189,10 +189,13 @@ class IqToPureTest {
         String lt = pure("SELECT id FROM " + T + " WHERE vc < 'b'");
         assertTrue(lt.contains("regexpReplace(' +$', '', false)") && !lt.contains("rtrim"), lt);
         // IQ island, 2026-10-14 (the merge): the seam's key takes the dialect's collation -- ORDER BY sorts by it;
-        // DISTINCT shows one value of a group of equal keys, so it reads only strings that are their own keys
+        // DISTINCT groups by it and shows one value of each group (IQ island, 2026-10-15: the least, a member), and
+        // strings that are their own keys are their own DISTINCT
         String ordered = pure("SELECT id FROM " + T + " ORDER BY vc");
         assertTrue(ordered.contains("regexpReplace(' +$', '', false))])->sort("), ordered);
-        assertTrue(refusal("SELECT DISTINCT vc FROM " + T).getMessage().contains("DISTINCT over strings"));
+        String distinct = pure("SELECT DISTINCT vc FROM " + T);
+        assertTrue(distinct.contains("regexpReplace(' +$', '', false)") && distinct.contains("groupBy(")
+                && distinct.contains("->min()") && !distinct.contains("distinct()"), distinct);
         assertFalse(pure("SELECT DISTINCT RTRIM(vc) AS r FROM " + T).contains("regexpReplace(' +$'"));
         String eq = pure("SELECT id FROM " + T + " WHERE vc = 'x'", IqProfile.SQLA17_DEFAULT.settings());
         assertTrue(eq.contains("replace('A', 'a')") && eq.contains("replace('Z', 'z')") && !eq.contains("toLower"),
@@ -777,11 +780,11 @@ class IqToPureTest {
                 .kind());
         // a constant beside another key divides no group
         assertTrue(pure("SELECT sm FROM " + T + " GROUP BY sm, 1").contains("distinct()"));
-        // strings are no key yet; a column of a GROUP BY expression read outside it is refused
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT vc FROM " + T + " GROUP BY vc").kind());
+        // a string key shown shows one value of its group (IQ island, 2026-10-15); a column of a GROUP BY expression
+        // read outside it is refused
+        assertTrue(pure("SELECT vc FROM " + T + " GROUP BY vc").contains("->min()"));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 1 + sm FROM " + T + " GROUP BY sm + 1")
                 .kind());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT DISTINCT vc FROM " + T).kind());
     }
 
     @Test
@@ -861,25 +864,27 @@ class IqToPureTest {
     @Test
     void stringKeysAreIqsCollation() {
         // IQ island, 2026-10-14 (the merge of M1c and the natives slice): a GROUP BY key not shown groups by the
-        // collation key; one shown only where each value is its own key; a set operation likewise
+        // collation key; IQ island, 2026-10-15: one shown (or read in HAVING) groups by it too and shows one value of
+        // each group, the least of its values (a member: which one IQ shows is its plan's choice); a set operation
+        // reads only strings that are their own keys
         String hidden = pure("SELECT COUNT(*) AS n FROM " + T + " GROUP BY vc");
-        assertTrue(hidden.contains("regexpReplace(' +$', '', false)") && hidden.contains("groupBy("), hidden);
-        assertTrue(refusal("SELECT vc, COUNT(*) AS n FROM " + T + " GROUP BY vc").getMessage().contains(
-                "GROUP BY over strings"));
-        assertTrue(refusal("SELECT COUNT(*) AS n FROM " + T + " GROUP BY vc HAVING vc > 'a'").getMessage().contains(
-                "GROUP BY over strings"));
+        assertTrue(hidden.contains("regexpReplace(' +$', '', false)") && hidden.contains("groupBy(")
+                && !hidden.contains("->min()"), hidden);
+        String shown = pure("SELECT vc, COUNT(*) AS n FROM " + T + " GROUP BY vc");
+        assertTrue(shown.contains("regexpReplace(' +$', '', false)") && shown.contains("->min()"), shown);
+        assertTrue(pure("SELECT COUNT(*) AS n FROM " + T + " GROUP BY vc HAVING vc > 'a'").contains("->min()"));
         assertFalse(pure("SELECT RTRIM(vc) AS r, COUNT(*) AS n FROM " + T + " GROUP BY RTRIM(vc)").contains(
                 "regexpReplace(' +$'"));
         assertTrue(refusal("SELECT vc FROM " + T + " UNION SELECT 'a'").getMessage().contains("UNION over strings"));
         pure("SELECT RTRIM(vc) AS r FROM " + T + " UNION SELECT 'a'");
-        // a sqla17 profile folds the ASCII letters: LOWER is its own key there, RTRIM is not
-        assertTrue(refusal("SELECT DISTINCT RTRIM(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
-                .getMessage().contains("'A' and 'a'"));
-        pure("SELECT DISTINCT LOWER(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS);
+        // a sqla17 profile folds the ASCII letters: LOWER is its own key there, RTRIM is not (a member is shown)
+        assertTrue(pure("SELECT DISTINCT RTRIM(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
+                .contains("->min()"));
+        assertFalse(pure("SELECT DISTINCT LOWER(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
+                .contains("->min()"));
         // a derived table's column is what its definition is
-        pure("SELECT DISTINCT x FROM (SELECT RTRIM(vc) AS x FROM " + T + ") d");
-        assertTrue(refusal("SELECT DISTINCT x FROM (SELECT vc AS x FROM " + T + ") d").getMessage().contains(
-                "DISTINCT over strings"));
+        assertFalse(pure("SELECT DISTINCT x FROM (SELECT RTRIM(vc) AS x FROM " + T + ") d").contains("->min()"));
+        assertTrue(pure("SELECT DISTINCT x FROM (SELECT vc AS x FROM " + T + ") d").contains("->min()"));
     }
 
     @Test

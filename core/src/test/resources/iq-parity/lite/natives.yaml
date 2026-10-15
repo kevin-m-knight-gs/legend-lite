@@ -235,7 +235,7 @@ tests:
   - id: ordering_strings_by_their_collation_key
     sql: "SELECT id FROM t ORDER BY vc"
   # IQ island, 2026-10-14 (the merge): was distinct_strings_is_still_no_key; refused now because IQ shows the first of 'a', 'a ' it meets
-  - id: distinct_strings_of_a_column_is_refused
+  - id: distinct_strings_of_a_column
     sql: "SELECT DISTINCT vc FROM t"
 
   # ---- REPLACE, LOCATE, CHARINDEX, PATINDEX in a sqla17 profile: without regard to the ASCII letters' case

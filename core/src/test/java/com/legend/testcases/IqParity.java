@@ -49,7 +49,7 @@ public final class IqParity {
 
     /** The keys a case may carry (tools/iq-oracle/README.md): any other is an error. */
     private static final Set<String> CASE_KEYS = Set.of("id", "sql", "profile", "engine", "skip", "sa_defect",
-            "decision", "expect", "params", "settings", "nondeterministic");
+            "decision", "expect", "params", "settings", "nondeterministic", "member");
 
     private static final Pattern DECISION = Pattern.compile("D-[A-Z]+[0-9]+[a-z]?");
 
@@ -61,11 +61,24 @@ public final class IqParity {
     /** A case: its file (relative to iq-parity/, {@code lite/...}), its id, its SQL, its profiles, the engine it pins
      *  (null for auto), why it is not run (a skip or an SA defect), and the provisional decision that judges it, with
      *  the decided rows (one line of JSON); IQ island, 2026-10-14 (review 7, the user's ruling on B1): why its answer
-     *  may be one plan's choice ({@code nondeterministic}: it tests a refusal or an error, {@link #determinism}). */
+     *  may be one plan's choice ({@code nondeterministic}: it tests a refusal or an error, {@link #determinism}); IQ
+     *  island, 2026-10-15 (the user's rule: any answer IQ could give is right): why a string it shows is one value of a
+     *  group of values IQ's collation holds equal, IQ's choice of which ({@code member}: its strings are compared by
+     *  that collation, {@link #compare}). */
     public record Case(String file, String id, String sql, List<String> profiles, @com.legend.base.Nullable String engine,
             @com.legend.base.Nullable String skip, @com.legend.base.Nullable String decision,
             @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params,
-            @com.legend.base.Nullable String settings, @com.legend.base.Nullable String nondeterministic) {
+            @com.legend.base.Nullable String settings, @com.legend.base.Nullable String nondeterministic,
+            @com.legend.base.Nullable String member) {
+
+        /** A case whose strings are compared as they are. */
+        public Case(String file, String id, String sql, List<String> profiles,
+                @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
+                @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect,
+                @com.legend.base.Nullable String params, @com.legend.base.Nullable String settings,
+                @com.legend.base.Nullable String nondeterministic) {
+            this(file, id, sql, profiles, engine, skip, decision, expect, params, settings, nondeterministic, null);
+        }
 
         /** A case without settings (IQ island, 2026-10-14, the options framework: {@code settings}, IQ's settings by
          *  level as written, {@code database.<name>=<value>, query.<name>=<value>, ...}) that does not opt out of the
@@ -74,14 +87,14 @@ public final class IqParity {
                 @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
                 @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect,
                 @com.legend.base.Nullable String params) {
-            this(file, id, sql, profiles, engine, skip, decision, expect, params, null, null);
+            this(file, id, sql, profiles, engine, skip, decision, expect, params, null, null, null);
         }
 
         /** A case that binds no variables. */
         public Case(String file, String id, String sql, List<String> profiles,
                 @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
                 @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect) {
-            this(file, id, sql, profiles, engine, skip, decision, expect, null, null, null);
+            this(file, id, sql, profiles, engine, skip, decision, expect, null, null, null, null);
         }
 
         /** The case's key in the answers file: {@code lite/<file>/<id>}. */
@@ -287,8 +300,13 @@ public final class IqParity {
             throw new IllegalStateException(where + ": nondeterministic states its reason (the case tests a refusal or"
                     + " an error)");
         }
+        Object member = m.get("member");
+        if (member != null && (!(member instanceof String why) || why.strip().isEmpty())) {
+            throw new IllegalStateException(where + ": member states its reason (which value of a group of equal"
+                    + " strings the query shows is IQ's choice)");
+        }
         return new Case(file, id, sql, profiles, engine == null || engine.equals("auto") ? null : engine, skip,
-                decision, expect, params, settings, (String) nondeterministic);
+                decision, expect, params, settings, (String) nondeterministic, (String) member);
     }
 
     /** Every run of {@code cases}: each case under each of its profiles, in order. */
@@ -1586,6 +1604,11 @@ public final class IqParity {
         if (!diffs.isEmpty()) {
             return diffs;
         }
+        if (run.c().member() != null) {
+            // IQ island, 2026-10-15: a string shown is any value of its group of equal strings
+            expected = collated(expected, snap.types(), run.settings());
+            actual = collated(actual, snap.types(), run.settings());
+        }
         List<SqlAst.SortItem> orderBy;
         SqlAst.Statement st;
         try {
@@ -1706,6 +1729,21 @@ public final class IqParity {
             end--;
         }
         return b.substring(0, end);
+    }
+
+    /** {@code grid} with each string cell its collation key under {@code profile} ({@link #collationKey}): the
+     *  strings of a case that shows one value of each group of equal strings (IQ island, 2026-10-15, {@code member}). */
+    private static SqlParity.Grid collated(SqlParity.Grid grid, List<String> types,
+            com.legend.protocol.sql.iq.IqSettings profile) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (List<Object> row : grid.rows()) {
+            List<Object> keyed = new ArrayList<>();
+            for (int c = 0; c < row.size(); c++) {
+                keyed.add(collationKey(row.get(c), types.get(c), profile));
+            }
+            rows.add(keyed);
+        }
+        return new SqlParity.Grid(grid.columns(), rows);
     }
 
     /** Rows in one order whatever their source: by each cell's canonical text ({@link #canonical}). */

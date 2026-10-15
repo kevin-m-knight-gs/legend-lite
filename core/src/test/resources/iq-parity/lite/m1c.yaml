@@ -349,9 +349,10 @@ tests:
     sql: "SELECT j, COUNT(*), COUNT(j) FROM g GROUP BY j ORDER BY j"
   - id: group_by_of_no_rows
     sql: "SELECT k, COUNT(*) FROM g WHERE id > 100 GROUP BY k"
-  - id: group_by_a_string_is_refused
+  - id: group_by_a_string
     sql: "SELECT s, COUNT(*) FROM g GROUP BY s"
-  - id: group_by_a_varchar_is_refused
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+  - id: group_by_a_varchar
     sql: "SELECT vc FROM t GROUP BY vc"
   - id: group_by_a_column_not_grouped_is_wrong
     sql: "SELECT k, j FROM g GROUP BY k"
@@ -483,8 +484,9 @@ tests:
     sql: "SELECT DISTINCT k + 1 FROM g ORDER BY k"
   - id: distinct_ordered_by_an_expression_is_refused
     sql: "SELECT DISTINCT k FROM g ORDER BY -k"
-  - id: distinct_strings_is_refused
+  - id: distinct_strings
     sql: "SELECT DISTINCT s FROM g"
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: distinct_with_top
     sql: "SELECT DISTINCT TOP 2 k FROM g ORDER BY k"
   - id: distinct_over_a_grouping

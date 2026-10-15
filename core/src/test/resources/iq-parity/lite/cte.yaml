@@ -1,8 +1,11 @@
 # Common table expressions (IQ island, 2026-10-15, landing 4: CTEs are in 25% of production BI queries): WITH name
-# [(columns)] AS (query), ... at the head of the statement, each reference read as the derived table it names (the
-# CTE's query read again for each reference, its column list the derived table's). IQ's meaning of a CTE that is not
-# recursive is that derived table. Judged by SQL Anywhere 17's answers in iq-answers.jsonl (real IQ 17.1 to follow as
-# the oracle of the iq profiles). Every case is deterministic: a total ORDER BY, or a single row.
+# [(columns)] AS (query), ... at the head of the statement or of a derived table, each reference read as the derived
+# table it names (the CTE's query read again for each reference, its column list the derived table's). IQ's meaning of a
+# CTE that is not recursive is that derived table. IQ 17.1's scoping, measured on the live server: a CTE may name one
+# written after it; of two with one name the first is read; one never named is never read; a derived table's WITH sees
+# no CTE outside it; a CTE named inside its own reading is IQ's error (-938, a cycle -914; refused by name with the
+# code); a WITH in a subquery or a CTE's query is IQ's syntax error. Judged by SQL Anywhere 17's answers in
+# iq-answers.jsonl. Every case is deterministic: a total ORDER BY, or a single row.
 tests:
 
   # ---- one CTE, as a table
@@ -45,7 +48,40 @@ tests:
   - id: a_cte_named_like_a_table
     sql: "WITH t AS (SELECT id FROM u WHERE id < 3) SELECT id FROM t ORDER BY id"
 
+  # ---- IQ 17.1's scoping (measured on the live server)
+  - id: a_cte_names_a_later_one
+    sql: "WITH a AS (SELECT id FROM b), b AS (SELECT id FROM t WHERE id < 4) SELECT id FROM a ORDER BY id"
+  - id: a_chain_named_backwards
+    sql: "WITH a AS (SELECT n + 1 AS n FROM b), b AS (SELECT n * 10 AS n FROM c), c (n) AS (SELECT id FROM t WHERE id = 2) SELECT n FROM a"
+  - id: two_ctes_of_one_name_the_first_is_read
+    sql: "WITH q AS (SELECT id FROM t WHERE id = 1), Q AS (SELECT id FROM t WHERE id = 2) SELECT id FROM q"
+  - id: a_cte_never_named_is_never_read
+    sql: "WITH q AS (SELECT no_such_column FROM t) SELECT id FROM t WHERE id = 1"
+  - id: a_derived_tables_own_with
+    sql: "SELECT x FROM (WITH q (a) AS (SELECT id FROM t WHERE id < 3) SELECT a FROM q) d (x) ORDER BY x"
+  - id: a_derived_tables_with_hides_an_outer_cte_of_its_name
+    sql: "WITH q AS (SELECT id FROM t WHERE id = 1) SELECT id FROM (WITH q AS (SELECT id FROM t WHERE id = 2) SELECT id FROM q) d"
+  - id: a_derived_tables_with_sees_no_outer_cte
+    sql: "WITH q AS (SELECT id FROM t) SELECT id FROM (WITH r AS (SELECT 1 AS b) SELECT id FROM q) d ORDER BY id"
+  - id: a_plain_derived_table_sees_the_ctes
+    sql: "WITH q AS (SELECT id FROM t WHERE id < 3) SELECT id FROM (SELECT id FROM q) d ORDER BY id"
+  - id: a_cte_read_by_a_union
+    sql: "WITH q AS (SELECT id FROM t WHERE id < 3) SELECT id FROM q UNION ALL SELECT id + 10 FROM q ORDER BY id"
+  - id: a_cte_read_by_a_parenthesized_query
+    sql: "WITH q AS (SELECT id FROM t WHERE id = 1) (SELECT id FROM q)"
+  - id: a_cte_grouped_by_a_string_shown
+    sql: "WITH q AS (SELECT s FROM g) SELECT s, COUNT(*) AS n FROM q GROUP BY s ORDER BY n, s"
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+
   # ---- refused or IQ's errors
+  - id: a_cte_naming_itself_is_refused
+    sql: "WITH r (n) AS (SELECT id FROM t WHERE id IN (SELECT n FROM r)) SELECT n FROM r ORDER BY n"
+  - id: ctes_naming_each_other_are_refused
+    sql: "WITH a AS (SELECT n FROM b), b (n) AS (SELECT n FROM a) SELECT n FROM a ORDER BY n"
+  - id: a_with_in_a_subquery_is_an_error
+    sql: "SELECT id FROM t WHERE id IN (WITH q AS (SELECT t_id FROM u) SELECT t_id FROM q) ORDER BY id"
+  - id: a_with_in_a_ctes_query_is_an_error
+    sql: "WITH p AS (WITH q AS (SELECT id FROM t) SELECT id FROM q) SELECT id FROM p ORDER BY id"
   - id: a_recursive_cte_is_refused
     sql: "WITH RECURSIVE q (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM q WHERE n < 3) SELECT n FROM q ORDER BY n"
   - id: a_cte_read_by_an_unknown_name_is_an_error

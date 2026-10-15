@@ -1914,6 +1914,7 @@ public final class SqlToPure {
         Map<String, Col> keyBySource = new HashMap<>();
         List<ColSpec> keys = new ArrayList<>();
         List<ColSpec> computedKeys = new ArrayList<>();
+        List<ColSpec> representatives = new ArrayList<>();
         Set<String> names = new HashSet<>(in.names());
         for (SqlAst.Expr g : s.groupBy()) {
             SqlAst.Expr key = groupKey(g, s, in);
@@ -1939,6 +1940,18 @@ public final class SqlToPure {
                     keyBySource.put(source.name(), col);
                     computedKeys.add(new ColSpec(col.name(), lambda(row, collation.apply(valueOf(tx(key, in, row)))),
                             null, null));
+                    if (dialect.representative("GROUP BY", Tx.value(property(row, source.name()), source.kind(),
+                            source.nullable(), source.detail()), key)) {
+                        // IQ island, 2026-10-15: the key's value read as one value of its group, the least (min is
+                        // a [0..1] whatever the values)
+                        Col shown = Col.of(fresh(names), source.kind(), true, source.detail());
+                        representatives.add(new ColSpec(shown.name(), lambda(row, property(row, source.name())),
+                                lambda(group, call("min", new Variable(group))), null));
+                        keyBySource.put(source.name(), shown);
+                        keys.add(new ColSpec(col.name(), null, null, null));
+                        byCanon.put(canon, shown);
+                        continue;
+                    }
                 }
             } else {
                 Tx t = tx(key, in, row);
@@ -1948,6 +1961,16 @@ public final class SqlToPure {
                 col = Col.of(fresh(names), t.kind(), t.nullable(), t.detail());
                 computedKeys.add(new ColSpec(col.name(), lambda(row, collation == null ? valueOf(t)
                         : collation.apply(valueOf(t))), null, null));
+                if (collation != null && dialect.representative("GROUP BY", t, key)) {
+                    // IQ island, 2026-10-15: the key's value read as one value of its group, the least (min is a
+                    // [0..1] whatever the values)
+                    Col shown = Col.of(fresh(names), t.kind(), true, t.detail());
+                    representatives.add(new ColSpec(shown.name(), lambda(row, valueOf(t)),
+                            lambda(group, call("min", new Variable(group))), null));
+                    keys.add(new ColSpec(col.name(), null, null, null));
+                    byCanon.put(canon, shown);
+                    continue;
+                }
             }
             byCanon.put(canon, col);
             keys.add(new ColSpec(col.name(), null, null, null));
@@ -1982,6 +2005,7 @@ public final class SqlToPure {
         for (SqlAst.Expr e : scanned) {
             collectAggregates(e, in, byCanon, aggregates, finishes, names, preferred);
         }
+        aggregates.addAll(0, representatives);
         if (!computedKeys.isEmpty()) {
             relation = call("extend", relation, new ColSpecArray(computedKeys));
         }
@@ -2905,6 +2929,23 @@ public final class SqlToPure {
                         o.detail()));
             }
         }
+        // a DISTINCT's keys: the values themselves, or a dialect's key whose group shows one of its values (IQ island,
+        // 2026-10-15), the least (a min, a [0..1] whatever the values)
+        List<java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification>> distinctKeys =
+                new ArrayList<>();
+        if (s.distinct()) {
+            for (int i = 0; i < outputs.size(); i++) {
+                Output o = outputs.get(i);
+                notJsonKey(o.kind(), "DISTINCT", s.pos());
+                java.util.function.UnaryOperator<ValueSpecification> key = distinctKey("DISTINCT", Tx.value(property(
+                        row, o.internal()), o.kind(), o.nullable(), o.detail()), o.expr(), s.pos());
+                distinctKeys.add(key);
+                if (key != null) {
+                    outputs.set(i, new Output(o.name(), o.internal(), o.value(), o.expr(), o.kind(), true,
+                            o.detail()));
+                }
+            }
+        }
         List<ColSpec> computed = new ArrayList<>();
         for (Output o : outputs) {
             ValueSpecification v = o.value();
@@ -2931,12 +2972,25 @@ public final class SqlToPure {
             selection.add(colSpec(o.internal()));
         }
         if (s.distinct()) {
-            for (Output o : outputs) {
-                notJsonKey(o.kind(), "DISTINCT", s.pos());
-                distinctKey("DISTINCT", Tx.value(property(row, o.internal()), o.kind(), o.nullable(), o.detail()),
-                        o.expr(), s.pos());
+            List<ColSpec> keys = new ArrayList<>();
+            List<ColSpec> keyed = new ArrayList<>();
+            List<ColSpec> members = new ArrayList<>();
+            for (int i = 0; i < outputs.size(); i++) {
+                Output o = outputs.get(i);
+                java.util.function.UnaryOperator<ValueSpecification> key = distinctKeys.get(i);
+                if (key == null) {
+                    keys.add(colSpec(o.internal()));
+                } else {
+                    String k = fresh(present);
+                    keyed.add(new ColSpec(k, lambda(row, key.apply(property(row, o.internal()))), null, null));
+                    keys.add(colSpec(k));
+                    members.add(new ColSpec(o.internal(), lambda(row, property(row, o.internal())),
+                            lambda(group, call("min", new Variable(group))), null));
+                }
             }
-            relation = call("distinct", call("select", relation, new ColSpecArray(selection)));
+            relation = members.isEmpty() ? call("distinct", call("select", relation, new ColSpecArray(selection)))
+                    : call("select", call("groupBy", call("extend", relation, new ColSpecArray(keyed)),
+                            new ColSpecArray(keys), new ColSpecArray(members)), new ColSpecArray(selection));
             if (!afterDistinct.isEmpty()) {
                 relation = call("extend", relation, new ColSpecArray(afterDistinct));
             }
@@ -3069,14 +3123,17 @@ public final class SqlToPure {
         return name;
     }
 
-    /** A DISTINCT's (a set operation's) key: nothing, or the dialect's refusal. The translation tells rows apart by
-     *  the values themselves; a dialect that tells them apart by a key of its own shows one value of each group of
-     *  equal keys, which it chooses: refused here. */
-    private void distinctKey(String clause, Tx value, SqlAst.@com.legend.base.Nullable Expr expr, SqlAst.Pos pos) {
-        if (dialect.key(clause, value, expr, pos) != null) {
+    /** A DISTINCT's (a set operation's) key: nothing (the values themselves tell rows apart), the dialect's key of a
+     *  value whose group shows one of its values ({@link InputDialect#representative}; IQ island, 2026-10-15), or the
+     *  dialect's refusal; a dialect whose key's group would show a value it chooses otherwise is refused here. */
+    private java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> distinctKey(String clause,
+            Tx value, SqlAst.@com.legend.base.Nullable Expr expr, SqlAst.Pos pos) {
+        java.util.function.UnaryOperator<ValueSpecification> key = dialect.key(clause, value, expr, pos);
+        if (key != null && !dialect.representative(clause, value, expr)) {
             throw SqlTranslationException.unsupported(clause + " by a key other than the values themselves is not"
                     + " supported", pos);
         }
+        return key;
     }
 
     private static Input inputScope(Scope scope) {
