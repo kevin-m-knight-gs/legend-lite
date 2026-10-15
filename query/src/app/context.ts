@@ -50,6 +50,11 @@ export interface AppConfig {
    * snapshot (Depot's `master-SNAPSHOT`, upstream Query's HEAD), with its dependencies.
    */
   readonly depot?: ModelHomeConfig;
+  /**
+   * Where the page's WebAssembly is served -- DuckDB and its extensions, the saved queries' rules, the warehouse's
+   * binding: absent, `./vendor/` beside the page; a site serving one copy for every app says where (//site:dist).
+   */
+  readonly vendor?: string;
 }
 
 /** A project's model, loaded: its text (what execution sends), and its graph (what the screens read). */

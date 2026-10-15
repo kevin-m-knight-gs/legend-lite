@@ -31,6 +31,11 @@ export interface PageConfig {
    * are its own: the model's Data elements, loaded into this tab's DuckDB (plan A2). Absent: none.
    */
   readonly depot?: DepotConfig;
+  /**
+   * Where the page's WebAssembly is served -- DuckDB and its extensions, the compiler, the saved stores' rules, the
+   * warehouse's binding: `./vendor/` beside the page, unless the site serves one copy for every app (//site:dist).
+   */
+  readonly vendor: string;
 }
 
 export interface DepotConfig {
@@ -51,7 +56,7 @@ export interface ProjectConfig {
   readonly models: readonly string[];
 }
 
-const EMPTY: PageConfig = { legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', projects: [] };
+const EMPTY: PageConfig = { legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', projects: [], vendor: './vendor/' };
 
 const texts = (v: unknown): string[] => (Array.isArray(v) ? v.map(text).filter((t) => t !== '') : []);
 
@@ -104,6 +109,7 @@ export async function pageConfig(location: Location = window.location): Promise<
       file = {
         legendLite: text(raw['legendLite']), legendEngine: text(raw['legendEngine']), warehouse: text(raw['warehouse']),
         queryStore: text(raw['queryStore']), user: text(raw['user']), projects: projects(raw['projects'], url.href),
+        vendor: text(raw['vendor']) || EMPTY.vendor,
         ...(byName ? { depot: byName } : {}),
       };
     }
@@ -118,6 +124,7 @@ export async function pageConfig(location: Location = window.location): Promise<
     queryStore: text(q.get('queryStore')) || file.queryStore,
     user: file.user,
     projects: file.projects,
+    vendor: file.vendor,
     ...(file.depot ? { depot: file.depot } : {}),
   };
 }

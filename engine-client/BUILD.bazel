@@ -193,11 +193,12 @@ _DUCKDB_EXTENSIONS = [
 # fails loudly: the tab asks for another folder, and ICU's load fails every page's start.
 _DUCKDB_VERSION = "v1.5.4"
 
-# one per extension and browser build
+# one per extension, for the one browser build the apps ship: DuckDB's with WebAssembly exception handling (wasm_eh;
+# duckdb-tab.ts refuses a browser without it). MODULE.bazel still pins the wasm_mvp files; nothing fetches them
 _DUCKDB_EXTENSION_BUILDS = [
     (extension, build)
     for extension in _DUCKDB_EXTENSIONS
-    for build in ("wasm_eh", "wasm_mvp")
+    for build in ("wasm_eh",)
 ]
 
 [copy_file(

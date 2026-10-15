@@ -58,6 +58,8 @@ export interface TabConfig {
   readonly user: string;
   readonly projects: readonly ConfiguredProject[];
   readonly depot?: { readonly sdlc: string; readonly vendor: string };
+  /** Where the page's WebAssembly is served (page-config.ts `vendor`). */
+  readonly vendor: string;
 }
 
 export interface BrowserServicesOptions {
@@ -79,7 +81,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
   // once, at the first call of either store (a load that failed is tried again at the next)
   let stores: Promise<QueriesModule> | undefined;
   const storeRules = (): Promise<QueriesModule> => (stores ??= queryStores()
-    .then((m) => m.loadQueriesModule(new URL('./vendor/queries/', o.location.href).href))
+    .then((m) => m.loadQueriesModule(new URL(`${config.vendor}queries/`, o.location.href).href))
     .catch((e: unknown) => {
       stores = undefined;
       throw e;
@@ -234,7 +236,7 @@ function warehouseService(config: TabConfig, location: { readonly href: string }
   const loaded = (): Promise<{ readonly driver: Driver; readonly binding: WarehouseBinding }> => (loading ??=
     import('../../../engine-client/src/warehouse.ts')
       .then(async (driver) => (ready = {
-        driver, binding: await driver.loadWarehouseBinding(new URL('./vendor/warehouse/', location.href).href),
+        driver, binding: await driver.loadWarehouseBinding(new URL(`${config.vendor}warehouse/`, location.href).href),
       }))
       .catch((e: unknown) => {
         loading = undefined;

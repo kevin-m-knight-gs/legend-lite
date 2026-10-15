@@ -78,8 +78,9 @@ filegroup(
     visibility = ["//:__pkg__"],
 )
 
-# The WebAssembly modules the page loads from ./vendor/: the compiler (vendor/planner/), the SDLC (vendor/sdlc/),
-# DuckDB for running functions in the tab (vendor/duckdb/, engine-client's copy), the fonts, and the query builder's
+# The WebAssembly modules the page loads from ./vendor/, laid out as DataCube's and Query's are so a site serves one
+# copy for every app (//site:dist): the compiler (vendor/classes.wasm), the SDLC (vendor/sdlc/), DuckDB for running
+# functions in the tab (vendor/duckdb-eh.wasm and its extensions, engine-client's copy), the fonts, and the query builder's
 # stylesheets: Query's (vendor/query/) and DataCube's for its results grid (vendor/cube/, Query's copy).
 copy_to_directory(
     name = "vendor",
@@ -102,9 +103,7 @@ copy_to_directory(
         "sdlc-server/page/classes.wasm",
         "sdlc-server/page/wasm-gc-module-runtime.js",
         "engine-client/duckdb-extensions/**",
-        "**/dist/duckdb-mvp.wasm",
         "**/dist/duckdb-eh.wasm",
-        "**/dist/duckdb-browser-mvp.worker.js",
         "**/dist/duckdb-browser-eh.worker.js",
         "legend-art/fonts/roboto-latin-400-normal.woff2",
         "legend-art/fonts/roboto-latin-500-normal.woff2",
@@ -118,10 +117,10 @@ copy_to_directory(
         "query/demo/cube/**",
     ],
     replace_prefixes = {
-        "engine-client/duckdb-extensions/": "duckdb/duckdb-extensions/",
-        "wasm/planner/": "planner/",
+        "engine-client/duckdb-extensions/": "duckdb-extensions/",
+        "wasm/planner/": "",
         "sdlc-server/page/": "sdlc/",
-        "**/dist/": "duckdb/",
+        "**/dist/": "",
         "legend-art/fonts/": "fonts/",
         "legend-art/src/": "legend-art/",
         "query/src/ui/": "query/",

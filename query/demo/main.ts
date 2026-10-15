@@ -75,6 +75,8 @@ async function boot(): Promise<void> {
   starting('Starting Legend Query');
   const configFile = new URLSearchParams(location.search).get('config') ?? 'config.json';
   const config = JSON.parse(await text(`./${configFile}`)) as AppConfig;
+  // the page's WebAssembly: beside it, or the one copy a site serves for every app (config.json `vendor`)
+  const vendor = config.vendor ?? './vendor/';
   const exec = config.execution;
   const planner = config.planner
     ? new WasmGrammar(new WorkerPort(new URL(config.planner.worker, location.href), config.planner.vendor))
@@ -117,7 +119,7 @@ async function boot(): Promise<void> {
     let runner: QueryEngine;
     if (exec.kind === 'duckdb-wasm') {
       starting('Starting DuckDB in this tab');
-      const tab = await startDuckDbInTab('./vendor/', planner!);
+      const tab = await startDuckDbInTab(vendor, planner!);
       // a project opened by name brings its own rows, in a database of its own here (C5): the screens run on `runner`,
       // pointed there as it opens (AppContext.activate)
       const projectRunner = new ProjectRunner(tab.engine);
@@ -133,7 +135,7 @@ async function boot(): Promise<void> {
     } else {
       // the warehouse's API as the one binding speaks it (vendor/warehouse/: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3),
       // fetched while the person types
-      const loading = loadWarehouseBinding(new URL('./vendor/warehouse/', location.href).href);
+      const loading = loadWarehouseBinding(new URL(`${vendor}warehouse/`, location.href).href);
       const creds = await askSignIn(root, exec.url);
       starting('Signing in');
       const binding = await loading;
@@ -151,7 +153,7 @@ async function boot(): Promise<void> {
     // no server: the same API, answered in this page from this origin's IndexedDB by legend-lite's own rules (the
     // server's, compiled to WebAssembly: query-store's module at vendor/queries/, fetched at the store's first call)
     store = new QueryStoreClient(LOCAL_API, wasmQueryServer({
-      load: () => loadQueriesModule(new URL('./vendor/queries/', location.href).href), records: new BrowserRecords(), user,
+      load: () => loadQueriesModule(new URL(`${vendor}queries/`, location.href).href), records: new BrowserRecords(), user,
     }).fetch);
   }
   const ctx = new AppContext(config, engine, store, planner, projects, user, cubeRows);
