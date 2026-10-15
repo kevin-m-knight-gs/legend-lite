@@ -94,6 +94,11 @@ class IqParityTest {
         String update = System.getProperty("iq.parity.update");
         problems.addAll(IqParity.ratchet(runs, outcomes, Runfile.property("iq.parity.ledger"), "duckdb",
                 update == null ? null : Path.of(update)));
+        if (update == null) {
+            // IQ island, landing 4 (WP1), 2026-10-14: every FAIL, BUG or ERROR is a listed iq17 divergence, and the
+            // list only shrinks
+            problems.addAll(IqParity.divergences(runs, outcomes, Runfile.property("iq.parity.divergences"), "duckdb"));
+        }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
     }
 
@@ -151,10 +156,92 @@ class IqParityTest {
         answers.put("lite/x/b@iq16-default", new IqAnswers.Snap("lite/x/b", "iq16-default",
                 IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, schema), List.of(), List.of(), List.of(), null));
         List<String> problems = IqAnswers.guards(IqParity.runs(List.of(c)), answers, schema);
-        assertEquals(3, problems.size(), String.join("\n", problems));
+        // IQ island, landing 4 (WP1): each iq16-* run's iq17-* twin is a run too, answered by the live IQ
+        assertEquals(5, problems.size(), String.join("\n", problems));
         assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
         assertTrue(problems.get(1).startsWith("UNSNAPPED: lite/x/a@iq16-tds"), problems.get(1));
-        assertTrue(problems.get(2).startsWith("GONE: lite/x/b@iq16-default"), problems.get(2));
+        assertTrue(problems.get(2).startsWith("UNSNAPPED: lite/x/a@iq17-default"), problems.get(2));
+        assertTrue(problems.get(2).contains("--oracle iq"), problems.get(2));
+        assertTrue(problems.get(3).startsWith("UNSNAPPED: lite/x/a@iq17-tds"), problems.get(3));
+        assertTrue(problems.get(4).startsWith("GONE: lite/x/b@iq16-default"), problems.get(4));
+    }
+
+    /** IQ island, landing 4 (WP1), 2026-10-14: a case runs under the iq17-* twin of each iq16-* profile it names (the
+     *  live IQ judges it there), never twice; an iq17-* run's answer must be the live IQ's, and one the live IQ could
+     *  not judge is a SKIP that says why. */
+    @Test
+    void eachIq16RunHasAnIq17TwinJudgedByTheLiveIq() throws Exception {
+        IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT 1 AS x", List.of("iq16-tds", "sqla17-default",
+                "iq16-default", "iq17-default"), null, null, "D-S1", "[[\"2\"]]");
+        List<String> keys = IqParity.runs(List.of(c)).stream().map(IqParity.Run::key).toList();
+        assertEquals(List.of("lite/x/a@iq16-tds", "lite/x/a@sqla17-default", "lite/x/a@iq16-default",
+                "lite/x/a@iq17-default", "lite/x/a@iq17-tds"), keys);
+        assertTrue(IqParity.liveIq(IqProfile.IQ17_ODBC) && !IqParity.liveIq(IqProfile.IQ16_ODBC));
+        byte[] schema = "tables:\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        IqParity.Run twin = IqParity.runs(List.of(c)).get(4);
+        // stamped without the decision and its rows: real IQ judges it, by its own answer
+        String sha = IqAnswers.sqlSha(c.sql(), "iq17-tds", null, null, schema);
+        assertEquals(sha, IqAnswers.sqlSha(twin, schema));
+        IqAnswers.Snap sa = new IqAnswers.Snap("lite/x/a", "iq17-tds", sha, List.of("x"), List.of("integer"),
+                List.of(List.of("1")), null);
+        IqAnswers.Snap iq = new IqAnswers.Snap("lite/x/a", "iq17-tds", sha, List.of("x"), List.of("smallint"),
+                List.of(List.of("1")), null, List.of(0), "iq", null);
+        List<String> problems = IqAnswers.guards(List.of(twin), Map.of(twin.key(), sa), schema);
+        assertTrue(problems.size() == 1 && problems.get(0).startsWith("ORACLE: lite/x/a@iq17-tds"), problems.toString());
+        assertEquals(List.of(), IqAnswers.guards(List.of(twin), Map.of(twin.key(), iq), schema));
+        assertTrue(IqAnswers.expected(twin, iq) instanceof SqlParity.Rows rows && rows.grid().rows().equals(
+                List.of(List.of(java.math.BigInteger.ONE))), "the live IQ's rows, not the decision's");
+        IqAnswers.Snap notJudged = new IqAnswers.Snap("lite/x/a", "iq17-tds", sha, List.of(), List.of(), null, null,
+                List.of(), "iq", "the database property CaseSensitive = 'Off': this server's is 'On'");
+        SqlParity.Outcome skipped = IqParity.outcome(twin, notJudged, List.of(), Set.of(), island -> {
+            throw new AssertionError("a run the live IQ does not judge is not run");
+        });
+        assertEquals(SqlParity.Status.SKIP, skipped.status());
+        assertTrue(skipped.detail().contains("CaseSensitive"), skipped.detail());
+        Path answers = Files.createTempFile("iq-answers", ".jsonl");
+        Files.writeString(answers, "{\"meta\":{}}\n{\"id\":\"lite/x/a\",\"profile\":\"iq17-tds\",\"oracle\":\"iq\","
+                + "\"sqlSha\":\"" + sha + "\",\"not_judged\":\"why\"}\n");
+        IqAnswers.Snap read = IqAnswers.read(answers).get("lite/x/a@iq17-tds");
+        assertEquals("iq", read.judge());
+        assertEquals("why", read.notJudged());
+        Files.delete(answers);
+    }
+
+    /** IQ island, landing 4 (WP1), 2026-10-14: the known-divergence allowlist. A FAIL, BUG or ERROR must be listed
+     *  (an iq17-* run only: a run SQL Anywhere judges never diverges), and a listed run must still diverge in each lane
+     *  it lists: one that passes now, or is gone, or a cause no run names, must leave the list. */
+    @Test
+    void theKnownDivergencesAreListedAndOnlyShrink() throws Exception {
+        IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT 1 AS x", List.of("iq16-default"), null, null,
+                null, null);
+        List<IqParity.Run> runs = IqParity.runs(List.of(c));
+        Path file = Files.createTempFile("iq17-divergences", ".tsv");
+        Files.writeString(file, "# a test's\ncause\twidening\tD-N3: IQ's engine widens\nrun\tlite/x/a@iq17-default"
+                + "\twidening\tduckdb,postgres\n");
+        Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
+        outcomes.put("lite/x/a@iq16-default", new SqlParity.Outcome(SqlParity.Status.PASS, ""));
+        outcomes.put("lite/x/a@iq17-default", new SqlParity.Outcome(SqlParity.Status.ERROR, "an overflow"));
+        assertEquals(List.of(), IqParity.divergences(runs, outcomes, file, "duckdb"));
+        // the listed run passes now: it must leave the list, and its cause with it
+        outcomes.put("lite/x/a@iq17-default", new SqlParity.Outcome(SqlParity.Status.PASS, ""));
+        List<String> problems = IqParity.divergences(runs, outcomes, file, "postgres");
+        assertTrue(problems.size() == 1 && problems.get(0).startsWith("ALLOWLIST SHRINKS: lite/x/a@iq17-default"),
+                problems.toString());
+        // a FAIL of a run SQL Anywhere judges is never allowed
+        outcomes.put("lite/x/a@iq16-default", new SqlParity.Outcome(SqlParity.Status.FAIL, "rows"));
+        outcomes.put("lite/x/a@iq17-default", new SqlParity.Outcome(SqlParity.Status.FAIL, "rows"));
+        problems = IqParity.divergences(runs, outcomes, file, "duckdb");
+        assertTrue(problems.size() == 1 && problems.get(0).startsWith("UNLISTED DIVERGENCE: lite/x/a@iq16-default"),
+                problems.toString());
+        Files.writeString(file, "cause\tw\tx\nrun\tlite/x/a@iq16-default\tw\tduckdb\n");
+        assertThrows(IllegalStateException.class, () -> IqParity.divergences(runs, outcomes, file, "duckdb"));
+        Files.writeString(file, "run\tlite/x/a@iq17-default\tw\tduckdb\n");
+        assertThrows(IllegalStateException.class, () -> IqParity.divergences(runs, outcomes, file, "duckdb"));
+        Files.writeString(file, "cause\tw\tx\ncause\tv\ty\nrun\tlite/x/a@iq17-default\tw\tduckdb\n");
+        problems = IqParity.divergences(runs, outcomes, file, "duckdb");
+        assertTrue(problems.size() == 2 && problems.get(1).startsWith("ALLOWLIST SHRINKS: the cause v"),
+                problems.toString());
+        Files.delete(file);
     }
 
     @Test
@@ -162,9 +249,12 @@ class IqParityTest {
         String first = Files.readAllLines(Runfile.property("iq.parity.answers")).get(0);
         com.legend.json.Json.Obj meta = (com.legend.json.Json.Obj) ((com.legend.json.Json.Obj)
                 com.legend.json.Json.parse(first)).get("meta");
-        com.legend.json.Json.Obj profiles = (com.legend.json.Json.Obj) meta.get("profiles");
-        com.legend.json.Json.Obj databases = (com.legend.json.Json.Obj) meta.get("databases");
         for (IqProfile p : IqProfile.values()) {
+            // IQ island, landing 4 (WP1): the iq17-* profiles are the live IQ's, in the meta line's live_iq part
+            boolean live = IqParity.liveIq(p);
+            com.legend.json.Json.Obj source = live ? (com.legend.json.Json.Obj) meta.get("live_iq") : meta;
+            com.legend.json.Json.Obj profiles = (com.legend.json.Json.Obj) source.get("profiles");
+            com.legend.json.Json.Obj databases = (com.legend.json.Json.Obj) source.get("databases");
             com.legend.json.Json.Obj profile = (com.legend.json.Json.Obj) profiles.get(p.spelling());
             String db = ((com.legend.json.Json.Str) profile.get("db")).value();
             com.legend.json.Json.Obj database = (com.legend.json.Json.Obj) databases.get(db);
@@ -173,7 +263,9 @@ class IqParityTest {
             com.legend.json.Json.Obj options = (com.legend.json.Json.Obj) profile.get("options");
             String where = p.spelling() + ": ";
             var s = p.settings();
-            assertEquals(db.equals("lite_iq"), s.iqDatabase(), where + "database");
+            assertEquals(live || db.equals("lite_iq"), s.iqDatabase(), where + "database");
+            assertEquals(text(props, "Collation", ""), s.value(com.legend.protocol.sql.iq.IqOption.COLLATION),
+                    where + "collation");
             assertEquals(text(props, "CaseSensitive", "").equals("On"), s.caseSensitive(), where + "case");
             assertEquals(text(props, "BlankPadding", "").equals("On"), s.blankPadding(), where + "blank padding");
             assertEquals(text(props, "CharSet", "").startsWith("ISO_8859-1"), s.latin1(), where + "charset");
@@ -218,8 +310,10 @@ class IqParityTest {
                 IqAnswers.sqlSha(c.sql(), "sqla17-tds", null, null, null, c.settings(), schema), List.of(),
                 List.of(), List.of(), null));
         List<String> problems = IqAnswers.guards(runs, answers, schema);
-        assertEquals(1, problems.size(), String.join("\n", problems));
+        // IQ island, landing 4 (WP1): and its iq16-default run's iq17-default twin, the live IQ's to answer
+        assertEquals(2, problems.size(), String.join("\n", problems));
         assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
+        assertTrue(problems.get(1).startsWith("UNSNAPPED: lite/x/a@iq17-default"), problems.get(1));
         // a case without settings keeps its stamp
         assertEquals(IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, schema),
                 IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, null, null, schema));
@@ -234,6 +328,11 @@ class IqParityTest {
         answers.put("lite/x/a@iq16-default", new IqAnswers.Snap("lite/x/a", "iq16-default",
                 IqAnswers.sqlSha("SELECT 1", "iq16-default", "D-S1", "[[\"2\"]]", schema), List.of(), List.of(),
                 List.of(), null));
+        // IQ island, landing 4 (WP1): its iq17-default twin's answer, the live IQ's, is stamped without the decision:
+        // editing the decided rows leaves it as it is
+        answers.put("lite/x/a@iq17-default", new IqAnswers.Snap("lite/x/a", "iq17-default",
+                IqAnswers.sqlSha("SELECT 1", "iq17-default", null, null, schema), List.of("1"), List.of("smallint"),
+                List.of(List.of("1")), null, List.of(0), "iq", null));
         List<String> problems = IqAnswers.guards(IqParity.runs(List.of(decided)), answers, schema);
         assertEquals(1, problems.size(), String.join("\n", problems));
         assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
@@ -494,6 +593,10 @@ class IqParityTest {
         answers.put("lite/x/a@iq16-default", new IqAnswers.Snap("lite/x/a", "iq16-default",
                 IqAnswers.sqlSha(c.sql(), "iq16-default", null, null, "lo = 4", schema), List.of(), List.of(),
                 List.of(), null));
+        // IQ island, landing 4 (WP1): its iq17-default twin's answer, the live IQ's, stamped with the params too
+        answers.put("lite/x/a@iq17-default", new IqAnswers.Snap("lite/x/a", "iq17-default",
+                IqAnswers.sqlSha(c.sql(), "iq17-default", null, null, "lo = 3", schema), List.of(), List.of(),
+                null, "SQLCODE -141", List.of(), "iq", null));
         List<String> problems = IqAnswers.guards(IqParity.runs(List.of(c)), answers, schema);
         assertEquals(1, problems.size(), String.join("\n", problems));
         assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));

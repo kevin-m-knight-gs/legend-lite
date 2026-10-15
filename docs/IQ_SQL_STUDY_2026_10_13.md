@@ -182,6 +182,15 @@ are set with `SET TEMPORARY OPTION` before each case:
 A caveat the research records (SEMANTICS §4.7): TDS and ODBC behaviour was reproduced by setting the options, never
 over a real TDS or ODBC connection.
 
+IQ island, landing 4 (WP1), 2026-10-14: three more profiles, `iq17-default`, `iq17-odbc` and `iq17-tds`, are the IQ
+base with the database properties of the real SAP IQ 17.1 the island is now judged against (the user's HANA Cloud data
+lake: CaseSensitive On, BlankPadding On, UTF8BIN, UTF-8, precision 126, scale 38). `tools/iq-oracle/snap.sh --oracle
+iq` snaps their answers from that server, and every case run under an `iq16-*` profile also runs under the matching
+`iq17-*` one. The `iq16-*` profiles stay judged by SQL Anywhere (ISO_BINENG and ISO-8859-1, which that server cannot
+be), not verified on a real IQ 16. Where lite follows SQL Anywhere and IQ differs, the `iq17-*` run is listed, with its
+cause, in `iq-parity/iq17-divergences.tsv`, which only shrinks. `iq17-tds` too sets the TDS login's options on a
+CmdSeq connection (dbcapi cannot log in over TDS).
+
 ### 2.3 Snapped answers; CI judges from the file
 
 - **The file:** `core/src/test/resources/iq-parity/iq-answers.jsonl`, one line per case and profile: the column names
@@ -296,8 +305,9 @@ source; there is nothing to port.
 
 - **I1. The island: `#IQ{...}#`, and `#IQ:<profile>{...}#`.** The default profile is `iq16-default`. The LEGEND_ENGINE
   surface keeps its refusal of unknown island types; upstream has no IQ island.
-- **I2. A closed profile set:** `iq16-default`, `iq16-odbc`, `iq16-tds`, `sqla17-default`, `sqla17-tds` (§2.2). Any
-  other name is refused by name. A profile is fixed for the island; per-island option overrides are not offered.
+- **I2. A closed profile set:** `iq16-default`, `iq16-odbc`, `iq16-tds`, `sqla17-default`, `sqla17-tds` (§2.2), and
+  (landing 4, WP1) `iq17-default`, `iq17-odbc`, `iq17-tds`, judged by a real IQ 17.1. Any other name is refused by
+  name. A profile is fixed for the island; per-island option overrides are not offered.
 - **I3. `engine=auto`.** An island over `tb()` sources is `engine=iq`; one with no FROM, or over DUMMY or
   `sa_rowgenerator`, is `engine=sa`; a mix is `iq` (D-E1). **Only the typing and function layer reads the engine,
   never the parser**, because IQ's parser is shared (§1.1).

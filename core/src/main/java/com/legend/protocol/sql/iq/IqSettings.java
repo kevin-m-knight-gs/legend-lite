@@ -100,7 +100,17 @@ public final class IqSettings {
     /** The settings of a connection by {@code client} to a database at {@code base}'s defaults, named {@code spelling}
      *  (a profile's name): the login's overrides are the connection's temporary values. */
     static IqSettings preset(String spelling, Base base, Client client) {
-        return new IqSettings(spelling, base, client, new LinkedHashMap<>(), new LinkedHashMap<>(),
+        return preset(spelling, base, client, Map.of());
+    }
+
+    /** IQ island, landing 4 (WP1), 2026-10-14: the database properties of the real SAP IQ 17.1 the {@code iq17-*}
+     *  presets are (collation UTF8BIN and its charset UTF-8; case-sensitive and blank-padded as the IQ base). */
+    static final Map<IqOption, String> UTF8BIN = Map.of(IqOption.COLLATION, "UTF8BIN", IqOption.CHAR_SET, "UTF-8");
+
+    /** {@link #preset(String, Base, Client)} for a database whose level is {@code database} (its creation properties,
+     *  as {@link #resolve} reads them at the database's level) over the base's defaults. */
+    static IqSettings preset(String spelling, Base base, Client client, Map<IqOption, String> database) {
+        return new IqSettings(spelling, base, client, new LinkedHashMap<>(database), new LinkedHashMap<>(),
                 new LinkedHashMap<>(), login(base, client), List.of());
     }
 
