@@ -1056,8 +1056,15 @@ Three negative controls, each a one-token edit of the same text:
   `<<Graph.from>>` is an error here as it is in the engine; and the general leniency is its own finding for the
   compiler line, recorded with this verification, since a model that compiles here with a misspelled stereotype
   fails in the engine.
-The run against the real legend-engine, through `//tools/engine-runner:testable` (parse and compile, no
-testables), is recorded below when it completes.
+**Verified against the real legend-engine too (2026-10-15).** The same text, through the repository's engine
+runner (`bazel run //tools/engine-runner:testable -- example-model.pure`, legend-engine at the pinned 4.145.0 from
+`@maven_runner`, parse and compile with no testables): **parse 432 ms, compile 4,686 ms, no error, exit 0.** The
+model with its edge classes, the profile, the stereotyped properties, derived properties and association ends, the
+enumeration body, the mapping, the DuckDB connection, the runtime and the data space is engine-compatible, byte for
+byte the same text, which is the claim of §5.6. The engine's answers to the controls, each an `EngineException`
+with exit 1: `<<Graph.Edgee>>`, "Can't find stereotype 'Edgee' in profile 'Graph'"; `RelationshipType.NOPE`, "Can't
+find enum value 'NOPE' in enumeration 'RelationshipType'". So the engine checks the profile's stereotypes and lite
+does not: the asymmetry above, measured on both sides.
 
 ---
 
