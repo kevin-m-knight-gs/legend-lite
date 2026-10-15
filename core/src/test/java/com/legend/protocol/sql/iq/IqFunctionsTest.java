@@ -252,8 +252,6 @@ class IqFunctionsTest {
                 {"SELECT ROUND(nm, 1) AS r FROM " + T, "D-F1"},
                 {"SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T, "D-F3"},
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
-                {"SELECT DATEADD(dd, 1, dt) AS d FROM " + T, "D-T2"},
-                {"SELECT DATEDIFF(dd, dt, ts) AS d FROM " + T, "D-T11"},
                 {"SELECT DATEPART(cdw, dt) AS d FROM " + T, "D-T10"},
                 {"SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T, "D-C2"},
                 {"SELECT CONVERT(VARCHAR(20), dt) AS c FROM " + T, "D-C6"},
@@ -263,6 +261,12 @@ class IqFunctionsTest {
         for (String[] d : decided) {
             assertTrue(refusal(d[0]).getMessage().contains(d[1]), d[0]);
         }
+        // IQ island, 2026-10-15 (D-T2, D-T11, measured on IQ 17.1): DATEADD of a DATE stays a DATE under IQ's
+        // engine; DATEDIFF below a day counts whole elapsed units; DAYOFYEAR is IQ's -1001015
+        assertTrue(pure("SELECT DATEADD(dd, 1, dt) AS d FROM " + T).contains("datePart"));
+        assertTrue(pure("SELECT DATEDIFF(hh, dt, ts) AS d FROM " + T).contains("3600000000"));
+        assertTrue(org.junit.jupiter.api.Assertions.assertThrows(SqlTranslationException.class,
+                () -> pure("SELECT DATEDIFF(dy, dt, ts) AS d FROM " + T)).getMessage().contains("-1001015"));
         // the IQ engine raises outside a function's domain (D-F9), SQL Anywhere's front end answers NULL
         assertTrue(pure("SELECT LN(d) AS l FROM " + T).contains("cast(@Float)->toOne()"));
         assertFalse(pure("SELECT LN(d) AS l FROM " + T, IqProfile.SQLA17_DEFAULT.settings()).contains("cast(@Float)->toOne()"));

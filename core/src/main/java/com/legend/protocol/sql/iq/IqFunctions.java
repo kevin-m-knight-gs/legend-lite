@@ -58,8 +58,10 @@ import java.util.function.Function;
  *       the statement's time, one value per statement; {@code YEAR}, {@code MONTH}, {@code DAY}, {@code HOUR},
  *       {@code MINUTE}, {@code SECOND}, {@code QUARTER}, {@code DOW}, {@code DATE}; {@code DATEPART} and
  *       {@code DATENAME} (SQL Anywhere's Sunday-based week, weekday 1 on Sunday at the default first day of the week;
- *       the ISO parts in SQL Anywhere's front end only: D-T10); {@code DATEADD} and {@code DATEDIFF} in SQL
- *       Anywhere's front end only (D-T2, D-T12, D-T11), DATEDIFF by SQL Anywhere's mixed boundary rules.</li>
+ *       the ISO parts in SQL Anywhere's front end only: D-T10); {@code DATEADD} and {@code DATEDIFF} (D-T2, D-T12,
+ *       D-T11; IQ island, 2026-10-15, measured on IQ 17.1 for IQ's engine: a DATE moved stays a DATE there, and
+ *       DATEDIFF counts whole elapsed units below a day), DATEDIFF by SQL Anywhere's mixed boundary rules in its front
+ *       end.</li>
  *   <li><b>NUMERIC division</b> (IQ island, 2026-10-14): SQL Anywhere's exact quotient and remainder
  *       ({@link #quotient}, {@link #remainder}), composed of decimal arithmetic, Pure's {@code rem}, and double
  *       estimates that decimal arithmetic checks; {@link IqDialect} applies them to {@code /} and {@code %}, and an
@@ -1509,12 +1511,11 @@ final class IqFunctions {
      * SQL Anywhere), TZOFFSET, a count that is no integer.
      */
     private Tx dateAdd(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (engine == IqDialect.Engine.IQ) {
-            throw SqlTranslationException.unsupported(name + " is not supported under the IQ engine yet: its result"
-                    + " keeps a DATE there (the research's D-T2 and D-T12, not yet verified), SQL Anywhere's is a"
-                    + " TIMESTAMP", f.pos());
-        }
+        boolean iq = engine == IqDialect.Engine.IQ;
         Part part = Part.of(((SqlAst.StringLit) f.args().get(0)).value());
+        if (iq && (part == Part.DAYOFYEAR || part == Part.WEEKDAY)) {
+            throw iqDatePart(name, part, f);
+        }
         String unit;
         long times = 1;
         switch (part) {
@@ -1578,6 +1579,21 @@ final class IqFunctions {
         type = dated("TIMESTAMP", Math.min(end, 9999));
         boolean date = d.kind() == Kind.DATE;
         long by = times;
+        if (iq && date) {
+            // IQ island, 2026-10-15 (D-T2, D-T12, measured on IQ 17.1): under IQ's engine a DATE moved stays a DATE --
+            // by a month, the month's end clamped as SQL Anywhere's is; by hours, the day the time reaches (DATEADD(
+            // HOUR, 25, '2026-03-04') is 2026-03-05)
+            IqType day = dated("DATE", Math.min(end, 9999));
+            String u = unit;
+            return strict(Kind.DATE, day, List.of(n, d), v -> {
+                ValueSpecification moved = typed(SqlToPure.call("adjust", timestamp(v.get(1), true), by == 1
+                        ? v.get(0) : AppliedFunction.infixRun("times", List.of(v.get(0), integer(by))),
+                        new EnumValue(DURATION_UNIT, u)), "DateTime");
+                ValueSpecification year = SqlToPure.call("year", moved);
+                return ifThen(SqlToPure.call("or", SqlToPure.call("greaterThan", year, integer(9999)), lt(year,
+                        integer(1))), raise("StrictDate"), typed(SqlToPure.call("datePart", moved), "StrictDate"));
+            });
+        }
         // adjust is of a Date: here of a DateTime, so one; a result outside IQ's years 1 to 9999 is IQ's -158
         // (IQ island, 2026-10-14, review 3's B4, measured: DATEADD(DAY, 1, '9999-12-31'), DATEADD(YEAR, -2026,
         // '2026-01-01'))
@@ -1670,12 +1686,11 @@ final class IqFunctions {
      * and INTEGER there: the research's D-T11, D-T5), the weekday and CAL parts (SQL Anywhere answers 0), TZOFFSET.
      */
     private Tx dateDiff(String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (engine == IqDialect.Engine.IQ) {
-            throw SqlTranslationException.unsupported(name + " is not supported under the IQ engine yet: it counts"
-                    + " whole elapsed time units there, typed INTEGER (the research's D-T11, not yet verified)",
-                    f.pos());
-        }
+        boolean iq = engine == IqDialect.Engine.IQ;
         Part part = Part.of(((SqlAst.StringLit) f.args().get(0)).value());
+        if (iq && (part == Part.DAYOFYEAR || part == Part.WEEKDAY)) {
+            throw iqDatePart(name, part, f);
+        }
         boolean big = switch (part) {
             case YEAR, QUARTER, MONTH, WEEK, DAY, DAYOFYEAR -> false;
             case HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND -> true;
@@ -1706,10 +1721,16 @@ final class IqFunctions {
                 case WEEK -> exactQuotient(AppliedFunction.infixRun("plus", List.of(minus(SqlToPure.call("dateDiff",
                         day(x, aDate), day(y, bDate), new EnumValue(DURATION_UNIT, "DAYS")), sunday(y)), sunday(x))),
                         7);
-                case MINUTE -> boundaries(x, aDate, y, bDate, 60_000_000L);
-                case HOUR -> truncatedQuotient(boundaries(x, aDate, y, bDate, 60_000_000L), 60);
-                case MILLISECOND -> boundaries(x, aDate, y, bDate, 1000L);
-                case SECOND -> truncatedQuotient(boundaries(x, aDate, y, bDate, 1000L), 1000);
+                // IQ island, 2026-10-15 (D-T11, measured on IQ 17.1): under IQ's engine the parts below a day count
+                // whole elapsed units, cut toward zero (04:30:30 to 06:30:00 is 1 hour, 05:05:59.9 to 05:06:59.8 no
+                // minute); the parts from a day up count boundaries crossed, as SQL Anywhere's front end does
+                case MINUTE -> iq ? elapsed(x, aDate, y, bDate, 60_000_000L) : boundaries(x, aDate, y, bDate,
+                        60_000_000L);
+                case HOUR -> iq ? elapsed(x, aDate, y, bDate, 3_600_000_000L)
+                        : truncatedQuotient(boundaries(x, aDate, y, bDate, 60_000_000L), 60);
+                case MILLISECOND -> iq ? elapsed(x, aDate, y, bDate, 1000L) : boundaries(x, aDate, y, bDate, 1000L);
+                case SECOND -> iq ? elapsed(x, aDate, y, bDate, 1_000_000L)
+                        : truncatedQuotient(boundaries(x, aDate, y, bDate, 1000L), 1000);
                 case MICROSECOND -> minus(epochMicros(y, bDate), epochMicros(x, aDate));
                 default -> throw new IllegalStateException("no DATEDIFF part " + part);
             };
@@ -1749,6 +1770,19 @@ final class IqFunctions {
         ValueSpecification ea = epochMicros(a, aDate);
         ValueSpecification eb = epochMicros(b, bDate);
         return exactQuotient(minus(minus(eb, ea), minus(remainder(eb, unit), remainder(ea, unit))), unit);
+    }
+
+    /** The whole units of {@code unit} microseconds elapsed from a to b, cut toward zero (IQ's engine's DATEDIFF of a
+     *  part below a day: IQ island, 2026-10-15, measured on IQ 17.1). */
+    private static ValueSpecification elapsed(ValueSpecification a, boolean aDate, ValueSpecification b,
+            boolean bDate, long unit) {
+        return truncatedQuotient(minus(epochMicros(b, bDate), epochMicros(a, aDate)), unit);
+    }
+
+    /** DAYOFYEAR and WEEKDAY in DATEADD and DATEDIFF under IQ's engine: its error -1001015 (measured on IQ 17.1). */
+    private static SqlTranslationException iqDatePart(String name, Part part, SqlAst.FunctionCall f) {
+        return SqlTranslationException.invalid(name + "(" + part + ", ...) is IQ's error under its engine"
+                + IqDialect.code(-1001015, "QFA15"), f.pos());
     }
 
     /** {@code x} modulo {@code n}, from 0 to n - 1 whatever x's sign. */

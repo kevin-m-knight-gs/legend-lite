@@ -687,8 +687,10 @@ tests:
   - id: dateadd_dayofyear_and_weekday
     sql: "SELECT DATEADD(dy, 1, '2026-03-04') AS a, DATEADD(dw, 2, '2026-03-04') AS b"
     engine: sa
-  - id: dateadd_under_the_iq_engine_is_refused
+  - id: dateadd_under_the_iq_engine
     sql: "SELECT DATEADD(day, 1, dt) AS d FROM t WHERE id = 1"
+    decision: D-T2
+    expect: '{"columns": [["d", "date", 0]], "rows": [["2026-03-05"]]}'
   - id: dateadd_millisecond_is_refused
     sql: "SELECT DATEADD(ms, 1, '2026-03-04 00:00:00.123456') AS d"
     engine: sa
@@ -716,7 +718,7 @@ tests:
   - id: datediff_of_null
     sql: "SELECT DATEDIFF(day, NULL, '2026-03-04') AS a, DATEDIFF(day, '2026-03-04', NULL) AS b"
     engine: sa
-  - id: datediff_under_the_iq_engine_is_refused
+  - id: datediff_under_the_iq_engine
     sql: "SELECT DATEDIFF(day, dt, ts) AS d FROM t WHERE id = 1"
   - id: datediff_weekday_is_refused
     sql: "SELECT DATEDIFF(dw, '2026-03-01', '2026-03-09') AS d"
