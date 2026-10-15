@@ -98,7 +98,8 @@ final class IqFunctions {
         CURRENT_TIMESTAMP(0, 0, "current timestamp"), YEAR(1, 1), MONTH(1, 1), DAY(1, 1), HOUR(1, 1),
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
-        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3);
+        HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3),
+        EXTRACT(2, 2, IqParser.EXTRACT);
 
         final int min;
         final int max;
@@ -306,7 +307,42 @@ final class IqFunctions {
             case YEARS, MONTHS, WEEKS, DAYS, HOURS, MINUTES, SECONDS -> dateUnit(fn, name, f, args);
             case CONVERT_STYLE -> convertStyle(f, args);
             case STR -> str(f, args);
+            case EXTRACT -> extract(f, args);
         };
+    }
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1): {@code EXTRACT(part FROM x)} -- YEAR, MONTH, DAY, HOUR and MINUTE an
+     * INTEGER, as DATEPART reads them; SECOND with its fraction, a NUMERIC(24,7) under IQ's engine (05:06:07.123456 is
+     * 7.1234560) and a NUMERIC(8,6) on SQL Anywhere's front end. Under IQ's engine HOUR, MINUTE and SECOND of a DATE (or
+     * an untyped NULL) are IQ's error -1009145, refused before translating; the front end reads a date's time as
+     * midnight.
+     */
+    private Tx extract(SqlAst.FunctionCall f, List<Tx> args) {
+        Part part = Part.of(((SqlAst.StringLit) f.args().get(0)).value());
+        Tx x = args.get(1);
+        SqlAst.Expr e = f.args().get(1);
+        boolean iq = engine == IqDialect.Engine.IQ;
+        boolean time = part == Part.HOUR || part == Part.MINUTE || part == Part.SECOND;
+        if (iq && time && (x.kind() == Kind.DATE || x.kind() == Kind.NULL)) {
+            // an untyped NULL too (measured: EXTRACT(SECOND FROM NULL) is the error, of YEAR NULL)
+            throw SqlTranslationException.unsupported("EXTRACT(" + part + " FROM a DATE) is IQ's error -1009145 under"
+                    + " its engine, refused before translating", f.pos());
+        }
+        if (part != Part.SECOND) {
+            return datePartOf(part, "EXTRACT", f, x, e, false, "Sunday");
+        }
+        int scale = iq ? 7 : 6;
+        IqType type = new IqType(iq ? "NUMERIC(24,7)" : "NUMERIC(8,6)");
+        Tx d = dateArgument(x, e, "EXTRACT");
+        if (d == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, type);
+        }
+        boolean date = d.kind() == Kind.DATE;
+        return strict(Kind.DECIMAL, type, List.of(d), v -> atScale(date ? SqlToPure.call("toDecimal", integer(0))
+                : AppliedFunction.infixRun("plus", List.of(SqlToPure.call("toDecimal", SqlToPure.call("second",
+                        v.get(0))), times(SqlToPure.call("toDecimal", microseconds(v.get(0))),
+                        new CDecimal(new BigDecimal("0.000001"))))), scale));
     }
 
     /**

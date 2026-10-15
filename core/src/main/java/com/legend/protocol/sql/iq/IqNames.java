@@ -160,6 +160,11 @@ final class IqNames {
             // table, it is not folded), which is not read here
             return null;
         }
+        // IQ island, 2026-10-15 (measured on IQ 17.1): an item that is EXTRACT is named as its operand would be
+        // (EXTRACT(YEAR FROM a.dt) is dt, of dt + 1 a.dt+1); EXTRACT inside an item is not read (call)
+        if (e instanceof SqlAst.FunctionCall x && extract(x)) {
+            e = x.args().get(1);
+        }
         String name;
         if (e instanceof SqlAst.ColumnRef ref) {
             name = ref.parts().get(ref.parts().size() - 1).text();
@@ -1124,9 +1129,14 @@ final class IqNames {
         return b.append(')').toString();
     }
 
+    /** Whether {@code f} is the reader's EXTRACT. */
+    private static boolean extract(SqlAst.FunctionCall f) {
+        return f.name().size() == 1 && !f.name().get(0).quoted() && f.name().get(0).text().equals(IqParser.EXTRACT);
+    }
+
     /** {@code name(argument,...)}: the name as written, a reserved word double-quoted. */
     private @com.legend.base.Nullable String call(SqlAst.FunctionCall f) {
-        if (f.name().size() != 1) {
+        if (f.name().size() != 1 || extract(f)) {
             return null;
         }
         if (aggregate(f)) {

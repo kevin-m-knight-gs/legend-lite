@@ -151,8 +151,7 @@ class IqParserTest {
                 {"SELECT TOP @n id FROM t", "variable"},
                 {"SELECT @v = id FROM t", "assignment"},
                 {"SELECT id '' FROM t", "empty"},
-                // IQ island, 2026-10-14 (M1d): CAST reads now; EXTRACT is a special form still refused
-                {"SELECT EXTRACT(year FROM dt) FROM t", "special form"},
+                // IQ island, 2026-10-14 (M1d): CAST reads now; 2026-10-15: EXTRACT too (IqFunctionsTest)
                 {"SELECT 0.000000000000000000000000000000000000001234 FROM t", "38"},
                 {"SELECT 1e-50 FROM t", "38"},
                 {"SELECT id FROM t ORDER BY +(1)", "position"},

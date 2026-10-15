@@ -2152,6 +2152,9 @@ public final class IqParser {
         if (t.is("convert") && peek(1).isOp("(")) {
             return convertCall();
         }
+        if (t.is("extract") && peek(1).isOp("(")) {
+            return extractCall();
+        }
         if (t.is("current")) {
             IqLexer.Token next = peek(1);
             if (next.isWord("date") || next.isWord("timestamp")) {
@@ -2198,6 +2201,32 @@ public final class IqParser {
 
     /** The name of the call a CONVERT with a style is read as (IQ island, 2026-10-15): no name a query can write. */
     static final String CONVERT_STYLE = "convert style";
+
+    /** The call {@link #extractCall} makes, of {@link IqFunctions}'s EXTRACT: a name no query can write. */
+    static final String EXTRACT = "extract from";
+
+    /** The parts EXTRACT reads (measured on IQ 17.1: any other is its syntax error, TIMEZONE_HOUR its -1001016). */
+    private static final Set<String> EXTRACT_PARTS = Set.of("year", "month", "day", "hour", "minute", "second");
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1): {@code EXTRACT(part FROM x)}, the part YEAR, MONTH, DAY, HOUR, MINUTE
+     * or SECOND (or a DATEPART abbreviation of one), as a call of {@link #EXTRACT}: the part's name, then x.
+     */
+    private SqlAst.Expr extractCall() {
+        IqLexer.Token t = take();
+        expectOp("(");
+        SqlAst.Expr part = datePart();
+        if (!EXTRACT_PARTS.contains(((SqlAst.StringLit) part).value())) {
+            throw new SqlSyntaxException("EXTRACT reads YEAR, MONTH, DAY, HOUR, MINUTE or SECOND" + IqDialect.syntaxCode(),
+                    part.pos());
+        }
+        expectKeyword("from");
+        SqlAst.Expr operand = expression();
+        value(operand, "EXTRACT");
+        expectOp(")");
+        return new SqlAst.FunctionCall(List.of(new SqlAst.Ident(EXTRACT, false, t.pos())), List.of(part, operand), false,
+                false, t.pos());
+    }
 
     /** {@code CONVERT(data_type, expression [, style])} (GRAMMAR F15): without a style, a {@code Cast} whose type name
      *  begins with {@link #CONVERT}; a style is refused by name, after the call reads. */

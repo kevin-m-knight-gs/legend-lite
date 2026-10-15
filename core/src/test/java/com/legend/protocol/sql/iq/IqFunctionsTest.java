@@ -280,6 +280,19 @@ class IqFunctionsTest {
     }
 
     @Test
+    void extractReadsSixPartsAndSecondsWithTheirFraction() {
+        // IQ island, 2026-10-15 (measured on IQ 17.1): DATEPART's value; SECOND a NUMERIC with the microseconds
+        assertTrue(pure("SELECT EXTRACT(YEAR FROM dt) AS y FROM " + T).contains("year()"));
+        String second = pure("SELECT EXTRACT(SECOND FROM ts) AS s FROM " + T);
+        assertTrue(second.contains("second()") && second.contains("0.000001"), second);
+        // another part is IQ's syntax error; a DATE's time IQ's engine's -1009145
+        SqlSyntaxException quarter = assertThrows(SqlSyntaxException.class, () -> IqParser.parse(
+                "SELECT EXTRACT(QUARTER FROM dt) AS q FROM " + T, IqProfile.IQ16_DEFAULT.settings()));
+        assertTrue(quarter.reason().contains("SQLCODE -131"), quarter.reason());
+        assertTrue(refusal("SELECT EXTRACT(HOUR FROM dt) AS h FROM " + T).getMessage().contains("-1009145"));
+    }
+
+    @Test
     void strIsReadUnderTheIqEngineOnly() {
         // IQ island, 2026-10-15 (measured on IQ 17.1): cut toward zero, right-justified, a zero's text constant
         String str = pure("SELECT STR(nm, 6, 1) AS s FROM " + T);

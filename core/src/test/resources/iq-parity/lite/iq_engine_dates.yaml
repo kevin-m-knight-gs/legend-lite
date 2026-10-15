@@ -163,3 +163,41 @@ tests:
   - id: convert_style_iq_rejects_is_refused
     sql: "SELECT CONVERT(VARCHAR(30), dt, 23) AS a FROM t WHERE id = 1"
     profile: iq17-default
+  # IQ island, 2026-10-15: EXTRACT (8.9% of real BI scalar expressions, the census's third), measured on IQ 17.1:
+  # YEAR..MINUTE an INTEGER, SECOND a NUMERIC(24,7) with its fraction under IQ's engine, (8,6) on the front end
+  - id: extract_parts_of_a_timestamp
+    sql: "SELECT id, EXTRACT(YEAR FROM ts) AS y, EXTRACT(MONTH FROM ts) AS m, EXTRACT(DAY FROM ts) AS d, EXTRACT(HOUR FROM ts) AS h, EXTRACT(MINUTE FROM ts) AS mi, EXTRACT(SECOND FROM ts) AS s FROM t ORDER BY id"
+    profile: iq17-default
+  - id: extract_parts_of_a_date
+    sql: "SELECT id, EXTRACT(YEAR FROM dt) AS y, EXTRACT(MONTH FROM dt) AS m, EXTRACT(DAY FROM dt) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: extract_by_abbreviations
+    sql: "SELECT EXTRACT(yy FROM ts) AS y, EXTRACT(mm FROM ts) AS m, EXTRACT(dd FROM ts) AS d, EXTRACT(hh FROM ts) AS h, EXTRACT(mi FROM ts) AS mi, EXTRACT(ss FROM ts) AS s FROM t WHERE id = 4"
+    profile: iq17-default
+  - id: extract_in_where_and_group_by
+    sql: "SELECT EXTRACT(YEAR FROM dt) AS y, COUNT(*) AS n FROM t WHERE EXTRACT(MONTH FROM dt) < 12 OR dt IS NULL GROUP BY EXTRACT(YEAR FROM dt) ORDER BY 1"
+    profile: iq17-default
+  - id: extract_in_arithmetic
+    sql: "SELECT id, EXTRACT(YEAR FROM dt) + 1 AS a, EXTRACT(MONTH FROM dt) * 100 + EXTRACT(DAY FROM dt) AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: extract_unaliased_is_named_by_its_operand
+    sql: "SELECT EXTRACT(YEAR FROM a.dt), extract(month from ts), EXTRACT(DAY FROM DATE(ts)) FROM t a WHERE id = 1"
+    profile: iq17-default
+  - id: extract_of_a_constant_string
+    sql: "SELECT EXTRACT(YEAR FROM '2026-03-04') AS a, EXTRACT(SECOND FROM '2026-03-04 05:06:07.25') AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_of_null
+    sql: "SELECT EXTRACT(YEAR FROM NULL) AS a, EXTRACT(DAY FROM NULL) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_second_of_null_is_refused
+    sql: "SELECT EXTRACT(SECOND FROM NULL) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_hour_of_a_date_is_refused
+    sql: "SELECT EXTRACT(HOUR FROM dt) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: extract_quarter_is_a_syntax_error
+    sql: "SELECT EXTRACT(QUARTER FROM dt) AS a FROM t WHERE id = 1"
+    profile: iq16-default, iq17-default
+  - id: extract_on_the_front_end
+    sql: "SELECT EXTRACT(YEAR FROM DATE('2026-03-04')) AS a, EXTRACT(SECOND FROM '2026-03-04 05:06:07.25') AS b, EXTRACT(HOUR FROM DATE('2026-03-04')) AS c, EXTRACT(MINUTE FROM '2026-03-04 05:06:07') AS d"
+    profile: iq16-default, iq17-default

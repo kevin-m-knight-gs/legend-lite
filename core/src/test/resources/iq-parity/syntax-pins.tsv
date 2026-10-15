@@ -113,8 +113,10 @@
 # IQ island, 2026-10-15 (landing 4, STR under IQ's engine, measured on the live IQ 17.1): accept PARSED 2,974 -> 2,986
 # (REFUSED 1,974 -> 1,962); reject REJECTED 962 -> 963 (REFUSED 823 -> 822: STR's argument count, IQ's -154).
 # Reject-parsed and accept-rejected unchanged.
-accept	parsed	2986
-accept	refused	1962
+# IQ island, 2026-10-15 (landing 4, EXTRACT, measured on the live IQ 17.1): accept PARSED 2,986 -> 2,989 (REFUSED
+# 1,962 -> 1,959). Reject-parsed and accept-rejected unchanged.
+accept	parsed	2989
+accept	refused	1959
 accept	rejected	1
 accept-with-option	refused	90
 accept-with-option	rejected	1
