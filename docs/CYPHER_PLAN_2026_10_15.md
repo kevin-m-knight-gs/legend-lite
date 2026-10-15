@@ -68,7 +68,8 @@ Size: 20k to 25k lines over six to eight landings, each with its cases, ledger, 
 fixed-length patterns, the seam, 67 tests. PR1b landed on the branch (§12.2): the oracle (Neo4j Community 2026.09.0),
 the TCK as test input, the inferred models, the two parity lanes in `//gates:core` with the first ledger (3,906 cases,
 184 PASS, 0 FAIL, 0 BUG, 0 ERROR, 2,723 REFUSED by name, 669 BOTH_ERROR, 330 SKIP, identical on DuckDB and Postgres),
-and the showcase. Next: the independent review of PR1, then the merge, then PR2.
+and the showcase. The independent review of PR1 (§12.4): 17 findings, every one met or recorded; after it 3,914 cases,
+190 PASS, 0 FAIL, 0 BUG, 0 ERROR. Next: the full CI run on the branch, the merge, then PR2.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

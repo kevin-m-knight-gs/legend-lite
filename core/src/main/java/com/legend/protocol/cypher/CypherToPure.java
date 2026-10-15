@@ -131,6 +131,11 @@ public final class CypherToPure {
     private final Model model;
     private int fresh;
 
+    /** The relationship types the MATCH clause being read has hops of: Neo4j binds two relationship slots of one
+     *  MATCH to different relationships (relationship uniqueness), which needs identity (C5, PR3); until then a
+     *  second hop of a type already hopped in the same MATCH is refused by name. */
+    private final Set<String> typesInThisMatch = new HashSet<>();
+
     private CypherToPure(Model model) {
         this.model = model;
     }
@@ -226,6 +231,7 @@ public final class CypherToPure {
                     m.pos());
         }
         Graph g = state instanceof Graph existing ? existing : null;
+        typesInThisMatch.clear();
         for (PathPattern p : m.patterns()) {
             if (p.variable() != null) {
                 throw CypherErrors.unsupported("a named path (" + p.variable() + " = ...) is not supported yet",
@@ -351,6 +357,11 @@ public final class CypherToPure {
                 throw CypherErrors.unsupported("properties on a relationship pattern are not supported yet (an edge"
                         + " class)", rel.pos());
             }
+            if (!typesInThisMatch.add(rel.types().get(0))) {
+                throw CypherErrors.unsupported("two relationships of the type " + rel.types().get(0) + " in one MATCH"
+                        + " (Neo4j binds them to different relationships: relationship uniqueness) are not supported"
+                        + " yet", rel.pos());
+            }
             List<String> path = new ArrayList<>(current.path());
             path.add(hop.property());
             boolean optional = current.optional() || hop.optional();
@@ -414,10 +425,10 @@ public final class CypherToPure {
         if (forward != null) {
             // the node before holds the node after
             String target = forward.type();
-            if (toClass != null && !toClass.equals(target)) {
+            if (toClass != null && !toClass.equals(target) && !model.isSubclass(target, toClass)) {
                 throw CypherErrors.unsupported("the label " + toClass + " is not the type of " + type
-                        + " (" + target + "): a label narrowing a property's type is not supported yet",
-                        to.pos());
+                        + " (" + target + ") nor one of its superclasses: a label narrowing a property's type is"
+                        + " not supported yet", to.pos());
             }
             if (forward.many()) {
                 if (refuse) {
@@ -658,6 +669,8 @@ public final class CypherToPure {
             }
         }
         Scope sortScope = new ProjectedScope(scope, projected);
+        // a sort key over the projected columns after a grouping or a DISTINCT: computed after them
+        List<SortItem> afterGrouping = new ArrayList<>();
         for (SortItem o : orderBy) {
             String key = outputNamed(items, o.expr(), outputs);
             if (key == null) {
@@ -666,8 +679,16 @@ public final class CypherToPure {
                             + " supported yet", o.pos());
                 }
                 if (grouped || distinct) {
-                    throw CypherErrors.invalid("In a WITH/RETURN with DISTINCT or an aggregation, it is not possible"
-                            + " to access variables declared before the WITH/RETURN", o.pos());
+                    afterGrouping.add(o);
+                    sortKeys.add(new SortKey(freshName(names), o.descending(), true));
+                    continue;
+                }
+                if (skip == null && limit == null) {
+                    // the lowering's execute path cannot render a sort key that is not an output column (Render:
+                    // "render over an ordered relation whose sort key is not an output column"; reported to the
+                    // database owner, IN_FLIGHT 2026-10-15); with a SKIP or LIMIT the sort is a subquery's and renders
+                    throw CypherErrors.unsupported("an ORDER BY on an expression that is not a returned item, without a"
+                            + " SKIP or LIMIT, is not supported yet (the lowering renders no such sort key)", o.pos());
                 }
                 Tx t = tx(o.expr(), sortScope);
                 key = freshName(names);
@@ -730,6 +751,22 @@ public final class CypherToPure {
         }
         if (distinct) {
             vs = call("distinct", vs);
+        }
+        if (!afterGrouping.isEmpty()) {
+            // the sort keys over the projected columns (an alias shadows nothing here: Neo4j reads only the items)
+            RowScope after = new RowScope(new Rows(vs, List.copyOf(columns)));
+            List<ColSpec> computed = new ArrayList<>();
+            int k = 0;
+            for (SortKey sk : sortKeys) {
+                if (!sk.hidden()) {
+                    continue;
+                }
+                SortItem o = afterGrouping.get(k++);
+                Tx t = tx(o.expr(), after);
+                computed.add(new ColSpec(sk.column(), lambda(after.row(), SqlToPure.valueOf(t)), null, null));
+            }
+            vs = call("extend", vs, new ColSpecArray(computed));
+            hidden.addAll(computed);
         }
         if (!sortKeys.isEmpty()) {
             List<ValueSpecification> sortInfos = new ArrayList<>();
@@ -1115,6 +1152,10 @@ public final class CypherToPure {
 
         @Override
         public Tx property(CypherAst.Prop p) {
+            if (p.target() instanceof CypherAst.Var v && rows.columns().stream().noneMatch(c -> c.name().equals(
+                    v.name()))) {
+                throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
+            }
             throw CypherErrors.unsupported("a property of a projected value (a node or map carried through WITH) is"
                     + " not supported yet", p.pos());
         }
@@ -1179,7 +1220,9 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("a float literal beyond 1e15 or below 1e-15 (" + f.text()
                             + ") is not supported yet", f.pos());
                 }
-                yield Tx.value(new CFloat(f.value()), Kind.FLOAT, false);
+                // Cypher's float is IEEE 754: toFloat makes the database compute in double (0.1 + 0.2 is
+                // 0.30000000000000004); a bare Float literal lowers to a decimal (docs/SEMANTICS_REGISTER.md S9)
+                yield Tx.value(call("toFloat", new CFloat(f.value())), Kind.FLOAT, false);
             }
             case CypherAst.StringLit s -> Tx.value(new CString(s.value()), Kind.STRING, false);
             case CypherAst.BoolLit b -> Tx.condition(new CBoolean(b.value()), new CBoolean(!b.value()), false);
@@ -1238,6 +1281,11 @@ public final class CypherToPure {
                 }
                 if (u.op() == CypherAst.UnaryOp.POS) {
                     yield t;
+                }
+                if (t.kind() == Kind.FLOAT || t.kind() == Kind.INEXACT) {
+                    // IEEE negation: -0.0 is a value of its own in Cypher; Pure's minus lowers to 0 - x, which is +0.0
+                    yield SqlToPure.strict(t.kind(), List.of(t), v -> AppliedFunction.infixRun("times", List.of(
+                            v.get(0), new CFloat(-1.0))));
                 }
                 yield SqlToPure.strict(t.kind(), List.of(t), v -> call("minus", v.get(0)));
             }

@@ -14,12 +14,12 @@ Class g::Person
     age: Integer[0..1];
     name: String[0..1];
 }
-Association g::HQ
+Association g::R_HQ
 {
     HQ: g::City[0..1];
     HQ_in: g::Firm[*];
 }
-Association g::WORKS_AT
+Association g::R_WORKS_AT
 {
     WORKS_AT: g::Firm[0..1];
     WORKS_AT_in: g::Person[*];
@@ -54,6 +54,6 @@ Mapping g::Map
         age: [g::DB] n_person.p_age,
         name: [g::DB] n_person.p_name
     }
-    g::HQ: Relational { AssociationMapping ( HQ: [g::DB]@HQ, HQ_in: [g::DB]@HQ ) }
-    g::WORKS_AT: Relational { AssociationMapping ( WORKS_AT: [g::DB]@WORKS_AT, WORKS_AT_in: [g::DB]@WORKS_AT ) }
+    g::R_HQ: Relational { AssociationMapping ( HQ: [g::DB]@HQ, HQ_in: [g::DB]@HQ ) }
+    g::R_WORKS_AT: Relational { AssociationMapping ( WORKS_AT: [g::DB]@WORKS_AT, WORKS_AT_in: [g::DB]@WORKS_AT ) }
 )

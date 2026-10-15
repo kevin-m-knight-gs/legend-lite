@@ -100,8 +100,8 @@ the values in the TCK's value grammar: strings, integers, and floats within a re
 
 The harness infers it from the dump (`CypherGraph`), the lanes compile it, and nothing hand-written is in it: a class
 per label, a property per key typed by its values (every property optional, as a graph's are), each relationship type
-an association whose ends are named by the type (`WORKS_AT` holds the firm, `WORKS_AT_in` the people), realized as a
-foreign key on the to-one side.
+an association (`g::R_<type>`, named apart from the classes) whose ends are named by the type (`WORKS_AT` holds the
+firm, `WORKS_AT_in` the people), realized as a foreign key on the to-one side.
 
 ```
 ###Pure
@@ -120,12 +120,12 @@ Class g::Person
     age: Integer[0..1];
     name: String[0..1];
 }
-Association g::HQ
+Association g::R_HQ
 {
     HQ: g::City[0..1];
     HQ_in: g::Firm[*];
 }
-Association g::WORKS_AT
+Association g::R_WORKS_AT
 {
     WORKS_AT: g::Firm[0..1];
     WORKS_AT_in: g::Person[*];
@@ -160,8 +160,8 @@ Mapping g::Map
         age: [g::DB] n_person.p_age,
         name: [g::DB] n_person.p_name
     }
-    g::HQ: Relational { AssociationMapping ( HQ: [g::DB]@HQ, HQ_in: [g::DB]@HQ ) }
-    g::WORKS_AT: Relational { AssociationMapping ( WORKS_AT: [g::DB]@WORKS_AT, WORKS_AT_in: [g::DB]@WORKS_AT ) }
+    g::R_HQ: Relational { AssociationMapping ( HQ: [g::DB]@HQ, HQ_in: [g::DB]@HQ ) }
+    g::R_WORKS_AT: Relational { AssociationMapping ( WORKS_AT: [g::DB]@WORKS_AT, WORKS_AT_in: [g::DB]@WORKS_AT ) }
 )
 ```
 

@@ -1507,3 +1507,38 @@ class pairs (about 90) and a node with several labels (18), both PR3's inheritan
 **The order of attack PR2 takes from this:** values first (maps, lists, `UNWIND`, the list predicates and
 comprehensions: 1,700 cases open behind the first refusal), then the function table with the temporal constructors
 (243), then the join form (328), which PR3's `OPTIONAL MATCH` and nodes as values build on.
+
+### 12.4 The independent review of PR1, 2026-10-15, and what it changed
+
+An agent that wrote none of PR1, read-only, each claim run on Neo4j 2026.09.0 and on lite over DuckDB files seeded
+in the harness's inferred-model style (its report: 17 findings, 4 BLOCKER, 5 MAJOR, 8 MINOR). What it verified
+correct on both sides: three-valued `AND`, `OR`, `XOR`, `NOT` over nullable booleans, `IS NULL`, `CASE` in every
+form, `coalesce`, the five aggregates over rows, nothing, nulls and keyed groups, the `WITH ... WHERE` HAVING,
+null ordering for every type, string ordering by code point on both lanes, `DISTINCT` with nulls, `SKIP` and `LIMIT`
+at 0 and past the end, `WITH` renames onto taken names, `WITH` carrying a node, the root choice from either end, a
+second `MATCH`, backticked names, unaliased column names verbatim, string escapes, integer division and modulo with
+negatives, `^`, chained comparisons, `IN` with an empty list; and that the oracle and the Java reader agree on every
+scenario. The findings, and what was done (each with its test; the lite cases `review_*` in `lite/basics.yaml`,
+judged by Neo4j):
+
+| # | finding | done |
+|---|---|---|
+| 1 BLOCKER | relationship uniqueness: `(p)-[:WORKS_AT]->(f), (p)-[:WORKS_AT]->(g)` and a self-loop read twice in one path answered rows where Neo4j binds the two slots to different relationships and answers none | two hops of one type in one `MATCH` refused by name until identity (PR3); two `MATCH` clauses may share one, as in Neo4j |
+| 2 BLOCKER | `RETURN 017` answered 17; Neo4j's syntax error | a leading zero is the reader's syntax error |
+| 3 BLOCKER | float literals computed as decimals: `0.1 + 0.2 = 0.3` true, `0.1 + 0.2` 0.3 (a bare Pure Float literal lowers to a decimal, S9) | a float literal is `toFloat(...)`, so the database computes in double: `0.30000000000000004`, `1.0 / 3` Neo4j's |
+| 4 BLOCKER | 64-bit overflow: `9223372036854775807 - -1` is Neo4j's error; lite answers DuckDB's 128-bit promotion or Postgres's error | recorded as S61 (provisional); PR2 decides whether to spell overflow checks as the IQ island did |
+| 5 MAJOR | `2147483647 + 1` is DuckDB's "Overflow in addition of INT32": lite's DuckDB dialect leaves an integer literal untyped and DuckDB types it 32-bit | reported to the database owner (IN_FLIGHT); no case of the corpus reaches it |
+| 6 MAJOR | `ORDER BY p.age` with `p.age` not returned failed in the lowering's execute path ("render over an ordered relation whose sort key is not an output column"), a refusal naming no construct; the SQL island has the same | refused by name without a `SKIP` or `LIMIT` (with one the sort is a subquery's and renders); reported to the database owner |
+| 7 MAJOR | `ORDER BY a + 'x'` over the items after an aggregation or `DISTINCT`: Neo4j answers, lite refused | computed after the grouping over the projected columns |
+| 8 MAJOR | the judge's tolerance (1e-9 relative) hid finding 3 and `-0.0` (Literals5 [9], [10]) | two units in the last place (S15's rule) and a signed zero its own value; `-0.0` now answered (a float's negation is IEEE's, `x * -1.0`: Pure's `minus` lowers to `0 - x`, which is `+0.0`) |
+| 9 MAJOR | a label spelled like a relationship type made the inferred model declare `g::T` twice | the association is `g::R_<type>` |
+| 10 MINOR | `1<-1` read as an arrow | `<-` in an expression is `<` then a negation |
+| 11 MINOR | `end` refused as a name | `END` is a name outside a `CASE` |
+| 12 MINOR | `(x) + 1` refused as a pattern | a pattern in an expression has a label, a map or a relationship after it |
+| 13 MINOR | `WITH p.age AS a WHERE p.age > 1` refused with the wrong reason | Neo4j's "Variable `p` not defined" |
+| 14 MINOR | a superclass label on a hop's target refused as narrowing | a superclass widens: accepted |
+| 15 MINOR | `RETURN 1.0 / 0.0` (Infinity) fails the server's JSON writer | the server line's (IN_FLIGHT); the lanes read the JDBC double |
+| 16 MINOR | unlabelled nodes and a `:NoLabel` label would merge | the class is `Unlabelled`, a label of that name refused |
+
+The ledger after the review, both lanes: 3,914 cases, PASS 190, FAIL 0, BUG 0, ERROR 0, REFUSED 2,724, BOTH_ERROR
+670, SKIP 330; the oracle's check clean.

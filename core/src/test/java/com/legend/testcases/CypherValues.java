@@ -397,8 +397,9 @@ public final class CypherValues {
 
     // ------------------------------------------------------------------ comparing
 
-    /** Two doubles agree when their relative difference is within this (an average computed in another order). */
-    private static final double EPSILON = 1e-9;
+    /** Two doubles agree within this many units in the last place (an average summed in another order; the host
+     *  judge's rule, docs/SEMANTICS_REGISTER.md S15); a signed zero is its own value (Neo4j's -0.0). */
+    private static final int ULPS = 2;
 
     /** Whether {@code a} and {@code b} are the same value; {@code bagLists} compares lists as bags. */
     public static boolean equal(Value a, Value b, boolean bagLists) {
@@ -456,10 +457,12 @@ public final class CypherValues {
             return Double.isNaN(x) && Double.isNaN(y);
         }
         if (x == y) {
-            return true;
+            return Double.doubleToLongBits(x) == Double.doubleToLongBits(y);
         }
-        double scale = Math.max(Math.abs(x), Math.abs(y));
-        return Math.abs(x - y) <= EPSILON * scale;
+        if (x == 0 || y == 0 || Double.isInfinite(x) || Double.isInfinite(y)) {
+            return false;
+        }
+        return Math.abs(x - y) <= ULPS * Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
     }
 
     /** Whether two lists hold the same values, each as many times. */

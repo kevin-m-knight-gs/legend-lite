@@ -55,7 +55,7 @@ public final class CypherParser {
 
     private static final Set<String> RESERVED = Set.of("AND", "OR", "XOR", "NOT", "IS", "NULL", "TRUE", "FALSE",
             "IN", "STARTS", "ENDS", "CONTAINS", "AS", "ASC", "ASCENDING", "DESC", "DESCENDING", "DISTINCT", "CASE",
-            "WHEN", "THEN", "ELSE", "END", "CYPHER");
+            "WHEN", "THEN", "ELSE", "CYPHER");
 
     private final String src;
     private final List<Token> tokens;
@@ -504,11 +504,17 @@ public final class CypherParser {
         Expr chain = null;
         while (true) {
             BinaryOp op = comparisonOp();
+            boolean negatedRight = false;
+            if (op == null && peek().is(Type.ARROW_LEFT)) {
+                // 1<-1 in an expression: < then a negated operand (the lexer reads <- as an arrow everywhere)
+                op = BinaryOp.LT;
+                negatedRight = true;
+            }
             if (op == null) {
                 return chain == null ? left : chain;
             }
             Pos pos = advance().pos();
-            Expr right = predicate();
+            Expr right = negatedRight ? new CypherAst.Unary(UnaryOp.NEG, predicate(), pos) : predicate();
             Expr c = new CypherAst.Binary(op, left, right, pos);
             // a < b < c is a < b AND b < c: Neo4j chains comparisons
             chain = chain == null ? c : new CypherAst.Binary(BinaryOp.AND, chain, c, pos);
@@ -652,7 +658,8 @@ public final class CypherParser {
             case LPAREN -> {
                 advance();
                 if (peek().is(Type.RPAREN) || (peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
-                        || peek(1).is(Type.RPAREN) || peek(1).is(Type.LBRACE)))) {
+                        || peek(1).is(Type.LBRACE) || (peek(1).is(Type.RPAREN) && (peek(2).is(Type.MINUS)
+                        || peek(2).is(Type.ARROW_LEFT)))))) {
                     throw CypherErrors.unsupported("a pattern inside an expression (a pattern predicate or"
                             + " comprehension) is not supported yet", pos);
                 }
@@ -695,6 +702,10 @@ public final class CypherParser {
     private long parseInteger(Token t, boolean negated) {
         String text = t.text();
         java.math.BigInteger value;
+        if (text.length() > 1 && text.charAt(0) == '0' && Character.isDigit(text.charAt(1))) {
+            // Neo4j: an integer literal with a leading zero is invalid (the review's finding 2, 2026-10-15)
+            throw CypherErrors.syntax("invalid integer literal (a leading zero): " + text, t.pos());
+        }
         try {
             if (text.startsWith("0x") || text.startsWith("0X")) {
                 value = new java.math.BigInteger(text.substring(2), 16);

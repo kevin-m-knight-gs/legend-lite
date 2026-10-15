@@ -9870,5 +9870,9 @@ the showcase `docs/CYPHER_SHOWCASE.md`.
    against the running Neo4j: clean. Guard entries, dated: the dialect-leak ledger (the two lane tests). The full local
    gate: as the first landing's, the branch's CI run is the landing's full judge (the container's disk allowance;
    `docs/CLOUD_SESSIONS.md` gained the Maven seeding this session needed).
-4. **Next.** The independent review of PR1 (an agent that wrote none of it, read-only, each claim run on lite and on
-   Neo4j), then the merge; then PR2.
+4. **The independent review of PR1** (an agent that wrote none of it, read-only, each claim run on lite and on
+   Neo4j): 17 findings, 4 BLOCKER (relationship uniqueness, `017`, float literals computed as decimals, 64-bit
+   overflow), 5 MAJOR, 8 MINOR; what each changed is the study's §12.4, each with its test and a Neo4j-judged lite
+   case. The judge tightened to two units in the last place with a signed zero its own value. After it, both lanes:
+   3,914 cases, PASS 190, FAIL 0, BUG 0, ERROR 0, REFUSED 2,724, BOTH_ERROR 670, SKIP 330.
+5. **Next.** The full CI run on the branch, then the merge; then PR2 (the refusal census, §12.3).

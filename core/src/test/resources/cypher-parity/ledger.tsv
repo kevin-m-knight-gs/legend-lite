@@ -3906,4 +3906,12 @@ lite/basics/refused_node_as_value	REFUSED	REFUSED
 lite/basics/refused_unwind	REFUSED	REFUSED
 lite/basics/error_unknown_property_is_null_in_neo4j	REFUSED	REFUSED
 lite/basics/error_unknown_function	BOTH_ERROR	BOTH_ERROR
+lite/basics/review_float_arithmetic_is_double	PASS	PASS
+lite/basics/review_order_by_expression_over_items_after_aggregation	PASS	PASS
+lite/basics/review_order_by_unreturned_expression_under_limit	PASS	PASS
+lite/basics/review_less_than_negative	PASS	PASS
+lite/basics/review_end_as_a_name	PASS	PASS
+lite/basics/review_parenthesised_variable	PASS	PASS
+lite/basics/review_relationship_uniqueness_refused	REFUSED	REFUSED
+lite/basics/review_leading_zero_is_an_error	BOTH_ERROR	BOTH_ERROR
 lite/basics/showcase_main	PASS	PASS

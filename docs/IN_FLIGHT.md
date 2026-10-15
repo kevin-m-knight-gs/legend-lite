@@ -1673,6 +1673,14 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   rows for the two lane tests (dated). `compiler/spec/CypherIslands` is public for the showcase dump (the Pure a person
   reads). The parser and translator fixes the first run named are in the study's §12.2. Next: the independent review
   of PR1, then the merge.
+- **Found by the independent review of PR1 in other lines' code, 2026-10-15** (the study's §12.4): (a) the execute
+  path's render refuses a sort key that is not an output column (`lowering/Render.java`, "render over an ordered
+  relation whose sort key is not an output column") where `generatePlan` renders it, for `#SQL{...}#` and plain Pure
+  alike (`Person.all()->project(~[name, k])->sort(~k)->select(~[name])`); the Cypher translator refuses such an
+  `ORDER BY` by name unless a `SKIP` or `LIMIT` follows (the database owner's); (b) lite's DuckDB dialect leaves an
+  integer literal untyped, so DuckDB types `2147483647 + 1` as INT32 and raises "Overflow in addition of INT32" where
+  Pure's Integer is 64-bit (the database owner's); (c) the server's JSON writer cannot write Infinity (`json/Json.java`;
+  `RETURN 1.0 / 0.0`) (the server line's).
 - **Found by this line in other lines' code, 2026-10-15 (the database owner's):** lite's Postgres dialect spells a
   Float literal in plain digits (`1e308` as a 309-digit numeral), which Postgres types numeric, so `RETURN 1e308`
   answers an exact numeric where Neo4j and DuckDB answer a float (the TCK's Literals5 [5], [11], [25], [26]). The Cypher

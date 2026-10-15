@@ -82,6 +82,31 @@ tests:
   - id: error_unknown_function
     graph: legend
     cypher: "MATCH (p:Person) RETURN nosuch(p.name)"
+  # the independent review of PR1 (the study's §12.4), each judged by Neo4j
+  - id: review_float_arithmetic_is_double
+    graph: legend
+    cypher: "RETURN 0.1 + 0.2 = 0.3 AS eq, 0.1 + 0.2 AS s, 1.0 / 3 AS third, -0.0 AS z"
+  - id: review_order_by_expression_over_items_after_aggregation
+    graph: legend
+    cypher: "MATCH (p:Person)-[:WORKS_AT]->(f:Firm) RETURN f.legalName AS a, count(*) AS c ORDER BY a + 'x' DESC"
+  - id: review_order_by_unreturned_expression_under_limit
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name ORDER BY p.age DESC LIMIT 2"
+  - id: review_less_than_negative
+    graph: legend
+    cypher: "RETURN 1<-1 AS lt, 2 <-1 AS lt2"
+  - id: review_end_as_a_name
+    graph: legend
+    cypher: "MATCH (p:Person) RETURN p.name AS end ORDER BY end LIMIT 2"
+  - id: review_parenthesised_variable
+    graph: legend
+    cypher: "MATCH (p:Person) WHERE p.age IS NOT NULL RETURN (p.age) + 1 AS next ORDER BY next"
+  - id: review_relationship_uniqueness_refused
+    graph: legend
+    cypher: "MATCH (p:Person)-[:WORKS_AT]->(f:Firm), (p)-[:WORKS_AT]->(g:Firm) RETURN p.name, f.legalName, g.legalName"
+  - id: review_leading_zero_is_an_error
+    graph: legend
+    cypher: "RETURN 017 AS n"
   - id: showcase_main
     graph: legend
     cypher: |

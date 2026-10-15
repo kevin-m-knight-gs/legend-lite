@@ -50,6 +50,9 @@ public final class CypherGraph {
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
+    /** The class of the nodes without a label. */
+    private static final String UNLABELLED = "Unlabelled";
+
     private static final class Cls {
         final String name;
         final String table;
@@ -85,7 +88,10 @@ public final class CypherGraph {
                 throw new Unsupported("harness: a node with several labels (" + String.join(":", n.labels())
                         + ") waits for PR3's inheritance");
             }
-            String label = n.labels().isEmpty() ? "NoLabel" : n.labels().get(0);
+            String label = n.labels().isEmpty() ? UNLABELLED : n.labels().get(0);
+            if (!n.labels().isEmpty() && label.equals(UNLABELLED)) {
+                throw new Unsupported("harness: the label " + UNLABELLED + " is the class of the unlabelled nodes");
+            }
             if (!IDENTIFIER.matcher(label).matches()) {
                 throw new Unsupported("harness: the label " + label + " is not a Pure identifier");
             }
@@ -164,7 +170,8 @@ public final class CypherGraph {
             }
             int maxOut = out.values().stream().mapToInt(Integer::intValue).max().orElse(0);
             int maxIn = inDegree.values().stream().mapToInt(Integer::intValue).max().orElse(0);
-            String assoc = "g::" + t.name;
+            // named apart from the classes: a label may be spelled like a relationship type
+            String assoc = "g::R_" + t.name;
             String column = "r_" + t.name.toLowerCase(Locale.ROOT);
             String target = src == dst ? "{target}." : dst.table + ".";
             if (maxOut <= 1) {

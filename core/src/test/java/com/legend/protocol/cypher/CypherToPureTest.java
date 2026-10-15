@@ -121,11 +121,48 @@ class CypherToPureTest {
     }
 
     @Test
-    void aSortByAnExpressionNotProjectedIsAHiddenColumn() {
+    void aSortByAnExpressionNotProjectedIsAHiddenColumnUnderASliceAndRefusedWithout() {
         assertEquals("demo::Person.all()->project(~[who:p|$p.name, _cypher_1:p|$p.age])"
                         + "->sort([~_cypher_1->ascending(meta::pure::functions::relation::NullOrder.LAST)])"
-                        + "->select(~[who])",
-                pure("MATCH (p:Person) RETURN p.name AS who ORDER BY p.age"));
+                        + "->select(~[who])->limit(5)",
+                pure("MATCH (p:Person) RETURN p.name AS who ORDER BY p.age LIMIT 5"));
+        // the lowering's execute path renders no sort key that is not an output column (the review's finding 6)
+        unsupported("MATCH (p:Person) RETURN p.name AS who ORDER BY p.age",
+                "an ORDER BY on an expression that is not a returned item, without a SKIP or LIMIT");
+    }
+
+    @Test
+    void aSortOverTheProjectedColumnsAfterAGroupingIsComputedAfterIt() {
+        // the review's finding 7: Neo4j reads ORDER BY a + 'x' over the items a and c
+        assertEquals("demo::Person.all()->project(~[a:p|$p.name, _cypher_1:p|1])"
+                        + "->groupBy(~[a], ~[c:x|$x._cypher_1:y|$y->count()])->select(~[a, c])"
+                        + "->extend(~[_cypher_2:r|$r.a + 'x'])"
+                        + "->sort([~_cypher_2->ascending(meta::pure::functions::relation::NullOrder.LAST)])"
+                        + "->select(~[a, c])",
+                pure("MATCH (p:Person) RETURN p.name AS a, count(*) AS c ORDER BY a + 'x'"));
+    }
+
+    @Test
+    void twoRelationshipsOfOneTypeInOneMatchAreRefusedUntilIdentity() {
+        // the review's finding 1: Neo4j binds the two slots to different relationships (relationship uniqueness)
+        unsupported("MATCH (p:Person)-[:firm]->(f:Firm), (p)-[:firm]->(g:Firm) RETURN f.legalName",
+                "two relationships of the type firm in one MATCH");
+        unsupported("MATCH (p:Person)-[:firm]->(f:Firm)<-[:firm]-(q:Person) RETURN q.name", "fans out");
+        // in two MATCH clauses they may be the same relationship, as in Neo4j
+        assertEquals("demo::Person.all()->filter(p|$p.firm->isNotEmpty() && $p.firm->isNotEmpty())"
+                        + "->project(~['g.legalName':p|$p.firm.legalName])",
+                pure("MATCH (p:Person)-[:firm]->(f:Firm) MATCH (p)-[:firm]->(g:Firm) RETURN g.legalName"));
+    }
+
+    @Test
+    void aFloatLiteralIsADouble() {
+        // the review's finding 3: a bare Float literal lowers to a decimal (S9); Cypher's float is IEEE 754
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[s:r|toFloat(0.1) + toFloat(0.2),"
+                        + " eq:r|toFloat(0.1) + toFloat(0.2) == toFloat(0.3)])->select(~[s, eq])",
+                pure("RETURN 0.1 + 0.2 AS s, 0.1 + 0.2 = 0.3 AS eq"));
+        // the negation of a float is IEEE's (-0.0 is a value of its own); of an integer, Pure's minus
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[z:r|toFloat(0.0) * -1.0, n:r|-3])->select(~[z, n])",
+                pure("RETURN -0.0 AS z, -(3) AS n"));
     }
 
     @Test
@@ -235,9 +272,9 @@ class CypherToPureTest {
     }
 
     @Test
-    void aSortInAGroupedProjectionMustNameAnItem() {
-        invalid("MATCH (p:Person) RETURN p.name, count(*) ORDER BY p.age", "not possible to access variables");
-        invalid("MATCH (p:Person) RETURN DISTINCT p.name ORDER BY p.age", "not possible to access variables");
+    void aSortInAGroupedProjectionReadsTheItemsOnly() {
+        invalid("MATCH (p:Person) RETURN p.name, count(*) ORDER BY p.age", "Variable `p` not defined");
+        invalid("MATCH (p:Person) RETURN DISTINCT p.name ORDER BY p.age", "Variable `p` not defined");
     }
 
     // ------------------------------------------------------------------ null rules
@@ -311,8 +348,8 @@ class CypherToPureTest {
                 + " * 0.9999999999999991 >= 0, |floor(((7 - 7->rem(2)) / 2) * 0.9999999999999991), |ceiling("),
                 quotient);
         assertTrue(quotient.endsWith("])->select(~[q])"), quotient);
-        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[r:r|7->rem(3), p:r|toFloat(2)->pow(3), f:r|7 / 2.0,"
-                        + " s:r|'a' + 'b'])->select(~[r, p, f, s])",
+        assertEquals("#TDS{\n_cypher_row\n1\n}#->extend(~[r:r|7->rem(3), p:r|toFloat(2)->pow(3),"
+                        + " f:r|7 / toFloat(2.0), s:r|'a' + 'b'])->select(~[r, p, f, s])",
                 pure("RETURN 7 % 3 AS r, 2 ^ 3 AS p, 7 / 2.0 AS f, 'a' + 'b' AS s"));
     }
 
@@ -375,6 +412,7 @@ class CypherToPureTest {
         unsupported("MATCH (p:Person)-[:firm {since: 1}]->(f) RETURN f.legalName", "properties on a relationship");
         unsupported("OPTIONAL MATCH (p:Person) RETURN p.name", "OPTIONAL MATCH");
         unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
+        invalid("MATCH (p:Person) WITH p.name AS n WHERE p.age > 1 RETURN n", "Variable `p` not defined");
         unsupported("UNWIND [1, 2] AS x RETURN x", "UNWIND is not supported yet");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
         unsupported("MATCH (p:Person) RETURN toUpper(p.name)", "the function toUpper(...) is not supported yet");

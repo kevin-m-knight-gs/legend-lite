@@ -355,6 +355,19 @@ class CypherParserTest {
     }
 
     @Test
+    void theReviewsReaderFindings() {
+        // 017 is Neo4j's syntax error; 1<-1 is 1 < -1; end is a name outside a CASE; (x) + 1 is a parenthesised x
+        assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("RETURN 017").kind());
+        assertEquals("LT(1,NEG(1))", tree(expr("1<-1")));
+        assertEquals("end", ((Return) parse("WITH 1 AS end RETURN end").clauses().get(1)).items().get(0).alias() == null
+                ? ((CypherAst.Var) ((Return) parse("WITH 1 AS end RETURN end").clauses().get(1)).items().get(0).expr())
+                        .name() : "");
+        assertEquals("PLUS((x),1)", tree(expr("(x) + 1")));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("RETURN (x)-->() ").kind());
+        assertEquals("CASE(GT(a,1)->end;else 2)", tree(expr("CASE WHEN a > 1 THEN end ELSE 2 END")));
+    }
+
+    @Test
     void mergeActionsListPredicatesAndKeywordMapKeys() {
         OtherClause merge = (OtherClause) parse("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2 RETURN a")
                 .clauses().get(0);
