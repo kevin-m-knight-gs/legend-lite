@@ -160,7 +160,8 @@ const CHART_BUDGET = 447_000;
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
  *  own. */
-const isKinds = (file: string): boolean => /\/chart-(?:render-)?kinds-[^/]+\.js$/.test(file);
+// a chunk's file name, whichever separator the platform's paths use (Windows': backslashes)
+const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+\.js$/.test(file);
 /** Set 2026-10-14 at its first measure (batch 3 step 1), 92,574: the drawing 7,823 and the charts 84,751, with room for
  *  batch 3's later kinds (small multiples, a bubble). */
 const KINDS_BUDGET = 100_000;

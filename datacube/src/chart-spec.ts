@@ -26,7 +26,7 @@ import {
   type RowColumn,
   type SortSpec,
 } from './snapshot.ts';
-import { defaultKind, isFractional, isNumeric, isTemporal } from '../../engine-client/src/types.ts';
+import { defaultKind, hasTimeOfDay, isFractional, isNumeric, isTemporal } from '../../engine-client/src/types.ts';
 import { lambda, property, variable, type Lambda } from '../../pure-protocol/src/index.ts';
 
 export type ChartMark =
@@ -822,7 +822,7 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     out.push('A calendar has a cell per day: its grain is the day.');
   }
   // a date-time's rows are instants: a cell per day needs them taken to their day first
-  if (spec.mark === 'calendar' && spec.grain === undefined && xType !== undefined && xType !== 'StrictDate') {
+  if (spec.mark === 'calendar' && spec.grain === undefined && hasTimeOfDay(xType)) {
     out.push(`A calendar has a cell per day: '${spec.x}' is a date-time, so give it the day grain.`);
   }
   // A SLOT NOTHING DRAWS IS REFUSED, never ignored (AGENTS.md invariant 4): small multiples are drawn by bars, lines
