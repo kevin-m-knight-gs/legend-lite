@@ -524,16 +524,53 @@ def write_answers(path, meta, answers):
             f.write(json.dumps(answers[key], ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n")
 
 
-def same_answer(a, b):
+def same_answer(a, b, ignore_list_order=False):
     """Whether two snaps of one case agree: rows as a bag (Neo4j's order is its own where the query orders nothing;
-    the Java judge compares in order only where the scenario says so), the graph by its shape (a node's ordinal is
-    the run's), the error and the version as they are."""
+    the Java judge compares in order only where the scenario says so), a list cell as a bag where the scenario
+    ignores element order (a collect's order is Neo4j's own: Return6 [13] answers ['b', 'c'] or ['c', 'b'] by the
+    run), the graph by its shape (a node's ordinal is the run's), the error and the version as they are."""
     for k in ("columns", "error", "setupError", "cypher"):
         if a.get(k) != b.get(k):
             return False
-    if sorted(map(json.dumps, a.get("rows") or [])) != sorted(map(json.dumps, b.get("rows") or [])):
+    rows_a = a.get("rows") or []
+    rows_b = b.get("rows") or []
+    if ignore_list_order:
+        rows_a = [[list_bag(cell) for cell in row] for row in rows_a]
+        rows_b = [[list_bag(cell) for cell in row] for row in rows_b]
+    if sorted(map(json.dumps, rows_a)) != sorted(map(json.dumps, rows_b)):
         return False
     return graph_shape(a.get("graph")) == graph_shape(b.get("graph"))
+
+
+def list_bag(cell):
+    """A cell's text with every list's elements sorted, at every depth: the value grammar's `[a, b]`, split at the
+    commas outside quotes and brackets."""
+    if not (cell.startswith("[") and cell.endswith("]")):
+        return cell
+    parts = []
+    depth = 0
+    quote = None
+    start = 1
+    for i in range(1, len(cell) - 1):
+        ch = cell[i]
+        if quote:
+            if ch == "\\":
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "'\"":
+            quote = ch
+        elif ch in "[{(":
+            depth += 1
+        elif ch in "]})":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(cell[start:i].strip())
+            start = i + 1
+    last = cell[start:len(cell) - 1].strip()
+    if last or parts:
+        parts.append(last)
+    return "[" + ", ".join(sorted(list_bag(p) for p in parts)) + "]"
 
 
 def graph_shape(g):
@@ -600,7 +637,7 @@ def main():
             problems.append("UNSNAPPED: " + c["key"])
         elif a["sha"] != sha(c):
             problems.append("STALE: " + c["key"])
-        elif not same_answer(a, live[c["key"]]):
+        elif not same_answer(a, live[c["key"]], bool((c.get("expect") or {}).get("ignoreListOrder"))):
             problems.append("DRIFT: " + c["key"])
     keys = {c["key"] for c in runnable}
     for k in old:

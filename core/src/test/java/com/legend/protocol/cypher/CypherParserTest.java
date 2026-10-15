@@ -67,6 +67,14 @@ class CypherParserTest {
                     c.whens().stream().map(w -> tree(w.condition()) + "->" + tree(w.result())).toList())
                     + (c.elseResult() == null ? "" : ";else " + tree(c.elseResult())) + ")";
             case CypherAst.Paren p -> "(" + tree(p.inner()) + ")";
+            case CypherAst.Quantifier q -> q.name() + "(" + q.variable() + " IN " + tree(q.list()) + " WHERE "
+                    + tree(q.where()) + ")";
+            case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + tree(lc.list())
+                    + (lc.where() == null ? "" : " WHERE " + tree(lc.where()))
+                    + (lc.map() == null ? "" : " | " + tree(lc.map())) + "]";
+            case CypherAst.Index ix -> tree(ix.target()) + "[" + tree(ix.index()) + "]";
+            case CypherAst.Slice sl -> tree(sl.target()) + "[" + (sl.from() == null ? "" : tree(sl.from())) + ".."
+                    + (sl.to() == null ? "" : tree(sl.to())) + "]";
         };
     }
 
@@ -140,9 +148,9 @@ class CypherParserTest {
     @Test
     void aClauseTheTranslatorDoesNotReadIsKeptWithItsTextForARefusalByName() {
         Statement s = parse("UNWIND [1, 2] AS x RETURN x");
-        OtherClause o = (OtherClause) s.clauses().get(0);
-        assertEquals("UNWIND", o.keyword());
-        assertEquals("UNWIND [1, 2] AS x", o.text());
+        CypherAst.Unwind u = (CypherAst.Unwind) s.clauses().get(0);
+        assertEquals("x", u.variable());
+        assertEquals("[1,2]", tree(u.list()));
         assertInstanceOf(Return.class, s.clauses().get(1));
         OtherClause create = (OtherClause) parse("CREATE (n:Person {name: 'a'})-[:KNOWS]->(m)").clauses().get(0);
         assertEquals("CREATE", create.keyword());
@@ -312,8 +320,13 @@ class CypherParserTest {
 
     @Test
     void expressionFormsNotReadYetAreRefusedByName() {
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("RETURN [x IN [1,2] | x * 2]").kind());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("RETURN a[0]").kind());
+        assertEquals("[x IN [1,2] | TIMES(x,2)]", tree(expr("[x IN [1,2] | x * 2]")));
+        assertEquals("[x IN [1,2] WHERE GT(x,1)]", tree(expr("[x IN [1,2] WHERE x > 1]")));
+        assertEquals("a[0]", tree(expr("a[0]")));
+        assertEquals("a[1..]", tree(expr("a[1..]")));
+        assertEquals("a[..2]", tree(expr("a[..2]")));
+        assertEquals("a[-1..2][0]", tree(expr("a[-1..2][0]")));
+        assertEquals("[[1]][0][0]", tree(expr("[[1]][0][0]")));
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) RETURN n:Person").kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("MATCH (n) WHERE EXISTS { (n)-->() } RETURN n")
                 .kind());
@@ -372,8 +385,9 @@ class CypherParserTest {
         OtherClause merge = (OtherClause) parse("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2 RETURN a")
                 .clauses().get(0);
         assertEquals("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2", merge.text());
-        SqlTranslationException all = refusal("RETURN all(x IN [1, 2] WHERE x > 0)");
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, all.kind());
+        assertEquals("all(x IN [1,2] WHERE GT(x,0))", tree(expr("all(x IN [1, 2] WHERE x > 0)")));
+        assertEquals("single(x IN [1,2] WHERE GT(x,0))", tree(expr("single(x IN [1, 2] WHERE x > 0)")));
+        assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("RETURN any(x IN [1, 2])").kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("RETURN reduce(s = 0, x IN [1] | s + x)").kind());
         assertEquals("{null:1,NULL:2}", tree(expr("{null: 1, NULL: 2}")));
     }

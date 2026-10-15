@@ -254,3 +254,52 @@ value), `UNWIND` (lists), a property no class declares (C4: lite's compile error
 - The SQL is lite's own for its DuckDB and Snowflake dialects; Snowflake's is rendered only.
 - The query reads to-one hops only: a pattern that fans out (a firm's many employees read from the firm), lists,
   `OPTIONAL MATCH`, nodes as values and the graph algorithms are the later slices of the plan (`docs/CYPHER_PLAN_2026_10_15.md` §4).
+
+## 12. What PR2 brings: lists, maps, the quantifiers, `UNWIND` (2026-10-15)
+
+The values slice (the study's §12.5) reads lists and maps of known shape, the four quantifiers, comprehensions,
+indexing and slicing, `IN` over lists, `WITH` as a first clause, `UNWIND`, lists and maps as returned values, and a
+function table. Three of its 28 Neo4j-judged cases (`lite/values.yaml`; `ledger.tsv`: PASS on both lanes):
+
+**Lists built from the rows** (`returned_lists_over_rows`), the database writing each as a Variant (`toVariant` of a
+collection; a map built from the rows is refused by name until lite's Postgres lowering writes `newMap` as an
+object, the study's §12.5.5):
+
+```
+MATCH (p:Person)
+RETURN p.name AS name, [p.age IS NULL, p.active IS NULL] AS unknowns,
+       [coalesce(p.name, '?'), coalesce(p.name, '?') + '!'] AS names
+ORDER BY name
+```
+
+| name | unknowns | names |
+|---|---|---|
+| 'Alice' | [false, false] | ['Alice', 'Alice!'] |
+| 'Bob' | [false, true] | ['Bob', 'Bob!'] |
+| 'Charlie' | [false, false] | ['Charlie', 'Charlie!'] |
+| 'Diana' | [true, false] | ['Diana', 'Diana!'] |
+| 'Eve' | [false, false] | ['Eve', 'Eve!'] |
+
+**The quantifiers under Cypher's three-valued rules** (`quantifiers_three_valued`), each unrolled over the spelled
+list, the predicate computed by the database:
+
+```
+RETURN all(x IN [1, null] WHERE x > 0) AS a, any(x IN [null, 2] WHERE x = 2) AS b,
+       none(x IN [1, 2] WHERE x = 3) AS c, single(x IN [2, null] WHERE x = 2) AS s,
+       single(x IN [34, 0, null, 5, 900] WHERE x < 10) AS t,
+       single(x IN [34, 10, null, 15, 900] WHERE x < 10) AS u, all(x IN [] WHERE false) AS e
+```
+
+| a | b | c | s | t | u | e |
+|---|---|---|---|---|---|---|
+| null | true | true | null | false | null | true |
+
+**`UNWIND` after a projection** (`unwind_after_with_over_rows`), the rows in hand paired with the list's elements
+(Pure's `lateral` of a `flatten`):
+
+```
+MATCH (p:Person) WITH p.name AS name UNWIND [1, 2] AS k RETURN name, k ORDER BY name, k
+```
+
+Ten rows, `'Alice' 1`, `'Alice' 2`, ... `'Eve' 2`, identical to Neo4j's on both lanes. What PR2 refuses by name, and
+what the census says comes next (the temporal values, the join form, `collect`), is the study's §12.5.3 and §12.5.4.

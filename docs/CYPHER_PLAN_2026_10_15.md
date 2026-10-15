@@ -55,7 +55,7 @@ line.
 | Slice | Content | Needs |
 |---|---|---|
 | PR1 | the island plumbing, the reader, `MATCH` over labels with fixed-length patterns (properties, associations), `WHERE`, `WITH`, `RETURN`, `ORDER BY`, `SKIP`, `LIMIT`, `DISTINCT`, literals, comparisons, boolean logic, `CASE`, `coalesce`, implicit grouping with `count`, `sum`, `avg`, `min`, `max`; the TCK reader and inferred models; the oracle tool; about 650 TCK scenarios reachable | nothing outside the protocol layer, the Typer arm and the seam |
-| PR2 | lists, maps, `UNWIND`, `collect`, the quantifiers, the string and number table from lite's own Neo4j-judged cases, the conversions | |
+| PR2 | lists, maps, `UNWIND`, `collect`, the quantifiers, the string and number table from lite's own Neo4j-judged cases, the conversions — **landed 2026-10-15 (the study's §12.5) but for `collect`, `UNWIND` after a `MATCH` or over lists of lists, lists of row values that may be null, the string conversions that answer null, and the temporal values (PR2b, §12.5.4)** | |
 | PR3 | the model: `projects/graph`, `GraphEdges`, edge classes in every form, inheritance, identity, `USE`, `OPTIONAL MATCH`, `UNION`, subqueries, nodes and paths as values | the identity half on the product lane; association ends keeping their stereotypes |
 | PR4 | bounded paths by unrolling, named paths, bounded `shortestPath` | nothing new |
 | PR5 | the recursion native and the unbounded forms | the native's design agreed; the database owner's files |
@@ -69,7 +69,11 @@ fixed-length patterns, the seam, 67 tests. PR1b landed on the branch (§12.2): t
 the TCK as test input, the inferred models, the two parity lanes in `//gates:core` with the first ledger (3,906 cases,
 184 PASS, 0 FAIL, 0 BUG, 0 ERROR, 2,723 REFUSED by name, 669 BOTH_ERROR, 330 SKIP, identical on DuckDB and Postgres),
 and the showcase. The independent review of PR1 (§12.4): 17 findings, every one met or recorded; after it 3,914 cases,
-190 PASS, 0 FAIL, 0 BUG, 0 ERROR. Next: the full CI run on the branch, the merge, then PR2.
+190 PASS, 0 FAIL, 0 BUG, 0 ERROR. PR2 landed on the branch (§12.5): lists and maps of known shape, the quantifiers,
+comprehensions, indexing and slicing, `IN` over lists, `WITH` first, `UNWIND`, lists and maps as returned values, the
+function table, 28 more lite cases: 3,942 cases, 1,037 PASS, 0 FAIL, 0 BUG, 0 ERROR, 1,904 REFUSED by
+name, identical on both lanes. Next: the full CI run on the branch, the merge; then PR2b (§12.5.4: `collect`, the
+temporal values) or the join form (316 fan-out cases), the user's call.
 
 **The showcase (the user, 2026-10-15: "when we have a real oracle, an md doc showcase similar to the IQ showcase").**
 `docs/CYPHER_SHOWCASE.md`, written as `docs/IQ_SQL_SHOWCASE.md` is, lands with the first slice that has the oracle

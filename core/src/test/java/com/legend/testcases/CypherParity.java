@@ -367,9 +367,11 @@ public final class CypherParity {
             expected.add(CypherValues.row(row));
         }
         List<List<CypherValues.Value>> got = new ArrayList<>();
-        for (List<Object> row : actual.rows()) {
+        // the cells as the database returned them (a list or map is its JSON, read as a value by the judge; the
+        // grid's canonical JSON text would lose a float's spelling: 3.0 is a float in Cypher, 3 an integer)
+        for (var row : result.rows()) {
             List<CypherValues.Value> cells = new ArrayList<>();
-            for (Object cell : row) {
+            for (Object cell : row.values()) {
                 cells.add(CypherValues.ofCell(cell));
             }
             got.add(cells);
@@ -447,6 +449,13 @@ public final class CypherParity {
         String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         if (outputs != null) {
             Files.writeString(Path.of(outputs, "cypher-parity-" + lane + "-census.tsv"), text, StandardCharsets.UTF_8);
+            // and every case with its folded reason and its detail, for attacking one category's queries
+            StringBuilder each = new StringBuilder("case\tstatus\treason\tdetail\n");
+            outcomes.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e -> each.append(e.getKey())
+                    .append('\t').append(e.getValue().status()).append('\t').append(reason(e.getValue().detail()))
+                    .append('\t').append(e.getValue().detail().replace('\n', ' ').replace('\t', ' ')).append('\n'));
+            Files.writeString(Path.of(outputs, "cypher-parity-" + lane + "-cases.tsv"), each.toString(),
+                    StandardCharsets.UTF_8);
         }
         System.out.println("the refusal census, " + lane + " lane:\n" + text);
         return text;

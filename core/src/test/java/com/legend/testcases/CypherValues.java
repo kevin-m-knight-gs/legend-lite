@@ -388,7 +388,46 @@ public final class CypherValues {
         if (cell instanceof String s) {
             return new Str(s);
         }
+        // a list or map, as the Variant lite returns (C8): DuckDB's JsonNode, Postgres's json/jsonb PGobject
+        String cls = cell.getClass().getName();
+        if (cls.equals("org.duckdb.JsonNode")) {
+            return ofJson(com.legend.json.Json.parse(cell.toString()));
+        }
+        if (cls.equals("org.postgresql.util.PGobject")) {
+            try {
+                String type = (String) cell.getClass().getMethod("getType").invoke(cell);
+                if (type.equals("json") || type.equals("jsonb")) {
+                    return ofJson(com.legend.json.Json.parse((String) cell.getClass().getMethod("getValue")
+                            .invoke(cell)));
+                }
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("pgjdbc's PGobject", e);
+            }
+        }
         return new Opaque(cell.getClass().getSimpleName() + "(" + new Str(cell.toString()) + ")");
+    }
+
+    /** A JSON value as a Cypher value: a number with no fraction an integer, else a float. */
+    private static Value ofJson(com.legend.json.Json.Node node) {
+        return switch (node) {
+            case com.legend.json.Json.Null n -> new Null();
+            case com.legend.json.Json.Bool b -> new Bool(b.value());
+            case com.legend.json.Json.Str s -> new Str(s.value());
+            case com.legend.json.Json.Num n -> n.isInteger() ? new Int(BigInteger.valueOf(n.longValue()))
+                    : new Flt(n.doubleValue());
+            case com.legend.json.Json.Arr a -> {
+                List<Value> items = new ArrayList<>();
+                for (com.legend.json.Json.Node item : a.items()) {
+                    items.add(ofJson(item));
+                }
+                yield new Lst(items);
+            }
+            case com.legend.json.Json.Obj o -> {
+                Map<String, Value> entries = new TreeMap<>();
+                o.fields().forEach((k, v) -> entries.put(k, ofJson(v)));
+                yield new Mp(entries);
+            }
+        };
     }
 
     private static boolean isWhole(BigDecimal d) {

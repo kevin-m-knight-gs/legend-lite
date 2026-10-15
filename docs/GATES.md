@@ -9850,6 +9850,35 @@ is the study's §12.1, the plan's PR1 less its harness (PR1b).
    TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
    first ledger, the independent review of PR1.
 
+## 2026-10-15 — `#Cypher{...}#`: the third landing — PR2, the values slice: lists, maps, the quantifiers, `UNWIND`, `WITH` first, the function table (the eleventh line)
+
+Branch `claude/keen-noether-v5mis0`, after the review of PR1; the record is the study's §12.5
+(`docs/CYPHER_STUDY_2026_10_15.md`); the showcase's §12 shows it.
+
+1. **What lands.** The translator reads every expression into a value that is a scalar, a list or map of KNOWN
+   SHAPE (the shape read from the spelling and rearranged here, the elements computed by the database: the world
+   map's compare-not-compute), or a collection the database computes (a Pure `T[*]`): `size`, `keys`, indexing,
+   slicing, concatenation, equality and `IN` over known shapes (nulls, nested lists and maps by Cypher's rules), the
+   four quantifiers (`single` by the database's counts), comprehensions, `WITH` as a first clause, lists and maps
+   carried through `WITH` or returned as Variants (a JSON constant for literal shapes, `toVariant`/`newMap` for
+   values of the row), `UNWIND` (`flatten`, by place for nulls, `lateral` after a projection), a function table of
+   42 names, each other name refused by name before its arguments are read. The judge reads a list or map cell as
+   the database returns it. The reader: quantifiers, comprehensions, `[i]`, `[a..b]`, `UNWIND` as a clause.
+2. **The ledger,** identical on both lanes: 3,942 cases; PASS 1,037 (from 190); FAIL 0; BUG 0; ERROR 0;
+   REFUSED 1,904; BOTH_ERROR 671; SKIP 330. 28 lite cases in `lite/values.yaml`, each judged by
+   Neo4j 2026.09.0, six of them refused by name on purpose (`collect`; lists of row values that may be null; a map of
+   row values; `%` inside a database-computed lambda). What
+   the runs found and fixed, what the census says next (the temporal values, the join form, `collect`), and what
+   was verified against Neo4j rather than the TCK's text (`range` with a step, `round`, `substring`) is the study's
+   §12.5.2 to §12.5.4.
+3. **Judges, on the final tree:** `//core:cypher_parity_test`, `//core:cypher_parity_postgres_test` (as the
+   container's unprivileged user), `//core:core_tests_protocol`, `//core:core_tests_integration`, `//core:guardrails`,
+   `//core:census`: all green; the oracle's `--check` against the running Neo4j: clean. No guard pin moved. The full
+   local gate: as the earlier landings', the branch's CI run is the landing's full judge.
+4. **Found in other lines' code** (IN_FLIGHT, the database owner's): lite's `toVariant` of a one-element or mixed
+   literal collection; lite's `round` of a Float half to even on DuckDB; the typer's `[0..1]` for a flattened column.
+5. **Next.** The full CI run on the branch, then the merge; then PR2b (§12.5.4) or the join form, the user's call.
+
 ## 2026-10-15 — `#Cypher{...}#`: the second landing — the Neo4j oracle, the TCK as test input, the two parity lanes, the showcase (the eleventh line)
 
 Branch `claude/keen-noether-v5mis0`, after PR1a; the record is the study's §12.2 (`docs/CYPHER_STUDY_2026_10_15.md`),

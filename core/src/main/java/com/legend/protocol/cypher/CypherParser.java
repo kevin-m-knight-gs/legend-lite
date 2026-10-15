@@ -50,6 +50,8 @@ public final class CypherParser {
 
     /** The functions whose argument is a variable over a list ({@code all(x IN list WHERE ...)}), refused by name
      *  until lists land. */
+    private static final Set<String> QUANTIFIERS = Set.of("all", "any", "none", "single");
+
     private static final Set<String> LIST_PREDICATES = Set.of("all", "any", "none", "single", "filter", "extract",
             "reduce");
 
@@ -207,6 +209,12 @@ public final class CypherParser {
         if (atWord("RETURN")) {
             advance();
             return returnClause(pos);
+        }
+        if (atWord("UNWIND")) {
+            advance();
+            Expr list = expression();
+            expectWord("AS");
+            return new CypherAst.Unwind(list, identifier("a variable"), pos);
         }
         if (t.is(Type.IDENT) && !t.backticked()
                 && OTHER_CLAUSE_WORDS.contains(t.text().toUpperCase(java.util.Locale.ROOT))) {
@@ -625,7 +633,23 @@ public final class CypherParser {
                 Pos pos = advance().pos();
                 e = new CypherAst.Prop(e, identifier("a property name"), pos);
             } else if (peek().is(Type.LBRACKET)) {
-                throw CypherErrors.unsupported("list indexing and slicing ([...]) is not supported yet", peek().pos());
+                Pos pos = advance().pos();
+                if (match(Type.DOTDOT)) {
+                    // [..to]
+                    Expr to = peek().is(Type.RBRACKET) ? null : expression();
+                    expect(Type.RBRACKET, "']'");
+                    e = new CypherAst.Slice(e, null, to, pos);
+                    continue;
+                }
+                Expr first = expression();
+                if (match(Type.DOTDOT)) {
+                    Expr to = peek().is(Type.RBRACKET) ? null : expression();
+                    expect(Type.RBRACKET, "']'");
+                    e = new CypherAst.Slice(e, first, to, pos);
+                    continue;
+                }
+                expect(Type.RBRACKET, "']'");
+                e = new CypherAst.Index(e, first, pos);
             } else if (peek().is(Type.COLON) && peek(1).is(Type.IDENT)) {
                 throw CypherErrors.unsupported("a label predicate (n:Label) in an expression is not supported yet",
                         peek().pos());
@@ -669,8 +693,17 @@ public final class CypherParser {
             }
             case LBRACKET -> {
                 advance();
-                if (peek().is(Type.IDENT) && peek(1).isWord("IN")) {
-                    throw CypherErrors.unsupported("a list comprehension is not supported yet", pos);
+                if (peek().is(Type.IDENT) && !peek().backticked() && peek(1).isWord("IN")
+                        && !RESERVED.contains(peek().text().toUpperCase(java.util.Locale.ROOT))
+                        || peek().is(Type.IDENT) && peek().backticked() && peek(1).isWord("IN")) {
+                    // [x IN list WHERE predicate | expression]
+                    String variable = advance().text();
+                    advance();
+                    Expr list = expression();
+                    Expr where = matchWord("WHERE") ? expression() : null;
+                    Expr map = match(Type.PIPE) ? expression() : null;
+                    expect(Type.RBRACKET, "']'");
+                    return new CypherAst.ListComprehension(variable, list, where, map, pos);
                 }
                 List<Expr> elements = new ArrayList<>();
                 if (!peek().is(Type.RBRACKET)) {
@@ -679,7 +712,7 @@ public final class CypherParser {
                     } while (match(Type.COMMA));
                 }
                 if (peek().is(Type.PIPE) || atWord("IN")) {
-                    throw CypherErrors.unsupported("a list comprehension is not supported yet", pos);
+                    throw error("expected ']' but found '" + peek().text() + "'");
                 }
                 expect(Type.RBRACKET, "']'");
                 return new CypherAst.ListLit(elements, pos);
@@ -787,10 +820,24 @@ public final class CypherParser {
                 advance();
                 return new CypherAst.CountStar(pos);
             }
-            if (LIST_PREDICATES.contains(name.toLowerCase(java.util.Locale.ROOT)) && peek().is(Type.IDENT)
-                    && (peek(1).isWord("IN") || peek(1).is(Type.EQ))) {
-                throw CypherErrors.unsupported("the list predicate " + name + "(... IN ...) is not supported yet",
-                        pos);
+            String lower = name.toLowerCase(java.util.Locale.ROOT);
+            if (lower.equals("reduce") && peek().is(Type.IDENT) && peek(1).is(Type.EQ)) {
+                throw CypherErrors.unsupported("reduce(... = ..., ... IN ...) is not supported yet", pos);
+            }
+            if (LIST_PREDICATES.contains(lower) && peek().is(Type.IDENT) && peek(1).isWord("IN")) {
+                if (!QUANTIFIERS.contains(lower)) {
+                    // filter(...) and extract(...) left Cypher with Neo4j 4: a list comprehension spells them
+                    throw CypherErrors.syntax(name + "(... IN ...) is not supported: use a list comprehension", pos);
+                }
+                String variable = advance().text();
+                advance();
+                Expr list = expression();
+                if (!matchWord("WHERE")) {
+                    throw error("expected WHERE in " + name + "(... IN ...) but found '" + peek().text() + "'");
+                }
+                Expr where = expression();
+                expect(Type.RPAREN, "')'");
+                return new CypherAst.Quantifier(name, variable, list, where, pos);
             }
             boolean distinct = matchWord("DISTINCT");
             List<Expr> args = new ArrayList<>();

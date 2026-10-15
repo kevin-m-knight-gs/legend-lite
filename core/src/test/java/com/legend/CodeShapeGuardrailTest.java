@@ -114,6 +114,10 @@ class CodeShapeGuardrailTest {
             // parser-cursor family, scoped to one parse), and CypherToPure's fresh-name counter, scoped to one
             // translation (the SqlToPure.fresh shape)
             "CypherLexer.at", "CypherLexer.line", "CypherLexer.column", "CypherParser.at", "CypherToPure.fresh",
+            // Cypher island PR2, 2026-10-15 (docs/CYPHER_STUDY_2026_10_15.md §12.5.1): CypherToPure's depth of the
+            // lambdas the database computes (a comprehension's or predicate's over a collection), raised and lowered
+            // around their reading, scoped to one translation (the fresh-name counter's lifecycle)
+            "CypherToPure.databaseLambdas",
             // the island's reader of a date's or a timestamp's text (2026-10-13, Postgres's date spellings,
             // docs/LEGEND_SQL_STUDY_2026_10_11.md §9.4): PostgresDateTime.Decoder is datetime.c's DecodeDateTime,
             // these its struct pg_tm and the field mask it fills field by field -- scoped to one constant's read,

@@ -334,7 +334,7 @@ class CypherToPureTest {
                         + " |'senior', |if($p.age->isNotEmpty() && ($p.age->toOne() < 30), |'junior', |'unknown'))])",
                 pure("MATCH (p:Person) RETURN CASE WHEN p.age >= 30 THEN 'senior' WHEN p.age < 30 THEN 'junior'"
                         + " ELSE 'unknown' END AS band"));
-        assertEquals("demo::Person.all()->project(~[age:p|if($p.age->isEmpty(), |0, |$p.age)])",
+        assertEquals("demo::Person.all()->project(~[age:p|if($p.age->isEmpty(), |0, |$p.age)->toOne()])",
                 pure("MATCH (p:Person) RETURN coalesce(p.age, 0) AS age"));
         assertEquals("demo::Person.all()->project(~[one:p|if($p.name == 'a', |1, |[]->cast(@Integer))])",
                 pure("MATCH (p:Person) RETURN CASE p.name WHEN 'a' THEN 1 END AS one"));
@@ -413,15 +413,16 @@ class CypherToPureTest {
         unsupported("OPTIONAL MATCH (p:Person) RETURN p.name", "OPTIONAL MATCH");
         unsupported("MATCH (p:Person) WITH p.name AS n MATCH (f:Firm) RETURN n", "a MATCH after a WITH");
         invalid("MATCH (p:Person) WITH p.name AS n WHERE p.age > 1 RETURN n", "Variable `p` not defined");
-        unsupported("UNWIND [1, 2] AS x RETURN x", "UNWIND is not supported yet");
+        unsupported("MATCH (p:Person) UNWIND [1, 2] AS x RETURN p.name, x", "UNWIND after a MATCH");
         unsupported("CREATE (p:Person {name: 'x'})", "CREATE is not supported yet");
-        unsupported("MATCH (p:Person) RETURN toUpper(p.name)", "the function toUpper(...) is not supported yet");
+        unsupported("MATCH (p:Person) RETURN labels(p)", "the function labels(...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN collect(p.name)", "collect(...) is not supported yet");
         unsupported("MATCH (p:Person) RETURN count(DISTINCT p.name)", "count(DISTINCT ...)");
         unsupported("MATCH (p:Person) WHERE p.name = $name RETURN p.name", "a parameter ($name)");
         unsupported("MATCH (p:Person) WHERE p.name =~ 'A.*' RETURN p.name", "regular expression");
-        unsupported("MATCH (p:Person) WHERE p.age IN [1, null] RETURN p.name", "IN over a list holding null");
-        unsupported("MATCH (p:Person) RETURN p.name = 1", "comparing a String with a Integer");
+        unsupported("MATCH (p:Person) WITH [p.age] AS l RETURN l", "holding a value of the row (l), carried");
+        unsupported("MATCH (p:Person) RETURN [p.age] AS l", "a list of one value of the row");
+        invalid("MATCH (p:Person) RETURN all(x IN p.name WHERE x > 1)", "expected List<T> but was String");
         unsupported("USE demo::Space MATCH (p:Person) RETURN p.name", "USE");
         unsupported("MATCH (p:Person) WITH p ORDER BY p.age LIMIT 1 RETURN p.name", "a node as a value (p)");
         unsupported("MATCH (p:Person:Firm) RETURN p.name", "several labels");

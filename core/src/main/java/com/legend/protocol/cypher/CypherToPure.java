@@ -128,8 +128,60 @@ public final class CypherToPure {
     private static final Set<String> AGGREGATES = Set.of("count", "sum", "avg", "min", "max", "collect",
             "stdev", "stdevp", "percentilecont", "percentiledisc");
 
+    /** The functions the translator reads (PR2's table), each by its Cypher name in lower case (Cypher's function
+     *  names are case-insensitive) and, for one the database computes under one Pure name, that name; any other is
+     *  refused by name. */
+    private enum Function {
+        COALESCE("coalesce"), SIZE("size"), CHAR_LENGTH("char_length"), CHARACTER_LENGTH("character_length"),
+        KEYS("keys"), HEAD("head"), LAST("last"), TAIL("tail"), REVERSE("reverse"), IS_EMPTY("isempty"),
+        RANGE("range"), SPLIT("split"), TO_STRING("tostring"), TO_INTEGER("tointeger"), TO_FLOAT("tofloat"),
+        TO_BOOLEAN("toboolean"), ABS("abs", "abs"), SIGN("sign", "sign"), SQRT("sqrt", "sqrt"), EXP("exp", "exp"),
+        LOG("log", "log"), SIN("sin", "sin"), COS("cos", "cos"), TAN("tan", "tan"), ASIN("asin", "asin"),
+        ACOS("acos", "acos"), ATAN("atan", "atan"), CEIL("ceil", "ceiling"), FLOOR("floor", "floor"),
+        ROUND("round", "round"), TO_LOWER("tolower", "toLower"), TO_UPPER("toupper", "toUpper"), TRIM("trim", "trim"),
+        LTRIM("ltrim", "ltrim"), RTRIM("rtrim", "rtrim"), LEFT("left", "left"), RIGHT("right", "right"),
+        REPLACE("replace", "replace"), SUBSTRING("substring"), RAND("rand"), RANDOM_UUID("randomuuid"),
+        TIMESTAMP("timestamp");
+
+        final String cypher;
+        final @com.legend.base.Nullable String pure;
+
+        Function(String cypher) {
+            this(cypher, null);
+        }
+
+        Function(String cypher, @com.legend.base.Nullable String pure) {
+            this.cypher = cypher;
+            this.pure = pure;
+        }
+
+    }
+
+    /** The function table by Cypher name (immutable, in declaration order: ArchitectureTest's invariant 3,
+     *  NoSaltedIterationOrderTest). */
+    private static final Map<String, Function> FUNCTIONS_BY_NAME = functionsByName();
+
+    private static Map<String, Function> functionsByName() {
+        Map<String, Function> byName = new LinkedHashMap<>();
+        for (Function f : Function.values()) {
+            byName.put(f.cypher, f);
+        }
+        return java.util.Collections.unmodifiableMap(byName);
+    }
+
+    /** The four list predicates, by their Cypher name in lower case. */
+    private enum Quantifier { ALL, ANY, NONE, SINGLE }
+
+    private static final Map<String, Quantifier> QUANTIFIERS = Map.of("all", Quantifier.ALL, "any", Quantifier.ANY,
+            "none", Quantifier.NONE, "single", Quantifier.SINGLE);
+
     private final Model model;
     private int fresh;
+
+    /** How many lambdas the database computes (a comprehension's or predicate's over a collection it computes)
+     *  the expression being read is inside: {@code %} and integer {@code /} are refused in one by name (lite's
+     *  Postgres lowering types {@code rem}'s divide-by-zero guard as text inside an array lambda, 2026-10-15). */
+    private int databaseLambdas;
 
     /** The relationship types the MATCH clause being read has hops of: Neo4j binds two relationship slots of one
      *  MATCH to different relationships (relationship uniqueness), which needs identity (C5, PR3); until then a
@@ -166,11 +218,16 @@ public final class CypherToPure {
             boolean optional) {
     }
 
-    /** A relation: its Pure expression and its columns, in order. */
+    /** A relation: its Pure expression and its columns, in order. A column may be CARRIED: a list or map of known
+     *  shape a WITH named, every leaf of it a literal, kept as its shape for the clauses after the WITH to read rather
+     *  than computed by the database; it is no column of the relation. */
     private record Rows(ValueSpecification vs, List<Col> columns) implements State {
     }
 
-    private record Col(String name, Kind kind, boolean nullable) {
+    private record Col(String name, Kind kind, boolean nullable, @com.legend.base.Nullable Val carried) {
+        Col(String name, Kind kind, boolean nullable) {
+            this(name, kind, nullable, null);
+        }
     }
 
     private ValueSpecification statement(CypherAst.Statement s) {
@@ -192,6 +249,7 @@ public final class CypherToPure {
                 case CypherAst.OtherClause o -> throw CypherErrors.unsupported(o.keyword() + " is not supported yet",
                         o.pos());
                 case CypherAst.Match m -> state = match(m, state);
+                case CypherAst.Unwind u -> state = unwind(u, state);
                 case CypherAst.With w -> state = with(w, state);
                 case CypherAst.Return r -> {
                     if (!last) {
@@ -214,6 +272,7 @@ public final class CypherToPure {
         return switch (c) {
             case CypherAst.Match m -> m.optional() ? "OPTIONAL MATCH" : "MATCH";
             case CypherAst.With w -> "WITH";
+            case CypherAst.Unwind u -> "UNWIND";
             case CypherAst.Return r -> "RETURN";
             case CypherAst.Use u -> "USE";
             case CypherAst.OtherClause o -> o.keyword();
@@ -555,7 +614,8 @@ public final class CypherToPure {
 
     private State with(CypherAst.With w, @com.legend.base.Nullable State state) {
         if (state == null) {
-            throw CypherErrors.unsupported("a query starting with WITH is not supported yet", w.pos());
+            // WITH 1 AS x ...: a query over no pattern starts from one row
+            state = oneRow();
         }
         if (state instanceof Graph g && carriesGraph(w)) {
             // WITH n, m [WHERE ...]: the pattern's variables pass through, renamed where aliased
@@ -580,7 +640,7 @@ public final class CypherToPure {
             }
             return next;
         }
-        Rows rows = project(w.items(), w.distinct(), w.orderBy(), w.skip(), w.limit(), state, w.pos());
+        Rows rows = project(w.items(), w.distinct(), w.orderBy(), w.skip(), w.limit(), state, w.pos(), false);
         Expr where = w.where();
         if (where != null) {
             RowScope scope = new RowScope(rows);
@@ -605,19 +665,21 @@ public final class CypherToPure {
     }
 
     private State returnClause(CypherAst.Return r, @com.legend.base.Nullable State state) {
-        if (state == null) {
-            // RETURN 1 + 1: a query over no pattern is one row, of no column the query can name
-            String one = "\n" + SYNTHETIC + "row\n1\n";
-            Rows row = new Rows(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
-                    List.of(new Col(SYNTHETIC + "row", Kind.INTEGER, false)));
-            return project(r.items(), r.distinct(), r.orderBy(), r.skip(), r.limit(), row, r.pos());
-        }
-        return project(r.items(), r.distinct(), r.orderBy(), r.skip(), r.limit(), state, r.pos());
+        return project(r.items(), r.distinct(), r.orderBy(), r.skip(), r.limit(), state == null ? oneRow() : state,
+                r.pos(), true);
+    }
+
+    /** {@code RETURN 1 + 1}, {@code WITH 1 AS x}: a query over no pattern is one row, of no column the query can
+     *  name. */
+    private static Rows oneRow() {
+        String one = "\n" + SYNTHETIC + "row\n1\n";
+        return new Rows(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null),
+                List.of(new Col(SYNTHETIC + "row", Kind.INTEGER, false)));
     }
 
     /** A projected item: its name in the result, and its translation over the scope before the projection (a
      *  non-aggregating item), or its aggregate. */
-    private record Output(String name, @com.legend.base.Nullable Tx value, @com.legend.base.Nullable Aggregate agg) {
+    private record Output(String name, @com.legend.base.Nullable Val value, @com.legend.base.Nullable Aggregate agg) {
     }
 
     /** An aggregate: the column its argument is computed into before the grouping, the reduce over the group's
@@ -629,10 +691,13 @@ public final class CypherToPure {
     /**
      * A WITH's or RETURN's projection: the items computed over the state in hand (a graph's root instance, or a
      * relation's row), grouped by the non-aggregating items when an aggregate is among them (Cypher's implicit
-     * grouping), then distinct, sorted, sliced.
+     * grouping), then distinct, sorted, sliced. An item that is a list or map of known shape is, when
+     * {@code returning}, the Variant the database writes (C8); named by a WITH, it is carried as its shape when it
+     * holds only literals, for the clauses after the WITH to read.
      */
     private Rows project(List<Item> items, boolean distinct, List<SortItem> orderBy,
-            @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit, State state, Pos pos) {
+            @com.legend.base.Nullable Expr skip, @com.legend.base.Nullable Expr limit, State state, Pos pos,
+            boolean returning) {
         Scope scope = state instanceof Graph g ? new GraphScope(g) : new RowScope((Rows) state);
         List<Output> outputs = new ArrayList<>();
         Set<String> names = new HashSet<>();
@@ -654,7 +719,32 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("an expression around an aggregate (" + item.text() + ") is not"
                             + " supported yet: alias the aggregate in a WITH", item.pos());
                 }
-                outputs.add(new Output(name, tx(e, scope), null));
+                outputs.add(new Output(name, val(e, scope), null));
+            }
+        }
+        // each non-aggregating item's scalar (a list or map returned is its Variant), or the shape it is carried as
+        Map<String, Tx> scalars = new HashMap<>();
+        Map<String, Val> carried = new LinkedHashMap<>();
+        for (Output out : outputs) {
+            Val v = out.value();
+            if (v == null) {
+                continue;
+            }
+            if (v instanceof Scalar s) {
+                scalars.put(out.name(), s.tx());
+            } else if (returning) {
+                scalars.put(out.name(), variant(v, pos));
+            } else if (!rowFree(v)) {
+                throw CypherErrors.unsupported("a list or map holding a value of the row (" + out.name() + "),"
+                        + " carried through WITH, is not supported yet", pos);
+            } else if (grouped) {
+                throw CypherErrors.unsupported("a list or map (" + out.name() + ") among the grouping keys is not"
+                        + " supported yet", pos);
+            } else if (distinct) {
+                throw CypherErrors.unsupported("WITH DISTINCT over a list or map (" + out.name() + ") is not"
+                        + " supported yet", pos);
+            } else {
+                carried.put(out.name(), v);
             }
         }
         // the sort keys: an item (by its alias or its text), else an expression over the projected aliases first
@@ -662,7 +752,7 @@ public final class CypherToPure {
         // projection
         List<SortKey> sortKeys = new ArrayList<>();
         List<ColSpec> hidden = new ArrayList<>();
-        Map<String, Tx> projected = new HashMap<>();
+        Map<String, Val> projected = new HashMap<>();
         for (Output out : outputs) {
             if (out.value() != null) {
                 projected.put(out.name(), out.value());
@@ -673,6 +763,9 @@ public final class CypherToPure {
         List<SortItem> afterGrouping = new ArrayList<>();
         for (SortItem o : orderBy) {
             String key = outputNamed(items, o.expr(), outputs);
+            if (key != null && carried.containsKey(key)) {
+                throw CypherErrors.unsupported("ORDER BY a list or map (" + key + ") is not supported yet", o.pos());
+            }
             if (key == null) {
                 if (grouped && containsAggregate(o.expr())) {
                     throw CypherErrors.unsupported("an ORDER BY aggregate that is not one of the items is not"
@@ -703,9 +796,20 @@ public final class CypherToPure {
         if (!grouped) {
             List<ColSpec> specs = new ArrayList<>();
             for (Output out : outputs) {
-                Tx t = java.util.Objects.requireNonNull(out.value());
+                Val shape = carried.get(out.name());
+                if (shape != null) {
+                    columns.add(new Col(out.name(), Kind.JSON, false, shape));
+                    continue;
+                }
+                Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
                 specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
-                columns.add(new Col(out.name(), t.kind() == Kind.NULL ? Kind.STRING : t.kind(), t.nullable()));
+                columns.add(new Col(out.name(), t.kind(), t.nullable()));
+            }
+            if (specs.isEmpty()) {
+                // every item carried: the rows stay (one per row in hand), under a column nothing names
+                String keep = freshName(names);
+                specs.add(new ColSpec(keep, lambda(scope.row(), new CInteger(1L)), null, null));
+                columns.add(new Col(keep, Kind.INTEGER, false));
             }
             specs.addAll(hidden);
             vs = state instanceof Graph g ? call("project", source(g), new ColSpecArray(specs))
@@ -719,10 +823,10 @@ public final class CypherToPure {
             for (Output out : outputs) {
                 Aggregate agg = out.agg();
                 if (agg == null) {
-                    Tx t = java.util.Objects.requireNonNull(out.value());
+                    Tx t = java.util.Objects.requireNonNull(scalars.get(out.name()));
                     specs.add(new ColSpec(out.name(), lambda(scope.row(), SqlToPure.valueOf(t)), null, null));
                     keys.add(new ColSpec(out.name(), null, null, null));
-                    columns.add(new Col(out.name(), t.kind() == Kind.NULL ? Kind.STRING : t.kind(), t.nullable()));
+                    columns.add(new Col(out.name(), t.kind(), t.nullable()));
                 } else {
                     specs.add(new ColSpec(agg.argColumn(), lambda(scope.row(), SqlToPure.valueOf(agg.arg())), null,
                             null));
@@ -778,8 +882,8 @@ public final class CypherToPure {
             vs = call("sort", vs, new PureCollection(sortInfos));
         }
         if (!hidden.isEmpty()) {
-            vs = call("select", vs, new ColSpecArray(columns.stream().map(c -> new ColSpec(c.name(), null, null,
-                    null)).toList()));
+            vs = call("select", vs, new ColSpecArray(columns.stream().filter(c -> c.carried() == null)
+                    .map(c -> new ColSpec(c.name(), null, null, null)).toList()));
         }
         if (skip != null) {
             vs = call("drop", vs, rowCount(skip, "SKIP"));
@@ -810,7 +914,7 @@ public final class CypherToPure {
      *  new column takes an old one's name), then the new columns alone, in order, under their names. */
     private ValueSpecification reproject(Rows rows, List<ColSpec> specs) {
         Set<String> existing = new HashSet<>();
-        rows.columns().forEach(c -> existing.add(c.name()));
+        rows.columns().stream().filter(c -> c.carried() == null).forEach(c -> existing.add(c.name()));
         List<ColSpec> computed = new ArrayList<>();
         List<ColSpec> selected = new ArrayList<>();
         List<String[]> renames = new ArrayList<>();
@@ -930,6 +1034,30 @@ public final class CypherToPure {
                 yield all;
             }
             case CypherAst.Paren p -> List.of(p.inner());
+            case CypherAst.Quantifier q -> List.of(q.list(), q.where());
+            case CypherAst.ListComprehension lc -> {
+                List<Expr> all = new ArrayList<>();
+                all.add(lc.list());
+                if (lc.where() != null) {
+                    all.add(lc.where());
+                }
+                if (lc.map() != null) {
+                    all.add(lc.map());
+                }
+                yield all;
+            }
+            case CypherAst.Index ix -> List.of(ix.target(), ix.index());
+            case CypherAst.Slice sl -> {
+                List<Expr> all = new ArrayList<>();
+                all.add(sl.target());
+                if (sl.from() != null) {
+                    all.add(sl.from());
+                }
+                if (sl.to() != null) {
+                    all.add(sl.to());
+                }
+                yield all;
+            }
             case CypherAst.IntLit i -> List.of();
             case CypherAst.FloatLit f -> List.of();
             case CypherAst.StringLit s -> List.of();
@@ -1000,16 +1128,17 @@ public final class CypherToPure {
 
     // ------------------------------------------------------------------ scopes
 
-    /** Where a variable or a property is found: over a graph's root instance, or over a relation's row. */
+    /** Where a variable or a property is found: over a graph's root instance, over a relation's row, or bound by a
+     *  list predicate or comprehension. */
     private interface Scope {
         /** The lambda parameter naming the row the scope reads. */
         String row();
 
         /** The value a variable is; a node or relationship variable has no value in PR1. */
-        Tx variable(CypherAst.Var v);
+        Val variable(CypherAst.Var v);
 
-        /** The value a property access is: a node's property. */
-        Tx property(CypherAst.Prop p);
+        /** The value a property access is: a node's property, or a map's entry. */
+        Val property(CypherAst.Prop p);
 
         /** Whether {@code name} is a node or relationship variable of a pattern. */
         boolean isPatternVariable(String name);
@@ -1028,7 +1157,7 @@ public final class CypherToPure {
         }
 
         @Override
-        public Tx variable(CypherAst.Var v) {
+        public Val variable(CypherAst.Var v) {
             Binding b = g.bindings().get(v.name());
             if (b == null) {
                 throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
@@ -1038,15 +1167,15 @@ public final class CypherToPure {
         }
 
         @Override
-        public Tx property(CypherAst.Prop p) {
+        public Val property(CypherAst.Prop p) {
             if (!(p.target() instanceof CypherAst.Var v)) {
-                throw CypherErrors.unsupported("a property of an expression (a map's) is not supported yet", p.pos());
+                return member(val(p.target(), this), p.name(), p.pos());
             }
             Binding b = g.bindings().get(v.name());
             if (b == null) {
                 throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
             }
-            return propertyOf(b, p.name(), p.pos());
+            return scalar(propertyOf(b, p.name(), p.pos()));
         }
 
         @Override
@@ -1085,17 +1214,17 @@ public final class CypherToPure {
             path.add(name);
             ValueSpecification v = navigate(g.row(), path);
             boolean nullable = prop.optional() || b.optional();
-            return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(v, nullable) : Tx.value(v, kind, nullable);
+            return columnLike(v, kind, nullable);
         }
     }
 
     /** The scope an ORDER BY reads after a projection: the projected items by their names (each its value over the
      *  row before the projection), then the scope before it. */
-    private static final class ProjectedScope implements Scope {
+    private final class ProjectedScope implements Scope {
         private final Scope inner;
-        private final Map<String, Tx> projected;
+        private final Map<String, Val> projected;
 
-        ProjectedScope(Scope inner, Map<String, Tx> projected) {
+        ProjectedScope(Scope inner, Map<String, Val> projected) {
             this.inner = inner;
             this.projected = projected;
         }
@@ -1106,16 +1235,15 @@ public final class CypherToPure {
         }
 
         @Override
-        public Tx variable(CypherAst.Var v) {
-            Tx t = projected.get(v.name());
+        public Val variable(CypherAst.Var v) {
+            Val t = projected.get(v.name());
             return t != null ? t : inner.variable(v);
         }
 
         @Override
-        public Tx property(CypherAst.Prop p) {
+        public Val property(CypherAst.Prop p) {
             if (p.target() instanceof CypherAst.Var v && projected.containsKey(v.name())) {
-                throw CypherErrors.unsupported("a property of a projected value (" + v.name() + ") is not supported"
-                        + " yet", p.pos());
+                return member(projected.get(v.name()), p.name(), p.pos());
             }
             return inner.property(p);
         }
@@ -1126,7 +1254,7 @@ public final class CypherToPure {
         }
     }
 
-    private static final class RowScope implements Scope {
+    private final class RowScope implements Scope {
         private final Rows rows;
 
         RowScope(Rows rows) {
@@ -1139,31 +1267,93 @@ public final class CypherToPure {
         }
 
         @Override
-        public Tx variable(CypherAst.Var v) {
+        public Val variable(CypherAst.Var v) {
             for (Col c : rows.columns()) {
                 if (c.name().equals(v.name())) {
-                    ValueSpecification value = new AppliedProperty(new Variable(row()), c.name());
-                    return c.kind() == Kind.BOOLEAN ? SqlToPure.booleanValue(value, c.nullable())
-                            : Tx.value(value, c.kind(), c.nullable());
+                    if (c.carried() != null) {
+                        return c.carried();
+                    }
+                    if (c.kind() == Kind.NULL) {
+                        // a null the query named: null wherever it is read
+                        return nullValue();
+                    }
+                    return scalar(columnLike(new AppliedProperty(new Variable(row()), c.name()), c.kind(),
+                            c.nullable()));
                 }
             }
             throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
         }
 
         @Override
-        public Tx property(CypherAst.Prop p) {
-            if (p.target() instanceof CypherAst.Var v && rows.columns().stream().noneMatch(c -> c.name().equals(
-                    v.name()))) {
+        public Val property(CypherAst.Prop p) {
+            if (!(p.target() instanceof CypherAst.Var v)) {
+                return member(val(p.target(), this), p.name(), p.pos());
+            }
+            Col found = null;
+            for (Col c : rows.columns()) {
+                if (c.name().equals(v.name())) {
+                    found = c;
+                }
+            }
+            if (found == null) {
                 throw CypherErrors.invalid("Variable `" + v.name() + "` not defined", v.pos());
             }
-            throw CypherErrors.unsupported("a property of a projected value (a node or map carried through WITH) is"
-                    + " not supported yet", p.pos());
+            if (found.carried() != null) {
+                return member(found.carried(), p.name(), p.pos());
+            }
+            if (found.kind() == Kind.JSON) {
+                throw CypherErrors.unsupported("a property of a projected value (a node or map carried through WITH)"
+                        + " is not supported yet", p.pos());
+            }
+            return member(variable(v), p.name(), p.pos());
         }
 
         @Override
         public boolean isPatternVariable(String name) {
             return false;
         }
+    }
+
+    /** The scope inside a list predicate or comprehension: its variable bound to one element, then the scope
+     *  around it. */
+    private final class BoundScope implements Scope {
+        private final Scope inner;
+        private final String name;
+        private final Val value;
+
+        BoundScope(Scope inner, String name, Val value) {
+            this.inner = inner;
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public String row() {
+            return inner.row();
+        }
+
+        @Override
+        public Val variable(CypherAst.Var v) {
+            return v.name().equals(name) ? value : inner.variable(v);
+        }
+
+        @Override
+        public Val property(CypherAst.Prop p) {
+            if (p.target() instanceof CypherAst.Var v && v.name().equals(name)) {
+                return member(value, p.name(), p.pos());
+            }
+            return inner.property(p);
+        }
+
+        @Override
+        public boolean isPatternVariable(String n) {
+            return !n.equals(name) && inner.isPatternVariable(n);
+        }
+    }
+
+    /** A column's or a lambda parameter's value: a boolean one is a condition. */
+    private static Tx columnLike(ValueSpecification v, Kind kind, boolean nullable) {
+        return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(v, nullable) : Tx.value(v, kind, nullable);
     }
 
     /** A Pure primitive's kind, as the translator reasons about a value. */
@@ -1208,46 +1398,102 @@ public final class CypherToPure {
         return SqlToPure.truth(t, clause, e.pos()).vs();
     }
 
-    private Tx tx(Expr e, Scope scope) {
+    /** An expression's value over a scope: a scalar, or a list or map of known shape. */
+    private Val val(Expr e, Scope scope) {
         return switch (e) {
-            case CypherAst.IntLit n -> Tx.value(new CInteger(n.value()), Kind.INTEGER, false);
-            case CypherAst.FloatLit f -> {
-                double v = Math.abs(f.value());
-                if (v >= 1e15 || (v != 0 && v < 1e-15)) {
-                    // lite's Postgres dialect spells a Float literal in plain digits, which Postgres types numeric
-                    // (1e308 answers an exact numeric, Neo4j a float): reported to the database owner (IN_FLIGHT,
-                    // 2026-10-15); refused here until it spells a float
-                    throw CypherErrors.unsupported("a float literal beyond 1e15 or below 1e-15 (" + f.text()
-                            + ") is not supported yet", f.pos());
-                }
-                // Cypher's float is IEEE 754: toFloat makes the database compute in double (0.1 + 0.2 is
-                // 0.30000000000000004); a bare Float literal lowers to a decimal (docs/SEMANTICS_REGISTER.md S9)
-                yield Tx.value(call("toFloat", new CFloat(f.value())), Kind.FLOAT, false);
-            }
-            case CypherAst.StringLit s -> Tx.value(new CString(s.value()), Kind.STRING, false);
-            case CypherAst.BoolLit b -> Tx.condition(new CBoolean(b.value()), new CBoolean(!b.value()), false);
-            case CypherAst.NullLit n -> Tx.value(SqlToPure.empty(), Kind.NULL, true);
+            case CypherAst.IntLit n -> literal(Tx.value(new CInteger(n.value()), Kind.INTEGER, false), n.value());
+            case CypherAst.FloatLit f -> floatLiteral(f, false);
+            case CypherAst.StringLit s -> literal(Tx.value(new CString(s.value()), Kind.STRING, false), s.value());
+            case CypherAst.BoolLit b -> literal(Tx.condition(new CBoolean(b.value()), new CBoolean(!b.value()),
+                    false), b.value());
+            case CypherAst.NullLit n -> nullValue();
             case CypherAst.Var v -> scope.variable(v);
             case CypherAst.Prop p -> scope.property(p);
             case CypherAst.Param p -> throw CypherErrors.unsupported("a parameter ($" + p.name() + ") is not"
                     + " supported yet", p.pos());
-            case CypherAst.ListLit l -> throw CypherErrors.unsupported("a list as a value is not supported yet",
-                    l.pos());
-            case CypherAst.MapLit m -> throw CypherErrors.unsupported("a map as a value is not supported yet",
-                    m.pos());
-            case CypherAst.Paren p -> tx(p.inner(), scope);
+            case CypherAst.ListLit l -> {
+                List<Val> elements = new ArrayList<>();
+                for (Expr x : l.elements()) {
+                    elements.add(val(x, scope));
+                }
+                yield new ListVal(elements);
+            }
+            case CypherAst.MapLit m -> {
+                Map<String, Val> entries = new LinkedHashMap<>();
+                for (Map.Entry<String, Expr> x : m.entries().entrySet()) {
+                    entries.put(x.getKey(), val(x.getValue(), scope));
+                }
+                yield new MapVal(entries);
+            }
+            case CypherAst.Paren p -> val(p.inner(), scope);
             case CypherAst.Unary u -> unary(u, scope);
             case CypherAst.Binary b -> binary(b, scope);
             case CypherAst.Call c -> call(c, scope);
             case CypherAst.CountStar c -> throw CypherErrors.invalid("Invalid use of aggregating function count(*)"
                     + " in this context", c.pos());
-            case CypherAst.Case c -> caseExpr(c, scope);
+            case CypherAst.Case c -> scalar(caseExpr(c, scope));
+            case CypherAst.Quantifier q -> scalar(quantifier(q, scope));
+            case CypherAst.ListComprehension lc -> comprehension(lc, scope);
+            case CypherAst.Index ix -> index(ix, scope);
+            case CypherAst.Slice sl -> slice(sl, scope);
         };
     }
 
-    private Tx unary(CypherAst.Unary u, Scope scope) {
-        Tx t = tx(u.operand(), scope);
-        return switch (u.op()) {
+    /** An expression's scalar: a list or map becomes the Variant the database holds. */
+    private Tx tx(Expr e, Scope scope) {
+        return scalarOf(val(e, scope), e.pos());
+    }
+
+    private Tx scalarOf(Val v, Pos pos) {
+        return v instanceof Scalar s ? s.tx() : variant(v, pos);
+    }
+
+    /** A float literal, the sign folded in: Cypher's float is IEEE 754, so toFloat makes the database compute in
+     *  double (0.1 + 0.2 is 0.30000000000000004); a bare Float literal lowers to a decimal
+     *  (docs/SEMANTICS_REGISTER.md S9). */
+    private static Val floatLiteral(CypherAst.FloatLit f, boolean negated) {
+        double v = Math.abs(f.value());
+        if (v >= 1e15 || (v != 0 && v < 1e-15)) {
+            // lite's Postgres dialect spells a Float literal in plain digits, which Postgres types numeric
+            // (1e308 answers an exact numeric, Neo4j a float): reported to the database owner (IN_FLIGHT,
+            // 2026-10-15); refused here until it spells a float
+            throw CypherErrors.unsupported("a float literal beyond 1e15 or below 1e-15 (" + f.text()
+                    + ") is not supported yet", f.pos());
+        }
+        if (!negated) {
+            return literal(Tx.value(call("toFloat", new CFloat(f.value())), Kind.FLOAT, false), f.value());
+        }
+        // IEEE negation: -0.0 is a value of its own in Cypher; a spelled -0.0 reaches the database as 0.0
+        return literal(Tx.value(AppliedFunction.infixRun("times", List.of(call("toFloat", new CFloat(f.value())),
+                new CFloat(-1.0))), Kind.FLOAT, false), -f.value());
+    }
+
+    private Val unary(CypherAst.Unary u, Scope scope) {
+        if (u.op() == CypherAst.UnaryOp.NEG && u.operand() instanceof CypherAst.FloatLit f) {
+            // the sign folded into the literal, as the parser folds an integer's: a list of literals stays literal
+            return floatLiteral(f, true);
+        }
+        Val v = val(u.operand(), scope);
+        if (u.op() == CypherAst.UnaryOp.IS_NULL || u.op() == CypherAst.UnaryOp.IS_NOT_NULL) {
+            boolean isNull = u.op() == CypherAst.UnaryOp.IS_NULL;
+            if (!(v instanceof Scalar s)) {
+                // a list or map is a value: never null
+                return scalar(constant(!isNull));
+            }
+            Tx t = s.tx();
+            if (t.kind() == Kind.NULL) {
+                return scalar(constant(isNull));
+            }
+            if (!t.nullable()) {
+                return scalar(constant(!isNull));
+            }
+            ValueSpecification known = t.kind() == Kind.BOOLEAN ? call("or", t.vs(), t.falseWhen())
+                    : call("isNotEmpty", t.vs());
+            return scalar(isNull ? Tx.condition(call("not", known), known, false) : Tx.condition(known, call("not",
+                    known), false));
+        }
+        Tx t = scalarOf(v, u.operand().pos());
+        return scalar(switch (u.op()) {
             case NOT -> {
                 if (t.kind() == Kind.NULL) {
                     yield SqlToPure.nullOf(Kind.BOOLEAN);
@@ -1257,19 +1503,6 @@ public final class CypherToPure {
                             u.pos());
                 }
                 yield SqlToPure.not(t);
-            }
-            case IS_NULL, IS_NOT_NULL -> {
-                boolean isNull = u.op() == CypherAst.UnaryOp.IS_NULL;
-                if (t.kind() == Kind.NULL) {
-                    yield Tx.condition(new CBoolean(isNull), new CBoolean(!isNull), false);
-                }
-                if (!t.nullable()) {
-                    yield Tx.condition(new CBoolean(!isNull), new CBoolean(isNull), false);
-                }
-                ValueSpecification known = t.kind() == Kind.BOOLEAN ? call("or", t.vs(), t.falseWhen())
-                        : call("isNotEmpty", t.vs());
-                yield isNull ? Tx.condition(call("not", known), known, false) : Tx.condition(known, call("not",
-                        known), false);
             }
             case NEG, POS -> {
                 if (t.kind() == Kind.NULL) {
@@ -1284,48 +1517,53 @@ public final class CypherToPure {
                 }
                 if (t.kind() == Kind.FLOAT || t.kind() == Kind.INEXACT) {
                     // IEEE negation: -0.0 is a value of its own in Cypher; Pure's minus lowers to 0 - x, which is +0.0
-                    yield SqlToPure.strict(t.kind(), List.of(t), v -> AppliedFunction.infixRun("times", List.of(
-                            v.get(0), new CFloat(-1.0))));
+                    yield SqlToPure.strict(t.kind(), List.of(t), x -> AppliedFunction.infixRun("times", List.of(
+                            x.get(0), new CFloat(-1.0))));
                 }
-                yield SqlToPure.strict(t.kind(), List.of(t), v -> call("minus", v.get(0)));
+                yield SqlToPure.strict(t.kind(), List.of(t), x -> call("minus", x.get(0)));
             }
-        };
+            default -> throw new IllegalStateException("unreachable: " + u.op());
+        });
     }
 
-    private Tx binary(CypherAst.Binary b, Scope scope) {
+    private Val binary(CypherAst.Binary b, Scope scope) {
         BinaryOp op = b.op();
         switch (op) {
             case AND, OR, XOR -> {
                 Tx l = SqlToPure.truth(booleanOperand(b.left(), scope), op.name(), b.left().pos());
                 Tx r = SqlToPure.truth(booleanOperand(b.right(), scope), op.name(), b.right().pos());
                 boolean nullable = l.nullable() || r.nullable();
-                return switch (op) {
-                    case AND -> Tx.condition(call("and", l.vs(), r.vs()), call("or", l.falseWhen(), r.falseWhen()),
-                            nullable);
-                    case OR -> Tx.condition(call("or", l.vs(), r.vs()), call("and", l.falseWhen(), r.falseWhen()),
-                            nullable);
+                return scalar(switch (op) {
+                    case AND -> and3(l, r);
+                    case OR -> or3(l, r);
                     default -> Tx.condition(call("or", call("and", l.vs(), r.falseWhen()), call("and", l.falseWhen(),
                             r.vs())), call("or", call("and", l.vs(), r.vs()), call("and", l.falseWhen(),
                             r.falseWhen())), nullable);
-                };
+                });
             }
-            case EQ, NE, LT, LE, GT, GE -> {
-                Tx l = tx(b.left(), scope);
-                Tx r = tx(b.right(), scope);
-                if (op == BinaryOp.EQ || op == BinaryOp.NE) {
-                    Tx eq = equal(l, r, b.pos());
-                    return op == BinaryOp.EQ ? eq : SqlToPure.not(eq);
+            case EQ, NE -> {
+                Tx eq = equalVal(val(b.left(), scope), val(b.right(), scope), b.pos());
+                return scalar(op == BinaryOp.EQ ? eq : SqlToPure.not(eq));
+            }
+            case LT, LE, GT, GE -> {
+                return scalar(ordered(op, tx(b.left(), scope), tx(b.right(), scope), b.pos()));
+            }
+            case PLUS -> {
+                Val l = val(b.left(), scope);
+                Val r = val(b.right(), scope);
+                if (l instanceof Scalar ls && r instanceof Scalar rs) {
+                    return scalar(arithmetic(b, ls.tx(), rs.tx()));
                 }
-                return ordered(op, l, r, b.pos());
+                return concat(l, r, b.pos());
             }
-            case PLUS, MINUS, TIMES, DIVIDE, MODULO, POWER -> {
-                return arithmetic(b, scope);
+            case MINUS, TIMES, DIVIDE, MODULO, POWER -> {
+                return scalar(arithmetic(b, tx(b.left(), scope), tx(b.right(), scope)));
             }
             case STARTS_WITH, ENDS_WITH, CONTAINS -> {
                 Tx l = tx(b.left(), scope);
                 Tx r = tx(b.right(), scope);
                 if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
-                    return SqlToPure.nullOf(Kind.BOOLEAN);
+                    return scalar(SqlToPure.nullOf(Kind.BOOLEAN));
                 }
                 if (l.kind() != Kind.STRING || r.kind() != Kind.STRING) {
                     throw CypherErrors.unsupported(op.name().replace('_', ' ') + " on a value that is not a string"
@@ -1337,14 +1575,49 @@ public final class CypherToPure {
                     case CONTAINS -> "contains";
                     default -> throw new IllegalStateException("unreachable: " + op);
                 };
-                return SqlToPure.strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1)));
+                return scalar(SqlToPure.strictTest(List.of(l, r), v -> call(fn, v.get(0), v.get(1))));
             }
             case IN -> {
-                return in(b, scope);
+                return scalar(in(b, scope));
             }
             case REGEX -> throw CypherErrors.unsupported("=~ (a regular expression) is not supported yet", b.pos());
         }
         throw new IllegalStateException("unreachable: " + op);
+    }
+
+    /** Cypher's three-valued AND: null when neither side is false and either is null. A side that is known true
+     *  is left out. */
+    private static Tx and3(Tx l, Tx r) {
+        if (isConstant(l, true)) {
+            return r;
+        }
+        if (isConstant(r, true)) {
+            return l;
+        }
+        return Tx.condition(call("and", l.vs(), r.vs()), call("or", l.falseWhen(), r.falseWhen()),
+                l.nullable() || r.nullable());
+    }
+
+    /** Cypher's three-valued OR: null when neither side is true and either is null. A side that is known false is
+     *  left out. */
+    private static Tx or3(Tx l, Tx r) {
+        if (isConstant(l, false)) {
+            return r;
+        }
+        if (isConstant(r, false)) {
+            return l;
+        }
+        return Tx.condition(call("or", l.vs(), r.vs()), call("and", l.falseWhen(), r.falseWhen()),
+                l.nullable() || r.nullable());
+    }
+
+    /** A condition that is known: true or false. */
+    private static Tx constant(boolean value) {
+        return Tx.condition(new CBoolean(value), new CBoolean(!value), false);
+    }
+
+    private static boolean isConstant(Tx t, boolean value) {
+        return !t.nullable() && t.vs() instanceof CBoolean c && c.value() == value;
     }
 
     /** A boolean operand: a condition, or null (Cypher's unknown). */
@@ -1359,21 +1632,21 @@ public final class CypherToPure {
         return t;
     }
 
-    /** {@code l = r}: null when either is null; values of different types are never equal in Cypher. */
+    /** {@code l = r}: null when either is null; values of different types are never equal in Cypher (a type is a
+     *  fact of the spelling, so the comparison is known false here; null when either side may be null). */
     private static Tx equal(Tx l, Tx r, Pos pos) {
         if (l.kind() == Kind.NULL || r.kind() == Kind.NULL) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
-        if (l.kind() == Kind.BOOLEAN || r.kind() == Kind.BOOLEAN) {
-            if (l.kind() != r.kind()) {
-                throw CypherErrors.unsupported("comparing a boolean with a " + cypherType(l.kind() == Kind.BOOLEAN
-                        ? r.kind() : l.kind()) + " (never equal in Neo4j) is not supported yet", pos);
-            }
-            return SqlToPure.strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
-        }
-        if (!comparable(l.kind(), r.kind())) {
+        if (l.kind() == Kind.JSON || r.kind() == Kind.JSON || l.kind() == Kind.OTHER || r.kind() == Kind.OTHER) {
             throw CypherErrors.unsupported("comparing a " + cypherType(l.kind()) + " with a " + cypherType(r.kind())
-                    + " (never equal in Neo4j) is not supported yet", pos);
+                    + " is not supported yet", pos);
+        }
+        boolean sameType = l.kind() == Kind.BOOLEAN || r.kind() == Kind.BOOLEAN ? l.kind() == r.kind()
+                : comparable(l.kind(), r.kind());
+        if (!sameType) {
+            return l.nullable() || r.nullable() ? SqlToPure.strictTest(List.of(l, r), v -> new CBoolean(false))
+                    : constant(false);
         }
         return SqlToPure.strictTest(List.of(l, r), v -> call("equal", v.get(0), v.get(1)));
     }
@@ -1406,9 +1679,7 @@ public final class CypherToPure {
         return a.numeric() && b.numeric();
     }
 
-    private Tx arithmetic(CypherAst.Binary b, Scope scope) {
-        Tx l = tx(b.left(), scope);
-        Tx r = tx(b.right(), scope);
+    private Tx arithmetic(CypherAst.Binary b, Tx l, Tx r) {
         BinaryOp op = b.op();
         if (op == BinaryOp.PLUS && (l.kind() == Kind.STRING || r.kind() == Kind.STRING)) {
             // string concatenation; a number is concatenated as Neo4j prints it, which is not read yet
@@ -1439,6 +1710,7 @@ public final class CypherToPure {
             case DIVIDE -> {
                 if (l.kind() == Kind.INTEGER && r.kind() == Kind.INTEGER) {
                     // Cypher's integer division truncates toward zero, as Postgres's does
+                    noDatabaseLambda("/ of integers", b.pos());
                     yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> SqlToPure.integerQuotient(v.get(0),
                             v.get(1)));
                 }
@@ -1449,12 +1721,21 @@ public final class CypherToPure {
                     throw CypherErrors.unsupported("% of values that are not both integers is not supported yet",
                             b.pos());
                 }
+                noDatabaseLambda("%", b.pos());
                 yield SqlToPure.strict(Kind.INTEGER, List.of(l, r), v -> call("rem", v.get(0), v.get(1)));
             }
             case POWER -> SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> call("pow", call("toFloat", v.get(0)),
                     v.get(1)));
             default -> throw new IllegalStateException("unreachable: " + op);
         };
+    }
+
+    private void noDatabaseLambda(String what, Pos pos) {
+        if (databaseLambdas > 0) {
+            throw CypherErrors.unsupported(what + " inside a list comprehension or predicate the database computes is"
+                    + " not supported yet (lite's Postgres lowering types rem's divide-by-zero guard as text there)",
+                    pos);
+        }
     }
 
     private static void numericOperand(Tx t, Expr e) {
@@ -1484,49 +1765,465 @@ public final class CypherToPure {
         return Kind.WHOLE;
     }
 
-    /** {@code x IN [a, b, c]} over a list literal of values none of which is null: null when {@code x} is, else
-     *  whether a member equals it. */
+    /** {@code x IN list}: null when {@code x} is null, or when no member equals it and one is null; whether a member
+     *  equals it otherwise. A scalar among literal scalars of its kind is Pure's {@code in}; any other list of known
+     *  shape is unrolled into a disjunction of equalities (nulls, nested lists and maps among the members). */
     private Tx in(CypherAst.Binary b, Scope scope) {
-        if (!(b.right() instanceof CypherAst.ListLit list)) {
-            throw CypherErrors.unsupported("IN with a right side other than a list literal is not supported yet",
-                    b.pos());
+        Val l = val(b.left(), scope);
+        Val r = val(b.right(), scope);
+        if (r instanceof Scalar rs) {
+            if (rs.tx().kind() == Kind.NULL) {
+                return SqlToPure.nullOf(Kind.BOOLEAN);
+            }
+            if (rs.tx().kind() == Kind.JSON) {
+                throw CypherErrors.unsupported("IN over a list the database holds as a Variant is not supported yet",
+                        b.pos());
+            }
+            throw CypherErrors.invalid("Type mismatch: expected List<T> but was " + cypherType(rs.tx().kind()),
+                    b.right().pos());
         }
-        Tx l = tx(b.left(), scope);
+        if (r instanceof MapVal) {
+            throw CypherErrors.invalid("Type mismatch: expected List<T> but was Map", b.right().pos());
+        }
+        if (r instanceof Coll c) {
+            if (!(l instanceof Scalar ls)) {
+                throw CypherErrors.unsupported("IN of a list or map over a list the database computes is not"
+                        + " supported yet", b.pos());
+            }
+            if (ls.tx().kind() == Kind.NULL) {
+                return SqlToPure.nullOf(Kind.BOOLEAN);
+            }
+            if (ls.tx().kind() == Kind.BOOLEAN ? c.kind() != Kind.BOOLEAN : !comparable(ls.tx().kind(), c.kind())) {
+                return SqlToPure.strictTest(List.of(ls.tx()), v -> new CBoolean(false));
+            }
+            return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), c.vs()));
+        }
+        ListVal list = (ListVal) r;
         if (list.elements().isEmpty()) {
-            return Tx.condition(new CBoolean(false), new CBoolean(true), false);
+            return constant(false);
         }
-        if (l.kind() == Kind.NULL) {
+        if (isNull(l)) {
             return SqlToPure.nullOf(Kind.BOOLEAN);
         }
-        List<ValueSpecification> members = new ArrayList<>();
-        for (Expr e : list.elements()) {
-            Tx m = tx(e, scope);
-            if (m.kind() == Kind.NULL || m.nullable()) {
-                throw CypherErrors.unsupported("IN over a list holding null is not supported yet", e.pos());
+        if (l instanceof Scalar ls && ls.tx().kind() != Kind.BOOLEAN && plainMembers(ls.tx().kind(), list)) {
+            List<ValueSpecification> members = new ArrayList<>();
+            for (Val e : list.elements()) {
+                members.add(SqlToPure.valueOf(((Scalar) e).tx()));
             }
-            if (m.kind() == Kind.BOOLEAN || !comparable(l.kind(), m.kind())) {
-                throw CypherErrors.unsupported("IN over a list of values of another type is not supported yet",
-                        e.pos());
-            }
-            members.add(SqlToPure.valueOf(m));
+            return SqlToPure.strictTest(List.of(ls.tx()), v -> call("in", v.get(0), new PureCollection(members)));
         }
-        return SqlToPure.strictTest(List.of(l), v -> call("in", v.get(0), new PureCollection(members)));
+        Tx any = constant(false);
+        for (Val e : list.elements()) {
+            any = or3(any, equalVal(l, e, b.pos()));
+        }
+        return any;
     }
 
-    private Tx call(CypherAst.Call c, Scope scope) {
+    /** Whether every member is a literal scalar of a kind comparable with {@code kind}, none null. */
+    private static boolean plainMembers(Kind kind, ListVal list) {
+        if (list.elements().size() < 2) {
+            return false;
+        }
+        for (Val e : list.elements()) {
+            if (!(e instanceof Scalar s) || !s.literal() || s.tx().kind() == Kind.NULL
+                    || s.tx().kind() == Kind.BOOLEAN || !comparable(kind, s.tx().kind())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Val call(CypherAst.Call c, Scope scope) {
         String fn = c.name().toLowerCase(Locale.ROOT);
         if (AGGREGATES.contains(fn)) {
             throw CypherErrors.invalid("Invalid use of aggregating function " + c.name() + "(...) in this context",
                     c.pos());
         }
-        List<Tx> args = new ArrayList<>();
+        Function f = FUNCTIONS_BY_NAME.get(fn);
+        if (f == null) {
+            // refused by name before its arguments are read: the refusal names the function, not an argument
+            throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+        }
+        List<Val> args = new ArrayList<>();
         for (Expr a : c.args()) {
-            args.add(tx(a, scope));
+            args.add(val(a, scope));
         }
-        if (fn.equals("coalesce")) {
-            return coalesce(c, args);
+        String pure = f.pure;
+        return switch (f) {
+            case COALESCE -> {
+                List<Tx> txs = new ArrayList<>();
+                for (Val a : args) {
+                    txs.add(scalarOf(a, c.pos()));
+                }
+                yield scalar(coalesce(c, txs));
+            }
+            case SIZE, CHAR_LENGTH, CHARACTER_LENGTH -> size(c, arity(c, args, 1).get(0));
+            case KEYS -> keys(c, arity(c, args, 1).get(0));
+            case HEAD -> head(c, arity(c, args, 1).get(0), true);
+            case LAST -> head(c, arity(c, args, 1).get(0), false);
+            case TAIL -> tail(c, arity(c, args, 1).get(0));
+            case REVERSE -> reverse(c, arity(c, args, 1).get(0));
+            case IS_EMPTY -> isEmpty(c, arity(c, args, 1).get(0));
+            case RANGE -> range(c, args);
+            case SPLIT -> split(c, arity(c, args, 2));
+            case TO_STRING -> toStringFn(c, arity(c, args, 1).get(0));
+            case TO_INTEGER -> toInteger(c, arity(c, args, 1).get(0));
+            case TO_FLOAT -> toFloatFn(c, arity(c, args, 1).get(0));
+            case TO_BOOLEAN -> toBoolean(c, arity(c, args, 1).get(0));
+            case ABS -> scalar(numeric(c, arity(c, args, 1).get(0), null, java.util.Objects.requireNonNull(pure)));
+            case SIGN -> scalar(numeric(c, arity(c, args, 1).get(0), Kind.INTEGER,
+                    java.util.Objects.requireNonNull(pure)));
+            case SQRT, EXP, LOG, SIN, COS, TAN, ASIN, ACOS, ATAN -> scalar(numeric(c, arity(c, args, 1).get(0),
+                    Kind.FLOAT, java.util.Objects.requireNonNull(pure)));
+            case CEIL, FLOOR, ROUND -> scalar(rounding(c, arity(c, args, 1).get(0),
+                    java.util.Objects.requireNonNull(pure)));
+            case TO_LOWER, TO_UPPER, TRIM, LTRIM, RTRIM -> scalar(string(c, arity(c, args, 1),
+                    java.util.Objects.requireNonNull(pure), 1));
+            case LEFT, RIGHT -> scalar(string(c, arity(c, args, 2), java.util.Objects.requireNonNull(pure), 1));
+            case REPLACE -> scalar(string(c, arity(c, args, 3), java.util.Objects.requireNonNull(pure), 3));
+            case SUBSTRING -> scalar(substring(c, args));
+            case RAND, RANDOM_UUID, TIMESTAMP -> throw CypherErrors.unsupported("the function " + c.name()
+                    + "() (a value of the call, not of the data) is not supported yet", c.pos());
+        };
+    }
+
+    /** The arguments of a function of {@code n}; Neo4j's two errors otherwise. */
+    private static List<Val> arity(CypherAst.Call c, List<Val> args, int n) {
+        if (args.size() < n) {
+            throw CypherErrors.invalid("Insufficient parameters for function '" + c.name() + "'", c.pos());
         }
-        throw CypherErrors.unsupported("the function " + c.name() + "(...) is not supported yet", c.pos());
+        if (args.size() > n) {
+            throw CypherErrors.invalid("Too many parameters for function '" + c.name() + "'", c.pos());
+        }
+        return args;
+    }
+
+    /** {@code size(x)}: a list's count (a fact of a known shape's spelling, or the database's count of a computed
+     *  one), a string's length. */
+    private Val size(CypherAst.Call c, Val v) {
+        return switch (v) {
+            case ListVal l -> literal(Tx.value(new CInteger(l.elements().size()), Kind.INTEGER, false),
+                    (long) l.elements().size());
+            case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was Map",
+                    c.pos());
+            case Coll col -> scalar(Tx.value(call("size", col.vs()), Kind.INTEGER, false));
+            case Scalar s -> switch (s.tx().kind()) {
+                case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
+                case STRING -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(s.tx()), x -> call("length",
+                        x.get(0))));
+                case JSON -> throw CypherErrors.unsupported("size of a list the database holds as a Variant is not"
+                        + " supported yet", c.pos());
+                default -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
+                        + cypherType(s.tx().kind()), c.pos());
+            };
+        };
+    }
+
+    /** {@code keys(map)}: a known map's keys, in their order. */
+    private Val keys(CypherAst.Call c, Val v) {
+        return switch (v) {
+            case MapVal m -> {
+                List<Val> out = new ArrayList<>();
+                for (String k : m.entries().keySet()) {
+                    out.add(literal(Tx.value(new CString(k), Kind.STRING, false), k));
+                }
+                yield new ListVal(out);
+            }
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("keys of a map the"
+                    + " database holds as a Variant is not supported yet", c.pos());
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, Node or Relationship but was "
+                    + cypherType(s.tx().kind()), c.pos());
+            default -> throw CypherErrors.invalid("Type mismatch: expected Map, Node or Relationship but was"
+                    + " List<T>", c.pos());
+        };
+    }
+
+    /** {@code head(list)} and {@code last(list)}: null for an empty list. */
+    private Val head(CypherAst.Call c, Val v, boolean first) {
+        return switch (v) {
+            case ListVal l -> l.elements().isEmpty() ? nullValue()
+                    : l.elements().get(first ? 0 : l.elements().size() - 1);
+            case Coll col -> scalar(columnLike(call(first ? "first" : "last", col.vs()), col.kind(), true));
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            default -> throw notAList(c, v);
+        };
+    }
+
+    /** {@code tail(list)}: every element but the first. */
+    private Val tail(CypherAst.Call c, Val v) {
+        return switch (v) {
+            case ListVal l -> new ListVal(l.elements().isEmpty() ? List.of()
+                    : l.elements().subList(1, l.elements().size()));
+            case Coll col -> new Coll(call("drop", col.vs(), new CInteger(1L)), col.kind(), col.rowFree());
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            default -> throw notAList(c, v);
+        };
+    }
+
+    /** {@code reverse(list)}, {@code reverse(string)}. */
+    private Val reverse(CypherAst.Call c, Val v) {
+        return switch (v) {
+            case ListVal l -> {
+                List<Val> out = new ArrayList<>(l.elements());
+                java.util.Collections.reverse(out);
+                yield new ListVal(out);
+            }
+            case Coll col -> new Coll(call("reverse", col.vs()), col.kind(), col.rowFree());
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(SqlToPure.strict(Kind.STRING,
+                    List.of(s.tx()), x -> call("reverseString", x.get(0))));
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was "
+                    + cypherType(s.tx().kind()), c.pos());
+            case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected String or List<T> but was Map",
+                    c.pos());
+        };
+    }
+
+    /** {@code isEmpty(x)}: of a list, a map or a string. */
+    private Val isEmpty(CypherAst.Call c, Val v) {
+        return switch (v) {
+            case ListVal l -> scalar(constant(l.elements().isEmpty()));
+            case MapVal m -> scalar(constant(m.entries().isEmpty()));
+            case Coll col -> scalar(Tx.condition(call("isEmpty", col.vs()), call("isNotEmpty", col.vs()), false));
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.STRING -> scalar(SqlToPure.strictTest(List.of(s.tx()),
+                    x -> call("equal", call("length", x.get(0)), new CInteger(0L))));
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected String, List<T> or Map but was "
+                    + cypherType(s.tx().kind()), c.pos());
+        };
+    }
+
+    private static com.legend.protocol.sql.SqlTranslationException notAList(CypherAst.Call c, Val v) {
+        return CypherErrors.invalid("Type mismatch: expected List<T> but was " + (v instanceof Scalar s
+                ? cypherType(s.tx().kind()) : "Map"), c.pos());
+    }
+
+    /** {@code range(start, end [, step])}: the integers from start, as many steps as fit before the end, the
+     *  database's. Neo4j takes {@code (end - start) / step} steps, the quotient truncated toward zero, so
+     *  {@code range(0, 1, -123)} is {@code [0]} (Neo4j 2026.09.0; the TCK's text says empty); Pure's range stops
+     *  before its end, so the last value is spelled and the end moved one past it, by the step's sign, which must
+     *  be spelled. */
+    private Val range(CypherAst.Call c, List<Val> args) {
+        if (args.size() < 2 || args.size() > 3) {
+            throw CypherErrors.invalid((args.size() < 2 ? "Insufficient" : "Too many") + " parameters for function"
+                    + " 'range'", c.pos());
+        }
+        List<Tx> bounds = new ArrayList<>();
+        boolean rowFree = true;
+        for (int i = 0; i < 2; i++) {
+            Val a = args.get(i);
+            if (!(a instanceof Scalar s) || s.tx().kind() != Kind.INTEGER) {
+                throw CypherErrors.invalid("Type mismatch: expected Integer but was " + (a instanceof Scalar s
+                        ? cypherType(s.tx().kind()) : "List<T>"), c.args().get(i).pos());
+            }
+            if (s.tx().nullable()) {
+                throw CypherErrors.unsupported("range(...) of a bound that may be null is not supported yet", c.pos());
+            }
+            bounds.add(s.tx());
+            rowFree &= s.literal();
+        }
+        long step = 1;
+        if (args.size() == 3) {
+            Val a = args.get(2);
+            if (!(a instanceof Scalar s) || s.tx().kind() != Kind.INTEGER) {
+                throw CypherErrors.invalid("Type mismatch: expected Integer but was " + (a instanceof Scalar s
+                        ? cypherType(s.tx().kind()) : "List<T>"), c.args().get(2).pos());
+            }
+            Long n = integerLiteral(s);
+            if (n == null) {
+                throw CypherErrors.unsupported("range(...) with a step that is not a literal is not supported yet",
+                        c.pos());
+            }
+            if (n == 0) {
+                throw CypherErrors.invalid("step argument to range() cannot be zero", c.pos());
+            }
+            step = n;
+        }
+        ValueSpecification start = bounds.get(0).vs();
+        ValueSpecification last = bounds.get(1).vs();
+        if (args.size() == 3) {
+            // start + ((end - start) / step) * step
+            ValueSpecification steps = SqlToPure.integerQuotient(AppliedFunction.infixRun("minus", List.of(last,
+                    start)), new CInteger(step));
+            last = AppliedFunction.infixRun("plus", List.of(start, AppliedFunction.infixRun("times", List.of(steps,
+                    new CInteger(step)))));
+        }
+        ValueSpecification end = AppliedFunction.infixRun(step > 0 ? "plus" : "minus", List.of(last,
+                new CInteger(1L)));
+        ValueSpecification vs = args.size() == 3 ? call("range", start, end, new CInteger(step))
+                : call("range", start, end);
+        return new Coll(vs, Kind.INTEGER, rowFree);
+    }
+
+    /** {@code split(string, delimiter)}: the parts, a list the database computes. */
+    private Val split(CypherAst.Call c, List<Val> args) {
+        List<Tx> txs = new ArrayList<>();
+        boolean rowFree = true;
+        for (int i = 0; i < 2; i++) {
+            Val a = args.get(i);
+            if (!(a instanceof Scalar s)) {
+                throw CypherErrors.invalid("Type mismatch: expected String but was " + (a instanceof MapVal ? "Map"
+                        : "List<T>"), c.args().get(i).pos());
+            }
+            if (s.tx().kind() == Kind.NULL) {
+                return nullValue();
+            }
+            if (s.tx().kind() != Kind.STRING) {
+                throw CypherErrors.invalid("Type mismatch: expected String but was " + cypherType(s.tx().kind()),
+                        c.args().get(i).pos());
+            }
+            if (s.tx().nullable()) {
+                throw CypherErrors.unsupported("split of a value that may be null is not supported yet", c.pos());
+            }
+            txs.add(s.tx());
+            rowFree &= s.literal();
+        }
+        return new Coll(call("split", txs.get(0).vs(), txs.get(1).vs()), Kind.STRING, rowFree);
+    }
+
+    /** {@code toString(x)}: a number's or a boolean's spelling, as the database spells it. */
+    private Val toStringFn(CypherAst.Call c, Val v) {
+        Tx t = scalarArg(c, v, "String, Boolean, Integer, Float");
+        return switch (t.kind()) {
+            case NULL -> scalar(SqlToPure.nullOf(Kind.STRING));
+            case STRING -> scalar(t);
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, BOOLEAN -> scalar(SqlToPure.strict(Kind.STRING,
+                    List.of(t), x -> call("toString", x.get(0))));
+            default -> throw CypherErrors.unsupported("toString of a " + cypherType(t.kind()) + " is not supported"
+                    + " yet", c.pos());
+        };
+    }
+
+    /** {@code toInteger(x)}: a float truncated toward zero. */
+    private Val toInteger(CypherAst.Call c, Val v) {
+        Tx t = scalarArg(c, v, "Boolean, Integer, Float, String");
+        return switch (t.kind()) {
+            case NULL -> scalar(SqlToPure.nullOf(Kind.INTEGER));
+            case INTEGER, WHOLE -> scalar(t);
+            case FLOAT, DECIMAL, NUMBER, INEXACT -> scalar(SqlToPure.strict(Kind.INTEGER, List.of(t), x -> call("if",
+                    call("greaterThanEqual", x.get(0), new CInteger(0L)), thunk(call("floor", x.get(0))),
+                    thunk(call("ceiling", x.get(0))))));
+            default -> throw CypherErrors.unsupported("toInteger of a " + cypherType(t.kind()) + " (null for text"
+                    + " that is not a number) is not supported yet", c.pos());
+        };
+    }
+
+    private Val toFloatFn(CypherAst.Call c, Val v) {
+        Tx t = scalarArg(c, v, "Integer, Float, String");
+        return switch (t.kind()) {
+            case NULL -> scalar(SqlToPure.nullOf(Kind.FLOAT));
+            case FLOAT, INEXACT -> scalar(t);
+            case INTEGER, WHOLE, DECIMAL, NUMBER -> scalar(SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call(
+                    "toFloat", x.get(0))));
+            default -> throw CypherErrors.unsupported("toFloat of a " + cypherType(t.kind()) + " (null for text"
+                    + " that is not a number) is not supported yet", c.pos());
+        };
+    }
+
+    /** {@code toBoolean(x)}: of a string, {@code true} or {@code false} in any case, else null. */
+    private Val toBoolean(CypherAst.Call c, Val v) {
+        Tx t = scalarArg(c, v, "Boolean, Integer, String");
+        return switch (t.kind()) {
+            case NULL -> scalar(SqlToPure.nullOf(Kind.BOOLEAN));
+            case BOOLEAN -> scalar(t);
+            case STRING -> {
+                ValueSpecification text = t.nullable() ? call("toOne", t.vs()) : t.vs();
+                ValueSpecification lower = call("toLower", text);
+                ValueSpecification read = call("if", call("equal", lower, new CString("true")),
+                        thunk(new CBoolean(true)), thunk(call("if", call("equal", lower, new CString("false")),
+                                thunk(new CBoolean(false)), thunk(call("cast", SqlToPure.empty(),
+                                        SqlToPure.typeArg("Boolean"))))));
+                ValueSpecification value = t.nullable() ? call("if", call("isEmpty", t.vs()), thunk(call("cast",
+                        SqlToPure.empty(), SqlToPure.typeArg("Boolean"))), thunk(read)) : read;
+                yield scalar(SqlToPure.booleanValue(value, true));
+            }
+            default -> throw CypherErrors.unsupported("toBoolean of a " + cypherType(t.kind()) + " is not supported"
+                    + " yet", c.pos());
+        };
+    }
+
+    private static Tx scalarArg(CypherAst.Call c, Val v, String expected) {
+        if (v instanceof Scalar s) {
+            return s.tx();
+        }
+        throw CypherErrors.invalid("Type mismatch: expected " + expected + " but was " + (v instanceof MapVal ? "Map"
+                : "List<T>"), c.pos());
+    }
+
+    /** A numeric function the database computes: of the argument's kind, or of {@code result} when given. */
+    private static Tx numeric(CypherAst.Call c, Val v, @com.legend.base.Nullable Kind result, String fn) {
+        Tx t = scalarArg(c, v, "Float or Integer");
+        if (t.kind() == Kind.NULL) {
+            return SqlToPure.nullOf(result == null ? Kind.INTEGER : result);
+        }
+        if (!t.kind().numeric()) {
+            throw CypherErrors.invalid("Type mismatch: expected Float or Integer but was " + cypherType(t.kind()),
+                    c.pos());
+        }
+        return SqlToPure.strict(result == null ? t.kind() : result, List.of(t), x -> call(fn, x.get(0)));
+    }
+
+    /** {@code ceil}, {@code floor}, {@code round}: a float, as Cypher's are (Pure's give an integer). Neo4j's round
+     *  is Java's: half up, toward positive infinity ({@code round(-2.5)} is {@code -2.0}; Neo4j 2026.09.0), where the
+     *  database's is half to even (DuckDB's, 2026-10-15): the floor of the value and a half. */
+    private static Tx rounding(CypherAst.Call c, Val v, String fn) {
+        Tx t = scalarArg(c, v, "Float or Integer");
+        if (t.kind() == Kind.NULL) {
+            return SqlToPure.nullOf(Kind.FLOAT);
+        }
+        if (!t.kind().numeric()) {
+            throw CypherErrors.invalid("Type mismatch: expected Float or Integer but was " + cypherType(t.kind()),
+                    c.pos());
+        }
+        if (fn.equals("round")) {
+            return SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call("floor",
+                    AppliedFunction.infixRun("plus", List.of(call("toFloat", x.get(0)), new CFloat(0.5))))));
+        }
+        return SqlToPure.strict(Kind.FLOAT, List.of(t), x -> call("toFloat", call(fn, call("toFloat", x.get(0)))));
+    }
+
+    /** A string function the database computes, of {@code strings} string arguments first and integers after. */
+    private static Tx string(CypherAst.Call c, List<Val> args, String fn, int strings) {
+        List<Tx> txs = new ArrayList<>();
+        for (int i = 0; i < args.size(); i++) {
+            Tx t = scalarArg(c, args.get(i), i < strings ? "String" : "Integer");
+            if (t.kind() == Kind.NULL) {
+                return SqlToPure.nullOf(Kind.STRING);
+            }
+            Kind wanted = i < strings ? Kind.STRING : Kind.INTEGER;
+            if (t.kind() != wanted) {
+                throw CypherErrors.invalid("Type mismatch: expected " + cypherType(wanted) + " but was "
+                        + cypherType(t.kind()), c.args().get(i).pos());
+            }
+            txs.add(t);
+        }
+        return SqlToPure.strict(Kind.STRING, txs, x -> call(fn, x.toArray(ValueSpecification[]::new)));
+    }
+
+    /** {@code substring(string, start [, length])}: from the 0-based start. Lite's {@code substring} is SQL's
+     *  (legend-engine's own without its CORRECT_SQL_SUBSTRING_INDEXING flag: a 1-based start and a length, passed
+     *  through), so Cypher's start is moved by one. */
+    private static Tx substring(CypherAst.Call c, List<Val> args) {
+        if (args.size() < 2 || args.size() > 3) {
+            throw CypherErrors.invalid((args.size() < 2 ? "Insufficient" : "Too many") + " parameters for function"
+                    + " 'substring'", c.pos());
+        }
+        Tx s = scalarArg(c, args.get(0), "String");
+        Tx start = scalarArg(c, args.get(1), "Integer");
+        Tx length = args.size() == 3 ? scalarArg(c, args.get(2), "Integer") : null;
+        if (s.kind() == Kind.NULL || start.kind() == Kind.NULL || length != null && length.kind() == Kind.NULL) {
+            return SqlToPure.nullOf(Kind.STRING);
+        }
+        if (s.kind() != Kind.STRING || start.kind() != Kind.INTEGER || length != null && length.kind() != Kind.INTEGER) {
+            throw CypherErrors.invalid("Type mismatch: substring expects a String and Integers", c.pos());
+        }
+        if (length == null) {
+            return SqlToPure.strict(Kind.STRING, List.of(s, start), x -> call("substring", x.get(0),
+                    AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L)))));
+        }
+        return SqlToPure.strict(Kind.STRING, List.of(s, start, length), x -> call("substring", x.get(0),
+                AppliedFunction.infixRun("plus", List.of(x.get(1), new CInteger(1L))), x.get(2)));
     }
 
     /** {@code coalesce(a, b, ...)}: the first value that is not null; the arguments after one that is never null are
@@ -1570,6 +2267,10 @@ public final class CypherToPure {
         for (int i = args.size() - 2; i >= 0; i--) {
             ValueSpecification v = SqlToPure.valueOf(args.get(i));
             tail = call("if", call("isEmpty", v), thunk(tail), thunk(v));
+        }
+        if (!nullable) {
+            // one that is never null is read as one: the typer types the if's branches [0..1]
+            tail = call("toOne", tail);
         }
         return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(tail, nullable) : Tx.value(tail, kind, nullable);
     }
@@ -1623,6 +2324,686 @@ public final class CypherToPure {
         return kind == Kind.BOOLEAN ? SqlToPure.booleanValue(vs, nullable) : Tx.value(vs, kind, nullable);
     }
 
+    // ------------------------------------------------------------------ values
+
+    /**
+     * A translated expression: a scalar the database computes; a list or a map of KNOWN SHAPE, each element
+     * translated (the shape is read from the query's spelling and rearranged here, the elements' values the database
+     * computes: the world map's compare-not-compute); or a collection the database computes (a range, a split, a
+     * comprehension's filter: a Pure {@code T[*]} of one kind, holding no null).
+     */
+    private sealed interface Val permits Scalar, ListVal, MapVal, Coll {
+    }
+
+    /** A scalar; {@code literal} when it is a literal of the query, {@code constant} then its value (null for
+     *  {@code null}), so that a shape of literals is written as one JSON constant. */
+    private record Scalar(Tx tx, boolean literal, @com.legend.base.Nullable Object constant) implements Val {
+    }
+
+    private record ListVal(List<Val> elements) implements Val {
+    }
+
+    private record MapVal(Map<String, Val> entries) implements Val {
+    }
+
+    /** A collection the database computes; {@code rowFree} when it reads nothing of the row (literals only). */
+    private record Coll(ValueSpecification vs, Kind kind, boolean rowFree) implements Val {
+    }
+
+    private static Scalar scalar(Tx tx) {
+        return new Scalar(tx, false, null);
+    }
+
+    private static Scalar literal(Tx tx, @com.legend.base.Nullable Object constant) {
+        return new Scalar(tx, true, constant);
+    }
+
+    private static Scalar nullValue() {
+        return new Scalar(Tx.value(SqlToPure.empty(), Kind.NULL, true), true, null);
+    }
+
+    private static boolean isNull(Val v) {
+        return v instanceof Scalar s && s.tx().kind() == Kind.NULL;
+    }
+
+    private static @com.legend.base.Nullable Long integerLiteral(Scalar s) {
+        return s.literal() && s.constant() instanceof Long n ? n : null;
+    }
+
+    /** Whether a value reads nothing of the row: a literal, a shape of literals, a collection of literals. */
+    private static boolean rowFree(Val v) {
+        return switch (v) {
+            case Scalar s -> s.literal();
+            case ListVal l -> l.elements().stream().allMatch(CypherToPure::rowFree);
+            case MapVal m -> m.entries().values().stream().allMatch(CypherToPure::rowFree);
+            case Coll c -> c.rowFree();
+        };
+    }
+
+    /** Whether a value is a literal or a shape of literals: one the island writes as a JSON constant. */
+    private static boolean isLiteral(Val v) {
+        return switch (v) {
+            case Scalar s -> s.literal();
+            case ListVal l -> l.elements().stream().allMatch(CypherToPure::isLiteral);
+            case MapVal m -> m.entries().values().stream().allMatch(CypherToPure::isLiteral);
+            case Coll c -> false;
+        };
+    }
+
+    /** The JSON text of a literal value (a float as Java spells it, which JSON reads). */
+    private static String json(Val v) {
+        return switch (v) {
+            case Scalar s -> switch (s.constant()) {
+                case null -> "null";
+                case String text -> com.legend.json.Json.toCompact(text);
+                case Object other -> other.toString();
+            };
+            case ListVal l -> "[" + String.join(",", l.elements().stream().map(CypherToPure::json).toList()) + "]";
+            case MapVal m -> "{" + String.join(",", m.entries().entrySet().stream().map(e ->
+                    com.legend.json.Json.toCompact(e.getKey()) + ":" + json(e.getValue())).toList()) + "}";
+            case Coll c -> throw new IllegalStateException("not a literal: " + c);
+        };
+    }
+
+    /**
+     * A list or map as a value the database holds: a Variant (C8). A shape of literals is a JSON constant; a shape
+     * holding values of the row is built by the database ({@code toVariant} of a collection), within what Pure's
+     * collections carry: one kind, no null, two or more elements (Pure reads {@code [x]} as {@code x}); a collection
+     * it computes is {@code toVariant} of it; a map holding values of the row is refused by name ({@code newMap}'s
+     * Variant is a list of pairs on Postgres).
+     */
+    private Tx variant(Val v, Pos pos) {
+        if (isLiteral(v)) {
+            return Tx.value(call("fromJson", new CString(json(v))), Kind.JSON, false);
+        }
+        return switch (v) {
+            case Scalar s -> s.tx();
+            case Coll c -> Tx.value(call("toVariant", c.vs()), Kind.JSON, false);
+            case ListVal l -> {
+                if (l.elements().size() < 2) {
+                    throw CypherErrors.unsupported("a list of one value of the row, as a value, is not supported yet"
+                            + " (Pure reads [x] as x)", pos);
+                }
+                List<ValueSpecification> values = new ArrayList<>();
+                Kind kind = null;
+                for (Val e : l.elements()) {
+                    Tx t = element(e, pos);
+                    if (kind == null) {
+                        kind = t.kind();
+                    } else if (kind != t.kind()) {
+                        throw CypherErrors.unsupported("a list holding values of different types, as a value, is not"
+                                + " supported yet", pos);
+                    }
+                    values.add(SqlToPure.valueOf(t));
+                }
+                yield Tx.value(call("toVariant", new PureCollection(values)), Kind.JSON, false);
+            }
+            case MapVal m -> throw CypherErrors.unsupported("a map holding a value of the row, as a value, is not"
+                    + " supported yet (lite's Postgres lowering writes toVariant of newMap as a list of pairs where"
+                    + " DuckDB's writes an object; reported, docs/IN_FLIGHT.md 2026-10-15)", pos);
+        };
+    }
+
+    /** An element of a shape the database builds: a scalar that is never null (a Pure collection holds no empty,
+     *  and lite's {@code toOne} asserts on one), or a nested shape's Variant. */
+    private Tx element(Val e, Pos pos) {
+        if (e instanceof Scalar s) {
+            if (s.tx().nullable() || s.tx().kind() == Kind.NULL) {
+                throw CypherErrors.unsupported("a list or map holding a value that may be null, as a value, is not"
+                        + " supported yet", pos);
+            }
+            return s.tx();
+        }
+        return variant(e, pos);
+    }
+
+    /** {@code value.name}: a known map's entry (null when it has none), null's null. */
+    private Val member(Val target, String name, Pos pos) {
+        return switch (target) {
+            case MapVal m -> {
+                Val v = m.entries().get(name);
+                yield v == null ? nullValue() : v;
+            }
+            case Scalar s when s.tx().kind() == Kind.NULL -> nullValue();
+            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a property of a value"
+                    + " the database holds as a Variant is not supported yet", pos);
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point,"
+                    + " Duration, Date, Time, LocalTime, LocalDateTime or DateTime but was "
+                    + cypherType(s.tx().kind()), pos);
+            default -> throw CypherErrors.invalid("Type mismatch: expected Map, Node, Relationship, Point, Duration,"
+                    + " Date, Time, LocalTime, LocalDateTime or DateTime but was List<T>", pos);
+        };
+    }
+
+    /** {@code l = r} over values: lists of different sizes, maps of different keys, a list and a scalar, are never
+     *  equal; else the elements compared pairwise (null when a pair's comparison is, unless another's is false). */
+    private Tx equalVal(Val l, Val r, Pos pos) {
+        if (isNull(l) || isNull(r)) {
+            return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        if (l instanceof Coll || r instanceof Coll) {
+            throw CypherErrors.unsupported("comparing a list the database computes is not supported yet", pos);
+        }
+        if (l instanceof Scalar ls && r instanceof Scalar rs) {
+            return equal(ls.tx(), rs.tx(), pos);
+        }
+        if (l instanceof ListVal a && r instanceof ListVal b) {
+            if (a.elements().size() != b.elements().size()) {
+                return constant(false);
+            }
+            Tx all = constant(true);
+            for (int i = 0; i < a.elements().size(); i++) {
+                all = and3(all, equalVal(a.elements().get(i), b.elements().get(i), pos));
+            }
+            return all;
+        }
+        if (l instanceof MapVal a && r instanceof MapVal b) {
+            if (!a.entries().keySet().equals(b.entries().keySet())) {
+                return constant(false);
+            }
+            Tx all = constant(true);
+            for (String k : a.entries().keySet()) {
+                all = and3(all, equalVal(java.util.Objects.requireNonNull(a.entries().get(k)),
+                        java.util.Objects.requireNonNull(b.entries().get(k)), pos));
+            }
+            return all;
+        }
+        // a list, a map and a scalar are values of different types: never equal
+        return constant(false);
+    }
+
+    /** {@code list + list}, {@code list + value}, {@code value + list}: the elements in a row. */
+    private Val concat(Val l, Val r, Pos pos) {
+        if (isNull(l) || isNull(r)) {
+            return nullValue();
+        }
+        if (l instanceof Coll || r instanceof Coll) {
+            throw CypherErrors.unsupported("+ of a list the database computes is not supported yet", pos);
+        }
+        if (l instanceof MapVal || r instanceof MapVal) {
+            throw CypherErrors.invalid("Type mismatch: expected Float, Integer, String, List<T> or Duration but was Map",
+                    pos);
+        }
+        List<Val> out = new ArrayList<>();
+        if (l instanceof ListVal ll) {
+            out.addAll(ll.elements());
+        } else {
+            out.add(l);
+        }
+        if (r instanceof ListVal rl) {
+            out.addAll(rl.elements());
+        } else {
+            out.add(r);
+        }
+        return new ListVal(out);
+    }
+
+    /** {@code target[index]}: a known list's element by a spelled index (from the end when negative; null beyond
+     *  either end), a known map's entry by a spelled key, a computed list's element by the database. */
+    private Val index(CypherAst.Index ix, Scope scope) {
+        Val target = val(ix.target(), scope);
+        Val idx = val(ix.index(), scope);
+        if (isNull(target) || isNull(idx)) {
+            return nullValue();
+        }
+        if (!(idx instanceof Scalar is)) {
+            throw CypherErrors.invalid("Type mismatch: expected Integer or String but was " + (idx instanceof MapVal
+                    ? "Map" : "List<T>"), ix.index().pos());
+        }
+        Tx i = is.tx();
+        return switch (target) {
+            case ListVal l -> {
+                if (i.kind() != Kind.INTEGER) {
+                    throw CypherErrors.invalid("Type mismatch: expected Integer but was " + cypherType(i.kind()),
+                            ix.index().pos());
+                }
+                Long n = integerLiteral(is);
+                if (n == null) {
+                    throw CypherErrors.unsupported("indexing a list by a value that is not a literal is not supported"
+                            + " yet", ix.pos());
+                }
+                int size = l.elements().size();
+                long at = n < 0 ? n + size : n;
+                yield at < 0 || at >= size ? nullValue() : l.elements().get((int) at);
+            }
+            case MapVal m -> {
+                if (i.kind() != Kind.STRING) {
+                    throw CypherErrors.invalid("Type mismatch: expected String but was " + cypherType(i.kind())
+                            + " (a map is indexed by a key)", ix.index().pos());
+                }
+                if (!is.literal()) {
+                    throw CypherErrors.unsupported("indexing a map by a value that is not a literal is not supported"
+                            + " yet", ix.pos());
+                }
+                Val v = m.entries().get((String) java.util.Objects.requireNonNull(is.constant()));
+                yield v == null ? nullValue() : v;
+            }
+            case Coll c -> {
+                if (i.kind() != Kind.INTEGER) {
+                    throw CypherErrors.invalid("Type mismatch: expected Integer but was " + cypherType(i.kind()),
+                            ix.index().pos());
+                }
+                Long n = integerLiteral(is);
+                if (n == null || n < 0) {
+                    throw CypherErrors.unsupported("indexing a list the database computes by a value that is not a"
+                            + " literal, or from its end, is not supported yet", ix.pos());
+                }
+                yield scalar(columnLike(call("first", call("drop", c.vs(), new CInteger(n))), c.kind(), true));
+            }
+            case Scalar s -> {
+                if (s.tx().kind() == Kind.JSON) {
+                    throw CypherErrors.unsupported("indexing a value the database holds as a Variant is not supported"
+                            + " yet", ix.pos());
+                }
+                throw CypherErrors.invalid("Type mismatch: expected List<T> or Map but was "
+                        + cypherType(s.tx().kind()), ix.target().pos());
+            }
+        };
+    }
+
+    /** {@code target[from..to]}: a known list's slice by spelled bounds (from the end when negative, clamped to the
+     *  list, empty when from is not before to). */
+    private Val slice(CypherAst.Slice sl, Scope scope) {
+        Val target = val(sl.target(), scope);
+        Val from = sl.from() == null ? null : val(sl.from(), scope);
+        Val to = sl.to() == null ? null : val(sl.to(), scope);
+        if (isNull(target) || from != null && isNull(from) || to != null && isNull(to)) {
+            return nullValue();
+        }
+        Long a = sliceBound(from, sl.from() == null ? sl.pos() : sl.from().pos());
+        Long b = sliceBound(to, sl.to() == null ? sl.pos() : sl.to().pos());
+        return switch (target) {
+            case ListVal l -> {
+                int n = l.elements().size();
+                long lo = a == null ? 0 : a < 0 ? a + n : a;
+                long hi = b == null ? n : b < 0 ? b + n : b;
+                lo = Math.max(0, Math.min(n, lo));
+                hi = Math.max(0, Math.min(n, hi));
+                yield new ListVal(lo >= hi ? List.of() : List.copyOf(l.elements().subList((int) lo, (int) hi)));
+            }
+            case Coll c -> throw CypherErrors.unsupported("slicing a list the database computes is not supported yet",
+                    sl.pos());
+            case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was Map", sl.pos());
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was "
+                    + cypherType(s.tx().kind()), sl.target().pos());
+        };
+    }
+
+    private static @com.legend.base.Nullable Long sliceBound(@com.legend.base.Nullable Val v, Pos pos) {
+        if (v == null) {
+            return null;
+        }
+        if (!(v instanceof Scalar s) || s.tx().kind() != Kind.INTEGER) {
+            throw CypherErrors.invalid("Type mismatch: expected Integer but was " + (v instanceof Scalar s
+                    ? cypherType(s.tx().kind()) : v instanceof MapVal ? "Map" : "List<T>"), pos);
+        }
+        Long n = integerLiteral(s);
+        if (n == null) {
+            throw CypherErrors.unsupported("a slice bound that is not a literal is not supported yet", pos);
+        }
+        return n;
+    }
+
+    /**
+     * {@code all}, {@code any}, {@code none}, {@code single}{@code (x IN list WHERE predicate)}. Over a list of known
+     * shape, the predicate is read once per element with {@code x} bound to it and the results combined by Cypher's
+     * three-valued rules; over a list the database computes, Pure's {@code forAll} and {@code exists}.
+     */
+    private Tx quantifier(CypherAst.Quantifier q, Scope scope) {
+        Quantifier name = java.util.Objects.requireNonNull(QUANTIFIERS.get(q.name().toLowerCase(Locale.ROOT)),
+                q.name());
+        Val list = val(q.list(), scope);
+        if (isNull(list)) {
+            return SqlToPure.nullOf(Kind.BOOLEAN);
+        }
+        String var = q.variable();
+        switch (list) {
+            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a list predicate over a"
+                    + " list the database holds as a Variant is not supported yet", q.pos());
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was "
+                    + cypherType(s.tx().kind()), q.list().pos());
+            case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was Map", q.list().pos());
+            case Coll c -> {
+                Scope inner = new BoundScope(scope, var, scalar(columnLike(new Variable(var), c.kind(), false)));
+                databaseLambdas++;
+                Tx pred;
+                try {
+                    pred = SqlToPure.truth(booleanOperand(q.where(), inner), q.name(), q.where().pos());
+                } finally {
+                    databaseLambdas--;
+                }
+                if (pred.nullable()) {
+                    throw CypherErrors.unsupported("a list predicate whose condition may be null, over a list the"
+                            + " database computes, is not supported yet", q.pos());
+                }
+                return switch (name) {
+                    case ALL -> SqlToPure.booleanValue(call("forAll", c.vs(), lambda(var, pred.vs())), false);
+                    case ANY -> SqlToPure.booleanValue(call("exists", c.vs(), lambda(var, pred.vs())), false);
+                    case NONE -> SqlToPure.not(SqlToPure.booleanValue(call("exists", c.vs(), lambda(var,
+                            pred.vs())), false));
+                    case SINGLE -> throw CypherErrors.unsupported("single(...) over a list the database computes is"
+                            + " not supported yet", q.pos());
+                };
+            }
+            case ListVal l -> {
+                List<Tx> preds = new ArrayList<>();
+                for (Val e : l.elements()) {
+                    preds.add(SqlToPure.truth(booleanOperand(q.where(), new BoundScope(scope, var, e)), q.name(),
+                            q.where().pos()));
+                }
+                return switch (name) {
+                    case ALL -> {
+                        Tx all = constant(true);
+                        for (Tx p : preds) {
+                            all = and3(all, p);
+                        }
+                        yield all;
+                    }
+                    case ANY -> any(preds);
+                    case NONE -> SqlToPure.not(any(preds));
+                    case SINGLE -> single(preds);
+                };
+            }
+        }
+    }
+
+    private static Tx any(List<Tx> preds) {
+        Tx any = constant(false);
+        for (Tx p : preds) {
+            any = or3(any, p);
+        }
+        return any;
+    }
+
+    /** {@code single}: true when exactly one element holds and none is unknown; false when two or more hold, or
+     *  none does and none is unknown; else null. The database counts the holds and the unknowns. */
+    private static Tx single(List<Tx> preds) {
+        if (preds.isEmpty()) {
+            return constant(false);
+        }
+        ValueSpecification holds = new CInteger(0L);
+        ValueSpecification unknowns = null;
+        for (Tx p : preds) {
+            ValueSpecification one = call("if", p.vs(), thunk(new CInteger(1L)), thunk(new CInteger(0L)));
+            holds = AppliedFunction.infixRun("plus", List.of(holds, one));
+            if (p.nullable()) {
+                ValueSpecification unknown = call("if", call("or", p.vs(), p.falseWhen()), thunk(new CInteger(0L)),
+                        thunk(new CInteger(1L)));
+                unknowns = unknowns == null ? unknown : AppliedFunction.infixRun("plus", List.of(unknowns, unknown));
+            }
+        }
+        ValueSpecification exactlyOne = call("equal", holds, new CInteger(1L));
+        if (unknowns == null) {
+            return Tx.condition(exactlyOne, call("not", exactlyOne), false);
+        }
+        ValueSpecification noUnknown = call("equal", unknowns, new CInteger(0L));
+        return Tx.condition(call("and", exactlyOne, noUnknown), call("or", call("greaterThanEqual", holds,
+                new CInteger(2L)), call("and", call("equal", holds, new CInteger(0L)), noUnknown)), true);
+    }
+
+    /**
+     * {@code [x IN list WHERE predicate | expression]}. Without a WHERE, a known list's elements are each mapped
+     * and the list stays known; with one, the database filters (and maps) a collection of one kind.
+     */
+    private Val comprehension(CypherAst.ListComprehension lc, Scope scope) {
+        Val list = val(lc.list(), scope);
+        if (isNull(list)) {
+            return nullValue();
+        }
+        String var = lc.variable();
+        switch (list) {
+            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("a list comprehension"
+                    + " over a list the database holds as a Variant is not supported yet", lc.pos());
+            case Scalar s -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was "
+                    + cypherType(s.tx().kind()), lc.list().pos());
+            case MapVal m -> throw CypherErrors.invalid("Type mismatch: expected List<T> but was Map",
+                    lc.list().pos());
+            default -> {
+            }
+        }
+        if (list instanceof ListVal l && lc.where() == null) {
+            Expr map = lc.map();
+            if (map == null) {
+                return l;
+            }
+            List<Val> out = new ArrayList<>();
+            for (Val e : l.elements()) {
+                out.add(val(map, new BoundScope(scope, var, e)));
+            }
+            return new ListVal(out);
+        }
+        Coll c = list instanceof Coll cc ? cc : collection((ListVal) list, lc.pos());
+        ValueSpecification vs = c.vs();
+        Kind kind = c.kind();
+        Set<String> bound = Set.of(var);
+        boolean rowFree = c.rowFree();
+        Scope inner = new BoundScope(scope, var, scalar(columnLike(new Variable(var), kind, false)));
+        Expr where = lc.where();
+        databaseLambdas++;
+        try {
+            return comprehensionBody(lc, inner, vs, kind, rowFree, bound);
+        } finally {
+            databaseLambdas--;
+        }
+    }
+
+    private Val comprehensionBody(CypherAst.ListComprehension lc, Scope inner, ValueSpecification collection,
+            Kind elementKind, boolean collectionRowFree, Set<String> bound) {
+        String var = lc.variable();
+        ValueSpecification vs = collection;
+        Kind kind = elementKind;
+        boolean rowFree = collectionRowFree;
+        Expr where = lc.where();
+        if (where != null) {
+            Tx pred = SqlToPure.truth(booleanOperand(where, inner), "WHERE", where.pos());
+            if (pred.nullable()) {
+                throw CypherErrors.unsupported("a list comprehension whose condition may be null is not supported"
+                        + " yet", lc.pos());
+            }
+            vs = call("filter", vs, lambda(var, pred.vs()));
+            rowFree &= !readsRow(where, bound);
+        }
+        Expr map = lc.map();
+        if (map != null) {
+            Val mapped = val(map, inner);
+            if (!(mapped instanceof Scalar ms)) {
+                throw CypherErrors.unsupported("a list comprehension producing lists or maps is not supported yet",
+                        lc.pos());
+            }
+            if (ms.tx().nullable() || ms.tx().kind() == Kind.NULL) {
+                throw CypherErrors.unsupported("a list comprehension producing values that may be null is not"
+                        + " supported yet", lc.pos());
+            }
+            vs = call("map", vs, lambda(var, SqlToPure.valueOf(ms.tx())));
+            kind = ms.tx().kind();
+            rowFree &= !readsRow(map, bound);
+        }
+        return new Coll(vs, kind, rowFree);
+    }
+
+    /** A list of known shape as the collection the database reads: its elements scalars of one kind, none null. */
+    private Coll collection(ListVal l, Pos pos) {
+        List<ValueSpecification> values = new ArrayList<>();
+        Kind kind = null;
+        boolean rowFree = true;
+        for (Val e : l.elements()) {
+            if (!(e instanceof Scalar s)) {
+                throw CypherErrors.unsupported("a list of lists or maps, read by the database, is not supported yet",
+                        pos);
+            }
+            Tx t = s.tx();
+            if (t.kind() == Kind.NULL || t.nullable()) {
+                throw CypherErrors.unsupported("a list holding a value that may be null, read by the database, is"
+                        + " not supported yet", pos);
+            }
+            if (kind == null) {
+                kind = t.kind();
+            } else if (kind != t.kind()) {
+                throw CypherErrors.unsupported("a list holding values of different types, read by the database, is"
+                        + " not supported yet", pos);
+            }
+            values.add(SqlToPure.valueOf(t));
+            rowFree &= s.literal();
+        }
+        if (kind == null) {
+            return new Coll(call("cast", SqlToPure.empty(), SqlToPure.typeArg("Integer")), Kind.INTEGER, true);
+        }
+        return new Coll(new PureCollection(values), kind, rowFree);
+    }
+
+    /** Whether an expression reads a variable other than those bound within it. */
+    private static boolean readsRow(Expr e, Set<String> bound) {
+        return switch (e) {
+            case CypherAst.Var v -> !bound.contains(v.name());
+            case CypherAst.Quantifier q -> readsRow(q.list(), bound) || readsRow(q.where(), with(bound,
+                    q.variable()));
+            case CypherAst.ListComprehension lc -> readsRow(lc.list(), bound)
+                    || lc.where() != null && readsRow(lc.where(), with(bound, lc.variable()))
+                    || lc.map() != null && readsRow(lc.map(), with(bound, lc.variable()));
+            default -> children(e).stream().anyMatch(c -> readsRow(c, bound));
+        };
+    }
+
+    private static Set<String> with(Set<String> bound, String name) {
+        Set<String> out = new HashSet<>(bound);
+        out.add(name);
+        return out;
+    }
+
+    // ------------------------------------------------------------------ UNWIND
+
+    /**
+     * {@code UNWIND list AS x}: a row per element. A collection the database computes, or a list of known shape
+     * holding scalars of one kind and no null, is Pure's {@code flatten}; one holding nulls is read by place (a row
+     * per place, the element at it); null and the empty list give no row. After a projection, the rows in hand are
+     * each paired with the list's elements (Pure's {@code lateral}).
+     */
+    private State unwind(CypherAst.Unwind u, @com.legend.base.Nullable State state) {
+        if (state instanceof Graph) {
+            throw CypherErrors.unsupported("UNWIND after a MATCH is not supported yet", u.pos());
+        }
+        Rows rows = (Rows) state;
+        Scope scope = new RowScope(rows == null ? oneRow() : rows);
+        Val v = val(u.list(), scope);
+        String x = u.variable();
+        if (rows != null && rows.columns().stream().anyMatch(c -> c.name().equals(x))) {
+            throw CypherErrors.invalid("Variable `" + x + "` already declared", u.pos());
+        }
+        ValueSpecification rel;
+        Col col;
+        switch (v) {
+            case Scalar s when s.tx().kind() == Kind.NULL -> {
+                rel = noRows(x);
+                col = new Col(x, Kind.STRING, true);
+            }
+            case Scalar s when s.tx().kind() == Kind.JSON -> throw CypherErrors.unsupported("UNWIND over a list the"
+                    + " database holds as a Variant is not supported yet", u.pos());
+            case Scalar s -> throw CypherErrors.unsupported("UNWIND of a value that is not a list (one row in Neo4j)"
+                    + " is not supported yet", u.pos());
+            case MapVal m -> throw CypherErrors.unsupported("UNWIND of a map (one row in Neo4j) is not supported"
+                    + " yet", u.pos());
+            case Coll c -> {
+                rel = call("flatten", c.vs(), new ColSpec(x, null, null, null));
+                col = new Col(x, c.kind(), true);
+            }
+            case ListVal l -> {
+                if (l.elements().isEmpty()) {
+                    rel = noRows(x);
+                    col = new Col(x, Kind.STRING, true);
+                    break;
+                }
+                List<Tx> elements = new ArrayList<>();
+                Kind kind = null;
+                boolean nulls = false;
+                for (Val e : l.elements()) {
+                    if (!(e instanceof Scalar s)) {
+                        throw CypherErrors.unsupported("UNWIND over a list of lists or maps is not supported yet",
+                                u.pos());
+                    }
+                    Tx t = s.tx();
+                    if (t.kind() == Kind.NULL) {
+                        nulls = true;
+                    } else {
+                        nulls |= t.nullable();
+                        if (kind == null) {
+                            kind = t.kind();
+                        } else if (kind != t.kind()) {
+                            throw CypherErrors.unsupported("UNWIND over a list holding values of different types is"
+                                    + " not supported yet", u.pos());
+                        }
+                    }
+                    elements.add(t);
+                }
+                if (kind == null) {
+                    // every element null
+                    rel = places(elements.size(), x, Kind.STRING, elements);
+                    col = new Col(x, Kind.STRING, true);
+                } else if (!nulls && elements.size() > 1) {
+                    // (a list of one element is read by place: Pure reads [x] as x, which no database unnests)
+                    List<ValueSpecification> values = new ArrayList<>();
+                    for (Tx t : elements) {
+                        values.add(SqlToPure.valueOf(t));
+                    }
+                    rel = call("flatten", new PureCollection(values), new ColSpec(x, null, null, null));
+                    col = new Col(x, kind, true);
+                } else {
+                    rel = places(elements.size(), x, kind, elements);
+                    col = new Col(x, kind, true);
+                }
+            }
+        }
+        // (the typer types a flattened column [0..1], whatever the collection's elements: the column is read as one
+        // that may be null)
+        if (rows == null) {
+            return new Rows(rel, List.of(col));
+        }
+        List<Col> columns = new ArrayList<>(rows.columns());
+        columns.add(col);
+        return new Rows(call("lateral", rows.vs(), lambda("r", rel)), columns);
+    }
+
+    /** No row, under a column of strings. */
+    private static ValueSpecification noRows(String column) {
+        return call("flatten", call("cast", SqlToPure.empty(), SqlToPure.typeArg("String")),
+                new ColSpec(column, null, null, null));
+    }
+
+    /** A row per place of a list, the element at that place as the column (null for a null element): the places
+     *  are a range the database flattens, the element picked by place. */
+    private static ValueSpecification places(int n, String column, Kind kind, List<Tx> elements) {
+        String place = SYNTHETIC + "place";
+        ValueSpecification placesRel = call("flatten", call("range", new CInteger(1L), new CInteger((long) n + 1)),
+                new ColSpec(place, null, null, null));
+        ValueSpecification pick = emptyOf(kind);
+        for (int k = n - 1; k >= 0; k--) {
+            Tx t = elements.get(k);
+            if (t.kind() == Kind.NULL) {
+                // a null element is the else (a CASE of two bare NULLs is text to Postgres)
+                continue;
+            }
+            pick = call("if", call("equal", new AppliedProperty(new Variable("p"), place), new CInteger(k + 1L)),
+                    thunk(SqlToPure.valueOf(t)), thunk(pick));
+        }
+        return call("select", call("extend", placesRel, new ColSpecArray(List.of(new ColSpec(column, lambda("p",
+                pick), null, null)))), new ColSpecArray(List.of(new ColSpec(column, null, null, null))));
+    }
+
+    /** No value, of a kind's Pure type. */
+    private static ValueSpecification emptyOf(Kind kind) {
+        String type = switch (kind) {
+            case INTEGER, WHOLE -> "Integer";
+            case FLOAT, INEXACT -> "Float";
+            case DECIMAL, NUMBER -> "Decimal";
+            case STRING, NULL -> "String";
+            case BOOLEAN -> "Boolean";
+            case DATE -> "StrictDate";
+            case DATETIME -> "DateTime";
+            case JSON -> "meta::pure::metamodel::variant::Variant";
+            case OTHER -> throw new IllegalStateException("no type for " + kind);
+        };
+        return call("cast", SqlToPure.empty(), SqlToPure.typeArg(type));
+    }
+
     // ------------------------------------------------------------------ the text of an expression
 
     /** An expression's text, as Neo4j names an unaliased item: the parser keeps the source's text for an item, and
@@ -1654,6 +3035,14 @@ public final class CypherToPure {
             case CypherAst.CountStar c -> "count(*)";
             case CypherAst.Case c -> "CASE";
             case CypherAst.Paren p -> "(" + text(p.inner()) + ")";
+            case CypherAst.Quantifier q -> q.name() + "(" + q.variable() + " IN " + text(q.list()) + " WHERE "
+                    + text(q.where()) + ")";
+            case CypherAst.ListComprehension lc -> "[" + lc.variable() + " IN " + text(lc.list())
+                    + (lc.where() == null ? "" : " WHERE " + text(lc.where()))
+                    + (lc.map() == null ? "" : " | " + text(lc.map())) + "]";
+            case CypherAst.Index ix -> text(ix.target()) + "[" + text(ix.index()) + "]";
+            case CypherAst.Slice sl -> text(sl.target()) + "[" + (sl.from() == null ? "" : text(sl.from())) + ".."
+                    + (sl.to() == null ? "" : text(sl.to())) + "]";
         };
     }
 

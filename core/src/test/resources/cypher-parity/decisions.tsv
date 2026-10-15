@@ -9,3 +9,4 @@ tck/expressions/comparison/Comparison1/[8] Equality and inequality of NaN #3	S60
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #1	S60	[["true", "true", "false", "false"]]	ERROR
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #2	S60	[["true", "true", "false", "false"]]	ERROR
 tck/expressions/comparison/Comparison2/[5] Comparing NaN #3	S60	[["false", "true", "false", "true"]]	ERROR
+tck/expressions/typeConversion/TypeConversion3/[1] `toFloat()` on mixed number types	S62	-	[["[3.4, 3]"]]

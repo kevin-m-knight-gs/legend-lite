@@ -1673,6 +1673,25 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   rows for the two lane tests (dated). `compiler/spec/CypherIslands` is public for the showcase dump (the Pure a person
   reads). The parser and translator fixes the first run named are in the study's §12.2. Next: the independent review
   of PR1, then the merge.
+- **Landed on the branch, 2026-10-15 (PR2, the study's §12.5):** the values slice — `protocol/cypher/` (the AST's
+  `Quantifier`, `ListComprehension`, `Index`, `Slice`, `Unwind`; the parser; the translator's value model, scopes,
+  `UNWIND`, the function table), `lite/values.yaml` (28 Neo4j-judged cases), the answers, the ledger (both lanes),
+  `testcases/CypherValues` (a list or map cell read as a value), `testcases/CypherParity` (the cells as returned; a
+  per-case outcome file beside the census). No guard pin moved; no file of another line touched. Next: the merge.
+- **Found by this line in other lines' code, 2026-10-15 (PR2; the database owner's unless said):** (a) lite's
+  `toVariant` of a Pure collection LITERAL of one element writes the scalar (`toVariant([$x])` is `30`), of mixed
+  kinds the elements' spellings (`toVariant([1, 'a', true])` is `["1","'a'","true"]`), of a one-element nested
+  literal the element; of a computed `[*]` collection an array always (the study's §12.5.5); (b) lite's `round` of a
+  Float lowers to DuckDB's half-to-even `round` (`round(2.5)` is 2) — whether Pure's `round` is half up or half even is
+  the lowering's to state; (c) the typer types a `flatten`ed column `[0..1]` whatever the collection's elements
+  (the typer's; harmless); (d) lite's Postgres lowering of `rem` inside an array lambda (`filter`/`map` over a
+  collection) types the divide-by-zero guard as text ("CASE types bigint and character varying cannot be matched"),
+  and `cast([], @Boolean)` renders a bare `NULL` (two in a row make a `CASE` text to Postgres); (e) lite's Postgres
+  lowering writes `toVariant(newMap([pair(...)]))` as a list of `{key, value}` pairs where DuckDB's writes the object;
+  (f) Postgres's jsonb spells a whole float as an integer inside a returned list (S62, decided per lane). The Cypher translator
+  works around each (a JSON constant for literal shapes, refusals by name for the rest; `floor(x + 0.5)`; the column
+  read as one that may be null; `%` and integer `/` refused inside a database-computed lambda; a null element falling
+  through to the one `ELSE`; a map of row values refused by name).
 - **Found by the independent review of PR1 in other lines' code, 2026-10-15** (the study's §12.4): (a) the execute
   path's render refuses a sort key that is not an output column (`lowering/Render.java`, "render over an ordered
   relation whose sort key is not an output column") where `generatePlan` renders it, for `#SQL{...}#` and plain Pure

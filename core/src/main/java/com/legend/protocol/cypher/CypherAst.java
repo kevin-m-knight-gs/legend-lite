@@ -25,7 +25,7 @@ public final class CypherAst {
 
     // ------------------------------------------------------------------ clauses
 
-    public sealed interface Clause permits Match, With, Return, Use, OtherClause {
+    public sealed interface Clause permits Match, With, Return, Unwind, Use, OtherClause {
         Pos pos();
     }
 
@@ -45,6 +45,10 @@ public final class CypherAst {
     }
 
     /** {@code USE graph}: the graph (a data space's path) the query runs over. */
+    /** {@code UNWIND list AS variable}. */
+    public record Unwind(Expr list, String variable, Pos pos) implements Clause {
+    }
+
     public record Use(String graph, Pos pos) implements Clause {
     }
 
@@ -93,7 +97,7 @@ public final class CypherAst {
     // ------------------------------------------------------------------ expressions
 
     public sealed interface Expr permits IntLit, FloatLit, StringLit, BoolLit, NullLit, Var, Prop, Param, ListLit,
-            MapLit, Unary, Binary, Call, CountStar, Case, Paren {
+            MapLit, Unary, Binary, Call, CountStar, Case, Paren, Quantifier, ListComprehension, Index, Slice {
         Pos pos();
     }
 
@@ -161,5 +165,23 @@ public final class CypherAst {
 
     /** {@code (expr)}: kept so that an item's text and a pattern's reading see the parentheses. */
     public record Paren(Expr inner, Pos pos) implements Expr {
+    }
+
+    /** {@code all(x IN list WHERE predicate)}, {@code any}, {@code none}, {@code single}: the name as written. */
+    public record Quantifier(String name, String variable, Expr list, Expr where, Pos pos) implements Expr {
+    }
+
+    /** {@code [x IN list WHERE predicate | expression]}: the WHERE and the projection each optional. */
+    public record ListComprehension(String variable, Expr list, @com.legend.base.Nullable Expr where,
+            @com.legend.base.Nullable Expr map, Pos pos) implements Expr {
+    }
+
+    /** {@code target[index]}: a list's element or a map's entry. */
+    public record Index(Expr target, Expr index, Pos pos) implements Expr {
+    }
+
+    /** {@code target[from..to]}: a list's slice, either bound optional. */
+    public record Slice(Expr target, @com.legend.base.Nullable Expr from, @com.legend.base.Nullable Expr to, Pos pos)
+            implements Expr {
     }
 }

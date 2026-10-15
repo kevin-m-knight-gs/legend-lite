@@ -1542,3 +1542,141 @@ judged by Neo4j):
 
 The ledger after the review, both lanes: 3,914 cases, PASS 190, FAIL 0, BUG 0, ERROR 0, REFUSED 2,724, BOTH_ERROR
 670, SKIP 330; the oracle's check clean.
+
+### 12.5 PR2, 2026-10-15: the values slice — lists, maps, the quantifiers, `UNWIND`, `WITH` first, the function table
+
+The plan's PR2, less what §12.5.4 names. The user's direction was "keep going until all the tests pass or as many
+that make sense to pass"; the refusal census (§12.3) set the order: the list predicates, the lists and maps, `WITH`
+as a first clause, `UNWIND`, the functions. Everything below is judged by Neo4j 2026.09.0 through the lanes (the
+TCK's scenarios and 28 lite cases in `lite/values.yaml`, snapped by the oracle); nothing was derived by hand.
+
+#### 12.5.1 The design: a value is a scalar, a known shape, or a collection the database computes
+
+`CypherToPure` reads every expression into a `Val`:
+
+| `Val` | what it is | who computes |
+|---|---|---|
+| `Scalar` | a `Tx` (the SQL island's three-valued value), with its literal when it is one of the query's | the database |
+| `ListVal`, `MapVal` | a list or map of KNOWN SHAPE: its elements each a `Val`; the shape read from the spelling | the shape here (the world map's compare-not-compute: rearranged, never computed), the elements the database |
+| `Coll` | a collection the database computes: a Pure `T[*]` of one kind holding no null (`range`, `split`, a comprehension with a `WHERE`, `tail`, `reverse`) | the database |
+
+Over a known shape, the translator unrolls: `size` is the count of the spelled elements, `keys` the spelled keys in
+order, `list[i]` and `list[a..b]` the spelled element or sub-list (negative from the end, clamped, null beyond
+either end), `map.key` and `map['key']` the entry (null when none), `+` the elements in a row, `=` the elements
+compared pairwise (lists of different sizes, maps of different keys, a list and a scalar are never equal), `IN` a
+disjunction of equalities (so nulls, nested lists and maps among the members follow Cypher's rules; a scalar among
+literal scalars of its kind stays Pure's `in`), the four quantifiers the predicate read once per element with the
+variable bound to it (`BoundScope`) and the results combined by Cypher's three-valued rules (`all` a conjunction,
+`any` a disjunction, `none` its negation, `single` the database's count of the elements that hold and of those
+unknown: true when exactly one holds and none is unknown, false when two or more hold or none does and none is
+unknown, else null — the TCK's Quantifier2 [10]), a comprehension without a `WHERE` the elements each mapped
+(the list stays known). Over a `Coll`, Pure's `filter`, `map`, `forAll`, `exists`, `in`, `size`, `first`, `last`,
+`drop`, `reverse`; `single` over one is refused by name.
+
+A list or map RETURNED is the Variant the database writes (C8): a shape of literals is one JSON constant
+(`fromJson`); a list holding values of the row is built by the database (`toVariant` of a Pure collection) within
+what a Pure collection carries — one kind, no null (lite's `toOne` asserts on an empty value), two or more elements
+(Pure reads `[x]` as `x`, and lite's `toVariant` of a one-element or mixed literal collection writes the scalar or the
+elements' spellings: reported, §12.5.5) — else refused by name; a map holding values of the row is refused by name
+(`newMap`'s Variant is a list of pairs on Postgres, §12.5.5). The judge reads the cell as the
+database returns it (DuckDB's `JsonNode`, Postgres's `PGobject`) into the TCK's values, so `[3.4, 3.0]` keeps its
+float.
+
+`WITH` as a first clause starts from one row, as `RETURN` without a pattern does. A list or map a `WITH` names is
+CARRIED as its shape when it reads nothing of the row (literals only: `Col.carried`), for the clauses after it to
+read; one holding a value of the row is refused by name (the leaves would need hidden columns). A `null` a `WITH`
+names stays null wherever it is read (`Col` of kind NULL).
+
+`UNWIND list AS x`: a `Coll` or a known list of scalars of one kind holding no null is Pure's `flatten`; one holding
+nulls, or of one element (no database unnests Pure's `[x]`), is read BY PLACE (a range the database flattens, the
+element picked by place); `null` and `[]` give no row; after a projection the rows in hand are each paired with the
+elements (Pure's `lateral`). The typer types a flattened column `[0..1]` whatever the elements, so the column is read
+as one that may be null. `UNWIND` after a `MATCH` is refused by name: the graph state has no row to pair until the
+join form (PR3) projects its bindings.
+
+The function table (`FUNCTIONS`; any other name is refused BY NAME before its arguments are read, so `labels(n)`
+names the function, not the node): `coalesce`, `size`/`char_length`/`character_length`, `keys`, `head`, `last`,
+`tail`, `reverse`, `isEmpty`, `range`, `split`, `toString`, `toInteger`, `toFloat`, `toBoolean`, `abs`, `sign`,
+`sqrt`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `ceil`, `floor`, `round`, `toLower`, `toUpper`,
+`trim`, `ltrim`, `rtrim`, `left`, `right`, `replace`, `substring`; `rand`, `randomUUID`, `timestamp` refused as values
+of the call, not of the data. Three facts of the reference, each verified on Neo4j 2026.09.0 by a lite case and
+spelled so the database computes them: `range(start, end, step)` takes `(end - start) / step` steps, the quotient
+truncated toward zero, so `range(0, 1, -123)` is `[0]` (the TCK's text says empty; the oracle's answer is the judge:
+Pure's `range` stops before its end, so the last value is spelled and the end moved one past it); `round` is Java's,
+half up toward positive infinity (`round(-2.5)` is `-2.0`; lite's `round` of a Float on DuckDB is half to even:
+spelled `floor(x + 0.5)`); `substring(s, start)` is 0-based where lite's `substring` is SQL's (legend-engine's own
+without its CORRECT_SQL_SUBSTRING_INDEXING flag: a 1-based start and a length, passed through), so the start is
+moved by one. Values of different types are never equal in Cypher (`1 = 'a'` is false, `1 < 'a'` null): a type is a
+fact of the spelling, so the comparison is known false here (null when either side may be null); PR1 refused it.
+
+#### 12.5.2 The ledger, before and after
+
+Both lanes, identical:
+
+| | cases | PASS | FAIL | BUG | ERROR | REFUSED | BOTH_ERROR | SKIP |
+|---|---|---|---|---|---|---|---|---|
+| after the review of PR1 (§12.4) | 3,914 | 190 | 0 | 0 | 0 | 2,724 | 670 | 330 |
+| PR2 | 3,942 | 1,037 | 0 | 0 | 0 | 1,904 | 671 | 330 |
+
+What the runs found on the way, each fixed with its test, each judged by Neo4j: a float's negation folded into
+the literal lost `-0.0` (kept as IEEE's `x * -1.0`, with the literal's spelling for JSON); the typer's `[0..1]` for a
+flattened column (`and`, `or`, `not`, a collection literal of the column: 25 ERROR); a null a `WITH` named read as
+a string column (Map1 [2], Map2 [3], Map3 [3], Null1 [5], Null2 [5]); a function's arguments read before its name
+(`labels(p)` refused as a node as a value); `toUpper` spelled in lower case to Pure; `range` with a step and
+`round` and `substring` as above.
+
+#### 12.5.3 The refusal census after PR2 (DuckDB; Postgres identical)
+
+| reason (folded) | cases | slice |
+|---|---|---|
+| the function X is not supported yet — of which the temporal constructors and truncations (`date`, `time`, `localtime`, `datetime`, `localdatetime`, their `.truncate`, `duration`, `duration.between/inSeconds/inMonths/inDays`) about 960, `rand` 31, `properties` 5 | 999 | temporal: a slice of its own (Cypher's Time, LocalTime, Duration and zoned DateTime have no Pure type; §12.5.4) |
+| a pattern that fans out | 316 | the join form |
+| the writes (`CREATE` 69, `SET` 53, `MERGE` 48, `REMOVE` 31, `DELETE` 29, `DETACH DELETE` 8) | 238 | later (the plan: after F1) |
+| UNWIND over a list of lists or maps (43), over values of different types (16) | 59 | a Variant column with a known shape (PR2b) |
+| a named path | 40 | PR4 |
+| a label naming no class (C4), a property no class declares | 40 | decided |
+| `collect` | 30 | PR2b (a `Coll` column the aggregate builds) |
+| OPTIONAL MATCH (29), UNION (8), a parameter (16), a node or relationship as a value (16), a pattern in an expression (14), a relationship pattern without a type (13), sharing no variable (7), several types (2), a label predicate (2), two hops of one type (1) | 108 | PR3 |
+| ordering booleans | 21 | lite's dialects order booleans; Neo4j's order is false before true: to verify (PR2b) |
+| `%` and integer `/` inside a comprehension or predicate the database computes (9; §12.5.5), a float literal beyond 1e15 or below 1e-15 (6), `RETURN *` (5), a variable-length relationship (5), comparing a Map with a Map after a WITH (5), `toInteger`/`toFloat` of a String (6), a comprehension whose condition may be null (3), lists of row values that may be null or of different types (4), a map of row values (1), the rest (9) | 53 | by name, each a small leg |
+
+SKIP, unchanged: 330 (the harness's own, §12.3).
+
+#### 12.5.4 What PR2 leaves to a next slice, by name
+
+`collect` (an aggregate building a `Coll` column, then `all(x IN eq WHERE x)` over it: the TCK's Precedence1 [14] to
+[28]); `UNWIND` after a `MATCH` and over lists of lists or maps (a Variant column with a known shape: the elements'
+kinds agree in every case of the corpus); lists and maps holding values of the row that may be null (the inferred
+models type every property `[0..1]`, so `[p.age, p.age * 2]` is refused today: a hidden column per leaf, or
+`toVariant` of a `[0..1]`); `toInteger`/`toFloat` of a string (null for text that is not a number, where Pure's
+`parseInteger` raises); the temporal values (about 960 TCK cases: `date`, `time`, `datetime`, `duration` and their
+arithmetic — Pure has StrictDate and DateTime only; a design question of its own: which Cypher temporal types map to
+which Pure types, and what the lanes can judge).
+
+#### 12.5.5 Found in other lines' code (IN_FLIGHT)
+
+- lite's `toVariant` of a Pure collection LITERAL of one element writes the scalar (`toVariant([$x])` is `30`, not
+  `[30]`: Pure's `[x]` is `x`), of mixed kinds the elements' spellings (`toVariant([1, 'a', true])` is
+  `["1","'a'","true"]`), and of a one-element nested literal the element (`[[1,2],[3]]` as `[[1,2],3]`); of a
+  computed `[*]` collection (`range`, `filter`) an array always. The translator writes a JSON constant for literal
+  shapes and refuses the other two by name (the database owner's).
+- lite's `round` of a Float lowers to DuckDB's `round`, half to even (`round(2.5)` is 2, `round(-2.5)` -2); Pure's
+  documented rounding is the lowering's to decide (the database owner's); the translator spells Neo4j's own.
+- the typer types a `flatten`ed column `[0..1]` whatever the collection's element multiplicity (the typer's; harmless:
+  the translator reads the column as one that may be null).
+- lite's Postgres lowering of `rem` inside an array lambda (a `filter` or `map` over a collection) types the
+  divide-by-zero guard as text (`CASE WHEN 2 = 0 THEN CAST(... AS VARCHAR) ELSE MOD("x", 2) END`: "CASE types bigint
+  and character varying cannot be matched"), where the same `rem` in a projection is fine; DuckDB runs both. The
+  translator refuses `%` and integer `/` inside a comprehension or predicate the database computes, by name, on
+  both lanes (the database owner's; the TCK's Quantifier5 to Quantifier8 `x % 2 = 0` rows).
+- a `CASE` whose two last branches are bare `NULL`s is text to Postgres ("CASE types text and boolean cannot be
+  matched"): lite's `cast([], @Boolean)` renders a bare `NULL` there. The translator's `UNWIND` by place lets a null
+  element fall through to the one `ELSE`.
+- lite's Postgres lowering writes `toVariant(newMap([pair('name', ...), ...]))` as a list of `{key, value}` pairs
+  (`[{key: 'name', value: 'Alice'}, ...]`) where DuckDB's writes the object (`{name: 'Alice', ...}`): a map built
+  from values of the row is refused by name on both lanes (a literal map is a JSON constant and fine); the lite case
+  `returned_map_over_rows_is_refused` marks it (the database owner's).
+- on Postgres a returned list or map is jsonb, which spells a whole float as an integer (`[3.4, 3.0]` reads back as
+  `[3.4, 3]`): S62, one TCK case decided per lane (`decisions.tsv`); DuckDB's JSON keeps `3.0`.
+
+PR2 kept S60 (the NaN comparisons: no `isNaN` native) and S61 (64-bit overflow) as they are, the register says why.
