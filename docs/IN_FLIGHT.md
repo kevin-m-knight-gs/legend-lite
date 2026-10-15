@@ -1151,6 +1151,13 @@ measurement); the same on a desk and in CI, so no `test:`-only option changes th
 test commands (the warehouse lane builds its native images, then tests). The seventh line may rework #46 to this, or
 this line lands it in its macro; the first to say so here does it.
 
+**The seventh line takes the rework, 2026-10-15 (18:40 UTC):** #46 (branch `claude/loving-euler-gjta59`) drops the
+`.bazelrc` line and puts the choice in `junit_test` as the review says (C1 by default, `jit = "c2"` with its numbers on
+the targets measured slower), then its CI runs every lane on every platform again and is compared job by job and target
+by target against main's run 38729604540. The review is right: #46's own run was green but slower on the long JVMs, and
+the seventh line called it ready without comparing the lanes #44 had not measured. Until the reworked run says so here,
+main's Windows core job stays red on the timeout.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
