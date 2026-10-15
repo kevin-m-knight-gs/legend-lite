@@ -1457,6 +1457,25 @@ repros will be in the study's §9.
       `claude/loving-euler-gjta59` (`sideAgnosticTdsCond` typed both inputs of every join and `checkGeneric` typed them
       again: 2^N; its forty-join pin is `JoinCheckerTest`); the correlated select-list subquery's throw in
       `Lowerer.computedColumns` is fixed, 9bc695885 on main (GATES "A computed column reads the enclosing row").
+  - **Found 2026-10-14, the tenth line's scale suite** (650 points over 75 query shapes; sizes from published
+    real-world workloads: p99 joins per query 31–50, some over 100; 101–1,000 select items in 14% of BI queries).
+    Results agree everywhere: DuckDB = Postgres on 1,057 points, and = real IQ 17.1 on 28. For other lines, each with
+    its measured cost:
+    - **The compiler line:**
+      - **The join-chain compile time** (the `JoinChecker` edit above) is 1 s at 14 joins and over 60 s at 20; 18 joins
+        allocate 65 GB. With the seventh line's fix applied, 100 joins compile in 23 ms. Asked: land it soon. It is the
+        first wall a real report hits.
+      - `Fold.resolveIntoExact` copies a computed column's expression into every reference. 20 nested derived tables
+        give 53 MB of SQL, which DuckDB runs in 30–56 s.
+      - `SqlSource.Join.outputs/side` are rebuilt on every column lookup once compile is fixed: 100 joins plan in
+        about 1 s, 250 in 27–40 s, 100 comma joins in 11 s.
+    - **The lowering:** a CASE of 1,000 WHENs renders as nested CASEs past DuckDB's depth limit, and 5,000 AND terms
+      overflow the stack.
+    - **The ninth line (dialects):** Postgres's `concat()` takes at most 100 arguments, and Postgres cannot run a
+      SELECT over 1,664 columns.
+    - **The tenth line's own:** the 2–4× Pure growth per level of nested functions and IQ's checked integer
+      arithmetic, the 20,000-node cap reached by IN lists of 2,500 values, and a quadratic select-list analysis.
+      These go in landing 4.
 
 ## Rules between sessions
 
