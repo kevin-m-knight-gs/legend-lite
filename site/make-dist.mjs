@@ -5,7 +5,8 @@
 // three copies of the same files at three URLs: three times the site, and three downloads for a browser that opens all
 // three apps. So here each app keeps its own small files (its fonts, its stylesheets) and the WebAssembly is copied
 // once, to /vendor/; each app's config.json says where it is ("vendor": "../../vendor/" from <app>/demo/), as does
-// DataCube's early hint for the compiler's module (its index.html).
+// DataCube's early hint for the compiler's module (its index.html). And it is a static site: what needs a server or is
+// a test's (LEFT_OUT) stays in each app's own site, not here.
 //
 //   Usage: node make-dist.mjs <dist-dir> <sites-dir>   (<sites-dir>: datacube/, query/ and studio/, each as built)
 
@@ -34,6 +35,22 @@ const SOURCE = 'datacube';
 /** Where an app's page (<app>/demo/) finds the shared folder. */
 const SHARED_FROM_PAGE = '../../vendor/';
 
+/**
+ * What a static host has no use for (the user, 2026-10-15: the static site slimmed, no Python and no tests): DataCube's
+ * pages that need a server -- the engine page (Python's engine serves it, from DataCube's own dist) and the remote
+ * harness's -- its stress harness and the models only its harnesses read, a notebook's cube (the Python wheel carries its
+ * own), and esbuild's records of the bundles (the budget tests read them). Each app's own site keeps them all. Every
+ * pattern matches a file, or the layout changed and this says so: nothing is shipped or left out without a word.
+ */
+const LEFT_OUT = [
+  /^datacube\/demo\/[^/]*-meta\.json$/,
+  /^datacube\/demo\/(engine\.html|bundle-engine\.js|chunks-bundle-engine\/.*)$/,
+  /^datacube\/demo\/(remote\.html|remote-bundle\.js|chunks-remote-bundle\/.*)$/,
+  /^datacube\/demo\/(stress\.html|stress\.js|chunks-stress\/.*|torture\.pure|trades-h2\.pure)$/,
+  /^datacube\/demo\/(widget[^/]*|widget-chunks\/.*)$/,
+];
+const leftOut = new Set();
+
 // each config an app reads, and DataCube's early hint: pointed at the shared folder
 const rewritten = new Set([
   'datacube/demo/config.json', 'datacube/demo/index.html',
@@ -43,6 +60,11 @@ const rewritten = new Set([
 
 let shared = 0;
 for (const file of files) {
+  const unused = LEFT_OUT.find((p) => p.test(file));
+  if (unused) {
+    leftOut.add(unused);
+    continue;
+  }
   const app = APPS.find((a) => file.startsWith(`${a}/`));
   const vendor = app !== undefined ? file.slice(`${app}/demo/vendor/`.length) : '';
   const inVendor = app !== undefined && file.startsWith(`${app}/demo/vendor/`);
@@ -67,6 +89,8 @@ for (const file of files) {
   await writeFile(to, out);
 }
 if (shared === 0) throw new Error(`no shared WebAssembly found under ${SOURCE}/demo/vendor/`);
+const unmatched = LEFT_OUT.filter((p) => !leftOut.has(p));
+if (unmatched.length > 0) throw new Error(`nothing left out matched ${unmatched.join(', ')}: has a site's layout changed?`);
 console.log(`dist/: the apps, and ${shared} shared files in vendor/`);
 
 /** A config with every vendor folder it names -- its own, its planner's, its model home's -- the shared one. */
