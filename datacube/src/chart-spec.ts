@@ -277,11 +277,33 @@ export const LAYER_STATS = Object.keys(STAT_WORDS) as LayerStat[];
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const known = (words: Readonly<Record<string, true>>, v: unknown): boolean => typeof v === 'string' && Object.hasOwn(words, v);
 
+// The keys a saved spec's objects may have, each exhaustive by construction (a Record over the type's own keys): a key
+// it has no place for -- a newer DataCube's, or one misspelt -- is refused by name, never ignored
+const SPEC_KEYS: Readonly<Record<keyof ChartSpec, true>> = {
+  version: true, mark: true, x: true, grain: true, bins: true, y: true, split: true, size: true, label: true,
+  tooltip: true, facet: true, layers: true, calcs: true, drill: true, options: true, frozen: true,
+};
+const MEASURE_KEYS: Readonly<Record<keyof ChartMeasure, true>> = { column: true, fn: true, mark: true, axis: true, showAs: true };
+const FACET_KEYS: Readonly<Record<keyof ChartFacet, true>> = { row: true, column: true };
+const OPTION_KEYS: Readonly<Record<keyof ChartOptions, true>> = {
+  orientation: true, stack: true, sort: true, limit: true, labels: true, legend: true, target: true, better: true,
+  smooth: true, step: true, logAxis: true, breaks: true, labelPosition: true, labelRotate: true, zoom: true, brush: true,
+  decal: true, dim: true, toolbox: true, half: true, ring: true,
+};
+
+/** The first key of `o` that `keys` has no place for, refused by name; or null. */
+function unknownKey(o: Readonly<Record<string, unknown>>, keys: Readonly<Record<string, true>>, what: string): string | null {
+  const extra = Object.keys(o).find((k) => !Object.hasOwn(keys, k));
+  return extra === undefined ? null : `there is no ${JSON.stringify(extra)} in ${what} (it says ${Object.keys(keys).join(', ')})`;
+}
+
 /** What is wrong with a measure as saved, or null. */
 function measureProblem(m: unknown, what: string): string | null {
   if (!isRecord(m) || typeof m['column'] !== 'string' || !known(AGGREGATE_WORDS, m['fn'])) {
     return `${what} is not a column and an aggregate`;
   }
+  const extra = unknownKey(m, MEASURE_KEYS, what);
+  if (extra) return extra;
   if (m['mark'] !== undefined && !known(MEASURE_MARK_WORDS, m['mark'])) return `${what}'s mark ${JSON.stringify(m['mark'])} is not bar, line or area`;
   if (m['axis'] !== undefined && !known(AXIS_WORDS, m['axis'])) return `${what}'s axis ${JSON.stringify(m['axis'])} is not left or right`;
   const showAs = m['showAs'];
@@ -304,6 +326,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (!marks.includes(spec['mark'] as string)) return `its kind ${JSON.stringify(spec['mark'] ?? null)} is not one this DataCube draws`;
   if (!Array.isArray(spec['y'])) return 'it plots nothing (no y)';
   if (!isRecord(spec['options'])) return 'it has no options';
+  const extra = unknownKey(spec, SPEC_KEYS, 'a chart') ?? unknownKey(spec['options'], OPTION_KEYS, 'its options');
+  if (extra) return extra;
   for (const [i, m] of spec['y'].entries()) {
     const p = measureProblem(m, `measure ${i + 1}`);
     if (p) return p;
@@ -363,6 +387,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (facet !== undefined && (!isRecord(facet) || (typeof facet['row'] !== 'string' && typeof facet['column'] !== 'string'))) {
     return 'its facet names neither a row nor a column';
   }
+  const facetExtra = isRecord(facet) ? unknownKey(facet, FACET_KEYS, 'its facet') : null;
+  if (facetExtra) return facetExtra;
   const layers = spec['layers'];
   if (layers !== undefined) {
     if (!Array.isArray(layers)) return 'its layers are not a list';

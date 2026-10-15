@@ -1257,6 +1257,78 @@
     "options": {},
     "x": "day"
    }
+  },
+  {
+   "case": "a measure with a key a chart has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum",
+      "colour": "red"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "a facet with a key a chart has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "facet": {
+     "column": "channel",
+     "rows": "day"
+    }
+   }
+  },
+  {
+   "case": "an option a chart has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "stak": "stacked"
+    },
+    "x": "region"
+   }
+  },
+  {
+   "case": "a slot a chart has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "colour": "channel"
+   }
   }
  ]
 }
