@@ -1454,7 +1454,14 @@ public final class IqParity {
                     || f.args().get(0) instanceof SqlAst.NumericLit || f.args().get(0) instanceof SqlAst.StringLit
                     || f.args().get(0) instanceof SqlAst.NullLit);
             for (SqlAst.Expr g : s.groupBy()) {
-                key |= listed != null && listed.equals(resolve(g, s, sources, true));
+                String grouped = resolve(g, s, sources, true);
+                key |= listed != null && listed.equals(grouped);
+                // IQ island, 2026-10-15: grouped by a unique column of its one source, each group is one row
+                if (sources.size() == 1 && grouped != null) {
+                    for (String u : sources.get(0).unique()) {
+                        key |= grouped.equals("0." + u);
+                    }
+                }
             }
             if (!key) {
                 out.add("the LIST at line " + f.pos().line() + ", column " + f.pos().column() + " has no ORDER BY");

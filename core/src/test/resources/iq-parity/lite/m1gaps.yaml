@@ -644,10 +644,16 @@ tests:
     nondeterministic: "tests the refusal of a LIST(DISTINCT) of no GROUP BY key without ORDER BY"
   - id: list_of_a_group_key_unordered
     sql: "SELECT k, LIST(k) FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(g.k)", "varchar", 0]], "rows": [[null, null], ["1", "1,1,1"], ["2", "2,2"], ["3", "3,3"], ["4", "4,4"]]}'
   - id: list_distinct_of_a_group_key
     sql: "SELECT k, LIST(DISTINCT k) FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(distinct g.k)", "varchar", 0]], "rows": [[null, null], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]]}'
   - id: list_of_a_group_key_with_a_delimiter
     sql: "SELECT k, LIST(k, '/') FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(g.k,''/'')", "varchar", 0]], "rows": [[null, null], ["1", "1/1/1"], ["2", "2/2"], ["3", "3/3"], ["4", "4/4"]]}'
   - id: list_distinct_descending_is_refused
     sql: "SELECT k, LIST(DISTINCT v ORDER BY v DESC) FROM g GROUP BY k ORDER BY 1"
   - id: list_distinct_ungrouped_is_refused
@@ -658,8 +664,12 @@ tests:
     sql: "SELECT k, LIST(DISTINCT v ORDER BY w) FROM g GROUP BY k ORDER BY 1"
   - id: list_of_an_integer_group_key
     sql: "SELECT j, LIST(j) FROM g GROUP BY j ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["j", "integer", 0], ["LIST(g.j)", "varchar", 0]], "rows": [[null, null], ["10", "10,10,10"], ["20", "20,20"], ["30", "30,30"], ["40", "40,40"]]}'
   - id: list_of_one_of_two_group_keys
     sql: "SELECT k, j, LIST(j) FROM g GROUP BY k, j ORDER BY 1, 2"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["j", "integer", 0], ["LIST(g.j)", "varchar", 0]], "rows": [[null, null, null], [null, "10", "10"], ["1", "10", "10,10"], ["1", "20", "20"], ["2", null, null], ["2", "20", "20"], ["3", "30", "30,30"], ["4", "40", "40,40"]]}'
   - id: list_distinct_of_strings_is_refused
     sql: "SELECT k, LIST(DISTINCT s ORDER BY s) FROM g GROUP BY k ORDER BY 1"
   - id: list_distinct_filtered_is_refused
@@ -667,6 +677,8 @@ tests:
     nondeterministic: "tests the refusal of a LIST(DISTINCT) of no GROUP BY key without ORDER BY"
   - id: list_of_a_group_key_ordered_by_another_column
     sql: "SELECT k, LIST(k ORDER BY v) FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["LIST(g.k order by g.v asc)", "varchar", 0]], "rows": [[null, null], ["1", "1,1,1"], ["2", "2,2"], ["3", "3,3"], ["4", "4,4"]]}'
   - id: list_distinct_of_a_constant_is_refused
     sql: "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1"
   # ---- 7. a checked SUM read for every group: a CASE's first test, a NULL-reading function's first argument, NOT

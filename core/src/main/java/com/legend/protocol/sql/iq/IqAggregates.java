@@ -1568,10 +1568,8 @@ final class IqAggregates {
                         + " not supported (IQ's error -156 where the group holds two values)", d.pos());
             }
         }
-        if (f.orderBy().isEmpty() && !keyed) {
-            throw SqlTranslationException.unsupported("LIST without ORDER BY is not supported: the order of its values"
-                    + " is the plan's; order it by its value", f.pos());
-        }
+        // IQ island, 2026-10-15 (the user's rule: any answer IQ could give is right): without ORDER BY the order of a
+        // LIST's values is the plan's, IQ's as the database's -- listed in the database's order
         if (keyed) {
             // IQ island, 2026-10-14 (review 7's M2 and m1, measured on SQL Anywhere 17): a keyed LIST's ORDER BY orders
             // one value, but IQ reads it -- its errors (an aggregate inside is -156), and its keys evaluated for each
@@ -1597,14 +1595,14 @@ final class IqAggregates {
                         + " the ORDER BY's order", f.pos());
             }
         }
-        SqlAst.SortItem order = keyed ? null : f.orderBy().get(0);
+        SqlAst.SortItem order = keyed || f.orderBy().isEmpty() ? null : f.orderBy().get(0);
         String column = value instanceof SqlAst.ColumnRef ref ? at.inputColumn(ref) : null;
         if (order != null && (f.orderBy().size() != 1 || column == null || !at.same(order.expr(), value))) {
             throw SqlTranslationException.unsupported("LIST ordered by anything but its value, a column, is not"
                     + " supported yet: the order of tied rows is the plan's", order.pos());
         }
         boolean strings = x.kind() == Kind.STRING;
-        if (strings && !dialect.keys().own(value)) {
+        if (strings && order != null && !dialect.keys().own(value)) {
             // IQ island, 2026-10-14 (the merge): the order of values of one collation key is the plan's
             throw SqlTranslationException.unsupported("LIST of strings is supported only where every value is its own"
                     + " collation key (a derived table's RTRIM, TRIM or constant" + (dialect.settings().caseSensitive()
@@ -1618,10 +1616,12 @@ final class IqAggregates {
         }
         String raw = at.fresh();
         // a string as itself, '' skipped as a NULL is (measured: LIST of '', NULL is ''; a blank is kept); an integer
-        // by its digits
-        Tx digits = SqlToPure.strict(Kind.STRING, List.of(x), v -> strings ? IqDialect.ifThen(SqlToPure.call("equal",
-                v.get(0), new CString("")), SqlToPure.nullOf(Kind.STRING).vs(), v.get(0))
-                : SqlToPure.call("toString", v.get(0)));
+        // by its digits. IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine each string without its
+        // trailing spaces ('x  ' is listed 'x', 'a \t' as it is), '' kept as an item, and no values at all NULL
+        boolean iqEngine = dialect.engine() == IqDialect.Engine.IQ;
+        Tx digits = SqlToPure.strict(Kind.STRING, List.of(x), v -> !strings ? SqlToPure.call("toString", v.get(0))
+                : iqEngine ? IqFunctions.trailingSpacesDropped(v.get(0)) : IqDialect.ifThen(SqlToPure.call("equal",
+                v.get(0), new CString("")), SqlToPure.nullOf(Kind.STRING).vs(), v.get(0)));
         if (f.distinct()) {
             // a GROUP BY key's one value (an integer: of strings one key may hold several spellings), as text
             if (strings) {
@@ -1631,10 +1631,11 @@ final class IqAggregates {
             ColSpec one = new ColSpec(raw, at.overRow(SqlToPure.valueOf(x)), at.overGroup(SqlToPure.call("max",
                     at.values())), null);
             ValueSpecification kept = at.column(raw);
-            ValueSpecification text = IqDialect.ifThen(SqlToPure.call("isEmpty", kept), new CString(""),
-                    SqlToPure.call("toString", SqlToPure.call("toOne", kept)));
+            ValueSpecification text = IqDialect.ifThen(SqlToPure.call("isEmpty", kept), iqEngine
+                    ? SqlToPure.nullOf(Kind.STRING).vs() : new CString(""), SqlToPure.call("toString",
+                    SqlToPure.call("toOne", kept)));
             return new SqlToPure.Aggregation(List.of(one), new ColSpec(at.name(), at.overRow(text), null, null),
-                    Kind.STRING, false, new IqType("LONG VARCHAR"));
+                    Kind.STRING, iqEngine, new IqType("LONG VARCHAR"));
         }
         ColSpec spec = order == null ? new ColSpec(raw, at.overGroup(SqlToPure.call("joinStrings", at.values(),
                 at.overRow(SqlToPure.valueOf(digits)), new CString(delimiter))), null, null)
@@ -1643,6 +1644,10 @@ final class IqAggregates {
                         ? "descending" : "ascending", new ColSpec(java.util.Objects.requireNonNull(column), null, null,
                         null)))), null, null);
         ValueSpecification listed = at.column(raw);
+        if (iqEngine) {
+            return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(listed), null, null),
+                    Kind.STRING, true, new IqType("LONG VARCHAR"));
+        }
         ValueSpecification finish = IqDialect.ifThen(SqlToPure.call("isEmpty", listed), new CString(""),
                 SqlToPure.call("toOne", listed));
         return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(finish), null, null),

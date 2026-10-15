@@ -277,6 +277,8 @@ tests:
     sql: "SELECT k, LIST(v ORDER BY v) FROM g WHERE k IS NULL OR k = 2 GROUP BY k ORDER BY k"
   - id: list_of_no_rows_is_empty
     sql: "SELECT LIST(v ORDER BY v) FROM g WHERE id > 100"
+    decision: D-A3
+    expect: '{"columns": [["LIST(g.v order by g.v asc)", "varchar", 0]], "rows": [[null]]}'
   - id: list_of_bigints
     sql: "SELECT LIST(w ORDER BY w) FROM g"
   - id: list_of_bits
@@ -294,9 +296,20 @@ tests:
     engine: sa
   - id: two_lists_ordered_differently_under_the_iq_engine_are_refused
     sql: "SELECT LIST(id ORDER BY id), LIST(k ORDER BY k) FROM g"
-  - id: list_without_order_by_is_refused
-    sql: "SELECT LIST(id) FROM g"
-    nondeterministic: "tests the refusal of a LIST without ORDER BY"
+  # LIST without ORDER BY (IQ island, 2026-10-15): its values in the plan's order, IQ's as the database's; grouped by a
+  # unique column, each LIST holds one value
+  - id: list_without_order_by
+    sql: "SELECT id, LIST(sm) AS l FROM t GROUP BY id ORDER BY id"
+    decision: D-A3
+    expect: '{"columns": [["id", "integer", 0], ["l", "varchar", 0]], "rows": [["1", "32767"], ["2", "-32768"], ["3", "0"], ["4", "1"], ["5", null], ["6", "100"], ["7", "-1"]]}'
+  - id: list_of_strings_without_order_by
+    sql: "SELECT id, LIST(vc) AS l FROM t GROUP BY id ORDER BY id"
+    decision: D-A3
+    expect: '{"columns": [["id", "integer", 0], ["l", "varchar", 0]], "rows": [["1", "Hello"], ["2", "hello"], ["3", "Résumé"], ["4", "ÉCOLE"], ["5", null], ["6", "x"], ["7", "apple"]]}'
+  - id: list_with_a_delimiter_without_order_by
+    sql: "SELECT id, LIST(it, '; ') AS l FROM t GROUP BY id ORDER BY id"
+    decision: D-A3
+    expect: '{"columns": [["id", "integer", 0], ["l", "varchar", 0]], "rows": [["1", "2147483647"], ["2", "-2147483648"], ["3", "0"], ["4", "-1"], ["5", null], ["6", "100"], ["7", "7"]]}'
   - id: list_ordered_by_another_column_is_refused
     sql: "SELECT LIST(k ORDER BY id) FROM g"
   - id: list_of_strings_is_refused

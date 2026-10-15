@@ -348,9 +348,16 @@ tests:
   - id: list_of_derived_rtrimmed_strings
     sql: "SELECT LIST(x ORDER BY x) AS l FROM (SELECT RTRIM(s) AS x FROM g) d"
     profile: iq16-default
+    decision: D-A3
+    expect: '{"columns": [["l", "varchar", 0]], "rows": [[",A,a,a,a,b,b,c,e"]]}'
   - id: list_of_derived_lower_rtrimmed_strings_descending
     sql: "SELECT LIST(x, '|' ORDER BY x DESC) AS l FROM (SELECT LOWER(RTRIM(s)) AS x FROM g) d"
-    profile: iq16-default, sqla17-default
+    profile: iq16-default
+    decision: D-A3
+    expect: '{"columns": [["l", "varchar", 0]], "rows": [["e|c|b|b|a|a|a|a|"]]}'
+  - id: list_of_derived_lower_rtrimmed_strings_descending_in_a_sql_anywhere_database
+    sql: "SELECT LIST(x, '|' ORDER BY x DESC) AS l FROM (SELECT LOWER(RTRIM(s)) AS x FROM g) d"
+    profile: sqla17-default
   - id: list_of_derived_strings_per_group
     sql: "SELECT k, LIST(x, '' ORDER BY x) AS l FROM (SELECT k, LOWER(RTRIM(s)) AS x FROM g) d GROUP BY k"
     profile: iq16-default, sqla17-default

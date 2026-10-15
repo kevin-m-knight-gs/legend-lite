@@ -16,8 +16,6 @@ cause	names	the name IQ's engine gives an unaliased expression (its spelling, it
 cause	intersect-except	INTERSECT and EXCEPT over IQ tables are IQ's -1001030, which lite answers (WP2 item 4)
 cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a non-constant expression in an IN list, a scalar subquery outside the top-level select list, ORDER BY a negative constant (WP2 item 4)
 cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL (-131), which lite reads (WP2 item 7)
-cause	list-null	LIST over no values is NULL under IQ's engine, where lite answers '' as SQL Anywhere does (WP2 item 6)
-cause	list-empty-items	LIST keeps '' items under IQ's engine, where lite drops them as SQL Anywhere does (WP2 item 6)
 cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
 cause	non-string-input	a non-string input to a string operation is an IQ error under its engine (-1001013, -1009145): LIKE over a number or a date, LEFT/SUBSTRING/UPPER of a date or a number, HOUR/MINUTE/SECOND of a DATE, LOCATE with a BIGINT start, an untyped NULL in arithmetic; lite answers (WP2 item 5)
 cause	cast-long-varchar	CAST to LONG VARCHAR or TEXT over IQ tables is IQ's -1001006, which lite answers (WP2 item 5)
@@ -101,19 +99,6 @@ run	lite/m0/top_expression_negative@iq17-default	top-expr	duckdb,postgres
 run	lite/m0/top_expression_of_zero@iq17-default	top-expr	duckdb,postgres
 run	lite/m0/top_expression_overflow@iq17-default	top-expr	duckdb,postgres
 run	lite/m0/top_expression_precedence@iq17-default	top-expr	duckdb,postgres
-run	lite/m1c/list_of_no_rows_is_empty@iq17-default	list-null	duckdb,postgres
-run	lite/m1gaps/list_distinct_of_a_group_key@iq17-default	list-null	duckdb,postgres
-run	lite/m1gaps/list_of_a_group_key_ordered_by_another_column@iq17-default	list-null	duckdb,postgres
-run	lite/m1gaps/list_of_a_group_key_unordered@iq17-default	list-null	duckdb,postgres
-run	lite/m1gaps/list_of_a_group_key_with_a_delimiter@iq17-default	list-null	duckdb,postgres
-run	lite/m1gaps/list_of_an_integer_group_key@iq17-default	list-null	duckdb,postgres
-run	lite/m1gaps/list_of_one_of_two_group_keys@iq17-default	list-null	duckdb,postgres
-run	lite/review7/m2_list_of_a_key_ordered_by_a_date@iq17-default	list-null	duckdb,postgres
-run	lite/review7/m2_list_of_a_key_ordered_by_a_string@iq17-default	list-null	duckdb,postgres
-run	lite/review7/minor1_list_distinct_of_a_key_ordered_in_an_unordered_statement@iq17-default	list-null	duckdb,postgres
-run	lite/showcase/showcase_inner_aggregate@iq17-default	list-null	duckdb,postgres
-run	lite/collation/list_of_derived_lower_rtrimmed_strings_descending@iq17-default	list-empty-items	duckdb,postgres
-run	lite/collation/list_of_derived_rtrimmed_strings@iq17-default	list-empty-items	duckdb,postgres
 run	lite/m1c/two_lists_ordered_differently@iq17-default	D-A1	duckdb,postgres
 run	lite/m0/integer_plus_null@iq17-default	non-string-input	duckdb,postgres
 run	lite/m1a/double_and_null@iq17-default	non-string-input	duckdb,postgres

@@ -870,7 +870,8 @@ class IqToPureTest {
                 .kind());
         // LIST of an integer column ordered by itself; any other order is the plan's
         assertTrue(pure("SELECT LIST(id ORDER BY id) AS l FROM " + T).contains("joinStrings"));
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT LIST(id) AS l FROM " + T).kind());
+        // IQ island, 2026-10-15: without ORDER BY a LIST's values are in the plan's order, IQ's as the database's
+        assertTrue(pure("SELECT LIST(id) AS l FROM " + T).contains("joinStrings"));
         assertTrue(refusal("SELECT LIST(row_num ORDER BY row_num), LIST(row_num ORDER BY row_num DESC) FROM"
                 + " sa_rowgenerator(1, 3)").getMessage().contains("-904"));
         assertTrue(refusal("SELECT LIST(id ORDER BY id), LIST(sm ORDER BY sm) FROM " + T).getMessage().contains(

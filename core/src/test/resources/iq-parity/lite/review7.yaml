@@ -119,8 +119,12 @@ tests:
     sql: "SELECT k, LIST(k ORDER BY v + 1) AS l FROM g GROUP BY k ORDER BY 1"
   - id: m2_list_of_a_key_ordered_by_a_string
     sql: "SELECT k, LIST(k ORDER BY s) AS l FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["l", "varchar", 0]], "rows": [[null, null], ["1", "1,1,1"], ["2", "2,2"], ["3", "3,3"], ["4", "4,4"]]}'
   - id: m2_list_of_a_key_ordered_by_a_date
     sql: "SELECT k, LIST(k ORDER BY dt) AS l FROM g GROUP BY k ORDER BY 1"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["l", "varchar", 0]], "rows": [[null, null], ["1", "1,1,1"], ["2", "2,2"], ["3", "3,3"], ["4", "4,4"]]}'
   # ---- minor 1: LIST(DISTINCT key ORDER BY ...) where the statement has an ORDER BY
   - id: minor1_list_distinct_of_a_key_ordered_in_an_ordered_statement_is_refused
     sql: "SELECT k, LIST(DISTINCT k ORDER BY k) AS l FROM g GROUP BY k ORDER BY 1"
@@ -128,6 +132,8 @@ tests:
     sql: "SELECT * FROM (SELECT k, LIST(DISTINCT k ORDER BY k) AS l FROM g GROUP BY k) d ORDER BY 1"
   - id: minor1_list_distinct_of_a_key_ordered_in_an_unordered_statement
     sql: "SELECT k, LIST(DISTINCT k ORDER BY k) AS l FROM g GROUP BY k"
+    decision: D-A3
+    expect: '{"columns": [["k", "smallint", 0], ["l", "varchar", 0]], "rows": [[null, null], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]]}'
   # ---- minor 2: IQ's codes -831, -854 (before -149) and -153
   - id: minor2_two_aliases_of_one_name_each_reading_it_are_iq_error_831
     sql: "SELECT id AS ID, id + 1 AS Id FROM t"
