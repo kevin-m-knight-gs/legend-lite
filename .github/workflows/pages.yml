@@ -4,7 +4,10 @@
 #
 # WHAT IS PUBLISHED: main as of its last green gate run. The deploy follows the gates (gate.yml), not a push: a push
 # to main runs them, and so does every night's run, which is what publishes a PR merged with [skip ci] in its message
-# (its gates already ran on the branch). A run by hand (workflow_dispatch) publishes the ref it is given.
+# (its gates already ran on the branch) -- or a run by hand, sooner. A gate run re-run to green publishes too (its
+# completion is a run's like any other). A run by hand (workflow_dispatch) is run on main and publishes main as it is
+# then: the github-pages environment deploys the default branch alone. Pages' source is GitHub Actions (Settings >
+# Pages; set by the repository's owner, 2026-10-15).
 #
 # The build is the product job's (gates-run.yml): the same flags (tools/ci/lane-flags.sh), downloads cache and remote
 # cache, so //site:dist is mostly fetched from what that job already built rather than built again. Pages serves the
@@ -53,7 +56,8 @@ jobs:
           set -euo pipefail
           # LLVM's prebuilt ld.lld links libxml2.so.2: the C toolchain's one recorded host library (MODULE.bazel)
           ldconfig -p | grep -q 'libxml2\.so\.2' || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libxml2; }
-      # the remote cache, read only: this job uploads nothing (the gates' jobs write it; gates-run.yml)
+      # the remote cache, read: this job writes nothing to it (no --remote_upload_local_results, which only the gates'
+      # jobs turn on: gates-run.yml); its build's events still go to BuildBuddy, as every build's under --config=remote
       - name: the remote cache (BuildBuddy)
         env:
           BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}

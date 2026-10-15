@@ -143,10 +143,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  403,000 -> 406,000 (2026-10-14, batch 3 step 1): the spec's seventeen new kinds -- their words, what each refuses by
  *  name, and the figures the database computes for a waterfall, a Pareto and a pie's inner ring (chart-spec.ts,
  *  calc-presets.ts), at startup as the spec's reader is; their drawing is a chunk. Measured 404,401.
- *  406,000 -> 281,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third): the same code, a third smaller gzipped, and about half
- *  the text the browser parses (the page's script 764,104 bytes at 2d24022, 411,165 minified). Measured 278,151; unminified, the
- *  same tree 405,798 (the chart rules written once -- chart-spec.ts readChart and chartFrom -- at startup with the spec's
- *  reader). */
+ *  406,000 -> 281,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
+ *  "does minify buy anything if already zipped?" -- it does, about a third): the same code, a third smaller gzipped,
+ *  and about half the text the browser parses (the page's script 764,104 bytes at 2d24022, 411,165 minified). Measured
+ *  278,151; unminified, the same tree 405,798 (the chart rules written once -- chart-spec.ts readChart and chartFrom --
+ *  at startup with the spec's reader). */
 const BUDGET = 281_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
@@ -166,7 +167,9 @@ const BUDGET = 281_000;
  *  386,000 -> 388,000 (2026-10-14, batch 2 steps 12-14 and its audit): the sales sample and the Examples list (the
  *  grid's note of step 14), and the reader's checks of a chart's option words. Measured 387,083.
  *  388,000 -> 391,000 (2026-10-14, batch 3 step 1): as the grid's. Measured 389,154.
- *  391,000 -> 270,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 266,978; unminified, the same tree 390,443. */
+ *  391,000 -> 270,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
+ *  "does minify buy anything if already zipped?" -- it does, about a third). Measured 266,978; unminified, the same
+ *  tree 390,443. */
 const ENGINE_BUDGET = 270_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
@@ -188,7 +191,9 @@ const ENGINE_BUDGET = 270_000;
  *  components registered each by its own module (chart-render.ts), not through the index, so batch 3's rarer charts are
  *  a chunk of their own -- what the first chart and the kinds' chunk both use is a third chunk, and three files
  *  compress less well than one; and a pie in two rings or half a ring (chart-option.ts). Measured 445,666.
- *  447,000 -> 301,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 298,386; unminified, the same tree 446,304. */
+ *  447,000 -> 301,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
+ *  "does minify buy anything if already zipped?" -- it does, about a third). Measured 298,386; unminified, the same
+ *  tree 446,304. */
 const CHART_BUDGET = 301_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
@@ -198,19 +203,23 @@ const CHART_BUDGET = 301_000;
 const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+\.js$/.test(file);
 /** Set 2026-10-14 at its first measure (batch 3 step 1), 92,574: the drawing 7,823 and the charts 84,751, with room for
  *  batch 3's later kinds (small multiples, a bubble).
- *  100,000 -> 66,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third): batch 3's kinds all in. Measured 62,426; unminified, the
- *  same tree 95,848. */
+ *  100,000 -> 66,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's
+ *  "does minify buy anything if already zipped?" -- it does, about a third): batch 3's kinds all in. Measured 62,426;
+ *  unminified, the same tree 95,848. */
 const KINDS_BUDGET = 66_000;
 
 /** The charts' options form (ui/chart-form.ts), fetched the first time a chart's options are shown: set 2026-10-14 at
  *  its first measure, 4,872, with room for batch 3's fields.
- *  8,000 -> 6,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 4,858 (a chunk that small gains little); unminified,
- *  the same tree 5,793. */
+ *  8,000 -> 6,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does
+ *  minify buy anything if already zipped?" -- it does, about a third). Measured 4,858 (a chunk that small gains
+ *  little); unminified, the same tree 5,793. */
 const FORM_BUDGET = 6_000;
 
 /** An example page's builder (src/examples/charts-dashboard.ts), fetched when it is picked: set 2026-10-14 at its first
  *  measure, 3,264.
- *  6,000 -> 4,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 2,739; unminified, the same tree 3,301. */
+ *  6,000 -> 4,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does
+ *  minify buy anything if already zipped?" -- it does, about a third). Measured 2,739; unminified, the same tree 3,301.
+ */
 const EXAMPLE_BUDGET = 4_000;
 
 /** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
