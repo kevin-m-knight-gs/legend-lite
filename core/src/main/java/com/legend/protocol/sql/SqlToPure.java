@@ -1873,6 +1873,7 @@ public final class SqlToPure {
         }
         List<String> names = new ArrayList<>();
         List<OutCol> columns = new ArrayList<>();
+        List<java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification>> setKeys = new ArrayList<>();
         for (int i = 0; i < left.columns().size(); i++) {
             OutCol l = left.columns().get(i);
             OutCol r = right.columns().get(i);
@@ -1887,23 +1888,33 @@ public final class SqlToPure {
                 throw SqlTranslationException.invalid(op + " types " + l.kind().name().toLowerCase(Locale.ROOT)
                         + " and " + r.kind().name().toLowerCase(Locale.ROOT) + " cannot be matched", s.pos());
             }
+            java.util.function.UnaryOperator<ValueSpecification> setKey = null;
             if (!s.all()) {
                 notJsonKey(l.kind(), s.op().name(), s.pos());
                 Kind keyKind = unified != null ? unified.kind() : l.kind();
-                distinctKey(s.op().name(), Tx.value(property(row, l.name()), keyKind, l.nullable() || r.nullable(),
-                        unified != null ? unified.detail() : l.detail()), null, s.pos());
+                Tx value = Tx.value(property(row, l.name()), keyKind, l.nullable() || r.nullable(),
+                        unified != null ? unified.detail() : l.detail());
+                setKey = dialect.setKey(s, i, value);
+                if (setKey != null && (s.op() != SqlAst.SetOp.UNION
+                        || !dialect.representative(s.op().name(), value, null))) {
+                    throw SqlTranslationException.unsupported(s.op().name() + " by a key other than the values"
+                            + " themselves is not supported", s.pos());
+                }
             }
+            setKeys.add(setKey);
             names.add(l.name());
             // INTERSECT's row is in both; EXCEPT's is the left's; a dialect's own type says its own (IQ island,
             // 2026-10-14: the #IQ{...}# island's INTERSECT keeps the left's values, NULL where they may be)
             boolean nullable = unified != null ? unified.nullable() : s.op() == SqlAst.SetOp.UNION
                     ? l.nullable() || r.nullable() : s.op() == SqlAst.SetOp.INTERSECT ? l.nullable() && r.nullable()
                     : l.nullable();
+            // a keyed UNION column shows its group's least value, a min: a [0..1] whatever the values
+            nullable |= setKey != null;
             // a decimal column merged from two queries takes one scale in the database (see common)
             columns.add(unified != null ? new OutCol(l.name(), unified.kind(), nullable, unified.detail())
                     : new OutCol(l.name(), l.kind() == Kind.DECIMAL ? Kind.NUMBER : l.kind(), nullable));
         }
-        ValueSpecification vs = s.op() == SqlAst.SetOp.UNION ? union(s, left, right, names)
+        ValueSpecification vs = s.op() == SqlAst.SetOp.UNION ? union(s, left, right, names, setKeys)
                 : rowsFound(s.op() == SqlAst.SetOp.INTERSECT, left, right);
         List<ValueSpecification> sortInfos = new ArrayList<>();
         List<ColSpec> keyed = new ArrayList<>();
@@ -1939,14 +1950,42 @@ public final class SqlToPure {
         return new Rel(vs, columns);
     }
 
-    private ValueSpecification union(SqlAst.SetOperation s, Rel left, Rel right, List<String> names) {
+    private ValueSpecification union(SqlAst.SetOperation s, Rel left, Rel right, List<String> names,
+            List<java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification>> keys) {
         boolean sameNames = true;
         for (int i = 0; i < names.size(); i++) {
             sameNames &= names.get(i).equals(right.columns().get(i).name());
         }
         Rel aligned = sameNames ? right : renamed(right, names, s.pos());
         ValueSpecification vs = call("concatenate", left.vs(), aligned.vs());
-        return s.all() ? vs : call("distinct", vs);
+        if (s.all()) {
+            return vs;
+        }
+        if (keys.stream().allMatch(java.util.Objects::isNull)) {
+            return call("distinct", vs);
+        }
+        // IQ island, 2026-10-15: a column keyed by the dialect groups by its key and shows its group's least value
+        Set<String> taken = new HashSet<>(names);
+        List<ColSpec> keyed = new ArrayList<>();
+        List<ColSpec> groupKeys = new ArrayList<>();
+        List<ColSpec> members = new ArrayList<>();
+        List<ColSpec> selection = new ArrayList<>();
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            java.util.function.UnaryOperator<ValueSpecification> key = keys.get(i);
+            selection.add(colSpec(name));
+            if (key == null) {
+                groupKeys.add(colSpec(name));
+            } else {
+                String k = fresh(taken);
+                keyed.add(new ColSpec(k, lambda(row, key.apply(property(row, name))), null, null));
+                groupKeys.add(colSpec(k));
+                members.add(new ColSpec(name, lambda(row, property(row, name)), lambda(group, call("min",
+                        new Variable(group))), null));
+            }
+        }
+        return call("select", call("groupBy", call("extend", vs, new ColSpecArray(keyed)),
+                new ColSpecArray(groupKeys), new ColSpecArray(members)), new ColSpecArray(selection));
     }
 
     /** The left's distinct rows that some row of the right equals ({@code found}), or that none does. */

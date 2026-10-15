@@ -251,6 +251,16 @@ public interface InputDialect {
         return false;
     }
 
+    /**
+     * A set operation's key for its column {@code i} (IQ island, 2026-10-15): as {@link #key} of the operation's name,
+     * where the dialect needs the column's place to know it. A UNION column keyed so shows one value of each group
+     * ({@link #representative}); INTERSECT and EXCEPT read no key.
+     */
+    default java.util.function.@com.legend.base.Nullable UnaryOperator<com.legend.protocol.spec.ValueSpecification>
+            setKey(SqlAst.SetOperation s, int i, SqlToPure.Tx value) {
+        return key(s.op().name(), value, null, s.pos());
+    }
+
     // ------------------------------------------------------------------ grouping
 
     /** {@code s} as the dialect reads its GROUP BY and HAVING: itself (Postgres's), unless the dialect reads a name

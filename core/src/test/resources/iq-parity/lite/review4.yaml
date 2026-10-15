@@ -26,9 +26,10 @@ tests:
     sql: "SELECT w, COUNT(*) AS n FROM (SELECT z.*, 'q' AS w FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION ALL SELECT 2, 'x', 'b ' FROM DUMMY UNION ALL SELECT 3, 'y', 'b' FROM DUMMY) e GROUP BY w ORDER BY w"
     engine: sa
     member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
-  - id: b1_star_then_constants_union_is_refused
+  - id: b1_star_then_constants_union
     sql: "SELECT *, 'q', 5 FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION SELECT 1, 'b', 'q', 5 FROM DUMMY ORDER BY 2"
     engine: sa
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: b1_star_then_constants_except_is_refused
     sql: "SELECT *, 'q', 5 FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z EXCEPT SELECT 1, 'b', 'q', 5 FROM DUMMY ORDER BY 2"
     engine: sa

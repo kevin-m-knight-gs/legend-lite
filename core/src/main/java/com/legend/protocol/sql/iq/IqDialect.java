@@ -4753,9 +4753,10 @@ public final class IqDialect implements InputDialect {
         Tx r = Tx.value(new CString(""), right.kind(), right.nullable(), right.detail());
         SqlToPure.Common common = unify(op, List.of(new SqlAst.NullLit(s.pos()), new SqlAst.NullLit(s.pos())),
                 List.of(l, r), s.pos());
-        if (common.kind() == Kind.STRING && !s.all() && !keys.own(s, i)) {
+        if (common.kind() == Kind.STRING && !s.all() && !keys.own(s, i) && s.op() != SqlAst.SetOp.UNION) {
             // IQ island, 2026-10-14 (the merge): IQ tells the rows apart by its collation and shows the first of each
-            // group of equal keys it meets ({@link IqKeys})
+            // group of equal keys it meets ({@link IqKeys}); a UNION shows one value of each (setKey; IQ island,
+            // 2026-10-15), INTERSECT and EXCEPT are refused
             throw SqlTranslationException.unsupported(op + " over strings in column " + (i + 1) + " is supported only"
                     + " where every value is its own collation key (RTRIM, TRIM, a constant" + (settings.caseSensitive()
                     ? "" : ", LOWER") + "): IQ tells " + (settings.caseSensitive() ? "'a' and 'a '" : "'A' and 'a'")
@@ -5134,8 +5135,17 @@ public final class IqDialect implements InputDialect {
      */
     @Override
     public boolean representative(String clause, Tx value, SqlAst.@com.legend.base.Nullable Expr expr) {
-        return value.kind() == Kind.STRING && (clause.equals("DISTINCT")
+        return value.kind() == Kind.STRING && (clause.equals("DISTINCT") || clause.equals("UNION")
                 || clause.equals("GROUP BY") && (expr == null || keys.shown(expr)));
+    }
+
+    /** A UNION's column of strings whose values may share a collation key ({@link IqKeys#own}) is keyed by the
+     *  collation and shows one value of each group (IQ island, 2026-10-15, the user's rule); any other none. */
+    @Override
+    public java.util.function.@com.legend.base.Nullable UnaryOperator<ValueSpecification> setKey(
+            SqlAst.SetOperation s, int i, Tx value) {
+        return s.op() == SqlAst.SetOp.UNION && value.kind() == Kind.STRING && !keys.own(s, i) ? key(value.nullable())
+                : null;
     }
 
     /** The collation key of a string that may be NULL ({@code nullable}): NULL's is NULL. */

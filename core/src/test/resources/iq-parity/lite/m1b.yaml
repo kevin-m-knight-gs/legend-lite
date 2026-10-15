@@ -555,8 +555,9 @@ tests:
     sql: "SELECT bt FROM t UNION SELECT sm FROM t WHERE id < 3 ORDER BY 1"
   - id: union_all_of_strings
     sql: "SELECT vc FROM t WHERE id < 3 UNION ALL SELECT label FROM u WHERE id = 1"
-  - id: union_of_strings_is_refused
+  - id: union_of_strings
     sql: "SELECT vc FROM t UNION SELECT label FROM u"
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   # IQ island, 2026-10-14 (the merge of M1b/M1c with the natives slice): was union_all_ordered_by_a_string_is_refused; IQ's collation answers it now
   - id: union_all_ordered_by_a_string
     sql: "SELECT vc FROM t UNION ALL SELECT label FROM u ORDER BY 1"

@@ -259,6 +259,7 @@ tests:
   - id: union_of_rtrimmed_strings
     sql: "SELECT RTRIM(s) AS r FROM g UNION SELECT RTRIM(label) FROM u"
     profile: iq16-default, sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: union_of_lower_rtrimmed_strings_ordered
     sql: "SELECT LOWER(RTRIM(s)) AS r FROM g UNION SELECT LOWER(RTRIM(vc)) FROM t ORDER BY 1"
     profile: iq16-default, sqla17-default
@@ -266,25 +267,30 @@ tests:
     sql: "SELECT 'b' AS x UNION SELECT 'a' UNION SELECT 'b' ORDER BY 1"
     profile: iq16-default, sqla17-default
     engine: sa
-  - id: union_of_a_constant_and_a_column_is_refused
+  - id: union_of_a_constant_and_a_column
     sql: "SELECT 'a' AS x UNION SELECT s FROM g"
-  - id: union_of_constants_differing_in_trailing_blanks_is_refused
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+  - id: union_of_constants_differing_in_trailing_blanks
     sql: "SELECT 'a' AS x UNION SELECT 'a '"
     engine: sa
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: union_of_constants_differing_in_case
     sql: "SELECT 'A' AS x UNION SELECT 'a' ORDER BY 1"
     profile: iq16-default
     engine: sa
-  - id: union_of_constants_differing_in_case_in_a_sql_anywhere_database_is_refused
+  - id: union_of_constants_differing_in_case_in_a_sql_anywhere_database
     sql: "SELECT 'A' AS x UNION SELECT 'a'"
     profile: sqla17-default
     engine: sa
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: union_of_strings_in_two_columns
     sql: "SELECT k, RTRIM(s) AS r FROM g UNION SELECT t_id, RTRIM(label) FROM u"
     profile: iq16-default, sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: union_over_a_union_all
     sql: "SELECT RTRIM(s) AS r FROM g UNION ALL SELECT 'z' UNION SELECT 'a' ORDER BY 1"
     profile: iq16-default, sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: intersect_of_rtrimmed_strings
     sql: "SELECT RTRIM(s) AS r FROM g INTERSECT SELECT RTRIM(label) FROM u"
     profile: iq16-default, sqla17-default

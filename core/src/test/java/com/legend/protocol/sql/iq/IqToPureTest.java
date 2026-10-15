@@ -813,7 +813,7 @@ class IqToPureTest {
         assertTrue(numbers("SELECT sm AS x FROM " + T + " UNION SELECT bg FROM " + T).contains("->distinct()"));
         pure("SELECT NULL UNION ALL SELECT id FROM " + T);
         for (String sql : new String[] {"SELECT vc FROM " + T + " UNION ALL SELECT id FROM " + T,
-                "SELECT NULL UNION ALL SELECT vc FROM " + T, "SELECT vc FROM " + T + " UNION SELECT vc FROM " + T,
+                "SELECT NULL UNION ALL SELECT vc FROM " + T,
                 "SELECT NULL INTERSECT SELECT NULL"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal(sql).kind(), sql);
         }
@@ -943,7 +943,11 @@ class IqToPureTest {
         assertTrue(pure("SELECT COUNT(*) AS n FROM " + T + " GROUP BY vc HAVING vc > 'a'").contains("->min()"));
         assertFalse(pure("SELECT RTRIM(vc) AS r, COUNT(*) AS n FROM " + T + " GROUP BY RTRIM(vc)").contains(
                 "regexpReplace(' +$'"));
-        assertTrue(refusal("SELECT vc FROM " + T + " UNION SELECT 'a'").getMessage().contains("UNION over strings"));
+        // IQ island, 2026-10-15: a UNION of strings that may share a key groups by it, showing a value of each
+        String union = pure("SELECT vc FROM " + T + " UNION SELECT 'a'");
+        assertTrue(union.contains("groupBy(") && union.contains("->min()") && !union.contains("distinct()"), union);
+        assertTrue(refusal("SELECT vc FROM " + T + " INTERSECT SELECT 'a'").getMessage().contains("INTERSECT over"
+                + " strings"));
         pure("SELECT RTRIM(vc) AS r FROM " + T + " UNION SELECT 'a'");
         // a sqla17 profile folds the ASCII letters: LOWER is its own key there, RTRIM is not (a member is shown)
         assertTrue(pure("SELECT DISTINCT RTRIM(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
