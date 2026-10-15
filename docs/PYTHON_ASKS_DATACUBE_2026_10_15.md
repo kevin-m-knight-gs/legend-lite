@@ -62,6 +62,15 @@ Smaller, none checked mechanically: `model.py` ↔ `model-changes/src` (five rep
 `warehouse.ts` (the SQL API corpus), `_json.protocol` ↔ pure-protocol `toJson` (key order, float spelling),
 `frames._NAME` ↔ `model-names.ts isPureName`, `_next` ids ↔ `cube-page.ts`.
 
+## A finding for DataCube (its line designs the fix)
+
+**A calculated column kept at the editor's starting Level is summed, whatever its type** (found 2026-10-15, item 5): the
+column editor starts a new column as a `measure` (`ui/column-editor.ts`, `start.level ?? 'measure'`), and a column
+declared a measure is summed when the cube groups (`query.ts`'s grouped aggregates) -- so a boolean or a text column a
+person adds and groups by is refused, `sum(Boolean)`. Python's columns are undeclared unless told (item 5), so its type
+decides, as for any column. Two fixes are possible: the editor's starting Level from `defaultKind` once the column is
+typed, or a non-numeric measure's default aggregate not `sum`; the DataCube + Python line decides.
+
 ## A finding for the compiler line
 
 No Python frame, and no tab's table read the same way, has a `StrictTime` column: the compiler's catalog reads a

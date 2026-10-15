@@ -389,6 +389,9 @@ class Document(Paged):
         self.assertEqual({c['type'] for c in rules['columns']} - set(made), {'Date', 'StrictTime'}, 'the cases\' types')
         with self.assertRaisesRegex(ValueError, 'STRICT_TIME'):
             grid.calculate(timed, '%10:30:00')
+        # the compiler lowers no time of day yet (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, "A finding for the compiler
+        # line"): when it does, the column is grid.calculate's like the Date's, this refusal goes, and so does the page
+        # document made by hand below
         doc = page.to_dict()
         doc['cubes'][0]['cube']['query']['derived'].append({'name': timed, 'lambda': ll.parse('x|%10:30:00')})
         page = ll.Page.load(doc, frames={'rules': grid._page._session.frames['rules'].given})
