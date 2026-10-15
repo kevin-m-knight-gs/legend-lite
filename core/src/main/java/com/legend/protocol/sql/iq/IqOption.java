@@ -90,7 +90,9 @@ public enum IqOption {
     NON_KEYWORDS("non_keywords", Level.OPTION, 2, Kind.TEXT, "", "", null, null, Status.NOT_YET),
     EXTENDED_JOIN_SYNTAX("extended_join_syntax", Level.OPTION, 2, Kind.ON_OFF, "On", "On", null, null,
             Status.NOT_YET),
-    TSQL_OUTER_JOINS("tsql_outer_joins", Level.OPTION, 2, Kind.ON_OFF, "Off", "Off", null, null, Status.NOT_YET),
+    /** IQ island, 2026-10-15 (checklist 0.6, measured on IQ 17.1): On, {@code *=} and {@code =*} are T-SQL outer joins
+     *  (the real IQ 17.1's PUBLIC value, its {@code iq17-*} presets'); Off, IQ's error -1099. */
+    TSQL_OUTER_JOINS("tsql_outer_joins", Level.OPTION, 2, Kind.ON_OFF, "Off", "Off", null, null, Status.IMPLEMENTED),
     MAX_RECURSIVE_ITERATIONS("max_recursive_iterations", Level.OPTION, 2, Kind.integer(0, Integer.MAX_VALUE), "100",
             "100", null, null, Status.NOT_YET),
     UUID_HAS_HYPHENS("uuid_has_hyphens", Level.OPTION, 2, Kind.ON_OFF, "On", "On", null, null, Status.NOT_YET),

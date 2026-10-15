@@ -447,6 +447,12 @@ final class IqAliases {
             // IQ island, 2026-10-15 (windows): an alias in a window's arguments, PARTITION BY and ORDER BY is read as
             // anywhere (measured on IQ 17.1: PARTITION BY an alias, SUM(alias) OVER ...)
             case SqlAst.Window w -> IqWindows.rebuilt(w, x -> expr(x, p), this::copied);
+            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate, *= or =*
+            case SqlAst.Operator o when o.left() != null -> {
+                SqlAst.Expr l = expr(java.util.Objects.requireNonNull(o.left()), p);
+                SqlAst.Expr r = expr(o.right(), p);
+                yield l == o.left() && r == o.right() ? o : new SqlAst.Operator(o.operator(), l, r, o.pos());
+            }
             default -> {
                 if (!IqDialect.children(e).isEmpty()) {
                     throw new IllegalStateException("the #IQ{...}# alias reader does not walk "

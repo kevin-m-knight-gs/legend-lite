@@ -20,7 +20,8 @@ import java.util.List;
  *
  * <p>IQ island, landing 4 (WP1), 2026-10-14: the {@code iq17-*} presets are the IQ base with the database properties of
  * the real SAP IQ 17.1 the island is judged against (the user's HANA Cloud data lake, tools/iq-oracle's live backend):
- * case-sensitive, blank-padded, collation UTF8BIN, charset UTF-8, PUBLIC precision 126 and scale 38. The {@code iq16-*}
+ * case-sensitive, blank-padded, collation UTF8BIN, charset UTF-8, PUBLIC precision 126 and scale 38 (and, IQ island,
+ * 2026-10-15, PUBLIC tsql_outer_joins On, measured). The {@code iq16-*}
  * presets stay as they were, judged by SQL Anywhere 17, and are not verified on a real IQ 16.
  */
 public enum IqProfile {

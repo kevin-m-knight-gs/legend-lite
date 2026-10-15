@@ -364,6 +364,21 @@ public final class IqDialect implements InputDialect {
         IqParser.Parsed read = IqParser.parsed(sql, settings);
         SqlAst.Statement statement = read.statement();
         Engine statementEngine = engine != null ? engine : engineOf(statement, settings);
+        if (!settings.tsqlOuterJoins()) {
+            // IQ island, 2026-10-15 (checklist 0.6, measured on IQ 17.1): *= and =* under tsql_outer_joins Off
+            for (SqlAst.Statement q : queries(statement)) {
+                if (q instanceof SqlAst.Select s) {
+                    for (SqlAst.Expr e : expressions(s)) {
+                        SqlAst.Operator o = tsqlOuterJoin(e);
+                        if (o != null) {
+                            throw SqlTranslationException.unsupported("the T-SQL outer join " + o.operator() + " under"
+                                    + " tsql_outer_joins Off is IQ's error -1099 (Transact-SQL outer joins are"
+                                    + " disabled), refused before translating", o.pos());
+                        }
+                    }
+                }
+            }
+        }
         for (IqParser.EngineCast cast : read.engineCasts()) {
             // IQ island, 2026-10-15 (checklist 0.5): a constant one engine raises for and the other converts
             // (IqFunctions.constantCast), refused under the engine that raises
@@ -2652,6 +2667,20 @@ public final class IqDialect implements InputDialect {
         return all;
     }
 
+    /** The first T-SQL outer join predicate ({@code *=}, {@code =*}) in {@code e}, outside its subqueries; null for none. */
+    private static SqlAst.@com.legend.base.Nullable Operator tsqlOuterJoin(SqlAst.Expr e) {
+        if (e instanceof SqlAst.Operator o) {
+            return o;
+        }
+        for (SqlAst.Expr child : children(e)) {
+            SqlAst.Operator o = tsqlOuterJoin(child);
+            if (o != null) {
+                return o;
+            }
+        }
+        return null;
+    }
+
     /** The expressions directly inside {@code e}, of the forms {@link IqParser} reads. */
     static List<SqlAst.Expr> children(SqlAst.Expr e) {
         return switch (e) {
@@ -2705,6 +2734,9 @@ public final class IqDialect implements InputDialect {
             // IQ island, 2026-10-15 (windows): a window call is no call of this query's (not an aggregate of its
             // grouping, no function of the catalog), but what it reads is (IqWindows.children)
             case SqlAst.Window w -> IqWindows.children(w);
+            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate, *= or =*
+            case SqlAst.Operator o -> o.left() == null ? List.of(o.right()) : List.of(java.util.Objects.requireNonNull(
+                    o.left()), o.right());
             // exhaustive over IqParser's forms: a new form is read here before a walk can miss what is inside it
             default -> throw new IllegalStateException("the #IQ{...}# dialect does not walk " + e.getClass()
                     .getSimpleName() + " yet");
@@ -5076,6 +5108,13 @@ public final class IqDialect implements InputDialect {
     }
 
     // ------------------------------------------------------------------ joins, subqueries and set operations (M1b)
+
+    /** IQ island, 2026-10-15 (checklist 0.6, measured on IQ 17.1): {@code *=} and {@code =*} are T-SQL outer joins
+     *  under tsql_outer_joins On (the real IQ 17.1's PUBLIC value); Off, {@link #parse} refuses them as IQ's -1099. */
+    @Override
+    public boolean readsTsqlOuterJoins() {
+        return settings.tsqlOuterJoins();
+    }
 
     /** IQ's NATURAL JOIN keeps both sides' columns (measured: an unqualified shared column is ambiguous, IQ's error
      *  -144), joining on their equality by IQ's {@code =}. */

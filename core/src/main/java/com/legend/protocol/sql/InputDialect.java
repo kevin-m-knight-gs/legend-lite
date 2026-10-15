@@ -226,6 +226,13 @@ public interface InputDialect {
         return null;
     }
 
+    /** Whether {@code *=} and {@code =*} at the top level of a query's WHERE are T-SQL outer joins, which the
+     *  translator makes the query's joins (IQ island, 2026-10-15, checklist 0.6: IQ's, under its tsql_outer_joins
+     *  option); Postgres has no such operators. */
+    default boolean readsTsqlOuterJoins() {
+        return false;
+    }
+
     /** Whether a NATURAL join shows the columns its two sides share once, merged (the standard's, Postgres's); a
      *  dialect that keeps both sides' columns, each read qualified, joining on their equality, says false. */
     default boolean mergesNaturalJoin() {

@@ -104,8 +104,11 @@ public final class IqSettings {
     }
 
     /** IQ island, landing 4 (WP1), 2026-10-14: the database properties of the real SAP IQ 17.1 the {@code iq17-*}
-     *  presets are (collation UTF8BIN and its charset UTF-8; case-sensitive and blank-padded as the IQ base). */
-    static final Map<IqOption, String> UTF8BIN = Map.of(IqOption.COLLATION, "UTF8BIN", IqOption.CHAR_SET, "UTF-8");
+     *  presets are (collation UTF8BIN and its charset UTF-8; case-sensitive and blank-padded as the IQ base); IQ
+     *  island, 2026-10-15 (checklist 0.6, measured): and its PUBLIC options where they differ from IQ 16's defaults
+     *  (tsql_outer_joins On). */
+    static final Map<IqOption, String> UTF8BIN = Map.of(IqOption.COLLATION, "UTF8BIN", IqOption.CHAR_SET, "UTF-8",
+            IqOption.TSQL_OUTER_JOINS, "On");
 
     /** {@link #preset(String, Base, Client)} for a database whose level is {@code database} (its creation properties,
      *  as {@link #resolve} reads them at the database's level) over the base's defaults. */
@@ -721,6 +724,12 @@ public final class IqSettings {
      *  value even where a column of its name is in scope); Off, a connection's variable, read after such a column. */
     public boolean tsqlVariables() {
         return on(IqOption.TSQL_VARIABLES);
+    }
+
+    /** {@code tsql_outer_joins}: On, {@code *=} and {@code =*} are T-SQL outer joins; Off, IQ's error -1099 (IQ island,
+     *  2026-10-15, checklist 0.6, measured on IQ 17.1). */
+    public boolean tsqlOuterJoins() {
+        return on(IqOption.TSQL_OUTER_JOINS);
     }
 
     /** {@code quoted_identifier}: On, {@code "x"} is an identifier; Off (a TDS login), a string. */

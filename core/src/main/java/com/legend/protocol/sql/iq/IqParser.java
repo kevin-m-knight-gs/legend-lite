@@ -1340,8 +1340,14 @@ public final class IqParser {
             return new SqlAst.Binary(comparison(t.text()), left, right, t.pos());
         }
         if (t.isOp("*=") || t.isOp("=*")) {
-            throw SqlSyntaxException.unsupported("the T-SQL outer join operators (*=, =*) are not supported yet",
-                    t.pos());
+            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate, read as an operator of its own: the
+            // translator makes the query's FROM clause its joins (SqlToPure, InputDialect#readsTsqlOuterJoins), and
+            // refuses one anywhere else
+            take();
+            value(left, "a T-SQL outer join");
+            SqlAst.Expr right = concatenation();
+            value(right, "a T-SQL outer join");
+            return new SqlAst.Operator(t.text(), left, right, t.pos());
         }
         if (t.is("is")) {
             boolean negated = peek(1).is("not");
@@ -2625,6 +2631,8 @@ public final class IqParser {
             case SqlAst.Exists n -> true;
             case SqlAst.InSubquery n -> true;
             case SqlAst.Quantified n -> true;
+            // IQ island, 2026-10-15 (checklist 0.6): a T-SQL outer join's predicate
+            case SqlAst.Operator o -> true;
             default -> false;
         };
     }

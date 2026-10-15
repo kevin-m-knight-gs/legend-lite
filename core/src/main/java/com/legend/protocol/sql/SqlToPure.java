@@ -1118,7 +1118,12 @@ public final class SqlToPure {
         String one = "\n" + SYNTHETIC + "row\n1\n";
         Source src = !s.from().isEmpty() ? null : setFunction != null ? from(setFunction)
                 : new Source(com.legend.protocol.spec.TdsLiteral.of(one, "#TDS" + one + "#", null), List.of(), List.of());
-        for (SqlAst.FromItem item : s.from()) {
+        // IQ island, 2026-10-15 (checklist 0.6): a WHERE of T-SQL outer join predicates makes the FROM clause its joins
+        TsqlFrom tsql = s.from().isEmpty() ? null : tsqlOuterJoins(s, setFunction != null);
+        if (tsql != null) {
+            src = tsql.source();
+        }
+        for (SqlAst.FromItem item : tsql != null ? List.<SqlAst.FromItem>of() : s.from()) {
             // a comma is a cross join, binding looser than JOIN (the ON of a JOIN sees its own two sides only); a
             // function or a LATERAL subquery reads the items before it
             if (src != null && lateral(item)) {
@@ -1134,7 +1139,7 @@ public final class SqlToPure {
             noOuterAggregates(s, input);
         }
         ValueSpecification relation = source.relation();
-        SqlAst.Expr where = s.where();
+        SqlAst.Expr where = tsql != null ? tsql.where() : s.where();
         if (where != null) {
             relation = call("filter", relation, lambda(row, condition(where, input, "WHERE")));
         }
@@ -1147,6 +1152,206 @@ public final class SqlToPure {
         }
         boolean aggregate = !s.groupBy().isEmpty() || hasAggregate(s);
         return aggregate ? grouped(s, input.in("GROUP BY"), relation) : plain(s, input.in("the select list"), relation);
+    }
+
+    // ------------------------------------------------------------------ T-SQL outer joins
+
+    /** A query's FROM clause made of its WHERE's T-SQL outer joins ({@link #tsqlOuterJoins}), and the WHERE's other
+     *  conditions (null for none). */
+    private record TsqlFrom(Source source, SqlAst.@com.legend.base.Nullable Expr where) {
+    }
+
+    /** Whether {@code e} is a T-SQL outer join predicate: {@code a *= b} keeps a's rows, {@code a =* b} b's. */
+    private static boolean tsqlOuter(SqlAst.Expr e) {
+        return e instanceof SqlAst.Operator o && o.left() != null && (o.operator().equals("*=")
+                || o.operator().equals("=*"));
+    }
+
+    /**
+     * IQ island, 2026-10-15 (checklist 0.6, measured on IQ 17.1): the FROM clause of a query whose WHERE has T-SQL outer
+     * join predicates at its top level, where the dialect reads them ({@link InputDialect#readsTsqlOuterJoins}), as ANSI
+     * joins; null when it has none. Each {@code a *= b} (or {@code b =* a}) between two FROM items keeps a's rows and
+     * NULL-extends b's. The items no predicate NULL-extends are joined first, in FROM order; then each other one by a
+     * LEFT JOIN whose ON holds its predicates (as equalities) and every condition of the WHERE that reads it -- alone, or
+     * with the item that keeps it -- and the WHERE keeps the rest. Refused by name, as IQ raises or reads otherwise: an
+     * ANSI join among the FROM items (IQ's -681); an item NULL-extended by two items (IQ's -136, a cycle) or both kept
+     * and NULL-extended (IQ's -680); a predicate whose side reads no FROM item or more than one, or with a subquery; a
+     * predicate below the WHERE's top level; a condition that reads two NULL-extended items, or one and an item that
+     * does not keep it; a condition with a subquery left in the WHERE (whether it reads a NULL-extended item is not
+     * read); SELECT * where a NULL-extended item comes before one that is not (its columns' order).
+     */
+    private @com.legend.base.Nullable TsqlFrom tsqlOuterJoins(SqlAst.Select s, boolean setFunction) {
+        SqlAst.Expr where = s.where();
+        if (where == null || !dialect.readsTsqlOuterJoins()) {
+            return null;
+        }
+        List<SqlAst.Expr> conjuncts = new ArrayList<>();
+        conjuncts(where, conjuncts);
+        SqlAst.Expr first = conjuncts.stream().filter(SqlToPure::tsqlOuter).findFirst().orElse(null);
+        if (first == null) {
+            return null;
+        }
+        if (setFunction) {
+            throw SqlTranslationException.unsupported("a T-SQL outer join in a query with a set-returning function in"
+                    + " its select list is not supported", first.pos());
+        }
+        int n = s.from().size();
+        List<Source> items = new ArrayList<>();
+        for (SqlAst.FromItem item : s.from()) {
+            if (item instanceof SqlAst.Join || lateral(item)) {
+                throw SqlTranslationException.unsupported("a T-SQL outer join (*=, =*) beside a JOIN in its FROM clause"
+                        + " is not supported: IQ's error -681", item.pos());
+            }
+            items.add(from(item));
+        }
+        int[] keptBy = new int[n];
+        java.util.Arrays.fill(keptBy, -1);
+        boolean[] keeps = new boolean[n];
+        List<List<SqlAst.Expr>> on = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            on.add(new ArrayList<>());
+        }
+        for (SqlAst.Expr c : conjuncts) {
+            if (!(tsqlOuter(c) && c instanceof SqlAst.Operator o)) {
+                continue;
+            }
+            SqlAst.Expr left = java.util.Objects.requireNonNull(o.left());
+            int l = oneItem(left, items, o);
+            int r = oneItem(o.right(), items, o);
+            if (l == r) {
+                throw SqlTranslationException.unsupported("a T-SQL outer join whose two sides read one FROM item is not"
+                        + " supported", o.pos());
+            }
+            int kept = o.operator().equals("*=") ? l : r;
+            int nulls = kept == l ? r : l;
+            if (keptBy[nulls] >= 0 && keptBy[nulls] != kept) {
+                throw SqlTranslationException.unsupported("a FROM item NULL-extended by T-SQL outer joins with two items"
+                        + " is IQ's error -136 (an outer join cycle)", o.pos());
+            }
+            keptBy[nulls] = kept;
+            keeps[kept] = true;
+            on.get(nulls).add(new SqlAst.Binary(SqlAst.BinaryOp.EQ, left, o.right(), o.pos()));
+        }
+        for (int i = 0; i < n; i++) {
+            if (keptBy[i] >= 0 && keeps[i]) {
+                throw SqlTranslationException.unsupported("a FROM item both kept and NULL-extended by T-SQL outer joins"
+                        + " (a chain) is IQ's error -680", first.pos());
+            }
+        }
+        List<SqlAst.Expr> rest = new ArrayList<>();
+        for (SqlAst.Expr c : conjuncts) {
+            if (tsqlOuter(c)) {
+                continue;
+            }
+            if (anyTsqlOuter(c)) {
+                throw SqlTranslationException.unsupported("a T-SQL outer join predicate inside OR, NOT or another"
+                        + " expression is not supported", c.pos());
+            }
+            java.util.SortedSet<Integer> read = itemsRead(c, items);
+            List<Integer> extended = read.stream().filter(i -> keptBy[i] >= 0).toList();
+            if (extended.isEmpty()) {
+                if (hasSubquery(c)) {
+                    throw SqlTranslationException.unsupported("a condition with a subquery beside a T-SQL outer join is"
+                            + " not supported yet: whether it reads the NULL-extended item is not read", c.pos());
+                }
+                rest.add(c);
+                continue;
+            }
+            int nulls = extended.get(0);
+            if (extended.size() > 1 || read.stream().anyMatch(i -> i != nulls && i != keptBy[nulls])) {
+                throw SqlTranslationException.unsupported("a condition beside a T-SQL outer join that reads its"
+                        + " NULL-extended item with another item than the one that keeps it is not supported", c.pos());
+            }
+            on.get(nulls).add(c);
+        }
+        Source joined = null;
+        boolean extendedBefore = false;
+        boolean reordered = false;
+        for (int i = 0; i < n; i++) {
+            if (keptBy[i] >= 0) {
+                extendedBefore = true;
+                continue;
+            }
+            reordered |= extendedBefore;
+            joined = joined == null ? items.get(i) : join(joined, items.get(i), SqlAst.JoinType.CROSS, null, List.of(),
+                    false, s.from().get(i).pos());
+        }
+        if (reordered && s.items().stream().anyMatch(i -> i instanceof SqlAst.AllColumns a && a.qualifier() == null)) {
+            throw SqlTranslationException.unsupported("an unqualified * in the select list of a T-SQL outer join whose"
+                    + " NULL-extended table comes before another table is not supported (the columns' order)",
+                    first.pos());
+        }
+        for (int i = 0; i < n; i++) {
+            if (keptBy[i] >= 0) {
+                joined = join(java.util.Objects.requireNonNull(joined), items.get(i), SqlAst.JoinType.LEFT,
+                        and(on.get(i)), List.of(), false, s.from().get(i).pos());
+            }
+        }
+        return new TsqlFrom(java.util.Objects.requireNonNull(joined), rest.isEmpty() ? null : and(rest));
+    }
+
+    /** {@code e}'s conditions joined by AND at its top level, in order. */
+    private static void conjuncts(SqlAst.Expr e, List<SqlAst.Expr> out) {
+        if (e instanceof SqlAst.Binary b && b.op() == SqlAst.BinaryOp.AND) {
+            conjuncts(b.left(), out);
+            conjuncts(b.right(), out);
+        } else {
+            out.add(e);
+        }
+    }
+
+    /** {@code conditions} joined by AND. */
+    private static SqlAst.Expr and(List<SqlAst.Expr> conditions) {
+        SqlAst.Expr all = conditions.get(0);
+        for (SqlAst.Expr c : conditions.subList(1, conditions.size())) {
+            all = new SqlAst.Binary(SqlAst.BinaryOp.AND, all, c, c.pos());
+        }
+        return all;
+    }
+
+    /** Whether {@code e} holds a T-SQL outer join predicate anywhere. */
+    private static boolean anyTsqlOuter(SqlAst.Expr e) {
+        return tsqlOuter(e) || children(e).stream().anyMatch(SqlToPure::anyTsqlOuter);
+    }
+
+    /** Whether {@code e} holds a subquery. */
+    private static boolean hasSubquery(SqlAst.Expr e) {
+        return e instanceof SqlAst.ScalarSubquery || e instanceof SqlAst.Exists || e instanceof SqlAst.InSubquery
+                || e instanceof SqlAst.Quantified || children(e).stream().anyMatch(SqlToPure::hasSubquery);
+    }
+
+    /** The FROM items (their indexes in {@code items}) whose columns {@code e} reads, outside its subqueries: a name two
+     *  of them have is ambiguous, one none has an enclosing query's. */
+    private java.util.SortedSet<Integer> itemsRead(SqlAst.Expr e, List<Source> items) {
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        columnRefs(e, refs);
+        java.util.SortedSet<Integer> read = new java.util.TreeSet<>();
+        for (SqlAst.ColumnRef ref : refs) {
+            int found = -1;
+            for (int i = 0; i < items.size(); i++) {
+                if (new Input(items.get(i).bindings(), items.get(i).star(), "WHERE").find(ref) != null) {
+                    if (found >= 0) {
+                        throw SqlTranslationException.invalid(dialect.message(Problem.AMBIGUOUS_COLUMN,
+                                ref.parts().get(ref.parts().size() - 1).text()), ref.pos());
+                    }
+                    found = i;
+                }
+            }
+            if (found >= 0) {
+                read.add(found);
+            }
+        }
+        return read;
+    }
+
+    /** The one FROM item a side of T-SQL outer join predicate {@code o} reads. */
+    private int oneItem(SqlAst.Expr side, List<Source> items, SqlAst.Operator o) {
+        java.util.SortedSet<Integer> read = itemsRead(side, items);
+        if (read.size() != 1 || hasSubquery(side)) {
+            throw SqlTranslationException.unsupported("a T-SQL outer join whose side reads no FROM item, more than one,"
+                    + " or a subquery is not supported", o.pos());
+        }
+        return read.first();
     }
 
     // ------------------------------------------------------------------ FROM
