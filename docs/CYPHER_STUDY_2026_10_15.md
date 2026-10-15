@@ -411,14 +411,16 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
     2026-10-15: "let's not shortcut"). Pure's `Association` has exactly two properties and nothing else
     (`model/AssociationDefinition`), so the only Legend element that can hold a relationship's own properties, keys
     and mapping is a class: `Acting` with `actor: Actor[1]`, `movie: Movie[1]` and `role`. The class says it is an
-    edge, and which ends are which, by a platform profile in lite's prelude, read by the compiler exactly as
-    `<<equality.Key>>` is (`compiler/element/EqualityKeys`, `PlatformTypes.EQUALITY_PROFILE`):
-    `Class <<graph.Edge>> {graph.from = 'actor', graph.to = 'movie', graph.type = 'ACTED_IN'} demo::Acting`.
+    edge, and which ends are which, by an ordinary Pure `Profile` in a library project (`graph::Graph`, with the
+    stereotype `Edge` and the tags `from`, `to`, `type`), which the engine and Studio compile as any profile and
+    which lite reads by name exactly as it reads `<<equality.Key>>` (`compiler/element/EqualityKeys`,
+    `PlatformTypes.EQUALITY_PROFILE`):
+    `Class <<Graph.Edge>> {Graph.from = 'actor', Graph.to = 'movie', Graph.type = 'ACTED_IN'} demo::Acting`.
     Then `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is the class's
     keys, and the class maps to its bridge table like any class, which is what SQL/PGQ's "edge table with a source
     key and a destination key" is. Nothing is inferred from a class's shape (invariant 4); an undeclared class is a
     label. The graph's exposure and execution context are the data space's, selected with Neo4j's own `USE`
-    (§5.6): no new element kind.
+    (§5.6): no new element kind, and no lite-only model construct.
   - Multiple labels on one node pattern (`:Person:Employee`, `:Person&Employee`) is the most specific class of the
     set when the set is a chain of the model's inheritance, else no rows (`&`) or a union (`|`). `:!A` and `:%` and a
     label-less `(n)` over the whole model are a union of every queryable class with a common schema (id, labels,
@@ -592,7 +594,7 @@ for a relationship with properties, and where does the model say so?
 | Read the relationship's properties off the mapping's join table (the bridge table's extra columns) | the wrong layer: the physical mapping would define the logical graph, the properties would be store-typed and per-store, and a model-to-model mapping would have none. Legend's tenet is that the model is the semantic layer. Rejected |
 | Infer an edge from a class's shape (two to-one properties to keyed classes) | guessing: invariant 4. A class with two to-one ends is often not an edge (an `Address` with a `country` and a `region`). Rejected |
 | A new element kind, `###Graph`, a GQL "graph type" or SQL/PGQ "property graph" over the model, naming node types, edge types, ends and directions | standards-shaped, but it duplicates the data space (which already is the consumer's view: the exposed elements, the default mapping and runtime), and it costs a section grammar (`DataSpaceSectionGrammar` is 727 lines) plus a model record, the protocol reader and emitter, the composer, `FromProtocol` and the census. Kept as a later option only if one data space must expose several graphs |
-| **An edge class, declared by a stereotype; the data space as the graph; `USE` to pick it** | **the proposal** |
+| **An edge class, declared by a stereotype from an ordinary `Profile` in a library project; the data space as the graph; `USE` to pick it** | **the proposal** |
 
 **The design.**
 
@@ -601,13 +603,25 @@ for a relationship with properties, and where does the model say so?
    as to-one property mappings through joins: exactly SQL/PGQ's edge table with a source key and a destination key),
    its constraints, its documentation, its milestoning, and later its writes (`CREATE (a)-[:ACTED_IN {role}]->(m)` is
    a new instance of it). Nothing new is invented below the class.
-2. **The class says it is an edge.** A platform profile in lite's prelude, `meta::legend::lite::graph`, beside the
-   lite natives of `meta::legend::lite::` (`docs/LITE_REVIEW_2026_09_11.md`), declares the stereotype `Edge` and the
-   tags `from`, `to` and `type`. A declaration is what C6.3 lets the prelude ship. The compiler reads it in phase F,
-   as `EqualityKeys` reads `meta::pure::profiles::equality` by its full name (`PlatformTypes.EQUALITY_PROFILE`):
+2. **The class says it is an edge, with an ordinary Pure `Profile` that compiles everywhere** (the user,
+   2026-10-15: "if we build it as a real profile that compiles in pure/engine then we just have to inject that
+   profile"). The profile is a plain element in a library project, as `core_types::CtGovernance` already is in
+   `projects/core-types/model.pure` for every project that depends on it:
 
    ```
-   Class <<graph.Edge>> {graph.from = 'actor', graph.to = 'movie', graph.type = 'ACTED_IN'} demo::Acting
+   ###Pure
+   Profile graph::Graph
+   {
+     stereotypes: [Edge];
+     tags: [from, to, type];
+   }
+   ```
+
+   A model that wants edge classes depends on that project (through the depot, as on any library) and writes:
+
+   ```
+   import graph::*;
+   Class <<Graph.Edge>> {Graph.from = 'actor', Graph.to = 'movie', Graph.type = 'ACTED_IN'} demo::Acting
    {
      actor: demo::Actor[1];
      movie: demo::Movie[1];
@@ -615,6 +629,22 @@ for a relationship with properties, and where does the model say so?
      since: StrictDate[0..1];
    }
    ```
+
+   The engine, Studio and the SDLC compile and show this as they show any stereotype and tagged value: the model is
+   not lite-only. Lite alone gives it meaning: the compiler knows the profile by its full name
+   (`PlatformTypes.GRAPH_PROFILE`, beside `EQUALITY_PROFILE`, which names the engine's `meta::pure::profiles::equality`
+   the same way), checks in phase F that the element at that name is a `Profile` declaring exactly the stereotype
+   and the tags above (any other shape is a compile error naming the path), and reads the applications as
+   `EqualityKeys` reads `<<equality.Key>>`. Three consequences, each deliberate:
+   - **The prelude does not ship it.** A prelude copy beside the library's would be a duplicated element
+     (`ModelIntegrity` refuses one), and it would make the model lite-only again. The library project is the one
+     home; lite's `projects/graph` holds it and publishes it.
+   - **The path stays out of `meta::`.** `meta::` is Pure's platform root; lite itself refuses library elements under
+     `meta::pure::functions::` (`LibraryPlatformNamespaceGuardTest`), and whether the engine refuses a user element
+     under `meta::` was not verified here and need not be: a plain path avoids the question.
+   - **Only lite validates the tags.** The engine sees `Graph.from = 'actor'` as a string. A misdeclared edge
+     compiles there and fails here, in phase F, with a positioned error naming the class and its properties; since
+     only lite runs the island, that is where the check belongs, and Studio on lite shows it at compile time.
 
    The checks, each a compile error with Neo4j's and the model's words: `from` and `to` name two distinct properties
    of the class (own or inherited), each of multiplicity `[1]` (a Neo4j relationship always has both ends) and each
@@ -649,13 +679,14 @@ for a relationship with properties, and where does the model say so?
    column; `type(r)` a spelled constant; `startNode(r)` and `endNode(r)` the ends. A variable-length pattern over an
    edge class unrolls with two joins per hop. Nothing in the lowering is new: it is navigation.
 
-**What it costs, and what it does not.** New: the profile declaration in the prelude, a phase-F reader beside
-`EqualityKeys` (`GraphEdges`), the island's resolution of a relationship type to an edge class, an association or a
+**What it costs, and what it does not.** New: the library project `projects/graph` with the one profile, the
+constant `PlatformTypes.GRAPH_PROFILE`, a phase-F reader beside `EqualityKeys` (`GraphEdges`: the validation and the
+resolved ends per class), the island's resolution of a relationship type to an edge class, an association or a
 property, and the `USE` clause. Untouched: the parser (stereotypes and tagged values parse today), the protocol, the
-mapping layer, the data space. **The one real cost:** a model that uses the profile compiles in lite only, because
-the engine does not define `meta::legend::lite::graph`. That is the same cost as every lite construct declared in
-`docs/OWN_CORPUS_DECISIONS.md` (the inline association, the IQ island), declared the same way (LITE-DESIGN-graph-edge),
-and it is the price of a semantic Pure cannot say; a model without edge classes is untouched and compiles everywhere.
+mapping layer, the data space, the prelude. **No lite-only model construct**: a model with edge classes compiles in
+the engine, in Studio and here, byte for byte the same text; the own-corpus census needs no new family for it. The
+one convention is the profile's name, which is the same kind of convention as `meta::pure::profiles::equality`, and
+it is checked, never assumed.
 
 **What this is not.** It is not a shortcut around the association: the association remains the right element for a
 relationship with no properties, and the edge class is the right element for one with properties, which is how a
