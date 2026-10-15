@@ -24,43 +24,51 @@ always there when DataCube is: there is never a case for a copy "in case V8 is m
   model, which DataCube's reader refuses -- the page would never open again. Now DataCube's `keptFor`, asked through
   `pageModelKept`.
 
-## The next program: the other twins (the audit of 2026-10-15)
+## The other twins (the audit of 2026-10-15): done on `claude/epic-rubin-ay7upl`, landing as one PR
 
-Each to move behind a call to DataCube's code, its own landing, with the DataCube + Python line. In the audit's order
-of harm:
+Each moved behind a call to DataCube's code or a generated artifact, a commit each, every behaviour change reviewed by
+the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite line). In the order they landed:
 
-1. **Reading and writing a page** (`page.py _check`, the shape half of `_problems`, `remove`, the name setter, `_update`
-   ↔ `page-document.ts readPage`/`writePageOf`/`pageContent`, `layout/bands.ts problems`). Python refuses any version
-   but 4 where DataCube migrates 1 to 3, and checks no model, sheet name or chart title. Plan: a headless `readPage` and
-   `pageContent`, so Python reads (and migrates) as DataCube does and writes what DataCube would.
-2. **A new grid's defaults** (`Page.grid`'s cube document ↔ `app/sources.ts rawRows`/`rebuilt`, `writeCube`:
-   `maxRows` when capped).
-3. **Layout editing** (`page.py _split`, `_without`, `_replaced`, `_place`, `_bands_without`, `_band_height`,
-   `Sheet.arrange`, `Sheet.layout`, `Page.stack` ↔ `layout/bands.ts split`, `without`, `replaced`, `add`, `remove`,
-   `bandHeight`, `arrange`). Pure functions: the bundle can export them as they are.
-4. **Type families** (`GridView.typed`, `to_pandas`, plain names by `split('::')[-1]` ↔ `engine-client/src/types.ts`
-   over the generated `TYPE_FACTS`): `Timestamp`, `BigInt`, `Numeric`, `Double`, `LatestDate` misread today. Plan: the
-   fact table's generator writes Python's copy too (a generated artifact, diff-tested), or the bundle tags each column.
-5. **Typing a calculated column** (`Grid.calculate`, `_step`, `_pure_name` ↔ `query.ts extendDerived`,
-   `calc.ts columnRef`). Plan: a headless call running `sourceColumns` and `extendDerived`.
-6. **A filter's arity and values** (`_NO_VALUE`, `_LIST`, `_COLUMN`, `_value` ↔ `query.ts filterNode`, `snapshot.ts`
-   `FilterValue`). An operator taking a list or two values would be forced into Python's words and refused there.
-7. **A class's sample rows as text** (`_sample_rows`, `_sample_value`, `_time_text`, `_js_number` ↔
-   `model-actions.ts sampleOf`, `values.ts`). Plan: `gridClass` reads the sample on the headless connection.
-8. **The snap's limit and receipt** (`engine.py _warehouse_snap`, `_MAX_SNAP_ROWS` ↔ `snap.ts MAX_SNAP_ROWS`,
-   `preflight`, `receipt.ts`). At least: the vocabulary test reads `engine.py` too.
-9. **A server's plans** (`upstream.py` ↔ `planner.ts serverPlan`, `engine-client/src/legend/engine.ts`): interim by its
-   own words, to move into the native library. One difference it carries (item 4 left it here, 2026-10-15): a server's
-   Database `BIT` column, which legend-engine types `precisePrimitives::TinyInt`, reads as a Boolean on the page
-   (`relation-type.ts`'s rule, `docs/SEMANTICS_REGISTER.md` S23) but is labelled `TinyInt` -- an Integer by the
-   lattice -- in Python's rows (`frames.TYPE_KEY`, as `upstream.tds_columns` keeps the server's type). The rows are
-   booleans either way; the label is put right when the server's plan is read where the page reads it.
-10. **The planner protocol's side lists** (`engine.py _PAGE_KINDS`, `_planner.py HELD` ↔ `python-host.ts`'s
-    `'handle' in body`).
+- **4, type families.** `TypeFacts.java` writes Python's copy of the type table (`python/legend_lite/_type_facts.py`,
+  diff-tested); `_types.py` reads it -- `plain_type` and the predicates refuse an unknown name -- and no other module
+  spells a type's name (test_frames' `TypeNamesAreReadHere`). A server's `Int`/`BigInt` column is now an Integer.
+- **10, the planner protocol's side lists.** `planner-protocol.ts` `HELD_KINDS` and `PAGE_KINDS`, each from a Record
+  over the protocol's kinds; Python's copies held equal by DataCube's vocabulary test. `PAGE_KINDS` narrowed, by
+  measuring what a page sends, to `plan`, `relationType`, `planJson`, `pureV1`.
+- **8, the snap's limit.** `engine.py _MAX_SNAP_ROWS` held equal to `snap.ts MAX_SNAP_ROWS`.
+- **3, layout editing.** `headless/layout.ts` over `bands.ts` `add`, `remove`, `arrange` and the new `stackTiles`
+  (built from `drop`); Python's band editors deleted. Found on the way: `arrange` took any preset name on a page of
+  one place or none -- it now checks first.
+- **1, reading and writing a page.** `headless/page.ts pageRead` (`readPage` then `pageToJson`): Python loads, reads
+  back, lays out, saves and shows a page through DataCube's reader -- any version it reads, migrated; an empty page
+  refused; two cubes of one id refused (`readPage`, new). `_check` and `_problems` deleted.
+- **2 and 1's reopened cube.** `rawRows` and `rebuilt` moved from `app/sources.ts` into `cube-document.ts`, with
+  `frameSource`; `headless/grid.ts gridCube` makes a grid's cube over a frame as DataCube does, new (capped beside
+  others) or rebuilt over the frame as it is now (a gone column left out of everything, said as a warning).
+- **5, a calculated column.** `gridCalculate`: `nameProblem`, the planner's parse, the kind declared or none, the cube
+  compiled as a refresh sends it. `_step`, `_pure_name` deleted. DataCube now refuses what Python's own typing passed:
+  a StrictTime column on this plane (its query does not lower; below).
+- **6, a filter.** `filter-operators.ts` (the editor's table, no DOM, now exhaustive over `FilterOperator`);
+  `gridFilter` builds Python's tree by each operator's operand and offers, in the editor's normal form
+  (`normalFilter`), and compiles it. Python keeps only the shape of its argument and its values' JSON.
+- **7, a class's sample rows.** `sample-rows.ts sampleOf` (out of `model-actions.ts`), run by `gridClass` on the host's
+  database; Python's four value writers deleted (the formats are pinned in test_model).
 
-Smaller, none checked mechanically: `model.py` ↔ `model-changes/src` (five replayed cases), `warehouse.py` ↔
-`warehouse.ts` (the SQL API corpus), `_json.protocol` ↔ pure-protocol `toJson` (key order, float spelling),
-`frames._NAME` ↔ `model-names.ts isPureName`, `_next` ids ↔ `cube-page.ts`.
+What is left, and why:
+
+- **Item 1's name rules** (a blank page name or tile title): wait on the user's answer -- Python to raise, or to keep
+  the old name as the screen does.
+- **Item 8's rest** (`engine.py _warehouse_snap`'s preflight and receipt) and **item 9** (`upstream.py`: a server's
+  plans, interim by its own words; the `BIT`-as-`TinyInt` label below): left to the DataCube + Python line's plan for
+  SQL handling, which rewrites both.
+  One difference item 9 carries (item 4 left it there, 2026-10-15): a server's Database `BIT` column, which
+  legend-engine types `precisePrimitives::TinyInt`, reads as a Boolean on the page (`relation-type.ts`'s rule,
+  `docs/SEMANTICS_REGISTER.md` S23) but is labelled `TinyInt` -- an Integer by the lattice -- in Python's rows
+  (`frames.TYPE_KEY`, as `upstream.tds_columns` keeps the server's type). The rows are booleans either way; the label
+  is put right when the server's plan is read where the page reads it.
+- **Smaller, none checked mechanically:** `model.py` ↔ `model-changes/src` (five replayed cases), `warehouse.py` ↔
+  `warehouse.ts` (the SQL API corpus), `_json.protocol` ↔ pure-protocol `toJson` (key order, float spelling),
+  `frames._NAME` ↔ `model-names.ts isPureName`, `_next` ids ↔ `cube-page.ts`.
 
 ## A finding for DataCube (its line designs the fix)
 
