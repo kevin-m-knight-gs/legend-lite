@@ -1075,11 +1075,12 @@ export function kpiDrawing(
   }
   let line: ChartDrawing | undefined;
   if (trend && spec.x !== undefined) {
-    const xs = column(trend, spec.x);
+    // the trend's column is its axis's: a date by its period (a grain's column), named as a period
+    const xs = column(trend, axisName(spec) ?? spec.x);
     const ys = column(trend, name);
     if (xs && ys) {
       // asked latest first, one past the most it shows (kpiQueries): drawn oldest first, the latest KPI_TREND_LIMIT
-      const latest = xs.values.map((x, i) => [label(x, spec.x!, xs.type), numberOf(ys.values[i] ?? null, ys.type)] as const)
+      const latest = xs.values.map((x, i) => [spec.grain !== undefined && x !== null ? periodText(String(x), spec.grain) : label(x, spec.x!, xs.type), numberOf(ys.values[i] ?? null, ys.type)] as const)
         .slice(0, KPI_TREND_LIMIT);
       const points = [...latest].reverse();
       line = {

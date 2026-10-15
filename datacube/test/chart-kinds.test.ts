@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
 import { chartProblems, chartSnapshot, drillLevels, followCube, type ChartSpec } from '../src/chart-spec.ts';
-import { chartOption, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
+import { chartOption, kpiDrawing, type ChartDrawing, type GridShown } from '../src/chart-option.ts';
 import { facetOption, gridKindOption, kindOption } from '../src/chart-kinds.ts';
 import { paretoName, ringTotalName, waterfallNames } from '../src/calc-presets.ts';
 import * as echarts from 'echarts/core';
@@ -441,3 +441,18 @@ describe('the audit of batch 3: what each fix pins', () => {
     assert.ok(svg(kindOption(of('waterfall'), rows)).includes('>Total<'));
   });
 });
+
+describe('a KPI by a period', () => {
+  it('its trend reads the period\'s column and names each period (batch 2 drew no trend for a KPI with a grain)', () => {
+    const total = table([{ name: 'sum_revenue', type: 'Float', values: [30] }]);
+    const trend = table([
+      { name: 'day__month', type: 'StrictDate', values: ['2024-02-01', '2024-01-01'] },
+      { name: 'sum_revenue', type: 'Float', values: [20, 10] },
+    ]);
+    const d = kpiDrawing(of('kpi', { x: 'day', grain: 'month' }), total, trend);
+    assert.ok(d.trend, 'a trend is drawn');
+    const xs = (d.trend!.option as { xAxis: { data: string[] } }).xAxis.data;
+    assert.deepEqual(xs, ['Jan 2024', 'Feb 2024'], 'oldest first, each named as a month');
+  });
+});
+

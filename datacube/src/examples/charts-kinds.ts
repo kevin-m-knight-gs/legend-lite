@@ -47,6 +47,7 @@ const SHEETS: readonly ExampleSheet[] = [
       chart('k-rings', 'Revenue by region, then channel: a pie in two rings', { mark: 'pie', x: 'region', split: 'channel' }),
       chart('k-sunburst', 'The grid as shown, as rings: a sunburst', { mark: 'sunburst', x: 'region' }),
       chart('k-tree', 'The grid as shown, as branches: a tree', { mark: 'tree', x: 'region' }),
+      chart('k-treemap', 'The grid as shown, as blocks: a treemap', { mark: 'treemap', x: 'region' }),
     ],
   },
   {
@@ -67,6 +68,9 @@ const SHEETS: readonly ExampleSheet[] = [
       }),
       chart('k-band', 'The smallest and largest sale each month: a range', {
         mark: 'range', x: 'sold', grain: 'month', y: [{ column: 'revenue', fn: 'min' }, { column: 'revenue', fn: 'max' }], options: BY_TIME,
+      }),
+      chart('k-heatmap', 'Revenue by month and region: a heatmap', {
+        mark: 'heatmap', x: 'sold', grain: 'month', split: 'region', options: BY_TIME,
       }),
     ],
   },
@@ -104,6 +108,9 @@ const SHEETS: readonly ExampleSheet[] = [
     views: [
       chart('k-gauge', 'Revenue against its target: a gauge', { mark: 'gauge', options: { target: 40_000_000 } }),
       chart('k-ring', 'Profit against its target: a progress ring', { mark: 'gauge', y: [PROFIT], options: { target: 15_000_000, ring: true } }),
+      chart('k-kpi', 'Revenue against its target, and its trend by month: a KPI', {
+        mark: 'kpi', x: 'sold', grain: 'month', options: { target: 40_000_000 },
+      }),
     ],
   },
 ];
