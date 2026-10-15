@@ -216,6 +216,9 @@ public final class IqDialect implements InputDialect {
     /** IQ island, 2026-10-15: the statement's set operations that are a branch of another, by identity (an all-NULL
      *  column stays untyped there, {@link #setColumn}). */
     private final Set<SqlAst.SetOperation> innerSets;
+    /** IQ island, 2026-10-15: arithmetic whose value an enclosing + - * (or a / as its dividend) reads, by identity: a
+     *  DOUBLE there leaves its overflow to the chain's end ({@link #doubleArithmetic}). */
+    private final Set<SqlAst.Expr> chained;
     /** IQ island, 2026-10-14 (the options framework): each statement {@link #parse} read after SET statements, by
      *  identity, with the dialect of the settings they made, which translates it ({@link #reading}). */
     private final Map<SqlAst.Statement, IqDialect> prefixed = new IdentityHashMap<>();
@@ -226,9 +229,10 @@ public final class IqDialect implements InputDialect {
             IqAggregates.Naming naming, Set<String> setDerived, Set<SqlAst.Expr> shownValues, Set<String> folded,
             @com.legend.base.Nullable IqKeys keys, Set<String> lazy, Map<SqlAst.SelectExpr, IqNames.Chains> chains,
             Map<SqlAst.Expr, Reading> twoValued, Map<SqlAst.Select, SqlAst.Select> grouped,
-            Set<SqlAst.SetOperation> innerSets) {
+            Set<SqlAst.SetOperation> innerSets, Set<SqlAst.Expr> chained) {
         this.settings = settings;
         this.innerSets = innerSets;
+        this.chained = chained;
         this.twoValued = twoValued;
         this.grouped = grouped;
         this.naming = naming;
@@ -252,14 +256,14 @@ public final class IqDialect implements InputDialect {
     public static IqDialect of(IqSettings settings) {
         return new IqDialect(settings, null, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
-                Map.of(), Set.of());
+                Map.of(), Set.of(), Set.of());
     }
 
     /** The dialect under {@code settings} with {@code engine}'s rules whatever the statement. */
     public static IqDialect of(IqSettings settings, Engine engine) {
         return new IqDialect(settings, engine, Set.of(), null, Set.of(), Set.of(), Set.of(), Set.of(),
                 IqAggregates.Naming.none(), Set.of(), Set.of(), Set.of(), null, Set.of(), Map.of(), Map.of(),
-                Map.of(), Set.of());
+                Map.of(), Set.of(), Set.of());
     }
 
     public IqSettings settings() {
@@ -1255,9 +1259,11 @@ public final class IqDialect implements InputDialect {
                 : Collections.newSetFromMap(new IdentityHashMap<>());
         Map<SqlAst.Select, SqlAst.Select> groupedHere = new IdentityHashMap<>();
         Set<SqlAst.SetOperation> innerSetsHere = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<SqlAst.Expr> chainedHere = Collections.newSetFromMap(new IdentityHashMap<>());
         for (SqlAst.Statement q : queries(statement)) {
             if (q instanceof SqlAst.Select s) {
                 groupedHere.put(s, IqAggregates.grouping(s));
+                expressions(s).forEach(e -> chained(e, chainedHere));
             }
             if (q instanceof SqlAst.SetOperation o) {
                 for (SqlAst.Statement branch : List.of(o.left(), o.right())) {
@@ -1270,7 +1276,7 @@ public final class IqDialect implements InputDialect {
         IqDialect read = new IqDialect(settings, chosen, inCase, names, limitedHere, shownHere, derivedHere,
                 starredHere, groupedNames, setDerivedHere, valuesHere, folded(statement), IqKeys.of(statement, settings),
                 lazyAggregates(statement), chains(statement), twoValuedPlaces(statement, groupedHere), groupedHere,
-                innerSetsHere);
+                innerSetsHere, chainedHere);
         read.outerReads.addAll(outerReads);
         read.aliasesRead.putAll(aliasesRead);
         read.innerNames.putAll(innerNames);
@@ -3238,11 +3244,16 @@ public final class IqDialect implements InputDialect {
         // the narrower one's width: 99999999999999999.5 + 1.00 overflowed DECIMAL(18,2))
         boolean times = b.op() == SqlAst.BinaryOp.TIMES;
         boolean widen = p > 18 && (times ? !lInteger && !rInteger : true);
-        Tx result = SqlToPure.strict(Kind.DECIMAL, List.of(l, r), v -> AppliedFunction.infixRun(fn,
+        // IQ island, 2026-10-15 (the census's scale suite): under IQ's engine a + - * of operands that cannot raise
+        // merges their NULL guards, and keeps its own apart, so a sum of NUMERIC measures stays linear in size
+        boolean merge = cannotRaise(b.left()) && cannotRaise(b.right());
+        Tx result = SqlToPure.strict(Kind.DECIMAL, List.of(l, r), merge || List.of(l, r).stream().filter(Tx::nullable)
+                .count() == 1, v -> AppliedFunction.infixRun(fn,
                 List.of(lInteger ? SqlToPure.call("toDecimal", v.get(0)) : widen ? wide(v.get(0)) : v.get(0),
                         rInteger ? SqlToPure.call("toDecimal", v.get(1)) : widen && !times ? wide(v.get(1))
                                 : v.get(1))));
-        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable(), numeric(p, s));
+        return new Tx(result.vs(), Kind.DECIMAL, result.nullable(), null, numeric(p, s), result.guard(),
+                result.body());
     }
 
     /**
@@ -3479,6 +3490,53 @@ public final class IqDialect implements InputDialect {
         return AppliedFunction.infixRun("plus", List.of(x, SqlToPure.call("toDecimal", new CInteger(0L))));
     }
 
+    /** The arithmetic under {@code e} that an enclosing + - * reads, or a / as its dividend (not its divisor: x / inf
+     *  is 0, which would hide the divisor's overflow), into {@code out}; without recursion. */
+    private static void chained(SqlAst.Expr e, Set<SqlAst.Expr> out) {
+        java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+        todo.push(e);
+        while (!todo.isEmpty()) {
+            SqlAst.Expr x = todo.pop();
+            if (x instanceof SqlAst.Binary b) {
+                boolean chain = b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
+                        || b.op() == SqlAst.BinaryOp.TIMES;
+                if ((chain || b.op() == SqlAst.BinaryOp.DIVIDE) && arithmetic(b.left())) {
+                    out.add(b.left());
+                }
+                if (chain && arithmetic(b.right())) {
+                    out.add(b.right());
+                }
+            }
+            for (SqlAst.Expr c : children(x)) {
+                todo.push(c);
+            }
+        }
+    }
+
+    private static boolean arithmetic(SqlAst.Expr e) {
+        return e instanceof SqlAst.Binary b && (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
+                || b.op() == SqlAst.BinaryOp.TIMES || b.op() == SqlAst.BinaryOp.DIVIDE);
+    }
+
+    /** IQ island, 2026-10-15: whether {@code e} cannot raise under IQ's engine -- a column, a constant, + - * of such
+     *  (integers widen unchecked, D-N3; a NUMERIC's 38 digits are refused past; a DOUBLE's overflow is NULL): so an
+     *  operation over it may merge its operands' NULL guards ({@link SqlToPure#strict}) without losing an error. */
+    private boolean cannotRaise(SqlAst.Expr e) {
+        if (engine != Engine.IQ) {
+            return false;
+        }
+        return switch (e) {
+            case SqlAst.ColumnRef r -> true;
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.NumericLit n -> true;
+            case SqlAst.NullLit n -> true;
+            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && cannotRaise(u.operand());
+            case SqlAst.Binary b -> (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS
+                    || b.op() == SqlAst.BinaryOp.TIMES) && cannotRaise(b.left()) && cannotRaise(b.right());
+            default -> false;
+        };
+    }
+
     /** A DOUBLE NULL. */
     private static Tx doubleNull() {
         return Tx.value(SqlToPure.nullOf(Kind.FLOAT).vs(), Kind.FLOAT, true, new IqType("DOUBLE"));
@@ -3514,7 +3572,10 @@ public final class IqDialect implements InputDialect {
         if (nullOnZero && literal != null) {
             return doubleNull();
         }
-        if (limited.contains(b)) {
+        // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a DOUBLE beyond the largest is NULL, not an
+        // error, so only a quotient's zero divisor raises
+        boolean iq = engine == Engine.IQ;
+        if (limited.contains(b) && !(iq && b.op() != SqlAst.BinaryOp.DIVIDE)) {
             String zero = b.op() == SqlAst.BinaryOp.DIVIDE ? " or -628 (division by zero)" : "";
             throw SqlTranslationException.unsupported("this " + operator + " of a DOUBLE can raise IQ's error -158 (out"
                     + " of range)" + zero + " in the select list or ORDER BY of a statement with TOP, FIRST or START"
@@ -3543,7 +3604,14 @@ public final class IqDialect implements InputDialect {
         // branch of it, where a scaled constant could overflow; with one such operand the product is as before (an
         // underflow there is recorded, not guarded)
         boolean guard = guarded && readsColumn(b.left()) && readsColumn(b.right());
-        Tx result = SqlToPure.strict(Kind.FLOAT, List.of(l, r), v -> {
+        // IQ island, 2026-10-15 (the census's scale suite): under IQ's engine a value beyond the largest DOUBLE is NULL,
+        // tested once where a chain of + - * ends (an infinity or a NaN within it stays one to the end, where abs(v)
+        // exceeds the largest on DuckDB and Postgres alike); its operands' NULL guards merge where they cannot raise,
+        // so a sum of DOUBLE measures stays linear in size
+        boolean pending = iq && chained.contains(b) && op != SqlAst.BinaryOp.DIVIDE;
+        boolean merge = iq && op != SqlAst.BinaryOp.DIVIDE && cannotRaise(b.left()) && cannotRaise(b.right());
+        Tx result = SqlToPure.strict(Kind.FLOAT, List.of(l, r), merge || List.of(l, r).stream().filter(Tx::nullable)
+                .count() == 1, v -> {
             ValueSpecification x = lf ? v.get(0) : SqlToPure.call("toFloat", v.get(0));
             ValueSpecification y = rf ? v.get(1) : SqlToPure.call("toFloat", v.get(1));
             ValueSpecification value = switch (op) {
@@ -3552,13 +3620,19 @@ public final class IqDialect implements InputDialect {
                 case TIMES -> guard ? unflowedProduct(x, y) : AppliedFunction.infixRun("times", List.of(x, y));
                 default -> guard ? unflowedQuotient(x, y) : SqlToPure.call("divide", x, y);
             };
-            ValueSpecification finite = ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs", value),
-                    new com.legend.protocol.spec.CFloat(DOUBLE_MAX)), floatRaise(), value);
+            ValueSpecification finite = pending ? value : ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs",
+                    value), new com.legend.protocol.spec.CFloat(DOUBLE_MAX)), iq ? SqlToPure.nullOf(Kind.FLOAT).vs()
+                    : floatRaise(), value);
             return op == SqlAst.BinaryOp.DIVIDE ? ifThen(SqlToPure.call("equal", y,
                     new com.legend.protocol.spec.CFloat(0.0)), nullOnZero ? SqlToPure.nullOf(Kind.FLOAT).vs()
                     : floatRaise(), finite) : finite;
         });
-        return Tx.value(result.vs(), Kind.FLOAT, result.nullable() || nullOnZero, new IqType("DOUBLE"));
+        if (pending) {
+            // the body never empty where the guard is false: carried apart for the next operation to merge
+            return new Tx(result.vs(), Kind.FLOAT, result.nullable(), null, new IqType("DOUBLE"), result.guard(),
+                    result.body());
+        }
+        return Tx.value(result.vs(), Kind.FLOAT, result.nullable() || nullOnZero || iq, new IqType("DOUBLE"));
     }
 
     private static ValueSpecification fl(double d) {

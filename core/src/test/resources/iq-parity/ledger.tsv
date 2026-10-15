@@ -1715,8 +1715,9 @@ lite/m1a/numeric_column_negated_under_the_iq_engine@iq16-default	PASS	PASS
 lite/m1a/numeric_column_negated_under_the_iq_engine@iq17-default	PASS	PASS
 lite/m1a/double_arithmetic@iq16-default	PASS	PASS
 lite/m1a/double_arithmetic@iq17-default	PASS	PASS
-lite/m1a/double_overflow@iq16-default	BOTH_ERROR	BOTH_ERROR
-lite/m1a/double_overflow@iq17-default	ERROR	ERROR
+lite/m1a/double_overflow@iq17-default	PASS	ERROR
+lite/m1a/double_overflow_on_the_front_end@iq16-default	BOTH_ERROR	BOTH_ERROR
+lite/m1a/double_overflow_on_the_front_end@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1a/double_division@iq16-default	PASS	PASS
 lite/m1a/double_division@iq17-default	PASS	PASS
 lite/m1a/double_division_by_zero@iq16-default	BOTH_ERROR	BOTH_ERROR
@@ -1729,8 +1730,8 @@ lite/m1a/double_and_null@iq16-default	PASS	PASS
 lite/m1a/double_and_null@iq17-default	BUG	BUG
 lite/m1a/double_times_zero@iq16-default	PASS	PASS
 lite/m1a/double_times_zero@iq17-default	PASS	PASS
-lite/m1a/double_product_under_top_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1a/double_product_under_top_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1a/double_product_under_top@iq16-default	PASS	PASS
+lite/m1a/double_product_under_top@iq17-default	PASS	PASS
 lite/m1a/double_remainder_is_refused@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/m1a/double_remainder_is_refused@iq17-default	REFUSED	REFUSED
 lite/m1a/double_and_numeric_under_the_iq_engine@iq16-default	PASS	PASS

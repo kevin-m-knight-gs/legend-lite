@@ -715,9 +715,17 @@ class IqToPureTest {
         // a NUMERIC with a DOUBLE is a DOUBLE, under IQ's engine too (IQ island, 2026-10-15, measured on IQ 17.1)
         numbers("SELECT d + nm AS a FROM " + T);
         numbersSa("SELECT d + nm AS a FROM " + T);
-        // IQ computes a row-limited select list for the rows it keeps only: an operation that can raise is refused
-        assertTrue(numbersRefusal("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i").getMessage().contains(
+        // IQ computes a row-limited select list for the rows it keeps only: an operation that can raise is refused --
+        // under IQ's engine a quotient (its zero divisor), as a product beyond the largest DOUBLE is NULL there (IQ
+        // island, 2026-10-15, measured on IQ 17.1), and on SQL Anywhere's front end a product too
+        assertTrue(numbersRefusal("SELECT TOP 1 i, d / d AS a FROM " + T + " ORDER BY i").getMessage().contains(
                 "TOP, FIRST or START AT"));
+        numbers("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i");
+        assertTrue(refusal("SELECT TOP 1 i, d * d AS a FROM " + T + " ORDER BY i", IqProfile.SQLA17_DEFAULT.settings(),
+                NUMBERS).getMessage().contains("TOP, FIRST or START AT"));
+        // under IQ's engine a chain of + - * tests the largest DOUBLE once, at its end, and answers NULL past it
+        String chain = numbers("SELECT d + d + d + d AS a FROM " + T);
+        assertEquals(1, chain.split("1.7976931348623157E308", -1).length - 1, chain);
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT d + 'a' AS a FROM " + T).kind());
     }
 

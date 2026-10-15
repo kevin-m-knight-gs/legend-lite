@@ -36,6 +36,7 @@ cause	utf8-char-bytes	the CharSet UTF-8 database: CHAR(n) counts bytes, so a val
 cause	union-order-by	a set operation's ORDER BY by a name is IQ's -1005012 under its engine, whatever the name (a column both branches show alike, an alias; measured on IQ 17.1, 2026-10-15); a position is read, and over DUMMY or through a derived table the name is too
 cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING
+cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
 
 # IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
 run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
@@ -43,7 +44,6 @@ run	lite/m0/bigint_plus_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/bigint_times_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/integer_plus_bigint_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/m0/negation_of_the_bigint_minimum@iq17-default	D-N3	duckdb,postgres
-run	lite/m1a/double_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/review5/b1_bigint_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/review5/b1_bigint_variable_in_a_counted_where_overflow@iq17-default	D-N3	duckdb,postgres
 run	lite/review5/b1_bigint_variable_minus_a_column_overflow@iq17-default	D-N3	duckdb,postgres
@@ -164,3 +164,6 @@ run	lite/cte/a_cte_read_by_a_union@iq17-default	union-order-by	duckdb,postgres
 # by the data's range (a SMALLINT here), so SUM over its window is a BIGINT where lite's INTEGER product sums to a
 # NUMERIC(20,0).
 run	lite/windows/window_of_an_alias@iq17-default	D-N3	duckdb,postgres
+# IQ island, 2026-10-15 (landing 4: the census's scale suite, DOUBLE arithmetic linear in size): IQ's engine answers a
+# DOUBLE overflow NULL (measured on IQ 17.1), which the DuckDB lane now answers; Postgres raises on float8 overflow.
+run	lite/m1a/double_overflow@iq17-default	pg-double-overflow	postgres

@@ -628,6 +628,9 @@ tests:
     sql: "SELECT id, dbl + 1 AS a, dbl * 2 AS b, dbl - dbl AS c, -dbl AS d FROM t WHERE id <> 6 ORDER BY id"
   - id: double_overflow
     sql: "SELECT id, dbl * dbl AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: double_overflow_on_the_front_end
+    sql: "SELECT 1.5e200 * 1.5e200 AS a"
   - id: double_division
     sql: "SELECT id, dbl / 2 AS a FROM t ORDER BY id"
   - id: double_division_by_zero
@@ -640,7 +643,7 @@ tests:
     sql: "SELECT id, dbl + NULL AS a FROM t ORDER BY id"
   - id: double_times_zero
     sql: "SELECT id, dbl * 0 AS a FROM t ORDER BY id"
-  - id: double_product_under_top_is_refused
+  - id: double_product_under_top
     sql: "SELECT TOP 1 id, dbl * dbl AS a FROM t ORDER BY id"
   - id: double_remainder_is_refused
     sql: "SELECT id, dbl % 2 AS a FROM t ORDER BY id"
