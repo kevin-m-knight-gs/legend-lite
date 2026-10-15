@@ -412,12 +412,13 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
     (`model/AssociationDefinition`), so the only Legend element that can hold a relationship's own properties, keys
     and mapping is a class: `Acting` with `actor: Actor[1]`, `movie: Movie[1]` and `role`. The class says it is an
     edge, and which ends are which, by an ordinary Pure `Profile` in a library project (`graph::Graph`, with the
-    stereotypes `Edge`, `from` and `to` and the tag `type`), which the engine and Studio compile as any profile and
+    three stereotypes `Edge`, `from` and `to`, and no tags), which the engine and Studio compile as any profile and
     which lite reads by name exactly as it reads `<<equality.Key>>` (`compiler/element/EqualityKeys`,
-    `PlatformTypes.EQUALITY_PROFILE`): `Class <<Graph.Edge>> {Graph.type = 'ACTED_IN'} demo::Acting` whose ends
-    are the stereotyped properties `<<Graph.from>> actor: Actor[1]` and `<<Graph.to>> movie: Movie[1]`, element
-    references the engine checks, never strings.
-    Then `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is the class's
+    `PlatformTypes.EQUALITY_PROFILE`): `Class <<Graph.Edge>> demo::Acting` whose ends are the stereotyped
+    properties `<<Graph.from>> actor: Actor[1]` and `<<Graph.to>> movie: Movie[1]`, declared on the class or
+    injected by two associations (the decomposed association class, the idiomatic form), element references the
+    engine checks, never strings. The relationship type is the class: typed, not a tag.
+    Then `(a:Actor)-[r:Acting]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is the class's
     keys, and the class maps to its bridge table like any class, which is what SQL/PGQ's "edge table with a source
     key and a destination key" is. Nothing is inferred from a class's shape (invariant 4); an undeclared class is a
     label. The graph's exposure and execution context are the data space's, selected with Neo4j's own `USE`
@@ -602,7 +603,7 @@ for a relationship with properties, and where does the model say so?
 1. **An edge is a class.** It is the only Legend element that can hold a relationship's properties (ordinary
    properties), its identity (`<<equality.Key>>`), its mapping (a class mapping over the bridge table, its two ends
    as to-one property mappings through joins: exactly SQL/PGQ's edge table with a source key and a destination key),
-   its constraints, its documentation, its milestoning, and later its writes (`CREATE (a)-[:ACTED_IN {role}]->(m)` is
+   its constraints, its documentation, its milestoning, and later its writes (`CREATE (a)-[:Acting {role}]->(m)` is
    a new instance of it). Nothing new is invented below the class.
 2. **The class says it is an edge, with an ordinary Pure `Profile` that compiles everywhere** (the user,
    2026-10-15: "if we build it as a real profile that compiles in pure/engine then we just have to inject that
@@ -614,31 +615,59 @@ for a relationship with properties, and where does the model say so?
    Profile graph::Graph
    {
      stereotypes: [Edge, from, to];
-     tags: [type];
    }
    ```
 
-   A model that wants edge classes depends on that project (through the depot, as on any library) and writes:
+   Three stereotypes and no tags: nothing in the declaration is a string. A model that wants edge classes depends on
+   that project (through the depot, as on any library) and writes the edge in either of Legend's two forms of a
+   link. **The idiomatic form, an association class decomposed as Legend can say it** (the user, 2026-10-15: "should
+   that be moved to association and only the property exist on the class?"): the class holds the relationship's
+   own data and identity, and two associations attach it to its ends, which also gives the ends their inverse
+   navigation (`$actor.actings.movie`) and draws the edge in a diagram as a box between two lines:
 
    ```
    import graph::*;
-   Class <<Graph.Edge>> {Graph.type = 'ACTED_IN'} demo::Acting
+   Class <<Graph.Edge>> demo::Acting
+   {
+     role: String[1];
+     since: StrictDate[0..1];
+   }
+   Association demo::ActorActing { <<Graph.from>> actor: demo::Actor[1]; actings: demo::Acting[*]; }
+   Association demo::ActingMovie { <<Graph.to>>   movie: demo::Movie[1]; actings: demo::Acting[*]; }
+   ```
+
+   **The compact form**, the ends as the class's own properties, with no inverse navigation:
+
+   ```
+   Class <<Graph.Edge>> demo::Acting
    {
      <<Graph.from>> actor: demo::Actor[1];
      <<Graph.to>>   movie: demo::Movie[1];
      role: String[1];
-     since: StrictDate[0..1];
    }
    ```
+
+   The rule is one for both: the edge class has exactly one to-one class-typed property carrying `<<Graph.from>>`
+   and one carrying `<<Graph.to>>`, **wherever that property is declared**: on the class, inherited, or injected by an
+   association (`ModelContext` already sees association-injected navigation uniformly as the class's properties).
+   An association that touches an edge class is one of its ends, never a relationship type of its own (nor is its
+   inverse `actings`); one whose edge-class-side property carries neither stereotype is an error, since an edge has
+   two ends and no third link. The modeler chooses the form, as Legend always lets a modeler choose a property or an
+   association; the island cannot tell the difference, and neither can the engine.
 
    **The ends are stereotyped properties, not strings naming properties** (the user, 2026-10-15: "any way we can do
    it more type-safe?"). That is how `<<equality.Key>>` is applied too: on the property, and read by
    `ClassCompiler` by the profile's full name and the stereotype's name (`ClassCompiler.java:58`). Every reference in
    the declaration is then an element reference the engine's own compiler checks: the profile exists, the
    stereotypes exist in it, the property exists and has the type and multiplicity written beside it. Nothing names a
-   property by its spelling, so a renamed property cannot silently detach its end. The one string left is the
-   optional `type` tag, and a relationship type's name is a string by nature; without it, the type is the class's
-   simple name.
+   property by its spelling, so a renamed property cannot silently detach its end.
+
+   **The relationship type is the class, so it is typed too** (the user: "should type also be a typed type?"). A
+   tagged value is a string in Pure and a stereotype is the only typed annotation there is, so the only typed name
+   of a relationship type is an element, and the class is that element: `(a:Actor)-[r:Acting]->(m:Movie)`, and
+   `type(r)` is `'Acting'`. A model that wants Neo4j's spelling names its edge class `ACTED_IN`; Legend allows the
+   identifier, only convention prefers CamelCase. There is no rename tag: a second name for one thing would be the
+   one string left, and lite would have to resolve it.
 
    The engine, Studio and the SDLC compile and show this as they show any stereotype and tagged value: the model is
    not lite-only. Lite alone gives it meaning: the compiler knows the profile by its full name
@@ -664,20 +693,27 @@ for a relationship with properties, and where does the model say so?
      under `meta::` was not verified here and need not be: a plain path avoids the question.
    - **What the engine checks, and what only lite checks.** The engine checks every reference: the profile, the
      stereotypes, the properties they sit on, their types and multiplicities. Only lite checks the *rule*: exactly
-     one `<<Graph.from>>` and one `<<Graph.to>>` property per edge class (own or inherited), each `[1]` and typed by
-     a class, on a class that carries `<<Graph.Edge>>` (an end stereotype without the class marker, or the marker
-     without both ends, is an error either way); no to-many class-typed property on an edge; an edge class never
+     one `<<Graph.from>>` and one `<<Graph.to>>` property per edge class (own, inherited or association-injected),
+     each `[1]` and typed by a class, on a class that carries `<<Graph.Edge>>` (an end stereotype without the class
+     marker, or the marker without both ends, is an error either way); no third link on an edge; an edge class never
      used as a label. A misdeclared edge compiles in the engine and fails here, in phase F, with a positioned error
      naming the class and its properties; since only lite runs the island, that is where the rule belongs, and
      Studio on lite shows it at compile time.
+   - **One small model change for the association form.** The parser already reads an association end "as an
+     ordinary wire property (annotations, span and all)" (`ElementParser.parseAssociationBody`), but the model record
+     drops them: `AssociationDefinition.AssociationEndDefinition` holds the name, the target and the multiplicity
+     only. It gains the end's stereotypes, which `ModelContext` then carries on the injected property as it carries
+     a class's own. The protocol JSON already carries them (the engine's wire does), so the wire and the composer
+     change nothing.
 
-   The checks, each a compile error with Neo4j's and the model's words: exactly one property of the class (own or
-   inherited) carries `<<Graph.from>>` and exactly one `<<Graph.to>>`, each of multiplicity `[1]` (a Neo4j
-   relationship always has both ends) and each typed by a class, which are the edge type's end node types; `type` is
-   optional and defaults to the class's simple name; an edge class is never a label (a node pattern `(x:Acting)` is
-   refused: "Acting is an edge type"); a subclass of an edge class is an edge type of its own, inheriting the ends;
-   every other property, inherited ones included, is the relationship's property (`r.role`, `properties(r)`,
-   `keys(r)`); a to-many property to a class is refused on an edge (a relationship has two ends).
+   The checks, each a compile error with Neo4j's and the model's words: exactly one property of the class (own,
+   inherited or association-injected) carries `<<Graph.from>>` and exactly one `<<Graph.to>>`, each of multiplicity
+   `[1]` (a Neo4j relationship always has both ends) and each typed by a class, which are the edge type's end node
+   types; the relationship type is the class's simple name; an edge class is never a label (a node pattern
+   `(x:Acting)` is refused: "Acting is an edge type"); a subclass of an edge class is an edge type of its own,
+   inheriting the ends; every other property, inherited ones included, is the relationship's property (`r.role`,
+   `properties(r)`, `keys(r)`); a to-many property to a class is refused on an edge (a relationship has two ends),
+   the associations' inverse ends excepted, which are the ends seen from the node.
 3. **Identity.** The edge's identity is its class's `<<equality.Key>>` keys, which `DISTINCT r`, `collect(r)`,
    `count(DISTINCT r)`, relationship uniqueness (`DIFFERENT RELATIONSHIPS`) and path equality use. Parallel
    relationships are rows with distinct keys, as in Neo4j. An edge class without keys is refused wherever identity is
@@ -696,22 +732,23 @@ for a relationship with properties, and where does the model say so?
    the `from(mapping, runtime)` that follows it, over every class the mapping maps. This is the SQL study's own
    choice for the Postgres wire ("database = a project or data space", its §3.3), and it keeps every projection fact
    in a Legend element that exists.
-7. **Renaming** is the `type` tag (`ACTED_IN` for `Acting`). Which name a plain association's relationship type has is
-   the association's or the property's own, in the model's case; a model that wants `KNOWS` for `friends` writes an
-   edge class or renames the property.
-8. **Patterns over edge classes lower as joins.** `(a:Actor)-[r:ACTED_IN]->(m:Movie)` is `Acting.all()` joined to
+7. **Names are the model's.** A relationship type is the edge class's name, the association's name or the property's
+   name; there is no renaming layer. A model that wants `KNOWS` for `friends` renames the property or writes an edge
+   class named so.
+8. **Patterns over edge classes lower as joins.** `(a:Actor)-[r:Acting]->(m:Movie)` is `Acting.all()` joined to
    its `actor` and `movie` ends through the mapping, with the endpoint labels as filters; `r.role` is the row's
    column; `type(r)` a spelled constant; `startNode(r)` and `endNode(r)` the ends. A variable-length pattern over an
    edge class unrolls with two joins per hop. Nothing in the lowering is new: it is navigation.
 
 **What it costs, and what it does not.** New: the library project `projects/graph` with the one profile, the
 constant `PlatformTypes.GRAPH_PROFILE`, a phase-F reader beside `EqualityKeys` (`GraphEdges`: the validation and the
-resolved ends per class), the island's resolution of a relationship type to an edge class, an association or a
-property, and the `USE` clause. Untouched: the parser (stereotypes and tagged values parse today), the protocol, the
-mapping layer, the data space, the prelude. **No lite-only model construct**: a model with edge classes compiles in
-the engine, in Studio and here, byte for byte the same text; the own-corpus census needs no new family for it. The
-one convention is the profile's name, which is the same kind of convention as `meta::pure::profiles::equality`, and
-it is checked, never assumed.
+resolved ends per class), the stereotypes kept on association ends (above), the island's resolution of a
+relationship type to an edge class, an association or a property, and the `USE` clause. Untouched: the parser
+(stereotypes parse today, on class and association properties alike), the protocol, the mapping layer, the data
+space, the prelude. **No lite-only model construct**: a model with edge classes compiles in the engine, in Studio
+and here, byte for byte the same text; the own-corpus census needs no new family for it. The one convention is the
+profile's name, which is the same kind of convention as `meta::pure::profiles::equality`, and it is checked, never
+assumed. **No string anywhere in the declaration**: three stereotypes, each an element reference the engine checks.
 
 **What this is not.** It is not a shortcut around the association: the association remains the right element for a
 relationship with no properties, and the edge class is the right element for one with properties, which is how a
