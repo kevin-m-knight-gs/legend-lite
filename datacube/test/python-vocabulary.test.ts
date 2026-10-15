@@ -2,21 +2,21 @@
 // DataCube's own words: its filter operators, aggregates, sort directions and charts, the page's and the cube's
 // versions, and the numbers a layout places tiles by, each as DataCube's sources spell them -- so a name added here is
 // one Python offers too, and Python never writes one DataCube does not read, nor places a tile where DataCube would
-// not. And what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py), in the planner
-// protocol's own lists (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 10). It reads Python's side as text (the two
-// halves are in two languages), and DataCube's types as text, its values as they are.
+// not. And what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner
+// protocol's own lists and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads
+// Python's side as text (the two halves are in two languages), and DataCube's types as text, its values as they are.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Sources } from '../../tools/js/runfiles.mts';
 import { HELD_KINDS, PAGE_KINDS } from '../../engine-client/src/legend/planner-protocol.ts';
+import { MAX_SNAP_ROWS } from '../../engine-client/src/snap.ts';
 
 // the sources this reads, as the BUILD target declares them (_SCANNED)
 const SOURCES = new Sources('SOURCES', 'datacube');
 const PAGE = '../python/legend_lite/page.py';
 const ENGINE = '../python/legend_lite/engine.py';
 const PLANNER = '../python/legend_lite/_planner.py';
-const PYTHON = SOURCES.read(PAGE);
 
 /** The quoted names of a TypeScript union type, `export type Name = 'a' | 'b' ...;`. */
 function union(file: string, name: string): string[] {
@@ -36,9 +36,14 @@ function python(name: string, file = PAGE): string[] {
   return [...body.matchAll(/'([A-Za-z][A-Za-z0-9]*)'/g)].map((m) => m[1]!).sort();
 }
 
-/** A numeric constant: `export const NAME = 0.5;` in TypeScript, `NAME = 0.5` in Python. */
-const tsNumber = (file: string, name: string): number => Number(new RegExp(`export const ${name} = ([\\d.]+);`).exec(SOURCES.read(file))?.[1]);
-const pyNumber = (name: string): number => Number(new RegExp(`^${name} = ([\\d.]+)$`, 'm').exec(PYTHON)?.[1]);
+/** A number's digits as either language may write them, `_` between groups (`10_000_000`). */
+const digits = (text: string | undefined): number => Number(text?.replaceAll('_', ''));
+
+/** A numeric constant: `export const NAME = 0.5;` in TypeScript, `NAME = 0.5` in Python (page.py unless `file`). */
+const tsNumber = (file: string, name: string): number =>
+  digits(new RegExp(`export const ${name} = ([\\d_.]+);`).exec(SOURCES.read(file))?.[1]);
+const pyNumber = (name: string, file = PAGE): number =>
+  digits(new RegExp(`^${name} = ([\\d_.]+)$`, 'm').exec(SOURCES.read(file))?.[1]);
 
 describe('Python writes pages in DataCube\'s own words', () => {
   it('its filter operators are the filter editor\'s', () => {
@@ -77,10 +82,15 @@ describe('Python writes pages in DataCube\'s own words', () => {
   });
 });
 
-describe('Python answers a page\'s planner by the planner protocol\'s own lists', () => {
+describe('Python answers a page by DataCube\'s own lists and limits', () => {
   it('the kinds a page sends it are the protocol\'s PAGE_KINDS', () => {
     assert.ok(PAGE_KINDS.includes('pureV1'), 'the protocol lists them');
     assert.deepEqual(python('_PAGE_KINDS', ENGINE), [...PAGE_KINDS].sort());
+  });
+
+  it('the most rows its Snap copies is the tab\'s', () => {
+    assert.ok(MAX_SNAP_ROWS > 0, 'snap.ts declares it');
+    assert.equal(pyNumber('_MAX_SNAP_ROWS', ENGINE), MAX_SNAP_ROWS);
   });
 
   it('the kinds it plans against a model held are the protocol\'s HELD_KINDS', () => {

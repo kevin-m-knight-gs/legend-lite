@@ -79,8 +79,8 @@ _SETTINGS = '/settings.json'
 # a warehouse table on a page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): Python signs in as the person running it,
 # lists what they may read, and writes and holds each opened table's model; the token never reaches the page
 _WAREHOUSE = '/warehouse.json'
-# the most rows a Snap copies (engine-client/src/snap.ts MAX_SNAP_ROWS, the tab's): a page's memory budget there, a
-# person's machine's here
+# the most rows a Snap copies (engine-client/src/snap.ts MAX_SNAP_ROWS, the tab's, held equal by DataCube's
+# python-vocabulary test): a page's memory budget there, a person's machine's here
 _MAX_SNAP_ROWS = 10_000_000
 # PYTHON'S MODEL HOME (B3): the SDLC's API and the Depot's, as the model home's server mounts them, answered by the
 # native library's SDLC over this user's git repository of projects
