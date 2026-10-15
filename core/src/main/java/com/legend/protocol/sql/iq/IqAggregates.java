@@ -829,11 +829,30 @@ final class IqAggregates {
     /** {@code e}'s form, for {@link #same}. */
     static String shape(SqlAst.Expr e) {
         StringBuilder b = new StringBuilder();
-        shape(e, b);
+        shape(e, b, null);
         return b.toString();
     }
 
-    private static void shape(SqlAst.Expr e, StringBuilder b) {
+    /** {@code e}'s form as {@link #shape} writes it, but each operand written as {@code child} names it: hash-consing
+     *  bottom-up (IQ island, 2026-10-14, the scale suite's cliff 5), so the forms of n nodes cost O(n), where whole
+     *  forms cost O(n * depth); equal names for equal operands give equal forms exactly when {@link #shape}'s are. */
+    static String shapeOf(SqlAst.Expr e, java.util.function.Function<SqlAst.Expr, String> child) {
+        StringBuilder b = new StringBuilder();
+        shape(e, b, child);
+        return b.toString();
+    }
+
+    private static void part(SqlAst.Expr e, StringBuilder b,
+            java.util.function.@com.legend.base.Nullable Function<SqlAst.Expr, String> child) {
+        if (child == null) {
+            shape(e, b, null);
+        } else {
+            b.append(child.apply(e));
+        }
+    }
+
+    private static void shape(SqlAst.Expr e, StringBuilder b,
+            java.util.function.@com.legend.base.Nullable Function<SqlAst.Expr, String> child) {
         switch (e) {
             case SqlAst.ColumnRef r -> b.append("col(").append(String.join(".", r.parts().stream()
                     .map(p -> IqLexer.lower(p.text())).toList())).append(')');
@@ -850,11 +869,11 @@ final class IqAggregates {
                         .append(f.distinct()).append(',').append(f.star());
                 for (SqlAst.Expr a : f.args()) {
                     b.append(',');
-                    shape(a, b);
+                    part(a, b, child);
                 }
                 for (SqlAst.SortItem o : f.orderBy()) {
                     b.append(",order(");
-                    shape(o.expr(), b);
+                    part(o.expr(), b, child);
                     b.append(o.descending()).append(')');
                 }
                 b.append(')');
@@ -882,9 +901,9 @@ final class IqAggregates {
                             .append(':').append(x.pos().column());
                     default -> b.append('@').append(e.pos().line()).append(':').append(e.pos().column());
                 }
-                for (SqlAst.Expr child : IqDialect.children(e)) {
+                for (SqlAst.Expr operand : IqDialect.children(e)) {
                     b.append(',');
-                    shape(child, b);
+                    part(operand, b, child);
                 }
                 b.append(')');
             }

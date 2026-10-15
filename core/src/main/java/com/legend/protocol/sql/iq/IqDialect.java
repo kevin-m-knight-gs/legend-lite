@@ -1866,30 +1866,31 @@ public final class IqDialect implements InputDialect {
                 all.add(x.expr());
             }
         }
+        ShapeIds ids = new ShapeIds();
         Map<String, Integer> shapes = new java.util.HashMap<>();
         List<SqlAst.FunctionCall> aggregates = new ArrayList<>();
         for (SqlAst.Expr e : all) {
-            countShapes(e, shapes);
+            countShapes(e, shapes, ids);
             aggregates.addAll(IqAggregates.aggregateCalls(e));
+        }
+        // the names read anywhere in the statement, counted once (IQ island, 2026-10-14, the scale suite's cliff 5): an
+        // item's alias is read by another part when the statement reads that name more often than the item itself does
+        Map<String, Integer> reads = new java.util.HashMap<>();
+        for (SqlAst.Expr e : all) {
+            countNames(e, reads);
         }
         for (int i = 0; i < s.items().size(); i++) {
             if (!(s.items().get(i) instanceof SqlAst.SelectExpr x)) {
                 continue;
             }
             boolean read = positions.contains(BigInteger.valueOf(i + 1)) || star && !positions.isEmpty()
-                    || shapes.getOrDefault(IqAggregates.shape(x.expr()), 0) > 1;
+                    || shapes.getOrDefault(ids.id(x.expr()), 0) > 1;
             SqlAst.Ident alias = x.alias();
             if (alias != null) {
                 String name = IqLexer.lower(alias.text());
-                List<SqlAst.ColumnRef> refs = new ArrayList<>();
-                clauses.forEach(e -> columnRefs(e, refs));
-                for (SqlAst.SelectItem other : s.items()) {
-                    if (other != x && other instanceof SqlAst.SelectExpr o) {
-                        columnRefs(o.expr(), refs);
-                    }
-                }
-                read |= refs.stream().anyMatch(r -> IqLexer.lower(r.parts().get(r.parts().size() - 1).text())
-                        .equals(name));
+                Map<String, Integer> own = new java.util.HashMap<>();
+                countNames(x.expr(), own);
+                read |= reads.getOrDefault(name, 0) > own.getOrDefault(name, 0);
             }
             if (x.expr() instanceof SqlAst.FunctionCall f && IqAggregates.named(f)) {
                 read |= aggregates.stream().anyMatch(c -> c != f && IqAggregates.alike(c, f));
@@ -1901,11 +1902,44 @@ public final class IqDialect implements InputDialect {
         return out;
     }
 
-    /** How many times each {@link IqAggregates#shape} occurs among {@code e} and its parts, into {@code out}. */
-    private static void countShapes(SqlAst.Expr e, Map<String, Integer> out) {
-        out.merge(IqAggregates.shape(e), 1, Integer::sum);
+    /** How many times each {@link IqAggregates#shape} occurs among {@code e} and its parts, into {@code out}, keyed by
+     *  {@code ids}' names for the shapes. */
+    private static void countShapes(SqlAst.Expr e, Map<String, Integer> out, ShapeIds ids) {
+        out.merge(ids.id(e), 1, Integer::sum);
         for (SqlAst.Expr child : children(e)) {
-            countShapes(child, out);
+            countShapes(child, out, ids);
+        }
+    }
+
+    /** How many times each column name (its last part, ASCII lower case) is read in {@code e}, into {@code out}. */
+    private static void countNames(SqlAst.Expr e, Map<String, Integer> out) {
+        List<SqlAst.ColumnRef> refs = new ArrayList<>();
+        columnRefs(e, refs);
+        for (SqlAst.ColumnRef r : refs) {
+            out.merge(IqLexer.lower(r.parts().get(r.parts().size() - 1).text()), 1, Integer::sum);
+        }
+    }
+
+    /** Names for {@link IqAggregates#shape}s, equal exactly when the shapes are: hash-consed bottom-up (each node's
+     *  form written with its operands' names), so naming the shapes of n nodes is O(n). */
+    private static final class ShapeIds {
+        private final Map<String, Integer> byForm = new java.util.HashMap<>();
+        private final Map<SqlAst.Expr, String> named = new IdentityHashMap<>();
+
+        String id(SqlAst.Expr e) {
+            String known = named.get(e);
+            if (known != null) {
+                return known;
+            }
+            String form = IqAggregates.shapeOf(e, this::id);
+            Integer n = byForm.get(form);
+            if (n == null) {
+                n = byForm.size();
+                byForm.put(form, n);
+            }
+            String id = "\u0000" + n + "\u0000";
+            named.put(e, id);
+            return id;
         }
     }
 
