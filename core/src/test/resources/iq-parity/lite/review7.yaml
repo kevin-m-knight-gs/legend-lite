@@ -1,0 +1,157 @@
+# The seventh review's findings on the third landing's first part, each pinned (docs/IQ_SQL_STUDY_2026_10_13.md
+# §9.16, "review 7"; IQ island, 2026-10-14). B1 (which of the rows whose ORDER BY keys tie at a TOP's boundary IQ
+# keeps): any answer IQ could return is right, so lite returns its database's (the user's ruling), and no case may
+# depend on it (the harness's determinism lint, IqParity.determinism): no case here pins a tied result; beside it, an
+# ORDER BY inside EXISTS is SQL Anywhere's syntax error. B2: a query without FROM read as its item's value is named by its own
+# alias, which no clause reads, and names no derived table's column (-163). M1: an enclosing query's column read in a
+# subquery's select list, GROUP BY or ORDER BY is refused by name until the planner's fix lands (the plain t.id form
+# answered the subquery's own column since the second landing). M2: an owner-qualified column of sa_rowgenerator is
+# -845; a keyed LIST's ORDER BY is read for its errors. The minor findings: LIST(DISTINCT key ORDER BY ...) under an
+# ORDER BY, the codes -831, -854 and -153, a computed LIKE pattern's named raise, and FROM t AS t. Judged by SQL
+# Anywhere 17's answers in iq-answers.jsonl. A case over sa_rowgenerator, or with a sqla17 profile, runs in SQL
+# Anywhere's front end. The SQL in YAML double quotes. tools/iq-oracle's README.md has the keys.
+tests:
+  # ---- found beside B1: an ORDER BY inside EXISTS is SQL Anywhere's syntax error -131
+  - id: exists_with_top_and_order_by_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT TOP 1 1 FROM u WHERE u.t_id = t.id ORDER BY u.t_id) ORDER BY id"
+    profile: sqla17-default
+  - id: exists_with_order_by_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id ORDER BY u.t_id) ORDER BY id"
+    profile: sqla17-default, iq16-default
+  - id: not_exists_with_order_by_is_a_syntax_error
+    sql: "SELECT id FROM t WHERE NOT EXISTS (SELECT 1 FROM u WHERE u.t_id = t.id ORDER BY u.id) ORDER BY id"
+  # ---- B2: a query without FROM read as its item's value: named by its own alias, and no derived table's column
+  - id: b2_inner_alias_names_the_item
+    sql: "SELECT (SELECT id + 1 AS z) FROM t WHERE id = 1"
+  - id: b2_inner_alias_of_a_column_names_the_item
+    sql: "SELECT (SELECT id AS z) FROM t WHERE id = 1"
+  - id: b2_inner_alias_of_a_constant_names_the_item
+    sql: "SELECT (SELECT 'x' AS y) FROM t WHERE id = 1"
+  - id: b2_inner_tsql_alias_names_the_item
+    sql: "SELECT (SELECT z = id + 1) FROM t WHERE id = 1"
+  - id: b2_inner_quoted_alias_names_the_item
+    sql: "SELECT (SELECT id + 1 AS \"a b\") FROM t WHERE id = 1"
+  - id: b2_inner_string_alias_names_the_item
+    sql: "SELECT (SELECT id + 1 'z') FROM t WHERE id = 1"
+  - id: b2_inner_bracketed_tsql_alias_names_the_item
+    sql: "SELECT (SELECT [z] = id) FROM t WHERE id = 1"
+  - id: b2_two_inner_aliases_of_one_name_are_a_duplicate_refused
+    sql: "SELECT (SELECT id + 1 AS z), (SELECT id + 2 AS z) FROM t WHERE id = 1"
+  - id: b2_outer_alias_before_the_inner_one
+    sql: "SELECT (SELECT id + 1 AS z) AS y FROM t WHERE id = 1"
+  - id: b2_inner_alias_names_a_union
+    sql: "SELECT (SELECT id + 1 AS z) FROM t WHERE id = 1 UNION ALL SELECT 5"
+  - id: b2_inner_alias_over_sa_rowgenerator
+    sql: "SELECT (SELECT row_num + 1 AS z) FROM sa_rowgenerator(1, 2) ORDER BY 1"
+    profile: sqla17-default
+  - id: b2_inner_alias_beside_its_group_key
+    sql: "SELECT k, (SELECT k AS kk) FROM g GROUP BY k ORDER BY 1"
+  - id: b2_inner_alias_read_in_where_is_iq_error_143
+    sql: "SELECT (SELECT id + 1 AS z) FROM t WHERE z = 2"
+  - id: b2_inner_alias_read_in_the_select_list_is_iq_error_143
+    sql: "SELECT (SELECT id + 1 AS z), z + 1 FROM t WHERE id = 1"
+  - id: b2_order_by_an_inner_alias_is_refused
+    sql: "SELECT (SELECT id + 1 AS z) FROM t ORDER BY z"
+  - id: b2_unaliased_item_in_a_derived_table_is_iq_error_163
+    sql: "SELECT * FROM (SELECT (SELECT id) FROM t WHERE id = 1) d"
+  - id: b2_unaliased_item_read_from_a_derived_table_is_iq_error_163
+    sql: "SELECT d.id FROM (SELECT (SELECT id) FROM t WHERE id = 1) d"
+  - id: b2_unaliased_item_of_a_counted_derived_table_is_iq_error_163
+    sql: "SELECT COUNT(*) FROM (SELECT (SELECT id) FROM t) d"
+  - id: b2_unaliased_item_of_a_derived_union_is_iq_error_163
+    sql: "SELECT * FROM (SELECT (SELECT id) FROM t WHERE id = 1 UNION ALL SELECT id FROM u WHERE id = 2) d"
+  - id: b2_inner_alias_in_a_derived_table_is_iq_error_163
+    sql: "SELECT * FROM (SELECT (SELECT id + 1 AS z) FROM t WHERE id = 1) d"
+  - id: b2_second_unaliased_item_in_a_derived_table_is_iq_error_163
+    sql: "SELECT * FROM (SELECT id, (SELECT id + 1 AS z) FROM t WHERE id = 1) d"
+  - id: b2_unaliased_item_in_a_derived_table_in_a_subquery_is_iq_error_163
+    sql: "SELECT id FROM t WHERE id IN (SELECT * FROM (SELECT (SELECT id) FROM u) d) ORDER BY 1"
+  - id: b2_unaliased_item_in_a_derived_table_over_sa_rowgenerator_is_iq_error_163
+    sql: "SELECT * FROM (SELECT (SELECT row_num) FROM sa_rowgenerator(1, 2)) d"
+    profile: sqla17-default
+  - id: b2_outer_alias_names_a_derived_tables_column
+    sql: "SELECT * FROM (SELECT (SELECT id) AS q FROM t WHERE id = 1) d"
+  - id: b2_column_list_names_a_derived_tables_column
+    sql: "SELECT * FROM (SELECT (SELECT id) FROM t WHERE id = 1) d (a)"
+  - id: b2_later_union_branch_needs_no_name
+    sql: "SELECT d.q FROM (SELECT id AS q FROM t WHERE id = 1 UNION ALL SELECT (SELECT id) FROM u WHERE id = 2) d ORDER BY 1"
+  # ---- M1: an enclosing query's column read in a subquery's select list, GROUP BY or ORDER BY (planner fix pending)
+  - id: m1_owner_qualified_enclosing_column_in_an_in_subquery_is_refused
+    sql: "SELECT DBA.t.id AS id FROM t WHERE id IN (SELECT DBA.t.id FROM u WHERE u.id = 1) ORDER BY 1"
+  - id: m1_owner_qualified_enclosing_column_beside_a_qualified_one_is_refused
+    sql: "SELECT t.id FROM t WHERE t.id IN (SELECT DBA.t.id FROM u WHERE u.id = 1) ORDER BY 1"
+  - id: m1_enclosing_column_in_an_in_subquery_is_refused
+    sql: "SELECT t.id FROM t WHERE t.id IN (SELECT t.id FROM u WHERE u.id = 1) ORDER BY 1"
+  - id: m1_enclosing_column_in_a_scalar_subquerys_sum_is_refused
+    sql: "SELECT t.id, (SELECT DBA.t.id + u.id FROM u WHERE u.id = 1) AS m FROM t ORDER BY 1"
+  - id: m1_enclosing_column_over_an_aliased_copy_is_refused
+    sql: "SELECT t.id FROM t WHERE t.id IN (SELECT DBA.t.id FROM t AS x WHERE x.id = 1) ORDER BY 1"
+  - id: m1_enclosing_column_compared_with_a_scalar_subquery_is_refused
+    sql: "SELECT t.id FROM t WHERE t.id = (SELECT DBA.t.id FROM u WHERE u.id = 1) ORDER BY 1"
+  - id: m1_enclosing_column_under_top_over_sa_rowgenerator_is_refused
+    sql: "SELECT a.row_num, (SELECT TOP 1 a.row_num + b.row_num FROM sa_rowgenerator(1, 3) b ORDER BY b.row_num DESC) AS m FROM sa_rowgenerator(1, 2) a ORDER BY 1"
+  - id: m1_enclosing_column_no_subquery_column_has_is_refused
+    sql: "SELECT t.id, (SELECT t.sm FROM u WHERE u.id = 1) AS m FROM t ORDER BY 1"
+  - id: m1_enclosing_column_beside_an_aggregate_is_refused
+    sql: "SELECT t.id, (SELECT MAX(u.t_id) + t.id FROM u) AS m FROM t ORDER BY 1"
+  - id: m1_enclosing_column_in_group_by_is_refused
+    sql: "SELECT t.id, (SELECT COUNT(*) FROM u GROUP BY t.id) AS m FROM t ORDER BY 1"
+  - id: m1_enclosing_column_in_an_exists_select_list_is_refused
+    sql: "SELECT t.id FROM t WHERE EXISTS (SELECT t.sm FROM u WHERE u.id = 1) ORDER BY 1"
+  - id: m1_enclosing_column_in_having_answers
+    sql: "SELECT t.id, (SELECT COUNT(*) FROM u HAVING COUNT(*) > t.id) AS m FROM t ORDER BY 1"
+  - id: m1_enclosing_column_in_where_answers
+    sql: "SELECT t.id FROM t WHERE t.id IN (SELECT u.t_id FROM u WHERE u.id = t.id) ORDER BY 1"
+  - id: m1_subquerys_own_column_of_the_name_answers
+    sql: "SELECT t.id FROM t WHERE t.id IN (SELECT id FROM u WHERE u.id = 1) ORDER BY 1"
+  # ---- M2: sa_rowgenerator's owner-qualified column; a keyed LIST's ORDER BY read for its errors
+  - id: m2_dbo_column_of_sa_rowgenerator_is_iq_error_845
+    sql: "SELECT dbo.sa_rowgenerator.row_num FROM dbo.sa_rowgenerator(1, 3) ORDER BY 1"
+  - id: m2_dbo_column_of_an_unqualified_sa_rowgenerator_is_iq_error_845
+    sql: "SELECT dbo.sa_rowgenerator.row_num FROM sa_rowgenerator(1, 3) ORDER BY 1"
+  - id: m2_table_column_of_sa_rowgenerator
+    sql: "SELECT sa_rowgenerator.row_num FROM sa_rowgenerator(1, 3) ORDER BY 1"
+  - id: m2_list_of_a_key_ordered_by_a_sum_is_an_error
+    sql: "SELECT k, LIST(k ORDER BY SUM(v)) AS l FROM g GROUP BY k ORDER BY 1"
+  - id: m2_list_of_a_key_ordered_by_a_count_is_an_error
+    sql: "SELECT k, LIST(k ORDER BY COUNT(*)) AS l FROM g GROUP BY k ORDER BY 1"
+  - id: m2_list_of_a_key_ordered_by_an_overflow_is_refused
+    sql: "SELECT k, LIST(k ORDER BY v + 1) AS l FROM g GROUP BY k ORDER BY 1"
+  - id: m2_list_of_a_key_ordered_by_a_string
+    sql: "SELECT k, LIST(k ORDER BY s) AS l FROM g GROUP BY k ORDER BY 1"
+  - id: m2_list_of_a_key_ordered_by_a_date
+    sql: "SELECT k, LIST(k ORDER BY dt) AS l FROM g GROUP BY k ORDER BY 1"
+  # ---- minor 1: LIST(DISTINCT key ORDER BY ...) where the statement has an ORDER BY
+  - id: minor1_list_distinct_of_a_key_ordered_in_an_ordered_statement_is_refused
+    sql: "SELECT k, LIST(DISTINCT k ORDER BY k) AS l FROM g GROUP BY k ORDER BY 1"
+  - id: minor1_list_distinct_of_a_key_ordered_under_an_ordered_query_is_refused
+    sql: "SELECT * FROM (SELECT k, LIST(DISTINCT k ORDER BY k) AS l FROM g GROUP BY k) d ORDER BY 1"
+  - id: minor1_list_distinct_of_a_key_ordered_in_an_unordered_statement
+    sql: "SELECT k, LIST(DISTINCT k ORDER BY k) AS l FROM g GROUP BY k"
+  # ---- minor 2: IQ's codes -831, -854 (before -149) and -153
+  - id: minor2_two_aliases_of_one_name_each_reading_it_are_iq_error_831
+    sql: "SELECT id AS ID, id + 1 AS Id FROM t"
+  - id: minor2_two_aliases_of_one_name_both_columns_are_iq_error_831
+    sql: "SELECT id AS ID, id AS Id FROM t"
+  - id: minor2_two_aliases_of_one_name_one_reading_it_are_iq_error_830
+    sql: "SELECT id AS ID, sm + 1 AS Id FROM t"
+  - id: minor2_two_aliases_reading_each_other_are_iq_error_831
+    sql: "SELECT id AS sm, sm AS id FROM t"
+  - id: minor2_order_by_not_grouped_reported_before_the_select_list_is_iq_error_854
+    sql: "SELECT k, v + 1 FROM g GROUP BY k ORDER BY v"
+  - id: minor2_order_by_an_output_not_grouped_is_iq_error_149
+    sql: "SELECT k, v FROM g GROUP BY k HAVING v > 1 ORDER BY v"
+  - id: minor2_order_by_not_grouped_reported_before_having_is_iq_error_854
+    sql: "SELECT k, COUNT(*) FROM g GROUP BY k HAVING v > 1 ORDER BY j"
+  - id: minor2_union_of_one_and_two_columns_is_iq_error_153
+    sql: "SELECT id FROM t UNION SELECT id, id FROM u"
+  # ---- minor 3: a computed LIKE pattern IQ matches otherwise raises by name
+  - id: minor3_like_pattern_holding_a_bracket_is_refused
+    sql: "SELECT COUNT(*) FROM (SELECT CAST('a' AS VARCHAR(30)) AS v, CAST('a[]' AS VARCHAR(30)) AS p FROM t WHERE id = 1) d WHERE v LIKE p"
+  - id: minor3_like_pattern_of_127_characters_is_refused
+    sql: "SELECT id FROM t WHERE vc LIKE REPEAT('%', 127) ORDER BY 1"
+  # ---- minor 4: FROM t AS t is an aliased table
+  - id: minor4_owner_column_over_a_table_aliased_by_its_name_is_iq_error_845
+    sql: "SELECT DBA.t.id FROM t AS t"
+  - id: minor4_column_over_a_table_aliased_by_its_name
+    sql: "SELECT t.id FROM t AS t ORDER BY 1"

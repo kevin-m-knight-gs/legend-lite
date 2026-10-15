@@ -699,7 +699,10 @@ class IqToPureTest {
         assertTrue(refusal("SELECT x + 1 FROM (SELECT id AS x FROM " + T + ") d").getMessage().contains("needs an"
                 + " alias"));
         // a name no one sees (an EXISTS subquery's item) is never refused
-        pure("SELECT id FROM " + T + " a WHERE EXISTS (SELECT a.id + b.id FROM " + T + " b)");
+        pure("SELECT id FROM " + T + " a WHERE EXISTS (SELECT b.sm + b.id FROM " + T + " b WHERE b.id = a.id)");
+        // IQ island, 2026-10-14 (review 7's M1): an enclosing query's column read there is (the planner's pending fix)
+        assertTrue(refusal("SELECT id FROM " + T + " a WHERE EXISTS (SELECT a.id + b.id FROM " + T + " b)")
+                .getMessage().contains("an enclosing query's column read in a subquery's select list"));
     }
 
     @Test
@@ -877,6 +880,48 @@ class IqToPureTest {
         pure("SELECT DISTINCT x FROM (SELECT RTRIM(vc) AS x FROM " + T + ") d");
         assertTrue(refusal("SELECT DISTINCT x FROM (SELECT vc AS x FROM " + T + ") d").getMessage().contains(
                 "DISTINCT over strings"));
+    }
+
+    @Test
+    void theSeventhReviewsFindings() {
+        // IQ island, 2026-10-14 (review 7, measured on SQL Anywhere 17). B2: a query without FROM read as its item is
+        // named by its own alias, which no clause reads, and names no derived table's column
+        assertTrue(pure("SELECT (SELECT id + 1 AS z) FROM " + T).contains("z:r|"));
+        assertTrue(pure("SELECT (SELECT id AS z) FROM " + T).contains("z:r|"));
+        SqlTranslationException nameless = refusal("SELECT * FROM (SELECT (SELECT id AS z) FROM " + T + ") d");
+        assertEquals(SqlTranslationException.Kind.INVALID, nameless.kind());
+        assertTrue(nameless.getMessage().contains("SQLCODE -163"), nameless.getMessage());
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT (SELECT id + 1 AS z) FROM " + T
+                + " ORDER BY z").kind());
+        // M1: an enclosing query's column read in a subquery's select list (the planner's fix is pending)
+        assertTrue(refusal("SELECT id FROM " + T + " a WHERE id IN (SELECT a.id FROM " + T + " b)").getMessage()
+                .contains("a planner defect whose fix is pending"));
+        // M2: sa_rowgenerator's owner-qualified column is -845; a keyed LIST's ORDER BY is read for its errors
+        assertTrue(refusal("SELECT dbo.sa_rowgenerator.row_num FROM sa_rowgenerator(1, 3)").getMessage().contains(
+                "SQLCODE -845"));
+        assertTrue(refusal("SELECT sm, LIST(sm ORDER BY SUM(id)) AS l FROM " + T + " GROUP BY sm").getMessage()
+                .contains("SQLCODE -156"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT sm, LIST(sm ORDER BY id + 1) AS l"
+                + " FROM " + T + " GROUP BY sm").kind());
+        pure("SELECT sm, LIST(sm ORDER BY vc) AS l FROM " + T + " GROUP BY sm");
+        // m1: LIST(DISTINCT key ORDER BY ...) under an ORDER BY
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT sm, LIST(DISTINCT sm ORDER BY sm) AS l"
+                + " FROM " + T + " GROUP BY sm ORDER BY 1").kind());
+        // m2: -831 where two aliases of one name each read it; -854 where the ORDER BY reads a column not grouped
+        assertTrue(refusal("SELECT id AS ID, id + 1 AS Id FROM " + T).getMessage().contains("SQLCODE -831"));
+        assertTrue(refusal("SELECT id AS ID, sm + 1 AS Id FROM " + T).getMessage().contains("SQLCODE -830"));
+        assertTrue(refusal("SELECT sm, id + 1 FROM " + T + " GROUP BY sm ORDER BY id").getMessage().contains(
+                "SQLCODE -854"));
+        assertTrue(refusal("SELECT id FROM " + T + " UNION SELECT id, id FROM " + T).getMessage().contains(
+                "SQLSTATE 53026"));
+        // m3: a computed LIKE pattern IQ matches otherwise raises by name
+        assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE vc").contains("fail('"
+                + IqDialect.REFUSED_AT_RUN_TIME + "a LIKE pattern"));
+        // beside B1: an ORDER BY inside EXISTS is IQ's syntax error
+        SqlTranslationException exists = refusal("SELECT id FROM " + T + " a WHERE EXISTS (SELECT 1 FROM " + T
+                + " b WHERE b.id = a.id ORDER BY b.sm)");
+        assertEquals(SqlTranslationException.Kind.SYNTAX, exists.kind());
+        assertTrue(exists.getMessage().contains("SQLCODE -131"), exists.getMessage());
     }
 
     @Test

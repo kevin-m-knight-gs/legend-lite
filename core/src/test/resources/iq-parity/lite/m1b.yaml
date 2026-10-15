@@ -580,6 +580,7 @@ tests:
     sql: "SELECT TOP 1 id FROM t ORDER BY id UNION SELECT 1"
   - id: union_branch_with_top_is_refused
     sql: "SELECT TOP 1 id FROM t UNION SELECT 1"
+    nondeterministic: "tests the refusal of a TOP in a set operation's branch, which has no ORDER BY of its own"
   - id: union_branch_with_with_is_a_syntax_error
     sql: "SELECT 1 UNION ALL (WITH x AS (SELECT 1 a) SELECT a FROM x)"
   - id: union_three_branches

@@ -703,6 +703,9 @@ public final class SqlToPure {
             dialect.columnNotHere(ref);
             // the enclosing query's column, read from its row's lambda parameter
             Col c = outer.columnOrNull(ref);
+            if (c != null) {
+                dialect.enclosingColumn(ref);
+            }
             return c == null || c.var() != null ? c : c.via(env.outerRow());
         }
 
@@ -2816,7 +2819,7 @@ public final class SqlToPure {
             // a function's name read as its value shows as that name (Postgres's FigureColname), a column as the
             // dialect names it (Postgres: as the source spells it)
             String name = alias != null ? alias.text() : x.expr() instanceof SqlAst.ColumnRef ref
-                    && scope.columnOrNull(ref) != null
+                    && scope.columnOrNull(ref) != null && dialect.namedAsColumn(x)
                     ? dialect.columnName(ref.parts().get(ref.parts().size() - 1), col.label())
                     : dialect.defaultName(x, ref -> tableOf(scope, ref));
             Output o = passthrough(col, name, passed, present, scope);

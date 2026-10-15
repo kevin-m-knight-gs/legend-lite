@@ -32,8 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * DuckDB, judged against SQL Anywhere 17's snapped answer (or the case's provisional decision), and held to the
  * ledger's {@code duckdb} column. The answers file is checked against the cases first: UNSNAPPED, STALE and GONE fail
  * the lane, as does a case pinning an engine its island does not run in, a case SQL Anywhere judges whose
- * translation the IQ engine's rules change (engine neutrality, the study's §6.3), and a judged case whose WHERE puts
- * an operation that can raise beside AND or OR (its answer depends on IQ's plan: the study's D-E2).
+ * translation the IQ engine's rules change (engine neutrality, the study's §6.3), a judged case whose WHERE puts
+ * an operation that can raise beside AND or OR (its answer depends on IQ's plan: the study's D-E2), and a case whose
+ * answer may be one plan's choice (a row limit's ties, a LIST's order: {@link IqParity#determinism}).
  *
  * <p>Its own target ({@code //core:iq_parity_test}). Run with {@code --jvm_flag=-Diq.parity.update=<the ledger's path
  * in the workspace>} to write the ledger's column instead.
@@ -80,8 +81,14 @@ class IqParityTest {
                 if (order != null) {
                     problems.add(order);
                 }
-                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), tables, names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, duckdb)));
+                SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
+                        island -> service.execute(model, island, IqParity.RUNTIME, duckdb));
+                outcomes.put(r.key(), outcome);
+                // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
+                String nondeterministic = IqParity.determinism(r, tables, outcome.status());
+                if (nondeterministic != null) {
+                    problems.add(nondeterministic);
+                }
             }
         }
         String update = System.getProperty("iq.parity.update");
@@ -192,7 +199,7 @@ class IqParityTest {
         byte[] schema = "tables:\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT CAST('01/02/03' AS DATE) AS d",
                 List.of("iq16-default", "sqla17-tds"), null, null, null, null, null,
-                "database.CaseSensitive=Off, query.date_order='DMY'");
+                "database.CaseSensitive=Off, query.date_order='DMY'", null);
         List<IqParity.Run> runs = IqParity.runs(List.of(c));
         assertEquals("#IQ{SELECT CAST('01/02/03' AS DATE) AS d}#", IqParity.island(runs.get(0), Set.of()));
         assertFalse(runs.get(0).settings().caseSensitive());
@@ -302,6 +309,88 @@ class IqParityTest {
                 != null);
         assertTrue(order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND SUM(v) > 0", null) != null);
         assertEquals(null, order.apply("SELECT k FROM g GROUP BY k HAVING COUNT(*) > 2 AND MAX(v) > 0", null));
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 7, the user's ruling on B1): which rows a TOP keeps where its ORDER BY keys tie at
+     * the cut, and a LIST's order without its own ORDER BY, are the plan's choice, so no committed case may depend on
+     * them -- the determinism lint ({@link IqParity#determinism}); a case that tests a refusal or an error may opt out
+     * with its reason, and must then not PASS.
+     */
+    @Test
+    void aCaseWhoseAnswerIsThePlansChoiceIsNotCommitted() throws Exception {
+        List<SqlParity.Table> tables = List.of(
+                new SqlParity.Table("t", List.of(new SqlParity.Column("id", "integer"), new SqlParity.Column("sm",
+                        "smallint")), List.of(List.of(1L, 5L), List.of(2L, 5L))),
+                new SqlParity.Table("u", List.of(new SqlParity.Column("id", "integer"), new SqlParity.Column("t_id",
+                        "integer")), List.of(List.of(1L, 1L))),
+                new SqlParity.Table("g", List.of(new SqlParity.Column("id", "integer"), new SqlParity.Column("k",
+                        "smallint"), new SqlParity.Column("v", "integer")), List.of(List.of(1L, 1L, 1L))));
+        java.util.function.BiFunction<String, String, String> lint = (sql, why) -> IqParity.determinism(
+                IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a", sql, List.of("sqla17-default"), null,
+                        null, null, null, null, null, why))).get(0), tables, SqlParity.Status.REFUSED);
+        // a row limit without ORDER BY, or whose ORDER BY reaches no unique column of each FROM item
+        assertTrue(lint.apply("SELECT TOP 2 id FROM t", null).contains("has no ORDER BY"));
+        assertTrue(lint.apply("SELECT TOP ALL START AT 2 id FROM t", null).contains("has no ORDER BY"));
+        assertTrue(lint.apply("SELECT TOP 1 id FROM t ORDER BY sm", null).contains("no unique column of t"));
+        assertTrue(lint.apply("SELECT FIRST id FROM t ORDER BY 1 + 0", null) != null);
+        assertTrue(lint.apply("SELECT id FROM t WHERE id IN (SELECT TOP 1 t_id FROM u ORDER BY t_id)", null)
+                != null);
+        assertTrue(lint.apply("SELECT d.id FROM (SELECT TOP 1 id FROM t ORDER BY sm DESC) d", null) != null);
+        assertTrue(lint.apply("SELECT TOP 1 t.id FROM t, u ORDER BY t.id", null).contains("no unique column of u"));
+        assertTrue(lint.apply("SELECT TOP 1 k FROM g GROUP BY k, v ORDER BY k", null) != null);
+        assertTrue(lint.apply("SELECT TOP 1 id FROM t UNION ALL SELECT id FROM u ORDER BY 1", null) != null);
+        // a LIST without its own ORDER BY, of no GROUP BY key
+        assertTrue(lint.apply("SELECT LIST(id) FROM g", null).contains("LIST"));
+        assertTrue(lint.apply("SELECT k, LIST(DISTINCT v) FROM g GROUP BY k ORDER BY 1", null).contains("LIST"));
+        assertTrue(lint.apply("SELECT (SELECT LIST(v) FROM g WHERE g.k = t.id) FROM t ORDER BY id", null) != null);
+        // the key reached, by name, qualified, by position, by an alias, last or before a later key; a key per item
+        for (String sql : List.of("SELECT TOP 2 id FROM t ORDER BY sm, id", "SELECT TOP 2 id FROM t ORDER BY t.id DESC",
+                "SELECT TOP 2 x.id FROM t AS x ORDER BY x.sm, x.id", "SELECT TOP 2 id, sm FROM t ORDER BY 2, 1",
+                "SELECT TOP 2 id AS i FROM t ORDER BY sm, i", "SELECT TOP 2 START AT 2 id FROM DBA.t ORDER BY id, sm",
+                "SELECT TOP 1 t.id FROM t, u ORDER BY u.id, t.id",
+                "SELECT TOP 1 t.id FROM t JOIN u ON u.id = t.id ORDER BY t.id",
+                "SELECT TOP 2 row_num FROM sa_rowgenerator(1, 5) ORDER BY row_num DESC",
+                "SELECT TOP 1 d.id FROM (SELECT id, sm FROM t) d ORDER BY d.sm, d.id",
+                "SELECT TOP 1 d.k FROM (SELECT k, COUNT(*) AS n FROM g GROUP BY k) d ORDER BY d.n, d.k",
+                "SELECT TOP 1 k, COUNT(*) FROM g GROUP BY k ORDER BY 2 DESC, 1",
+                "SELECT DISTINCT TOP 1 sm FROM t ORDER BY sm",
+                // at most one row, or EXISTS (whether a row is kept)
+                "SELECT TOP 1 1", "SELECT TOP 1 COUNT(*) FROM t", "SELECT FIRST dummy_col FROM DUMMY",
+                "SELECT id FROM t WHERE EXISTS (SELECT TOP 1 1 FROM u WHERE u.t_id = t.id) ORDER BY id",
+                // a LIST ordered, of a GROUP BY key, of a constant; a statement the reader rejects keeps no rows
+                "SELECT LIST(id ORDER BY id) FROM g", "SELECT k, LIST(k) FROM g GROUP BY k ORDER BY 1",
+                "SELECT k, LIST(DISTINCT 1) FROM g GROUP BY k ORDER BY 1", "SELECT TOP 2 WITH TIES id FROM t")) {
+            assertEquals(null, lint.apply(sql, null), sql);
+        }
+        // a case that tests a refusal or an error opts out with its reason: it must not PASS, nor opt out of nothing
+        assertEquals(null, lint.apply("SELECT TOP 2 id FROM t", "tests the refusal of a TOP without ORDER BY"));
+        assertTrue(IqParity.determinism(IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a",
+                "SELECT TOP 2 id FROM t", List.of("iq16-default"), null, null, null, null, null, null, "a refusal")))
+                .get(0), tables, SqlParity.Status.PASS).contains("PASSes"));
+        assertTrue(lint.apply("SELECT TOP 2 id FROM t ORDER BY id", "a refusal").contains("nothing to opt out of"));
+        // a skipped case is not run
+        assertEquals(null, IqParity.determinism(IqParity.runs(List.of(new IqParity.Case("lite/x.yaml", "a",
+                "SELECT TOP 2 id FROM t", List.of("iq16-default"), null, "a skip", null, null))).get(0), tables,
+                SqlParity.Status.SKIP));
+        // the key is the schema's: a table whose id repeats has none
+        List<SqlParity.Table> twice = List.of(new SqlParity.Table("t", List.of(new SqlParity.Column("id", "integer")),
+                List.of(List.of(1L), List.of(1L))));
+        assertThrows(IllegalStateException.class, () -> IqParity.determinism(IqParity.runs(List.of(
+                new IqParity.Case("lite/x.yaml", "a", "SELECT TOP 1 id FROM t ORDER BY id", List.of("iq16-default"),
+                null, null, null, null))).get(0), twice, SqlParity.Status.PASS));
+        // every committed case: the lanes check each run with its status; here, each case is deterministic or says
+        // why not
+        List<IqParity.Run> runs = IqParity.runs(IqParity.cases(Runfile.property("iq.parity.lite").getParent()));
+        List<SqlParity.Table> schema = IqParity.schema(Runfile.property("iq.parity.schema"));
+        List<String> problems = new ArrayList<>();
+        for (IqParity.Run r : runs) {
+            String p = IqParity.determinism(r, schema, SqlParity.Status.REFUSED);
+            if (p != null) {
+                problems.add(p);
+            }
+        }
+        assertTrue(problems.isEmpty(), String.join("\n", problems));
     }
 
     @Test

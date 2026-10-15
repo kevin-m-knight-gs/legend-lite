@@ -635,6 +635,7 @@ tests:
     sql: "SELECT k, LIST(DISTINCT v ORDER BY v) FROM g GROUP BY k ORDER BY 1"
   - id: list_distinct_unordered_is_refused
     sql: "SELECT k, LIST(DISTINCT v) FROM g GROUP BY k ORDER BY 1"
+    nondeterministic: "tests the refusal of a LIST(DISTINCT) of no GROUP BY key without ORDER BY"
   - id: list_of_a_group_key_unordered
     sql: "SELECT k, LIST(k) FROM g GROUP BY k ORDER BY 1"
   - id: list_distinct_of_a_group_key
@@ -657,6 +658,7 @@ tests:
     sql: "SELECT k, LIST(DISTINCT s ORDER BY s) FROM g GROUP BY k ORDER BY 1"
   - id: list_distinct_filtered_is_refused
     sql: "SELECT LIST(DISTINCT v) FROM g WHERE k = 1"
+    nondeterministic: "tests the refusal of a LIST(DISTINCT) of no GROUP BY key without ORDER BY"
   - id: list_of_a_group_key_ordered_by_another_column
     sql: "SELECT k, LIST(k ORDER BY v) FROM g GROUP BY k ORDER BY 1"
   - id: list_distinct_of_a_constant_is_refused
@@ -701,6 +703,7 @@ tests:
     profile: sqla17-default
   - id: top_in_a_derived_table_without_order_by_is_refused
     sql: "SELECT d.id FROM (SELECT TOP 3 id FROM t) d ORDER BY 1"
+    nondeterministic: "tests the refusal of a TOP without ORDER BY in a derived table"
     profile: sqla17-default
   - id: top_in_exists_needs_no_order
     sql: "SELECT id FROM t WHERE EXISTS (SELECT TOP 1 1 FROM u WHERE u.t_id = t.id) ORDER BY id"
@@ -712,7 +715,7 @@ tests:
     sql: "SELECT d.id FROM (SELECT TOP 2 START AT 2 id FROM t ORDER BY id) d ORDER BY 1"
     profile: sqla17-default
   - id: first_in_a_derived_table
-    sql: "SELECT d.id FROM (SELECT FIRST id FROM t ORDER BY sm) d"
+    sql: "SELECT d.id FROM (SELECT FIRST id FROM t ORDER BY sm, id) d"
     profile: sqla17-default
   - id: top_in_a_derived_table_under_iqs_engine_is_refused_d_r1
     sql: "SELECT d.id FROM (SELECT TOP 3 id FROM t ORDER BY id DESC) d ORDER BY 1"
@@ -724,6 +727,7 @@ tests:
     profile: sqla17-default
   - id: top_in_a_union_branch_is_refused
     sql: "SELECT id FROM t UNION ALL SELECT TOP 1 id FROM u ORDER BY 1"
+    nondeterministic: "tests the refusal of a TOP in a set operation's branch, which has no ORDER BY of its own"
     profile: sqla17-default
   - id: top_in_a_scalar_subquery_over_sa_rowgenerator
     sql: "SELECT (SELECT TOP 1 row_num FROM sa_rowgenerator(1, 5) ORDER BY row_num DESC) AS m"

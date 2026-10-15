@@ -44,9 +44,12 @@ import java.util.Set;
 final class IqAliases {
 
     /** The statement with every alias read in place, the subquery names that may read an enclosing query's alias
-     *  (by identity), and the aliases (lower case) each unaliased select item reads (by identity). */
+     *  (by identity), and the aliases (lower case) each unaliased select item reads (by identity); IQ island,
+     *  2026-10-14 (review 7's B2): each unaliased item read from a query without FROM that is named by that query's
+     *  own alias, and those that name no derived table's column ({@link #select}), by identity. */
     record Read(SqlAst.Statement statement, Set<SqlAst.ColumnRef> outerReads,
-            Map<SqlAst.SelectExpr, Set<String>> aliasesRead) {
+            Map<SqlAst.SelectExpr, Set<String>> aliasesRead, Map<SqlAst.SelectExpr, SqlAst.Ident> innerNames,
+            Set<SqlAst.SelectExpr> nameless) {
     }
 
     private final Map<SqlAst.Expr, String> spans;
@@ -56,6 +59,12 @@ final class IqAliases {
     private final Set<SqlAst.ColumnRef> outerReads = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<SqlAst.SelectExpr, Set<String>> aliasesRead = new IdentityHashMap<>();
     private final Map<SqlAst.Statement, SqlAst.Statement> done = new IdentityHashMap<>();
+    /** IQ island, 2026-10-14 (review 7's B2): the SELECTs whose items name a derived table's columns (its query's
+     *  first, where it has no column list), by identity; the unaliased items unwrapped from a query without FROM,
+     *  named by that query's alias, and those of a SELECT that names a derived table's columns. */
+    private final Set<SqlAst.Select> naming = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Map<SqlAst.SelectExpr, SqlAst.Ident> innerNames = new IdentityHashMap<>();
+    private final Set<SqlAst.SelectExpr> nameless = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private IqAliases(Map<SqlAst.Expr, String> spans, boolean ansinull, boolean frontEnd) {
         this.spans = spans;
@@ -68,8 +77,25 @@ final class IqAliases {
     static Read resolve(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans, IqSettings settings,
             boolean frontEnd) {
         IqAliases r = new IqAliases(spans, settings.ansinull(), frontEnd);
+        for (SqlAst.Statement q : IqDialect.queries(statement)) {
+            if (q instanceof SqlAst.Select s) {
+                for (SqlAst.FromItem f : s.from()) {
+                    for (SqlAst.FromItem leaf : IqDialect.leaves(f)) {
+                        if (leaf instanceof SqlAst.SubqueryFrom d && d.columnAliases().isEmpty()) {
+                            SqlAst.Statement first = d.query();
+                            while (first instanceof SqlAst.SetOperation o) {
+                                first = o.left();
+                            }
+                            if (first instanceof SqlAst.Select named) {
+                                r.naming.add(named);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         SqlAst.Statement out = r.statement(statement, List.of());
-        return new Read(out, r.outerReads, r.aliasesRead);
+        return new Read(out, r.outerReads, r.aliasesRead, r.innerNames, r.nameless);
     }
 
     // ------------------------------------------------------------------ queries
@@ -182,16 +208,28 @@ final class IqAliases {
 
     private SqlAst.Select select(SqlAst.Select written, List<Scope> outer) {
         // IQ island, 2026-10-14 (the third landing): a whole item that is a query without FROM is its one item's
-        // value, named as that item written here (measured: SELECT (SELECT id + 1) FROM t names it t.id+1)
+        // value, named as that item written here (measured: SELECT (SELECT id + 1) FROM t names it t.id+1).
+        // (Review 7's B2, measured on SQL Anywhere 17) Unaliased, it is named by that query's own alias where it has
+        // one ((SELECT id + 1 AS z) is z; the name is no alias a clause reads: WHERE z is -143), and it names no
+        // derived table's column (SELECT * FROM (SELECT (SELECT id) FROM t) d is -163, whatever its own alias)
         List<SqlAst.SelectItem> unwrapped = new ArrayList<>();
+        Map<SqlAst.SelectExpr, SqlAst.Ident> innerAlias = new IdentityHashMap<>();
+        Set<SqlAst.SelectExpr> unnamed = Collections.newSetFromMap(new IdentityHashMap<>());
         boolean changed = false;
         for (SqlAst.SelectItem item : written.items()) {
             SqlAst.SelectExpr inner = item instanceof SqlAst.SelectExpr x && x.expr() instanceof SqlAst.ScalarSubquery q
                     ? fromless(q.query()) : null;
             if (inner != null) {
                 SqlAst.SelectExpr x = (SqlAst.SelectExpr) item;
-                unwrapped.add(new SqlAst.SelectExpr(inner.expr(), x.alias(), x.pos(), x.alias() != null ? x.text()
-                        : inner.text()));
+                SqlAst.SelectExpr y = new SqlAst.SelectExpr(inner.expr(), x.alias(), x.pos(), x.alias() != null
+                        ? x.text() : inner.text());
+                unwrapped.add(y);
+                if (x.alias() == null) {
+                    unnamed.add(y);
+                    if (inner.alias() != null) {
+                        innerAlias.put(y, java.util.Objects.requireNonNull(inner.alias()));
+                    }
+                }
                 changed = true;
             } else {
                 unwrapped.add(item);
@@ -266,6 +304,17 @@ final class IqAliases {
                     ? k : expr(k, new Place(scope, null, Clause.ORDER_BY, null, null));
             changed |= r != k;
             order.add(r == k ? o : new SqlAst.SortItem(r, o.descending(), o.nullsFirst(), o.pos()));
+        }
+        for (int i = 0; i < items.size(); i++) {
+            if (s.items().get(i) instanceof SqlAst.SelectExpr x && items.get(i) instanceof SqlAst.SelectExpr y) {
+                SqlAst.Ident name = innerAlias.get(x);
+                if (name != null) {
+                    innerNames.put(y, name);
+                }
+                if (unnamed.contains(x) && naming.contains(written)) {
+                    nameless.add(y);
+                }
+            }
         }
         return !changed ? s : new SqlAst.Select(s.distinct(), items, from, where, groupBy, having, s.windows(), order,
                 s.limit(), s.offset(), s.pos());
@@ -505,8 +554,10 @@ final class IqAliases {
     }
 
     /** The owner (lower case) of an unaliased table in FROM, as IQ knows it ({@link IqBindings}): its qualifier, else
-     *  the island's user; a source function's table its schema, else the island's user; DUMMY's SYS,
-     *  sa_rowgenerator's dbo; null for an aliased item or a derived table. */
+     *  the island's user; a source function's table its schema, else the island's user; DUMMY's SYS; null for an
+     *  aliased item, a derived table and a procedure (IQ island, 2026-10-14, review 7's M2, measured on SQL Anywhere
+     *  17: an owner-qualified column of sa_rowgenerator in FROM is -845 whatever the owner, dbo as DBA, and whether or
+     *  not FROM writes dbo; {@code sa_rowgenerator.row_num} is read). */
     private static @com.legend.base.Nullable String ownerOf(SqlAst.FromItem leaf) {
         return switch (leaf) {
             case SqlAst.TableName t -> {
@@ -521,7 +572,7 @@ final class IqAliases {
             case SqlAst.TableFunction f -> {
                 String fn = IqLexer.lower(f.name().get(f.name().size() - 1).text());
                 if (fn.equals("sa_rowgenerator")) {
-                    yield f.alias() == null ? "dbo" : null;
+                    yield null;
                 }
                 if (!fn.equals("tb") || f.args().size() != 1
                         || !(f.args().get(0).value() instanceof SqlAst.StringLit path)) {
@@ -530,7 +581,8 @@ final class IqAliases {
                 String p = path.value();
                 int first = p.indexOf('.');
                 int last = p.lastIndexOf('.');
-                // tb('...t') AS t is the island's spelling of the table t, unaliased (IQ's own t AS t is IQ's -845)
+                // tb('...t') AS t is the island's spelling of the table t, unaliased (IQ's own t AS t is IQ's -845:
+                // the island binds a table named so, IqBindings, and keeps its alias)
                 SqlAst.Ident alias = f.alias();
                 if (alias != null && !IqLexer.lower(alias.text()).equals(IqLexer.lower(p.substring(last + 1)))) {
                     yield null;

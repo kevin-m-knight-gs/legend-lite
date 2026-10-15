@@ -282,6 +282,7 @@ tests:
     sql: "SELECT LIST(id ORDER BY id), LIST(k ORDER BY k) FROM g"
   - id: list_without_order_by_is_refused
     sql: "SELECT LIST(id) FROM g"
+    nondeterministic: "tests the refusal of a LIST without ORDER BY"
   - id: list_ordered_by_another_column_is_refused
     sql: "SELECT LIST(k ORDER BY id) FROM g"
   - id: list_of_strings_is_refused

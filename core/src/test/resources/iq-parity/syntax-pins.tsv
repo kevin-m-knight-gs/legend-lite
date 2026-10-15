@@ -88,6 +88,9 @@
 # -825). Flag, reject and both lists unchanged. The thirteen were snapped on SQL Anywhere 17 and run on both lanes:
 # PASS 9, REFUSED 3 (a duplicate output name; two FROM-less union branches inside a subquery), BOTH_ERROR 1 (a
 # temporary table dbo qualifies, refused by name), none otherwise.
+# IQ island, 2026-10-14 (review 7's m5, the note above only; no count moves): that BOTH_ERROR is a refusal by name
+# where SQL Anywhere raises its own error (-141, the temporary table not found), which the harness judges a
+# BOTH_ERROR, not a REFUSED. Review 7's fixes move no syntax case's verdict (every one of the 6,983 identical).
 accept	parsed	2687
 accept	refused	2261
 accept	rejected	1

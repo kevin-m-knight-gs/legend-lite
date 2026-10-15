@@ -251,7 +251,7 @@ tests:
   - id: top_and_start_at_expressions
     sql: "SELECT TOP (2*2) START AT (1+1) id FROM t ORDER BY id"
   - id: top_two_plus_one_is_top_two
-    sql: "SELECT TOP 2+1 x FROM t ORDER BY 1"
+    sql: "SELECT TOP 2+1 x FROM t ORDER BY 1, id"
   - id: top_percent_is_refused
     sql: "SELECT TOP 10 PERCENT id FROM t ORDER BY id"
   - id: top_with_ties
@@ -573,13 +573,15 @@ tests:
   - id: start_at_over_an_overflowing_item
     sql: "SELECT TOP 1 START AT 7 id, it + 1 AS n FROM t ORDER BY id"
   - id: top_ordered_by_an_overflowing_key
-    sql: "SELECT TOP 1 id FROM t ORDER BY it + 1"
+    sql: "SELECT TOP 1 id FROM t ORDER BY it + 1, id"
   - id: top_over_arithmetic_that_cannot_raise
     sql: "SELECT TOP 2 id, sm + 0 AS n FROM t ORDER BY id DESC"
   - id: top_without_order_by
     sql: "SELECT TOP 2 id FROM t"
+    nondeterministic: "tests the refusal of a TOP without ORDER BY"
   - id: start_at_without_order_by
     sql: "SELECT TOP ALL START AT 6 id FROM t"
+    nondeterministic: "tests the refusal of a START AT without ORDER BY"
 
   # ---- a constant that may be NULL is computed at run time: NULL where it is NULL, IQ's -158 only where computed
   - id: if_of_a_constant_plus_one_where_unknown

@@ -79,6 +79,11 @@ public interface InputDialect {
     default void columnNotHere(SqlAst.ColumnRef ref) {
     }
 
+    /** IQ island, 2026-10-14 (review 7's M1): {@code ref}, a column reference, reads an enclosing query's column (found
+     *  there after {@link #columnNotHere}): nothing unless the dialect refuses such a read where it stands. */
+    default void enclosingColumn(SqlAst.ColumnRef ref) {
+    }
+
     /** IQ island, 2026-10-14 (the third landing): whether no one reads {@code s}'s output names, so that two of one
      *  name are no error (an EXISTS subquery's, a set operation's later branch's): never, unless the dialect says so
      *  (Postgres's: a relation's column names are distinct). */
@@ -90,6 +95,12 @@ public interface InputDialect {
      *  reference's last part as written, {@code label} the name the column has where it is read (Postgres's). */
     default String columnName(SqlAst.Ident written, String label) {
         return label;
+    }
+
+    /** IQ island, 2026-10-14 (review 7's B2): whether {@code item}, an unaliased column reference, is named as a
+     *  column ({@link #columnName}), else by {@link #defaultName(SqlAst.SelectExpr, Tables)}: always (Postgres's). */
+    default boolean namedAsColumn(SqlAst.SelectExpr item) {
+        return true;
     }
 
     // ------------------------------------------------------------------ types

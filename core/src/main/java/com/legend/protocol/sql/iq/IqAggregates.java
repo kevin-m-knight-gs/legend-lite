@@ -352,9 +352,8 @@ final class IqAggregates {
         // statements): GROUP BY 1 groups by a constant in IQ, a position elsewhere; the syntax cases call it accepted
         // (z2_redteam-333, -334) where SQL Anywhere raises -149 -- refused naming IQ's error
         boolean positional = s.groupBy().stream().anyMatch(k -> k instanceof SqlAst.IntegerLit);
-        for (SqlAst.Expr e : listed) {
-            notGrouped(e, known, own, grouped, -149, "53003", positional);
-        }
+        // IQ island, 2026-10-14 (review 7's m2, measured): the ORDER BY's first (-854), then the select list's and
+        // HAVING's (-149)
         for (SqlAst.SortItem o : s.orderBy()) {
             if (o.expr() instanceof SqlAst.IntegerLit || o.expr() instanceof SqlAst.ColumnRef r && r.parts().size() == 1
                     && outputs.contains(last(r))) {
@@ -362,6 +361,47 @@ final class IqAggregates {
             }
             notGrouped(o.expr(), known, own, grouped, -854, "42W65", false);
         }
+        for (SqlAst.Expr e : listed) {
+            notGrouped(e, known, own, grouped, -149, "53003", positional);
+        }
+    }
+
+    /**
+     * IQ island, 2026-10-14 (review 7's m2, measured on SQL Anywhere 17): whether a grouped SELECT's ORDER BY reads,
+     * outside an aggregate, a column no GROUP BY item reads -- an ORDER BY item that is neither a position nor an
+     * output's name (a select item's alias, or a column written bare). SQL Anywhere reports that reference first, as
+     * -854, also where the select list or HAVING reads another such column ({@code SELECT k, v + 1 ... GROUP BY k
+     * ORDER BY v}; {@code SELECT k, v ... GROUP BY k ORDER BY v} names the output and is -149).
+     */
+    static boolean ordersUngrouped(SqlAst.Select s) {
+        if (s.orderBy().isEmpty() || s.groupBy().isEmpty() && s.items().stream().noneMatch(i ->
+                i instanceof SqlAst.SelectExpr x && !aggregateCalls(x.expr()).isEmpty())) {
+            return false;
+        }
+        Set<String> grouped = new java.util.HashSet<>();
+        s.groupBy().forEach(k -> columns(k).forEach(r -> grouped.add(last(r))));
+        Set<String> outputs = new java.util.HashSet<>();
+        for (SqlAst.SelectItem item : s.items()) {
+            if (item instanceof SqlAst.SelectExpr x) {
+                if (x.alias() != null) {
+                    outputs.add(IqLexer.lower(java.util.Objects.requireNonNull(x.alias()).text()));
+                } else if (x.expr() instanceof SqlAst.ColumnRef r) {
+                    outputs.add(last(r));
+                }
+            }
+        }
+        for (SqlAst.SortItem o : s.orderBy()) {
+            if (o.expr() instanceof SqlAst.IntegerLit || o.expr() instanceof SqlAst.ColumnRef r && r.parts().size() == 1
+                    && outputs.contains(last(r))) {
+                continue;
+            }
+            for (SqlAst.ColumnRef r : columns(o.expr())) {
+                if (!grouped.contains(last(r))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void notGrouped(SqlAst.Expr e, Set<String> known, Set<String> own, Set<String> grouped, int sqlcode,
@@ -1367,6 +1407,31 @@ final class IqAggregates {
         if (f.orderBy().isEmpty() && !keyed) {
             throw SqlTranslationException.unsupported("LIST without ORDER BY is not supported: the order of its values"
                     + " is the plan's; order it by its value", f.pos());
+        }
+        if (keyed) {
+            // IQ island, 2026-10-14 (review 7's M2 and m1, measured on SQL Anywhere 17): a keyed LIST's ORDER BY orders
+            // one value, but IQ reads it -- its errors (an aggregate inside is -156), and its keys evaluated for each
+            // row (v + 1 over INTEGER's largest is -158), which lite does not compute: translated for its errors, and
+            // refused where evaluating it could raise
+            for (SqlAst.SortItem o : f.orderBy()) {
+                if (!aggregateCalls(o.expr()).isEmpty()) {
+                    throw SqlTranslationException.invalid("an aggregate inside a LIST's ORDER BY is IQ's error"
+                            + IqDialect.code(-156, "42W08"), o.pos());
+                }
+                at.tx(o.expr());
+                if (!IqParser.cannotRaise(o.expr())) {
+                    throw SqlTranslationException.unsupported("a LIST of a GROUP BY key ordered by an expression that"
+                            + " can raise an error is not supported yet: IQ evaluates it for each row, where lite's"
+                            + " list of one value needs no order", o.pos());
+                }
+            }
+            if (f.distinct() && !f.orderBy().isEmpty() && dialect.ordered()) {
+                // measured: with LIST(DISTINCT k ORDER BY k) SQL Anywhere returns the rows of SELECT k, ... GROUP BY k
+                // ORDER BY 1 out of that order (its plan takes them as sorted by the LIST's sort)
+                throw SqlTranslationException.unsupported("LIST(DISTINCT ... ORDER BY ...) of a GROUP BY key in a"
+                        + " statement with an ORDER BY is not supported: SQL Anywhere may then return the rows out of"
+                        + " the ORDER BY's order", f.pos());
+            }
         }
         SqlAst.SortItem order = keyed ? null : f.orderBy().get(0);
         String column = value instanceof SqlAst.ColumnRef ref ? at.inputColumn(ref) : null;

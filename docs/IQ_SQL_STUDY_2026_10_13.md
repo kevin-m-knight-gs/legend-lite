@@ -534,6 +534,12 @@ never Java computing a value:
   fails the lane: its answer depends on IQ's plan, so it is skipped or rewritten.
 - **An `engine: iq` pin needs a decision:** a case SQL Anywhere judges must translate alike under both engines' rules,
   which a pin to the IQ engine alone would hide.
+- **Determinism (since review 7, §9.16):** a case whose answer may be one plan's choice fails the lane
+  (`IqParity.determinism`): a TOP, FIRST or START AT without ORDER BY, or whose ORDER BY reaches no column unique in
+  its source (each table's `id`, `sa_rowgenerator`'s `row_num`, a grouped query's keys), and a LIST without its own
+  ORDER BY but of a GROUP BY key or a constant. Lite answers such a query with its database's choice, which is right
+  for a user (any answer IQ could return is), but a case judged so would pin one plan. A case that tests a refusal or
+  an error opts out with its reason (`nondeterministic:`) and must then not PASS.
 - **The judge** compares a both-error's SQLCODE when legend-lite's error names IQ's (`(IQ: SQLCODE n, ...)`): another
   code than SQL Anywhere's is a FAIL. It compares a NUMERIC column's scale with each of lite's decimal cells.
 
@@ -1832,11 +1838,14 @@ the texts they replace. `SqlToPure.Grouping.groupKey` says whether an expression
    FROM, a truth test, ESCAPE, an IN list it reorders), and SQL Anywhere's folding of a CASE or an IF whose test is a
    constant and whose value is not, over a table (**a latent wrong name of the second landing**: it names the folded
    value).
-3. **`owner.table.column`** (`IqAliases.owned`): bound to the FROM item its owner and table name (an unaliased table,
-   or `tb()` with the same name); none is IQ's -845, a name of no FROM item -142. An owner of IQ's own (`dbo`, `sys`,
-   ...) qualifying a name that is no catalog name's (`IqBindings.catalogName`) reads the model's table of a schema of
-   that owner's name when the model has one (`IqBindingsTest`; the parity model has no such schema); the catalog's
-   names, and such a name the model does not hold, stay refused with the same message as before.
+3. **`owner.table.column`** (`IqAliases.owned`): bound to the FROM item its owner and table name (an unaliased table, or
+   `tb()` with the same name: the island's spelling of the table unaliased); none is IQ's -845, a name of no FROM item
+   -142. (Corrected by review 7, measured: a procedure's column, `sa_rowgenerator`'s, is -845 whatever the owner, `dbo`
+   as `DBA`, whether or not FROM writes `dbo` -- read it unqualified or by its correlation name; IQ's own `t AS t` is an
+   aliased table, -845 for `DBA.t.id`, which the parity harness now leaves to the island.) An owner of IQ's own (`dbo`,
+   `sys`, ...) qualifying a name that is no catalog name's (`IqBindings.catalogName`) reads the model's table of a
+   schema of that owner's name when the model has one (`IqBindingsTest`; the parity model has no such schema); the
+   catalog's names, and such a name the model does not hold, stay refused with the same message as before.
 4. **Two output columns of one name** are answered where no one reads the names: an EXISTS's query, a set
    operation's later branch, a derived table given a full column list (renamed internally). Where the result shows
    them (the statement's own SELECT, an IN's or a scalar subquery's single column) the refusal stays: a relation's
@@ -1845,13 +1854,17 @@ the texts they replace. `SqlToPure.Grouping.groupKey` says whether an expression
    variable, `'%' || x || '%'`: the regular expression is built in the database -- each character itself (a
    backslash and the regular expression's own characters escaped), `%` any run, `_` one character (a line feed
    too), matched whole. A pattern holding `[` (IQ's set class: measured, `[b]` is a set and an unclosed `[` UNKNOWN)
-   or longer than 126 characters (SQL Anywhere's -606 for some values) raises an error, never answers otherwise.
+   or longer than 126 characters (SQL Anywhere's -606 for some values) raises an error, never answers otherwise
+   (since review 7, by name: the harness counts it a refusal).
    Refused by name: ESCAPE, a profile that matches without case (`sqla17-*`), a CHAR(n) operand or pattern under
    IQ's engine (D-S5), a pattern that is no string.
 6. **LIST forms** (`IqAggregates.list`): LIST of a GROUP BY key, in any order or none (its group's values are one
    value), and LIST(DISTINCT key) of an integer key (the value once). Still refused: LIST without ORDER BY of
    anything else (its order is the plan's), LIST(DISTINCT) of anything else (lite's Postgres orders a DISTINCT
    aggregate only by its argument's text), LIST(DISTINCT) of a string key (one collation key, several spellings).
+   (Review 7: a keyed LIST's ORDER BY is read for its errors -- an aggregate there is -156, a key that may raise is
+   refused, as SQL Anywhere evaluates it for each row -- and a keyed LIST(DISTINCT ... ORDER BY ...) is refused in a
+   statement with an ORDER BY, which SQL Anywhere may then not keep.)
 7. **A checked SUM or AVG (D-E3) read for every group** is answered: a CASE's or an IF's first test, the first
    argument of COALESCE, ISNULL, IFNULL or ARGN, both of NULLIF's, a NOT's or a truth test's operand, BETWEEN's and
    IN's tested value; and an aggregate also read so elsewhere in its query (`IqDialect.lazyCalls`). Read only for
@@ -1860,14 +1873,22 @@ the texts they replace. `SqlToPure.Grouping.groupKey` says whether an expression
 8. **TOP or FIRST in a subquery or a derived table** with ORDER BY (or under EXISTS, where only whether a row exists
    is read) is answered in SQL Anywhere's front end (`sa_rowgenerator`, `DUMMY`, a `sqla17-*` profile). Under IQ's
    engine it stays refused (the research's D-R1: IQ may ignore it there), and so does one without ORDER BY outside
-   EXISTS and one in a set operation's branch.
+   EXISTS and one in a set operation's branch. (Corrected by review 7: where the limit's boundary cuts through rows
+   whose ORDER BY keys tie, which of them it keeps is the plan's choice -- SQL Anywhere, DuckDB and Postgres keep
+   different ones, as for the statement's own TOP since the first landing. By the user's ruling any answer IQ could
+   return there is right, so lite returns its database's, and the harness's determinism lint keeps every committed
+   case off such a choice (§6.3). An ORDER BY inside EXISTS is SQL Anywhere's syntax error -131.)
 9. **A subquery without FROM** is its one item's value: a whole select item `(SELECT expr)` under every engine,
-   anywhere in SQL Anywhere's front end (IQ's engine restricts subquery positions, §9.4). One with WHERE, an
+   anywhere in SQL Anywhere's front end (IQ's engine restricts subquery positions, §9.4). (Corrected by review 7,
+   measured: unaliased, the item is named by that query's own alias where it has one -- `(SELECT id + 1 AS z)` is
+   `z`, a name no clause reads, WHERE or ORDER BY `z` -143 -- else as its item is written; and in the select list
+   that names a derived table's columns it names none, alias or not: -163.) One with WHERE, an
    aggregate, a row limit, DISTINCT or two items stays refused. TIME and REAL stay refused: lite has no time-of-day
    lowering, and SQL Anywhere computes and prints REAL in single precision, which no Pure type holds.
 10. **IQ's codes for errors lite raised in Postgres's words**: an ORDER BY key no SELECT DISTINCT item shows is -854;
-    set-operation branches of different widths -153; a column neither grouped nor aggregated -149, and -854 when
-    ORDER BY reads it (measured). `SELECT ... FROM t INTO x` is refused as INTO (a statement, not a value);
+    set-operation branches of different widths -153 (SQLSTATE 53026, both where it is found); a column neither grouped
+    nor aggregated -149, and -854 when ORDER BY reads one, reported before the select list's and HAVING's (measured;
+    review 7). `SELECT ... FROM t INTO x` is refused as INTO (a statement, not a value);
     DATEPART, DATENAME, DATEADD and DATEDIFF with the wrong number of arguments are -154 (before the date part is
     read).
 
@@ -1891,6 +1912,68 @@ both lists unchanged. The thirteen were snapped on SQL Anywhere 17 and run on bo
 The answers: 360 new; every earlier answer identical. The Postgres island's Pure is byte-identical and both
 `sql-parity` ledgers unchanged. The measurements (the probe sets and the naming datasets) are kept with the private
 research.
+
+#### Review 7 (2026-10-14)
+
+An independent review of this part found two blockers, two majors and five minors, each re-measured on SQL Anywhere
+17 before a fix; `lite/review7.yaml` (66 cases, 67 runs) pins them. Items 3, 5, 6, 8, 9 and 10 above carry the
+corrections.
+
+- **B1, a TOP's boundary through tied rows: lite returns its database's answer (the user's ruling).** Which of the
+  rows whose ORDER BY keys tie a TOP, FIRST or START AT keeps is the plan's choice: SQL Anywhere, DuckDB and Postgres
+  keep different ones, in a subquery or a derived table (item 8, ten measured differences) and in the statement's own
+  TOP (since the first landing; on main too). IQ's own answer is not determined there, so any answer IQ could return
+  is right: lite returns its database's, with no guard (one built for the other choice was set aside, never
+  committed), and TOP or FIRST in a subquery or a derived table stays answered as item 8 has it. What is not allowed is
+  a committed case that depends on such a choice: the harness's **determinism lint** (`IqParity.determinism`, both
+  lanes, §6.3; pinned by `IqParityTest.aCaseWhoseAnswerIsThePlansChoiceIsNotCommitted`) fails a case with a row limit
+  without ORDER BY, or whose ORDER BY reaches no column unique in each FROM item's rows (a table's `id`,
+  `sa_rowgenerator`'s `row_num`, a derived table's column unique in its query, a grouped query's keys, every item of
+  a SELECT DISTINCT; a FROM item an inner join's ON or the WHERE equates by its unique column with an ordered one
+  needs none; a source of at most one row and an EXISTS's query need none), and a LIST without its own ORDER BY but
+  of a GROUP BY key or a constant. A case that tests a refusal or an error opts out with its reason
+  (`nondeterministic:`, a case key `tools/iq-oracle` reads too) and must not PASS; one with nothing to opt out of may
+  not. Of the committed cases it found eleven: three fixed by the unique key as the last ORDER BY key
+  (`m0/top_two_plus_one_is_top_two` and `m0/top_ordered_by_an_overflowing_key`, `ORDER BY ..., id`;
+  `m1gaps/first_in_a_derived_table`, `ORDER BY sm, id`), re-snapped, their statuses unchanged; eight refusal tests of
+  an unordered TOP, START AT or LIST opted out (`m0/top_without_order_by`, `m0/start_at_without_order_by`,
+  `m1b/union_branch_with_top_is_refused`, `m1c/list_without_order_by_is_refused`,
+  `m1gaps/list_distinct_unordered_is_refused`, `m1gaps/list_distinct_filtered_is_refused`,
+  `m1gaps/top_in_a_derived_table_without_order_by_is_refused`, `m1gaps/top_in_a_union_branch_is_refused`). Review 7's
+  tie probes are not pinned.
+- **Beside B1: an ORDER BY inside EXISTS** (with or without TOP, under NOT) is SQL Anywhere's syntax error -131; lite
+  answered it since EXISTS was read. Now IQ's -131 (`IqDialect.existsOrder`).
+- **B2, a query without FROM read as its item** (item 9): unaliased, the item is named by that query's own alias
+  (`AS z`, `z = ...`, a quoted or bracketed name, a string alias), a name no clause reads (WHERE or the select list
+  -143; ORDER BY of it refused by name); in the select list that names a derived table's columns (its first branch,
+  without a column list) it names none, alias or not: -163 (`IqAliases.select`, `IqDialect.derivedNames`). The seam
+  gains `InputDialect.namedAsColumn` (Postgres's: always).
+- **M1, an enclosing query's column read in a subquery's select list, GROUP BY or ORDER BY** (outside an aggregate):
+  refused by name (`IqDialect.enclosingColumn`; the seam's `InputDialect.enclosingColumn`, a no-op for Postgres). The
+  planner computes such a value as a column of the subquery's rows and reads the enclosing row's column by its name
+  among the subquery's own columns: the subquery's column of that name where it has one (a wrong answer -- the plain
+  `t.id IN (SELECT t.id FROM u ...)` form since the second landing; `DBA.t.id`, a correlated TOP over
+  `sa_rowgenerator`), an error where it has none. The fix, a computed column resolving the enclosing row as a
+  predicate does, is pending on the compiler line (`core/correlated-columns`); WHERE, ON and HAVING read such a column
+  right and answer. When it lands the refusal goes and these cases are re-run.
+- **M2.** An owner-qualified column of `sa_rowgenerator` is -845 whatever the owner (item 3). A keyed LIST's ORDER BY
+  is read: an aggregate there is -156, and a key that may raise is refused (SQL Anywhere evaluates it for each row:
+  `v + 1` over INTEGER's largest is -158), a column or a constant answers (item 6).
+- **Minor.** m1: `LIST(DISTINCT key ORDER BY ...)` is refused in a statement with an ORDER BY (SQL Anywhere then
+  returns the rows out of that order). m2: two aliases of one name are -831 where each reads the name, else -830;
+  a grouped query's ORDER BY reference not grouped is -854, reported before the select list's and HAVING's -149; -153
+  carries SQLSTATE 53026 on both paths. m3: a computed LIKE pattern IQ matches otherwise raises by name (the harness
+  counts such a raise a refusal where SQL Anywhere answers, never a PASS; any other database error there stays an
+  ERROR). m4: the parity harness leaves `FROM t AS t` to the island, which binds `t` and keeps the alias (-845 for
+  `DBA.t.id`), where `tb('...t') AS t` is the island's spelling of `t` unaliased. m5: these corrections, register row
+  S51, and the syntax pins' note (its BOTH_ERROR is a refusal against SQL Anywhere's -141).
+
+**Evidence:** both lanes identical, 3,522 runs: PASS 2,206, REFUSED 851, BOTH_ERROR 461, SKIP 4; FAIL, BUG, ERROR 0.
+Every earlier run's status unchanged (the three cases the determinism lint fixed keep theirs: PASS, BOTH_ERROR,
+PASS); `review7.yaml`'s 67 runs PASS 22, REFUSED 16, BOTH_ERROR 29, of which 45 failed before (FAIL 23, BUG 16,
+ERROR 6). The answers: 67 new; the three fixed cases re-snapped, their rows and errors identical (only `sqlSha`
+moves); every other answer identical; no syntax case's verdict moves. The Postgres island's Pure is byte-identical and
+both `sql-parity` ledgers unchanged. The measurements are kept with the private research.
 
 ### 9.17 Settings: IQ's options, by IQ's own names
 

@@ -1595,7 +1595,7 @@ public final class IqParser {
 
     /** Whether evaluating {@code e} cannot raise an error: columns, constants, IS NULL and truth tests and the logic of
      *  them -- no comparison (IQ may convert its sides), arithmetic, call, conversion or subquery. */
-    private static boolean cannotRaise(SqlAst.Expr e) {
+    static boolean cannotRaise(SqlAst.Expr e) {
         boolean leaf = e instanceof SqlAst.ColumnRef || e instanceof SqlAst.IntegerLit || e instanceof SqlAst.NumericLit
                 || e instanceof SqlAst.StringLit || e instanceof SqlAst.NullLit;
         if (leaf) {
