@@ -1114,6 +1114,27 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   (The compiler line, 2026-10-15: the committed tool lowers with the storeless runtime on DuckDB since 487a0f460 on
   main; GATES "The compiler's two scale costs".)
 
+**Announced 2026-10-15 -- main's Windows core timeout: CI's test JVMs on the C1 JIT only** (the seventh line; the
+diagnosis is this line's throwaway draft PR neema2/legend-lite#44, branch `claude/diag-windows-core-hang`, not the
+tenth line's). `//core:core_tests_integration` timed out at 300 s on Windows on main's runs after PR #41 (38667214956,
+twice) and after the scale-costs landing (38693372933). Measured on the CI runners themselves:
+- **Alone it is fast on both platforms:** 64 s on Windows, 70 s on Linux; its test thread on the CPU 57 of 60 s; file
+  I/O 0.07 s in all (17,000 events), disk latency 1-4 ms, kernel time 4%; Defender's real-time scanning is already off
+  on the runners. Not Windows, not I/O, not a hang (a run with the time limit raised finished at 262 s with no test
+  over 4 s), and not PR #41's code (the stress suites and the target's own time unchanged or faster with it, locally).
+- **In the core lane it takes 220-277 s:** about four test JVMs share the runner's four vCPUs, and each spends nearly as
+  much CPU in the JIT's C2 compiler as in its tests (the lane's 40 targets: 1,160 s of process CPU on Windows, 710 s of
+  it JIT; 1,035 s on Linux, 1,483 s JIT time).
+- **With `-XX:TieredStopAtLevel=1` on every CI test JVM** (run 38688819347, the core lane on both platforms, every test
+  passing): the target 277 -> 113 s on Windows, 220 -> 103 s on Linux; the lane's process CPU 1,160 -> 605 s and
+  1,035 -> 565 s; JIT time 710 -> 67 s and 1,483 -> 94 s; the lane step 8.4 -> 6.7 min and 9.8 -> 8.1 min; no target
+  slower by more than 20%.
+
+The change: one line in `.bazelrc`, `test:ci --jvmopt=-XX:TieredStopAtLevel=1` (CI only: a desk keeps C2), on branch
+`claude/loving-euler-gjta59`, with the measurements as evidence and a GATES entry; its pull request's CI runs every
+lane on every platform with it. `.bazelrc` is the Bazel program's file: the Phase 8 brief's "sharding" item may prefer
+its own fix; say so here and this waits. Sharding would hide the cost; this removes it.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
