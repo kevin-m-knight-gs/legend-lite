@@ -1493,8 +1493,20 @@ repros will be in the study's §9.
       overflow the stack.
     - **The ninth line (dialects):** Postgres's `concat()` takes at most 100 arguments, and Postgres cannot run a
       SELECT over 1,664 columns.
+      - **Asked, 2026-10-15:** a native for ASCII-only case folding (`toUpperAscii`/`toLowerAscii`, or one
+        `translate(s, from, to)`), rendered as SQL's `translate(s, 'abc…z', 'ABC…Z')` on every dialect that has it.
+        Measured on the user's real IQ 17.1: UPPER/LOWER fold ASCII only (`UPPER('aé')` is `'Aé'`). DuckDB's `upper`
+        folds all of Unicode, so the IQ island writes the fold as 26 nested `replace`s. Each UPPER/LOWER is then 26
+        levels of SQL nesting, and 50 nested UPPERs overflow the stack. One `translate` would make it one level.
     - **The tenth line's own:** the 2–4× Pure growth per level of nested functions and IQ's checked integer
       arithmetic, the 20,000-node cap reached by IN lists of 2,500 values, and a quadratic select-list analysis.
+      **Fixed on `claude/iq-island-4-scale`, 2026-10-15** (landing 4; it takes PR #41's chain reader and merged guards):
+      - AND/OR of 2,000 terms in 78 ms and 5,000 in 217 ms (refused, and a stack overflow, before);
+      - IN lists of 10,000 constants as SQL `IN` in 17 ms;
+      - 8,000-item SELECTs in about 1 s (5–7.5 s before);
+      - nested TRIM linear to depth 200, UPPER/LOWER to 25, SUBSTRING to 8.
+
+      Left: checked integer chains, which go linear with landing 4's IQ widening.
       These go in landing 4.
 
 ## Rules between sessions
