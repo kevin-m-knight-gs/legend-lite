@@ -1,10 +1,10 @@
 // What Python's ll.Page writes (python/legend_lite/page.py; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md), in
 // DataCube's own words: its filter operators, aggregates, sort directions and charts, the page's and the cube's
-// versions, and the numbers a layout places tiles by, each as DataCube's sources spell them -- so a name added here is
-// one Python offers too, and Python never writes one DataCube does not read, nor places a tile where DataCube would
-// not. And what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner
-// protocol's own lists and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads
-// Python's side as text (the two halves are in two languages), and DataCube's types as text, its values as they are.
+// versions, each as DataCube's sources spell them -- so a name added here is one Python offers too, and Python never
+// writes one DataCube does not read (where it places a tile, DataCube's own layout rules say: headless/layout.ts). And
+// what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner protocol's own
+// lists and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads Python's side as
+// text (the two halves are in two languages), and DataCube's types as text, its values as they are.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -71,14 +71,6 @@ describe('Python writes pages in DataCube\'s own words', () => {
   it('its page and cube versions are the documents\'', () => {
     assert.equal(pyNumber('PAGE_VERSION'), tsNumber('src/page-document.ts', 'PAGE_VERSION'));
     assert.equal(pyNumber('CUBE_VERSION'), tsNumber('src/cube-document.ts', 'CUBE_VERSION'));
-  });
-
-  it('it places a tile as the layout does: a new band\'s height, the places a band holds, the bands to a screen', () => {
-    for (const name of ['BAND_HEIGHT', 'MAX_COLUMNS', 'SCREEN_BANDS']) {
-      const ts = tsNumber('src/layout/bands.ts', name);
-      assert.ok(ts > 0, `bands.ts declares ${name}`);
-      assert.equal(pyNumber(name), ts, name);
-    }
   });
 });
 

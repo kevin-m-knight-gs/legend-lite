@@ -10,6 +10,7 @@ import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.t
 import { gridChart, gridClass, gridExport, gridRelation, gridView } from './grid.ts';
 import { forget, ingest, mount, remoteAccess } from './data-in.ts';
 import { classDuplicate, pageModelKept, pageModelNames } from './model.ts';
+import { layoutAdd, layoutArrange, layoutRemove, layoutStack } from './layout.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -26,6 +27,10 @@ export { forget, ingest, mount, remoteAccess };
 /** The page's model as DataCube names it, a class's key's facts (B4), and the model a page keeps for the cubes it still
  *  holds: what Python asks beside the generic library. */
 export { classDuplicate, pageModelKept, pageModelNames };
+
+/** A sheet's layout edited by DataCube's own rules (layout/bands.ts): a tile placed, taken off, the places arranged,
+ *  tiles stacked -- what Python's pages ask, so they place nothing by rules of their own. */
+export { layoutAdd, layoutArrange, layoutRemove, layoutStack };
 
 /** What DataCube's code runs on in this host: its planner's worker, and the database. */
 export interface Headless {

@@ -43,9 +43,9 @@ from . import _json, compiler
 from ._types import is_boolean, is_decimal, is_float, is_integer
 from .frames import LIVE, SNAPPED
 
-# DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts, layout/bands.ts): a
-# name outside them is refused here, at the line that names it. datacube/test/python-vocabulary.test.ts reads each
-# against DataCube's source.
+# DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts): a name outside
+# them is refused here, at the line that names it. datacube/test/python-vocabulary.test.ts reads each against
+# DataCube's source.
 FILTER_OPERATORS = frozenset({
     'equal', 'notEqual', 'lessThan', 'lessThanEqual', 'greaterThan', 'greaterThanEqual', 'isEmpty', 'isNotEmpty',
     'contains', 'notContains', 'startsWith', 'notStartsWith', 'endsWith', 'notEndsWith', 'in', 'notIn',
@@ -72,11 +72,6 @@ GRAINS = frozenset({'day', 'week', 'month', 'quarter', 'year'})
 LAYERS = frozenset({'line', 'stat', 'band', 'threshold', 'extremes'})
 STATS = frozenset({'average', 'min', 'max'})
 DIRECTIONS = frozenset({'asc', 'desc'})
-# a band added at the bottom of a sheet, in screenfuls; the places a band holds side by side, at most; the bands the
-# layout picker fits to a screen, at most
-BAND_HEIGHT = 0.5
-MAX_COLUMNS = 4
-SCREEN_BANDS = 3
 
 PAGE_KIND = 'datacube.page'
 # 4: the page's model, where its classes are (DataCube's Create a Class…); a page of Python's has none yet
@@ -192,8 +187,7 @@ def _filter(node: Any, columns: set[str]) -> dict[str, Any]:
     return condition
 
 
-# -- a sheet's bands, edited as datacube/src/layout/bands.ts edits them: shares summing to 1, no split of one part nor
-# one inside a split of its own direction, a stack of two tiles or more, every tile once ------------------------------
+# -- a sheet's bands, read: DataCube edits them (datacube/src/layout/bands.ts, asked headless: Page._layout) ---------
 
 def _is_leaf(node: dict[str, Any]) -> bool:
     return 'tile' in node or 'stack' in node
@@ -201,48 +195,6 @@ def _is_leaf(node: dict[str, Any]) -> bool:
 
 def _leaf_tiles(node: dict[str, Any]) -> list[str]:
     return [node['tile']] if 'tile' in node else list(node['stack'])
-
-
-def _split(direction: str, nodes: list[dict[str, Any]], sizes: list[Any] | None = None) -> dict[str, Any]:
-    """A split of ``nodes`` in ``direction``, their shares ``sizes`` (even unless given); one node is itself. A part
-    splitting the same way is folded in, its parts taking its share between them."""
-    if len(nodes) == 1:
-        return nodes[0]
-    shares = sizes if sizes is not None else [1 / len(nodes)] * len(nodes)
-    parts: list[dict[str, Any]] = []
-    for node, share in zip(nodes, shares):
-        if not _is_leaf(node) and node['split'] == direction:
-            parts += [{'node': p['node'], 'size': p['size'] * share} for p in node['parts']]
-        else:
-            parts.append({'node': node, 'size': share})
-    total = sum(p['size'] for p in parts)
-    return {'split': direction, 'parts': [{'node': p['node'], 'size': p['size'] / total} for p in parts]}
-
-
-def _without(node: dict[str, Any], tile: str) -> dict[str, Any] | None:
-    """``node`` without ``tile`` (None when nothing is left), its neighbours taking its share; out of a stack, the stack
-    keeps its place, a stack left with one tile being that tile. (A stack's tile in front is what a page shows, not what
-    it saves -- bands.ts, asSaved -- so a stack here has none to keep.)"""
-    if _is_leaf(node):
-        if tile not in _leaf_tiles(node):
-            return node
-        rest = [t for t in _leaf_tiles(node) if t != tile]
-        return None if not rest else {'tile': rest[0]} if len(rest) == 1 else {'stack': rest}
-    kept = [(inner, p['size']) for p in node['parts'] if (inner := _without(p['node'], tile)) is not None]
-    if not kept:
-        return None
-    return kept[0][0] if len(kept) == 1 else _split(node['split'], [n for n, _ in kept], [s for _, s in kept])
-
-
-def _replaced(node: dict[str, Any], tile: str, by: dict[str, Any]) -> dict[str, Any]:
-    """``node`` with the place holding ``tile`` (it, or its stack) replaced by ``by``."""
-    if _is_leaf(node):
-        return by if tile in _leaf_tiles(node) else node
-    return _split(node['split'], [_replaced(p['node'], tile, by) for p in node['parts']], [p['size'] for p in node['parts']])
-
-
-def _contains(node: dict[str, Any], tile: str) -> bool:
-    return tile in _leaf_tiles(node) if _is_leaf(node) else any(_contains(p['node'], tile) for p in node['parts'])
 
 
 def _leaves(layout: dict[str, Any]) -> list[dict[str, Any]]:
@@ -867,17 +819,30 @@ class Sheet:
             chosen.append(row)
         if used != set(leaves):
             raise ValueError(f'every tile on the sheet is in the layout: {", ".join(sorted(set(leaves) - used))} not')
-        return self._laid([{'height': _band_height(len(chosen)), 'node': _split('row', row)} for row in chosen])
+        # a band of each list's places side by side: DataCube's rows preset, the bands' counts and the places in order
+        return self._arranged('rows:' + '-'.join(str(len(row)) for row in chosen),
+                              [tile._id for band in bands for tile in band])
 
     def arrange(self, shape: str) -> Sheet:
-        """Its places arranged as one of the layout picker's simplest shapes, in reading order: ``'side-by-side'`` (one
-        band) or ``'stacked'`` (a band each)."""
-        leaves = _leaves(self._doc['layout'])
-        if shape == 'side-by-side':
-            return self._laid([{'height': 1, 'node': _split('row', leaves)}] if leaves else [])
-        if shape == 'stacked':
-            return self._laid([{'height': _band_height(len(leaves)), 'node': leaf} for leaf in leaves])
-        raise ValueError(f"a shape is 'side-by-side' or 'stacked' (or sheet.layout(...) band by band), not {shape!r}")
+        """Its places arranged as one of DataCube's layout picker's shapes, in reading order (a stack is one place):
+        ``'side-by-side'`` (one band), ``'stacked'`` (a band each), ``'rows:2-1'`` (bands of 2 then 1),
+        ``'columns:1-2'``, ``'focus-left'`` (the first half the page, the rest beside it) and the picker's others, as
+        DataCube names them."""
+        if not isinstance(shape, str):
+            raise ValueError(f"a shape is the layout picker's name ('side-by-side', 'rows:2-1', ...), not {shape!r}")
+        return self._arranged(shape, None)
+
+    def _arranged(self, preset: str, order: list[str] | None) -> Sheet:
+        """Its places arranged as DataCube arranges them (bands.ts arrange, asked headless), in ``order`` (their tiles;
+        None: reading order)."""
+        said = json.loads(self._page._session.headless().call(
+            'layoutArrange', _json.dumps(self._doc['layout']), preset, None if order is None else _json.dumps(order)))
+        if 'problems' in said:
+            raise ValueError(f'{"; ".join(said["problems"])} (a shape as the layout picker names it, or '
+                             f'sheet.layout(...) band by band)')
+        self._doc['layout'] = said['layout']
+        self._page._changed()
+        return self
 
     def layout_from(self, layout: Mapping[str, Any]) -> Sheet:
         """Its layout in the page document's own words -- ``{"kind": "bands", "fit": ..., "bands": [{"height": ...,
@@ -897,19 +862,8 @@ class Sheet:
         self._page._changed()
         return self
 
-    def _laid(self, bands: list[dict[str, Any]]) -> Sheet:
-        layout = self._doc['layout']
-        layout['bands'] = bands
-        self._page._changed()
-        return self
-
     def __repr__(self) -> str:
         return f'<Sheet {self._id}>'
-
-
-def _band_height(count: int) -> float:
-    """A band's height as the layout picker makes its bands: up to SCREEN_BANDS to a screen."""
-    return 1 / min(max(count, 1), SCREEN_BANDS)
 
 
 # -- the page ---------------------------------------------------------------------------------------------------------
@@ -1173,8 +1127,10 @@ class Page:
         return self._sheet(id)
 
     def stack(self, *tiles: Tile) -> None:
-        """``tiles`` in one place, as tabs, one shown at a time, where the first one is: all on one sheet. A tile
-        stacked already brings its stack's others, after those given."""
+        """``tiles`` in one place, as tabs, one shown at a time, where the first one is: all on one sheet. Stacked as
+        DataCube stacks a tile dropped on another's middle (bands.ts stackTiles): the first one's place keeps its own
+        tabs first, the others follow in the order given, and a tile stacked already brings its stack's others after
+        them."""
         if len({t._id for t in tiles}) < 2:
             raise ValueError('a stack is two tiles or more')
         if any(t._page is not self for t in tiles):
@@ -1182,13 +1138,7 @@ class Page:
         sheet = tiles[0].sheet
         if any(t.sheet is not sheet for t in tiles):
             raise ValueError('the tiles of a stack are on one sheet (put them there first: sheet.add(tile))')
-        layout = sheet._doc['layout']
-        leaves = {t: leaf for leaf in _leaves(layout) for t in _leaf_tiles(leaf)}
-        ids = list(dict.fromkeys([t._id for t in tiles] + [o for t in tiles for o in _leaf_tiles(leaves[t._id])]))
-        bands = layout['bands']
-        for other in ids[1:]:
-            bands = _bands_without(bands, other)
-        layout['bands'] = [{**b, 'node': _replaced(b['node'], ids[0], {'stack': ids})} for b in bands]
+        sheet._doc['layout'] = self._layout('layoutStack', sheet._doc['layout'], _json.dumps([t._id for t in tiles]))
         self._changed()
 
     def remove(self, tile: Tile) -> None:
@@ -1369,30 +1319,23 @@ class Page:
         return self._tile(id, Sheet)
 
     def _place(self, id: str, sheet: Sheet, near: str | None = None) -> None:
-        """A place for tile ``id`` on ``sheet``, as DataCube places a new tile (bands.ts, add): beside ``near`` while its
-        band is a row of fewer than MAX_COLUMNS places, otherwise in a band of its own below it; with no ``near``, a band
-        at the bottom."""
+        """A place for tile ``id`` on ``sheet``, as DataCube places a new tile (bands.ts add): beside ``near`` while its
+        band has room, otherwise in a band of its own below it; with no ``near``, a band at the bottom."""
         self._ids.add(id)
-        layout = sheet._doc['layout']
-        bands = list(layout['bands'])
-        at = next((i for i, b in enumerate(bands) if near is not None and _contains(b['node'], near)), -1)
-        if at < 0:
-            bands.append({'height': BAND_HEIGHT, 'node': {'tile': id}})
-        else:
-            node = bands[at]['node']
-            across = not _is_leaf(node) and node['split'] == 'row'
-            if (len(node['parts']) if across else 1) < MAX_COLUMNS:
-                nodes = [p['node'] for p in node['parts']] if across else [node]
-                bands[at] = {**bands[at], 'node': _split('row', [*nodes, {'tile': id}])}
-            else:
-                bands.insert(at + 1, {'height': BAND_HEIGHT, 'node': {'tile': id}})
-        layout['bands'] = bands
+        sheet._doc['layout'] = self._layout('layoutAdd', sheet._doc['layout'], id, near)
         self._changed()
 
     def _unplace(self, id: str) -> None:
-        """Tile ``id`` off the sheet it is on, its place closed by its neighbours, a band it emptied gone."""
+        """Tile ``id`` off the sheet it is on, as DataCube takes one off (bands.ts remove): its place closed by its
+        neighbours, a band it emptied gone."""
         for sheet in self._doc['sheets']:
-            sheet['layout']['bands'] = _bands_without(sheet['layout']['bands'], id)
+            if id in _tiles(sheet['layout']):
+                sheet['layout'] = self._layout('layoutRemove', sheet['layout'], id)
+
+    def _layout(self, call: str, layout: dict[str, Any], *args: Any) -> dict[str, Any]:
+        """A sheet's layout edited by DataCube's own rules (datacube/src/layout/bands.ts), asked headless (``call``: its
+        layoutAdd, layoutRemove or layoutStack): the layout as a page saves it."""
+        return json.loads(self._session.headless().call(call, _json.dumps(layout), *args))
 
     def _update(self, name: str, frame: Any, mode: str | None) -> None:
         """Frame ``name`` served again over ``frame``: its grids' columns, as the compiler types the frame now, in their
@@ -1412,11 +1355,6 @@ class Page:
 
     def __repr__(self) -> str:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'
-
-
-def _bands_without(bands: list[dict[str, Any]], tile: str) -> list[dict[str, Any]]:
-    """``bands`` without ``tile``, a band it emptied gone (bands.ts, remove)."""
-    return [{**b, 'node': n} for b in bands if (n := _without(b['node'], tile)) is not None]
 
 
 def _ids(doc: dict[str, Any]) -> set[str]:

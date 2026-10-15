@@ -182,6 +182,19 @@ class Document(Paged):
             with self.assertRaisesRegex(ValueError, 'no longer on its page'):
                 gone.title = 'again'
 
+    def test_a_sheet_is_arranged_as_datacube_arranges_it(self):
+        # DataCube's own arrangements (bands.ts arrange, headless): the layout picker's every shape, in reading order
+        page, grid, chart = self.built()
+        more = [grid.chart('line', title=f'line {i}') for i in range(2)]
+        sheet = page.sheets[0]
+        sheet.arrange('rows:1-3')
+        self.assertEqual([len(b['node']['parts']) if 'split' in b['node'] else 1 for b in self.bands(sheet)], [1, 3])
+        self.assertEqual([b['height'] for b in self.bands(sheet)], [0.5, 0.5])
+        sheet.arrange('focus-left')
+        bands = self.bands(sheet)
+        self.assertEqual((len(bands), bands[0]['node']['parts'][0]), (1, {'node': {'tile': grid.id}, 'size': 0.5}))
+        self.assertEqual(sheet.tiles, [grid, chart, *more])
+
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
         other = page.grid(desks(), name='desks')
@@ -228,10 +241,19 @@ class Document(Paged):
         # two tiles in one place, as tabs, where the first was (the band the second emptied gone)
         page.stack(other, chart)
         self.assertEqual(self.bands(summary), [{'height': 0.5, 'node': {'stack': [other.id, chart.id]}}])
+        # onto a tile stacked already, as DataCube drops one on its middle: its place keeps its tabs, the new one after
+        third = other.chart('pie', x='desk', y=[('desk', 'count')], title='Desks')
+        self.assertEqual(self.bands(summary)[0]['node']['parts'][1]['node'], {'tile': third.id})
+        page.stack(other, third)
+        self.assertEqual(self.bands(summary), [{'height': 0.5, 'node': {'stack': [other.id, chart.id, third.id]}}])
         with self.assertRaisesRegex(ValueError, 'one sheet'):
             page.stack(grid, chart)
         summary.arrange('side-by-side')
-        self.assertEqual(summary.tiles, [other, chart])
+        self.assertEqual(summary.tiles, [other, chart, third])
+        self.assertEqual(self.bands(summary), [{'height': 1, 'node': {'stack': [other.id, chart.id, third.id]}}])
+        # the layout picker's shapes, as DataCube names them; one it does not name is refused in its words
+        with self.assertRaisesRegex(ValueError, 'not a layout: diagonal'):
+            summary.arrange('diagonal')
         self.assertIs(page.sheets[1], summary, 'the same handle each time')
 
     def test_a_chart_takes_the_spec_version_2_slots_in_their_own_words(self):
