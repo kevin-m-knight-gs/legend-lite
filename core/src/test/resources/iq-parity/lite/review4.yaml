@@ -18,9 +18,10 @@ tests:
     sql: "SELECT DISTINCT w FROM (SELECT *, 'q' AS w FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION ALL SELECT 1, 'b', 'q' FROM DUMMY UNION ALL SELECT 2, 'x', 'b ' FROM DUMMY UNION ALL SELECT 3, 'y', 'b' FROM DUMMY) e ORDER BY w"
     engine: sa
     member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
-  - id: b1_star_before_a_constant_max_is_refused
+  - id: b1_star_before_a_constant_max
     sql: "SELECT MAX(w) AS m FROM (SELECT *, 'b' AS w FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION ALL SELECT 2, 'x', 'b ' FROM DUMMY) e"
     engine: sa
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: b1_star_before_a_constant_group_by
     sql: "SELECT w, COUNT(*) AS n FROM (SELECT z.*, 'q' AS w FROM (SELECT 1 AS k, x FROM (SELECT row_num AS id, CAST(CASE row_num WHEN 1 THEN 'b' WHEN 2 THEN 'b ' WHEN 3 THEN 'a' WHEN 4 THEN 'B' WHEN 5 THEN 'c' END AS VARCHAR(12)) AS x FROM sa_rowgenerator(1,5)) d) z UNION ALL SELECT 2, 'x', 'b ' FROM DUMMY UNION ALL SELECT 3, 'y', 'b' FROM DUMMY) e GROUP BY w ORDER BY w"
     engine: sa

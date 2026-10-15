@@ -326,14 +326,17 @@ tests:
   - id: min_and_max_of_no_strings
     sql: "SELECT MIN(RTRIM(s)) AS lo, MAX(RTRIM(s)) AS hi FROM g WHERE id > 100"
     profile: iq16-default
-  - id: min_of_a_string_column_is_refused
+  - id: min_of_a_string_column
     sql: "SELECT MIN(s) AS lo FROM g"
     profile: iq16-default, sqla17-default
-  - id: max_of_a_string_column_per_group_is_refused
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+  - id: max_of_a_string_column_per_group
     sql: "SELECT k, MAX(s) AS hi FROM g GROUP BY k"
-  - id: min_of_rtrimmed_case_variants_in_a_sql_anywhere_database_is_refused
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+  - id: min_of_rtrimmed_case_variants_in_a_sql_anywhere_database
     sql: "SELECT MIN(RTRIM(s)) AS lo FROM g"
     profile: sqla17-default
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
 
   # ---- LIST of strings that are their own keys, ordered by their value; '' and NULL skipped
   - id: list_of_derived_rtrimmed_strings

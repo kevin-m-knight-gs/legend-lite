@@ -3,6 +3,7 @@
 
 package com.legend.protocol.sql.iq;
 
+import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CFloat;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
@@ -1149,11 +1150,7 @@ final class IqAggregates {
                 if (x.kind() == Kind.STRING) {
                     // IQ island, 2026-10-14 (the merge): IQ shows the first value of the least (greatest) key it meets
                     if (!dialect.keys().own(argument)) {
-                        throw SqlTranslationException.unsupported(upper + " of strings is supported only where every"
-                                + " value is its own collation key (RTRIM, TRIM, a constant" + (settings.caseSensitive()
-                                ? "" : ", LOWER") + "): IQ compares " + (settings.caseSensitive() ? "'a' and 'a '"
-                                : "'A' and 'a'") + " as one value and shows the first it meets, which is its plan's"
-                                + " choice", f.pos());
+                        yield memberOfKey(at, x, values, fn, type, dialect);
                     }
                     ColSpec spec = new ColSpec(at.name(), at.overRow(SqlToPure.valueOf(x)), at.overGroup(
                             SqlToPure.call(fn, values)), null);
@@ -1178,6 +1175,36 @@ final class IqAggregates {
             case MEDIAN -> median(f, at, x, type, values);
             case LIST -> list(f, at, x, type, dialect);
         };
+    }
+
+    /** The separator {@link #memberOfKey} packs a value behind its key with: below every byte of an escaped key. */
+    private static final String SEPARATOR = "\u0001";
+
+    /**
+     * MIN or MAX ({@code fn}) of strings whose values may share a collation key (IQ island, 2026-10-15; the user's
+     * rule: which value of the least key IQ shows is its plan's choice -- the first it meets, measured -- so any is an
+     * answer IQ could give): a value whose key is the least (greatest), one of the group's own values, never the key.
+     * Each value is packed behind its key ({@link IqDialect#collated}), the key escaped so that no byte of it is the
+     * separator's or below ({@code \x02} as {@code \x02\x03}, then {@code \x01} as {@code \x02\x02}, which keeps
+     * the keys' byte order), then the separator ({@code \x01}), then the value: the least (greatest) packed string has
+     * the least (greatest) key, as the databases compare bytes, and its value is what follows the first separator.
+     */
+    private static SqlToPure.Aggregation memberOfKey(SqlToPure.Grouping at, Tx x, ValueSpecification values, String fn,
+            @com.legend.base.Nullable IqType type, IqDialect dialect) {
+        Tx packed = SqlToPure.strict(Kind.STRING, List.of(x), v -> {
+            ValueSpecification key = SqlToPure.call("replace", SqlToPure.call("replace", dialect.collated(v.get(0)),
+                    new CString("\u0002"), new CString("\u0002\u0003")), new CString(SEPARATOR),
+                    new CString("\u0002\u0002"));
+            return AppliedFunction.infixRun("plus", List.of(key, new CString(SEPARATOR), v.get(0)));
+        });
+        String raw = at.fresh();
+        ColSpec spec = new ColSpec(raw, at.overRow(SqlToPure.valueOf(packed)), at.overGroup(SqlToPure.call(fn,
+                values)), null);
+        Tx shown = SqlToPure.strict(Kind.STRING, List.of(Tx.value(at.column(raw), Kind.STRING, true)),
+                v -> SqlToPure.call("substring", v.get(0), AppliedFunction.infixRun("plus", List.of(SqlToPure.call(
+                        "indexOf", v.get(0), new CString(SEPARATOR)), new CInteger(1L)))));
+        return new SqlToPure.Aggregation(List.of(spec), new ColSpec(at.name(), at.overRow(shown.vs()), null, null),
+                Kind.STRING, true, type);
     }
 
     /** COUNT's type: SQL Anywhere's INTEGER in its front end, IQ's UNSIGNED BIGINT under its engine (D-F15). */

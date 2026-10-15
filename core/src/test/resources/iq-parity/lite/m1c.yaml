@@ -212,10 +212,12 @@ tests:
     sql: "SELECT MAX(k) + MIN(k), MAX(k) - 1 FROM g"
   - id: max_minus_min_per_group
     sql: "SELECT k, MAX(v) - MIN(v) AS spread FROM g WHERE k < 4 GROUP BY k ORDER BY k"
-  - id: min_of_strings_is_refused
+  - id: min_of_strings
     sql: "SELECT MIN(s) FROM g"
-  - id: max_of_a_char_is_refused
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
+  - id: max_of_a_char
     sql: "SELECT MAX(c) FROM g"
+    member: "IQ shows one value of each group of equal strings, its plan's choice; any is IQ's answer"
   - id: min_with_order_by_is_wrong
     sql: "SELECT MIN(v ORDER BY v) FROM g"
 
