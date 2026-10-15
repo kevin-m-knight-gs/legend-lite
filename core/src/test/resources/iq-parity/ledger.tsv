@@ -240,9 +240,9 @@ lite/collation/order_by_nulls_and_empty_strings_descending@iq17-default	PASS	PAS
 lite/collation/order_by_a_union_all_of_strings@iq16-default	PASS	PASS
 lite/collation/order_by_a_union_all_of_strings@sqla17-default	PASS	PASS
 lite/collation/order_by_a_union_all_of_strings@iq17-default	PASS	PASS
-lite/collation/order_by_a_union_all_of_strings_descending@iq16-default	PASS	PASS
+lite/collation/order_by_a_union_all_of_strings_descending@iq16-default	REFUSED	REFUSED
 lite/collation/order_by_a_union_all_of_strings_descending@sqla17-default	PASS	PASS
-lite/collation/order_by_a_union_all_of_strings_descending@iq17-default	BUG	BUG
+lite/collation/order_by_a_union_all_of_strings_descending@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/collation/order_by_a_grouped_string_key_not_shown@iq16-default	PASS	PASS
 lite/collation/order_by_a_grouped_string_key_not_shown@sqla17-default	PASS	PASS
 lite/collation/order_by_a_grouped_string_key_not_shown@iq17-default	PASS	PASS
@@ -543,8 +543,8 @@ lite/cte/a_derived_tables_with_sees_no_outer_cte@iq16-default	BOTH_ERROR	BOTH_ER
 lite/cte/a_derived_tables_with_sees_no_outer_cte@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/a_plain_derived_table_sees_the_ctes@iq16-default	PASS	PASS
 lite/cte/a_plain_derived_table_sees_the_ctes@iq17-default	PASS	PASS
-lite/cte/a_cte_read_by_a_union@iq16-default	PASS	PASS
-lite/cte/a_cte_read_by_a_union@iq17-default	BUG	BUG
+lite/cte/a_cte_read_by_a_union@iq16-default	REFUSED	REFUSED
+lite/cte/a_cte_read_by_a_union@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/cte/a_cte_read_by_a_parenthesized_query@iq16-default	PASS	PASS
 lite/cte/a_cte_read_by_a_parenthesized_query@iq17-default	PASS	PASS
 lite/cte/a_cte_grouped_by_a_string_shown@iq16-default	PASS	PASS
@@ -1052,7 +1052,7 @@ lite/m0/case_of_a_string_and_a_number_is_refused@iq17-default	BOTH_ERROR	BOTH_ER
 lite/m0/case_of_integers_and_a_numeric@iq16-default	PASS	PASS
 lite/m0/case_of_integers_and_a_numeric@iq17-default	PASS	PASS
 lite/m0/case_of_nulls_only@iq16-default	PASS	PASS
-lite/m0/case_of_nulls_only@iq17-default	FAIL	FAIL
+lite/m0/case_of_nulls_only@iq17-default	PASS	PASS
 lite/m0/case_of_null_and_a_string@iq16-default	PASS	PASS
 lite/m0/case_of_null_and_a_string@iq17-default	PASS	PASS
 lite/m0/case_simple_over_padded_strings@iq16-default	PASS	PASS
@@ -2474,7 +2474,7 @@ lite/m1c/min_of_a_group_of_nulls@iq17-default	PASS	PASS
 lite/m1c/min_distinct@iq16-default	PASS	PASS
 lite/m1c/min_distinct@iq17-default	PASS	PASS
 lite/m1c/min_max_of_untyped_null@iq16-default	PASS	PASS
-lite/m1c/min_max_of_untyped_null@iq17-default	FAIL	FAIL
+lite/m1c/min_max_of_untyped_null@iq17-default	PASS	PASS
 lite/m1c/min_max_of_numerics_in_sql_anywhere@iq16-default	PASS	PASS
 lite/m1c/min_max_of_numerics_in_sql_anywhere@iq17-default	PASS	PASS
 lite/m1c/min_max_in_arithmetic@iq16-default	PASS	PASS
@@ -3437,8 +3437,8 @@ lite/m1d/cast_string_values_too_long@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_string_values_too_long@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_string_values_too_long_of_no_row@iq16-default	PASS	PASS
 lite/m1d/cast_string_values_too_long_of_no_row@iq17-default	REFUSED	REFUSED
-lite/m1d/cast_varchar_column_to_a_longer_varchar@iq16-default	PASS	PASS
-lite/m1d/cast_varchar_column_to_a_longer_varchar@iq17-default	BUG	BUG
+lite/m1d/cast_varchar_column_to_a_longer_varchar@iq16-default	REFUSED	REFUSED
+lite/m1d/cast_varchar_column_to_a_longer_varchar@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_varchar_column_to_char_is_padded@iq16-default	PASS	PASS
 lite/m1d/cast_varchar_column_to_char_is_padded@iq17-default	FAIL	FAIL
 lite/m1d/cast_varchar_column_to_char_in_sql_anywhere@sqla17-default	PASS	PASS
@@ -3453,8 +3453,8 @@ lite/m1d/cast_integer_values_too_long@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_integer_values_too_long@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_integer_values_short_enough@iq16-default	PASS	PASS
 lite/m1d/cast_integer_values_short_enough@iq17-default	PASS	PASS
-lite/m1d/cast_numeric_to_text@iq16-default	PASS	PASS
-lite/m1d/cast_numeric_to_text@iq17-default	BUG	BUG
+lite/m1d/cast_numeric_to_text@iq16-default	REFUSED	REFUSED
+lite/m1d/cast_numeric_to_text@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_numeric_constants_to_text@iq16-default	PASS	PASS
 lite/m1d/cast_numeric_constants_to_text@iq17-default	PASS	PASS
 lite/m1d/cast_numeric_to_short_text_is_refused@iq16-default	BOTH_ERROR	BOTH_ERROR
@@ -3825,10 +3825,10 @@ lite/m1e/timestamp_cast_to_varchar@sqla17-tds	PASS	PASS
 lite/m1e/timestamp_cast_to_varchar@iq17-default	PASS	PASS
 lite/m1e/timestamp_cast_to_varchar@iq17-odbc	PASS	PASS
 lite/m1e/timestamp_cast_to_varchar@iq17-tds	PASS	PASS
-lite/m1e/timestamp_cast_to_long_varchar@iq16-default	PASS	PASS
-lite/m1e/timestamp_cast_to_long_varchar@iq16-odbc	PASS	PASS
-lite/m1e/timestamp_cast_to_long_varchar@iq17-default	BUG	BUG
-lite/m1e/timestamp_cast_to_long_varchar@iq17-odbc	BUG	BUG
+lite/m1e/timestamp_cast_to_long_varchar@iq16-default	REFUSED	REFUSED
+lite/m1e/timestamp_cast_to_long_varchar@iq16-odbc	REFUSED	REFUSED
+lite/m1e/timestamp_cast_to_long_varchar@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/m1e/timestamp_cast_to_long_varchar@iq17-odbc	BOTH_ERROR	BOTH_ERROR
 lite/m1e/timestamp_cast_to_varchar_of_no_length@iq16-default	PASS	PASS
 lite/m1e/timestamp_cast_to_varchar_of_no_length@iq16-odbc	PASS	PASS
 lite/m1e/timestamp_cast_to_varchar_of_no_length@iq17-default	PASS	PASS

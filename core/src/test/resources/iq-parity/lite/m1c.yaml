@@ -205,6 +205,8 @@ tests:
     sql: "SELECT MIN(DISTINCT k), MAX(DISTINCT v) FROM g"
   - id: min_max_of_untyped_null
     sql: "SELECT MIN(NULL), MAX(NULL) FROM g"
+    decision: D-N7
+    expect: '{"columns": [["MIN(null)", "varchar", 0], ["MAX(null)", "varchar", 0]], "rows": [[null, null]]}'
   - id: min_max_of_numerics_in_sql_anywhere
     sql: "SELECT MIN(1.5), MAX(row_num * 0.5) FROM sa_rowgenerator(1, 3)"
     engine: sa

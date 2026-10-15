@@ -1141,6 +1141,12 @@ final class IqAggregates {
             case SUM -> sum(f, at, x, type, values, dialect, false);
             case AVG -> sum(f, at, x, type, values, dialect, true);
             case MIN, MAX -> {
+                if (x.kind() == Kind.NULL && engine == IqDialect.Engine.IQ) {
+                    // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a VARCHAR(4)'s (D-N7)
+                    ColSpec spec = new ColSpec(at.name(), at.overRow(SqlToPure.nullOf(Kind.STRING).vs()),
+                            at.overGroup(SqlToPure.call(fn, values)), null);
+                    yield new SqlToPure.Aggregation(List.of(spec), null, Kind.STRING, true, new IqType("VARCHAR(4)"));
+                }
                 if (x.kind() == Kind.NULL) {
                     // IQ's NULL here is a BIT's (measured)
                     ColSpec spec = new ColSpec(at.name(), at.overRow(SqlToPure.nullOf(Kind.INTEGER).vs()),

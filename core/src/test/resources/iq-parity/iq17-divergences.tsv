@@ -17,10 +17,8 @@ cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a
 cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL (-131), which lite reads (WP2 item 7)
 cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
 cause	non-string-input	LOCATE's start under IQ's engine: a large one is its -1009145 ("cannot be big integer for non-LOB data"), which lite answers (WP2 item 8; IQ island, 2026-10-15: the other non-string inputs -- a number or a date given to LEFT, SUBSTRING, UPPER, the TRIMs, REPLACE, STUFF, LIKE, an untyped NULL in arithmetic, a DATE's time -- are refused with IQ's codes, IqFunctions.iqEngineArguments)
-cause	cast-long-varchar	CAST to LONG VARCHAR or TEXT over IQ tables is IQ's -1001006, which lite answers (WP2 item 5)
 cause	length	LENGTH of a non-string under IQ's engine is its storage width, not its text's length (WP2 item 8)
 cause	not-in-unknown	IS UNKNOWN over NOT IN of a subquery holding NULL: IQ's engine answers otherwise (WP2 item 9)
-cause	untyped-null	an untyped NULL's type under IQ's engine: an all-NULL CASE and MIN/MAX of NULL are VARCHAR (WP2 item 11)
 cause	result-types	the IQ engine's result types: CAST(x AS NUMERIC) is NUMERIC(126,38) (the PUBLIC precision and scale), TRUNCNUM and SIGN keep their argument's type (WP2 item 10, D-N1)
 cause	D-N6	a narrowing CAST of a NUMERIC to a NUMERIC truncates under IQ's engine, where lite rounds as SQL Anywhere does (WP2 item 10)
 cause	D-F17	MEDIAN of integers: IQ's engine truncates the midpoint toward zero, where lite floors (WP2 item 10)
@@ -29,7 +27,6 @@ cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Any
 cause	order-by-position	ORDER BY (1) is a position under IQ's engine, a constant in SQL Anywhere's (WP2 item 10)
 cause	true-keyword	TRUE is a keyword in IQ 17.1, a name in SQL Anywhere 17 (WP2 item 10)
 cause	utf8-char-bytes	the CharSet UTF-8 database: CHAR(n) counts bytes, so a value with non-ASCII letters gets fewer blanks
-cause	union-order-by	a set operation's ORDER BY by a name is IQ's -1005012 under its engine, whatever the name (a column both branches show alike, an alias; measured on IQ 17.1, 2026-10-15); a position is read, and over DUMMY or through a derived table the name is too
 cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
 cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING
 cause	pg-double-overflow	a DOUBLE beyond the largest is NULL under IQ's engine, which the island answers; Postgres raises its own float8 overflow before the island's test can read the infinity
@@ -80,17 +77,11 @@ run	lite/m0/top_expression_overflow@iq17-default	top-expr	duckdb,postgres
 run	lite/m0/top_expression_precedence@iq17-default	top-expr	duckdb,postgres
 run	lite/m1c/two_lists_ordered_differently@iq17-default	D-A1	duckdb,postgres
 run	lite/m1d/locate_from_column_starts@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1d/cast_numeric_to_text@iq17-default	cast-long-varchar	duckdb,postgres
-run	lite/m1d/cast_varchar_column_to_a_longer_varchar@iq17-default	cast-long-varchar	duckdb,postgres
-run	lite/m1e/timestamp_cast_to_long_varchar@iq17-default	cast-long-varchar	duckdb,postgres
-run	lite/m1e/timestamp_cast_to_long_varchar@iq17-odbc	cast-long-varchar	duckdb,postgres
 run	lite/m1d/length_of_a_date@iq17-default	length	duckdb,postgres
 run	lite/m1d/length_of_integers@iq17-default	length	duckdb,postgres
 run	lite/m1e/timestamp_length@iq17-default	length	duckdb,postgres
 run	lite/m1e/timestamp_length@iq17-odbc	length	duckdb,postgres
 run	lite/m1b/in_subquery_unknown_counted@iq17-default	not-in-unknown	duckdb,postgres
-run	lite/m0/case_of_nulls_only@iq17-default	untyped-null	duckdb,postgres
-run	lite/m1c/min_max_of_untyped_null@iq17-default	untyped-null	duckdb,postgres
 run	lite/m1d/cast_integer_column_to_numeric@iq17-default	result-types	duckdb,postgres
 run	lite/m1d/sign_of_columns@iq17-default	result-types	duckdb,postgres
 run	lite/m1d/truncnum_of_columns@iq17-default	result-types	duckdb,postgres
@@ -102,12 +93,10 @@ run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres
 run	lite/m0/order_by_a_parenthesized_constant@iq17-default	order-by-position	duckdb,postgres
 run	lite/basics/true_is_a_name@iq17-default	true-keyword	duckdb,postgres
 run	lite/m1d/cast_varchar_column_to_char_is_padded@iq17-default	utf8-char-bytes	duckdb,postgres
-run	lite/collation/order_by_a_union_all_of_strings_descending@iq17-default	union-order-by	duckdb,postgres
 run	lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	having-alias	duckdb,postgres
 run	lite/m1d/functions_in_case_and_isnull@iq17-default	iq-defect	duckdb,postgres
 run	lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	iq-defect	duckdb,postgres
 # IQ island, 2026-10-15 (landing 4: the CTE cases, snapped from the live IQ when WP1 merged into the scale branch).
-run	lite/cte/a_cte_read_by_a_union@iq17-default	union-order-by	duckdb,postgres
 # IQ island, 2026-10-15 (landing 4: the window cases, lite/windows.yaml, snapped from the live IQ): IQ's engine types k * 2
 # by the data's range (a SMALLINT here), so SUM over its window is a BIGINT where lite's INTEGER product sums to a
 # NUMERIC(20,0).

@@ -2485,6 +2485,12 @@ final class IqFunctions {
         String what = convert ? "CONVERT" : "CAST";
         List<Integer> sizes = c.type().modifiers();
         Tx x = at.tx(c.operand());
+        if (engine == IqDialect.Engine.IQ && target.equals("LONG VARCHAR") && readsColumn(c.operand())) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): IQ's engine converts no column's value to LONG VARCHAR
+            // (or TEXT): its -1001006, of a string, a number and a timestamp alike
+            throw SqlTranslationException.unsupported(what + " of a column to LONG VARCHAR is IQ's error -1001006 under"
+                    + " its engine (no conversion), refused before translating", c.pos());
+        }
         Tx result = switch (target) {
             case "SMALLINT", "INTEGER", "BIGINT" -> toInteger(target, x, c, what);
             case "NUMERIC" -> toNumeric(sizes, x, c, what);

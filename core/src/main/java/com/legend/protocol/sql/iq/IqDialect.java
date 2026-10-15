@@ -2360,6 +2360,16 @@ public final class IqDialect implements InputDialect {
      */
     private static void iqEngineRestrictions(SqlAst.Statement statement) {
         for (SqlAst.Statement q : queries(statement)) {
+            if (q instanceof SqlAst.SetOperation o) {
+                for (SqlAst.SortItem item : o.orderBy()) {
+                    if (!(item.expr() instanceof SqlAst.IntegerLit)) {
+                        // a set operation's ORDER BY reads positions only under IQ's engine (measured on IQ 17.1)
+                        throw SqlTranslationException.unsupported("a set operation's ORDER BY by anything but a"
+                                + " position is IQ's error -1005012 under its engine (the field cannot be found),"
+                                + " refused before translating", item.pos());
+                    }
+                }
+            }
             if (!(q instanceof SqlAst.Select s)) {
                 continue;
             }
@@ -5253,6 +5263,16 @@ public final class IqDialect implements InputDialect {
                 default -> throw SqlTranslationException.unsupported(what + " of " + kindName(v.kind()) + " is not"
                         + " supported yet", pos);
             }
+        }
+        if (kind == null && engine == Engine.IQ) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine every value an untyped NULL is a
+            // VARCHAR(4)'s, as a UNION's all-NULL column is (D-N7)
+            IqType text = new IqType("VARCHAR(4)");
+            List<Tx> nulls = new ArrayList<>();
+            for (Tx v : values) {
+                nulls.add(Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, text));
+            }
+            return new SqlToPure.Common(nulls, Kind.STRING, text);
         }
         if (kind == null) {
             // every value an untyped NULL: IQ's SMALLINT NULL
