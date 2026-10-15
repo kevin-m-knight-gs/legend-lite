@@ -13,11 +13,7 @@ export type OperandKind = 'none' | 'single' | 'list' | 'column';
  * Operator arity, with DataCube's own label for each, so a user
  * moving between the two products reads the same words.
  */
-export const OPERATORS: ReadonlyArray<{
-  readonly op: FilterOperator;
-  readonly label: string;
-  readonly operand: OperandKind;
-}> = [
+export const OPERATORS = [
   { op: 'equal', label: '=', operand: 'single' },
   { op: 'notEqual', label: '!=', operand: 'single' },
   { op: 'lessThan', label: '<', operand: 'single' },
@@ -49,14 +45,21 @@ export const OPERATORS: ReadonlyArray<{
   { op: 'lessThanEqualColumn', label: '<= value in column', operand: 'column' },
   { op: 'greaterThanColumn', label: '> value in column', operand: 'column' },
   { op: 'greaterThanEqualColumn', label: '>= value in column', operand: 'column' },
-];
+] as const satisfies ReadonlyArray<{
+  readonly op: FilterOperator; readonly label: string; readonly operand: OperandKind;
+}>;
 
-const OPERAND_BY_OP = new Map<FilterOperator, OperandKind>(
-  OPERATORS.map((o) => [o.op, o.operand]),
-);
+// every operator is in the table: one added to FilterOperator and not here, or here and not there, does not compile --
+// so an operator's operand is the table's, never a default
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const everyOperatorListed: Same<(typeof OPERATORS)[number]['op'], FilterOperator> = true;
+void everyOperatorListed;
+
+const OPERAND_BY_OP = Object.fromEntries(OPERATORS.map((o) => [o.op, o.operand])) as
+  Record<FilterOperator, OperandKind>;
 
 export function operandKind(op: FilterOperator): OperandKind {
-  return OPERAND_BY_OP.get(op) ?? 'single';
+  return OPERAND_BY_OP[op];
 }
 
 

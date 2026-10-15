@@ -272,12 +272,12 @@ function conditionFrom(
       return { kind: 'condition', column, operator: op, rightColumn: operand };
     case 'list':
       if (!has || !Array.isArray(operand) || operand.length === 0) {
-        return `'${op}' takes a list of values, one at least, in their order: (column, '${op}', [...])`;
+        return `'${op}' takes a list of values, one at least, in their order`;
       }
       if (!operand.every(isValue)) return `'${op}' takes ${VALUES} in its list`;
       return { kind: 'condition', column, operator: op, value: operand };
     case 'single':
-      if (!has) return `'${op}' takes one value: (column, '${op}', value)`;
+      if (!has) return `'${op}' takes one value`;
       if (Array.isArray(operand)) return `'${op}' takes one value, not several (several are for "in")`;
       if (!isValue(operand)) return `'${op}' takes ${VALUES}`;
       return { kind: 'condition', column, operator: op, value: operand };

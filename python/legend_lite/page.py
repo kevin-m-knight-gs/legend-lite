@@ -423,7 +423,8 @@ class Grid(Tile):
             with frames.serving():
                 said = json.loads(engine.call('gridFilter', self._spec(frames), _json.dumps(_given_filter(condition))))
             if 'problems' in said:
-                raise ValueError('; '.join(said['problems']))
+                raise ValueError(f'{"; ".join(said["problems"])} -- in Python a condition is (column, operator) or '
+                                 '(column, operator, value), its value a list where the operator takes several')
             if said['filter'] is not None:
                 return self._set('filter', said['filter'])
         self._query.pop('filter', None)
