@@ -2020,12 +2020,15 @@ query's level -- with IQ's errors, as SQL Anywhere 17 raises them:
   `'CmdSeq'` none; `'TDS'` with `iq16-odbc` refused). A name of no setting is an error (an unknown tag);
 - **the query's level** (`QUERY`): an option is the connection's temporary value, after the login's. A database
   property, `CommProtocol`, a name of no option, an option the base lacks (an IQ-only option under SQL Anywhere 17) and a
-  PUBLIC-only option are IQ's -203: IQ sets no such temporary option;
+  PUBLIC-only option is IQ's error for that option: -202 (reserved_keywords, truncate_timestamp_values, round_to_even,
+  temp_space_limit_check, ...) or -203 (precision, scale, blob_threshold, ...), per option as measured (review 8);
 - **at either level**: a value the setting does not take is IQ's -201 -- On and Off only (in any case, never 1 or
-  'yes'), YMD, MDY or DMY, an integer in its range written as digits (`'060'` is 60; `' 60 '` and `'1e1'` are -201), a
-  number with a fraction -201 under SQL Anywhere 17 and refused by name under IQ 16 (IQ is documented to cut it: the
-  research's D-Q2); an option with no effect on a SELECT (Tier 4) is accepted and ignored, its value unchecked; a
-  setting given twice at one level is refused by name.
+  'yes'), YMD, MDY or DMY, an integer in its range written as a whole number or as a string IQ reads as one (leading
+  blanks, at most one `+`, digits: `' +60'` and `'060'` are 60, `''` is 0; `'60 '`, `'-1'`, `'+ 60'`, `'6e1'` and
+  `'60.0'` are -201), a fraction -201 under either base (the research's D-Q2, "IQ cuts a fraction", is refuted by IQ
+  17.1, which raises -201 as SQL Anywhere does); an option with no effect on a SELECT (Tier 4) is accepted and ignored,
+  its value unchecked but for `isolation_level` (0 to 3 or a snapshot level); a setting given twice at one level is
+  refused by name.
 
 **IQ's SET statements before the SELECT**, so that an IQ script's SET lines read as written, and for the wire protocol
 to come (a client sends them before its query): a run of them, each ended by `;`, then exactly one SELECT, after the
@@ -2069,7 +2072,7 @@ settings it is read under):
 | `ansinull` | On, Off (both engines: Off in a CASE's condition stays three-valued in SQL Anywhere's front end, D-L1 under IQ's) | -- |
 | `quoted_identifier`, `escape_character` | On, Off (each changes how the SQL is lexed) | -- |
 | `date_order` | YMD, MDY, DMY | -- |
-| `nearest_century` | 0 to 100 | a fraction under IQ 16 (D-Q2) |
+| `nearest_century` | 0 to 100 | -- (a fraction is -201 under either base: D-Q2 refuted by IQ 17.1) |
 | `date_format`, `timestamp_format`, `time_format` | any value accepted; a value is written as text in `YYYY-MM-DD` (any case) and three or six places of a second | another format where a date or a timestamp is written in it |
 | `precision`, `scale` | any PRECISION and SCALE (each construct refuses what needs more than lite's 38 digits) | a SCALE above the PRECISION |
 | `divide_by_zero_error` | On (-628); Off: NULL of the operation's type for every type, `/`, `%` and MOD, guarded where the database computes it | Off with a divisor of constants alone that is no literal (a database folds it before the guard) |
@@ -2144,3 +2147,20 @@ statements' 63 cases and 101 runs among them): none has a TOP, FIRST, START AT o
 These are the two halves' runs (3,925 here, review 7's 67), each with its half's status. The answers: 3,988 (3,466
 cases, 4 skipped), regenerated on SQL Anywhere 17, each as its half snapped it. The Postgres island's Pure is
 byte-identical, both `sql-parity` ledgers are unchanged, and the showcase's pinned SQL is unchanged.
+
+**Review 8 (2026-10-14), fixed; measured on the user's real IQ 17.1 as well as SQL Anywhere 17.**
+- **B1:** a quoted whole decimal (`nearest_century = '60.0'`) was read as 60 under IQ 16 through D-Q2's branch. It is now -201, as IQ 17.1 and SQL Anywhere answer. D-Q2 is refuted: IQ 17.1 raises -201 for `60.8` too.
+- **M1:** an integer option's string is read as IQ reads it: leading blanks, at most one `+`, digits. `''` is 0.
+- **M2:** `SET EXISTING OPTION PUBLIC.<name of no option>` is -200 (SQL Anywhere; HDLADMIN may not set PUBLIC options on the HANA Cloud data lake, -121).
+- **M3:** an option with no temporary level gets its own error, as measured: -202 or -203 per option. On IQ 17.1 `round_to_even` is -202 and `time_zone` is IQ's -1924 (left at -202: pinned, refused before a SELECT reads it).
+- **Minor:**
+  - an overflowing number value (`1e400`) is the syntax error -131;
+  - `isolation_level` is checked (0 to 3, or a snapshot level);
+  - `upgrade_database_capability` is a known option;
+  - tools/iq-oracle never snaps SQL Anywhere's `?` cell;
+  - a `;` in a comment before the SELECT is no separator for the tool either.
+- **Measured on IQ 17.1, not changed:** `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED` is accepted by IQ 17.1, though SQL Anywhere raises -676, so lite keeps accepting it.
+- **Recorded, not fixed:**
+  - the determinism lint's false positives on some deterministic forms (a LEFT JOIN on a unique key, `ORDER BY 1` over `*`, `ORDER BY -id`, a one-row LIST);
+  - a quoted `"PUBLIC".x` owner, still refused by name.
+- **Pinned by:** 17 cases in `lite/options/set_statements.yaml` and 2 in `settings.yaml` (the `r8_` ids), and `IqSettingsTest`'s three new tests.

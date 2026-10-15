@@ -198,9 +198,9 @@ class IqSettingsTest {
         }
         assertTrue(invalid(() -> resolve(IqProfile.SQLA17_DEFAULT, q("nearest_century", "60.8"))).getMessage()
                 .contains("-201"));
-        // IQ is documented to cut a fraction (the research's D-Q2): refused under the IQ base
-        assertTrue(refused(() -> resolve(IqProfile.IQ16_DEFAULT, q("nearest_century", "60.8"))).getMessage()
-                .contains("D-Q2"));
+        // the research's D-Q2 ("IQ cuts a fraction") is refuted by IQ 17.1 (review 8, 2026-10-14): -201 there too
+        assertTrue(invalid(() -> resolve(IqProfile.IQ16_DEFAULT, q("nearest_century", "60.8"))).getMessage()
+                .contains("-201"));
         refused(() -> resolve(IqProfile.IQ16_DEFAULT, q("date_order", "DMY"), q("DATE_ORDER", "MDY")));
         // an option with no effect on a SELECT, at either level; IQ 16's own only under IQ 16
         assertTrue(resolve(IqProfile.IQ16_DEFAULT, q("iqgovern_priority", "2"), db("chained", "Off")).ansinull());
@@ -289,5 +289,52 @@ class IqSettingsTest {
         refused(() -> pure("SELECT id FROM " + T + " WHERE nm > '0.005'", SA));
         pure("SELECT id FROM " + T + " WHERE nm > '0.01'", SA);
         pure("SELECT id FROM " + T + " WHERE nm + 0 > '0.005'", SA);
+    }
+
+    // ------------------------------------------------------------------ review 8 (2026-10-14), measured on IQ 17.1
+
+    private static IqSettings.Value str(String v) {
+        return new IqSettings.Value(IqSettings.Value.Form.STRING, v);
+    }
+
+    private static IqSettings.Value num(String v) {
+        return new IqSettings.Value(IqSettings.Value.Form.NUMBER, v);
+    }
+
+    /** The message of IQ's error for setting {@code name} to {@code v} at {@code scope} under {@code s}. */
+    private static String error(IqSettings s, IqSettings.Scope scope, String name, IqSettings.Value v) {
+        return invalid(() -> s.set(scope, name, v, IqSettings.SETTINGS)).getMessage();
+    }
+
+    @Test
+    void anIntegerOptionsStringIsReadAsIqReadsIt() {
+        IqSettings.Scope tmp = IqSettings.Scope.TEMPORARY;
+        for (IqSettings base : List.of(IQ, SA)) {
+            assertEquals(60, base.set(tmp, "nearest_century", str(" +60"), IqSettings.SETTINGS).nearestCentury());
+            assertEquals(0, base.set(tmp, "nearest_century", str(""), IqSettings.SETTINGS).nearestCentury());
+            for (String bad : List.of("60.0", "60 ", "-1", "+ 60", "++60", "6e1")) {
+                assertTrue(error(base, tmp, "nearest_century", str(bad)).contains("-201"), bad);
+            }
+            // a fraction is -201 under either base: IQ 17.1 refutes the research's D-Q2
+            assertTrue(error(base, tmp, "nearest_century", num("60.8")).contains("-201"));
+        }
+    }
+
+    @Test
+    void anOptionWithNoTemporaryLevelGetsItsOwnError() {
+        IqSettings.Scope tmp = IqSettings.Scope.TEMPORARY;
+        assertTrue(error(IQ, tmp, "reserved_keywords", str("LIMIT")).contains("-202"));
+        assertTrue(error(SA, tmp, "reserved_keywords", str("LIMIT")).contains("-202"));
+        assertTrue(error(IQ, tmp, "precision", num("30")).contains("-203"));
+        assertTrue(error(IQ, IqSettings.Scope.USER, "precision", num("30")).contains("-202"));
+        assertTrue(error(IQ, tmp, "blob_threshold", num("256")).contains("-203"));
+        assertTrue(error(IQ, tmp, "isolation_level", num("9")).contains("-201"));
+    }
+
+    @Test
+    void existingWithAPublicNameOfNoOptionIs200() {
+        IQ.set(IqSettings.Scope.PUBLIC, "no_such_option_r8", num("1"), IqSettings.SETTINGS);
+        assertTrue(invalid(() -> IQ.set(IqSettings.Scope.PUBLIC, "no_such_option_r8", num("1"), IqSettings.SETTINGS,
+                true)).getMessage().contains("-200"));
     }
 }

@@ -191,9 +191,11 @@ public final class IqSetPrefix {
         IqLexer.Token first = t.peek();
         boolean temporary = false;
         boolean option = false;
+        boolean existing = false;
         if (first.is("existing") || first.is("temporary") || first.is("option")) {
             if (t.peek().is("existing")) {
                 t.take();
+                existing = true;
             }
             if (t.peek().is("temporary")) {
                 t.take();
@@ -203,13 +205,14 @@ public final class IqSetPrefix {
             option = true;
         }
         if (option) {
-            return setOption(t, s, temporary);
+            return setOption(t, s, temporary, existing);
         }
         return tsql(t, s, set);
     }
 
-    /** {@code SET [EXISTING] [TEMPORARY] OPTION [owner.]name = [value]}, after OPTION. */
-    private static IqSettings setOption(Cursor t, IqSettings s, boolean temporary) {
+    /** {@code SET [EXISTING] [TEMPORARY] OPTION [owner.]name = [value]}, after OPTION; {@code existing} for
+     *  EXISTING. */
+    private static IqSettings setOption(Cursor t, IqSettings s, boolean temporary, boolean existing) {
         IqLexer.Token first = t.name();
         IqLexer.Token name = first;
         boolean publicOwner = false;
@@ -234,7 +237,13 @@ public final class IqSetPrefix {
             t.take();
             value = switch (v.kind()) {
                 case STRING -> new IqSettings.Value(IqSettings.Value.Form.STRING, v.text());
-                case NUMBER -> new IqSettings.Value(IqSettings.Value.Form.NUMBER, v.text());
+                case NUMBER -> {
+                    // a number beyond a DOUBLE's range is IQ's syntax error (-131, IQ 17.1 and SQL Anywhere 17)
+                    if (Double.isInfinite(Double.parseDouble(v.text()))) {
+                        throw t.syntaxErrorAt(v);
+                    }
+                    yield new IqSettings.Value(IqSettings.Value.Form.NUMBER, v.text());
+                }
                 case KEYWORD -> new IqSettings.Value(v.is("null") ? IqSettings.Value.Form.NULL
                         : IqSettings.Value.Form.WORD, v.text());
                 case QUOTED -> new IqSettings.Value(IqSettings.Value.Form.WORD, v.text());
@@ -252,7 +261,7 @@ public final class IqSetPrefix {
         IqSettings.Scope scope = publicOwner
                 ? temporary ? IqSettings.Scope.PUBLIC_TEMPORARY : IqSettings.Scope.PUBLIC
                 : temporary ? IqSettings.Scope.TEMPORARY : IqSettings.Scope.USER;
-        return s.set(scope, name.text(), value, name.pos());
+        return s.set(scope, name.text(), value, name.pos(), existing);
     }
 
     /** A T-SQL SET statement, after SET. */

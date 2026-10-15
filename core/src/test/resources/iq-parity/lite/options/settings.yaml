@@ -130,3 +130,13 @@ tests:
     sql: "SELECT id, UPPER(vc) AS u FROM t WHERE vc IN ('hello', 'x', 'résumé', 'HELLO') ORDER BY id"
     settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='UTF8BIN', database.CharSet='UTF-8', database.CommProtocol='CmdSeq'"
     profile: iq16-default, iq16-tds
+
+  # ---- review 8 (2026-10-14): a tagged value reads as a SET does
+  - id: r8_a_databases_quoted_whole_decimal_is_201
+    sql: "SELECT CAST('59/01/02' AS DATE) AS d"
+    settings: "database.nearest_century='60.0'"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_querys_value_with_a_plus_is_read
+    sql: "SELECT CAST('59/01/02' AS DATE) AS d"
+    settings: "query.nearest_century='+60'"
+    profile: iq16-default, sqla17-default

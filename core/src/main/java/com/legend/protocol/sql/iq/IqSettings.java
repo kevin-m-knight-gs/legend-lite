@@ -216,6 +216,11 @@ public final class IqSettings {
             boolean database = st.level() == Level.DATABASE;
             if (o == null) {
                 if (IqOption.ignored(st.name(), s.base)) {
+                    SqlTranslationException e = database ? null : s.noTemporaryLevel(st.name(), SETTINGS);
+                    if (e != null) {
+                        throw e;
+                    }
+                    ignoredValue(st.name(), new Value(Value.Form.STRING, st.value()), SETTINGS);
                     s = s.note(change(st));
                     continue;
                 }
@@ -230,8 +235,10 @@ public final class IqSettings {
                         : noOption(st.name(), true, SETTINGS);
             }
             if (!database && o.level() == IqOption.Level.PUBLIC_ONLY) {
-                throw SqlTranslationException.invalid("the option '" + st.name() + "' is set for PUBLIC only, at the"
-                        + " database's level, never temporarily" + IqDialect.code(-203, "42W45"), SETTINGS);
+                SqlTranslationException e = s.noTemporaryLevel(st.name(), SETTINGS);
+                throw e != null ? e : SqlTranslationException.invalid("the option '" + st.name() + "' is set for"
+                        + " PUBLIC only, at the database's level, never temporarily" + IqDialect.code(-203, "42W45"),
+                        SETTINGS);
             }
             String v = s.read(o, st.value(), SETTINGS);
             Map<IqOption, String> db = new LinkedHashMap<>(s.database);
@@ -304,22 +311,33 @@ public final class IqSettings {
      * PUBLIC value (to the server's own default, which is no base's) is refused by name. {@code pos} places the error.
      */
     public IqSettings set(Scope scope, String name, Value value, SqlAst.Pos pos) {
+        return set(scope, name, value, pos, false);
+    }
+
+    /** {@link #set(Scope, String, Value, SqlAst.Pos)}, {@code existing} for {@code SET EXISTING OPTION}: a PUBLIC name
+     *  of no option is then IQ's -200 rather than a new option of the database's (measured on SQL Anywhere 17). */
+    public IqSettings set(Scope scope, String name, Value value, SqlAst.Pos pos, boolean existing) {
         IqOption o = IqOption.named(name);
+        boolean temporarily = scope == Scope.TEMPORARY || scope == Scope.PUBLIC_TEMPORARY;
+        SqlTranslationException noTemporary = temporarily ? noTemporaryLevel(name, pos) : null;
+        if (noTemporary != null) {
+            throw noTemporary;
+        }
         if (o == null || !o.settable(base)) {
             if (o == null && IqOption.ignored(name, base)) {
-                return note(scope, name, value);
+                return note(scope, name, value.form() == Value.Form.NONE || value.form() == Value.Form.NULL ? value
+                        : new Value(Value.Form.STRING, ignoredValue(name, value, pos)));
             }
-            if (scope == Scope.PUBLIC) {
+            if (scope == Scope.PUBLIC && !existing) {
                 // IQ makes it a new option of the database's, which nothing of a SELECT's reads
                 return note(scope, name, value);
             }
-            throw noOption(name, scope == Scope.TEMPORARY || scope == Scope.PUBLIC_TEMPORARY, pos);
+            throw noOption(name, temporarily, pos);
         }
         if (o.level() == IqOption.Level.PUBLIC_ONLY && scope != Scope.PUBLIC) {
-            throw scope == Scope.USER ? SqlTranslationException.invalid("the option '" + name + "' is set for PUBLIC"
-                    + " only: SET OPTION PUBLIC." + name + IqDialect.code(-202, "42W43"), pos)
-                    : SqlTranslationException.invalid("the option '" + name + "' is set for PUBLIC only, never"
-                    + " temporarily" + IqDialect.code(-203, "42W45"), pos);
+            // for the user: -202, on IQ 17.1 and on the oracle's SQL Anywhere 17 databases alike (measured 2026-10-14)
+            throw SqlTranslationException.invalid("the option '" + name + "' is set for PUBLIC only: SET OPTION PUBLIC."
+                    + name + IqDialect.code(-202, "42W43"), pos);
         }
         Map<IqOption, String> db = new LinkedHashMap<>(database);
         Map<IqOption, String> pt = new LinkedHashMap<>(publicTemporary);
@@ -375,6 +393,68 @@ public final class IqSettings {
                 + value.written());
     }
 
+    /**
+     * The options IQ keeps with no temporary level, and IQ's error for setting one temporarily: -202 ("only PUBLIC
+     * settings are allowed", 42W43) or -203 (42W45). Measured on SQL Anywhere 17 (every PUBLIC option set temporarily
+     * at its own value) and, for the ones an island can name, on IQ 17.1 (2026-10-14), which differs on
+     * round_to_even (-202 there; SQL Anywhere has no such option). time_zone is -1924 on IQ 17.1 (left at -202: it is
+     * pinned, refused by name before a SELECT reads it).
+     */
+    private static final Map<String, Integer> NO_TEMPORARY_LEVEL = noTemporaryLevel();
+
+    private static Map<String, Integer> noTemporaryLevel() {
+        Map<String, Integer> m = new java.util.HashMap<>();
+        for (String n : ("checkpoint_time recovery_time reserved_keywords ansi_permissions login_mode"
+                + " extern_login_credentials integrated_server_name java_main_userid java_location java_vm_options"
+                + " java_class_path database_authentication min_password_length auditing auditing_options"
+                + " global_database_id max_hash_size truncate_timestamp_values preserve_source_format"
+                + " pinned_cursor_percent_of_cache temp_space_limit_check optimization_workload log_deadlocks"
+                + " webservice_namespace_host webservice_sessionid_name http_connection_pool_basesize"
+                + " http_connection_pool_timeout allow_snapshot_isolation oem_string trusted_certificates_file"
+                + " disk_sandbox audit_log max_connections time_zone reserved_connections"
+                + " allow_optional_semicolon_in_tsql round_to_even").split(" ")) {
+            m.put(n, -202);
+        }
+        for (String n : ("precision scale min_role_admins db_publisher verify_all_columns delete_old_logs"
+                + " qualify_owners quote_all_identifiers replication_error replication_error_piece subscribe_by_remote"
+                + " verify_threshold blob_threshold compression external_remote_options save_remote_passwords"
+                + " sr_date_format sr_time_format sr_timestamp_format sr_timestamp_with_time_zone_format"
+                + " assume_distinct_servers ml_remote_id").split(" ")) {
+            m.put(n, -203);
+        }
+        return java.util.Collections.unmodifiableMap(m);
+    }
+
+    /** IQ's error for setting {@code name} temporarily where this base keeps it with no temporary level; null if it
+     *  has one. */
+    private @com.legend.base.Nullable SqlTranslationException noTemporaryLevel(String name, SqlAst.Pos pos) {
+        if (base == Base.SA17 && IqLexer.lower(name).equals("round_to_even")) {
+            return null; // IQ's own option: SQL Anywhere 17 has none (-203, as a name of no option)
+        }
+        Integer code = NO_TEMPORARY_LEVEL.get(IqLexer.lower(name));
+        if (code == null) {
+            return null;
+        }
+        return code == -202
+                ? SqlTranslationException.invalid("the option '" + name + "' is set for PUBLIC only: SET OPTION PUBLIC."
+                        + name + IqDialect.code(-202, "42W43"), pos)
+                : SqlTranslationException.invalid("the option '" + name + "' is set for PUBLIC only, never"
+                        + " temporarily" + IqDialect.code(-203, "42W45"), pos);
+    }
+
+    /** {@code value} of an option a SELECT does not read, as written; its value checked where IQ checks one an island
+     *  is pasted with: isolation_level, 0 to 3 or a snapshot level (IQ 17.1: 9 is -201). */
+    private static String ignoredValue(String name, Value value, SqlAst.Pos pos) {
+        if (IqLexer.lower(name).equals("isolation_level")) {
+            String v = IqLexer.lower(value.text().trim());
+            if (!(v.equals("0") || v.equals("1") || v.equals("2") || v.equals("3") || v.equals("snapshot")
+                    || v.equals("statement-snapshot") || v.equals("readonly-statement-snapshot"))) {
+                throw invalidSetting(name, value.written(), pos);
+            }
+        }
+        return value.text();
+    }
+
     /** IQ's error for a name of no option set {@code temporarily} (-203) or otherwise (-200). */
     private static SqlTranslationException noOption(String name, boolean temporarily, SqlAst.Pos pos) {
         return temporarily
@@ -392,20 +472,19 @@ public final class IqSettings {
 
     /**
      * {@code text} (a tagged value's) as {@code option} takes it (IQ's spelling of it): read as IQ reads a string
-     * ({@link #read(IqOption, Value, SqlAst.Pos)}) -- {@code '060'} is 60, {@code '60.8'} is -201 under SQL Anywhere
-     * 17 and refused by name under IQ 16 (D-Q2).
+     * ({@link #read(IqOption, Value, SqlAst.Pos)}) -- {@code '060'} is 60, {@code '60.8'} is -201.
      */
     String read(IqOption option, String text, SqlAst.Pos pos) {
         return read(option, new Value(Value.Form.STRING, text), pos);
     }
 
     /**
-     * {@code value} as {@code option} takes it (IQ's spelling of it), as IQ reads it, measured on SQL Anywhere 17:
-     * {@code On} or {@code Off} in any case, quoted or not; {@code YMD}, {@code MDY} or {@code DMY} in any case; an
-     * integer in its range written as a number whose value is whole ({@code 60}, {@code 6e1}, {@code 60.0}) or as a
-     * string of digits ({@code '060'}); any text. Else IQ's error -201 -- but for a number, or a string of digits with
-     * a point, with a fraction under IQ 16, which IQ is documented to cut ({@code 60.8} as 60) where SQL Anywhere
-     * raises -201: refused by name (the research's provisional D-Q2); whole ({@code '60.0'}) it is that integer.
+     * {@code value} as {@code option} takes it (IQ's spelling of it), as IQ reads it, measured on IQ 17.1 and SQL
+     * Anywhere 17 alike: {@code On} or {@code Off} in any case, quoted or not; {@code YMD}, {@code MDY} or {@code DMY}
+     * in any case; an integer in its range written as a number whose value is whole ({@code 60}, {@code 6e1},
+     * {@code 60.0}) or as a string ({@link #integerText}: {@code '060'}, {@code ' +60'}, {@code ''} as 0); any text.
+     * Else IQ's error -201: a fraction ({@code 60.8}, {@code '60.0'}) too, under either base (the research's D-Q2,
+     * "IQ cuts a fraction", is refuted by IQ 17.1, which raises -201 as SQL Anywhere does).
      */
     String read(IqOption option, Value value, SqlAst.Pos pos) {
         String text = value.text();
@@ -428,21 +507,11 @@ public final class IqSettings {
             BigDecimal n = null;
             if (value.form() == Value.Form.NUMBER) {
                 n = new BigDecimal(text);
-            } else if (value.form() == Value.Form.STRING && !text.isEmpty() && digits(text)) {
-                n = new BigDecimal(text);
-            } else if (value.form() == Value.Form.STRING && decimal(text) && base == Base.IQ16) {
-                n = new BigDecimal(text);
+            } else if (value.form() == Value.Form.STRING) {
+                String digits = integerText(text);
+                n = digits == null ? null : new BigDecimal(digits);
             }
-            if (n == null) {
-                throw invalidSetting(option.spelling(), value.written(), pos);
-            }
-            if (n.signum() != 0 && n.stripTrailingZeros().scale() > 0) {
-                if (base == Base.IQ16) {
-                    throw SqlTranslationException.unsupported("the option " + option.spelling() + " = "
-                            + value.written() + " is not supported: IQ is documented to cut a number's fraction"
-                            + " there, SQL Anywhere refuses it (the research's provisional D-Q2, not yet verified)",
-                            pos);
-                }
+            if (n == null || n.signum() != 0 && n.stripTrailingZeros().scale() > 0) {
                 throw invalidSetting(option.spelling(), value.written(), pos);
             }
             BigInteger whole = n.toBigInteger();
@@ -474,11 +543,23 @@ public final class IqSettings {
         return true;
     }
 
-    /** Digits with one point among them ({@code 60.8}, {@code .5}, {@code 60.}). */
-    private static boolean decimal(String s) {
-        int point = s.indexOf('.');
-        return point >= 0 && s.length() > 1 && point == s.lastIndexOf('.')
-                && digits(s.substring(0, point) + s.substring(point + 1));
+    /** A string as IQ reads it for an integer option (measured on IQ 17.1 and SQL Anywhere 17, 2026-10-14): leading
+     *  blanks skipped, then at most one {@code +}, then digits ({@code ' +60'}, {@code '0060'} are 60); the empty
+     *  string is 0; anything else ({@code '60 '}, {@code '-1'}, {@code '+ 60'}, {@code '6e1'}, {@code '60.0'}) is no
+     *  integer (null, IQ's -201). */
+    private static @com.legend.base.Nullable String integerText(String s) {
+        if (s.isEmpty()) {
+            return "0";
+        }
+        int i = 0;
+        while (i < s.length() && s.charAt(i) == ' ') {
+            i++;
+        }
+        if (i < s.length() && s.charAt(i) == '+') {
+            i++;
+        }
+        String d = s.substring(i);
+        return !d.isEmpty() && digits(d) ? d : null;
     }
 
     // ------------------------------------------------------------------ what is built

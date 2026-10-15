@@ -769,7 +769,8 @@ def single_select(sql):
             s = s[s.index("*/") + 2:] if "*/" in s else ""
         else:
             break
-    return ";" not in sql and re.match(r"(SELECT|WITH)\b|\(", s, re.I) is not None
+    # one statement: a ';' inside a string, a delimited name or a comment is no separator (review 8, m5)
+    return len(statements(sql)) == 1 and re.match(r"(SELECT|WITH)\b|\(", s, re.I) is not None
 
 
 def sql_sha(case, profile, schema_bytes):
@@ -915,6 +916,15 @@ class Connection:
                 if len(rows) == MAX_ROWS:
                     raise Bad("more than %d rows: %s" % (MAX_ROWS, sql))
                 rows.append([self._cell(stmt, i) for i in range(len(columns))])
+            for row in rows:
+                for col, v in zip(columns, row):
+                    # SQL Anywhere shows '?' for a value it cannot show (a NUMERIC past PUBLIC precision): no answer
+                    # to judge by, so such a case is skipped, never snapped (review 8, m3)
+                    if v == "?" and col[1] in ("numeric", "decimal", "integer", "smallint", "bigint", "tinyint",
+                                               "double", "float", "real", "unsigned int", "unsigned bigint",
+                                               "unsigned smallint"):
+                        raise Bad("SQL Anywhere shows '?' (a value it cannot show) in the %s column %s of %s: give"
+                                  " the case a skip: with a reason" % (col[1], col[0], sql))
             return {"columns": columns, "rows": rows}
         finally:
             self.api.sqlany_free_stmt(stmt)

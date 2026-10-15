@@ -141,6 +141,11 @@ public final class IqAnswers {
      *  BigDecimal ({@code .01} as written), a double a Double, a timestamp in SqlParity's spelling (no zeros ending its
      *  fraction), anything else text. */
     static Object cell(String v, String type) {
+        if (v.equals("?") && !type.contains("char") && !type.equals("string") && !type.contains("text")) {
+            // SQL Anywhere's "a value it cannot show": tools/iq-oracle never snaps one (review 8, m3)
+            throw new IllegalStateException("a snapped '?' cell in a " + type + " column: SQL Anywhere could not show"
+                    + " the value; skip the case (tools/iq-oracle refuses to snap it)");
+        }
         if (INTEGER_TYPES.contains(type)) {
             return new BigInteger(v);
         }

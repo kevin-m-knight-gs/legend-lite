@@ -190,3 +190,56 @@ tests:
     profile: iq16-default, sqla17-default
   - id: refused_string_rtruncation_off_by_tsql
     sql: "SET STRING_RTRUNCATION OFF; SELECT CAST('abcdef' AS VARCHAR(3)) AS s"
+
+  # ---- review 8 (2026-10-14): integer options read as IQ reads a string, measured on IQ 17.1 and SQL Anywhere 17 alike
+  - id: r8_a_quoted_whole_decimal_is_201
+    sql: "SET TEMPORARY OPTION nearest_century = '60.0'; SELECT CAST('59/01/02' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_fraction_is_201_on_iq_too
+    sql: "SET TEMPORARY OPTION nearest_century = 60.8; SELECT CAST('59/01/02' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: r8_leading_blanks_and_a_plus_are_read
+    sql: "SET TEMPORARY OPTION nearest_century = ' +60'; SELECT CAST('59/01/02' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_plus_is_read
+    sql: "SET TEMPORARY OPTION nearest_century = '+60'; SELECT CAST('59/01/02' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: r8_leading_blanks_are_read
+    sql: "SET TEMPORARY OPTION nearest_century = '  60'; SELECT CAST('59/01/02' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: r8_an_empty_string_is_0
+    sql: "SET TEMPORARY OPTION nearest_century = ''; SELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_trailing_blank_is_201
+    sql: "SET TEMPORARY OPTION nearest_century = '60 '; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_minus_sign_is_201
+    sql: "SET TEMPORARY OPTION nearest_century = '-1'; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_plus_then_a_blank_is_201
+    sql: "SET TEMPORARY OPTION nearest_century = '+ 60'; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_number_past_a_double_is_a_syntax_error
+    sql: "SET TEMPORARY OPTION nearest_century = 1e400; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_existing_with_a_public_name_of_no_option_is_200
+    sql: "SET EXISTING OPTION PUBLIC.no_such_option_r8 = 1; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_reserved_keywords_set_temporarily
+    sql: "SET TEMPORARY OPTION reserved_keywords = 'LIMIT'; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_truncate_timestamp_values_set_temporarily
+    sql: "SET TEMPORARY OPTION truncate_timestamp_values = 'Off'; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_precision_set_for_the_user
+    sql: "SET OPTION precision = 126; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_blob_threshold_has_no_temporary_level
+    sql: "SET TEMPORARY OPTION blob_threshold = 256; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_an_isolation_level_out_of_range_is_201
+    sql: "SET TEMPORARY OPTION isolation_level = 9; SELECT 1 AS x"
+    profile: iq16-default, sqla17-default
+  - id: r8_a_semicolon_in_a_comment_before_the_select
+    sql: "SET TEMPORARY OPTION date_order = 'DMY'; -- a ; comment\nSELECT CAST('01/02/03' AS DATE) AS d"
+    profile: iq16-default, sqla17-default

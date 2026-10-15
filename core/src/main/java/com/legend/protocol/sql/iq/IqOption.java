@@ -261,6 +261,8 @@ public enum IqOption {
     private static final String TIER4_SA_ONLY =
             "allow_snapshot_isolation allow_write_client_file ansi_blanks assume_distinct_servers audit_log"
             + " auditing_options auto_commit_on_create_local_temp_index background_priority blob_threshold"
+            // a hidden option SQL Anywhere 17 accepts (not in its SYSOPTIONS; review 8, m6)
+            + " upgrade_database_capability"
             + " blocking_others_timeout cis_option collect_statistics_on_dml_updates compression conn_auditing"
             + " connection_authentication connection_type database_authentication db_publisher delete_old_logs"
             + " disk_sandbox exclude_operators extern_login_credentials external_remote_options fire_triggers"
