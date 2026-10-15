@@ -26,7 +26,7 @@ import {
   type RowColumn,
   type SortSpec,
 } from './snapshot.ts';
-import { defaultKind, hasTimeOfDay, isFractional, isNumeric, isTemporal } from '../../engine-client/src/types.ts';
+import { defaultKind, isDay, isFractional, isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 import { lambda, property, variable, type Lambda } from '../../pure-protocol/src/index.ts';
 
 export type ChartMark =
@@ -802,7 +802,9 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   }
   // a grain takes a date to its period, bins a number to its bin: on any other column they mean nothing
   const xType = [...rowColumns(s), ...chartRowCalcs(spec)].find((c) => c.name === spec.x)?.type;
-  if (spec.grain !== undefined && spec.x !== undefined && known.has(spec.x) && !isTemporal(xType)) {
+  // a date is a day or an instant: a time of day alone has no week, month or year, and no calendar (Python's _DATES)
+  const isDate = (type: string | undefined): boolean => isTemporal(type) && !isTimeOfDay(type);
+  if (spec.grain !== undefined && spec.x !== undefined && known.has(spec.x) && !isDate(xType)) {
     out.push(`'${spec.x}' is not a date: it has no ${spec.grain}.`);
   }
   if (spec.bins !== undefined && spec.x !== undefined && known.has(spec.x) && !isNumeric(xType)) {
@@ -815,15 +817,16 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   for (const level of drilled.drill?.levels ?? []) {
     if (!known.has(level)) out.push(`The cube has no column '${level}' to drill into.`);
   }
-  if (DATE_ACROSS.has(spec.mark) && spec.x !== undefined && known.has(spec.x) && !isTemporal(xType)) {
+  if (DATE_ACROSS.has(spec.mark) && spec.x !== undefined && known.has(spec.x) && !isDate(xType)) {
     out.push(`${article} ${kind} runs along dates: '${spec.x}' is not one.`);
   }
   if (spec.mark === 'calendar' && spec.grain !== undefined && spec.grain !== 'day') {
     out.push('A calendar has a cell per day: its grain is the day.');
   }
-  // a date-time's rows are instants: a cell per day needs them taken to their day first
-  if (spec.mark === 'calendar' && spec.grain === undefined && hasTimeOfDay(xType)) {
-    out.push(`A calendar has a cell per day: '${spec.x}' is a date-time, so give it the day grain.`);
+  // only a StrictDate is a day: a date-time's rows are instants, and so may a Date's be (Pure's firstDayOfMonth and
+  // adjust return one), so a cell per day needs them taken to their day first -- never drawn as days without a word
+  if (spec.mark === 'calendar' && spec.grain === undefined && isDate(xType) && !isDay(xType)) {
+    out.push(`A calendar has a cell per day: '${spec.x}' may hold a time of day, so give it the day grain.`);
   }
   // A SLOT NOTHING DRAWS IS REFUSED, never ignored (AGENTS.md invariant 4): small multiples are drawn by bars, lines
   // and areas; a mark's size by a scatter (a bubble); a layer reads a value the chart plots, on a kind that draws
