@@ -1,0 +1,87 @@
+id	chars	postgres	pg_ms	duck_plan_ms	duck_sql	duckdb	duck_ms	pg_plan_ms	pg_sql	postgres_lane	pgl_ms	detail
+join_2	250	10 rows	23	374	491	PASS	126	30	616	PASS	68	
+join_agg_2	385	1 rows	22	315	736	PASS	167	41	1000	PASS	66	
+join_5	607	4 rows	31	351	1360	PASS	128	50	1715	PASS	67	
+join_agg_5	558	1 rows	29	460	1278	PASS	170	68	1670	PASS	70	
+join_10	905	13 rows	26	378	2775	PASS	140	62	3518	PASS	69	
+join_agg_10	868	6 rows	30	423	2693	PASS	167	56	3383	PASS	114	
+join_15	907	8 rows	34	378	3393	PASS	183	94	4353	PASS	137	
+join_agg_15	1057	6 rows	42	480	3853	PASS	176	82	4778	PASS	159	
+join_20	1367	10 rows	63	447	5189	PASS	229	303	6506	PASS	246	
+join_agg_20	1520	1 rows	61	578	5426	PASS	212	171	6754	PASS	174	
+join_30	2099	1 rows	38	599	7941	PASS	412	406	9937	PASS	286	
+join_agg_30	1969	4 rows	39	570	7706	PASS	340	184	9508	PASS	264	
+join_40	2907	20 rows	238	775	10910	PASS	484	371	13583	PASS	741	
+join_agg_40	2529	3 rows	95	664	10452	PASS	409	278	12878	PASS	301	
+join_50	3063	10 rows	116	935	12394	PASS	533	388	15333	PASS	1043	
+join_agg_50	3292	1 rows	447	755	13276	PASS	635	287	16286	PASS	1723	
+from_nest_1	168	9 rows	24	288	296	PASS	94	29	394	PASS	45	
+from_nest_5	438	9 rows	20	326	910	PASS	121	46	1173	PASS	51	
+from_nest_10	764	9 rows	39	400	1746	PASS	161	54	2136	PASS	68	
+from_nest_20	1467	9 rows	27	432	3902	PASS	167	70	4645	PASS	120	
+from_nest_30	2160	9 rows	26	419	6642	PASS	201	83	7688	PASS	158	
+from_nest_50	3547	9 rows	31	443	13502	PASS	616	161	15205	PASS	184	
+in_nest_1	155	9 rows	18	314	361	PASS	121	34	451	PASS	49	
+exists_nest_1	115	10 rows	22	276	202	PASS	113	23	260	PASS	33	
+in_nest_3	249	9 rows	25	293	645	PASS	122	43	791	PASS	45	
+exists_nest_3	229	10 rows	17	260	428	PASS	111	35	526	PASS	38	
+in_nest_5	340	10 rows	19	308	926	PASS	130	38	1128	PASS	58	
+exists_nest_5	347	10 rows	25	387	659	PASS	178	45	797	PASS	43	
+in_nest_10	573	10 rows	19	391	1645	PASS	151	46	1987	PASS	53	
+exists_nest_10	639	10 rows	19	323	1233	PASS	144	65	1471	PASS	59	
+in_nest_20	1036	10 rows	23	338	3128	PASS	187	64	3750	PASS	115	
+exists_nest_20	1245	10 rows	26	403	2419	PASS	253	96	2857	PASS	90	
+in_nest_30	1500	10 rows	21	423	4612	PASS	292	84	5514	PASS	101	
+exists_nest_30	1853	10 rows	27	466	3607	PASS	233	76	4245	PASS	108	
+scalars_1	116	10 rows	21	311	264	PASS	105	33	361	PASS	36	
+scalars_5	408	10 rows	27	294	1075	PASS	161	46	1432	PASS	81	
+scalars_20	1553	10 rows	22	358	4205	PASS	224	84	5597	PASS	89	
+scalars_50	3883	10 rows	31	530	10611	PASS	397	228	14073	PASS	202	
+scalar_nest_1	134	10 rows	20	98	-	REFUSED	-	2	-	REFUSED	-	duck: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  pg: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  
+scalar_nest_5	238	10 rows	17	74	-	REFUSED	-	3	-	REFUSED	-	duck: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  pg: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  
+scalar_nest_10	368	10 rows	27	99	-	REFUSED	-	28	-	REFUSED	-	duck: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  pg: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  
+scalar_nest_20	628	10 rows	20	94	-	REFUSED	-	9	-	REFUSED	-	duck: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  pg: NotImplementedException: #SQL{...}# at line 1, column 20: a subquery without FROM is not supported yet  
+cte_chain_2	217	10 rows	21	292	836	PASS	120	57	1088	PASS	51	
+cte_chain_5	574	10 rows	21	504	4915	PASS	224	73	6056	PASS	109	
+cte_chain_10	1171	10 rows	22	587	27069	PASS	317	295	32057	ERROR	60000	pg: RUN_TIMEOUT  
+cte_chain_20	KILLED
+cte_chain_40	4822	10 rows	44	5319	3250853	SQL_TOO_BIG	-	3505	3587833	SQL_TOO_BIG	-	
+setops_2	146	19 rows	19	325	277	PASS	139	37	351	PASS	35	
+setops_5	322	6 rows	29	373	876	PASS	170	57	1105	PASS	50	
+setops_10	612	6 rows	43	458	1976	PASS	207	61	2413	PASS	88	
+setops_20	1193	6 rows	24	502	4799	PASS	262	103	5652	PASS	79	
+setops_40	2351	6 rows	30	625	12937	PASS	275	154	14622	PASS	268	
+case_10	265	10 rows	20	393	1291	PASS	118	32	1473	PASS	45	
+or_chain_10	137	9 rows	22	262	410	PASS	144	37	510	PASS	46	
+plus_chain_10	86	10 rows	18	360	253	PASS	130	27	291	PASS	46	
+parens_10	70	10 rows	25	367	181	PASS	134	23	219	PASS	38	
+select_width_10	170	10 rows	28	434	697	PASS	168	42	809	PASS	42	
+case_100	2295	10 rows	26	485	12551	PASS	228	69	14173	PASS	98	
+or_chain_100	1127	10 rows	19	406	3650	PASS	200	59	4470	PASS	121	
+plus_chain_100	446	10 rows	18	356	973	PASS	153	70	1011	PASS	73	
+parens_100	250	10 rows	20	270	181	PASS	132	20	219	PASS	33	
+select_width_100	1610	10 rows	30	485	6277	PASS	224	79	7289	PASS	90	
+case_500	11895	10 rows	26	167	-	PLAN_ERROR	-	43	-	PLAN_ERROR	-	duck: StackOverflowError: null  pg: StackOverflowError: null  
+or_chain_500	5927	10 rows	25	697	18450	PASS	374	143	22470	PASS	138	
+plus_chain_500	2046	10 rows	24	152	-	PLAN_ERROR	-	36	-	PLAN_ERROR	-	duck: StackOverflowError: null  pg: StackOverflowError: null  
+parens_500	1050	10 rows	23	304	181	ERROR	44	5	-	PLAN_ERROR	-	duck: StackOverflowError: null  pg: StackOverflowError: null  
+select_width_500	8810	10 rows	43	712	31877	PASS	536	227	36889	PASS	217	
+case_2000	50395	10 rows	46	237	-	PLAN_ERROR	-	99	-	PLAN_ERROR	-	duck: StackOverflowError: null  pg: StackOverflowError: null  
+or_chain_2000	24927	10 rows	49	1187	74950	PASS	763	326	90970	PASS	427	
+plus_chain_2000	8046	10 rows	36	107	-	PLAN_ERROR	-	27	-	PLAN_ERROR	-	duck: StackOverflowError: null  pg: StackOverflowError: null  
+parens_2000	4050	10 rows	26	91	-	PLAN_ERROR	-	37	-	PLAN_ERROR	-	duck: StackOverflowError: null  pg: StackOverflowError: null  
+in_list_10	123	8 rows	22	260	231	PASS	132	23	267	PASS	40	
+in_list_100	843	0 rows	15	314	951	PASS	152	38	987	PASS	48	
+cast_nest_10	205	10 rows	21	321	327	PASS	106	26	432	PASS	48	
+cast_nest_30	539	10 rows	18	289	327	PASS	135	31	432	PASS	46	
+cast_nest_100	1705	10 rows	22	358	327	PASS	119	36	432	PASS	49	
+windows_1	170	10 rows	24	345	344	PASS	134	36	429	PASS	43	
+windows_5	552	10 rows	29	336	857	PASS	156	51	1058	PASS	64	
+windows_20	1787	10 rows	25	388	2500	PASS	167	58	2971	PASS	87	
+windows_50	4282	10 rows	33	419	5810	PASS	199	111	6817	PASS	165	
+monster_0	952	5 rows	23	442	5516	PASS	206	110	7501	PASS	185	
+monster_1	1432	6 rows	36	628	12575	PASS	327	147	16950	PASS	197	
+monster_2	1026	4 rows	29	431	5849	PASS	174	179	7882	PASS	150	
+monster_3	1573	2 rows	36	514	13055	PASS	418	170	17478	PASS	194	
+monster_4	1325	3 rows	33	485	9585	PASS	209	179	12846	PASS	142	
+monster_5	1430	2 rows	44	558	12614	PASS	367	149	16989	PASS	128	

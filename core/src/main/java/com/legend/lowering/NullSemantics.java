@@ -113,6 +113,16 @@ final class NullSemantics {
         // in a PROJECT column); the operands' own multiplicities decide.
         // A verbatim context (the mapping's own definition) rewrites the
         // result to plain '=' at the Lowerer ({@link #verbatim}).
+        // A NULL-literal operand (an empty value, as a NULL constant's
+        // column reads once inlined): pure x == [] IS the absence test, and
+        // [] == [] is TRUE -- a bare '=' with a NULL is never TRUE (#SQL's
+        // SELECT NULL INTERSECT SELECT NULL, two NULLs equal, answered no
+        // row). Null-safe, so that a verbatim context and the legacy
+        // null-unsafe mode still write the engine's '='.
+        if (ops.size() == 2
+                && (ops.get(0) instanceof SqlExpr.NullLit || ops.get(1) instanceof SqlExpr.NullLit)) {
+            return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
+        }
         if (ops.size() == 2
                 && ops.get(0) instanceof SqlExpr.Column
                 && ops.get(1) instanceof SqlExpr.Column

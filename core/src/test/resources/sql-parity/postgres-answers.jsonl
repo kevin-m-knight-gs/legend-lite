@@ -1643,6 +1643,13 @@
 {"id":"lite/aggregates/distinct_ordered_by_its_argument","columns":["c","s"],"rows":[["i3","i305"]]}
 {"id":"lite/aggregates/distinct_ordered_by_another_value_is_an_error","error":{"state":"42P10","message":"ERROR: in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"}}
 {"id":"lite/aggregates/max_of_a_boolean_is_an_error","error":{"state":"42883","message":"ERROR: function max(boolean) does not exist"}}
+{"id":"lite/aggregates/having_false_without_group_by","columns":["n"],"rows":[]}
+{"id":"lite/aggregates/having_true_without_group_by","columns":["n"],"rows":[["i10"]]}
+{"id":"lite/aggregates/count_of_an_aggregate_without_group_by","columns":["c"],"rows":[["i1"]]}
+{"id":"lite/aggregates/constant_over_an_aggregate_without_group_by","columns":["lbl"],"rows":[["sx"]]}
+{"id":"lite/aggregates/count_of_a_constant_over_an_aggregate_without_group_by","columns":["n"],"rows":[["i1"]]}
+{"id":"lite/aggregates/filtered_aggregate_without_group_by_read_for_a_constant","columns":["lbl"],"rows":[["sx"]]}
+{"id":"lite/aggregates/union_arms_aggregating_without_group_by_read_for_a_constant","columns":["one"],"rows":[["i1"],["i2"]]}
 {"id":"lite/dates/date_plus_and_minus_days","columns":["id","a","b","c","e"],"rows":[["i1","s2023-01-16","s2022-12-16","s2023-01-22","s2023-01-16"],["i2","s2020-03-01","s2020-01-30","s2020-03-07","s2020-03-02"],["i3","s2000-01-02","s1999-12-02","s2000-01-08","s2000-01-04"],["i4","s2000-01-01","s1999-12-01","s2000-01-07","s2000-01-04"],["i5",null,null,null,null],["i6","s2024-06-16","s2024-05-16","s2024-06-22","s2024-06-21"],["i7","s2025-12-26","s2025-11-25","s2026-01-01","s2026-01-01"],["i8","s1970-01-02","s1969-12-02","s1970-01-08","s1970-01-09"],["i9","s2023-07-05","s2023-06-04","s2023-07-11","s2023-07-13"],["i10","s2026-01-02","s2025-12-02","s2026-01-08","s2026-01-11"]]}
 {"id":"lite/dates/days_between_dates","columns":["id","a","b","c"],"rows":[["i1","i8415","i1082","i0"],["i2","i7364","i2133","i0"],["i3","i0","i9497","i0"],["i4","i-1","i9498","i0"],["i5",null,null,null],["i6","i8932","i565","i0"],["i7","i9490","i7","i0"],["i8","i-10957","i20454","i0"],["i9","i8585","i912","i0"],["i10","i9497","i0","i0"]]}
 {"id":"lite/dates/date_minus_date_in_a_filter","columns":["id","name"],"rows":[["i5","sEve"],["i8","sHank"],["i10","sJack"]]}
@@ -1789,6 +1796,10 @@
 {"id":"lite/functions/floor_of_a_quotient_of_numerics_is_refused","columns":["a"],"rows":[["d3"]]}
 {"id":"lite/functions/ceil_of_an_average_of_integers_is_refused","columns":["a"],"rows":[["d34"]]}
 {"id":"lite/functions/cast_of_a_quotient_of_numerics_to_integer_is_refused","columns":["id","a"],"rows":[["i1","i5"],["i2","i6"],["i3","i8"],["i4","i8"],["i5","i10"],["i6","i6"],["i7","i7"],["i8",null],["i9","i5"],["i10","i12"]]}
+{"id":"lite/functions/nested_integer_casts","columns":["id","age","s"],"rows":[["i1","i30","i30"],["i2","i25","i25"],["i3","i35","i35"],["i4","i28","i28"],["i5","i45","i45"],["i6","i32","i32"],["i7",null,null],["i8","i50","i50"],["i9","i22","i22"],["i10","i38","i38"]]}
+{"id":"lite/functions/nested_integer_cast_narrowing_overflows","error":{"state":"22003","message":"ERROR: smallint out of range"}}
+{"id":"lite/functions/cast_out_of_range_beside_a_null_operand","error":{"state":"22003","message":"ERROR: integer out of range"}}
+{"id":"lite/functions/division_by_zero_beside_a_null_operand","error":{"state":"22012","message":"ERROR: division by zero"}}
 {"id":"lite/functions/round_of_a_quotient_of_numerics_is_refused","columns":["id","a"],"rows":[["i1","d7143"],["i2","d8572"],["i3","d10714"],["i4","d11429"],["i5","d13571"],["i6","d7857"],["i7","d10000"],["i8",null],["i9","d6429"],["i10","d17143"]]}
 {"id":"lite/functions/trunc_of_a_square_root_of_a_numeric_is_refused","columns":["id","a"],"rows":[["i1","d223"],["i2","d244"],["i3","d273"],["i4","d282"],["i5","d308"],["i6","d234"],["i7","d264"],["i8",null],["i9","d212"],["i10","d346"]]}
 {"id":"lite/functions/text_of_a_quotient_of_numerics_is_refused","columns":["id","a"],"rows":[["i1","s16666.666666666667"],["i2","s20000.166666666667"],["i3","s25000.250000000000"],["i4","s26666.750000000000"],["i5","s31666.666666666667"],["i6","s18333.333333333333"],["i7","s23333.333333333333"],["i8",null],["i9","s15000.000000000000"],["i10","s40000.000000000000"]]}
@@ -2019,6 +2030,8 @@
 {"id":"lite/subqueries/except_keeps_a_null_row","columns":["dept_id"],"rows":[[null]]}
 {"id":"lite/subqueries/except_removes_duplicates","columns":["status"],"rows":[["scompleted"],["spending"]]}
 {"id":"lite/subqueries/intersect_all","columns":["dept_id"],"rows":[["i1"],["i2"],["i3"]]}
+{"id":"lite/subqueries/intersect_of_two_null_constants","columns":["?column?"],"rows":[[null]]}
+{"id":"lite/subqueries/except_of_two_null_constants","columns":["?column?"],"rows":[]}
 {"id":"lite/text/concat_ws_skips_nulls","columns":["id","a","b","c"],"rows":[["i1","shello, world, ","sworld-hello","s1hellot"],["i2","sWORLD, test, ","stest-WORLD","s2WORLDt"],["i3","sMiXeD CaSe,  ","sMiXeD CaSe","s3MiXeD CaSet"],["i4","s  spaces  , has spaces","shas spaces-  spaces  ","s4  spaces  t"],["i5","sspecial!@#$%, 12345, x","s12345-special!@#$%","s5special!@#$%t"],["i6","sabcdefghij, ABCDEFGHIJ, abc","sABCDEFGHIJ-abcdefghij","s6abcdefghijt"],["i7","s, ","s","s7t"],["i8","srepeat, repeat, test","srepeat-repeat","s8repeatt"],["i9","sUPPERCASE, lowercase, A","slowercase-UPPERCASE","s9UPPERCASEt"],["i10","sthe quick brown fox, jumps over","sjumps over-the quick brown fox","s10the quick brown foxt"]]}
 {"id":"lite/text/concat_ws_of_a_null_separator","columns":["id","a","b","c"],"rows":[["i1",null,"sworld","shelloworld"],["i2",null,"stest","sWORLDtest"],["i3",null,"s","sMiXeD CaSe"],["i4",null,"shas spaces",null],["i5",null,"s12345","sspecial!@#$%x12345"],["i6",null,"sABCDEFGHIJ","sabcdefghijabcABCDEFGHIJ"],["i7",null,"s","s"],["i8",null,"srepeat","srepeattestrepeat"],["i9",null,"slowercase","sUPPERCASEAlowercase"],["i10",null,"sjumps over",null]]}
 {"id":"lite/text/concat_ws_of_numbers_dates_and_booleans","columns":["id","a"],"rows":[["i1","sAlice|30|50000.00|2020-01-15|t"],["i2","sBob|25|60000.50|2021-03-20|t"],["i3","sCharlie|35|75000.75|2019-06-10|f"],["i4","sDiana|28|80000.25|2022-09-01|t"],["i5","sEve|45|95000.00|2015-11-30|t"],["i6","sFrank|32|55000.00|2020-07-22|f"],["i7","sGrace|70000.00|2018-04-15|t"],["i8","sHank|50|2010-01-01"],["i9","sIvy|22|45000.00|t"],["i10","sJack|38|120000.00|2017-12-05|t"]]}

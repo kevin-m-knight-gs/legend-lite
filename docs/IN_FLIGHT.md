@@ -1054,6 +1054,26 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   `NormalizeFolds`, `TypedCInteger`, `StampCensus`, `ConcatenateChecker`, `ExecuteChainAssembly`, `TypedConcatenate` and
   five resolver files), so the rebase is plain.
 
+**Landed 2026-10-15 (10bc6fb, the merge of PR neema2/legend-lite#41 at ec003fe over main 7cf39c0; the PR's run
+38663358847 green on every job -- Linux, Linux ARM, macOS, Windows, "gates green"; main's own run 38667214956; GATES
+"the stress corpus and its fixes").**
+- **Files beyond the announced list:** `sql/SqlAgg.java` and `sql/SqlTyping.java` (ask 1's one predicate, where the
+  compiler line asked for it), and `core/src/test/resources/dialect-leaks/ledger.tsv` (after #39's ratchet: the stress
+  runner's two connection URLs pinned with a dated reason). Nothing in `sql/dialect/`.
+- **The compiler line's asks:** taken on f3d95e07d (its note above). Ask 4's runs: `//spec:reference_lane` and
+  `//spec:update_reference_lane_test`, both corpora, PCT DuckDB, H2 and channel B (26 of 26); the render census, 0 of
+  21,462 lines differ (`docs/build-inventory/program/evidence/sql-stress/judges.txt`).
+- **The tenth line's "planning time doubles with each join"** is covered: its repro through `#SQL{...}#` on the landed
+  code plans 18 joins in 67 ms (LEFT), 28 ms (INNER) and 39 ms (comma), where it measured 28 s.
+- **The independent review** found one blocker of the branch's own (a merged NULL test skipped an operand's error when
+  another operand was NULL) and the three further keyless-aggregate sites; each fixed and pinned before the merge.
+- **Next on the line:** the deep shapes that still overflow a default stack (400-deep parentheses in the SQL parser,
+  200-term `+` chains in the lowering, a 400-branch CASE in the name resolver), the CASE fix waiting on the user's
+  choice (a balanced decision tree in the translator, or the compiler's stack); CTE chains as a `WITH`; the NULL-first
+  evaluation order. For the compiler line: the committed `tools/census/RenderCensus.java` passes no runtime, which the
+  planner refuses, so every case fails at lowering on both sides; the census above ran a copy with PCT's storeless
+  runtime.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
@@ -1457,6 +1477,37 @@ repros will be in the study's §9.
       `claude/loving-euler-gjta59` (`sideAgnosticTdsCond` typed both inputs of every join and `checkGeneric` typed them
       again: 2^N; its forty-join pin is `JoinCheckerTest`); the correlated select-list subquery's throw in
       `Lowerer.computedColumns` is fixed, 9bc695885 on main (GATES "A computed column reads the enclosing row").
+  - **Found 2026-10-14, the tenth line's scale suite** (650 points over 75 query shapes; sizes from published
+    real-world workloads: p99 joins per query 31–50, some over 100; 101–1,000 select items in 14% of BI queries).
+    Results agree everywhere: DuckDB = Postgres on 1,057 points, and = real IQ 17.1 on 28. For other lines, each with
+    its measured cost:
+    - **The compiler line:**
+      - **The join-chain compile time** (the `JoinChecker` edit above) is 1 s at 14 joins and over 60 s at 20; 18 joins
+        allocate 65 GB. With the seventh line's fix applied, 100 joins compile in 23 ms. Asked: land it soon. It is the
+        first wall a real report hits.
+      - `Fold.resolveIntoExact` copies a computed column's expression into every reference. 20 nested derived tables
+        give 53 MB of SQL, which DuckDB runs in 30–56 s.
+      - `SqlSource.Join.outputs/side` are rebuilt on every column lookup once compile is fixed: 100 joins plan in
+        about 1 s, 250 in 27–40 s, 100 comma joins in 11 s.
+    - **The lowering:** a CASE of 1,000 WHENs renders as nested CASEs past DuckDB's depth limit, and 5,000 AND terms
+      overflow the stack.
+    - **The ninth line (dialects):** Postgres's `concat()` takes at most 100 arguments, and Postgres cannot run a
+      SELECT over 1,664 columns.
+      - **Asked, 2026-10-15:** a native for ASCII-only case folding (`toUpperAscii`/`toLowerAscii`, or one
+        `translate(s, from, to)`), rendered as SQL's `translate(s, 'abc…z', 'ABC…Z')` on every dialect that has it.
+        Measured on the user's real IQ 17.1: UPPER/LOWER fold ASCII only (`UPPER('aé')` is `'Aé'`). DuckDB's `upper`
+        folds all of Unicode, so the IQ island writes the fold as 26 nested `replace`s. Each UPPER/LOWER is then 26
+        levels of SQL nesting, and 50 nested UPPERs overflow the stack. One `translate` would make it one level.
+    - **The tenth line's own:** the 2–4× Pure growth per level of nested functions and IQ's checked integer
+      arithmetic, the 20,000-node cap reached by IN lists of 2,500 values, and a quadratic select-list analysis.
+      **Fixed on `claude/iq-island-4-scale`, 2026-10-15** (landing 4; it takes PR #41's chain reader and merged guards):
+      - AND/OR of 2,000 terms in 78 ms and 5,000 in 217 ms (refused, and a stack overflow, before);
+      - IN lists of 10,000 constants as SQL `IN` in 17 ms;
+      - 8,000-item SELECTs in about 1 s (5–7.5 s before);
+      - nested TRIM linear to depth 200, UPPER/LOWER to 25, SUBSTRING to 8.
+
+      Left: checked integer chains, which go linear with landing 4's IQ widening.
+      These go in landing 4.
 
 ## Rules between sessions
 

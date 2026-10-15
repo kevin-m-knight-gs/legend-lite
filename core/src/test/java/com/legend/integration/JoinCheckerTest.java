@@ -6,11 +6,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -38,6 +40,23 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
     @Override
     protected String getJdbcUrl() {
         return "jdbc:duckdb:";
+    }
+
+    @Test
+    @Timeout(value = 60, unit = TimeUnit.SECONDS, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    @DisplayName("a chain of 40 joins types each input once (it typed the innermost 2^40 times)")
+    void aLongJoinChainTypesEachInputOnce() throws SQLException {
+        // the #SQL stress corpus: sideAgnosticTdsCond typed both inputs of every join, then checkGeneric typed them
+        // again, so 20 joins took 36 s to plan and 30 never finished; a condition without a get*('col') read now
+        // returns before typing anything
+        StringBuilder q = new StringBuilder("#TDS\n    k0, v0\n    1, a\n    2, b\n#");
+        for (int i = 1; i <= 40; i++) {
+            q.append("->join(#TDS\n    k").append(i).append(", v").append(i).append("\n    1, a\n    2, b\n#, ")
+                    .append("meta::pure::functions::relation::JoinKind.INNER, {l, r | $l.k").append(i - 1)
+                    .append(" == $r.k").append(i).append("})");
+        }
+        var result = executeRelation(q.toString());
+        assertEquals(2, result.rowCount(), "each key matches itself through all 40 joins");
     }
 
     @BeforeEach

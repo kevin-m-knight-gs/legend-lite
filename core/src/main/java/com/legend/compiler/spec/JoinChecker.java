@@ -123,9 +123,18 @@ final class JoinChecker {
      * sides swapped and the engine accepts it — testJoinAfterGroupByAfter-
      * JoinInner). A read whose column is ABSENT on its own side and
      * PRESENT on the other re-points to the other param before typing.
-     * Ambiguity (present on both) keeps the spelled side. */
+     * Ambiguity (present on both) keeps the spelled side.
+     *
+     * <p>Only such a read is ever re-pointed, so a condition without one
+     * returns unchanged BEFORE the inputs are typed: typing them here and
+     * again in {@code checkGeneric} typed a chain of N joins' innermost
+     * input 2^N times (the #SQL stress corpus: 20 joins, 36 s to plan). */
     private static AppliedFunction sideAgnosticTdsCond(Typer t,
             AppliedFunction af, Env env, LambdaFunction lf) {
+        if (!readsByName(lf.body().get(lf.body().size() - 1),
+                lf.parameters().get(0).name(), lf.parameters().get(1).name())) {
+            return af;
+        }
         TypedSpec l = t.synth(af.parameters().get(0), env);
         TypedSpec r = t.synth(af.parameters().get(1), env);
         Type.RelationType lr = Type.relationSchema(l.info().type());
@@ -153,12 +162,40 @@ final class JoinChecker {
         return af.withParameters(np);
     }
 
+    /** A TDS row read by name: {@code $row.get*('col')}, a getter on a variable with a string column. */
+    private static boolean rowRead(AppliedFunction gf) {
+        return com.legend.builtin.NativeFn.RowGetter.of(gf.function()).isPresent()
+                && gf.parameters().size() == 2
+                && gf.parameters().get(0) instanceof Variable
+                && gf.parameters().get(1) instanceof CString;
+    }
+
+    /** Whether {@code n} holds a read {@link #swapMisplacedReads} could
+     * re-point: a {@code get*('col')} on one of the two rows, found by the
+     * same walk. */
+    private static boolean readsByName(ValueSpecification n, String pa, String pb) {
+        if (n instanceof AppliedFunction gf && rowRead(gf)
+                && gf.parameters().get(0) instanceof Variable v) {
+            return v.name().equals(pa) || v.name().equals(pb);
+        }
+        if (n instanceof AppliedFunction fn2) {
+            for (ValueSpecification c : fn2.parameters()) {
+                if (readsByName(c, pa, pb)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (n instanceof AppliedProperty ap) {
+            return readsByName(ap.receiver(), pa, pb);
+        }
+        return false;
+    }
+
     private static ValueSpecification swapMisplacedReads(ValueSpecification n,
             String pa, String pb, java.util.Set<String> lc,
             java.util.Set<String> rc) {
-        if (n instanceof AppliedFunction gf
-                && com.legend.builtin.NativeFn.RowGetter.of(gf.function()).isPresent()
-                && gf.parameters().size() == 2
+        if (n instanceof AppliedFunction gf && rowRead(gf)
                 && gf.parameters().get(0) instanceof Variable v
                 && gf.parameters().get(1) instanceof CString col) {
             boolean onA = v.name().equals(pa);
