@@ -787,6 +787,9 @@ final class IqFunctions {
     private Tx substring(String name, SqlAst.FunctionCall f, List<Tx> args) {
         Tx s = text(args.get(0), f.args().get(0), name);
         Tx start = count(args.get(1), f.args().get(1), name);
+        if (engine == IqDialect.Engine.IQ && settings.ansiSubstring()) {
+            return substringIq(f, s, start, args.size() == 2 ? null : count(args.get(2), f.args().get(2), name));
+        }
         if (!settings.ansiSubstring()) {
             return substringOff(s, start, args.size() == 2 ? null : count(args.get(2), f.args().get(2), name));
         }
@@ -809,6 +812,44 @@ final class IqFunctions {
             ValueSpecification value = ifThen(lt(p, integer(1)), below, SqlToPure.call("substring", v.get(0), p, n));
             return negative ? ifThen(lt(n, integer(0)), raise("String"), value) : value;
         });
+    }
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1; the census's Tier 1 string functions): {@code SUBSTRING(s, p [, n])}
+     * under IQ's engine, which has no ANSI virtual positions before the first: the start is 1 for a p of 0 and L + p +
+     * 1 (L the string's length in characters) for a negative one, and the positions from the start to start + n - 1
+     * (to the end without n) that lie in 1 .. L are its text, none ''. A p beyond 32,767 either way, or an n beyond
+     * 32,767, is NULL (tested first, so the positions' arithmetic stays small); a negative n is IQ's -1090.
+     */
+    private Tx substringIq(SqlAst.FunctionCall f, Tx s, Tx start, @com.legend.base.Nullable Tx len) {
+        boolean negative = len != null && len.detail() instanceof IqType t && t.lo().signum() < 0;
+        if (negative) {
+            raisesHere(f, "-1090 (a negative length)");
+        }
+        List<Tx> operands = len == null ? List.of(s, start) : List.of(s, start, len);
+        Tx r = strict(Kind.STRING, varchar(), operands, v -> {
+            ValueSpecification str = v.get(0);
+            ValueSpecification p0 = v.get(1);
+            ValueSpecification n = len == null ? null : v.get(2);
+            ValueSpecification length = SqlToPure.call("length", str);
+            ValueSpecification p = ifThen(gt(p0, integer(0)), p0, ifThen(lt(p0, integer(0)),
+                    AppliedFunction.infixRun("plus", List.of(length, p0, integer(1))), integer(1)));
+            ValueSpecification hi = n == null ? length : AppliedFunction.infixRun("minus",
+                    List.of(AppliedFunction.infixRun("plus", List.of(p, n)), integer(1)));
+            ValueSpecification first = ifThen(lt(p, integer(1)), integer(1), p);
+            ValueSpecification last = ifThen(gt(hi, length), length, hi);
+            ValueSpecification text = ifThen(lt(last, first), new CString(""), SqlToPure.call("substring", str, first,
+                    AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(last, first)),
+                            integer(1)))));
+            ValueSpecification far = SqlToPure.call("or", gt(p0, integer(32767)), lt(p0, integer(-32767)));
+            if (n != null) {
+                far = SqlToPure.call("or", far, gt(n, integer(32767)));
+            }
+            ValueSpecification value = ifThen(far, SqlToPure.nullOf(Kind.STRING).vs(), text);
+            return negative ? ifThen(lt(java.util.Objects.requireNonNull(n), integer(0)), raise("String"), value)
+                    : value;
+        });
+        return Tx.value(r.vs(), Kind.STRING, true, varchar());
     }
 
     /**

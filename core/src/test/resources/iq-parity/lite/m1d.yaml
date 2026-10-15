@@ -62,10 +62,16 @@ tests:
     engine: sa
   - id: substring_positions_of_columns
     sql: "SELECT id, SUBSTRING('mnopqrst', sm, id) AS a, SUBSTRING('mnopqrst', it, id) AS b, SUBSTRING('mnopqrst', id, 3) AS c FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1","",null,"mno"],["2",null,null,"nop"],["3","mno","mno","opq"],["4","mnop","t","pqr"],["5",null,null,"qrs"],["6","","","rst"],["7","t","st","st"]]'
   - id: substring_lengths_of_columns
     sql: "SELECT id, SUBSTRING('mnopqrst', -1, id) AS a, SUBSTRING('mnopqrst', 3, id) AS b, SUBSTRING('mnopqrst', 0, id) AS c FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1","t","o","m"],["2","t","op","mn"],["3","t","opq","mno"],["4","t","opqr","mnop"],["5","t","opqrs","mnopq"],["6","t","opqrst","mnopqr"],["7","t","opqrst","mnopqrs"]]'
   - id: substring_without_length_of_columns
     sql: "SELECT id, SUBSTR('abcdef', id) AS a, SUBSTR('abcdef', sm) AS b, SUBSTRING('abcdef', it) AS c FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1","abcdef","",null],["2","bcdef",null,null],["3","cdef","abcdef","abcdef"],["4","def","abcdef","f"],["5","ef",null,null],["6","f","",""],["7","","f",""]]'
   - id: substring_negative_length
     sql: "SELECT SUBSTRING('mnopqrst', 3, -1) AS s"
     engine: sa
@@ -91,8 +97,12 @@ tests:
     sql: "SELECT id, SUBSTRING(vc, 1, sm) AS s FROM t WHERE sm >= 0 ORDER BY id"
   - id: substring_from_an_integer_column
     sql: "SELECT id, SUBSTRING(vc, it, 2) AS s FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1",null],["2",null],["3","Ré"],["4","E"],["5",null],["6",""],["7",""]]'
   - id: substring_from_an_integer_column_without_length
     sql: "SELECT id, SUBSTRING(vc, it) AS s FROM t ORDER BY id"
+    decision: D-F18
+    expect: '[["1",null],["2",null],["3","Résumé"],["4","E"],["5",null],["6",""],["7",""]]'
   - id: substring_negative_length_of_a_column
     sql: "SELECT id, SUBSTRING(vc, 1, sm) AS s FROM t ORDER BY id"
   - id: substring_in_where

@@ -748,8 +748,9 @@ class IqToPureTest {
     @Test
     void anUnaliasedItemIsNamedAsSqlAnywhereRendersIt() {
         // a column qualified by its FROM item's name, written tight; words lower case; an IN list's constants first
+        // (on SQL Anywhere's front end: an IN list holding a column is IQ's engine's -1001030, IQ island, 2026-10-15)
         String p = pure("SELECT id + 1, (sm) * 2, IF id IN (sm, NULL, 1) THEN 'a' ELSE 'b' ENDIF, ISNULL( sm , 0 ),"
-                + " id % 2, - -id, NULLIF(id, 1) FROM " + T + " a");
+                + " id % 2, - -id, NULLIF(id, 1) FROM " + T + " a", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS);
         assertTrue(p.contains("->select(~['a.id+1', '(a.sm)*2', 'if a.id in( 1,a.sm,null ) then \\'a\\' else"
                 + " \\'b\\' endif', 'ISNULL(a.sm,0)', 'remainder(a.id,2)', '- -a.id', 'NULLIF(a.id,1)'])"), p);
         // an unaliased tb('...T') is known by its table's name, as IQ knows a table

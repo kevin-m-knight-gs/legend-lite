@@ -142,15 +142,22 @@ class IqFunctionsTest {
 
     @Test
     void substringReadsAnsiVirtualPositions() {
-        String p = pure("SELECT SUBSTRING(vc, sm, 3) AS s FROM " + T);
+        // SQL Anywhere's front end
+        IqSettings sa = IqProfile.SQLA17_DEFAULT.settings();
+        String p = pure("SELECT SUBSTRING(vc, sm, 3) AS s FROM " + T, sa);
         // a start below 1: the positions from 1 to start + length - 1
         assertTrue(p.contains("substring(1, "), p);
         assertTrue(p.contains("< 2"), p);
         // a length that may be negative is IQ's -1090 where computed
-        assertTrue(pure("SELECT SUBSTRING(vc, 1, sm) AS s FROM " + T).contains("cast(@String)->toOne()"));
-        assertFalse(pure("SELECT SUBSTRING(vc, 1, 3) AS s FROM " + T).contains("cast(@String)->toOne()"));
+        assertTrue(pure("SELECT SUBSTRING(vc, 1, sm) AS s FROM " + T, sa).contains("cast(@String)->toOne()"));
+        assertFalse(pure("SELECT SUBSTRING(vc, 1, 3) AS s FROM " + T, sa).contains("cast(@String)->toOne()"));
         // without a length: the largest INTEGER
-        assertTrue(pure("SELECT SUBSTR(vc, 2) AS s FROM " + T).contains("2147483647"));
+        assertTrue(pure("SELECT SUBSTR(vc, 2) AS s FROM " + T, sa).contains("2147483647"));
+        // IQ island, 2026-10-15 (measured on IQ 17.1): IQ's engine has no virtual positions -- a start of 0 is 1, a
+        // negative one counts from the end -- and a start beyond 32,767 either way is NULL (IqFunctions.substringIq)
+        String iq = pure("SELECT SUBSTRING(vc, sm, 3) AS s FROM " + T);
+        assertTrue(iq.contains("> 32767") && iq.contains("< -32767"), iq);
+        assertTrue(pure("SELECT SUBSTRING(vc, 1, sm) AS s FROM " + T).contains("cast(@String)->toOne()"));
     }
 
     @Test

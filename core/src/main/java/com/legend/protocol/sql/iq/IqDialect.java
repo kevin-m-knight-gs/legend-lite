@@ -1215,6 +1215,7 @@ public final class IqDialect implements InputDialect {
         Engine chosen = engine != null ? engine : engineOf(statement, settings);
         if (chosen == Engine.IQ) {
             subqueryPlaces(statement);
+            iqEngineRestrictions(statement);
         }
         // IQ island, 2026-10-14 (the third landing; measured on SQL Anywhere 17): a row limit in a subquery or a
         // derived table keeps its rows as the statement's own does; IQ's engine restricts it (the research's D-R1, IQ
@@ -2351,6 +2352,46 @@ public final class IqDialect implements InputDialect {
      * ORDER BY or GROUP BY, inside arithmetic or an IN list in a condition, anywhere in a derived table's select list;
      * a set operation inside a subquery (IQ takes an uncorrelated one, not a correlated one: not told apart here).
      */
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1; the research's D-R1): what else IQ's engine refuses, refused before
+     * translating with its code -- an ORDER BY item that is a negative integer constant ({@code ORDER BY -1}, its
+     * -1005018 "Illegal ORDER BY item"), and an IN list holding a value that reads a column ({@code 1 IN (sm, it)},
+     * its -1001030 "non-constant expression in IN list").
+     */
+    private static void iqEngineRestrictions(SqlAst.Statement statement) {
+        for (SqlAst.Statement q : queries(statement)) {
+            if (!(q instanceof SqlAst.Select s)) {
+                continue;
+            }
+            for (SqlAst.SortItem o : s.orderBy()) {
+                if (o.expr() instanceof SqlAst.Unary u && u.op() == SqlAst.UnaryOp.MINUS
+                        && u.operand() instanceof SqlAst.IntegerLit) {
+                    throw SqlTranslationException.unsupported("ORDER BY a negative constant is IQ's error -1005018"
+                            + " under its engine (an illegal ORDER BY item), refused before translating", o.pos());
+                }
+            }
+            for (SqlAst.Expr e : expressions(s)) {
+                java.util.ArrayDeque<SqlAst.Expr> todo = new java.util.ArrayDeque<>();
+                todo.push(e);
+                while (!todo.isEmpty()) {
+                    SqlAst.Expr x = todo.pop();
+                    if (x instanceof SqlAst.InList in) {
+                        for (SqlAst.Expr v : in.values()) {
+                            List<SqlAst.ColumnRef> refs = new ArrayList<>();
+                            columnRefs(v, refs);
+                            if (!refs.isEmpty()) {
+                                throw SqlTranslationException.unsupported("an IN list holding a column is IQ's error"
+                                        + " -1001030 under its engine (a non-constant expression in an IN list),"
+                                        + " refused before translating", v.pos());
+                            }
+                        }
+                    }
+                    children(x).forEach(todo::push);
+                }
+            }
+        }
+    }
+
     private static void subqueryPlaces(SqlAst.Statement statement) {
         Set<SqlAst.Select> top = Collections.newSetFromMap(new IdentityHashMap<>());
         topBranches(statement, top);

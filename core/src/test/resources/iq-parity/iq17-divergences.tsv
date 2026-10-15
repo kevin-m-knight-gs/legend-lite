@@ -18,7 +18,6 @@ cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL 
 cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
 cause	non-string-input	LOCATE's start under IQ's engine: a large one is its -1009145 ("cannot be big integer for non-LOB data"), which lite answers (WP2 item 8; IQ island, 2026-10-15: the other non-string inputs -- a number or a date given to LEFT, SUBSTRING, UPPER, the TRIMs, REPLACE, STUFF, LIKE, an untyped NULL in arithmetic, a DATE's time -- are refused with IQ's codes, IqFunctions.iqEngineArguments)
 cause	cast-long-varchar	CAST to LONG VARCHAR or TEXT over IQ tables is IQ's -1001006, which lite answers (WP2 item 5)
-cause	substring	SUBSTRING's positions under IQ's engine: no ANSI virtual positions, NULL past the end (WP2 item 8)
 cause	length	LENGTH of a non-string under IQ's engine is its storage width, not its text's length (WP2 item 8)
 cause	not-in-unknown	IS UNKNOWN over NOT IN of a subquery holding NULL: IQ's engine answers otherwise (WP2 item 9)
 cause	untyped-null	an untyped NULL's type under IQ's engine: an all-NULL CASE and MIN/MAX of NULL are VARCHAR (WP2 item 11)
@@ -68,9 +67,6 @@ run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-default
 run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-tds	names	duckdb,postgres
 run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-default	names	duckdb,postgres
 run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-tds	names	duckdb,postgres
-run	lite/m0/order_by_a_negative_constant@iq17-default	D-R1	duckdb,postgres
-run	lite/m1a/in_columns@iq17-default	D-R1	duckdb,postgres
-run	lite/m1b/name_of_an_in_list_reordered@iq17-default	D-R1	duckdb,postgres
 run	lite/m1gaps/alias_of_a_scalar_subquery_compared@iq17-default	D-R1	duckdb,postgres
 run	lite/m1gaps/alias_of_a_scalar_subquery_read_in_where@iq17-default	D-R1	duckdb,postgres
 run	lite/review7/b2_later_union_branch_needs_no_name@iq17-default	D-R1	duckdb,postgres
@@ -88,11 +84,6 @@ run	lite/m1d/cast_numeric_to_text@iq17-default	cast-long-varchar	duckdb,postgres
 run	lite/m1d/cast_varchar_column_to_a_longer_varchar@iq17-default	cast-long-varchar	duckdb,postgres
 run	lite/m1e/timestamp_cast_to_long_varchar@iq17-default	cast-long-varchar	duckdb,postgres
 run	lite/m1e/timestamp_cast_to_long_varchar@iq17-odbc	cast-long-varchar	duckdb,postgres
-run	lite/m1d/substring_from_an_integer_column@iq17-default	substring	duckdb,postgres
-run	lite/m1d/substring_from_an_integer_column_without_length@iq17-default	substring	duckdb,postgres
-run	lite/m1d/substring_lengths_of_columns@iq17-default	substring	duckdb,postgres
-run	lite/m1d/substring_positions_of_columns@iq17-default	substring	duckdb,postgres
-run	lite/m1d/substring_without_length_of_columns@iq17-default	substring	duckdb,postgres
 run	lite/m1d/length_of_a_date@iq17-default	length	duckdb,postgres
 run	lite/m1d/length_of_integers@iq17-default	length	duckdb,postgres
 run	lite/m1e/timestamp_length@iq17-default	length	duckdb,postgres
