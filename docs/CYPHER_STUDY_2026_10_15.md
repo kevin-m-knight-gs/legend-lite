@@ -41,7 +41,9 @@ for the 2026.06 and 2026.07 releases.
    label every subclass's node also carries), relationship types are association ends and to-one or to-many
    properties, node properties are properties. The Postgres line added "classes as tables" as a later phase; Cypher
    starts there, and the compiler already lowers `Person.all()->project(~[firm: p | $p.firm.legalName])` to joins
-   through the mapping. The pitch: graph queries over any warehouse lite renders, with no graph database.
+   through the mapping. A relationship with properties is an edge class, declared as one by a stereotype the
+   compiler reads as it reads `<<equality.Key>>`; the graph a query sees is a data space, selected with Neo4j's own
+   `USE` (§5.6). The pitch: graph queries over any warehouse lite renders, with no graph database.
 3. **What is new, in two words: recursion and determinism.** Bounded paths (`*1..3`) unroll into a union of one-,
    two- and three-hop joins, which is "the unroll rearranges shapes" (`docs/TENET_CHARTER.md` C6.2) and needs nothing
    new. Unbounded paths, `shortestPath` and every iterative algorithm need the database to iterate. Every backend lite
@@ -220,8 +222,9 @@ where it is still to measure on the oracle.
 - **Cypher cannot say** a class's keys, a milestoned navigation, a mapping, a union of stores, an M2M transform, a
   typed function signature, a constraint. A model written for the island is written in Pure (or Python, or DataCube's
   "Make a class"); the island queries it.
-- **Legend cannot say,** today, a property on a relationship (associations carry none), a label-less node, a
-  dynamic label, a node of two unrelated classes at once. Each is a decision (§4, C3) or a refusal.
+- **Legend cannot say,** today, a property on a relationship (associations carry none: an edge class says it,
+  §5.6), a label-less node, a dynamic label, a node of two unrelated classes at once. Each is a decision (§4, C3)
+  or a refusal.
 
 ---
 
@@ -404,14 +407,18 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   - `(p:Person)-[:firm]->(f:Firm)` reads property `firm` of `Person`; `(f)-[:employees]->(p)` the other end;
     `(p)-[:PersonFirm]-(f)` the association by name, either direction. A type that names nothing on the left label is a
     compile error naming the label's properties.
-  - **A relationship with properties.** Legend associations carry none, so an edge with properties is a class in the
-    model (`Acting` with `actor`, `movie` and `role`). Two spellings reach it. **Today, with nothing new declared,**
-    the edge class is matched as a node: `(a:Actor)-[:actings]->(x:Acting)-[:movie]->(m:Movie) RETURN x.role`; the
-    model decides it, as it decides every label. **Later, only if users ask for Neo4j's own spelling**
-    `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role`, a profile stereotype on that class in the model (not in the
-    island) would declare it an edge and name its two ends; it is a model-side convenience, orthogonal to the version
-    switch, which lives in the query. **Decided by the user, 2026-10-15: no stereotype in the first slices**; the
-    node spelling is the one the first landings support, and a stereotype is a later proposal of its own.
+  - **A relationship with properties is an edge class, declared as one** (§5.6, the full design; the user on
+    2026-10-15: "let's not shortcut"). Pure's `Association` has exactly two properties and nothing else
+    (`model/AssociationDefinition`), so the only Legend element that can hold a relationship's own properties, keys
+    and mapping is a class: `Acting` with `actor: Actor[1]`, `movie: Movie[1]` and `role`. The class says it is an
+    edge, and which ends are which, by a platform profile in lite's prelude, read by the compiler exactly as
+    `<<equality.Key>>` is (`compiler/element/EqualityKeys`, `PlatformTypes.EQUALITY_PROFILE`):
+    `Class <<graph.Edge>> {graph.from = 'actor', graph.to = 'movie', graph.type = 'ACTED_IN'} demo::Acting`.
+    Then `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is the class's
+    keys, and the class maps to its bridge table like any class, which is what SQL/PGQ's "edge table with a source
+    key and a destination key" is. Nothing is inferred from a class's shape (invariant 4); an undeclared class is a
+    label. The graph's exposure and execution context are the data space's, selected with Neo4j's own `USE`
+    (§5.6): no new element kind.
   - Multiple labels on one node pattern (`:Person:Employee`, `:Person&Employee`) is the most specific class of the
     set when the set is a chain of the model's inheritance, else no rows (`&`) or a union (`|`). `:!A` and `:%` and a
     label-less `(n)` over the whole model are a union of every queryable class with a common schema (id, labels,
@@ -458,10 +465,11 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   three-valued `Tx` discipline as a pattern; extracting the shared half into one builder is a later pure move judged
   by byte-identical Pure, as the IQ line's PR1 was, and only if the duplication hurts.
 
-Decided by the user on 2026-10-15: C1 (one island, the version in the query, no sugar), C3's stereotype deferred
-(no stereotype in the first slices), C6 (recursion is required: the native is built), C9 (Cypher 25 is the default).
-Open: the Neo4j release to pin (C9); the native's name, shape, guard and owner (C6, in PR5's design); whether the
-line starts now beside the others or waits (the Postgres study's D4).
+Decided by the user on 2026-10-15: C1 (one island, the version in the query, no sugar), C6 (recursion is required:
+the native is built), C9 (Cypher 25 is the default). Proposed, for the user's confirmation: C3's edge class design
+(§5.6: the stereotype on the class, the data space as the graph, `USE` to select it). Open: the Neo4j release to pin
+(C9); the native's name, shape, guard and owner (C6, in PR5's design); whether the line starts now beside the others
+or waits (the Postgres study's D4).
 
 ---
 
@@ -568,6 +576,91 @@ driver, and Neo4j Browser, connect to a legend-lite server as if it were a Neo4j
 documentation is CC BY-NC-SA 4.0 (§3.2): read for behaviour, never copied, as pgwire is written from Postgres's
 manual. The cheaper first wire is Neo4j's **HTTP Query API** (`POST /db/{name}/query/v2`, JSON in and out), which lite's
 existing HTTP server can serve with no new transport. Both are after the island itself (§9, "Later").
+
+### 5.6 Relationship properties: the edge class, the data space as the graph, `USE`
+
+**The question.** Neo4j's relationships carry properties (`[:ACTED_IN {role: 'Neo'}]`), have their own identity,
+and may run in parallel (two `ACTED_IN` between one actor and one movie). Legend's `Association` is two properties
+and nothing else: no properties of its own, no keys, no mapping beyond the join. What is the right Legend element
+for a relationship with properties, and where does the model say so?
+
+**The candidates, and why four of them are wrong here:**
+
+| Candidate | Verdict |
+|---|---|
+| Extend `Association` with properties (UML's association class in the metamodel) | a fork of Pure's metamodel: the engine's parser, protocol and compiler would refuse every such model; `parser-equivalence` would carry a permanent exception. Rejected |
+| Read the relationship's properties off the mapping's join table (the bridge table's extra columns) | the wrong layer: the physical mapping would define the logical graph, the properties would be store-typed and per-store, and a model-to-model mapping would have none. Legend's tenet is that the model is the semantic layer. Rejected |
+| Infer an edge from a class's shape (two to-one properties to keyed classes) | guessing: invariant 4. A class with two to-one ends is often not an edge (an `Address` with a `country` and a `region`). Rejected |
+| A new element kind, `###Graph`, a GQL "graph type" or SQL/PGQ "property graph" over the model, naming node types, edge types, ends and directions | standards-shaped, but it duplicates the data space (which already is the consumer's view: the exposed elements, the default mapping and runtime), and it costs a section grammar (`DataSpaceSectionGrammar` is 727 lines) plus a model record, the protocol reader and emitter, the composer, `FromProtocol` and the census. Kept as a later option only if one data space must expose several graphs |
+| **An edge class, declared by a stereotype; the data space as the graph; `USE` to pick it** | **the proposal** |
+
+**The design.**
+
+1. **An edge is a class.** It is the only Legend element that can hold a relationship's properties (ordinary
+   properties), its identity (`<<equality.Key>>`), its mapping (a class mapping over the bridge table, its two ends
+   as to-one property mappings through joins: exactly SQL/PGQ's edge table with a source key and a destination key),
+   its constraints, its documentation, its milestoning, and later its writes (`CREATE (a)-[:ACTED_IN {role}]->(m)` is
+   a new instance of it). Nothing new is invented below the class.
+2. **The class says it is an edge.** A platform profile in lite's prelude, `meta::legend::lite::graph`, beside the
+   lite natives of `meta::legend::lite::` (`docs/LITE_REVIEW_2026_09_11.md`), declares the stereotype `Edge` and the
+   tags `from`, `to` and `type`. A declaration is what C6.3 lets the prelude ship. The compiler reads it in phase F,
+   as `EqualityKeys` reads `meta::pure::profiles::equality` by its full name (`PlatformTypes.EQUALITY_PROFILE`):
+
+   ```
+   Class <<graph.Edge>> {graph.from = 'actor', graph.to = 'movie', graph.type = 'ACTED_IN'} demo::Acting
+   {
+     actor: demo::Actor[1];
+     movie: demo::Movie[1];
+     role: String[1];
+     since: StrictDate[0..1];
+   }
+   ```
+
+   The checks, each a compile error with Neo4j's and the model's words: `from` and `to` name two distinct properties
+   of the class (own or inherited), each of multiplicity `[1]` (a Neo4j relationship always has both ends) and each
+   typed by a class, which are the edge type's end node types; `type` is optional and defaults to the class's simple
+   name; an edge class is never a label (a node pattern `(x:Acting)` is refused: "Acting is an edge type"); a
+   subclass of an edge class is an edge type of its own, with the same ends unless it re-tags them; every other
+   property, inherited ones included, is the relationship's property (`r.role`, `properties(r)`, `keys(r)`); a
+   to-many property to a class is refused on an edge (a relationship has two ends).
+3. **Identity.** The edge's identity is its class's `<<equality.Key>>` keys, which `DISTINCT r`, `collect(r)`,
+   `count(DISTINCT r)`, relationship uniqueness (`DIFFERENT RELATIONSHIPS`) and path equality use. Parallel
+   relationships are rows with distinct keys, as in Neo4j. An edge class without keys is refused wherever identity is
+   needed, as a keyless node class is (C5).
+4. **A relationship without properties stays an association or a property.** `(p:Person)-[:firm]->(f:Firm)` reads
+   `Person.firm`; `(f)-[:employees]->(p)` the other end; `(p)-[:PersonFirm]-(f)` the association by name. Its
+   identity is the pair of its ends' keys, `properties(r)` is `{}`, `type(r)` the name. Where Neo4j would hold two
+   parallel relationships of one type between the same two nodes, an association holds one link: a
+   `SEMANTICS_REGISTER` row, and the edge class is the complete representation whenever that matters.
+5. **Direction.** For an edge class, from the `from` end to the `to` end. For a property, from its owner to its
+   target. An undirected pattern `-[:T]-` is the union of the two orientations, each relationship once, as Neo4j
+   matches it. Labels on the endpoints narrow each end to the label's class or a subclass.
+6. **The graph is the data space.** Which classes and edges a query sees, and the mapping and runtime it runs on, are
+   what a `DataSpace` already declares (its `elements`, its execution contexts). The island selects one with
+   Neo4j's own clause, `USE demo::MovieSpace MATCH ...`; without `USE`, the island runs as any Pure query does, on
+   the `from(mapping, runtime)` that follows it, over every class the mapping maps. This is the SQL study's own
+   choice for the Postgres wire ("database = a project or data space", its §3.3), and it keeps every projection fact
+   in a Legend element that exists.
+7. **Renaming** is the `type` tag (`ACTED_IN` for `Acting`). Which name a plain association's relationship type has is
+   the association's or the property's own, in the model's case; a model that wants `KNOWS` for `friends` writes an
+   edge class or renames the property.
+8. **Patterns over edge classes lower as joins.** `(a:Actor)-[r:ACTED_IN]->(m:Movie)` is `Acting.all()` joined to
+   its `actor` and `movie` ends through the mapping, with the endpoint labels as filters; `r.role` is the row's
+   column; `type(r)` a spelled constant; `startNode(r)` and `endNode(r)` the ends. A variable-length pattern over an
+   edge class unrolls with two joins per hop. Nothing in the lowering is new: it is navigation.
+
+**What it costs, and what it does not.** New: the profile declaration in the prelude, a phase-F reader beside
+`EqualityKeys` (`GraphEdges`), the island's resolution of a relationship type to an edge class, an association or a
+property, and the `USE` clause. Untouched: the parser (stereotypes and tagged values parse today), the protocol, the
+mapping layer, the data space. **The one real cost:** a model that uses the profile compiles in lite only, because
+the engine does not define `meta::legend::lite::graph`. That is the same cost as every lite construct declared in
+`docs/OWN_CORPUS_DECISIONS.md` (the inline association, the IQ island), declared the same way (LITE-DESIGN-graph-edge),
+and it is the price of a semantic Pure cannot say; a model without edge classes is untouched and compiles everywhere.
+
+**What this is not.** It is not a shortcut around the association: the association remains the right element for a
+relationship with no properties, and the edge class is the right element for one with properties, which is how a
+UML association class and a GQL edge type relate to a plain association. The two spellings coexist in one model and
+one query.
 
 ---
 
