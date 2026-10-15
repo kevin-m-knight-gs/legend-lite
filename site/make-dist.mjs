@@ -95,7 +95,9 @@ for (const file of files) {
 }
 if (shared === 0) throw new Error(`no shared WebAssembly found under ${SOURCE}/demo/vendor/`);
 for (const { file, vendor } of copies) {
-  const ours = await readFile(join(SITES, SOURCE, 'demo', 'vendor', vendor)).catch(() => null);
+  // only a missing file is "has none": any other failure to read is itself
+  const ours = await readFile(join(SITES, SOURCE, 'demo', 'vendor', vendor))
+    .catch((e) => { if (e.code === 'ENOENT') return null; throw e; });
   if (ours === null) throw new Error(`${file}: ${SOURCE}'s site has no vendor/${vendor}, so the shared folder would not either`);
   if (!ours.equals(await readFile(join(SITES, file)))) {
     throw new Error(`${file} is not the same file as ${SOURCE}/demo/vendor/${vendor}: the apps would share one of two builds`);
