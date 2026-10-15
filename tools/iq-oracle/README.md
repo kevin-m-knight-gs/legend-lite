@@ -1,14 +1,19 @@
-# tools/iq-oracle: SQL Anywhere 17's answers for the `#IQ{...}#` island
+# tools/iq-oracle: SQL Anywhere 17's and real SAP IQ 17.1's answers for the `#IQ{...}#` island
 
-The `#IQ{...}#` island (docs/IN_FLIGHT.md, the tenth line) is judged against an oracle. No SAP IQ server can run
-here, so the oracle is SQL Anywhere 17. IQ uses SQL Anywhere as its front end and catalog store, and two databases
-approximate IQ's settings. This tool runs every parity case on SQL Anywhere and snaps the answers into
-`core/src/test/resources/iq-parity/iq-answers.jsonl`.
+The `#IQ{...}#` island (docs/IN_FLIGHT.md, the tenth line) is judged against two oracles, both snapped into
+`core/src/test/resources/iq-parity/iq-answers.jsonl`:
 
-**CI never runs SQL Anywhere.** The IQ parity lanes judge each case against the committed answers file, and they
-fail a case that has no answer (UNSNAPPED), whose answer predates its SQL (STALE), or an answer whose case is gone
-(GONE). Only a person runs the live check (`--check`), locally on a Mac with SQL Anywhere installed: after editing
-cases or the schema, after changing this tool, and before landing a change to the answers file.
+- **Real SAP IQ 17.1** judges the `iq17-*` profiles (IQ island, landing 4, WP1, 2026-10-14): the user's HANA Cloud
+  data lake, reached over the network by `snap.sh --oracle iq` ([The live IQ](#the-live-iq)).
+- **SQL Anywhere 17** judges the `iq16-*` and `sqla17-*` profiles. No IQ 16 server can run here; IQ uses SQL Anywhere
+  as its front end and catalog store, and local databases approximate IQ 16's settings (ISO_BINENG, ISO-8859-1, which
+  the live IQ cannot be). The `iq16-*` profiles are not verified on a real IQ 16.
+
+**CI never runs either oracle.** The IQ parity lanes judge each case against the committed answers file, needing no
+network, and they fail a case that has no answer (UNSNAPPED), whose answer predates its SQL (STALE), an answer whose
+case is gone (GONE), or an answer of the other oracle (ORACLE). Only a person runs the live checks (`--check`, and
+`--oracle iq --check`), locally on a Mac with SQL Anywhere installed: after editing cases or the schema, after changing
+this tool, and before landing a change to the answers file.
 
 ## Prerequisites
 
@@ -56,6 +61,82 @@ A run takes about ten seconds; most of that is SQL Anywhere starting its TCP lis
 | 1 | findings |
 | 2 | a bad file or setup, such as an unknown profile, a case key the reader doesn't know, a statement that isn't a SELECT, or a database that reports unexpected creation settings |
 
+## The live IQ
+
+IQ island, landing 4 (WP1), 2026-10-14. `--oracle iq` snaps the `iq17-*` runs from a real SAP IQ 17.1 (`live_iq.py`):
+
+```sh
+export IQ_ORACLE_HOST=<instance>.iq.hdl.<region>.hanacloud.ondemand.com:443   # or --iq-host
+tools/iq-oracle/snap.sh --oracle iq --iq-user HDLADMIN --write                # every iq17-* run
+tools/iq-oracle/snap.sh --oracle iq --check --only 'lite/m1d/*'               # drift against the live IQ
+```
+
+- **Which runs.** Every case that runs under an `iq16-*` profile also runs under the matching `iq17-*` one (`twins` in
+  `snap.py`, `IqParity.runs` in the Java harness), and a case may name an `iq17-*` profile itself. A case's
+  `decision` and `expect` do not judge an `iq17-*` run: real IQ does, so its `sqlSha` has an empty decision and expect.
+- **The credential.** The password is read from the macOS Keychain (service `legend-lite-iq`, account = the IQ user,
+  stored once with `security add-generic-password -U -a HDLADMIN -s legend-lite-iq -w`) by `security
+  find-generic-password -w`, straight into the driver's connection string in memory. It is never printed, logged,
+  written to a file or passed on a command line, and nothing in the repository holds it or the instance's host.
+- **The connection.** SQL Anywhere 17's dbcapi (the same client library as the SQL Anywhere oracle) over TLS, as
+  `CON=legend_lite_iq_oracle`. SA 17's TLS library crashes on macOS's whole `/etc/ssl/cert.pem`, so it trusts a minimal
+  CA chain: `--iq-ca <pem>` (`hdl_ca.pem` here is the public DigiCert chain a HANA Cloud host presented on 2026-10-14),
+  or by default one built from `openssl s_client -showcerts`: the certificates the server sends after its own, and the
+  system root that signed the last of them.
+- **The server must be the presets'.** It must report CaseSensitive On, BlankPadding On, Collation UTF8BIN and CharSet
+  UTF-8 (the `iq17-*` presets, `IqProfile`); the meta line records its version, its database properties, its PUBLIC
+  precision and scale, and the user's own option values (none, on 2026-10-14).
+- **The tables.** The parity schema as IQ-store tables `ll_<table>` owned by the user. Each run checks each one --
+  in the IQ store, its columns' names and types, its rows (a CHAR's pad aside), against the server's own reading of
+  the schema's literals -- and re-makes only one that is not as `schema.yaml` says. A case's table references are
+  rewritten to them (`live_iq.rewrite`): `FROM t` becomes `FROM ll_t AS t`, `DBA.t` `HDLADMIN.ll_t AS t`, so names,
+  derived column names and errors read as before; a query naming `owner.table.column` keeps no correlation name and
+  has those references rewritten too, its derived names read back as written. A CTE's name is never rewritten (a
+  CTE named like a table hides it). A rewrite that would not be faithful is not sent.
+- **The profiles.** One connection per profile: `iq17-default` at the connection's defaults, `iq17-odbc` with the ODBC
+  driver's formats, `iq17-tds` with the TDS login's options. **dbcapi cannot log in over TDS**, so the TDS login's
+  options are set as temporary options on a CmdSeq connection; each `iq17-tds` answer says so (`"login":"tds
+  emulated"`), and so does the meta line.
+- **A case's settings and SET statements** run on a connection of the case's own, closed after it (every option it
+  sets is temporary): the login's options, each query-level setting as `SET TEMPORARY OPTION`, the variables, the SET
+  statements, the SELECT. Nothing persistent is ever set on the shared server. A run the live IQ cannot judge is
+  answered `"not_judged": "<reason>"`, which the lanes count SKIP:
+  - a database property other than the server's (CaseSensitive Off, Collation ISO_BINENG, ...): fixed when a database
+    is made;
+  - a database-level option other than the server's PUBLIC value: HDLADMIN may not set a shared server's PUBLIC
+    options;
+  - a `SET OPTION` at the user's or PUBLIC's level, or `SET TEMPORARY OPTION PUBLIC.x`: it outlives the case;
+  - an option HDLADMIN may not set (SQLCODE -121): the environment's restriction, not IQ's answer;
+  - a case `iq_crashers.txt` names, by key or by shape: it hung IQ 17.1 or dropped the connection, so it is never
+    sent;
+  - a statement still running after 60 s: HDLADMIN may not set `request_timeout` (-121), so the client cancels it
+    (`sqlany_cancel`).
+- **Lost connections** are never retried on the shared server: the run is reported `CRASH` (add it to
+  `iq_crashers.txt`), and the tool reconnects, waiting up to five minutes.
+- **Text that is not UTF-8.** IQ answers some cells as bytes that are not UTF-8 (`CHAR(233)` is the one byte 0xE9 in a
+  UTF-8 database); each such byte is snapped as U+FFFD and the answer carries a `note`, so lite's text never matches.
+- **Stability.** On `--write`, a run whose answer differs from its `iq16-*` twin's SQL Anywhere answer (its error's
+  code, its column names or its rows) is run a second time and must answer alike (rows in any order: IQ returns rows a
+  query does not order in its plan's order); one that does not is reported `UNSTABLE` and not written.
+- **`--check`** re-runs the selected `iq17-*` runs and reports DRIFT (now with the fields `oracle`, `iq_version`,
+  `db_properties`, `login` and `not_judged`), UNSNAPPED, STALE and GONE as for SQL Anywhere; `DRIFT meta` names the
+  parts of the live IQ's meta that changed. A `--write` or `--check` of one oracle keeps the other's answers and meta
+  as they are.
+
+An answer of the live IQ:
+
+```json
+{"id":"lite/basics/alias_read_in_where","profile":"iq17-default","oracle":"iq","db":"hdl_iq17",
+ "db_properties":{"CaseSensitive":"On","BlankPadding":"On","Collation":"UTF8BIN","CharSet":"UTF-8"},
+ "iq_version":"17.1.263.7761","sqlSha":"…","columns":[["x","integer",0,0]],"rows":[["1"]]}
+```
+
+The lanes hold the `iq17-*` runs' statuses in the ledger like any run's. Where lite follows SQL Anywhere's semantics
+and IQ's differ, an `iq17-*` run FAILs (or is a BUG or an ERROR); each such run is listed, with its cause, in
+`iq-parity/iq17-divergences.tsv`, the known-divergence allowlist (`IqParity.divergences`): a FAIL, BUG or ERROR not
+listed fails the lane (and a run SQL Anywhere judges may never be listed), and so does a listed run that no longer
+diverges (the list only shrinks).
+
 ## What a run does
 
 1. **Creates two databases afresh** in a temporary directory (and one more for each combination of database
@@ -92,7 +173,7 @@ A run takes about ten seconds; most of that is SQL Anywhere starting its TCP lis
 ## Profiles
 
 A case names the client profile it runs under. The profile chooses the database and the options a client of that
-kind would have after connecting:
+kind would have after connecting (the `iq17-*` profiles are the live IQ's: [The live IQ](#the-live-iq)):
 
 | Profile | Database | Options set after connecting |
 |---|---|---|
@@ -101,6 +182,9 @@ kind would have after connecting:
 | `iq16-tds` | `lite_iq` | what a TDS login gets from the login procedure: `ansinull` Off, `tsql_variables` On, `ansi_blanks` On, `chained` Off, `quoted_identifier` Off, `allow_nulls_by_default` Off, `on_tsql_error` Continue, `isolation_level` 1, `date_format` YYYY-MM-DD, `timestamp_format` YYYY-MM-DD HH:NN:SS.SSS, `time_format` HH:NN:SS.SSS, `date_order` MDY, `escape_character` Off |
 | `sqla17-default` | `lite_sa` | none |
 | `sqla17-tds` | `lite_sa` | the TDS set above |
+| `iq17-default` | the live IQ | none (judged by real IQ 17.1, `--oracle iq`) |
+| `iq17-odbc` | the live IQ | `iq16-odbc`'s |
+| `iq17-tds` | the live IQ | the TDS set, as temporary options (dbcapi cannot log in over TDS) |
 
 The exact values are in `PROFILES` in `snap.py` and in the `meta` line of the answers file.
 
@@ -239,12 +323,16 @@ STALE, as editing its SQL does.
 
 ## Known crashers
 
-`known_crashers.txt` lists case keys whose SQL crashes SQL Anywhere 17. They are skipped under every profile. Prefer
-`sa_defect: <reason>` on the case itself; the list exists for cases generated in bulk.
+`known_crashers.txt` lists case keys whose SQL crashes SQL Anywhere 17. They are skipped under every SQL Anywhere
+profile. Prefer `sa_defect: <reason>` on the case itself; the list exists for cases generated in bulk.
+
+`iq_crashers.txt` lists what is never sent to the live IQ: case keys (`key <case key>  # reason`) and SQL shapes
+(`shape <Python regex over the case's SQL as written>  # reason`) that hung IQ 17.1 or took its connection down. A
+matching `iq17-*` run is answered `not_judged`.
 
 ## What the oracle cannot say
 
 SQL Anywhere is not IQ. It judges only behaviour the two share, and the island's `engine` flag says which rules a
-query follows. Where the IQ engine is documented to differ, a case names its decision (`decision: D-xx`) instead of
+query follows. (Real IQ 17.1 judges the `iq17-*` runs; the `iq16-*` runs stay SQL Anywhere's, against the decisions.) Where the IQ engine is documented to differ, a case names its decision (`decision: D-xx`) instead of
 trusting SQL Anywhere. One example: SQL Anywhere returns a CHAR(n) value unpadded even in a blank-padding database,
 while IQ pads CHAR(n) to n.

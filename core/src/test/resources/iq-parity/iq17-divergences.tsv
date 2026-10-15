@@ -1,0 +1,205 @@
+# THE iq17-* RUNS' KNOWN DIVERGENCES FROM REAL SAP IQ 17.1 (IqParity.divergences; tools/iq-oracle/README.md, "The
+# live IQ"). IQ island, landing 4 (WP1), 2026-10-14: real IQ 17.1 became the oracle of the iq17-* profiles, and these
+# runs FAIL (a wrong answer), are a BUG (an answer where IQ raises an error) or an ERROR (an error where IQ answers),
+# because lite follows SQL Anywhere's semantics where IQ's engine differs. Each is listed, not hidden, with its cause
+# (measured on the live IQ by the corpus run of 2026-10-14, iqbuild/iqlive_corpus/report.md, and this snap).
+#
+# THE GUARD-FILE RULE (AGENTS.md; docs/FOUNDATIONS_PLAN.md §0.4): both IQ lanes fail on a FAIL, BUG or ERROR not
+# listed here for their lane (a run SQL Anywhere judges may never be listed), and on a listed run that no longer
+# diverges in a lane it lists (it PASSes, or is refused, or both error, or is skipped, or is gone): the list only
+# shrinks. An entry is added only in a block under a dated comment naming the task that measured it; a fix removes
+# its entries, and a cause no entry names any more.
+#
+# Lines: cause<TAB>id<TAB>what it is, then run<TAB>run key<TAB>cause id<TAB>lanes.
+cause	D-N3	integer overflow: IQ's engine widens the result (INTEGER+1 a BIGINT, SMALLINT an INTEGER, BIGINT a NUMERIC(20,0); SUM(INTEGER) a NUMERIC(20,0)) where lite raises -158 as SQL Anywhere's front end does (WP2 item 1)
+cause	names	the name IQ's engine gives an unaliased expression (its spelling, its parentheses, its case) is not SQL Anywhere's, which lite follows (WP2 item 3)
+cause	intersect-except	INTERSECT and EXCEPT over IQ tables are IQ's -1001030, which lite answers (WP2 item 4)
+cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a non-constant expression in an IN list, a scalar subquery outside the top-level select list, ORDER BY a negative constant (WP2 item 4)
+cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL (-131), which lite reads (WP2 item 7)
+cause	list-null	LIST over no values is NULL under IQ's engine, where lite answers '' as SQL Anywhere does (WP2 item 6)
+cause	list-empty-items	LIST keeps '' items under IQ's engine, where lite drops them as SQL Anywhere does (WP2 item 6)
+cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
+cause	non-string-input	a non-string input to a string operation is an IQ error under its engine (-1001013, -1009145): LIKE over a number or a date, LEFT/SUBSTRING/UPPER of a date or a number, HOUR/MINUTE/SECOND of a DATE, LOCATE with a BIGINT start, an untyped NULL in arithmetic; lite answers (WP2 item 5)
+cause	cast-long-varchar	CAST to LONG VARCHAR or TEXT over IQ tables is IQ's -1001006, which lite answers (WP2 item 5)
+cause	substring	SUBSTRING's positions under IQ's engine: no ANSI virtual positions, NULL past the end (WP2 item 8)
+cause	length	LENGTH of a non-string under IQ's engine is its storage width, not its text's length (WP2 item 8)
+cause	D-L1	ansinull Off reaches further under IQ's engine (a TDS login): IN lists holding NULL, NOT IN, LIKE NULL (WP2 item 9)
+cause	not-between-null	NOT BETWEEN with a NULL bound is UNKNOWN for every row under IQ's engine (WP2 item 9)
+cause	not-in-unknown	IS UNKNOWN over NOT IN of a subquery holding NULL: IQ's engine answers otherwise (WP2 item 9)
+cause	untyped-null	an untyped NULL's type under IQ's engine: an all-NULL CASE and MIN/MAX of NULL are VARCHAR (WP2 item 11)
+cause	result-types	the IQ engine's result types: CAST(x AS NUMERIC) is NUMERIC(126,38) (the PUBLIC precision and scale), TRUNCNUM and SIGN keep their argument's type (WP2 item 10, D-N1)
+cause	D-N6	a narrowing CAST of a NUMERIC to a NUMERIC truncates under IQ's engine, where lite rounds as SQL Anywhere does (WP2 item 10)
+cause	D-F17	MEDIAN of integers: IQ's engine truncates the midpoint toward zero, where lite floors (WP2 item 10)
+cause	D-S5	blank padding with a tab: IQ's engine pads the shorter string with blanks before comparing (WP2 item 10)
+cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Anywhere 17's (WP2 item 10)
+cause	order-by-position	ORDER BY (1) is a position under IQ's engine, a constant in SQL Anywhere's (WP2 item 10)
+cause	true-keyword	TRUE is a keyword in IQ 17.1, a name in SQL Anywhere 17 (WP2 item 10)
+cause	utf8-char-bytes	the CharSet UTF-8 database: CHAR(n) counts bytes, so a value with non-ASCII letters gets fewer blanks
+cause	union-order-by	a set operation's ORDER BY by a name is IQ's -1005012 under its engine, whatever the name (a column both branches show alike, an alias; measured on IQ 17.1, 2026-10-15); a position is read, and over DUMMY or through a derived table the name is too
+cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
+cause	iq-defect	IQ's own defects (WP5): EXISTS over an aggregate subquery is false where no row matches; the internal error -1006000 for ISNULL(LEFT(...)) beside a CASE of SUBSTRING
+
+# IQ island, landing 4 (WP1), 2026-10-14: the first snap of the iq17-* runs from the live IQ (161 runs)
+run	lite/m0/bigint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/bigint_plus_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/bigint_times_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/constants_smallint_overflow_over_a_table@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/if_of_a_constant_plus_one_where_taken@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/integer_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/integer_plus_bigint_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/integer_plus_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/integer_times_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/integer_times_smallint_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/negation_of_the_bigint_minimum@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/negation_of_the_smallint_minimum@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/negation_twice_of_the_integer_minimum@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/nullif_reads_its_second_as_its_first_s_type@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/smallint_minimum_divided_by_minus_one@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/smallint_minus_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/smallint_plus_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/smallint_plus_smallint_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m0/where_overflow_alone@iq17-default	D-N3	duckdb,postgres
+run	lite/m1a/double_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m1b/derived_table_smallint_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m1c/sum_of_a_bigint_out_of_range@iq17-default	D-N3	duckdb,postgres
+run	lite/m1c/sum_of_a_bigint_whose_running_total_passes_the_largest@iq17-default	D-N3	duckdb,postgres
+run	lite/m1c/sum_of_an_integer_out_of_range@iq17-default	D-N3	duckdb,postgres
+run	lite/m1c/sum_out_of_range_in_one_group@iq17-default	D-N3	duckdb,postgres
+run	lite/m1c/sum_whose_running_total_passes_the_largest@iq17-default	D-N3	duckdb,postgres
+run	lite/m1gaps/grouped_sum_overflow_through_alias_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
+run	lite/m1gaps/overflow_through_an_alias_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
+run	lite/m1gaps/overflowing_query_without_from_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
+run	lite/m1gaps/sum_in_a_case_test_overflows_as_iq@iq17-default	D-N3	duckdb,postgres
+run	lite/m1gaps/sum_inside_coalesce_overflows_as_iq@iq17-default	D-N3	duckdb,postgres
+run	lite/m1gaps/sum_overflow_through_alias_is_iq_error_158@iq17-default	D-N3	duckdb,postgres
+run	lite/m1review/b1_sum_read_everywhere_still_raises@iq17-default	D-N3	duckdb,postgres
+run	lite/review4/b3_sum_of_the_statement_still_raises@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_bigint_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_bigint_variable_in_a_counted_where_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_bigint_variable_minus_a_column_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_bigint_variable_times_two_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_column_plus_a_bigint_variable_in_where_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_column_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_column_times_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_negated_smallest_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/review5/b1_smallint_plus_a_bigint_variable_overflow@iq17-default	D-N3	duckdb,postgres
+run	lite/m1b/name_keeps_written_parentheses@iq17-default	names	duckdb,postgres
+run	lite/m1b/name_of_a_delimited_column@iq17-default	names	duckdb,postgres
+run	lite/m1c/group_by_an_expression_named_as_group_by_writes_it@iq17-default	names	duckdb,postgres
+run	lite/m1c/group_by_an_expression_shown_inside_another@iq17-default	names	duckdb,postgres
+run	lite/m1c/name_of_a_column_qualified_in_group_by@iq17-default	names	duckdb,postgres
+run	lite/m1c/name_of_a_column_spelled_in_group_by@iq17-default	names	duckdb,postgres
+run	lite/m1c/name_of_a_parenthesized_key_column@iq17-default	names	duckdb,postgres
+run	lite/m1c/name_of_a_repeated_aggregate_is_the_first_spelling@iq17-default	names	duckdb,postgres
+run	lite/m1c/name_of_a_signed_column_spelled_in_group_by@iq17-default	names	duckdb,postgres
+run	lite/m1c/name_of_an_aggregate_spelled_in_having@iq17-default	names	duckdb,postgres
+run	lite/m1c/name_of_count_spelled_in_having@iq17-default	names	duckdb,postgres
+run	lite/m1gaps/unaliased_sum_of_alias_and_constant@iq17-default	names	duckdb,postgres
+run	lite/m1review/m1_constant_chains_over_one_table_keep_their_parentheses@iq17-default	names	duckdb,postgres
+run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-default	names	duckdb,postgres
+run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-tds	names	duckdb,postgres
+run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-default	names	duckdb,postgres
+run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-tds	names	duckdb,postgres
+run	lite/collation/except_of_lower_rtrimmed_strings_ordered@iq17-default	intersect-except	duckdb,postgres
+run	lite/collation/except_of_rtrimmed_strings@iq17-default	intersect-except	duckdb,postgres
+run	lite/collation/intersect_of_lower_trimmed_strings@iq17-default	intersect-except	duckdb,postgres
+run	lite/collation/intersect_of_rtrimmed_strings@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1b/except@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1b/except_distinct@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1b/except_keeps_a_null_row@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1b/intersect@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1b/intersect_distinct@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1b/intersect_keeps_a_null_row@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1b/intersect_two_columns@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1e/owner_qualified_set_operation_with_a_table_of_no_owner@iq17-default	intersect-except	duckdb,postgres
+run	lite/m1gaps/duplicate_names_in_a_later_except_branch@iq17-default	intersect-except	duckdb,postgres
+run	lite/review4/m1_intersect_ordered_by_a_string@iq17-default	intersect-except	duckdb,postgres
+run	lite/review4/m1_intersect_read_by_a_function@iq17-default	intersect-except	duckdb,postgres
+run	lite/m0/order_by_a_negative_constant@iq17-default	D-R1	duckdb,postgres
+run	lite/m1a/in_columns@iq17-default	D-R1	duckdb,postgres
+run	lite/m1b/name_of_an_in_list_reordered@iq17-default	D-R1	duckdb,postgres
+run	lite/m1gaps/alias_of_a_scalar_subquery_compared@iq17-default	D-R1	duckdb,postgres
+run	lite/m1gaps/alias_of_a_scalar_subquery_read_in_where@iq17-default	D-R1	duckdb,postgres
+run	lite/review7/b2_later_union_branch_needs_no_name@iq17-default	D-R1	duckdb,postgres
+run	lite/m0/start_at_an_expression_of_zero@iq17-default	top-expr	duckdb,postgres
+run	lite/m0/top_all_start_at@iq17-default	top-expr	duckdb,postgres
+run	lite/m0/top_and_start_at_expressions@iq17-default	top-expr	duckdb,postgres
+run	lite/m0/top_expression@iq17-default	top-expr	duckdb,postgres
+run	lite/m0/top_expression_negative@iq17-default	top-expr	duckdb,postgres
+run	lite/m0/top_expression_of_zero@iq17-default	top-expr	duckdb,postgres
+run	lite/m0/top_expression_overflow@iq17-default	top-expr	duckdb,postgres
+run	lite/m0/top_expression_precedence@iq17-default	top-expr	duckdb,postgres
+run	lite/m1c/list_of_no_rows_is_empty@iq17-default	list-null	duckdb,postgres
+run	lite/m1gaps/list_distinct_of_a_group_key@iq17-default	list-null	duckdb,postgres
+run	lite/m1gaps/list_of_a_group_key_ordered_by_another_column@iq17-default	list-null	duckdb,postgres
+run	lite/m1gaps/list_of_a_group_key_unordered@iq17-default	list-null	duckdb,postgres
+run	lite/m1gaps/list_of_a_group_key_with_a_delimiter@iq17-default	list-null	duckdb,postgres
+run	lite/m1gaps/list_of_an_integer_group_key@iq17-default	list-null	duckdb,postgres
+run	lite/m1gaps/list_of_one_of_two_group_keys@iq17-default	list-null	duckdb,postgres
+run	lite/review7/m2_list_of_a_key_ordered_by_a_date@iq17-default	list-null	duckdb,postgres
+run	lite/review7/m2_list_of_a_key_ordered_by_a_string@iq17-default	list-null	duckdb,postgres
+run	lite/review7/minor1_list_distinct_of_a_key_ordered_in_an_unordered_statement@iq17-default	list-null	duckdb,postgres
+run	lite/showcase/showcase_inner_aggregate@iq17-default	list-null	duckdb,postgres
+run	lite/collation/list_of_derived_lower_rtrimmed_strings_descending@iq17-default	list-empty-items	duckdb,postgres
+run	lite/collation/list_of_derived_rtrimmed_strings@iq17-default	list-empty-items	duckdb,postgres
+run	lite/m1c/two_lists_ordered_differently@iq17-default	D-A1	duckdb,postgres
+run	lite/m0/integer_plus_null@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1a/double_and_null@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1a/like_integer@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1a/like_negative_integer@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1d/datepart_of_times@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1d/hour_of_a_date_is_zero@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1d/left_of_a_date@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1d/locate_from_column_starts@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1e/ansinull_off_leaves_null_arithmetic_unknown@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1e/ansinull_off_leaves_null_arithmetic_unknown@iq17-tds	non-string-input	duckdb,postgres
+run	lite/m1e/date_like@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1e/date_like@iq17-tds	non-string-input	duckdb,postgres
+run	lite/m1e/timestamp_left@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1e/timestamp_left@iq17-odbc	non-string-input	duckdb,postgres
+run	lite/m1e/timestamp_like@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1e/timestamp_like@iq17-odbc	non-string-input	duckdb,postgres
+run	lite/m1e/timestamp_substring@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1e/timestamp_substring@iq17-odbc	non-string-input	duckdb,postgres
+run	lite/m1gaps/integer_like_a_computed_pattern@iq17-default	non-string-input	duckdb,postgres
+run	lite/natives/upper_of_integer_columns@iq17-default	non-string-input	duckdb,postgres
+run	lite/m1d/cast_numeric_to_text@iq17-default	cast-long-varchar	duckdb,postgres
+run	lite/m1d/cast_varchar_column_to_a_longer_varchar@iq17-default	cast-long-varchar	duckdb,postgres
+run	lite/m1e/timestamp_cast_to_long_varchar@iq17-default	cast-long-varchar	duckdb,postgres
+run	lite/m1e/timestamp_cast_to_long_varchar@iq17-odbc	cast-long-varchar	duckdb,postgres
+run	lite/m1d/substring_from_an_integer_column@iq17-default	substring	duckdb,postgres
+run	lite/m1d/substring_from_an_integer_column_without_length@iq17-default	substring	duckdb,postgres
+run	lite/m1d/substring_lengths_of_columns@iq17-default	substring	duckdb,postgres
+run	lite/m1d/substring_positions_of_columns@iq17-default	substring	duckdb,postgres
+run	lite/m1d/substring_without_length_of_columns@iq17-default	substring	duckdb,postgres
+run	lite/m1d/length_of_a_date@iq17-default	length	duckdb,postgres
+run	lite/m1d/length_of_integers@iq17-default	length	duckdb,postgres
+run	lite/m1e/timestamp_length@iq17-default	length	duckdb,postgres
+run	lite/m1e/timestamp_length@iq17-odbc	length	duckdb,postgres
+run	lite/m1a/in_only_null@iq17-tds	D-L1	duckdb,postgres
+run	lite/m1a/in_with_a_null@iq17-tds	D-L1	duckdb,postgres
+run	lite/m1a/not_in_with_a_null@iq17-tds	D-L1	duckdb,postgres
+run	lite/m1a/not_like_null_pattern_in_a_tds_login@iq17-tds	D-L1	duckdb,postgres
+run	lite/m1e/ansinull_off_leaves_an_in_list_unknown@iq17-tds	D-L1	duckdb,postgres
+run	lite/m1a/not_between_a_null_bound@iq17-default	not-between-null	duckdb,postgres
+run	lite/m1a/not_between_a_null_bound@iq17-tds	not-between-null	duckdb,postgres
+run	lite/m1b/in_subquery_unknown_counted@iq17-default	not-in-unknown	duckdb,postgres
+run	lite/m0/case_of_nulls_only@iq17-default	untyped-null	duckdb,postgres
+run	lite/m1c/min_max_of_untyped_null@iq17-default	untyped-null	duckdb,postgres
+run	lite/m1d/cast_integer_column_to_numeric@iq17-default	result-types	duckdb,postgres
+run	lite/m1d/sign_of_columns@iq17-default	result-types	duckdb,postgres
+run	lite/m1d/truncnum_of_columns@iq17-default	result-types	duckdb,postgres
+run	lite/m1d/cast_numeric_column_to_numeric@iq17-default	D-N6	duckdb,postgres
+run	lite/m1review/m2_median_of_smallint_extremes@iq17-default	D-F17	duckdb,postgres
+run	lite/natives/between_with_a_tab_and_blanks@iq17-default	D-S5	duckdb,postgres
+run	lite/m1d/exp_at_the_largest_and_the_smallest_doubles@iq17-default	exp-underflow	duckdb,postgres
+run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres
+run	lite/m0/order_by_a_parenthesized_constant@iq17-default	order-by-position	duckdb,postgres
+run	lite/basics/true_is_a_name@iq17-default	true-keyword	duckdb,postgres
+run	lite/m1d/cast_varchar_column_to_char_is_padded@iq17-default	utf8-char-bytes	duckdb,postgres
+run	lite/collation/order_by_a_union_all_of_strings_descending@iq17-default	union-order-by	duckdb,postgres
+run	lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	having-alias	duckdb,postgres
+run	lite/m1d/functions_in_case_and_isnull@iq17-default	iq-defect	duckdb,postgres
+run	lite/m1gaps/duplicate_aggregate_names_in_exists@iq17-default	iq-defect	duckdb,postgres
+# IQ island, 2026-10-15 (landing 4: the CTE cases, snapped from the live IQ when WP1 merged into the scale branch).
+run	lite/cte/a_cte_read_by_a_union@iq17-default	union-order-by	duckdb,postgres

@@ -72,6 +72,12 @@ class IqParityPostgresTest {
             String update = System.getProperty("iq.parity.update");
             problems.addAll(IqParity.ratchet(runs, outcomes, Runfile.property("iq.parity.ledger"), "postgres",
                     update == null ? null : Path.of(update)));
+            if (update == null) {
+                // IQ island, landing 4 (WP1), 2026-10-14: every FAIL, BUG or ERROR is a listed iq17 divergence, and
+                // the list only shrinks
+                problems.addAll(IqParity.divergences(runs, outcomes, Runfile.property("iq.parity.divergences"),
+                        "postgres"));
+            }
         }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
     }

@@ -1,7 +1,9 @@
-"""The #IQ{...}# island's oracle: SQL Anywhere 17's answers for the iq-parity cases, snapped (README.md).
+"""The #IQ{...}# island's oracle: SQL Anywhere 17's answers for the iq-parity cases, snapped (README.md), and a real
+SAP IQ 17.1's for the iq17-* profiles (--oracle iq, live_iq.py).
 
   snap.sh --write [--only GLOB]   run the cases, write core/src/test/resources/iq-parity/iq-answers.jsonl
   snap.sh --check [--only GLOB]   run the cases, report DRIFT, UNSNAPPED, STALE and GONE; exit 1 on any
+  snap.sh --oracle iq --iq-host HOST:443 [--iq-user HDLADMIN] [--iq-ca PEM] --write|--check [--only GLOB]
 
 Run it through snap.sh: SQL Anywhere's client library (dbcapi) is x86_64 only, so this runs on an x86_64 Python
 (Rosetta on Apple silicon) with SQL Anywhere's environment sourced. Standard library only.
@@ -78,8 +80,30 @@ PROFILES = {
     "iq16-tds": ("lite_iq", TDS),
     "sqla17-default": ("lite_sa", []),
     "sqla17-tds": ("lite_sa", TDS),
+    # IQ island, landing 4 (WP1), 2026-10-14: real SAP IQ 17.1 is the oracle for these (--oracle iq, live_iq.py): the
+    # user's HANA Cloud data lake, CaseSensitive On, BlankPadding On, Collation UTF8BIN, CharSet UTF-8, PUBLIC precision
+    # 126 and scale 38; a TDS login's options set temporarily (dbcapi cannot log in over TDS)
+    "iq17-default": ("hdl_iq17", []),
+    "iq17-odbc": ("hdl_iq17", ODBC),
+    "iq17-tds": ("hdl_iq17", TDS),
 }
 DEFAULT_PROFILE = "iq16-default"
+
+
+def oracle_of(profile):
+    """Which oracle answers a profile's runs: real IQ ("iq") for iq17-*, SQL Anywhere ("sa") for every other."""
+    return "iq" if profile.startswith("iq17-") else "sa"
+
+
+def twins(profiles):
+    """A case's profiles as it runs them: those it names, and for each iq16-* one the matching iq17-* one (IQ island,
+    landing 4, WP1, 2026-10-14: every case SQL Anywhere judges under an iq16-* profile is judged by real IQ under the
+    matching iq17-* profile too); the Java harness derives the same runs (IqParity.runs)."""
+    out = list(profiles)
+    for p in profiles:
+        if p.startswith("iq16-") and "iq17-" + p[len("iq16-"):] not in out:
+            out.append("iq17-" + p[len("iq16-"):])
+    return out
 ENGINES = {"iq", "sa", "auto"}
 CASE_KEYS = {"id", "sql", "profile", "engine", "skip", "sa_defect", "decision", "expect", "params", "settings",
              "nondeterministic", "member"}
@@ -353,8 +377,9 @@ def read_cases(lite_dir):
             given = read_settings(settings, where) if settings is not None else []
             if skip is None:
                 for p in profiles:
-                    database_for(p, given, where)
-            cases.append({"key": key, "id": m["id"], "sql": m["sql"], "profiles": profiles,
+                    if oracle_of(p) == "sa":
+                        database_for(p, given, where)
+            cases.append({"key": key, "id": m["id"], "sql": m["sql"], "profiles": twins(profiles),
                           "skip": None if skip is None else str(skip),
                           "decision": str(m.get("decision") or ""), "expect": str(m.get("expect") or ""),
                           "params": params, "bound": read_params(params, where),
@@ -780,7 +805,10 @@ def single_select(sql):
 def sql_sha(case, profile, schema_bytes):
     """What an answer is snapped for: the case's SQL, the profile, the decision and decided rows that judge it instead
     (empty when SQL Anywhere judges it), and schema.yaml -- so editing any of them makes the answer STALE."""
-    parts = [case["sql"], profile, case["decision"], case["expect"]]
+    # IQ island, landing 4 (WP1), 2026-10-14: real IQ judges an iq17-* run, never a decision's rows, so its answer is
+    # snapped for no decision and no expect
+    judged = oracle_of(profile) == "sa"
+    parts = [case["sql"], profile, case["decision"] if judged else "", case["expect"] if judged else ""]
     if case.get("params") is not None:
         # a case that binds variables: its params too (one more part; a case without them keeps its sha)
         parts.append(case["params"])
@@ -939,6 +967,9 @@ class Connection:
             raise Lost(e["message"])
         return {"error": e}
 
+    def _text(self, raw):
+        return raw.decode(self.codec)
+
     def _cell(self, stmt, i):
         v = DataValue()
         if not self.api.sqlany_get_column(stmt, i, C.byref(v)):
@@ -952,7 +983,7 @@ class Connection:
         if v.type == 1:  # A_BINARY
             return "0x" + raw.hex()
         if v.type == 2:  # A_STRING: numerics, dates, timestamps and strings, as SQL Anywhere spells them
-            return raw.decode(self.codec)
+            return self._text(raw)
         if v.type == 3:  # A_DOUBLE
             return double_text(struct.unpack("<d", raw[:8])[0])
         if v.type == 12:  # A_FLOAT
@@ -1268,7 +1299,7 @@ def run_cases(oracle, cases, schema_bytes, report):
             by_profile.setdefault(p, []).append(c)
     for profile in PROFILES:
         todo = by_profile.get(profile, [])
-        if not todo:
+        if not todo or oracle_of(profile) != "sa":
             continue
         conn = oracle.session(profile)
         try:
@@ -1330,7 +1361,8 @@ def meta(oracle):
         "locale": LOCALE,
         "databases": {db: oracle.facts[db]["meta"] for db in DATABASES},
         "session": {"request_timeout": REQUEST_TIMEOUT, "charset": "the database's own"},
-        "profiles": {p: {"db": db, "options": dict(opts)} for p, (db, opts) in PROFILES.items()},
+        "profiles": {p: {"db": db, "options": dict(opts)} for p, (db, opts) in PROFILES.items()
+                     if oracle_of(p) == "sa"},
         "timestamps": TS6,
         "params": "a case's params (name = value; ...) are SQL Anywhere variables on its connection, made before it"
                   " runs (CREATE VARIABLE @name of BIGINT, DOUBLE, NUMERIC(38,s), LONG VARCHAR, DATE or TIMESTAMP,"
@@ -1379,19 +1411,49 @@ def write_answers(path, head, answers):
 
 
 def differences(old, new):
-    keys = [k for k in ("db", "sa_build", "columns", "rows", "error") if old.get(k) != new.get(k)]
+    keys = [k for k in ("db", "sa_build", "oracle", "iq_version", "db_properties", "login", "columns", "rows", "error",
+                        "not_judged") if old.get(k) != new.get(k)]
     return ", ".join(keys)
+
+
+LIVE_META = "live_iq"  # the meta line's part the live IQ's run writes (IQ island, landing 4, WP1)
+
+
+def head_of(head, oracle, fresh=None):
+    """The meta line's part one oracle owns -- SQL Anywhere's: all of it but the live IQ's; the live IQ's: its own --
+    and, with fresh, the line with that part replaced (the other oracle's part kept as committed, the live IQ's last)."""
+    meta_ = dict((head or {}).get("meta") or {})
+    live = meta_.pop(LIVE_META, None)
+    if fresh is None:
+        return live if oracle == "iq" else meta_
+    if oracle == "iq":
+        if not meta_:
+            raise Bad("iq-answers.jsonl has no SQL Anywhere meta line: snap SQL Anywhere's answers first")
+        meta_[LIVE_META] = fresh
+    else:
+        meta_ = dict(fresh["meta"])
+        if live is not None:
+            meta_[LIVE_META] = live
+    return {"meta": meta_}
 
 
 # ------------------------------------------------------------------ main
 
 def main(argv):
-    ap = argparse.ArgumentParser(prog="snap.sh", description="SQL Anywhere 17's answers for the iq-parity cases.")
+    ap = argparse.ArgumentParser(prog="snap.sh", description="SQL Anywhere 17's answers for the iq-parity cases, or"
+                                 " (--oracle iq) a real SAP IQ 17.1's for the iq17-* profiles.")
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--write", action="store_true", help="snap the answers into iq-answers.jsonl")
     mode.add_argument("--check", action="store_true", help="re-run the cases and compare with iq-answers.jsonl")
     ap.add_argument("--only", metavar="GLOB", help="only the cases whose key (lite/<file>/<id>) or id matches")
     ap.add_argument("--repo", help="the legend-lite checkout (default: this file's)")
+    ap.add_argument("--oracle", choices=["sa", "iq"], default="sa",
+                    help="sa: SQL Anywhere 17 for the iq16-* and sqla17-* profiles (the default); iq: the live SAP IQ"
+                         " 17.1 for the iq17-* profiles")
+    ap.add_argument("--iq-host", metavar="HOST:PORT", help="the live IQ (or IQ_ORACLE_HOST); port 443 by default")
+    ap.add_argument("--iq-user", metavar="USER", help="the live IQ's user (or IQ_ORACLE_USER; default HDLADMIN),"
+                    " whose password the macOS Keychain holds (service legend-lite-iq)")
+    ap.add_argument("--iq-ca", metavar="PEM", help="the live IQ's CA chain (default: built from openssl s_client)")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args(argv)
 
@@ -1401,10 +1463,14 @@ def main(argv):
     sqlany17 = os.environ.get("SQLANY17")
     if not sqlany17:
         raise Bad("SQLANY17 is not set: run through tools/iq-oracle/snap.sh")
+    which = args.oracle
+
+    def mine(profile):
+        return oracle_of(profile) == which
 
     schema_bytes, schema = read_schema(os.path.join(parity, "schema.yaml"))
     cases = read_cases(os.path.join(parity, "lite"))
-    crashers = known_crashers(os.path.join(repo, CRASHERS))
+    crashers = known_crashers(os.path.join(repo, CRASHERS)) if which == "sa" else set()
 
     def selected(c):
         return not args.only or fnmatch.fnmatchcase(c["key"], args.only) or fnmatch.fnmatchcase(c["id"], args.only)
@@ -1416,39 +1482,54 @@ def main(argv):
         if c["skip"] is None and not single_select(c["run"]):
             raise Bad("%s: not a single SELECT or WITH without ';'" % c["key"])
         (skipped if c["skip"] is not None else live).append(c)
-    expected = {(c["key"], p): c for c in live for p in c["profiles"]}
-    run = [c for c in live if selected(c)]
+    expected = {(c["key"], p): c for c in live for p in c["profiles"] if mine(p)}
+    run = [c for c in live if selected(c) and any(mine(p) for p in c["profiles"])]
     head, committed = read_answers(answers_path)
 
-    # IQ island, 2026-10-14 (the options framework): the databases the live cases' settings need beyond the two
-    for c in live:
-        for p in c["profiles"]:
-            name, flags, public, expect = database_for(p, c["given"], c["key"])
-            DATABASES.setdefault(name, (flags, public, expect))
-    oracle = Oracle(sqlany17, schema, args.verbose)
-    atexit.register(oracle.stop)
-    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-        signal.signal(sig, lambda s, f: sys.exit(128 + s))
     t0 = time.time()
-    oracle.start()
     report = []
-    fresh = run_cases(oracle, run, schema_bytes, report)
-    new_head = meta(oracle)
-    oracle.stop()
-    n_profiles = sum(len(c["profiles"]) for c in run)
+    if which == "sa":
+        # IQ island, 2026-10-14 (the options framework): the databases the live cases' settings need beyond the two
+        for c in live:
+            for p in c["profiles"]:
+                if mine(p):
+                    name, flags, public, expect = database_for(p, c["given"], c["key"])
+                    DATABASES.setdefault(name, (flags, public, expect))
+        oracle = Oracle(sqlany17, schema, args.verbose)
+        atexit.register(oracle.stop)
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            signal.signal(sig, lambda s, f: sys.exit(128 + s))
+        oracle.start()
+        fresh = run_cases(oracle, run, schema_bytes, report)
+        fresh_head = meta(oracle)
+        oracle.stop()
+    else:
+        # IQ island, landing 4 (WP1), 2026-10-14: the live IQ for the iq17-* runs
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            signal.signal(sig, lambda s, f: sys.exit(128 + s))
+        sys.modules.setdefault("snap", sys.modules[__name__])
+        sys.path.insert(0, HERE)
+        import live_iq
+        fresh, fresh_head = live_iq.main(args, repo, [(c, p) for c in run for p in c["profiles"] if mine(p)],
+                                         schema_bytes, schema, committed, report)
+    n_profiles = sum(sum(1 for p in c["profiles"] if mine(p)) for c in run)
     print("ran %d cases (%d answers) in %.1f s; %d skipped" % (len(run), n_profiles, time.time() - t0, len(skipped)))
 
     in_scope = {k for k in expected if selected(expected[k])}
     if args.write:
-        merged = {k: v for k, v in committed.items() if k in expected and k not in in_scope}
+        merged = {k: v for k, v in committed.items() if not mine(k[1]) or k in expected and k not in in_scope}
         merged.update(fresh)
-        gone = sorted(k for k in committed if k not in expected)
-        write_answers(answers_path, new_head, merged)
+        gone = sorted(k for k in committed if mine(k[1]) and k not in expected)
+        write_answers(answers_path, head_of(head, which, fresh_head), merged)
         print("wrote %d answers to %s%s" % (len(merged), os.path.relpath(answers_path, repo),
                                              "; dropped %d gone" % len(gone) if gone else ""))
     else:
-        if head != new_head:
-            report.append(("DRIFT", "meta", "-", "the databases, server or profiles changed"))
+        was = head_of(head, which)
+        now = fresh_head if which == "iq" else fresh_head["meta"]
+        if was != now:
+            report.append(("DRIFT", "meta", "-", "the databases, server or profiles changed" if which == "sa"
+                           else "the live IQ's version, properties, options or profiles changed: %s" % ", ".join(
+                               sorted(k for k in set(was or {}) | set(now) if (was or {}).get(k) != now.get(k)))))
         for k in sorted(in_scope):
             old, new = committed.get(k), fresh.get(k)
             if old is None:
@@ -1458,8 +1539,8 @@ def main(argv):
             elif new is not None and old != new:
                 report.append(("DRIFT", k[0], k[1], differences(old, new)))
         for k in sorted(committed):
-            if k not in expected and (not args.only or fnmatch.fnmatchcase(k[0], args.only)
-                                      or fnmatch.fnmatchcase(k[0].rsplit("/", 1)[-1], args.only)):
+            if mine(k[1]) and k not in expected and (not args.only or fnmatch.fnmatchcase(k[0], args.only)
+                                                     or fnmatch.fnmatchcase(k[0].rsplit("/", 1)[-1], args.only)):
                 report.append(("GONE", k[0], k[1], "an answer without a case (or its case is skipped)"))
     for kind, key, profile, why in report:
         print("%-9s %s [%s]: %s" % (kind, key, profile, why))

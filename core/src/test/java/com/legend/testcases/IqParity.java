@@ -40,6 +40,13 @@ import java.util.regex.Pattern;
  * rewrite (through {@link IqLexer}), the IQ types of the schema.
  *
  * <p>The snapped answers are {@link IqAnswers}', which also guards them against the cases.
+ *
+ * <p>IQ island, landing 4 (WP1), 2026-10-14: real SAP IQ 17.1 is the oracle of the {@code iq17-*} profiles. Every case
+ * that runs under an {@code iq16-*} profile runs under the matching {@code iq17-*} one too ({@link #runs}), judged by
+ * the live IQ's snapped answer ({@code snap.sh --oracle iq}); the {@code iq16-*} and {@code sqla17-*} runs stay judged
+ * by SQL Anywhere. Where lite follows SQL Anywhere's semantics and IQ's differ, an {@code iq17-*} run fails: each such
+ * run is named, with its cause, in the known-divergence allowlist {@code iq-parity/iq17-divergences.tsv}, which only
+ * shrinks ({@link #divergences}).
  */
 public final class IqParity {
 
@@ -309,15 +316,30 @@ public final class IqParity {
                 decision, expect, params, settings, (String) nondeterministic, (String) member);
     }
 
-    /** Every run of {@code cases}: each case under each of its profiles, in order. */
+    /** Every run of {@code cases}: each case under each of its profiles, in order, then (IQ island, landing 4, WP1,
+     *  2026-10-14) under the {@code iq17-*} twin of each {@code iq16-*} one it does not name (tools/iq-oracle's
+     *  {@code twins} derives the same runs). */
     public static List<Run> runs(List<Case> cases) {
         List<Run> runs = new ArrayList<>();
         for (Case c : cases) {
+            List<String> profiles = new ArrayList<>(c.profiles());
             for (String p : c.profiles()) {
+                String twin = p.startsWith("iq16-") ? "iq17-" + p.substring("iq16-".length()) : null;
+                if (twin != null && !profiles.contains(twin)) {
+                    profiles.add(twin);
+                }
+            }
+            for (String p : profiles) {
                 runs.add(new Run(c, java.util.Objects.requireNonNull(IqProfile.named(p))));
             }
         }
         return runs;
+    }
+
+    /** Whether a profile's runs are judged by the live IQ (the {@code iq17-*} profiles: IQ island, landing 4, WP1),
+     *  not by SQL Anywhere. */
+    public static boolean liveIq(IqProfile profile) {
+        return profile.spelling().startsWith("iq17-");
     }
 
     // ------------------------------------------------------------------ the schema, the model and the data
@@ -602,6 +624,10 @@ public final class IqParity {
     public static @com.legend.base.Nullable String engineNeutrality(Run run, List<SqlParity.Table> tables,
             Set<String> names) {
         Case c = run.c();
+        if (liveIq(run.profile())) {
+            // IQ island, landing 4 (WP1): real IQ judges an iq17-* run, by the IQ engine's own semantics
+            return null;
+        }
         if ("iq".equals(c.engine()) && c.decision() == null && c.skip() == null) {
             // IQ island, 2026-10-14 (the second review's m2): a pin to the IQ engine would escape this guard while
             // SQL Anywhere still judges the case
@@ -1473,11 +1499,23 @@ public final class IqParity {
      *  refusal, IQ's error it raises) or the database's; any other exception in legend-lite is an ERROR. */
     public static SqlParity.Outcome outcome(Run run, IqAnswers.@com.legend.base.Nullable Snap snap,
             List<SqlParity.Table> schema, Set<String> tables, SqlParity.Legend legend) {
+        SqlParity.Outcome o = judged(run, snap, schema, tables, legend);
+        // IQ island, landing 4 (WP1): an iq17-* run's judge is the live IQ, and its report says so
+        return liveIq(run.profile()) ? new SqlParity.Outcome(o.status(), o.detail().replace("SQL Anywhere",
+                "the live IQ")) : o;
+    }
+
+    private static SqlParity.Outcome judged(Run run, IqAnswers.@com.legend.base.Nullable Snap snap,
+            List<SqlParity.Table> schema, Set<String> tables, SqlParity.Legend legend) {
         if (run.c().skip() != null) {
             return new SqlParity.Outcome(SqlParity.Status.SKIP, java.util.Objects.requireNonNull(run.c().skip()));
         }
         if (snap == null) {
             return new SqlParity.Outcome(SqlParity.Status.ERROR, "no snapped answer (UNSNAPPED)");
+        }
+        if (snap.notJudged() != null) {
+            // IQ island, landing 4 (WP1): a run the live IQ cannot judge here (snap.sh --oracle iq says why)
+            return new SqlParity.Outcome(SqlParity.Status.SKIP, "not judged by the live IQ: " + snap.notJudged());
         }
         SqlParity.Answer expected = IqAnswers.expected(run, snap);
         com.legend.exec.ExecutionResult result;
@@ -1883,5 +1921,110 @@ public final class IqParity {
         }
         return SqlParity.ratchet("the #IQ{...}# island's parity cases", "iq-parity", LEDGER_HEADER, cases, byKey,
                 ledger, lane, update);
+    }
+
+    // ------------------------------------------------------------------ the known divergences (IQ island, landing 4)
+
+    /** The statuses of a judged run whose answer is not its judge's: a wrong answer, an answer where the judge rejects
+     *  it, an error where the judge answers. */
+    private static final Set<SqlParity.Status> DIVERGING = Set.of(SqlParity.Status.FAIL, SqlParity.Status.BUG,
+            SqlParity.Status.ERROR);
+
+    /** One entry of the known-divergence allowlist: an {@code iq17-*} run, the lanes it diverges in, and the cause
+     *  (a cause id the file declares). */
+    public record Divergence(String run, Set<String> lanes, String cause) {
+    }
+
+    /** The allowlist {@code iq17-divergences.tsv}: its causes (id to what) and its entries, by run. Lines are
+     *  {@code cause<TAB>id<TAB>what} and {@code run<TAB>key<TAB>cause id<TAB>lanes (duckdb,postgres)}; a line starting
+     *  with {@code #} is a comment. A cause declared twice, an entry of an undeclared cause, a run listed twice, a lane
+     *  of no lane, and an entry of no {@code iq17-*} run are errors. */
+    public static Map<String, Divergence> divergences(Path file, Map<String, String> causes) throws IOException {
+        Map<String, Divergence> out = new LinkedHashMap<>();
+        int n = 0;
+        for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            n++;
+            if (line.isBlank() || line.startsWith("#")) {
+                continue;
+            }
+            String[] f = line.split("\t", -1);
+            String where = file.getFileName() + ":" + n + ": ";
+            if (f[0].equals("cause") && f.length == 3 && !f[1].isEmpty() && !f[2].isEmpty()) {
+                if (causes.put(f[1], f[2]) != null) {
+                    throw new IllegalStateException(where + "the cause " + f[1] + " is declared twice");
+                }
+            } else if (f[0].equals("run") && f.length == 4) {
+                if (!causes.containsKey(f[2])) {
+                    throw new IllegalStateException(where + "the cause " + f[2] + " is not declared (cause<TAB>id<TAB>"
+                            + "what, above its runs)");
+                }
+                Set<String> lanes = new java.util.LinkedHashSet<>(List.of(f[3].split(",")));
+                if (lanes.isEmpty() || !SqlParity.LANES.containsAll(lanes)) {
+                    throw new IllegalStateException(where + "the lanes are some of " + SqlParity.LANES + ": " + f[3]);
+                }
+                if (!f[1].contains("@iq17-")) {
+                    throw new IllegalStateException(where + f[1] + " is no iq17-* run: a run SQL Anywhere judges"
+                            + " diverges never (no FAIL, BUG or ERROR is allowed it)");
+                }
+                if (out.put(f[1], new Divergence(f[1], lanes, f[2])) != null) {
+                    throw new IllegalStateException(where + f[1] + " is listed twice");
+                }
+            } else {
+                throw new IllegalStateException(where + "a line is cause<TAB>id<TAB>what or run<TAB>key<TAB>cause"
+                        + "<TAB>lanes: " + line);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * IQ island, landing 4 (WP1), 2026-10-14: the lane's outcomes against the known-divergence allowlist. A run whose
+     * status is FAIL, BUG or ERROR in {@code lane} must be listed for the lane (an iq17-* run whose lite answer is not
+     * the live IQ's, for a cause the file names); a listed run must still diverge in each lane it lists -- one that
+     * now PASSes, or is refused or both-errors or skipped, must leave the list (shrink-only), and so must a run that is
+     * gone; a declared cause no entry names is stale too. Returns the problems.
+     */
+    public static List<String> divergences(List<Run> runs, Map<String, SqlParity.Outcome> outcomes, Path file,
+            String lane) throws IOException {
+        Map<String, String> causes = new LinkedHashMap<>();
+        Map<String, Divergence> listed = divergences(file, causes);
+        List<String> problems = new ArrayList<>();
+        Set<String> live = new java.util.HashSet<>();
+        Map<String, Integer> counts = new java.util.TreeMap<>();
+        for (Run r : runs) {
+            live.add(r.key());
+            SqlParity.Outcome o = outcomes.get(r.key());
+            Divergence d = listed.get(r.key());
+            boolean here = d != null && d.lanes().contains(lane);
+            if (o != null && DIVERGING.contains(o.status()) && !here) {
+                problems.add("UNLISTED DIVERGENCE: " + r.key() + " is " + o.status() + " in the " + lane + " lane and"
+                        + " not in iq17-divergences.tsv" + (liveIq(r.profile()) ? " (list it with its cause, in a dated"
+                        + " block naming the task, or fix it)" : " (a run SQL Anywhere judges may not diverge: fix it)")
+                        + (o.detail().isEmpty() ? "" : ": " + o.detail()));
+            } else if (here && (o == null || !DIVERGING.contains(o.status()))) {
+                problems.add("ALLOWLIST SHRINKS: " + r.key() + " is listed in iq17-divergences.tsv (" + d.cause()
+                        + ") for the " + lane + " lane, and is now " + (o == null ? "not run" : o.status()) + ": remove"
+                        + " it (the list only shrinks)");
+            }
+            if (here) {
+                counts.merge(d.cause(), 1, Integer::sum);
+            }
+        }
+        for (Divergence d : listed.values()) {
+            if (!live.contains(d.run())) {
+                problems.add("ALLOWLIST SHRINKS: " + d.run() + " is listed in iq17-divergences.tsv and is no run: remove"
+                        + " it");
+            }
+        }
+        Set<String> used = new java.util.HashSet<>();
+        listed.values().forEach(d -> used.add(d.cause()));
+        for (String cause : causes.keySet()) {
+            if (!used.contains(cause)) {
+                problems.add("ALLOWLIST SHRINKS: the cause " + cause + " of iq17-divergences.tsv names no run: remove"
+                        + " it");
+            }
+        }
+        System.out.println("iq17 known divergences, " + lane + " lane: " + counts);
+        return problems;
     }
 }

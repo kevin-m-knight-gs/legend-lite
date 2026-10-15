@@ -15,8 +15,13 @@ import java.util.List;
  *
  * <p>The {@code iq16-*} presets are an IQ database (case-sensitive, blank-padded, ISO-8859-1 with a binary collation);
  * the {@code sqla17-*} ones a SQL Anywhere 17 database at its defaults (case-insensitive, not blank-padded, UTF-8).
- * {@code *-tds} is a TDS login (Open Client, jConnect), {@code iq16-odbc} the IQ ODBC driver. Which rules a statement
+ * {@code *-tds} is a TDS login (Open Client, jConnect), {@code *-odbc} the IQ ODBC driver. Which rules a statement
  * follows besides (IQ's engine or SQL Anywhere's front end) is the statement's own: {@link IqDialect.Engine}.
+ *
+ * <p>IQ island, landing 4 (WP1), 2026-10-14: the {@code iq17-*} presets are the IQ base with the database properties of
+ * the real SAP IQ 17.1 the island is judged against (the user's HANA Cloud data lake, tools/iq-oracle's live backend):
+ * case-sensitive, blank-padded, collation UTF8BIN, charset UTF-8, PUBLIC precision 126 and scale 38. The {@code iq16-*}
+ * presets stay as they were, judged by SQL Anywhere 17, and are not verified on a real IQ 16.
  */
 public enum IqProfile {
 
@@ -24,7 +29,10 @@ public enum IqProfile {
     IQ16_ODBC("iq16-odbc", IqSettings.Base.IQ16, IqSettings.Client.ODBC),
     IQ16_TDS("iq16-tds", IqSettings.Base.IQ16, IqSettings.Client.TDS),
     SQLA17_DEFAULT("sqla17-default", IqSettings.Base.SA17, IqSettings.Client.DEFAULT),
-    SQLA17_TDS("sqla17-tds", IqSettings.Base.SA17, IqSettings.Client.TDS);
+    SQLA17_TDS("sqla17-tds", IqSettings.Base.SA17, IqSettings.Client.TDS),
+    IQ17_DEFAULT("iq17-default", IqSettings.Base.IQ16, IqSettings.Client.DEFAULT, IqSettings.UTF8BIN),
+    IQ17_ODBC("iq17-odbc", IqSettings.Base.IQ16, IqSettings.Client.ODBC, IqSettings.UTF8BIN),
+    IQ17_TDS("iq17-tds", IqSettings.Base.IQ16, IqSettings.Client.TDS, IqSettings.UTF8BIN);
 
     /** The profile of an island that names none. */
     public static final IqProfile DEFAULT = IQ16_DEFAULT;
@@ -33,8 +41,13 @@ public enum IqProfile {
     private final IqSettings settings;
 
     IqProfile(String spelling, IqSettings.Base base, IqSettings.Client client) {
+        this(spelling, base, client, java.util.Map.of());
+    }
+
+    /** A preset whose database's level is {@code database} (its creation properties) over the base's defaults. */
+    IqProfile(String spelling, IqSettings.Base base, IqSettings.Client client, java.util.Map<IqOption, String> database) {
         this.spelling = spelling;
-        this.settings = IqSettings.preset(spelling, base, client);
+        this.settings = IqSettings.preset(spelling, base, client, database);
     }
 
     /** The profile {@code name} spells, exactly; null when it names none of the closed set. */

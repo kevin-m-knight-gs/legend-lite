@@ -745,12 +745,15 @@ _IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/**/*.yaml"]) + [
     "src/test/resources/iq-parity/iq-answers.jsonl",
     "src/test/resources/iq-parity/ledger.tsv",
     "src/test/resources/iq-parity/schema.yaml",
+    # IQ island, landing 4 (WP1), 2026-10-14: the iq17-* runs' known divergences from the live IQ, shrink-only
+    "src/test/resources/iq-parity/iq17-divergences.tsv",
 ]
 
 _IQ_PARITY_FLAGS = [
     "-Diq.parity.schema=$(rlocationpath src/test/resources/iq-parity/schema.yaml)",
     "-Diq.parity.answers=$(rlocationpath src/test/resources/iq-parity/iq-answers.jsonl)",
     "-Diq.parity.ledger=$(rlocationpath src/test/resources/iq-parity/ledger.tsv)",
+    "-Diq.parity.divergences=$(rlocationpath src/test/resources/iq-parity/iq17-divergences.tsv)",
     # the case files: the directory of this file
     "-Diq.parity.lite=$(rlocationpath src/test/resources/iq-parity/lite/basics.yaml)",
 ]
