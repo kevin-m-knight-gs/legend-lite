@@ -209,10 +209,15 @@ class IqToPureTest {
     @Test
     void conversionsBetweenKindsAreLaterSlices() {
         // IQ island, 2026-10-14 (M1a): a string constant compared with a date is read now (below); these are not
-        for (String where : new String[] {"vc = 1", "dt = vc", "vc + 1 = 'b'", "dt + 1 = dt"}) {
+        for (String where : new String[] {"vc = 1", "dt = vc", "vc + 1 = 'b'"}) {
             assertEquals(SqlTranslationException.Kind.UNSUPPORTED,
                     refusal("SELECT id FROM " + T + " WHERE " + where).kind(), where);
         }
+        // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a date moves by whole days
+        // (IqFunctions.dateArithmetic); SQL Anywhere's front end refuses it by name still
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt + 1 = dt").contains("adjust("));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT id FROM " + T + " WHERE dt + 1 = dt",
+                IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).kind());
     }
 
     // ------------------------------------------------------------------ M0's rest
@@ -376,7 +381,11 @@ class IqToPureTest {
         assertTrue(pure("SELECT id || 'x' AS s FROM " + T).contains("$r.id->toString() + 'x'"));
         // + of a string and anything else is IQ's NUMERIC addition
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT vc + 1 AS s FROM " + T).kind());
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 'a' + NULL AS s FROM " + T).kind());
+        // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine + of a string and an untyped NULL joins them,
+        // the NULL as nothing; SQL Anywhere's front end refuses it by name still
+        assertTrue(pure("SELECT 'a' + NULL AS s FROM " + T).contains("'a'"));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT 'a' + NULL AS s FROM " + T,
+                IqProfile.SQLA17_DEFAULT.settings(), COLUMNS).kind());
         // IQ island, 2026-10-14 (M1e): a date joins as its text in the profile's DATE_FORMAT (IqDateTime), no longer
         // refused
         String date = pure("SELECT dt || 'x' AS s FROM " + T);

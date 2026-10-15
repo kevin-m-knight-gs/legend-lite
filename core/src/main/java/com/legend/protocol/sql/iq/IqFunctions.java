@@ -2113,6 +2113,62 @@ final class IqFunctions {
         });
     }
 
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1): date arithmetic under IQ's engine. A DATE or a TIMESTAMP plus or
+     * minus a number moves by the number's whole days, cut toward zero ({@code dt + 1.9} is the next day, {@code ts -
+     * 0.25} the same timestamp), and keeps its type; a date or a timestamp minus another is the INTEGER of the days
+     * between their dates, a time of day not read (05:06 minus 23:00 the day before is 1). A result outside the years 1
+     * to 9999 is IQ's -1001010. Refused by name: a number minus a date, two dates added, a date multiplied or divided,
+     * an untyped NULL (each IQ's -1009145), a day count that may pass an INTEGER (IQ wraps it).
+     */
+    Tx dateArithmetic(SqlAst.Binary b, Tx l, Tx r) {
+        boolean ld = l.kind() == Kind.DATE || l.kind() == Kind.DATETIME;
+        boolean rd = r.kind() == Kind.DATE || r.kind() == Kind.DATETIME;
+        if (b.op() == SqlAst.BinaryOp.MINUS && ld && rd) {
+            boolean lDate = l.kind() == Kind.DATE;
+            boolean rDate = r.kind() == Kind.DATE;
+            IqType days = IqType.integer("INTEGER", IqType.INTEGER_MIN, IqType.INTEGER_MAX, true);
+            return strict(Kind.INTEGER, days, List.of(l, r), v -> SqlToPure.call("dateDiff", day(v.get(1), rDate),
+                    day(v.get(0), lDate), new EnumValue(DURATION_UNIT, "DAYS")));
+        }
+        boolean minus = b.op() == SqlAst.BinaryOp.MINUS;
+        if (!(b.op() == SqlAst.BinaryOp.PLUS && ld != rd || minus && ld)) {
+            throw SqlTranslationException.unsupported("this " + (minus ? "-" : b.op() == SqlAst.BinaryOp.PLUS ? "+"
+                    : b.op().name()) + " of a date is IQ's error -1009145 under its engine (a date moves by a number"
+                    + " of days, or two dates subtract), refused before translating", b.pos());
+        }
+        Tx d = ld ? l : r;
+        Tx n = ld ? r : l;
+        SqlAst.Expr ne = ld ? b.right() : b.left();
+        if (n.kind() == Kind.NULL) {
+            throw SqlTranslationException.unsupported("a date and an untyped NULL is IQ's error -1009145 under its"
+                    + " engine, refused before translating", ne.pos());
+        }
+        boolean whole = n.kind() == Kind.INTEGER;
+        if (whole) {
+            IqType t = integerType(n, ne, minus ? "-" : "+");
+            if (t.lo().compareTo(IqType.INTEGER_MIN) < 0 || t.hi().compareTo(IqType.INTEGER_MAX) > 0) {
+                throw SqlTranslationException.unsupported("a date moved by a day count that may pass an INTEGER is not"
+                        + " supported: IQ wraps such a count", ne.pos());
+            }
+        } else if (n.kind() != Kind.DECIMAL && n.kind() != Kind.NUMBER && n.kind() != Kind.FLOAT) {
+            throw SqlTranslationException.unsupported("a date moved by " + kindName(n.kind()) + " is not supported"
+                    + " yet", ne.pos());
+        }
+        boolean date = d.kind() == Kind.DATE;
+        IqType type = dated(date ? "DATE" : "TIMESTAMP", null);
+        return strict(d.kind(), type, List.of(d, n), v -> {
+            ValueSpecification count = whole ? v.get(1) : ifThen(SqlToPure.call("greaterThanEqual", v.get(1),
+                    integer(0)), SqlToPure.call("floor", v.get(1)), SqlToPure.call("ceiling", v.get(1)));
+            ValueSpecification moved = typed(SqlToPure.call("adjust", timestamp(v.get(0), date), minus
+                    ? SqlToPure.call("minus", count) : count, new EnumValue(DURATION_UNIT, "DAYS")), "DateTime");
+            ValueSpecification year = SqlToPure.call("year", moved);
+            return ifThen(SqlToPure.call("or", SqlToPure.call("greaterThan", year, integer(9999)), lt(year,
+                    integer(1))), raise(date ? "StrictDate" : "DateTime"), date ? typed(SqlToPure.call("datePart",
+                    moved), "StrictDate") : moved);
+        });
+    }
+
     /** The latest year {@code d} (a DATE or a TIMESTAMP) may be in: a constant's own, else the one its type carries
      *  ({@link #dated}); null when it is not known. IQ island, 2026-10-14 (review 4's M2). */
     static @com.legend.base.Nullable Integer latestYear(Tx d) {
@@ -2772,9 +2828,76 @@ final class IqFunctions {
             return strict(Kind.DATE, type, List.of(x), v -> typed(SqlToPure.call("datePart", v.get(0)),
                     "StrictDate"));
         }
+        if (x.kind() == Kind.STRING) {
+            return stringDate(x, toDate, type);
+        }
         throw SqlTranslationException.unsupported(what + " of " + kindName(x.kind()) + " to a date is not supported"
                 + " yet: IQ converts it by its own rules (an integer as yyyymmdd, a string by its date order)",
                 c.pos());
+    }
+
+    /** A four-digit year, then the month and the day of one or two digits, each after - / or . (IqDateTime#read's
+     *  spellings, the same in every profile): groups 1 to 3. */
+    private static final String YMD = "([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})";
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1; the census's Tier 0 string-to-date conversion -- BI data keeps dates
+     * as text): a string that is not a constant read as a date or a timestamp where the database computes it, in the
+     * spellings {@link IqDateTime#read} reads first in every profile -- {@code yyyy-m-d} (- / or . at each place),
+     * {@code yyyymmdd}, then after spaces or a {@code T} a time {@code h:n[:s[.f]]} (six places of the fraction, more
+     * cut) -- with blanks around it. Its parts are read as integers and built into the date and time, so a month or a
+     * day that does not exist is the database's error, as it is IQ's -157. Any other spelling (a month's name, a
+     * two-digit year, a date in the profile's DATE_ORDER, a year and a month alone) is raised as an error where it is
+     * computed, though IQ reads some of them: never an answer IQ would not give.
+     */
+    private Tx stringDate(Tx x, boolean toDate, IqType type) {
+        Kind kind = toDate ? Kind.DATE : Kind.DATETIME;
+        String date = "^ *" + YMD + " *$";
+        String compact = "^ *([0-9]{4})([0-9]{2})([0-9]{2}) *$";
+        String timed = "^ *" + YMD + "[ T]+([0-9]{1,2}):([0-9]{1,2})(:([0-9]{1,2})([.]([0-9]{0,6})[0-9]*)?)? *$";
+        Tx r = SqlToPure.strict(kind, List.of(x), v -> {
+            ValueSpecification str = v.get(0);
+            java.util.function.BiFunction<String, Integer, ValueSpecification> part = (pattern, group) ->
+                    SqlToPure.call("parseInteger", SqlToPure.call("regexpReplace", str, new CString(pattern),
+                            new CString("\\" + group), new com.legend.protocol.spec.CBoolean(false)));
+            ValueSpecification dated = SqlToPure.call("date", part.apply(date, 1), part.apply(date, 2),
+                    part.apply(date, 3));
+            ValueSpecification squeezed = SqlToPure.call("date", part.apply(compact, 1), part.apply(compact, 2),
+                    part.apply(compact, 3));
+            ValueSpecification day = SqlToPure.call("date", part.apply(timed, 1), part.apply(timed, 2),
+                    part.apply(timed, 3));
+            ValueSpecification time;
+            if (toDate) {
+                time = day;
+            } else {
+                // the time's parts added to the day's midnight: exact to the microsecond, no seconds as a double; a
+                // missing second or fraction is 0 (its group empty: a 0 written before it)
+                ValueSpecification seconds = SqlToPure.call("parseInteger", AppliedFunction.infixRun("plus",
+                        List.of(new CString("0"), SqlToPure.call("regexpReplace", str, new CString(timed),
+                        new CString("\\7"), new com.legend.protocol.spec.CBoolean(false)))));
+                ValueSpecification micros = SqlToPure.call("parseInteger", SqlToPure.call("rpad",
+                        AppliedFunction.infixRun("plus", List.of(new CString("0"), SqlToPure.call("regexpReplace", str,
+                        new CString(timed), new CString("\\9"), new com.legend.protocol.spec.CBoolean(false)))),
+                        integer(7), new CString("0")));
+                ValueSpecification hour = part.apply(timed, 4);
+                ValueSpecification minute = part.apply(timed, 5);
+                ValueSpecification valid = SqlToPure.call("and", SqlToPure.call("and", lt(hour, integer(24)),
+                        lt(minute, integer(60))), lt(seconds, integer(60)));
+                ValueSpecification at = timestamp(day, true);
+                for (Object[] step : new Object[][] {{hour, "HOURS"}, {minute, "MINUTES"}, {seconds, "SECONDS"},
+                        {micros, "MICROSECONDS"}}) {
+                    at = SqlToPure.call("adjust", at, (ValueSpecification) step[0], new EnumValue(DURATION_UNIT,
+                            (String) step[1]));
+                }
+                time = ifThen(valid, typed(at, "DateTime"), raise("DateTime"));
+            }
+            ValueSpecification whole = toDate ? typed(dated, "StrictDate") : timestamp(dated, true);
+            ValueSpecification packed = toDate ? typed(squeezed, "StrictDate") : timestamp(squeezed, true);
+            return ifThen(SqlToPure.call("matches", str, new CString(date)), whole, ifThen(SqlToPure.call("matches",
+                    str, new CString(compact)), packed, ifThen(SqlToPure.call("matches", str, new CString(timed)),
+                    toDate ? typed(time, "StrictDate") : time, raise(toDate ? "StrictDate" : "DateTime"))));
+        });
+        return Tx.value(r.vs(), kind, r.nullable(), type);
     }
 
     /** A constant's date and time as IQ reads it ({@link IqDateTime#read}: a year below 100 refused by name; IQ

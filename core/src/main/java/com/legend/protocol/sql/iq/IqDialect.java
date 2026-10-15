@@ -3027,13 +3027,17 @@ public final class IqDialect implements InputDialect {
         List<Tx> parts = new ArrayList<>();
         boolean strings = true;
         boolean anyString = false;
+        boolean stringsOrNull = true;
         for (SqlAst.Expr e : leaves) {
             Tx t = at.tx(e);
             parts.add(t);
             strings &= t.kind() == Kind.STRING;
             anyString |= t.kind() == Kind.STRING;
+            stringsOrNull &= t.kind() == Kind.STRING || t.kind() == Kind.NULL;
         }
-        if (strings) {
+        // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine a string + an untyped NULL joins them, the
+        // NULL as nothing (vc + NULL is vc), as || does
+        if (strings || engine == Engine.IQ && anyString && stringsOrNull) {
             return concatenation(parts, b, "+");
         }
         if (anyString) {
@@ -3107,6 +3111,11 @@ public final class IqDialect implements InputDialect {
      *  one, a NUMERIC's ({@link #decimalArithmetic}) when either is one, else an integer's
      *  ({@link #integerArithmetic}). */
     private Tx arithmetic(SqlAst.Binary b, Tx l, Tx r) {
+        if (engine == Engine.IQ && (l.kind() == Kind.DATE || l.kind() == Kind.DATETIME || r.kind() == Kind.DATE
+                || r.kind() == Kind.DATETIME)) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): a date moved by days, two dates' days apart
+            return new IqFunctions(this).dateArithmetic(b, l, r);
+        }
         if (l.kind() == Kind.FLOAT || r.kind() == Kind.FLOAT) {
             return doubleArithmetic(b, l, r);
         }

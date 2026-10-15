@@ -114,3 +114,11 @@ tests:
   - id: str_below_one_too_long_is_null
     sql: "SELECT STR(id * 0.05, 3, 2) AS a, STR(id * 0.001, 4, 3) AS b, STR(id * 0.009, 4, 2) AS c, STR(id * -0.05, 3, 2) AS d, STR(id * 0.5, 2, 2) AS e FROM t WHERE id = 1"
     profile: iq17-default
+  # IQ island, 2026-10-15: NULL in a concatenation under IQ's engine (measured on IQ 17.1): + and || join a NULL as
+  # nothing; only all-NULL parts give NULL (the census's Tier 0 NULL semantics)
+  - id: concatenation_with_an_untyped_null
+    sql: "SELECT id, vc + NULL AS a, NULL + vc AS b, vc || NULL AS c, NULL || vc || NULL AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: concatenation_with_null_values
+    sql: "SELECT id, vc + ch AS a, vc || ch || vc AS b FROM t ORDER BY id"
+    profile: iq17-default

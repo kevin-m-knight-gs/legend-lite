@@ -201,3 +201,63 @@ tests:
   - id: extract_on_the_front_end
     sql: "SELECT EXTRACT(YEAR FROM DATE('2026-03-04')) AS a, EXTRACT(SECOND FROM '2026-03-04 05:06:07.25') AS b, EXTRACT(HOUR FROM DATE('2026-03-04')) AS c, EXTRACT(MINUTE FROM '2026-03-04 05:06:07') AS d"
     profile: iq16-default, iq17-default
+  # IQ island, 2026-10-15: date arithmetic under IQ's engine (IqFunctions.dateArithmetic, measured on IQ 17.1): a date
+  # or a timestamp moved by whole days (cut toward zero), two dates' days apart; the census's Tier 0 dates (dt - 30)
+  - id: date_plus_and_minus_days
+    sql: "SELECT id, dt + 1 AS a, dt - 1 AS b, 1 + dt AS c, dt + sm AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_plus_and_minus_days
+    sql: "SELECT id, ts + 1 AS a, ts - 1 AS b, ts + 1.5 AS c, ts - 0.25 AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_plus_fractional_days_cuts_toward_zero
+    sql: "SELECT id, dt + 1.9 AS a, dt - 1.5 AS b, dt + -1.5 AS c, dt + dbl AS d, dt + nm AS e FROM t WHERE id IN (3, 4) ORDER BY id"
+    profile: iq17-default
+  - id: date_minus_date_is_days
+    sql: "SELECT id, dt - dt AS a, dt - CAST('2026-01-01' AS DATE) AS b, CAST('2026-01-01' AS DATE) - dt AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: timestamp_minus_timestamp_counts_dates
+    sql: "SELECT id, ts - CAST('2026-03-03 23:00:00' AS TIMESTAMP) AS a, ts - dt AS b, dt - ts AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: date_window_in_where
+    sql: "SELECT id FROM t WHERE dt > CAST('2026-03-10' AS DATE) - 30 ORDER BY id"
+    profile: iq17-default
+  - id: date_past_the_last_year_is_iqs_error
+    sql: "SELECT CAST('9999-12-31' AS DATE) + id AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: number_minus_date_is_iqs_error
+    sql: "SELECT id - dt AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: date_plus_untyped_null_is_iqs_error
+    sql: "SELECT dt + NULL AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  # IQ island, 2026-10-15: a string that is not a constant read as a date under IQ's engine (IqFunctions.stringDate,
+  # measured on IQ 17.1): the year-first spellings every profile reads; another raises where it is computed
+  # (a TIMESTAMP's text read back is not judged here: tools/iq-oracle re-fetches a TIMESTAMP column under six places of
+  # TIMESTAMP_FORMAT, which also writes the inner CAST's text at six)
+  - id: string_date_of_a_date_column_round_trip
+    sql: "SELECT id, CAST(CAST(dt AS VARCHAR(10)) AS DATE) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: string_date_iso_separators
+    sql: "SELECT CAST(SUBSTR('2026-03-04' || vc, 1, 10) AS DATE) AS a, CAST(SUBSTR('2026/03/04' || vc, 1, 10) AS DATE) AS b, CAST(SUBSTR('2026.03.04' || vc, 1, 10) AS DATE) AS c, CAST(SUBSTR('2026-3-4' || vc, 1, 8) AS DATE) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_compact_and_blanks
+    sql: "SELECT CAST(SUBSTR('20260304' || vc, 1, 8) AS DATE) AS a, CAST(SUBSTR(' 2026-03-04' || vc, 1, 11) AS DATE) AS b, CAST(SUBSTR('20260304' || vc, 1, 8) AS TIMESTAMP) AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_timestamp_with_times
+    sql: "SELECT CAST(SUBSTR('2026-03-04 05:06:07' || vc, 1, 19) AS TIMESTAMP) AS a, CAST(SUBSTR('2026-03-04 05:06:07.123456' || vc, 1, 26) AS TIMESTAMP) AS b, CAST(SUBSTR('2026-03-04T05:06' || vc, 1, 16) AS TIMESTAMP) AS c, CAST(SUBSTR('2026-03-04 23:59:59.9' || vc, 1, 21) AS TIMESTAMP) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_drops_its_time
+    sql: "SELECT CAST(SUBSTR('2026-03-04 05:06:07' || vc, 1, 19) AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: convert_string_to_date
+    sql: "SELECT CONVERT(DATE, SUBSTR('2026-03-04' || vc, 1, 10)) AS a, CONVERT(TIMESTAMP, SUBSTR('2026/03/04 10:11:12' || vc, 1, 19)) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_that_does_not_exist_is_an_error
+    sql: "SELECT CAST(SUBSTR('2026-02-30' || vc, 1, 10) AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_of_a_text_column_is_an_error
+    sql: "SELECT CAST(vc AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_date_by_a_month_name
+    sql: "SELECT CAST(SUBSTR('Mar 4 2026' || vc, 1, 10) AS DATE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
