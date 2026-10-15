@@ -842,6 +842,24 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `query/demo/config*.json` and `datacube/demo/config.json` (one `vendor` key each); `MODULE.bazel` (the `wasm_mvp`
   extension pins removed; the lock unchanged) and `engine-client/BUILD.bazel`; `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`
   (that note).
+- **Python asks DataCube: the other twins (announced 2026-10-15, before the first edit; the program:
+  `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, its order agreed with this line the same day).** Every place Python
+  repeats DataCube's logic moves behind a call to DataCube's own code (the headless bundle) or a generated artifact,
+  one commit per item, in one PR: 4 (type families), 10 (the planner protocol's side lists), 8 (the snap's limit), 3
+  (layout editing), 1 (reading and writing a page), 5 (a calculated column), 6 (a filter), 7 (a class's sample), then 2
+  (a new grid's defaults). Branch `claude/epic-rubin-ay7upl`, from main; this line reviews each commit that changes
+  behaviour before CI. Files: `engine-client/tools/typefacts/TypeFacts.java` and `engine-client/BUILD.bazel` (Python's
+  copy of the fact table, generated), `BUILD.bazel` (its diff test in `//:generated`), `python/BUILD.bazel`,
+  `python/legend_lite/` (`_type_facts.py` generated, `_types.py` new, `page.py`, `frames.py` typing only, `engine.py`'s
+  side lists only), `python/tests/`; `engine-client/src/legend/planner-protocol.ts` (the side lists, pinned by
+  DataCube's vocabulary test: the engine runs without V8, so Python cannot read them from the bundle); `datacube/src/`
+  `layout/bands.ts`, `page-document.ts`, `cube-document.ts`, `headless/` (new calls), `query.ts`, `calc.ts`, a pure
+  module each for a filter's operand check and a class's sample (out of `ui/filter-editor.ts` and `model-actions.ts`),
+  `app/sources.ts` (`rawRows` and `rebuilt` moved out, by agreement with D5b's owner, who rebases over it), their tests,
+  `datacube/test/python-vocabulary.test.ts` (it reads `engine.py` and `_planner.py` too), `datacube/BUILD.bazel` and
+  `test_imports.bzl`. The BUILD files go to the Compiler Rewrite line. Not touched: the rest of D5b's files, core, the
+  SQL relays this line's runner plan would rewrite (`engine.py` snap, `frames.py` loading, `projects.py`,
+  `upstream.py`, `_headless._query`) beyond item 4's typing and item 8's pin.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
