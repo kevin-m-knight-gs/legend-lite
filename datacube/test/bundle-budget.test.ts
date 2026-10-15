@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
@@ -15,22 +15,50 @@ import { specifiersOf } from '../demo/widget-loader.ts';
 const DEMO = dirname(runfileFromEnv('BUNDLE'));
 const CHUNKS = join(DEMO, 'chunks-bundle');
 
-/** What `file` imports statically: `import ... from "./x.js"` and bare `import "./x.js"`, resolved. */
-function staticImports(file: string): string[] {
-  const text = readFileSync(file, 'utf8');
-  const dir = dirname(file);
-  // statement-level only: a dynamic `import("./x.js")` is what makes a chunk lazy
-  return [...text.matchAll(/^\s*(?:import|export)\s[^;]*?from\s*"(\.[^"]+)"|^\s*import\s*"(\.[^"]+)"/gm)]
-    .map((m) => join(dir, m[1] ?? m[2]!));
+/** One file of a bundle as esbuild's record says (BUILD.bazel: its <bundle>-meta.json beside it): the modules it holds
+ *  code of, and what it imports, statically and dynamically. The bundles are minified, so no file says in a comment
+ *  which module it holds: the record does. */
+interface Output { readonly modules: readonly string[]; readonly statics: readonly string[]; readonly dynamics: readonly string[] }
+
+/** Every JavaScript file of a bundle, by its path, as its metafile records it. */
+function outputsOf(bundle: string): ReadonlyMap<string, Output> {
+  const meta = JSON.parse(readFileSync(join(dirname(bundle), `${basename(bundle, '.js')}-meta.json`), 'utf8')) as {
+    outputs: Record<string, { inputs: Record<string, { bytesInOutput: number }>; imports?: { path: string; kind: string }[] }>;
+  };
+  // the record's paths are the package's, where esbuild ran: demo/bundle.js, demo/chunks-bundle/...
+  const pkg = dirname(dirname(bundle));
+  const imported = (out: { imports?: { path: string; kind: string }[] }, kind: string): string[] =>
+    (out.imports ?? []).filter((i) => i.kind === kind).map((i) => join(pkg, i.path));
+  return new Map(Object.entries(meta.outputs).filter(([path]) => path.endsWith('.js')).map(([path, out]) => [join(pkg, path), {
+    // a module that is only imported, its own code none, is not held here
+    modules: Object.entries(out.inputs).filter(([, i]) => i.bytesInOutput > 0).map(([m]) => m),
+    statics: imported(out, 'import-statement'),
+    dynamics: imported(out, 'dynamic-import'),
+  }]));
 }
 
-/** Every file a page loads before any chart: its bundle and what it imports, transitively. */
-function startup(bundle = join(DEMO, 'bundle.js')): string[] {
+const PAGE = outputsOf(join(DEMO, 'bundle.js'));
+
+/** Whether a file of a bundle holds code of `module`: ECharts (any of its modules), or one of DataCube's by its path in
+ *  the package (`src/chart-render.ts`; the record names it from wherever esbuild ran, so by its end). */
+function holds(file: string, module: string, outputs: ReadonlyMap<string, Output> = PAGE): boolean {
+  const out = outputs.get(file);
+  assert.ok(out, `${file} is in esbuild's record`);
+  return out.modules.some((m) => module === 'echarts' ? m.includes('node_modules/echarts/') : m === module || m.endsWith(`/datacube/${module}`));
+}
+
+/** The chunks beside the page's bundle, as the record names them. */
+const chunksOf = (outputs: ReadonlyMap<string, Output> = PAGE): string[] => [...outputs.keys()].filter((f) => dirname(f) === CHUNKS);
+
+/** Every file a page loads before any chart: its bundle and what it imports statically, transitively. */
+function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, Output> = PAGE): string[] {
   const seen = new Set<string>();
   const walk = (file: string): void => {
     if (seen.has(file)) return;
     seen.add(file);
-    staticImports(file).forEach(walk);
+    const out = outputs.get(file);
+    assert.ok(out, `${file} is in esbuild's record`);
+    out.statics.forEach(walk);
   };
   walk(bundle);
   return [...seen];
@@ -114,8 +142,12 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  own, built when picked). Measured 401,224.
  *  403,000 -> 406,000 (2026-10-14, batch 3 step 1): the spec's seventeen new kinds -- their words, what each refuses by
  *  name, and the figures the database computes for a waterfall, a Pareto and a pie's inner ring (chart-spec.ts,
- *  calc-presets.ts), at startup as the spec's reader is; their drawing is a chunk. Measured 404,401. */
-const BUDGET = 406_000;
+ *  calc-presets.ts), at startup as the spec's reader is; their drawing is a chunk. Measured 404,401.
+ *  406,000 -> 281,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third): the same code, a third smaller gzipped, and about half
+ *  the text the browser parses (the page's script 764,104 bytes at 2d24022, 411,165 minified). Measured 278,151; unminified, the
+ *  same tree 405,798 (the chart rules written once -- chart-spec.ts readChart and chartFrom -- at startup with the spec's
+ *  reader). */
+const BUDGET = 281_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -133,8 +165,9 @@ const BUDGET = 406_000;
  *  384,000 -> 386,000 (2026-10-14, batch 2 step 10): as the grid's. Measured 384,369.
  *  386,000 -> 388,000 (2026-10-14, batch 2 steps 12-14 and its audit): the sales sample and the Examples list (the
  *  grid's note of step 14), and the reader's checks of a chart's option words. Measured 387,083.
- *  388,000 -> 391,000 (2026-10-14, batch 3 step 1): as the grid's. Measured 389,154. */
-const ENGINE_BUDGET = 391_000;
+ *  388,000 -> 391,000 (2026-10-14, batch 3 step 1): as the grid's. Measured 389,154.
+ *  391,000 -> 270,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 266,978; unminified, the same tree 390,443. */
+const ENGINE_BUDGET = 270_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -154,8 +187,9 @@ const ENGINE_BUDGET = 391_000;
  *  436,000 -> 447,000 (2026-10-14, batch 3 step 1, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): ECharts' charts and
  *  components registered each by its own module (chart-render.ts), not through the index, so batch 3's rarer charts are
  *  a chunk of their own -- what the first chart and the kinds' chunk both use is a third chunk, and three files
- *  compress less well than one; and a pie in two rings or half a ring (chart-option.ts). Measured 445,666. */
-const CHART_BUDGET = 447_000;
+ *  compress less well than one; and a pie in two rings or half a ring (chart-option.ts). Measured 445,666.
+ *  447,000 -> 301,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 298,386; unminified, the same tree 446,304. */
+const CHART_BUDGET = 301_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -163,16 +197,21 @@ const CHART_BUDGET = 447_000;
 // a chunk's file name, whichever separator the platform's paths use (Windows': backslashes)
 const isKinds = (file: string): boolean => /[\\/]chart-(?:render-)?kinds-[^\\/]+\.js$/.test(file);
 /** Set 2026-10-14 at its first measure (batch 3 step 1), 92,574: the drawing 7,823 and the charts 84,751, with room for
- *  batch 3's later kinds (small multiples, a bubble). */
-const KINDS_BUDGET = 100_000;
+ *  batch 3's later kinds (small multiples, a bubble).
+ *  100,000 -> 66,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third): batch 3's kinds all in. Measured 62,426; unminified, the
+ *  same tree 95,848. */
+const KINDS_BUDGET = 66_000;
 
 /** The charts' options form (ui/chart-form.ts), fetched the first time a chart's options are shown: set 2026-10-14 at
- *  its first measure, 4,872, with room for batch 3's fields. */
-const FORM_BUDGET = 8_000;
+ *  its first measure, 4,872, with room for batch 3's fields.
+ *  8,000 -> 6,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 4,858 (a chunk that small gains little); unminified,
+ *  the same tree 5,793. */
+const FORM_BUDGET = 6_000;
 
 /** An example page's builder (src/examples/charts-dashboard.ts), fetched when it is picked: set 2026-10-14 at its first
- *  measure, 3,264. */
-const EXAMPLE_BUDGET = 6_000;
+ *  measure, 3,264.
+ *  6,000 -> 4,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does minify buy anything if already zipped?" -- it does, about a third). Measured 2,739; unminified, the same tree 3,301. */
+const EXAMPLE_BUDGET = 4_000;
 
 /** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
  *  gzipped, which the widget's loader fetches over the kernel's channel once per notebook page. Set 2026-10-08 at its
@@ -205,47 +244,38 @@ const WIDGET_BUDGET = 290_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
+  it('esbuild\'s record names every file the bundle wrote, the chunks beside it and no other', () => {
+    assert.deepEqual(chunksOf().sort(), readdirSync(CHUNKS).map((f) => join(CHUNKS, f)).sort());
+  });
+
   it('no file the page loads at startup contains ECharts', () => {
-    const files = startup();
-    for (const f of files) {
-      assert.ok(!readFileSync(f, 'utf8').includes('node_modules/echarts/'), `${f} carries ECharts`);
-    }
+    for (const f of startup()) assert.ok(!holds(f, 'echarts'), `${f} carries ECharts`);
   });
 
   it('ECharts is in a chunk beside the bundle, reached by a dynamic import', () => {
-    const chunks = readdirSync(CHUNKS).map((f) => join(CHUNKS, f));
-    const lazy = chunks.filter((f) => readFileSync(f, 'utf8').includes('src/chart-render.ts'));
+    const lazy = chunksOf().filter((f) => holds(f, 'src/chart-render.ts'));
     assert.equal(lazy.length, 1, 'one chunk holds the chart renderer');
-    const name = lazy[0]!.slice(CHUNKS.length + 1).replace('.', '\\.');
     // from the page's own chunk (page/cube-page.ts, itself fetched when a cube first gets a page), or the bundle
-    const importers = [join(DEMO, 'bundle.js'), ...chunks]
-      .filter((f) => new RegExp(`import\\("\\./(?:chunks-bundle/)?${name}"\\)`).test(readFileSync(f, 'utf8')));
+    const importers = [...PAGE].filter(([, out]) => out.dynamics.includes(lazy[0]!));
     assert.ok(importers.length > 0, 'something imports the chart renderer, dynamically');
   });
 
   it('the layouts (ui/layout-picker.ts) are fetched the first time they are opened, not at startup', () => {
-    for (const f of startup()) {
-      assert.ok(!readFileSync(f, 'utf8').includes('src/ui/layout-picker.ts'), `${f} carries the layout picker`);
-    }
-    const lazy = readdirSync(CHUNKS).filter((f) => readFileSync(join(CHUNKS, f), 'utf8').includes('src/ui/layout-picker.ts'));
-    assert.equal(lazy.length, 1, 'one chunk holds the layout picker');
+    for (const f of startup()) assert.ok(!holds(f, 'src/ui/layout-picker.ts'), `${f} carries the layout picker`);
+    assert.equal(chunksOf().filter((f) => holds(f, 'src/ui/layout-picker.ts')).length, 1, 'one chunk holds the layout picker');
   });
 
   it(`the first chart fetches at most ${CHART_BUDGET.toLocaleString()} bytes more, gzipped: ECharts and the drawing`, () => {
     // what a chart adds to the page, beside the grid's own budget (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5)
-    const chart = readdirSync(CHUNKS).map((f) => join(CHUNKS, f)).filter((f) => {
-      const text = readFileSync(f, 'utf8');
-      return (text.includes('node_modules/echarts/') || text.includes('src/chart-option.ts')) && !isKinds(f);
-    });
+    const chart = chunksOf().filter((f) => (holds(f, 'echarts') || holds(f, 'src/chart-option.ts')) && !isKinds(f));
     assert.ok(chart.length >= 1, 'the chart\'s chunks are found');
     const size = chart.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= CHART_BUDGET, `a first chart fetches ${size.toLocaleString()} bytes gzipped, over its budget of ${CHART_BUDGET.toLocaleString()}`);
   });
 
   it(`batch 3's kinds are chunks of their own, fetched with the first of them: at most ${KINDS_BUDGET.toLocaleString()} bytes more`, () => {
-    const chunks = readdirSync(CHUNKS).map((f) => join(CHUNKS, f));
-    for (const f of startup()) assert.ok(!isKinds(f) && !readFileSync(f, 'utf8').includes('src/chart-kinds.ts'), `${f} carries batch 3's kinds`);
-    const kinds = chunks.filter(isKinds);
+    for (const f of startup()) assert.ok(!isKinds(f) && !holds(f, 'src/chart-kinds.ts'), `${f} carries batch 3's kinds`);
+    const kinds = chunksOf().filter(isKinds);
     assert.equal(kinds.length, 2, 'the kinds\' drawing and their ECharts charts, a chunk each');
     assert.ok(kinds.length >= 1, 'the kinds\' chunks are found');
     const size = kinds.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
@@ -253,12 +283,10 @@ describe('the page loads ECharts only when a chart draws', () => {
   });
 
   it(`the options form and an example page are chunks of their own, each within its budget`, () => {
-    const chunks = readdirSync(CHUNKS).map((f) => join(CHUNKS, f));
-    const sized = (needle: string): number => chunks.filter((f) => readFileSync(f, 'utf8').includes(needle))
+    const sized = (module: string): number => chunksOf().filter((f) => holds(f, module))
       .reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     for (const f of startup()) {
-      const text = readFileSync(f, 'utf8');
-      assert.ok(!text.includes('src/ui/chart-form.ts') && !text.includes('src/examples/charts-dashboard.ts'), `${f} carries the form or an example`);
+      assert.ok(!holds(f, 'src/ui/chart-form.ts') && !holds(f, 'src/examples/charts-dashboard.ts'), `${f} carries the form or an example`);
     }
     const form = sized('src/ui/chart-form.ts');
     const example = sized('src/examples/charts-dashboard.ts');
@@ -272,10 +300,10 @@ describe('the page loads ECharts only when a chart draws', () => {
   });
 
   it(`the engine page downloads at most ${ENGINE_BUDGET.toLocaleString()} bytes of script, gzipped, and no ECharts`, () => {
-    const files = startup(runfileFromEnv('ENGINE_BUNDLE'));
-    for (const f of files) {
-      assert.ok(!readFileSync(f, 'utf8').includes('node_modules/echarts/'), `${f} carries ECharts`);
-    }
+    const engine = runfileFromEnv('ENGINE_BUNDLE');
+    const outputs = outputsOf(engine);
+    const files = startup(engine, outputs);
+    for (const f of files) assert.ok(!holds(f, 'echarts', outputs), `${f} carries ECharts`);
     const size = files.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= ENGINE_BUDGET,
       `the engine page's script is ${size.toLocaleString()} bytes gzipped, over its budget of ${ENGINE_BUDGET.toLocaleString()}`);

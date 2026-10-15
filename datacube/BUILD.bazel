@@ -1275,21 +1275,32 @@ copy_file(
 
 # Split: what a page loads only when it needs it (ECharts, the first time a chart draws -- plan
 # F7) is a chunk beside the bundle, in its own directory per bundle, fetched by the bundle itself.
+# Minified, its names kept, as the notebook's module is (the user, 2026-10-15, "does minify buy anything if already
+# zipped?": measured, a third off the gzipped download and about half off the text the browser parses -- a grid page's
+# startup 405,798 -> 278,151 bytes gzipped, its script 764,104 bytes at 2d24022 -> 411,165). A minified file names no
+# module it holds, so esbuild's record of each output's modules and imports (<bundle>-meta.json, beside it) is what
+# test/bundle-budget.test.ts reads.
 [esbuild_bundle(
     name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
     srcs = glob(["demo/**/*.ts"]) + [":src"],
-    outs = [out],
+    outs = [
+        out,
+        out[:-len(".js")] + "-meta.json",
+    ],
     out_dirs = ["demo/chunks-" + out[len("demo/"):-len(".js")]],
     args = [
         entry,
         "--bundle",
         "--format=esm",
         "--target=es2022",
+        "--minify",
+        "--keep-names",
         "--log-level=warning",
         "--splitting",
         "--outdir=demo",
         "--entry-names=" + out[len("demo/"):-len(".js")],
         "--chunk-names=chunks-" + out[len("demo/"):-len(".js")] + "/[name]-[hash]",
+        "--metafile=" + out[:-len(".js")] + "-meta.json",
     ],
 ) for entry, out in _BUNDLES.items()]
 
