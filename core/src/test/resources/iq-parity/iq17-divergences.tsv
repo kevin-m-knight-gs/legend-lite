@@ -24,7 +24,6 @@ cause	D-N6	a narrowing CAST of a NUMERIC to a NUMERIC truncates under IQ's engin
 cause	D-F17	MEDIAN of integers: IQ's engine truncates the midpoint toward zero, where lite floors (WP2 item 10)
 cause	D-S5	blank padding with a tab: IQ's engine pads the shorter string with blanks before comparing (WP2 item 10)
 cause	exp-underflow	EXP's underflow is NULL in IQ 17.1's front end, 0 in SQL Anywhere 17's (WP2 item 10)
-cause	order-by-position	ORDER BY (1) is a position under IQ's engine, a constant in SQL Anywhere's (WP2 item 10)
 cause	true-keyword	TRUE is a keyword in IQ 17.1, a name in SQL Anywhere 17 (WP2 item 10)
 cause	utf8-char-bytes	the CharSet UTF-8 database: CHAR(n) counts bytes, so a value with non-ASCII letters gets fewer blanks
 cause	having-alias	a GROUP BY expression read by its alias in HAVING is IQ's -149 under its engine
@@ -90,7 +89,6 @@ run	lite/m1review/m2_median_of_smallint_extremes@iq17-default	D-F17	duckdb,postg
 run	lite/natives/between_with_a_tab_and_blanks@iq17-default	D-S5	duckdb,postgres
 run	lite/m1d/exp_at_the_largest_and_the_smallest_doubles@iq17-default	exp-underflow	duckdb,postgres
 run	lite/m1d/exp_of_constants@iq17-default	exp-underflow	duckdb,postgres
-run	lite/m0/order_by_a_parenthesized_constant@iq17-default	order-by-position	duckdb,postgres
 run	lite/basics/true_is_a_name@iq17-default	true-keyword	duckdb,postgres
 run	lite/m1d/cast_varchar_column_to_char_is_padded@iq17-default	utf8-char-bytes	duckdb,postgres
 run	lite/review6/b1_having_alias_of_arithmetic_is_two_valued@iq17-tds	having-alias	duckdb,postgres

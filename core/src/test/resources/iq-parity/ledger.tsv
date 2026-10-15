@@ -1191,8 +1191,8 @@ lite/m0/tsql_alias_beside_a_star@iq16-default	PASS	PASS
 lite/m0/tsql_alias_beside_a_star@iq17-default	PASS	PASS
 lite/m0/order_by_a_signed_position@iq16-default	PASS	PASS
 lite/m0/order_by_a_signed_position@iq17-default	PASS	PASS
-lite/m0/order_by_a_parenthesized_constant@iq16-default	PASS	PASS
-lite/m0/order_by_a_parenthesized_constant@iq17-default	FAIL	FAIL
+lite/m0/order_by_a_parenthesized_constant@iq16-default	REFUSED	REFUSED
+lite/m0/order_by_a_parenthesized_constant@iq17-default	REFUSED	REFUSED
 lite/m0/order_by_a_negative_constant@iq16-default	REFUSED	REFUSED
 lite/m0/order_by_a_negative_constant@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m0/constant_of_41_places@iq16-default	REFUSED	REFUSED

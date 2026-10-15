@@ -363,6 +363,13 @@ public final class IqDialect implements InputDialect {
         settings.check();
         IqParser.Parsed read = IqParser.parsed(sql, settings);
         SqlAst.Statement statement = read.statement();
+        if (!read.droppedOrderKeys().isEmpty() && (engine != null ? engine : engineOf(statement, settings)) == Engine.IQ) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine ORDER BY (1) is the first column's
+            // position, where SQL Anywhere's front end orders by nothing
+            throw SqlTranslationException.unsupported("ORDER BY a parenthesized integer is a position under IQ's engine"
+                    + " and a constant on SQL Anywhere's front end: write the position without parentheses", read
+                    .droppedOrderKeys().get(0));
+        }
         // IQ island, 2026-10-14 (the third landing): two aliases of one name are IQ's error, and an alias spelled like
         // a host variable is refused, as written; then every alias is read where IQ reads it (IqAliases)
         for (SqlAst.Statement q : queries(statement)) {

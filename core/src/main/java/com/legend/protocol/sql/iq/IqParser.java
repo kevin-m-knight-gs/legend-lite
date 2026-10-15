@@ -118,6 +118,9 @@ public final class IqParser {
      *  tree holds is the part's full name; SQL Anywhere names a call by the spelling, measured: {@code DATEPART(mm,
      *  ...)}), or the empty string for a delimited one (its name not measured). */
     private final Map<SqlAst.Expr, String> partWords = new IdentityHashMap<>();
+    /** IQ island, 2026-10-15: where ORDER BY dropped a parenthesized integer constant ({@code (1)}), a constant that
+     *  orders nothing in SQL Anywhere's front end and a position under IQ's engine (measured on IQ 17.1). */
+    private final List<SqlAst.Pos> droppedOrderKeys = new ArrayList<>();
     /** IQ island, 2026-10-14 (review 3's M5): the trailing branches whose value is NULL each CASE and IF was read
      *  without (an ELSE NULL; a last WHEN ... THEN NULL whose condition cannot raise), by identity: the value is the
      *  same, and the compiler's multiplicity stamp of a CASE whose last branches are all NULL is wrong (the compiler
@@ -163,7 +166,8 @@ public final class IqParser {
 
     /** A statement as read ({@link #parsed}): its tree, and the text of each GROUP BY item and each aggregate's call
      *  in it, as written (by identity). */
-    public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans) {
+    public record Parsed(SqlAst.Statement statement, Map<SqlAst.Expr, String> spans,
+            List<SqlAst.Pos> droppedOrderKeys) {
     }
 
     /** The query {@code sql} is, read under {@code settings}'s options, with the texts the tree does not keep. */
@@ -177,7 +181,7 @@ public final class IqParser {
         if (end.kind() != IqLexer.Kind.EOF) {
             throw p.unexpected(end);
         }
-        return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans));
+        return new Parsed(statement, java.util.Collections.unmodifiableMap(p.spans), List.copyOf(p.droppedOrderKeys));
     }
 
     /** An expression as it was written ({@link #written}): its tree, and what the tree does not keep -- the parentheses
@@ -1164,6 +1168,8 @@ public final class IqParser {
             e = n;
         } else if (e instanceof SqlAst.IntegerLit && first.isOp("(")) {
             constant = true;
+            // IQ island, 2026-10-15: kept, for IQ's engine reads it as a position (the dialect refuses it there)
+            droppedOrderKeys.add(first.pos());
         }
         boolean descending = false;
         if (peek().is("desc")) {
