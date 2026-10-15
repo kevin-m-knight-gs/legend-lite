@@ -419,8 +419,9 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
     injected by two associations (the decomposed association class, the idiomatic form), and whose type is a
     stereotyped derived property spelling one value of the model's `RelationshipType` enumeration: element
     references the engine checks, never strings.
-    Then `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is its mapping's
-    primary key and never a model property (C5), and the class maps to its bridge table like any class, which is what SQL/PGQ's "edge table with a source
+    Then `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is Pure's
+    instance equality, its keys if it declares them and otherwise the row itself as its mapping's primary key
+    realizes it, never a model property (C5), and the class maps to its bridge table like any class, which is what SQL/PGQ's "edge table with a source
     key and a destination key" is. Nothing is inferred from a class's shape (invariant 4); an undeclared class is a
     label. The graph's exposure and execution context are the data space's, selected with Neo4j's own `USE`
     (§5.6): no new element kind, and no lite-only model construct.
@@ -433,23 +434,34 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
   wording and the model's candidates, not `null` (a register row). A property typed differently on two classes a
   union reads is refused by name. This is where lite is stricter than Neo4j on purpose, and the TCK's naming
   convention (§3.1) makes it cheap.
-- **C5. Identity is the mapping's, never a model property** (the user, 2026-10-15: Legend's developers "care about
-  that a lot, not to leak physical keys", with local mapping properties for what the class must not show). A node's
-  or a relationship's identity, which `DISTINCT`, `count(DISTINCT n)`, `collect(n)`, `n = m`, relationship
-  uniqueness and path equality use, is Neo4j's internal id: a physical fact. Its Legend counterpart is the class
-  mapping's primary key, `~primaryKey(...)` where declared, else the main table's `PRIMARY KEY` columns
-  (`ClassMapping.primaryKey`, `lineage/PkInference`), which the engine itself uses to merge rows into one object. No
-  `id` property enters the model for it; a physical attribute a mapping needs and the class must not show is a local
-  mapping property (`+x: Type[1]`, `PropertyMapping.LocalProperty`). In the Pure the island builds, identity is
-  spelled as instance equality, `==` and `removeDuplicates()` over instances, the Pure a person would write.
-  **The dependency, stated:** lite lowers instance equality in two halves (`lowering/InstanceEquality`): the keyed
-  half, `<<equality.Key>>`, is armed on every lane (D91); the identity half, the minted `__id` from the mapping's
-  primary key, "stays verdict-lane-gated" today. C5 needs that half on the product lane, which is the database
-  owner's leg, announced in `IN_FLIGHT` before PR3 (the model slice) and refused by name until then: a pattern that
-  needs identity over a class whose mapping has no primary key, or before the leg lands, is refused, never
-  approximated by properties. `<<equality.Key>>`, where a class declares it, remains Pure's value equality for
-  `equal()` and is not what Cypher's `=` on nodes means. `id()` and `elementId()` are refused (Neo4j's are numbers
-  no model has, and the physical key is exactly what must not leak).
+- **C5. Identity is Pure's instance equality: the model's `<<equality.Key>>` where a class declares it, instance
+  identity otherwise, realized by the mapping and never by a model property** (the user, 2026-10-15, twice: no
+  physical key leaks into the model, Legend's developers "care about that a lot", with local mapping properties for
+  what the class must not show; and `<<equality.Key>>` is the object world's identity, `~primaryKey` the relational
+  mapping's). The two are layers, not alternatives:
+  - **`<<equality.Key>>` is the model's identity**: when two instances are the same thing, by business key (a
+    `Movie` is its `title` and `year`). It is what Pure's `==`, `equal()` and `removeDuplicates()` use on instances
+    (D91, `lowering/InstanceEquality`'s keyed half, on every lane), and it holds across stores and across a union
+    mapping that reads one entity from two tables.
+  - **`~primaryKey` is the relational mapping's**: which columns make one row one object in that mapping,
+    `~primaryKey(...)` where declared, else the main table's `PRIMARY KEY` columns (`ClassMapping.primaryKey`,
+    `lineage/PkInference`), which the engine itself uses to merge rows into objects. It is physical, so it never
+    enters the model; a physical attribute a mapping needs and the class must not show is a local mapping property
+    (`+x: Type[1]`, `PropertyMapping.LocalProperty`).
+  - **Pure's rule composes them**, and it is the graph's rule: a keyed class's node is its key, so two rows with one
+    key are one node; a keyless class's node is the row itself, and the relational realization of "the row itself"
+    is the mapping's primary key. So `DISTINCT`, `count(DISTINCT n)`, `collect(n)`, `n = m`, relationship
+    uniqueness and path equality are spelled in the Pure the island builds as instance equality, `==` and
+    `removeDuplicates()`, the Pure a person would write, and lowered per the class's keyedness.
+  - **The dependency, stated:** the identity half of `InstanceEquality` (the minted `__id` from the mapping's
+    primary key, for keyless classes) "stays verdict-lane-gated" today. C5 needs it on the product lane: the
+    database owner's leg, announced in `IN_FLIGHT` before PR3 (the model slice), and until it lands a pattern that
+    needs identity over a keyless class is refused by name, never approximated by comparing properties. A keyless
+    class whose mapping has no primary key either is refused likewise.
+  - **One difference from Neo4j, a register row:** Neo4j's identity is always physical, so where a table holds two
+    rows with one business key, Neo4j shows two nodes and lite one, because the model said so.
+  - `id()` and `elementId()` are refused: Neo4j's are numbers no model has, and the physical key is exactly what
+    must not leak.
 - **C6. The recursion native and the bounded-unroll-first rule.** A bounded path or quantifier (`*1..3`, `{1,3}`,
   `{,10}`) unrolls into a union of fixed-length joins: no new native, C6.2's "rearranges shapes". Unbounded `*`, `+`,
   `shortestPath`, the `SHORTEST` selectors over unbounded patterns, and every iterative algorithm need the native of
@@ -797,12 +809,12 @@ for a relationship with properties, and where does the model say so?
    inheriting the ends; every other property, inherited ones included, is the relationship's property (`r.role`,
    `properties(r)`, `keys(r)`); a to-many property to a class is refused on an edge (a relationship has two ends),
    the associations' inverse ends excepted, which are the ends seen from the node.
-3. **Identity.** The edge's identity is its mapping's primary key (C5): the bridge table's `PRIMARY KEY`, or the
-   mapping's `~primaryKey(...)`, which `DISTINCT r`, `collect(r)`, `count(DISTINCT r)`, relationship uniqueness
-   (`DIFFERENT RELATIONSHIPS`) and path equality use, and which the model never shows. Parallel relationships are
-   rows with distinct keys, as in Neo4j; a bridge table keyed by its two foreign keys has none, which is also as in
-   a model that forbids them. An edge whose mapping has no primary key is refused wherever identity is needed, as a
-   node class is (C5).
+3. **Identity.** The edge's identity is Pure's instance equality (C5): its `<<equality.Key>>` where the class
+   declares one (an edge keyed by its two ends says one relationship per pair), else the row itself, realized by the
+   mapping's primary key, the bridge table's `PRIMARY KEY` or the mapping's `~primaryKey(...)`, which the model
+   never shows. `DISTINCT r`, `collect(r)`, `count(DISTINCT r)`, relationship uniqueness (`DIFFERENT RELATIONSHIPS`)
+   and path equality use it. Parallel relationships are rows with distinct identities, as in Neo4j. A keyless edge
+   whose mapping has no primary key is refused wherever identity is needed, as a node class is (C5).
 4. **A relationship without properties stays an association or a property.** `(p:Person)-[:firm]->(f:Firm)` reads
    `Person.firm`; `(f)-[:employees]->(p)` the other end; `(p)-[:PersonFirm]-(f)` the association by name. Its
    identity is the pair of its ends' keys, `properties(r)` is `{}`, `type(r)` the name. Where Neo4j would hold two
@@ -860,12 +872,12 @@ import demo::*;
 
 Enum demo::RelationshipType { ACTED_IN, DIRECTED }
 
-Class demo::Person { name: String[1]; }                 // no key in the model: identity is the mapping's (C5)
+Class demo::Person { name: String[1]; }                 // keyless: a node is the row, realized by the mapping's key (C5)
 Class demo::Firm   { legalName: String[1]; }
 Class demo::Movie
 {
-  title: String[1];
-  year: Integer[1];
+  <<equality.Key>> title: String[1];                    // keyed: a node is its business key, the model's identity (C5)
+  <<equality.Key>> year: Integer[1];
   studio: Firm[0..1];                                   // REGULAR EDGE, one way: a property
 }
 
@@ -940,7 +952,8 @@ Mapping demo::Map
 | `MATCH (a:Person)-[r:ACTED_IN]->(m:Movie) RETURN a.name, r.role, m.title` | the edge class, from `actor` to `movie` | `Acting.all()->project(~[name: x\|$x.actor.name, role: x\|$x.role, title: x\|$x.movie.title])` |
 | `MATCH (m:Movie)<-[r:ACTED_IN]-(a:Person)` | the same rows from the movie's side | the same Pure |
 | `MATCH (a:Person)-[r:ACTED_IN]->(m) WHERE r.role = 'Neo' RETURN type(r), properties(r), startNode(r).name` | | `type(r)` is `RelationshipType.ACTED_IN`, written `'ACTED_IN'`; `properties(r)` the Variant `{role: 'Neo'}`; `startNode(r)` the actor |
-| `MATCH ()-[r:ACTED_IN]->() RETURN count(DISTINCT r)` | identity by the mapping's primary key, `T_ACTING.ID`, which the model never shows (C5) | `Acting.all()->removeDuplicates()->size()`: instance identity, lowered from the mapping's key |
+| `MATCH ()-[r:ACTED_IN]->() RETURN count(DISTINCT r)` | `Acting` declares no key, so each row is its own relationship, realized by `T_ACTING.ID`, which the model never shows (C5) | `Acting.all()->removeDuplicates()->size()`: instance equality, lowered per the class's keyedness |
+| `MATCH (m:Movie) RETURN count(DISTINCT m)` | `Movie` is keyed by `title` and `year`: two rows with one key are one node (C5) | `Movie.all()->removeDuplicates()->size()`: the same spelling, lowered by the keys |
 | `MATCH (x:Acting)` | | refused: "Acting is an edge type, not a label" |
 | `MATCH (d:Person)-[r:DIRECTED]->(m:Movie) RETURN d.name, m.title` | the edge class whose ends come through the two associations | `Directing.all()->project(~[name: x\|$x.director.name, title: x\|$x.movie.title])`, the same shape as `Acting` |
 
