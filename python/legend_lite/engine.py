@@ -102,11 +102,10 @@ _PLAN_AND_RUN, _PLANNER = '/plan-and-run.json', '/planner.json'
 _APPS = ('query', 'studio')
 _CURRENT_USER = '/api/server/v1/currentUser'
 _LITE_API = '/api/lite/v1/'
-# the planner protocol's kinds a page on Python sends to planner.json (DataCube's LitePlanner): every kind but the
-# page's own (hold, release) and those only another host's apps send (Query's unheld plan, execute's halves, a warm);
-# the held kinds plan over the models Python serves only
-_PAGE_KINDS = frozenset({'plan', 'relationType', 'tableModel', 'catalogColumnsSql', 'planJson', 'pureV1', 'testData',
-                         'sessionSetup'})
+# the planner protocol's kinds a page on Python sends to planner.json (DataCube's LitePlanner): planner-protocol.ts
+# PAGE_KINDS, which says why each is or is not one, held equal by DataCube's python-vocabulary test; the held kinds plan
+# over the models Python serves only
+_PAGE_KINDS = frozenset({'plan', 'relationType', 'planJson', 'pureV1'})
 # the planner's answer to the plan a page's rows are of, in their Arrow schema's metadata
 _PLAN_KEY = b'legend.plan'
 # the only places a page's remote file may be read from (remote.json), each as DuckDB's httpfs names it: never this

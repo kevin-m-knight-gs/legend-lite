@@ -2,15 +2,21 @@
 // DataCube's own words: its filter operators, aggregates, sort directions and charts, the page's and the cube's
 // versions, and the numbers a layout places tiles by, each as DataCube's sources spell them -- so a name added here is
 // one Python offers too, and Python never writes one DataCube does not read, nor places a tile where DataCube would
-// not. It reads both sides as text: the two halves are in two languages.
+// not. And what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py), in the planner
+// protocol's own lists (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 10). It reads Python's side as text (the two
+// halves are in two languages), and DataCube's types as text, its values as they are.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Sources } from '../../tools/js/runfiles.mts';
+import { HELD_KINDS, PAGE_KINDS } from '../../engine-client/src/legend/planner-protocol.ts';
 
 // the sources this reads, as the BUILD target declares them (_SCANNED)
 const SOURCES = new Sources('SOURCES', 'datacube');
-const PYTHON = SOURCES.read('../python/legend_lite/page.py');
+const PAGE = '../python/legend_lite/page.py';
+const ENGINE = '../python/legend_lite/engine.py';
+const PLANNER = '../python/legend_lite/_planner.py';
+const PYTHON = SOURCES.read(PAGE);
 
 /** The quoted names of a TypeScript union type, `export type Name = 'a' | 'b' ...;`. */
 function union(file: string, name: string): string[] {
@@ -21,12 +27,13 @@ function union(file: string, name: string): string[] {
   return [...body.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]!).sort();
 }
 
-/** The quoted names of a Python constant, `NAME = frozenset({'a', 'b', ...})`. */
-function python(name: string): string[] {
-  const at = PYTHON.indexOf(`${name} = frozenset({`);
-  assert.ok(at >= 0, `page.py declares ${name}`);
-  const body = PYTHON.slice(at, PYTHON.indexOf('})', at));
-  return [...body.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]!).sort();
+/** The quoted names of a Python constant in `file`: `NAME = frozenset({'a', 'b', ...})` or `NAME = ('a', 'b', ...)`. */
+function python(name: string, file = PAGE): string[] {
+  const text = SOURCES.read(file);
+  const found = new RegExp(`^${name} = (frozenset\\(\\{|\\()`, 'm').exec(text);
+  assert.ok(found, `${file} declares ${name}`);
+  const body = text.slice(found.index, text.indexOf(found[1] === '(' ? ')' : '})', found.index));
+  return [...body.matchAll(/'([A-Za-z][A-Za-z0-9]*)'/g)].map((m) => m[1]!).sort();
 }
 
 /** A numeric constant: `export const NAME = 0.5;` in TypeScript, `NAME = 0.5` in Python. */
@@ -67,5 +74,17 @@ describe('Python writes pages in DataCube\'s own words', () => {
       assert.ok(ts > 0, `bands.ts declares ${name}`);
       assert.equal(pyNumber(name), ts, name);
     }
+  });
+});
+
+describe('Python answers a page\'s planner by the planner protocol\'s own lists', () => {
+  it('the kinds a page sends it are the protocol\'s PAGE_KINDS', () => {
+    assert.ok(PAGE_KINDS.includes('pureV1'), 'the protocol lists them');
+    assert.deepEqual(python('_PAGE_KINDS', ENGINE), [...PAGE_KINDS].sort());
+  });
+
+  it('the kinds it plans against a model held are the protocol\'s HELD_KINDS', () => {
+    assert.ok(HELD_KINDS.length > 0, 'the protocol lists them');
+    assert.deepEqual(python('HELD', PLANNER), [...HELD_KINDS].sort());
   });
 });

@@ -32,7 +32,8 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'warm': ('lite_warm_model', lambda m: (m['model'],)),
 }
 
-# the kinds that plan against a model held (by its handle in the tab; by its text from a page to Python's engine)
+# the kinds that plan against a model held (by its handle in the tab; by its text from a page to Python's engine):
+# planner-protocol.ts HELD_KINDS, held equal by DataCube's python-vocabulary test
 HELD = ('plan', 'relationType', 'planJson')
 
 

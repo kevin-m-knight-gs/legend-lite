@@ -439,9 +439,14 @@ class PlanAndRunRoutes(Served):
         refused = json.loads(self.post('/planner.json', json.dumps({
             'kind': 'planJson', 'model': 'unserved', 'lambda': lam, 'runtime': self.table.runtime}))[2])
         self.assertTrue(refused['answer'].startswith('ERR\nMODEL\n'), refused)
-        # holding and letting go are the page's own: Python holds nothing for a page; and the kinds only another host's
-        # apps send (an unheld plan, execute's halves, a warm) are not a page's to ask, so it compiles only served models
-        for kind in ('hold', 'release', 'planModel', 'executePlan', 'executeAnswer', 'warm'):
+        # holding and letting go are the page's own: Python holds nothing for a page; and every kind a page does not
+        # send (planner-protocol.ts PAGE_KINDS: another host's apps' unheld plan, execute's halves, a warm, a host's own
+        # database's work) is not a page's to ask, so it compiles only served models
+        from legend_lite._planner import KINDS
+        from legend_lite.engine import _PAGE_KINDS
+        refused = sorted(set(KINDS) - _PAGE_KINDS)
+        self.assertIn('hold', refused)
+        for kind in refused:
             self.assertEqual(self.post('/planner.json', json.dumps({'kind': kind, 'model': self.table.model, 'handle': '1'}))[0], 400,
                              kind)
 
