@@ -815,7 +815,10 @@ server=...)`), and a page's grids, and Python's own `Table.plan` and `execute`, 
 **What happens today.** A page's grid read headless (`Grid.view()`, `grid.relation`, `grid.to_pandas()`: DataCube's own
 code in V8, `legend_lite/_headless.py`) plans through the bundle's planner worker, which Python answers with the native
 library (`_planner.py`), so on a session planning on a server a headless grid's numbers are legend-lite's in this
-process where its page's are the server's.
+process where its page's are the server's. Since the twins program (2026-10-15, neema2/legend-lite#47) the checks
+Python's grids ask of DataCube's code are judged on that plane too: `gridCalculate`'s and `gridFilter`'s compile is
+legend-lite's whatever the session chose, so on a session planning on a server a calculated column with a time of day
+(StrictTime, which legend-lite does not lower) is refused where the server's own column editor takes it.
 
 **The fix.** The headless bundle's planner on the session's plane: on a server's, the tab's `UpstreamPlanner` over the
 host's fetch (the headless design's R6), asking Python's own `pure/v1` as the page does, and the grid's rows through

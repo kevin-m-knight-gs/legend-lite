@@ -862,7 +862,8 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `upstream.py`, `_headless._query`) beyond item 4's typing and item 8's pin. Also touched, past this list (noted
   2026-10-15): `docs/GENERATORS.md` (item 4's generator row), `datacube/src/snapshot.ts` (`COLUMN_KINDS`, item 5),
   `python/legend_lite/_planner.py` (a comment, item 10), and `_headless._query`'s Arrow writer, factored out unchanged
-  as `arrow_text` so item 7 hands its rows to DataCube through it (this line's ask).
+  as `arrow_text` so item 7 hands its rows to DataCube through it (this line's ask); `docs/PARKED_WORK_LEDGER.md`
+  (PARK-30's row names items 5's and 6's checks, text only: the audit's review).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
