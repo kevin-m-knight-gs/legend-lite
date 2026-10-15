@@ -240,9 +240,11 @@ final class IqNames {
     /** {@code e}'s rendering with its parentheses (none around an aggregate, or a part replaced). */
     private @com.legend.base.Nullable String render(SqlAst.Expr e) {
         Part replaced = substitutes.replace(e, inAggregate);
-        if (aggregate(e) && written.parensOf(e) > 0) {
+        if ((aggregate(e) || e instanceof SqlAst.Window) && written.parensOf(e) > 0) {
             // SQL Anywhere keeps them around some aggregates and drops them around others (measured: (SUM(x)) + 1 is
-            // SUM(t.x)+1, (SUM(x)) * 2 is (SUM(t.x))*2, (COUNT(*)) + 1 is (COUNT())+1): not read
+            // SUM(t.x)+1, (SUM(x)) * 2 is (SUM(t.x))*2, (COUNT(*)) + 1 is (COUNT())+1), and IQ so around a window
+            // (measured on IQ 17.1, 2026-10-15: (SUM(x) OVER ()) + 1 is SUM(t.x) over()+1, * 2 (SUM(t.x) over())*2):
+            // not read
             return null;
         }
         if (replaced != null) {
@@ -284,8 +286,103 @@ final class IqNames {
             case SqlAst.IsTruth t -> negatable(t, false);
             case SqlAst.Case c -> written.ifs().contains(c) ? ifExpression(c) : caseExpression(c);
             case SqlAst.FunctionCall f -> call(f);
+            case SqlAst.Window w -> window(w);
             default -> null;
         };
+    }
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1): a window function's call, then {@code  over name} for a named window
+     * as written, else {@code  over(...)}: the base window's name, {@code partition by k,...}, {@code order by k
+     * asc|desc,...} and the frame in lower case, as written (ROWS 2 PRECEDING stays {@code rows 2 preceding}), with
+     * single spaces between -- {@code SUM(t.x) over(partition by t.v order by t.x asc rows between 1 preceding and
+     * current row)}, {@code COUNT() over()}, {@code ROW_NUMBER() over(order by t.x asc)}. Not read: a quoted window
+     * name, a FILTER.
+     */
+    private @com.legend.base.Nullable String window(SqlAst.Window w) {
+        SqlAst.FunctionCall f = w.call();
+        if (f.filter() != null || !f.withinGroup().isEmpty() || f.name().size() != 1) {
+            return null;
+        }
+        String call = aggregate(f) ? aggregateCall(f) : call(f);
+        if (call == null) {
+            return null;
+        }
+        SqlAst.WindowSpec spec = w.spec();
+        SqlAst.Ident base = spec.base();
+        if (base != null && base.quoted()) {
+            return null;
+        }
+        if (base != null && spec.pos().equals(base.pos())) {
+            return call + " over " + base.text();
+        }
+        List<String> parts = new ArrayList<>();
+        if (base != null) {
+            parts.add(base.text());
+        }
+        if (!spec.partitionBy().isEmpty()) {
+            List<String> keys = new ArrayList<>();
+            for (SqlAst.Expr k : spec.partitionBy()) {
+                String r = render(k);
+                if (r == null) {
+                    return null;
+                }
+                keys.add(r);
+            }
+            parts.add(word("partition by", String.join(",", keys)));
+        }
+        if (!spec.orderBy().isEmpty()) {
+            List<String> keys = new ArrayList<>();
+            for (SqlAst.SortItem o : spec.orderBy()) {
+                String r = render(o.expr());
+                if (r == null || o.nullsFirst() != null) {
+                    return null;
+                }
+                keys.add(r + (o.descending() ? " desc" : " asc"));
+            }
+            parts.add(word("order by", String.join(",", keys)));
+        }
+        SqlAst.Frame frame = spec.frame();
+        if (frame != null) {
+            String unit = switch (frame.unit()) {
+                case ROWS -> "rows";
+                case RANGE -> "range";
+                case GROUPS -> null;
+            };
+            String start = bound(frame.start());
+            String end = bound(frame.end());
+            Boolean between = betweenWritten(frame);
+            if (unit == null || start == null || end == null || between == null || frame.exclude() != null) {
+                return null;
+            }
+            parts.add(unit + " " + (between ? "between " + start + " and " + end : start));
+        }
+        return call + " over(" + String.join(" ", parts) + ")";
+    }
+
+    /** A frame bound in lower case, its offset as named. */
+    private @com.legend.base.Nullable String bound(SqlAst.FrameBound b) {
+        return switch (b.kind()) {
+            case UNBOUNDED_PRECEDING -> "unbounded preceding";
+            case CURRENT_ROW -> "current row";
+            case UNBOUNDED_FOLLOWING -> "unbounded following";
+            case PRECEDING, FOLLOWING -> {
+                SqlAst.Expr offset = b.offset();
+                String r = offset == null ? null : render(offset);
+                yield r == null ? null : r + (b.kind() == SqlAst.BoundKind.PRECEDING ? " preceding" : " following");
+            }
+        };
+    }
+
+    /** Whether {@code frame} was written with BETWEEN (its unit's next token), or null when its unit is not found. */
+    private @com.legend.base.Nullable Boolean betweenWritten(SqlAst.Frame frame) {
+        List<IqLexer.Token> tokens = written.tokens();
+        for (int i = 0; i + 1 < tokens.size(); i++) {
+            if (tokens.get(i).pos().equals(frame.pos())) {
+                return tokens.get(i + 1).is("between");
+            }
+        }
+        return null;
     }
 
     private @com.legend.base.Nullable String unary(SqlAst.Unary u) {
@@ -535,6 +632,13 @@ final class IqNames {
                     return false;
                 }
             }
+            case SqlAst.Window w -> {
+                // IQ island, 2026-10-15 (measured on IQ 17.1): a line break in a window's OVER marks nothing on the
+                // name of an item that is the window; one in its call marks as a call's does. Elsewhere not read.
+                if (spans && w != written.expr() || !breaksRead(w.call(), level)) {
+                    return false;
+                }
+            }
             case SqlAst.Binary b when (b.op() == SqlAst.BinaryOp.PLUS || b.op() == SqlAst.BinaryOp.MINUS)
                     && constantChain(b) && spans -> {
                 return false;
@@ -696,6 +800,11 @@ final class IqNames {
                 for (SqlAst.Expr part : parts(c)) {
                     leaves(part, out);
                 }
+            }
+            case SqlAst.Window w -> {
+                leaves(w.call(), out);
+                w.spec().partitionBy().forEach(k -> leaves(k, out));
+                w.spec().orderBy().forEach(o -> leaves(o.expr(), out));
             }
             default -> {
             }

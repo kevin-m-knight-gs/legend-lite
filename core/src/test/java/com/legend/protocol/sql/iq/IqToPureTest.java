@@ -1017,4 +1017,23 @@ class IqToPureTest {
                 .kind());
         assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT (SUM(sm)) * 2 FROM " + T).kind());
     }
+
+    @Test
+    void anUnaliasedWindowIsNamedAsIqNamesIt() {
+        // IQ island, 2026-10-15 (measured on IQ 17.1 and SQL Anywhere 17): the call, then over(...) in lower case
+        assertTrue(pure("SELECT SUM(sm) OVER (PARTITION BY id ORDER BY sm DESC ROWS 2 PRECEDING) FROM " + T)
+                .contains("'SUM(T.sm) over(partition by T.id order by T.sm desc rows 2 preceding)'"));
+        assertTrue(pure("SELECT COUNT(*) OVER () FROM " + T).contains("'COUNT() over()'"));
+        assertTrue(pure("SELECT ROW_NUMBER() OVER (ORDER BY id) - 1 FROM " + T)
+                .contains("'ROW_NUMBER() over(order by T.id asc)-1'"));
+        assertTrue(pure("SELECT MAX(sm) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) FROM " + T)
+                .contains("'MAX(T.sm) over(order by T.id asc rows between 1 preceding and current row)'"));
+        assertTrue(pure("SELECT SUM(sm) OVER w FROM " + T + " WINDOW w AS (ORDER BY id)")
+                .contains("'SUM(T.sm) over w'"));
+        assertTrue(pure("SELECT SUM(sm) OVER (w ORDER BY id) FROM " + T + " WINDOW w AS (PARTITION BY sm)")
+                .contains("'SUM(T.sm) over(w order by T.id asc)'"));
+        // in parentheses inside an expression IQ keeps them or drops them by the operator: not known
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal("SELECT (SUM(sm) OVER ()) * 2 FROM " + T)
+                .kind());
+    }
 }

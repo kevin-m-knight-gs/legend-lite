@@ -677,3 +677,62 @@ tests:
   - id: report_year_to_date
     sql: "SELECT id, dt, SUM(n) OVER (PARTITION BY YEAR(dt) ORDER BY dt, id ROWS UNBOUNDED PRECEDING) AS ytd FROM g WHERE dt IS NOT NULL ORDER BY id"
     profile: iq17-default
+  # IQ island, 2026-10-15: an unaliased window item named as IQ names it (IqNames.window, measured on IQ 17.1): the
+  # call, then over name or over(...) with its clauses in lower case and the frame as written
+  - id: unaliased_sum_over_all_rows
+    sql: "SELECT id, SUM(n) OVER () FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_count_star_over_all_rows
+    sql: "SELECT id, COUNT(*) OVER () FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_running_sum_per_partition
+    sql: "SELECT id, SUM(n) OVER (PARTITION BY k ORDER BY id) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_row_number_descending
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id DESC) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_short_frame_is_named_as_written
+    sql: "SELECT id, SUM(n) OVER (ORDER BY id ROWS 2 PRECEDING) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_frame_between
+    sql: "SELECT id, MAX(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_range_frame_to_the_current_row
+    sql: "SELECT id, SUM(n) OVER (ORDER BY id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_named_window
+    sql: "SELECT id, COUNT(n) OVER w FROM g WINDOW w AS (ORDER BY id) ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_named_window_extended
+    sql: "SELECT id, SUM(n) OVER (w ORDER BY id) FROM g WINDOW w AS (PARTITION BY k) ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_window_in_arithmetic
+    sql: "SELECT id, ROW_NUMBER() OVER (ORDER BY id) - 1 FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_window_in_lower_case
+    sql: "select id, sum ( n ) over ( order by id ) from g order by id"
+    profile: iq17-default
+  - id: unaliased_lag_with_an_offset
+    sql: "SELECT id, LAG(n, 1) OVER (ORDER BY id) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_window_over_lines
+    sql: "SELECT id, SUM(n)\n OVER (PARTITION BY k\n ORDER BY id) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_window_over_a_correlation_name
+    sql: "SELECT a.id, SUM(a.n) OVER (ORDER BY a.id) FROM g a ORDER BY a.id"
+    profile: iq17-default
+  - id: unaliased_window_partitioned_by_a_parenthesized_key
+    sql: "SELECT id, SUM(n) OVER (PARTITION BY (k)) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_window_over_an_aggregate
+    sql: "SELECT k, SUM(SUM(n)) OVER () FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: unaliased_window_at_the_top_in_parentheses
+    sql: "SELECT id, (SUM(n) OVER ()) FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_parenthesized_window_in_arithmetic_is_refused
+    sql: "SELECT id, (SUM(n) OVER ()) * 2 FROM g ORDER BY id"
+    profile: iq17-default
+  - id: unaliased_windows_named_alike_by_both_engines
+    sql: "SELECT id, COUNT(*) OVER (PARTITION BY k ORDER BY id ROWS 2 PRECEDING), ROW_NUMBER() OVER (ORDER BY id DESC) FROM g ORDER BY id"
+    profile: iq16-default, iq17-default

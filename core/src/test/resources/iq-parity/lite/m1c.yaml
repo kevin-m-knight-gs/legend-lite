@@ -589,8 +589,10 @@ tests:
     sql: "SELECT STDDEV(v) FROM g WHERE k < 4"
   - id: variance_is_refused
     sql: "SELECT VARIANCE(v), VAR_POP(v) FROM g WHERE k < 4"
-  - id: a_window_is_refused
+  - id: a_window_over_all_rows
     sql: "SELECT SUM(v) OVER () FROM g"
+    decision: D-N3
+    expect: '{"columns": [["SUM(g.v) over()", "numeric", 0]], "rows": [["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"], ["2147483661"]]}'
   - id: grouping_is_refused
     sql: "SELECT GROUPING(k) FROM g GROUP BY k"
   - id: an_aggregate_with_top
