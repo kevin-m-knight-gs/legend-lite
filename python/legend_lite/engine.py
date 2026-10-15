@@ -40,13 +40,16 @@ import socketserver
 import sys
 import threading
 import traceback
-import queue
-from concurrent.futures import Future
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple, Protocol
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlsplit
+
+from ._extra import require_datacube
+
+# DataCube's: the datacube extra's packages, or one sentence saying to install it (_extra.py)
+require_datacube()
 
 import duckdb
 import pyarrow as pa
@@ -55,6 +58,7 @@ import pyarrow.ipc
 from . import _host, _json, _planner, compiler, warehouse
 from .compiler import LegendError
 from ._library import library
+from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, UntypedColumn, typed_by_plan
 from .projects import ProjectDatabases
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -112,43 +116,6 @@ _PLAN_KEY = b'legend.plan'
 _REMOTE_SCHEMES = ('http', 'https', 's3', 's3a', 's3n', 'gs', 'gcs', 'r2', 'hf')
 # a connection that sends nothing, or stops sending, is closed after this long (seconds)
 _IDLE = 30
-# the threads that call the compiler: ONE fixed pool for every engine in the process, as the native library asks of
-# a host (each thread that calls it stays attached to its isolate), so opening engine after engine in a notebook
-# attaches no new threads. A connection is read and written on a thread of its own, which never calls the compiler:
-# an idle connection holds no compiler thread
-_WORKERS = 4
-
-
-class _Pool:
-    """The compiler's threads: daemon threads taking calls from one queue. Not concurrent.futures' pool: Python shuts
-    that down before its atexit handlers run, and a plain script's end waits in one (show(): the cubes stay open until
-    Ctrl-C), so every call the engine made there would be refused (the audit of show(), 2026-10-08)."""
-
-    def __init__(self, size: int) -> None:
-        self._calls: queue.SimpleQueue[tuple[Future[Any], Any, tuple[Any, ...]]] = queue.SimpleQueue()
-        for i in range(size):
-            threading.Thread(target=self._serve, name=f'legend-lite-compiler-{i}', daemon=True).start()
-
-    def submit(self, call: Any, *args: Any) -> Future[Any]:
-        future: Future[Any] = Future()
-        self._calls.put((future, call, args))
-        return future
-
-    def _serve(self) -> None:
-        while True:
-            future, call, args = self._calls.get()
-            if not future.set_running_or_notify_cancel():
-                continue
-            try:
-                future.set_result(call(*args))
-            except BaseException as failure:  # noqa: BLE001 -- handed to the caller, which answers it
-                future.set_exception(failure)
-
-
-_pool: _Pool | None = None
-_pool_lock = threading.Lock()
-
-
 def _request_model(body: str) -> str | None:
     """The model text an ExecuteInput carries (a PureModelContextText's code), or None for any other: the compiler
     reads it, and refuses another kind itself (PureV1Api.modelText)."""
@@ -159,22 +126,6 @@ def _request_model(body: str) -> str | None:
     if isinstance(model, dict) and model.get('_type') == 'text' and isinstance(model.get('code'), str):
         return model['code']
     return None
-
-
-def _on_compiler_threads(call: Callable[[], str]) -> str:
-    """A library call run on the compiler's threads: in place when the caller is one (a pool thread waiting on the pool
-    would wait on itself), else on the pool."""
-    if threading.current_thread().name.startswith('legend-lite-compiler-'):
-        return call()
-    return _workers().submit(call).result()
-
-
-def _workers() -> _Pool:
-    global _pool
-    with _pool_lock:
-        if _pool is None:
-            _pool = _Pool(_WORKERS)
-        return _pool
 
 
 @functools.cache
@@ -671,16 +622,10 @@ class Engine:
         return Answer(204, 'text/plain; charset=utf-8', b'')
 
     def takes_files(self) -> bool:
-        """Whether a page's file can be read into the frames' database here: DataCube's own code runs headless (its
-        ``datacube`` extra installed), so the page offers its files and examples."""
-        if self._headless is None:
-            return False
-        try:
-            from ._headless import available
-        except ImportError:
-            # legend-lite without its datacube extra's module (a build of the compiler alone)
-            return False
-        return available()
+        """Whether a page's file can be read into the frames' database here: this engine was given DataCube's own code,
+        headless, so the page offers its files and examples. Its V8 is the datacube extra's, there whenever this module
+        is (_extra.py), and its bundle is the wheel's: one missing is said where a file is read, never hidden."""
+        return self._headless is not None
 
     def takes_remote(self) -> bool:
         """Whether a page's remote file can be read here (``remote_refusal`` says why not)."""
@@ -691,8 +636,7 @@ class Engine:
         httpfs extension for this very DuckDB where the package carries it (nothing is downloaded), and a database
         legend-lite made -- its extension settings are changed for good, which a database of the person's own is not."""
         if not self.takes_files():
-            return ('legend-lite reads one with DataCube\'s own code, which its datacube extra installs '
-                    '(pip install "legend-lite[datacube]")')
+            return 'legend-lite reads one with DataCube\'s own code, headless, which this engine was not given'
         if not self.frames.owns_connection:
             return 'it is read on a DuckDB legend-lite made, and these frames are on a database of your own'
         if duckdb_extensions() is None:
@@ -794,14 +738,17 @@ class Engine:
             return _said(400, 'a part of a file is {"upload"?, "at", "bytes"}: its upload a string, at a count of bytes, '
                               'its bytes base64')
         if not self.takes_files():
-            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, which its '
-                              'datacube extra installs (pip install "legend-lite[datacube]")')
+            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, headless, '
+                              'which this engine was not given')
         assert self._headless is not None
         try:
             data = base64.b64decode(asked['bytes'], validate=True)
         except binascii.Error:
             return _said(400, "a file's bytes are base64")
-        folder = self._headless().folder
+        try:
+            folder = self._headless().folder
+        except OSError as failure:
+            return _said(500, str(failure))
         with self._uploads_lock:
             if upload is None:
                 if at != 0:
@@ -835,8 +782,8 @@ class Engine:
         if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('upload', 'name', 'table'))):
             return _said(400, 'a file is {"upload", "name", "table"}, each a string')
         if not self.takes_files():
-            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, which its '
-                              'datacube extra installs (pip install "legend-lite[datacube]")')
+            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, headless, '
+                              'which this engine was not given')
         assert self._headless is not None
         with self._uploads_lock:
             path = self._uploads.pop(asked['upload'], None)
@@ -1415,8 +1362,8 @@ class Engine:
         (a Depot), Studio's SDLC, Depot and engine."""
         api, sdlc, depot = f'{origin}/api', f'{origin}/sdlc/api', f'{origin}/depot/api'
         config: dict[str, Any] = (
-            {'execution': {'kind': 'server', 'engine': api}, 'projects': [], 'depot': {'sdlc': sdlc, 'depot': depot,
-                                                                                         'vendor': './vendor/'}}
+            {'execution': {'kind': 'server', 'engine': api}, 'projects': [], 'depot': {'sdlc': sdlc, 'depot': depot},
+             'vendor': './vendor/'}
             if app == 'query' else
             {'sdlc': sdlc, 'depot': depot, 'vendor': './vendor/', 'worker': './planner-worker.js', 'engine': api})
         return Answer(200, 'application/json', json.dumps(config).encode('utf-8'))

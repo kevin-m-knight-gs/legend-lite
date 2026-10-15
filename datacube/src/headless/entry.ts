@@ -7,23 +7,25 @@ import './install-url.ts';
 
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
-import { gridClass, gridExport, gridRelation, gridView } from './grid.ts';
+import { gridChart, gridClass, gridExport, gridRelation, gridView } from './grid.ts';
 import { forget, ingest, mount, remoteAccess } from './data-in.ts';
-import { classDuplicate, pageModelNames } from './model.ts';
+import { classDuplicate, pageModelKept, pageModelNames } from './model.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
 
-/** A grid, headless (§4): its view, its rows as a relation, its rows as a class's (B4), and its export (D). */
-export { gridClass, gridExport, gridRelation, gridView };
+/** A grid, headless (§4): its view, its rows as a relation, its rows as a class's (B4), its export (D), and a chart of
+ *  it as DataCube makes and judges one (chart-spec.ts chartFrom and chartProblems: written once, which Python asks). */
+export { gridChart, gridClass, gridExport, gridRelation, gridView };
 
 /** Data in (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §4.3): a file read into the host's database by upload.ts, its
  *  table dropped again, and a remote file mounted as a view (its extensions and keys put in place first, where the host
  *  checks what it names). */
 export { forget, ingest, mount, remoteAccess };
 
-/** The page's model as DataCube names it, and a class's key's facts (B4): what Python asks beside the generic library. */
-export { classDuplicate, pageModelNames };
+/** The page's model as DataCube names it, a class's key's facts (B4), and the model a page keeps for the cubes it still
+ *  holds: what Python asks beside the generic library. */
+export { classDuplicate, pageModelKept, pageModelNames };
 
 /** What DataCube's code runs on in this host: its planner's worker, and the database. */
 export interface Headless {

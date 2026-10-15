@@ -4,6 +4,10 @@
 // opens as a grid with the rows it ran to in Query.
 //
 // A test (//site:verify_test) on the Chromium Bazel fetched; `bazel run //site:verify` runs the same by hand.
+//
+// Served as GitHub Pages serves it (.github/workflows/pages.yml): under the repository's name, /legend-lite/, with
+// nothing a static host does not do -- a folder's index.html, no redirect, nothing outside the site -- so a link or a
+// fetch by an absolute path, or one only a server would rewrite, fails here first.
 
 // first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
 import { hermetic } from '../tools/browser/pinned-chromium.mjs';
@@ -20,6 +24,8 @@ const { chromium } = createRequire(fileURLToPath(new URL('../datacube/node_modul
 hermetic(chromium);
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), 'dist');
+/** Where the site is served: GitHub Pages serves a project's site under its name. */
+const BASE = '/legend-lite/';
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm',
   '.pure': 'text/plain', '.sql': 'text/plain', '.json': 'application/json', '.woff2': 'font/woff2',
@@ -36,9 +42,11 @@ const server = createServer(async (req, res) => {
     return;
   }
   const base = pathToFileURL(ROOT.endsWith(sep) ? ROOT : `${ROOT}${sep}`);
-  const file = new URL(`.${pathname}`, base);
+  // the site's own path, a folder its index.html; anything else is not this site's (a static host serves nothing more)
+  const within = pathname.startsWith(BASE) ? pathname.slice(BASE.length) : null;
+  const file = new URL(`./${within ?? ''}${within?.endsWith('/') || within === '' ? 'index.html' : ''}`, base);
   try {
-    if (!file.href.startsWith(base.href)) throw new Error('outside');
+    if (within === null || !file.href.startsWith(base.href)) throw new Error('outside');
     const path = fileURLToPath(file);
     if (!(await stat(path)).isFile()) throw new Error('not a file');
     res.writeHead(200, { 'Content-Type': TYPES[extname(path)] ?? 'application/octet-stream' });
@@ -49,6 +57,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const ORIGIN = `http://127.0.0.1:${server.address().port}`;
+const SITE = `${ORIGIN}${BASE.slice(0, -1)}`;
 
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
@@ -58,10 +67,23 @@ const name = `Shared sells ${Date.now().toString(36)}`;
 const enc = encodeURIComponent;
 
 try {
+  // ---- the site's front page, as Pages serves it: each app's link opens that app's page
+  const front = await context.newPage();
+  front.on('pageerror', (e) => errors.push(`front page: ${e.message}`));
+  await front.goto(`${SITE}/`);
+  const links = await front.$$eval('a.app', (as) => as.map((a) => a.href));
+  if (links.length !== 3) throw new Error(`the front page links ${links.length} apps, not 3`);
+  for (const link of links) {
+    const page = await front.request.get(link, { maxRedirects: 0 });
+    if (!page.ok() || !/^text\/html/.test(page.headers()['content-type'] ?? '')) throw new Error(`the front page's ${link} answers ${page.status()}`);
+  }
+  await front.close();
+  console.log(`front page: ${links.length} apps, each link a page under ${BASE}`);
+
   // ---- DataCube first, same origin: its Saved queries open, BEFORE Query saves anything
   const cube = await context.newPage();
   cube.on('pageerror', (e) => errors.push(`datacube: ${e.message}`));
-  await cube.goto(`${ORIGIN}/datacube/demo/index.html`);
+  await cube.goto(`${SITE}/datacube/demo/index.html`);
   await cube.waitForSelector('.dc-row', { timeout: 120_000 });
   await cube.click('.dc-titlebar-menu');
   await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
@@ -72,7 +94,7 @@ try {
   // ---- then Legend Query, in this browser: build Trade Id, Side, Quantity where Side = SELL; save it
   const query = await context.newPage();
   query.on('pageerror', (e) => errors.push(`query: ${e.message}`));
-  await query.goto(`${ORIGIN}/query/demo/index.html#/extensions/dataspace/${enc('demo:trading:0.0.0')}/${enc('demo::trading::TradingDataSpace')}?class=${enc('demo::trading::Trade')}`);
+  await query.goto(`${SITE}/query/demo/index.html#/extensions/dataspace/${enc('demo:trading:0.0.0')}/${enc('demo::trading::TradingDataSpace')}?class=${enc('demo::trading::Trade')}`);
   await query.waitForSelector('.q-node', { timeout: 90_000 });
   for (const p of ['Trade Id', 'Side', 'Quantity']) await query.dblclick(`.q-node:has-text('${p}')`);
   await query.click(".q-node:has-text('Side')", { button: 'right' });
@@ -130,7 +152,7 @@ try {
     await theirs.waitForFunction(() => location.hash.startsWith('#/edit/'), undefined, { timeout: 30_000 });
     console.log(`share link (${link.length} characters): opened unsaved in another browser, ran to ${theirRows} rows, saved as their own`);
     // in DataCube: the same link's query as the cube's source
-    const cubeLink = `${ORIGIN}/datacube/demo/index.html#${link.slice(link.indexOf('#/shared/') + '#/shared/'.length)}`;
+    const cubeLink = `${SITE}/datacube/demo/index.html#${link.slice(link.indexOf('#/shared/') + '#/shared/'.length)}`;
     const theirCube = await other.newPage();
     theirCube.on('pageerror', (e) => errors.push(`datacube (shared): ${e.message}`));
     await theirCube.goto(cubeLink);
@@ -198,7 +220,7 @@ try {
     if (!/runs the saved query/.test((await viaCube.textContent('.dc-save')) ?? '')) throw new Error('the Save window does not say the query runs again');
     await viaCube.click('.dc-save .dc-primary');
     await viaCube.locator('.dc-save').waitFor({ state: 'detached', timeout: 15_000 });
-    await viaCube.goto(`${ORIGIN}/datacube/demo/index.html`);
+    await viaCube.goto(`${SITE}/datacube/demo/index.html`);
     await viaCube.waitForSelector('.dc-row', { timeout: 120_000 });
     await viaCube.click('.dc-titlebar-menu');
     await menuOf(viaCube, 'Open\u2026');
@@ -224,7 +246,7 @@ try {
       const rows = [...document.querySelectorAll('.dc-row')].map((x) => x.textContent ?? '');
       return rows.length === 3 && ['BUY', 'HOLD', 'SELL'].every((s) => rows.some((t) => t.includes(s)));
     }, undefined, { timeout: 60_000 });
-    await r.goto(`${ORIGIN}/datacube/demo/index.html`);
+    await r.goto(`${SITE}/datacube/demo/index.html`);
     await r.waitForSelector('.dc-row', { timeout: 120_000 });
     await menuOf('New', 'Blank Page');
     await r.click('.dc-blank .dc-primary');
@@ -281,7 +303,7 @@ try {
   // Studio on the same origin: the projects it publishes are kept in this origin's store (sdlc-client's
   // legend-projects in IndexedDB), so they are there again after the page is opened afresh
   const studio = await context.newPage();
-  await studio.goto(`${ORIGIN}/studio/demo/index.html`);
+  await studio.goto(`${SITE}/studio/demo/index.html`);
   await studio.getByText('Welcome to Legend Studio').waitFor({ timeout: 60_000 });
   await studio.getByTestId('load-demo').click();
   await studio.waitForFunction(() => /Demo projects published/.test(document.querySelector('[data-testid=demo-status]')?.textContent ?? ''), undefined, { timeout: 180_000 });
@@ -295,7 +317,7 @@ try {
   // Query lists what Studio published without loading it; opening party at HEAD from the start page puts its classes
   // in the Classes section
   const start = await context.newPage();
-  await start.goto(`${ORIGIN}/query/demo/index.html#/setup`);
+  await start.goto(`${SITE}/query/demo/index.html#/setup`);
   const partyCard = start.locator('button[data-project="org.finos.lite.demo:party"]');
   await partyCard.waitFor({ timeout: 120_000 });
   await partyCard.click();
@@ -308,7 +330,7 @@ try {
   // master-SNAPSHOT), with its dependency on types, and runs a query on it -- the rows of its own Data element (plan A2)
   const byName = await context.newPage();
   const partyGav = enc('org.finos.lite.demo:party:master-SNAPSHOT');
-  await byName.goto(`${ORIGIN}/query/demo/index.html#/create/manual/${partyGav}/${enc('demo::party::PartyMapping')}/${enc('demo::party::Runtime')}?class=${enc('demo::party::Party')}`);
+  await byName.goto(`${SITE}/query/demo/index.html#/create/manual/${partyGav}/${enc('demo::party::PartyMapping')}/${enc('demo::party::Runtime')}?class=${enc('demo::party::Party')}`);
   await byName.waitForSelector('.q-node', { timeout: 120_000 });
   for (const p of ['Name', 'Country']) await byName.dblclick(`.q-node:has-text('${p}')`);
   await byName.click('button.q-run');
@@ -359,7 +381,7 @@ try {
   // DataCube opens that saved query: its project is not in DataCube's config.json, so it opens party 1.0.0 by name
   // from the same Depot, seeds the party rows, and shows them as a grid
   const cubeByName = await context.newPage();
-  await cubeByName.goto(`${ORIGIN}/datacube/demo/index.html`);
+  await cubeByName.goto(`${SITE}/datacube/demo/index.html`);
   await cubeByName.waitForSelector('.dc-row', { timeout: 120_000 });
   await cubeByName.click('.dc-titlebar-menu');
   await cubeByName.locator('.dc-menu .dc-menu-item', { has: cubeByName.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
@@ -387,7 +409,7 @@ try {
   maker.on('pageerror', (e) => errors.push(`datacube (class): ${e.message}`));
   maker.on('dialog', async (d) => { errors.push(`datacube (class) ${d.type()}: ${d.message()}`); await d.dismiss(); });
   const entry = (label) => maker.locator('.dc-menu .dc-menu-item', { has: maker.locator(`:scope > .dc-menu-label:text-is(${JSON.stringify(label)})`) }).first();
-  await maker.goto(`${ORIGIN}/datacube/demo/index.html`);
+  await maker.goto(`${SITE}/datacube/demo/index.html`);
   await maker.waitForSelector('.dc-row', { timeout: 120_000 });
   await maker.click('.dc-titlebar-menu');
   await entry('New').hover();
@@ -423,7 +445,7 @@ try {
 
   const reader = await context.newPage();
   reader.on('pageerror', (e) => errors.push(`query (class): ${e.message}`));
-  await reader.goto(`${ORIGIN}/query/demo/index.html#/create/manual/${enc('datacube:fills:master-SNAPSHOT')}/${enc('fills::mapping::Model')}`
+  await reader.goto(`${SITE}/query/demo/index.html#/create/manual/${enc('datacube:fills:master-SNAPSHOT')}/${enc('fills::mapping::Model')}`
     + `/${enc('fills::runtime::Browser')}?class=${enc('fills::domain::Fill')}`);
   await reader.waitForSelector('.q-node', { timeout: 120_000 });
   for (const p of ['Fill Id', 'Desk', 'Qty']) await reader.dblclick(`.q-node:has-text('${p}')`);

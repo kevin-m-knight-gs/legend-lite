@@ -22,6 +22,7 @@ import { PageApp, type GridMaker } from '../page/page-app.ts';
 import {
   pageContent,
   pageDefinitionText,
+  pageToJson,
   readSaved,
   oneSheet,
   PAGE_VERSION,
@@ -33,6 +34,7 @@ import { classLambda, duplicateLambda, sampleLambda, storeTableOf } from '../que
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
+import { EXAMPLE_PAGES } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
@@ -810,7 +812,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         head.append(titles, close);
         const body = document.createElement('div');
         body.className = 'dc-open-body';
-        body.append(windows.library);
+        body.append(windows.library, examplesList());
         win.append(head, body);
         backdrop.append(win);
         o.windows.append(backdrop);
@@ -831,6 +833,47 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       void library?.refresh();
       (document.querySelector('#cubelib .dc-lib-search') as HTMLElement | null)?.focus();
     };
+    /**
+     * THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3), under the saved ones: each built when it is
+     * picked (its own chunk) and opened as a saved page is, over a sample made here -- nothing saved until it is.
+     */
+    const examplesList = (): HTMLElement => {
+      const box = document.createElement('section');
+      box.className = 'dc-open-examples';
+      box.setAttribute('aria-label', 'Examples');
+      const heading = document.createElement('h3');
+      heading.className = 'dc-open-examples-title';
+      heading.textContent = 'Examples';
+      box.append(heading);
+      for (const example of EXAMPLE_PAGES) {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'dc-open-example';
+        item.dataset['example'] = example.id;
+        const name = document.createElement('span');
+        name.className = 'dc-open-example-name';
+        name.textContent = example.label;
+        const about = document.createElement('span');
+        about.className = 'dc-open-example-about';
+        about.textContent = example.about;
+        item.append(name, about);
+        item.addEventListener('click', () => {
+          item.disabled = true;
+          void (async () => {
+            try {
+              await openSaved(readSaved(pageToJson(await example.build())), undefined);
+            } catch (e) {
+              library?.say(`Could not open the example: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+            } finally {
+              item.disabled = false;
+            }
+          })();
+        });
+        box.append(item);
+      }
+      return box;
+    };
+
     // THE MENU'S SAVE AND SAVE AS: a window of their own (src/ui/save-dialog.ts) -- the name, where
     // it is kept, what is saved and what is not (the rows), and what saving over would drop
     /** What each grid's source needs to be read again, in words, once per kind of source on the page. */

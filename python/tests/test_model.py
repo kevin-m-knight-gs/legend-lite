@@ -282,6 +282,20 @@ class OnThePage(unittest.TestCase):
         self.assertTrue(space.endswith('TradesByDesk'), space)
         self.assertIn('DataSpace', '\n'.join(self.files(page.model).values()))
 
+    def test_a_grid_removed_after_its_class_takes_its_model_with_it(self):
+        """A grid made a class, then removed: its table's name and its class leave the page's model with it, as DataCube
+        writes a page (page-document.ts keptFor, asked headless) -- DataCube's reader refuses a page whose model keeps a
+        name for a cube it no longer holds, so the page would never open again."""
+        page = _page(self)
+        trades, desks = page.grids
+        gone, kept = trades._view['cube'], desks._view['cube']
+        trades.create_class('Trade')
+        desks.create_class(columns={'desk': 'key'})
+        self.assertEqual(set(page.model['tables']), {gone, kept})
+        page.remove(trades)
+        self.assertEqual(set(page.model['tables']), {kept})
+        self.assertEqual(set(page.model['classes']), {kept})
+
     def test_the_project_made_is_named_as_asked(self):
         page = _page(self)
         page.grids[0].create_class('Trade', project='Desk book')

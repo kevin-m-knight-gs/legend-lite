@@ -40,16 +40,19 @@ async function ownExtensions(engine: DuckDbEngine, planner: HostOperationsSource
 }
 
 /**
- * `vendor`: the URL of the folder holding duckdb-{mvp,eh}.wasm and their workers. `planner`: what sets up each
+ * `vendor`: the URL of the folder holding duckdb-eh.wasm and its worker. `planner`: what sets up each
  * connection before it is handed out -- the extension folder, then the session (WasmGrammar's sessionSetup).
  */
 export async function startDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Promise<DuckDbInTab> {
   // absolute URLs: the worker resolves its module against its own location, not the page's
   const asset = (f: string): string => new URL(f, new URL(vendor, globalThis.location.href)).href;
-  const bundle = await duckdb.selectBundle({
-    mvp: { mainModule: asset('duckdb-mvp.wasm'), mainWorker: asset('duckdb-browser-mvp.worker.js') },
-    eh: { mainModule: asset('duckdb-eh.wasm'), mainWorker: asset('duckdb-browser-eh.worker.js') },
-  });
+  // ONE BUILD, DuckDB's with WebAssembly exception handling (eh): every browser the apps support has had it since
+  // 2021-22, and the build without it (mvp) doubled what a site ships. A browser without it is refused by name, never
+  // handed a build it cannot run
+  if (!(await duckdb.getPlatformFeatures()).wasmExceptions) {
+    throw new Error('This browser cannot run DuckDB in the page: it lacks WebAssembly exception handling. Use a current Chrome, Edge, Firefox or Safari.');
+  }
+  const bundle = { mainModule: asset('duckdb-eh.wasm'), mainWorker: asset('duckdb-browser-eh.worker.js'), pthreadWorker: null };
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), new Worker(bundle.mainWorker!));
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's

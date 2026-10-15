@@ -1,6 +1,7 @@
 {
+  "vendor": "./vendor/",
   "execution": { "kind": "server", "engine": "http://localhost:8090/api" },
-  "planner": { "worker": "./planner-worker.js", "vendor": "./vendor/" },
+  "planner": { "worker": "./planner-worker.js" },
   "projects": [
     {
       "groupId": "demo",

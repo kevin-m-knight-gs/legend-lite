@@ -77,9 +77,10 @@ filegroup(
     visibility = ["//tools/guards:__pkg__"],
 )
 
-# The site: every app from one origin, as a folder for any static host. Packaging, not a compile: it copies what the
-# tiers above built, plus two DataCube bundles //:web does not name yet (remote_bundle and stress, its harnesses'
-# fixtures; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D5).
+# The site: every app from one origin, as a folder for any static host (GitHub Pages: .github/workflows/pages.yml).
+# Packaging, not a compile: it copies what the tiers above built, leaving out what needs a server or is a test's -- the
+# engine page, the notebook's cube, and the two DataCube bundles //:web does not name (remote_bundle and stress, its
+# harnesses' fixtures; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D5): site/make-dist.mjs.
 filegroup(
     name = "sites",
     srcs = ["//site:dist"],

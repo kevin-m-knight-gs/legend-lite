@@ -40,7 +40,10 @@ import type {
   SortDirection,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
-import { isJsonValue, isRelativeDate } from '../snapshot.ts';
+import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
+import { SHOW_AS_KINDS, TIME_GRAINS, type ShowAsKind, type TimeGrain } from '../chart-spec.ts';
+import { isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
+import { isJsonValue, isRelativeDate, rowColumns } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 import { takesOperator } from '../offers.ts';
 
@@ -232,6 +235,11 @@ export type MenuActionId =
   // Upstream's Extended Columns submenu.
   | 'calc.add'
   | 'calc.extend'
+  // the chart's presets, in the grid (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2): a date's period, a number's
+  // bins, a measure shown as something computed from it
+  | 'calc.grain'
+  | 'calc.bins'
+  | 'calc.showAs'
   | 'calc.edit'
   | 'calc.delete'
   // The chrome, toggled from the title bar's menu. Not a snapshot
@@ -293,6 +301,10 @@ export interface MenuItem {
     readonly selected?: readonly MemberPath[];
   };
   readonly submenu?: readonly MenuItem[];
+  /** A preset's choice: the period a date is taken to (`calc.grain`). */
+  readonly grain?: TimeGrain;
+  /** A preset's choice: what a measure is shown as (`calc.showAs`). */
+  readonly showAs?: ShowAsKind;
   /** A line above it: what follows is apart from what precedes (New ▸ Blank Page, which replaces everything). */
   readonly separated?: boolean;
 }
@@ -402,6 +414,31 @@ export function emailItems(canEmail: boolean): MenuItem[] {
     { id: 'email.pdf', label: 'PDF' },
   ];
   return items.map((i) => ({ ...i, ...(canEmail ? {} : { disabled: true }) }));
+}
+
+/**
+ * The presets for the column under the pointer (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2), as the chart offers
+ * them: a source date by its period, a source number by its bins (the column editor, seeded: the width is the
+ * person's), and -- the rows grouped, nothing pivoted -- a measure shown as a running total, a share, a change, a
+ * moving average or a rank. Each adds ordinary calculated columns, edited afterwards as any other.
+ */
+function presetItems(ctx: MenuContext, column: string | undefined, named: string): MenuItem[] {
+  if (column === undefined) return [];
+  const s = ctx.snapshot;
+  const type = rowColumns(s).find((c) => c.name === column)?.type;
+  const out: MenuItem[] = [];
+  if (ctx.extendable && isTemporal(type)) {
+    out.push({ label: `${named} by Period`, submenu: TIME_GRAINS.map((g) => ({
+      id: 'calc.grain' as const, label: GRAIN_LABELS[g], column, grain: g,
+    })) });
+  }
+  if (ctx.extendable && isNumeric(type)) out.push({ id: 'calc.bins', label: `Bins of ${named}...`, column });
+  if (ctx.isMeasure && ctx.pivotBase === undefined && s.rows.length > 0 && s.pivotOn.length === 0) {
+    out.push({ label: `Show ${named} As`, submenu: SHOW_AS_KINDS.map((k) => ({
+      id: 'calc.showAs' as const, label: SHOW_AS_LABELS[k], column, showAs: k,
+    })) });
+  }
+  return out;
 }
 
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
@@ -605,6 +642,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           ? [{ id: 'calc.extend' as const, label: `Extend Column ${named}...`,
             column }]
           : []),
+        ...presetItems(ctx, column, named),
         ...(column !== undefined && ctx.calcStage !== undefined
           ? [
             { id: 'calc.edit' as const, label: `Edit Column ${named}...`,

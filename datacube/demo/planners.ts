@@ -32,7 +32,10 @@ export async function plannerFor(plane: PlaneWord, model: string): Promise<Engin
 
 /** The planner in this tab: legend-lite's compiler as WebAssembly, off the main thread. */
 async function inTab(model: string): Promise<Engine> {
+  // the compiler's module from the page's vendor folder (page-config.ts): beside the page, or the site's one copy
+  const { vendor } = await pageConfig();
   const planner = new LitePlanner({
+    assetBaseUrl: vendor,
     model,
     runtime: RUNTIME,
     // Off the main thread: building the boot layer is ~600ms of synchronous WebAssembly, which on
@@ -72,7 +75,7 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
   const planner = new UpstreamPlanner({ baseUrl: url, model, runtime: RUNTIME });
   // legend-lite's module beside the server's planner, nothing loaded until first asked: it writes a table's model, and a
   // saved query's project's test data as the server's statements
-  const writer = new LitePlanner({ model: '', runtime: RUNTIME, workerUrl: WORKER() });
+  const writer = new LitePlanner({ model: '', runtime: RUNTIME, workerUrl: WORKER(), assetBaseUrl: config.vendor });
   return {
     planner,
     source: SOURCE,
