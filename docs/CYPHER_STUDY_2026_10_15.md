@@ -981,7 +981,7 @@ DataSpace demo::MovieSpace
 {
   executionContexts: [ { name: 'default'; mapping: demo::Map; defaultRuntime: demo::RT; } ];
   defaultExecutionContext: 'default';
-  elements: [ demo::* ];
+  elements: [ demo ];
 }
 ```
 
@@ -994,7 +994,7 @@ needs on the product lane).
 | Cypher | What it reads | The Pure the island builds |
 |---|---|---|
 | `USE demo::MovieSpace MATCH (p:Person)-[:firm]->(f:Firm) RETURN p.name, f.legalName` | the association's end `Person.firm`; `USE` picks the data space | `Person.all()->filter(p\|$p.firm->isNotEmpty())->project(~[name: p\|$p.name, legalName: p\|$p.firm.legalName])` |
-| `MATCH (f:Firm)-[:employees]->(p:Person) RETURN f.legalName, count(p) AS headcount` | the other end, opposite direction, grouped | `Firm.all()->project(~[legalName: f\|$f.legalName, p: f\|$f.employees])->groupBy(~[legalName], ~[headcount: r\|$r.p: y\|$y->count()])` |
+| `MATCH (f:Firm)-[:employees]->(p:Person) RETURN f.legalName, count(p) AS headcount` | the other end, opposite direction, grouped: one row per firm with at least one employee | `Firm.all()->filter(f\|$f.employees->isNotEmpty())->project(~[legalName: f\|$f.legalName, headcount: f\|$f.employees->size()])` |
 | `MATCH (p:Person)-[:Employment]-(f:Firm) RETURN p.name, f.legalName` | the association by name, either direction | the union of the two |
 | `MATCH (m:Movie)-[:studio]->(f:Firm) RETURN m.title, f.legalName` | the property; owner to target | `Movie.all()->filter(...)->project(...)` |
 | `MATCH (f:Firm)<-[:studio]-(m:Movie) RETURN f.legalName, m.title` | the same rows from the firm's side | the same Pure |
@@ -1008,7 +1008,7 @@ needs on the product lane).
 |---|---|---|
 | `MATCH (a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN a.name, a.stageName, r.role, m.title` | the edge class, from `actor` to `movie`; the `Actor` label is the filtered set | `Acting.all()->project(~[name: x\|$x.actor.name, stageName: x\|$x.actor.stageName, role: x\|$x.role, title: x\|$x.movie.title])` |
 | `MATCH (m:Movie)<-[r:ACTED_IN]-(a) WHERE r.role = 'Neo' RETURN type(r), properties(r), startNode(r).name` | the same rows from the movie's side | `type(r)` is `RelationshipType.ACTED_IN`, written `'ACTED_IN'`; `properties(r)` the Variant `{role: 'Neo'}`; `startNode(r)` the actor |
-| `MATCH (d:Person)-[:DIRECTED]->(m:Movie) RETURN d.name, collect(m.title) AS titles` | the edge whose ends come through the associations; a list aggregate | `Directing.all()->groupBy(~[name: x\|$x.director.name], ~[titles: x\|$x.movie.title: y\|$y->list()])` |
+| `MATCH (d:Person)-[:DIRECTED]->(m:Movie) RETURN d.name, collect(m.title) AS titles` | the edge whose ends come through the associations; a list-valued aggregate | `Directing.all()->groupBy(~[name: x\|$x.director.name], ~[titles: x\|$x.movie.title: y\|<the list aggregate>])`: the registry has no `list` native today, so the aggregate's Pure spelling is PR2's to settle (it lowers to the `LIST` reducer the MIR already has) |
 | `MATCH (a:Person)-[k:KNOWS]->(b:Person) RETURN a.name, b.name, k.since` | self-typed: `knower` to `known`, from the model, since the labels cannot tell | `Knows.all()->project(~[a: x\|$x.knower.name, b: x\|$x.known.name, since: x\|$x.since])` |
 | `MATCH (a:Person)<-[k:KNOWS]-(b:Person) RETURN a.name, b.name` | reversed: `a` is the known | the same rows with the columns swapped |
 | `MATCH (a:Person)-[k:KNOWS]-(b:Person) RETURN a.name, b.name` | undirected: both orientations, each relationship once | the union of the two orientations |
