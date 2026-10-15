@@ -330,8 +330,8 @@ class OnThePage(unittest.TestCase):
 
         grid = ll.Page('Planned').grid(pa.table({'desk': ['FX', 'EQ'], 'qty': [1, 2]}), name='planned')
         frames = grid._headless()[1]
+        self.addCleanup(setattr, frames, 'planner', frames.planner)
         frames.planner = Server()
-        self.addCleanup(setattr, frames, 'planner', None)
         cls, asked = grid._class()
         self.assertEqual(len(planned), 1, planned)
         self.assertEqual(cls['where']['samples'][asked['table']['table']],

@@ -28,6 +28,7 @@ import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
 import { typeColumns } from '../plan.ts';
+import { PlanError } from '../planner.ts';
 import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import { sampleRows } from '../sample-rows.ts';
@@ -179,14 +180,15 @@ export async function gridCalculate(spec: GridSpec, name: string, expression: st
     try {
       lambda = await planner.parse(expression);
     } catch (e) {
-      // the parse refused (the editor's #parsed): its message is the compiler's
-      return JSON.stringify({ problems: [e instanceof Error ? e.message : String(e)] });
+      // the parse refused (the editor's #parsed): its message is the compiler's. Only the planner's refusal: a planner
+      // that cannot answer (PlannerUnavailableError), or any other failure, is no mistake of the expression's
+      if (!(e instanceof PlanError)) throw e;
+      return JSON.stringify({ problems: [e.message] });
     }
     const column: DerivedColumn = { name: name.trim(), lambda, ...(kind !== null ? { kind } : {}) };
     const typed = await typedColumns(planner, state.snapshot);
     const snapshot: CubeSnapshot = { ...typed, derived: [...typed.derived, column] };
     const outcome = await compiled(planner, { snapshot, tree: state.tree });
-    if (outcome === undefined) throw new Error('the host cannot compile a cube without running it');
     if (outcome.refusal !== null) return JSON.stringify({ problems: [outcome.refusal] });
     return JSON.stringify({ derived: toJson(column) });
   });

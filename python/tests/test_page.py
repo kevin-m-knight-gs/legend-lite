@@ -248,6 +248,33 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'no sheet has a place for'):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'tile': grid.id}}]})
 
+    def test_a_sheet_gone_is_refused_its_layout_and_an_empty_one_laid_out_in_no_bands_is_as_it_was(self):
+        # (the audit of neema2/legend-lite#47) an empty sheet laid out in no bands is as it is -- no shape names no
+        # bands -- and a sheet no longer on its page is refused, layout_from too, as every sheet call refuses one
+        page, grid, chart = self.built()
+        empty = page.sheet('Empty')
+        self.assertIs(empty.layout(), empty)
+        self.assertEqual(self.bands(empty), [])
+        # taken out as reading the open page takes out a sheet closed there (Page.read: the document, then its handles)
+        page._doc['sheets'] = [s for s in page._doc['sheets'] if s['id'] != empty.id]
+        page._forget({empty.id})
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            empty.layout_from({'kind': 'bands', 'fit': True, 'bands': []})
+
+    def test_a_grid_beside_others_is_capped_as_datacube_caps_a_source_added_beside_others(self):
+        # the one rule item 2 leaves Python: the page's first grid is not capped, one beside it is (gridCube's capped)
+        page, grid, chart = self.built()
+        other = page.grid(desks(), name='desks')
+        cubes = {c['id']: c['cube'] for c in page.to_dict()['cubes']}
+        self.assertNotIn('maxRows', cubes[grid._view['cube']]['configuration'])
+        self.assertIsInstance(cubes[other._view['cube']]['configuration']['maxRows'], int)
+
+    def test_an_empty_list_of_conditions_is_no_filter(self):
+        # the filter editor's normal form: an empty group is none, so [] takes the filter off, as None does
+        page, grid, chart = self.built()
+        grid.filter([])
+        self.assertNotIn('filter', page.to_dict()['cubes'][0]['cube']['query'])
+
     def test_sheets_layouts_and_stacks(self):
         page, grid, chart = self.built()
         other = page.grid(desks(), name='desks')

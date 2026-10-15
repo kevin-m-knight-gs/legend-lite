@@ -62,12 +62,18 @@ export function operandKind(op: FilterOperator): OperandKind {
   return OPERAND_BY_OP[op];
 }
 
-
+/**
+ * The operators a column of this type accepts, in the table's order: the compiler's
+ * answer (`takesOperator`, src/offers.ts). "Starts with" on a number or "<" on a JSON
+ * document is refused by the compiler, and offering it is how a user builds a filter the
+ * engine refuses.
+ */
 export function operatorsFor(type: string | undefined): FilterOperator[] {
   if (type === undefined) return OPERATORS.map((o) => o.op);
   return OPERATORS.filter((o) => takesOperator(o.op, type)).map((o) => o.op);
 }
 
+/** Whether a column of this type takes the operator (operatorsFor's answer for one operator; an untyped column, any). */
 export function isCompatible(op: FilterOperator, type: string | undefined): boolean {
   return type === undefined || takesOperator(op, type);
 }

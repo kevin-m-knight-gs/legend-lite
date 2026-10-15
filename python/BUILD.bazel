@@ -95,7 +95,7 @@ py_library(
     ],
 )
 
-# DataCube's vocabularies as Python copies them -- page.py's (its filter operators, aggregates, charts, the page's
+# DataCube's vocabularies as Python copies them -- page.py's (its aggregates, sort directions, charts, the page's
 # version) and the engine's (the planner kinds a page sends it, engine.py and _planner.py) -- read by DataCube's own
 # test against DataCube's sources (//datacube:python_vocabulary_test)
 # (rules_js takes another package's source file only from the output tree, copied in its own package)

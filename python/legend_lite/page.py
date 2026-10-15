@@ -23,7 +23,7 @@ document (``read``), and the document's own words reach what no method names: ``
 ``options`` (a chart's), ``layout_from`` (a sheet's bands). Each grid's cube is over its frame by the frame's name
 (``{"_type": "frame"}``), served by this process's engine, as ``show(df)`` serves one. A tile is placed and taken off as
 DataCube's layout places it (datacube/src/layout/bands.ts): a grid in a band of its own at the bottom, a chart beside its
-grid (four to a band at most), a tile taken off leaving its neighbours closing over its place.
+grid (as many to a band as DataCube's layout takes), a tile taken off leaving its neighbours closing over its place.
 """
 
 from __future__ import annotations
@@ -421,7 +421,7 @@ class Grid(Tile):
         ``('and' | 'or', [...])`` or ``('not', ...)`` -- the filter editor's own conditions, set as it sets them
         (DataCube's code, headless: gridFilter): each operator's value as it takes one (none, one, a list, another
         column), one a column of its type is offered, the grid with it compiled, in the editor's normal form (a group of
-        one is that one); ``None`` for none."""
+        one is that one, an empty one none: ``[]`` takes the filter off, as ``None`` does); ``None`` for none."""
         if condition is not None:
             engine, frames = self._headless()
             with frames.serving():
@@ -745,6 +745,8 @@ class Sheet:
             chosen.append(row)
         if used != set(leaves):
             raise ValueError(f'every tile on the sheet is in the layout: {", ".join(sorted(set(leaves) - used))} not')
+        if not chosen:
+            return self  # a sheet with no tiles, laid out in no bands: as it is (no shape names no bands)
         # a band of each list's places side by side: DataCube's rows preset, the bands' counts and the places in order
         return self._arranged('rows:' + '-'.join(str(len(row)) for row in chosen),
                               [tile._id for band in bands for tile in band])
@@ -775,10 +777,11 @@ class Sheet:
         "node": ...}]}``, each node a ``{"tile": id}``, a ``{"stack": [ids]}`` or a ``{"split": "row" | "column",
         "parts": [{"node": ..., "size": share}]}`` -- as ``page.to_dict()`` shows a sheet's. Every tile on the sheet is in
         it once, and only they: the page with it is read as DataCube reads one, and refused in its words."""
+        _ = self._doc  # a sheet no longer on its page refused, as every sheet call refuses one
         page = self._page
         doc = _copied(page._doc)
         next(s for s in doc['sheets'] if s['id'] == self._id)['layout'] = _copied(layout)
-        page._doc = _read_page(doc)
+        page._doc = _read_page(doc, page._session)
         page._changed()
         return self
 
@@ -1091,13 +1094,14 @@ class Page:
     def to_dict(self) -> dict[str, Any]:
         """The page as DataCube's page document (version 4), a copy: what is done to it is not done to the page. A
         calculated column's numbers are exact (``Decimal``), as the compiler writes them: ``to_json`` and ``save`` write
-        them so."""
+        them so. It is the page's document as Python holds it; ``to_json`` and ``save`` write it as DataCube writes it
+        (its reader's, headless: a chart's options filled, a key DataCube does not know left out)."""
         return _copied(self._doc)
 
     def to_json(self, indent: int | None = 2) -> str:
         """The page document as JSON text, its numbers exact, as DataCube writes it (what ``save`` writes): refused in
         DataCube's words when DataCube would not open it (a page with no grid)."""
-        return _json.dumps(_read_page(self._doc), indent=indent)
+        return _json.dumps(_read_page(self._doc, self._session), indent=indent)
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
         """Saved. With no ``path``, as DataCube's Save keeps a page: into this user's saved pages (``ll.home()/pages``,
@@ -1115,7 +1119,7 @@ class Page:
         if named is None:
             raise ValueError('a saved page has a name')
         id = self._saved if self._saved is not None else str(uuid.uuid4())
-        record = _json.dumps({'id': id, 'name': named, 'content': _read_page(self._doc)}, indent=None)
+        record = _json.dumps({'id': id, 'name': named, 'content': _read_page(self._doc, self._session)}, indent=None)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
                         if self._saved is not None else (404, ''))
         if status == 404:
@@ -1135,7 +1139,10 @@ class Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
         cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (any version it
         reads, brought to its own; refused in its words when DataCube would not open it)."""
-        doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'))
+        from .datacube import _current
+        # read on the session the page will be made on (Page() takes the current one)
+        doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'),
+                         _current())
         wanted = sorted({c['cube']['source']['name'] for c in doc['cubes']})
         missing = [n for n in wanted if n not in frames]
         if missing:
@@ -1157,7 +1164,7 @@ class Page:
         keep it.)"""
         said = self._session.engine().read_page(self._key) if self._shown else None
         if said is not None:
-            doc = _read_page(said)
+            doc = _read_page(said, self._session)
             unserved = sorted({c['cube']['source']['name'] for c in doc['cubes']} - set(self._served()))
             if unserved:
                 raise ValueError(f'the open page reads the frames {", ".join(unserved)}, which this session does not serve')
@@ -1174,7 +1181,7 @@ class Page:
 
     def _showable(self) -> None:
         """Refused when it cannot be shown: a page DataCube would not open (one with no grid), in DataCube's words."""
-        _read_page(self._doc)
+        _read_page(self._doc, self._session)
 
     def _changed(self) -> None:
         """Something on the page changed: where it is shown, it is served again (and opened again there)."""
@@ -1297,13 +1304,12 @@ def _ids(doc: dict[str, Any]) -> set[str]:
     return {x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]}
 
 
-def _read_page(doc: Any) -> dict[str, Any]:
+def _read_page(doc: Any, session: Any) -> dict[str, Any]:
     """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
-    (page-document.ts readPage and pageToJson, asked headless): of any version DataCube reads, migrated to its own,
-    every rule of its reader held, and refused in its words otherwise -- Python keeps no second copy of them. Then what
-    a page in Python adds: each cube over a frame."""
-    from .datacube import _current
-    said = json.loads(_current().headless().call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
+    (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own): of any version
+    DataCube reads, migrated to its own, every rule of its reader held, and refused in its words otherwise -- Python
+    keeps no second copy of them. Then what a page in Python adds: each cube over a frame."""
+    said = json.loads(session.headless().call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
     if 'problems' in said:
         raise ValueError('; '.join(said['problems']))
     page: dict[str, Any] = _plain(_json.loads(said['page']))

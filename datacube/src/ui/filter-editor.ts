@@ -70,12 +70,6 @@ function hasTime(type: string | undefined): boolean {
 }
 
 /**
- * The operators a column of this type accepts, in the table's order: the compiler's
- * answer (`takesOperator`, src/offers.ts). "Starts with" on a number or "<" on a JSON
- * document is refused by the compiler, and offering it is how a user builds a filter the
- * engine refuses.
- */
-/**
  * Evaluate arithmetic typed into a number field -- upstream's number
  * editor evaluates `1e6 * 3` on Enter. Numbers (with exponents), the
  * four operators, unary minus and parentheses; anything else is NaN.

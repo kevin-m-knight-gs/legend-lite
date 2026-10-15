@@ -5,6 +5,12 @@
 // And what Python's engine answers a page with (python/legend_lite/engine.py, _planner.py): the planner protocol's own
 // lists and the tab's snap limit (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, items 10 and 8). It reads Python's side as
 // text (the two halves are in two languages), and DataCube's types as text, its values as they are.
+//
+// Pins retired, not loosened (2026-10-15, the twins program, PR neema2/legend-lite#47): each went with the Python copy
+// it held equal, which now asks DataCube's own code headless instead -- BAND_HEIGHT, MAX_COLUMNS and SCREEN_BANDS with
+// page.py's band editors (item 3, headless/layout.ts); CUBE_KIND and CUBE_VERSION with its cube writer (item 2,
+// gridCube); FILTER_OPERATORS with its filter rules (item 6, gridFilter). The page's own kind (PAGE_KIND) has no pin:
+// every page Python saves, writes or shows passes DataCube's reader (headless/page.ts), which refuses another kind.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';

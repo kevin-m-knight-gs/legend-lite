@@ -69,6 +69,13 @@ What is left, and why:
   `docs/SEMANTICS_REGISTER.md` S23) but is labelled `TinyInt` -- an Integer by the lattice -- in Python's rows
   (`frames.TYPE_KEY`, as `upstream.tds_columns` keeps the server's type). The rows are booleans either way; the label
   is put right when the server's plan is read where the page reads it.
+- **Items 5's and 6's checks on a server's plane** (the audit of the PR, 2026-10-15): `gridCalculate` and `gridFilter`
+  compile on the headless planner, legend-lite's, whatever planner the session chose (PARK-30,
+  `docs/PARKED_WORK_LEDGER.md`). That plane is not new -- `calculate` typed its column by legend-lite's compiler before
+  too (`Table.relation_type`, which no session planner reaches) -- but the check now compiles and lowers the whole cube
+  where it typed one column, so on a session planned by a server a column legend-lite does not lower (StrictTime,
+  below) is refused where that server's own DataCube editor takes it. It goes with PARK-30: headless planning on the
+  session's plane.
 - **Smaller, none checked mechanically:** `model.py` ↔ `model-changes/src` (five replayed cases), `warehouse.py` ↔
   `warehouse.ts` (the SQL API corpus), `_json.protocol` ↔ pure-protocol `toJson` (key order, float spelling),
   `frames._NAME` ↔ `model-names.ts isPureName`, `_next` ids ↔ `cube-page.ts`.
@@ -81,6 +88,12 @@ declared a measure is summed when the cube groups (`query.ts`'s grouped aggregat
 person adds and groups by is refused, `sum(Boolean)`. Python's columns are undeclared unless told (item 5), so its type
 decides, as for any column. Two fixes are possible: the editor's starting Level from `defaultKind` once the column is
 typed, or a non-numeric measure's default aggregate not `sum`; the DataCube + Python line decides.
+
+**A class's sample writes a NaN or an infinity as `null`** (found 2026-10-15, the audit of item 7): `sample-rows.ts
+sampleRows` keeps a double as the executor gives it, and the sample goes to the route as JSON, which has neither, so
+`JSON.stringify` writes `null` -- the window's Create a Class and, since item 7, Python's alike. Python's own writer
+refused them before. A silent `null` is a default (AGENTS.md invariant 4); refusing such a sample, or writing the
+value as text, is the DataCube + Python line's to choose.
 
 ## A finding for the compiler line
 
