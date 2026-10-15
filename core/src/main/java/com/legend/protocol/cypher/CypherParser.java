@@ -1,0 +1,775 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.protocol.cypher;
+
+import com.legend.protocol.cypher.CypherAst.BinaryOp;
+import com.legend.protocol.cypher.CypherAst.Clause;
+import com.legend.protocol.cypher.CypherAst.Direction;
+import com.legend.protocol.cypher.CypherAst.Expr;
+import com.legend.protocol.cypher.CypherAst.Item;
+import com.legend.protocol.cypher.CypherAst.NodePattern;
+import com.legend.protocol.cypher.CypherAst.PathPattern;
+import com.legend.protocol.cypher.CypherAst.PatternElement;
+import com.legend.protocol.cypher.CypherAst.RelPattern;
+import com.legend.protocol.cypher.CypherAst.SortItem;
+import com.legend.protocol.cypher.CypherAst.UnaryOp;
+import com.legend.protocol.cypher.CypherLexer.Token;
+import com.legend.protocol.cypher.CypherLexer.Type;
+import com.legend.protocol.sql.SqlAst.Pos;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Cypher's grammar, as Neo4j's manual for the pinned release spells it (docs/CYPHER_STUDY_2026_10_15.md §5.1), read
+ * by recursive descent with Pratt precedence for expressions. Every clause keyword is recognised: the ones the
+ * translator reads become their records, the others an {@link CypherAst.OtherClause} the translator refuses by name,
+ * so that a write or a procedure call is refused as what it is, never as a syntax error. The token cursor {@code at}
+ * is the SqlParser's shape, scoped to one parse ({@code CodeShapeGuardrailTest}).
+ *
+ * <p>Precedence, from loosest: {@code OR}, {@code XOR}, {@code AND}, {@code NOT}, the comparisons (chained:
+ * {@code a < b < c} is {@code a < b AND b < c}), the string, list and null predicates ({@code STARTS WITH},
+ * {@code ENDS WITH}, {@code CONTAINS}, {@code IN}, {@code =~}, {@code IS [NOT] NULL}), {@code + -}, {@code * / %},
+ * unary {@code + -}, {@code ^} (right-associative), then property access and calls.
+ */
+public final class CypherParser {
+
+    /** The keywords that open a clause; a {@code WITH}, {@code RETURN} or {@code MATCH} item list ends at one. */
+    private static final Set<String> CLAUSE_WORDS = Set.of("MATCH", "OPTIONAL", "WITH", "RETURN", "USE", "UNWIND",
+            "CREATE", "MERGE", "SET", "DELETE", "DETACH", "REMOVE", "CALL", "UNION", "FOREACH", "LOAD", "FILTER",
+            "LET", "NEXT", "FINISH", "SHOW", "INSERT", "WHERE", "ORDER", "SKIP", "LIMIT", "OFFSET");
+
+    /** The clause keywords the translator does not read yet, kept as {@link CypherAst.OtherClause}. */
+    private static final Set<String> OTHER_CLAUSE_WORDS = Set.of("UNWIND", "CREATE", "MERGE", "SET", "DELETE",
+            "DETACH", "REMOVE", "CALL", "UNION", "FOREACH", "LOAD", "FILTER", "LET", "NEXT", "FINISH", "SHOW",
+            "INSERT");
+
+    private static final Set<String> RESERVED = Set.of("AND", "OR", "XOR", "NOT", "IS", "NULL", "TRUE", "FALSE",
+            "IN", "STARTS", "ENDS", "CONTAINS", "AS", "ASC", "ASCENDING", "DESC", "DESCENDING", "DISTINCT", "CASE",
+            "WHEN", "THEN", "ELSE", "END", "CYPHER");
+
+    private final String src;
+    private final List<Token> tokens;
+    private int at;
+
+    private CypherParser(String src) {
+        this.src = src;
+        this.tokens = CypherLexer.tokenize(src);
+    }
+
+    /** The statement {@code text} is. */
+    public static CypherAst.Statement parse(String text) {
+        CypherParser p = new CypherParser(text);
+        CypherAst.Statement s = p.statement();
+        if (!p.peek().is(Type.EOF)) {
+            throw p.error("unexpected '" + p.peek().text() + "'");
+        }
+        return s;
+    }
+
+    // ------------------------------------------------------------------ tokens
+
+    private Token peek() {
+        return tokens.get(at);
+    }
+
+    private Token peek(int ahead) {
+        int i = Math.min(at + ahead, tokens.size() - 1);
+        return tokens.get(i);
+    }
+
+    private Token advance() {
+        Token t = tokens.get(at);
+        if (!t.is(Type.EOF)) {
+            at++;
+        }
+        return t;
+    }
+
+    private boolean atWord(String word) {
+        return peek().isWord(word);
+    }
+
+    private boolean matchWord(String word) {
+        if (atWord(word)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+
+    private Token expectWord(String word) {
+        if (!atWord(word)) {
+            throw error("expected " + word + " but found '" + peek().text() + "'");
+        }
+        return advance();
+    }
+
+    private boolean match(Type t) {
+        if (peek().is(t)) {
+            advance();
+            return true;
+        }
+        return false;
+    }
+
+    private Token expect(Type t, String what) {
+        if (!peek().is(t)) {
+            throw error("expected " + what + " but found '" + (peek().is(Type.EOF) ? "end of input"
+                    : peek().text()) + "'");
+        }
+        return advance();
+    }
+
+    private RuntimeException error(String message) {
+        return CypherErrors.syntax(message, peek().pos());
+    }
+
+    /** An identifier (a name, backticked or not), as written. */
+    private String identifier(String what) {
+        Token t = peek();
+        if (!t.is(Type.IDENT) || (!t.backticked() && RESERVED.contains(t.text().toUpperCase(java.util.Locale.ROOT)))) {
+            throw error("expected " + what + " but found '" + t.text() + "'");
+        }
+        advance();
+        return t.text();
+    }
+
+    private boolean atClauseWord() {
+        Token t = peek();
+        return t.is(Type.IDENT) && !t.backticked()
+                && CLAUSE_WORDS.contains(t.text().toUpperCase(java.util.Locale.ROOT));
+    }
+
+    // ------------------------------------------------------------------ statement and clauses
+
+    private CypherAst.Statement statement() {
+        Pos pos = peek().pos();
+        Integer version = null;
+        if (atWord("CYPHER")) {
+            Pos p = advance().pos();
+            if (peek().is(Type.INTEGER)) {
+                version = Integer.parseInt(advance().text());
+                if (version != 5 && version != 25) {
+                    throw CypherErrors.invalid("Cypher version " + version + " is not supported: 5 or 25", p);
+                }
+            }
+            // CYPHER runtime=parallel and the like: Neo4j's own options, which the island does not read
+            if (peek().is(Type.IDENT) && peek(1).is(Type.EQ)) {
+                throw CypherErrors.unsupported("a CYPHER option (" + peek().text() + "=...) is not supported", p);
+            }
+        }
+        List<Clause> clauses = new ArrayList<>();
+        while (!peek().is(Type.EOF)) {
+            if (match(Type.SEMI)) {
+                if (!peek().is(Type.EOF)) {
+                    throw error("one statement per island: unexpected '" + peek().text() + "' after ';'");
+                }
+                break;
+            }
+            clauses.add(clause());
+        }
+        if (clauses.isEmpty()) {
+            throw CypherErrors.syntax("an empty query", pos);
+        }
+        return new CypherAst.Statement(version, clauses, pos);
+    }
+
+    private Clause clause() {
+        Token t = peek();
+        Pos pos = t.pos();
+        if (atWord("USE")) {
+            advance();
+            return new CypherAst.Use(qualifiedPath(), pos);
+        }
+        if (atWord("OPTIONAL")) {
+            advance();
+            expectWord("MATCH");
+            return match(true, pos);
+        }
+        if (atWord("MATCH")) {
+            advance();
+            return match(false, pos);
+        }
+        if (atWord("WITH")) {
+            advance();
+            return with(pos);
+        }
+        if (atWord("RETURN")) {
+            advance();
+            return returnClause(pos);
+        }
+        if (t.is(Type.IDENT) && !t.backticked()
+                && OTHER_CLAUSE_WORDS.contains(t.text().toUpperCase(java.util.Locale.ROOT))) {
+            return otherClause(t);
+        }
+        throw error("expected a clause but found '" + t.text() + "'");
+    }
+
+    /** A path the query names as its graph: {@code demo::MovieSpace} or a backticked text. */
+    private String qualifiedPath() {
+        Token t = peek();
+        if (t.is(Type.IDENT) && t.backticked()) {
+            advance();
+            return t.text();
+        }
+        StringBuilder sb = new StringBuilder(identifier("a graph name"));
+        while (peek().is(Type.COLON) && peek(1).is(Type.COLON)) {
+            advance();
+            advance();
+            sb.append("::").append(identifier("a graph name"));
+        }
+        return sb.toString();
+    }
+
+    /** A clause the translator does not read: its keyword and its text up to the next clause at bracket depth 0. */
+    private Clause otherClause(Token keyword) {
+        String word = keyword.text().toUpperCase(java.util.Locale.ROOT);
+        int start = keyword.start();
+        advance();
+        if (word.equals("DETACH")) {
+            matchWord("DELETE");
+            word = "DETACH DELETE";
+        } else if (word.equals("LOAD")) {
+            matchWord("CSV");
+            word = "LOAD CSV";
+        } else if (word.equals("UNION")) {
+            matchWord("ALL");
+        }
+        int depth = 0;
+        int end = keyword.end();
+        while (!peek().is(Type.EOF)) {
+            Token t = peek();
+            if (depth == 0 && atClauseWord() && !t.isWord("WHERE") && !t.isWord("ORDER") && !t.isWord("SKIP")
+                    && !t.isWord("LIMIT") && !t.isWord("OFFSET")) {
+                break;
+            }
+            if (t.is(Type.LPAREN) || t.is(Type.LBRACKET) || t.is(Type.LBRACE)) {
+                depth++;
+            } else if (t.is(Type.RPAREN) || t.is(Type.RBRACKET) || t.is(Type.RBRACE)) {
+                depth--;
+            }
+            end = t.end();
+            advance();
+        }
+        return new CypherAst.OtherClause(word, src.substring(start, end), keyword.pos());
+    }
+
+    private CypherAst.Match match(boolean optional, Pos pos) {
+        List<PathPattern> patterns = new ArrayList<>();
+        patterns.add(pathPattern());
+        while (match(Type.COMMA)) {
+            patterns.add(pathPattern());
+        }
+        Expr where = null;
+        if (matchWord("WHERE")) {
+            where = expression();
+        }
+        return new CypherAst.Match(optional, patterns, where, pos);
+    }
+
+    private CypherAst.With with(Pos pos) {
+        boolean distinct = matchWord("DISTINCT");
+        List<Item> items = items();
+        List<SortItem> orderBy = orderBy();
+        Expr skip = matchWord("SKIP") || matchWord("OFFSET") ? expression() : null;
+        Expr limit = matchWord("LIMIT") ? expression() : null;
+        Expr where = matchWord("WHERE") ? expression() : null;
+        return new CypherAst.With(distinct, items, orderBy, skip, limit, where, pos);
+    }
+
+    private CypherAst.Return returnClause(Pos pos) {
+        boolean distinct = matchWord("DISTINCT");
+        List<Item> items = items();
+        List<SortItem> orderBy = orderBy();
+        Expr skip = matchWord("SKIP") || matchWord("OFFSET") ? expression() : null;
+        Expr limit = matchWord("LIMIT") ? expression() : null;
+        return new CypherAst.Return(distinct, items, orderBy, skip, limit, pos);
+    }
+
+    private List<Item> items() {
+        List<Item> items = new ArrayList<>();
+        do {
+            Token start = peek();
+            if (start.is(Type.STAR)) {
+                advance();
+                items.add(new Item(null, null, "*", start.pos()));
+                continue;
+            }
+            Expr e = expression();
+            int end = tokens.get(at - 1).end();
+            String alias = null;
+            if (matchWord("AS")) {
+                alias = identifier("an alias");
+            }
+            items.add(new Item(e, alias, src.substring(start.start(), end).trim(), start.pos()));
+        } while (match(Type.COMMA));
+        return items;
+    }
+
+    private List<SortItem> orderBy() {
+        List<SortItem> out = new ArrayList<>();
+        if (!matchWord("ORDER")) {
+            return out;
+        }
+        expectWord("BY");
+        do {
+            Pos pos = peek().pos();
+            Expr e = expression();
+            boolean descending = false;
+            if (matchWord("DESC") || matchWord("DESCENDING")) {
+                descending = true;
+            } else if (matchWord("ASC") || matchWord("ASCENDING")) {
+                descending = false;
+            }
+            out.add(new SortItem(e, descending, pos));
+        } while (match(Type.COMMA));
+        return out;
+    }
+
+    // ------------------------------------------------------------------ patterns
+
+    private PathPattern pathPattern() {
+        Pos pos = peek().pos();
+        String variable = null;
+        if (peek().is(Type.IDENT) && peek(1).is(Type.EQ)) {
+            variable = identifier("a path variable");
+            advance();
+        }
+        if (atWord("SHORTEST") || atWord("ANY") || atWord("ALL") || atWord("shortestPath")
+                || atWord("allShortestPaths")) {
+            throw CypherErrors.unsupported("a path selector (" + peek().text() + ") is not supported yet", pos);
+        }
+        List<PatternElement> elements = new ArrayList<>();
+        elements.add(nodePattern());
+        while (peek().is(Type.MINUS) || peek().is(Type.ARROW_LEFT)) {
+            elements.add(relPattern());
+            elements.add(nodePattern());
+        }
+        return new PathPattern(variable, elements, pos);
+    }
+
+    private NodePattern nodePattern() {
+        Pos pos = peek().pos();
+        expect(Type.LPAREN, "'('");
+        String variable = null;
+        if (peek().is(Type.IDENT) && !peek().isWord("WHERE")) {
+            variable = identifier("a node variable");
+        }
+        List<String> labels = new ArrayList<>();
+        while (match(Type.COLON)) {
+            labels.add(labelName());
+            if (peek().is(Type.PIPE) || (peek().is(Type.IDENT) && peek().text().equals("&"))) {
+                throw CypherErrors.unsupported("a label expression (|, &, !, %) is not supported yet", pos);
+            }
+        }
+        if (peek().is(Type.PERCENT)) {
+            throw CypherErrors.unsupported("a label expression (|, &, !, %) is not supported yet", pos);
+        }
+        Map<String, Expr> properties = peek().is(Type.LBRACE) ? mapLiteral().entries() : Map.of();
+        if (atWord("WHERE")) {
+            throw CypherErrors.unsupported("a WHERE inside a node pattern is not supported yet", pos);
+        }
+        expect(Type.RPAREN, "')'");
+        return new NodePattern(variable, labels, properties, pos);
+    }
+
+    private String labelName() {
+        Token t = peek();
+        if (t.is(Type.IDENT)) {
+            advance();
+            return t.text();
+        }
+        if (t.is(Type.LPAREN) || (t.is(Type.PARAM))) {
+            throw CypherErrors.unsupported("a dynamic label or type is not supported: the model is the schema",
+                    t.pos());
+        }
+        throw error("expected a label but found '" + t.text() + "'");
+    }
+
+    private RelPattern relPattern() {
+        Pos pos = peek().pos();
+        boolean left = match(Type.ARROW_LEFT);
+        if (!left) {
+            expect(Type.MINUS, "'-' or '<-'");
+        }
+        String variable = null;
+        List<String> types = new ArrayList<>();
+        Map<String, Expr> properties = Map.of();
+        CypherAst.LengthRange range = null;
+        if (match(Type.LBRACKET)) {
+            if (peek().is(Type.IDENT)) {
+                variable = identifier("a relationship variable");
+            }
+            if (match(Type.COLON)) {
+                types.add(labelName());
+                while (match(Type.PIPE)) {
+                    match(Type.COLON);
+                    types.add(labelName());
+                }
+            }
+            if (match(Type.STAR)) {
+                int lower = -1;
+                int upper = -1;
+                if (peek().is(Type.INTEGER)) {
+                    lower = Integer.parseInt(advance().text());
+                    upper = lower;
+                }
+                if (match(Type.DOTDOT)) {
+                    upper = peek().is(Type.INTEGER) ? Integer.parseInt(advance().text()) : -1;
+                } else if (lower >= 0) {
+                    upper = lower;
+                }
+                range = new CypherAst.LengthRange(lower, upper);
+            }
+            if (peek().is(Type.LBRACE)) {
+                properties = mapLiteral().entries();
+            }
+            if (atWord("WHERE")) {
+                throw CypherErrors.unsupported("a WHERE inside a relationship pattern is not supported yet", pos);
+            }
+            expect(Type.RBRACKET, "']'");
+        }
+        boolean right = match(Type.ARROW_RIGHT);
+        if (!right) {
+            expect(Type.MINUS, "'-' or '->'");
+        }
+        if (left && right) {
+            throw CypherErrors.syntax("a relationship pattern cannot point both ways", pos);
+        }
+        if (peek().is(Type.LBRACE)) {
+            throw CypherErrors.unsupported("a quantifier after a relationship pattern is not supported yet", pos);
+        }
+        Direction d = left ? Direction.IN : right ? Direction.OUT : Direction.BOTH;
+        return new RelPattern(variable, types, d, properties, range, pos);
+    }
+
+    // ------------------------------------------------------------------ expressions
+
+    private Expr expression() {
+        return or();
+    }
+
+    private Expr or() {
+        Expr e = xor();
+        while (atWord("OR")) {
+            Pos pos = advance().pos();
+            e = new CypherAst.Binary(BinaryOp.OR, e, xor(), pos);
+        }
+        return e;
+    }
+
+    private Expr xor() {
+        Expr e = and();
+        while (atWord("XOR")) {
+            Pos pos = advance().pos();
+            e = new CypherAst.Binary(BinaryOp.XOR, e, and(), pos);
+        }
+        return e;
+    }
+
+    private Expr and() {
+        Expr e = not();
+        while (atWord("AND")) {
+            Pos pos = advance().pos();
+            e = new CypherAst.Binary(BinaryOp.AND, e, not(), pos);
+        }
+        return e;
+    }
+
+    private Expr not() {
+        if (atWord("NOT")) {
+            Pos pos = advance().pos();
+            return new CypherAst.Unary(UnaryOp.NOT, not(), pos);
+        }
+        return comparison();
+    }
+
+    private Expr comparison() {
+        Expr left = predicate();
+        Expr chain = null;
+        while (true) {
+            BinaryOp op = comparisonOp();
+            if (op == null) {
+                return chain == null ? left : chain;
+            }
+            Pos pos = advance().pos();
+            Expr right = predicate();
+            Expr c = new CypherAst.Binary(op, left, right, pos);
+            // a < b < c is a < b AND b < c: Neo4j chains comparisons
+            chain = chain == null ? c : new CypherAst.Binary(BinaryOp.AND, chain, c, pos);
+            left = right;
+        }
+    }
+
+    private CypherAst.@com.legend.base.Nullable BinaryOp comparisonOp() {
+        return switch (peek().type()) {
+            case EQ -> BinaryOp.EQ;
+            case NE -> BinaryOp.NE;
+            case LT -> BinaryOp.LT;
+            case LE -> BinaryOp.LE;
+            case GT -> BinaryOp.GT;
+            case GE -> BinaryOp.GE;
+            default -> null;
+        };
+    }
+
+    /** The string, list and null predicates: tighter than a comparison, looser than arithmetic. */
+    private Expr predicate() {
+        Expr e = additive();
+        while (true) {
+            Pos pos = peek().pos();
+            if (atWord("STARTS") && peek(1).isWord("WITH")) {
+                advance();
+                advance();
+                e = new CypherAst.Binary(BinaryOp.STARTS_WITH, e, additive(), pos);
+            } else if (atWord("ENDS") && peek(1).isWord("WITH")) {
+                advance();
+                advance();
+                e = new CypherAst.Binary(BinaryOp.ENDS_WITH, e, additive(), pos);
+            } else if (atWord("CONTAINS")) {
+                advance();
+                e = new CypherAst.Binary(BinaryOp.CONTAINS, e, additive(), pos);
+            } else if (atWord("IN")) {
+                advance();
+                e = new CypherAst.Binary(BinaryOp.IN, e, additive(), pos);
+            } else if (peek().is(Type.REGEX_EQ)) {
+                advance();
+                e = new CypherAst.Binary(BinaryOp.REGEX, e, additive(), pos);
+            } else if (atWord("IS")) {
+                advance();
+                boolean not = matchWord("NOT");
+                if (matchWord("NULL")) {
+                    e = new CypherAst.Unary(not ? UnaryOp.IS_NOT_NULL : UnaryOp.IS_NULL, e, pos);
+                } else {
+                    throw CypherErrors.unsupported("IS " + (not ? "NOT " : "") + peek().text()
+                            + " (a type predicate or IS NORMALIZED) is not supported yet", pos);
+                }
+            } else {
+                return e;
+            }
+        }
+    }
+
+    private Expr additive() {
+        Expr e = multiplicative();
+        while (peek().is(Type.PLUS) || peek().is(Type.MINUS)) {
+            Token t = advance();
+            e = new CypherAst.Binary(t.is(Type.PLUS) ? BinaryOp.PLUS : BinaryOp.MINUS, e, multiplicative(), t.pos());
+        }
+        return e;
+    }
+
+    private Expr multiplicative() {
+        Expr e = unary();
+        while (peek().is(Type.STAR) || peek().is(Type.SLASH) || peek().is(Type.PERCENT)) {
+            Token t = advance();
+            BinaryOp op = t.is(Type.STAR) ? BinaryOp.TIMES : t.is(Type.SLASH) ? BinaryOp.DIVIDE : BinaryOp.MODULO;
+            e = new CypherAst.Binary(op, e, unary(), t.pos());
+        }
+        return e;
+    }
+
+    private Expr unary() {
+        if (peek().is(Type.MINUS)) {
+            Pos pos = advance().pos();
+            return new CypherAst.Unary(UnaryOp.NEG, unary(), pos);
+        }
+        if (peek().is(Type.PLUS)) {
+            Pos pos = advance().pos();
+            return new CypherAst.Unary(UnaryOp.POS, unary(), pos);
+        }
+        return power();
+    }
+
+    private Expr power() {
+        Expr base = postfix();
+        if (peek().is(Type.CARET)) {
+            Pos pos = advance().pos();
+            // right-associative: 2 ^ 3 ^ 2 is 2 ^ (3 ^ 2)
+            return new CypherAst.Binary(BinaryOp.POWER, base, unary(), pos);
+        }
+        return base;
+    }
+
+    private Expr postfix() {
+        Expr e = atom();
+        while (true) {
+            if (peek().is(Type.DOT)) {
+                Pos pos = advance().pos();
+                e = new CypherAst.Prop(e, identifier("a property name"), pos);
+            } else if (peek().is(Type.LBRACKET)) {
+                throw CypherErrors.unsupported("list indexing and slicing ([...]) is not supported yet", peek().pos());
+            } else if (peek().is(Type.COLON) && peek(1).is(Type.IDENT)) {
+                throw CypherErrors.unsupported("a label predicate (n:Label) in an expression is not supported yet",
+                        peek().pos());
+            } else {
+                return e;
+            }
+        }
+    }
+
+    private Expr atom() {
+        Token t = peek();
+        Pos pos = t.pos();
+        switch (t.type()) {
+            case INTEGER -> {
+                advance();
+                return new CypherAst.IntLit(parseInteger(t), t.text(), pos);
+            }
+            case FLOAT -> {
+                advance();
+                return new CypherAst.FloatLit(Double.parseDouble(t.text()), t.text(), pos);
+            }
+            case STRING -> {
+                advance();
+                return new CypherAst.StringLit(t.text(), pos);
+            }
+            case PARAM -> {
+                advance();
+                return new CypherAst.Param(t.text(), pos);
+            }
+            case LPAREN -> {
+                advance();
+                if (peek().is(Type.RPAREN) || (peek().is(Type.IDENT) && (peek(1).is(Type.COLON)
+                        || peek(1).is(Type.RPAREN) || peek(1).is(Type.LBRACE)))) {
+                    throw CypherErrors.unsupported("a pattern inside an expression (a pattern predicate or"
+                            + " comprehension) is not supported yet", pos);
+                }
+                Expr inner = expression();
+                expect(Type.RPAREN, "')'");
+                return new CypherAst.Paren(inner, pos);
+            }
+            case LBRACKET -> {
+                advance();
+                List<Expr> elements = new ArrayList<>();
+                if (!peek().is(Type.RBRACKET)) {
+                    do {
+                        elements.add(expression());
+                    } while (match(Type.COMMA));
+                }
+                if (peek().is(Type.PIPE) || atWord("IN")) {
+                    throw CypherErrors.unsupported("a list comprehension is not supported yet", pos);
+                }
+                expect(Type.RBRACKET, "']'");
+                return new CypherAst.ListLit(elements, pos);
+            }
+            case LBRACE -> {
+                return mapLiteral();
+            }
+            case IDENT -> {
+                return word(t);
+            }
+            default -> throw error("expected an expression but found '" + (t.is(Type.EOF) ? "end of input"
+                    : t.text()) + "'");
+        }
+    }
+
+    private long parseInteger(Token t) {
+        String text = t.text();
+        try {
+            if (text.startsWith("0x") || text.startsWith("0X")) {
+                return Long.parseLong(text.substring(2), 16);
+            }
+            if (text.startsWith("0o") || text.startsWith("0O")) {
+                return Long.parseLong(text.substring(2), 8);
+            }
+            return Long.parseLong(text);
+        } catch (NumberFormatException e) {
+            throw CypherErrors.invalid("integer is too large: " + text, t.pos());
+        }
+    }
+
+    private CypherAst.MapLit mapLiteral() {
+        Pos pos = peek().pos();
+        expect(Type.LBRACE, "'{'");
+        Map<String, Expr> entries = new LinkedHashMap<>();
+        if (!peek().is(Type.RBRACE)) {
+            do {
+                String key = identifier("a map key");
+                expect(Type.COLON, "':'");
+                entries.put(key, expression());
+            } while (match(Type.COMMA));
+        }
+        expect(Type.RBRACE, "'}'");
+        return new CypherAst.MapLit(entries, pos);
+    }
+
+    /** An identifier at the start of an atom: a keyword literal, a function call, or a variable. */
+    private Expr word(Token t) {
+        Pos pos = t.pos();
+        if (!t.backticked()) {
+            if (t.isWord("NULL")) {
+                advance();
+                return new CypherAst.NullLit(pos);
+            }
+            if (t.isWord("TRUE")) {
+                advance();
+                return new CypherAst.BoolLit(true, pos);
+            }
+            if (t.isWord("FALSE")) {
+                advance();
+                return new CypherAst.BoolLit(false, pos);
+            }
+            if (t.isWord("CASE")) {
+                advance();
+                return caseExpression(pos);
+            }
+            if ((t.isWord("EXISTS") || t.isWord("COUNT") || t.isWord("COLLECT")) && peek(1).is(Type.LBRACE)) {
+                throw CypherErrors.unsupported(t.text().toUpperCase(java.util.Locale.ROOT)
+                        + " { ... } subqueries are not supported yet", pos);
+            }
+            if (RESERVED.contains(t.text().toUpperCase(java.util.Locale.ROOT))) {
+                throw error("expected an expression but found '" + t.text() + "'");
+            }
+        }
+        advance();
+        // a namespaced function name: duration.between, string.join
+        String name = t.text();
+        while (!t.backticked() && peek().is(Type.DOT) && peek(1).is(Type.IDENT) && peek(2).is(Type.LPAREN)) {
+            advance();
+            name = name + "." + advance().text();
+        }
+        if (peek().is(Type.LPAREN)) {
+            advance();
+            if (peek().is(Type.STAR) && peek(1).is(Type.RPAREN) && name.equalsIgnoreCase("count")) {
+                advance();
+                advance();
+                return new CypherAst.CountStar(pos);
+            }
+            boolean distinct = matchWord("DISTINCT");
+            List<Expr> args = new ArrayList<>();
+            if (!peek().is(Type.RPAREN)) {
+                do {
+                    args.add(expression());
+                } while (match(Type.COMMA));
+            }
+            expect(Type.RPAREN, "')'");
+            return new CypherAst.Call(name, distinct, args, pos);
+        }
+        return new CypherAst.Var(t.text(), pos);
+    }
+
+    private Expr caseExpression(Pos pos) {
+        if (atWord("END")) {
+            throw error("a CASE needs at least one WHEN");
+        }
+        Expr operand = atWord("WHEN") ? null : expression();
+        List<CypherAst.When> whens = new ArrayList<>();
+        while (matchWord("WHEN")) {
+            Expr c = expression();
+            expectWord("THEN");
+            whens.add(new CypherAst.When(c, expression()));
+        }
+        if (whens.isEmpty()) {
+            throw error("a CASE needs at least one WHEN");
+        }
+        Expr elseResult = matchWord("ELSE") ? expression() : null;
+        expectWord("END");
+        return new CypherAst.Case(operand, whens, elseResult, pos);
+    }
+}

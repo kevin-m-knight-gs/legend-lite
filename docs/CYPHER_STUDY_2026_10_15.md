@@ -1331,3 +1331,77 @@ against about 650 TCK scenarios before any value, path or algorithm work starts.
   `core/.../compiler/spec/SqlIslands.java`, `core/.../sql/dialect/FoldsAsRecursiveCtes.java`,
   `core/.../sql/SqlWith.java`, `core/.../lowering/InstanceEquality.java`, `tools/iq-oracle/`,
   `core/src/test/java/com/legend/testcases/SqlParity.java`.
+
+## 12. The record of landings
+
+### 12.1 PR1a, 2026-10-15: the island, the reader, the translator over fixed-length patterns, the seam
+
+The first code of the line, on `claude/keen-noether-v5mis0`, after the study's and the plan's commits. It is the
+plan's PR1 less its harness: the island plumbing (§5.3), the reader (§5.1, every clause parses), `CypherToPure` for
+the constructs the plan names for PR1, and the seam `compiler/spec/CypherIslands`. The oracle tool
+(`tools/neo4j-oracle/`), the TCK reader, the inferred models and the parity lanes are PR1b, next; until they land,
+the integration test's rows are derived by hand from Cypher's semantics, and the study's method (§1: the vendor is
+the spec, a real oracle judges every case) applies to them only when PR1b snaps them.
+
+- **The reader** (`protocol/cypher/`, JDK only; `CypherLexer` 366 lines, `CypherParser` 775, `CypherAst` 165):
+  Neo4j's lexical rules (backticks with the doubled escape, hex and octal integers, the string escapes with
+  `\uXXXX` and `\UXXXXXXXX`, `$name`, both comment forms), the `CYPHER 5` and `CYPHER 25` prefix (another version is
+  Neo4j's error; `CYPHER runtime=...` is refused), `USE`, `MATCH` and `OPTIONAL MATCH` with named paths, property
+  maps, label lists, relationship types with `|`, both arrows and the undirected form, length ranges; `WITH` and
+  `RETURN` with `DISTINCT`, `ORDER BY`, `SKIP` or `OFFSET`, `LIMIT`, `WHERE`; every other clause keyword (`UNWIND`,
+  `CREATE`, `MERGE`, `SET`, `DELETE`, `DETACH DELETE`, `REMOVE`, `CALL`, `UNION`, `FOREACH`, `LOAD CSV`, `FILTER`,
+  `LET`, `NEXT`, `FINISH`, `SHOW`, `INSERT`) kept as an `OtherClause` with its text, so the translator refuses it by
+  name. Expressions by Pratt precedence as Neo4j's manual orders it (§5.1), chained comparisons as `AND`s, `^`
+  right-associative and tighter than unary minus (`-2 ^ 2` is `-(2 ^ 2)`). Refused in the reader, each by name: label
+  expressions, a `WHERE` inside a pattern, path selectors, quantified patterns, dynamic labels, list indexing, label
+  predicates in expressions, pattern predicates and comprehensions, `EXISTS`/`COUNT`/`COLLECT` subqueries, type
+  predicates.
+- **The translator** (`CypherToPure`, 1,583 lines): one `Model` interface (labels to classes; a class's property by
+  name and an association end's inverse, each reported through a sink as `SqlToPure.Sources` reports a column, so
+  the seam constructs no protocol record; subclassing), answered by the seam over the compiled model. A pattern is read
+  from one ROOT node, the node from which every hop navigates to at most one node (a to-one property, or the to-one
+  inverse end of a to-many one); every row of the result is one instance of the root's class and every other node a
+  navigation from it (`$p.firm.hq`); a hop whose property may hold nothing adds `->isNotEmpty()` to the filter
+  (Cypher's `MATCH` finds the node or does not match); a pattern with no such root is refused as one that fans out,
+  until the join form (PR2's lists and `UNWIND` give the row-multiplying shape). A second pattern extends the graph
+  from a node already bound; a cartesian product and a cycle (both ends bound) are refused by name. `WITH` whose
+  items are all pattern variables keeps the graph (a filter); any other `WITH` projects, and the clauses after it read
+  columns (`extend`, `select`, `rename` where an alias takes a taken name). `RETURN` without a pattern is one row
+  (a `#TDS` literal, the Postgres island's own). The implicit grouping: the non-aggregating items are the keys, the
+  aggregates' arguments are projected first; `count(*)` and `count(n)` of a matched variable count rows; `sum` of
+  nothing is 0 (a finish after the grouping, as the Postgres island's own aggregates do it); `avg` is a Float. Null
+  rules are `SqlToPure.Tx`'s (§5.2): `WHERE` keeps the rows where the condition is TRUE, `NOT null` is null, `AND`
+  and `OR` are three-valued, `XOR` spelled from both, `IS NULL` two-valued, a nullable Boolean property a condition
+  only where it is known, `coalesce` and `CASE` nullable where their results are, `ORDER BY` with null last ascending
+  and first descending (Neo4j's rule, Postgres's spelling). Integer division truncates toward zero
+  (`SqlToPure.integerQuotient`), `%` is `rem`, `^` a Float, string `+` a concatenation.
+- **The seam** (`CypherIslands`, 140 lines): a label is a class's simple name, or its full path in backticks; several
+  classes of one simple name are an error naming them (write the path); a property is `ModelContext.findProperty`'s
+  (own, inherited, association-injected; a qualified property is none); an association end's inverse is the other end
+  of `findAssociationOf`; the three refusal kinds become the island errors the SQL island's do (PARSE, TYPE, a
+  refusal), positioned in the enclosing source.
+- **The plumbing**, as announced in IN_FLIGHT: `SqlIsland.CYPHER`; `SpecParser.cypherIsland` (the LEGEND_ENGINE
+  surface keeps "unknown DSL island type"); the wire `classInstance` of type `Cypher` with value `{"cypher": text}`
+  in `SpecIslandReader` and `ProtocolEmitter`; `SqlIslands.desugar` dispatches the language. `Typer`, `NameResolver`,
+  `ValueSpecification`, `SqlToPure`, `InputDialect` untouched.
+- **Tests, 67:** `CypherParserTest` (22: shapes, precedence, literals, the other clauses, syntax errors with
+  positions), `CypherToPureTest` (29: the Pure of each shape printed as a person writes it, the null rules, the model
+  as the schema, Neo4j's errors, 27 refusals by name), `CypherIslandRoundTripTest` (3: text to wire to text byte for
+  byte; the engine surface's refusal), `CypherIslandIntegrationTest` (13, DuckDB: a model with an association and a
+  class-typed property, the hops in both directions, the grouping, `WITH`, `CASE`, `coalesce`, null ordering,
+  arithmetic, the island composing with Pure, the three error kinds placed in the source).
+- **Guards, each with a dated reason:** `CodeShapeGuardrailTest` (the reader's cursors and the translator's
+  fresh-name counter); `IdentityGuardrailTest` (NAME_CUTTING 107 to 108: the seam's index of the model's classes by
+  simple name, built once per model, because a Cypher label is a simple name by the language's nature); the
+  dialect-leak ledger (`dialect-leaks/ledger.tsv`: the DuckDB end-to-end test names its database, as the SQL
+  island's does). The guards that objected on the way were met in the code: `DropInSurfaceTextRuleTest` (a regex in
+  the translator, replaced by a character loop), `ErrorShapeGuardrailTest` (a `default ->` arm spelling a name, now
+  an arm per case), `ArchitectureTest.protocolNodesAreConstructedOnlyByTheParserAndTheNormalizer` (the seam built
+  the translator's property records: now sinks). No own-corpus row: no test embeds the island in a `###Pure` model
+  (the IQ line's row came from one that did); the declaration LITE-DESIGN-cypher-island
+  (`docs/OWN_CORPUS_DECISIONS.md` §15) is written when the first such test lands.
+- **Register:** `docs/SEMANTICS_REGISTER.md` S57 to S59.
+- **Decided in code, to confirm against the oracle in PR1b:** `sum` of no values is 0 and `avg`, `min`, `max` null
+  (Neo4j's aggregating functions); null last ascending and first descending; the chained comparison; `-2 ^ 2`;
+  `7 / 2` is 3 and `-7 / 2` is -3; `'a' + 1` refused (Neo4j concatenates `a1`; PR2 reads it with `toString`); a
+  comparison between values of different types refused (Neo4j: `=` false, `<` null; PR2 spells them).

@@ -1658,6 +1658,14 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
     `OwnCorpusConformanceTest`, `FixtureAdjudicationTest`, `corpus-manifest.tsv`) for the island as a declared lite
     extension (LITE-DESIGN-cypher-island, `docs/OWN_CORPUS_DECISIONS.md` §15).
   - **Docs:** `docs/OWN_CORPUS_DECISIONS.md`, `docs/SEMANTICS_REGISTER.md`, `docs/GATES.md`.
+- **Landed on the branch, 2026-10-15 (PR1a, the study's §12.1):** the island, the reader, the translator over
+  fixed-length patterns, the seam, 67 tests. Of the announced cross-area edits, made: `SqlIsland` (the language
+  `Cypher`), `SpecParser` (the arm), `SpecIslandReader` and `ProtocolEmitter` (the wire), `SqlIslands` (the
+  dispatch), `CodeShapeGuardrailTest` (the cursors, dated), `IdentityGuardrailTest` (NAME_CUTTING 107 to 108, the
+  label index, dated), `dialect-leaks/ledger.tsv` (the DuckDB test's rows, dated). Not needed yet: the build and gate files (the harness is
+  PR1b), `PlatformNamesGuardrailTest` (the reader keeps its keywords in sets), the own-corpus census (no test embeds
+  the island in a model). The register's rows S57 to S59. Next, PR1b: the oracle tool, the TCK reader, the parity
+  lanes.
 - **Not touched by PR1 to PR4:** `lowering/`, `sql/dialect/`, `builtin/`, `Typer.java`, `NameResolver.java`,
   `SqlToPure.java`, `InputDialect.java`. **Announced to the database owner for PR3:** the identity half of
   `lowering/InstanceEquality` (the minted `__id` from a mapping's primary key) on the product lane, which Cypher's

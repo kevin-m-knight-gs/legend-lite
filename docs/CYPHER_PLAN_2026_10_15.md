@@ -64,6 +64,10 @@ line.
 
 Size: 20k to 25k lines over six to eight landings, each with its cases, ledger, independent review and GATES entry.
 
+**Status, 2026-10-15:** PR1a landed on the branch (the study's §12.1): the island, the reader, the translator over
+fixed-length patterns, the seam, 67 tests. PR1b next: `tools/neo4j-oracle/`, the TCK reader and the inferred models,
+`cypher-parity/` with its lanes in `//gates:core`, the first ledger; then the independent review of PR1.
+
 ## 5. The rules this line keeps
 
 - Zero FAIL, zero BUG, zero ERROR, always; a refusal by name beats a possibly wrong answer.

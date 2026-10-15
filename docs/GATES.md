@@ -9816,3 +9816,36 @@ it two to three times slower than it runs alone (the tenth line's diagnosis, PR 
 tests' JVMs, no I/O cost), a margin of the lane that predates this landing, which the tenth line is fixing and the Bazel
 program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
 `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
+
+## 2026-10-15 — `#Cypher{...}#`: the first landing — Cypher over the class model inside any Pure query (the eleventh line)
+
+Announced in `docs/IN_FLIGHT.md` ("An eleventh line", 5143554). Branch `claude/keen-noether-v5mis0`, after the
+study (`docs/CYPHER_STUDY_2026_10_15.md`) and the plan (`docs/CYPHER_PLAN_2026_10_15.md`); the record of the landing
+is the study's §12.1, the plan's PR1 less its harness (PR1b).
+
+1. **What lands.** A Cypher query written as Neo4j accepts it, `#Cypher{...}#`, becomes an ordinary Relation
+   expression over the class model and returns Neo4j's answer for the constructs PR1a reads: `MATCH` over labels with
+   fixed-length patterns read from one root node (every hop to-one from the node before it: a to-one property, or the
+   to-one inverse end of a to-many association end), `WHERE`, `WITH`, `RETURN`, `ORDER BY`, `SKIP`, `LIMIT`,
+   `DISTINCT`, literals, comparisons, boolean logic, `CASE`, `coalesce`, the implicit grouping of `count`, `sum`,
+   `avg`, `min`, `max`. Everything else is refused by name (the register's S57).
+   - **The reader:** `protocol/cypher/` (`CypherLexer`, `CypherParser`, `CypherAst`, `CypherErrors`), JDK only;
+     every clause parses, so a write or a procedure call is refused as what it is.
+   - **The translator:** `CypherToPure`, a sibling of `SqlToPure` reusing its `Tx` (Cypher's three-valued logic is
+     Postgres's), its strict operations, its integer quotient and its sort spelling; one `Model` interface.
+   - **The seam:** `compiler/spec/CypherIslands` over `ModelContext` (labels, properties, association inverses,
+     subclassing); `SqlIslands.desugar` dispatches the language.
+   - **The plumbing:** `SqlIsland.CYPHER`, `SpecParser.cypherIsland` (LEGEND_ENGINE keeps its refusal), the wire
+     `classInstance` of type `Cypher` with `{"cypher": text}`.
+   - **Declared:** `docs/SEMANTICS_REGISTER.md` S57 to S59.
+2. **Judges.** 67 tests: `CypherParserTest` 22, `CypherToPureTest` 29, `CypherIslandRoundTripTest` 3 (5 texts byte
+   for byte through the wire), `CypherIslandIntegrationTest` 13 on DuckDB (a model with an association and a
+   class-typed property; the rows derived by hand from Cypher's semantics until PR1b's oracle snaps them). The local
+   gate, `bazel test --lockfile_mode=error //gates:local`, on the tree before the guard fixes: 268 tests, 266 pass, the 2 failing targets the guards this commit meets (`//core:guardrails`, `//core:census`; the reference checkouts' archives were refused by the session's network until `tools/cloud-distdir.sh` seeded them). The rerun on the final tree, every lane, is recorded in the next commit's line below. Guard entries, dated:
+   `CodeShapeGuardrailTest` (the reader's cursors and the translator's fresh-name counter), `IdentityGuardrailTest`
+   (NAME_CUTTING 107 to 108, the seam's label index), the dialect-leak ledger (the DuckDB test's rows). Met in the
+   code: `DropInSurfaceTextRuleTest`, `ErrorShapeGuardrailTest`, `ArchitectureTest`'s protocol-node rule (the
+   `Model` contract reports properties through sinks, as `SqlToPure.Sources` does).
+3. **Next.** PR1b: `tools/neo4j-oracle/` (Neo4j Community, local only, through the Apache 2.0 Python driver), the
+   TCK reader and the inferred models, `core/src/test/resources/cypher-parity/` and its lanes in `//gates:core`, the
+   first ledger, the independent review of PR1.

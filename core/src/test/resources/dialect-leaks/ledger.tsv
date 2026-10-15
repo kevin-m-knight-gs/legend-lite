@@ -219,6 +219,10 @@ core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	dialect-cl
 core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	jdbc-url	1
 core/src/test/java/com/legend/integration/CorpusDifferentialTest.java	product-name	1
 core/src/test/java/com/legend/integration/CorrelatedRelationCheckerTest.java	jdbc-url	1
+# 2026-10-15, the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §12.1): its DuckDB end-to-end test names the database as SqlIslandIntegrationTest does, pinned as measured.
+core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java	jdbc-url	1
+# 2026-10-15, the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §12.1): its DuckDB end-to-end test names the database as SqlIslandIntegrationTest does, pinned as measured.
+core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java	product-name	6
 # 2026-10-14, the PR #39 audit's findings 1-4 (declared quoting as data, sql.NameQuoting): regression tests that run one store's quoted names through each database's dialect and on H2/DuckDB, so they name each; pinned as measured.
 core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	database-type	1
 core/src/test/java/com/legend/integration/DeclaredQuotedTableTest.java	dialect-class	6

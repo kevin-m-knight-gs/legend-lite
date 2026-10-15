@@ -59,6 +59,11 @@ final class SpecIslandReader {
                         return w.done(new SqlIsland(w.str("sql"), pos));
                     },
                     "IQ", SpecIslandReader::iqIsland,
+                    "Cypher", (value, pos) -> {
+                        // the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §5.3): {"cypher": <text>}
+                        Wire w = Wire.of(value, "Cypher island");
+                        return w.done(new SqlIsland(w.str("cypher"), pos, SqlIsland.CYPHER, null));
+                    },
                     "GQL", (value, pos) -> new GqlIsland(GqlReader.document(value), pos),
                     "TDS", (value, pos) -> {
                         Wire w = Wire.of(value, "TDS island");
