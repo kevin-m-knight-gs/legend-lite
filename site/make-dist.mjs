@@ -4,9 +4,10 @@
 // compiler, the SDLC, the saved stores' rules, the warehouse's binding. Served together from one origin, those would be
 // three copies of the same files at three URLs: three times the site, and three downloads for a browser that opens all
 // three apps. So here each app keeps its own small files (its fonts, its stylesheets) and the WebAssembly is copied
-// once, to /vendor/; each app's config.json says where it is ("vendor": "../../vendor/" from <app>/demo/), as does
-// DataCube's early hint for the compiler's module (its index.html). And it is a static site: what needs a server or is
-// a test's (LEFT_OUT) stays in each app's own site, not here.
+// once, to /vendor/; each app's config.json says where it is, in its one key ("vendor": "../../vendor/" from
+// <app>/demo/), as does DataCube's early hint for the compiler's module (its index.html). A shared file is copied from
+// DataCube's site, and every other app's copy of it is held to the same bytes: the apps share one build of each. And it
+// is a static site: what needs a server or is a test's (LEFT_OUT) stays in each app's own site, not here.
 //
 //   Usage: node make-dist.mjs <dist-dir> <sites-dir>   (<sites-dir>: datacube/, query/ and studio/, each as built)
 
@@ -59,6 +60,8 @@ const rewritten = new Set([
 ]);
 
 let shared = 0;
+/** Each shared file another app carries, held to DataCube's copy once every file is seen. */
+const copies = [];
 for (const file of files) {
   const unused = LEFT_OUT.find((p) => p.test(file));
   if (unused) {
@@ -69,11 +72,13 @@ for (const file of files) {
   const vendor = app !== undefined ? file.slice(`${app}/demo/vendor/`.length) : '';
   const inVendor = app !== undefined && file.startsWith(`${app}/demo/vendor/`);
   if (inVendor && SHARED.test(vendor)) {
-    // once, from the one app that brings them all
+    // once, from the one app that brings them all; another app's copy must be the same file
     if (app === SOURCE) {
       await mkdir(dirname(join(DIST, 'vendor', vendor)), { recursive: true });
       await cp(join(SITES, file), join(DIST, 'vendor', vendor));
       shared += 1;
+    } else {
+      copies.push({ file, vendor });
     }
     continue;
   }
@@ -89,18 +94,27 @@ for (const file of files) {
   await writeFile(to, out);
 }
 if (shared === 0) throw new Error(`no shared WebAssembly found under ${SOURCE}/demo/vendor/`);
+for (const { file, vendor } of copies) {
+  const ours = await readFile(join(SITES, SOURCE, 'demo', 'vendor', vendor)).catch(() => null);
+  if (ours === null) throw new Error(`${file}: ${SOURCE}'s site has no vendor/${vendor}, so the shared folder would not either`);
+  if (!ours.equals(await readFile(join(SITES, file)))) {
+    throw new Error(`${file} is not the same file as ${SOURCE}/demo/vendor/${vendor}: the apps would share one of two builds`);
+  }
+}
 const unmatched = LEFT_OUT.filter((p) => !leftOut.has(p));
 if (unmatched.length > 0) throw new Error(`nothing left out matched ${unmatched.join(', ')}: has a site's layout changed?`);
 console.log(`dist/: the apps, and ${shared} shared files in vendor/`);
 
-/** A config with every vendor folder it names -- its own, its planner's, its model home's -- the shared one. */
+/**
+ * A config with its vendor folder the shared one. Each app's config names it once, at its top (every app reads that
+ * one key: page-config.ts, Query's main.ts, Studio's app.ts); a config that names none, or names one anywhere else, is
+ * refused -- a second key would be a folder this site does not point.
+ */
 function pointConfig(text, file) {
   const config = JSON.parse(text);
-  const point = (o) => { if (o && typeof o === 'object' && typeof o.vendor === 'string') o.vendor = SHARED_FROM_PAGE; };
-  point(config);
-  point(config.planner);
-  point(config.depot);
-  // an app whose config names no vendor of its own reads ./vendor/ (page-config.ts, main.ts): it is told the shared one
-  if (file !== 'studio/demo/config.json' && file !== 'studio/demo/config-server.json') config.vendor = SHARED_FROM_PAGE;
+  if (typeof config.vendor !== 'string') throw new Error(`${file} names no vendor folder (its "vendor")`);
+  const nested = Object.entries(config).filter(([, v]) => v && typeof v === 'object' && 'vendor' in v).map(([k]) => k);
+  if (nested.length > 0) throw new Error(`${file} names a vendor folder in ${nested.join(', ')}: an app reads its one "vendor"`);
+  config.vendor = SHARED_FROM_PAGE;
   return `${JSON.stringify(config, null, 2)}\n`;
 }

@@ -1362,8 +1362,8 @@ class Engine:
         (a Depot), Studio's SDLC, Depot and engine."""
         api, sdlc, depot = f'{origin}/api', f'{origin}/sdlc/api', f'{origin}/depot/api'
         config: dict[str, Any] = (
-            {'execution': {'kind': 'server', 'engine': api}, 'projects': [], 'depot': {'sdlc': sdlc, 'depot': depot,
-                                                                                         'vendor': './vendor/'}}
+            {'execution': {'kind': 'server', 'engine': api}, 'projects': [], 'depot': {'sdlc': sdlc, 'depot': depot},
+             'vendor': './vendor/'}
             if app == 'query' else
             {'sdlc': sdlc, 'depot': depot, 'vendor': './vendor/', 'worker': './planner-worker.js', 'engine': api})
         return Answer(200, 'application/json', json.dumps(config).encode('utf-8'))

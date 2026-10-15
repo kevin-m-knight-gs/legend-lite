@@ -79,7 +79,7 @@ async function boot(): Promise<void> {
   const vendor = config.vendor ?? './vendor/';
   const exec = config.execution;
   const planner = config.planner
-    ? new WasmGrammar(new WorkerPort(new URL(config.planner.worker, location.href), config.planner.vendor))
+    ? new WasmGrammar(new WorkerPort(new URL(config.planner.worker, location.href), vendor))
     : undefined;
   const http = exec.kind === 'server' ? new HttpEngine(exec.engine) : undefined;
   if (!planner && !http) throw new Error('queries run in the browser, which needs the planner (config.planner)');
@@ -97,7 +97,7 @@ async function boot(): Promise<void> {
   let tabProjects: AppContext['tabProjects'];
   if (config.depot) {
     starting('Listing the projects in Depot');
-    const { depot } = await connectModelHome(config.depot);
+    const { depot } = await connectModelHome({ ...config.depot, vendor });
     byName = {
       load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v),
       versions: (g: string, a: string) => versionsOf(depot, g, a),

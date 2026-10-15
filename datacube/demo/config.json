@@ -18,7 +18,7 @@
     }
   ],
   "depot": {
-    "sdlc": "page",
-    "vendor": "./vendor/"
-  }
+    "sdlc": "page"
+  },
+  "vendor": "./vendor/"
 }

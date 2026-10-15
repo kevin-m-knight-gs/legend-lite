@@ -32,16 +32,16 @@ export interface PageConfig {
    */
   readonly depot?: DepotConfig;
   /**
-   * Where the page's WebAssembly is served -- DuckDB and its extensions, the compiler, the saved stores' rules, the
-   * warehouse's binding: `./vendor/` beside the page, unless the site serves one copy for every app (//site:dist).
+   * Where the page's WebAssembly is served -- DuckDB and its extensions, the compiler, the page's SDLC, the saved
+   * stores' rules, the warehouse's binding: `./vendor/` beside the page, unless the site serves one copy for every app
+   * (//site:dist). The one key: nothing else in the config names a vendor folder.
    */
   readonly vendor: string;
 }
 
 export interface DepotConfig {
+  /** `"page"` (the page's own SDLC, its module from the page's `vendor`), or a model home's server. */
   readonly sdlc: string;
-  /** Where the page's SDLC module is served (`<vendor>sdlc/`), for `"page"`. */
-  readonly vendor: string;
 }
 
 /**
@@ -85,7 +85,7 @@ function depot(v: unknown): DepotConfig | undefined {
   const o = v as Record<string, unknown>;
   const sdlc = text(o['sdlc']);
   if (!sdlc) return undefined;
-  return { sdlc, vendor: text(o['vendor']) || './vendor/' };
+  return { sdlc };
 }
 
 function text(v: unknown): string {

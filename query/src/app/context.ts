@@ -40,8 +40,8 @@ export type CubeRows =
 
 export interface AppConfig {
   readonly execution: ExecutionConfig;
-  /** legend-lite's planner in the tab (grammar, typing, SQL); required unless a server answers them. */
-  readonly planner?: { readonly worker: string; readonly vendor: string };
+  /** legend-lite's planner in the tab (grammar, typing, SQL), its module from `vendor`; required unless a server answers. */
+  readonly planner?: { readonly worker: string };
   /** Projects whose model is files served with the page (the demo's own trading model). */
   readonly projects: readonly ProjectConfig[];
   /**
@@ -49,10 +49,11 @@ export interface AppConfig {
    * pages share (Studio publishes into it), or a model home's server. Each project there opens at its project line's
    * snapshot (Depot's `master-SNAPSHOT`, upstream Query's HEAD), with its dependencies.
    */
-  readonly depot?: ModelHomeConfig;
+  readonly depot?: Omit<ModelHomeConfig, 'vendor'>;
   /**
-   * Where the page's WebAssembly is served -- DuckDB and its extensions, the saved queries' rules, the warehouse's
-   * binding: absent, `./vendor/` beside the page; a site serving one copy for every app says where (//site:dist).
+   * Where the page's WebAssembly is served -- the planner, DuckDB and its extensions, the page's SDLC, the saved
+   * queries' rules, the warehouse's binding: absent, `./vendor/` beside the page; a site serving one copy for every app
+   * says where (//site:dist). The one key: nothing else in the config names a vendor folder.
    */
   readonly vendor?: string;
 }
