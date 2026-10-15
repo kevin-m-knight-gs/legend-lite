@@ -1031,6 +1031,31 @@ public final class IqParity {
         return null;
     }
 
+    /** Whether every item {@code s} shows is a constant (a literal, or a sign or arithmetic of literals): its rows
+     *  all show the same values (IQ island, 2026-10-15, row limits without ORDER BY). */
+    private static boolean constantsOnly(SqlAst.Select s) {
+        for (SqlAst.SelectItem item : s.items()) {
+            if (!(item instanceof SqlAst.SelectExpr x) || !literal(x.expr())) {
+                return false;
+            }
+        }
+        return !s.items().isEmpty();
+    }
+
+    private static boolean literal(SqlAst.Expr e) {
+        return switch (e) {
+            case SqlAst.IntegerLit n -> true;
+            case SqlAst.NumericLit n -> true;
+            case SqlAst.StringLit t -> true;
+            case SqlAst.Unary u -> u.op() != SqlAst.UnaryOp.NOT && literal(u.operand());
+            case SqlAst.Binary b -> switch (b.op()) {
+                case PLUS, MINUS, TIMES -> literal(b.left()) && literal(b.right());
+                default -> false;
+            };
+            default -> false;
+        };
+    }
+
     /** A query's row limit that keeps rows of its plan's choosing, in a few words; null for none (IQ's reader puts a
      *  row limit on a SELECT only: a set operation's TOP is its first branch's). */
     private static @com.legend.base.Nullable String limitProblem(SqlAst.Statement q, Map<String, SqlParity.Table> tables,
@@ -1040,6 +1065,10 @@ public final class IqParity {
             return null;
         }
         String at = "the row limit at line " + q.pos().line() + ", column " + q.pos().column();
+        if (constantsOnly(s)) {
+            // IQ island, 2026-10-15: every row it keeps shows the same values, whichever rows they are
+            return null;
+        }
         if (s.orderBy().isEmpty()) {
             return at + " has no ORDER BY";
         }

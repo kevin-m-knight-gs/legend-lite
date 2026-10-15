@@ -604,12 +604,16 @@ tests:
     expect: '{"columns": [["id", "integer", 0]], "rows": [["5"]]}'
   - id: top_over_arithmetic_that_cannot_raise
     sql: "SELECT TOP 2 id, sm + 0 AS n FROM t ORDER BY id DESC"
+  # TOP and START AT without ORDER BY (IQ island, 2026-10-15): the rows kept are the plan's choice, IQ's as lite's
+  # database's; the cases show constants, so every choice shows the same rows
   - id: top_without_order_by
-    sql: "SELECT TOP 2 id FROM t"
-    nondeterministic: "tests the refusal of a TOP without ORDER BY"
+    sql: "SELECT TOP 2 'row' AS c, 7 AS n FROM t"
   - id: start_at_without_order_by
-    sql: "SELECT TOP ALL START AT 6 id FROM t"
-    nondeterministic: "tests the refusal of a START AT without ORDER BY"
+    sql: "SELECT TOP 3 START AT 6 'row' AS c FROM t"
+  - id: top_past_the_rows_without_order_by
+    sql: "SELECT TOP 100 'row' AS c FROM t WHERE id < 4"
+  - id: first_without_order_by
+    sql: "SELECT FIRST 'row' AS c, 1 + 2 AS n FROM g"
 
   # ---- a constant that may be NULL is computed at run time: NULL where it is NULL, IQ's -158 only where computed
   - id: if_of_a_constant_plus_one_where_unknown

@@ -1070,10 +1070,14 @@ lite/m0/top_ordered_by_an_overflowing_key@iq16-default	PASS	PASS
 lite/m0/top_ordered_by_an_overflowing_key@iq17-default	PASS	PASS
 lite/m0/top_over_arithmetic_that_cannot_raise@iq16-default	PASS	PASS
 lite/m0/top_over_arithmetic_that_cannot_raise@iq17-default	PASS	PASS
-lite/m0/top_without_order_by@iq16-default	REFUSED	REFUSED
-lite/m0/top_without_order_by@iq17-default	REFUSED	REFUSED
-lite/m0/start_at_without_order_by@iq16-default	REFUSED	REFUSED
-lite/m0/start_at_without_order_by@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/m0/top_without_order_by@iq16-default	PASS	PASS
+lite/m0/top_without_order_by@iq17-default	PASS	PASS
+lite/m0/start_at_without_order_by@iq16-default	PASS	PASS
+lite/m0/start_at_without_order_by@iq17-default	PASS	PASS
+lite/m0/top_past_the_rows_without_order_by@iq16-default	PASS	PASS
+lite/m0/top_past_the_rows_without_order_by@iq17-default	PASS	PASS
+lite/m0/first_without_order_by@iq16-default	PASS	PASS
+lite/m0/first_without_order_by@iq17-default	PASS	PASS
 lite/m0/if_of_a_constant_plus_one_where_unknown@iq16-default	PASS	PASS
 lite/m0/if_of_a_constant_plus_one_where_unknown@iq17-default	PASS	PASS
 lite/m0/case_of_a_constant_plus_one_where_unknown@iq16-default	PASS	PASS
@@ -4597,7 +4601,7 @@ lite/m1gaps/sum_in_having_in_a_list@iq16-default	PASS	PASS
 lite/m1gaps/sum_in_having_in_a_list@iq17-default	PASS	PASS
 lite/m1gaps/top_one_in_a_correlated_scalar_subquery@sqla17-default	PASS	PASS
 lite/m1gaps/top_in_a_derived_table@sqla17-default	PASS	PASS
-lite/m1gaps/top_in_a_derived_table_without_order_by_is_refused@sqla17-default	REFUSED	REFUSED
+lite/m1gaps/top_in_a_derived_table_without_order_by@sqla17-default	PASS	PASS
 lite/m1gaps/top_in_exists_needs_no_order@sqla17-default	PASS	PASS
 lite/m1gaps/top_in_an_in_subquery@sqla17-default	PASS	PASS
 lite/m1gaps/top_start_at_in_a_derived_table@sqla17-default	PASS	PASS

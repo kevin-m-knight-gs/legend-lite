@@ -429,12 +429,11 @@ class IqToPureTest {
             assertEquals(SqlTranslationException.Kind.INVALID, refusal(sql + T).kind(), sql);
         }
         assertTrue(pure("SELECT TOP (1-1) id FROM " + T + " ORDER BY id").endsWith("->limit(1 - 1)"));
-        // without ORDER BY the rows kept are IQ's plan's choice (the second review's m4): refused, after IQ's own
-        // errors; without FROM there is one row
-        for (String sql : new String[] {"SELECT TOP 2 id FROM ", "SELECT FIRST id FROM ",
-                "SELECT TOP ALL START AT 2 id FROM "}) {
-            assertEquals(SqlTranslationException.Kind.UNSUPPORTED, refusal(sql + T).kind(), sql);
-        }
+        // without ORDER BY the rows kept are the plan's choice, IQ's as the database's (IQ island, 2026-10-15, the
+        // user's rule: any answer IQ could give is right): read as written; without FROM there is one row
+        assertTrue(pure("SELECT TOP 2 id FROM " + T).endsWith("->limit(2)"));
+        assertTrue(pure("SELECT FIRST id FROM " + T).endsWith("->limit(1)"));
+        assertTrue(pure("SELECT TOP 3 START AT 2 id FROM " + T).contains("->drop(2 - 1)"));
         assertTrue(pure("SELECT TOP 1 1 AS x").endsWith("->limit(1)"));
     }
 

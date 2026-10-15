@@ -5115,7 +5115,8 @@ public final class IqDialect implements InputDialect {
      * ({@code OFFSET}). It is a constant: integers and {@code + - *}, which IQ types and checks as it does any constant
      * arithmetic (a result out of its type's range is IQ's error -158), and which the planner folds. A literal
      * {@code TOP 0}, a negative TOP and a START AT below 1 are IQ's error -674 (the research's D-Q1: a TOP expression
-     * worth 0 gives no rows).
+     * worth 0 gives no rows). Without ORDER BY the rows a limit keeps are its plan's choice, in IQ as in lite's
+     * database: any is an answer IQ could give (IQ island, 2026-10-15).
      */
     @Override
     public ValueSpecification rowCount(SqlAst.Expr count, String clause) {
@@ -5130,15 +5131,11 @@ public final class IqDialect implements InputDialect {
             throw SqlTranslationException.invalid(iq + (offset ? " counts from 1" : " cannot be negative")
                     + code(-674, "09W07"), count.pos());
         }
-        boolean[] flags = limits.get(count);
-        if (flags == null) {
+        if (!limits.containsKey(count)) {
             throw new IllegalStateException("a row limit the statement does not hold: " + count);
         }
-        if (flags[0] && (!offset || !flags[1])) {
-            // after IQ's own errors in either count (START AT's is read first): the rows kept are IQ's choice
-            throw SqlTranslationException.unsupported("TOP, FIRST or START AT without ORDER BY is not supported: which"
-                    + " rows IQ keeps is its plan's choice; order the query", count.pos());
-        }
+        // IQ island, 2026-10-15 (the user's rule: any answer IQ could give is right): without ORDER BY the rows kept
+        // are the plan's choice, IQ's as the database's -- read as written
         return pure(count);
     }
 
