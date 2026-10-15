@@ -44,8 +44,10 @@ public final class SqlStress {
         List<String[]> queries = Files.readAllLines(Path.of(args[1])).stream().filter(l -> !l.isBlank())
                 .map(l -> l.split("\t", 2)).toList();
         String only = args.length > 2 ? args[2] : null;
-        String pgHost = PG_URL.replaceAll("^jdbc:postgresql://([^:/]+).*", "$1");
-        String pgPort = PG_URL.replaceAll("^jdbc:postgresql://[^:/]+:(\\d+).*", "$1");
+        // the answering server's host and port, read from its URL (its scheme follows "jdbc:")
+        java.net.URI server = java.net.URI.create(PG_URL.substring(PG_URL.indexOf(':') + 1));
+        String pgHost = server.getHost();
+        String pgPort = String.valueOf(server.getPort());
         String duckModel = SqlParity.model(tables, "type: DuckDB;\n specification: DuckDB { };\n auth: Test;");
         String pgModel = SqlParity.model(tables, "type: Postgres;\n specification: Static { host: '" + pgHost
                 + "'; port: " + pgPort + "; name: 'postgres'; };\n auth: Test;");
@@ -76,7 +78,7 @@ public final class SqlStress {
         String island = "#SQL{" + SqlParity.rewrite(sql, names) + "}#";
         long t0 = System.nanoTime();
         SqlParity.Answer answer;
-        try (Connection pg = postgres()) {
+        try (Connection pg = answering()) {
             answer = answer(pg, sql);
         }
         long pgMs = (System.nanoTime() - t0) / 1_000_000;
@@ -115,7 +117,7 @@ public final class SqlStress {
                 line.append("\tSQL_TOO_BIG\t-");
                 continue;
             }
-            Connection connection = lane.equals("duck") ? duck : postgres();
+            Connection connection = lane.equals("duck") ? duck : answering();
             String model = lane.equals("duck") ? duckModel : pgModel;
             AtomicReference<SqlParity.Outcome> out = new AtomicReference<>();
             long t1 = System.nanoTime();
@@ -153,7 +155,7 @@ public final class SqlStress {
         return !t.isAlive();
     }
 
-    private static Connection postgres() throws SQLException {
+    private static Connection answering() throws SQLException {
         Connection c = DriverManager.getConnection(PG_URL);
         try (Statement s = c.createStatement()) {
             s.execute("SET statement_timeout = '" + TIMEOUT_MS / 1000 + "s'");
