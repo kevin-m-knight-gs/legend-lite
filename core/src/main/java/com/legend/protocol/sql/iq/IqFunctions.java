@@ -950,16 +950,42 @@ final class IqFunctions {
      * the result is the argument's own type (the research's D-F2, not yet verified): refused.
      */
     private Tx ceilingFloor(boolean floor, String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (engine == IqDialect.Engine.IQ) {
-            throw SqlTranslationException.unsupported(name + " is not supported under the IQ engine yet: its result"
-                    + " type there is the argument's (the research's D-F2, not yet verified), SQL Anywhere's a DOUBLE",
-                    f.pos());
+        if (engine == IqDialect.Engine.IQ && args.get(0).kind() != Kind.FLOAT) {
+            return iqCeilingFloor(floor, name, f, args.get(0));
         }
         Tx x = asDouble(args.get(0), f.args().get(0), name);
         return strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(x), v -> {
             ValueSpecification d = v.get(0);
             return ifThen(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", d), new CFloat(WHOLE)), d,
                     SqlToPure.call("toFloat", SqlToPure.call(floor ? "floor" : "ceiling", d)));
+        });
+    }
+
+    /**
+     * {@code CEILING}, {@code FLOOR} under IQ's engine (IQ island, 2026-10-15; the research's D-F2, measured on IQ
+     * 17.1): of a NUMERIC(p,s) the whole number at scale s, a NUMERIC(p+1,s) (CEILING of 12345678.99 is 12345679.00);
+     * of an integer the integer itself; of a DOUBLE a DOUBLE, as in SQL Anywhere's front end. Refused by name: a
+     * NUMERIC of more than 18 digits before its point.
+     */
+    private Tx iqCeilingFloor(boolean floor, String name, SqlAst.FunctionCall f, Tx x) {
+        SqlAst.Expr e = f.args().get(0);
+        if (x.kind() == Kind.NULL) {
+            return Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, new IqType("INTEGER"));
+        }
+        if (!decimal(x)) {
+            IqType t = integerType(x, e, name);
+            return strict(Kind.INTEGER, t, List.of(x), v -> v.get(0));
+        }
+        int[] ps = scaleOf(x, e, name);
+        if (ps[0] - ps[1] > 18) {
+            throw SqlTranslationException.unsupported(name + " of a NUMERIC(" + ps[0] + "," + ps[1] + ") is not"
+                    + " supported yet: its whole number may exceed 18 digits", f.pos());
+        }
+        int s = ps[1];
+        return strict(Kind.DECIMAL, new IqType("NUMERIC(" + (ps[0] + 1) + "," + s + ")"), List.of(x), v -> {
+            ValueSpecification whole = SqlToPure.call("toDecimal", SqlToPure.call(floor ? "floor" : "ceiling",
+                    v.get(0)));
+            return s > 0 ? atScale(whole, s) : whole;
         });
     }
 
@@ -972,10 +998,10 @@ final class IqFunctions {
      * may exceed 18 digits.
      */
     private Tx roundTruncate(boolean round, String name, SqlAst.FunctionCall f, List<Tx> args) {
-        if (round && engine == IqDialect.Engine.IQ) {
-            throw SqlTranslationException.unsupported(name + " is not supported under the IQ engine yet: its result"
-                    + " type there and the ROUND_TO_EVEN option are the research's D-F1, not yet verified", f.pos());
-        }
+        // IQ island, 2026-10-15 (the research's D-F1, measured on IQ 17.1): under IQ's engine ROUND of a NUMERIC(p,s) is
+        // a NUMERIC(p+1,s), half away from zero (-2.5 is -3, 2.5 is 3), so never past its precision; of an integer an
+        // integer, widened as IQ widens (ROUND(2147483647, -1) is the BIGINT 2147483650). TRUNCNUM keeps its type
+        boolean iqRound = round && engine == IqDialect.Engine.IQ;
         Tx x = args.get(0);
         SqlAst.Expr e = f.args().get(0);
         BigInteger places = signedInteger(f.args().get(1));
@@ -1010,7 +1036,10 @@ final class IqFunctions {
             digits = Math.max(t.lo().abs().toString().length(), t.hi().abs().toString().length());
             whole = true;
         }
-        IqType type = new IqType("NUMERIC(" + p + "," + s + ")");
+        IqType type = new IqType("NUMERIC(" + (iqRound ? p + 1 : p) + "," + s + ")");
+        if (iqRound && whole) {
+            return iqRoundInteger(f, x, places);
+        }
         if (places == null) {
             return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, type);
         }
@@ -1027,8 +1056,9 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(name + " of a NUMERIC(" + p + "," + s + ") to " + n + " places is"
                     + " not supported yet: its scaled value may exceed 18 digits", f.pos());
         }
-        // a constant (no column in it) SQL Anywhere folds and types a digit wider (measured): no check
-        boolean check = round && readsColumn(e) && !whole;
+        // a constant (no column in it) SQL Anywhere folds and types a digit wider (measured): no check; nor under IQ's
+        // engine, whose NUMERIC(p+1,s) holds every rounded value
+        boolean check = round && readsColumn(e) && !whole && !iqRound;
         if (check) {
             raisesHere(f, "-158 (a rounded value its precision cannot hold)");
         }
@@ -1044,6 +1074,27 @@ final class IqFunctions {
             return ifThen(SqlToPure.call("greaterThanEqual", SqlToPure.call("abs", r), new CDecimal(pow10(p - s))),
                     raise("Decimal"), r);
         });
+    }
+
+    /** ROUND of an integer under IQ's engine (IQ island, 2026-10-15, D-F1, measured on IQ 17.1): the integer itself to
+     *  0 places or more; to n < 0 places half away from zero, an integer of 64 bits (IQ widens it). */
+    private Tx iqRoundInteger(SqlAst.FunctionCall f, Tx x, @com.legend.base.Nullable BigInteger places) {
+        IqType wide = IqType.integer("BIGINT", IqType.BIGINT_MIN, IqType.BIGINT_MAX, true);
+        if (places == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, wide);
+        }
+        IqType t = integerType(x, f.args().get(0), "ROUND");
+        if (places.signum() >= 0) {
+            return strict(Kind.INTEGER, t, List.of(x), v -> v.get(0));
+        }
+        int n = places.intValue();
+        int digits = Math.max(t.lo().abs().toString().length(), t.hi().abs().toString().length());
+        if (digits > 18 || n < -18) {
+            throw SqlTranslationException.unsupported("ROUND of a BIGINT to " + n + " places is not supported yet: its"
+                    + " rounded value may exceed 18 digits", f.pos());
+        }
+        return strict(Kind.INTEGER, wide, List.of(x), v -> SqlToPure.call("floor", places(SqlToPure.call("toDecimal",
+                v.get(0)), n, true)));
     }
 
     /** {@code x} (a decimal) to {@code n} places, half away from zero or toward zero, at scale max(n, 0): exact

@@ -248,8 +248,6 @@ class IqFunctionsTest {
     @Test
     void whatTheIqEngineTypesOrComputesOtherwiseIsRefusedByItsDecision() {
         String[][] decided = {
-                {"SELECT CEILING(nm) AS c FROM " + T, "D-F2"},
-                {"SELECT ROUND(nm, 1) AS r FROM " + T, "D-F1"},
                 {"SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T, "D-F3"},
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
                 {"SELECT DATEPART(cdw, dt) AS d FROM " + T, "D-T10"},
@@ -261,6 +259,10 @@ class IqFunctionsTest {
         for (String[] d : decided) {
             assertTrue(refusal(d[0]).getMessage().contains(d[1]), d[0]);
         }
+        // IQ island, 2026-10-15 (D-F1, D-F2, measured on IQ 17.1): ROUND and CEILING of a NUMERIC(p,s) are a
+        // NUMERIC(p+1,s) under IQ's engine, unchecked
+        assertFalse(pure("SELECT ROUND(nm, 1) AS r FROM " + T).contains("cast(@Decimal)->toOne()"));
+        assertTrue(pure("SELECT CEILING(nm) AS c FROM " + T).contains("ceiling()"));
         // IQ island, 2026-10-15 (D-T2, D-T11, measured on IQ 17.1): DATEADD of a DATE stays a DATE under IQ's
         // engine; DATEDIFF below a day counts whole elapsed units; DAYOFYEAR is IQ's -1001015
         assertTrue(pure("SELECT DATEADD(dd, 1, dt) AS d FROM " + T).contains("datePart"));

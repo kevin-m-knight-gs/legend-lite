@@ -622,6 +622,15 @@ lite/iq_engine_dates/datediff_seconds_and_milliseconds_elapsed@iq17-default	PASS
 lite/iq_engine_dates/datediff_hours_of_columns@iq17-default	PASS	PASS
 lite/iq_engine_dates/datediff_in_where@iq17-default	PASS	PASS
 lite/iq_engine_dates/datediff_dayofyear_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_functions/round_of_a_numeric@iq17-default	PASS	PASS
+lite/iq_engine_functions/round_half_away_from_zero@iq17-default	PASS	PASS
+lite/iq_engine_functions/round_to_its_own_scale@iq17-default	PASS	PASS
+lite/iq_engine_functions/round_of_integers@iq17-default	PASS	PASS
+lite/iq_engine_functions/round_of_a_quantity_grouped@iq17-default	PASS	PASS
+lite/iq_engine_functions/ceiling_and_floor_of_a_numeric@iq17-default	PASS	PASS
+lite/iq_engine_functions/ceiling_and_floor_of_integers@iq17-default	PASS	PASS
+lite/iq_engine_functions/ceiling_and_floor_of_a_double@iq17-default	PASS	PASS
+lite/iq_engine_functions/ceiling_of_a_numeric_in_where@iq17-default	PASS	PASS
 lite/m0/integer_plus_overflow@iq16-default	PASS	PASS
 lite/m0/integer_plus_overflow@iq17-default	PASS	PASS
 lite/m0/integer_plus@iq16-default	PASS	PASS
@@ -3012,8 +3021,8 @@ lite/m1d/ceiling_floor_over_rowgenerator@iq17-default	PASS	PASS
 lite/m1d/ceiling_floor_of_columns_in_sql_anywhere@sqla17-default	PASS	PASS
 lite/m1d/floor_of_15_digit_numerics@iq16-default	PASS	PASS
 lite/m1d/floor_of_15_digit_numerics@iq17-default	PASS	PASS
-lite/m1d/ceiling_under_the_iq_engine_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1d/ceiling_under_the_iq_engine_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1d/ceiling_under_the_iq_engine@iq16-default	PASS	PASS
+lite/m1d/ceiling_under_the_iq_engine@iq17-default	PASS	PASS
 lite/m1d/floor_of_a_numeric_of_more_than_15_digits_is_refused@iq16-default	REFUSED	REFUSED
 lite/m1d/floor_of_a_numeric_of_more_than_15_digits_is_refused@iq17-default	REFUSED	REFUSED
 lite/m1d/round_of_constants@iq16-default	PASS	PASS
@@ -3029,8 +3038,8 @@ lite/m1d/round_of_a_cast_constant_past_its_precision@iq17-default	PASS	PASS
 lite/m1d/round_of_a_literal_has_a_digit_more@iq16-default	PASS	PASS
 lite/m1d/round_of_a_literal_has_a_digit_more@iq17-default	PASS	PASS
 lite/m1d/round_of_a_double_is_refused@sqla17-default	REFUSED	REFUSED
-lite/m1d/round_under_the_iq_engine_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1d/round_under_the_iq_engine_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1d/round_under_the_iq_engine@iq16-default	PASS	PASS
+lite/m1d/round_under_the_iq_engine@iq17-default	PASS	PASS
 lite/m1d/round_of_one_argument@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/round_of_one_argument@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/round_by_a_column_is_refused@iq16-default	REFUSED	REFUSED
