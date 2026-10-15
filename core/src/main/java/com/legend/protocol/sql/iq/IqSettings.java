@@ -404,7 +404,7 @@ public final class IqSettings {
 
     private static Map<String, Integer> noTemporaryLevel() {
         Map<String, Integer> m = new java.util.HashMap<>();
-        for (String n : ("checkpoint_time recovery_time reserved_keywords ansi_permissions login_mode"
+        for (String n : words("checkpoint_time recovery_time reserved_keywords ansi_permissions login_mode"
                 + " extern_login_credentials integrated_server_name java_main_userid java_location java_vm_options"
                 + " java_class_path database_authentication min_password_length auditing auditing_options"
                 + " global_database_id max_hash_size truncate_timestamp_values preserve_source_format"
@@ -412,17 +412,32 @@ public final class IqSettings {
                 + " webservice_namespace_host webservice_sessionid_name http_connection_pool_basesize"
                 + " http_connection_pool_timeout allow_snapshot_isolation oem_string trusted_certificates_file"
                 + " disk_sandbox audit_log max_connections time_zone reserved_connections"
-                + " allow_optional_semicolon_in_tsql round_to_even").split(" ")) {
+                + " allow_optional_semicolon_in_tsql round_to_even")) {
             m.put(n, -202);
         }
-        for (String n : ("precision scale min_role_admins db_publisher verify_all_columns delete_old_logs"
+        for (String n : words("precision scale min_role_admins db_publisher verify_all_columns delete_old_logs"
                 + " qualify_owners quote_all_identifiers replication_error replication_error_piece subscribe_by_remote"
                 + " verify_threshold blob_threshold compression external_remote_options save_remote_passwords"
                 + " sr_date_format sr_time_format sr_timestamp_format sr_timestamp_with_time_zone_format"
-                + " assume_distinct_servers ml_remote_id").split(" ")) {
+                + " assume_distinct_servers ml_remote_id")) {
             m.put(n, -203);
         }
         return java.util.Collections.unmodifiableMap(m);
+    }
+
+    /** The words of {@code s}, split at single spaces (no regular expression: the drop-in surface's rule). */
+    private static List<String> words(String s) {
+        List<String> out = new java.util.ArrayList<>();
+        int start = 0;
+        for (int i = 0; i <= s.length(); i++) {
+            if (i == s.length() || s.charAt(i) == ' ') {
+                if (i > start) {
+                    out.add(s.substring(start, i));
+                }
+                start = i + 1;
+            }
+        }
+        return out;
     }
 
     /** IQ's error for setting {@code name} temporarily where this base keeps it with no temporary level; null if it
