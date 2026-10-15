@@ -698,9 +698,27 @@ for a relationship with properties, and where does the model say so?
    lite reads the spelled navigation. The rule stays one: the end is the property carrying the stereotype, stored or
    derived.
 
-   **Other typed channels, considered and set aside.** A marker superclass, `Class demo::Acting extends
-   graph::Edge`, is as typed as the stereotype and would make "every relationship" a class (`graph::Edge.all()`), but
-   it enters the inheritance the mappings, keys and milestoning read; the stereotype marks without inheriting. A
+   **Other typed channels, considered and set aside.** A marker superclass (the user asked to see it, 2026-10-15):
+
+   ```
+   Class <<typemodifiers.abstract>> graph::Edge {}                   // the library project
+
+   Class demo::Acting extends graph::Edge                            // the model
+   {
+     <<Graph.from>> actor: demo::Actor[1];
+     <<Graph.to>>   movie: demo::Movie[1];
+     <<Graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1];
+     role: String[1];
+   }
+   ```
+
+   It replaces only the `Edge` marker: a superclass cannot type the ends (that needs a generic `Edge<From, To>`, which
+   the engine refuses, and `from: Any[1]` cannot be narrowed by a subclass, since Pure has no covariant
+   redeclaration) and cannot declare the type (Pure has no abstract member to override). It is as typed as the
+   stereotype for that one thing, and would make "every relationship" a class (`graph::Edge.all()`) only once each
+   model writes the superclass a union mapping over its edge classes, which the translator does for free as it does
+   for a label-less node; and it enters the inheritance that mapping extension, equality keys, milestoning, `match`
+   and graph fetch read. The stereotype marks without inheriting. A
    stored property with a default value (`type: RelationshipType[1] = RelationshipType.ACTED_IN;`) is typed but is a
    column to map, not a constant. A class constraint calling a library function with the two ends would need that
    function to exist in the engine as a Pure function and in lite as a known name, and the engine's refusal of
