@@ -1306,6 +1306,51 @@ pause for the user's review after Phase 1.
      `SqlDialect.java`, `exec/Sessions.java`, `server/`. Reviews: the Compiler Rewrite line, Plan Gen (the `snap`
      question, the table model's answer), the Studio line, an audit.
 
+- **Phases 0 and 1 landed 2026-10-15** (neema2/legend-lite#39, merge 8501ccb). The program continues on branch
+  `claude/gracious-edison-jcsvzm`, one PR per phase. It still owns every file under `sql/dialect/`.
+- **The user's decisions of 2026-10-15** (D9 to D11; the plan's §6):
+  - D9: the model language's vocabulary is an owner. The lexer, parser, protocol and model may parse and carry a
+    database's name, and decide nothing by it.
+  - D10: `DynaFn` splits in two (below).
+  - D11: the SQL input languages own their own languages: `PostgresDialect`, `PostgresDateTime` and the `iq`
+    package.
+
+  A new guard, `DialectOwnerExclusivityTest`, holds each owner to its own database: a dialect names only its family's,
+  and a vocabulary owner names no specific `DatabaseType`, dialect, driver or URL. The leak ratchet now counts only
+  what no owner holds: 1,964 lines.
+- **For the compiler line (D10, the user's decision of 2026-10-15; `builtin/` is that line's, so this program does not
+  edit it).** `builtin/DynaFn.java` is legend-engine's table of which database supports which dynaFunction, across 17
+  databases (175 of the leak ratchet's lines). It splits in two:
+  - the engine's table stays as reference data, generated from or verified against the engine's source (spec by
+    verification, the reference-checkout tenet);
+  - the answers for this platform's 11 databases come from each dialect's capability (`docs/dialect-capability/`, the
+    generated matrix), so the matrix and `DynaFn` cannot disagree.
+
+  The compiler line schedules it. Until then `DynaFn`'s lines stay pinned in the ratchet.
+- **Announced 2026-10-15, Phases 2 and 4 (one PR, branch `claude/gracious-edison-jcsvzm`).**
+  - The owner guard (`core/src/test/java/com/legend/DatabaseOwners.java`, `DialectOwnerExclusivityTest`), and the
+    dialect package's foreign names removed:
+    - `fromEngineH2` is now `fromEngineText`;
+    - `RawSqlBoundary` is one translation;
+    - `HostOperations.of` asks the dialect;
+    - each dialect has its own whole DDL type table.
+  - Phase 2: the IR's DuckDB strings become typed values (`sql.DatePart`, `sql.JsonKind`, `SqlExpr.DatePartLit`,
+    `JsonKindLit`, `TypeNameLit`; join keywords from the renderer).
+  - Phase 4: the census's per-database knowledge moves to `SqlDialect.wireTypeName`, `deliversOwn` and
+    `opensFailedResultsWithoutColumns`; the plan's defect 2 is fixed.
+  - Outside `sql/dialect`, the files are: `sql/SqlExpr.java`, `SqlSource.java`, `SqlRewriter.java`,
+    `SqlTyping.java`; lowering (`Scalars`, `DateShifts`, `CalendarAgg`, `CanonicalRenderSql`, `CollectionLanes`,
+    `LiteralSpelling`, `Fold`, `DateFormats`, and the walkers `SubselectPrune`, `Windows`, `StampCensus`); and exec
+    (`SqlTypeCensus`, `Executor`, `GridProbe`, `PctProbe`).
+  - Judged by every PCT lane's whole-statement SQL dump: main 8501ccb against the branch, on all 11 databases, with
+    the clouds' run after Phase 2. Phase 2 is meant to change no statement; Phase 4 changes typing and no statement.
+- **Answered, 2026-10-15: the tenth line's ask for ASCII-only case folding (`translate`).** Yes, as an IR node of the
+  platform's: `SqlFn.TRANSLATE`, with an arm in every dialect. Its exhaustive switches make every dialect answer:
+  `translate` where the database has it (DuckDB, Postgres, H2, Trino, ClickHouse, Snowflake, Databricks, BigQuery),
+  and a spelling or a refusal by name where it has not (SQLite, MariaDB, MySQL). The Pure native that lowers to it is
+  the island's. The dialect line builds the IR node and the arms in its next PR, after this one lands, unless the
+  tenth line needs them sooner: then it announces them here and this program merges them between phases.
+
 ## A tenth line, 2026-10-13: SAP IQ SQL in Pure, the `#IQ{...}#` island (the user's ask, rule 5)
 
 The user asked for the `#SQL{...}#` island's counterpart for SAP IQ / SQL Anywhere. A query written for SAP IQ 16.2

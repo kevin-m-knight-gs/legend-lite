@@ -734,6 +734,31 @@ Measured on c437c0c (docs/GATES.md, the 2026-10-14 Phase 1 entry):
 
 Size: about 400 lines. Goldens unchanged.
 
+**Done, 2026-10-15** (branch `claude/gracious-edison-jcsvzm`, 0dc0ee1, after the owner guard 1e1f55d). Each item, as
+built:
+- **Date parts.** EXTRACT, DATE_TRUNC, DATE_DIFF, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL and TIME_BUCKET now take a typed
+  `SqlExpr.DatePartLit` (`sql.DatePart`). The census named only `"to_days"`; the part names (`'isodow'`, `'doy'`)
+  were DuckDB's too, so all of them went.
+  - Every dialect spells a part with an exhaustive switch.
+  - MariaDB's and SQLite's private `Part` enums are gone, and so is every map keyed by `to_X`.
+  - The base renderer refuses to write a part as a value.
+- **Join keywords.** `Join.Kind` no longer carries its SQL. The renderer writes `joinKeyword(kind)`: the ANSI
+  keywords in the base, the engine text's lower-case ones in `EngineStyleH2`.
+- **JSON kinds and type names.** JSON_TYPE's answer is compared with a typed `SqlExpr.JsonKindLit` (`sql.JsonKind`),
+  and TYPEOF's with a `SqlExpr.TypeNameLit`. Each dialect names a kind as its own JSON_TYPE answers it. Every
+  emulation still answers DuckDB's names, so the SQL is unchanged, but each dialect now says so in its own table and
+  can drop its emulation for its native names when it chooses. A typed predicate was weighed and not taken: the
+  comparisons appear as `=` and `<>` inside CASEs and ORs, and keeping them byte-identical needed the operand typed,
+  not the comparison replaced.
+- **Aggregate names.** Phase 1b had already done this. The last remnant was BigQuery writing its
+  SQRT/EXP/LN/LOG10/MD5/SHA1/SHA256 arms by the enum's name; they spell their names now.
+- **Date formats (D3).** The IR's formats were already typed (`DateFmt`, remediation T3.2). Lowering's engine-format
+  tokens now map straight to the parts, no longer through DuckDB's strftime codes.
+- **Not moved: `RawSql`'s splitter and classifier.** Their rules are ANSI SQL's (single-quote strings; SELECT, WITH,
+  VALUES, TABLE, SHOW, DESCRIBE) and name no database. The type checker that reads them may not depend on a dialect
+  (`ArchitectureTest.compileSideLayersAreDialectBlind`). A database whose raw text needs its own splitting (MySQL's
+  backslash escapes, Postgres's dollar quotes) adds it as that database's input language (D11) when a case needs it.
+
 ### Phase 3: SQL composed outside the dialect (product)
 
 - **`StatementExecutor.dropAndCreateSchemaInDb`**: render the existing `SqlDdl.CreateSchema` through the session's
@@ -772,6 +797,26 @@ the dialect.
   H2 `byte[]` JSON decoding** move into each dialect's `normalize`.
 
 Size: about 400 lines.
+
+**Done, 2026-10-15** (b6cc917).
+- **The census names no database.** Each database's reading is its dialect's:
+  - `SqlDialect.wireTypeName` reads the driver's type names into the wire vocabulary. The synonyms every driver
+    shares are folded in `WireNames`, which names no database.
+  - `SqlDialect.deliversOwn` holds the database's carrier conventions.
+  - `SqlDialect.opensFailedResultsWithoutColumns` is Trino's empty-result quirk.
+
+  The executor hands the census those answers as a `WireReading` value, so exec's references into the plan side do
+  not grow (`execsReachIntoPlanningOnlyShrinks`).
+- **Defect 2 is fixed.** The pivot, grid and PCT-probe columns are typed through the dialect's `wireTypeName`.
+  - `WireTypeNamesTest` covers each of the 11 databases' own names, and the defect's three: Postgres's `int8`,
+    ClickHouse's `Nullable(Int64)` and BigQuery's `INT64`.
+  - It does this through `wireTypeName` rather than the `java.sql.Types` code the plan suggested: one reading, the
+    one the census already proves on every lane.
+  - BigQuery's `BIGNUMERIC` still has no Pure type in that table. The census treats it as BigQuery's own exact
+    decimal carrier; a pivot over one is the next case to measure.
+- **H2's `byte[]`** for a JSON-carried list is read by `H2.normalize`; the executor used to decode it itself.
+- **Not moved: `DynamicPivot`'s `BigInteger` and `BigDecimal` arms.** They decode Java classes and name no database:
+  any driver that hands one back is read the same way.
 
 ### Phase 5: the connector interface (execution side)
 
