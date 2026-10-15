@@ -2882,17 +2882,10 @@ public final class IqDialect implements InputDialect {
 
     private Tx meaning(SqlAst.Binary b, SqlToPure.At at) {
         return switch (b.op()) {
-            case AND, OR -> {
-                Tx l = SqlToPure.truth(at.tx(b.left()), b.op().name(), b.pos());
-                Tx r = SqlToPure.truth(at.tx(b.right()), b.op().name(), b.pos());
-                boolean nullable = l.nullable() || r.nullable();
-                // Kleene: AND is TRUE when both are, FALSE when either is; OR the other way round
-                yield b.op() == SqlAst.BinaryOp.AND
-                        ? Tx.condition(SqlToPure.call("and", l.vs(), r.vs()),
-                                SqlToPure.call("or", l.falseWhen(), r.falseWhen()), nullable)
-                        : Tx.condition(SqlToPure.call("or", l.vs(), r.vs()),
-                                SqlToPure.call("and", l.falseWhen(), r.falseWhen()), nullable);
-            }
+            // Kleene AND and OR through the shared chain reader (IQ island, 2026-10-14: the seventh line's
+            // At.logical, PR #41): a chain of one operator read without recursion, each operand under its operator's
+            // position, combined as a balanced tree -- the meaning of the two-operand arm it replaces
+            case AND, OR -> at.logical(b);
             case EQ, NE, LT, LE, GT, GE -> twoValued(b, comparison(b.op(), at.tx(b.left()), at.tx(b.right()),
                     b.left() instanceof SqlAst.NullLit, b.right() instanceof SqlAst.NullLit, b, b.pos()));
             case PLUS -> plus(b, at);
@@ -3645,8 +3638,15 @@ public final class IqDialect implements InputDialect {
             low = type.min();
             high = type.max();
         }
-        return Tx.value(result.vs(), Kind.INTEGER, result.nullable() || zeroGuard >= 0, IqType.integer(type.family(),
-                low, high, wide, loose));
+        IqType out = IqType.integer(type.family(), low, high, wide, loose);
+        if (zeroGuard < 0) {
+            // IQ island, 2026-10-14 (the seventh line's merged guards, PR #41; the scale suite's cliff 2): the strict
+            // operation's NULL test is carried apart from its body, so the next strict operation ORs the guards rather
+            // than testing this whole value again -- sound, as the body is never empty where the guard is false
+            // (inRange raises or answers the value)
+            return new Tx(result.vs(), Kind.INTEGER, result.nullable(), null, out, result.guard(), result.body());
+        }
+        return Tx.value(result.vs(), Kind.INTEGER, true, out);
     }
 
     /**
