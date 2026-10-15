@@ -49,10 +49,13 @@ the DataCube + Python line before CI (the BUILD edits by the Compiler Rewrite li
   compiled as a refresh sends it. `_step`, `_pure_name` deleted. DataCube now refuses what Python's own typing passed:
   a StrictTime column on this plane (its query does not lower; below).
 - **6, a filter.** `filter-operators.ts` (the editor's table, no DOM, now exhaustive over `FilterOperator`);
-  `gridFilter` builds Python's tree by each operator's operand and offers, in the editor's normal form
-  (`normalFilter`), and compiles it. Python keeps only the shape of its argument and its values' JSON.
-- **7, a class's sample rows.** `sample-rows.ts sampleOf` (out of `model-actions.ts`), run by `gridClass` on the host's
-  database; Python's four value writers deleted (the formats are pinned in test_model).
+  `gridFilter` builds Python's tree by each operator's operand (each named, none by default) and offers, in the
+  editor's normal form (`normalFilter`), and compiles it. Python keeps only the shape of its argument and its values'
+  JSON.
+- **7, a class's sample rows.** `sample-rows.ts sampleRows` (out of `model-actions.ts`, whose `sampleOf` calls it):
+  Python plans and runs `gridClass`'s sample query by the session's own planner, as before (R3: a server's when one was
+  chosen), and hands the rows, as the engine hands DataCube every query's (`_headless.arrow_text`), to `classSample`,
+  which writes them. Python's four value writers deleted; the formats and the planner pinned in test_model.
 
 What is left, and why:
 

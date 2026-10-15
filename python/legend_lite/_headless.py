@@ -105,11 +105,7 @@ class Headless:
         import pyarrow as pa
 
         result = self._db.execute(sql)
-        table = result.to_arrow_table() if result.description is not None else pa.table({})
-        sink = io.BytesIO()
-        with pa.ipc.new_stream(sink, table.schema) as writer:
-            writer.write_table(table)
-        return base64.b64encode(sink.getvalue()).decode('ascii')
+        return arrow_text(result.to_arrow_table() if result.description is not None else pa.table({}))
 
     async def _register_file(self, name: str, data: str) -> None:
         root = self._folder
@@ -237,6 +233,18 @@ def bundle() -> str:
         raise OSError(f"DataCube's code is not at {path}, where the legend-lite wheel carries it: a legend-lite run from "
                       "its sources names the bundle it built in LEGEND_LITE_DATACUBE")
     return path.read_text(encoding='utf-8')
+
+
+def arrow_text(table: Any) -> str:
+    """Rows as the engine hands them to DataCube's code: an Arrow table as one IPC stream, base64 -- what its database
+    answers every query with (``Engine._query``) and its connection reads (headless/host.ts), so rows Python read
+    elsewhere reach DataCube's code as its own queries' do."""
+    import pyarrow as pa
+
+    sink = io.BytesIO()
+    with pa.ipc.new_stream(sink, table.schema) as writer:
+        writer.write_table(table)
+    return base64.b64encode(sink.getvalue()).decode('ascii')
 
 
 def cells(value: Any) -> Any:

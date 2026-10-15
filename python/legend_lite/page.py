@@ -326,20 +326,28 @@ class Grid(Tile):
     def _class(self, name: str | None = None, columns: Mapping[str, Any] | None = None,
                documentation: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         """Its rows as a class's, as the window asks for them: DataCube's own request (headless ``gridClass``: its rows
-        at their finest level, its table, its first rows as the window writes them into the project -- read on Python's
-        database, as every headless grid's are -- and the names offered), with the frames held still. Answers the
-        writer's class action and what DataCube said; a grid whose rows cannot be a class refused in DataCube's words
-        (``ValueError``)."""
+        at their finest level, its table, its sample's query, the names offered), its sample read on Python's database
+        by the session's planner -- with the frames held still, so a Live frame is read once for both, unless a server
+        plans (its answer is awaited holding no lock of the frames') -- and those rows written as the window writes
+        them into the project (headless ``classSample``, handed them as the engine hands DataCube every query's rows).
+        Answers the writer's class action and what DataCube said; a grid whose rows cannot be a class refused in
+        DataCube's words (``ValueError``)."""
+        from ._headless import arrow_text
         engine, frames = self._headless()
+        local = frames.planner is None
         with frames.serving():
             asked = _json.loads(engine.call('gridClass', self._spec(frames), {'source': self.frame, 'page': self._page.name}))
-        if 'refused' in asked:
-            raise ValueError(f'{self.frame!r} cannot be a class: {asked["refused"]}')
+            if 'refused' in asked:
+                raise ValueError(f'{self.frame!r} cannot be a class: {asked["refused"]}')
+            sample = frames[self.frame].execute(asked['sample']) if local else None
+        if sample is None:
+            sample = frames[self.frame].execute(asked['sample'])
+        rows = _json.loads(engine.call('classSample', arrow_text(sample)))
         cls = {'query': asked['query'], 'source': asked['source'], 'name': name or asked['names']['className'],
                **({'documentation': documentation} if documentation else {}),
                **({'columns': _column_choices(columns)} if columns else {}),
                'where': {'from': asked['table']['database'], 'as': 'Python',
-                         'samples': {asked['table']['table']: asked['sample']}}}
+                         'samples': {asked['table']['table']: rows}}}
         return cls, asked
 
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
