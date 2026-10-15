@@ -21,6 +21,7 @@ import pandas as pd
 import legend_lite as ll
 from legend_lite import datacube
 from legend_lite import page as page_module
+from legend_lite._types import plain_type
 
 
 def trades():
@@ -337,7 +338,7 @@ class Document(Paged):
         framed = [c for c in rules['columns'] if c['type'] in made]
         page = ll.Page('rules')
         grid = page.grid(pd.DataFrame({c['name']: made[c['type']] for c in framed}), name='rules')
-        types = {c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
+        types = {c.name: plain_type(c.type) for c in grid._page._session.frames[grid.frame].columns}
         self.assertEqual(types, {c['name']: c['type'] for c in framed}, 'the frame is typed as the cases say')
         days = next(c['name'] for c in framed if c['type'] == 'StrictDate')
         calculated = {'Date': f'$x.{days}->toOne()->firstDayOfMonth()', 'StrictTime': '%10:30:00'}

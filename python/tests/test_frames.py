@@ -248,6 +248,24 @@ class TypedByPlan(unittest.TestCase):
             typed_by_plan(pa.table({'a': [1], 'b': [2]}), plan)
         self.assertIn("does not type the result column 'b'", str(e.exception))
 
+    def test_a_servers_precise_integer_is_an_integer(self):
+        # a server's plan names a column by legend-engine's precise primitive (upstream.tds_columns keeps it as given):
+        # an Int or a BigInt is an Integer by legend-lite's lattice (_types, generated), so an int64, and its name kept
+        from legend_lite.frames import typed_by_plan
+        plan = ll.Plan('SELECT a, b', (ll.Column('a', 'meta::pure::precisePrimitives::Int', {}),
+                                       ll.Column('b', 'meta::pure::precisePrimitives::BigInt', {})))
+        rows = typed_by_plan(pa.table({'a': pa.array([1], pa.int32()), 'b': pa.array([2], pa.int16())}), plan)
+        self.assertEqual([f.type for f in rows.schema], [pa.int64(), pa.int64()])
+        self.assertEqual(rows.schema.field('a').metadata[b'legend.type'], b'meta::pure::precisePrimitives::Int')
+
+    def test_a_column_typed_by_a_name_legend_lite_does_not_read_is_refused(self):
+        # never read as a guess: a column of the wrong type converts wrongly without a word (types.ts typeFact)
+        from legend_lite.frames import typed_by_plan
+        plan = ll.Plan('SELECT a', (ll.Column('a', 'my::Side', {}),))
+        with self.assertRaises(RuntimeError) as e:
+            typed_by_plan(pa.table({'a': ['BUY']}), plan)
+        self.assertIn("the compiler typed a column 'my::Side', which legend-lite does not read", str(e.exception))
+
     def test_pandas_keeps_an_integer_and_a_boolean_with_nulls(self):
         from legend_lite.frames import to_pandas
         frame = pa.table({'i': pa.array([1, None]), 'b': pa.array([True, None]), 'd': pa.array([Decimal('0.10'), None])})

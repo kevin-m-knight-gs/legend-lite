@@ -42,6 +42,7 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, _json, compiler
+from ._types import UnknownType, plain_type
 
 LIVE = 'live'
 SNAPPED = 'snapped'
@@ -64,7 +65,8 @@ _ADMITTED = 8
 
 
 class UntypedColumn(RuntimeError):
-    """A result column its plan does not type: the plan and the database disagree about the query's shape."""
+    """A result column its plan does not type -- the plan and the database disagree about the query's shape -- or types
+    by a name legend-lite does not read (``_types.plain_type``)."""
 
 
 def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
@@ -84,15 +86,20 @@ def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
 
 def typed_by_plan(rows: pa.Table, plan: compiler.Plan) -> pa.Table:
     """A planned query's rows, typed by its plan: each column the compiler's type (``TYPE_KEY``), its values exact (an
-    Integer an int64). A result column the plan does not type is refused: the two disagree about the query's shape, a
-    bug to surface, never a gap to fill (engine-client's ``typedByPlan``)."""
+    Integer an int64, by either compiler's name for one: a server's ``precisePrimitives::BigInt`` too). A result column
+    the plan does not type is refused: the two disagree about the query's shape, a bug to surface, never a gap to fill
+    (engine-client's ``typedByPlan``); so is one typed by a name legend-lite's lattice does not know (``_types``)."""
     types = {c.name: c.type for c in plan.columns}
     fields, columns = [], []
     for field, column in zip(rows.schema, rows.columns):
         typed = types.get(field.name)
         if typed is None:
             raise UntypedColumn(f"the plan does not type the result column '{field.name}': {plan.sql}")
-        if typed == 'Integer':
+        try:
+            plain = plain_type(typed)
+        except UnknownType as unknown:
+            raise UntypedColumn(f'{unknown}: {plan.sql}') from None
+        if plain == 'Integer':
             column = _integer(column)
         fields.append(pa.field(field.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
         columns.append(column)

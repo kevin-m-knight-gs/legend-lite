@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _json, compiler
+from ._types import plain_type
 from .frames import LIVE, SNAPPED
 
 # DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts, layout/bands.ts): a
@@ -708,15 +709,16 @@ class GridView:
 
     def __init__(self, view: Mapping[str, Any]) -> None:
         self.columns: list[dict[str, Any]] = list(view['columns'])
-        # each value as its column's type says: a Decimal's text (DataCube's exact decimals) a Decimal, a Float a float
-        # even when JSON wrote it as a whole number (10.0 is written 10)
+        # each value as its column's type says (by legend-lite's lattice, either compiler's name: _types): a Decimal's
+        # text (DataCube's exact decimals) a Decimal, a Float a float even when JSON wrote it as a whole number (10.0 is
+        # written 10)
         def typed(v: Any, type: str) -> Any:
             if type == 'Decimal' and isinstance(v, str):
                 return Decimal(v)
             if type == 'Float' and isinstance(v, int) and not isinstance(v, bool):
                 return float(v)
             return v
-        types = [c['type'] for c in self.columns]
+        types = [plain_type(c['type']) for c in self.columns]
         self.rows: list[list[Any]] = [[typed(v, t) for v, t in zip(row, types)] for row in view['rows']]
         self.tree: list[dict[str, Any]] = list(view['tree'])
         self.truncated: list[dict[str, Any]] = list(view['truncated'])
@@ -736,7 +738,7 @@ class GridView:
             wide = type == 'Integer' and any(isinstance(v, int) and not -2 ** 63 <= v < 2 ** 63 for v in values)
             return pd.Series(values, dtype=object if wide else nullable.get(type))
         # by position: a pivot's columns may share a name
-        frame = pd.DataFrame({i: column(i, c['type']) for i, c in enumerate(self.columns)})
+        frame = pd.DataFrame({i: column(i, plain_type(c['type'])) for i, c in enumerate(self.columns)})
         frame.columns = [c['name'] for c in self.columns]
         return frame
 
