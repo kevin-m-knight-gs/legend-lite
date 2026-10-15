@@ -49,8 +49,8 @@ public final class PlanOnJavaBase {
                 + "->extend(over(~NAME, ~ID->ascending()), ~[rn:{p,w,r|$p->rowNumber($r)}])"
                 + "->filter(r|$r.rn == 1)->groupBy(~[NAME], ~[t: r|$r.SIZE : y|$y->plus()])").plan("x::PgRT").sql();
         System.out.println("postgres: " + postgres);
-        // quoted identifiers, and QUALIFY as a wrapping select
-        check(postgres.startsWith("SELECT") && postgres.contains("FROM \"FIRM\"") && postgres.contains("\"qualify_src\""),
+        // the store's bare names folded (decision D8), and QUALIFY as a wrapping select
+        check(postgres.startsWith("SELECT") && postgres.contains("FROM firm") && postgres.contains("\"qualify_src\""),
                 "no Postgres SQL planned: " + postgres);
         System.out.println("the planner runs on java.base alone");
     }

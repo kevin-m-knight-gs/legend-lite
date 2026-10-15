@@ -21,14 +21,20 @@ import java.util.List;
  * {@code executeInDb} argument, or the registered catalog SQL) — never
  * platform-composed; the RawSql quarantine's contract rides from here
  * to {@code SqlSource.RawSql}. Backend adaptation of the authored text
- * is the DIALECT's own rewrite pass, never this node's business.
+ * is the DIALECT's own (decision D2: the engine's H2 text translated,
+ * any other run as written), never this node's business.
  *
- * @param sql  the authored statement text (single statement, no
- *             trailing {@code ;})
- * @param info an empty-column relation type — columns are late-bound
+ * @param sql      the authored statement text (single statement, no
+ *                 trailing {@code ;})
+ * @param authored whether the text is authored for a connection (an
+ *                 {@code executeInDb} argument), not the platform's own
+ *                 (a catalog grid's, written in the session's language)
+ * @param database the database that connection declares (that type's
+ *                 name, read at typing); null when it could not be read
+ * @param info     an empty-column relation type — columns are late-bound
  */
-public record TypedRawSqlRelation(String sql, ExprType info)
-        implements TypedSpec {
+public record TypedRawSqlRelation(String sql, boolean authored, @com.legend.base.Nullable String database,
+        ExprType info) implements TypedSpec {
 
     @Override
     public List<TypedSpec> children() {
@@ -39,6 +45,16 @@ public record TypedRawSqlRelation(String sql, ExprType info)
     public TypedSpec withChildren(List<TypedSpec> kids) {
         TypedSpec.expectChildren(kids, 0, "TypedRawSqlRelation");
         return this;
+    }
+
+    /** The database the text is written for, as its connection declares it (decision D2; that type's name); null for
+     *  the platform's own text. Authored text whose connection could not be read is refused when it runs: the
+     *  language of its text is unknown. */
+    public @com.legend.base.Nullable String writtenFor() {
+        if (authored && database == null) {
+            throw ExecutionContext.unknownLanguage("raw SQL");
+        }
+        return database;
     }
 
     /** The property read behind a (possibly toOne-wrapped) LATE-BOUND
@@ -59,6 +75,6 @@ public record TypedRawSqlRelation(String sql, ExprType info)
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedRawSqlRelation(sql, info);
+        return new TypedRawSqlRelation(sql, authored, database, info);
     }
 }

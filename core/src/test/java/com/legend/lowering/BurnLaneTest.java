@@ -44,9 +44,9 @@ class BurnLaneTest {
         // collapsed both onto ONE projected NAME and the ON compared O.B
         // against the person's name (0 rows where 1 was right).
         SqlSource.Table p = new SqlSource.Table("T_PERSON", "p",
-                List.of(new OutputCol("NAME", SqlType.Scalar.VARCHAR, true)), false, java.util.Map.of());
+                List.of(new OutputCol("NAME", SqlType.Scalar.VARCHAR, true)), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
         SqlSource.Table d = new SqlSource.Table("T_DEPT", "d",
-                List.of(new OutputCol("NAME", SqlType.Scalar.VARCHAR, true)), false, java.util.Map.of());
+                List.of(new OutputCol("NAME", SqlType.Scalar.VARCHAR, true)), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
         SqlSource inner = new SqlSource.Join(p, d, SqlSource.Join.Kind.INNER,
                 new SqlExpr.BoolLit(true));
         SqlSelect sub = SqlSelect.starOf(inner).withWhere(
@@ -59,7 +59,7 @@ class BurnLaneTest {
                                 new SqlExpr.Column("d", "NAME"))));
         SqlSource.Table o = new SqlSource.Table("T_OUTER", "o",
                 List.of(new OutputCol("A", SqlType.Scalar.VARCHAR, true),
-                        new OutputCol("B", SqlType.Scalar.VARCHAR, true)), false, java.util.Map.of());
+                        new OutputCol("B", SqlType.Scalar.VARCHAR, true)), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
         SqlSelect outer = SqlSelect.starOf(o)
                 .withWhere(new SqlExpr.Exists(sub));
         AtomicInteger n = new AtomicInteger();

@@ -58,8 +58,12 @@ export interface InferredModel {
    * rewrite, a Snap. A read-only source reads such a column (a zoned timestamp) as stored.
    */
   readonly conversions: readonly { readonly column: string; readonly sql: string }[];
-  /** The select list a copy applies: `* REPLACE (<conversion> AS "<column>", ...)`, or `*`. */
-  readonly copySelectList: string;
+  /**
+   * The select list a copy applies, written by the copy's own database (`* REPLACE (<conversion> AS "<column>",
+   * ...)` on DuckDB, or `*`): present when the table is copied, through the snap runtime or rewritten in place
+   * (`convertible`); a read-only source with no snap has none.
+   */
+  readonly copySelectList?: string;
   /** Columns left out: the source cannot convert them, or no Database type holds them (bytes). */
   readonly excluded: readonly string[];
   /**

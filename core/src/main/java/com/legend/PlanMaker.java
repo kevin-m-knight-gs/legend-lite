@@ -176,7 +176,8 @@ final class PlanMaker {
             switch (step) {
                 case CsvSeed.Step.Sql blob -> {
                     for (String statement : com.legend.sql.RawSql.splitStatements(blob.text())) {
-                        out.add(new ExecutionPlan.SetupStep.Statement(CsvSeed.adaptRaw(statement, dialect)));
+                        out.add(new ExecutionPlan.SetupStep.Statement(
+                                new CsvSeed.Step.Sql(statement, blob.writtenFor()).runOn(dialect)));
                     }
                 }
                 case CsvSeed.Step.Rows rows -> {

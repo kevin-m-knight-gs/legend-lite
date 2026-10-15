@@ -28,7 +28,8 @@ public final class SetupRunner {
                     for (String stmt : com.legend.sql.RawSql.splitStatements(blob.text())) {
                         boolean query;
                         try (var __o = StatementOrigin.enter(StatementOrigin.SEED)) {
-                            query = Executor.executeRaw(connection, com.legend.setup.CsvSeed.adaptRaw(stmt, dialect));
+                            query = Executor.executeRaw(connection,
+                                    new com.legend.setup.CsvSeed.Step.Sql(stmt, blob.writtenFor()).runOn(dialect));
                         }
                         if (recorder != null) {
                             recorder.recordExecuted(stmt, query);

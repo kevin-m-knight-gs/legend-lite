@@ -115,13 +115,25 @@ public record DatabaseDefinition(
      *  columns and no arguments (upstream {@code TabularFunction extends
      *  NamedRelation} beside {@code Table}; its grammar declares columns only).
      *  Looked up like a table; kept out of {@link DatabaseDefinition#tables()},
-     *  so nothing that walks tables (DDL, seeds) mistakes it for one. */
+     *  so nothing that walks tables (DDL, seeds) mistakes it for one.
+     *  {@code quoted} and {@code schemaQuoted}: the store declared the table's
+     *  name, and the name of the schema it is in, QUOTED ({@code Schema "Sales"
+     *  ( Table "Orders" ... )}) -- a spelling the SQL keeps, as a quoted column's
+     *  ({@link ColumnDefinition#quoted}); {@code name} stays bare, the identity
+     *  every lookup spells. */
     public record TableDefinition(String name, List<ColumnDefinition> columns,
-            @com.legend.base.Nullable Milestoning milestoning, boolean function) {
+            @com.legend.base.Nullable Milestoning milestoning, boolean function, boolean quoted,
+            boolean schemaQuoted) {
 
         /** A table without a milestoning block. */
         public TableDefinition(String name, List<ColumnDefinition> columns) {
-            this(name, columns, null, false);
+            this(name, columns, null, false, false, false);
+        }
+
+        /** A table whose names were declared bare. */
+        public TableDefinition(String name, List<ColumnDefinition> columns,
+                @com.legend.base.Nullable Milestoning milestoning, boolean function) {
+            this(name, columns, milestoning, function, false, false);
         }
 
         public TableDefinition {

@@ -1,6 +1,5 @@
 meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty ||| statement=1
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone ||| fallback=2
-meta::relational::graphFetch::tests::simple::testRelationalGraphFetchWithAlloySerializationConfig ||| fallback=1
 meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithAlloySerializationConfig ||| fallback=3
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| probe=1
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| statement=2 tdg=29
@@ -43,7 +42,6 @@ meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| s
 meta::relational::tests::ddl::dropAndCreateTable ||| fallback=1 probe=2
 meta::relational::tests::ddl::dropAndCreateTempTable ||| probe=1
 meta::relational::tests::functions::fetchDbMetaData::testFetchDbColumnsMetaData ||| fallback=3
-meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithObjReferenceOutput ||| fallback=1
 meta::relational::tests::groupBy::testAggToManyWithFilter ||| fallback=1
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwice ||| fallback=1
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwiceUsingQualifier ||| fallback=1

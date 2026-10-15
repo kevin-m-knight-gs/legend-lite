@@ -81,11 +81,7 @@ final class FromChecker {
                     value = t.synth(raw, env);
                 }
                 bound = ExecutionContext.reader()
-                        .fnBody(fq -> t.model().findFunction(fq).stream()
-                                .map(com.legend.compiler.element.TypedFunction::body)
-                                .filter(java.util.Optional::isPresent)
-                                .map(java.util.Optional::get)
-                                .findFirst())
+                        .overloads(t.model()::findFunction)
                         .canon(t::classFqnOf)
                         .dbOfCopy(cp -> {
                             var store = connectionStoreOf(t, env, cp.source());

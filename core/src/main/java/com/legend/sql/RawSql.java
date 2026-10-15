@@ -9,9 +9,10 @@ import java.util.List;
 /**
  * Raw-SQL string utilities for the K-native {@code executeInDb} boundary:
  * a caller-supplied SQL BLOB (engine tests pass several statements in one
- * string) is split into single statements before execution. Dialect
- * adaptation of the statement text itself lives on
- * {@link com.legend.exec.RawSqlBoundary}.
+ * string) is split into single statements before execution. The dialect
+ * that runs a statement decides whether its text is translated
+ * ({@code com.legend.sql.dialect.SqlDialect#raw}, decision D2); this package
+ * names no database.
  */
 public final class RawSql {
 

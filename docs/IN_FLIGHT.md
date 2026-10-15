@@ -1360,10 +1360,38 @@ becomes an ordinary Relation expression and returns IQ's answer on any backend.
     natives, so no new native.
 - **The second landing: LANDED 2026-10-14 as f2e7b553d** (PR neema2/legend-lite#40; GATES "`#IQ{...}#`: the second
   landing"). The seventh line's stress fixes rebase over its seam edits, listed below.
-- **Next, on `claude/iq-island-3` (the user, 2026-10-14: SELECT statements first; the catalog, server-state procedures
-  and procedural wrappers stay refused by name):** the M1 gaps, then a general way to set IQ's options (a settings
-  vector of database, login and statement layers, the five profiles as presets, set in the island header or by IQ's
-  own `SET OPTION`). Cross-area edits will be announced here before they land.
+- **Announced 2026-10-14: the third landing's cross-area edits** (`claude/iq-island-3`; one PR and one CI run after
+  review 8). Contents:
+  - the M1 gaps;
+  - review 7's fixes and a determinism lint for the IQ cases;
+  - IQ's options as one settings vector named by IQ's own names (database properties, options, `CommProtocol`), with
+    the five profiles as presets;
+  - IQ's own `SET [TEMPORARY] OPTION …;` before a SELECT, read by the island's IQ reader.
+
+  There is no new Legend syntax (the user: no parser feature upstream lacks). Settings will come from Pure tagged
+  values on the Database element and the enclosing function, in a later landing, announced here first.
+  - **The seventh line's seam files** (Postgres's behaviour unchanged; judged by both `sql-parity` ledgers and the
+    generated-Pure dump of every Postgres case, byte-identical):
+    - `protocol/sql/InputDialect.java`: four default hooks (`columnNotHere`, `enclosingColumn`, `namesUnread`,
+      `namedAsColumn`), and messages for three problems (DISTINCT's ORDER BY key, set-operation widths, not grouped).
+    - `protocol/sql/SqlToPure.java`:
+      - those messages go through the dialect;
+      - `Grouping` exposes `groupKey`;
+      - an output name no one reads (an EXISTS subquery's, a later set-operation branch's) gets a fresh name where the
+        dialect says so.
+    - `protocol/sql/PostgresDialect.java`: the two new message texts, unchanged in wording.
+  - **The compiler's file:** `compiler/spec/SqlIslands.java`, one line (the IQ dialect is built from the profile's
+    settings).
+  - **Build:** `core/BUILD.bazel`, the IQ case glob reads `lite/**/*.yaml`.
+  - **The tenth line's own test harness and docs:** `testcases/IqParity.java`, `IqAnswers.java`, the two Iq parity
+    tests, the study's §9.16–§9.17, `SEMANTICS_REGISTER.md` S51 and S57.
+- **Next (landing 4): conformance to real SAP IQ 17.1.** The user now has a real IQ (a HANA Cloud data lake), reached
+  locally through a session the user opens. Plan:
+  - It becomes the oracle for the IQ profiles; CI still judges from the committed answers.
+  - Lite's IQ-engine semantics are fixed where real IQ differs from SQL Anywhere: integer overflow widens; IQ's own
+    error codes; unaliased names; INTERSECT/EXCEPT and the other IQ restrictions.
+  - The most-used features and their scale come first, including CTEs and window functions.
+  - The refusal of an outer column in a subquery's select list goes now that 9bc695885 has landed.
 - **Announced 2026-10-14: the second landing's cross-area edits.** One squashed commit on `claude/iq-island-2`, one
   PR and one CI run, after reviews 3 to 6 and their fixes.
   - **The compiler's files** (one call site, and the island's read of the model and the scope):

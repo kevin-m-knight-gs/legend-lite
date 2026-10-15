@@ -158,7 +158,7 @@ public final class FromProtocol {
             List<DatabaseDefinition.TableDefinition> st = new java.util.ArrayList<>();
             List<DatabaseDefinition.ViewDefinition> sv = new java.util.ArrayList<>();
             for (com.legend.protocol.Protocol.PDbTable tb : s.tables()) {
-                DatabaseDefinition.TableDefinition d = table(tb, false);
+                DatabaseDefinition.TableDefinition d = table(tb, false, RelationalIdentifier.isQuoted(s.name()));
                 st.add(d);
                 flatTables.add(d);
             }
@@ -166,7 +166,7 @@ public final class FromProtocol {
             // tables and kept in their own lists (the wire's own split)
             List<DatabaseDefinition.TableDefinition> sf = new java.util.ArrayList<>();
             for (com.legend.protocol.Protocol.PDbTable tb : s.tabularFunctions()) {
-                DatabaseDefinition.TableDefinition d = table(tb, true);
+                DatabaseDefinition.TableDefinition d = table(tb, true, RelationalIdentifier.isQuoted(s.name()));
                 sf.add(d);
                 flatFunctions.add(d);
             }
@@ -210,8 +210,9 @@ public final class FromProtocol {
                 flatTables, flatViews, flatFunctions, joins, filters, multiGrain);
     }
 
+    /** A table, its name bare and its quoting remembered (its own, and its schema's: {@code schemaQuoted}). */
     private static DatabaseDefinition.TableDefinition table(
-            com.legend.protocol.Protocol.PDbTable t, boolean function) {
+            com.legend.protocol.Protocol.PDbTable t, boolean function, boolean schemaQuoted) {
         List<DatabaseDefinition.ColumnDefinition> cols = new java.util.ArrayList<>();
         for (com.legend.protocol.Protocol.PDbColumn c : t.columns()) {
             cols.add(new DatabaseDefinition.ColumnDefinition(RelationalIdentifier.bare(c.name()),
@@ -219,7 +220,7 @@ public final class FromProtocol {
                     !c.nullable(), RelationalIdentifier.isQuoted(c.name())));
         }
         return new DatabaseDefinition.TableDefinition(RelationalIdentifier.bare(t.name()), cols,
-                milestoning(t.milestoning()), function);
+                milestoning(t.milestoning()), function, RelationalIdentifier.isQuoted(t.name()), schemaQuoted);
     }
 
     /** The wire carries a LIST of milestoning entries, one per dimension;

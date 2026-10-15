@@ -1097,7 +1097,9 @@ final class StatementExecutor {
             throw new IllegalStateException(
                     "plan connection: unmatched connection class " + ni.classFqn());
         }
-        String type = com.legend.compiler.spec.typed.ExecutionContext.Reader.databaseType(ni);
+        // the database the context read declares (a literal, a let-bound or function-answered one); C4 (handed off,
+        // as planDatabase): one it cannot read is planned for the engine test connection's
+        String type = pc.databaseType() != null ? pc.databaseType() : EngineText.ENGINE_TEST_DATABASE.name();
         String csv = ni.properties().get("testDataSetupCsv")
                 instanceof com.legend.compiler.spec.typed.TypedCString c
                 ? c.value() : null;
@@ -1309,10 +1311,10 @@ final class StatementExecutor {
      * included) out of the resolver. */
     static com.legend.resolver.RawGridSchema.SchemaOracle gridOracle(
             java.sql.Connection connection, ExecEnv env) {
-        return sql -> {
+        return (sql, writtenFor) -> {
             try {
                 return com.legend.exec.GridProbe.probeTypedColumns(
-                        sql, connection, env.dialect());
+                        sql, writtenFor, connection, env.dialect());
             } catch (java.sql.SQLException e) {
                 throw new IllegalStateException(e);
             }
@@ -1911,7 +1913,8 @@ final class StatementExecutor {
         java.util.List<com.legend.setup.CsvSeed.Step> setups = new java.util.ArrayList<>();
         for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
             for (String sql : fr.sqlSetups()) {
-                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql));
+                // written in the database the from()'s connection declares (decision D2)
+                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
             }
             setups.addAll(com.legend.setup.CsvSeed.setupSteps(fr, env.ctx(), env.dialect()));
             // an ELEMENT runtime named by the from(): its declared
@@ -2839,13 +2842,6 @@ final class StatementExecutor {
      * evaluation. The blob is dialect-adapted, split on top-level
      * {@code ;}, and executed statement by statement.
      */
-    /** Corpus-authored raw H2 adapts to the SESSION: identity on a
-     * dialect that executes H2 natively, the boundary translator for the
-     * DuckDB reference target (H2_BACKEND.md §12 step 12 — the rewrite
-     * is a DuckDB-target adaptation, never generic). */
-    private static String adaptRaw(String sql, ExecEnv env) {
-        return com.legend.setup.CsvSeed.adaptRaw(sql, env.dialect());
-    }
 
     /** THE ONE SEND of an effect native (block-compiler stage 3, 2026-09-21): with a
      * sink on the environment the statement is COLLECTED into the effect segment
@@ -2918,13 +2914,18 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String raw = evalStringArg(body, call.args().get(0), env);
-        // split FIRST: adaptation is per-statement (its recognizers anchor
-        // at statement start). Corpus-authored raw H2 goes through THE
-        // boundary translator — never a dialect renderer (R0 rule).
+        // the database its connection declares (decision D2, lets bound): every corpus call's reads, measured
+        // 2026-10-13 (122,823 of 122,823, as H2); one that cannot be read is refused
+        String writtenFor = com.legend.compiler.spec.typed.ExecutionContext.rawLanguage(
+                com.legend.compiler.spec.typed.Lets.bound(call.args().get(1), body));
+        // split FIRST: translation is per-statement (its recognizers anchor
+        // at statement start). The engine's H2 text crosses THE boundary
+        // translator through the session's dialect, any other runs as
+        // written (decision D2).
         for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
             // recorded AFTER it executes, with its kind: the ledger
             // mirrors executed reality by construction
-            sendEffect(env, adaptRaw(stmt, env), stmt, com.legend.exec.StatementOrigin.RAW, false);
+            sendEffect(env, env.dialect().raw(stmt, writtenFor), stmt, com.legend.exec.StatementOrigin.RAW, false);
         }
         // an opaque ResultSet handle: setup statements ignore it; a test
         // that READS it will surface loudly here when that day comes
@@ -2992,8 +2993,8 @@ final class StatementExecutor {
         // session (Phase 0.6): the H2 lane's fresh replays inserted into
         // tables nobody created because this recording was gated on the
         // DuckDB session (17 `ADDRESSTABLE not found` declines)
-        sendEffect(env, env.dialect().render(Ddl.dropTable(schema, table)),
-                H2_DDL.render(Ddl.dropTable(schema, table)), com.legend.exec.StatementOrigin.RAW, true);
+        sendEffect(env, env.dialect().render(Ddl.dropDeclaredTable(def, schema)),
+                H2_DDL.render(Ddl.dropDeclaredTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
         // engine parity (batch 71 experiment): the native's DDL carries the
         // declared key and nullability, exactly like the engine's
         // dropAndCreateTableInDb (applyConstraints defaults true)
@@ -3038,7 +3039,7 @@ final class StatementExecutor {
             cols.add(new com.legend.sql.SqlDdl.Column(name.value(), false,
                     com.legend.compiler.element.StoreCompiler.declaredType(datatypeLiteral(type)), false, false));
         }
-        com.legend.sql.SqlDdl.CreateTable ct = new com.legend.sql.SqlDdl.CreateTable(null, table, cols, true);
+        var ct = new com.legend.sql.SqlDdl.CreateTable(null, table, com.legend.sql.NameQuoting.BARE, cols, true);
         sendEffect(env, env.dialect().render(ct), H2_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
         return new ExecutionResult.Scalar(null, call.info().type());
     }

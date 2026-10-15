@@ -344,7 +344,7 @@ class TypedSpecChildrenTest {
             // TypedFrameRef.plan (leg 3.4 step 2): the planned frame's SQL —
             // a lowered artifact the reference carries, not a typed child
             return com.legend.sql.SqlSelect.starOf(
-                    new com.legend.sql.SqlSource.Table("T", "t0", List.of(), false, java.util.Map.of()));
+                    new com.legend.sql.SqlSource.Table("T", "t0", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE));
         }
         if (type == com.legend.sql.SqlDdl.ColumnType.class) {
             // TypedTableReference.storedTypes (store types, step 3): a column's

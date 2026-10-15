@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * is silent scope creep and fails the build; a count below means the
  * rung landed — tighten the pin in the SAME commit.
  *
- * <p>SqlFn entries are SEMANTIC vocabulary (Spellings maps them) —
+ * <p>SqlFn entries are SEMANTIC vocabulary (each dialect's switch spells them) —
  * the violation class is the backend data-model idiom, per the doc's
  * §4 definition. LIST_* / UNNEST SqlFn references upstream are counted
  * because those functions presuppose the list carrier itself.

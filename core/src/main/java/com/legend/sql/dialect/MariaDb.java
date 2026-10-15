@@ -55,18 +55,46 @@ import java.util.Set;
  *       every match); base64, MD5, SHA-1 and SHA-2 are native.</li>
  * </ul>
  *
- * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: a portable base arm (or a
- * {@link Spellings#MARIADB} row), a MariaDB arm, or a {@link DialectCapability} wall.
+ * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
+ * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
 public class MariaDb extends AnsiSqlRenderer {
 
+    /** MariaDB (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): double quotes under the session's
+     *  ANSI_QUOTES; MariaDB's reserved words. The {@code MariaDb} dialect quotes EVERY identifier, so the list decides
+     *  no spelling there. */
+    public static final Lexicon LEXICON = new Lexicon('"', Set.of(
+            "accessible", "add", "all", "alter", "analyze", "and", "as", "asc", "asensitive", "before", "between",
+            "bigint", "binary", "blob", "both", "by", "call", "cascade", "case", "change", "char", "character", "check",
+            "collate", "column", "condition", "constraint", "continue", "convert", "create", "cross", "current_date",
+            "current_role", "current_time", "current_timestamp", "current_user", "cursor", "database", "databases",
+            "day_hour", "day_microsecond", "day_minute", "day_second", "dec", "decimal", "declare", "default",
+            "delayed", "delete", "desc", "describe", "deterministic", "distinct", "distinctrow", "div", "double",
+            "drop", "dual", "each", "else", "elseif", "enclosed", "escaped", "except", "exists", "exit", "explain",
+            "false", "fetch", "float", "for", "force", "foreign", "from", "fulltext", "general", "grant", "group",
+            "having", "high_priority", "if", "ignore", "in", "index", "infile", "inner", "inout", "insensitive",
+            "insert", "int", "integer", "intersect", "interval", "into", "is", "iterate", "join", "key", "keys",
+            "kill", "leading", "leave", "left", "like", "limit", "lines", "load", "localtime", "localtimestamp",
+            "lock", "long", "loop", "match", "minus", "mod", "modifies", "natural", "not", "null", "numeric", "offset",
+            "on", "optimize", "option", "or", "order", "out", "outer", "over", "partition", "precision", "primary",
+            "procedure", "range", "read", "reads", "real", "recursive", "references", "regexp", "release", "rename",
+            "repeat", "replace", "require", "restrict", "return", "returning", "revoke", "right", "rlike", "row_number",
+            "rows", "schema", "schemas", "select", "sensitive", "separator", "set", "show", "signal", "smallint",
+            "spatial", "specific", "sql", "starting", "straight_join", "table", "terminated", "then", "to",
+            "trailing", "trigger", "true", "undo", "union", "unique", "unlock", "unsigned", "update", "usage", "use",
+            "using", "values", "varchar", "when", "where", "while", "window", "with", "write", "xor", "zerofill"));
+
+    /** MariaDB (2026-10-11): the portable strategies over its JSON lists (a JSON_TABLE argument correlates,
+     *  measured); no FULL OUTER JOIN (measured: a syntax error), so it is emulated, as on H2. */
+    public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, true, true, false);
+
     public MariaDb() {
-        super(Lexicon.MARIADB, TypeNames.MARIADB, Spellings.MARIADB);
+        super(LEXICON);
     }
 
     /** A dialect of the family ({@link MySql}): MariaDB's spellings where the two agree, its own hooks where not. */
-    protected MariaDb(Lexicon lexicon, TypeNames types, Spellings spellings) {
-        super(lexicon, types, spellings);
+    protected MariaDb(Lexicon lexicon) {
+        super(lexicon);
     }
 
     // ==================================================================
@@ -146,6 +174,43 @@ public class MariaDb extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
+    /** The engine's H2 text is refused here: MariaDB has no translation of it (decision D2: raw text runs on the
+     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+    @Override
+    public String fromEngineH2(String statement) {
+        throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
+    }
+
+    /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
+     *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
+    @Override
+    protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
+        return switch (s) {
+            case BOOLEAN, INTEGER, BIGINT -> "SIGNED";
+            case HUGEINT -> "DECIMAL(38,0)";
+            case DOUBLE -> "DOUBLE";
+            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
+            case DATE -> "DATE";
+            case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
+            case DECIMAL_TEXT -> 
+                    throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
+        };
+    }
+
+    /** No STRUCT type here: a struct cast is refused. */
+    @Override
+    protected String structTypeName(com.legend.sql.SqlType.Struct st) {
+        throw new DialectCapability("a STRUCT type reached a dialect without struct support");
+    }
+
+    /** A date format's parts: the base's strftime codes, {@code strftimeText} (its own strftime helper spells the
+     *  parts it formats itself; the dialect program's Phase 1, 2026-10-13: each dialect declares its date-format
+     *  vocabulary). */
+    @Override
+    protected String formatText(SqlExpr.FormatLit fl) {
+        return strftimeText(fl);
+    }
+
     /** The session the dialect's spellings assume (measured: without ANSI_QUOTES {@code "name"} is the string
      *  'name'); recursion and GROUP_CONCAT lengths past their small defaults; and no condition pushed into a derived
      *  table (measured on 11.4.13: a filter on a JSON value of a UNION derived table, pushed into its branches, kept
@@ -178,7 +243,7 @@ public class MariaDb extends AnsiSqlRenderer {
      *  11 GB on ten of them (measured, the server killed). */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CarrierStrategies.Caps.MARIADB), new StarExceptToColumns(),
+        return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new QualifyToSubselect(true), new ConstantKeysAsExpressions());
@@ -1665,28 +1730,55 @@ public class MariaDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
-        if ((c.fn() == SqlFn.EQUAL || c.fn() == SqlFn.NOT_EQUAL) && a.size() == 2
-                && (composite(a.get(0)) || composite(a.get(1)))) {
-            return writer.append("(").piece(compact(w -> w.expr(a.get(0), 0)))
-                    .append(c.fn() == SqlFn.EQUAL ? " = " : " <> ").piece(compact(w -> w.expr(a.get(1), 0))).append(")");
-        }
         return switch (c.fn()) {
-            // ---- portable: the base arm (or a Spellings.MARIADB row) is MariaDB's
-            case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
-                 IS_NULL, IS_NOT_NULL, XOR, UC_FIRST, LC_FIRST,
-                 // the base's hooks, overridden below
-                 HASH, ROUND, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, STRUCT_INSERT, UNNEST,
-                 PURE_SPLIT_PART, LIST_EXISTS, LIST_FOR_ALL, ALL_DISTINCT, TO_VARIANT, VARIANT_GET, VARIANT_ELEMENTS,
-                 // Spellings.MARIADB rows
-                 ABS, ATAN, ATAN2, COS, COT, SIN, TAN, DEGREES, RADIANS, EXP, LN, LOG10, SQRT, POW, LOWER, UPPER,
-                 REPLACE, REVERSE_STRING, FLOOR_RAW, STRPOS, LIST_LENGTH, JSON_ARRAY_LENGTH ->
-                    super.call(writer, c, parentPrec);
-            case IN -> {
-                if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    throw listParameter(p);
-                }
-                yield super.call(writer, c, parentPrec);
-            }
+            // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
+            // an exhaustive switch; a spelling several databases share is a named helper of the base)
+            // the ANSI operators
+            case AND, OR, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES -> infix(writer, c, parentPrec);
+            case EQUAL, NOT_EQUAL -> equalArm(writer, c, parentPrec);
+            // the shared spellings (the base's named helpers)
+            case NOT -> notPrefix(writer, c.args(), parentPrec);
+            case IS_NULL -> isNullTest(writer, c.args());
+            case IS_NOT_NULL -> isNotNullTest(writer, c.args());
+            case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
+            case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
+            case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the hooks: this dialect's own (or the base's refusal)
+            case HASH -> hashSigned(writer, c.args());
+            case ROUND -> roundHalfEven(writer, c.args());
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
+            case STRUCT_INSERT -> structInsert(writer, c.args());
+            case UNNEST -> unnestProjection(writer, c.args());
+            case PURE_SPLIT_PART -> splitPartCall(writer, c.args());
+            case LIST_EXISTS -> listExists(writer, c.args());
+            case LIST_FOR_ALL -> listForAll(writer, c.args());
+            case ALL_DISTINCT -> allDistinct(writer, c.args());
+            case TO_VARIANT -> variantConstruct(writer, c.args());
+            case VARIANT_GET -> variantGet(writer, c.args());
+            case VARIANT_ELEMENTS -> variantElements(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case COS -> writer.function("cos", c.args());
+            case COT -> writer.function("cot", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case EXP -> writer.function("exp", c.args());
+            case LN -> writer.function("ln", c.args());
+            case LOG10 -> writer.function("log10", c.args());
+            case SQRT -> writer.function("sqrt", c.args());
+            case POW -> writer.function("POW", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case UPPER -> writer.function("upper", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case STRPOS -> writer.function("INSTR", c.args());
+            case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("JSON_LENGTH", c.args());
+            case IN -> in(writer, c, parentPrec);
             // a Pure integer (no CAST to BIGINT here: SIGNED)
             case CEILING -> writer.append("CAST(CEIL(").expr(a.get(0), 0).append(") AS SIGNED)");
             case FLOOR -> writer.append("CAST(FLOOR(").expr(a.get(0), 0).append(") AS SIGNED)");
@@ -1710,12 +1802,8 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(", 1) USING utf32)), 16, 10) AS SIGNED) END)");
             case CHR -> writer.append("CONVERT(CHAR(").expr(a.get(0), 0).append(" USING utf32) USING utf8mb4)");
             // outside [-1, 1] MariaDB answers NULL (measured), DuckDB raises
-            case ACOS, ASIN -> writer.append("(CASE WHEN ").expr(a.get(0), 4)
-                    .append(" IS NULL THEN NULL ELSE coalesce(")
-                    .append(c.fn() == SqlFn.ACOS ? "ACOS(" : "ASIN(").expr(a.get(0), 0).append("), ")
-                    .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]")),
-                            SqlType.Scalar.DOUBLE))
-                    .append(") END)");
+            case ACOS -> domainGuarded(writer, c, "ACOS");
+            case ASIN -> domainGuarded(writer, c, "ASIN");
             case COALESCE -> a.size() == 1 ? writer.expr(a.get(0), parentPrec) : writer.function("coalesce", a);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
@@ -1727,12 +1815,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(" AS DOUBLE))");
             case MOD, REM -> writer.piece(remainder(c.fn(), a));
             // DuckDB's // truncates toward zero, NULL for a zero divisor: DIV
-            case INT_DIVIDE -> {
-                if (a.stream().anyMatch(MariaDb::isDouble)) {
-                    throw wall(c.fn(), "an integer division of a Float");
-                }
-                yield writer.append("(").expr(a.get(0), 6).append(" DIV ").expr(a.get(1), 7).append(")");
-            }
+            case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -POW(-(").expr(a.get(0), 0)
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
@@ -1744,7 +1827,8 @@ public class MariaDb extends AnsiSqlRenderer {
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
-            case GREATEST, LEAST -> writer.piece(nullSkipping(c.fn() == SqlFn.GREATEST ? "GREATEST" : "LEAST", a));
+            case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
+            case LEAST -> writer.piece(nullSkipping("LEAST", a));
 
             // ---- strings
             // NULL-skipping, as DuckDB's concat (CONCAT is NULL for any NULL argument here; CONCAT_WS skips them)
@@ -1753,9 +1837,8 @@ public class MariaDb extends AnsiSqlRenderer {
             case CONCAT_JOIN -> writer.append("CONCAT_WS('', ").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
             case LENGTH -> writer.append("CHAR_LENGTH(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
-            case LPAD, RPAD -> writer.append(c.fn() == SqlFn.LPAD ? "LPAD(" : "RPAD(").expr(a.get(0), 0).append(", ")
-                    .expr(a.get(1), 0).append(", ").piece(a.size() > 2 ? w -> w.expr(a.get(2), 0) : w -> w.append("' '"))
-                    .append(")");
+            case LPAD -> pad(writer, "LPAD", a);
+            case RPAD -> pad(writer, "RPAD", a);
             // a NULL (a cast one is written bare) is cast to text: REPEAT of a bare NULL is binary (measured)
             case REPEAT_STR -> (a.get(0) instanceof SqlExpr.NullLit
                     || a.get(0) instanceof SqlExpr.Cast n && n.value() instanceof SqlExpr.NullLit
@@ -1816,12 +1899,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC date-time: UTC's wall time is the instant's, either way
-            case TIMEZONE -> {
-                if (!(a.get(0) instanceof SqlExpr.StringLit zone) || !UTC_ZONES.contains(zone.value())) {
-                    throw wall(c.fn(), product() + " knows no named time zone but UTC without its zone tables");
-                }
-                yield writer.expr(a.get(1), parentPrec);
-            }
+            case TIMEZONE -> timezone(writer, c, parentPrec);
             case EPOCH_SECONDS -> writer.append("(").piece(micros(a.get(0))).append(" / 1000000)");
             case EPOCH_MS -> writer.append("(").piece(micros(a.get(0))).append(" DIV 1000)");
             case FROM_EPOCH_SECONDS -> writer.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
@@ -1830,12 +1908,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append(") * 1000 MICROSECOND)");
             case DAYNAME -> writer.append("DAYNAME(").expr(a.get(0), 0).append(")");
             case MONTHNAME -> writer.append("MONTHNAME(").expr(a.get(0), 0).append(")");
-            case STRFTIME -> {
-                if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
-                    throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
-                }
-                yield writer.piece(strftime(a.get(0), fl));
-            }
+            case STRFTIME -> strftimeArm(writer, c);
             case STRPTIME -> throw wall(c.fn(), "a date parsed by a DuckDB format has no measured " + product() + " spelling");
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
@@ -1857,6 +1930,69 @@ public class MariaDb extends AnsiSqlRenderer {
             case JSON_PRETTY -> writer.append("JSON_DETAILED(").expr(a.get(0), 0).append(")");
             case JSON_MERGE_PATCH -> writer.append("JSON_MERGE_PATCH(").list(a).append(")");
         };
+    }
+
+    /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: undefined outside [-1, 1], raised. */
+    private SqlWriter domainGuarded(SqlWriter writer, SqlExpr.Call c, String fn) {
+        List<SqlExpr> a = c.args();
+        return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
+                .append("(").expr(a.get(0), 0).append("), ")
+                .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]")),
+                        SqlType.Scalar.DOUBLE))
+                .append(") END)");
+    }
+
+    /** The {@code LPAD} and {@code RPAD} arms of {@link #call}: a space by default. */
+    private SqlWriter pad(SqlWriter writer, String fn, List<SqlExpr> a) {
+        return writer.append(fn).append("(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(", ")
+                .piece(a.size() > 2 ? w -> w.expr(a.get(2), 0) : w -> w.append("' '")).append(")");
+    }
+
+    /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #call}. */
+    private SqlWriter equalArm(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && (composite(a.get(0)) || composite(a.get(1)))) {
+            return writer.append("(").piece(compact(w -> w.expr(a.get(0), 0)))
+                    .append(c.fn() == SqlFn.EQUAL ? " = " : " <> ").piece(compact(w -> w.expr(a.get(1), 0)))
+                    .append(")");
+        }
+        return infix(writer, c, parentPrec);
+    }
+
+    /** The {@code IN} arm of {@link #call}. */
+    private SqlWriter in(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
+            throw listParameter(p);
+        }
+        return inList(writer, a, parentPrec);
+    }
+
+    /** The {@code INT_DIVIDE} arm of {@link #call}. */
+    private SqlWriter intDivide(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (a.stream().anyMatch(MariaDb::isDouble)) {
+            throw wall(c.fn(), "an integer division of a Float");
+        }
+        return writer.append("(").expr(a.get(0), 6).append(" DIV ").expr(a.get(1), 7).append(")");
+    }
+
+    /** The {@code TIMEZONE} arm of {@link #call}. */
+    private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(0) instanceof SqlExpr.StringLit zone) || !UTC_ZONES.contains(zone.value())) {
+            throw wall(c.fn(), product() + " knows no named time zone but UTC without its zone tables");
+        }
+        return writer.expr(a.get(1), parentPrec);
+    }
+
+    /** The {@code STRFTIME} arm of {@link #call}. */
+    private SqlWriter strftimeArm(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (!(a.get(1) instanceof SqlExpr.FormatLit fl)) {
+            throw wall(c.fn(), "a date format that is not a format literal: its codes are DuckDB's");
+        }
+        return writer.piece(strftime(a.get(0), fl));
     }
 
     private static boolean composite(SqlExpr e) {
@@ -2754,11 +2890,13 @@ public class MariaDb extends AnsiSqlRenderer {
     @Override
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
         return switch (r.fn()) {
-            case SUM, COUNT, MIN, MAX, ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD,
-                 FIRST_VALUE, LAST_VALUE, NTH_VALUE -> super.reducer(writer, r);
+            case SUM -> aggregate(writer, "SUM", r);
+            case COUNT -> aggregate(writer, "COUNT", r);
+            case MIN -> aggregate(writer, "MIN", r);
+            case MAX -> aggregate(writer, "MAX", r);
             // DuckDB's avg is a DOUBLE (an average here is a DECIMAL of four more digits)
-            case AVG -> writer.append("AVG(").append(r.distinct() ? "DISTINCT " : "").append("CAST(").expr(r.args().get(0), 0)
-                    .append(" AS DOUBLE))");
+            case AVG -> writer.append("AVG(").append(r.distinct() ? "DISTINCT " : "").append("CAST(")
+                    .expr(r.args().get(0), 0).append(" AS DOUBLE))");
             // any non-NULL value: the least
             case ANY_VALUE -> writer.append("MIN(").piece(aggregateArgs(r)).append(")");
             case STDDEV_SAMP, STDDEV -> writer.append("STDDEV_SAMP(").piece(aggregateArgs(r)).append(")");
@@ -2769,60 +2907,78 @@ public class MariaDb extends AnsiSqlRenderer {
             case BOOL_AND -> writer.append("MIN(").piece(aggregateArgs(r)).append(")");
             case BOOL_OR -> writer.append("MAX(").piece(aggregateArgs(r)).append(")");
             // GROUP_CONCAT's separator is a literal
-            case STRING_AGG -> {
-                SqlExpr sep = r.args().size() > 1 ? r.args().get(1) : new SqlExpr.StringLit(",");
-                writer.append("GROUP_CONCAT(").append(r.distinct() ? "DISTINCT " : "").piece(asText(r.args().get(0)));
-                if (!r.orderBy().isEmpty()) {
-                    writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::orderKey);
-                }
-                yield writer.append(" SEPARATOR " + stringLit(literal(sep, "a string_agg separator")) + ")");
-            }
-            case LIST -> {
-                if (r.args().size() != 1) {
-                    throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached " + product());
-                }
-                yield writer.piece(arrayAgg(r.distinct(), json(r.args().get(0)), r.orderBy().isEmpty() ? null
-                        : w -> w.join(r.orderBy(), ", ", this::orderKey), false));
-            }
-            case MEDIAN -> {
-                if (r.args().size() != 1 || r.distinct()) {
-                    throw new DialectCapability("a median of this shape reached " + product());
-                }
-                yield writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
-            }
-            case QUANTILE_CONT, QUANTILE_DISC -> {
-                if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
-                    throw new DialectCapability(r.fn() + " of this shape reached " + product());
-                }
-                yield writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
-            }
+            case STRING_AGG -> groupConcat(writer, r);
+            case LIST -> listOfValues(writer, r);
+            case MEDIAN -> median(writer, r);
+            case QUANTILE_CONT, QUANTILE_DISC -> percentile(writer, r);
             // the most frequent non-NULL value, the least among ties: the group's values as a JSON array, grouped by a
             // subquery over it (an outer aggregate inside a correlated table function, measured)
-            case MODE -> {
-                if (groupedModesCounted()) {
-                    yield modeArm(writer, r);
-                }
-                SqlExpr x = r.args().get(0);
-                String type = columnType(typeOf(x));
-                yield writer.append("(SELECT __m.\"v\" FROM JSON_TABLE(JSON_ARRAYAGG(").piece(json(x))
-                        .append("), '$[*]' COLUMNS (\"v\" " + type + " PATH '$')) AS __m WHERE __m.\"v\" IS NOT NULL")
-                        .append(" GROUP BY __m.\"v\" ORDER BY count(*) DESC, __m.\"v\" LIMIT 1)");
-            }
+            case MODE -> groupedModesCounted() ? modeArm(writer, r) : modeOverJson(writer, r);
             // the value at the key's greatest (least) row, rows of a NULL key ignored
-            case ARG_MAX, ARG_MIN -> {
-                if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
-                    throw new DialectCapability(r.fn() + " of this shape reached " + product());
-                }
-                SqlExpr v = r.args().get(0);
-                SqlExpr k = r.args().get(1);
-                SqlWriter.Piece first = arrayAgg(false, json(v), elementSortOf(w -> w.expr(k, 0),
-                        r.fn() != SqlAgg.Fn.ARG_MAX), true);
-                yield writer.append("(CASE WHEN count(").expr(k, 0).append(") = 0 THEN NULL ELSE ")
-                        .piece(valueAt(first, w -> w.append("'$[0]'"), typeOf(v))).append(" END)");
-            }
-            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY ->
-                    throw new IllegalStateException("lowering marker " + r.fn() + " reached the renderer");
+            case ARG_MAX -> argExtreme(writer, r, false);
+            case ARG_MIN -> argExtreme(writer, r, true);
+            case WAVG, HASH_LIST, IS_DISTINCT_MARK, UNIQUE_VALUE_ONLY -> throw loweringMarker(r);
+            // a window function is a ranking or value function, never an aggregate (windowCall writes it)
+            case ROW_NUMBER, RANK, DENSE_RANK, PERCENT_RANK, CUME_DIST, NTILE, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+                 NTH_VALUE -> throw windowFunction(r);
         };
+    }
+
+    /** The {@code STRING_AGG} arm of {@link #reducer}: GROUP_CONCAT, its separator a literal. */
+    private SqlWriter groupConcat(SqlWriter writer, SqlAgg.Reducer r) {
+        SqlExpr sep = r.args().size() > 1 ? r.args().get(1) : new SqlExpr.StringLit(",");
+        writer.append("GROUP_CONCAT(").append(r.distinct() ? "DISTINCT " : "").piece(asText(r.args().get(0)));
+        if (!r.orderBy().isEmpty()) {
+            writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::orderKey);
+        }
+        return writer.append(" SEPARATOR " + stringLit(literal(sep, "a string_agg separator")) + ")");
+    }
+
+    /** The {@code LIST} arm of {@link #reducer}. */
+    private SqlWriter listOfValues(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1) {
+            throw new DialectCapability("a LIST aggregate of " + r.args().size() + " arguments reached " + product());
+        }
+        return writer.piece(arrayAgg(r.distinct(), json(r.args().get(0)), r.orderBy().isEmpty() ? null
+                : w -> w.join(r.orderBy(), ", ", this::orderKey), false));
+    }
+
+    /** The {@code MEDIAN} arm of {@link #reducer}. */
+    private SqlWriter median(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 1 || r.distinct()) {
+            throw new DialectCapability("a median of this shape reached " + product());
+        }
+        return writer.piece(quantile(SqlAgg.Fn.QUANTILE_CONT, r.args().get(0), w -> w.append("0.5"), r));
+    }
+
+    /** The {@code QUANTILE_CONT} and {@code QUANTILE_DISC} arms of {@link #reducer}. */
+    private SqlWriter percentile(SqlWriter writer, SqlAgg.Reducer r) {
+        if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
+            throw new DialectCapability(r.fn() + " of this shape reached " + product());
+        }
+        return writer.piece(quantile(r.fn(), r.args().get(0), w -> w.expr(r.args().get(1), 0), r));
+    }
+
+    /** The {@code MODE} arm of {@link #reducer} where the grouped modes are not counted: the group's values as a
+     *  JSON array, grouped by a subquery over it. */
+    private SqlWriter modeOverJson(SqlWriter writer, SqlAgg.Reducer r) {
+        SqlExpr x = r.args().get(0);
+        String type = columnType(typeOf(x));
+        return writer.append("(SELECT __m.\"v\" FROM JSON_TABLE(JSON_ARRAYAGG(").piece(json(x))
+                .append("), '$[*]' COLUMNS (\"v\" " + type + " PATH '$')) AS __m WHERE __m.\"v\" IS NOT NULL")
+                .append(" GROUP BY __m.\"v\" ORDER BY count(*) DESC, __m.\"v\" LIMIT 1)");
+    }
+
+    /** The value at the key's greatest ({@code asc} false) or least row, rows of a NULL key ignored. */
+    private SqlWriter argExtreme(SqlWriter writer, SqlAgg.Reducer r, boolean asc) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached " + product());
+        }
+        SqlExpr v = r.args().get(0);
+        SqlExpr k = r.args().get(1);
+        SqlWriter.Piece first = arrayAgg(false, json(v), elementSortOf(w -> w.expr(k, 0), asc), true);
+        return writer.append("(CASE WHEN count(").expr(k, 0).append(") = 0 THEN NULL ELSE ")
+                .piece(valueAt(first, w -> w.append("'$[0]'"), typeOf(v))).append(" END)");
     }
 
     /** Covariance and correlation over the pairs with both values: their sums, as the moments' definitions (no FILTER

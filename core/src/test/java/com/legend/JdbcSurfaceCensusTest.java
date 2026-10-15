@@ -64,7 +64,9 @@ class JdbcSurfaceCensusTest {
      * and connection-passed usage spells a statement-method call —
      * {@code createStatement} added for that same completeness. */
     private static final Pattern JDBC = Pattern.compile(
-            "java\\.sql|javax\\.sql|org\\.duckdb|org\\.h2\\.|org\\.sqlite"
+            // every driver's packages (2026-10-13, the dialect program's Phase 0: DuckDB, H2 and SQLite only before)
+            "java\\.sql|javax\\.sql|org\\.duckdb|org\\.h2\\.|org\\.sqlite|org\\.postgresql|org\\.mariadb|com\\.mysql"
+            + "|com\\.clickhouse|io\\.trino|net\\.snowflake|com\\.databricks|com\\.simba|com\\.google\\.cloud\\.bigquery"
             + "|prepareStatement|createStatement|executeQuery");
 
     /** Every module source root the census walks (repo-relative). A
