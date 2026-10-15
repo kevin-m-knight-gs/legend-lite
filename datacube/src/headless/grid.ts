@@ -13,6 +13,7 @@
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { chartFrom, chartProblems, followCube, readChart } from '../chart-spec.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
 import { openCube, readCube, type OpenedCube } from '../cube-document.ts';
@@ -21,7 +22,9 @@ import { columnFormats, heatmapColour, heatmapSetting, measureHeatmaps, renderEx
 import { FormatterCache } from '../format.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from '../model-names.ts';
+import { typeColumns } from '../plan.ts';
 import { classLambda, sampleLambda, storeTableOf } from '../query.ts';
+import { PlanThenRun } from '../runner.ts';
 import { shownColumns } from '../shown-columns.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { hostCalls, hostDatabase, hostWorker } from './host.ts';
@@ -160,5 +163,27 @@ export async function gridExport(spec: GridSpec, kind: ExportKind): Promise<stri
     const { content } = file;
     return JSON.stringify({ name: file.name, mime: file.mime, text: typeof content === 'string',
       content: typeof content === 'string' ? content : base64(content) });
+  });
+}
+
+/**
+ * A chart of the grid as DataCube makes and judges it: made of what Python was told (chart-spec.ts chartFrom: what is
+ * not told is DataCube's own new chart's, and an edit of `before` keeps the rest), read as a page reads a chart, and
+ * judged as the charts' panel will draw it -- a live chart regrouped the way the grid is now (followCube) -- against the
+ * grid as opened: its columns as the compiler types them now, its calculated columns too (chartProblems). The one place
+ * a chart's rules are written: Python's grid.chart(), Chart.plot() and Chart.options() keep the chart this makes, or
+ * refuse in these words (legend_lite/page.py _made). JSON: `{"spec", "problems"}` (`problems` empty when it draws).
+ */
+export async function gridChart(spec: GridSpec, given: string, before: string | null): Promise<string> {
+  return using(spec, async ({ planner, state }) => {
+    const was = before === null ? undefined : readChart(JSON.parse(before));
+    if (typeof was === 'string') return JSON.stringify({ problems: [`DataCube cannot read the chart as it was: ${was}.`] });
+    // the grid's columns as the compiler types them now, its calculated ones too: the controller's step 0 (plan.ts
+    // typeColumns), compile-only -- what the grid's run would type them as before its chart is drawn
+    const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
+    const { snapshot } = await typeColumns(state.snapshot, runner);
+    const made = chartFrom(JSON.parse(given), snapshot, was);
+    if (typeof made === 'string') return JSON.stringify({ problems: [`DataCube cannot read this chart: ${made}.`] });
+    return JSON.stringify({ spec: made, problems: chartProblems(followCube(made, snapshot), snapshot) });
   });
 }

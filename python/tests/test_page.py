@@ -88,8 +88,12 @@ class Document(Paged):
             {'kind': 'condition', 'column': 'desk', 'operator': 'notEqual', 'value': 'Equity'}]})
         self.assertEqual([(v['id'], v['kind'], v['cube']) for v in doc['views']],
                          [(grid.id, 'grid', grid.id), (chart.id, 'chart', grid.id)])
-        self.assertEqual(doc['views'][1]['spec'], {'version': 2, 'mark': 'bar', 'x': 'region',
-                                                   'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}})
+        # made as DataCube makes a new chart (_made): what it was not told is DataCube's own -- a category leads with the
+        # largest
+        spec = doc['views'][1]['spec']
+        self.assertEqual({k: v for k, v in spec.items() if k != 'options'},
+                         {'version': 2, 'mark': 'bar', 'x': 'region', 'y': [{'column': 'notional', 'fn': 'sum'}]})
+        self.assertEqual(spec['options']['sort'], {'by': 'y', 'direction': 'desc'})
         # one sheet: the grid in a band of its own, the chart beside it, as DataCube places them
         self.assertEqual(doc['sheets'], [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': [
             {'height': 0.5, 'node': {'split': 'row', 'parts': [
@@ -241,23 +245,28 @@ class Document(Paged):
         # re-plotted, a measure's own words survive
         chart.plot('line')
         self.assertEqual(page.to_dict()['views'][-2]['spec']['y'][1]['mark'], 'line')
-        # every word one of DataCube's, and nothing DataCube would refuse to draw, refused at the line that names it
-        for bad, why in [({'grain': 'decade'}, 'a grain is one of'),
+        # every word one of DataCube's, and nothing DataCube would refuse to draw, refused at the line that names it, in
+        # DataCube's own words (its reader and its rules, asked: _made) -- each chart frozen, so judged as written rather
+        # than regrouped the way the grid is
+        for bad, why in [({'grain': 'decade'}, 'grain "decade" is not one of'),
                          ({'grain': 'month'}, "'region' is not a date"),
                          ({'bins': {'width': 3}}, "'region' is not a number"),
-                         ({'y': [{'column': 'notional', 'fn': 'sum', 'mark': 'pie'}]}, "a measure's mark"),
-                         ({'y': [{'column': 'notional', 'fn': 'sum', 'axis': 'top'}]}, "a measure's axis"),
-                         ({'y': [{'column': 'notional', 'fn': 'sum', 'showAs': {'kind': 'forecast'}}]}, 'shown as'),
-                         ({'y': [{'column': 'margin', 'fn': 'value'}]}, 'not a group-level column'),
-                         ({'layers': [{'kind': 'sparkle'}]}, "a layer's kind"),
-                         ({'layers': [{'kind': 'stat', 'stat': 'mode'}]}, "a stat layer's stat"),
-                         ({'layers': [{'kind': 'line', 'value': True}]}, 'a line layer has a number value'),
+                         ({'y': [{'column': 'notional', 'fn': 'sum', 'mark': 'pie'}]}, "measure 1's mark"),
+                         ({'y': [{'column': 'notional', 'fn': 'sum', 'axis': 'top'}]}, "measure 1's axis"),
+                         ({'y': [{'column': 'notional', 'fn': 'sum', 'showAs': {'kind': 'forecast'}}]}, 'shown as something'),
+                         ({'y': [{'column': 'margin', 'fn': 'value'}]}, 'no group-level column'),
+                         ({'y': [('notional', 'wavg')]}, 'no weighted average'),
+                         ({'layers': [{'kind': 'sparkle'}]}, 'layer 1 is of a kind'),
+                         ({'layers': [{'kind': 'stat', 'stat': 'mode'}]}, "layer 1's statistic"),
+                         ({'layers': [{'kind': 'line', 'value': True}]}, 'layer 1 has no value'),
                          ({'layers': [{'kind': 'stat', 'stat': 'average', 'measure': 2}]}, 'reads value 3'),
                          ({'layers': [{'kind': 'extremes'}], 'options': {'stack': 'percent'}}, '100% stack'),
-                         ({'bins': {'size': 3}}, 'bins are'),
-                         ({'bins': {'width': '10'}}, 'bins are')]:
+                         ({'options': {'stack': 'stacked100'}}, 'stack "stacked100" is not one of'),
+                         ({'bins': {'size': 3}}, 'neither a width nor a count'),
+                         ({'bins': {'width': '10'}}, 'neither a width nor a count'),
+                         ({'bins': {'width': 0}}, 'not a positive number')]:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, why):
-                grid.chart('bar', x='region', **{'y': [('notional', 'sum')], **bad})
+                grid.chart('bar', x='region', frozen=True, **{'y': [('notional', 'sum')], **bad})
         with self.assertRaisesRegex(ValueError, 'no reference lines'):
             grid.chart('scatter', x='notional', y=[('pnl', 'sum')], layers=[{'kind': 'line', 'value': 1}])
         # small multiples and a bubble (batch 3), each refused where DataCube does not draw it
@@ -269,14 +278,18 @@ class Document(Paged):
                                  ('bar', {'x': 'region', 'facet': {'column': 'region'}}, 'across or split already'),
                                  ('bar', {'x': 'region', 'facet': {'side': 'desk'}}, 'a facet is'),
                                  ('bar', {'x': 'region', 'facet': {'column': 'desk'}, 'options': {'brush': True}}, 'no brush'),
-                                 ('bar', {'x': 'region', 'size': ('pnl', 'sum')}, 'only a scatter'),
+                                 ('bar', {'x': 'region', 'size': ('pnl', 'sum')}, 'Only a scatter'),
                                  ('bar', {'x': 'region', 'facet': {'row': 'desk', 'column': 'desk'}}, 'two columns'),
-                                 ('waterfall', {'x': 'region', 'y': [{'column': 'pnl', 'fn': 'sum', 'showAs': {'kind': 'rank'}}]}, 'showAs'),
-                                 ('matrix', {'y': [{'column': 'pnl', 'fn': 'sum', 'showAs': {'kind': 'rank'}}, ('notional', 'sum')]}, 'showAs')]:
+                                 ('waterfall', {'x': 'region', 'y': [{'column': 'pnl', 'fn': 'sum', 'showAs': {'kind': 'rank'}}]}, 'shown as something else'),
+                                 ('matrix', {'y': [{'column': 'pnl', 'fn': 'sum', 'showAs': {'kind': 'rank'}}, ('notional', 'sum')]}, 'plots rows')]:
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
-                grid.chart(mark, **given)
+                grid.chart(mark, frozen=True, **given)
+        # a live chart follows its grid -- regrouped the way the grid is (DataCube's followCube), its measure the grid's --
+        # and is judged as DataCube will draw it: two values and a line on the second is a chart of its own grouping
+        with self.assertRaisesRegex(ValueError, 'reads value 2'):
+            grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')], layers=[{'kind': 'line', 'value': 1, 'measure': 1}])
         # and a chart written fine cannot be changed into one DataCube refuses: by plot or by options
-        lined = grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')],
+        lined = grid.chart('bar', x='region', y=[('notional', 'sum'), ('pnl', 'sum')], frozen=True,
                            layers=[{'kind': 'stat', 'stat': 'average'}, {'kind': 'line', 'value': 1, 'measure': 1}])
         kept = page.to_dict()['views'][-1]['spec']
         with self.assertRaisesRegex(ValueError, 'no reference lines'):
@@ -288,42 +301,58 @@ class Document(Paged):
         self.assertEqual(page.to_dict()['views'][-1]['spec'], kept, 'a refused change leaves the chart as it was')
 
     def test_charts_are_refused_exactly_where_datacube_refuses_them(self):
-        """DataCube's chart rules, one description (datacube/test/fixtures/chart-rules.json): chart-spec.ts chartProblems
-        is held to the same cases, so a rule on one side and not the other fails one of the two tests."""
+        """DataCube's chart rules, as cases (datacube/test/fixtures/chart-rules.json), which chart-spec.ts is held to:
+        Python refuses exactly the same charts by asking DataCube's own code (page._made), never by rules of its own. A
+        frame makes the cases' String, Float, StrictDate and DateTime columns; a Date is a calculated column's (Pure's
+        firstDayOfMonth returns one), judged with the compiler's type, as DataCube judges it. No frame makes a StrictTime
+        (the compiler's catalog types a database's TIME as String): the cases over one are DataCube's test's alone."""
         rules = json.loads(Path(os.environ['LEGEND_LITE_CHART_RULES']).read_text('utf-8'))
         made = {'String': ['EMEA', 'APAC'], 'Float': [1.5, 2.5], 'StrictDate': [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
                 'DateTime': [pd.Timestamp('2024-01-01 09:30'), pd.Timestamp('2024-01-01 10:30')]}
-        frame = pd.DataFrame({c['name']: made[c['type']] for c in rules['columns']})
-        grid = ll.Page('rules').grid(frame, name='rules')
+        framed = [c for c in rules['columns'] if c['type'] in made]
+        unmade = {c['name'] for c in rules['columns'] if c['type'] == 'StrictTime'}
+        page = ll.Page('rules')
+        grid = page.grid(pd.DataFrame({c['name']: made[c['type']] for c in framed}), name='rules')
         types = {c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
-        self.assertEqual(types, {c['name']: c['type'] for c in rules['columns']}, 'the frame is typed as the cases say')
+        self.assertEqual(types, {c['name']: c['type'] for c in framed}, 'the frame is typed as the cases say')
+        days = next(c['name'] for c in framed if c['type'] == 'StrictDate')
+        for column in (c for c in rules['columns'] if c['type'] == 'Date'):
+            grid.calculate(column['name'], f'$x.{days}->toOne()->firstDayOfMonth()')
+        cube = grid._view['cube']
+        skipped = []
         for case in rules['cases']:
+            spec = case['spec']
+            if unmade & ({spec.get('x'), spec.get('split')} | {m['column'] for m in spec['y']}):
+                skipped.append(case['case'])
+                continue
             with self.subTest(case=case['case']):
                 if case['refused']:
                     with self.assertRaises(ValueError):
-                        page_module._drawable(grid, case['spec'])
+                        page_module._made(page, cube, case['spec'])
                 else:
-                    page_module._drawable(grid, case['spec'])
+                    page_module._made(page, cube, case['spec'])
+        self.assertTrue(skipped and all('time of day' in c for c in skipped), skipped)
 
     def test_batch_3_kinds_are_written_and_refused_as_datacube_draws_them(self):
         page, grid, _ = self.built()
         # each new kind, written with what it needs
         grid.chart('waterfall', x='desk')
         grid.chart('dumbbell', x='region', y=[('pnl', 'sum'), ('notional', 'sum')])
-        grid.chart('sankey', x='region', split='desk')
+        # a flow's second column is its own grouping, not the grid's: frozen, or the grid's regrouping drops it
+        grid.chart('sankey', x='region', split='desk', frozen=True)
         grid.chart('radar', x='desk', y=[('notional', 'sum'), ('pnl', 'sum'), ('notional', 'max')])
         grid.chart('gauge', options={'target': 1000})
         grid.chart('sunburst')
         grid.chart('matrix', y=[('notional', 'sum'), ('pnl', 'sum')])
         marks = [v['spec']['mark'] for v in page.to_dict()['views'] if v['kind'] == 'chart']
         self.assertEqual(marks[-7:], ['waterfall', 'dumbbell', 'sankey', 'radar', 'gauge', 'sunburst', 'matrix'])
-        # and what DataCube would refuse to draw, refused at the line that writes it
-        for mark, given, why in [('sankey', {'x': 'region'}, 'needs a split'),
+        # and what DataCube would refuse to draw, refused at the line that writes it, in its words (frozen: as written)
+        for mark, given, why in [('sankey', {'x': 'region'}, 'needs a second column'),
                                  ('funnel', {'x': 'region', 'split': 'desk'}, 'one series'),
                                  ('dumbbell', {'x': 'region'}, 'two values'),
                                  ('radar', {'x': 'region'}, 'three values'),
-                                 ('matrix', {'x': 'region', 'y': [('pnl', 'sum'), ('notional', 'sum')]}, 'has no x'),
-                                 ('matrix', {'y': [('pnl', 'sum')]}, 'two to five'),
+                                 ('matrix', {'x': 'region', 'y': [('pnl', 'sum'), ('notional', 'sum')]}, 'has no column across'),
+                                 ('matrix', {'y': [('pnl', 'sum')]}, 'two to 5'),
                                  ('gauge', {}, 'needs a target'),
                                  ('gauge', {'x': 'region', 'options': {'target': 1}}, 'one value'),
                                  ('pareto', {'x': 'region', 'options': {'sort': {'by': 'x', 'direction': 'asc'}}}, 'largest'),
@@ -331,17 +360,22 @@ class Document(Paged):
                                  ('rose', {'x': 'region', 'layers': [{'kind': 'line', 'value': 1}]}, 'no reference lines'),
                                  ('chord', {'x': 'region', 'split': 'desk', 'tooltip': [('pnl', 'sum')]}, 'no further measures')]:
             with self.subTest(mark=mark, given=given), self.assertRaisesRegex(ValueError, why):
-                grid.chart(mark, **given)
+                grid.chart(mark, frozen=True, **given)
 
     def test_a_chart_plots_what_it_is_told_and_a_frozen_one_stays_when_its_grid_goes(self):
         page, grid, chart = self.built()
         chart.plot('line', split='desk')
         chart.options({'labels': True})
         spec = page.to_dict()['views'][1]['spec']
-        self.assertEqual(spec, {'version': 2, 'mark': 'line', 'x': 'region', 'y': [{'column': 'notional', 'fn': 'sum'}],
-                                'split': 'desk', 'options': {'labels': True}})
-        chart.plot(x=None, frozen=True)
-        self.assertNotIn('x', page.to_dict()['views'][1]['spec'])
+        self.assertEqual({k: v for k, v in spec.items() if k != 'options'},
+                         {'version': 2, 'mark': 'line', 'x': 'region', 'y': [{'column': 'notional', 'fn': 'sum'}], 'split': 'desk'})
+        self.assertTrue(spec['options']['labels'])
+        # a line with nothing across, as written, is no chart DataCube draws: refused, and the chart kept as it was
+        with self.assertRaisesRegex(ValueError, 'Pick a column across'):
+            chart.plot(x=None, frozen=True)
+        self.assertEqual(page.to_dict()['views'][1]['spec'], spec)
+        chart.plot(frozen=True)
+        self.assertTrue(page.to_dict()['views'][1]['spec']['frozen'])
         with self.assertRaisesRegex(ValueError, 'a chart has a title'):
             chart.title = None
         # its grid removed, a frozen chart stays, over its grid's cube (DataCube's detached chart), as a following one
@@ -354,10 +388,11 @@ class Document(Paged):
         self.assertEqual([v['id'] for v in doc['views']], [chart.id])
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             follows.options({'labels': True})
-        with self.assertRaisesRegex(ValueError, 'has no grid'):
-            chart.plot('bar')
         # and a page so loads again
         self.assertEqual(ll.Page.load(doc, frames={'trades': trades()}).to_dict(), doc)
+        # a detached chart is still a chart of its cube: changed, it is made and judged against it
+        chart.plot('bar')
+        self.assertEqual(page.to_dict()['views'][0]['spec']['mark'], 'bar')
 
     def test_a_calculated_column_is_checked_by_the_compiler_where_it_is_added(self):
         page, grid, _ = self.built()
@@ -396,7 +431,7 @@ class Document(Paged):
             grid.measure('pnl', 'total')
         with self.assertRaisesRegex(ValueError, 'a measure named'):
             grid.measure('notional', 'average')
-        with self.assertRaisesRegex(ValueError, "not one of DataCube's charts"):
+        with self.assertRaisesRegex(ValueError, 'is not one this DataCube draws'):
             grid.chart('violin', x='region')
         with self.assertRaisesRegex(ValueError, 'not a column'):
             grid.group('nope')
@@ -496,8 +531,8 @@ class Document(Paged):
         doc['cubes'][0]['cube']['configuration'] = {'reportTitle': 'Trades', 'showRootAggregation': True}
         chart_view = next(v for v in doc['views'] if v['kind'] == 'chart')
         chart_view['selection'] = [{'kind': 'condition', 'column': 'region', 'operator': 'equal', 'value': 'EMEA'}]
-        chart_view['spec']['options'] = {'orientation': 'vertical', 'stack': 'none', 'sort': 'none', 'limit': 25,
-                                         'labels': False, 'legend': True}
+        chart_view['spec']['options'] = {'orientation': 'vertical', 'stack': 'none', 'sort': {'by': 'x', 'direction': 'asc'},
+                                         'limit': 25, 'labels': False, 'legend': 'bottom'}
         doc['sheets'][0]['layout'] = {'kind': 'bands', 'fit': True, 'bands': [
             {'height': 0.62, 'node': {'split': 'row', 'parts': [
                 {'node': {'stack': [grid.id, other.id]}, 'size': 0.35}, {'node': {'tile': chart.id}, 'size': 0.65}]}}]}
@@ -517,9 +552,10 @@ class Document(Paged):
     def test_a_kpi_is_a_chart_of_the_grid_its_number_and_its_trend(self):
         page, grid, _ = self.built()
         kpi = grid.chart('kpi', options={'target': 300, 'better': 'lower'}, title='Notional')
-        self.assertEqual(page.to_dict()['views'][-1]['spec'], {
-            'version': 2, 'mark': 'kpi', 'y': [{'column': 'notional', 'fn': 'sum'}],
-            'options': {'target': 300, 'better': 'lower'}})
+        spec = page.to_dict()['views'][-1]['spec']
+        self.assertEqual({k: v for k, v in spec.items() if k != 'options'},
+                         {'version': 2, 'mark': 'kpi', 'y': [{'column': 'notional', 'fn': 'sum'}]})
+        self.assertEqual((spec['options']['target'], spec['options']['better']), (300, 'lower'))
         kpi.plot(x='region')
         self.assertEqual(page.to_dict()['views'][-1]['spec']['x'], 'region')
 

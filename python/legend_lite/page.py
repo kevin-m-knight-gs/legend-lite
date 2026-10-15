@@ -400,8 +400,7 @@ class Grid(Tile):
 
     def _spec(self, frames: Any) -> dict[str, Any]:
         """This grid's cube and its frame's model, as the bundle's grid functions take them (the frames held still)."""
-        table = frames[self.frame]
-        return {'cube': _json.dumps(self._cube), 'model': table.model, 'runtime': table.runtime, 'source': table.accessor}
+        return _cube_spec(self._cube, frames)
 
     def view(self) -> GridView:
         """What the grid shows, as DataCube computes it: its columns and rows, their groups and totals, its pivot, and
@@ -571,7 +570,8 @@ class Grid(Tile):
               layers: Sequence[Mapping[str, Any]] | None = None, label: Any = None, size: Any = None,
               facet: Mapping[str, str] | None = None) -> Chart:
         """A chart of this grid, beside it: ``mark`` (one of MARKS), its category ``x``, what it plots ``y`` --
-        ``[(column, aggregate), ...]``, the grid's first measure unless given -- and a ``split`` (one series per value);
+        ``[(column, aggregate), ...]``, the measure DataCube's own new chart would plot unless given -- and a ``split``
+        (one series per value);
         ``frozen`` keeps its own grouping rather than following the grid's (and stays when the grid is removed, as in
         DataCube); ``options``: the chart's Options, in its spec's own keys (one left out is its default).
 
@@ -582,10 +582,16 @@ class Grid(Tile):
         written on each mark instead of its own value; ``tooltip`` further measures a hover lists; ``layers`` reference
         lines, bands, thresholds and pinned extremes (each a dict, its ``kind`` one of LAYERS); ``size`` a scatter's
         third column, each point sized by it (a bubble); ``facet`` small multiples of bars, lines or areas, a chart per
-        value of ``{'column': ...}`` and/or ``{'row': ...}``."""
-        spec = {**_spec(self, mark, x, y, split, frozen), 'options': _copied(options or {}),
-                **_slots(self, grain, bins, tooltip, layers, label, size, facet)}
-        _drawable(self, spec)
+        value of ``{'column': ...}`` and/or ``{'row': ...}``.
+
+        DataCube makes the chart (what is not given is its own new chart's: a date across runs in time order) and judges
+        it as it will draw it, by its own rules run in V8 (the datacube extra): what it would refuse to draw is refused
+        here, in its words, and nothing is kept."""
+        given = {**_given(mark, x, y, split, frozen), **({'options': _copied(options)} if options is not None else {}),
+                 **_slots(grain, bins, tooltip, layers, label, size, facet)}
+        # made as DataCube makes a new chart (what is not given is its own default), and judged as it will draw it: what
+        # DataCube would refuse to draw is refused here, in its words, before the chart is kept
+        spec = _made(self._page, self._view['cube'], given)
         named = _named(title, 'a title')
         id = self._page._next('chart')
         self._page._doc['views'].append({'id': id, 'kind': 'chart', 'cube': self._view['cube'],
@@ -626,29 +632,18 @@ def _step(derived: dict[str, Any]) -> str:
     return f'->lateral({compiler.print_tree({**lambda_, "body": [flatten]}, "STANDARD")})'
 
 
-def _spec(grid: Grid, mark: str, x: str | None, y: Sequence[Any] | None, split: str | None,
-          frozen: bool) -> dict[str, Any]:
-    """What a chart of ``grid`` plots (chart-spec.ts, version 2), checked against DataCube's charts and aggregates and
-    the grid's columns."""
-    if mark not in MARKS:
-        raise ValueError(f'{mark!r} is not one of DataCube\'s charts: {", ".join(sorted(MARKS))}')
-    # the grid's first measure a chart can plot (a weighted average needs its weight, which a chart's y has not)
-    measures = grid._query.get('measures', [])
-    columns = grid._columns()
-    plotted = list(y if y is not None else [(m['column'], m['fn']) for m in measures
-                                            if m['fn'] != 'wavg' and m['column'] in columns][:1])
-    if not plotted:
-        raise ValueError('a chart plots something: give y=[(column, aggregate)] (or the grid a measure)')
-    named = grid._check([n for n in (x, split) if n is not None], 'a chart')
-    return {'version': CHART_VERSION, 'mark': mark, 'y': [_measure(grid, p, 'a chart') for p in plotted],
-            **({'x': named[0]} if x is not None else {}), **({'split': split} if split is not None else {}),
-            **({'frozen': True} if frozen else {})}
+def _given(mark: str, x: str | None, y: Sequence[Any] | None, split: str | None, frozen: bool) -> dict[str, Any]:
+    """What a chart was told, in its spec's own keys (chart-spec.ts, version 2): DataCube makes the chart of it and judges
+    it (_made), so nothing here is a rule of the chart's -- only Python's arguments turned into the spec's keys."""
+    return {'version': CHART_VERSION, 'mark': mark, **({'x': x} if x is not None else {}),
+            **({'y': [_measure(p, 'a chart') for p in y]} if y is not None else {}),
+            **({'split': split} if split is not None else {}), **({'frozen': True} if frozen else {})}
 
 
-def _measure(grid: Grid, plotted: Any, what: str) -> dict[str, Any]:
+def _measure(plotted: Any, what: str) -> dict[str, Any]:
     """One measure of a chart, in the spec's own keys: a ``(column, aggregate)`` pair, or a dict that may say its own
-    ``mark``, ``axis`` and ``showAs`` -- each word one of DataCube's, its column one of the grid's (a group-level column
-    of the grid for ``fn='value'``)."""
+    ``mark``, ``axis`` and ``showAs``. Its words and its column are DataCube's to judge (_made); a key Python's chart
+    does not take is refused here, as an argument misspelt."""
     if isinstance(plotted, tuple) and len(plotted) == 2:
         plotted = {'column': plotted[0], 'fn': plotted[1]}
     if not isinstance(plotted, Mapping) or not isinstance(plotted.get('column'), str) or 'fn' not in plotted:
@@ -656,158 +651,54 @@ def _measure(grid: Grid, plotted: Any, what: str) -> dict[str, Any]:
     unknown = set(plotted) - {'column', 'fn', 'mark', 'axis', 'showAs'}
     if unknown:
         raise ValueError(f'a chart\'s measure has no {", ".join(sorted(unknown))}: it says column, fn, mark, axis, showAs')
-    fn = plotted['fn']
-    if fn == 'value':
-        group = {d['name'] for d in grid._query.get('groupDerived', []) if 'childAggregate' not in d}
-        if plotted['column'] not in group:
-            raise ValueError(f'{plotted["column"]!r} is not a group-level column of the grid (fn=\'value\' plots one)')
-        column = plotted['column']
-    else:
-        if fn not in AGGREGATES or fn == 'wavg':
-            raise ValueError(f'{fn!r} is not an aggregate a chart plots: {", ".join(sorted(AGGREGATES - {"wavg"}))}')
-        column = grid._check([plotted['column']], what)[0]
-    if 'mark' in plotted and plotted['mark'] not in MEASURE_MARKS:
-        raise ValueError(f'a measure\'s mark is one of {", ".join(sorted(MEASURE_MARKS))}, not {plotted["mark"]!r}')
-    if 'axis' in plotted and plotted['axis'] not in AXES:
-        raise ValueError(f'a measure\'s axis is one of {", ".join(sorted(AXES))}, not {plotted["axis"]!r}')
-    show = plotted.get('showAs')
-    if show is not None and (not isinstance(show, Mapping) or show.get('kind') not in SHOW_AS):
-        raise ValueError(f'a measure is shown as {{\'kind\': one of {", ".join(sorted(SHOW_AS))}}}, not {show!r}')
-    return {**_copied(plotted), 'column': column}
+    return _copied(plotted)
 
 
-# batch 3's kinds, as chart-spec.ts groups them: those that need a split (and what it is), those of one series, those
-# of one value, those whose hover lists further measures
-_SPLIT_NEEDED = {'heatmap': 'its rows', 'sankey': 'where each flow goes', 'chord': 'where each flow goes',
-                 'stream': 'its layers'}
-_UNSPLIT = frozenset({'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto', 'funnel', 'rose', 'radar', 'parallel',
-                      'calendar', 'gauge'})
-_ONE_VALUE = frozenset({'waterfall', 'pareto', 'gauge', 'calendar', 'funnel', 'rose', 'stream', 'sankey', 'chord'})
-_HOVER_EXTRAS = frozenset({'bar', 'line', 'area', 'scatter', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto',
-                           'funnel', 'rose', 'polar', 'calendar'})
-
-# a frame column's compiler type, a date or a number (chart-spec.ts chartProblems asks the same of DataCube's)
-_DATES = frozenset({'StrictDate', 'DateTime', 'Date'})
-_NUMBERS = frozenset({'Integer', 'Float', 'Decimal', 'Number'})
-
-
-def _drawable(grid: Grid | None, spec: Mapping[str, Any]) -> None:
-    """Refused at the line that writes it, what DataCube would refuse to draw and Python can know from the frame: a
-    grain on a column that is not a date, bins on one that is not a number, a layer reading a value the chart does not
-    plot, a layer on a scatter or on a 100% stack. (A calculated column's type is the compiler's, known only when
-    DataCube plans it: its grain or bins are DataCube's to refuse.)"""
-    types = ({c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
-             if grid is not None else {})
-    x = spec.get('x')
-    if 'grain' in spec and x in types and types[x] not in _DATES:
-        raise ValueError(f'{x!r} is not a date ({types[x]}): it has no {spec["grain"]}')
-    if 'bins' in spec and x in types and types[x] not in _NUMBERS:
-        raise ValueError(f'{x!r} is not a number ({types[x]}): it has no bins')
-    mark = spec['mark']
-    # batch 3's kinds (chart-spec.ts chartProblems): what each needs and what it has no place for
-    if mark in _SPLIT_NEEDED and 'split' not in spec:
-        raise ValueError(f'a {mark} needs a split: {_SPLIT_NEEDED[mark]}')
-    if mark in _UNSPLIT and 'split' in spec:
-        raise ValueError(f'a {mark} draws one series: it has no split')
-    if mark == 'gauge' and x is not None:
-        raise ValueError('a gauge is one value: it has no x')
-    if mark == 'gauge' and 'target' not in spec.get('options', {}):
-        raise ValueError('a gauge needs a target (options={\'target\': ...}): its scale runs from zero to it')
-    count = len(spec['y'])
-    if mark in ('dumbbell', 'range') and count != 2:
-        raise ValueError(f'a {mark} plots two values per category, its low and its high: give y two measures')
-    if mark == 'radar' and count < 3:
-        raise ValueError('a radar needs three values or more, one per spoke')
-    if mark == 'matrix' and not 2 <= count <= 5:
-        raise ValueError('a scatter matrix plots each pair of two to five values')
-    if mark == 'matrix' and x is not None:
-        raise ValueError('a scatter matrix has no x: it plots its values against each other')
-    if mark == 'parallel' and count < 2:
-        raise ValueError('parallel coordinates need two values or more, one per axis')
-    if mark in _ONE_VALUE and count > 1:
-        raise ValueError(f'a {mark} plots one value')
-    sort = spec.get('options', {}).get('sort')
-    if mark == 'pareto' and sort is not None and sort != {'by': 'y', 'direction': 'desc'}:
-        raise ValueError('a Pareto runs from the largest value: its order is by value, largest first')
-    if mark in ('stream', 'calendar') and x in types and types[x] not in _DATES:
-        raise ValueError(f'a {mark} runs along dates: {x!r} is not one ({types[x]})')
-    if mark == 'calendar' and spec.get('grain', 'day') != 'day':
-        raise ValueError('a calendar has a cell per day: its grain is the day')
-    if mark == 'calendar' and 'grain' not in spec and x in types and types[x] != 'StrictDate':
-        raise ValueError(f'a calendar has a cell per day: {x!r} is a date-time ({types[x]}), so give it the day grain')
-    layers = spec.get('layers', [])
-    for layer in layers:
-        if layer['kind'] != 'band' and layer.get('measure', 0) >= len(spec['y']):
-            raise ValueError(f'a {layer["kind"]} layer reads value {layer.get("measure", 0) + 1}, which the chart does not plot')
-    if layers and mark not in ('bar', 'line', 'area'):
-        raise ValueError(f'a {mark} draws no reference lines yet')
-    if 'label' in spec and mark not in ('bar', 'line', 'area'):
-        raise ValueError(f'a {mark} writes no other measure on its marks')
-    if spec.get('tooltip') and mark not in _HOVER_EXTRAS:
-        raise ValueError(f'a {mark}\'s hover lists no further measures')
-    measures = [*spec['y'], *([spec['size']] if 'size' in spec else [])]
-    if mark in ('scatter', 'matrix') and any(m.get('fn') == 'value' for m in measures):
-        raise ValueError(f'a {mark} plots rows, not groups: a group-level column (fn=\'value\') has no place on it')
-    if mark in ('scatter', 'matrix', 'waterfall', 'pareto', 'gauge') and any('showAs' in m for m in spec['y']):
-        raise ValueError(f'a {mark} has no value shown as something else (showAs)')
-    if 'size' in spec and mark != 'scatter':
-        raise ValueError('only a scatter sizes its marks (a bubble)')
-    facet = spec.get('facet')
-    if facet is not None:
-        if mark not in ('bar', 'line', 'area'):
-            raise ValueError(f'a {mark} is not drawn as small multiples: bars, lines and areas are')
-        if facet.get('row') is not None and facet.get('row') == facet.get('column'):
-            raise ValueError('a facet\'s row and column are two columns')
-        for column in facet.values():
-            if column in (x, spec.get('split')):
-                raise ValueError(f'{column!r} is across or split already: a facet is another column')
-        options = spec.get('options', {})
-        if options.get('brush') or options.get('zoom'):
-            raise ValueError('small multiples take no brush and no slider: brush or zoom one chart')
-        if any(layer['kind'] == 'threshold' for layer in layers):
-            raise ValueError('small multiples are not coloured by value yet')
-    if spec.get('options', {}).get('stack') == 'percent' and any(layer['kind'] != 'band' for layer in layers):
-        raise ValueError('a 100% stack shows shares: a reference line, a threshold or a pinned extreme has no place on it')
+def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """The chart DataCube makes of what it was told -- what is not told is its own new chart's, and an edit of ``before``
+    keeps the rest -- judged as DataCube will draw it (a live chart regrouped the way its grid is) against the chart's cube
+    as DataCube opens it: its frame's columns and its calculated ones as the compiler types them now (the bundle's
+    gridChart; chart-spec.ts chartFrom, followCube and chartProblems). The chart rules are written once, there: what
+    DataCube would refuse to draw is refused here, in its words, and nothing is kept. A frozen chart whose grid was
+    removed is asked against its cube, which stays with it. (V8 is the datacube extra's, as this module is: _extra.py.)"""
+    session = page._session
+    engine, frames = session.headless(), session.frames
+    with frames.serving():
+        made = _json.loads(engine.call('gridChart', _cube_spec(page._cube(cube), frames), _json.dumps(given),
+                                       None if before is None else _json.dumps(before)))
+    if made['problems']:
+        raise ValueError(' '.join(made['problems']))
+    return made['spec']
 
 
-def _slots(grid: Grid, grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
+def _cube_spec(cube: Mapping[str, Any], frames: Any) -> dict[str, Any]:
+    """A cube document and its frame's model, as the bundle's grid functions take them (the frames held still)."""
+    table = frames[cube['source']['name']]
+    return {'cube': _json.dumps(cube), 'model': table.model, 'runtime': table.runtime, 'source': table.accessor}
+
+
+def _slots(grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
            layers: Sequence[Mapping[str, Any]] | None, label: Any = None, size: Any = None,
            facet: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """The spec's version 2 slots a chart was given, checked word by word as DataCube's reader checks them."""
+    """The spec's version 2 slots a chart was given, in the spec's own keys: DataCube's reader and rules judge each
+    (_made). A facet's keys are refused here when Python's chart does not take them, as an argument misspelt."""
     out: dict[str, Any] = {}
     if size is not None:
-        out['size'] = _measure(grid, size, 'a chart\'s size')
+        out['size'] = _measure(size, 'a chart\'s size')
     if facet is not None:
-        if (not isinstance(facet, Mapping) or not facet or set(facet) - {'row', 'column'}
-                or not all(isinstance(v, str) for v in facet.values())):
+        if not isinstance(facet, Mapping) or not facet or set(facet) - {'row', 'column'}:
             raise ValueError(f'a facet is {{\'column\': name}} and/or {{\'row\': name}}, not {facet!r}')
-        out['facet'] = {k: grid._check([v], 'a facet')[0] for k, v in facet.items()}
+        out['facet'] = _copied(facet)
     if grain is not None:
-        if grain not in GRAINS:
-            raise ValueError(f'a grain is one of {", ".join(sorted(GRAINS))}, not {grain!r}')
         out['grain'] = grain
     if bins is not None:
-        if (not isinstance(bins, Mapping) or not ({'width', 'count'} & set(bins)) or set(bins) - {'width', 'count'}
-                or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 for v in bins.values())):
-            raise ValueError(f'bins are {{\'width\': w}} or {{\'count\': n}}, each a positive number, not {bins!r}')
         out['bins'] = _copied(bins)
     if label is not None:
-        out['label'] = _measure(grid, label, 'a chart\'s label')
+        out['label'] = _measure(label, 'a chart\'s label')
     if tooltip is not None:
-        out['tooltip'] = [_measure(grid, m, 'a chart\'s tooltip') for m in tooltip]
+        out['tooltip'] = [_measure(m, 'a chart\'s tooltip') for m in tooltip]
     if layers is not None:
-        for layer in layers:
-            kind = layer.get('kind') if isinstance(layer, Mapping) else None
-            if kind not in LAYERS:
-                raise ValueError(f'a layer\'s kind is one of {", ".join(sorted(LAYERS))}, not {kind!r}')
-            if kind == 'stat' and layer.get('stat') not in STATS:
-                raise ValueError(f'a stat layer\'s stat is one of {", ".join(sorted(STATS))}, not {layer.get("stat")!r}')
-            if kind in ('line', 'threshold') and (not isinstance(layer.get('value'), (int, float))
-                                                  or isinstance(layer.get('value'), bool)):
-                raise ValueError(f'a {kind} layer has a number value, not {layer.get("value")!r}')
-            if kind == 'band' and (layer.get('axis') not in ('x', 'y') or 'from' not in layer or 'to' not in layer):
-                raise ValueError('a band layer has an axis (\'x\' or \'y\'), a from and a to')
-        out['layers'] = [_copied(layer) for layer in layers]
+        out['layers'] = _plain(_json.loads(_json.dumps(list(layers))))
     return out
 
 
@@ -870,36 +761,23 @@ class Chart(Tile):
 
     def plot(self, mark: str | None = None, *, x: Any = _KEEP, y: Any = _KEEP, split: Any = _KEEP,
              frozen: bool | None = None) -> Chart:
-        """What it plots changed, as the chart's editor changes it: its ``mark``, ``x``, ``y``, ``split`` (None: none) or
-        ``frozen``; what is not given stays."""
+        """What it plots changed, as the chart's editor changes it: its ``mark``, ``x``, ``y`` (None: the grid's measure),
+        ``split`` (None: none) or ``frozen``; what is not given stays, and a grain or bins go with the column they were
+        chosen for. DataCube makes the edit and judges it (_made): a detached chart against its cube, which stays."""
         view = self._view
-        grid = self.grid
-        if grid is None:
-            raise ValueError(f'{self!r} has no grid (it was removed): its columns cannot be checked')
-        was = view['spec']
-        spec = _spec(grid, mark if mark is not None else was['mark'], was.get('x') if x is _KEEP else x,
-                     list(was['y']) if y is _KEEP else y,
-                     was.get('split') if split is _KEEP else split, bool(was.get('frozen')) if frozen is None else frozen)
-        # what the spec holds besides (its options, a newer writer's fields) stays -- but a grain or bins belong to the
-        # column they were chosen for, and go with it, as DataCube's form drops them
-        moved = x is not _KEEP and x != was.get('x')
-        changed = {**{k: v for k, v in was.items()
-                      if k not in ('mark', 'x', 'y', 'split', 'frozen') and not (moved and k in ('grain', 'bins'))},
-                   **spec}
-        # what DataCube would refuse to draw is refused here, before it is kept
-        _drawable(grid, changed)
-        view['spec'] = changed
+        given = {**({'mark': mark} if mark is not None else {}), **({'x': x} if x is not _KEEP else {}),
+                 **({'y': None if y is None else [_measure(p, 'a chart') for p in y]} if y is not _KEEP else {}),
+                 **({'split': split} if split is not _KEEP else {}),
+                 **({'frozen': True if frozen else None} if frozen is not None else {})}
+        view['spec'] = _made(self._page, view['cube'], given, view['spec'])
         self._page._changed()
         return self
 
     def options(self, settings: Mapping[str, Any]) -> Chart:
         """The chart's Options (``orientation``, ``stack``, ``sort``, ``limit``, ``labels``, ``legend``), in its spec's own
-        keys; one left out is the chart's default."""
-        spec = self._view['spec']
-        changed = {**spec, 'options': {**spec.get('options', {}), **_copied(settings)}}
-        # what DataCube would refuse to draw is refused here, before it is kept (a detached chart has no grid's types)
-        _drawable(self.grid, changed)
-        self._view['spec'] = changed
+        keys; one left out is the chart's default. DataCube makes the edit and judges it (_made)."""
+        view = self._view
+        view['spec'] = _made(self._page, view['cube'], {'options': _copied(settings)}, view['spec'])
         self._page._changed()
         return self
 
@@ -1325,6 +1203,11 @@ class Page:
             raise ValueError('a page that is shown has a grid at least (DataCube shows no empty page): add another '
                              'first, or close it')
         self._doc['views'], self._doc['cubes'] = views, cubes
+        if 'model' in self._doc:
+            # its model's tables and classes for the cubes it still holds, as DataCube writes a page (its keptFor, headless):
+            # a grid removed takes its table's name and its class with it, or DataCube would never open the page again
+            self._doc['model'] = _json.loads(self._session.headless().call(
+                'pageModelKept', _json.dumps(self._doc['model']), _json.dumps([c['id'] for c in cubes])))
         for id in gone:
             self._unplace(id)
         self._forget(gone)

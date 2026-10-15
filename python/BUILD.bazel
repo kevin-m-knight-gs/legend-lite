@@ -63,6 +63,9 @@ py_library(
     imports = ["."],
     deps = [
         ":compiler",
+        # DataCube's own code in V8 (legend_lite/_headless.py): its rules are asked of it, never copied (a chart's, page.py
+        # _drawable); every module here asks for the datacube extra first (legend_lite/_extra.py)
+        ":headless",
         "@pypi//duckdb",
         "@pypi//pyarrow",
     ],
@@ -374,14 +377,16 @@ py_test(
         "test_warehouse",
     ],
     data = [
+        "//datacube:headless_bundle",
         "//datacube:test/fixtures/chart-rules.json",
         "//native:compiler",
         "//warehouse:sqlapi_corpus",
     ],
-    # the warehouse's driver (legend_lite/warehouse.py), held to the one corpus its binding is (C3); a page's charts to
-    # DataCube's chart rules, the cases chart-spec.ts is held to (test_page.py)
+    # the warehouse's driver (legend_lite/warehouse.py), held to the one corpus its binding is (C3); a page's charts
+    # judged by DataCube's own rules, headless (its bundle), and answered as chart-spec.ts is held to (test_page.py)
     env = _ENV | {
         "LEGEND_LITE_CHART_RULES": "$(rlocationpath //datacube:test/fixtures/chart-rules.json)",
+        "LEGEND_LITE_DATACUBE": "$(rlocationpath //datacube:headless_bundle)",
         "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
     },
     main = "tests/main.py",

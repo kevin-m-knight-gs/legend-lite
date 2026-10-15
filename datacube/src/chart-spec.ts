@@ -327,6 +327,11 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (bins !== undefined && (!isRecord(bins) || (typeof bins['width'] !== 'number' && typeof bins['count'] !== 'number'))) {
     return 'its bins have neither a width nor a count';
   }
+  // a bin is some width of a number, and there is some count of them
+  for (const key of ['width', 'count'] as const) {
+    const n = isRecord(bins) ? bins[key] : undefined;
+    if (n !== undefined && !(typeof n === 'number' && n > 0)) return `its bins' ${key} ${JSON.stringify(n)} is not a positive number`;
+  }
   // the options' words: a newer DataCube's stack or position is refused by name, never drawn as another
   const o = spec['options'];
   const word = (key: string, words: readonly string[]): string | null =>
@@ -375,6 +380,19 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     return 'its drill path is not a path down its levels';
   }
   return null;
+}
+
+/**
+ * A saved chart as a page reads it (page-document.ts), or what stops it from being read, in words (specProblem). A
+ * version 1 spec IS a version 2 spec (every field 2 adds is optional): only its number moves. An option it leaves out
+ * (a page written in Python sets only those it means: §3 of the Python pages design) is the chart's own default.
+ * Python's grid.chart() asks DataCube's code the same, headless (headless/grid.ts gridChartProblems): one reader.
+ */
+export function readChart(spec: unknown): ChartSpec | string {
+  const problem = specProblem(spec, CHART_MARKS.map((m) => m.value));
+  if (problem !== null) return problem;
+  const saved = spec as Record<string, unknown>;
+  return { ...saved, version: CHART_VERSION, options: { ...DEFAULT_OPTIONS, ...(saved['options'] as object) } } as unknown as ChartSpec;
 }
 
 export const CHART_MARKS: readonly { value: ChartMark; label: string }[] = [
@@ -664,6 +682,31 @@ function chartRowCalcs(spec: ChartSpec | undefined): RowColumn[] {
   }));
 }
 
+/** The measure a new chart plots when it is not told one: the cube's own (a weighted average needs its weight, which
+ *  a chart's value has not); else a column it treats as a measure, a fraction first (money, a quantity) -- every number
+ *  is a measure by default (D3), and an id or a year summed is the worst first chart; else none. */
+function firstMeasure(s: CubeSnapshot): ChartMeasure | undefined {
+  const configured = s.measures.find((m) => m.fn !== 'wavg');
+  if (configured) return { column: configured.column, fn: configured.fn };
+  const asMeasures = chartColumns(s).measures.filter((c) => c.kind === 'measure');
+  const measureKind = asMeasures.find((c) => isFractional(c.type)) ?? asMeasures[0];
+  return measureKind ? { column: measureKind.name, fn: 'sum' } : undefined;
+}
+
+/** A new chart's options with `x` across: time runs left to right, and long; categories lead with the largest. */
+function optionsAcross(x: string | undefined, s: CubeSnapshot): ChartOptions {
+  const temporal = x !== undefined && isTemporal(rowColumns(s).find((c) => c.name === x)?.type);
+  return { ...DEFAULT_OPTIONS, ...(temporal ? { sort: { by: 'x', direction: 'asc' }, limit: TIME_LIMIT } : {}) };
+}
+
+/** A grain or bins belong to the column they were chosen for: kept while `x` is still across, gone with it. */
+function boundTo(spec: ChartSpec, x: string | undefined): Pick<ChartSpec, 'grain' | 'bins'> {
+  return x !== spec.x ? {} : {
+    ...(spec.grain !== undefined ? { grain: spec.grain } : {}),
+    ...(spec.bins !== undefined ? { bins: spec.bins } : {}),
+  };
+}
+
 /**
  * A first chart for a cube, from what the cube already says: its first row
  * dimension (else the first dimension) across, its first measure (else the
@@ -671,34 +714,48 @@ function chartRowCalcs(spec: ChartSpec | undefined): RowColumn[] {
  * date across is a line; anything else a bar.
  */
 export function defaultChart(s: CubeSnapshot): ChartSpec | null {
-  const { dimensions, measures } = chartColumns(s);
-  const byName = new Map(rowColumns(s).map((c) => [c.name, c]));
-  const x = s.rows[0] ?? dimensions[0]?.name;
+  const x = s.rows[0] ?? chartColumns(s).dimensions[0]?.name;
   const split = s.rows[1];
-  // the cube's own measure; else a column it treats as a measure, a fraction
-  // first (money, a quantity) -- every number is a measure by default (D3),
-  // and an id or a year summed is the worst first chart; else a count
-  const configured = s.measures.find((m) => m.fn !== 'wavg');
-  const asMeasures = measures.filter((c) => c.kind === 'measure');
-  const measureKind = asMeasures.find((c) => isFractional(c.type)) ?? asMeasures[0];
-  const y: ChartMeasure | undefined = configured
-    ? { column: configured.column, fn: configured.fn }
-    : measureKind ? { column: measureKind.name, fn: 'sum' } : undefined;
+  const y = firstMeasure(s);
   if (x === undefined) return null;
-  const temporal = isTemporal(byName.get(x)?.type);
+  const temporal = isTemporal(rowColumns(s).find((c) => c.name === x)?.type);
   return {
     version: CHART_VERSION,
     mark: temporal ? 'line' : 'bar',
     x,
     y: y ? [y] : [{ column: x, fn: 'count' }],
     ...(split !== undefined ? { split } : {}),
-    options: {
-      ...DEFAULT_OPTIONS,
-      // time runs left to right, and long; categories lead with the largest
-      sort: temporal ? { by: 'x', direction: 'asc' } : DEFAULT_OPTIONS.sort,
-      ...(temporal ? { limit: TIME_LIMIT } : {}),
-    },
+    options: optionsAcross(x, s),
   };
+}
+
+/**
+ * The chart DataCube makes of what it is told (`given`: a saved spec's own keys, any of them), as its own new chart
+ * would be made -- what is not told is the new chart's (`defaultChart`'s measure and options) -- or of an edit of
+ * `before` (what is not told stays, and a grain or bins go with the column they were chosen for, as followCube's do).
+ * Read as a page reads a chart (readChart): the made chart, or what stops it, in words. Python's grid.chart(),
+ * Chart.plot() and Chart.options() are made here (headless/grid.ts gridChart): never by rules of Python's own.
+ */
+export function chartFrom(given: Readonly<Record<string, unknown>>, s: CubeSnapshot, before?: ChartSpec): ChartSpec | string {
+  const told = (key: string): boolean => Object.hasOwn(given, key);
+  const x = (told('x') ? given['x'] : before?.x) as string | undefined;
+  const { grain: _grain, bins: _bins, ...rest } = before ?? {};
+  const base: Record<string, unknown> = before ? { ...rest, ...boundTo(before, x) } : {};
+  // y told as null is the new chart's measure again; untold, an edit keeps its own
+  const measure = firstMeasure(s);
+  const fresh = measure ? [measure] : x !== undefined ? [{ column: x, fn: 'count' }] : [];
+  const y = told('y') ? given['y'] ?? fresh : before ? before.y : fresh;
+  const options = isRecord(given['options']) ? given['options'] : {};
+  const made = {
+    ...base,
+    ...given,
+    version: CHART_VERSION,
+    y,
+    options: { ...(before ? before.options : optionsAcross(x, s)), ...options },
+  };
+  // a slot told as null is taken away (a split, a grain): the reader sees it absent
+  for (const [key, value] of Object.entries(made)) if (value === null) delete (made as Record<string, unknown>)[key];
+  return readChart(made);
 }
 
 /**
@@ -730,10 +787,7 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   const y = configured && !SEVERAL_VALUES.has(spec.mark) ? [{ column: configured.column, fn: configured.fn }] : spec.y;
   // a grain or bins belong to the column they were chosen for: a new column across starts without them
   const { split: _old, grain: _g, bins: _b, ...rest } = spec;
-  const kept = x === spec.x ? {
-    ...(spec.grain !== undefined ? { grain: spec.grain } : {}),
-    ...(spec.bins !== undefined ? { bins: spec.bins } : {}),
-  } : {};
+  const kept = boundTo(spec, x);
   const sort = x === spec.x ? spec.options.sort
     : isTemporal(rowColumns(s).find((c) => c.name === x)?.type)
       ? { by: 'x' as const, direction: 'asc' as const }
@@ -754,6 +808,9 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
 
 /** What stops a spec from being drawn, in words; empty when it can be. */
 export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
+  // a chart of the grid as shown (a treemap, a sunburst, a tree) is drawn from the grid's own rows and levels, nothing
+  // of its own judged: the charts' panel draws it without asking, and Python's chart is judged here as it draws
+  if (GRID_MARKS.has(drilled.mark)) return [];
   // a drilled chart is checked as it draws: the level after its path across (the levels themselves are checked too)
   const spec = drilledView(drilled).spec;
   const known = new Set([...rowColumns(s), ...chartRowCalcs(spec)].map((c) => c.name));
@@ -770,6 +827,8 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     } else if (m.fn !== 'count' && !known.has(m.column)) {
       out.push(`The cube has no column '${m.column}'.`);
     }
+    // a weighted average is weighted by another column, which a chart's value names none of (the grid's has its weight)
+    if (m.fn === 'wavg') out.push(`A chart plots no weighted average: '${m.column}' would need its weight.`);
   }
   if (spec.split !== undefined && !known.has(spec.split)) {
     out.push(`The cube has no column '${spec.split}'.`);

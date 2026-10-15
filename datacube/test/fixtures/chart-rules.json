@@ -1,5 +1,5 @@
 {
- "about": "DataCube's chart rules, one description: each case a chart over the columns below, refused or not. datacube/test/chart-rules.test.ts holds chart-spec.ts chartProblems to it, python/tests/test_page.py holds page.py _drawable to it (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, the DataCube + Python line's review of batch 3). A rule added on one side and not the other fails one of them.",
+ "about": "DataCube's chart rules, as cases: each a chart over the columns below, refused or not. They are written once, in DataCube (chart-spec.ts readChart and chartProblems): datacube/test/chart-rules.test.ts holds them to these cases, and python/tests/test_page.py holds Python to the same answers, which it gets by asking DataCube's own code, headless (legend_lite/page.py _made) -- so the cases check Python's way to the one rulebook, never a copy of it (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md, the review of 2d24022).",
  "columns": [
   {
    "name": "region",
@@ -28,6 +28,14 @@
   {
    "name": "at",
    "type": "DateTime"
+  },
+  {
+   "name": "month_start",
+   "type": "Date"
+  },
+  {
+   "name": "clock",
+   "type": "StrictTime"
   }
  ],
  "cases": [
@@ -953,6 +961,210 @@
       "stat": "average"
      }
     ]
+   }
+  },
+  {
+   "case": "a calendar of a Date with no grain",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "month_start"
+   }
+  },
+  {
+   "case": "a calendar of a Date by day",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "month_start",
+    "grain": "day"
+   }
+  },
+  {
+   "case": "a line of a Date by month",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "line",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "month_start",
+    "grain": "month"
+   }
+  },
+  {
+   "case": "a grain on a time of day",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "line",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "clock",
+    "grain": "month"
+   }
+  },
+  {
+   "case": "a streamgraph along a time of day",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "stream",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "clock",
+    "split": "channel"
+   }
+  },
+  {
+   "case": "a calendar along a time of day",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "calendar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "clock"
+   }
+  },
+  {
+   "case": "a line along a time of day",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "line",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "clock"
+   }
+  },
+  {
+   "case": "a weighted average plotted",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "wavg"
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "bins of no width",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "revenue",
+    "bins": {
+     "width": 0
+    }
+   }
+  },
+  {
+   "case": "bins of a negative count",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "revenue",
+    "bins": {
+     "count": -3
+    }
+   }
+  },
+  {
+   "case": "a stack DataCube does not know",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "stack": "stacked100"
+    },
+    "x": "region",
+    "split": "channel"
+   }
+  },
+  {
+   "case": "a sunburst of the grid as shown, with nothing across",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "sunburst",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {}
    }
   }
  ]
