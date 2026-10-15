@@ -41,6 +41,10 @@ esbuild_bundle(
         "--format=esm",
         "--target=es2022",
         "--loader:.ttf=dataurl",
+        # minified, its names kept, as DataCube's are (2026-10-15, the user's "does minify buy anything if already
+        # zipped?": measured 12,832,028 -> 6,237,342 bytes, 2,482,199 -> 1,744,407 gzipped; Monaco is most of it)
+        "--minify",
+        "--keep-names",
         "--log-level=warning",
         "--outfile=demo/bundle.js",
     ],
@@ -55,6 +59,9 @@ esbuild_bundle(
         "--bundle",
         "--format=esm",
         "--target=es2022",
+        # as the page's bundle (measured 618,158 -> 318,011 bytes, 131,316 -> 98,602 gzipped)
+        "--minify",
+        "--keep-names",
         "--log-level=warning",
         "--outfile=demo/editor.worker.js",
     ],
