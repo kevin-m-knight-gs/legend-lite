@@ -2409,7 +2409,43 @@ final class IqFunctions {
             List<ValueSpecification> values = new ArrayList<>(v);
             return build.apply(values);
         });
+        ValueSpecification guard = r.guard();
+        ValueSpecification body = r.body();
+        if (guard != null && body != null && !mayBeEmpty(body)) {
+            // IQ island, 2026-10-15 (the seventh line's merged guards, PR #41; the scale suite's cliff 2): the NULL
+            // test carried apart from the body, so a nested strict function ORs it rather than testing this whole value
+            // again -- sound only where the body is never empty while the guard is false, which an empty written
+            // nowhere in it assures
+            return new Tx(r.vs(), kind, r.nullable(), null, type, guard, body);
+        }
         return Tx.value(r.vs(), kind, r.nullable(), type);
+    }
+
+    /** Whether {@code vs} writes an empty value anywhere (an empty collection, Pure's NULL), so may compute none. */
+    private static boolean mayBeEmpty(ValueSpecification vs) {
+        java.util.ArrayDeque<ValueSpecification> todo = new java.util.ArrayDeque<>();
+        java.util.Set<ValueSpecification> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        todo.push(vs);
+        while (!todo.isEmpty()) {
+            ValueSpecification x = todo.pop();
+            if (!seen.add(x)) {
+                continue;
+            }
+            switch (x) {
+                case com.legend.protocol.spec.PureCollection c -> {
+                    if (c.values().isEmpty()) {
+                        return true;
+                    }
+                    c.values().forEach(todo::push);
+                }
+                case com.legend.protocol.spec.AppliedFunction f -> f.parameters().forEach(todo::push);
+                case com.legend.protocol.spec.AppliedProperty a -> todo.push(a.receiver());
+                case com.legend.protocol.spec.LambdaFunction l -> l.body().forEach(todo::push);
+                default -> {
+                }
+            }
+        }
+        return false;
     }
 
     private static IqType nonNegative() {
