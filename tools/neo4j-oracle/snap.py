@@ -469,7 +469,14 @@ def error_of(e):
     m = re.search(r"\{message: (.*?)\}(?: \{gql_status|$)", message, re.S)
     if m:
         message = m.group(1)
-    return {"code": code, "message": message.split("\n")[0][:500]}
+    message = message.split("\n")[0][:500]
+    # a node, relationship or path spelled by its internal id ("got: (1238)", "-[798]-", "Path{(1242)-[799]-(1243)}"):
+    # the id is the run's, masked so that two snaps of one case agree
+    message = re.sub(r"\((\d+)\)", "(#)", message)
+    message = re.sub(r"-\[(\d+)\]-", "-[#]-", message)
+    message = re.sub(r"\b(node|relationship)<\d+>", r"\1<#>", message)
+    message = re.sub(r"\bwith id \d+\b", "with id #", message)
+    return {"code": code, "message": message}
 
 
 def dump(s):
