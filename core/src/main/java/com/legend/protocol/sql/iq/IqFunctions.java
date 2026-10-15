@@ -99,7 +99,7 @@ final class IqFunctions {
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
         HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3),
-        EXTRACT(2, 2, IqParser.EXTRACT);
+        EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3);
 
         final int min;
         final int max;
@@ -311,6 +311,10 @@ final class IqFunctions {
             case CONVERT_STYLE -> convertStyle(f, args);
             case STR -> str(f, args);
             case EXTRACT -> extract(f, args);
+            case DATEFORMAT -> dateFormat(f, args);
+            case DAYNAME, MONTHNAME -> dayMonthName(fn == Fn.DAYNAME, name, f, args);
+            case DATETIME -> dateTime(name, f, args);
+            case YMD -> ymd(f, args);
         };
     }
 
@@ -348,6 +352,252 @@ final class IqFunctions {
             throw SqlTranslationException.unsupported(name + " of a DATE's " + time + " is IQ's error -1009145 under"
                     + " its engine, refused before translating", f.args().get(at).pos());
         }
+    }
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1; the research's D-T10): DATEPART's and DATENAME's calendar parts under
+     * IQ's engine -- ISO 8601's rule with weeks from Sunday: CALDAYOFWEEK Sunday 1 to Saturday 7, and week 1 the first
+     * week from a Sunday with four days or more in the year (the one holding its first Wednesday), CALYEAROFWEEK that
+     * week's year (2026-03-04 is week 9 of 2026, 2026-12-31 week 52, 1900-01-01 week 1). A week's Wednesday decides
+     * both, as ISO's Thursday does for weeks from Monday.
+     */
+    private Tx iqCalendarPart(boolean name, Part part, String fnName, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx d = dateArgument(args.get(1), f.args().get(1), fnName);
+        IqType type = IqType.integer("INTEGER", BigInteger.valueOf(part.low), BigInteger.valueOf(part.high), true);
+        if (d == null) {
+            return name ? nullString() : Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, type);
+        }
+        boolean date = d.kind() == Kind.DATE;
+        Tx value = strict(Kind.INTEGER, type, List.of(d), v -> {
+            ValueSpecification at = timestamp(v.get(0), date);
+            ValueSpecification dow = SqlToPure.call("dayOfWeekNumber", at, new EnumValue(DAY_OF_WEEK, "Sunday"));
+            if (part == Part.CALDAYOFWEEK) {
+                return dow;
+            }
+            ValueSpecification wednesday = SqlToPure.call("adjust", at, AppliedFunction.infixRun("minus",
+                    List.of(integer(4), dow)), new EnumValue(DURATION_UNIT, "DAYS"));
+            return part == Part.CALYEAROFWEEK ? SqlToPure.call("year", wednesday)
+                    : AppliedFunction.infixRun("plus", List.of(wholeQuotient(AppliedFunction.infixRun("minus",
+                            List.of(SqlToPure.call("dayOfYear", wednesday), integer(1))), 7), integer(1)));
+        });
+        if (!name) {
+            return value;
+        }
+        Tx text = SqlToPure.strict(Kind.STRING, List.of(value), v -> SqlToPure.call("toString", v.get(0)));
+        return Tx.value(text.vs(), Kind.STRING, text.nullable(), varchar());
+    }
+
+    /** IQ island, 2026-10-15 (measured on IQ 17.1): {@code DAYNAME(x)} and {@code MONTHNAME(x)}, the English name of x's
+     *  weekday or month, a VARCHAR(12). */
+    private Tx dayMonthName(boolean day, String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx d = dateArgument(args.get(0), f.args().get(0), name);
+        IqType type = new IqType("VARCHAR(12)");
+        if (d == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, type);
+        }
+        boolean date = d.kind() == Kind.DATE;
+        return strict(Kind.STRING, type, List.of(d), v -> {
+            ValueSpecification at = timestamp(v.get(0), date);
+            return day ? names(SqlToPure.call("dayOfWeekNumber", at, new EnumValue(DAY_OF_WEEK, "Sunday")), WEEKDAYS)
+                    : names(SqlToPure.call("monthNumber", at), MONTHS);
+        });
+    }
+
+    /** IQ island, 2026-10-15 (measured on IQ 17.1): {@code DATETIME(x)}, x as a TIMESTAMP -- a date at midnight, a
+     *  timestamp itself, a constant string as IQ reads it. */
+    private Tx dateTime(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx d = dateArgument(args.get(0), f.args().get(0), name);
+        IqType type = new IqType("TIMESTAMP");
+        if (d == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.DATETIME).vs(), Kind.DATETIME, true, type);
+        }
+        if (d.kind() == Kind.DATETIME) {
+            return Tx.value(d.vs(), Kind.DATETIME, d.nullable(), type);
+        }
+        return strict(Kind.DATETIME, type, List.of(d), v -> timestamp(v.get(0), true));
+    }
+
+    /** IQ island, 2026-10-15 (measured on IQ 17.1): {@code YMD(y, m, d)}, the date m - 1 months and d - 1 days after
+     *  January 1 of year y (a month past 12 or a day past the month's last carries on: YMD(2027, 13, 1) is 2028-01-01,
+     *  YMD(2026, 2, 31) 2026-03-03); outside the years 1 to 9999 IQ's error. */
+    private Tx ymd(SqlAst.FunctionCall f, List<Tx> args) {
+        for (int i = 0; i < 3; i++) {
+            if (args.get(i).kind() != Kind.NULL) {
+                // any integer: a part that leaves the years 1 to 9999 raises below
+                integerType(args.get(i), f.args().get(i), "YMD");
+            }
+        }
+        IqType type = new IqType("DATE");
+        if (args.stream().anyMatch(a -> a.kind() == Kind.NULL)) {
+            return Tx.value(SqlToPure.nullOf(Kind.DATE).vs(), Kind.DATE, true, type);
+        }
+        return strict(Kind.DATE, type, args, v -> {
+            ValueSpecification start = SqlToPure.call("date", v.get(0), integer(1), integer(1), integer(0), integer(0),
+                    integer(0));
+            ValueSpecification months = SqlToPure.call("adjust", start, AppliedFunction.infixRun("minus",
+                    List.of(v.get(1), integer(1))), new EnumValue(DURATION_UNIT, "MONTHS"));
+            ValueSpecification moved = typed(SqlToPure.call("adjust", months, AppliedFunction.infixRun("minus",
+                    List.of(v.get(2), integer(1))), new EnumValue(DURATION_UNIT, "DAYS")), "DateTime");
+            ValueSpecification year = SqlToPure.call("year", moved);
+            return ifThen(SqlToPure.call("or", SqlToPure.call("greaterThan", year, integer(9999)), lt(year, integer(1))),
+                    raise("StrictDate"), typed(SqlToPure.call("datePart", moved), "StrictDate"));
+        });
+    }
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1; the census's Tier 0 dates): {@code DATEFORMAT(x, format)}, a VARCHAR
+     * of the format's length, the format a constant read as IQ's date format: a run of one letter is one token, any
+     * other character itself (T, q, a space, punctuation). {@code yyyy}, {@code yy}; {@code mm} the month, {@code m} it
+     * in one character ({@code *} for two digits), three or more m's its English name cut to as many letters
+     * ({@code mmm} mar, {@code Mmm} Mar, {@code MMM} MAR); {@code dd} the day, {@code d} the weekday Sunday 1, three or
+     * more d's its name as a month's; {@code jjj} the day of the year; {@code hh} the hour, of the twelve where the
+     * format has {@code a} or {@code aa} (a, am or AM, pm), {@code nn} the minute, {@code ss} the second and, after
+     * {@code ss.}, as many places of its fraction as s's (cut). A two-letter number (or {@code Jjj}) written first upper
+     * then lower drops its leading zeros. Refused by name: a format that is not a constant, a token not measured.
+     */
+    private Tx dateFormat(SqlAst.FunctionCall f, List<Tx> args) {
+        if (!(f.args().get(1) instanceof SqlAst.StringLit lit)) {
+            throw SqlTranslationException.unsupported("DATEFORMAT with a format other than a constant string is not"
+                    + " supported yet", f.args().get(1).pos());
+        }
+        String format = lit.value();
+        IqType type = new IqType("VARCHAR(" + format.length() + ")");
+        Tx d = dateArgument(args.get(0), f.args().get(0), "DATEFORMAT");
+        if (d == null) {
+            return Tx.value(SqlToPure.nullOf(Kind.STRING).vs(), Kind.STRING, true, type);
+        }
+        boolean date = d.kind() == Kind.DATE;
+        boolean twelve = false;
+        List<String> tokens = new ArrayList<>();
+        for (int i = 0; i < format.length(); ) {
+            char c = format.charAt(i);
+            int j = i;
+            if ("ymdjhnsa".indexOf(Character.toLowerCase(c)) >= 0) {
+                while (j < format.length() && Character.toLowerCase(format.charAt(j)) == Character.toLowerCase(c)) {
+                    j++;
+                }
+            } else {
+                j = i + 1;
+            }
+            String t = format.substring(i, j);
+            twelve |= Character.toLowerCase(c) == 'a';
+            tokens.add(t);
+            i = j;
+        }
+        boolean hours12 = twelve;
+        List<java.util.function.Function<ValueSpecification, ValueSpecification>> pieces = new ArrayList<>();
+        for (int k = 0; k < tokens.size(); k++) {
+            String t = tokens.get(k);
+            char c = Character.toLowerCase(t.charAt(0));
+            int n = t.length();
+            boolean letter = "ymdjhnsa".indexOf(c) >= 0;
+            if (!letter) {
+                pieces.add(x -> new CString(t));
+                continue;
+            }
+            boolean lower = t.equals(t.toLowerCase(Locale.ROOT));
+            boolean upper = t.equals(t.toUpperCase(Locale.ROOT));
+            boolean capital = !lower && !upper && Character.isUpperCase(t.charAt(0))
+                    && t.substring(1).equals(t.substring(1).toLowerCase(Locale.ROOT));
+            if (!lower && !upper && !capital) {
+                throw dateFormatToken(t, f);
+            }
+            boolean pad = !capital;
+            boolean fraction = c == 's' && k >= 2 && tokens.get(k - 1).equals(".")
+                    && tokens.get(k - 2).equalsIgnoreCase("ss");
+            pieces.add(switch (c) {
+                case 'y' -> {
+                    if (n != 4 && n != 2) {
+                        throw dateFormatToken(t, f);
+                    }
+                    yield x -> n == 4 ? lpad(SqlToPure.call("year", x), 4)
+                            : lpad(SqlToPure.call("rem", SqlToPure.call("year", x), integer(100)), 2);
+                }
+                case 'm' -> n >= 3 ? x -> names(SqlToPure.call("monthNumber", x), cased(MONTHS, n, lower, upper))
+                        : n == 2 ? x -> number(SqlToPure.call("monthNumber", x), pad)
+                        : x -> ifThen(lt(SqlToPure.call("monthNumber", x), integer(10)), SqlToPure.call("toString",
+                                SqlToPure.call("monthNumber", x)), new CString("*"));
+                case 'd' -> n >= 3 ? x -> names(SqlToPure.call("dayOfWeekNumber", x, new EnumValue(DAY_OF_WEEK,
+                                "Sunday")), cased(WEEKDAYS, n, lower, upper))
+                        : n == 2 ? x -> number(SqlToPure.call("dayOfMonth", x), pad)
+                        : x -> SqlToPure.call("toString", SqlToPure.call("dayOfWeekNumber", x,
+                                new EnumValue(DAY_OF_WEEK, "Sunday")));
+                case 'j' -> {
+                    if (n != 3) {
+                        throw dateFormatToken(t, f);
+                    }
+                    yield x -> pad ? lpad(SqlToPure.call("dayOfYear", x), 3) : SqlToPure.call("toString",
+                            SqlToPure.call("dayOfYear", x));
+                }
+                case 'h' -> {
+                    if (n != 2) {
+                        throw dateFormatToken(t, f);
+                    }
+                    yield x -> {
+                        ValueSpecification h = SqlToPure.call("hour", x);
+                        ValueSpecification shown = hours12 ? ifThen(SqlToPure.call("equal", SqlToPure.call("rem", h,
+                                integer(12)), integer(0)), integer(12), SqlToPure.call("rem", h, integer(12))) : h;
+                        return number(shown, pad);
+                    };
+                }
+                case 'n' -> {
+                    if (n != 2) {
+                        throw dateFormatToken(t, f);
+                    }
+                    yield x -> number(SqlToPure.call("minute", x), pad);
+                }
+                case 's' -> {
+                    if (fraction && n <= 6) {
+                        yield x -> SqlToPure.call("substring", lpad(microseconds(x), 6), integer(1), integer(n));
+                    }
+                    if (n != 2) {
+                        throw dateFormatToken(t, f);
+                    }
+                    yield x -> number(SqlToPure.call("second", x), pad);
+                }
+                default -> {
+                    // a: a or p; aa: am or pm (AA: AM, PM)
+                    if (n > 2 || capital) {
+                        throw dateFormatToken(t, f);
+                    }
+                    String am = (n == 1 ? "a" : "am");
+                    String pm = (n == 1 ? "p" : "pm");
+                    String a = upper ? am.toUpperCase(Locale.ROOT) : am;
+                    String p = upper ? pm.toUpperCase(Locale.ROOT) : pm;
+                    yield x -> ifThen(lt(SqlToPure.call("hour", x), integer(12)), new CString(a), new CString(p));
+                }
+            });
+        }
+        // a DATE's time is midnight: its timestamp reads it so
+        boolean isDate = date;
+        return strict(Kind.STRING, type, List.of(d), v -> {
+            ValueSpecification at = timestamp(v.get(0), isDate);
+            List<ValueSpecification> parts = new ArrayList<>();
+            for (var piece : pieces) {
+                parts.add(piece.apply(at));
+            }
+            return parts.size() == 1 ? parts.get(0) : AppliedFunction.infixRun("plus", parts);
+        });
+    }
+
+    private static SqlTranslationException dateFormatToken(String token, SqlAst.FunctionCall f) {
+        return SqlTranslationException.unsupported("DATEFORMAT's '" + token + "' is not supported yet: the island reads"
+                + " yyyy, yy, m to mmmm..., d to dddd..., jjj, hh, nn, ss, a fraction's s's after ss., a and aa", f.pos());
+    }
+
+    /** {@code names} cut to {@code n} letters, in lower case, upper case or as they are (capitalized). */
+    private static String[] cased(String[] names, int n, boolean lower, boolean upper) {
+        String[] out = new String[names.length];
+        for (int i = 0; i < names.length; i++) {
+            String cut = names[i].substring(0, Math.min(n, names[i].length()));
+            out[i] = lower ? cut.toLowerCase(Locale.ROOT) : upper ? cut.toUpperCase(Locale.ROOT) : cut;
+        }
+        return out;
+    }
+
+    /** An integer's digits, two at least (a zero before one) where {@code pad}. */
+    private static ValueSpecification number(ValueSpecification n, boolean pad) {
+        return pad ? lpad(n, 2) : SqlToPure.call("toString", n);
     }
 
     /**
@@ -2014,9 +2264,7 @@ final class IqFunctions {
                     + " zones", f.pos());
         }
         if (part.calendar() && engine == IqDialect.Engine.IQ) {
-            throw SqlTranslationException.unsupported(fnName + "(" + part + ", ...) is not"
-                    + " supported under the IQ engine yet: SQL Anywhere's is ISO 8601, IQ's manual's Sunday-based (the"
-                    + " research's D-T10, not yet verified)", f.pos());
+            return iqCalendarPart(name, part, fnName, f, args);
         }
         // IQ island, 2026-10-14 (the options framework): DATEPART's weekday counts from first_day_of_week (1 Monday
         // to 7 Sunday; measured on SQL Anywhere 17: no other part moves, nor DATENAME's weekday, nor DOW); under the IQ

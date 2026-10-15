@@ -1102,10 +1102,45 @@ public final class IqDialect implements InputDialect {
                 throw SqlTranslationException.invalid("wrong number of arguments to " + name.toUpperCase(
                         java.util.Locale.ROOT) + code(-154, "37505"), f.pos());
             }
+            constantArguments(name, f);
         }
         for (SqlAst.Expr child : children(e)) {
             knownFunctions(child);
         }
+    }
+
+    /** IQ island, 2026-10-15 (measured on SQL Anywhere 17 and IQ 17.1): the errors a date function's constant arguments
+     *  raise wherever it is computed, refused by name before translating: DATETIME of a number, YMD of constants
+     *  outside the years 1 to 9999. */
+    private static void constantArguments(String name, SqlAst.FunctionCall f) {
+        String n = IqLexer.lower(name);
+        if (n.equals("datetime") && (f.args().get(0) instanceof SqlAst.IntegerLit
+                || f.args().get(0) instanceof SqlAst.NumericLit)) {
+            throw SqlTranslationException.unsupported("DATETIME of a number is not supported: IQ reads it by its own"
+                    + " rules (and raises for most)", f.pos());
+        }
+        if (n.equals("ymd") && f.args().stream().allMatch(a -> a instanceof SqlAst.IntegerLit)) {
+            long[] v = new long[3];
+            for (int i = 0; i < 3; i++) {
+                java.math.BigInteger b = ((SqlAst.IntegerLit) f.args().get(i)).value();
+                if (b.bitLength() > 31) {
+                    throw ymdRange(f);
+                }
+                v[i] = b.longValue();
+            }
+            if (v[0] < 1 || v[0] > 9999) {
+                throw ymdRange(f);
+            }
+            java.time.LocalDate d = java.time.LocalDate.of((int) v[0], 1, 1).plusMonths(v[1] - 1).plusDays(v[2] - 1);
+            if (d.getYear() < 1 || d.getYear() > 9999) {
+                throw ymdRange(f);
+            }
+        }
+    }
+
+    private static SqlTranslationException ymdRange(SqlAst.FunctionCall f) {
+        return SqlTranslationException.unsupported("YMD of constants outside the years 1 to 9999 is IQ's error,"
+                + " refused before translating", f.pos());
     }
 
     /** Every LIKE under {@code e} whose pattern is a constant has one IQ matches without an error

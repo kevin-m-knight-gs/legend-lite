@@ -261,3 +261,35 @@ tests:
   - id: string_date_by_a_month_name
     sql: "SELECT CAST(SUBSTR('Mar 4 2026' || vc, 1, 10) AS DATE) AS a FROM t WHERE id = 1"
     profile: iq17-default
+  # IQ island, 2026-10-15: IQ's date functions (measured on IQ 17.1; the census's Tier 0 dates): DATEFORMAT, DAYNAME,
+  # MONTHNAME, DATETIME, YMD, and DATEPART's calendar parts under IQ's engine (weeks from Sunday, ISO's rule)
+  - id: dateformat_numbers
+    sql: "SELECT id, DATEFORMAT(dt, 'yyyy-mm-dd') AS a, DATEFORMAT(ts, 'yyyy/mm/dd hh:nn:ss') AS b, DATEFORMAT(dt, 'dd/mm/yy') AS c, DATEFORMAT(ts, 'yyyymmddhhnnss') AS d FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_names
+    sql: "SELECT id, DATEFORMAT(dt, 'Mmm dd, yyyy') AS a, DATEFORMAT(dt, 'Mmmm') AS b, DATEFORMAT(dt, 'MMM') AS c, DATEFORMAT(dt, 'mmm') AS d, DATEFORMAT(dt, 'Dddd') AS e, DATEFORMAT(dt, 'ddd') AS f, DATEFORMAT(dt, 'Mmmmmmmmm') AS g, DATEFORMAT(dt, 'dddddddddd') AS h FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_unpadded_and_single_letters
+    sql: "SELECT id, DATEFORMAT(dt, 'Mm') AS a, DATEFORMAT(dt, 'm') AS b, DATEFORMAT(dt, 'd') AS c, DATEFORMAT(dt, 'jjj') AS d, DATEFORMAT(dt, 'Jjj') AS e, DATEFORMAT(dt, 'm/d/yyyy') AS f FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_times
+    sql: "SELECT id, DATEFORMAT(ts, 'hh:nn AA') AS a, DATEFORMAT(ts, 'hh:nn aa') AS b, DATEFORMAT(ts, 'HH:NN:SS') AS c, DATEFORMAT(ts, 'hh:nn:ss.sss') AS d, DATEFORMAT(ts, 'yyyy-mm-dd hh:nn:ss.s') AS e, DATEFORMAT(ts, 'hh:nn a') AS f FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_literals_and_constants
+    sql: "SELECT id, DATEFORMAT(ts, 'mm-dd T hh') AS a, DATEFORMAT(dt, ' x q ') AS b, DATEFORMAT('2026-03-04', 'mm/dd/yyyy') AS c, DATEFORMAT(NULL, 'yyyy') AS d FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: dateformat_of_a_text_column_is_an_error
+    sql: "SELECT DATEFORMAT(vc, 'yyyy') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: day_and_month_names
+    sql: "SELECT id, DAYNAME(dt) AS a, MONTHNAME(dt) AS b, DAYNAME(ts) AS c, MONTHNAME(ts) AS d FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: datetime_of_dates_and_timestamps
+    sql: "SELECT id, DATETIME(dt) AS a, DATETIME(ts) AS b FROM t ORDER BY id"
+    profile: iq16-default, iq17-default
+  - id: ymd_carries_months_and_days
+    sql: "SELECT YMD(2026, 3, 4) AS a, YMD(id + 2025, 13, 1) AS b, YMD(2026, id, 31) AS c, YMD(2026, 1, 0) AS d FROM t WHERE id = 2"
+    profile: iq16-default, iq17-default
+  - id: calendar_parts_under_iq_engine
+    sql: "SELECT id, DATEPART(cdw, dt) AS a, DATEPART(cwk, dt) AS b, DATEPART(cyr, dt) AS c, DATEPART(cwk, ts) AS d, DATENAME(cwk, dt) AS e FROM t ORDER BY id"
+    profile: iq17-default

@@ -260,7 +260,6 @@ class IqFunctionsTest {
         String[][] decided = {
                 {"SELECT STUFF(vc, 1, 1, 'x') AS s FROM " + T, "D-F3"},
                 {"SELECT PATINDEX('%', vc) AS p FROM " + T, "D-F6"},
-                {"SELECT DATEPART(cdw, dt) AS d FROM " + T, "D-T10"},
                 {"SELECT CAST(vc AS VARCHAR(3)) AS c FROM " + T, "D-C2"},
                 {"SELECT CAST(d AS NUMERIC(10, 2)) AS c FROM " + T, "D-N6"},
                 {"SELECT CAST(nm AS VARCHAR(4)) AS c FROM " + T, "D-C1"},
@@ -268,6 +267,10 @@ class IqFunctionsTest {
         for (String[] d : decided) {
             assertTrue(refusal(d[0]).getMessage().contains(d[1]), d[0]);
         }
+        // IQ island, 2026-10-15 (D-T10, measured on IQ 17.1): the calendar parts are read under IQ's engine, its weeks
+        // from Sunday (the week's Wednesday decides its year and number)
+        String cdw = pure("SELECT DATEPART(cdw, dt) AS d, DATEPART(cwk, dt) AS w FROM " + T);
+        assertTrue(cdw.contains("DayOfWeek.Sunday") && cdw.contains("dayOfYear()"), cdw);
         // IQ island, 2026-10-15 (D-F1, D-F2, measured on IQ 17.1): ROUND and CEILING of a NUMERIC(p,s) are a
         // NUMERIC(p+1,s) under IQ's engine, unchecked
         assertFalse(pure("SELECT ROUND(nm, 1) AS r FROM " + T).contains("cast(@Decimal)->toOne()"));
