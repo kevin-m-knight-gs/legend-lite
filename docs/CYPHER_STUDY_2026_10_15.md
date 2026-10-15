@@ -734,7 +734,13 @@ for a relationship with properties, and where does the model say so?
    in a Legend element that exists.
 7. **Names are the model's.** A relationship type is the edge class's name, the association's name or the property's
    name; there is no renaming layer. A model that wants `KNOWS` for `friends` renames the property or writes an edge
-   class named so.
+   class named so. Pure has no type alias (the user asked, 2026-10-15): its element kinds are classes,
+   associations, enumerations, profiles, functions, mappings and the runtime and tooling elements, and the one
+   alias-shaped construct, `Primitive P extends Integer`, is for primitives. A subclass is not an alias (it narrows).
+   The one typed second name Pure can express is a zero-argument function returning the class's instances,
+   `function demo::ACTED_IN(): demo::Acting[*] { demo::Acting.all() }`, which is more than an alias: a typed view
+   relationship type, resolved as Legend SQL resolves `func('...')` sources and inlined by G½. Noted as a later
+   option of its own, not part of the first slices.
 8. **Patterns over edge classes lower as joins.** `(a:Actor)-[r:Acting]->(m:Movie)` is `Acting.all()` joined to
    its `actor` and `movie` ends through the mapping, with the endpoint labels as filters; `r.role` is the row's
    column; `type(r)` a spelled constant; `startNode(r)` and `endNode(r)` the ends. A variable-length pattern over an
