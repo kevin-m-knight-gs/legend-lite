@@ -2301,12 +2301,13 @@ public final class IqDialect implements InputDialect {
     }
 
     /**
-     * Where IQ's engine takes a subquery (the research's GRAMMAR E15 and appendix B1, the flag list: SQL Anywhere's
-     * front end takes each, so its answer is no evidence for IQ's engine, and each is refused by name under it): a
-     * parenthesized query as a whole item of the statement's select list (a set operation's branches included), or as
-     * a comparison's operand in a WHERE; EXISTS, IN and ANY, SOME, ALL (query) as a WHERE's predicates. Refused: a
-     * subquery in a join's ON, in ORDER BY, inside a CASE, an IF, a function's arguments or arithmetic, anywhere in a
-     * derived table's select list; a set operation inside a subquery.
+     * Where IQ's engine takes a subquery (the research's GRAMMAR E15 and appendix B1, the flag list; IQ island,
+     * 2026-10-15: measured on IQ 17.1, which takes more): a parenthesized query anywhere in an item of the statement's
+     * own select list (a set operation's branches included) but inside a conditional expression or an aggregate
+     * ({@link #shownSubqueries}), or as a comparison's or a BETWEEN's operand in a WHERE, a HAVING or a join's ON;
+     * EXISTS, IN and ANY, SOME, ALL (query) as their predicates. Refused (IQ's -1001030 or -1005004): a subquery in
+     * ORDER BY or GROUP BY, inside arithmetic or an IN list in a condition, anywhere in a derived table's select list;
+     * a set operation inside a subquery (IQ takes an uncorrelated one, not a correlated one: not told apart here).
      */
     private static void subqueryPlaces(SqlAst.Statement statement) {
         Set<SqlAst.Select> top = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -2333,13 +2334,12 @@ public final class IqDialect implements InputDialect {
             }
             for (SqlAst.SelectItem item : s.items()) {
                 if (item instanceof SqlAst.SelectExpr x) {
-                    boolean whole = x.expr() instanceof SqlAst.ScalarSubquery && top.contains(s) && !inDerived.contains(s);
-                    for (SqlAst.Expr e : whole ? List.<SqlAst.Expr>of() : List.of(x.expr())) {
-                        noSubquery(e, inDerived.contains(s) ? "a derived table's select list"
-                                : "the select list, but as a whole item");
-                    }
-                    if (whole) {
-                        noSetOperation(((SqlAst.ScalarSubquery) x.expr()).query(), x.expr().pos());
+                    if (inDerived.contains(s)) {
+                        noSubquery(x.expr(), "a derived table's select list");
+                    } else if (top.contains(s)) {
+                        shownSubqueries(x.expr());
+                    } else {
+                        noSubquery(x.expr(), "the statement's own select list");
                     }
                 }
             }
@@ -2357,7 +2357,8 @@ public final class IqDialect implements InputDialect {
                 joins(f, joins);
                 for (SqlAst.Join j : joins) {
                     if (j.on() != null) {
-                        noSubquery(java.util.Objects.requireNonNull(j.on()), "a join's ON");
+                        // IQ island, 2026-10-15 (measured on IQ 17.1): an ON takes them as a WHERE does
+                        predicates(java.util.Objects.requireNonNull(j.on()));
                     }
                 }
             }
@@ -2395,6 +2396,16 @@ public final class IqDialect implements InputDialect {
                     }
                 }
             }
+            case SqlAst.Between b -> {
+                // IQ island, 2026-10-15 (measured on IQ 17.1): a BETWEEN's operand and bounds, as a comparison's
+                for (SqlAst.Expr side : List.of(b.operand(), b.low(), b.high())) {
+                    if (side instanceof SqlAst.ScalarSubquery q) {
+                        noSetOperation(q.query(), q.pos());
+                    } else {
+                        noSubquery(side, "WHERE, but as a comparison's operand");
+                    }
+                }
+            }
             case SqlAst.Exists x -> noSetOperation(x.query(), x.pos());
             case SqlAst.InSubquery in -> {
                 noSubquery(in.operand(), "WHERE, but as a comparison's operand");
@@ -2405,6 +2416,38 @@ public final class IqDialect implements InputDialect {
                 noSetOperation(q.query(), q.pos());
             }
             default -> noSubquery(e, "WHERE, but as a comparison's operand or a predicate");
+        }
+    }
+
+    /** IQ's conditional expressions besides CASE and IF (which the reader reads as a CASE): a subquery inside one is
+     *  IQ's -1001030 under its engine (measured on IQ 17.1). */
+    private static final Set<String> CONDITIONALS = Set.of("coalesce", "isnull", "ifnull", "nullif", "argn");
+
+    /**
+     * A subquery in an item of the statement's own select list (IQ island, 2026-10-15; measured on IQ 17.1, which the
+     * research's flag list held to a whole item): a scalar subquery anywhere -- in arithmetic, a function's arguments,
+     * a concatenation, a CAST -- but inside a conditional expression (CASE, IF, COALESCE, ISNULL, IFNULL, NULLIF, ARGN:
+     * IQ's -1001030) or an aggregate (-1001030, "outside of a top level SELECT list"); no predicate (EXISTS, IN,
+     * ANY, ALL), which IQ reads only inside a conditional there.
+     */
+    private static void shownSubqueries(SqlAst.Expr e) {
+        String outside = "the select list, but outside a conditional expression (CASE, IF, COALESCE, ISNULL, IFNULL,"
+                + " NULLIF, ARGN) and an aggregate";
+        switch (e) {
+            case SqlAst.ScalarSubquery q -> noSetOperation(q.query(), q.pos());
+            case SqlAst.Case c -> noSubquery(c, outside);
+            case SqlAst.Exists x -> noSubquery(x, outside);
+            case SqlAst.InSubquery in -> noSubquery(in, outside);
+            case SqlAst.Quantified q -> noSubquery(q, outside);
+            case SqlAst.FunctionCall f when CONDITIONALS.contains(IqLexer.lower(f.name().get(f.name().size() - 1)
+                    .text())) || IqAggregates.isAggregate(IqLexer.lower(f.name().get(f.name().size() - 1).text())) ->
+                    noSubquery(f, outside);
+            case SqlAst.Window w -> noSubquery(w, outside);
+            default -> {
+                for (SqlAst.Expr child : children(e)) {
+                    shownSubqueries(child);
+                }
+            }
         }
     }
 
@@ -3832,10 +3875,15 @@ public final class IqDialect implements InputDialect {
     }
 
     /** The IQ integer type of an operand of {@code operator}: anything else is refused by name. */
-    private static IqType integerOperand(Tx t, SqlAst.Expr e, String operator) {
+    private IqType integerOperand(Tx t, SqlAst.Expr e, String operator) {
         if (t.kind() == Kind.INTEGER && t.detail() instanceof IqType type) {
             if (type.isInteger()) {
                 return type;
+            }
+            if (engine == Engine.IQ && type.spelling().equals("UNSIGNED BIGINT")) {
+                // IQ island, 2026-10-15 (D-N3, measured on IQ 17.1): a COUNT under IQ's engine, a whole number of
+                // rows, widens as any integer does there (COUNT(*) + 1 is the NUMERIC(20,0) 8 over seven rows)
+                return IqType.integer("BIGINT", BigInteger.ZERO, IqType.BIGINT_MAX, true);
             }
             if (type.family().equals("NUMERIC") || type.family().equals("DECIMAL")) {
                 throw numericRefused(operator, e.pos());

@@ -781,10 +781,20 @@ class IqToPureTest {
         // the IQ engine's restrictions, refused by name; SQL Anywhere's front end takes them
         for (String sql : new String[] {"SELECT id FROM " + T + " WHERE id + (SELECT 1 FROM DUMMY) = 2",
                 "SELECT IF id = 1 THEN (SELECT 1 FROM DUMMY) ENDIF AS x FROM " + T,
-                "SELECT a.id FROM " + T + " a JOIN " + T + " b ON EXISTS (SELECT 1 FROM DUMMY)",
+                "SELECT COALESCE((SELECT 1 FROM DUMMY), id) AS x FROM " + T,
+                "SELECT SUM((SELECT 1 FROM DUMMY)) AS x FROM " + T,
+                "SELECT id FROM " + T + " ORDER BY (SELECT 1 FROM DUMMY)",
                 "SELECT id FROM " + T + " WHERE id IN (SELECT 1 FROM DUMMY UNION SELECT 2 FROM DUMMY)"}) {
             assertTrue(refusal(sql).getMessage().contains("IQ's engine"), sql);
             pure(sql, IqProfile.SQLA17_DEFAULT.settings());
+        }
+        // IQ island, 2026-10-15 (measured on IQ 17.1): it takes more than the research's flag list held -- a scalar
+        // subquery in the select list's arithmetic, a function's arguments, a CAST; one in a join's ON and BETWEEN
+        for (String sql : new String[] {"SELECT id + (SELECT 1 FROM DUMMY) AS x FROM " + T,
+                "SELECT ABS((SELECT 1 FROM DUMMY) - id) AS x FROM " + T,
+                "SELECT a.id FROM " + T + " a JOIN " + T + " b ON EXISTS (SELECT 1 FROM DUMMY)",
+                "SELECT id FROM " + T + " WHERE id BETWEEN (SELECT 1 FROM DUMMY) AND 3"}) {
+            pure(sql);
         }
         // one column where one is read (IQ's -151); a row limit in a subquery is refused
         assertTrue(refusal("SELECT id FROM " + T + " WHERE id IN (SELECT 1, 2 FROM DUMMY)").getMessage().contains(
@@ -849,7 +859,9 @@ class IqToPureTest {
         assertTrue(avg.contains("sum()") && avg.contains("count()") && avg.contains("10000000000000000"), avg);
         assertFalse(numbers("SELECT SUM(nm) AS s FROM " + T).contains("D-N1"));
         // COUNT is IQ's UNSIGNED BIGINT under its engine (D-F15): arithmetic on it is refused; INTEGER in SA's
-        assertTrue(numbersRefusal("SELECT COUNT(*) + 1 AS c FROM " + T).getMessage().contains("UNSIGNED BIGINT"));
+        // (IQ island, 2026-10-15: IQ's engine widens a COUNT's arithmetic as any integer's, D-N3)
+        assertFalse(numbers("SELECT COUNT(*) + 1 AS c FROM " + T).contains("UNSIGNED"));
+        assertTrue(saNumbers("SELECT COUNT(*) + 1 AS c FROM " + T).contains("count()"));
         pure("SELECT COUNT(*) + 1 AS c FROM sa_rowgenerator(1, 3)");
         // MEDIAN of an integer floored; of a BIT IQ's -156; of a BIGINT refused
         assertTrue(numbers("SELECT MEDIAN(sm) AS m FROM " + T).contains("floor"));
