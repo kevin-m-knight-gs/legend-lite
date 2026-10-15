@@ -346,6 +346,10 @@ core/src/test/java/com/legend/lowering/ComparatorConventionTest.java	product-nam
 # 2026-10-14, the merge of main's 9bc695885 (a computed column reads the enclosing row, the compiler line) into this branch: its test judges the island against DuckDB as the oracle, so it names DuckDB and its JDBC URL; pinned as measured (main carries no ratchet yet, this branch's Phase 0 adds it).
 core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/CorrelatedComputedColumnTest.java	product-name	11
+# 2026-10-15, the compiler line's scale-costs landing: ScaleCostsTest judges the island against DuckDB as the oracle (as CorrelatedComputedColumnTest) and renders with DuckDb's dialect to count a render's reads, so it names DuckDB, its dialect class and its JDBC URL
+core/src/test/java/com/legend/lowering/ScaleCostsTest.java	dialect-class	2
+core/src/test/java/com/legend/lowering/ScaleCostsTest.java	jdbc-url	1
+core/src/test/java/com/legend/lowering/ScaleCostsTest.java	product-name	12
 core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	database-type	1
 core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	jdbc-url	1
 core/src/test/java/com/legend/lowering/EmptyListAggregateTest.java	product-name	1

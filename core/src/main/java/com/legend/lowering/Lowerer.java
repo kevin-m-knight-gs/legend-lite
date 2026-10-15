@@ -181,6 +181,11 @@ public final class Lowerer {
     private final ArrayDeque<ColumnResolver>
             enclosing = new ArrayDeque<>();
 
+    /** Reads in flight on an enclosing row's behalf: a correlated read, written once in its subquery, which no
+     *  pass's fold budget counts ({@link Fold.Budget}; the budget is the pass's own reads'). A refusal on such a read
+     *  would fail the INNER pass, whose isolation cannot change an outer row's expression. */
+    private int correlatedReads;
+
     /** The connection's time zone DateTime literals spell in (engine
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
@@ -896,7 +901,8 @@ public final class Lowerer {
         SqlSelect src = relation(g.source());
         SqlSelect base0 = Fold.groupByFolds(src) ? src : isolate(src);
         SqlSelect[] fr = {base0};
-        ColumnResolver own = scopedResolver(base0, g.rowVar());
+        // no fold pass's resolver (its reads have no isolate-and-retry behind them): the budget refuses nothing
+        ColumnResolver own = scopedResolver(base0, g.rowVar(), Fold.Budget.unbounded());
         List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
         java.util.Set<String> arrayProps = new java.util.LinkedHashSet<>();
         for (TypedFuncCol leaf : g.leaves()) {
@@ -1093,7 +1099,7 @@ public final class Lowerer {
                 path.add(child.property());
                 kv.add(inlineWrapped(fr, child.node(), hoists, path));
             } else {
-                enclosing.push(scopedResolver(base, g.rowVar()));
+                enclosing.push(scopedResolver(base, g.rowVar(), Fold.Budget.unbounded()));
                 try {
                     kv.add(CheckedEnvelope.childTerm(fr, serializeGraph(child.node(), false),
                             child, hoists, this::nextAlias, prefix));
@@ -1460,11 +1466,21 @@ public final class Lowerer {
         }
         SqlSelect target = base;
         List<OutputCol> contract = outputsOf(info);
+        // one fold budget for the pass (Fold.Budget): a computed projection written into the columns' reads more
+        // than the budget allows makes the pass unfoldable, and the retry over the isolated base reads it by name
+        Fold.Budget budget = new Fold.Budget();
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (keepExisting) {
             // starProjections handles the JOIN-source case (no single alias:
             // bare * over the disjoint-by-invariant sides).
             ps.addAll(starProjections(base));
+            // the kept computed projections are each one's first write (Fold.Budget.kept): a read of one in a
+            // new column is its second, and costs
+            for (SqlSelect.Projection p : base.projections()) {
+                if (!(p.expr() instanceof SqlExpr.Column) && p.outputName() != null) {
+                    budget.kept(p.outputName());
+                }
+            }
         }
         for (TypedFuncCol c : columns) {
             TypedSpec cellRoot = LambdaBinding.last(c.fn());
@@ -1484,7 +1500,7 @@ public final class Lowerer {
             // (a column lambda with no parameter -- a constant column -- owns
             // no row: every variable read is an enclosing row's)
             ColumnResolver reads = scopedResolver(base,
-                    c.fn().parameters().isEmpty() ? null : c.fn().parameters().get(0));
+                    c.fn().parameters().isEmpty() ? null : c.fn().parameters().get(0), budget);
             switch (attempt(() -> scalar(body, reads))) {
                 case Resolution.Resolved r -> {
                     if (manyCols.contains(c)) {
@@ -1709,12 +1725,30 @@ public final class Lowerer {
         return resolved;
     }
 
+    /** {@code read}, made on an enclosing row's behalf (see {@link #correlatedReads}); a flatten's outer reads
+     *  (CollectionRelations) come through here too. */
+    <T> T correlated(java.util.function.Supplier<T> read) {
+        correlatedReads++;
+        try {
+            return read.get();
+        } finally {
+            correlatedReads--;
+        }
+    }
+
     /** Lambda-body resolver over {@code select} — the correlation channel.
      * VAR-AWARE: the lambda's OWN param resolves against the own select;
      * OTHER vars try ENCLOSING scopes FIRST (own-select-first silently
      * self-correlates on same-named columns — audit's two wrong-answer
      * regressions); non-own vars missing every scope are UNFOLDABLE. */
     private ColumnResolver scopedResolver(SqlSelect select, @com.legend.base.Nullable String ownVar) {
+        return scopedResolver(select, ownVar, new Fold.Budget());
+    }
+
+    /** {@code budget}: the pass's fold budget ({@link Fold.Budget}), spent by each own-row read that writes a
+     * computed projection in its place; a pass over several column lambdas shares one. */
+    private ColumnResolver scopedResolver(SqlSelect select, @com.legend.base.Nullable String ownVar,
+                                          Fold.Budget budget) {
         // SNAPSHOT the enclosing scopes at creation: iterating the LIVE
         // deque includes this resolver itself once inner scopes run — any
         // correlated miss then recurses forever (audit: StackOverflow where
@@ -1724,6 +1758,11 @@ public final class Lowerer {
             boolean own = var == null || var.equals(ownVar);
             if (own && attempt(() -> resolveOrThrow(select, name))
                     instanceof Resolution.Resolved o) {
+                // a whole-variable read (no name) spends nothing: isolation could not cure its refusal, the
+                // isolated base having no projection to read whole
+                if (correlatedReads == 0 && name != null) {
+                    budget.spend(name, o.expr());
+                }
                 return o.expr();
             }
             if (var != null && var.equals(ownVar)) {
@@ -1736,7 +1775,7 @@ public final class Lowerer {
                 throw new UnfoldableRef(name == null ? "<whole variable>" : name);
             }
             for (var outer : outers) {
-                if (attempt(() -> outer.resolve(var, name))
+                if (attempt(() -> correlated(() -> outer.resolve(var, name)))
                         instanceof Resolution.Resolved found) {
                     return found.expr();
                 }
@@ -2188,7 +2227,7 @@ public final class Lowerer {
                 // neither side's row: an ENCLOSING row (a correlated
                 // subquery's join) — never a same-named column of a side
                 for (var outer : outers) {
-                    if (attempt(() -> outer.resolve(var, prop))
+                    if (attempt(() -> correlated(() -> outer.resolve(var, prop)))
                             instanceof Resolution.Resolved found) {
                         return found.expr();
                     }

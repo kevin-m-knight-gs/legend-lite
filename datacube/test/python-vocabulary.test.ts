@@ -46,6 +46,16 @@ describe('Python writes pages in DataCube\'s own words', () => {
     assert.deepEqual(python('MARKS'), union('src/chart-spec.ts', 'ChartMark'));
   });
 
+  it('its chart slots (the spec\'s version 2) are the chart\'s words: marks, axes, show-as, grains, layers, stats', () => {
+    assert.deepEqual(python('MEASURE_MARKS'), union('src/chart-spec.ts', 'MeasureMark'));
+    assert.deepEqual(python('AXES'), union('src/chart-spec.ts', 'MeasureAxis'));
+    assert.deepEqual(python('SHOW_AS'), union('src/chart-spec.ts', 'ShowAsKind'));
+    assert.deepEqual(python('GRAINS'), union('src/chart-spec.ts', 'TimeGrain'));
+    assert.deepEqual(python('LAYERS'), union('src/chart-spec.ts', 'ChartLayerKind'));
+    assert.deepEqual(python('STATS'), union('src/chart-spec.ts', 'LayerStat'));
+    assert.equal(pyNumber('CHART_VERSION'), tsNumber('src/chart-spec.ts', 'CHART_VERSION'));
+  });
+
   it('its page and cube versions are the documents\'', () => {
     assert.equal(pyNumber('PAGE_VERSION'), tsNumber('src/page-document.ts', 'PAGE_VERSION'));
     assert.equal(pyNumber('CUBE_VERSION'), tsNumber('src/cube-document.ts', 'CUBE_VERSION'));

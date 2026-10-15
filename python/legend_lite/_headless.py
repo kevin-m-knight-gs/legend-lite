@@ -228,24 +228,14 @@ class Headless:
 _BUNDLE = Path(__file__).with_name('_datacube') / 'legend-lite-headless.js'
 
 
-def available() -> bool:
-    """Whether DataCube's own code can run headless here: mini-racer's V8 installed and DataCube's bundle where
-    ``bundle()`` reads it (the datacube extra, or LEGEND_LITE_DATACUBE)."""
-    import importlib.util
-    import os
-
-    bundled = Path(os.environ.get('LEGEND_LITE_DATACUBE') or _BUNDLE)
-    return importlib.util.find_spec('py_mini_racer') is not None and bundled.is_file()
-
-
 def bundle() -> str:
     """DataCube's headless bundle, as legend-lite ships it (or LEGEND_LITE_DATACUBE names it)."""
     import os
 
     path = Path(os.environ.get('LEGEND_LITE_DATACUBE') or _BUNDLE)
     if not path.is_file():
-        raise OSError(f"DataCube's headless bundle is not at {path}: install the datacube extra "
-                      "(pip install 'legend-lite[datacube]'), or set LEGEND_LITE_DATACUBE")
+        raise OSError(f"DataCube's code is not at {path}, where the legend-lite wheel carries it: a legend-lite run from "
+                      "its sources names the bundle it built in LEGEND_LITE_DATACUBE")
     return path.read_text(encoding='utf-8')
 
 

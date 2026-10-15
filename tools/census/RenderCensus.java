@@ -3,6 +3,7 @@
 
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
+import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.DuckDb;
 import com.legend.sql.dialect.EngineStyleH2;
@@ -14,6 +15,7 @@ import com.legend.sql.dialect.Postgres;
 import com.legend.sql.dialect.SQLite;
 import com.legend.sql.dialect.Snowflake;
 import com.legend.sql.dialect.SqlDialect;
+import com.legend.test.StorelessRuntime;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,7 +32,10 @@ import java.util.function.Supplier;
 /**
  * THE RENDER CENSUS (docs/STORE_TYPES_HOMEWORK_2026_10_02.md, step 5): every recorded case
  * (model, expression) lowered once, the way {@code Compiler.execute} does -- parse, resolve,
- * {@code lowerResolved} with no runtime -- and rendered by each dialect: DuckDb, H2, EngineStyleH2,
+ * {@code lowerResolved} with the storeless runtime on DuckDB declared beside the model ({@code StorelessRuntime.with};
+ * since the dialect program's decision D2 the planner refuses a query with no runtime, the language of any raw text
+ * being the runtime's database, and until 2026-10-15 this tool passed none, so every case failed to lower on both
+ * sides of a comparison) -- and rendered by each dialect: DuckDb, H2, EngineStyleH2,
  * Postgres. One line per case and dialect: the SQL (newlines escaped), or the failure's class and
  * first message line. Run at two commits against each one's core test deploy jar ({@code //core:core_tests_root_deploy.jar})
  * and diff the outputs: a change to rendering shows as a changed line.
@@ -69,7 +74,9 @@ public final class RenderCensus {
             try {
                 Object built = models.computeIfAbsent(model, m -> {
                     try {
-                        return Compiler.compileModel(m);
+                        // a model that declares the storeless runtime itself keeps its own
+                        return Compiler.compileModel(m.contains("Runtime " + StorelessRuntime.RUNTIME) ? m
+                                : StorelessRuntime.with(m, DatabaseType.DuckDB));
                     } catch (RuntimeException e) {
                         return e;
                     }
@@ -84,7 +91,7 @@ public final class RenderCensus {
                                 ? lf.body() : List.of(parsed);
                 var resolved = Compiler.resolveQuery(statements,
                         new com.legend.model.ImportScope(List.of()), ctx);
-                q = Compiler.lowerResolved(resolved, ctx, null, false);
+                q = Compiler.lowerResolved(resolved, ctx, StorelessRuntime.RUNTIME, false);
             } catch (RuntimeException | StackOverflowError e) {
                 out.append(id).append("\tLOWER\t").append(failure(e)).append('\n');
                 continue;

@@ -9761,6 +9761,62 @@ each answered below. Branch `claude/loving-euler-gjta59`, one pull request.
    CTE chains that reuse earlier CTEs (a relation `let` lowered to a `WITH`); 500-deep CASE (the name resolver),
    200-term `+` chains (the lowering) and 400-deep parentheses (the SQL parser) overflow a default stack.
 
+## 2026-10-15 — The compiler's two scale costs: a join's outputs computed once, a fold budget for written projections; the census tool lowers with the storeless runtime (the Compiler Rewrite line)
+
+The tenth line's scale suite (IN_FLIGHT, 2026-10-14; 650 points over 75 query shapes) measured two walls in the
+compiler's files: a chain of 100 joins planned in about a second and 250 in 27-40 s, and 20 nested derived tables gave
+53 MB of SQL. Branch `core/scale-costs`, one commit over 8d2e55a65 (487a0f460 at the head on main); the audit
+(`docs/build-inventory/program/evidence/scale-costs/AUDIT.md`): see its verdict there. The measurements before and
+after, and the program that took them, are in `measurements.txt` and `ScratchScale.java.txt` beside it.
+
+**A join's outputs, once.** `SqlSource.Join.outputs()` built both sides' column lists on every call, and a left-deep
+chain of N joins built them N levels deep each time a column was looked up (`Fold.sourceColumn` asks more than once per
+read), so planning grew faster than the cube of the chain. The join now computes its delivered columns when it is made
+(a record component its four-argument constructor fills) and every reader gets that list. Measured on `#SQL{...}#`
+chains over one table, before and after: 100 joins 575 to 158 ms, 150 joins 1,915 to 214 ms, 200 joins 3,099 to 314 ms,
+250 joins 8,770 to 434 ms, 100 comma joins 2,390 to 112 ms; the SQL the same.
+
+**A fold budget.** A fold writes a computed projection's expression in the place of each read of it
+(`Fold.resolveIntoExact`), so a column read twice doubled at every level of nesting: 10 nested derived tables reading
+the level below twice gave 7 MB of SQL, 15 ran out of memory after 168 s. The rule is Calcite-shaped (ProjectMergeRule's
+`bloat`, its default 100): one pass, a project's or extend's columns or a filter's predicate, may grow its select by at
+most 100 expression nodes through such writes; the first write of each projection is free (an extend's kept projection
+is that write, the audit's find: a chain of extends each adding the two columns before it grew as Fibonacci's numbers
+until it was charged), every further write costs the growth it brings; past the budget the read is unfoldable, the pass
+isolates its base and the reads go through the subselect, as every unfoldable read does (`Fold.Budget`, spent by
+`scopedResolver`'s own-row reads). A plain column costs nothing, so renames and small chains fold as before. A read made
+on an enclosing row's behalf (a correlated subquery's) spends no budget: it is written once in its subquery, and a
+refusal there would fail the inner pass, whose isolation cannot change the outer row; a whole-variable read spends none
+either (isolation could not cure its refusal); a graph fetch's row resolver, no fold pass's, takes an unbounded budget.
+Measured after: 10 levels 1,794 chars, 20 levels 3,814 chars, each planned in under 30 ms.
+
+**The census tool.** `tools/census/RenderCensus.java` lowered with no runtime, which the planner refuses since PR #39
+(decision D2: the language of raw text is the runtime's database), so every case failed on both sides of a comparison
+(the stress line found it and ran a copy); it now lowers with the storeless runtime on DuckDB declared beside the model
+(`StorelessRuntime.with`; a model that declares it keeps its own).
+
+**Judges.** `ScaleCostsTest` pins the work, not seconds (a join's outputs are one list; a chain of a hundred joins
+lowers; twelve doubling levels read the base column four times, the null-safe sum reading each operand twice so the
+budget isolates every second level, and the answer is DuckDB's own across the isolation; twenty levels of the extend
+chain read it 44 times, all in the innermost select; a small computed column read twice still folds into one select).
+The six corpus passes against baselines built from main 8d2e55a65 the same day: 0 of 23 result files differ
+(`docs/build-inventory/program/evidence/scale-costs/judges_compare.txt`); the render census, main's tree against the
+branch: 58,794 entries, 22 differ (`render_census_compare.txt` beside it: six the new test's own renders, and four cases
+of the tenth line's IQ parity suite on each of DuckDB and Postgres, where an overflow-checked computed column read more
+than once is now a subselect's, both parity tests passing with the same answers); the judges and the census ran on the
+tree before two test-only edits (the parse door, the ledger pins), the local gate on the final tree;
+`//spec:reference_lane` and `//core:census` green; `//gates:local` 364 pass, 2 skipped (the two guards incompatible on
+this Mac); the lane query empty. CI: run 38689728911 on the branch, every lane, every platform, green on all 50 jobs
+first time (the gates-green summary skipped, as on every dispatch); main's own run on the landing, 38693372933, red on
+two jobs, neither this landing's: the macOS datacube job's runner was lost by GitHub (its annotation "The hosted runner
+lost communication with the server"; no log; the same SHA green on the branch run), and the Windows core job timed out
+`//core:core_tests_integration` at 300 s, as main's run 38667214956 on 10bc6fbe2 (PR #41, before this landing) had at
+305.8 s; on Linux the suite's summed test time FELL with this landing, 153.8 s to 106.7 s, and on Windows the lane runs
+it two to three times slower than it runs alone (the tenth line's diagnosis, PR #44: CPU contention beside the other 42
+tests' JVMs, no I/O cost), a margin of the lane that predates this landing, which the tenth line is fixing and the Bazel
+program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
+`docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
+
 ## 2026-10-15 — `#IQ{...}#`: the third landing — the M1 gaps, IQ's options by IQ's own names, IQ's SET statements (the tenth line)
 
 Announced in `docs/IN_FLIGHT.md` (a231c07ec, the cross-area edits listed). Branch `claude/iq-island-3`, 8 commits over

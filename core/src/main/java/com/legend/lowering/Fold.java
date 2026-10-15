@@ -525,6 +525,65 @@ final class Fold {
         return r;
     }
 
+    /** THE FOLD BUDGET (2026-10-15). A read of a computed projection folds by WRITING the projection's expression in
+     * the read's place ({@link #resolveIntoExact}), so a column read twice is written twice, and a chain of such
+     * levels doubles at each: the tenth line's scale suite measured 20 nested derived tables at 53 MB of SQL, and a
+     * chain reading the level below twice gave 7 MB at 10 levels and ran out of memory at 15
+     * (docs/build-inventory/program/evidence/scale-costs/measurements.txt). The rule is Calcite-shaped
+     * (ProjectMergeRule's {@code bloat}, its default 100): one pass -- a project's or extend's columns, a filter's
+     * predicate -- may grow its select by at most {@link #BLOAT} expression nodes through such writes. The first
+     * write of each projection is free (it moves the expression, as a merge does; an extend's kept projection is that
+     * write, {@link #kept}); every further write costs the growth it brings, the expression's nodes less the read it
+     * replaces. Past the budget the read is unfoldable: the pass isolates its base and the reads go through the
+     * subselect, as every unfoldable read does. A plain column costs nothing, so renames and small chains fold as
+     * before. One budget per pass: {@code Lowerer.tryComputedColumns} makes one for all its columns, a predicate makes
+     * its own. Calcite also credits a bottom expression nobody reads; this budget does not, so it is the stricter. */
+    static final class Budget {
+        static final int BLOAT = 100;
+        private int left;
+        private final java.util.Set<String> written = new java.util.HashSet<>();
+
+        Budget() {
+            this(BLOAT);
+        }
+
+        private Budget(int left) {
+            this.left = left;
+        }
+
+        /** A budget that refuses nothing: for a resolver no fold pass owns (a graph fetch's row), whose reads have
+         *  no isolate-and-retry behind them. */
+        static Budget unbounded() {
+            return new Budget(Integer.MAX_VALUE);
+        }
+
+        /** {@code column}, a computed projection the pass keeps as it is (an extend's): its first write. */
+        void kept(String column) {
+            written.add(column);
+        }
+
+        /** {@code column}'s read resolved to {@code e}: spends the growth the write brings, or refuses the read. */
+        void spend(String column, SqlExpr e) {
+            if (e instanceof SqlExpr.Column || written.add(column)) {
+                return;
+            }
+            int growth = nodes(e) - 1;
+            if (growth > left) {
+                throw new Resolvers.UnfoldableRef(column);
+            }
+            left -= growth;
+        }
+    }
+
+    /** An expression's size as the budget counts it: its nodes. */
+    static int nodes(SqlExpr e) {
+        int n = 1;
+        for (SqlExpr ch : e.children()) {
+            n += nodes(ch);
+        }
+        return n;
+    }
+
     /** A projection expression that may substitute INTO a consumer slot
      * (WHERE / ORDER BY / an outer projection) of the SAME select without
      * changing semantics: pure scalar over the current row. Reducers and

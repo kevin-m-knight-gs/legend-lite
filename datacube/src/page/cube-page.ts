@@ -28,11 +28,11 @@ import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
 import { type Bands, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
-import { followCube, measureName } from '../chart-spec.ts';
-import type { GridShown, MarkKey } from '../chart-option.ts';
+import { followCube, GRID_MARKS, measureName } from '../chart-spec.ts';
+import type { GridShown } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import { FIRST_SHEET, PAGE_CUBE, type ChartView, type PageSheet, type PageView, type PageViews } from '../page-document.ts';
-import { withoutConditions, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
+import { withoutConditions, type AggregateFn, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
 import type { SettingValues } from '../settings.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -51,6 +51,8 @@ export interface ChartSource {
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<ResultTable>;
   /** A value as the grid writes it. */
   format(value: Scalar, column: string, type: string | undefined): string;
+  /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
+  unit?(column: string): string | undefined;
   /** A column as the grid names it. */
   label(column: string): string;
   /** What the grid shows now (its rows, their tree, its visible columns): a treemap draws it. */
@@ -223,6 +225,8 @@ export class CubePage {
   /** Each added grid's first open (its first view), for `opened`. */
   readonly #opening = new Map<string, Promise<void>>();
   #chartCount = 0;
+  /** This page's crosshair group (chart-render.ts setGroup): its own, so two pages on one screen do not share. */
+  readonly #crosshair = `page-${(crosshairs += 1)}`;
   #gridCount = 0;
   /** A chart's right-click menu: its Options, Open in grid, Remove. */
   readonly #menu: MenuView;
@@ -755,6 +759,9 @@ export class CubePage {
       snapshot: () => source().snapshot,
       run: (query, snapshot, signal) => source().run(query, snapshot, signal),
       label: (value, column, type) => source().format(value, column, type),
+      unit: (column) => source().unit?.(column),
+      // the page's charts with the same column across share a crosshair
+      crosshair: this.#crosshair,
       shown: () => source().shown(),
       // a detached chart has no grid's filter to put a click on
       onPick: (mark) => { if (link.grid !== null) this.#select(id, mark); },
@@ -770,7 +777,7 @@ export class CubePage {
     body.addEventListener('contextmenu', (event) => {
       event.preventDefault();
       const spec = panel.spec;
-      const editable = panel.frozen && spec?.mark !== 'scatter' && spec?.mark !== 'treemap';
+      const editable = panel.frozen && spec !== null && spec.mark !== 'scatter' && spec.mark !== 'gauge' && !GRID_MARKS.has(spec.mark);
       this.#menuFor = (item) => {
         if (item.id === 'tile.options') panel.toggleForm();
         if (item.id === 'tile.edit') this.#openEditor(id);
@@ -995,6 +1002,7 @@ export class CubePage {
       snapshot: detached.snapshot,
       run: (query, s, signal) => runs.run(query, s, signal),
       format: (value, column, type) => runs.format(value, column, type),
+      unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
       // detached, a treemap keeps the rows it last drew
       shown: () => null,
@@ -1106,13 +1114,14 @@ export class CubePage {
       return;
     }
     const spec = chart.panel.spec;
-    if (!spec || spec.mark === 'scatter' || spec.mark === 'treemap' || spec.x === undefined) return;
+    if (!spec || spec.mark === 'scatter' || GRID_MARKS.has(spec.mark) || spec.x === undefined) return;
     const source = this.#sourceOf(chart.link);
     const tile = `edit-${chartId}`;
     const host = this.#doc.createElement('div');
     host.className = 'dc-chart-editor';
     const used = new Set<string>();
-    const measures = spec.y.map((m): Measure => {
+    // a group-level column plotted as it is is the grid's already (its groupDerived comes with the snapshot)
+    const measures = spec.y.filter((m): m is typeof m & { fn: AggregateFn } => m.fn !== 'value').map((m): Measure => {
       // the grid's own measure of that column and aggregate keeps its name (its format)
       const own = source.snapshot.measures.find((c) => c.column === m.column && c.fn === m.fn);
       const name = own?.name ?? (used.has(m.column) ? measureName(m) : m.column);
@@ -1176,16 +1185,11 @@ export class CubePage {
    * or the chip naming it in the chart's title bar, takes them off. Each is ONE change -- one undo
    * step, refused as a whole.
    */
-  #select(id: string, mark: MarkKey | null): void {
+  #select(id: string, conditions: readonly FilterNode[] | null): void {
     const chart = this.#charts.get(id);
     if (!chart) return;
-    const next: FilterNode[] = mark === null ? [] : Object.entries(mark).map(([column, raw]) => {
-      // a big integer as its digits, as the context menu's value filters do
-      const value = typeof raw === 'bigint' ? raw.toString() : raw;
-      return value === null
-        ? { kind: 'condition', column, operator: 'isEmpty' }
-        : { kind: 'condition', column, operator: 'equal', value };
-    });
+    // the chart said the mark as conditions (chart-spec.ts `markConditions`): a value, a period's or a bin's range
+    const next: FilterNode[] = conditions === null ? [] : [...conditions];
     const key = JSON.stringify(next);
     const add = key === chart.key ? [] : next;
     const old = chart.conditions;
@@ -1201,8 +1205,12 @@ export class CubePage {
     const chart = this.#charts.get(id);
     if (!chart) return;
     const source = this.#sourceOf(chart.link);
+    // a value as `region: EMEA`; a range's ends (a period, a bin, a brush) as `sold ≥ 2024-03-01`
+    const sign: Partial<Record<string, string>> = { greaterThanEqual: '\u2265', greaterThan: '>', lessThan: '<', lessThanEqual: '\u2264' };
     const words = chart.conditions.map((c) => c.kind === 'condition'
-      ? `${source.label(c.column)}: ${c.operator === 'isEmpty' ? '(empty)' : String(c.value)}`
+      ? (c.operator === 'isEmpty' ? `${source.label(c.column)}: (empty)`
+        : sign[c.operator] !== undefined ? `${source.label(c.column)} ${sign[c.operator]} ${String(c.value)}`
+          : `${source.label(c.column)}: ${String(c.value)}`)
       : '');
     chart.chip.hidden = words.length === 0;
     chart.chip.textContent = `${words.join(', ')} ×`;
@@ -1210,6 +1218,9 @@ export class CubePage {
     chart.chip.setAttribute('aria-label', `Clear the filter to ${words.join(', ')}`);
   }
 }
+
+/** Pages made so far: each its own crosshair group. */
+let crosshairs = 0;
 
 /** `layout` without the tiles `leave` names: each one's place closed by its neighbours, as a removal closes it. */
 function without(layout: Bands, leave: (id: string) => boolean): Bands {

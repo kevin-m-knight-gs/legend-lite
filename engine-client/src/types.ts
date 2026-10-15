@@ -60,6 +60,11 @@ export function hasTimeOfDay(type: string | undefined): boolean {
   return isTemporal(type) && plainType(type as string) === 'DateTime';
 }
 
+/** A day, and nothing finer: StrictDate. (A Date may hold an instant; LatestDate is a milestone's marker.) */
+export function isDay(type: string | undefined): boolean {
+  return isTemporal(type) && plainType(type as string) === 'StrictDate';
+}
+
 /** A time of day alone: StrictTime. */
 export function isTimeOfDay(type: string | undefined): boolean {
   return isTemporal(type) && plainType(type as string) === 'StrictTime';
