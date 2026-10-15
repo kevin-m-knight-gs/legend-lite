@@ -98,7 +98,7 @@ class RawSqlLedgerTest {
             }
         }
         assertEquals(new TreeMap<>(LEDGER), found,
-                "RawSqlBoundary.h2ToDuckDb caller set moved — the R0"
+                "RawSqlBoundary.translated caller set moved — the R0"
                 + " contract admits corpus-AUTHORED text only; a new"
                 + " caller is a violation, a removed caller shrinks the"
                 + " ledger (F7.4 narrows Runner's feed, not this list)");

@@ -145,6 +145,10 @@ class DialectOwnerExclusivityTest {
                 DatabaseOwners.of(dialect + "EngineStyleDB2.java", "class EngineStyleDB2 extends EngineStyleH2")
                         .databases());
         assertEquals(Set.of(), DatabaseOwners.of(dialect + "Stars.java", "final class Stars {").databases());
+        // only the file's own class's parent, in code: not a comment's, not a nested class's
+        assertEquals(Set.of(), DatabaseOwners.of(dialect + "Stars.java",
+                "/** like class Stars extends Postgres */ final class Stars { static class In extends DuckDb {} }")
+                .databases());
         assertEquals(Set.of("H2"), DatabaseOwners.of(dialect + "RawSqlBoundary.java", "").databases());
         assertEquals(DatabaseOwners.Kind.VOCABULARY,
                 DatabaseOwners.of("core/src/main/java/com/legend/parser/section/ConnectionSectionGrammar.java", "")

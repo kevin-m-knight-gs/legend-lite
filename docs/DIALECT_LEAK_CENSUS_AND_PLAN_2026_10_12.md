@@ -817,6 +817,24 @@ Size: about 400 lines.
 - **H2's `byte[]`** for a JSON-carried list is read by `H2.normalize`; the executor used to decode it itself.
 - **Not moved: `DynamicPivot`'s `BigInteger` and `BigDecimal` arms.** They decode Java classes and name no database:
   any driver that hands one back is read the same way.
+- **The audit of Phases 2 and 4 (2026-10-15), and what it changed:**
+  - **Snowflake's integers were typed Decimal.** The census reads Snowflake's `NUMBER` as a decimal, which the
+    column's precision and scale size, and an integer label accepts `DECIMAL(p,0)`. Typing a pivot, grid or PCT-probe
+    column by that reading made every Snowflake integer column a Decimal: a guess, which invariant 4 forbids. Typing
+    has its own reading now. `SqlDialect.typingWireName` is the census's reading, or null where the name alone does
+    not say the type. Snowflake's `NUMBER` is the one such name, so those columns are typed as they were before
+    Phase 4: a grid's column as Any, and a pivot's refused, naming the driver's type.
+    - Typing a `NUMBER` by its scale, as the Snowflake driver's own type code does, is still to do. It needs the
+      probe to carry the column's scale, and a Snowflake measurement.
+    - `NUMBER` moved out of `WireNames` into `Snowflake.wireTypeName`. `WireNames` holds only names that say one
+      type whichever driver gives them; its javadoc had claimed "every driver shares" them, which was not true.
+  - **`EngineStyleH2` had lost the reading of H2's `byte[]` list text.** It runs on H2 but is not `H2`'s subclass.
+    It reads those bytes in its own `normalize` now.
+  - **The owner guard read a dialect's parent from the raw source.** A comment, or a nested class extending another
+    dialect, named that dialect's database for the whole file. It now reads `class <File> extends <Parent>` in code
+    only, and a test pins this.
+  - SQLite's `NUMERIC`, which its driver gives a column whose first value is NULL, now types nothing. Before Phase 4
+    it typed Decimal, which was also a guess. Lanes 1b measure whether any test moved.
 
 ### Phase 5: the connector interface (execution side)
 

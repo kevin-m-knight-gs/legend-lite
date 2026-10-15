@@ -49,8 +49,9 @@ public final class GridProbe {
         List<com.legend.compiler.element.type.Type.Column> cols =
                 new ArrayList<>();
         for (String[] c : probeColumns(sql, writtenFor, conn, dialect)) {
-            com.legend.compiler.element.type.Type t =
-                    Executor.pureOfSqlTypeOrNull(dialect.wireTypeName(c[1]));
+            // typed by the name its dialect reads the driver's into, where that name says the type
+            String wire = dialect.typingWireName(c[1]);
+            com.legend.compiler.element.type.Type t = wire == null ? null : Executor.pureOfSqlTypeOrNull(wire);
             cols.add(t == null
                     ? com.legend.compiler.element.type.Type.RelationType
                             .trustedColumn(c[0])

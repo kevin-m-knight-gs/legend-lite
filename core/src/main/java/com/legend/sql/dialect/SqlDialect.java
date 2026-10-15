@@ -66,11 +66,20 @@ public interface SqlDialect {
     }
 
     /** A result column's type as this database's driver names it ({@code getColumnTypeName}), in the platform's wire
-     *  vocabulary ({@link WireNames}): the type census compares a plan's label with it, and a late-bound or pivot-made
-     *  column is typed by it (the dialect program's Phase 4, 2026-10-15: until then the census held each database's
-     *  names, keyed by the dialect's class name). Default: the names every driver shares. */
+     *  vocabulary ({@link WireNames}): the type census compares a plan's label with it (the dialect program's Phase 4,
+     *  2026-10-15: until then the census held each database's names, keyed by the dialect's class name). Default: the
+     *  names that say one type whichever driver gives them. */
     default String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
         return WireNames.fold(driverTypeName);
+    }
+
+    /** The wire name a late-bound or pivot-made column is TYPED by, from the name its driver gives the column's type:
+     *  {@link #wireTypeName}'s, or null where that name alone does not say the type. The census reads such a name with
+     *  the column's precision and scale; typing by the name would be a guess (AGENTS.md invariant 4), so the column is
+     *  not typed by it (2026-10-15, the audit of Phase 4: Snowflake's NUMBER had typed integer columns Decimal).
+     *  Default: every name this database's driver gives says its type. */
+    default @com.legend.base.Nullable String typingWireName(@com.legend.base.Nullable String driverTypeName) {
+        return wireTypeName(driverTypeName);
     }
 
     /** Whether this database delivers a column the platform labels {@code label} as the wire type {@code wire} (in

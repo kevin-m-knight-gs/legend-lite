@@ -114,7 +114,6 @@ final class DatabaseOwners {
             "core/src/test/java/com/legend/DialectOwnerExclusivityTest.java",
             "core/src/test/java/com/legend/DatabaseOwners.java");
 
-    private static final Pattern EXTENDS = Pattern.compile("\\bclass\\s+\\w+\\s+extends\\s+(\\w+)");
 
     /** The owner {@code rel} (a source's path from the repository root, {@code source} its text) is, or null when it
      *  is no owner and every database it names is a leak. */
@@ -125,7 +124,10 @@ final class DatabaseOwners {
         if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")) {
             Set<String> own = new LinkedHashSet<>(named(className(rel)));
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
-            Matcher parent = EXTENDS.matcher(source);
+            // the file's own class's parent, read in code (2026-10-15, the audit of the guard: a comment or a nested
+            // class that extends another dialect named that dialect's database for the whole file)
+            Matcher parent = Pattern.compile("\\bclass\\s+" + Pattern.quote(className(rel)) + "\\s+extends\\s+(\\w+)")
+                    .matcher(String.join("\n", DialectLeakRatchetTest.lex(source).code()));
             if (parent.find()) {
                 own.addAll(named(parent.group(1)));
             }

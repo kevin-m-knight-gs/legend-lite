@@ -942,8 +942,9 @@ public final class Executor {
                         rs.getMetaData().getColumnName(i));
                 // the driver's type name read by the dialect (the dialect program's Phase 4: until 2026-10-15 a
                 // database whose driver names a type its own way, Postgres's int8, had no Pure type here)
-                String sqlType = dialect.wireTypeName(rs.getMetaData().getColumnTypeName(i));
-                columns.add(new Column(name, pivotColumnType(schema, name, sqlType)));
+                String driverType = rs.getMetaData().getColumnTypeName(i);
+                columns.add(new Column(name, pivotColumnType(schema, name, driverType,
+                        dialect.typingWireName(driverType))));
             }
         } else {
             throw new IllegalStateException("result has " + n + " columns but the typed"
@@ -1032,13 +1033,21 @@ public final class Executor {
      * aggregate template's type. A suffixed name that matches NO template while
      * templates are present is a naming-contract bug — loud, never guessed.
      */
-    private static Type pivotColumnType(Type.RelationType schema, String name, String sqlType) {
+    private static Type pivotColumnType(Type.RelationType schema, String name,
+            @com.legend.base.Nullable String driverType, @com.legend.base.Nullable String wireType) {
         // the ONE matching rule lives on Type.RelationType (the
         // deferred-TDS resolver shares it); the SQL-type decode is THIS
         // caller's fallback — schemas rebuilt downstream of the pivot,
         // where the templates no longer ride
         Type t = schema.pivotColumnType(name);
-        return t != null ? t : pureOfSqlType(sqlType);
+        if (t != null) {
+            return t;
+        }
+        if (wireType == null) {
+            throw new IllegalStateException("no Pure type for the pivot-generated column '" + name
+                    + "': its driver names the column's type " + driverType + ", which does not say it alone");
+        }
+        return pureOfSqlType(wireType);
     }
 
     /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries.

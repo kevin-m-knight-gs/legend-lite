@@ -38,13 +38,17 @@ public final class PctProbe {
             Map<String, String> typeNames = new LinkedHashMap<>();
             for (int i = 1; i <= md.getColumnCount(); i++) {
                 // the driver's type name read by the dialect (the dialect program's Phase 4)
-                String tn = dialect.wireTypeName(md.getColumnTypeName(i));
+                String driverType = md.getColumnTypeName(i);
+                String tn = dialect.wireTypeName(driverType);
                 SqlType slot = tn.equals("DATE") ? SqlType.Scalar.DATE
                         : tn.startsWith("TIMESTAMP")
                                 ? SqlType.Scalar.TIMESTAMP
                                 : SqlType.Scalar.VARCHAR;
                 outs.add(new OutputCol(md.getColumnName(i), slot, true));
-                typeNames.put(md.getColumnName(i), tn);
+                // typed by its dialect's typing reading; a name that does not say the type (Snowflake's NUMBER)
+                // stays the driver's own, outside the wire vocabulary, which the Pure-type table refuses, naming it
+                String typing = dialect.typingWireName(driverType);
+                typeNames.put(md.getColumnName(i), typing != null ? typing : String.valueOf(driverType));
             }
             return new PlanProbe(outs, typeNames);
         } catch (java.sql.SQLException e) {

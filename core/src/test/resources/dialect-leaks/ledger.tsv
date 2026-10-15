@@ -5,6 +5,7 @@
 # 2026-10-13: measured on main fca0aef, the program's start.
 # 2026-10-14, the PR #39 audit's finding 6: the product pattern counts H2 and DB2 as an identifier's word (isH2, LocalH2, ENGINE_H2, h2Mode, isDb2), as it counted isPostgres; each such line was always there, uncounted, and is pinned as measured (DialectLeakRatchetTest.H2_OR_DB2).
 # 2026-10-15, the user's decisions D9 and D11 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md §6): the model language's vocabulary (lexer, parser, protocol, model) and the SQL input languages (PostgresDialect, PostgresDateTime, protocol/sql/iq) are owners (DatabaseOwners), held to their own databases by DialectOwnerExclusivityTest; their 40 rows (368 lines) left this ledger.
+# 2026-10-15, the dialect program's Phase 4 (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): exec/SqlTypeCensus.java names no database; each database's reading of its driver (its type names, its carrier conventions, Trino's empty failed result) is its dialect's (SqlDialect.wireTypeName, deliversOwn, opensFailedResultsWithoutColumns), and its row (10 lines) left this ledger.
 core/src/main/java/com/legend/AssertVerdicts.java	product-name	4
 core/src/main/java/com/legend/BodyCompiler.java	product-name	1
 core/src/main/java/com/legend/EngineText.java	database-type	1

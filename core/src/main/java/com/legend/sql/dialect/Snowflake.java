@@ -3022,6 +3022,24 @@ public final class Snowflake extends AnsiSqlRenderer {
         throw new DialectCapability("typeof reached Snowflake: TYPEOF names Snowflake's variant types, not DuckDB's");
     }
 
+    /** {@inheritDoc} Its driver names every fixed-point number NUMBER, its precision and scale the column's. */
+    @Override
+    public String wireTypeName(@com.legend.base.Nullable String driverTypeName) {
+        return isNumber(driverTypeName) ? "DECIMAL" : WireNames.fold(driverTypeName);
+    }
+
+    /** {@inheritDoc} NUMBER does not say it: by its scale it is an integer (every integer type a synonym of
+     *  NUMBER(38,0)) or a decimal. Typing such a column by its scale, as the driver's own type code does, is a
+     *  measured change still to make (docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md, Phase 4). */
+    @Override
+    public @com.legend.base.Nullable String typingWireName(@com.legend.base.Nullable String driverTypeName) {
+        return isNumber(driverTypeName) ? null : wireTypeName(driverTypeName);
+    }
+
+    private static boolean isNumber(@com.legend.base.Nullable String driverTypeName) {
+        return driverTypeName != null && driverTypeName.trim().equalsIgnoreCase("NUMBER");
+    }
+
     /** {@inheritDoc} Its own types, the platform's by design (2026-10-11): its integers are NUMBER(p,0), every integer
      *  type a synonym of NUMBER(38,0) and an integer expression reported at its own precision (42 is NUMBER(2,0),
      *  measured); and its one object type, OBJECT, carries a struct and a map alike. */

@@ -7,16 +7,20 @@ package com.legend.sql.dialect;
  * The platform's wire vocabulary for a result column's type ({@code BIGINT}, {@code DOUBLE}, {@code VARCHAR},
  * {@code DECIMAL(p,s)}, {@code TIMESTAMP}, {@code STRUCT}, {@code ARRAY}, {@code MAP}, {@code JSON}, ...): the names the
  * type census compares a plan's label with, and a late-bound or pivot-made column is typed by. A dialect reads its
- * driver's own names into it ({@link SqlDialect#wireTypeName}); what every driver shares is folded here, the SQL type
- * names' common synonyms (the dialect program's Phase 4, 2026-10-15: until then the census held this table and each
- * database's own names, keyed by the dialect's class name).
+ * driver's own names into it ({@link SqlDialect#wireTypeName}); folded here are the names that say one type whichever
+ * driver gives them: the SQL type names' common synonyms and the spellings some drivers give them (Postgres's
+ * {@code int8} and {@code _int4}, Trino's {@code ROW(...)}, Spark's {@code STRING}). A driver that means another type
+ * by one reads it itself (SQLite's {@code NUMERIC}), and so does a driver whose name does not say one type alone
+ * (Snowflake's {@code NUMBER}). The dialect program's Phase 4, 2026-10-15: until then the census held this table and
+ * each database's own names, keyed by the dialect's class name.
  */
 public final class WireNames {
 
     private WireNames() {
     }
 
-    /** {@code name} in the wire vocabulary, by the synonyms every driver shares; {@code ""} for none. */
+    /** {@code name} in the wire vocabulary, by the names that say one type whichever driver gives them; {@code ""}
+     *  for none. */
     public static String fold(@com.legend.base.Nullable String name) {
         if (name == null) {
             return "";
@@ -53,8 +57,6 @@ public final class WireNames {
                 return "VARCHAR";
             case "JSONB", "VARIANT":
                 return "JSON";
-            case "NUMBER":
-                return "DECIMAL";
             default:
                 break;
         }

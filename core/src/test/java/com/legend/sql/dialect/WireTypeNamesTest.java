@@ -21,8 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 class WireTypeNamesTest {
 
-    private static Type typed(SqlDialect dialect, String driverName) {
-        return Executor.pureOfSqlTypeOrNull(dialect.wireTypeName(driverName));
+    private static @com.legend.base.Nullable Type typed(SqlDialect dialect, String driverName) {
+        String wire = dialect.typingWireName(driverName);
+        return wire == null ? null : Executor.pureOfSqlTypeOrNull(wire);
     }
 
     /** The three names the defect named: none has a type as the driver gives it, each has one through its dialect. */
@@ -67,8 +68,8 @@ class WireTypeNamesTest {
                         "String", Type.Primitive.STRING, "Bool", Type.Primitive.BOOLEAN,
                         "Date32", Type.Primitive.STRICT_DATE, "DateTime64(6, 'UTC')", Type.Primitive.DATE_TIME,
                         "Nullable(Decimal(10, 2))", Type.Primitive.DECIMAL)),
-                Map.entry(new com.legend.sql.dialect.Snowflake(), Map.of("NUMBER", Type.Primitive.DECIMAL,
-                        "VARCHAR", Type.Primitive.STRING, "BOOLEAN", Type.Primitive.BOOLEAN,
+                Map.entry(new com.legend.sql.dialect.Snowflake(), Map.of(
+                        "FLOAT", Type.Primitive.FLOAT, "VARCHAR", Type.Primitive.STRING, "BOOLEAN", Type.Primitive.BOOLEAN,
                         "TIMESTAMP_NTZ", Type.Primitive.DATE_TIME)),
                 Map.entry(new com.legend.sql.dialect.Databricks(), Map.of("INT", Type.Primitive.INTEGER,
                         "BIGINT", Type.Primitive.INTEGER, "STRING", Type.Primitive.STRING,
@@ -89,5 +90,19 @@ class WireTypeNamesTest {
         // SQLite names a NULL value's column NUMERIC: no type, where a decimal's NUMERIC elsewhere is DECIMAL
         assertNull(typed(new com.legend.sql.dialect.SQLite(), "NUMERIC"));
         assertEquals(Type.Primitive.DECIMAL, typed(new com.legend.sql.dialect.Postgres(), "NUMERIC"));
+    }
+
+    /** A name that does not say its type alone types nothing (2026-10-15, the audit of Phase 4): Snowflake's NUMBER is
+     *  an integer or a decimal by its scale, so a column it names is not typed by the name, where the census still
+     *  reads it as a decimal its precision and scale size. The driver's own name, which the PCT probe keeps for such a
+     *  column, types nothing either. */
+    @Test
+    void aNameThatDoesNotSayItsTypeTypesNothing() {
+        SqlDialect snowflake = new com.legend.sql.dialect.Snowflake();
+        assertNull(snowflake.typingWireName("NUMBER"));
+        assertNull(Executor.pureOfSqlTypeOrNull("NUMBER"));
+        assertEquals("DECIMAL", snowflake.wireTypeName("NUMBER"));
+        // no other database's driver gives the name, so the names every driver's reading folds do not hold it
+        assertEquals("NUMBER", WireNames.fold("NUMBER"));
     }
 }
