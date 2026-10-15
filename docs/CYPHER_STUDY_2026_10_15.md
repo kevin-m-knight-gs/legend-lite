@@ -648,6 +648,19 @@ for a relationship with properties, and where does the model say so?
    }
    ```
 
+   **Why `from` and `to` remain in the association form** (the user asked, 2026-10-15): direction. A Pure
+   association has none; it is two properties, traversed both ways by construction. A Neo4j relationship always
+   has one, and `(a)-[r]->(m)`, `startNode(r)` and a self-typed `(p:Person)-[:KNOWS]->(q:Person)` depend on it. The
+   marker and the two injected ends tell the compiler which two classes an edge joins, never which way. Labels in a
+   pattern would disambiguate only sometimes; declaration order would make a reorder flip every relationship
+   silently; one stereotype with the other by elimination is one explicit and one inferred; reading edges as
+   undirected would deviate from Neo4j. So the two stereotypes carry the one bit an association cannot. Seen the
+   other way: without them the edge class is a node with two relationship types, and the query writes two hops,
+   `(a)-[:actings]->(x:Acting)-[:movie]->(m)`, each directed by its property name; `from` and `to` are exactly the
+   declaration that collapses that shape into one directed relationship with properties. A plain association used as
+   a relationship type needs no stereotype because the pattern names an end property (`[:firm]`, `[:employees]`),
+   whose owner-to-target is the direction; an edge class's type names the class, which names no end.
+
    The rule is one for both: the edge class has exactly one to-one class-typed property carrying `<<Graph.from>>`
    and one carrying `<<Graph.to>>`, **wherever that property is declared**: on the class, inherited, or injected by an
    association (`ModelContext` already sees association-injected navigation uniformly as the class's properties).
