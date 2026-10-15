@@ -607,6 +607,11 @@ lite/iq_engine_aggregates/median_of_a_double@iq17-default	PASS	PASS
 lite/iq_engine_aggregates/percentile_of_a_string_is_refused@iq17-default	REFUSED	REFUSED
 lite/iq_engine_aggregates/percentile_disc_of_a_bigint_is_refused@iq17-default	REFUSED	REFUSED
 lite/iq_engine_aggregates/stddev_is_refused@iq17-default	REFUSED	REFUSED
+lite/iq_engine_aggregates/list_ordered_by_another_column_descending@iq17-default	PASS	PASS
+lite/iq_engine_aggregates/list_of_integers_ordered_by_another_column@iq17-default	PASS	PASS
+lite/iq_engine_aggregates/list_ordered_by_a_key_with_nulls@iq17-default	PASS	PASS
+lite/iq_engine_aggregates/list_ordered_by_a_key_with_nulls_descending@iq17-default	PASS	PASS
+lite/iq_engine_aggregates/list_ordered_by_two_keys_is_refused@iq17-default	REFUSED	REFUSED
 lite/iq_engine_casts/varchar_cut_to_its_bytes@iq17-default	PASS	PASS
 lite/iq_engine_casts/char_cut_and_padded_to_its_bytes@iq17-default	PASS	PASS
 lite/iq_engine_casts/char_padded_to_its_bytes@iq17-default	PASS	PASS
@@ -2659,8 +2664,8 @@ lite/m1c/list_of_strings_without_order_by@iq16-default	PASS	PASS
 lite/m1c/list_of_strings_without_order_by@iq17-default	PASS	PASS
 lite/m1c/list_with_a_delimiter_without_order_by@iq16-default	PASS	PASS
 lite/m1c/list_with_a_delimiter_without_order_by@iq17-default	PASS	PASS
-lite/m1c/list_ordered_by_another_column_is_refused@iq16-default	REFUSED	REFUSED
-lite/m1c/list_ordered_by_another_column_is_refused@iq17-default	REFUSED	REFUSED
+lite/m1c/list_ordered_by_another_column_is_refused@iq16-default	PASS	PASS
+lite/m1c/list_ordered_by_another_column_is_refused@iq17-default	PASS	PASS
 lite/m1c/list_of_strings_is_refused@iq16-default	REFUSED	REFUSED
 lite/m1c/list_of_strings_is_refused@iq17-default	REFUSED	REFUSED
 lite/m1c/list_distinct_is_refused@iq16-default	REFUSED	REFUSED

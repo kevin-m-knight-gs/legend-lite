@@ -110,3 +110,22 @@ tests:
   - id: stddev_is_refused
     sql: "SELECT k, STDDEV(v) AS a FROM g WHERE k < 4 GROUP BY k ORDER BY k"
     profile: iq17-default
+
+  # ---- IQ island, 2026-10-15 (checklist 2.16, measured on IQ 17.1): LIST ordered by another column: the key's order,
+  # IQ's NULL first ascending, last descending
+  # (one LIST a query: two ordered differently are D-A1's, refused)
+  - id: list_ordered_by_another_column_descending
+    sql: "SELECT k, LIST(s, ',' ORDER BY id DESC) AS a FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list_of_integers_ordered_by_another_column
+    sql: "SELECT k, LIST(v ORDER BY id) AS a FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list_ordered_by_a_key_with_nulls
+    sql: "SELECT k, LIST(s, '|' ORDER BY d) AS a FROM g WHERE k < 4 GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list_ordered_by_a_key_with_nulls_descending
+    sql: "SELECT k, LIST(s ORDER BY n DESC) AS a FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default
+  - id: list_ordered_by_two_keys_is_refused
+    sql: "SELECT k, LIST(s ORDER BY v, id) AS a FROM g GROUP BY k ORDER BY k"
+    profile: iq17-default

@@ -1720,6 +1720,55 @@ final class IqAggregates {
         return comma < 0 ? 0 : Integer.parseInt(sp.substring(comma + 1, sp.indexOf(')')).strip());
     }
 
+    /**
+     * LIST({@code x} [, delimiter] ORDER BY {@code key} [DESC]) under IQ's engine, key a column other than x (IQ island,
+     * 2026-10-15, checklist 2.16, measured on IQ 17.1): the values in the key's order, IQ's NULL first ascending (last
+     * descending), each as LIST writes it (a string without its trailing spaces, '' an item, a NULL skipped), NULL for
+     * none. Read as two lists joined by the delimiter: the rows whose key is NULL, then (or, descending, after) the others
+     * by Pure's ordered joinStrings, which sorts a NULL last. Rows of one key are listed in the plan's order, as IQ lists
+     * them in its. Refused by name: more than one key, a key that is no column, a string key whose values may share a
+     * collation key (their order is the plan's), a value that is no string or integer.
+     */
+    private static SqlToPure.Aggregation listByKey(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
+            String delimiter, IqDialect dialect) {
+        SqlAst.SortItem order = f.orderBy().get(0);
+        String key = order.expr() instanceof SqlAst.ColumnRef ref ? at.inputColumn(ref) : null;
+        if (f.orderBy().size() != 1 || key == null) {
+            throw SqlTranslationException.unsupported("LIST ordered by more than one key, or by one that is no column,"
+                    + " is not supported yet", order.pos());
+        }
+        Tx k = at.tx(order.expr());
+        if (k.kind() == Kind.STRING && !dialect.keys().own(order.expr())) {
+            throw SqlTranslationException.unsupported("LIST ordered by a string whose values may share a collation key"
+                    + " is not supported yet: the order of their rows is the plan's", order.pos());
+        }
+        boolean strings = x.kind() == Kind.STRING;
+        if (!strings && !(x.kind() == Kind.INTEGER && x.detail() instanceof IqType t && t.isInteger())) {
+            throw SqlTranslationException.unsupported("LIST of values of this type is not supported yet: IQ spells them"
+                    + " by its own rules", f.args().get(0).pos());
+        }
+        Tx text = SqlToPure.strict(Kind.STRING, List.of(x), v -> strings ? IqFunctions.trailingSpacesDropped(v.get(0))
+                : SqlToPure.call("toString", v.get(0)));
+        ValueSpecification keyNull = SqlToPure.call("isEmpty", SqlToPure.valueOf(k));
+        ValueSpecification nulls = IqDialect.ifThen(keyNull, SqlToPure.valueOf(text), SqlToPure.empty());
+        ValueSpecification others = IqDialect.ifThen(keyNull, SqlToPure.empty(), SqlToPure.valueOf(text));
+        String first = at.fresh();
+        String rest = at.fresh();
+        ColSpec byNull = new ColSpec(first, at.overGroup(SqlToPure.call("joinStrings", at.values(), at.overRow(nulls),
+                new CString(delimiter))), null, null);
+        ColSpec byKey = new ColSpec(rest, at.overGroup(SqlToPure.call("joinStrings", at.values(), at.overRow(others),
+                new CString(delimiter), SqlToPure.call(order.descending() ? "descending" : "ascending",
+                        new ColSpec(key, null, null, null)))), null, null);
+        Tx lead = Tx.value(at.column(order.descending() ? rest : first), Kind.STRING, true);
+        Tx trail = Tx.value(at.column(order.descending() ? first : rest), Kind.STRING, true);
+        ValueSpecification both = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("toOne", lead.vs()),
+                new CString(delimiter), SqlToPure.call("toOne", trail.vs())));
+        ValueSpecification listed = IqDialect.ifThen(SqlToPure.call("isEmpty", lead.vs()), trail.vs(), IqDialect.ifThen(
+                SqlToPure.call("isEmpty", trail.vs()), lead.vs(), both));
+        return new SqlToPure.Aggregation(List.of(byNull, byKey), new ColSpec(at.name(), at.overRow(listed), null, null),
+                Kind.STRING, true, new IqType("LONG VARCHAR"));
+    }
+
     /** LIST({@code x} [, delimiter] ORDER BY {@code x}) of an integer column ({@link IqAggregates}): Pure's ordered
      *  joinStrings of the values' digits, NULLs skipped, '' over none. */
     private static SqlToPure.Aggregation list(SqlAst.FunctionCall f, SqlToPure.Grouping at, Tx x,
@@ -1774,6 +1823,10 @@ final class IqAggregates {
         }
         SqlAst.SortItem order = keyed || f.orderBy().isEmpty() ? null : f.orderBy().get(0);
         String column = value instanceof SqlAst.ColumnRef ref ? at.inputColumn(ref) : null;
+        if (order != null && dialect.engine() == IqDialect.Engine.IQ && !(column != null && f.orderBy().size() == 1
+                && at.same(order.expr(), value))) {
+            return listByKey(f, at, x, delimiter, dialect);
+        }
         if (order != null && (f.orderBy().size() != 1 || column == null || !at.same(order.expr(), value))) {
             throw SqlTranslationException.unsupported("LIST ordered by anything but its value, a column, is not"
                     + " supported yet: the order of tied rows is the plan's", order.pos());
