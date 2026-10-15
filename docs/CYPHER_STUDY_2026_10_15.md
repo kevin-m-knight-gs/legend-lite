@@ -412,10 +412,11 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
     (`model/AssociationDefinition`), so the only Legend element that can hold a relationship's own properties, keys
     and mapping is a class: `Acting` with `actor: Actor[1]`, `movie: Movie[1]` and `role`. The class says it is an
     edge, and which ends are which, by an ordinary Pure `Profile` in a library project (`graph::Graph`, with the
-    stereotype `Edge` and the tags `from`, `to`, `type`), which the engine and Studio compile as any profile and
+    stereotypes `Edge`, `from` and `to` and the tag `type`), which the engine and Studio compile as any profile and
     which lite reads by name exactly as it reads `<<equality.Key>>` (`compiler/element/EqualityKeys`,
-    `PlatformTypes.EQUALITY_PROFILE`):
-    `Class <<Graph.Edge>> {Graph.from = 'actor', Graph.to = 'movie', Graph.type = 'ACTED_IN'} demo::Acting`.
+    `PlatformTypes.EQUALITY_PROFILE`): `Class <<Graph.Edge>> {Graph.type = 'ACTED_IN'} demo::Acting` whose ends
+    are the stereotyped properties `<<Graph.from>> actor: Actor[1]` and `<<Graph.to>> movie: Movie[1]`, element
+    references the engine checks, never strings.
     Then `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is the class's
     keys, and the class maps to its bridge table like any class, which is what SQL/PGQ's "edge table with a source
     key and a destination key" is. Nothing is inferred from a class's shape (invariant 4); an undeclared class is a
@@ -612,8 +613,8 @@ for a relationship with properties, and where does the model say so?
    ###Pure
    Profile graph::Graph
    {
-     stereotypes: [Edge];
-     tags: [from, to, type];
+     stereotypes: [Edge, from, to];
+     tags: [type];
    }
    ```
 
@@ -621,38 +622,62 @@ for a relationship with properties, and where does the model say so?
 
    ```
    import graph::*;
-   Class <<Graph.Edge>> {Graph.from = 'actor', Graph.to = 'movie', Graph.type = 'ACTED_IN'} demo::Acting
+   Class <<Graph.Edge>> {Graph.type = 'ACTED_IN'} demo::Acting
    {
-     actor: demo::Actor[1];
-     movie: demo::Movie[1];
+     <<Graph.from>> actor: demo::Actor[1];
+     <<Graph.to>>   movie: demo::Movie[1];
      role: String[1];
      since: StrictDate[0..1];
    }
    ```
 
+   **The ends are stereotyped properties, not strings naming properties** (the user, 2026-10-15: "any way we can do
+   it more type-safe?"). That is how `<<equality.Key>>` is applied too: on the property, and read by
+   `ClassCompiler` by the profile's full name and the stereotype's name (`ClassCompiler.java:58`). Every reference in
+   the declaration is then an element reference the engine's own compiler checks: the profile exists, the
+   stereotypes exist in it, the property exists and has the type and multiplicity written beside it. Nothing names a
+   property by its spelling, so a renamed property cannot silently detach its end. The one string left is the
+   optional `type` tag, and a relationship type's name is a string by nature; without it, the type is the class's
+   simple name.
+
    The engine, Studio and the SDLC compile and show this as they show any stereotype and tagged value: the model is
    not lite-only. Lite alone gives it meaning: the compiler knows the profile by its full name
    (`PlatformTypes.GRAPH_PROFILE`, beside `EQUALITY_PROFILE`, which names the engine's `meta::pure::profiles::equality`
-   the same way), checks in phase F that the element at that name is a `Profile` declaring exactly the stereotype
-   and the tags above (any other shape is a compile error naming the path), and reads the applications as
-   `EqualityKeys` reads `<<equality.Key>>`. Three consequences, each deliberate:
+   the same way), checks in phase F that the element at that name is a `Profile` declaring exactly the stereotypes
+   and the tag above (any other shape is a compile error naming the path), and reads the applications as
+   `EqualityKeys` reads `<<equality.Key>>`.
+
+   **The other type-safe route, and why not.** A generic superclass, `Class demo::Acting extends
+   graph::Edge<demo::Actor, demo::Movie>`, would make the ends typed properties `from` and `to` inherited from the
+   library and the end types generic arguments, with no convention at all beyond the superclass. Pure allows it,
+   and lite compiles generics end to end (`docs/OWN_CORPUS_DECISIONS.md` §11). **The engine does not**: "Type and/or
+   multiplicity parameters are not authorized in Legend Engine" (its §2), so such a model would be lite-only, the
+   very thing the library profile avoids, and the ends would lose their domain names (`actor`, `movie`) for the
+   library's (`from`, `to`). The stereotyped properties keep the names, the types and the engine.
+
+   Three consequences, each deliberate:
    - **The prelude does not ship it.** A prelude copy beside the library's would be a duplicated element
      (`ModelIntegrity` refuses one), and it would make the model lite-only again. The library project is the one
      home; lite's `projects/graph` holds it and publishes it.
    - **The path stays out of `meta::`.** `meta::` is Pure's platform root; lite itself refuses library elements under
      `meta::pure::functions::` (`LibraryPlatformNamespaceGuardTest`), and whether the engine refuses a user element
      under `meta::` was not verified here and need not be: a plain path avoids the question.
-   - **Only lite validates the tags.** The engine sees `Graph.from = 'actor'` as a string. A misdeclared edge
-     compiles there and fails here, in phase F, with a positioned error naming the class and its properties; since
-     only lite runs the island, that is where the check belongs, and Studio on lite shows it at compile time.
+   - **What the engine checks, and what only lite checks.** The engine checks every reference: the profile, the
+     stereotypes, the properties they sit on, their types and multiplicities. Only lite checks the *rule*: exactly
+     one `<<Graph.from>>` and one `<<Graph.to>>` property per edge class (own or inherited), each `[1]` and typed by
+     a class, on a class that carries `<<Graph.Edge>>` (an end stereotype without the class marker, or the marker
+     without both ends, is an error either way); no to-many class-typed property on an edge; an edge class never
+     used as a label. A misdeclared edge compiles in the engine and fails here, in phase F, with a positioned error
+     naming the class and its properties; since only lite runs the island, that is where the rule belongs, and
+     Studio on lite shows it at compile time.
 
-   The checks, each a compile error with Neo4j's and the model's words: `from` and `to` name two distinct properties
-   of the class (own or inherited), each of multiplicity `[1]` (a Neo4j relationship always has both ends) and each
-   typed by a class, which are the edge type's end node types; `type` is optional and defaults to the class's simple
-   name; an edge class is never a label (a node pattern `(x:Acting)` is refused: "Acting is an edge type"); a
-   subclass of an edge class is an edge type of its own, with the same ends unless it re-tags them; every other
-   property, inherited ones included, is the relationship's property (`r.role`, `properties(r)`, `keys(r)`); a
-   to-many property to a class is refused on an edge (a relationship has two ends).
+   The checks, each a compile error with Neo4j's and the model's words: exactly one property of the class (own or
+   inherited) carries `<<Graph.from>>` and exactly one `<<Graph.to>>`, each of multiplicity `[1]` (a Neo4j
+   relationship always has both ends) and each typed by a class, which are the edge type's end node types; `type` is
+   optional and defaults to the class's simple name; an edge class is never a label (a node pattern `(x:Acting)` is
+   refused: "Acting is an edge type"); a subclass of an edge class is an edge type of its own, inheriting the ends;
+   every other property, inherited ones included, is the relationship's property (`r.role`, `properties(r)`,
+   `keys(r)`); a to-many property to a class is refused on an edge (a relationship has two ends).
 3. **Identity.** The edge's identity is its class's `<<equality.Key>>` keys, which `DISTINCT r`, `collect(r)`,
    `count(DISTINCT r)`, relationship uniqueness (`DIFFERENT RELATIONSHIPS`) and path equality use. Parallel
    relationships are rows with distinct keys, as in Neo4j. An edge class without keys is refused wherever identity is
