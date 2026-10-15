@@ -126,8 +126,9 @@ final class IqFunctions {
     /** How many arguments {@code f} takes, {min, max}, for a function of this catalog ({@link IqDialect}'s parse checks
      *  the count). Refused by name before translation: a delimited name with a space (only the reader writes
      *  {@code CURRENT DATE}); other dialects' forms IQ raises -154 for (CHARINDEX's start, ROUND's third argument, LOG's
-     *  base); a constant negative SUBSTRING length (IQ's -1090 wherever computed). */
-    static int[] arity(SqlAst.FunctionCall f) {
+     *  base); a constant negative SUBSTRING length (IQ's -1090 wherever computed, under ANSI_SUBSTRING On: {@code
+     *  ansiSubstring}). */
+    static int[] arity(SqlAst.FunctionCall f, boolean ansiSubstring) {
         SqlAst.Ident name = f.name().get(f.name().size() - 1);
         Fn fn = Fn.named(name.text());
         if (fn == null || name.quoted() && name.text().indexOf(' ') >= 0) {
@@ -142,8 +143,8 @@ final class IqFunctions {
         if (foreign != null) {
             throw SqlTranslationException.unsupported(foreign + " is not supported: IQ raises its error -154", f.pos());
         }
-        if ((fn == Fn.SUBSTRING || fn == Fn.SUBSTR) && n == 3 && signedInteger(f.args().get(2)) instanceof BigInteger
-                len && len.signum() < 0) {
+        if ((fn == Fn.SUBSTRING || fn == Fn.SUBSTR) && n == 3 && ansiSubstring
+                && signedInteger(f.args().get(2)) instanceof BigInteger len && len.signum() < 0) {
             throw SqlTranslationException.unsupported(name.text() + " of a negative length is IQ's error -1090 wherever"
                     + " it is computed: not supported", f.args().get(2).pos());
         }
@@ -293,7 +294,7 @@ final class IqFunctions {
                     new IqType("TIMESTAMP"));
             case TODAY, CURRENT_DATE -> Tx.value(SqlToPure.call("today"), Kind.DATE, false, new IqType("DATE"));
             case YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, QUARTER, DOW -> datePartOf(Part.of(fn.spelling), name, f,
-                    args.get(0), f.args().get(0), true);
+                    args.get(0), f.args().get(0), true, "Sunday");
             case DATE -> dateOf(name, f, args.get(0), f.args().get(0));
             case DATEPART, DATENAME -> datePartCall(fn == Fn.DATENAME, name, f, args);
             case DATEADD -> dateAdd(name, f, args);
@@ -320,6 +321,9 @@ final class IqFunctions {
     private Tx substring(String name, SqlAst.FunctionCall f, List<Tx> args) {
         Tx s = text(args.get(0), f.args().get(0), name);
         Tx start = count(args.get(1), f.args().get(1), name);
+        if (!settings.ansiSubstring()) {
+            return substringOff(s, start, args.size() == 2 ? null : count(args.get(2), f.args().get(2), name));
+        }
         // without a length, SQL Anywhere's is the largest INTEGER (measured: from -2147483641 it is 'abcde')
         Tx len = args.size() == 2 ? Tx.value(integer(Integer.MAX_VALUE), Kind.INTEGER, false,
                 IqType.integer("INTEGER", IqType.INTEGER_MAX, IqType.INTEGER_MAX, false))
@@ -339,6 +343,41 @@ final class IqFunctions {
             ValueSpecification value = ifThen(lt(p, integer(1)), below, SqlToPure.call("substring", v.get(0), p, n));
             return negative ? ifThen(lt(n, integer(0)), raise("String"), value) : value;
         });
+    }
+
+    /**
+     * {@code SUBSTRING(s, start [, length])} under ANSI_SUBSTRING Off (IQ island, 2026-10-14, the options framework;
+     * measured on SQL Anywhere 17 over every start from -10 to 10 and length from -3 to 10, alike in both kinds of
+     * database): the start p is {@code start} when positive, counted from the end when negative ({@code L + start +
+     * 1}, L the string's length), and 0 the first position (the last for a negative length); a positive length takes
+     * positions p .. p + length - 1, a negative one the |length| positions ending at p, 0 none, and no length the
+     * positions from p to the end; positions outside 1 .. L are none. A NULL argument is NULL; no error.
+     */
+    private Tx substringOff(Tx s, Tx start, @com.legend.base.Nullable Tx len) {
+        List<Tx> operands = len == null ? List.of(s, start) : List.of(s, start, len);
+        return strict(Kind.STRING, varchar(), operands, v -> {
+            ValueSpecification str = v.get(0);
+            ValueSpecification p0 = v.get(1);
+            ValueSpecification length = SqlToPure.call("length", str);
+            ValueSpecification fromEnd = AppliedFunction.infixRun("plus", List.of(length, p0, integer(1)));
+            ValueSpecification n = len == null ? null : v.get(2);
+            ValueSpecification p = ifThen(gt(p0, integer(0)), p0, ifThen(lt(p0, integer(0)), fromEnd,
+                    n == null ? integer(1) : ifThen(lt(n, integer(0)), length, integer(1))));
+            ValueSpecification lo = n == null ? p : ifThen(lt(n, integer(0)),
+                    AppliedFunction.infixRun("plus", List.of(p, n, integer(1))), p);
+            ValueSpecification hi = n == null ? length : ifThen(lt(n, integer(0)), p,
+                    AppliedFunction.infixRun("minus", List.of(AppliedFunction.infixRun("plus", List.of(p, n)),
+                            integer(1))));
+            ValueSpecification first = ifThen(lt(lo, integer(1)), integer(1), lo);
+            ValueSpecification last = ifThen(gt(hi, length), length, hi);
+            return ifThen(lt(last, first), new CString(""), SqlToPure.call("substring", str, first,
+                    AppliedFunction.infixRun("plus", List.of(AppliedFunction.infixRun("minus", List.of(last, first)),
+                            integer(1)))));
+        });
+    }
+
+    private static ValueSpecification gt(ValueSpecification a, ValueSpecification b) {
+        return SqlToPure.call("greaterThan", a, b);
     }
 
     /** {@code x}, or 1 when it is below 1. */
@@ -1249,7 +1288,8 @@ final class IqFunctions {
     /** {@code YEAR}, {@code MONTH}, {@code DAY}, {@code HOUR}, {@code MINUTE}, {@code SECOND}, {@code QUARTER},
      *  {@code DOW} (Sunday 1: SQL Anywhere's never moves; IQ's moves with DATE_FIRST_DAY_OF_WEEK, no profile's), and
      *  the DATEPART parts below: a SMALLINT (QUARTER an INTEGER). */
-    private Tx datePartOf(Part part, String name, SqlAst.FunctionCall f, Tx x, SqlAst.Expr e, boolean small) {
+    private Tx datePartOf(Part part, String name, SqlAst.FunctionCall f, Tx x, SqlAst.Expr e, boolean small,
+            String weekStart) {
         Tx d = dateArgument(x, e, name);
         String family = small && part != Part.QUARTER ? "SMALLINT" : "INTEGER";
         if (d == null) {
@@ -1257,7 +1297,7 @@ final class IqFunctions {
         }
         boolean date = d.kind() == Kind.DATE;
         IqType type = IqType.integer(family, BigInteger.valueOf(part.low), BigInteger.valueOf(part.high), true);
-        return strict(Kind.INTEGER, type, List.of(d), v -> partValue(part, v.get(0), date));
+        return strict(Kind.INTEGER, type, List.of(d), v -> partValue(part, v.get(0), date, weekStart));
     }
 
     /**
@@ -1292,15 +1332,22 @@ final class IqFunctions {
         }
     }
 
-    /** A date part's value of {@code d} (a DATE when {@code date}, its time midnight). */
-    private static ValueSpecification partValue(Part part, ValueSpecification d, boolean date) {
+    /** A date part's value of {@code d} (a DATE when {@code date}, its time midnight); the weekday counted from
+     *  {@code weekStart} (a DayOfWeek's name: Sunday's but for DATEPART's under first_day_of_week). */
+    private static ValueSpecification partValue(Part part, ValueSpecification d, boolean date, String weekStart) {
         return switch (part) {
             case YEAR -> SqlToPure.call("year", d);
             case QUARTER -> SqlToPure.call("quarterNumber", d);
             case MONTH -> SqlToPure.call("monthNumber", d);
             case DAY -> SqlToPure.call("dayOfMonth", d);
             case DAYOFYEAR -> SqlToPure.call("dayOfYear", d);
-            case WEEKDAY, DOW -> SqlToPure.call("dayOfWeekNumber", d, new EnumValue(DAY_OF_WEEK, "Sunday"));
+            // a week from Monday or Sunday is Pure's own; from any other day, the Sunday-based number moved round
+            case WEEKDAY -> weekStart.equals("Sunday") || weekStart.equals("Monday")
+                    ? SqlToPure.call("dayOfWeekNumber", d, new EnumValue(DAY_OF_WEEK, weekStart))
+                    : AppliedFunction.infixRun("plus", List.of(SqlToPure.call("mod", AppliedFunction.infixRun("plus",
+                            List.of(SqlToPure.call("dayOfWeekNumber", d, new EnumValue(DAY_OF_WEEK, "Sunday")),
+                                    integer(6 - weekDay(weekStart)))), integer(7)), integer(1)));
+            case DOW -> SqlToPure.call("dayOfWeekNumber", d, new EnumValue(DAY_OF_WEEK, "Sunday"));
             // weeks from Sunday, week 1 the one holding 1 January: (day of the year - 1 + Sunday-based weekday of
             // 1 January - 1) / 7 + 1
             case WEEK -> AppliedFunction.infixRun("plus", List.of(wholeQuotient(
@@ -1344,7 +1391,17 @@ final class IqFunctions {
                     + " supported under the IQ engine yet: SQL Anywhere's is ISO 8601, IQ's manual's Sunday-based (the"
                     + " research's D-T10, not yet verified)", f.pos());
         }
-        Tx value = datePartOf(part, fnName, f, args.get(1), f.args().get(1), false);
+        // IQ island, 2026-10-14 (the options framework): DATEPART's weekday counts from first_day_of_week (1 Monday
+        // to 7 Sunday; measured on SQL Anywhere 17: no other part moves, nor DATENAME's weekday, nor DOW); under the IQ
+        // engine, which documents DATE_FIRST_DAY_OF_WEEK instead, a value other than 7 is refused by name
+        int first = settings.firstDayOfWeek();
+        if (!name && part == Part.WEEKDAY && first != 7 && engine == IqDialect.Engine.IQ) {
+            throw SqlTranslationException.unsupported(fnName + "(WEEKDAY, ...) under first_day_of_week " + first
+                    + " is not supported under the IQ engine: IQ documents DATE_FIRST_DAY_OF_WEEK for it (the"
+                    + " research's D-T9, not yet verified)", f.pos());
+        }
+        Tx value = datePartOf(part, fnName, f, args.get(1), f.args().get(1), false, name ? "Sunday"
+                : WEEK_STARTS[first - 1]);
         if (!name) {
             return value;
         }
@@ -1357,6 +1414,20 @@ final class IqFunctions {
                 : weekday ? names(v.get(0), WEEKDAYS) : SqlToPure.call("toString", v.get(0)));
         return Tx.value(r.vs(), Kind.STRING, r.nullable(), varchar());
     }
+
+    /** {@code day}'s number as first_day_of_week numbers it: Monday 1 to Sunday 7. */
+    private static int weekDay(String day) {
+        for (int i = 0; i < WEEK_STARTS.length; i++) {
+            if (WEEK_STARTS[i].equals(day)) {
+                return i + 1;
+            }
+        }
+        throw new IllegalArgumentException("no day " + day);
+    }
+
+    /** The days first_day_of_week names, 1 to 7, as Pure's DayOfWeek names them. */
+    private static final String[] WEEK_STARTS = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+        "Sunday"};
 
     /** The name of number {@code n} (from 1) among {@code names}. */
     private static ValueSpecification names(ValueSpecification n, String[] names) {

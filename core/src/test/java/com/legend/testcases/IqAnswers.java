@@ -167,12 +167,24 @@ public final class IqAnswers {
      *  part; a case without them keeps its sha). */
     public static String sqlSha(String sql, String profile, @com.legend.base.Nullable String decision,
             @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params, byte[] schema) {
+        return sqlSha(sql, profile, decision, expect, params, null, schema);
+    }
+
+    /** {@link #sqlSha}, IQ island, 2026-10-14 (the options framework): with the case's {@code settings} (IQ's settings
+     *  by level, {@code database.<name>=<value>, query.<name>=<value>}), when it has any, as one more part {@code settings=<text>} after the params' (a case without them keeps
+     *  its sha). */
+    public static String sqlSha(String sql, String profile, @com.legend.base.Nullable String decision,
+            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params,
+            @com.legend.base.Nullable String settings, byte[] schema) {
         try {
             MessageDigest d = MessageDigest.getInstance("SHA-256");
             List<String> parts = new ArrayList<>(List.of(sql, profile, decision == null ? "" : decision,
                     expect == null ? "" : expect));
             if (params != null) {
                 parts.add(params);
+            }
+            if (settings != null) {
+                parts.add("settings=" + settings);
             }
             for (String part : parts) {
                 d.update(part.getBytes(StandardCharsets.UTF_8));
@@ -200,7 +212,7 @@ public final class IqAnswers {
                 problems.add("UNSNAPPED: " + r.key() + " has no answer in iq-answers.jsonl (tools/iq-oracle/snap.sh"
                         + " --write)");
             } else if (!snap.sqlSha().equals(sqlSha(r.c().sql(), r.profile().spelling(), r.c().decision(),
-                    r.c().expect(), r.c().params(), schema))) {
+                    r.c().expect(), r.c().params(), r.c().settings(), schema))) {
                 problems.add("STALE: " + r.key() + "'s answer was snapped for other SQL, profile, decided rows or"
                         + " schema");
             }

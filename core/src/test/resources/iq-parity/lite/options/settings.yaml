@@ -1,0 +1,132 @@
+# The #IQ{...}# island's settings (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework):
+# IQ's own names -- the database properties (CaseSensitive, BlankPadding, Collation, CharSet, AccentSensitive), the
+# clients' CommProtocol, the options as SET OPTION names them -- each given at a level, as Pure's tagged values will
+# give them: database.<name>=<value> (a Database element's: a property, an option's PUBLIC value, CommProtocol) and
+# query.<name>=<value> (the enclosing function's: the connection's temporary value). IqSettings.resolve builds them by
+# IQ's precedence -- the base's defaults, the database's level, the login's overrides, the query's level -- and raises
+# IQ's errors, measured on SQL Anywhere 17, which the oracle runs the same settings on (tools/iq-oracle/README.md,
+# "Settings"). The SQL in YAML double quotes.
+tests:
+
+  # ---- names without regard to case, values as text
+  - id: a_name_in_any_case
+    sql: "SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "query.DATE_ORDER='DMY'"
+    profile: iq16-default, sqla17-default
+  - id: a_value_in_any_case
+    sql: "SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "query.date_order=dmy"
+  - id: two_settings
+    sql: "SELECT CAST('01/02/49' AS DATE) AS d"
+    settings: "query.date_order='DMY', query.nearest_century=40"
+    profile: iq16-default, sqla17-default
+  - id: on_and_off_in_any_case
+    sql: "SELECT COUNT(*) AS n FROM t WHERE vc = NULL"
+    settings: "query.ansinull=OFF, query.date_order='MDY'"
+    profile: iq16-default, sqla17-default
+  - id: a_number_as_text
+    sql: "SELECT CAST('39/01/02' AS DATE) AS d"
+    settings: "query.nearest_century='040'"
+    profile: sqla17-default
+
+  # ---- the precedence: the database's level, the login's overrides, the query's level
+  - id: the_query_over_a_tds_login
+    sql: "SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "query.date_order='DMY'"
+    profile: iq16-tds, sqla17-tds
+  - id: ansinull_on_over_a_tds_login
+    sql: "SELECT COUNT(*) AS n FROM t WHERE vc = NULL"
+    settings: "query.ansinull='On'"
+    profile: iq16-tds, sqla17-tds
+  - id: the_databases_option_under_no_login
+    sql: "SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "database.date_order='DMY'"
+    profile: iq16-default, sqla17-default
+  - id: the_databases_option_hidden_by_a_tds_login
+    sql: "SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "database.date_order='DMY'"
+    profile: iq16-tds, sqla17-tds
+  - id: the_query_over_the_database
+    sql: "SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "database.date_order='DMY', query.date_order='MDY'"
+    profile: iq16-default, sqla17-default
+  - id: commprotocol_tds_is_a_tds_login
+    sql: "SELECT COUNT(*) AS n FROM t WHERE vc = NULL"
+    settings: "database.CommProtocol='TDS'"
+    profile: iq16-default, sqla17-default
+  - id: commprotocol_tds_then_the_query
+    sql: "SELECT CAST('01/02/03' AS DATE) AS d"
+    settings: "database.CommProtocol='TDS', query.date_order='YMD'"
+    profile: iq16-default
+  - id: commprotocol_cmdseq_drops_a_tds_login
+    sql: "SELECT COUNT(*) AS n FROM t WHERE vc = NULL"
+    settings: "database.CommProtocol='CmdSeq'"
+    profile: iq16-tds, sqla17-tds
+  - id: the_odbc_drivers_formats_then_the_query
+    sql: "SELECT CAST(ts AS VARCHAR(30)) AS s FROM t WHERE id = 1"
+    settings: "query.timestamp_format='YYYY-MM-DD HH:NN:SS.SSS'"
+    profile: iq16-odbc
+
+  # ---- IQ's errors: at the query's level a name of no option, a database property, CommProtocol, a PUBLIC-only
+  # option, an option the base lacks (-203); at either level a value the setting does not take (-201)
+  - id: an_unknown_name_is_203
+    sql: "SELECT 1 AS x"
+    settings: "query.date_ordr='DMY'"
+    profile: iq16-default, sqla17-default
+  - id: a_database_property_given_for_the_query_is_203
+    sql: "SELECT 1 AS x"
+    settings: "query.CaseSensitive='Off'"
+    profile: iq16-default, sqla17-default
+  - id: commprotocol_given_for_the_query_is_203
+    sql: "SELECT 1 AS x"
+    settings: "query.CommProtocol='TDS'"
+  - id: a_public_only_option_given_for_the_query_is_203
+    sql: "SELECT 1 AS x"
+    settings: "query.precision=40"
+    profile: iq16-default, sqla17-default
+  - id: an_iq_only_option_under_sql_anywhere_is_203
+    sql: "SELECT 1 AS x"
+    settings: "query.min_numeric_division_scale=6"
+    profile: sqla17-default
+  - id: a_value_of_no_option_is_201
+    sql: "SELECT 1 AS x"
+    settings: "query.date_order='XYZ'"
+    profile: iq16-default, sqla17-default
+  - id: a_number_where_on_or_off_is_201
+    sql: "SELECT 1 AS x"
+    settings: "query.ansinull=1"
+  - id: a_value_out_of_range_is_201
+    sql: "SELECT 1 AS x"
+    settings: "query.nearest_century=101"
+    profile: iq16-default, sqla17-default
+  - id: a_fraction_is_sql_anywheres_201
+    sql: "SELECT 1 AS x"
+    settings: "query.nearest_century=60.8"
+    profile: sqla17-default
+  - id: a_databases_value_of_no_option_is_201
+    sql: "SELECT 1 AS x"
+    settings: "database.date_order='XYZ'"
+    profile: iq16-default, sqla17-default
+  - id: a_databases_public_only_value_out_of_range_is_201
+    sql: "SELECT 1 AS x"
+    settings: "database.precision=128"
+
+  # ---- options with no effect on a SELECT: accepted, ignored, at either level
+  - id: a_transaction_option_is_ignored
+    sql: "SELECT id FROM t WHERE id < 3 ORDER BY id"
+    settings: "query.chained='Off', query.isolation_level=1, database.blocking='Off'"
+    profile: iq16-default, sqla17-default
+  - id: the_database_properties_at_their_defaults
+    sql: "SELECT id FROM t WHERE vc = 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='ISO_BINENG', database.CharSet='ISO_8859-1:1987', database.AccentSensitive='Off'"
+  - id: the_sql_anywhere_databases_properties_at_their_defaults
+    sql: "SELECT id FROM t WHERE vc = 'hello' ORDER BY id"
+    settings: "database.CaseSensitive='Off', database.BlankPadding='Off', database.Collation='UTF8BIN'"
+    profile: sqla17-default
+
+  # ---- a real IQ 17.1's database (a HANA Cloud data lake reads back these five), over each IQ preset: CmdSeq drops a
+  # TDS preset's login
+  - id: an_iq_17_data_lakes_database
+    sql: "SELECT id, UPPER(vc) AS u FROM t WHERE vc IN ('hello', 'x', 'résumé', 'HELLO') ORDER BY id"
+    settings: "database.CaseSensitive='On', database.BlankPadding='On', database.Collation='UTF8BIN', database.CharSet='UTF-8', database.CommProtocol='CmdSeq'"
+    profile: iq16-default, iq16-tds

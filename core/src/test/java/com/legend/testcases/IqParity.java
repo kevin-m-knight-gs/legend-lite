@@ -49,7 +49,7 @@ public final class IqParity {
 
     /** The keys a case may carry (tools/iq-oracle/README.md): any other is an error. */
     private static final Set<String> CASE_KEYS = Set.of("id", "sql", "profile", "engine", "skip", "sa_defect",
-            "decision", "expect", "params");
+            "decision", "expect", "params", "settings");
 
     private static final Pattern DECISION = Pattern.compile("D-[A-Z]+[0-9]+[a-z]?");
 
@@ -63,13 +63,23 @@ public final class IqParity {
      *  the decided rows (one line of JSON). */
     public record Case(String file, String id, String sql, List<String> profiles, @com.legend.base.Nullable String engine,
             @com.legend.base.Nullable String skip, @com.legend.base.Nullable String decision,
-            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params) {
+            @com.legend.base.Nullable String expect, @com.legend.base.Nullable String params,
+            @com.legend.base.Nullable String settings) {
+
+        /** A case without settings (IQ island, 2026-10-14, the options framework: {@code settings}, IQ's settings by
+         *  level as written, {@code database.<name>=<value>, query.<name>=<value>, ...}). */
+        public Case(String file, String id, String sql, List<String> profiles,
+                @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
+                @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect,
+                @com.legend.base.Nullable String params) {
+            this(file, id, sql, profiles, engine, skip, decision, expect, params, null);
+        }
 
         /** A case that binds no variables. */
         public Case(String file, String id, String sql, List<String> profiles,
                 @com.legend.base.Nullable String engine, @com.legend.base.Nullable String skip,
                 @com.legend.base.Nullable String decision, @com.legend.base.Nullable String expect) {
-            this(file, id, sql, profiles, engine, skip, decision, expect, null);
+            this(file, id, sql, profiles, engine, skip, decision, expect, null, null);
         }
 
         /** The case's key in the answers file: {@code lite/<file>/<id>}. */
@@ -180,10 +190,35 @@ public final class IqParity {
             return c.key() + "@" + profile.spelling();
         }
 
+        /** IQ island, 2026-10-14 (the options framework): the settings the run's SQL is read under -- its profile's,
+         *  with its case's settings given ({@link IqParity#settings}, {@code IqSettings.resolve}) -- before the SET
+         *  statements its SQL may begin with; the profile's when the settings are IQ's error (the run raises it). */
+        public com.legend.protocol.sql.iq.IqSettings settings() {
+            if (c.settings() == null) {
+                return profile.settings();
+            }
+            try {
+                return com.legend.protocol.sql.iq.IqSettings.resolve(profile, IqParity.settings(
+                        java.util.Objects.requireNonNull(c.settings())));
+            } catch (com.legend.protocol.sql.SqlTranslationException e) {
+                return profile.settings();
+            }
+        }
+
+        /** The run's SELECT ({@code sql}, its text) as the island reads it, and the settings it is read under. */
+        public Read select(String sql) {
+            return new Read(settings(), sql);
+        }
+
         /** The run as SqlParity's ratchet keeps one: its file and an id that holds the profile. */
         SqlParity.Case asSqlParityCase() {
             return new SqlParity.Case(c.file(), c.id() + "@" + profile.spelling(), c.sql(), c.skip());
         }
+    }
+
+    /** IQ island, 2026-10-14 (the options framework): a run's SELECT as the island reads it -- its text -- and the
+     *  settings it is read under. */
+    public record Read(com.legend.protocol.sql.iq.IqSettings settings, String select) {
     }
 
     /** Every case of the case files under {@code liteDir}, in file order (files by path). */
@@ -243,8 +278,12 @@ public final class IqParity {
         }
         String params = (String) m.get("params");
         params(params);
+        String settings = (String) m.get("settings");
+        if (settings != null) {
+            settings(settings);
+        }
         return new Case(file, id, sql, profiles, engine == null || engine.equals("auto") ? null : engine, skip,
-                decision, expect, params);
+                decision, expect, params, settings);
     }
 
     /** Every run of {@code cases}: each case under each of its profiles, in order. */
@@ -388,9 +427,15 @@ public final class IqParity {
      *  follows. The text is read by {@link IqLexer} under the run's profile; text that does not lex is returned as it
      *  is, for the island to refuse. */
     public static String rewrite(String sql, Set<String> tables, IqProfile profile) {
+        return rewrite(sql, tables, profile.settings());
+    }
+
+    /** {@link #rewrite(String, Set, IqProfile)} under {@code settings} (IQ island, 2026-10-14, the options framework:
+     *  a run's, its case's settings given over its profile's). */
+    public static String rewrite(String sql, Set<String> tables, com.legend.protocol.sql.iq.IqSettings settings) {
         List<IqLexer.Token> tokens;
         try {
-            tokens = IqLexer.tokenize(sql, profile.settings());
+            tokens = IqLexer.tokenize(sql, settings);
         } catch (SqlSyntaxException e) {
             return sql;
         }
@@ -470,12 +515,14 @@ public final class IqParity {
             return null;
         }
         SqlAst.Statement statement;
+        Read select;
         try {
-            statement = IqParser.parse(rewrite(run.c().sql(), tables, run.profile()), run.profile().settings());
-        } catch (SqlSyntaxException e) {
+            select = run.select(rewrite(run.c().sql(), tables, run.settings()));
+            statement = IqParser.parse(select.select(), select.settings());
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             return null;
         }
-        String engine = IqDialect.engineOf(statement, run.profile().settings()).name().toLowerCase(Locale.ROOT);
+        String engine = IqDialect.engineOf(statement, select.settings()).name().toLowerCase(Locale.ROOT);
         return engine.equals(pinned) ? null : "ENGINE: " + run.key() + " pins engine=" + pinned + ", and its island"
                 + " runs in engine=" + engine;
     }
@@ -497,22 +544,24 @@ public final class IqParity {
         if (c.engine() != null || c.decision() != null || c.skip() != null) {
             return null;
         }
-        String sql = rewrite(c.sql(), names, run.profile());
+        String sql = rewrite(c.sql(), names, run.settings());
         SqlAst.Statement statement;
+        Read select;
         try {
-            statement = IqParser.parse(sql, run.profile().settings());
-        } catch (SqlSyntaxException e) {
+            select = run.select(sql);
+            statement = IqParser.parse(select.select(), select.settings());
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             return null;
         }
-        if (IqDialect.engineOf(statement, run.profile().settings()) != IqDialect.Engine.IQ) {
+        if (IqDialect.engineOf(statement, select.settings()) != IqDialect.Engine.IQ) {
             return null;
         }
         List<Param> params = params(c.params());
-        String iq = pureOf(sql, tables, IqDialect.of(run.profile().settings(), IqDialect.Engine.IQ), params);
+        String iq = pureOf(sql, tables, IqDialect.of(run.settings(), IqDialect.Engine.IQ), params);
         if (iq == null) {
             return null;
         }
-        String sa = pureOf(sql, tables, IqDialect.of(run.profile().settings(), IqDialect.Engine.SA), params);
+        String sa = pureOf(sql, tables, IqDialect.of(run.settings(), IqDialect.Engine.SA), params);
         return iq.equals(sa) ? null : "ENGINE NEUTRALITY: " + run.key() + " translates otherwise under the IQ engine's"
                 + " rules than under SQL Anywhere's, which judges it: name its decision, or pin engine: sa";
     }
@@ -531,8 +580,9 @@ public final class IqParity {
         }
         SqlAst.Statement statement;
         try {
-            statement = IqParser.parse(run.c().sql(), run.profile().settings());
-        } catch (SqlSyntaxException e) {
+            Read select = run.select(run.c().sql());
+            statement = IqParser.parse(select.select(), select.settings());
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             return null;
         }
         // IQ island, 2026-10-14 (M1b): every query's WHERE (a subquery's, a branch's, a derived table's) and every
@@ -654,8 +704,133 @@ public final class IqParity {
      *  the refusal's kind and message when it rejects it. */
     private static @com.legend.base.Nullable String pureOf(String sql, List<SqlParity.Table> tables,
             IqDialect dialect, List<Param> params) {
+        try {
+            return com.legend.protocol.PureComposer.valueSpecification(com.legend.protocol.sql.SqlToPure.translate(sql,
+                    sources(tables, params), dialect), com.legend.protocol.PureComposer.Style.STANDARD);
+        } catch (com.legend.protocol.sql.SqlTranslationException e) {
+            return e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? null
+                    : e.kind() + ": " + e.getMessage();
+        }
+    }
+
+    /**
+     * IQ island, 2026-10-14 (the options framework): the query a run is, as the lanes run it -- its island; for a case
+     * with settings, which reach no island yet (their Pure plumbing, tagged values of the IQ profile on a Database and a
+     * function, lands separately), the translation of its SQL under them ({@code IqSettings.resolve}) done here as the
+     * island's seam does it (SqlIslands: the schema's tables its sources, each column's store type, the case's
+     * variables), printed, its variables let before it. A translation's refusal or error is thrown as the
+     * {@code SqlTranslationException} it is.
+     */
+    public static String query(Run run, List<SqlParity.Table> schema, Set<String> tables) {
+        if (run.c().settings() == null) {
+            return island(run, tables);
+        }
+        com.legend.protocol.sql.iq.IqSettings settings = com.legend.protocol.sql.iq.IqSettings.resolve(run.profile(),
+                settings(java.util.Objects.requireNonNull(run.c().settings())));
+        List<Param> params = params(run.c().params());
+        String pure = parsedTds(com.legend.protocol.PureComposer.valueSpecification(
+                com.legend.protocol.sql.SqlToPure.translate(rewrite(run.c().sql(), tables, settings),
+                        sources(schema, params), IqDialect.of(settings)), com.legend.protocol.PureComposer.Style.STANDARD));
+        if (params.isEmpty()) {
+            return pure;
+        }
+        StringBuilder lets = new StringBuilder("|");
+        params.forEach(p -> lets.append("let ").append(p.name()).append(" = ").append(p.pure()).append("; "));
+        return lets.append(pure).append(';').toString();
+    }
+
+    /** {@code pure} with each TDS literal the printer writes {@code #TDS{...}#} written {@code #TDS...#}, the spelling
+     *  the parser reads back as the same rows (it reads the braced one's braces as rows: a FROM-less SELECT's one row
+     *  read back as three). */
+    private static String parsedTds(String pure) {
+        StringBuilder out = new StringBuilder();
+        int at = 0;
+        for (int i = pure.indexOf("#TDS{"); i >= 0; i = pure.indexOf("#TDS{", at)) {
+            int end = pure.indexOf("}#", i);
+            out.append(pure, at, i).append("#TDS").append(pure, i + "#TDS{".length(), end).append('#');
+            at = end + 2;
+        }
+        return out.append(pure.substring(at)).toString();
+    }
+
+    /**
+     * IQ island, 2026-10-14 (the options framework): a case's {@code settings}, as {@code IqSettings.resolve} takes
+     * them -- each {@code database.<name>=<value>} (a Database element's tagged value: a database property, a PUBLIC
+     * option, CommProtocol) or {@code query.<name>=<value>} (the enclosing function's: the connection's temporary
+     * value), IQ's names, a value as text (quoted, {@code ''} a quote in it, or bare up to the next comma), separated by
+     * commas.
+     */
+    public static List<com.legend.protocol.sql.iq.IqSettings.Setting> settings(String text) {
+        List<com.legend.protocol.sql.iq.IqSettings.Setting> out = new ArrayList<>();
+        int i = 0;
+        int n = text.length();
+        while (true) {
+            while (i < n && text.charAt(i) == ' ') {
+                i++;
+            }
+            int dot = text.indexOf('.', i);
+            int eq = text.indexOf('=', i);
+            if (dot < 0 || eq < dot) {
+                throw new IllegalStateException("a setting is database.<name>=<value> or query.<name>=<value>: "
+                        + text.substring(i));
+            }
+            String level = text.substring(i, dot).strip().toLowerCase(Locale.ROOT);
+            String name = text.substring(dot + 1, eq).strip();
+            if (!level.equals("database") && !level.equals("query") || name.isEmpty()) {
+                throw new IllegalStateException("a setting is database.<name>=<value> or query.<name>=<value>: "
+                        + text.substring(i));
+            }
+            i = eq + 1;
+            while (i < n && text.charAt(i) == ' ') {
+                i++;
+            }
+            StringBuilder value = new StringBuilder();
+            if (i < n && text.charAt(i) == '\'') {
+                i++;
+                while (true) {
+                    if (i >= n) {
+                        throw new IllegalStateException("a setting's quoted value is not closed: " + text);
+                    }
+                    if (text.charAt(i) == '\'' && i + 1 < n && text.charAt(i + 1) == '\'') {
+                        value.append('\'');
+                        i += 2;
+                    } else if (text.charAt(i) == '\'') {
+                        i++;
+                        break;
+                    } else {
+                        value.append(text.charAt(i++));
+                    }
+                }
+            } else {
+                while (i < n && text.charAt(i) != ',') {
+                    value.append(text.charAt(i++));
+                }
+                if (value.toString().strip().isEmpty()) {
+                    throw new IllegalStateException("a setting has a value: " + text);
+                }
+            }
+            out.add(new com.legend.protocol.sql.iq.IqSettings.Setting(level.equals("database")
+                    ? com.legend.protocol.sql.iq.IqSettings.Level.DATABASE
+                    : com.legend.protocol.sql.iq.IqSettings.Level.QUERY, name, value.toString().strip()));
+            while (i < n && text.charAt(i) == ' ') {
+                i++;
+            }
+            if (i >= n) {
+                return out;
+            }
+            if (text.charAt(i) != ',') {
+                throw new IllegalStateException("',' expected between settings: " + text.substring(i));
+            }
+            i++;
+        }
+    }
+
+    /** The translator's sources for a run: the schema's tables (in the model's default schema), each column of its
+     *  Pure type and store type, and the case's variables. */
+    private static com.legend.protocol.sql.SqlToPure.Sources sources(List<SqlParity.Table> tables,
+            List<Param> params) {
         // IQ island, 2026-10-14 (M1e): the model's tables (in its default schema) and the case's variables
-        com.legend.protocol.sql.SqlToPure.Sources sources = new com.legend.protocol.sql.SqlToPure.Sources() {
+        return new com.legend.protocol.sql.SqlToPure.Sources() {
             @Override
             public void columns(com.legend.protocol.spec.ValueSpecification source,
                     com.legend.protocol.sql.SqlToPure.Column column) {
@@ -691,13 +866,6 @@ public final class IqParity {
                 params.forEach(p -> names.accept(p.name()));
             }
         };
-        try {
-            return com.legend.protocol.PureComposer.valueSpecification(com.legend.protocol.sql.SqlToPure.translate(sql,
-                    sources, dialect), com.legend.protocol.PureComposer.Style.STANDARD);
-        } catch (com.legend.protocol.sql.SqlTranslationException e) {
-            return e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? null
-                    : e.kind() + ": " + e.getMessage();
-        }
     }
 
     /** The Pure type of a schema column of IQ type {@code iqType}, as the typer reports it to the island. */
@@ -724,7 +892,7 @@ public final class IqParity {
      *  comparison ({@link #compare}). An error is a both-error only when it is the island's own (its syntax error, its
      *  refusal, IQ's error it raises) or the database's; any other exception in legend-lite is an ERROR. */
     public static SqlParity.Outcome outcome(Run run, IqAnswers.@com.legend.base.Nullable Snap snap,
-            Set<String> tables, SqlParity.Legend legend) {
+            List<SqlParity.Table> schema, Set<String> tables, SqlParity.Legend legend) {
         if (run.c().skip() != null) {
             return new SqlParity.Outcome(SqlParity.Status.SKIP, java.util.Objects.requireNonNull(run.c().skip()));
         }
@@ -734,7 +902,16 @@ public final class IqParity {
         SqlParity.Answer expected = IqAnswers.expected(run, snap);
         com.legend.exec.ExecutionResult result;
         try {
-            result = legend.run(island(run, tables));
+            result = legend.run(query(run, schema, tables));
+        } catch (com.legend.protocol.sql.SqlTranslationException e) {
+            // IQ island, 2026-10-14 (the options framework): a case with settings, translated here: a refusal by
+            // name, or the island's own error (its syntax error, IQ's error it raises)
+            if (e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED) {
+                return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                        : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
+            }
+            return expected instanceof SqlParity.Rejected r ? bothError(e, r)
+                    : new SqlParity.Outcome(SqlParity.Status.ERROR, oneLine(e));
         } catch (com.legend.error.NotImplementedException e) {
             return expected instanceof SqlParity.Rejected r ? bothError(e, r)
                     : new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
@@ -834,22 +1011,23 @@ public final class IqParity {
         List<SqlAst.SortItem> orderBy;
         SqlAst.Statement st;
         try {
-            st = IqParser.parse(run.c().sql(), run.profile().settings());
+            Read select = run.select(run.c().sql());
+            st = IqParser.parse(select.select(), select.settings());
             // IQ island, 2026-10-14 (M1b): a set operation's ORDER BY is its own
             orderBy = st instanceof SqlAst.Select s ? s.orderBy() : st instanceof SqlAst.SetOperation o ? o.orderBy()
                     : List.of();
-        } catch (SqlSyntaxException e) {
+        } catch (SqlSyntaxException | com.legend.protocol.sql.SqlTranslationException e) {
             boolean ordered = run.c().sql().toUpperCase(Locale.ROOT).contains("ORDER BY");
-            return rows(ordered, null, expected, actual, snap.types(), run.profile());
+            return rows(ordered, null, expected, actual, snap.types(), run.settings());
         }
         if (orderBy.isEmpty()) {
-            return rows(false, null, expected, actual, snap.types(), run.profile());
+            return rows(false, null, expected, actual, snap.types(), run.settings());
         }
         if (rounded(st)) {
             // IQ island, 2026-10-14 (review 4's B2): the tie rule reads the shown keys; a value of a quotient or an
             // AVG is shown rounded where SQL Anywhere sorts by the unrounded one (.9990 and .9990 sort as 997/998 <
             // 998/999), so where any item of the statement is (or reads) one, the rows are compared in their order
-            return rows(true, null, expected, actual, snap.types(), run.profile());
+            return rows(true, null, expected, actual, snap.types(), run.settings());
         }
         List<Integer> keys = new ArrayList<>();
         for (SqlAst.SortItem item : orderBy) {
@@ -865,11 +1043,11 @@ public final class IqParity {
                 }
             }
             if (found < 0) {
-                return rows(true, null, expected, actual, snap.types(), run.profile());
+                return rows(true, null, expected, actual, snap.types(), run.settings());
             }
             keys.add(found);
         }
-        return rows(true, keys, expected, actual, snap.types(), run.profile());
+        return rows(true, keys, expected, actual, snap.types(), run.settings());
     }
 
     /** Whether a select item of any query of {@code statement} is, or reads, a quotient ({@code /}) or an AVG or a
@@ -899,7 +1077,8 @@ public final class IqParity {
      *  differ only in trailing spaces, or in a {@code sqla17} profile in the ASCII letters' case, tie, and their order
      *  is the plan's, measured on SQL Anywhere 17). */
     private static List<String> rows(boolean ordered, @com.legend.base.Nullable List<Integer> keys,
-            SqlParity.Grid expected, SqlParity.Grid actual, List<String> types, IqProfile profile) {
+            SqlParity.Grid expected, SqlParity.Grid actual, List<String> types,
+            com.legend.protocol.sql.iq.IqSettings profile) {
         List<String> diffs = new ArrayList<>();
         if (expected.rows().size() != actual.rows().size()) {
             diffs.add("Row count mismatch: expected " + expected.rows().size() + " but got " + actual.rows().size());
@@ -934,7 +1113,7 @@ public final class IqParity {
      *  {@code profile} -- its ASCII letters in lower case in a case-insensitive database, its trailing spaces dropped in
      *  a blank-padding one -- any other cell itself. */
     static @com.legend.base.Nullable Object collationKey(@com.legend.base.Nullable Object cell, String saType,
-            IqProfile profile) {
+            com.legend.protocol.sql.iq.IqSettings profile) {
         if (!(cell instanceof String s) || !(saType.equals("char") || saType.equals("varchar")
                 || saType.equals("long varchar"))) {
             return cell;
@@ -942,10 +1121,10 @@ public final class IqParity {
         StringBuilder b = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            b.append(!profile.settings().caseSensitive() && c >= 'A' && c <= 'Z' ? (char) (c + ('a' - 'A')) : c);
+            b.append(!profile.caseSensitive() && c >= 'A' && c <= 'Z' ? (char) (c + ('a' - 'A')) : c);
         }
         int end = b.length();
-        while (profile.settings().blankPadding() && end > 0 && b.charAt(end - 1) == ' ') {
+        while (profile.blankPadding() && end > 0 && b.charAt(end - 1) == ' ') {
             end--;
         }
         return b.substring(0, end);

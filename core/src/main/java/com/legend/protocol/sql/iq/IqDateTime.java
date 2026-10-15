@@ -34,7 +34,8 @@ import java.util.Map;
  *   <li>a month's English name or its three-letter abbreviation, in any case: {@code Mar 4 2005}, {@code March 4,
  *       2005}, {@code Mar 4 05}, {@code 4 Mar 2005}, {@code 04-Mar-2005}, {@code 2005 Mar 4}, {@code 2005-Mar-04} (a
  *       four-digit year, or a two-digit one right after the month and the day);</li>
- *   <li>a two-digit (or one-digit) year by NEAREST_CENTURY (50 in every profile): below it, of the 2000s, else of the
+ *   <li>a two-digit (or one-digit) year by NEAREST_CENTURY (50 in every profile; IQ island, 2026-10-14, the options
+ *       framework: any value from 0 to 100 the settings give it): below it, of the 2000s, else of the
  *       1900s ({@code 49} is 2049, {@code 50} 1950);</li>
  *   <li>then, after spaces or a {@code T}, a time: {@code h}, {@code h:n}, {@code h:n:s} (one or two digits each), a
  *       fraction after {@code .}, {@code :} or {@code ,} read as decimal places ({@code 12:34:56:7} is .7; past six
@@ -59,9 +60,6 @@ final class IqDateTime {
     private IqDateTime() {
     }
 
-    /** NEAREST_CENTURY: every profile's is the default, 50 (the research's OPTIONS §9). */
-    static final int NEAREST_CENTURY = 50;
-
     /** The months by their English names and three-letter abbreviations, lower case. */
     private static final Map<String, Integer> MONTHS = months();
 
@@ -85,7 +83,7 @@ final class IqDateTime {
      * timestamp after 7910 with hours or minutes, is refused by name ({@code pos}).
      */
     static String @com.legend.base.Nullable [] read(String text, IqSettings settings, SqlAst.Pos pos) {
-        int[] v = fields(text, settings.dateOrder());
+        int[] v = fields(text, settings.dateOrder(), settings.nearestCentury());
         if (v == null) {
             return null;
         }
@@ -132,13 +130,13 @@ final class IqDateTime {
 
     /** The fields {@code text} spells -- year, month, day, hour (24 for the next day's midnight), minute, second and
      *  microseconds -- or null for a spelling not read or a time out of range. */
-    private static int @com.legend.base.Nullable [] fields(String text, String order) {
+    private static int @com.legend.base.Nullable [] fields(String text, String order, int nearest) {
         List<String> tokens = tokens(text);
         if (tokens == null || tokens.isEmpty()) {
             return null;
         }
         int[] date = new int[3];
-        int used = date(tokens, order, date);
+        int used = date(tokens, order, nearest, date);
         if (used < 0) {
             return null;
         }
@@ -191,13 +189,13 @@ final class IqDateTime {
     }
 
     /** Reads the date at the start of {@code t} into {@code out} (year, month, day): the tokens it takes, or -1. */
-    private static int date(List<String> t, String order, int[] out) {
+    private static int date(List<String> t, String order, int nearest, int[] out) {
         String first = t.get(0);
         if (digits(first)) {
             if (first.length() == 8 || first.length() == 6) {
                 // yyyymmdd, yymmdd
                 int y = first.length() == 8 ? Integer.parseInt(first.substring(0, 4))
-                        : century(Integer.parseInt(first.substring(0, 2)));
+                        : century(Integer.parseInt(first.substring(0, 2)), nearest);
                 int at = first.length() - 4;
                 out[0] = y;
                 out[1] = Integer.parseInt(first.substring(at, at + 2));
@@ -218,7 +216,7 @@ final class IqDateTime {
                 if (!small(first) || !t.get(1).equals(t.get(3))) {
                     return -1;
                 }
-                return byOrder(first, t.get(2), t.get(4), order, out) ? 5 : -1;
+                return byOrder(first, t.get(2), t.get(4), order, nearest, out) ? 5 : -1;
             }
             if (t.size() >= 5 && first.length() == 4 && dash(t.get(1)) && letters(t.get(2)) && dash(t.get(3))
                     && digits(t.get(4)) && small(t.get(4))) {
@@ -253,20 +251,20 @@ final class IqDateTime {
                 return -1;
             }
             String y = t.get(at);
-            return set(out, y.length() == 4 ? Integer.parseInt(y) : century(Integer.parseInt(y)), m,
+            return set(out, y.length() == 4 ? Integer.parseInt(y) : century(Integer.parseInt(y), nearest), m,
                     Integer.parseInt(t.get(2)), at + 1);
         }
         return -1;
     }
 
     /** Three numbers of a date in the order DATE_ORDER says, a year of one or two digits by NEAREST_CENTURY. */
-    private static boolean byOrder(String a, String b, String c, String order, int[] out) {
+    private static boolean byOrder(String a, String b, String c, String order, int nearest, int[] out) {
         boolean yearFirst = order.equalsIgnoreCase("YMD");
         String year = yearFirst ? a : c;
         if (yearFirst ? !small(c) : !small(c) && c.length() != 4) {
             return false;
         }
-        int y = year.length() == 4 ? Integer.parseInt(year) : century(Integer.parseInt(year));
+        int y = year.length() == 4 ? Integer.parseInt(year) : century(Integer.parseInt(year), nearest);
         int first = Integer.parseInt(yearFirst ? b : a);
         int second = Integer.parseInt(yearFirst ? c : b);
         boolean monthFirst = yearFirst || order.equalsIgnoreCase("MDY");
@@ -369,9 +367,9 @@ final class IqDateTime {
         return true;
     }
 
-    /** A two-digit (or one-digit) year by NEAREST_CENTURY. */
-    private static int century(int yy) {
-        return yy < NEAREST_CENTURY ? 2000 + yy : 1900 + yy;
+    /** A two-digit (or one-digit) year by NEAREST_CENTURY ({@code nearest}). */
+    private static int century(int yy, int nearest) {
+        return yy < nearest ? 2000 + yy : 1900 + yy;
     }
 
     /** The days of {@code month} in {@code year}, by the Gregorian calendar. */

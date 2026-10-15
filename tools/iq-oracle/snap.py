@@ -81,7 +81,22 @@ PROFILES = {
 }
 DEFAULT_PROFILE = "iq16-default"
 ENGINES = {"iq", "sa", "auto"}
-CASE_KEYS = {"id", "sql", "profile", "engine", "skip", "sa_defect", "decision", "expect", "params"}
+CASE_KEYS = {"id", "sql", "profile", "engine", "skip", "sa_defect", "decision", "expect", "params", "settings"}
+
+# IQ island, 2026-10-14 (the options framework): a case's settings, IQ's own names each given at a level (as Pure's
+# tagged values will give them: a Database element's, the enclosing function's) -- database.<name>=<value> and
+# query.<name>=<value> -- choose the case's database by the database properties given for the database (each base's
+# database at its defaults is lite_iq's or lite_sa's; any other combination is a database of its own, made with dbinit's
+# -c, -b and -z), the login by the database's CommProtocol ('TDS' a TDS login's options, 'CmdSeq' none), set each other
+# database-level option for PUBLIC (SET OPTION PUBLIC.name = 'value') and each query-level setting for the connection,
+# after the login's (SET TEMPORARY OPTION name = 'value'). Such a case runs on a connection of its own, the options it
+# set (user's and PUBLIC's) restored after it.
+DB_SETTINGS = {"casesensitive": "CaseSensitive", "blankpadding": "BlankPadding", "collation": "Collation",
+               "charset": "CharSet", "accentsensitive": "AccentSensitive"}
+# each base's database at its defaults, and the charset of each collation read
+BASE_PROPERTIES = {"iq": {"CaseSensitive": "On", "BlankPadding": "On", "Collation": "ISO_BINENG"},
+                   "sa": {"CaseSensitive": "Off", "BlankPadding": "Off", "Collation": "UTF8BIN"}}
+CHARSETS = {"ISO_BINENG": "ISO_8859-1:1987", "UTF8BIN": "UTF-8"}
 
 REQUEST_TIMEOUT = "15"  # seconds, per statement, on every case connection
 TS6 = "YYYY-MM-DD HH:NN:SS.SSSSSS"  # how a TIMESTAMP column's cells are snapped, whatever the profile's format
@@ -323,12 +338,132 @@ def read_cases(lite_dir):
                 raise Bad("%s: params is one line of text, name = value; ..." % where)
             if skip is None:
                 shadowed(m["sql"], read_params(params, where), profiles, where)
+            settings = m.get("settings")
+            if settings is not None and not isinstance(settings, str):
+                raise Bad("%s: settings is one line: database.<name>=<value>, query.<name>=<value>, ..." % where)
+            given = read_settings(settings, where) if settings is not None else []
+            if skip is None:
+                for p in profiles:
+                    database_for(p, given, where)
             cases.append({"key": key, "id": m["id"], "sql": m["sql"], "profiles": profiles,
                           "skip": None if skip is None else str(skip),
                           "decision": str(m.get("decision") or ""), "expect": str(m.get("expect") or ""),
                           "params": params, "bound": read_params(params, where),
-                          "run": with_params(m["sql"], read_params(params, where), where)})
+                          "run": with_params(m["sql"], read_params(params, where), where),
+                          "settings": settings, "given": given})
     return cases
+
+
+# ------------------------------------------------------------------ a case's settings
+
+def read_settings(text, where):
+    """A case's settings, as the Java harness reads them (IqParity.settings): (level, name, value), each written
+    database.<name>=<value> or query.<name>=<value>, the value quoted ('' a quote in it) or bare up to the next comma,
+    separated by commas."""
+    out, i, n = [], 0, len(text)
+    while True:
+        while i < n and text[i] == " ":
+            i += 1
+        dot, eq = text.find(".", i), text.find("=", i)
+        if dot < 0 or eq < dot:
+            raise Bad("%s: settings: database.<name>=<value> or query.<name>=<value>, not %r" % (where, text[i:]))
+        level, name = text[i:dot].strip().lower(), text[dot + 1:eq].strip()
+        if level not in ("database", "query") or not name:
+            raise Bad("%s: settings: database.<name>=<value> or query.<name>=<value>, not %r" % (where, text[i:]))
+        i = eq + 1
+        while i < n and text[i] == " ":
+            i += 1
+        value = []
+        if i < n and text[i] == "'":
+            i += 1
+            while True:
+                if i >= n:
+                    raise Bad("%s: settings: a quoted value is not closed" % where)
+                if text[i] == "'" and i + 1 < n and text[i + 1] == "'":
+                    value.append("'")
+                    i += 2
+                elif text[i] == "'":
+                    i += 1
+                    break
+                else:
+                    value.append(text[i])
+                    i += 1
+        else:
+            while i < n and text[i] != ",":
+                value.append(text[i])
+                i += 1
+            if not "".join(value).strip():
+                raise Bad("%s: settings: %s has no value" % (where, name))
+        out.append((level, name, "".join(value).strip()))
+        while i < n and text[i] == " ":
+            i += 1
+        if i >= n:
+            return out
+        if text[i] != ",":
+            raise Bad("%s: settings: ',' expected between settings, not %r" % (where, text[i:]))
+        i += 1
+
+
+def database_for(profile, given, where):
+    """The database a run of a case with these settings runs on, under this profile (the database properties given for
+    the database): (its name, dbinit's flags, its PUBLIC options, the creation settings it must report)."""
+    base = "iq" if profile.startswith("iq16") else "sa"
+    props = dict(BASE_PROPERTIES[base])
+    charset = None
+    for level, name, value in given:
+        key = DB_SETTINGS.get(name.lower())
+        if key is None or level != "database":
+            continue
+        if key == "AccentSensitive":
+            if value.lower() != "off":
+                raise Bad("%s: AccentSensitive %s: the oracle's databases are binary-collated (skip the case)"
+                          % (where, value))
+            continue
+        if key in ("CaseSensitive", "BlankPadding"):
+            if value.lower() not in ("on", "off"):
+                raise Bad("%s: %s is On or Off" % (where, key))
+            props[key] = "On" if value.lower() == "on" else "Off"
+        elif key == "Collation":
+            props["Collation"] = value.upper()
+        else:
+            charset = value.upper()
+    if charset is not None and not any(name.lower() == "collation" and level == "database"
+                                       for level, name, _ in given):
+        props["Collation"] = {"ISO_8859-1:1987": "ISO_BINENG", "UTF-8": "UTF8BIN"}.get(charset, "?")
+    if props["Collation"] not in CHARSETS or charset is not None and CHARSETS[props["Collation"]] != charset:
+        raise Bad("%s: the oracle makes databases of collation ISO_BINENG or UTF8BIN, with their charsets" % where)
+    if props == BASE_PROPERTIES[base]:
+        name = "lite_" + base
+        return name, DATABASES[name][0], DATABASES[name][1], DATABASES[name][2]
+    suffix = ("_cs" if props["CaseSensitive"] == "On" else "_ci") + ("_bp" if props["BlankPadding"] == "On" else "_nobp") \
+        + ("_latin1" if props["Collation"] == "ISO_BINENG" else "_utf8")
+    flags = (["-c"] if props["CaseSensitive"] == "On" else []) + (["-b"] if props["BlankPadding"] == "On" else []) \
+        + ["-z", props["Collation"]]
+    public = [("precision", "126"), ("scale", "38")] if base == "iq" else []
+    expect = {"Collation": props["Collation"], "CharSet": CHARSETS[props["Collation"]],
+              "CaseSensitive": props["CaseSensitive"], "BlankPadding": props["BlankPadding"]}
+    return "lite_" + base + suffix, flags, public, expect
+
+
+def session_options(profile, given):
+    """The run's login options (its profile's, or the database's CommProtocol's), then its settings as SQL Anywhere's
+    statements: a database-level option for PUBLIC, a query-level setting temporarily (the database-level properties
+    and CommProtocol apart)."""
+    login = list(PROFILES[profile][1])
+    for level, name, value in given:
+        if level == "database" and name.lower() == "commprotocol":
+            if value.lower() == "tds":
+                login = list(TDS)
+            elif value.lower() == "cmdseq" and PROFILES[profile][1] == TDS:
+                login = []
+    statements = []
+    for level, name, value in given:
+        if level == "database" and (name.lower() in DB_SETTINGS or name.lower() == "commprotocol"):
+            continue
+        quoted = "'" + value.replace("'", "''") + "'"
+        statements.append(("SET OPTION PUBLIC.%s = %s" if level == "database" else "SET TEMPORARY OPTION %s = %s")
+                          % (name, quoted))
+    return login, statements
 
 
 # ------------------------------------------------------------------ a case's variables (params)
@@ -576,6 +711,9 @@ def sql_sha(case, profile, schema_bytes):
     if case.get("params") is not None:
         # a case that binds variables: its params too (one more part; a case without them keeps its sha)
         parts.append(case["params"])
+    if case.get("settings") is not None:
+        # IQ island, 2026-10-14: a case with settings, one more part after the params'
+        parts.append("settings=" + case["settings"])
     return hashlib.sha256(b"".join(p.encode("utf-8") + b"\0" for p in parts) + schema_bytes).hexdigest()
 
 
@@ -942,6 +1080,91 @@ def answer(conn, profile, sql):
     return {"columns": r["columns"], "rows": r["rows"]}
 
 
+def isolated(c):
+    """IQ island, 2026-10-14: whether a case runs on a connection of its own (it has settings)."""
+    return c.get("settings") is not None
+
+
+def answer_isolated(oracle, c, profile):
+    """A case with settings, on a connection of its own to its database: the login's options, its settings (a
+    database-level option for PUBLIC, a query-level one temporarily), the case's variables, then its SELECT; the first
+    error is the answer. Every option it set is restored after (the user's and PUBLIC's by the
+    catalog's SYSOPTIONS as it was, a temporary PUBLIC one reset)."""
+    db = database_for(profile, c["given"], c["key"])[0]
+    login, options = session_options(profile, c["given"])
+    f = oracle.facts[db]
+    conn = oracle.connect(db, f["codec"], f["charset"])
+    before = conn.query("SELECT user_name, [option], setting FROM SYS.SYSOPTIONS")
+    if "error" in before:
+        conn.close()
+        raise Bad("SYSOPTIONS: %r" % before["error"])
+    try:
+        for k, v in [("request_timeout", REQUEST_TIMEOUT)] + login:
+            conn.execute("SET TEMPORARY OPTION %s = '%s'" % (k, v))
+        e = None
+        for statement in options:
+            e = conn.run(statement)
+            if e is not None:
+                break
+        if e is None:
+            e = bind_params(conn, c["bound"], profile)
+        a = {"error": e} if e is not None else answer_now(conn, c["run"])
+        if "error" in a and not oracle.alive():
+            raise Lost(a["error"]["message"])
+        conn.run("ROLLBACK")
+        if c["bound"]:
+            drop_params(conn, [p[0] for p in c["bound"]], profile)
+        # the restore's own names are read as names, and its catalog rows all fetched (the case may have turned quoted
+        # identifiers off, or capped the rows a SELECT returns)
+        conn.execute("SET TEMPORARY OPTION quoted_identifier = 'On'")
+        conn.execute("SET ROWCOUNT 0")
+        after = conn.query("SELECT user_name, [option], setting FROM SYS.SYSOPTIONS")
+        if "error" in after:
+            raise Bad("SYSOPTIONS: %r" % after["error"])
+        was = {(r[0], r[1]): r[2] for r in before["rows"]}
+        now = {(r[0], r[1]): r[2] for r in after["rows"]}
+        for (user, option), setting in sorted(now.items()):
+            if (user, option) not in was:
+                conn.execute('SET OPTION "%s"."%s" =' % (user, option))
+            elif was[(user, option)] != setting:
+                conn.execute("SET OPTION \"%s\".\"%s\" = '%s'" % (user, option,
+                                                                  (was[(user, option)] or "").replace("'", "''")))
+        for (user, option), setting in sorted(was.items()):
+            if (user, option) not in now:
+                conn.execute("SET OPTION \"%s\".\"%s\" = '%s'" % (user, option, (setting or "").replace("'", "''")))
+        return a
+    finally:
+        conn.close()
+
+
+def answer_now(conn, sql):
+    """SQL Anywhere's answer to sql on a connection whose options a case set: as answer(), the TIMESTAMP columns
+    fetched again at six fractional digits and the DATE columns at YYYY-MM-DD where the connection's formats show them
+    otherwise (each format read from the connection, and set back)."""
+    r = conn.query(sql)
+    if "error" in r:
+        return {"error": r["error"]}
+    for kind, option, canonical in (("timestamp", "timestamp_format", TS6), ("date", "date_format", "YYYY-MM-DD")):
+        cols = [i for i, col in enumerate(r["columns"]) if col[1] == kind]
+        fmt = conn.value("SELECT CONNECTION_PROPERTY('%s')" % option)
+        if not cols or (fmt or "").upper() == canonical:
+            continue
+        conn.execute("SET TEMPORARY OPTION %s = '%s'" % (option, canonical))
+        try:
+            again = conn.query(sql)
+        finally:
+            conn.execute("SET TEMPORARY OPTION %s = '%s'" % (option, (fmt or "").replace("'", "''")))
+        if "error" in again or len(again["rows"]) != len(r["rows"]) \
+                or [x[:2] for x in again["columns"]] != [x[:2] for x in r["columns"]]:
+            raise Bad("the %s re-fetch did not return the same shape: %r" % (kind, again.get("error")))
+        for i in cols:
+            r["columns"][i] = again["columns"][i]
+        for row, row2 in zip(r["rows"], again["rows"]):
+            for i in cols:
+                row[i] = row2[i]
+    return {"columns": r["columns"], "rows": r["rows"]}
+
+
 def run_cases(oracle, cases, schema_bytes, report):
     """Every (case, profile) answer, as the dict written to iq-answers.jsonl; crashes and failures go to report."""
     out = {}
@@ -953,14 +1176,17 @@ def run_cases(oracle, cases, schema_bytes, report):
         todo = by_profile.get(profile, [])
         if not todo:
             continue
-        db = PROFILES[profile][0]
         conn = oracle.session(profile)
         try:
             for c in todo:
+                db = database_for(profile, c.get("given") or [], c["key"])[0]
                 tries = 0
                 while True:
                     tries += 1
                     try:
+                        if isolated(c):
+                            a = answer_isolated(oracle, c, profile)
+                            break
                         # IQ island, 2026-10-14 (review 5's M5): the case's variables, real ones on its connection
                         failed = bind_params(conn, c["bound"], profile)
                         if failed is not None:
@@ -1016,6 +1242,13 @@ def meta(oracle):
                   " runs (CREATE VARIABLE @name of BIGINT, DOUBLE, NUMERIC(38,s), LONG VARCHAR, DATE or TIMESTAMP,"
                   " then SET to the value, left NULL for null:<type>) and dropped after; its :name reads @name; under a TDS"
                   " profile it runs with tsql_variables Off (On, @name is a placeholder a client binds)",
+        "settings": "a case's settings (database.<name>=<value>, query.<name>=<value>, ...) choose its database by"
+                    " the database properties given for the database (a database of each combination of"
+                    " CaseSensitive, BlankPadding and Collation, made by dbinit -c, -b and -z, with IQ 16's PUBLIC"
+                    " precision and scale on the IQ base), its login by the database's CommProtocol, set each other"
+                    " database-level option for PUBLIC and each query-level setting temporarily, after the login's,"
+                    " on a connection of the case's own; every option it set is restored after it; a DATE or"
+                    " TIMESTAMP column is fetched at YYYY-MM-DD and six places",
     }}
 
 
@@ -1092,6 +1325,11 @@ def main(argv):
     run = [c for c in live if selected(c)]
     head, committed = read_answers(answers_path)
 
+    # IQ island, 2026-10-14 (the options framework): the databases the live cases' settings need beyond the two
+    for c in live:
+        for p in c["profiles"]:
+            name, flags, public, expect = database_for(p, c["given"], c["key"])
+            DATABASES.setdefault(name, (flags, public, expect))
     oracle = Oracle(sqlany17, schema, args.verbose)
     atexit.register(oracle.stop)
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):

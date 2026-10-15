@@ -320,6 +320,8 @@ public final class IqDialect implements InputDialect {
      *  limit anywhere but on the statement's own SELECT. */
     @Override
     public SqlAst.Statement parse(String sql) {
+        // IQ island, 2026-10-14 (the options framework): what the settings would need that is not built is refused
+        settings.check();
         IqParser.Parsed read = IqParser.parsed(sql, settings);
         SqlAst.Statement statement = read.statement();
         // IQ island, 2026-10-14 (the third landing): two aliases of one name are IQ's error, and an alias spelled like
@@ -626,7 +628,8 @@ public final class IqDialect implements InputDialect {
         }
         refs.forEach(r -> names.addAll(r.parts().subList(0, r.parts().size() - 1)));
         for (SqlAst.Ident name : names) {
-            int bytes = settings.iqDatabase() ? name.text().length() : utf8Length(name.text());
+            // IQ island, 2026-10-14 (the options framework): a name's bytes are its charset's (CharSet), not the base's
+            int bytes = settings.latin1() ? name.text().length() : utf8Length(name.text());
             if (bytes > LONGEST_NAME) {
                 throw split("the name '" + name.text().substring(0, 20) + "...' is longer than " + LONGEST_NAME
                         + " bytes" + code(-250, "54003"), name.pos());
@@ -981,7 +984,7 @@ public final class IqDialect implements InputDialect {
             int n = f.args().size();
             Catalog fn = Catalog.named(name);
             // IQ island, 2026-10-14 (M1d): the rest of the catalog is IqFunctions'
-            int[] arity = fn != null ? new int[] {fn.min, fn.max} : IqFunctions.arity(f);
+            int[] arity = fn != null ? new int[] {fn.min, fn.max} : IqFunctions.arity(f, settings.ansiSubstring());
             if (n < arity[0] || n > arity[1]) {
                 throw SqlTranslationException.invalid("wrong number of arguments to " + name.toUpperCase(
                         java.util.Locale.ROOT) + code(-154, "37505"), f.pos());
@@ -3013,7 +3016,13 @@ public final class IqDialect implements InputDialect {
                     + " decimals hold", b.pos());
         }
         BigDecimal divisor = numberLiteral(b.right());
-        if (divisor == null && limited.contains(b)) {
+        // IQ island, 2026-10-14 (the options framework): under divide_by_zero_error Off a zero divisor gives NULL
+        boolean nullOnZero = !settings.divideByZeroError() && (divisor == null || divisor.signum() == 0)
+                && zeroGuarded(b, operator);
+        if (nullOnZero && divisor != null) {
+            return Tx.value(SqlToPure.nullOf(Kind.DECIMAL).vs(), Kind.DECIMAL, true, numeric(p, s));
+        }
+        if (divisor == null && limited.contains(b) && !nullOnZero) {
             throw SqlTranslationException.unsupported("this " + operator + " can raise IQ's error -628 (division by"
                     + " zero) in the select list or ORDER BY of a statement with TOP, FIRST or START AT, which is not"
                     + " supported yet: IQ computes those items only for the rows it keeps", b.pos());
@@ -3031,10 +3040,10 @@ public final class IqDialect implements InputDialect {
             ValueSpecification value = divide
                     ? IqFunctions.quotient(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1], fp, fs)
                     : IqFunctions.remainder(x, lt[1], lt[0] - lt[1], y, rt[1], rt[0] - rt[1]);
-            return divisor != null ? value : ifThen(SqlToPure.call("equal", y, new CInteger(0L)), raiseDecimal(),
-                    value);
+            return divisor != null ? value : ifThen(SqlToPure.call("equal", y, new CInteger(0L)), nullOnZero
+                    ? SqlToPure.nullOf(Kind.DECIMAL).vs() : raiseDecimal(), value);
         });
-        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable(), numeric(p, s));
+        return Tx.value(result.vs(), Kind.DECIMAL, result.nullable() || nullOnZero, numeric(p, s));
     }
 
     /** A number literal's written value, signs applied ({@code 1.5}, {@code -2}); null for any other expression. */
@@ -3143,6 +3152,13 @@ public final class IqDialect implements InputDialect {
         }
         boolean lf = doubleOperand(l, b.left(), operator);
         boolean rf = doubleOperand(r, b.right(), operator);
+        // IQ island, 2026-10-14 (the options framework): under divide_by_zero_error Off a zero divisor gives NULL
+        BigDecimal literal = numberLiteral(b.right());
+        boolean nullOnZero = b.op() == SqlAst.BinaryOp.DIVIDE && !settings.divideByZeroError()
+                && (literal == null || literal.signum() == 0) && zeroGuarded(b, operator);
+        if (nullOnZero && literal != null) {
+            return doubleNull();
+        }
         if (limited.contains(b)) {
             String zero = b.op() == SqlAst.BinaryOp.DIVIDE ? " or -628 (division by zero)" : "";
             throw SqlTranslationException.unsupported("this " + operator + " of a DOUBLE can raise IQ's error -158 (out"
@@ -3184,9 +3200,10 @@ public final class IqDialect implements InputDialect {
             ValueSpecification finite = ifThen(SqlToPure.call("greaterThan", SqlToPure.call("abs", value),
                     new com.legend.protocol.spec.CFloat(DOUBLE_MAX)), floatRaise(), value);
             return op == SqlAst.BinaryOp.DIVIDE ? ifThen(SqlToPure.call("equal", y,
-                    new com.legend.protocol.spec.CFloat(0.0)), floatRaise(), finite) : finite;
+                    new com.legend.protocol.spec.CFloat(0.0)), nullOnZero ? SqlToPure.nullOf(Kind.FLOAT).vs()
+                    : floatRaise(), finite) : finite;
         });
-        return Tx.value(result.vs(), Kind.FLOAT, result.nullable(), new IqType("DOUBLE"));
+        return Tx.value(result.vs(), Kind.FLOAT, result.nullable() || nullOnZero, new IqType("DOUBLE"));
     }
 
     private static ValueSpecification fl(double d) {
@@ -3305,8 +3322,14 @@ public final class IqDialect implements InputDialect {
         // a divisor that may be zero raises IQ's -628 (the lowering's guarded error)
         boolean zeroDivisor = (op == SqlAst.BinaryOp.DIVIDE || op == SqlAst.BinaryOp.MODULO)
                 && rt.lo().signum() <= 0 && rt.hi().signum() >= 0;
+        // IQ island, 2026-10-14 (the options framework): under divide_by_zero_error Off a zero divisor gives NULL
+        boolean nullOnZero = zeroDivisor && !settings.divideByZeroError() && zeroGuarded(b, operator);
+        if (nullOnZero && numberLiteral(b.right()) != null) {
+            return typedNull(family);
+        }
         return checkedInteger(b, operator, new IqType(family), range[0], range[1], List.of(l, r),
-                List.of(lt, rt), constants(List.of(b.left(), b.right()), List.of(l, r)), zeroDivisor, v -> switch (op) {
+                List.of(lt, rt), constants(List.of(b.left(), b.right()), List.of(l, r)), zeroDivisor && !nullOnZero,
+                nullOnZero ? 1 : -1, v -> switch (op) {
                     case PLUS -> AppliedFunction.infixRun("plus", v);
                     case MINUS -> AppliedFunction.infixRun("minus", v);
                     case TIMES -> AppliedFunction.infixRun("times", v);
@@ -3333,6 +3356,14 @@ public final class IqDialect implements InputDialect {
      */
     private Tx checkedInteger(SqlAst.Expr node, String operator, IqType type, BigInteger lo, BigInteger hi,
             List<Tx> operands, List<IqType> types, boolean constant, boolean zeroDivisor,
+            java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
+        return checkedInteger(node, operator, type, lo, hi, operands, types, constant, zeroDivisor, -1, build);
+    }
+
+    /** {@link #checkedInteger}, NULL where the operand at {@code zeroGuard} (when 0 or more) is 0 (IQ island,
+     *  2026-10-14, the options framework: divide_by_zero_error Off). */
+    private Tx checkedInteger(SqlAst.Expr node, String operator, IqType type, BigInteger lo, BigInteger hi,
+            List<Tx> operands, List<IqType> types, boolean constant, boolean zeroDivisor, int zeroGuard,
             java.util.function.Function<List<ValueSpecification>, ValueSpecification> build) {
         SqlAst.Pos pos = node.pos();
         boolean certainlyOut = lo.compareTo(type.max()) > 0 || hi.compareTo(type.min()) < 0;
@@ -3370,7 +3401,9 @@ public final class IqDialect implements InputDialect {
                 args.add(widen.get(i) ? SqlToPure.call("floor", v.get(i)) : v.get(i));
             }
             ValueSpecification core = build.apply(args);
-            return check ? inRange(core, type.min(), type.max()) : core;
+            ValueSpecification checked = check ? inRange(core, type.min(), type.max()) : core;
+            return zeroGuard < 0 ? checked : ifThen(SqlToPure.call("equal", v.get(zeroGuard), new CInteger(0L)),
+                    SqlToPure.nullOf(Kind.INTEGER).vs(), checked);
         });
         BigInteger low = lo.max(type.min());
         BigInteger high = hi.min(type.max());
@@ -3379,8 +3412,23 @@ public final class IqDialect implements InputDialect {
             low = type.min();
             high = type.max();
         }
-        return Tx.value(result.vs(), Kind.INTEGER, result.nullable(), IqType.integer(type.family(), low, high, wide,
-                loose));
+        return Tx.value(result.vs(), Kind.INTEGER, result.nullable() || zeroGuard >= 0, IqType.integer(type.family(),
+                low, high, wide, loose));
+    }
+
+    /**
+     * Whether {@code b}'s zero divisor, under divide_by_zero_error Off, is NULL by a guard the database computes (IQ
+     * island, 2026-10-14, the options framework): a literal divisor (a zero one is NULL outright) or one that reads a
+     * column. A divisor of constants and variables only is refused by name: a database folds the whole operation of
+     * constants before the guard is read (Postgres raises on {@code CASE WHEN 0 = 0 THEN NULL ELSE 1 / 0 END}).
+     */
+    private static boolean zeroGuarded(SqlAst.Binary b, String operator) {
+        if (numberLiteral(b.right()) != null || readsColumn(b.right())) {
+            return true;
+        }
+        throw SqlTranslationException.unsupported("this " + operator + " under divide_by_zero_error Off is not"
+                + " supported: its divisor reads no column and is no literal, and a database folds the operation"
+                + " before the guard that gives NULL for a zero divisor is read", b.pos());
     }
 
     /** Whether every one of {@code exprs} is a constant IQ folds (a literal, a sign or arithmetic of literals) whose
@@ -3545,7 +3593,7 @@ public final class IqDialect implements InputDialect {
             boolean left = lk == Kind.STRING;
             Kind other = left ? rk : lk;
             Tx text = left ? l : r;
-            Tx converted = other.numeric() ? numberOf(text, other, pos)
+            Tx converted = other.numeric() ? numberOf(text, other, left ? r : l, pos)
                     : other == Kind.DATE || other == Kind.DATETIME ? dateOf(text, other, pos) : null;
             if (converted == null) {
                 throw SqlTranslationException.unsupported("comparing " + kindName(lk) + " with " + kindName(rk)
@@ -3648,7 +3696,7 @@ public final class IqDialect implements InputDialect {
      * under the IQ engine (which NUMERIC it converts to is the research's D-N1, not yet verified); a DOUBLE (its
      * NUMERIC is not read yet); a string that is not a constant, or spelled otherwise.
      */
-    private Tx numberOf(Tx text, Kind other, SqlAst.Pos pos) {
+    private Tx numberOf(Tx text, Kind other, Tx number, SqlAst.Pos pos) {
         if (engine == Engine.IQ) {
             throw SqlTranslationException.unsupported("comparing a string with a number is not supported under the IQ"
                     + " engine yet: IQ converts both to NUMERIC, whose type there is the research's D-N1, not yet"
@@ -3675,6 +3723,19 @@ public final class IqDialect implements InputDialect {
                     + " supported under profile " + settings.spelling() + ": as its NUMERIC(" + settings.precision()
                     + "," + settings.scale() + ") it would be rounded or out of range, or need more than lite's 38"
                     + " digits", pos);
+        }
+        // IQ island, 2026-10-14 (the options framework, found by its precision cases; measured on SQL Anywhere 17 at
+        // every PRECISION and SCALE): compared with a column of a NUMERIC(p, s), the string is that NUMERIC first --
+        // rounded to s places ('0.005' is 0.01 against a NUMERIC(10,2) column) -- where an integer column, and an
+        // expression of any type, compares it at PRECISION and SCALE: a string of more places, or more whole digits,
+        // than such a column holds is refused by name
+        int[] numeric = number.vs() instanceof com.legend.protocol.spec.AppliedProperty
+                && number.detail() instanceof IqType type && (type.family().equals("NUMERIC")
+                || type.family().equals("DECIMAL")) ? digits(number) : null;
+        if (numeric != null && (places > numeric[1] || whole > numeric[0])) {
+            throw SqlTranslationException.unsupported("comparing the string '" + s.value() + "' with a NUMERIC("
+                    + (numeric[0] + numeric[1]) + "," + numeric[1] + ") column is not supported: IQ reads the string"
+                    + " as a value of the column's NUMERIC first, rounded, which is not read here", pos);
         }
         return Tx.value(new CDecimal(d), Kind.DECIMAL, false, IqTypes.ofNumericConstant(d));
     }

@@ -1891,3 +1891,119 @@ both lists unchanged. The thirteen were snapped on SQL Anywhere 17 and run on bo
 The answers: 360 new; every earlier answer identical. The Postgres island's Pure is byte-identical and both
 `sql-parity` ledgers unchanged. The measurements (the probe sets and the naming datasets) are kept with the private
 research.
+
+### 9.17 Settings: IQ's options, by IQ's own names
+
+Built 2026-10-14 on `claude/iq-island-3`, over the M1 gaps (§9.16): the third landing's second part, the in-area core of
+the options framework. An island is read under one **settings vector**, built the way IQ builds a connection's, and every
+rule of the translator that depends on a setting reads the vector, never a profile's name. The five profile names stay,
+as presets of it. The settings themselves will come from Pure: tagged values of a platform Profile whose tags are IQ's
+exact names, on a Database element (the database's level) and on the enclosing function (the query's); that plumbing
+touches the model and the compiler and lands separately. **No header**: no Legend syntax is added (the user's ruling,
+2026-10-14: no Legend parser feature that upstream lacks), so an island still opens `#IQ{` or `#IQ:<preset>{`, and
+nothing between `#IQ` and its brace sets anything. Every case answers what SQL Anywhere 17 answers, is refused by name,
+or is an error both raise: `lite/options/*.yaml`.
+The measurements behind it (each name, level, value and error below on SQL Anywhere 17, in an IQ-like and a default
+database) are kept with the private research.
+
+**The names are IQ's own**, matched without regard to case, as IQ matches them; values are IQ's spellings (`On`,
+`Off`, an integer, `DMY`), read back as `CONNECTION_PROPERTY` and `DB_PROPERTY` spell them:
+
+- **database properties**, `DB_PROPERTY`'s names: `CaseSensitive`, `BlankPadding` (`On`/`Off`), `Collation`
+  (`ISO_BINENG`, `UTF8BIN`), `CharSet` (`ISO_8859-1:1987`, `UTF-8`), `AccentSensitive`. The oracle's IQ-like database
+  reads On / On / ISO_BINENG / ISO_8859-1:1987 / Off, its SQL Anywhere one Off / Off / UTF8BIN / UTF-8 / Off;
+- **the connection**: `CommProtocol` (`'TDS'` or `'CmdSeq'`), `CONNECTION_PROPERTY`'s name;
+- **options**: `SET OPTION`'s and `SYSOPTIONS`'s names, in lower case (`ansinull`, `date_order`, `precision`, ...).
+
+**Where it lives.** `protocol/sql/iq/IqOption` is the closed registry: each database property, the connection's
+protocol, and each Tier 1 to 3 option of the research's (and `tsql_variables`, which the island reads), with its level
+(database property, connection, PUBLIC-only option, option), tier, kind of value, default under each engine base (IQ
+16, SQL Anywhere 17: an option of SQL Anywhere's that IQ's documentation does not name is IQ's too, with SQL
+Anywhere's default; an IQ-only one is absent from SQL Anywhere 17), TDS and ODBC login values, and status (built,
+some values built, provisional with its decision, not built yet, pinned, ignored); and, by name only, the 318 Tier 4
+options (IQ's documentation's, SQL Anywhere 17's, both), which change no SELECT. `IqSettings` is the vector, with IQ's
+levels. `IqProfile` is the five presets: a base and a client (one at the database's defaults, IQ's ODBC driver, a TDS
+login). A first commit made the translator read the vector with no other change (every ledger row, answer, syntax
+verdict and the Postgres island's Pure identical).
+
+**The one entry point**, `IqSettings.resolve(preset, settings)`: each setting `(level, name, value)`, its value text (a
+tagged value's), built by IQ's precedence -- the base's defaults, the database's level, the login's overrides, the
+query's level -- with IQ's errors, as SQL Anywhere 17 raises them:
+
+- **the database's level** (`DATABASE`): a database property is the database's; any option (a PUBLIC-only one too) its
+  PUBLIC value, which the login's temporary values hide, as in IQ (measured: a TDS login's `date_order` MDY stays MDY
+  over `PUBLIC.date_order = 'DMY'`); `CommProtocol` the login (`'TDS'` a TDS login's `sp_tsql_environment` overrides,
+  `'CmdSeq'` none; `'TDS'` with `iq16-odbc` refused). A name of no setting is an error (an unknown tag);
+- **the query's level** (`QUERY`): an option is the connection's temporary value, after the login's. A database
+  property, `CommProtocol`, a name of no option, an option the base lacks (an IQ-only option under SQL Anywhere 17) and a
+  PUBLIC-only option are IQ's -203: IQ sets no such temporary option;
+- **at either level**: a value the setting does not take is IQ's -201 -- On and Off only (in any case, never 1 or
+  'yes'), YMD, MDY or DMY, an integer in its range written as digits (`'060'` is 60; `' 60 '` and `'1e1'` are -201), a
+  number with a fraction -201 under SQL Anywhere 17 and refused by name under IQ 16 (IQ is documented to cut it: the
+  research's D-Q2); an option with no effect on a SELECT (Tier 4) is accepted and ignored, its value unchecked; a
+  setting given twice at one level is refused by name.
+
+What the settings need that is not built is refused by name when the SELECT is read (`IqSettings.check`, for the
+settings it is read under):
+
+| option | values read | refused by name |
+|---|---|---|
+| `ansinull` | On, Off (both engines: Off in a CASE's condition stays three-valued in SQL Anywhere's front end, D-L1 under IQ's) | -- |
+| `quoted_identifier`, `escape_character` | On, Off (each changes how the SQL is lexed) | -- |
+| `date_order` | YMD, MDY, DMY | -- |
+| `nearest_century` | 0 to 100 | a fraction under IQ 16 (D-Q2) |
+| `date_format`, `timestamp_format`, `time_format` | any value accepted; a value is written as text in `YYYY-MM-DD` (any case) and three or six places of a second | another format where a date or a timestamp is written in it |
+| `precision`, `scale` | any PRECISION and SCALE (each construct refuses what needs more than lite's 38 digits) | a SCALE above the PRECISION |
+| `divide_by_zero_error` | On (-628); Off: NULL of the operation's type for every type, `/`, `%` and MOD, guarded where the database computes it | Off with a divisor of constants alone that is no literal (a database folds it before the guard) |
+| `ansi_substring` | On; Off: a negative start counts from the end, 0 is the first position (the last for a negative length), a negative length takes the characters ending at the start (measured over every start from -10 to 10 and length from -3 to 10) | -- |
+| `first_day_of_week` | 1 to 7: DATEPART's weekday counts from it (no other part moves, nor DATENAME, nor DOW) | a value other than 7 under IQ's engine (it documents DATE_FIRST_DAY_OF_WEEK: D-T9) |
+| `tsql_variables` | On, Off (§9.15) | -- |
+| `conversion_error`, `string_rtruncation` | On | Off (D-C1, D-C2) |
+| `min_numeric_division_scale`, `date_first_day_of_week` (IQ 16 only) | the default | another value (D-N2, D-T9) |
+
+Tier 2 options are read at their default (`row_count` 0, `return_date_time_as_string` Off, ...) and any other value is
+refused by name (`row_count`'s needs D-Q3); Tier 3 options are pinned to theirs. A setting a later level hides changes
+nothing and is no refusal.
+
+**Database properties as independent knobs.** The translator read them separately already; two reads tied to the
+base are now the charset's (`CharSet`): a name's length in bytes (IQ's -250 past 128) and where SQL Anywhere cuts an
+unaliased item's name at 255 bytes. Every combination is read, each judged on a database the oracle makes for it: on
+the IQ 16 base, CaseSensitive On or Off with ISO_BINENG or UTF8BIN (always blank-padded: BlankPadding Off is refused by
+name, as IQ creates no other); on the SQL Anywhere base, each of CaseSensitive, BlankPadding and the two collations.
+Refused by name: AccentSensitive On, a collation other than ISO_BINENG and UTF8BIN, a charset other than their two, a
+collation and a charset that disagree. `lite/options/database_properties.yaml` runs fourteen string queries
+(equality with and without trailing blanks, an ordering, LIKE, IN, an accented letter, ORDER BY, UPPER and LOWER,
+LOCATE, REPLACE, COUNT DISTINCT, a grouping key) under each of the ten combinations beyond the two bases'.
+
+**A real IQ 17.1's database.** A HANA Cloud data lake (IQ 17.1) reads back CaseSensitive On, BlankPadding On,
+Collation UTF8BIN, CharSet UTF-8 and CommProtocol CmdSeq. Given at the database's level over the IQ base, every one of
+them is read and none is refused (`IqSettingsTest.anIq17DataLakesSettingsAreExpressed`; `settings.yaml`'s
+`an_iq_17_data_lakes_database`, on the oracle's database of that combination, under both IQ presets: CmdSeq drops a TDS
+preset's login). The presets themselves stay IQ 16's and SQL Anywhere 17's in this part.
+
+**A latent wrong answer fixed.** A string compared with a column of a NUMERIC(p, s) is that NUMERIC first, rounded to s
+places, where with an integer column or an expression of any type it is a NUMERIC of the PRECISION and SCALE (measured
+at five pairs of them: against a NUMERIC(10,2) column `'0.005'` is 0.01, so `nm > '0.005'` is false for 0.01). The
+island read it at PRECISION and SCALE everywhere; such a string with more places (or more whole digits) than the column
+holds is now refused by name (no committed case compared one: every earlier run is as it was).
+
+**The harness and the oracle.** A case's `settings` key gives its settings, `database.<name>=<value>` and
+`query.<name>=<value>`, as the tagged values will. Until they reach an island, the lanes give them to
+`IqSettings.resolve` and translate the case's SQL under the result as the island's seam does (the schema's tables its
+sources), then run the translation; its answer is stamped with them (`sqlSha`'s one more part).
+`tools/iq-oracle/snap.py` runs such a case on a connection of its own: the database its properties need (made with
+`dbinit`'s `-c`, `-b` and `-z`, IQ 16's PUBLIC precision and scale on the IQ base; eleven beyond the two), the login
+`CommProtocol` gives, each other database-level option for PUBLIC and each query-level setting temporarily; then every
+option the case set is restored from the catalog's `SYSOPTIONS`. The case files may now sit in `lite/`'s subdirectories.
+
+**Moved runs.** None: every earlier run is as it was on both lanes, and every earlier answer and syntax verdict.
+
+**Evidence:** both lanes identical, 3,824 runs: PASS 2,480, REFUSED 878, BOTH_ERROR 462, SKIP 4; FAIL, BUG, ERROR 0
+(was 3,455: PASS 2,184, REFUSED 835, BOTH_ERROR 432, SKIP 4). `lite/options/` alone, 276 cases, 369 runs: PASS 296,
+REFUSED 43, BOTH_ERROR 30. The answers: 369 new; every earlier answer identical; the answers file's meta line lists the
+new databases and how settings are applied. The Postgres island's Pure is byte-identical and both `sql-parity` ledgers
+unchanged.
+
+**Not in this part.** The Pure plumbing (the platform Profile and the tagged values on a Database and a function, read
+where the island is compiled); the presets' move to IQ 17.1 (the fourth landing); and a lite-only assertion that the
+data's strings are canonical (for grouping over strings): each waits on the user's decision or on other lines' files.

@@ -43,7 +43,7 @@ bazel run //tools/iq-oracle:snap -- --check   # the same, through Bazel (it runs
 |---|---|
 | `DRIFT` | SQL Anywhere's answer now differs from the committed one. The line names the fields that differ (`rows`, `columns`, `error`, `sa_build`, `db`). `DRIFT meta` means the databases, server flags or profiles changed. |
 | `UNSNAPPED` | A case (or one of its profiles) has no committed answer. |
-| `STALE` | The committed answer's `sqlSha` no longer matches the case's SQL, its profile, its `decision` and `expect`, its `params`, or `schema.yaml`. |
+| `STALE` | The committed answer's `sqlSha` no longer matches the case's SQL, its profile, its `decision` and `expect`, its `params`, its `settings`, or `schema.yaml`. |
 | `GONE` | A committed answer has no live case: the case was deleted, renamed, or is now skipped. |
 | `CRASH` | The case took the server down twice. List it in `known_crashers.txt` or mark it `sa_defect`. |
 | `FAILED` | The tool could not snap the case, for example because the timestamp re-fetch came back with a different shape. |
@@ -58,7 +58,8 @@ A run takes about ten seconds; most of that is SQL Anywhere starting its TCP lis
 
 ## What a run does
 
-1. **Creates two databases afresh** in a temporary directory.
+1. **Creates two databases afresh** in a temporary directory (and one more for each combination of database
+   properties the cases' settings need: [Settings](#settings)).
    - `lite_iq.db`, the IQ-like store: `dbinit -c -b -z ISO_BINENG`, then `PUBLIC.precision = 126` and
      `PUBLIC.scale = 38`. This gives a case-sensitive, blank-padded database with a binary ISO-8859-1 collation and
      IQ's sizes for an unqualified NUMERIC.
@@ -81,6 +82,7 @@ A run takes about ten seconds; most of that is SQL Anywhere starting its TCP lis
    - `request_timeout` is 15 seconds.
    - Only the case's SQL runs. It must be a single `SELECT` or `WITH` (or start with a parenthesis) and must contain
      no `;` anywhere. Each case is followed by a `ROLLBACK`.
+   - A case with `settings` runs on a connection of its own instead ([Settings](#settings)).
 5. **Recovers from a crash.** When the connection is lost (SQLCODE -101, -308, -85, -100, -832 or -1068, or the
    server process exits), the tool rebuilds the server and databases and retries the case once. A second loss is
    reported as a CRASH.
@@ -100,6 +102,35 @@ kind would have after connecting:
 | `sqla17-tds` | `lite_sa` | the TDS set above |
 
 The exact values are in `PROFILES` in `snap.py` and in the `meta` line of the answers file.
+
+## Settings
+
+IQ island, 2026-10-14 (the options framework, docs/IQ_SQL_STUDY_2026_10_13.md §9.17). A case's `settings` are IQ's
+settings by IQ's own names, each given at a level, as Pure's tagged values will give them: `database.<name>=<value>` (a
+Database element's: a database property, an option's PUBLIC value, the clients' `CommProtocol`) and
+`query.<name>=<value>` (the enclosing function's: the connection's temporary value), separated by commas, a value quoted
+(`''` a quote in it) or bare. The Java harness gives them to `IqSettings.resolve` and translates the case's SQL under
+the result. This tool runs such a case on a connection of its own:
+
+1. **The database** comes from the database properties given for the database, over the profile's base:
+   `CaseSensitive`, `BlankPadding` (`On`/`Off`), `Collation` (`ISO_BINENG` or `UTF8BIN`) or `CharSet`
+   (`ISO_8859-1:1987` or `UTF-8`, which picks the other). The base's own combination is `lite_iq` or `lite_sa`; any
+   other is a database of its own, `lite_<iq|sa>_<cs|ci>_<bp|nobp>_<latin1|utf8>`, made by `dbinit` with `-c`, `-b`
+   and `-z <collation>` (with IQ 16's PUBLIC precision 126 and scale 38 on the IQ base), seeded like the others, and
+   checked for the properties it must report. The tool makes every database the live cases need, whichever cases a run
+   selects, and lists each in the answers file's `meta` line. `AccentSensitive` other than `Off` is refused: the
+   databases are binary-collated.
+2. **The login** is the profile's, or the database's `CommProtocol`'s: `'TDS'` a TDS login's options, `'CmdSeq'` none.
+3. **Every other setting**: a database-level option `SET OPTION PUBLIC.name = 'value'`, a query-level one (a database
+   property's too, which is then SQL Anywhere's error) `SET TEMPORARY OPTION name = 'value'`, after the login's. The
+   first error is the case's answer.
+4. **The case's variables**, then **its `SELECT`**. The first error is the answer.
+5. **The answer's DATE and TIMESTAMP columns** are fetched again at `YYYY-MM-DD` and six places wherever the
+   connection's own `date_format` or `timestamp_format`, read from it, shows them otherwise.
+6. **Every option the case set is restored**: the catalog's `SYSOPTIONS` (the user's and PUBLIC's values, and any
+   option a `SET OPTION PUBLIC.x` made) as it was before the case.
+
+The `sqlSha` of a case with settings has them as one more part, `settings=<text>`, after its params'.
 
 ## The files
 
@@ -150,6 +181,7 @@ tests:
 | `sa_defect` | A reason SQL Anywhere's answer is wrong or unusable here. Treated like `skip`. |
 | `decision` | `D-xx`: the case is judged by that provisional decision rather than by SQL Anywhere. The oracle still snaps SQL Anywhere's answer as evidence. |
 | `expect` | With `decision`: the decided rows as one line of JSON, a list of rows of text cells or null, e.g. `[["1"], [null]]`. |
+| `settings` | IQ island, 2026-10-14: IQ's settings by IQ's names, one line of `database.<name>=<value>, query.<name>=<value>, ...`; see [Settings](#settings). |
 | `params` | The values of the case's host variables (`@name`, `:name`), one line: `name = value; ...`, each value an integer (`5`), a float (`1.5`), a decimal (`0.50D`), a `'string'` (no quote or backslash inside), a date (`%2026-03-04`), a timestamp (`%2026-03-04T05:06:07.123456`), or a NULL of a type (`null:Integer`, `null:Float`, `null:String`, `null:StrictDate`, `null:DateTime`, `null:Decimal(38,2)`), as Pure writes them; names distinct without case. The Java harness lets each before the island (the variables the island reads; a NULL is an empty value, `[]->cast(@Integer)`). This tool makes each a real SQL Anywhere variable on the case's connection before it runs (`CREATE VARIABLE @name` of `BIGINT`, `DOUBLE`, `NUMERIC(38,s)`, `LONG VARCHAR`, `DATE` or `TIMESTAMP`, then `SET @name =` the value, a NULL left unset) and drops it after; the case's SQL runs as written but for `:name`, written `@name` (SQL Anywhere reads `:name` in dynamic SQL only as a placeholder a client binds: -188 with none). Under a TDS profile (`tsql_variables` On, where `@name` too is such a placeholder) the case runs with `tsql_variables` Off. IQ island, 2026-10-14 (review 6's m1 and M1): a column or an alias of a variable's name is read before the variable, never before a placeholder, so a case whose SQL names one spelled like a param (`"@lo"`, `[@lo]`) is rejected where it writes `:lo`, or where it runs under a TDS profile; rewrite it, or skip it (`skip:`). A value its type cannot hold is the case's answer: SQL Anywhere's error. IQ island, 2026-10-14 (review 5's M5): the tool wrote each value into the SQL as a constant before, which SQL Anywhere reads otherwise in measured places (`x = @v` two-valued under ansinull Off, a name matched without case, a select-list alias before a variable, `TOP @n`). The answers file's `meta` line says so. |
 
 Any other key is an error, so a misspelt key fails loudly.
@@ -177,7 +209,7 @@ or, when SQL Anywhere refuses the statement:
 **`sqlSha`** is `sha256(utf8(sql) || 0x00 || utf8(profile) || 0x00 || utf8(decision) || 0x00 || utf8(expect) || 0x00 ||
 bytes of schema.yaml)`, in lowercase hex (format 2; `decision` and `expect` are empty for a case SQL Anywhere judges;
 a case with `params` has them as one more part, `utf8(params) || 0x00`, after `expect`'s, so editing them makes its
-answer STALE too).
+answer STALE too; a case with `settings` one more, `utf8("settings=" settings) || 0x00`, after those).
 `sql`, `decision` and `expect` are the YAML scalars after unquoting. So editing a decided case's rows makes its answer
 STALE, as editing its SQL does.
 

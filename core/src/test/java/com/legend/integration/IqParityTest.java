@@ -80,7 +80,7 @@ class IqParityTest {
                 if (order != null) {
                     problems.add(order);
                 }
-                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), names,
+                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), tables, names,
                         island -> service.execute(model, island, IqParity.RUNTIME, duckdb)));
             }
         }
@@ -183,6 +183,39 @@ class IqParityTest {
 
     private static String text(com.legend.json.Json.Obj o, String key, String otherwise) {
         return o.getOr(key, null) instanceof com.legend.json.Json.Str s ? s.value() : otherwise;
+    }
+
+    /** IQ island, 2026-10-14 (the options framework): a case's settings are given to IqSettings.resolve (no island
+     *  header: the lanes translate such a case's SQL under them), and are part of what its answer is snapped for. */
+    @Test
+    void aCasesSettingsAreResolvedAndStampItsAnswer() {
+        byte[] schema = "tables:\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        IqParity.Case c = new IqParity.Case("lite/x.yaml", "a", "SELECT CAST('01/02/03' AS DATE) AS d",
+                List.of("iq16-default", "sqla17-tds"), null, null, null, null, null,
+                "database.CaseSensitive=Off, query.date_order='DMY'");
+        List<IqParity.Run> runs = IqParity.runs(List.of(c));
+        assertEquals("#IQ{SELECT CAST('01/02/03' AS DATE) AS d}#", IqParity.island(runs.get(0), Set.of()));
+        assertFalse(runs.get(0).settings().caseSensitive());
+        assertEquals("DMY", runs.get(1).settings().dateOrder());
+        String query = IqParity.query(runs.get(0), List.of(), Set.of());
+        assertTrue(query.contains("2003-02-01"), query);
+        assertEquals(2, IqParity.settings("database.precision = 40 , query.date_format='DD''MM'").size());
+        assertEquals("DD'MM", IqParity.settings("query.date_format='DD''MM'").get(0).value());
+        assertThrows(IllegalStateException.class, () -> IqParity.settings("date_order=DMY"));
+        assertThrows(IllegalStateException.class, () -> IqParity.settings("session.date_order=DMY"));
+        Map<String, IqAnswers.Snap> answers = new LinkedHashMap<>();
+        answers.put("lite/x/a@iq16-default", new IqAnswers.Snap("lite/x/a", "iq16-default",
+                IqAnswers.sqlSha(c.sql(), "iq16-default", null, null, null, "query.date_order='MDY'", schema),
+                List.of(), List.of(), List.of(), null));
+        answers.put("lite/x/a@sqla17-tds", new IqAnswers.Snap("lite/x/a", "sqla17-tds",
+                IqAnswers.sqlSha(c.sql(), "sqla17-tds", null, null, null, c.settings(), schema), List.of(),
+                List.of(), List.of(), null));
+        List<String> problems = IqAnswers.guards(runs, answers, schema);
+        assertEquals(1, problems.size(), String.join("\n", problems));
+        assertTrue(problems.get(0).startsWith("STALE: lite/x/a@iq16-default"), problems.get(0));
+        // a case without settings keeps its stamp
+        assertEquals(IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, schema),
+                IqAnswers.sqlSha("SELECT 1", "iq16-default", null, null, null, null, schema));
     }
 
     @Test

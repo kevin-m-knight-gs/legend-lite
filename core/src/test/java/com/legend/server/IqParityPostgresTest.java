@@ -60,7 +60,7 @@ class IqParityPostgresTest {
                 if (mismatch != null) {
                     problems.add(mismatch);
                 }
-                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), names,
+                outcomes.put(r.key(), IqParity.outcome(r, answers.get(r.key()), tables, names,
                         island -> service.execute(model, island, IqParity.RUNTIME, admin)));
             }
             String update = System.getProperty("iq.parity.update");

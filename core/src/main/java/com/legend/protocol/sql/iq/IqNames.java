@@ -175,7 +175,7 @@ final class IqNames {
             return null;
         }
         if (name.length() > LONGEST) {
-            for (int i = 0; i < LONGEST && !settings.iqDatabase(); i++) {
+            for (int i = 0; i < LONGEST && !settings.latin1(); i++) {
                 if (name.charAt(i) > 0x7F) {
                     // a UTF-8 database cuts at 255 bytes, maybe inside a character
                     return null;

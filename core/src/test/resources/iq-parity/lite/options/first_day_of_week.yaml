@@ -1,0 +1,39 @@
+# first_day_of_week, every value (docs/IQ_SQL_STUDY_2026_10_13.md §9.17; IQ island, 2026-10-14, the options framework):
+# the day DATEPART's weekday counts from, 1 (Monday) to 7 (Sunday); no other part moves, nor DATENAME's weekday, nor DOW
+# (measured on SQL Anywhere 17). Under IQ's engine, which documents DATE_FIRST_DAY_OF_WEEK for it (the research's D-T9),
+# a value other than 7 is refused by name. Given for the query (settings). Judged by SQL
+# Anywhere 17's answers. 2026-10-11 is a Sunday. The SQL in YAML double quotes.
+tests:
+  - id: monday_first
+    sql: "SELECT DATEPART(dw, '2026-10-11') AS su, DATEPART(dw, '2026-10-12') AS mo, DATEPART(dw, '2026-10-17') AS sa, DOW('2026-10-11') AS dow, DATENAME(dw, '2026-10-11') AS n, DATEPART(wk, '2026-10-11') AS wk"
+    settings: "query.first_day_of_week=1"
+    profile: iq16-default, sqla17-default
+  - id: tuesday_first
+    sql: "SELECT DATEPART(dw, '2026-10-11') AS su, DATEPART(dw, '2026-10-13') AS tu, DATEPART(dw, '2026-10-12') AS mo"
+    settings: "query.first_day_of_week=2"
+    profile: iq16-default, sqla17-default
+  - id: wednesday_first
+    sql: "SELECT DATEPART(dw, '2026-10-14') AS we, DATEPART(dw, '2026-10-13') AS tu"
+    settings: "query.first_day_of_week=3"
+  - id: thursday_first
+    sql: "SELECT DATEPART(dw, '2026-10-15') AS th, DATEPART(dw, '2026-10-14') AS we"
+    settings: "query.first_day_of_week=4"
+  - id: friday_first
+    sql: "SELECT DATEPART(dw, '2026-10-16') AS fr, DATEPART(dw, '2026-10-15') AS th"
+    settings: "query.first_day_of_week=5"
+    profile: sqla17-default
+  - id: saturday_first
+    sql: "SELECT DATEPART(dw, '2026-10-17') AS sa, DATEPART(dw, '2026-10-11') AS su"
+    settings: "query.first_day_of_week=6"
+    profile: iq16-default, sqla17-default
+  - id: sunday_first
+    sql: "SELECT DATEPART(dw, '2026-10-11') AS su, DATEPART(dw, '2026-10-17') AS sa"
+    settings: "query.first_day_of_week=7"
+    profile: iq16-default, sqla17-default
+  - id: over_a_column_in_the_front_end
+    sql: "SELECT id, DATEPART(dw, dt) AS w FROM t ORDER BY id"
+    settings: "query.first_day_of_week=1"
+    profile: sqla17-default, sqla17-tds
+  - id: over_a_column_under_iqs_engine_is_refused
+    sql: "SELECT id, DATEPART(dw, dt) AS w FROM t ORDER BY id"
+    settings: "query.first_day_of_week=1"

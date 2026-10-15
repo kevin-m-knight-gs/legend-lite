@@ -739,8 +739,9 @@ junit_test(
 # iq-parity/lite, each run under each of its profiles as an #IQ{...}# island, judged against SQL Anywhere 17's answers
 # snapped by tools/iq-oracle (CI never runs SQL Anywhere) or the case's provisional decision, each run's status held
 # by iq-parity/ledger.tsv (testcases/IqParity.java). On DuckDB here; on the embedded Postgres below (no drift step:
-# the oracle is SQL Anywhere).
-_IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/*.yaml"]) + [
+# the oracle is SQL Anywhere). IQ island, 2026-10-14 (the options framework): the case files of lite's subdirectories
+# too (lite/options/<option>.yaml).
+_IQ_PARITY_DATA = glob(["src/test/resources/iq-parity/lite/**/*.yaml"]) + [
     "src/test/resources/iq-parity/iq-answers.jsonl",
     "src/test/resources/iq-parity/ledger.tsv",
     "src/test/resources/iq-parity/schema.yaml",
