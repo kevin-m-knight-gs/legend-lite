@@ -366,7 +366,9 @@ tests:
   - id: date_string
     sql: "SELECT id, STRING(dt, '|') AS s FROM t ORDER BY id"
     profile: iq16-default, iq16-odbc
-  - id: timestamp_length
+  # IQ island, 2026-10-15 (checklist 1.10, D-S7, measured on IQ 17.1): IQ's engine answers a timestamp's storage
+  # length, which varies with the value (6, 3, 7), refused, so renamed from timestamp_length
+  - id: timestamp_length_is_refused
     sql: "SELECT id, LENGTH(ts) AS n FROM t ORDER BY id"
     profile: iq16-default, iq16-odbc
   - id: timestamp_left

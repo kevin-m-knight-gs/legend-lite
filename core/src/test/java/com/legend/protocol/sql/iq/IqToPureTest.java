@@ -422,8 +422,10 @@ class IqToPureTest {
         assertTrue(nullif.contains("> 32767"), nullif);
         SqlTranslationException arity = numbersRefusal("SELECT ISNULL(sm) AS n FROM " + T);
         assertEquals(SqlTranslationException.Kind.INVALID, arity.kind());
-        // IQ island, 2026-10-14 (natives): UPPER is read now (an integer as its digits); POWER still waits
-        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, numbersRefusal("SELECT power(i, 2) AS n FROM " + T)
+        // IQ island, 2026-10-14 (natives): UPPER is read now (an integer as its digits); IQ island, 2026-10-15
+        // (checklist 1.10): POWER under IQ's engine (its NULLs decided before the power), in SQL Anywhere's still refused
+        assertTrue(numbers("SELECT power(i, 2) AS n FROM " + T).contains("pow("));
+        assertEquals(SqlTranslationException.Kind.UNSUPPORTED, saNumbersRefusal("SELECT power(i, 2) AS n FROM " + T)
                 .kind());
     }
 

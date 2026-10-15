@@ -41,7 +41,7 @@ Status words:
 |---|---|---|
 | 1.8 | CTEs and derived tables: scoping; a scalar subquery of more than one row raises | done. WITH RECURSIVE is out: IQ's engine rejects it over IQ tables (-706), and only its front end runs it. |
 | 1.9 | IN lists: NOT IN and NULL, long lists | done (20,000 values). A column in the list is IQ's -1001030, refused. |
-| 1.10 | String functions: LIKE (case, ESCAPE, blanks), SUBSTRING with a start of 0 or a negative start, LEN/LENGTH and blanks, CHARINDEX/LOCATE, `+` versus `\|\|`, TRIM, UPPER/LOWER | partial. Open, the long tail IQ users write: REVERSE, REGEXP_SUBSTR, INSERTSTR, BYTE_LENGTH, SOUNDEX, DIFFERENCE, GREATER/LESSER, ARGN, NUMBER(*); POWER under IQ's engine; LENGTH of a non-string, IQ's storage width (4 allowlisted). |
+| 1.10 | String functions: LIKE (case, ESCAPE, blanks), SUBSTRING with a start of 0 or a negative start, LEN/LENGTH and blanks, CHARINDEX/LOCATE, `+` versus `\|\|`, TRIM, UPPER/LOWER | partial. Done (2026-10-15, measured on IQ 17.1): REVERSE, INSERTSTR, BYTE_LENGTH (UTF-8 bytes), GREATER/LESSER and ARGN (typed as CASE; the second of equals), POWER under IQ's engine (NULL where it has no DOUBLE); LENGTH and BYTE_LENGTH of an integer column, its storage width (D-S7). Refused by name: LENGTH of a date or a timestamp (a storage length varying with the value), SOUNDEX and DIFFERENCE (SQL Anywhere's own numeric code). Open: NUMBER(*), REGEXP_SUBSTR. |
 | 1.11 | Window functions: ranking ties, the default RANGE frame, LAG/LEAD defaults, NTILE | done |
 | 1.12 | UNION / UNION ALL: type and length unification, deduplication by the collation | done |
 | 1.13 | OR, NOT, `<>`, ranges, BETWEEN with reversed bounds | done |

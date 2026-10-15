@@ -27,8 +27,12 @@ tests:
   - id: length_of_a_char_in_sql_anywhere
     sql: "SELECT id, LENGTH(ch) AS n FROM t ORDER BY id"
     profile: sqla17-default
+  # IQ island, 2026-10-15 (checklist 1.10, D-S7, measured on IQ 17.1): under IQ's engine an integer column's LENGTH is
+  # its storage width, where SQL Anywhere's front end counts its digits
   - id: length_of_integers
     sql: "SELECT id, LENGTH(sm) AS a, CHAR_LENGTH(it) AS b, LEN(bg) AS c, LENGTH(bt) AS d FROM t ORDER BY id"
+    decision: D-S7
+    expect: '[["1","2","4","8","1"],["2","2","4","8","1"],["3","2","4","8","1"],["4","2","4","8","1"],["5",null,null,null,null],["6","2","4","8","1"],["7","2","4","8","1"]]'
   - id: length_of_repeats_and_spaces
     sql: "SELECT id, LENGTH(REPEAT('ab', id)) AS n, LENGTH(SPACE(sm)) AS s FROM t WHERE id <> 1 ORDER BY id"
   - id: length_in_where
@@ -37,8 +41,9 @@ tests:
     sql: "SELECT LENGTH(nm) AS n FROM t WHERE id = 1"
   - id: length_of_a_double_is_refused
     sql: "SELECT LENGTH(dbl) AS n FROM t WHERE id = 1"
-  # IQ island, 2026-10-14 (M1e): answered now (IqDateTime), so renamed from length_of_a_date_is_refused
-  - id: length_of_a_date
+  # IQ island, 2026-10-14 (M1e): answered (IqDateTime); IQ island, 2026-10-15 (checklist 1.10, D-S7, measured on IQ
+  # 17.1): IQ's engine answers a date's storage length (3 here), refused again, so renamed from length_of_a_date
+  - id: length_of_a_date_is_refused
     sql: "SELECT LENGTH(dt) AS n FROM t WHERE id = 1"
   - id: length_of_two_arguments
     sql: "SELECT LENGTH('a', 'b') AS n"

@@ -122,3 +122,64 @@ tests:
   - id: concatenation_with_null_values
     sql: "SELECT id, vc + ch AS a, vc || ch || vc AS b FROM t ORDER BY id"
     profile: iq17-default
+
+  # ---- IQ island, 2026-10-15 (checklist 1.10, measured on IQ 17.1): POWER under IQ's engine (a DOUBLE; NULL where it
+  # has none: a negative base to a fraction, 0 to a negative power, an overflow, an underflow to 0), GREATER, LESSER and
+  # ARGN (as CASE types them; the second of two equal values), REVERSE, INSERTSTR, BYTE_LENGTH (UTF-8 bytes)
+  - id: power_of_columns
+    sql: "SELECT id, POWER(sm, 2) AS a, POWER(2, id) AS b, POWER(nm, 2) AS c, POWER(dbl, 0.5) AS d FROM t WHERE id <> 6 ORDER BY id"
+    profile: iq17-default
+  - id: power_where_iq_has_no_double
+    sql: "SELECT id, POWER(sm, -1) AS a, POWER(dbl, 2) AS b, POWER(dbl * 0 + 10e0, -400) AS c, POWER(dbl * 0 + 10e0, 308.25) AS d, POWER(dbl * 0 + 2e0, -1074) AS e, POWER(sm * 0, -1) AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: power_of_zero_and_negatives
+    sql: "SELECT id, POWER(sm * 0, 0) AS a, POWER(sm * 0, 2) AS b, POWER(-2, 3) AS c, POWER(-8, 1.0) AS d, POWER(-8, 0.5) AS e FROM t WHERE id IN (3, 5) ORDER BY id"
+    profile: iq17-default
+  - id: power_of_a_string_is_refused
+    sql: "SELECT POWER('2', 3) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: greater_and_lesser
+    sql: "SELECT id, GREATER(sm, it) AS a, LESSER(sm, it) AS b, GREATER(nm, sm) AS c, LESSER(dt, CAST(ts AS DATE)) AS e, GREATER(sm, bg) AS f, GREATER(it, nm) AS g FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_and_lesser_of_strings
+    sql: "SELECT id, GREATER(vc, 'hello') AS a, LESSER(vc, 'hello') AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: greater_and_lesser_take_the_second_of_equals
+    sql: "SELECT id, GREATER(vc, 'x') || '|' AS a, LESSER(vc, 'x') || '|' AS b, GREATER('x', vc) || '|' AS c FROM t WHERE id = 6"
+    profile: iq17-default
+  - id: greater_and_lesser_with_a_null
+    sql: "SELECT id, GREATER(sm, NULL) AS a, LESSER(NULL, it) AS b FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: greater_of_a_string_and_a_number_is_refused
+    sql: "SELECT GREATER(vc, it) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: argn_of_columns
+    sql: "SELECT id, ARGN(2, sm, it, bg) AS a, ARGN(id, 'a', 'b', 'c') AS b, ARGN(2, sm, nm) AS c, ARGN(1, sm, dbl) AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: argn_past_its_values
+    sql: "SELECT id, ARGN(CAST(NULL AS INT), 'a', 'b') AS a, ARGN(0, 'a', 'b') AS b, ARGN(-1, 'a', 'b') AS c FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: argn_of_a_string_and_a_number_is_refused
+    sql: "SELECT ARGN(2, sm, 'x') AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: reverse
+    sql: "SELECT id, REVERSE(vc) AS a, REVERSE(ch) || '|' AS b FROM t ORDER BY id"
+    profile: iq17-default
+  - id: reverse_of_a_number_is_iqs_error
+    sql: "SELECT REVERSE(it) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: insertstr
+    sql: "SELECT id, INSERTSTR(2, vc, 'XY') AS a, INSERTSTR(0, vc, 'XY') AS b, INSERTSTR(10, vc, 'XY') AS c, INSERTSTR(-1, vc, 'XY') AS d, INSERTSTR(sm, vc, 'Z') AS e, INSERTSTR(it, vc, 'Z') AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: insertstr_bounds_and_kinds
+    sql: "SELECT id, INSERTSTR(32767, vc, 'Z') AS a, INSERTSTR(32768, vc, 'Z') AS b, INSERTSTR(-32768, vc, 'Z') AS c, INSERTSTR(2, vc, NULL) AS d, INSERTSTR(1, it, 'Z') AS e, INSERTSTR(3, ch, '|') AS f FROM t ORDER BY id"
+    profile: iq17-default
+  - id: byte_length
+    sql: "SELECT id, BYTE_LENGTH(vc) AS a, BYTE_LENGTH(ch) AS b, BYTE_LENGTH('') AS c, BYTE_LENGTH(vc || 'é') AS d FROM t ORDER BY id"
+    profile: iq17-default
+  - id: byte_length_of_integer_columns
+    sql: "SELECT id, BYTE_LENGTH(it) AS a, BYTE_LENGTH(sm) AS b, BYTE_LENGTH(bg) AS c FROM t ORDER BY id"
+    profile: iq17-default
+  - id: byte_length_of_a_date_is_refused
+    sql: "SELECT BYTE_LENGTH(dt) AS a FROM t WHERE id = 1"
+    profile: iq17-default

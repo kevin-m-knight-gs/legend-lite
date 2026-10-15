@@ -24,6 +24,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -99,7 +100,8 @@ final class IqFunctions {
         MINUTE(1, 1), SECOND(1, 1), QUARTER(1, 1), DOW(1, 1), DATE(1, 1), DATEPART(2, 2), DATENAME(2, 2),
         DATEADD(3, 3), DATEDIFF(3, 3), ISNUMERIC(1, 1), YEARS(1, 2), MONTHS(1, 2), WEEKS(1, 2), DAYS(1, 2),
         HOURS(1, 2), MINUTES(1, 2), SECONDS(1, 2), CONVERT_STYLE(3, 3, IqParser.CONVERT_STYLE), STR(1, 3),
-        EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3);
+        EXTRACT(2, 2, IqParser.EXTRACT), DATEFORMAT(2, 2), DAYNAME(1, 1), MONTHNAME(1, 1), DATETIME(1, 1), YMD(3, 3),
+        GREATER(2, 2), LESSER(2, 2), ARGN(2, Integer.MAX_VALUE), REVERSE(1, 1), INSERTSTR(3, 3), BYTE_LENGTH(1, 1);
 
         final int min;
         final int max;
@@ -330,10 +332,19 @@ final class IqFunctions {
             case ROUND, TRUNCNUM -> roundTruncate(fn == Fn.ROUND, name, f, args);
             case MOD, REMAINDER -> mod(name, f, at);
             case SQRT, EXP, LN, LOG, LOG10 -> mathematical(fn, name, f, args);
-            case POWER -> throw SqlTranslationException.unsupported("POWER(...) is not supported yet: SQL Anywhere"
-                    + " answers +Infinity (an overflow, a zero to a negative power) or NULL (a negative base to a"
-                    + " fraction) where lite's databases raise or answer NaN, which needs a native for its domain",
-                    f.pos());
+            case POWER -> {
+                if (engine == IqDialect.Engine.IQ) {
+                    yield iqPower(name, f, args);
+                }
+                throw SqlTranslationException.unsupported("POWER(...) is not supported yet in SQL Anywhere's front end:"
+                        + " it answers +Infinity (an overflow, a zero to a negative power) or NULL (a negative base to"
+                        + " a fraction) where lite's databases raise or answer NaN", f.pos());
+            }
+            case GREATER, LESSER -> greaterLesser(fn == Fn.GREATER, f, at);
+            case ARGN -> argn(f, at);
+            case REVERSE -> reverse(name, f, args);
+            case INSERTSTR -> insertstr(name, f, args);
+            case BYTE_LENGTH -> byteLength(name, f, args);
             case PI -> Tx.value(SqlToPure.call("pi"), Kind.FLOAT, false, new IqType("DOUBLE"));
             case GETDATE, NOW, CURRENT_TIMESTAMP -> Tx.value(SqlToPure.call("now"), Kind.DATETIME, false,
                     new IqType("TIMESTAMP"));
@@ -366,7 +377,8 @@ final class IqFunctions {
      */
     private static void iqEngineArguments(Fn fn, String name, SqlAst.FunctionCall f, List<Tx> args) {
         boolean stringsOnly = switch (fn) {
-            case LEFT, RIGHT, SUBSTRING, SUBSTR, UPPER, LOWER, UCASE, LCASE, TRIM, LTRIM, RTRIM, REPLACE, STUFF -> true;
+            case LEFT, RIGHT, SUBSTRING, SUBSTR, UPPER, LOWER, UCASE, LCASE, TRIM, LTRIM, RTRIM, REPLACE, STUFF,
+                 REVERSE -> true;
             default -> false;
         };
         if (stringsOnly && !args.isEmpty() && args.get(0).kind() != Kind.STRING && args.get(0).kind() != Kind.NULL) {
@@ -1059,11 +1071,44 @@ final class IqFunctions {
     // ------------------------------------------------------------------ strings
 
     /** {@code LENGTH(s)}, {@code CHAR_LENGTH(s)}, {@code LEN(s)}: its characters, trailing blanks counted (LEN is
-     *  LENGTH in IQ: the research's D-S6), an INTEGER; an integer's digits (and sign). */
+     *  LENGTH in IQ: the research's D-S6), an INTEGER; an integer's digits (and sign) in SQL Anywhere's front end, its
+     *  storage width under IQ's engine ({@link #iqStorageWidth}). */
     private Tx length(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx width = engine == IqDialect.Engine.IQ ? iqStorageWidth(name, f, args.get(0)) : null;
+        if (width != null) {
+            return width;
+        }
         Tx s = text(args.get(0), f.args().get(0), name);
         return strict(Kind.INTEGER, nonNegative(), List.of(s), v -> SqlToPure.call("length", v.get(0)));
     }
+
+    /**
+     * IQ's engine's {@code LENGTH} and {@code BYTE_LENGTH} of a value that is no string (IQ island, 2026-10-15,
+     * checklist 1.10, D-S7, measured on IQ 17.1): of an integer column its storage width -- a BIT's 1, a SMALLINT's 2,
+     * an INTEGER's 4, a BIGINT's 8 -- where SQL Anywhere's front end counts its digits; null for a string or a NULL.
+     * Refused by name: any other such value (a date's and a timestamp's are a storage length that varies with the
+     * value: LENGTH of 2026-03-04 05:06:07.123456 is 6, of 1999-12-31 23:59:59.999999 3), an integer that is no column.
+     */
+    private @com.legend.base.Nullable Tx iqStorageWidth(String name, SqlAst.FunctionCall f, Tx x) {
+        if (x.kind() == Kind.STRING || x.kind() == Kind.NULL) {
+            return null;
+        }
+        SqlAst.Expr e = f.args().get(0);
+        Integer width = x.kind() == Kind.INTEGER && e instanceof SqlAst.ColumnRef && x.detail() instanceof IqType t
+                ? STORAGE_WIDTHS.get(t.family()) : null;
+        if (width == null) {
+            throw SqlTranslationException.unsupported(name + " of " + kindName(x.kind()) + (x.kind() == Kind.INTEGER
+                    ? " that is no column" : "") + " is not supported under IQ's engine yet: it answers the value's"
+                    + " storage length (an INTEGER column's 4, a timestamp's varying with the value)", e.pos());
+        }
+        BigInteger w = BigInteger.valueOf(width);
+        long bytes = width;
+        return strict(Kind.INTEGER, IqType.integer("INTEGER", w, w, false), List.of(x), v -> integer(bytes));
+    }
+
+    /** The integer types' storage widths, in bytes ({@link #iqStorageWidth}). */
+    private static final Map<String, Integer> STORAGE_WIDTHS = Map.of("BIT", 1, "SMALLINT", 2, "INTEGER", 4, "BIGINT",
+            8);
 
     /**
      * {@code SUBSTRING(s, start [, length])} (and {@code SUBSTR}) under ANSI_SUBSTRING On (every profile's): the
@@ -2212,6 +2257,140 @@ final class IqFunctions {
             };
         });
         return Tx.value(r.vs(), Kind.FLOAT, true, r.detail());
+    }
+
+    /** The largest DOUBLE: a value past it is an overflow ({@link #iqPower}). */
+    private static final double LARGEST = Double.MAX_VALUE;
+
+    /**
+     * {@code POWER(x, y)} under IQ's engine (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): x to the power
+     * y, both as DOUBLEs, a DOUBLE; NULL where it has no DOUBLE -- a negative x to a power that is no integer, 0 to a
+     * negative power, a value past the largest DOUBLE, one that underflows to 0 (a subnormal is kept: 2^-1074 is
+     * 4.9e-324). 0 to the power 0 is 1. Each NULL is decided before the power is computed, by y times the logarithm
+     * of |x| against the logarithms of the largest DOUBLE and of the smallest subnormal's half (Postgres raises an
+     * overflow or an underflow where IQ answers NULL), and checked after (DuckDB answers Infinity and 0 there), so
+     * that the tiny band where the logarithms' rounding decides is the database's error or IQ's NULL, never a value.
+     * A string is IQ's -1009145 (refused); in SQL Anywhere's front end POWER stays refused.
+     */
+    private Tx iqPower(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx x = asDouble(args.get(0), f.args().get(0), name);
+        Tx y = asDouble(args.get(1), f.args().get(1), name);
+        Tx r = strict(Kind.FLOAT, new IqType("DOUBLE"), List.of(x, y), v -> {
+            ValueSpecification b = v.get(0);
+            ValueSpecification e = v.get(1);
+            ValueSpecification none = SqlToPure.empty();
+            ValueSpecification zero = new CFloat(0.0);
+            ValueSpecification fraction = SqlToPure.call("and", lt(SqlToPure.call("abs", e), new CFloat(WHOLE)),
+                    SqlToPure.call("not", SqlToPure.call("equal", e, SqlToPure.call("toFloat", SqlToPure.call("floor",
+                            e)))));
+            ValueSpecification logarithm = times(e, SqlToPure.call("log", SqlToPure.call("abs", b)));
+            ValueSpecification power = SqlToPure.call("toFloat", SqlToPure.call("pow", b, e));
+            ValueSpecification checked = ifThen(SqlToPure.call("or", SqlToPure.call("greaterThan", SqlToPure.call("abs",
+                    power), new CFloat(LARGEST)), SqlToPure.call("equal", power, zero)), none, power);
+            return ifThen(SqlToPure.call("equal", b, zero), ifThen(lt(e, zero), none, ifThen(SqlToPure.call("equal", e,
+                    zero), new CFloat(1.0), zero)), ifThen(SqlToPure.call("and", lt(b, zero), fraction), none,
+                    ifThen(SqlToPure.call("or", SqlToPure.call("greaterThan", logarithm, new CFloat(EXP_LARGEST
+                            + 1e-9)), lt(logarithm, new CFloat(EXP_ZERO - 1e-9))), none, checked)));
+        });
+        return Tx.value(r.vs(), Kind.FLOAT, true, r.detail());
+    }
+
+    /**
+     * {@code GREATER(a, b)} and {@code LESSER(a, b)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): the
+     * greater (lesser) of the two, the second where neither is (two strings equal by the collation: 'x  ' and 'x'),
+     * NULL where either is; of the type CASE unifies the two to (an INTEGER and a NUMERIC(10,2) a NUMERIC(12,2), a DATE
+     * and a TIMESTAMP a TIMESTAMP). Read as that CASE: {@code CASE WHEN a IS NULL OR b IS NULL THEN NULL WHEN a > b
+     * THEN a ELSE b END}, so a string beside a number is refused as CASE refuses it (IQ converts it, or raises).
+     */
+    private Tx greaterLesser(boolean greater, SqlAst.FunctionCall f, SqlToPure.At at) {
+        SqlAst.Expr a = f.args().get(0);
+        SqlAst.Expr b = f.args().get(1);
+        SqlAst.Pos pos = f.pos();
+        SqlAst.Expr eitherNull = new SqlAst.Binary(SqlAst.BinaryOp.OR, new SqlAst.IsNull(a, false, pos),
+                new SqlAst.IsNull(b, false, pos), pos);
+        SqlAst.Expr first = new SqlAst.Binary(greater ? SqlAst.BinaryOp.GT : SqlAst.BinaryOp.LT, a, b, pos);
+        return at.tx(new SqlAst.Case(null, List.of(new SqlAst.When(eitherNull, new SqlAst.NullLit(pos)),
+                new SqlAst.When(first, a)), b, pos));
+    }
+
+    /**
+     * {@code ARGN(n, a1, ..., ak)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): the n-th of the values
+     * after n, NULL for an n that is NULL, below 1 or past k; of the type CASE unifies them to (a SMALLINT and a
+     * NUMERIC a NUMERIC, an INTEGER and a DOUBLE a DOUBLE; a string beside a number IQ's -1001020, refused as CASE
+     * refuses it). Read as {@code CASE WHEN n = 1 THEN a1 ... WHEN n = k THEN ak END}.
+     */
+    private Tx argn(SqlAst.FunctionCall f, SqlToPure.At at) {
+        SqlAst.Expr n = f.args().get(0);
+        List<SqlAst.When> whens = new ArrayList<>();
+        for (int i = 1; i < f.args().size(); i++) {
+            whens.add(new SqlAst.When(new SqlAst.Binary(SqlAst.BinaryOp.EQ, n, new SqlAst.IntegerLit(BigInteger.valueOf(
+                    i), f.pos()), f.pos()), f.args().get(i)));
+        }
+        return at.tx(new SqlAst.Case(null, whens, null, f.pos()));
+    }
+
+    /** {@code REVERSE(s)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): its characters in reverse, a
+     *  CHAR(n) with its blanks (D-S1); under IQ's engine a value that is no string is its -1009145 (refused before),
+     *  in SQL Anywhere's front end an integer is its digits. */
+    private Tx reverse(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx s = text(args.get(0), f.args().get(0), name);
+        if (s.kind() == Kind.NULL) {
+            return nullString();
+        }
+        return strict(Kind.STRING, s.detail() instanceof IqType t && t.family().equals("VARCHAR") ? t : varchar(),
+                List.of(s), v -> SqlToPure.call("reverseString", v.get(0)));
+    }
+
+    /**
+     * {@code INSERTSTR(p, s, x)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): x inserted into s after
+     * its p-th character -- at the start for 0, at the end for a negative p or one past s's end; NULL where any argument
+     * is or |p| is past 32767. An integer s is its digits.
+     */
+    private Tx insertstr(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx p = count(args.get(0), f.args().get(0), name);
+        Tx s = text(args.get(1), f.args().get(1), name);
+        Tx x = text(args.get(2), f.args().get(2), name);
+        if (p.kind() == Kind.NULL || s.kind() == Kind.NULL || x.kind() == Kind.NULL) {
+            return nullString();
+        }
+        // no arithmetic on the position, a SMALLINT or an INTEGER (DuckDB adds 1 to a SMALLINT in 16 bits, Postgres's
+        // left takes no BIGINT): at the end where it is negative or past the characters, else around the rest's
+        Tx r = strict(Kind.STRING, varchar(), List.of(p, s, x), v -> {
+            ValueSpecification at = v.get(0);
+            ValueSpecification str = v.get(1);
+            ValueSpecification ins = v.get(2);
+            ValueSpecification length = SqlToPure.call("length", str);
+            ValueSpecification inside = AppliedFunction.infixRun("plus", List.of(SqlToPure.call("left", str, at), ins,
+                    SqlToPure.call("right", str, AppliedFunction.infixRun("minus", List.of(length, at)))));
+            return ifThen(SqlToPure.call("or", SqlToPure.call("greaterThan", at, integer(32767)), lt(at, integer(-32767))),
+                    SqlToPure.empty(), ifThen(SqlToPure.call("or", lt(at, integer(0)), SqlToPure.call(
+                            "greaterThanEqual", at, length)), AppliedFunction.infixRun("plus", List.of(str, ins)),
+                            inside));
+        });
+        return Tx.value(r.vs(), Kind.STRING, true, r.detail());
+    }
+
+    /** {@code BYTE_LENGTH(s)} (IQ island, 2026-10-15, checklist 1.10, measured on IQ 17.1): s's length in bytes -- in a
+     *  UTF-8 database each character's ({@link #utf8Units}), in ISO-8859-1 its characters --, an INTEGER; an integer
+     *  column's storage width under IQ's engine ({@link #iqStorageWidth}). Refused by name: any other value that is no
+     *  string (IQ answers its storage width: a NUMERIC(10,2)'s 8, a DATE's 4). */
+    private Tx byteLength(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx s = args.get(0);
+        IqType type = IqType.integer("INTEGER", BigInteger.ZERO, IqType.INTEGER_MAX, false);
+        if (s.kind() == Kind.NULL) {
+            return Tx.value(SqlToPure.nullOf(Kind.INTEGER).vs(), Kind.INTEGER, true, type);
+        }
+        if (s.kind() != Kind.STRING) {
+            Tx width = engine == IqDialect.Engine.IQ ? iqStorageWidth(name, f, s) : null;
+            if (width == null) {
+                throw SqlTranslationException.unsupported(name + " of " + kindName(s.kind()) + " is not supported yet:"
+                        + " IQ answers its storage width", f.args().get(0).pos());
+            }
+            return width;
+        }
+        boolean utf8 = !settings.latin1();
+        return strict(Kind.INTEGER, type, List.of(s), v -> SqlToPure.call("length", utf8 ? utf8Units(v.get(0))
+                : v.get(0)));
     }
 
     // ------------------------------------------------------------------ dates
