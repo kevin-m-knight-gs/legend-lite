@@ -313,10 +313,24 @@ public final class SqlToPure {
      * a CONDITION in Postgres's three-valued logic: {@code vs} holds exactly when it is TRUE and {@code whenFalse}
      * exactly when it is FALSE; when it is NULL, neither holds. Both are two-valued Pure ({@code Boolean[1]}), so
      * {@code NOT}, {@code AND} and {@code OR} keep Postgres's meaning (NOT NULL is NULL, not TRUE).
+     *
+     * <p>A strict operation's value ({@link #strict}) is GUARDED: {@code vs} is {@code if(guard, [], body)}, where
+     * {@code body} is never empty when {@code guard} is false. An enclosing strict operation merges the guard into its
+     * own and computes on the body, so a chain {@code a + 1 + 2} tests {@code a} once and writes it once; testing and
+     * reading the whole guarded value instead doubles the expression at every level (the stress corpus's {@code +}
+     * chains: 10 terms were 96 KB of SQL).
      */
     public record Tx(ValueSpecification vs, Kind kind, boolean nullable,
             @com.legend.base.Nullable ValueSpecification whenFalse,
-            InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            InputDialect.@com.legend.base.Nullable TypeDetail detail,
+            @com.legend.base.Nullable ValueSpecification guard, @com.legend.base.Nullable ValueSpecification body) {
+
+        /** A translation that is not a strict operation's guarded value ({@link #guarded}). */
+        public Tx(ValueSpecification vs, Kind kind, boolean nullable,
+                @com.legend.base.Nullable ValueSpecification whenFalse,
+                InputDialect.@com.legend.base.Nullable TypeDetail detail) {
+            this(vs, kind, nullable, whenFalse, detail, null, null);
+        }
 
         /** A translation of no {@code detail}: what a dialect knows of its type beyond its kind
          *  ({@link InputDialect.TypeDetail}) is nothing, as it always is in Postgres's. */
@@ -339,6 +353,11 @@ public final class SqlToPure {
         /** A condition: when it is TRUE, when it is FALSE. */
         public static Tx condition(ValueSpecification whenTrue, ValueSpecification whenFalse, boolean nullable) {
             return new Tx(whenTrue, Kind.BOOLEAN, nullable, whenFalse);
+        }
+
+        /** A strict operation's value: empty when {@code guard} holds, else {@code body} (never empty then). */
+        static Tx guarded(ValueSpecification guard, ValueSpecification body, Kind kind) {
+            return new Tx(call("if", guard, thunk(empty()), thunk(body)), kind, true, null, null, guard, body);
         }
 
         /** A condition's FALSE case. */
@@ -433,6 +452,13 @@ public final class SqlToPure {
         /** {@code e}'s translation here. */
         public Tx tx(SqlAst.Expr e) {
             return SqlToPure.this.tx(e, scope, row);
+        }
+
+        /** {@code b}, an AND or an OR, as Kleene's: a chain of one of them read as its operands left to right, each a
+         *  condition ({@link SqlToPure#truth}), with no recursion per operator, and combined as a balanced tree (a
+         *  dialect's rule for AND and OR, so that a 2,000-term OR translates on a default thread stack). */
+        public Tx logical(SqlAst.Binary b) {
+            return SqlToPure.this.logical(b, scope, row);
         }
 
         /** IQ island, 2026-10-14 (M1e): whether {@code ref} names a column here (of this query's FROM items or an
@@ -3735,7 +3761,14 @@ public final class SqlToPure {
         }
         List<ValueSpecification> values = new ArrayList<>();
         ValueSpecification anyNull = null;
+        boolean merge = mergesGuards(args);
         for (Tx a : args) {
+            if (merge && a.guard() != null && a.body() != null) {
+                // a strict operand: NULL exactly when its guard holds, else its body
+                anyNull = anyNull == null ? a.guard() : call("or", anyNull, a.guard());
+                values.add(a.body());
+                continue;
+            }
             ValueSpecification v = valueOf(a);
             if (a.nullable()) {
                 anyNull = anyNull == null ? call("isEmpty", v) : call("or", anyNull, call("isEmpty", v));
@@ -3748,7 +3781,14 @@ public final class SqlToPure {
         if (anyNull == null) {
             return Tx.value(result, kind, false);
         }
-        return Tx.value(call("if", anyNull, thunk(empty()), thunk(result)), kind, true);
+        return Tx.guarded(anyNull, result, kind);
+    }
+
+    /** Whether a strict operation merges a strict operand's guard into its own ({@link Tx#guarded}): only when that
+     *  operand is the one that may be NULL. With another that is NULL, Postgres still computes this one, and raises
+     *  its error (an integer out of range, a division by zero): its whole value is tested, as before the merge. */
+    private static boolean mergesGuards(List<Tx> operands) {
+        return operands.stream().filter(Tx::nullable).count() == 1;
     }
 
     /** A strict predicate (a comparison, IN, BETWEEN, LIKE): NULL when an operand is NULL, else {@code test}. */
@@ -3761,7 +3801,15 @@ public final class SqlToPure {
         }
         List<ValueSpecification> values = new ArrayList<>();
         ValueSpecification known = null;
+        boolean merge = mergesGuards(operands);
         for (Tx a : operands) {
+            if (merge && a.guard() != null && a.body() != null) {
+                // a strict operand: known exactly when its guard does not hold, and then its body
+                ValueSpecification k = call("not", a.guard());
+                known = known == null ? k : call("and", known, k);
+                values.add(a.body());
+                continue;
+            }
             ValueSpecification v = valueOf(a);
             if (a.nullable()) {
                 known = known == null ? call("isNotEmpty", v) : call("and", known, call("isNotEmpty", v));
@@ -3900,16 +3948,51 @@ public final class SqlToPure {
         };
     }
 
+    /** The Kleene AND (or OR) of {@code ts[from, to)}, grouped as a balanced tree: AND is TRUE when every operand
+     *  is, FALSE when any is; OR the other way round. */
+    private static Tx kleene(boolean and, List<Tx> ts, int from, int to) {
+        if (to - from == 1) {
+            return ts.get(from);
+        }
+        int mid = from + (to - from + 1) / 2;
+        Tx l = kleene(and, ts, from, mid);
+        Tx r = kleene(and, ts, mid, to);
+        boolean nullable = l.nullable() || r.nullable();
+        return and
+                ? Tx.condition(call("and", l.vs(), r.vs()), call("or", l.falseWhen(), r.falseWhen()), nullable)
+                : Tx.condition(call("or", l.vs(), r.vs()), call("and", l.falseWhen(), r.falseWhen()), nullable);
+    }
+
+    /** {@code b}, an AND or an OR, as Kleene's ({@link At#logical}). */
+    private Tx logical(SqlAst.Binary b, Scope scope, String row) {
+        // a chain of one of them is read as the list of its operands, left to right, each under the position
+        // of the operator that holds it: no recursion per operator (the stress corpus's 500-term OR overflowed
+        // a default thread stack here), and the conditions are combined as a balanced tree, of depth log n for
+        // the typer and the lowering (Kleene's AND and OR are associative, so the grouping changes nothing)
+        List<Tx> operands = new ArrayList<>();
+        java.util.ArrayDeque<SqlAst.Expr> pending = new java.util.ArrayDeque<>();
+        java.util.ArrayDeque<SqlAst.Pos> holders = new java.util.ArrayDeque<>();
+        pending.push(b);
+        holders.push(b.pos());
+        while (!pending.isEmpty()) {
+            SqlAst.Expr e = pending.pop();
+            SqlAst.Pos holder = holders.pop();
+            if (e instanceof SqlAst.Binary x && x.op() == b.op()) {
+                pending.push(x.right());
+                holders.push(x.pos());
+                pending.push(x.left());
+                holders.push(x.pos());
+            } else {
+                operands.add(truth(tx(e, scope, row), b.op().name(), holder));
+            }
+        }
+        return kleene(b.op() == SqlAst.BinaryOp.AND, operands, 0, operands.size());
+    }
+
     private Tx binary(SqlAst.Binary b, Scope scope, String row) {
         switch (b.op()) {
             case AND, OR -> {
-                Tx l = truth(tx(b.left(), scope, row), b.op().name(), b.pos());
-                Tx r = truth(tx(b.right(), scope, row), b.op().name(), b.pos());
-                boolean nullable = l.nullable() || r.nullable();
-                // Kleene: AND is TRUE when both are, FALSE when either is; OR the other way round
-                return b.op() == SqlAst.BinaryOp.AND
-                        ? Tx.condition(call("and", l.vs(), r.vs()), call("or", l.falseWhen(), r.falseWhen()), nullable)
-                        : Tx.condition(call("or", l.vs(), r.vs()), call("and", l.falseWhen(), r.falseWhen()), nullable);
+                return logical(b, scope, row);
             }
             case EQ, NE, LT, LE, GT, GE -> {
                 List<Tx> sides = comparable(b.left(), b.right(), scope, row, b.pos());
@@ -5851,13 +5934,16 @@ public final class SqlToPure {
             }
             return x;
         }
+        // an integer an enclosed cast already holds to this range needs no second test (nested casts tested at every
+        // level wrote the value three times a level: the stress corpus's ten casts were 9 MB of SQL)
+        boolean held = range != null && within(provenRange(c.operand()), range);
         if (x.kind() == target || target == Kind.DECIMAL && x.kind() == Kind.NUMBER) {
-            return range == null ? x : inRange(x, range, type);
+            return range == null || held ? x : inRange(x, range, type);
         }
         if (x.kind() == Kind.WHOLE && target == Kind.INTEGER) {
-            // a sum of integers as a bigint (or narrower): its width now known
-            Tx whole = Tx.value(x.vs(), Kind.INTEGER, x.nullable());
-            return range == null ? whole : inRange(whole, range, type);
+            // a sum of integers as a bigint (or narrower): its width now known; a strict value keeps its guard
+            Tx whole = new Tx(x.vs(), Kind.INTEGER, x.nullable(), null, null, x.guard(), x.body());
+            return range == null || held ? whole : inRange(whole, range, type);
         }
         if (x.kind() == Kind.INEXACT) {
             if (target == Kind.DECIMAL || target == Kind.FLOAT) {
@@ -5897,6 +5983,30 @@ public final class SqlToPure {
         Tx converted = convert.equals("halfAwayFromZero") ? strict(target, List.of(x), v -> halfAwayFromZero(v.get(0)))
                 : strict(target, List.of(x), v -> call(convert, v.get(0)));
         return range == null ? converted : inRange(converted, range, type);
+    }
+
+    /** The range {@code e}'s value is already held to by a cast to a narrow integer ({@link #NARROW_INTEGERS},
+     *  {@link #SMALL_INTEGERS}: Postgres raised past it), seen through casts to other integers, which keep an
+     *  integer's value; the narrowest such range, or null when no cast holds it. */
+    private static long @com.legend.base.Nullable [] provenRange(SqlAst.Expr e) {
+        long[] proven = null;
+        SqlAst.Expr at = e;
+        while (at instanceof SqlAst.Cast c && c.type().modifiers().isEmpty()
+                && CAST_TYPES.get(c.type().name()) == Kind.INTEGER) {
+            String type = c.type().name();
+            long[] range = NARROW_INTEGERS.contains(type) ? new long[] {Integer.MIN_VALUE, Integer.MAX_VALUE}
+                    : SMALL_INTEGERS.contains(type) ? new long[] {Short.MIN_VALUE, Short.MAX_VALUE} : null;
+            if (range != null && (proven == null || within(range, proven))) {
+                proven = range;
+            }
+            at = c.operand();
+        }
+        return proven;
+    }
+
+    /** Whether {@code inner} is a range and lies within {@code outer}. */
+    private static boolean within(long @com.legend.base.Nullable [] inner, long[] outer) {
+        return inner != null && inner[0] >= outer[0] && inner[1] <= outer[1];
     }
 
     /** An integer that a narrower Postgres integer must hold: past its range, Postgres's error -- an empty value

@@ -39,6 +39,30 @@ public sealed interface SqlAgg {
 
     List<SqlExpr> args();
 
+    /** Whether {@code e} AGGREGATES its select: a {@link Reducer} (or the
+     * ordered or JSON aggregation nodes) outside any window or lambda. A
+     * windowed aggregate keeps each row; a lambda's (a list function's)
+     * reduces its list, not the select; expression walkers never descend
+     * into subqueries (the {@code children()} contract). The one predicate
+     * the typing ({@code SqlTyping}) and the lowering's folds read. */
+    static boolean aggregatesSelect(SqlExpr e) {
+        if (e instanceof Reducer
+                || e instanceof SqlExpr.OrderedListAgg
+                || e instanceof SqlExpr.JsonArrayAgg) {
+            return true;
+        }
+        if (e instanceof SqlExpr.WindowCall
+                || e instanceof SqlExpr.Lambda) {
+            return false;
+        }
+        for (SqlExpr c : e.children()) {
+            if (aggregatesSelect(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** GROUP-BY-valid aggregate (also usable inside a window): SUM, COUNT, MIN, ... */
     record Reducer(Fn fn, List<SqlExpr> args, boolean distinct,
             List<SqlSelect.SortKey> orderBy,

@@ -230,6 +230,18 @@ tests:
     sql: "SELECT ceil(avg(age)) AS a FROM persons"
   - id: cast_of_a_quotient_of_numerics_to_integer_is_refused
     sql: "SELECT id, CAST(salary / 10000 AS INTEGER) AS a FROM persons ORDER BY id"
+  # nested integer casts: the innermost narrow cast's range test holds for the casts around it (the stress corpus's
+  # ten nested casts were 9 MB of SQL), and a narrowing one is tested again
+  - id: nested_integer_casts
+    sql: "SELECT id, CAST(CAST(CAST(age AS INTEGER) AS BIGINT) AS INTEGER), CAST(CAST(age AS SMALLINT) AS INTEGER) AS s FROM persons ORDER BY id"
+  - id: nested_integer_cast_narrowing_overflows
+    sql: "SELECT CAST(CAST(age * 1000 AS INTEGER) AS SMALLINT) AS t FROM persons"
+  # an operation's error with another operand NULL: Postgres computes every operand, and raises (the independent
+  # review, 2026-10-14: a merged NULL test skipped the cast's range test)
+  - id: cast_out_of_range_beside_a_null_operand
+    sql: "SELECT id, CAST(big_val AS int4) + NULLIF(id, 2) AS v FROM numbers WHERE id = 2"
+  - id: division_by_zero_beside_a_null_operand
+    sql: "SELECT id, (int_val / (id - 2)) + NULLIF(id, 2) AS v FROM numbers WHERE id = 2"
   - id: round_of_a_quotient_of_numerics_is_refused
     sql: "SELECT id, round(salary / 7) AS a FROM persons ORDER BY id"
   - id: trunc_of_a_square_root_of_a_numeric_is_refused

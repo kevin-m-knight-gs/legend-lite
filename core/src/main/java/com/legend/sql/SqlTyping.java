@@ -1093,30 +1093,7 @@ public final class SqlTyping {
             return false;
         }
         for (SqlSelect.Projection p : s.projections()) {
-            if (aggregateRooted(p.expr())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Does this expression AGGREGATE its select — a Reducer (or the
-     * ordered/JSON aggregation nodes) outside any window or lambda?
-     * Windowed aggregates keep per-row cardinality and never count;
-     * expression walkers never descend into subqueries by the
-     * children() contract. */
-    private static boolean aggregateRooted(SqlExpr e) {
-        if (e instanceof SqlAgg.Reducer
-                || e instanceof SqlExpr.OrderedListAgg
-                || e instanceof SqlExpr.JsonArrayAgg) {
-            return true;
-        }
-        if (e instanceof SqlExpr.WindowCall
-                || e instanceof SqlExpr.Lambda) {
-            return false;
-        }
-        for (SqlExpr c : e.children()) {
-            if (aggregateRooted(c)) {
+            if (SqlAgg.aggregatesSelect(p.expr())) {
                 return true;
             }
         }
