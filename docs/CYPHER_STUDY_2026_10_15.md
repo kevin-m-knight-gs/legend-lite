@@ -412,13 +412,14 @@ profile of that algorithm is refused by name and Graphalytics's is offered.
     (`model/AssociationDefinition`), so the only Legend element that can hold a relationship's own properties, keys
     and mapping is a class: `Acting` with `actor: Actor[1]`, `movie: Movie[1]` and `role`. The class says it is an
     edge, and which ends are which, by an ordinary Pure `Profile` in a library project (`graph::Graph`, with the
-    three stereotypes `Edge`, `from` and `to`, and no tags), which the engine and Studio compile as any profile and
-    which lite reads by name exactly as it reads `<<equality.Key>>` (`compiler/element/EqualityKeys`,
+    four stereotypes `Edge`, `from`, `to` and `type`, and no tags), which the engine and Studio compile as any
+    profile and which lite reads by name exactly as it reads `<<equality.Key>>` (`compiler/element/EqualityKeys`,
     `PlatformTypes.EQUALITY_PROFILE`): `Class <<Graph.Edge>> demo::Acting` whose ends are the stereotyped
     properties `<<Graph.from>> actor: Actor[1]` and `<<Graph.to>> movie: Movie[1]`, declared on the class or
-    injected by two associations (the decomposed association class, the idiomatic form), element references the
-    engine checks, never strings. The relationship type is the class: typed, not a tag.
-    Then `(a:Actor)-[r:Acting]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is the class's
+    injected by two associations (the decomposed association class, the idiomatic form), and whose type is a
+    stereotyped derived property spelling one value of the model's `RelationshipType` enumeration: element
+    references the engine checks, never strings.
+    Then `(a:Actor)-[r:ACTED_IN]->(m:Movie) RETURN r.role` is Neo4j's own spelling, `r`'s identity is the class's
     keys, and the class maps to its bridge table like any class, which is what SQL/PGQ's "edge table with a source
     key and a destination key" is. Nothing is inferred from a class's shape (invariant 4); an undeclared class is a
     label. The graph's exposure and execution context are the data space's, selected with Neo4j's own `USE`
@@ -614,11 +615,11 @@ for a relationship with properties, and where does the model say so?
    ###Pure
    Profile graph::Graph
    {
-     stereotypes: [Edge, from, to];
+     stereotypes: [Edge, from, to, type];
    }
    ```
 
-   Three stereotypes and no tags: nothing in the declaration is a string. A model that wants edge classes depends on
+   Four stereotypes and no tags: nothing in the declaration is a string. A model that wants edge classes depends on
    that project (through the depot, as on any library) and writes the edge in either of Legend's two forms of a
    link. **The idiomatic form, an association class decomposed as Legend can say it** (the user, 2026-10-15: "should
    that be moved to association and only the property exist on the class?"): the class holds the relationship's
@@ -662,12 +663,48 @@ for a relationship with properties, and where does the model say so?
    stereotypes exist in it, the property exists and has the type and multiplicity written beside it. Nothing names a
    property by its spelling, so a renamed property cannot silently detach its end.
 
-   **The relationship type is the class, so it is typed too** (the user: "should type also be a typed type?"). A
-   tagged value is a string in Pure and a stereotype is the only typed annotation there is, so the only typed name
-   of a relationship type is an element, and the class is that element: `(a:Actor)-[r:Acting]->(m:Movie)`, and
-   `type(r)` is `'Acting'`. A model that wants Neo4j's spelling names its edge class `ACTED_IN`; Legend allows the
-   identifier, only convention prefers CamelCase. There is no rename tag: a second name for one thing would be the
-   one string left, and lite would have to resolve it.
+   **The relationship type is typed: an enumeration value, spelled in a stereotyped derived property** (the user,
+   2026-10-15: "should type also be a typed type?", then "any way to use enums, inheritance, any combination?").
+   A tagged value is a string in Pure; a stereotype is a typed marker but cannot carry a value; the one place a class
+   can state a *typed constant* that the engine checks is a derived property whose body is a spelled value. So the
+   model declares its catalog of relationship types as an enumeration, and each edge class names its type by one:
+
+   ```
+   Enum demo::RelationshipType { ACTED_IN, DIRECTED, KNOWS }
+
+   Class <<Graph.Edge>> demo::Acting
+   {
+     <<Graph.type>> type() { demo::RelationshipType.ACTED_IN }: demo::RelationshipType[1];
+     role: String[1];
+   }
+   ```
+
+   The engine checks all of it: the enumeration and its value exist, the body's type is the declared return type,
+   the stereotype exists in the profile. Lite reads it in phase F without typing the body (invariant 6): the derived
+   property carrying `<<Graph.type>>` must have a body that is exactly one spelled enumeration value (one
+   `EnumValue` node of the protocol), which is what the charter's C6.2 lets the compiler read ("a spelled enum's
+   name"); anything else is a compile error naming the property. The relationship type's name is the value's name:
+   `(a:Actor)-[r:ACTED_IN]->(m:Movie)`, and `type(r)` is the value, written as its name on the wire, which is
+   Neo4j's string. Without the derived property, the type is the class's simple name. Two edge classes may name
+   the same type with different end pairs, as one Neo4j type may join several label pairs; `[:ACTED_IN]` is then
+   their union and the endpoint labels choose.
+
+   This is the typed alias the user asked for, and more: the enumeration is the graph's catalog of relationship
+   types, an element a data space can expose, a DataCube filter can offer, and a query can compare against
+   (`type(r) = RelationshipType.ACTED_IN` in Pure; `type(r) = 'ACTED_IN'` in Cypher). The same mechanism names an
+   end the model does not own: an end property declared by another project's association, or inherited, cannot be
+   stereotyped there, so the edge class declares `<<Graph.from>> from() { $this.actor }: demo::Actor[1]`, a derived
+   property whose body is exactly one navigation of `$this` to a to-one class-typed property; the engine types it,
+   lite reads the spelled navigation. The rule stays one: the end is the property carrying the stereotype, stored or
+   derived.
+
+   **Other typed channels, considered and set aside.** A marker superclass, `Class demo::Acting extends
+   graph::Edge`, is as typed as the stereotype and would make "every relationship" a class (`graph::Edge.all()`), but
+   it enters the inheritance the mappings, keys and milestoning read; the stereotype marks without inheriting. A
+   stored property with a default value (`type: RelationshipType[1] = RelationshipType.ACTED_IN;`) is typed but is a
+   column to map, not a constant. A class constraint calling a library function with the two ends would need that
+   function to exist in the engine as a Pure function and in lite as a known name, and the engine's refusal of
+   generics means its signature could not check the ends' types. Each is recorded so that it is not re-proposed.
 
    The engine, Studio and the SDLC compile and show this as they show any stereotype and tagged value: the model is
    not lite-only. Lite alone gives it meaning: the compiler knows the profile by its full name
@@ -709,7 +746,8 @@ for a relationship with properties, and where does the model say so?
    The checks, each a compile error with Neo4j's and the model's words: exactly one property of the class (own,
    inherited or association-injected) carries `<<Graph.from>>` and exactly one `<<Graph.to>>`, each of multiplicity
    `[1]` (a Neo4j relationship always has both ends) and each typed by a class, which are the edge type's end node
-   types; the relationship type is the class's simple name; an edge class is never a label (a node pattern
+   types; the relationship type is the `<<Graph.type>>` derived property's spelled enumeration value, else the
+   class's simple name; an edge class is never a label (a node pattern
    `(x:Acting)` is refused: "Acting is an edge type"); a subclass of an edge class is an edge type of its own,
    inheriting the ends; every other property, inherited ones included, is the relationship's property (`r.role`,
    `properties(r)`, `keys(r)`); a to-many property to a class is refused on an edge (a relationship has two ends),
@@ -732,15 +770,15 @@ for a relationship with properties, and where does the model say so?
    the `from(mapping, runtime)` that follows it, over every class the mapping maps. This is the SQL study's own
    choice for the Postgres wire ("database = a project or data space", its §3.3), and it keeps every projection fact
    in a Legend element that exists.
-7. **Names are the model's.** A relationship type is the edge class's name, the association's name or the property's
-   name; there is no renaming layer. A model that wants `KNOWS` for `friends` renames the property or writes an edge
-   class named so. Pure has no type alias (the user asked, 2026-10-15): its element kinds are classes,
+7. **Names are the model's, and typed.** A relationship type is the edge class's `<<Graph.type>>` enumeration value
+   when it declares one, else the edge class's name, the association's name or the property's name; there is no
+   renaming layer of strings. Pure has no type alias (the user asked, 2026-10-15): its element kinds are classes,
    associations, enumerations, profiles, functions, mappings and the runtime and tooling elements, and the one
-   alias-shaped construct, `Primitive P extends Integer`, is for primitives. A subclass is not an alias (it narrows).
-   The one typed second name Pure can express is a zero-argument function returning the class's instances,
-   `function demo::ACTED_IN(): demo::Acting[*] { demo::Acting.all() }`, which is more than an alias: a typed view
-   relationship type, resolved as Legend SQL resolves `func('...')` sources and inlined by G½. Noted as a later
-   option of its own, not part of the first slices.
+   alias-shaped construct, `Primitive P extends Integer`, is for primitives; a subclass is not an alias (it
+   narrows). The enumeration value above is the typed second name. A zero-argument function returning the class's
+   instances, `function demo::ACTED_IN(): demo::Acting[*] { demo::Acting.all() }`, would be more than an alias, a
+   typed view relationship type resolved as Legend SQL resolves `func('...')` sources and inlined by G½; noted as a
+   later option of its own.
 8. **Patterns over edge classes lower as joins.** `(a:Actor)-[r:Acting]->(m:Movie)` is `Acting.all()` joined to
    its `actor` and `movie` ends through the mapping, with the endpoint labels as filters; `r.role` is the row's
    column; `type(r)` a spelled constant; `startNode(r)` and `endNode(r)` the ends. A variable-length pattern over an
@@ -754,7 +792,8 @@ relationship type to an edge class, an association or a property, and the `USE` 
 space, the prelude. **No lite-only model construct**: a model with edge classes compiles in the engine, in Studio
 and here, byte for byte the same text; the own-corpus census needs no new family for it. The one convention is the
 profile's name, which is the same kind of convention as `meta::pure::profiles::equality`, and it is checked, never
-assumed. **No string anywhere in the declaration**: three stereotypes, each an element reference the engine checks.
+assumed. **No string anywhere in the declaration**: four stereotypes, an enumeration and its values, each an element
+reference the engine checks.
 
 **What this is not.** It is not a shortcut around the association: the association remains the right element for a
 relationship with no properties, and the edge class is the right element for one with properties, which is how a
