@@ -364,11 +364,13 @@ public final class IqDialect implements InputDialect {
         IqParser.Parsed read = IqParser.parsed(sql, settings);
         SqlAst.Statement statement = read.statement();
         Engine statementEngine = engine != null ? engine : engineOf(statement, settings);
-        if (!read.frontEndCasts().isEmpty() && statementEngine != Engine.IQ) {
-            // IQ island, 2026-10-15 (checklist 0.5): a constant SQL Anywhere's front end raises for, where IQ's engine
-            // cuts or truncates it (IqFunctions.constantCast)
-            throw com.legend.protocol.sql.SqlSyntaxException.unsupported(read.frontEndCasts().get(0).refusal(), read
-                    .frontEndCasts().get(0).pos());
+        for (IqParser.EngineCast cast : read.engineCasts()) {
+            // IQ island, 2026-10-15 (checklist 0.5): a constant one engine raises for and the other converts
+            // (IqFunctions.constantCast), refused under the engine that raises
+            String refusal = statementEngine == Engine.IQ ? cast.refusals().iqEngine() : cast.refusals().frontEnd();
+            if (refusal != null) {
+                throw com.legend.protocol.sql.SqlSyntaxException.unsupported(refusal, cast.pos());
+            }
         }
         if (!read.droppedOrderKeys().isEmpty() && statementEngine == Engine.IQ) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine ORDER BY (1) is the first column's

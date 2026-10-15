@@ -56,6 +56,33 @@ tests:
     sql: "SELECT CAST(it AS NUMERIC) AS a FROM t WHERE id = 1"
     profile: iq17-default
 
+  # ---- a string read as a number: white space at both ends dropped, a sign, digits with one point at most, no exponent;
+  # cut toward zero to an integer or to the NUMERIC's scale; '' and any other spelling are IQ's error
+  - id: strings_read_as_numbers
+    sql: "SELECT id, CAST(x AS NUMERIC(10,2)) AS a, CAST(x AS INTEGER) AS b, CAST(x AS NUMERIC(5,0)) AS c, CAST(x AS SMALLINT) AS d, CAST(x AS BIGINT) AS e FROM (SELECT id, CASE id WHEN 1 THEN ' 1.555 ' WHEN 2 THEN '-.9' WHEN 3 THEN '+12.' WHEN 4 THEN '0012.509' WHEN 6 THEN '\\x097\\x0a' WHEN 7 THEN '-0' END AS x FROM t) AS d ORDER BY id"
+    profile: iq17-default
+  - id: string_constants_read_as_numbers
+    sql: "SELECT id, CAST('1.5' AS INTEGER) AS a, CAST(' 12. ' AS SMALLINT) AS b, CAST('1.555' AS NUMERIC(5,2)) AS c, CAST('-.9' AS BIGINT) AS d FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_with_an_exponent_is_no_number
+    sql: "SELECT id, CAST(CASE WHEN id = 1 THEN '1e2' END AS NUMERIC(10,2)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: empty_string_is_no_number
+    sql: "SELECT id, CAST(CASE WHEN id = 1 THEN '' END AS INTEGER) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: string_past_its_numeric_is_iqs_error
+    sql: "SELECT id, CAST(CASE WHEN id = 1 THEN '123456789.5' END AS NUMERIC(10,2)) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: string_past_its_smallint_is_iqs_error
+    sql: "SELECT id, CAST(CASE WHEN id = 1 THEN '40000.5' END AS SMALLINT) AS a FROM t ORDER BY id"
+    profile: iq17-default
+  - id: string_constant_with_an_exponent_is_refused
+    sql: "SELECT CAST('1e2' AS NUMERIC(5,1)) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+  - id: string_column_to_double_is_refused
+    sql: "SELECT CAST(vc AS DOUBLE) AS a FROM t WHERE id = 1"
+    profile: iq17-default
+
   # ---- a DOUBLE to NUMERIC(p, s), p at most 18: the DOUBLE times 10^s, cut toward zero (D-N6)
   - id: double_to_numeric_cut_toward_zero
     sql: "SELECT id, CAST(dbl AS NUMERIC(10,2)) AS a, CAST(dbl AS NUMERIC(2,1)) AS b, CAST(dbl AS NUMERIC(18,15)) AS c FROM t WHERE id <> 6 ORDER BY id"

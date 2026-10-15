@@ -163,42 +163,57 @@ final class IqFunctions {
      * to DATE or TIMESTAMP (-157, or IQ's other spellings, not read); an integer longer than a CHAR or VARCHAR (-157), a
      * string longer than it but for blanks (-638).
      * <p>
-     * IQ island, 2026-10-15 (checklist 0.5, measured on IQ 17.1): what only SQL Anywhere's front end cannot convert --
-     * a string longer than a CHAR or VARCHAR, which IQ's engine cuts (D-C2), a constant only its rounding takes past a
-     * NUMERIC's digits, which IQ's engine truncates (D-N6) -- is returned, the refusal's text, for the caller to refuse
-     * once the statement's engine is known; null when there is none.
+     * IQ island, 2026-10-15 (checklist 0.5, measured on IQ 17.1): what only one engine cannot convert is returned, the
+     * refusals' texts, for the caller to refuse once the statement's engine is known; null when there is none. Only SQL
+     * Anywhere's front end: a string longer than a CHAR or VARCHAR, which IQ's engine cuts (D-C2); a constant only its
+     * rounding takes past a NUMERIC's digits, which IQ's engine truncates (D-N6); a string IQ's engine reads as a number
+     * and SQL Anywhere's not ('1.5' as an INTEGER). Only IQ's engine: a string it reads as no number, or past the type
+     * ('', '1e2'; {@link #iqNumberText}), which SQL Anywhere reads.
      */
-    static @com.legend.base.Nullable String constantCast(SqlAst.Expr operand, SqlAst.TypeName type, String what,
-            IqSettings settings) {
+    static @com.legend.base.Nullable EngineRefusals constantCast(SqlAst.Expr operand, SqlAst.TypeName type,
+            String what, IqSettings settings) {
         String target = type.name();
         List<Integer> sizes = type.modifiers();
         String text = operand instanceof SqlAst.StringLit lit ? lit.value() : null;
         BigDecimal number = numberConstant(operand);
         String problem = null;
         String frontEnd = null;
+        String iqEngine = null;
         switch (target) {
             case "SMALLINT", "INTEGER", "BIGINT" -> {
-                BigInteger v = text != null ? integerText(text) : number == null ? null
-                        : number.setScale(0, java.math.RoundingMode.DOWN).toBigIntegerExact();
                 IqType t = new IqType(target);
-                if (text != null && v == null) {
-                    problem = "the string '" + text + "' is no integer: IQ's error -157";
-                } else if (v != null && (v.compareTo(t.min()) < 0 || v.compareTo(t.max()) > 0)) {
-                    problem = v + " is out of " + target + "'s range: IQ's error -158";
+                if (text != null) {
+                    BigInteger v = integerText(text);
+                    frontEnd = v == null ? "the string '" + text + "' is no integer: IQ's error -157" : v.compareTo(
+                            t.min()) < 0 || v.compareTo(t.max()) > 0 ? v + " is out of " + target + "'s range: IQ's"
+                            + " error -158" : null;
+                    BigDecimal d = iqNumberText(text);
+                    BigInteger w = d == null ? null : d.setScale(0, java.math.RoundingMode.DOWN).toBigIntegerExact();
+                    iqEngine = w == null ? "the string '" + text + "' is no number: IQ's error -1009145" : w.compareTo(
+                            t.min()) < 0 || w.compareTo(t.max()) > 0 ? w + " is out of " + target + "'s range: IQ's"
+                            + " error -1009145" : null;
+                } else if (number != null) {
+                    BigInteger v = number.setScale(0, java.math.RoundingMode.DOWN).toBigIntegerExact();
+                    if (v.compareTo(t.min()) < 0 || v.compareTo(t.max()) > 0) {
+                        problem = v + " is out of " + target + "'s range: IQ's error -158";
+                    }
                 }
             }
             case "NUMERIC" -> {
-                BigDecimal v = text != null ? IqDialect.numericText(text) : number;
-                if (v != null && !sizes.isEmpty()) {
+                if (!sizes.isEmpty()) {
                     int p = sizes.get(0);
                     int sc = sizes.size() > 1 ? sizes.get(1) : 0;
                     BigDecimal top = new BigDecimal(BigInteger.TEN.pow(p - sc));
-                    String past = v + " has more whole digits than a NUMERIC(" + p + "," + sc + ") holds: IQ's error"
-                            + " -158";
-                    if (v.setScale(sc, java.math.RoundingMode.DOWN).abs().compareTo(top) >= 0) {
-                        problem = past;
-                    } else if (v.setScale(sc, java.math.RoundingMode.HALF_UP).abs().compareTo(top) >= 0) {
-                        frontEnd = past + " (rounded)";
+                    BigDecimal v = text != null ? IqDialect.numericText(text) : number;
+                    BigDecimal w = text != null ? iqNumberText(text) : number;
+                    String past = " has more whole digits than a NUMERIC(" + p + "," + sc + ") holds: IQ's error";
+                    if (v != null && v.setScale(sc, java.math.RoundingMode.HALF_UP).abs().compareTo(top) >= 0) {
+                        frontEnd = v + past + " -158";
+                    }
+                    if (text != null && w == null) {
+                        iqEngine = "the string '" + text + "' is no number: IQ's error -1009145";
+                    } else if (w != null && w.setScale(sc, java.math.RoundingMode.DOWN).abs().compareTo(top) >= 0) {
+                        iqEngine = w + past + " -1009145";
                     }
                 }
             }
@@ -239,12 +254,23 @@ final class IqFunctions {
             default -> {
             }
         }
+        if (problem == null && frontEnd != null && iqEngine != null) {
+            // both engines raise
+            problem = frontEnd;
+        }
         if (problem != null) {
             throw com.legend.protocol.sql.SqlSyntaxException.unsupported(what + " of a constant IQ cannot convert is"
                     + " not supported: " + problem + " wherever it is computed", operand.pos());
         }
-        return frontEnd == null ? null : what + " of a constant IQ cannot convert is not supported: " + frontEnd
-                + " wherever it is computed in SQL Anywhere's front end";
+        String prefix = what + " of a constant IQ cannot convert is not supported: ";
+        return frontEnd == null && iqEngine == null ? null : new EngineRefusals(frontEnd == null ? null : prefix
+                + frontEnd + " wherever it is computed in SQL Anywhere's front end", iqEngine == null ? null : prefix
+                + iqEngine + " wherever it is computed under IQ's engine");
+    }
+
+    /** What one engine alone cannot convert ({@link #constantCast}): the refusal under SQL Anywhere's front end, under
+     *  IQ's engine, or null. */
+    record EngineRefusals(@com.legend.base.Nullable String frontEnd, @com.legend.base.Nullable String iqEngine) {
     }
 
     /** A number constant's value, signs applied; null for any other expression. */
@@ -2850,6 +2876,9 @@ final class IqFunctions {
                         integer(0)), SqlToPure.call("floor", v), SqlToPure.call("ceiling", v)));
             }
             case STRING -> {
+                if (engine == IqDialect.Engine.IQ) {
+                    return iqStringToInteger(family, x, c, what);
+                }
                 raisesHere(c, "-157 (not an integer) or -158 (out of range)");
                 if (c.operand() instanceof SqlAst.StringLit s) {
                     BigInteger v = integerText(s.value());
@@ -2953,6 +2982,103 @@ final class IqFunctions {
         return c == ' ' || c >= '\t' && c <= '\r';
     }
 
+    /** IQ's engine's reading of a string as a number (IQ island, 2026-10-15, checklist 0.5, measured on IQ 17.1): the
+     *  white space at both ends (the space, tab through carriage return) dropped, then an optional sign and digits with
+     *  at most one point among or around them, one digit at least; no exponent ('1e2' is IQ's -1009145, as '' is).
+     *  Null for any other spelling. */
+    static @com.legend.base.Nullable BigDecimal iqNumberText(String text) {
+        int start = 0;
+        int end = text.length();
+        while (start < end && blank(text.charAt(start))) {
+            start++;
+        }
+        while (end > start && blank(text.charAt(end - 1))) {
+            end--;
+        }
+        int i = start < end && (text.charAt(start) == '+' || text.charAt(start) == '-') ? start + 1 : start;
+        int digits = 0;
+        int points = 0;
+        for (int k = i; k < end; k++) {
+            char ch = text.charAt(k);
+            if (ch >= '0' && ch <= '9') {
+                digits++;
+            } else if (ch == '.' && points == 0) {
+                points++;
+            } else {
+                return null;
+            }
+        }
+        return digits == 0 ? null : new BigDecimal(text.substring(start, end));
+    }
+
+    /** {@link #iqNumberText}'s reading in Pure: {@code s} with its white space at both ends dropped. */
+    private static ValueSpecification iqNumberTrimmed(ValueSpecification s) {
+        return replaceAll(s, "^" + BLANKS + "+|" + BLANKS + "+$", "");
+    }
+
+    /** {@code t} (trimmed) without its point and the digits after it: its sign and whole digits. */
+    private static ValueSpecification iqNumberWhole(ValueSpecification t) {
+        return replaceAll(t, "[.][0-9]*$", "");
+    }
+
+    /** Whether {@code t} (trimmed) is a number by {@link #iqNumberText}'s reading. */
+    private static ValueSpecification iqNumberValid(ValueSpecification t) {
+        return SqlToPure.call("matches", t, new CString("^[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)$"));
+    }
+
+    /**
+     * CAST of a string to an integer under IQ's engine (IQ island, 2026-10-15, checklist 0.5, measured on IQ 17.1): the
+     * string read as a number ({@link #iqNumberText}) and cut toward zero ('1.5' is 1, '-.9' 0, ' 12. ' 12); any other
+     * spelling, '' among them, and a value out of the type are IQ's error -1009145. A constant IQ reads is its value; one
+     * it cannot is refused before translating ({@link #constantCast}).
+     */
+    private Tx iqStringToInteger(String family, Tx x, SqlAst.Cast c, String what) {
+        raisesHere(c, "-1009145 (not a number, or out of range)");
+        if (c.operand() instanceof SqlAst.StringLit lit) {
+            BigDecimal d = iqNumberText(lit.value());
+            if (d == null) {
+                throw SqlTranslationException.unsupported(what + " of the string '" + lit.value() + "' to " + family
+                        + " is IQ's error -1009145 under its engine (no number), refused", c.operand().pos());
+            }
+            BigInteger v = d.setScale(0, java.math.RoundingMode.DOWN).toBigIntegerExact();
+            if (v.bitLength() >= Long.SIZE) {
+                throw SqlTranslationException.unsupported(what + " of a string beyond a BIGINT's range is not"
+                        + " supported", c.operand().pos());
+            }
+            return checkedRange(family, Tx.value(SqlToPure.integer(v), Kind.INTEGER, false, IqType.integer("BIGINT", v,
+                    v, true)), false, w -> w);
+        }
+        // the digits before the point, with the sign: none, or a sign alone, is 0
+        Tx parsed = SqlToPure.strict(Kind.INTEGER, List.of(x), v -> {
+            ValueSpecification t = iqNumberTrimmed(v.get(0));
+            ValueSpecification whole = iqNumberWhole(t);
+            return ifThen(iqNumberValid(t), ifThen(SqlToPure.call("matches", whole, new CString("^[+-]?$")),
+                    integer(0), SqlToPure.call("parseInteger", whole)), raise("Integer"));
+        });
+        Tx wide = Tx.value(parsed.vs(), Kind.INTEGER, parsed.nullable(), IqType.integer("BIGINT", IqType.BIGINT_MIN,
+                IqType.BIGINT_MAX, true));
+        return family.equals("BIGINT") ? wide : checkedRange(family, wide, false, v -> v);
+    }
+
+    /**
+     * CAST of a string that is no constant to NUMERIC(p, s) under IQ's engine (IQ island, 2026-10-15, checklist 0.5,
+     * measured on IQ 17.1): the string read as a number ({@link #iqNumberText}), cut toward zero to s places -- its
+     * text cut, so that the database's cast, which rounds, has nothing to round ('1.555' is 1.55) -- and more than p - s
+     * whole digits, or any other spelling ('' among them), IQ's error -1009145 (the database's own, past the digits).
+     */
+    private Tx iqStringToNumeric(Tx x, int p, int s, IqType type, SqlAst.Cast c) {
+        raisesHere(c, "-1009145 (not a number, or out of range)");
+        return strict(Kind.DECIMAL, type, List.of(x), v -> {
+            ValueSpecification t = iqNumberTrimmed(v.get(0));
+            // the sign and digits before the point, the point, s digits after it, and a 0 (so that '1.' and '.' read)
+            ValueSpecification cut = ifThen(SqlToPure.call("contains", t, new CString(".")), AppliedFunction.infixRun(
+                    "plus", List.of(SqlToPure.call("left", t, AppliedFunction.infixRun("plus", List.of(SqlToPure.call(
+                    "length", iqNumberWhole(t)), integer(s + 1L)))), new CString("0"))), t);
+            return ifThen(iqNumberValid(t), SqlToPure.call("parseDecimal", cut, integer(p), integer(s)),
+                    raise("Decimal"));
+        });
+    }
+
     /** CAST to NUMERIC: see {@link #cast}. Under IQ's engine (IQ island, 2026-10-15; the research's D-N6, measured on
      *  IQ 17.1) a narrower scale truncates toward zero -- a column's, a constant's, a string constant's alike (2.675 is
      *  2.67 at two places, 999.5 is 999 as a NUMERIC(3,0)) -- and without a precision the type is the PRECISION and
@@ -2977,13 +3103,21 @@ final class IqFunctions {
             ss = 0;
         } else if (x.kind() == Kind.STRING) {
             if (!(c.operand() instanceof SqlAst.StringLit s)) {
+                if (iq && !sizes.isEmpty()) {
+                    int p = sizes.get(0);
+                    int sc = sizes.size() > 1 ? sizes.get(1) : 0;
+                    return iqStringToNumeric(x, p, sc, new IqType("NUMERIC(" + p + "," + sc + ")"), c);
+                }
                 throw SqlTranslationException.unsupported(what + " of a string that is not a constant to NUMERIC is not"
-                        + " supported yet: IQ reads it by its own rules", c.operand().pos());
+                        + " supported yet: " + (iq ? "without a precision it is a NUMERIC(" + settings.precision() + ","
+                        + settings.scale() + "), the PRECISION and SCALE options': write a precision"
+                        : "SQL Anywhere's front end reads it by its own rules"), c.operand().pos());
             }
-            BigDecimal d = IqDialect.numericText(s.value());
+            BigDecimal d = iq ? iqNumberText(s.value()) : IqDialect.numericText(s.value());
             if (d == null) {
                 throw SqlTranslationException.unsupported(what + " of the string '" + s.value() + "' to NUMERIC is not"
-                        + " supported: IQ reads it as a NUMERIC by rules not read for this spelling yet", c.pos());
+                        + " supported: " + (iq ? "IQ's error -1009145 under its engine (no number)" : "IQ reads it as a"
+                        + " NUMERIC by rules not read for this spelling yet"), c.pos());
             }
             BigDecimal exact = IqTypes.atScale(d);
             if (exact.precision() > 38 || exact.scale() > 38) {

@@ -98,6 +98,18 @@ class IqFunctionsTest {
     }
 
     @Test
+    void iqsEngineReadsAStringAsANumberWithoutAnExponent() {
+        // IQ island, 2026-10-15 (checklist 0.5, measured on IQ 17.1): white space at both ends, a sign, digits with one
+        // point at most; '' and an exponent are IQ's -1009145
+        assertEquals(new java.math.BigDecimal("1.555"), IqFunctions.iqNumberText(" 1.555\t"));
+        assertEquals(new java.math.BigDecimal("12"), IqFunctions.iqNumberText("+12."));
+        assertEquals(new java.math.BigDecimal("-0.9"), IqFunctions.iqNumberText("\n-.9\r"));
+        for (String no : List.of("", " ", "1e2", "1.2.3", "- 1", "+", ".", "1,5", "\u00a01")) {
+            assertEquals(null, IqFunctions.iqNumberText(no), no);
+        }
+    }
+
+    @Test
     void castsSyntaxErrorsAreIqs() {
         for (String sql : List.of("SELECT CAST(1 AS VARCHAR(0)) AS x", "SELECT CAST(1 AS NUMERIC(2, 3)) AS x",
                 "SELECT CAST(1 INT) AS x", "SELECT CAST(1 = 1 AS INT) AS x", "SELECT CONVERT(INT) AS x",

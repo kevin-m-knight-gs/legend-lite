@@ -615,6 +615,14 @@ lite/iq_engine_casts/numeric_constants_narrowed_toward_zero@iq17-default	PASS	PA
 lite/iq_engine_casts/numeric_narrowed_past_its_digits_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/iq_engine_casts/integers_to_numeric@iq17-default	PASS	PASS
 lite/iq_engine_casts/numeric_without_a_precision_is_refused@iq17-default	REFUSED	REFUSED
+lite/iq_engine_casts/strings_read_as_numbers@iq17-default	PASS	PASS
+lite/iq_engine_casts/string_constants_read_as_numbers@iq17-default	PASS	PASS
+lite/iq_engine_casts/string_with_an_exponent_is_no_number@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_casts/empty_string_is_no_number@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_casts/string_past_its_numeric_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_casts/string_past_its_smallint_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_casts/string_constant_with_an_exponent_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/iq_engine_casts/string_column_to_double_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/iq_engine_casts/double_to_numeric_cut_toward_zero@iq17-default	PASS	PASS
 lite/iq_engine_casts/double_to_numeric_by_its_double_product@iq17-default	PASS	PASS
 lite/iq_engine_casts/double_to_numeric_of_18_digits@iq17-default	PASS	PASS
@@ -3461,8 +3469,8 @@ lite/m1d/cast_string_to_numeric_without_precision_is_refused@iq16-default	REFUSE
 lite/m1d/cast_string_to_numeric_without_precision_is_refused@iq17-default	REFUSED	REFUSED
 lite/m1d/cast_double_to_numeric@iq16-default	PASS	PASS
 lite/m1d/cast_double_to_numeric@iq17-default	PASS	PASS
-lite/m1d/cast_string_column_to_numeric_is_refused@iq16-default	BOTH_ERROR	BOTH_ERROR
-lite/m1d/cast_string_column_to_numeric_is_refused@iq17-default	BOTH_ERROR	BOTH_ERROR
+lite/m1d/cast_string_column_to_numeric_is_iqs_error@iq16-default	BOTH_ERROR	BOTH_ERROR
+lite/m1d/cast_string_column_to_numeric_is_iqs_error@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_to_numeric_of_precision_0@iq16-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_to_numeric_of_precision_0@iq17-default	BOTH_ERROR	BOTH_ERROR
 lite/m1d/cast_to_numeric_of_a_scale_past_precision@iq16-default	BOTH_ERROR	BOTH_ERROR
