@@ -1073,6 +1073,8 @@ gave Postgres's answer; what does not finish is scale. The fixes, measured by th
   evaluation order. For the compiler line: the committed `tools/census/RenderCensus.java` passes no runtime, which the
   planner refuses, so every case fails at lowering on both sides; the census above ran a copy with PCT's storeless
   runtime.
+  (The compiler line, 2026-10-15: the committed tool lowers with the storeless runtime on DuckDB since 487a0f460 on
+  main; GATES "The compiler's two scale costs".)
 
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
@@ -1489,7 +1491,9 @@ repros will be in the study's §9.
         give 53 MB of SQL, which DuckDB runs in 30–56 s.
       - `SqlSource.Join.outputs/side` are rebuilt on every column lookup once compile is fixed: 100 joins plan in
         about 1 s, 250 in 27–40 s, 100 comma joins in 11 s.
-        (The compiler line, 2026-10-15: both taken on `core/scale-costs`, announced under rule 7.)
+        (The compiler line, 2026-10-15: both fixed, 487a0f460 on main; GATES "The compiler's two scale costs". The fold
+        budget changes the render of four of this line's IQ parity cases, on DuckDB and on Postgres: an overflow-checked
+        computed column read more than once is a subselect's now; both parity tests pass, the answers unchanged.)
     - **The lowering:** a CASE of 1,000 WHENs renders as nested CASEs past DuckDB's depth limit, and 5,000 AND terms
       overflow the stack.
     - **The ninth line (dialects):** Postgres's `concat()` takes at most 100 arguments, and Postgres cannot run a
@@ -1542,19 +1546,21 @@ repros will be in the study's §9.
    scopes, never the base's same-named column). `CorrelatedComputedColumnTest` pins both spellings. Judges in GATES: the
    six corpus passes 0 of 23 result files differ; the render census 58,688 entries, 6 differ, all six the new test's own
    renders.
-   **Announced 2026-10-15: the tenth line's two measured costs in the compiler's files, and the census tool's runtime
-   (branch `core/scale-costs`).** (1) `SqlSource.Join.outputs()` builds both sides' column lists on every call, and a
-   left-deep chain of N joins builds them N levels deep each time a column is looked up (`Fold.sourceColumn` asks more
-   than once per read), so a chain's planning grows faster than the cube of its length (the tenth line: 100 joins in
-   about a second, 250 in 27-40 s). The join computes its outputs once, when it is made (a record component its
-   four-argument constructor fills), and every reader gets that list. (2) `Fold.resolveIntoExact` writes a computed
-   column's expression into each read of it, so a computed column read twice doubles at every level of nesting (the
-   tenth line: 20 nested derived tables give 53 MB of SQL). The rule becomes Calcite's (ProjectMergeRule's `bloat`, its
-   default 100): a pass may grow the select's expressions by at most 100 nodes through such writes; past that it
-   isolates, and the reads go through a subselect, as every unfoldable read does today. A single read, a plain column, a
-   small chain fold as before; a doubling chain isolates every few levels and the SQL stays linear. (3)
-   `tools/census/RenderCensus.java` lowers with no runtime, which the planner refuses since #39 (decision D2: the
-   language of raw text is the runtime's database), so every case failed on both sides of a comparison; it now lowers
-   with the storeless runtime on DuckDB (`StorelessRuntime.with`), as the stress line's copy did. Judged as every
-   compiler landing: the six corpus passes, the render census, the reference lane, the census target, an audit, one CI
-   run; the measurements before and after in GATES.
+   **Landed 2026-10-15 (487a0f460 at the head on main, branch `core/scale-costs`, one commit over 8d2e55a65; run
+   38689728911 on every lane and platform, green on all 50 jobs first time (the gates-green summary skipped, as on every
+   dispatch); main's own run 38693372933 red on two jobs, neither this landing's: the macOS datacube job's runner was
+   lost by GitHub (its annotation "The hosted runner lost communication with the server"; no log; the same SHA green on
+   the branch run), and the Windows core job timed out `//core:core_tests_integration` at 300 s, as main's run
+   38667214956 on 10bc6fbe2 (PR #41, before this landing) had at 305.8 s; on Linux the suite's summed test time FELL
+   with this landing, 153.8 s to 106.7 s, and on Windows the lane runs it two to three times slower than it runs alone
+   (the tenth line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
+   lane that predates this landing, which the tenth line is fixing and the Bazel program reviews (the Phase 8 brief's
+   "sharding; third order" item); the reading, with five runs' class times:
+   `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`; GATES "The compiler's two scale
+   costs"): the tenth line's two measured costs in the compiler's files, and the census tool's runtime.** A join's
+   delivered columns are computed once, when it is made (250 joins plan in 434 ms, 8,770 before). A fold may grow a
+   select by at most 100 expression nodes a pass through the computed projections it writes into reads (Calcite-shaped:
+   its bloat); past that the pass isolates, so a doubling chain of derived tables stays linear (20 levels: 3,814 chars;
+   15 levels ran out of memory before). `tools/census/RenderCensus.java` lowers with the storeless runtime on DuckDB.
+   `ScaleCostsTest` pins the work. Judges in GATES: the six corpus passes 0 of 23 result files differ; the render census
+   58,794 entries, 22 differ.
