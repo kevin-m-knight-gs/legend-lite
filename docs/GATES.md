@@ -9760,3 +9760,64 @@ each answered below. Branch `claude/loving-euler-gjta59`, one pull request.
    test before the cast's error (as before this branch: an evaluation-order question for every strict operator);
    CTE chains that reuse earlier CTEs (a relation `let` lowered to a `WITH`); 500-deep CASE (the name resolver),
    200-term `+` chains (the lowering) and 400-deep parentheses (the SQL parser) overflow a default stack.
+
+## 2026-10-15 — `#IQ{...}#`: the third landing — the M1 gaps, IQ's options by IQ's own names, IQ's SET statements (the tenth line)
+
+Announced in `docs/IN_FLIGHT.md` (a231c07ec, the cross-area edits listed). Branch `claude/iq-island-3`, 8 commits over
+main 895184f82 (PR #41, the seventh line's stress fixes, included). The study's §9.16 and §9.17 hold what reads, what is
+refused and why, and each review's findings.
+
+1. **What lands.**
+   - **The M1 gaps:**
+     - select-list aliases read in WHERE, ON, the select list, GROUP BY and HAVING;
+     - unaliased names over line breaks and comments;
+     - `owner.table.column` and `dbo.`/`sys.` owners of the model's tables;
+     - duplicate output names where nothing reads them;
+     - LIKE with a computed pattern;
+     - LIST of a group key and LIST(DISTINCT);
+     - an aggregate read in IF/CASE/COALESCE/HAVING;
+     - TOP in a subquery under SQL Anywhere's front end;
+     - a subquery without FROM;
+     - IQ's error codes for the three formerly Postgres-worded refusals.
+   - **IQ's options as one settings vector**, named by IQ's own names: the database properties `CaseSensitive`,
+     `BlankPadding`, `Collation`, `CharSet` and `AccentSensitive`, the options as `SET OPTION` names them, and
+     `CommProtocol`. The five profiles are its presets. IQ's precedence and errors are kept, every Tier 1 value is
+     read exactly or refused by name, and the database properties are independent knobs.
+   - **IQ's own `SET [TEMPORARY] OPTION …;`** and the T-SQL SET forms before a SELECT, read by the island's IQ reader.
+     There is no Legend syntax (the user's ruling); settings will come from Pure tagged values in a later landing.
+   - **A determinism lint over every IQ case:** TOP/FIRST must reach a unique ordering, and LIST must be ordered.
+   - Declared in `docs/SEMANTICS_REGISTER.md`: S51, S53, S56 extended; S57 new.
+2. **The seam's judge.**
+   - The Postgres generated-Pure dump of 2,394 cases is byte-identical to main's own (sha256 `8041208c…`; main's
+     changed with PR #41, and this landing adds nothing to it).
+   - Both `sql-parity` ledgers are main's.
+3. **The IQ parity corpus**, identical in both lanes: 4,030 runs, PASS 2,586, REFUSED 896, BOTH_ERROR 544, SKIP 4;
+   FAIL, BUG and ERROR 0.
+   - Answers: `snap.sh --check` is clean: 3,485 cases and 4,026 answers from SQL Anywhere 17.0.11, including the
+     options framework's extra databases.
+   - The syntax ratchet: accept PARSED 2,687.
+4. **Judges.**
+   - The battery on the final tree: both IQ lanes, `//core:iq_syntax_cases_test`, both `sql-parity` lanes,
+     `//core:core_tests` (guardrails included), `//gates:checks`, `//parser-equivalence:diagnostics`: 167 pass, 2
+     skipped (platform-gated). `//sdlc-server:page` and `//wasm:planner` build.
+   - **Reviews:**
+     - Review 7, of the M1 gaps: 2 BLOCKER, 2 MAJOR, 5 MINOR.
+     - Review 8, of the whole landing: 1 BLOCKER, 3 MAJOR, 7 MINOR.
+
+     Every blocker and major is fixed or refused by name, each pinned. Review 7's TOP-tie finding is settled by the
+     user's ruling: committed cases are deterministic, and a user's query returns its database's answer where IQ's is
+     the plan's choice.
+   - **Measured on the user's real SAP IQ 17.1** (a HANA Cloud data lake, reached locally through a session the user
+     opens; nothing of it in CI):
+     - the research's D-Q2 is refuted (`60.8` and `'60.0'` are -201);
+     - an integer option's string is read as IQ reads it;
+     - the per-option error for a level an option lacks;
+     - `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED` is accepted, where SQL Anywhere raises -676.
+   - Guard entries: `syntax-pins.tsv` only, with dated notes.
+   - Hygiene: no SAP manual text and no private paths. IqOption's Tier 4 table holds option names only.
+   - CI: run <pending> on the PR.
+5. **Next (landing 4):**
+   - real IQ 17.1 becomes the oracle for the IQ profiles;
+   - the core features first, then their scale, then CTEs and window functions;
+   - the differences real IQ shows: integer widening under the IQ engine, IQ's error codes, unaliased names, the IQ
+     engine's restrictions.
