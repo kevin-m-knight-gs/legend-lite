@@ -278,7 +278,10 @@ grid -- against the grid's columns as the compiler types them now, calculated on
 what it makes, or refuses in DataCube's words; it passes what it is told as given, turning only its `(column, fn)`
 shorthand into a measure. Rules only Python had (no weighted average on a chart; bins a positive number, a count a whole
 one; a measure's and a facet's keys) moved into DataCube, whose reader now refuses any key a chart has no place for (a
-slot, a measure's, a facet's, an option) by name, as it refuses a word it does not know. A chart of the grid as shown (treemap, sunburst, tree) asks nothing
+slot, an option, a measure's, a facet's, a layer's by its kind, bins', an order's, a drill's, a calculated column's) by
+name, as it refuses a word it does not know. A chart told its grouping and told to follow the grid (Python's
+`frozen=False`) is refused where the grid would replace what it was told (`followRefusal`): the panel never meets it, as
+a hand on the grouping freezes the chart. A chart of the grid as shown (treemap, sunburst, tree) asks nothing
 across and nothing to plot, but a slot it does not draw (a layer, a facet, a grain) is refused, and the panel now asks
 before drawing one too. Sharing the rule found two bugs of the panel's: changing the column across kept the old
 column's order (a date ran from the largest), and a live chart with a split was taken for regrouped on every refresh

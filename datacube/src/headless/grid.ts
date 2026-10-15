@@ -13,7 +13,7 @@
 import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { chartFrom, chartProblems, followCube, readChart } from '../chart-spec.ts';
+import { chartFrom, chartProblems, followCube, followRefusal, readChart } from '../chart-spec.ts';
 import { CubeController, type CubeView } from '../cube.ts';
 import { fold, type CubeState } from '../cube-state.ts';
 import { openCube, readCube, type OpenedCube } from '../cube-document.ts';
@@ -183,10 +183,14 @@ export async function gridChart(spec: GridSpec, given: string, before: string | 
     // typeColumns), compile-only -- what the grid's run would type them as before its chart is drawn
     const runner = new PlanThenRun(planner, new DuckDbEngine(hostDatabase(hostCalls()).connection));
     const { snapshot } = await typeColumns(state.snapshot, runner);
-    const made = chartFrom(JSON.parse(given), snapshot, was);
+    const told = JSON.parse(given) as Record<string, unknown>;
+    const made = chartFrom(told, snapshot, was);
     if (typeof made === 'string') return JSON.stringify({ problems: [made] });
-    // kept as the panel keeps it: a live chart regrouped as the grid is now (ui/chart-panel.ts refresh)
+    // kept as the panel keeps it: a live chart regrouped as the grid is now (ui/chart-panel.ts refresh) -- never with
+    // what it was told replaced without a word
     const drawn = followCube(made, snapshot);
+    const replaced = followRefusal(Object.keys(told), made, drawn);
+    if (replaced !== null) return JSON.stringify({ problems: [replaced] });
     return JSON.stringify({ spec: drawn, problems: chartProblems(drawn, snapshot) });
   });
 }

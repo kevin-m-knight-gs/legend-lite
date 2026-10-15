@@ -11,7 +11,8 @@ import { describe, it } from 'node:test';
 
 import { element } from '../../pure-protocol/src/index.ts';
 import {
-  chartFrom, chartProblems, defaultChart, DEFAULT_OPTIONS, editChart, followCube, NO_CHART, TIME_LIMIT, type ChartSpec,
+  chartFrom, chartProblems, DEFAULT_CHART_LIMIT, defaultChart, DEFAULT_OPTIONS, editChart, followCube, followRefusal, NO_CHART,
+  TIME_LIMIT, type ChartSpec,
 } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
@@ -38,7 +39,9 @@ const CUBE: CubeSnapshot = {
 function problemsOf(given: Record<string, unknown>, s: CubeSnapshot = CUBE, before?: ChartSpec): string[] {
   const made = chartFrom(given, s, before);
   if (typeof made === 'string') return [made];
-  return chartProblems(followCube(made, s), s);
+  const followed = followCube(made, s);
+  const replaced = followRefusal(Object.keys(given), made, followed);
+  return replaced !== null ? [replaced] : chartProblems(followed, s);
 }
 
 describe('DataCube\'s chart rules, case by case (Python asks the same code)', () => {
@@ -109,6 +112,13 @@ describe('a chart DataCube makes of what it is told (chartFrom: Python\'s grid.c
     assert.equal(made({ mark: 'dumbbell', y: ends }, undefined, GROUPED).frozen, undefined);
   });
 
+  it('told its grouping and told to follow the grid, what the grid would replace is refused, never quietly dropped', () => {
+    assert.match(problemsOf({ mark: 'bar', x: 'channel', frozen: null }, GROUPED).join(' '),
+      /follows its grid takes 'region' across, not 'channel'/);
+    // told what the grid gives, it follows
+    assert.deepEqual(problemsOf({ mark: 'bar', x: 'region', frozen: null }, GROUPED), []);
+  });
+
   it('an edit keeps what it is not told; a new column across takes its own order; the grain goes with the old one', () => {
     const before = made({ mark: 'line', x: 'day', grain: 'month', split: 'channel', options: { labels: true } });
     const relabelled = made({ options: { legend: 'none' } }, before);
@@ -145,6 +155,18 @@ describe('a change by hand (editChart: the charts\' form, and chartFrom)', () =>
     assert.equal(byDay.options.limit, TIME_LIMIT);
     assert.equal(byDay.frozen, true, 'and freezes the live chart');
     assert.deepEqual(byDay.options.sort, followCube(start, { ...GROUPED, rows: ['day'] }).options.sort);
+  });
+
+  it('a column across moved back from a date takes a category\'s limit again; one the chart was told stays', () => {
+    const back = editChart(editChart(start, { x: 'day' }, GROUPED), { x: 'region' }, GROUPED);
+    assert.equal(back.options.limit, DEFAULT_CHART_LIMIT);
+    const told = editChart(editChart(start, { x: 'day', options: { limit: 300 } }, GROUPED), { x: 'region' }, GROUPED);
+    assert.equal(told.options.limit, 300);
+  });
+
+  it('a chart of rows keeps its options as its x moves: its query asks no order and no such limit', () => {
+    const scatter = editChart(start, { mark: 'scatter', x: 'revenue', y: [{ column: 'cost', fn: 'sum' }] }, GROUPED);
+    assert.deepEqual(editChart(scatter, { x: 'day' }, GROUPED).options, scatter.options);
   });
 
   it('a live chart the grid has not moved stays the same chart (the form is not painted again for nothing)', () => {

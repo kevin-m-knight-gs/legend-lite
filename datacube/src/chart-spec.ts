@@ -290,6 +290,20 @@ const OPTION_KEYS: Readonly<Record<keyof ChartOptions, true>> = {
   smooth: true, step: true, logAxis: true, breaks: true, labelPosition: true, labelRotate: true, zoom: true, brush: true,
   decal: true, dim: true, toolbox: true, half: true, ring: true,
 };
+const SHOW_AS_KEYS: Readonly<Record<keyof ShowAs, true>> = { kind: true, rows: true };
+const BINS_KEYS: Readonly<Record<keyof Bins, true>> = { width: true, count: true };
+const SORT_KEYS: Readonly<Record<keyof ChartOptions['sort'], true>> = { by: true, direction: true };
+const DRILL_KEYS: Readonly<Record<keyof ChartDrill, true>> = { levels: true, path: true };
+// a chart's own calculated column: its stage and the column (the column's own keys are the column editor's to read)
+const CALC_KEYS: Readonly<Record<keyof ChartCalc, true>> = { stage: true, column: true };
+// each kind of layer its own keys
+const LAYER_KEYS: { readonly [K in ChartLayerKind]: Readonly<Record<keyof Extract<ChartLayer, { kind: K }>, true>> } = {
+  line: { kind: true, value: true, measure: true, label: true },
+  stat: { kind: true, stat: true, measure: true, label: true },
+  band: { kind: true, axis: true, from: true, to: true, label: true },
+  threshold: { kind: true, value: true, measure: true, label: true },
+  extremes: { kind: true, measure: true, label: true },
+};
 
 /** The first key of `o` that `keys` has no place for, refused by name; or null. */
 function unknownKey(o: Readonly<Record<string, unknown>>, keys: Readonly<Record<string, true>>, what: string): string | null {
@@ -310,7 +324,7 @@ function measureProblem(m: unknown, what: string): string | null {
   if (showAs !== undefined && (!isRecord(showAs) || !known(SHOW_AS_WORDS, showAs['kind']))) {
     return `${what} is shown as something this DataCube does not know (${JSON.stringify(showAs)})`;
   }
-  return null;
+  return isRecord(showAs) ? unknownKey(showAs, SHOW_AS_KEYS, `${what}'s showAs`) : null;
 }
 
 /**
@@ -324,8 +338,10 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     return `its version ${JSON.stringify(spec['version'] ?? null)} is not one this DataCube reads (1 to ${CHART_VERSION})`;
   }
   if (!marks.includes(spec['mark'] as string)) return `its kind ${JSON.stringify(spec['mark'] ?? null)} is not one this DataCube draws`;
-  if (!Array.isArray(spec['y'])) return 'it plots nothing (no y)';
-  if (!isRecord(spec['options'])) return 'it has no options';
+  if (spec['y'] === undefined) return 'it plots nothing (no y)';
+  if (!Array.isArray(spec['y'])) return `its y ${JSON.stringify(spec['y'])} is not a list of measures`;
+  if (spec['options'] === undefined) return 'it has no options';
+  if (!isRecord(spec['options'])) return `its options ${JSON.stringify(spec['options'])} are not an object`;
   const extra = unknownKey(spec, SPEC_KEYS, 'a chart') ?? unknownKey(spec['options'], OPTION_KEYS, 'its options');
   if (extra) return extra;
   for (const [i, m] of spec['y'].entries()) {
@@ -360,6 +376,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
   if (count !== undefined && !(Number.isInteger(count) && (count as number) >= 1)) {
     return `its bins' count ${JSON.stringify(count)} is not a whole number from 1`;
   }
+  const binsExtra = isRecord(bins) ? unknownKey(bins, BINS_KEYS, 'its bins') : null;
+  if (binsExtra) return binsExtra;
   // the options' words: a newer DataCube's stack or position is refused by name, never drawn as another
   const o = spec['options'];
   const word = (key: string, words: readonly string[]): string | null =>
@@ -383,6 +401,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     || (sort['direction'] !== 'asc' && sort['direction'] !== 'desc'))) {
     return `its order ${JSON.stringify(sort)} is not by x or y, asc or desc`;
   }
+  const sortExtra = isRecord(sort) ? unknownKey(sort, SORT_KEYS, 'its order') : null;
+  if (sortExtra) return sortExtra;
   const facet = spec['facet'];
   if (facet !== undefined && (!isRecord(facet) || (typeof facet['row'] !== 'string' && typeof facet['column'] !== 'string'))) {
     return 'its facet names neither a row nor a column';
@@ -395,6 +415,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     for (const [i, l] of layers.entries()) {
       if (!isRecord(l) || !known(LAYER_WORDS, l['kind'])) return `layer ${i + 1} is of a kind this DataCube does not know (${JSON.stringify(isRecord(l) ? l['kind'] ?? null : l)})`;
       if (l['kind'] === 'stat' && !known(STAT_WORDS, l['stat'])) return `layer ${i + 1}'s statistic ${JSON.stringify(l['stat'] ?? null)} is not one of ${LAYER_STATS.join(', ')}`;
+      const layerExtra = unknownKey(l, LAYER_KEYS[l['kind'] as ChartLayerKind], `layer ${i + 1} (a ${l['kind']})`);
+      if (layerExtra) return layerExtra;
       if ((l['kind'] === 'line' || l['kind'] === 'threshold') && typeof l['value'] !== 'number') return `layer ${i + 1} has no value`;
       if (l['kind'] === 'band' && (l['from'] === undefined || l['to'] === undefined || (l['axis'] !== 'x' && l['axis'] !== 'y'))) {
         return `layer ${i + 1} (a band) needs an axis, a from and a to`;
@@ -409,6 +431,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
         || typeof c['column']['name'] !== 'string') {
         return `calculated column ${i + 1} has no stage (row or group) and column`;
       }
+      const calcExtra = unknownKey(c, CALC_KEYS, `calculated column ${i + 1}`);
+      if (calcExtra) return calcExtra;
     }
   }
   const drill = spec['drill'];
@@ -416,6 +440,8 @@ export function specProblem(spec: unknown, marks: readonly string[]): string | n
     || drill['path'].length >= drill['levels'].length)) {
     return 'its drill path is not a path down its levels';
   }
+  const drillExtra = isRecord(drill) ? unknownKey(drill, DRILL_KEYS, 'its drill') : null;
+  if (drillExtra) return drillExtra;
   return null;
 }
 
@@ -744,21 +770,22 @@ function isTemporalAcross(x: string | undefined, s: CubeSnapshot): boolean {
 /**
  * A chart with another column across (or none), as the cube's grouping moves it (followCube) and as a hand moves it
  * (editChart) -- one rule: what was chosen for the old column, its grain or bins, goes with it; the order is the new
- * column's -- a Pareto's from the largest always (its cumulative share runs along that order), a date's in time, and
- * long unless the chart was told how many, another column's from the largest.
+ * column's -- a Pareto's from the largest always (its cumulative share runs along that order), a date's in time,
+ * another column's from the largest -- and so is how many it draws, unless the chart was told: a time series' points
+ * for a date, a category's default for anything else. A chart of rows (a scatter's X) asks no order and no such limit
+ * (chartQuery): its options stay as they are.
  */
 function acrossChanged(spec: ChartSpec, x: string | undefined, s: CubeSnapshot): ChartSpec {
   const { x: _x, grain: _g, bins: _b, ...rest } = spec;
+  const across = { ...rest, ...(x !== undefined ? { x } : {}) };
+  if (plotsRows(spec)) return across;
   const inTime = spec.mark !== 'pareto' && isTemporalAcross(x, s);
-  const toTime = inTime && spec.options.limit === DEFAULT_CHART_LIMIT;
+  // the limit the old column was given by default, never one the chart was told
+  const limit = inTime && spec.options.limit === DEFAULT_CHART_LIMIT ? TIME_LIMIT
+    : !inTime && spec.options.limit === TIME_LIMIT ? DEFAULT_CHART_LIMIT : spec.options.limit;
   return {
-    ...rest,
-    ...(x !== undefined ? { x } : {}),
-    options: {
-      ...spec.options,
-      sort: inTime ? { by: 'x', direction: 'asc' } : { by: 'y', direction: 'desc' },
-      ...(toTime ? { limit: TIME_LIMIT } : {}),
-    },
+    ...across,
+    options: { ...spec.options, sort: inTime ? { by: 'x', direction: 'asc' } : { by: 'y', direction: 'desc' }, limit },
   };
 }
 
@@ -785,9 +812,10 @@ export function defaultChart(s: CubeSnapshot): ChartSpec | null {
 }
 
 /**
- * A chart taking another kind: a kind takes what it needs and leaves what it has no place for -- a gauge and a scatter
- * matrix have nothing across, a gauge and a kind of one series no split -- and a Pareto runs from the largest. Part of
- * a change by hand (editChart).
+ * A chart taking another kind, as the form's change of kind has always made it: a gauge and a scatter matrix drop the
+ * column across, a gauge and a kind of one series the split, and a Pareto runs from the largest. Only those: every other
+ * slot (a layer, a facet, a label, a size, a hover's measures, a grain, bins) stays, for the rules to judge on the new
+ * kind -- refused by name where it has no place, never dropped without a word. Part of a change by hand (editChart).
  */
 function asMark(spec: ChartSpec, mark: ChartMark): ChartSpec {
   const { x, split, ...rest } = spec;
@@ -875,11 +903,29 @@ function withoutNulls<T extends object>(o: T): T {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null)) as T;
 }
 
-/** Whether two specs say the same, whatever the order of their keys. */
-function sameSpec(a: ChartSpec, b: ChartSpec): boolean {
+/** Whether two values say the same, whatever the order of their objects' keys. */
+function same(a: unknown, b: unknown): boolean {
   const canonical = (v: unknown): unknown => (Array.isArray(v) ? v.map(canonical)
     : isRecord(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v);
-  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+  return JSON.stringify(canonical(a) ?? null) === JSON.stringify(canonical(b) ?? null);
+}
+
+/**
+ * What a live chart was told that its grid's grouping replaces, in words, or null. A chart that follows its grid takes
+ * its column across, its split and its values from the grid (followCube), so one told otherwise would be dropped
+ * without a word. The panel never meets it -- a hand on them freezes the chart (freezesOn) -- but a chart told them
+ * and told to follow (Python's frozen=False) does: refused, never quietly replaced.
+ */
+export function followRefusal(told: readonly string[], made: ChartSpec, followed: ChartSpec): string | null {
+  const said = (v: unknown): string => (v === undefined ? 'none' : typeof v === 'string' ? `'${v}'`
+    : (v as readonly ChartMeasure[]).map((m) => `${m.fn} of '${m.column}'`).join(', '));
+  for (const [key, as] of [['x', 'across'], ['split', 'as its split'], ['y', 'as its values']] as const) {
+    if (told.includes(key) && !same(made[key], followed[key])) {
+      return `A chart that follows its grid takes ${said(followed[key])} ${as}, not ${said(made[key])}: leave ${key} `
+        + 'out, or let the chart keep its own (frozen).';
+    }
+  }
+  return null;
 }
 
 /**
@@ -909,13 +955,14 @@ export function followCube(spec: ChartSpec, s: CubeSnapshot): ChartSpec {
   // a new column across takes its own order, and its grain or bins go with the old one (acrossChanged)
   const { split: _old, ...rest } = x === spec.x ? spec : acrossChanged(spec, x, s);
   const next: ChartSpec = { ...rest, y, ...(split !== undefined ? { split } : {}) };
-  return sameSpec(next, spec) ? spec : next;
+  return same(next, spec) ? spec : next;
 }
 
 /** What stops a spec from being drawn, in words; empty when it can be. */
 export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
-  // a chart of the grid as shown (a treemap, a sunburst, a tree) is drawn from the grid's own rows and levels: it asks
-  // nothing across and nothing to plot of its own, but a slot it does not draw is refused as on any kind
+  // a chart of the grid as shown (a treemap, a sunburst, a tree) is drawn from the grid's own rows and levels: the
+  // column across, the values and the split it carries (kept for a change back to another kind) are not judged, as it
+  // draws none of them; a slot it does not draw is refused as on any kind
   const gridKind = GRID_MARKS.has(drilled.mark);
   // a drilled chart is checked as it draws: the level after its path across (the levels themselves are checked too)
   const spec = drilledView(drilled).spec;
@@ -923,12 +970,14 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   const groupLevel = new Set(groupLevelColumns(s, spec).map((d) => d.name));
   const out: string[] = [];
   // a KPI's column across is its trend, and it may have none; a gauge is one value, with nothing across
-  if (spec.x === undefined && !gridKind && spec.mark !== 'kpi' && spec.mark !== 'gauge' && spec.mark !== 'matrix') {
+  if (gridKind) {
+    // nothing across, nothing to plot of its own
+  } else if (spec.x === undefined && spec.mark !== 'kpi' && spec.mark !== 'gauge' && spec.mark !== 'matrix') {
     out.push('Pick a column across.');
-  }
-  else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
+  } else if (spec.x !== undefined && !known.has(spec.x)) out.push(`The cube has no column '${spec.x}'.`);
   if (spec.y.length === 0 && !gridKind) out.push('Pick something to plot.');
-  for (const m of [...spec.y, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
+  const drawn = gridKind ? [] : spec.y;
+  for (const m of [...drawn, ...(spec.tooltip ?? []), ...(spec.size ? [spec.size] : []), ...(spec.label ? [spec.label] : [])]) {
     if (m.fn === 'value') {
       if (plotsRows(spec)) out.push(`A ${markLabel(spec.mark)} plots rows, not groups: '${m.column}' is a group-level column.`);
       else if (!groupLevel.has(m.column)) out.push(`The cube has no group-level column '${m.column}'.`);
@@ -938,7 +987,7 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     // a weighted average is weighted by another column, which a chart's value names none of (the grid's has its weight)
     if (m.fn === 'wavg') out.push(`A chart plots no weighted average: '${m.column}' would need its weight.`);
   }
-  if (spec.split !== undefined && !known.has(spec.split)) {
+  if (spec.split !== undefined && !gridKind && !known.has(spec.split)) {
     out.push(`The cube has no column '${spec.split}'.`);
   }
   const needs = SPLIT_NEEDED[spec.mark];
@@ -981,7 +1030,7 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
   if (gridKind && (spec.grain !== undefined || spec.bins !== undefined)) {
     out.push(`${article} ${kind} draws the grid as shown: it has no ${spec.grain !== undefined ? 'grain' : 'bins'}.`);
   }
-  if (spec.split !== undefined && spec.split === spec.x) {
+  if (spec.split !== undefined && !gridKind && spec.split === spec.x) {
     out.push('Split by a different column than the one across.');
   }
   for (const level of drilled.drill?.levels ?? []) {
@@ -1043,7 +1092,7 @@ export function chartProblems(drilled: ChartSpec, s: CubeSnapshot): string[] {
     const d = byName.get(name);
     return d ? columnsRead(d).flatMap((c) => [c, ...reads(c, seen)]) : [];
   };
-  for (const m of spec.y.filter((x) => x.fn === 'value')) {
+  for (const m of drawn.filter((x) => x.fn === 'value')) {
     const missing = [...new Set(reads(m.column))].filter((c) => dimensions.has(c) && !keys.has(c));
     if (missing.length > 0) out.push(`'${m.column}' reads ${missing.map((c) => `'${c}'`).join(', ')}, which the chart does not group by.`);
   }

@@ -1329,6 +1329,182 @@
     "x": "region",
     "colour": "channel"
    }
+  },
+  {
+   "case": "a layer with a key its kind has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "layers": [
+     {
+      "kind": "line",
+      "value": 10,
+      "mesure": 1
+     }
+    ]
+   }
+  },
+  {
+   "case": "bins with a key they have no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "revenue",
+    "bins": {
+     "width": 5,
+     "cnt": 3
+    }
+   }
+  },
+  {
+   "case": "an order with a key it has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {
+     "sort": {
+      "by": "y",
+      "direction": "desc",
+      "nulls": "last"
+     }
+    },
+    "x": "region"
+   }
+  },
+  {
+   "case": "a drill with a key it has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "drill": {
+     "levels": [
+      "region",
+      "channel"
+     ],
+     "path": [],
+     "depth": 1
+    }
+   }
+  },
+  {
+   "case": "a calculated column with a key it has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": {},
+    "x": "region",
+    "calcs": [
+     {
+      "stage": "row",
+      "column": {
+       "name": "margin"
+      },
+      "when": "now"
+     }
+    ]
+   }
+  },
+  {
+   "case": "a measure shown as something with a key it has no place for",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum",
+      "showAs": {
+       "kind": "rank",
+       "order": "desc"
+      }
+     }
+    ],
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "values that are no list",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": "revenue",
+    "options": {},
+    "x": "region"
+   }
+  },
+  {
+   "case": "options that are no object",
+   "refused": true,
+   "spec": {
+    "version": 2,
+    "mark": "bar",
+    "y": [
+     {
+      "column": "revenue",
+      "fn": "sum"
+     }
+    ],
+    "options": "wide",
+    "x": "region"
+   }
+  },
+  {
+   "case": "a treemap whose values name a column the cube has not (it draws none of its own)",
+   "refused": false,
+   "spec": {
+    "version": 2,
+    "mark": "treemap",
+    "y": [
+     {
+      "column": "gone",
+      "fn": "sum"
+     }
+    ],
+    "options": {}
+   }
   }
  ]
 }
