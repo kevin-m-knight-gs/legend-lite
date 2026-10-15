@@ -1,6 +1,7 @@
 """The wheel (//python:wheel) as a developer installs it: a fresh virtual environment of the repository's Python, the
 wheel and its packages installed offline (Bazel's own downloads, the pinned versions, the notebook extra's with them),
-then show(), a query and a notebook's cube run in isolated mode, from outside the repository, with no setting pointing
+then show(), a query and a notebook's cube run in isolated mode -- and first the wheel alone, the compiler, which
+reaches for DataCube only to be told to install its extra -- from outside the repository, with no setting pointing
 back into it -- so the wheel stands alone: its modules, the compiler's library, DataCube's page and its notebook module
 all come from inside it. And its label told true: the platform tag
 the wheel declares against what its library needs, read from the library itself (its minimum macOS, or the newest
@@ -20,6 +21,27 @@ from pathlib import Path
 # resolved through the runfiles by main.py, as every suite's files are
 WHEEL = Path(os.environ['LEGEND_LITE_WHEEL'])
 DEPENDENCIES = [Path(p) for p in os.environ['LEGEND_LITE_DEPENDENCY_WHEELS'].split(os.pathsep)]
+
+# run with the wheel alone, before any package of its datacube extra is installed: the compiler works on Python's own
+# library, and DataCube -- each way into it -- says, in one sentence, to install the extra (legend_lite/_extra.py)
+CORE = r'''
+import json
+import legend_lite as ll
+tree = ll.parse("|1 + 1")
+refused = {}
+for name in ("show", "Page", "Frames", "Engine", "DataCube"):
+    try:
+        getattr(ll, name)
+        refused[name] = None
+    except ImportError as failure:
+        refused[name] = str(failure)
+try:
+    import legend_lite.page
+    refused["legend_lite.page"] = None
+except ImportError as failure:
+    refused["legend_lite.page"] = str(failure)
+print(json.dumps({"parsed": sorted(tree), "refused": refused}))
+'''
 
 # run in the installed environment: a frame shown, its cube asked for, a query executed as DataCube sends it
 SCRIPT = r'''
@@ -295,9 +317,13 @@ class Label(unittest.TestCase):
             metadata = wheel.read(info).decode()
         self.assertIn('Requires-Python: >=3.12', metadata)
         self.assertIn('License: Apache-2.0', metadata)
-        for requirement in ('duckdb>=1.5.5', 'pyarrow>=23.0.1', "anywidget>=0.11.0; extra == 'notebook'",
-                            "mini-racer>=0.14.1; extra == 'datacube'"):
-            self.assertIn(f'Requires-Dist: {requirement}', metadata)
+        # the compiler alone needs nothing; DataCube's packages are its extra's (and the notebook's, with anywidget)
+        self.assertEqual([line for line in metadata.splitlines() if line.startswith('Requires-Dist:') and 'extra ==' not in line],
+                         [], 'the wheel alone requires nothing')
+        for extra in ('datacube', 'notebook'):
+            for requirement in ('duckdb>=1.5.5', 'mini-racer>=0.14.1', 'pyarrow>=23.0.1'):
+                self.assertIn(f"Requires-Dist: {requirement}; extra == '{extra}'", metadata)
+        self.assertIn("Requires-Dist: anywidget>=0.11.0; extra == 'notebook'", metadata)
 
 
 class Installed(unittest.TestCase):
@@ -315,8 +341,20 @@ class Installed(unittest.TestCase):
         venv = root / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', str(venv)], check=True, env=env, timeout=120)
         python = str(venv / 'Scripts' / 'python.exe') if sys.platform == 'win32' else str(venv / 'bin' / 'python')
-        subprocess.run([python, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '-q',
-                        str(WHEEL), *map(str, DEPENDENCIES)], check=True, env=env, timeout=240)
+        pip = [python, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '-q']
+        # the wheel alone: the compiler, and DataCube refused in one sentence naming its extra
+        subprocess.run([*pip, str(WHEEL)], check=True, env=env, timeout=240)
+        core = subprocess.run([python, '-I', '-c', CORE], cwd=root, env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(core.returncode, 0, core.stdout + core.stderr)
+        alone = json.loads(core.stdout.strip().splitlines()[-1])
+        self.assertIn('body', alone['parsed'], 'the compiler alone parses')
+        for name, said in alone['refused'].items():
+            self.assertIsNotNone(said, f'{name} came without the datacube extra')
+            # a notebook's cube names its own extra, which brings DataCube's packages and anywidget
+            extra = 'notebook' if name == 'DataCube' else 'datacube'
+            self.assertIn(f"pip install 'legend-lite[{extra}]'", said, name)
+        # then its extras' packages (the datacube extra's, the notebook's, pandas)
+        subprocess.run([*pip, *map(str, DEPENDENCIES)], check=True, env=env, timeout=240)
         # what each wheel says it needs (legend-lite's Requires-Dist, pandas' own) is what is installed
         checked = subprocess.run([python, '-m', 'pip', 'check', '--disable-pip-version-check'], env=env,
                                  capture_output=True, text=True, timeout=60)

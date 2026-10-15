@@ -621,12 +621,23 @@ py_wheel(
         "@graalvm//:LICENSE_NATIVEIMAGE.txt": "GRAALVM-LICENSE-NATIVEIMAGE.txt",
         "@graalvm//:THIRD_PARTY_LICENSE.txt": "GRAALVM-THIRD-PARTY-LICENSE.txt",
     },
+    # ONE PACKAGE, TWO THINGS (the user, 2026-10-15; legend_lite/_extra.py): the wheel alone is the compiler, which needs
+    # only Python's standard library; its `datacube` extra is DataCube with everything it needs -- duckdb and pyarrow (the
+    # frames), and V8 by mini-racer, which runs DataCube's own code, whose rules Python asks and never copies (mini-racer's
+    # Linux wheels are manylinux_2_27, so DataCube needs glibc 2.27 where the compiler alone needs 2.17)
     extra_requires = {
-        # DataCube's own code in Python, headless (Grid.view, relation, to_pandas): V8, by mini-racer (its Linux wheels
-        # are manylinux_2_27, so this extra needs glibc 2.27 where the wheel alone needs 2.17)
-        "datacube": ["mini-racer>=0.14.1"],
-        # the cube under a notebook's cell (legend_lite/notebook.py)
-        "notebook": ["anywidget>=0.11.0"],
+        "datacube": [
+            "duckdb>=1.5.5",
+            "mini-racer>=0.14.1",
+            "pyarrow>=23.0.1",
+        ],
+        # the cube under a notebook's cell (legend_lite/notebook.py): DataCube's, and anywidget
+        "notebook": [
+            "anywidget>=0.11.0",
+            "duckdb>=1.5.5",
+            "mini-racer>=0.14.1",
+            "pyarrow>=23.0.1",
+        ],
         "pandas": ["pandas>=3.0.6"],
         "polars": ["polars>=2.0.0"],
     },
@@ -642,10 +653,8 @@ py_wheel(
     }, no_match_error = "the wheel is built where the compiler's library is (COMPILER_LIBRARY_PLATFORMS)"),
     python_requires = ">=3.12",
     python_tag = "py3",
-    requires = [
-        "duckdb>=1.5.5",
-        "pyarrow>=23.0.1",
-    ],
+    # the compiler alone: nothing beyond Python's own (the datacube extra brings DataCube's packages, above)
+    requires = [],
     strip_path_prefixes = ["python"],
     summary = "Legend's compiler in Python, and DataCube on a dataframe (show(df))",
     target_compatible_with = _PLATFORMS,

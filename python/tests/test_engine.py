@@ -655,7 +655,7 @@ class NoFiles(Served):
         for path, asked in (('/file-part.json', {'at': 0, 'bytes': 'YQoxCg=='}), ('/file.json', {'upload': 'u', 'name': 'a.csv', 'table': 'a'})):
             status, _, body = self.post(path, json.dumps(asked))
             self.assertEqual(status, 404, path)
-            self.assertIn(b'datacube extra', body)
+            self.assertIn(b'which this engine was not given', body)
 
 
 class OnlyItsOwnPage(Served):

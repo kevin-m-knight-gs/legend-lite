@@ -70,27 +70,30 @@ IDE's Stop); one that opened none (`browser=False`, or no browser to open: a tes
 `show` also prints (it carries the engine's token).
 
 **Install it** (into PyCharm's environment, a virtualenv, anywhere; Python 3.12 and up, on macOS 14 and up, Linux, or
-Windows on x86-64):
-`bazel build //python:wheel`, then `pip install 'bazel-bin/python/legend_lite-0.1.0-<platform>.whl[pandas]'` (pip
-fetches duckdb and pyarrow; `[polars]` for polars). Or take it from CI without building: each run's
+Windows on x86-64). One package, two things: the wheel alone is **the compiler**, on Python's standard library; its
+`datacube` extra is **DataCube**, with everything DataCube needs -- duckdb and pyarrow for the frames, and mini-racer's V8,
+which runs DataCube's own code (its rules, a chart's among them, are asked of it, never copied into Python). Without the
+extra, `show`, `Page`, `Frames` and the engine each say, in one sentence, to install it.
+`bazel build //python:wheel`, then `pip install 'bazel-bin/python/legend_lite-0.1.0-<platform>.whl[datacube,pandas]'`
+(`[polars]` for polars). On Linux DataCube needs glibc 2.27 (mini-racer's wheels), where the compiler alone needs 2.17. Or take it from CI without building: each run's
 `legend-lite-wheel-<platform>` download (macOS, Linux, Linux ARM, Windows), kept once the warehouse lane that tests it is
 green. The wheel carries the compiler's library and DataCube's page; `//python:wheel_test` installs it into a
 fresh environment, offline, and runs `show()` and a query from it alone.
 
-**In a notebook** (Jupyter, VS Code, Colab; `pip install '...whl[notebook,pandas]'`, which adds anywidget): the same
+**In a notebook** (Jupyter, VS Code, Colab; `pip install '...whl[notebook,pandas]'`, DataCube's packages and anywidget): the same
 `ll.show(df)` puts the cube under the cell, once, and returns its handle; `ll.DataCube(df)` is that cube as a widget
 object, for an ipywidgets layout; `cube.height = 700` resizes it; `cube.close()` takes it out of the output. The cube
 reaches Python over the notebook's own widget channel, not HTTP, so it works where the browser cannot reach the
 kernel's machine (a remote JupyterHub). While a cell runs, the cube waits for it, as any notebook widget does.
 `ll.show(df, inline=False)` opens a tab from a kernel instead (Spyder's console, qtconsole: they show no widgets).
 
-**DataCube in code, headless** (`pip install '...whl[datacube,pandas]'`, which adds mini-racer's V8): a page's grid
+**DataCube in code, headless** (the `datacube` extra's mini-racer V8): a page's grid
 computed by DataCube's own code, in the same process, with no browser -- `grid.view()` is what the grid shows (its
 groups, totals, pivot and what its row cap cut, as DataCube computes them), `grid.relation` its rows at their finest
 level as Pure (the relation Create a Class makes a class of), and `grid.to_pandas()` every one of those rows, from the
 frames' own database. DataCube plans through the compiler's library and queries Python's DuckDB; nothing runs as
-WebAssembly. Safe inside a notebook's running loop: the engine runs on a thread of its own. On Linux the extra needs
-glibc 2.27 (mini-racer's wheels), where legend-lite alone needs 2.17.
+WebAssembly. Safe inside a notebook's running loop: the engine runs on a thread of its own. A chart written in Python
+(`grid.chart(...)`) is judged by DataCube's own rules the same way, before it is kept, and refused in DataCube's words.
 
 **In a marimo notebook** (`pip install '...whl[notebook,pandas]' marimo`): `ll.show(df)` is the cube for the cell to
 show, marimo's way -- as the cell's last expression (`ll.show(df)`, or `cube = ll.show(df)` then `cube`). When the cell
@@ -123,8 +126,8 @@ this machine as their Host; it sends no cross-origin header. Design: `docs/DATAC
 `cube.json?table=<name>` (over HTTP, with the token): a frame's model, runtime and source as they are now, which
 DataCube's `engine.html` opens a cube over (`<url>/engine.html?table=<name>#token=<token>`).
 
-Frames and the engine need duckdb and pyarrow; the compiler itself needs neither, and `import legend_lite`
-loads them only when `Frames` or `Engine` is first used.
+Frames and the engine are DataCube's (the `datacube` extra); the compiler itself needs none of its packages, and
+`import legend_lite` loads them only when `Frames` or `Engine` is first used.
 
 Tests: `//python:bindings_test` (the compiler, on Python's standard library alone), `//python:frames_test`
 (the frames, against pandas), `//python:engine_test` (the engine over HTTP, and `show()`) and

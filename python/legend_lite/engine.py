@@ -48,6 +48,11 @@ from typing import Any, NamedTuple, Protocol
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, unquote, urlencode, urlsplit
 
+from ._extra import require_datacube
+
+# DataCube's: the datacube extra's packages, or one sentence saying to install it (_extra.py)
+require_datacube()
+
 import duckdb
 import pyarrow as pa
 import pyarrow.ipc
@@ -671,15 +676,11 @@ class Engine:
         return Answer(204, 'text/plain; charset=utf-8', b'')
 
     def takes_files(self) -> bool:
-        """Whether a page's file can be read into the frames' database here: DataCube's own code runs headless (its
-        ``datacube`` extra installed), so the page offers its files and examples."""
+        """Whether a page's file can be read into the frames' database here: DataCube's own code runs headless (this
+        engine was given it, and its bundle is where legend-lite reads it), so the page offers its files and examples."""
         if self._headless is None:
             return False
-        try:
-            from ._headless import available
-        except ImportError:
-            # legend-lite without its datacube extra's module (a build of the compiler alone)
-            return False
+        from ._headless import available
         return available()
 
     def takes_remote(self) -> bool:
@@ -691,8 +692,7 @@ class Engine:
         httpfs extension for this very DuckDB where the package carries it (nothing is downloaded), and a database
         legend-lite made -- its extension settings are changed for good, which a database of the person's own is not."""
         if not self.takes_files():
-            return ('legend-lite reads one with DataCube\'s own code, which its datacube extra installs '
-                    '(pip install "legend-lite[datacube]")')
+            return 'legend-lite reads one with DataCube\'s own code, headless, which this engine was not given'
         if not self.frames.owns_connection:
             return 'it is read on a DuckDB legend-lite made, and these frames are on a database of your own'
         if duckdb_extensions() is None:
@@ -794,8 +794,8 @@ class Engine:
             return _said(400, 'a part of a file is {"upload"?, "at", "bytes"}: its upload a string, at a count of bytes, '
                               'its bytes base64')
         if not self.takes_files():
-            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, which its '
-                              'datacube extra installs (pip install "legend-lite[datacube]")')
+            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, headless, '
+                              'which this engine was not given')
         assert self._headless is not None
         try:
             data = base64.b64decode(asked['bytes'], validate=True)
@@ -835,8 +835,8 @@ class Engine:
         if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('upload', 'name', 'table'))):
             return _said(400, 'a file is {"upload", "name", "table"}, each a string')
         if not self.takes_files():
-            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, which its '
-                              'datacube extra installs (pip install "legend-lite[datacube]")')
+            return _said(404, 'this engine reads no file: legend-lite reads one with DataCube\'s own code, headless, '
+                              'which this engine was not given')
         assert self._headless is not None
         with self._uploads_lock:
             path = self._uploads.pop(asked['upload'], None)
