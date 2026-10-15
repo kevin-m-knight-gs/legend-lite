@@ -423,11 +423,14 @@ py_test(
         "tests/test_notebook.py",
     ],
     args = ["test_notebook"],
+    # a page's tiles placed by DataCube's own layout rules, headless (its bundle: legend_lite/page.py Page._layout)
     data = [
+        ":wheel_duckdb",
         ":wheel_site",
+        "//datacube:headless_bundle",
         "//native:compiler",
     ],
-    env = _ENV | {"LEGEND_LITE_SITE": "$(rlocationpath :wheel_site)"},
+    env = _ENV | _HEADLESS_ENV | {"LEGEND_LITE_SITE": "$(rlocationpath :wheel_site)"},
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
     deps = [
