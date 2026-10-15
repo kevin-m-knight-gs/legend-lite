@@ -264,6 +264,9 @@ final class IqFunctions {
             throw SqlTranslationException.invalid("wrong number of arguments to " + name + code(-154, "37505"),
                     f.pos());
         }
+        if (engine == IqDialect.Engine.IQ) {
+            iqEngineArguments(fn, name, f, args);
+        }
         return switch (fn) {
             case LENGTH, LEN, CHAR_LENGTH -> length(name, f, args);
             case SUBSTRING, SUBSTR -> substring(name, f, args);
@@ -309,6 +312,42 @@ final class IqFunctions {
             case STR -> str(f, args);
             case EXTRACT -> extract(f, args);
         };
+    }
+
+    /**
+     * IQ island, 2026-10-15 (measured on IQ 17.1): the arguments IQ's engine raises for before computing -- refused
+     * before translating, with IQ's code. A number or a date given to a string function that takes only a string
+     * (LEFT, RIGHT, SUBSTRING, UPPER, LOWER, the TRIMs, REPLACE, STUFF; its -1009145 "must be binary or character
+     * string"; REPEAT, STRING, LENGTH, CHARINDEX, LOCATE and ASCII write it as text, as SQL Anywhere does); and the
+     * time of a DATE (HOUR, MINUTE, SECOND, DATEPART and DATENAME of its hour, minute, second, millisecond or
+     * microsecond; its -1009145, MILLISECOND's -1001025).
+     */
+    private static void iqEngineArguments(Fn fn, String name, SqlAst.FunctionCall f, List<Tx> args) {
+        boolean stringsOnly = switch (fn) {
+            case LEFT, RIGHT, SUBSTRING, SUBSTR, UPPER, LOWER, UCASE, LCASE, TRIM, LTRIM, RTRIM, REPLACE, STUFF -> true;
+            default -> false;
+        };
+        if (stringsOnly && !args.isEmpty() && args.get(0).kind() != Kind.STRING && args.get(0).kind() != Kind.NULL) {
+            throw SqlTranslationException.unsupported(name + " of " + kindName(args.get(0).kind()) + " is IQ's error"
+                    + " -1009145 under its engine (its argument must be a string), refused before translating",
+                    f.args().get(0).pos());
+        }
+        Part time = switch (fn) {
+            case HOUR -> Part.HOUR;
+            case MINUTE -> Part.MINUTE;
+            case SECOND -> Part.SECOND;
+            case DATEPART, DATENAME -> {
+                Part p = Part.of(((SqlAst.StringLit) f.args().get(0)).value());
+                yield p == Part.HOUR || p == Part.MINUTE || p == Part.SECOND || p == Part.MILLISECOND
+                        || p == Part.MICROSECOND ? p : null;
+            }
+            default -> null;
+        };
+        int at = fn == Fn.DATEPART || fn == Fn.DATENAME ? 1 : 0;
+        if (time != null && args.size() > at && args.get(at).kind() == Kind.DATE) {
+            throw SqlTranslationException.unsupported(name + " of a DATE's " + time + " is IQ's error -1009145 under"
+                    + " its engine, refused before translating", f.args().get(at).pos());
+        }
     }
 
     /**

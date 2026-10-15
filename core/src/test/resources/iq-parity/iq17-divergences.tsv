@@ -13,11 +13,10 @@
 # Lines: cause<TAB>id<TAB>what it is, then run<TAB>run key<TAB>cause id<TAB>lanes.
 cause	D-N3	integer arithmetic past a BIGINT: IQ's engine widens to a NUMERIC (BIGINT + 1 a NUMERIC(20,0), BIGINT * BIGINT a NUMERIC(39,0)), lite keeps a BIGINT, whose overflow the database raises; and IQ types by its data's range (k * 2 over small values a SMALLINT, its SUM a BIGINT) where lite types by the declared types' (IQ island, 2026-10-15: below a BIGINT lite widens as IQ does, 28 runs fixed)
 cause	names	the name IQ's engine gives an unaliased expression (its spelling, its parentheses, its case) is not SQL Anywhere's, which lite follows (WP2 item 3)
-cause	intersect-except	INTERSECT and EXCEPT over IQ tables are IQ's -1001030, which lite answers (WP2 item 4)
 cause	D-R1	the IQ engine's other restrictions lite does not raise: a column or a non-constant expression in an IN list, a scalar subquery outside the top-level select list, ORDER BY a negative constant (WP2 item 4)
 cause	top-expr	IQ 17.1's parser rejects TOP (expr), START AT (expr) and TOP ALL (-131), which lite reads (WP2 item 7)
 cause	D-A1	two LISTs ordered differently: IQ answers with one order for both, where lite raises SQL Anywhere's -904 (WP2 item 6)
-cause	non-string-input	a non-string input to a string operation is an IQ error under its engine (-1001013, -1009145): LIKE over a number or a date, LEFT/SUBSTRING/UPPER of a date or a number, HOUR/MINUTE/SECOND of a DATE, LOCATE with a BIGINT start, an untyped NULL in arithmetic; lite answers (WP2 item 5)
+cause	non-string-input	LOCATE's start under IQ's engine: a large one is its -1009145 ("cannot be big integer for non-LOB data"), which lite answers (WP2 item 8; IQ island, 2026-10-15: the other non-string inputs -- a number or a date given to LEFT, SUBSTRING, UPPER, the TRIMs, REPLACE, STUFF, LIKE, an untyped NULL in arithmetic, a DATE's time -- are refused with IQ's codes, IqFunctions.iqEngineArguments)
 cause	cast-long-varchar	CAST to LONG VARCHAR or TEXT over IQ tables is IQ's -1001006, which lite answers (WP2 item 5)
 cause	substring	SUBSTRING's positions under IQ's engine: no ANSI virtual positions, NULL past the end (WP2 item 8)
 cause	length	LENGTH of a non-string under IQ's engine is its storage width, not its text's length (WP2 item 8)
@@ -71,21 +70,6 @@ run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-default
 run	lite/review4/m1_chain_names_over_a_table_keep_their_parentheses@iq17-tds	names	duckdb,postgres
 run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-default	names	duckdb,postgres
 run	lite/review4/m1_chain_names_over_a_table_under_top_keep_their_parentheses@iq17-tds	names	duckdb,postgres
-run	lite/collation/except_of_lower_rtrimmed_strings_ordered@iq17-default	intersect-except	duckdb,postgres
-run	lite/collation/except_of_rtrimmed_strings@iq17-default	intersect-except	duckdb,postgres
-run	lite/collation/intersect_of_lower_trimmed_strings@iq17-default	intersect-except	duckdb,postgres
-run	lite/collation/intersect_of_rtrimmed_strings@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1b/except@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1b/except_distinct@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1b/except_keeps_a_null_row@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1b/intersect@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1b/intersect_distinct@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1b/intersect_keeps_a_null_row@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1b/intersect_two_columns@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1e/owner_qualified_set_operation_with_a_table_of_no_owner@iq17-default	intersect-except	duckdb,postgres
-run	lite/m1gaps/duplicate_names_in_a_later_except_branch@iq17-default	intersect-except	duckdb,postgres
-run	lite/review4/m1_intersect_ordered_by_a_string@iq17-default	intersect-except	duckdb,postgres
-run	lite/review4/m1_intersect_read_by_a_function@iq17-default	intersect-except	duckdb,postgres
 run	lite/m0/order_by_a_negative_constant@iq17-default	D-R1	duckdb,postgres
 run	lite/m1a/in_columns@iq17-default	D-R1	duckdb,postgres
 run	lite/m1b/name_of_an_in_list_reordered@iq17-default	D-R1	duckdb,postgres
@@ -101,26 +85,7 @@ run	lite/m0/top_expression_of_zero@iq17-default	top-expr	duckdb,postgres
 run	lite/m0/top_expression_overflow@iq17-default	top-expr	duckdb,postgres
 run	lite/m0/top_expression_precedence@iq17-default	top-expr	duckdb,postgres
 run	lite/m1c/two_lists_ordered_differently@iq17-default	D-A1	duckdb,postgres
-run	lite/m0/integer_plus_null@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1a/double_and_null@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1a/like_integer@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1a/like_negative_integer@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1d/datepart_of_times@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1d/hour_of_a_date_is_zero@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1d/left_of_a_date@iq17-default	non-string-input	duckdb,postgres
 run	lite/m1d/locate_from_column_starts@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1e/ansinull_off_leaves_null_arithmetic_unknown@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1e/ansinull_off_leaves_null_arithmetic_unknown@iq17-tds	non-string-input	duckdb,postgres
-run	lite/m1e/date_like@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1e/date_like@iq17-tds	non-string-input	duckdb,postgres
-run	lite/m1e/timestamp_left@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1e/timestamp_left@iq17-odbc	non-string-input	duckdb,postgres
-run	lite/m1e/timestamp_like@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1e/timestamp_like@iq17-odbc	non-string-input	duckdb,postgres
-run	lite/m1e/timestamp_substring@iq17-default	non-string-input	duckdb,postgres
-run	lite/m1e/timestamp_substring@iq17-odbc	non-string-input	duckdb,postgres
-run	lite/m1gaps/integer_like_a_computed_pattern@iq17-default	non-string-input	duckdb,postgres
-run	lite/natives/upper_of_integer_columns@iq17-default	non-string-input	duckdb,postgres
 run	lite/m1d/cast_numeric_to_text@iq17-default	cast-long-varchar	duckdb,postgres
 run	lite/m1d/cast_varchar_column_to_a_longer_varchar@iq17-default	cast-long-varchar	duckdb,postgres
 run	lite/m1e/timestamp_cast_to_long_varchar@iq17-default	cast-long-varchar	duckdb,postgres

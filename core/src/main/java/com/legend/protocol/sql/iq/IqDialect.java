@@ -2981,6 +2981,11 @@ public final class IqDialect implements InputDialect {
         if (u.op() == SqlAst.UnaryOp.NOT) {
             return SqlToPure.not(SqlToPure.truth(x, "NOT", u.pos()));
         }
+        if (x.kind() == Kind.NULL && engine == Engine.IQ && u.op() == SqlAst.UnaryOp.MINUS) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): -NULL is no arithmetic under IQ's engine
+            throw SqlTranslationException.unsupported("- of an untyped NULL is IQ's error -1009145 under its engine,"
+                    + " refused before translating", u.pos());
+        }
         if (x.kind() == Kind.NULL) {
             return typedNull("SMALLINT");
         }
@@ -3111,6 +3116,12 @@ public final class IqDialect implements InputDialect {
      *  one, a NUMERIC's ({@link #decimalArithmetic}) when either is one, else an integer's
      *  ({@link #integerArithmetic}). */
     private Tx arithmetic(SqlAst.Binary b, Tx l, Tx r) {
+        if (engine == Engine.IQ && (l.kind() == Kind.NULL || r.kind() == Kind.NULL)) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine an untyped NULL is no arithmetic operand
+            // ("must be a valid arithmetic expression"); SQL Anywhere's front end answers NULL
+            throw SqlTranslationException.unsupported(operator(b.op()) + " of an untyped NULL is IQ's error -1009145"
+                    + " under its engine, refused before translating", b.pos());
+        }
         if (engine == Engine.IQ && (l.kind() == Kind.DATE || l.kind() == Kind.DATETIME || r.kind() == Kind.DATE
                 || r.kind() == Kind.DATETIME)) {
             // IQ island, 2026-10-15 (measured on IQ 17.1): a date moved by days, two dates' days apart
@@ -4515,6 +4526,13 @@ public final class IqDialect implements InputDialect {
             return unknown;
         }
         Tx operand = at.tx(l.operand());
+        if (engine == Engine.IQ && operand.kind() != Kind.STRING) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): under IQ's engine LIKE over a number or a date is
+            // "Invalid data type comparison in predicate"
+            throw SqlTranslationException.unsupported("LIKE over " + kindName(operand.kind()) + " is IQ's error"
+                    + " -1001013 under its engine (an invalid comparison), refused before translating",
+                    l.operand().pos());
+        }
         // IQ island, 2026-10-14 (M1e): a date or a timestamp is matched as its text in the profile's format (measured)
         if (operand.kind() == Kind.DATE || operand.kind() == Kind.DATETIME) {
             operand = IqDateTime.text(operand, settings, "LIKE", l.operand().pos());
@@ -4898,6 +4916,12 @@ public final class IqDialect implements InputDialect {
     public SqlToPure.ColumnType setColumn(SqlAst.SetOperation s, int i, SqlToPure.ColumnType left,
             SqlToPure.ColumnType right) {
         String op = s.op().name();
+        if (engine == Engine.IQ && s.op() != SqlAst.SetOp.UNION) {
+            // IQ island, 2026-10-15 (measured on IQ 17.1): IQ's engine runs no INTERSECT or EXCEPT over its tables
+            // (its -1001030); the front end's, of no IQ table, does
+            throw SqlTranslationException.unsupported(op + " is IQ's error -1001030 under its engine (a query over IQ"
+                    + " tables), refused before translating", s.pos());
+        }
         boolean leftNull = left.kind() == Kind.NULL;
         boolean rightNull = right.kind() == Kind.NULL;
         if ((leftNull || rightNull) && s.op() != SqlAst.SetOp.UNION) {

@@ -642,8 +642,11 @@ class IqToPureTest {
         // ESCAPE: no default escape character
         assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a!%' ESCAPE '!'").contains("== 'a%'"));
         assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE 'a\\\\%'").contains("startsWith('a\\\\')"));
-        // an integer is matched as its digits
-        assertTrue(pure("SELECT id FROM " + T + " WHERE id LIKE '1%'").contains("toString()->startsWith('1')"));
+        // an integer is matched as its digits on SQL Anywhere's front end; IQ island, 2026-10-15 (measured on IQ 17.1):
+        // under IQ's engine LIKE over a number is its error -1001013
+        assertTrue(pure("SELECT id FROM " + T + " WHERE id LIKE '1%'", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
+                .contains("toString()"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE id LIKE '1%'").getMessage().contains("-1001013"));
         // a NULL pattern or escape is UNKNOWN
         assertTrue(pure("SELECT id FROM " + T + " WHERE vc LIKE NULL").contains("filter(r|false)"));
     }
@@ -677,8 +680,10 @@ class IqToPureTest {
                 "SELECT 1 AS x WHERE 'a' LIKE 'a' ESCAPE '!!'"));
         pure("SELECT id FROM " + T + " WHERE vc LIKE '" + "a".repeat(126) + "'");
         // IQ island, 2026-10-14 (M1e): a date is matched as its text in the profile's DATE_FORMAT (IqDateTime,
-        // measured), no longer refused
-        assertTrue(pure("SELECT id FROM " + T + " WHERE dt LIKE '2%'").contains("lpad(4, '0')"));
+        // measured) on SQL Anywhere's front end; under IQ's engine it is IQ's error -1001013 (2026-10-15)
+        assertTrue(pure("SELECT id FROM " + T + " WHERE dt LIKE '2%'", IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
+                .contains("lpad(4, '0')"));
+        assertTrue(refusal("SELECT id FROM " + T + " WHERE dt LIKE '2%'").getMessage().contains("-1001013"));
     }
 
     // ------------------------------------------------------------------ M1a: NUMERIC and DOUBLE arithmetic
@@ -972,8 +977,10 @@ class IqToPureTest {
         // IQ island, 2026-10-15: a UNION of strings that may share a key groups by it, showing a value of each
         String union = pure("SELECT vc FROM " + T + " UNION SELECT 'a'");
         assertTrue(union.contains("groupBy(") && union.contains("->min()") && !union.contains("distinct()"), union);
-        assertTrue(refusal("SELECT vc FROM " + T + " INTERSECT SELECT 'a'").getMessage().contains("INTERSECT over"
-                + " strings"));
+        assertTrue(refusal("SELECT vc FROM " + T + " INTERSECT SELECT 'a'", IqProfile.SQLA17_DEFAULT.settings(),
+                COLUMNS).getMessage().contains("INTERSECT over strings"));
+        // IQ island, 2026-10-15 (measured on IQ 17.1): IQ's engine runs no INTERSECT or EXCEPT at all (its -1001030)
+        assertTrue(refusal("SELECT vc FROM " + T + " INTERSECT SELECT 'a'").getMessage().contains("-1001030"));
         pure("SELECT RTRIM(vc) AS r FROM " + T + " UNION SELECT 'a'");
         // a sqla17 profile folds the ASCII letters: LOWER is its own key there, RTRIM is not (a member is shown)
         assertTrue(pure("SELECT DISTINCT RTRIM(vc) AS r FROM " + T, IqProfile.SQLA17_DEFAULT.settings(), COLUMNS)
